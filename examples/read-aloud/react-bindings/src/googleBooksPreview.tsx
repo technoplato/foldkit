@@ -217,13 +217,14 @@ const previewStylesheet = `
 
 /**
  * A book's preview from Google Books' Embedded Viewer, drawn where the
- * Text with its embed sits, turned to the embed's page with `goToPage`.
- * The viewer outlives the screen around it: when a page turn repaints the
- * screen, the viewer for that volume is kept in the document and taken up
- * again, so it turns instead of loading the book again. Where Google's
- * preview has no such page, it says so in the embed's words and stays
- * where it was. Where the viewer cannot open the book, it shows the
- * Text's words as a link to the book on Google Books.
+ * Text with its embed sits, turned to the embed's page with `goToPage`
+ * each time the page changes. The viewer outlives the screen around it:
+ * when the screen goes and comes back, as on going back to the shelf and
+ * opening the same book, the viewer for that volume is kept in the
+ * document and taken up again, so it turns instead of loading the book
+ * again. Where Google's preview has no such page, it says so in the
+ * embed's words and stays where it was. Where the viewer cannot open the
+ * book, it shows the Text's words as a link to the book on Google Books.
  *
  * @example
  * ```tsx

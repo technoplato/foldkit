@@ -8,7 +8,12 @@ import {
   ReadAloudShelf,
   isReadAloudShelf,
 } from './destination.js'
-import { BookKey, type PageNumber, PageNumberSegment } from './ids.js'
+import {
+  BookKey,
+  type PageNumber,
+  PageNumberSegment,
+  firstPage,
+} from './ids.js'
 import { type ReadAloudView, nameOfBookKey } from './model.js'
 import { shownPageOf } from './stack.js'
 
@@ -40,11 +45,29 @@ export const pageTitleOf = ({ page }: ReadAloudPage): string =>
   `Page ${page.toString()}`
 
 /**
+ * What keeps a book's page the same page while it is read: its book, with
+ * the page reset. Turning from `/books/read-aloud/9780063342705/page/4` to
+ * `…/page/5` keeps the identity `/books/read-aloud/9780063342705/page/1`,
+ * so a painter keeps the screen, its scroll, and the Google viewer, which
+ * turns its page instead of loading the book again.
+ *
+ * @example
+ * ```typescript
+ * pageIdentityOf(ReadAloudPage({ book, page: PageNumber.make(4) }))
+ * // ReadAloudPage({ book, page: 1 })
+ * ```
+ */
+export const pageIdentityOf = ({ book }: ReadAloudPage): ReadAloudPage =>
+  ReadAloudPage({ book, page: firstPage })
+
+/**
  * Read Aloud's screens, each with its route, title, and where it may sit:
  *
  * - `/books/read-aloud` is the shelf, the root.
  * - `/books/read-aloud/9780063342705/page/4` is that book at page 4, only
- *   above the shelf.
+ *   above the shelf. Its address follows the page being read, and it
+ *   stays one page while it does, so the Google viewer turns its page
+ *   instead of loading the book again.
  * - `/books/read-aloud/9780063342705` opens that book at the page being
  *   read, or its first page.
  *
@@ -60,6 +83,7 @@ export const declared = Navigation.screens({
     Navigation.pushScreen(ReadAloudPage, pageRoute, {
       title: pageTitleOf,
       isAllowedAbove: isAboveShelf,
+      identityOf: pageIdentityOf,
     }),
     Navigation.pushScreen(ReadAloudBook, bookRoute, {
       title: () => 'Read aloud',

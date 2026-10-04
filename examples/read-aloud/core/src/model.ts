@@ -10,6 +10,7 @@ import {
   PageNumber,
   ReadingId,
   TurnId,
+  firstPage,
 } from './ids.js'
 
 // MODEL
@@ -253,7 +254,7 @@ export const openingPageOf = (model: HasReadings, book: Book): PageNumber =>
   Option.match(
     Option.filter(newestTurnOf(model, book), turn => turn.isOngoing),
     {
-      onNone: () => PageNumber.make(1),
+      onNone: () => firstPage,
       onSome: turn => turn.page,
     },
   )

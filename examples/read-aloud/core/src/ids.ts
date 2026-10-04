@@ -46,6 +46,9 @@ export type PageNumber = typeof PageNumber.Type
 /** A page as one URI segment or CLI word, `4` in `/page/4`. */
 export const PageNumberSegment = S.FiniteFromString.pipe(S.decodeTo(PageNumber))
 
+/** A book's first page, page 1, where a book opens when nobody is reading it. */
+export const firstPage = PageNumber.make(1)
+
 /**
  * One reading of a book, as Scribe names it: the id of the recognition
  * that spans the pages read in one sitting.

@@ -5,7 +5,7 @@ import {
   isReadAloudBook,
   isReadAloudPage,
 } from './destination.js'
-import { type BookKey, PageNumber } from './ids.js'
+import { type BookKey, type PageNumber, firstPage } from './ids.js'
 import {
   type Book,
   type ReadingsState,
@@ -73,7 +73,7 @@ export const settledEntryOf = <Destination>(
     ? ReadAloudPage({
         book: destination.book,
         page: Option.match(bookOfKey(model, destination.book), {
-          onNone: () => PageNumber.make(1),
+          onNone: () => firstPage,
           onSome: book => openingPageOf(model, book),
         }),
       })

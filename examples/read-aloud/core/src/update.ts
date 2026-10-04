@@ -11,7 +11,7 @@ import {
   isReadAloudPage,
   isReadAloudShelf,
 } from './destination.js'
-import { type BookKey, PageNumber } from './ids.js'
+import { type BookKey, PageNumber, firstPage } from './ids.js'
 import type { Message, ReadAloudMessage } from './message.js'
 import {
   type Model,
@@ -76,7 +76,7 @@ const clampedPage = (view: ReadAloudView, page: number): PageNumber => {
   )
   return PageNumber.make(
     Math.max(
-      1,
+      firstPage,
       Option.match(maybeLast, {
         onNone: () => page,
         onSome: last => Math.min(last, page),

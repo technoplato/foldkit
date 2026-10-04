@@ -130,6 +130,12 @@ type Bound = ReturnType<typeof bindApp>['bound']
 
 const uriOf = (bound: Bound) => Option.map(bound.navigation(), plan => plan.uri)
 
+const identityOnTop = (bound: Bound) =>
+  Option.map(
+    bound.navigation(),
+    plan => Array.lastNonEmpty(plan.entries).identity,
+  )
+
 const pagePath = (book: Book, page: number) =>
   Option.some(`/books/read-aloud/${book.key}/page/${page.toString()}`)
 
@@ -193,6 +199,22 @@ describe('Read Aloud', () => {
     expect(uriOf(bound)).toEqual(pagePath(feelingHappy, 5))
     receive([...pagesOneToFour, pageFive, pageSix])
     expect(uriOf(bound)).toEqual(pagePath(feelingHappy, 6))
+  })
+
+  it('keeps a book one page while its pages turn, and makes another book a new page', () => {
+    const { bound, receive } = bindApp()
+    receive(pagesOneToFour)
+    bound.press(`OpenBook:${feelingHappy.key}`)
+    expect(identityOnTop(bound)).toEqual(pagePath(feelingHappy, 1))
+    receive([...pagesOneToFour, pageFive])
+    bound.press('NextPage')
+    expect(uriOf(bound)).toEqual(pagePath(feelingHappy, 6))
+    expect(identityOnTop(bound)).toEqual(pagePath(feelingHappy, 1))
+    bound.openUri(
+      `/books/read-aloud/${christmas.key}/page/24`,
+      Navigation.Link(),
+    )
+    expect(identityOnTop(bound)).toEqual(pagePath(christmas, 1))
   })
 
   it('keeps the page a link names until the reader turns another', () => {
