@@ -445,6 +445,7 @@ export const screenStylesheet = `
   color: inherit;
   font: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
