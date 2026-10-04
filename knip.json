@@ -448,6 +448,23 @@
         "tailwindcss"
       ]
     },
+    "examples/read-aloud/core": {
+      "entry": [
+        "src/index.node.ts",
+        "src/index.browser.ts",
+        "src/endpoint.node.ts",
+        "src/**/*.test.ts",
+        "scripts/*.mjs"
+      ],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/read-aloud/react-bindings": {
+      "entry": ["src/index.ts", "src/**/*.test.tsx"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/read-aloud/react": {
+      "ignoreDependencies": ["prettier", "tailwindcss"]
+    },
     "comparisons/*": {
       "ignoreDependencies": ["tailwindcss"]
     },
