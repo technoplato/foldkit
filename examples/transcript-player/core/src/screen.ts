@@ -24,6 +24,7 @@ import {
 import {
   type Model,
   type Passage,
+  type Word,
   currentWordOf,
   isSounding,
   passagesOf,
@@ -115,6 +116,46 @@ const shownPassagesOf = (model: Model): ReadonlyArray<Passage> => {
   )
 }
 
+const paragraphPauseMs = 1500
+
+const paragraphWords = 70
+
+const sentenceEnd = /[.!?…]["”’')\]]*$/u
+
+const endsParagraph = (
+  word: Word,
+  maybeNext: Option.Option<Word>,
+  count: number,
+): boolean =>
+  Option.match(maybeNext, {
+    onNone: () => true,
+    onSome: next =>
+      next.startMs - word.endMs >= paragraphPauseMs ||
+      (count >= paragraphWords && sentenceEnd.test(word.text)),
+  })
+
+/**
+ * A passage's words in paragraphs, so a five-minute passage reads as
+ * prose: a paragraph ends at a pause of a second and a half, or at the
+ * end of a sentence once it has 70 words.
+ */
+type Paragraphs = Readonly<{
+  done: ReadonlyArray<Array.NonEmptyReadonlyArray<Word>>
+  open: ReadonlyArray<Word>
+}>
+
+const noParagraphs: Paragraphs = { done: [], open: [] }
+
+const paragraphsOf = (
+  words: ReadonlyArray<Word>,
+): ReadonlyArray<Array.NonEmptyReadonlyArray<Word>> =>
+  Array.reduce(words, noParagraphs, (state, word, index): Paragraphs => {
+    const open = Array.append(state.open, word)
+    return endsParagraph(word, Array.get(words, index + 1), open.length)
+      ? { done: Array.append(state.done, open), open: [] }
+      : { done: state.done, open }
+  }).done
+
 const emptyTextOf = (model: Model): string => {
   if (model.transcript._tag === 'TranscriptLoading') {
     return 'Loading the words…'
@@ -141,23 +182,43 @@ export const transcriptOf = (model: Model): UiNode => {
     currentWordOf(model),
     word => word.wordId,
   )
-  const passageOf = (passage: Passage): TranscriptPassage => ({
-    key: passage.passageId,
-    label: clockOf(passage.startMs),
-    labelAction: `${SeekTo.tag}:${passage.startMs.toString()}`,
-    isCurrent:
-      passage.startMs <= model.placeMs && model.placeMs < passage.endMs,
-    words: Array.map(passage.words, word => ({
-      token: word.wordId,
-      text: word.text,
-      isCurrent: Option.contains(maybeCurrentWordId, word.wordId),
-    })),
+  const paragraphOf = (
+    words: Array.NonEmptyReadonlyArray<Word>,
+    endMs: Milliseconds,
+  ): TranscriptPassage => {
+    const first = Array.headNonEmpty(words)
+    return {
+      key: first.wordId,
+      label: clockOf(first.startMs),
+      labelAction: `${SeekTo.tag}:${first.startMs.toString()}`,
+      isCurrent: first.startMs <= model.placeMs && model.placeMs < endMs,
+      words: Array.map(words, word => ({
+        token: word.wordId,
+        text: word.text,
+        isCurrent: Option.contains(maybeCurrentWordId, word.wordId),
+      })),
+    }
+  }
+  const paragraphs = Array.flatMap(shownPassagesOf(model), passage => {
+    const groups = paragraphsOf(passage.words)
+    return Array.map(groups, (words, index) =>
+      paragraphOf(
+        words,
+        Option.getOrElse(
+          Option.map(
+            Array.get(groups, index + 1),
+            next => Array.headNonEmpty(next).startMs,
+          ),
+          () => passage.endMs,
+        ),
+      ),
+    )
   })
   return Transcript({
     label: 'Transcript',
     action: SeekToWord.tag,
     emptyText: emptyTextOf(model),
-    passages: Array.map(shownPassagesOf(model), passageOf),
+    passages: paragraphs,
   })
 }
 
