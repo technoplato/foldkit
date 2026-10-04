@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
+import { iconGlyphs } from 'foldkit/renderers'
 import type {
   ButtonNode,
   ProgressNode,
@@ -224,6 +225,17 @@ const currentWordStyle: TextStyle = {
   color: '#9a3412',
 }
 
+const labelOfButton = (button: ButtonNode): string => {
+  const glyph = button.icon === undefined ? undefined : iconGlyphs[button.icon]
+  if (glyph === undefined) {
+    return button.label
+  } else if (button.isIconOnly === true) {
+    return glyph
+  } else {
+    return `${glyph} ${button.label}`
+  }
+}
+
 const Bar = ({
   progress,
 }: Readonly<{
@@ -356,7 +368,7 @@ export const paintTree = (
               ]}
             >
               <Text style={[buttonLabelStyle, styles.ButtonLabel]}>
-                {button.label}
+                {labelOfButton(button)}
               </Text>
             </Pressable>
           )
