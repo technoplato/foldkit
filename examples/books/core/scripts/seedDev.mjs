@@ -112,6 +112,37 @@ for (const title of sampleTitles) {
   }
 }
 
+const coverPalette = ['#1e3a5f', '#5f1e3a', '#2f5f1e']
+
+const coverSvgOf = (name, color) =>
+  Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="${color}"/><text x="150" y="225" font-family="Georgia, serif" font-size="28" fill="#f5f0e6" text-anchor="middle">${name}</text><text x="150" y="400" font-family="Georgia, serif" font-size="14" fill="#f5f0e6" opacity="0.7" text-anchor="middle">a made-up book</text></svg>`,
+  )
+
+for (const [position, title] of sampleTitles.entries()) {
+  const key = `${member.id}/${title.slug}`
+  const path = `library/${member.id}/covers/${title.slug}.svg`
+  const bytes = coverSvgOf(title.name, coverPalette[position % coverPalette.length])
+  const uploaded = await database.storage.uploadFile(path, bytes, {
+    contentType: 'image/svg+xml',
+  })
+  const coverFileId = uuidOf(`${key}/file/cover`)
+  steps.push(
+    database.tx.libraryFiles[coverFileId]
+      .update({
+        ...owned,
+        name: `${title.slug}.svg`,
+        path,
+        size: bytes.length,
+        presenceKind: 'Present',
+        bodyKind: 'Cover',
+        addedAtMs: nowMs,
+        updatedAtMs: nowMs,
+      })
+      .link({ blob: uploaded.data.id, coverFor: uuidOf(`${key}/book`) }),
+  )
+}
+
 for (let start = 0; start < steps.length; start += chunkSize) {
   await database.transact(steps.slice(start, start + chunkSize))
 }

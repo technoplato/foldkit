@@ -84,6 +84,21 @@ const choiceButtonsOf = (
 
 const byline = (title: Title): string => Array.join(title.authors, ', ')
 
+const coverRatio = 1.5
+
+const coverOf = (title: Title, width: number): ReadonlyArray<UiNode> =>
+  Array.fromOption(
+    Option.map(title.maybeCoverUrl, src =>
+      Text(`${title.name} cover`, {
+        image: { src, width, height: Math.round(width * coverRatio) },
+      }),
+    ),
+  )
+
+const rowCoverWidth = 48
+
+const pageCoverWidth = 160
+
 const problemLines = (model: Model): ReadonlyArray<UiNode> =>
   Option.match(model.maybeProblem, {
     onNone: () => [],
@@ -126,6 +141,7 @@ const continueLines = (model: Model): ReadonlyArray<UiNode> =>
 const titleLine = (model: Model, title: Title): UiNode =>
   Row(
     {},
+    ...coverOf(title, rowCoverWidth),
     Text(title.name),
     Text(byline(title), { dim: true }),
     Text(progressText(model, title), { dim: true }),
@@ -205,6 +221,7 @@ const bookmarkLines = (model: Model, title: Title): ReadonlyArray<UiNode> =>
 export const titleScreen = (model: Model, title: Title): UiNode =>
   Column(
     {},
+    ...coverOf(title, pageCoverWidth),
     Text(title.name, { emphasis: 'Display' }),
     Text(byline(title)),
     ...Array.match(title.narrators, {
@@ -254,6 +271,7 @@ export const playerScreen = (model: Model): UiNode =>
     onSome: ({ title, loaded }) =>
       Column(
         {},
+        ...coverOf(title, pageCoverWidth),
         Text(title.name, { emphasis: 'Display' }),
         Text(chapterAt(title, loaded.placeMs).name),
         Text(`${clockOf(loaded.placeMs)} / ${clockOf(title.durationMs)}`, {
