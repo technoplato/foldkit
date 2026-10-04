@@ -6,9 +6,14 @@ import type { PresentationStyle } from './structure.js'
 
 // FRAME
 
-/** One painted entry: its key, how it is presented, and its view. */
+/**
+ * One painted entry: its key, its identity, how it is presented, and its
+ * view. A painter keys the layer by `identity`, so a page whose address
+ * follows a moving place keeps its DOM, and reads its view by `key`.
+ */
 export type FrameLayer = Readonly<{
   key: string
+  identity: string
   maybeStyle: Option.Option<PresentationStyle>
   view: EntryView
 }>
@@ -75,6 +80,7 @@ export const frameOf = (source: FrameSource): Option.Option<Frame> =>
     const layerOf = (entry: typeof base): Option.Option<FrameLayer> =>
       Option.map(source.viewAt(entry.key), view => ({
         key: entry.key,
+        identity: entry.identity,
         maybeStyle: entry.maybeStyle,
         view,
       }))

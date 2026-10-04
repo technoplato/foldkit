@@ -38,7 +38,9 @@ export type Placement = typeof Placement.Type
  * the Destination, so one key always keeps one presentation.
  * `isAllowedAbove` reads every Destination beneath, root first, so a page
  * can appear once: the Session route refuses a stack that already holds
- * Session settings.
+ * Session settings. `identityOf` resets the fields that pass while the
+ * page stays the same page, such as a player's place: see
+ * {@link ScreenOptions}.
  */
 export type DestinationRoute<Destination> = Readonly<{
   routeCase: Route.RouteCase<Destination, any>
@@ -46,6 +48,7 @@ export type DestinationRoute<Destination> = Readonly<{
   styleOf: (destination: Destination) => PresentationStyle
   isAllowedAbove: (beneath: Array.NonEmptyReadonlyArray<Destination>) => boolean
   maybeTitleOf: (destination: Destination) => Option.Option<string>
+  identityOf: (destination: Destination) => Destination
 }>
 
 /** Options shared by the route constructors. */
@@ -54,6 +57,7 @@ export type RouteOptions<Destination> = Readonly<{
     beneath: Array.NonEmptyReadonlyArray<Destination>,
   ) => boolean
   title?: (destination: Destination) => string
+  identityOf?: (destination: Destination) => Destination
 }>
 
 const titledBy =
@@ -66,6 +70,9 @@ const titledBy =
       : Option.some(options.title(destination))
 
 const anywhere = (): boolean => true
+
+const itself = <Destination>(destination: Destination): Destination =>
+  destination
 
 /**
  * Declares the Destination a stack starts from.
@@ -87,6 +94,7 @@ export const rootRoute = <Destination, Value>(
   styleOf: () => Push(),
   isAllowedAbove: () => false,
   maybeTitleOf: titledBy(options),
+  identityOf: itself,
 })
 
 /**
@@ -109,6 +117,7 @@ export const pushRoute = <Destination, Value>(
   styleOf: () => Push(),
   isAllowedAbove: options?.isAllowedAbove ?? anywhere,
   maybeTitleOf: titledBy(options),
+  identityOf: options?.identityOf ?? itself,
 })
 
 /**
@@ -130,6 +139,7 @@ export const presentRoute = <Destination, Value>(
   styleOf: () => style,
   isAllowedAbove: options?.isAllowedAbove ?? anywhere,
   maybeTitleOf: titledBy(options),
+  identityOf: options?.identityOf ?? itself,
 })
 
 /**
@@ -170,6 +180,11 @@ export const liftRoute = <Child extends Parent, Parent>(
     }),
   maybeTitleOf: destination =>
     Option.flatMap(narrow(destination), route.maybeTitleOf),
+  identityOf: destination =>
+    Option.match(narrow(destination), {
+      onNone: () => destination,
+      onSome: route.identityOf,
+    }),
 })
 
 /**
@@ -227,6 +242,7 @@ export const notFoundRoute = <Destination>(
   styleOf: () => Push(),
   isAllowedAbove: anywhere,
   maybeTitleOf: () => Option.some('Not found'),
+  identityOf: itself,
 })
 
 // DECLARATION
@@ -532,14 +548,19 @@ export type Screen<Destination> = Readonly<{
 }>
 
 /**
- * How a screen titles itself and where it may sit. `isAllowedAbove` reads
- * every screen beneath, root first, of any kind the declaration lists:
- * a player that sits only on the library or a title's page refuses
- * `/books/the-lantern-keeper/chapter/2/listen`.
+ * How a screen titles itself, where it may sit, and what makes it the same
+ * page. `isAllowedAbove` reads every screen beneath, root first, of any
+ * kind the declaration lists: a player that sits only on the library or a
+ * title's page refuses `/books/the-lantern-keeper/chapter/2/listen`.
+ * `identityOf` resets the fields that pass while the page stays put, so a
+ * painter keeps its DOM, scroll, and images: a player whose address
+ * follows its place, `/books/a-new-earth/listen/1h41m05s`, stays one page
+ * when `identityOf` resets `atMs`.
  */
 export type ScreenOptions<Destination> = Readonly<{
   isAllowedAbove?: (beneath: Array.NonEmptyReadonlyArray<unknown>) => boolean
   title?: (destination: Destination) => string
+  identityOf?: (destination: Destination) => Destination
 }>
 
 /** The screen every stack starts from: a Destination with no fields. */

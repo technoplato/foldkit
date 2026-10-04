@@ -1,9 +1,17 @@
-import { Array, Option, Schema as S } from 'effect'
+import { Array, Option, Schema as S, pipe } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import * as Route from '../route/parser.js'
 import { ts } from '../schema/index.js'
-import { isNotFound, pushScreen, rootScreen, screens } from './declaration.js'
+import { planOf } from './carrier.js'
+import {
+  isNotFound,
+  presentScreen,
+  pushScreen,
+  rootScreen,
+  screens,
+} from './declaration.js'
+import { Sheet } from './structure.js'
 import { parseStack } from './uri.js'
 
 const Shelf = ts('Shelf')
@@ -47,6 +55,54 @@ describe('screens', () => {
       'Shelf',
       'Player',
       'Book',
+    ])
+  })
+})
+
+const Listening = ts('Listening', { atMs: S.Int })
+const Chapters = ts('Chapters')
+
+const listeningNavigation = screens({
+  slug: 'shelf',
+  root: rootScreen(Shelf, Route.here),
+  screens: [
+    pushScreen(
+      Listening,
+      pipe(
+        Route.literal('listen'),
+        Route.slash(
+          Route.schemaSegment(
+            'atMs',
+            S.NumberFromString.pipe(S.decodeTo(S.Int)),
+          ),
+        ),
+      ),
+      { identityOf: () => Listening({ atMs: 0 }) },
+    ),
+    presentScreen(Chapters, Route.literal('chapters'), Sheet()),
+  ],
+})
+
+const entriesAt = (uri: string) =>
+  Option.match(
+    planOf(listeningNavigation, {}, parseStack(listeningNavigation, uri)),
+    {
+      onNone: () => [],
+      onSome: plan =>
+        Array.map(plan.entries, entry => [entry.key, entry.identity]),
+    },
+  )
+
+describe('identityOf', () => {
+  it('keeps one identity while a passing field moves the address', () => {
+    expect(entriesAt('/shelf/listen/723000/chapters')).toEqual([
+      ['/shelf', '/shelf'],
+      ['/shelf/listen/723000', '/shelf/listen/0'],
+      ['/shelf/listen/723000/chapters', '/shelf/listen/0/chapters'],
+    ])
+    expect(entriesAt('/shelf/listen/724000')).toEqual([
+      ['/shelf', '/shelf'],
+      ['/shelf/listen/724000', '/shelf/listen/0'],
     ])
   })
 })

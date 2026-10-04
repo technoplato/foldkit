@@ -24,16 +24,21 @@ import { pathAndUri, printStates } from './uri.js'
 
 /**
  * One stack entry as every carrier sees it. `key` is the entry's printed
- * path, its identity; `uri` adds its configuration.
+ * path, and `uri` adds its configuration. `identity` is the path printed
+ * with every Destination's passing fields reset by its screen's
+ * `identityOf`, so a painter keeps one page's DOM while its address moves:
+ * `/books/a-new-earth/listen/1h41m05s` and `/books/a-new-earth/listen/1h41m06s`
+ * share the identity `/books/a-new-earth/listen/0s`.
  *
  * @example
  * ```typescript
- * // { key: '/counter/menu', uri: '/counter/menu?menu.q=re', destination: ActionMenu,
- * //   maybeStyle: Some(Dialog()), maybeTitle: Some('Actions') }
+ * // { key: '/counter/menu', identity: '/counter/menu', uri: '/counter/menu?menu.q=re',
+ * //   destination: ActionMenu, maybeStyle: Some(Dialog()), maybeTitle: Some('Actions') }
  * ```
  */
 export type CarrierEntry<Destination> = Readonly<{
   key: string
+  identity: string
   uri: string
   destination: Destination
   maybeStyle: Option.Option<PresentationStyle>
@@ -64,6 +69,29 @@ export const maybeTitleOf = <Model, Destination>(
     route.maybeTitleOf(destination),
   )
 
+const identityOfDestination = <Model, Destination>(
+  navigation: ProgramNavigation<Model, Destination>,
+  destination: Destination,
+): Destination =>
+  Option.match(routeOf(navigation, destination), {
+    onNone: () => destination,
+    onSome: route => route.identityOf(destination),
+  })
+
+const identityStackOf = <Model, Destination>(
+  navigation: ProgramNavigation<Model, Destination>,
+  stack: NavigationStack<Destination>,
+): NavigationStack<Destination> => ({
+  root: identityOfDestination(navigation, stack.root),
+  pages: Array.map(stack.pages, page =>
+    identityOfDestination(navigation, page),
+  ),
+  maybeModal: Option.map(stack.maybeModal, modal => ({
+    ...modal,
+    destination: identityOfDestination(navigation, modal.destination),
+  })),
+})
+
 /**
  * The carrier plan for one stack. None when the Program is not
  * URL-addressable or a Destination has no route.
@@ -80,6 +108,13 @@ export const planOf = <Model, Destination>(
   stack: NavigationStack<Destination>,
 ): Option.Option<CarrierPlan<Destination>> =>
   Option.map(printStates(navigation, stack), states => {
+    const identities = Array.map(
+      Option.getOrElse(
+        printStates(navigation, identityStackOf(navigation, stack)),
+        () => states,
+      ),
+      state => pathAndUri(state).path,
+    )
     const levels = Array.prepend(
       Array.map(entriesOf(stack), entry => ({
         destination: entry.destination,
@@ -89,10 +124,11 @@ export const planOf = <Model, Destination>(
     )
     const entries = Array.map(
       Array.zip(states, levels),
-      ([state, level]): CarrierEntry<Destination> => {
+      ([state, level], index): CarrierEntry<Destination> => {
         const { path, uri } = pathAndUri(state)
         return {
           key: path,
+          identity: Option.getOrElse(Array.get(identities, index), () => path),
           uri,
           destination: level.destination,
           maybeStyle: level.maybeStyle,
