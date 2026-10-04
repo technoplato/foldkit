@@ -15,11 +15,11 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
   type BookmarkId,
-  type ChapterNumber,
   Milliseconds,
   type TitleSlug,
   clockOf,
 } from './ids.js'
+import { placePathOf } from './links.js'
 import {
   AddBookmark,
   CancelDeleteBookmark,
@@ -28,12 +28,11 @@ import {
   JumpToChapter,
   Listen,
   Open,
-  OpenChapter,
   OpenPlayer,
   Pause,
   Play,
-  PlayBookmark,
   SetSpeed,
+  SharePlace,
   ShowContents,
   ShowSpeeds,
   catalog,
@@ -302,9 +301,9 @@ const bookmarkItemOf = (
   bookmark: Readonly<{ bookmarkId: BookmarkId; atMs: Milliseconds }>,
 ): ListItem => ({
   key: bookmark.bookmarkId,
+  href: placePathOf(title.slug, bookmark.atMs),
   title: clockOf(bookmark.atMs),
   lines: [chapterAt(title, bookmark.atMs).name],
-  ...offeredActionOf(model, `${PlayBookmark.tag}:${bookmark.bookmarkId}`),
   trailing: choiceButtonsOf(
     model,
     bookmark.bookmarkId,
@@ -423,11 +422,16 @@ export const playerScreen = (model: Model): UiNode =>
               TranscriptPlayer.transportOf(loaded.player, entriesOf(model)),
               ...TranscriptPlayer.problemOf(loaded.player),
               ...problemLines(model),
+              ...Array.fromOption(
+                Option.map(model.maybeNotice, notice =>
+                  Text(notice, { dim: true }),
+                ),
+              ),
               Row(
                 { gap: 1 },
                 ...buttonsOf(
                   model,
-                  [ShowContents, ShowSpeeds, AddBookmark],
+                  [ShowContents, ShowSpeeds, AddBookmark, SharePlace],
                   'Ghost',
                 ),
                 Text(`${model.speed.toString()}×`, { dim: true }),
@@ -436,38 +440,6 @@ export const playerScreen = (model: Model): UiNode =>
             ),
         }),
     },
-  )
-
-/**
- * One chapter's page, the link to that section: the title, the chapter,
- * where it starts and how long it runs, Play, and the address to share.
- */
-export const chapterScreen = (
-  model: Model,
-  title: Title,
-  chapter: Chapter,
-  maybeUri: Option.Option<string>,
-): UiNode =>
-  Column(
-    { gap: 1 },
-    Text(title.name, { dim: true }),
-    Text(chapter.name, { emphasis: 'Headline' }),
-    Text(
-      `Starts at ${clockOf(chapter.startMs)}, runs ${clockOf(Milliseconds.make(chapter.endMs - chapter.startMs))}`,
-      { dim: true },
-    ),
-    Row(
-      {},
-      ...choiceButtonsOf(
-        model,
-        chapter.chapterNumber.toString(),
-        [JumpToChapter],
-        'Primary',
-      ),
-    ),
-    ...Array.fromOption(
-      Option.map(maybeUri, uri => Text(uri, { mono: true, copyable: true })),
-    ),
   )
 
 const chapterItemOf = (
@@ -489,14 +461,12 @@ const chapterItemOf = (
         chapterAt(title, placeOf(loaded)).chapterNumber ===
         chapter.chapterNumber,
     ),
-    trailing: choiceButtonsOf(model, token, [OpenChapter], 'Ghost'),
   }
 }
 
 /**
- * The chapters of the title on screen: pressing one plays from its start,
- * and Open shows its own page, the link to share. The one playing is
- * marked.
+ * The chapters of the title on screen: pressing one plays from its start
+ * on the player. The one playing is marked.
  */
 export const contentsScreen = (model: Model): UiNode =>
   Option.match(
@@ -582,12 +552,4 @@ export const missingTitleScreen = (slug: TitleSlug): UiNode =>
     {},
     Text(`${slug} is not in your library`),
     Text('Go back to the library.', { dim: true }),
-  )
-
-/** The page for a chapter the title does not have. */
-export const missingChapterScreen = (chapterNumber: ChapterNumber): UiNode =>
-  Column(
-    {},
-    Text(`This title has no chapter ${chapterNumber.toString()}`),
-    Text('Go back to the title.', { dim: true }),
   )

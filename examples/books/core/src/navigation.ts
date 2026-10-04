@@ -1,41 +1,35 @@
 import { Array, Option, String, pipe } from 'effect'
 import { Navigation, Route } from 'foldkit'
+import { PlaceSegment } from 'transcript-player-core-example'
 
 import {
-  ChapterPage,
   ContentsSheet,
   DeleteBookmarkQuestion,
   Destination,
   LibraryPage,
+  ListenPage,
   PlayerPage,
   SpeedSheet,
   TitlePage,
-  isChapterPage,
   isLibraryPage,
-  isPlayerPage,
+  isPlayerScreen,
   isTitlePage,
 } from './destination.js'
-import { BookmarkId, ChapterNumberSegment, TitleSlug } from './ids.js'
-import { type Model, chapterOf, titleOf } from './model.js'
+import { BookmarkId, TitleSlug } from './ids.js'
+import { type Model, titleOf } from './model.js'
 import {
-  chapterScreen,
   contentsScreen,
   deleteBookmarkScreen,
-  missingChapterScreen,
   missingTitleScreen,
   playerScreen,
   speedScreen,
   titleScreen,
 } from './screen.js'
-import { titlePageSlugOf } from './stack.js'
 
 // NAVIGATION
 
 const slugSegment = Route.schemaSegment('slug', TitleSlug)
-const chapterSegment = Route.schemaSegment(
-  'chapterNumber',
-  ChapterNumberSegment,
-)
+const placeSegment = Route.schemaSegment('atMs', PlaceSegment)
 const bookmarkSegment = Route.schemaSegment('bookmarkId', BookmarkId)
 
 const isTopOf =
@@ -57,10 +51,10 @@ export const nameOfSlug = (slug: TitleSlug): string =>
  *
  * - `/books` is the library, the root.
  * - `/books/the-lantern-keeper` is a title's page, only above the library.
- * - `/books/the-lantern-keeper/listen` is that title's player, only
- *   above its page.
- * - `/books/the-lantern-keeper/chapter/3` is a chapter's page, above its
- *   title's page: a link to that section.
+ * - `/books/the-lantern-keeper/listen/12:03` is that title's player at
+ *   12:03, only above its page: a link to that moment, kept up to date as
+ *   it plays. `/books/the-lantern-keeper/listen` opens it at the listener's
+ *   place.
  * - `…/contents` and `…/speed` are Sheets; `…/delete-bookmark/<id>` is a
  *   Dialog.
  */
@@ -74,26 +68,27 @@ export const declared = Navigation.screens({
       title: ({ slug }) => nameOfSlug(slug),
       isAllowedAbove: beneath => Array.every(beneath, isLibraryPage),
     }),
-    Navigation.pushScreen(PlayerPage, Route.literal('listen'), {
-      title: () => 'Now playing',
-      isAllowedAbove: beneath =>
-        isTopOf(isTitlePage)(beneath) && !Array.some(beneath, isPlayerPage),
-    }),
     Navigation.pushScreen(
-      ChapterPage,
-      pipe(Route.literal('chapter'), Route.slash(chapterSegment)),
+      PlayerPage,
+      pipe(Route.literal('listen'), Route.slash(placeSegment)),
       {
-        title: ({ chapterNumber }) => `Chapter ${chapterNumber.toString()}`,
-        isAllowedAbove: isTopOf(isTitlePage),
+        title: () => 'Now playing',
+        isAllowedAbove: beneath =>
+          isTopOf(isTitlePage)(beneath) && !Array.some(beneath, isPlayerScreen),
       },
     ),
+    Navigation.pushScreen(ListenPage, Route.literal('listen'), {
+      title: () => 'Now playing',
+      isAllowedAbove: beneath =>
+        isTopOf(isTitlePage)(beneath) && !Array.some(beneath, isPlayerScreen),
+    }),
     Navigation.presentScreen(
       ContentsSheet,
       Route.literal('contents'),
       Navigation.Sheet(),
       {
         title: () => 'Contents',
-        isAllowedAbove: isTopOf(isTitlePage, isPlayerPage, isChapterPage),
+        isAllowedAbove: isTopOf(isTitlePage, isPlayerScreen),
       },
     ),
     Navigation.presentScreen(
@@ -102,7 +97,7 @@ export const declared = Navigation.screens({
       Navigation.Sheet(),
       {
         title: () => 'Speed',
-        isAllowedAbove: isTopOf(isPlayerPage),
+        isAllowedAbove: isTopOf(isPlayerScreen),
       },
     ),
     Navigation.presentScreen(
@@ -111,7 +106,7 @@ export const declared = Navigation.screens({
       Navigation.Dialog(),
       {
         title: () => 'Delete bookmark?',
-        isAllowedAbove: isTopOf(isTitlePage, isPlayerPage),
+        isAllowedAbove: isTopOf(isTitlePage, isPlayerScreen),
       },
     ),
   ],
@@ -123,28 +118,6 @@ const titlePageView = (model: Model, slug: TitleSlug) =>
     onSome: title => titleScreen(model, title),
   })
 
-const chapterPageView = (model: Model, destination: ChapterPage) =>
-  Option.match(
-    Option.flatMap(titlePageSlugOf(model), slug =>
-      Option.flatMap(titleOf(model, slug), title =>
-        Option.map(chapterOf(title, destination.chapterNumber), chapter => ({
-          title,
-          chapter,
-        })),
-      ),
-    ),
-    {
-      onNone: () => missingChapterScreen(destination.chapterNumber),
-      onSome: ({ title, chapter }) =>
-        chapterScreen(
-          model,
-          title,
-          chapter,
-          Navigation.printStack(navigation, model.navigation),
-        ),
-    },
-  )
-
 const viewOf = (
   model: Model,
   destination: Destination,
@@ -153,12 +126,8 @@ const viewOf = (
     return Option.some(
       Navigation.screenView(titlePageView(model, destination.slug)),
     )
-  } else if (isPlayerPage(destination)) {
+  } else if (isPlayerScreen(destination)) {
     return Option.some(Navigation.screenView(playerScreen(model)))
-  } else if (isChapterPage(destination)) {
-    return Option.some(
-      Navigation.screenView(chapterPageView(model, destination)),
-    )
   } else if (destination._tag === 'ContentsSheet') {
     return Option.some(Navigation.screenView(contentsScreen(model)))
   } else if (destination._tag === 'SpeedSheet') {
@@ -192,7 +161,7 @@ export const navigation = Navigation.composeNavigation<
   | LibraryPage
   | TitlePage
   | PlayerPage
-  | ChapterPage
+  | ListenPage
   | ContentsSheet
   | SpeedSheet
   | DeleteBookmarkQuestion

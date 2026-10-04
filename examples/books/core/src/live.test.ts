@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Milliseconds } from './ids.js'
 import { makeTestLibraryStore, sampleShelf } from './sample.js'
+import { makeTestLinkSharing } from './share.js'
 import { SyncedBooks, bindBooks } from './synced.js'
 
 const pollMs = 10
@@ -40,10 +41,16 @@ const quickAudio = Layer.succeed(AudioOutput, {
 
 const startBooks = async () => {
   const store = await Effect.runPromise(makeTestLibraryStore(sampleShelf))
+  const sharing = await Effect.runPromise(makeTestLinkSharing())
   const handle = Runtime.startHandle({
     program: SyncedBooks,
     sync: Runtime.Memory({ processor: 'books-test' }),
-    resources: Layer.mergeAll(store.layer, quickAudio, noTranscripts),
+    resources: Layer.mergeAll(
+      store.layer,
+      quickAudio,
+      noTranscripts,
+      sharing.layer,
+    ),
   })
   return { store, handle, bound: bindBooks(handle) }
 }

@@ -3,6 +3,7 @@ import {
   SyncedBooks,
   bindBooks,
   makeTestLibraryStore,
+  makeTestLinkSharing,
   sampleShelf,
   whenLibraryOpened,
 } from 'books-core-example'
@@ -23,10 +24,16 @@ afterEach(async () => {
 
 const openBooks = async (): Promise<BoundBooks> => {
   const store = await Effect.runPromise(makeTestLibraryStore(sampleShelf))
+  const sharing = await Effect.runPromise(makeTestLinkSharing())
   const handle = Runtime.startHandle({
     program: SyncedBooks,
     sync: Runtime.Memory({ processor: 'cli-test' }),
-    resources: Layer.mergeAll(store.layer, virtualAudioOutput, noTranscripts),
+    resources: Layer.mergeAll(
+      store.layer,
+      virtualAudioOutput,
+      noTranscripts,
+      sharing.layer,
+    ),
     host: Processor.Host.Cli(),
   })
   started.push(handle)
@@ -53,7 +60,9 @@ describe('books CLI', () => {
     expect(run(bound, 'listen', 'the-lantern-keeper').exitCode).toBe(0)
     expect(run(bound, 'seek-to', '723000').exitCode).toBe(0)
     const painted = run(bound)
-    expect(painted.stdout).toMatch(/^at \/books\/the-lantern-keeper\/listen$/m)
+    expect(painted.stdout).toMatch(
+      /^at \/books\/the-lantern-keeper\/listen\/12m03s$/m,
+    )
     expect(painted.stdout).toMatch(/12:03 of /)
   })
 })

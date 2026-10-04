@@ -2,7 +2,7 @@ import { Schema as S } from 'effect'
 import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
 
-import { BookmarkId, ChapterNumber, TitleSlug } from './ids.js'
+import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 
 // DESTINATION
 
@@ -20,21 +20,23 @@ export const TitlePage = ts('TitlePage', { slug: TitleSlug })
 export type TitlePage = typeof TitlePage.Type
 
 /**
- * The player for the title beneath, so its address names the book:
- * `/books/the-lantern-keeper/listen`. It plays the title when this device
- * has it loaded, and offers to play it from the listener's place when not.
+ * The player for the title beneath, at a place, so its address names the
+ * book and the second being heard: `/books/the-lantern-keeper/listen/12:03`.
+ * The place follows the player as it plays, so the address is always a
+ * link back to this moment.
  */
-export const PlayerPage = ts('PlayerPage')
-/** The player. */
+export const PlayerPage = ts('PlayerPage', { atMs: Milliseconds })
+/** The player, at a place. */
 export type PlayerPage = typeof PlayerPage.Type
 
 /**
- * One chapter of the title beneath, a deep link to a section:
- * `/books/the-lantern-keeper/chapter/3`.
+ * The player for the title beneath, with no place in its address:
+ * `/books/the-lantern-keeper/listen`, as older links read. It opens on
+ * the listener's place and becomes a PlayerPage at once.
  */
-export const ChapterPage = ts('ChapterPage', { chapterNumber: ChapterNumber })
-/** One chapter's page. */
-export type ChapterPage = typeof ChapterPage.Type
+export const ListenPage = ts('ListenPage')
+/** The player with no place in its address. */
+export type ListenPage = typeof ListenPage.Type
 
 /**
  * The chapters of the title beneath, or of the one in the player: a
@@ -67,7 +69,7 @@ export const Destination = S.Union([
   LibraryPage,
   TitlePage,
   PlayerPage,
-  ChapterPage,
+  ListenPage,
   ContentsSheet,
   SpeedSheet,
   DeleteBookmarkQuestion,
@@ -80,10 +82,13 @@ export type Destination = typeof Destination.Type
 export const isLibraryPage = S.is(LibraryPage)
 /** True for a title's page. */
 export const isTitlePage = S.is(TitlePage)
-/** True for the player. */
+/** True for the player at a place. */
 export const isPlayerPage = S.is(PlayerPage)
-/** True for a chapter's page. */
-export const isChapterPage = S.is(ChapterPage)
+/** True for the player with no place in its address. */
+export const isListenPage = S.is(ListenPage)
+/** True for either way of showing the player. */
+export const isPlayerScreen = (destination: unknown): boolean =>
+  isPlayerPage(destination) || isListenPage(destination)
 /** True for a title's contents. */
 export const isContentsSheet = S.is(ContentsSheet)
 /** True for the speeds. */

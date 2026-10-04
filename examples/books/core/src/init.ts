@@ -18,6 +18,7 @@ export const init = (): readonly [
     listening: Idle(),
     speed: 1,
     maybeProblem: Option.none(),
+    maybeNotice: Option.none(),
     navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
   },
   [],

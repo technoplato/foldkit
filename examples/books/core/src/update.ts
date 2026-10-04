@@ -1,9 +1,8 @@
-import { Array, Effect, Match as M, Option } from 'effect'
+import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command, Navigation } from 'foldkit'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
-  ChapterPage,
   ContentsSheet,
   DeleteBookmarkQuestion,
   type Destination,
@@ -12,15 +11,18 @@ import {
   TitlePage,
   isContentsSheet,
   isDeleteBookmarkQuestion,
+  isPlayerPage,
+  isPlayerScreen,
   isSpeedSheet,
   isTitlePage,
 } from './destination.js'
 import {
   type BookmarkId,
   type ChapterNumber,
-  type Milliseconds,
+  Milliseconds,
   type Speed,
   type TitleSlug,
+  clockOf,
 } from './ids.js'
 import {
   AddBookmarkAt,
@@ -30,10 +32,13 @@ import {
   RemoveBookmark,
   SavePlace,
 } from './library.js'
+import { placePathOf, secondOf } from './links.js'
 import {
   CompletedWriteLibrary,
+  FailedShareLink,
   FailedWriteLibrary,
   type Message,
+  SharedLink,
 } from './message.js'
 import {
   Loaded,
@@ -43,6 +48,7 @@ import {
   type Title,
   bookmarkOf,
   chapterOf,
+  loadedTitleOf,
   mediaOf,
   placeOf,
   resumePlaceOf,
@@ -50,6 +56,7 @@ import {
 } from './model.js'
 import { navigation } from './navigation.js'
 import type { BooksServices } from './services.js'
+import { LinkSharing, type SharedHow } from './share.js'
 import {
   isOnPlayer,
   loadedSlugOf,
@@ -77,6 +84,28 @@ export const WriteLibrary = Command.define(
   }).pipe(
     Effect.catch(error =>
       Effect.succeed(FailedWriteLibrary({ reason: error.reason })),
+    ),
+  ),
+)
+
+/**
+ * Shares a link to a moment through the host's link sharing. A refusal
+ * becomes FailedShareLink with its reason, so a blocked clipboard never
+ * crashes the player.
+ */
+export const ShareLink = Command.define(
+  'ShareLink',
+  { path: S.String, title: S.String },
+  SharedLink,
+  FailedShareLink,
+)(({ path, title }) =>
+  Effect.gen(function* () {
+    const sharing = yield* LinkSharing
+    const how = yield* sharing.share({ path, title })
+    return SharedLink({ how })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedShareLink({ reason: error.reason })),
     ),
   ),
 )
@@ -140,6 +169,14 @@ const openedTitle = (model: Model, slug: TitleSlug): Model =>
  * The player on top of the pages: above the title's page when that title
  * is open, else right above the library. Already there, nothing moves.
  */
+const placeOfSlug = (model: Model, slug: TitleSlug): Milliseconds =>
+  model.listening._tag === 'Loaded' && model.listening.slug === slug
+    ? placeOf(model.listening)
+    : resumePlaceOf(model, slug)
+
+const playerPageFor = (model: Model, slug: TitleSlug): Destination =>
+  PlayerPage({ atMs: secondOf(placeOfSlug(model, slug)) })
+
 const openedPlayer = (model: Model, slug: TitleSlug): Model => {
   if (isOnPlayer(model) && Option.contains(titlePageSlugOf(model), slug)) {
     return model
@@ -149,7 +186,7 @@ const openedPlayer = (model: Model, slug: TitleSlug): Model => {
         ...model.navigation,
         pages: Array.filter(model.navigation.pages, isTitlePage),
       }),
-      PlayerPage(),
+      playerPageFor(model, slug),
     )
   } else {
     return pushedPage(
@@ -157,10 +194,43 @@ const openedPlayer = (model: Model, slug: TitleSlug): Model => {
         ...model.navigation,
         pages: [TitlePage({ slug })],
       }),
-      PlayerPage(),
+      playerPageFor(model, slug),
     )
   }
 }
+
+/**
+ * Keeps the player's address on the second being heard, so it is always a
+ * link back to this moment, and gives a placeless `/listen` its place.
+ * Only while the title is on the shelf and in the player, so a link
+ * opened before either keeps the place it names until the player gets
+ * there.
+ */
+const withPlayerAddress = (model: Model): Model =>
+  Option.match(
+    Option.all({
+      top: Option.filter(Array.last(model.navigation.pages), isPlayerScreen),
+      title: Option.flatMap(titlePageSlugOf(model), slug =>
+        titleOf(model, slug),
+      ),
+    }),
+    {
+      onNone: () => model,
+      onSome: ({ top, title }) => {
+        const atMs = secondOf(placeOfSlug(model, title.slug))
+        const isLoaded = Option.contains(loadedSlugOf(model), title.slug)
+        return isPlayerPage(top) && (top.atMs === atMs || !isLoaded)
+          ? model
+          : withStack(model, {
+              ...model.navigation,
+              pages: [
+                ...Array.dropRight(model.navigation.pages, 1),
+                PlayerPage({ atMs }),
+              ],
+            })
+      },
+    },
+  )
 
 type Commands = UpdateReturn[1]
 
@@ -331,23 +401,12 @@ const jumpedToChapter = (
           model,
           slug,
           Option.some(chapter.startMs),
-          'StaysHere',
+          'ShowsPlayer',
         )
         return [withoutModal(next, isContentsSheet), commands]
       },
     },
   )
-
-const openedChapter = (model: Model, chapterNumber: ChapterNumber): Model =>
-  Option.isSome(titlePageSlugOf(model))
-    ? pushedPage(
-        withStack(model, {
-          ...model.navigation,
-          pages: Array.filter(model.navigation.pages, isTitlePage),
-        }),
-        ChapterPage({ chapterNumber }),
-      )
-    : model
 
 const playedBookmark = (model: Model, bookmarkId: BookmarkId): UpdateReturn =>
   Option.match(bookmarkOf(model, bookmarkId), {
@@ -386,6 +445,29 @@ const bookmarkedPlace = (model: Model): UpdateReturn =>
     }),
   )
 
+const sharedPlace = (model: Model): UpdateReturn =>
+  Option.match(loadedTitleOf(model), {
+    onNone: () => [model, []],
+    onSome: ({ title, loaded }) => [
+      { ...model, maybeNotice: Option.none() },
+      [
+        ShareLink({
+          path: placePathOf(title.slug, placeOf(loaded)),
+          title: `${title.name}, at ${clockOf(placeOf(loaded))}`,
+        }),
+      ],
+    ],
+  })
+
+const noticeOf = (how: SharedHow): Option.Option<string> =>
+  M.value(how).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.when('Copied', () => Option.some('Link copied')),
+    M.when('Shared', () => Option.some('Link shared')),
+    M.when('Cancelled', () => Option.none()),
+    M.exhaustive,
+  )
+
 const spedTo = (model: Model, speed: Speed): UpdateReturn => {
   const [next, commands] = playerUpdated(
     { ...model, speed },
@@ -394,14 +476,7 @@ const spedTo = (model: Model, speed: Speed): UpdateReturn => {
   return [withoutModal(next, isSpeedSheet), commands]
 }
 
-/**
- * Applies one Books Message. Navigation moves the stack and the player;
- * a change to the shelf goes to the library store as a Command, and the
- * shelf comes back from the store on every device, so the Model never
- * keeps a copy that disagrees with it. A title or bookmark another device
- * removed first changes nothing.
- */
-export const update = (model: Model, message: Message): UpdateReturn =>
+const updated = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
@@ -422,12 +497,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ShowContents: () => [presentedSheet(model, ContentsSheet()), []],
       JumpToChapter: ({ chapterNumber }) =>
         jumpedToChapter(model, chapterNumber),
-      OpenChapter: ({ chapterNumber }) => [
-        openedChapter(model, chapterNumber),
-        [],
-      ],
       ShowSpeeds: () => [presentedSheet(model, SpeedSheet()), []],
       SetSpeed: ({ speed }) => spedTo(model, speed),
+      SharePlace: () => sharedPlace(model),
+      SharedLink: ({ how }) => [{ ...model, maybeNotice: noticeOf(how) }, []],
+      FailedShareLink: ({ reason }) => [
+        { ...model, maybeNotice: Option.some(`Could not share: ${reason}`) },
+        [],
+      ],
       AddBookmark: () => bookmarkedPlace(model),
       PlayBookmark: ({ bookmarkId }) => playedBookmark(model, bookmarkId),
       DeleteBookmark: ({ bookmarkId }) => [
@@ -442,6 +519,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         withoutModal(model, isDeleteBookmarkQuestion),
         [],
       ],
+      OpenedPlace: ({ slug, atMs }) => openedPlace(model, slug, atMs),
       ReceivedShelf: ({ shelf }) => [
         { ...model, library: ShelfReady({ shelf }) },
         [],
@@ -470,3 +548,51 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
     }),
   )
+
+const movedQuietly = (model: Model, placeMs: Milliseconds): Model =>
+  model.listening._tag === 'Loaded'
+    ? withLoaded(
+        model,
+        Loaded({
+          ...model.listening,
+          player: TranscriptPlayer.update(
+            model.listening.player,
+            TranscriptPlayer.SeekTo({ placeMs }),
+          )[0],
+        }),
+      )
+    : model
+
+/**
+ * Moves the player to the place the address names. Another title in the
+ * player saves its place and gives way; the player waits paused at the
+ * place. Opening a link saves nothing, so it never moves where the
+ * listener stopped.
+ */
+const openedPlace = (
+  model: Model,
+  slug: TitleSlug,
+  atMs: Milliseconds,
+): UpdateReturn =>
+  Option.match(titleOf(model, slug), {
+    onNone: () => [model, []],
+    onSome: title => {
+      const switchSaves = Option.contains(loadedSlugOf(model), slug)
+        ? []
+        : savedBeforeSwitch(model)
+      return [movedQuietly(loadedWith(model, title), atMs), switchSaves]
+    },
+  })
+
+/**
+ * Applies one Books Message. Navigation moves the stack and the player;
+ * a change to the shelf goes to the library store as a Command, and the
+ * shelf comes back from the store on every device, so the Model never
+ * keeps a copy that disagrees with it. A title or bookmark another device
+ * removed first changes nothing. The player keeps its address on the
+ * second it is playing, so the address is always a link to this moment.
+ */
+export const update = (model: Model, message: Message): UpdateReturn => {
+  const [next, commands] = updated(model, message)
+  return [withPlayerAddress(next), commands]
+}

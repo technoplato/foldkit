@@ -52,7 +52,7 @@ describe('states Books rules out by type', () => {
         ConfirmDeleteBookmark(),
       (): Navigation.NavigationStack<Destination> => ({
         root: LibraryPage(),
-        pages: [PlayerPage()],
+        pages: [PlayerPage({ atMs: Milliseconds.make(0) })],
         // @ts-expect-error at most one modal: there is no list of them
         maybeModal: Option.some([
           { destination: question, style: Navigation.Dialog() },
@@ -64,7 +64,7 @@ describe('states Books rules out by type', () => {
         pages: [],
         // @ts-expect-error a pushed page is not a modal
         maybeModal: Option.some({
-          destination: PlayerPage(),
+          destination: PlayerPage({ atMs: Milliseconds.make(0) }),
           style: Navigation.Push(),
         }),
       }),

@@ -126,6 +126,7 @@ export const Model = S.Struct({
   listening: Listening,
   speed: Speed,
   maybeProblem: S.Option(S.String),
+  maybeNotice: S.Option(S.String),
   navigation: Navigation.NavigationStack(Destination),
 })
 /** A Books Model value. */
@@ -299,10 +300,15 @@ export const placeOf = (loaded: Loaded): Milliseconds => loaded.player.placeMs
 
 /**
  * A title as the Transcript Player holds it: its audio's id, length, and
- * file.
+ * file, with its chapters as the player's sections.
  */
 export const mediaOf = (title: Title): TranscriptPlayer.Media => ({
   mediaId: title.mediaId,
   durationMs: title.durationMs,
   maybeAudioUrl: title.maybeAudioUrl,
+  sections: Array.map(title.chapters, chapter => ({
+    title: chapter.name,
+    startMs: chapter.startMs,
+    endMs: chapter.endMs,
+  })),
 })

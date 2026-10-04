@@ -9,8 +9,9 @@ import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
-import { ReceivedShelf } from './message.js'
+import { OpenedPlace, ReceivedShelf } from './message.js'
 import { sampleShelf } from './sample.js'
+import { addressCueOfModel } from './subscriptions.js'
 
 type Written = Readonly<{ name: string; args: string }>
 
@@ -28,6 +29,9 @@ const bindApp = () => {
       model = next
       Array.forEach(commands, command => {
         written.push({ name: command.name, args: JSON.stringify(command.args) })
+      })
+      Option.map(addressCueOfModel(model), cue => {
+        handle.send(OpenedPlace(cue))
       })
     },
     stop: () => Promise.resolve(),
@@ -56,11 +60,11 @@ const availabilityOf = (
   )
 
 describe('Books', () => {
-  it('plays a title from the library and shows the player', () => {
+  it('plays a title from the library and shows the player at its place', () => {
     const { bound } = bindApp()
     bound.press(`Listen:${lanternKeeper}`)
     expect(uriOf(bound)).toEqual(
-      Option.some('/books/the-lantern-keeper/listen'),
+      Option.some('/books/the-lantern-keeper/listen/0s'),
     )
     expect(bound.readModel().listening._tag).toBe('Loaded')
     expect(availabilityOf(bound, 'Pause')).toEqual(Option.some('Enabled'))
@@ -72,8 +76,46 @@ describe('Books', () => {
     expect(uriOf(bound)).toEqual(Option.some('/books/the-lantern-keeper'))
     bound.pressKey(Interaction.keyInput('p'))
     expect(uriOf(bound)).toEqual(
-      Option.some('/books/the-lantern-keeper/listen'),
+      Option.some('/books/the-lantern-keeper/listen/0s'),
     )
+  })
+
+  it('keeps the address on the second being heard, so it is always a link', () => {
+    const { bound, send } = bindApp()
+    bound.press(`Listen:${lanternKeeper}`)
+    send(ReachedPlace({ placeMs: Milliseconds.make(31_400) }))
+    expect(uriOf(bound)).toEqual(
+      Option.some('/books/the-lantern-keeper/listen/31s'),
+    )
+    bound.pressKey(Interaction.keyInput(']'))
+    expect(uriOf(bound)).toEqual(
+      Option.some('/books/the-lantern-keeper/listen/1m01s'),
+    )
+  })
+
+  it('shares a link to the second being heard', () => {
+    const { bound, send, written } = bindApp()
+    bound.press(`Listen:${lanternKeeper}`)
+    send(ReachedPlace({ placeMs: Milliseconds.make(723_400) }))
+    bound.pressKey(Interaction.keyInput('l'))
+    expect(written).toContainEqual({
+      name: 'ShareLink',
+      args: JSON.stringify({
+        path: '/books/the-lantern-keeper/listen/12m03s',
+        title: 'The Lantern Keeper, at 12:03',
+      }),
+    })
+  })
+
+  it('opens a link to a moment paused there, and saves nothing', () => {
+    const { bound, written } = bindApp()
+    bound.openUri('/books/small-hours/listen/12m03s', Navigation.Link())
+    expect(uriOf(bound)).toEqual(
+      Option.some('/books/small-hours/listen/12m03s'),
+    )
+    expect(placeOf(bound)).toBe(723_000)
+    expect(availabilityOf(bound, 'Play')).toEqual(Option.some('Enabled'))
+    expect(written).toEqual([])
   })
 
   it('saves the place on pause, every 30 seconds, and the finish', () => {
@@ -107,7 +149,7 @@ describe('Books', () => {
     expect(placeOf(bound)).toBe(30_000)
   })
 
-  it('jumps to a chapter from the contents, which close', () => {
+  it('plays a chapter from the contents on the player, and the contents close', () => {
     const { bound } = bindApp()
     bound.press(`Open:${lanternKeeper}`)
     bound.pressKey(Interaction.keyInput('c'))
@@ -116,50 +158,38 @@ describe('Books', () => {
     )
     bound.press('JumpToChapter:3')
     expect(placeOf(bound)).toBe(2_400_000)
-    expect(uriOf(bound)).toEqual(Option.some('/books/the-lantern-keeper'))
+    expect(uriOf(bound)).toEqual(
+      Option.some('/books/the-lantern-keeper/listen/40m00s'),
+    )
     expect(Catalog.commandOf('JumpToChapter:3')).toBe('jump-to-chapter 3')
   })
 
-  it('opens a shared player link on that book, ready to play from its place', () => {
+  it('opens an old player link at the listener’s place, ready to play', () => {
     const { bound } = bindApp()
     bound.openUri('/books/small-hours/listen', Navigation.Link())
-    expect(uriOf(bound)).toEqual(Option.some('/books/small-hours/listen'))
-    expect(bound.readModel().listening._tag).toBe('Idle')
-    expect(availabilityOf(bound, 'SkipForward')).toEqual(
-      Option.some('Disabled'),
-    )
+    expect(uriOf(bound)).toEqual(Option.some('/books/small-hours/listen/0s'))
+    const transportOf = () => {
+      const { listening } = bound.readModel()
+      return listening._tag === 'Loaded' && listening.slug === 'small-hours'
+        ? listening.player.transport._tag
+        : 'Idle'
+    }
+    expect(transportOf()).toBe('Paused')
     bound.pressKey(Interaction.keyInput('p'))
-    expect(uriOf(bound)).toEqual(Option.some('/books/small-hours/listen'))
-    const { listening } = bound.readModel()
-    expect(listening._tag === 'Loaded' ? listening.slug : 'Idle').toBe(
-      'small-hours',
-    )
-  })
-
-  it('opens a deep link to a chapter, a section someone can share', () => {
-    const { bound } = bindApp()
-    bound.openUri('/books/the-lantern-keeper/chapter/2', Navigation.Link())
-    expect(uriOf(bound)).toEqual(
-      Option.some('/books/the-lantern-keeper/chapter/2'),
-    )
-    expect(
-      Option.map(Navigation.frameOf(bound), frame =>
-        JSON.stringify(frame.base.view),
-      ),
-    ).toEqual(Option.some(expect.stringContaining('The Light')))
+    expect(transportOf()).toBe('Playing')
   })
 
   it('refuses stacks the screens never allow', () => {
     const { bound } = bindApp()
     bound.openUri(
-      '/books/the-lantern-keeper/listen/contents/speed',
+      '/books/the-lantern-keeper/listen/0s/contents/speed',
       Navigation.Link(),
     )
     expect(uriOf(bound)).toEqual(
-      Option.some('/books/the-lantern-keeper/listen/contents'),
+      Option.some('/books/the-lantern-keeper/listen/0s/contents'),
     )
     bound.openUri(
-      '/books/the-lantern-keeper/chapter/2/listen',
+      '/books/the-lantern-keeper/listen/30s/listen',
       Navigation.Link(),
     )
     expect(
@@ -252,12 +282,12 @@ describe('Books', () => {
     bound.press(`Listen:${lanternKeeper}`)
     bound.pressKey(Interaction.keyInput('x'))
     expect(uriOf(bound)).toEqual(
-      Option.some('/books/the-lantern-keeper/listen/speed'),
+      Option.some('/books/the-lantern-keeper/listen/0s/speed'),
     )
     bound.press('SetSpeed:1.5')
     expect(bound.readModel().speed).toBe(1.5)
     expect(uriOf(bound)).toEqual(
-      Option.some('/books/the-lantern-keeper/listen'),
+      Option.some('/books/the-lantern-keeper/listen/0s'),
     )
   })
 })

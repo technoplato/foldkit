@@ -16,6 +16,7 @@ import { makeInstantLibraryStore } from './instantLibrary.js'
 import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
 import { BooksProgram } from './program.js'
+import { terminalLinkSharing } from './share.node.js'
 import type { BooksHandle } from './startConfig.js'
 import { SyncedBooks } from './synced.js'
 
@@ -68,8 +69,15 @@ export const notSignedInSentence =
 export type SignedInBooks = Readonly<{
   appId: string
   email: string
+  sessionOrigin: string
   database: ProgramLogDatabase
 }>
+
+const isLoopbackOrigin = (origin: string): boolean =>
+  origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')
+
+const publicOriginOf = (sessionOrigin: string): string =>
+  isLoopbackOrigin(sessionOrigin) ? defaultBooksOrigin : sessionOrigin
 
 const stateDirectoryOf = (appId: string): string =>
   join(dirname(localSnapshotPath('foldkit-books')), 'books', appId)
@@ -99,6 +107,7 @@ export const signInToBooks = async (
     Option.map(Option.fromNullishOr(signedIn.email), email => ({
       appId: connection.appId,
       email,
+      sessionOrigin: connection.sessionOrigin,
       database,
     })),
   )
@@ -141,6 +150,7 @@ export const startBooks = (
       Layer.effect(LibraryStore, makeInstantLibraryStore(signedIn.database)),
       ffplayAudioOutput,
       instantTranscriptSource(signedIn.database),
+      terminalLinkSharing(publicOriginOf(signedIn.sessionOrigin)),
     ),
     localSnapshot: localSnapshotFile(
       join(stateDirectoryOf(signedIn.appId), 'snapshot.json'),

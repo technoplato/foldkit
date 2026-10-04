@@ -7,6 +7,7 @@ import {
   BookmarkId,
   ChapterNumber,
   ChapterNumberSegment,
+  Milliseconds,
   TitleSlug,
   clockOf,
 } from './ids.js'
@@ -23,6 +24,7 @@ import {
   titleOf,
   titlesOf,
 } from './model.js'
+import { SharedHow } from './share.js'
 import {
   askedBookmarkOf,
   isAsking,
@@ -244,23 +246,6 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
   meta: { label: 'Play', keys: [], title: 'Jump to chapter' },
 })
 
-/**
- * Opens one chapter's page, a link to that section someone can share:
- * `/books/the-lantern-keeper/chapter/3`.
- */
-export const OpenChapter = Catalog.action('OpenChapter', {
-  fields: { chapterNumber: ChapterNumber },
-  choose: whichChapter(
-    model =>
-      Option.flatMap(titlePageSlugOf(model), slug => titleOf(model, slug)),
-    () => Catalog.Enabled(),
-  ),
-  what: 'Opens the chapter on its own page',
-  why: 'The person wants a link to that section',
-  enabled: unlessAsking,
-  meta: { label: 'Open', keys: [], title: 'Open chapter' },
-})
-
 /** Shows the speeds to choose from. `x` presses it on the player. */
 export const ShowSpeeds = Catalog.action('ShowSpeeds', {
   what: 'Shows the playback speeds',
@@ -270,6 +255,17 @@ export const ShowSpeeds = Catalog.action('ShowSpeeds', {
       ? unlessAsking(model)
       : Catalog.Disabled({ because: 'the player is not open' }),
   meta: { label: 'Speed', keys: ['x'] },
+})
+
+/**
+ * Shares a link to the second the player is at, the player's own address:
+ * the share sheet on a phone, the clipboard elsewhere. `l` presses it.
+ */
+export const SharePlace = Catalog.action('SharePlace', {
+  what: 'Shares a link to this moment in the title',
+  why: 'The person wants someone to hear this part, or to come back to it',
+  enabled: whenLoaded,
+  meta: { label: 'Share', keys: ['l'], title: 'Share this moment' },
 })
 
 /** Marks the place in the player. `b` presses it. */
@@ -360,9 +356,9 @@ export const catalog = Catalog.make([
   OpenPlayer,
   ShowContents,
   JumpToChapter,
-  OpenChapter,
   ShowSpeeds,
   SetSpeed,
+  SharePlace,
   AddBookmark,
   PlayBookmark,
   DeleteBookmark,
@@ -374,6 +370,19 @@ export const catalog = Catalog.make([
 export const ReceivedShelf = m('ReceivedShelf', { shelf: Shelf })
 /** The library store could not be read, and why, safe to show. */
 export const FailedReadShelf = m('FailedReadShelf', { reason: S.String })
+/**
+ * The player's address names a place the player is not at: someone opened
+ * a link to a moment, went back or forward to one, or the shelf arrived
+ * after the link did.
+ */
+export const OpenedPlace = m('OpenedPlace', {
+  slug: TitleSlug,
+  atMs: Milliseconds,
+})
+/** The link to a moment went out, through a share sheet or a clipboard. */
+export const SharedLink = m('SharedLink', { how: SharedHow })
+/** The link to a moment could not go out, and why, safe to show. */
+export const FailedShareLink = m('FailedShareLink', { reason: S.String })
 /** The library store saved a place, a finish, or a bookmark change. */
 export const CompletedWriteLibrary = m('CompletedWriteLibrary')
 /** The library store refused a write, and why, safe to show. */
@@ -390,6 +399,9 @@ export const Message = S.Union([
   ...catalog.Message.members,
   ReceivedShelf,
   FailedReadShelf,
+  OpenedPlace,
+  SharedLink,
+  FailedShareLink,
   TranscriptPlayer.ReachedPlace,
   TranscriptPlayer.ReachedEnd,
   TranscriptPlayer.FailedPlayAudio,

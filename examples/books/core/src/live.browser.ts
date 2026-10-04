@@ -13,6 +13,7 @@ import { makeInstantLibraryStore } from './instantLibrary.js'
 import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
 import { BooksProgram } from './program.js'
+import { browserLinkSharing } from './share.browser.js'
 import { type BooksHandle } from './startConfig.js'
 import { SyncedBooks } from './synced.js'
 
@@ -49,6 +50,7 @@ export const startBooks = (config: StartBooksConfig): BooksHandle => {
       Layer.effect(LibraryStore, makeInstantLibraryStore(database)),
       htmlAudioOutput,
       instantTranscriptSource(database),
+      browserLinkSharing,
     ),
     database,
   )
