@@ -1,5 +1,6 @@
 import { Array, Effect, Layer, Option } from 'effect'
 
+import { maybePage } from '../environment/environment.js'
 import {
   type TelemetryEvent,
   encodeLine,
@@ -199,16 +200,22 @@ export const browserSink = (
         }
       }
 
-      if (typeof window !== 'undefined') {
+      const maybeCurrentPage = maybePage()
+      if (Option.isSome(maybeCurrentPage)) {
+        const { window: pageWindow, document: pageDocument } =
+          maybeCurrentPage.value
         yield* Effect.acquireRelease(
           Effect.sync(() => {
-            window.addEventListener('pagehide', sendWaitingWithBeacon)
-            document.addEventListener('visibilitychange', flushWhenHidden)
+            pageWindow.addEventListener('pagehide', sendWaitingWithBeacon)
+            pageDocument.addEventListener('visibilitychange', flushWhenHidden)
           }),
           () =>
             Effect.sync(() => {
-              window.removeEventListener('pagehide', sendWaitingWithBeacon)
-              document.removeEventListener('visibilitychange', flushWhenHidden)
+              pageWindow.removeEventListener('pagehide', sendWaitingWithBeacon)
+              pageDocument.removeEventListener(
+                'visibilitychange',
+                flushWhenHidden,
+              )
             }),
         )
       }
