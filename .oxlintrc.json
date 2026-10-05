@@ -23,7 +23,9 @@
     "typescript/no-explicit-any": "error",
     "typescript/consistent-type-assertions": [
       "error",
-      { "assertionStyle": "never" }
+      {
+        "assertionStyle": "never"
+      }
     ],
     "foldkit/no-noop-message": "error",
     "foldkit/got-submodel-message-name": "error",
@@ -68,6 +70,22 @@
         "foldkit/require-rel-for-external-link": "error",
         "foldkit/selection-submodel-factory-at-module-scope": "error",
         "foldkit/wrap-child-output-in-got-message": "error"
+      }
+    },
+    {
+      "files": [
+        "packages/*/src/**/*.ts",
+        "packages/*/src/**/*.tsx",
+        "packages/*/src/**/*.svelte"
+      ],
+      "rules": {
+        "foldkit/no-raw-page-check": "error"
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "foldkit/no-raw-page-check": "off"
       }
     }
   ],
