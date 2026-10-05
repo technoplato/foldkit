@@ -31,6 +31,7 @@ import {
 } from '../synchronization/synchronization.js'
 import * as LocalSnapshot from './localSnapshot.js'
 import type { LocalSnapshotStore } from './localSnapshot.js'
+import { fromSync } from './programJournal.js'
 import type {
   ProgramRuntime,
   ProgramRuntimeObserver,
@@ -386,6 +387,10 @@ export function start<
     })
     yield* runtime.initialization
 
+    const sendFromSync = (message: Message): void => {
+      runtime.send(message, { source: fromSync() })
+    }
+
     const currentPolicy = (): SessionPolicy => {
       const model = runtime.readModel() as SyncedModel<ChildModel, Message>
       if (model._tag !== 'Ready') {
@@ -697,7 +702,7 @@ export function start<
     })
 
     const sendRefolded = (model: ChildModel): void => {
-      runtime.send(asMessage<Message>({ _tag: 'LogRefolded', model }))
+      sendFromSync(asMessage<Message>({ _tag: 'LogRefolded', model }))
     }
 
     /**
@@ -743,7 +748,7 @@ export function start<
         const { _tag: _readyTag, ...childModel } = model
         const encodedSnapshot = encodeUnknown(program.snapshot, childModel)
         if (Result.isFailure(encodedSnapshot)) {
-          runtime.send(
+          sendFromSync(
             asMessage<Message>(
               decodeFailed({
                 what: 'This Processor could not encode the snapshot.',
@@ -759,7 +764,7 @@ export function start<
         }
         const encodedMessage = encodeUnknown(program.message, message)
         if (Result.isFailure(encodedMessage)) {
-          runtime.send(
+          sendFromSync(
             asMessage<Message>(
               decodeFailed({
                 what: 'This Processor could not encode the Message.',
@@ -801,7 +806,7 @@ export function start<
         if (Result.isFailure(written)) {
           outbox.push(write)
           lastWrite = Option.some({ link: 'queued' })
-          runtime.send(
+          sendFromSync(
             asMessage<Message>(
               transportFailed({
                 what: 'Instant did not accept this Message.',
@@ -852,7 +857,7 @@ export function start<
       maybeCursor = local.maybeCursor
       const newest = Array.lastNonEmpty(local.snapshots)
       lastApplied = Option.some(newest.watermark.position)
-      runtime.send(
+      sendFromSync(
         asMessage<Message>({ _tag: 'SnapshotReceived', model: newest.model }),
       )
     }
@@ -866,7 +871,7 @@ export function start<
     const applyRemoteRow = (row: unknown): void => {
       const decoded = decodeUnknown(program.message, row)
       if (Option.isNone(decoded)) {
-        runtime.send(
+        sendFromSync(
           asMessage<Message>(
             decodeFailed({
               what: 'Instant sent a Message this Program cannot read.',
@@ -881,7 +886,7 @@ export function start<
       }
       Option.map(rowOrderOf(row), bumpLastApplied)
       if (appliesHere(currentPolicy(), decoded.value, row)) {
-        runtime.send(
+        sendFromSync(
           asMessage<Message>({
             _tag: 'RemoteMessageReceived',
             message: decoded.value,
@@ -1046,7 +1051,7 @@ export function start<
       const knownBefore = knownRows.size
       const maybeReadFailure = yield* readUnseen
       if (Option.isSome(maybeReadFailure)) {
-        runtime.send(
+        sendFromSync(
           asMessage<Message>(
             transportFailed({
               what: 'Instant did not return the Message log.',
@@ -1065,7 +1070,7 @@ export function start<
         Option.map(maybeFolded, folded => {
           lastApplied = folded.maxOrder
           if (Option.isNone(maybeLocalState)) {
-            runtime.send(
+            sendFromSync(
               asMessage<Message>({
                 _tag: 'SnapshotReceived',
                 model: folded.model,

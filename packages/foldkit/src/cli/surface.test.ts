@@ -1,12 +1,16 @@
 /// <reference types="node" />
 import { Array, Deferred, Effect, Fiber, Option } from 'effect'
 import { existsSync } from 'node:fs'
+import { connect } from 'node:net'
 import { PassThrough, Writable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 
+import { type ProgramHandle, bind } from '../interaction/bind.js'
 import { Link } from '../navigation/message.js'
+import { Cli, Tui } from '../processor/host.js'
 import type { RenderReport } from '../telemetry/recorder.js'
 import { ChapterApp, bindChapters } from '../test/apps/chapterContents.js'
+import { handleOf } from '../test/apps/navigableCounter.js'
 import { isCliDaemonListening } from './client.js'
 import { listenCliDaemon, startCliDaemonServer } from './listen.js'
 import { cliDaemonPidPath, cliDaemonSocketPath } from './paths.js'
@@ -50,6 +54,51 @@ const fakeTerminal = () => {
   return { keyboard, screen, written }
 }
 
+type ChapterModel = typeof ChapterApp.Model.Type
+
+type ChapterMessage = typeof ChapterApp.Message.Type
+
+const bindRecordingClients = () => {
+  const handle = handleOf(ChapterApp)
+  const current = { client: 'own' }
+  const sent: Array<Readonly<{ client: string; message: string }>> = []
+  const recording: ProgramHandle<ChapterModel, ChapterMessage> = {
+    ...handle,
+    send: message => {
+      sent.push({ client: current.client, message: message._tag })
+      handle.send(message)
+    },
+    onBehalfOf: (clientHost, send) => {
+      const outerClient = current.client
+      current.client = clientHost._tag
+      try {
+        return send()
+      } finally {
+        current.client = outerClient
+      }
+    },
+  }
+  return { bound: bind(ChapterApp, recording), sent }
+}
+
+const askRaw = (
+  socketPath: string,
+  request: Readonly<Record<string, unknown>>,
+): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const socket = connect(socketPath, () => {
+      socket.write(`${JSON.stringify(request)}\n`)
+    })
+    const chunks: Array<string> = []
+    socket.on('data', chunk => {
+      chunks.push(String(chunk))
+    })
+    socket.on('end', () => {
+      resolve(chunks.join(''))
+    })
+    socket.on('error', reject)
+  })
+
 const eventually = async (isDone: () => boolean): Promise<void> => {
   const startedAt = Date.now()
   while (!isDone()) {
@@ -67,20 +116,24 @@ describe('programCliSurface for a terminal UI view', () => {
     const surface = programCliSurface(bound, 'chapters')
     const show = Option.getOrThrow(Option.fromNullishOr(surface.show))
     const press = Option.getOrThrow(Option.fromNullishOr(surface.do))
-    const first = Effect.runSync(show(size))
+    const first = Effect.runSync(show(size, Tui()))
     expect(first.stdout.split('\n')).toHaveLength(24)
     expect(first.stdout).toContain('› Chapter 2')
     const moved = Effect.runSync(
-      press('key', { ...size, name: 'down', sequence: '\u001b[B' }),
+      press('key', { ...size, name: 'down', sequence: '\u001b[B' }, Tui()),
     )
     expect(moved.stdout).toContain('› Chapter 3')
     expect(moved.flags).toEqual({ outcome: 'Handled' })
     Effect.runSync(
-      press('key', { ...size, name: 'escape', sequence: '\u001b', meta: '1' }),
+      press(
+        'key',
+        { ...size, name: 'escape', sequence: '\u001b', meta: '1' },
+        Tui(),
+      ),
     )
     expect(uriOf(bound)).toBe('/chapters')
     const quit = Effect.runSync(
-      press('key', { ...size, name: 'q', sequence: 'q' }),
+      press('key', { ...size, name: 'q', sequence: 'q' }, Tui()),
     )
     expect(quit.flags).toEqual({ outcome: 'Quit' })
   })
@@ -111,7 +164,99 @@ describe('programCliSurface for a terminal UI view', () => {
   })
 })
 
+describe('programCliSurface for a client on another Host', () => {
+  it('sends what a view asks for on behalf of the client that asked, and paints for it', () => {
+    const { bound, sent } = bindRecordingClients()
+    const reports: Array<RenderReport> = []
+    const surface = programCliSurface(bound, 'chapters', {
+      onPainted: report => {
+        reports.push(report)
+      },
+    })
+    const press = Option.getOrThrow(Option.fromNullishOr(surface.do))
+    Effect.runSync(press('key', { ...size, name: 'n', sequence: 'n' }, Tui()))
+    Effect.runSync(press('key n', {}, Cli()))
+    bound.press('NextChapter')
+    expect(Array.map(sent, ({ client }) => client)).toEqual([
+      'Tui',
+      'Cli',
+      'own',
+    ])
+    expect(
+      Array.map(reports, ({ phase, clientHost }) => ({ phase, clientHost })),
+    ).toEqual([{ phase: 'key', clientHost: Tui() }])
+  })
+})
+
 describe('a daemon a terminal UI view talks to', () => {
+  it('hears the client each request names, or the one its flags imply', async () => {
+    const socketPath = socketPathFor('clients')
+    const heard: Array<string> = []
+    const unused = () =>
+      Effect.fail(new CliDaemonError({ message: 'Not used here.' }))
+    const surface: CliDaemonSurface<ChapterModel, ChapterMessage> = {
+      read: unused,
+      run: unused,
+      show: (_flags, client) =>
+        Effect.sync(() => {
+          heard.push(`show ${client._tag}`)
+          return { stdout: 'shown', exitCode: 0 }
+        }),
+      do: (token, flags, client) =>
+        Effect.sync(() => {
+          heard.push(`${token} ${client._tag}`)
+          return {
+            stdout: token,
+            exitCode: 0,
+            flags: { outcome: flags['name'] === 'q' ? 'Quit' : 'Handled' },
+          }
+        }),
+    }
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* startCliDaemonServer({
+            socketPath,
+            Model: ChapterApp.Model,
+            Message: ChapterApp.Message,
+            surface,
+          })
+          yield* Effect.promise(async () => {
+            await askCliView(socketPath, { _tag: 'Do', token: 'pause' })
+            await askCliView(socketPath, { _tag: 'Show', client: Tui() })
+            await askRaw(socketPath, {
+              _tag: 'Do',
+              token: 'key',
+              flags: { view: 'tui' },
+            })
+            await askRaw(socketPath, { _tag: 'Show' })
+            const terminal = fakeTerminal()
+            const ending = runCliTuiView({
+              socketPath,
+              spawn: () => {
+                throw new Error('the daemon is already listening')
+              },
+              refreshMs: 60_000,
+              input: terminal.keyboard,
+              output: terminal.screen,
+            })
+            await eventually(() => heard.length === 5)
+            terminal.keyboard.write('q')
+            await ending
+          })
+        }),
+      ),
+    )
+    expect(heard).toEqual([
+      'pause Cli',
+      'show Tui',
+      'key Tui',
+      'show Cli',
+      'show Tui',
+      'key Tui',
+    ])
+  })
+
   it('serves until it is told to stop, then removes its socket and pid', async () => {
     const socketPath = socketPathFor('until')
     await Effect.runPromise(

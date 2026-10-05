@@ -1,6 +1,6 @@
 import { Cause, Effect, Exit, type Layer, Option, Scope } from 'effect'
 
-import type { ProgramHandle } from '../interaction/bind.js'
+import type { OnBehalfOf, ProgramHandle } from '../interaction/bind.js'
 import type { Host } from '../processor/host.js'
 import type { MessageOf, ModelOf } from '../program/program.js'
 import type {
@@ -11,9 +11,11 @@ import type {
 } from '../program/sync.js'
 import type { SessionPolicy } from '../synchronization/synchronization.js'
 import type { LocalSnapshotStore } from './localSnapshot.js'
+import { fromClient } from './programJournal.js'
 import type {
   ProgramRuntimeObservation,
   ProgramRuntimeObserver,
+  SendOptions,
 } from './programRuntime.js'
 import { type StartedProgram, start } from './start.js'
 import type { SyncEngine } from './syncEngine.js'
@@ -41,6 +43,11 @@ type HostOfHandle<OnHost extends Host | undefined> = [OnHost] extends [Host]
  * there. The default, `undefined`, makes no such promise, for a handle
  * started without a Host. Telemetry needs the promise, so it can name the
  * surface a session runs on and never guess one.
+ *
+ * `onBehalfOf` sends for a client on another Host, such as a key a
+ * `books tui` view sent to the CLI daemon that holds the handle, so the
+ * journal says `clientHost: Tui` for the Message it caused; see
+ * {@link OnBehalfOf}.
  *
  * `observeRuntime` connects an observer to the runtime the handle starts.
  * An observer connected before the runtime boots, such as one connected on
@@ -75,6 +82,7 @@ export type SyncedHandle<
       SyncedMessage<ModelOf<Child>, MessageOf<Child>> &
         Readonly<{ _tag: string }>
     >
+    onBehalfOf: OnBehalfOf
   }> &
   HostOfHandle<OnHost>
 
@@ -242,6 +250,13 @@ export function startHandle<Child extends SyncChild, Resources = never>(
   let maybeStarted: Option.Option<StartedProgram<Model, Message>> =
     Option.none()
   let isStopped = false
+  let maybeClientHost = Option.none<Host>()
+
+  const sendOptions = (): SendOptions | undefined =>
+    Option.match(maybeClientHost, {
+      onNone: () => undefined,
+      onSome: clientHost => ({ source: fromClient(clientHost) }),
+    })
 
   const notify = (): void => {
     listeners.forEach(listener => {
@@ -309,7 +324,9 @@ export function startHandle<Child extends SyncChild, Resources = never>(
     send: message => {
       if (Option.isSome(maybeStarted)) {
         const started = maybeStarted.value
-        const write = Effect.runPromise(started.run(message)).finally(() => {
+        const write = Effect.runPromise(
+          started.run(message, sendOptions()),
+        ).finally(() => {
           writesInFlight.delete(write)
         })
         writesInFlight.add(write)
@@ -318,6 +335,15 @@ export function startHandle<Child extends SyncChild, Resources = never>(
       }
     },
     observeRuntime: observerRegistry.observe,
+    onBehalfOf: (clientHost, send) => {
+      const maybeOuterClientHost = maybeClientHost
+      maybeClientHost = Option.some(clientHost)
+      try {
+        return send()
+      } finally {
+        maybeClientHost = maybeOuterClientHost
+      }
+    },
     stop: async () => {
       if (isStopped) {
         return

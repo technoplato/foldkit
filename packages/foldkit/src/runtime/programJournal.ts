@@ -1,15 +1,22 @@
 import { Array, Function, HashMap, Option, Schema, pipe } from 'effect'
 
 import type { Ports } from '../port/port.js'
+import { Host } from '../processor/host.js'
 import type { MessageEnvelope } from '../processor/processor.js'
 import type { Program } from '../program/program.js'
 import { type DiffResult, computeDiff } from './diff.js'
 
 const DEFAULT_KEYFRAME_INTERVAL = 31
 
-/** A Message sent directly by a Program client. */
+/**
+ * A Message sent directly by a Program client. `clientHost` is the Host
+ * of the client it was sent for when that is not the Processor's own,
+ * such as `Tui` for a key a `books tui` view sent to the CLI daemon that
+ * holds the Program.
+ */
 const HostTransitionSource = Schema.TaggedStruct('Host', {
   actionName: Schema.optionalKey(Schema.String),
+  clientHost: Schema.optionalKey(Host),
 })
 
 /** A Message produced by a Command. */
@@ -47,6 +54,13 @@ const AcceptedMessageTransitionSource = Schema.TaggedStruct('AcceptedMessage', {
   occurrenceId: Schema.String,
 })
 
+/**
+ * A Message the sync runtime sends a synced Program itself, such as
+ * SnapshotReceived when the log is read, RemoteMessageReceived for another
+ * Processor's Message, LogRefolded, or SyncFailed.
+ */
+const SyncTransitionSource = Schema.TaggedStruct('Sync', {})
+
 /** Provenance for a Message entering the shared Program runtime. */
 export const TransitionSource = Schema.Union([
   HostTransitionSource,
@@ -58,6 +72,7 @@ export const TransitionSource = Schema.Union([
   NavigationTransitionSource,
   DevToolsTransitionSource,
   AcceptedMessageTransitionSource,
+  SyncTransitionSource,
 ])
 
 /** Provenance for a Message entering the shared Program runtime. */
@@ -435,6 +450,24 @@ export const makeProgramJournal = <
 export const fromHost = (actionName?: string): TransitionSource =>
   HostTransitionSource.make(actionName === undefined ? {} : { actionName })
 
+/**
+ * Constructs Host provenance for a Message sent on behalf of a client on
+ * another Host, such as a key a `books tui` view sent to a CLI daemon.
+ *
+ * @example
+ * ```typescript
+ * fromClient(Processor.Host.Tui()) // { _tag: 'Host', clientHost: { _tag: 'Tui' } }
+ * ```
+ */
+export const fromClient = (
+  clientHost: Host,
+  actionName?: string,
+): TransitionSource =>
+  HostTransitionSource.make({
+    clientHost,
+    ...(actionName === undefined ? {} : { actionName }),
+  })
+
 /** Constructs Command provenance for a Message. */
 export const fromCommand = (name: string): TransitionSource =>
   CommandTransitionSource.make({ name })
@@ -466,3 +499,6 @@ export const fromDevTools = (): TransitionSource =>
 /** Constructs accepted Message transport provenance. */
 export const fromAcceptedMessage = (occurrenceId: string): TransitionSource =>
   AcceptedMessageTransitionSource.make({ occurrenceId })
+
+/** Constructs sync runtime provenance for a Message. */
+export const fromSync = (): TransitionSource => SyncTransitionSource.make({})

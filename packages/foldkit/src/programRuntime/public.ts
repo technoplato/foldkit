@@ -48,6 +48,7 @@ export {
 } from '../runtime/runtimeDiagnostic.js'
 export {
   fromAcceptedMessage,
+  fromClient,
   fromCommand,
   fromDevTools,
   fromHost,
@@ -56,6 +57,7 @@ export {
   fromNavigation,
   fromPort,
   fromSubscription,
+  fromSync,
   makeProgramJournal,
   retainAllTransitions,
   retainLatestTransitions,

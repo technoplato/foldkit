@@ -483,7 +483,7 @@ describe('Telemetry.attach', () => {
     expect(events.map(describeEvent)).toEqual(
       expect.arrayContaining([
         'Rendered React',
-        'Transition SnapshotReceived from Host',
+        'Transition SnapshotReceived from Sync',
         'Transition ClickedFetch from Host',
         'CommandStarted FetchBook',
         'CommandFinished FetchBook Success',

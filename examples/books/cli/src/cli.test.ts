@@ -123,7 +123,7 @@ const doOf = (player: BooksPlayer) =>
   Option.getOrThrow(Option.fromNullishOr(player.surface.do))
 
 const run = (player: BooksPlayer, token: string, flags = {}) =>
-  Effect.runPromise(doOf(player)(token, flags))
+  Effect.runPromise(doOf(player)(token, flags, Processor.Host.Cli()))
 
 const eventually = async (
   isDone: () => boolean | Promise<boolean>,
@@ -370,7 +370,11 @@ describe('the Books player daemon', () => {
       Effect.forEach(keys, key =>
         Effect.gen(function* () {
           const startedAt = performance.now()
-          const painted = yield* doOf(player)('key', { ...tui, ...key })
+          const painted = yield* doOf(player)(
+            'key',
+            { ...tui, ...key },
+            Processor.Host.Tui(),
+          )
           return {
             ms: performance.now() - startedAt,
             lines: painted.stdout.split('\n').length,
@@ -383,7 +387,10 @@ describe('the Books player daemon', () => {
     expect(Array.every(latencies, ({ lines }) => lines === 30)).toBe(true)
     expect(isSounding(bound)).toBe(false)
     const frame = await Effect.runPromise(
-      Option.getOrThrow(Option.fromNullishOr(player.surface.show))(tui),
+      Option.getOrThrow(Option.fromNullishOr(player.surface.show))(
+        tui,
+        Processor.Host.Tui(),
+      ),
     )
     expect(frame.stdout.split('\n')).toHaveLength(30)
   })
@@ -407,7 +414,9 @@ describe('the Books player daemon', () => {
       { name: 'p', sequence: 'p' },
     ]
     await Effect.runPromise(
-      Effect.forEach(keys, key => doOf(player)('key', { ...tui, ...key })),
+      Effect.forEach(keys, key =>
+        doOf(player)('key', { ...tui, ...key }, Processor.Host.Tui()),
+      ),
     )
     await eventually(() => !isSounding(bound))
     const recorded = Array.drop(memory.events(), recordedBefore)

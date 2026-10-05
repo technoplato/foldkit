@@ -13,6 +13,7 @@ import {
   terminalFrameOf,
 } from '../interaction/terminalFocus.js'
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
+import type { Host } from '../processor/host.js'
 import { layoutTree } from '../renderers/layout.js'
 import { paintAscii } from '../renderers/paint.js'
 import type { LayoutBox, UiNode } from '../renderers/types.js'
@@ -465,7 +466,9 @@ export const paintTerminal = <Model, Message>(
 /**
  * {@link paintTerminal}, then tells `reporting.onPainted` how long the
  * paint took and why it happened, such as
- * `{ painter: 'Terminal', durationMs: 2.6, phase: 'key' }`.
+ * `{ painter: 'Terminal', durationMs: 2.6, phase: 'key' }`, with the
+ * `clientHost` it was painted for when a daemon paints for a remote view,
+ * such as `{ _tag: 'Tui' }` for `books tui`.
  */
 export const paintTerminalReported = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
@@ -474,6 +477,7 @@ export const paintTerminalReported = <Model, Message>(
   size: TerminalSize,
   phase: TerminalPaintPhase,
   reporting: TerminalPaintReporting,
+  maybeClientHost: Option.Option<Host> = Option.none(),
 ): TerminalPaint => {
   const startedAt = performance.now()
   const painted = paintTerminal(bound, name, view, size)
@@ -482,6 +486,10 @@ export const paintTerminalReported = <Model, Message>(
       painter: terminalPainter,
       durationMs: performance.now() - startedAt,
       phase,
+      ...Option.match(maybeClientHost, {
+        onNone: () => ({}),
+        onSome: clientHost => ({ clientHost }),
+      }),
     })
   }
   return painted

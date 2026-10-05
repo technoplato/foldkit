@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { type Socket, connect } from 'node:net'
 import { createInterface, emitKeypressEvents } from 'node:readline'
 
+import type { Host } from '../processor/host.js'
 import {
   cliDaemonLockPath,
   removeCliDaemonFiles,
@@ -23,17 +24,28 @@ export { parseProgramArgv, type ProgramArgv } from './argv.js'
 /** Ready wait copied from the Effect client so this file never imports Effect. */
 export const cliViewReadyTimeoutMs = 20_000
 
-/** Show or Do a slim view sends. Paint stays in the daemon. */
+/**
+ * Show or Do a slim view sends. Paint stays in the daemon. `client` is the
+ * Host of the view that sends it, `{ _tag: 'Cli' }` unless the request
+ * names another, such as `{ _tag: 'Tui' }` from {@link runCliTuiView}, so
+ * the daemon records what the request causes on that client's surface.
+ */
 export type CliViewRequest =
   | Readonly<{
       readonly _tag: 'Show'
       readonly flags?: Readonly<Record<string, string>>
+      readonly client?: Host
     }>
   | Readonly<{
       readonly _tag: 'Do'
       readonly token: string
       readonly flags?: Readonly<Record<string, string>>
+      readonly client?: Host
     }>
+
+const cliClient: Host = { _tag: 'Cli' }
+
+const tuiClient: Host = { _tag: 'Tui' }
 
 /**
  * Painted stdout the daemon returns for Show or Do, and what came of it,
@@ -205,7 +217,10 @@ const askPainted = async (
   request: CliViewRequest,
 ): Promise<CliViewPainted> => {
   const socket = await connectSocket(socketPath)
-  await writeLine(socket, JSON.stringify(request))
+  await writeLine(
+    socket,
+    JSON.stringify({ ...request, client: request.client ?? cliClient }),
+  )
   const line = await readLine(socket)
   socket.end()
   const parsed: unknown = JSON.parse(line)
@@ -493,7 +508,12 @@ export const runCliTuiView = async (
           return
         }
         try {
-          draw(await askPainted(options.socketPath, request))
+          draw(
+            await askPainted(options.socketPath, {
+              ...request,
+              client: tuiClient,
+            }),
+          )
         } catch (cause) {
           finish({ _tag: 'Lost', reason: lostReasonOf(cause) })
         }

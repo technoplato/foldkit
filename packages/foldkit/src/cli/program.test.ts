@@ -1,6 +1,7 @@
 import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { Cli } from '../processor/host.js'
 import { bindCounter } from '../test/apps/catalogCounter.js'
 import { bindApp, uriOf } from '../test/apps/navigableCounter.js'
 import { terminalWidth } from './layout.js'
@@ -156,7 +157,7 @@ describe('programCliSurface', () => {
     const runWords = Option.getOrThrow(
       Option.fromNullishOr(programCliSurface(bound, 'counter').do),
     )
-    const result = Effect.runSync(runWords('menu  type  re', {}))
+    const result = Effect.runSync(runWords('menu  type  re', {}, Cli()))
     expect(result.exitCode).toBe(0)
     expect(Option.map(bound.menu(), menu => menu.query)).toEqual(
       Option.some('re'),

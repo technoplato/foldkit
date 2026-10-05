@@ -835,6 +835,7 @@ export const makeProgramRuntime = <
               command.name,
               command.args ?? {},
               installedCommandTracers(),
+              Option.map(maybeOperation, operation => operation.id),
             ).pipe(
               provideResources,
               Effect.exit,

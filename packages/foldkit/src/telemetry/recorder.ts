@@ -11,6 +11,7 @@ import {
   Tracer,
 } from 'effect'
 
+import type { Host } from '../processor/host.js'
 import type {
   CommandRecord,
   Transition as JournalTransition,
@@ -45,11 +46,16 @@ type Envelope = SessionEnvelope & Readonly<{ at: string; sequence: number }>
 
 type AnyMessage = Readonly<{ _tag: string }>
 
-/** What a renderer reports about one paint. */
+/**
+ * What a renderer reports about one paint. `clientHost` is the Host of the
+ * client the frame was painted for when that is not the Program's own,
+ * such as `Tui` for a frame a CLI daemon paints for a `books tui` view.
+ */
 export type RenderReport = Readonly<{
   painter: string
   durationMs: number
   phase?: string
+  clientHost?: Host
 }>
 
 /** The facts every SessionStarted and SessionStopped line repeats. */

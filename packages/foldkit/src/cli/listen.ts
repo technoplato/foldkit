@@ -2,6 +2,7 @@
 import { Effect, Option, Schema as S, type Scope, String } from 'effect'
 import { type Server, type Socket, createServer } from 'node:net'
 
+import { Cli, type Host, Tui } from '../processor/host.js'
 import type { ProgramSchema } from '../program/program.js'
 import { removeCliDaemonFiles, writeCliDaemonPid } from './paths.js'
 import {
@@ -14,6 +15,7 @@ import {
   CliDaemonShow,
   type CliDaemonSurface,
 } from './protocol.js'
+import { isTerminalViewRequest } from './surface.js'
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null
@@ -66,6 +68,24 @@ const paintedOf = (painted: CliDaemonPaintedResult): CliDaemonPainted =>
     ...(painted.stderr === undefined ? {} : { stderr: painted.stderr }),
     ...(painted.flags === undefined ? {} : { flags: painted.flags }),
   })
+
+/**
+ * The Host of the client a Show or Do came from: the one it names, or for
+ * a view that names none, `Tui` when its flags say `view: 'tui'` and
+ * `Cli` otherwise.
+ */
+const clientOf = (
+  request: Readonly<{ client?: Host }>,
+  flags: CliDaemonFlags,
+): Host => {
+  if (request.client !== undefined) {
+    return request.client
+  } else if (isTerminalViewRequest(flags)) {
+    return Tui()
+  } else {
+    return Cli()
+  }
+}
 
 const decodeRunMessage = <Message>(
   Message: ProgramSchema<Message>,
@@ -143,7 +163,7 @@ const handleConnection = <Model, Message>(
           )
         }
         const flags: CliDaemonFlags = show.flags ?? {}
-        return paintedOf(yield* surface.show(flags))
+        return paintedOf(yield* surface.show(flags, clientOf(show, flags)))
       }
       if (parsed['_tag'] === 'Do') {
         const request = yield* Effect.try({
@@ -164,7 +184,9 @@ const handleConnection = <Model, Message>(
           )
         }
         const flags: CliDaemonFlags = request.flags ?? {}
-        return paintedOf(yield* surface.do(request.token, flags))
+        return paintedOf(
+          yield* surface.do(request.token, flags, clientOf(request, flags)),
+        )
       }
       return yield* Effect.fail(
         new CliDaemonError({

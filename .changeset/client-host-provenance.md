@@ -1,0 +1,5 @@
+---
+'foldkit': minor
+---
+
+A Program's journal now says who sent each Message more exactly. The Messages the sync runtime sends a synced Program itself, SnapshotReceived, RemoteMessageReceived, LogRefolded, and SyncFailed, have the new source `Sync` instead of `Host`, built with `ProgramRuntime.fromSync()`. A Message a Processor sends for a client on another Host has the source `{ _tag: 'Host', clientHost }`, built with `ProgramRuntime.fromClient(host)`: a synced handle's `onBehalfOf(clientHost, send)` sends that way, and `Interaction.onBehalfOf(bound, clientHost, send)` does for any bound Program, running `send` plainly where the handle cannot. A CLI daemon's Show and Do requests carry the `client` Host of the view that asks, `runCliTuiView` naming `Tui` and every other slim view `Cli`, and `CliDaemonSurface.show` and `do` hear it, so `programCliSurface` and `makeProgramTerminalView` send a view's commands and keys on its behalf and report each frame with the `clientHost` it was painted for. A Command a Message returned runs with that Message's runtime operation in its span's annotations, as `CommandOperation`, so a tracer can tie the Command to the Message.

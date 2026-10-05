@@ -1,8 +1,9 @@
 import { Array, Effect, Option, Ref, pipe } from 'effect'
 
-import type { BoundInteraction } from '../interaction/bind.js'
+import { type BoundInteraction, onBehalfOf } from '../interaction/bind.js'
 import { terminalKeyInput } from '../interaction/interaction.js'
 import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
+import { type Host, Tui } from '../processor/host.js'
 import { paintProgram, runProgramCommand } from './program.js'
 import type {
   CliDaemonFlags,
@@ -54,12 +55,17 @@ type KeptView = Readonly<{ viewId: string; view: TerminalView }>
  * What a daemon keeps for each terminal UI that shows its Program, by the
  * `viewId` the view sends: the highlight and the scroll, so each key and
  * each refresh paints the next frame from where the last one left off,
- * and a new `books tui` starts fresh.
+ * and a new `books tui` starts fresh. `client` is the Host of the view,
+ * `Tui` unless the request named another.
  */
 export type ProgramTerminalView = Readonly<{
-  paint: (flags: CliDaemonFlags) => Effect.Effect<CliDaemonPaintedResult, never>
+  paint: (
+    flags: CliDaemonFlags,
+    client?: Host,
+  ) => Effect.Effect<CliDaemonPaintedResult, never>
   pressKey: (
     flags: CliDaemonFlags,
+    client?: Host,
   ) => Effect.Effect<CliDaemonPaintedResult, never>
 }>
 
@@ -69,9 +75,11 @@ export type ProgramTerminalView = Readonly<{
  * `pressKey` routes the key the view read, `{ name: 'down' }` or
  * `{ sequence: 'p' }`, through the Program's interaction the way an
  * in-process TUI does, then paints, and says what came of it in
- * `flags.outcome`, `Quit` after a `q` nothing else took. `onPainted` hears
- * how long each frame took to paint and why: `mount` for a view's first
- * frame, `refresh` when it asks again, and `key` after a key.
+ * `flags.outcome`, `Quit` after a `q` nothing else took. A key's Messages
+ * are sent on behalf of the view's client, so the journal and telemetry
+ * say a `Tui` client sent them. `onPainted` hears how long each frame took
+ * to paint, why, and the client it was painted for: `mount` for a view's
+ * first frame, `refresh` when it asks again, and `key` after a key.
  *
  * @example
  * ```typescript
@@ -110,7 +118,11 @@ export const makeProgramTerminalView = <Model, Message>(
         viewsKept,
       ),
     )
-  const paintAs = (flags: CliDaemonFlags, phase: TerminalPaintPhase) =>
+  const paintAs = (
+    flags: CliDaemonFlags,
+    phase: TerminalPaintPhase,
+    client: Host,
+  ) =>
     Effect.gen(function* () {
       const painted = paintTerminalReported(
         bound,
@@ -119,30 +131,33 @@ export const makeProgramTerminalView = <Model, Message>(
         sizeOf(flags),
         phase,
         reporting,
+        Option.some(client),
       )
       yield* keep(flags, painted.view)
       return { stdout: Array.join(painted.lines, '\n'), exitCode: 0 }
     })
-  const paint = (flags: CliDaemonFlags) =>
+  const paint = (flags: CliDaemonFlags, client: Host = Tui()) =>
     Effect.flatMap(keptOf(flags), maybeKept =>
-      paintAs(flags, Option.isSome(maybeKept) ? 'refresh' : 'mount'),
+      paintAs(flags, Option.isSome(maybeKept) ? 'refresh' : 'mount', client),
     )
-  const pressKey = (flags: CliDaemonFlags) =>
+  const pressKey = (flags: CliDaemonFlags, client: Host = Tui()) =>
     Effect.gen(function* () {
       const current = yield* viewOf(flags)
-      const pressed = pressTerminalKeyAt(
-        bound,
-        terminalKeyInput({
-          sequence: flags['sequence'] ?? '',
-          name: flags['name'] ?? '',
-          isMeta: flags['meta'] === '1',
-          isControl: flags['ctrl'] === '1',
-          isShift: flags['shift'] === '1',
-        }),
-        current.focus,
+      const pressed = onBehalfOf(bound, client, () =>
+        pressTerminalKeyAt(
+          bound,
+          terminalKeyInput({
+            sequence: flags['sequence'] ?? '',
+            name: flags['name'] ?? '',
+            isMeta: flags['meta'] === '1',
+            isControl: flags['ctrl'] === '1',
+            isShift: flags['shift'] === '1',
+          }),
+          current.focus,
+        ),
       )
       yield* keep(flags, { ...current, focus: pressed.focus })
-      const painted = yield* paintAs(flags, 'key')
+      const painted = yield* paintAs(flags, 'key', client)
       return { ...painted, flags: { outcome: pressed.outcome } }
     })
   return { paint, pressKey }
@@ -158,10 +173,11 @@ const wordsOf = (token: string): ReadonlyArray<string> =>
 
 /**
  * A CLI daemon surface for any bound Program. `show` paints; `do` runs the
- * words the view sent. A request from a terminal UI view paints the
- * Program to fit that terminal and presses the key it read, so
- * `runCliTuiView` shows the daemon's Program live, and `onPainted` hears
- * how long each of those frames took to paint.
+ * words the view sent, on behalf of the client that asked, so a one-shot
+ * `counter increment` is recorded as a `Cli` client's Message. A request
+ * from a terminal UI view paints the Program to fit that terminal and
+ * presses the key it read, so `runCliTuiView` shows the daemon's Program
+ * live, and `onPainted` hears how long each of those frames took to paint.
  */
 export const programCliSurface = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
@@ -177,18 +193,20 @@ export const programCliSurface = <Model, Message>(
         bound.send(message)
         return { model: bound.readModel(), previous }
       }),
-    show: flags =>
+    show: (flags, client) =>
       isTerminalViewRequest(flags)
-        ? terminal.paint(flags)
+        ? terminal.paint(flags, client)
         : Effect.sync(() => ({
             stdout: paintProgram(bound, name),
             exitCode: 0,
           })),
-    do: (token, flags) =>
+    do: (token, flags, client) =>
       isTerminalViewRequest(flags)
-        ? terminal.pressKey(flags)
+        ? terminal.pressKey(flags, client)
         : Effect.sync(() =>
-            runProgramCommand(bound, name, wordsOf(token), flags),
+            onBehalfOf(bound, client, () =>
+              runProgramCommand(bound, name, wordsOf(token), flags),
+            ),
           ),
   }
 }
