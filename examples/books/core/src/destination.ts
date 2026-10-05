@@ -3,6 +3,7 @@ import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
 import * as ReadAloud from 'read-aloud-core-example'
 
+import { AudibleConnectPage, AudibleTitlesPage } from './audible/destination.js'
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 
 // DESTINATION
@@ -71,9 +72,19 @@ export const DeleteBookmarkQuestion = ts('DeleteBookmarkQuestion', {
 export type DeleteBookmarkQuestion = typeof DeleteBookmarkQuestion.Type
 
 /**
+ * Where more books can come from, a Sheet over the library at
+ * `/books/add`: one row per source, Audible today.
+ */
+export const AddBooksSheet = ts('AddBooksSheet')
+/** Where more books can come from. */
+export type AddBooksSheet = typeof AddBooksSheet.Type
+
+/**
  * Every place Books can show, and the URI no route matched. A stack holds
  * only these. Read Aloud's places sit above the library:
- * `/books/read-aloud` and `/books/read-aloud/9780063342705/page/4`.
+ * `/books/read-aloud` and `/books/read-aloud/9780063342705/page/4`. The
+ * Audible import's pages sit above the library or the profile:
+ * `/books/audible` and `/books/profile/audible/connect`.
  */
 export const Destination = S.Union([
   LibraryPage,
@@ -84,6 +95,9 @@ export const Destination = S.Union([
   ContentsSheet,
   SpeedSheet,
   DeleteBookmarkQuestion,
+  AddBooksSheet,
+  AudibleConnectPage,
+  AudibleTitlesPage,
   ReadAloud.ReadAloudShelf,
   ReadAloud.ReadAloudPage,
   ReadAloud.ReadAloudBook,
@@ -111,5 +125,7 @@ export const isContentsSheet = S.is(ContentsSheet)
 export const isSpeedSheet = S.is(SpeedSheet)
 /** True for the delete-bookmark question. */
 export const isDeleteBookmarkQuestion = S.is(DeleteBookmarkQuestion)
+/** True for the Sheet of places more books can come from. */
+export const isAddBooksSheet = S.is(AddBooksSheet)
 /** True for any of Read Aloud's places: the shelf, a book, or a page. */
 export const isReadAloudPlace = S.is(ReadAloud.ReadAloudPlace)

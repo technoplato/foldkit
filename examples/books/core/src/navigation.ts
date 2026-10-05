@@ -4,6 +4,13 @@ import * as ReadAloud from 'read-aloud-core-example'
 import { PlaceSegment } from 'transcript-player-core-example'
 
 import {
+  AudibleConnectPage,
+  AudibleTitlesPage,
+  isAudibleConnectPage,
+  isAudibleTitlesPage,
+} from './audible/destination.js'
+import {
+  AddBooksSheet,
   ContentsSheet,
   DeleteBookmarkQuestion,
   Destination,
@@ -13,6 +20,7 @@ import {
   ProfilePage,
   SpeedSheet,
   TitlePage,
+  isAddBooksSheet,
   isLibraryPage,
   isPlayerScreen,
   isProfilePage,
@@ -21,6 +29,8 @@ import {
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 import { type Model, titleOf } from './model.js'
 import {
+  audibleConnectScreen,
+  audibleTitlesScreen,
   contentsScreen,
   deleteBookmarkScreen,
   missingTitleScreen,
@@ -30,6 +40,7 @@ import {
   speedScreen,
   titleScreen,
 } from './screen.js'
+import { addBooksScreen } from './sources.js'
 
 // NAVIGATION
 
@@ -43,6 +54,9 @@ const isTopOf =
     Option.exists(Array.last(beneath), top =>
       Array.some(predicates, predicate => predicate(top)),
     )
+
+const isHome = (destination: unknown): boolean =>
+  isLibraryPage(destination) || isProfilePage(destination)
 
 /**
  * How a title reads in a window title before the shelf arrives: its name
@@ -62,6 +76,11 @@ export const nameOfSlug = (slug: TitleSlug): string =>
  *   its Google viewer turns instead of loading the book again. They come
  *   before a title's page, so `read-aloud` never reads as a title's name
  *   tag.
+ * - `/books/add` is a Sheet over the library: where more books can come
+ *   from. `/books/audible` is the Audible titles to import and
+ *   `/books/audible/connect` the Audible sign-in, above the library or the
+ *   profile, `/books/profile/audible` from there. They come before a
+ *   title's page too.
  * - `/books/the-lantern-keeper` is a title's page, only above the library.
  * - `/books/the-lantern-keeper/listen/12:03` is that title's player at
  *   12:03, only above its page: a link to that moment, kept up to date as
@@ -93,6 +112,27 @@ export const declared = Navigation.screens({
     Navigation.pushScreen(ReadAloud.ReadAloudBook, ReadAloud.bookRoute, {
       title: () => 'Read aloud',
       isAllowedAbove: ReadAloud.isAboveShelf,
+    }),
+    Navigation.presentScreen(
+      AddBooksSheet,
+      Route.literal('add'),
+      Navigation.Sheet(),
+      {
+        title: () => 'Add your books',
+        isAllowedAbove: beneath => Array.every(beneath, isLibraryPage),
+      },
+    ),
+    Navigation.pushScreen(
+      AudibleConnectPage,
+      pipe(Route.literal('audible'), Route.slash(Route.literal('connect'))),
+      {
+        title: () => 'Connect Audible',
+        isAllowedAbove: beneath => Array.every(beneath, isHome),
+      },
+    ),
+    Navigation.pushScreen(AudibleTitlesPage, Route.literal('audible'), {
+      title: () => 'Import from Audible',
+      isAllowedAbove: beneath => Array.every(beneath, isHome),
     }),
     Navigation.pushScreen(TitlePage, slugSegment, {
       title: ({ slug }) => nameOfSlug(slug),
@@ -171,6 +211,12 @@ const viewOf = (
         deleteBookmarkScreen(model, destination.bookmarkId),
       ),
     )
+  } else if (isAddBooksSheet(destination)) {
+    return Option.some(Navigation.screenView(addBooksScreen(model)))
+  } else if (isAudibleConnectPage(destination)) {
+    return Option.some(Navigation.screenView(audibleConnectScreen(model)))
+  } else if (isAudibleTitlesPage(destination)) {
+    return Option.some(Navigation.screenView(audibleTitlesScreen(model)))
   } else {
     return Option.map(
       readAloudScreen(model, destination),
@@ -203,6 +249,9 @@ export const navigation = Navigation.composeNavigation<
   | ContentsSheet
   | SpeedSheet
   | DeleteBookmarkQuestion
+  | AddBooksSheet
+  | AudibleConnectPage
+  | AudibleTitlesPage
   | ReadAloud.ReadAloudPlace
 >({
   child: declared,

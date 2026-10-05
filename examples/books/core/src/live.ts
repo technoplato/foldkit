@@ -12,11 +12,15 @@ import { ffplayAudioOutput } from 'transcript-player-core-example'
 import {
   Instant,
   type ProgramLogDatabase,
+  accessRequestHeaders,
+  accessTokenFromEnv,
   ensureHostedInstantSession,
   makeInstantCoreProgramLogTransport,
   makeNodeInstantDatabase,
 } from '@foldkit/instant'
 
+import { httpAudibleImport } from './audible/http.js'
+import { AudibleImport } from './audible/service.js'
 import { makeInstantLibraryStore } from './instantLibrary.js'
 import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
@@ -149,10 +153,28 @@ export type StartBooksConfig = Readonly<{
 }>
 
 /**
+ * The Audible import a terminal reaches: the reader it signed in through,
+ * with the Cloudflare Access login from the environment, or none on this
+ * machine's `http://localhost:5200`.
+ */
+const terminalAudibleImport = (signedIn: SignedInBooks) =>
+  Layer.succeed(
+    AudibleImport,
+    httpAudibleImport({
+      origin: signedIn.sessionOrigin,
+      headers: Option.match(accessTokenFromEnv(), {
+        onNone: () => ({}),
+        onSome: accessRequestHeaders,
+      }),
+    }),
+  )
+
+/**
  * Starts Books in a terminal as the signed-in member: the shelf and the
  * words from Instant, the audio through ffplay, the books read aloud from
- * Scribe's logs on this machine, and this machine's fold of the log in a
- * file, so the next run paints at once.
+ * Scribe's logs on this machine, the Audible import through the reader it
+ * signed in with, and this machine's fold of the log in a file, so the
+ * next run paints at once.
  *
  * @example
  * ```typescript
@@ -179,6 +201,7 @@ export const startBooks = (
       terminalLinkSharing(publicOriginOf(signedIn.sessionOrigin)),
       localReadingSource(thingsDirectoryFromEnv()),
       fetchPreviewSource,
+      terminalAudibleImport(signedIn),
     ),
     localSnapshot: localSnapshotFile(
       join(stateDirectoryOf(signedIn.appId), 'snapshot.json'),

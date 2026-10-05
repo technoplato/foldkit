@@ -4,6 +4,12 @@ import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
+  audibleUpdated,
+  openedAudibleImport,
+  presentedAddBooks,
+  reconnectedAudible,
+} from './addBooks.js'
+import {
   ContentsSheet,
   DeleteBookmarkQuestion,
   type Destination,
@@ -615,6 +621,25 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         { ...model, maybeProblem: Option.some(reason) },
         [],
       ],
+      ShowAddBooks: () => [presentedAddBooks(model), []],
+      ImportFromAudible: () => [openedAudibleImport(model), []],
+      ReconnectAudible: () => [reconnectedAudible(model), []],
+      ConnectAudible: message => audibleUpdated(model, message),
+      TryAudibleSignInAgain: message => audibleUpdated(model, message),
+      ToggleAudibleTitle: message => audibleUpdated(model, message),
+      SelectAllAudibleTitles: message => audibleUpdated(model, message),
+      DeselectAudibleTitles: message => audibleUpdated(model, message),
+      ImportAudibleTitles: message => audibleUpdated(model, message),
+      ReadAudibleLibraryAgain: message => audibleUpdated(model, message),
+      StartedAudibleSignIn: message => audibleUpdated(model, message),
+      FailedStartAudibleSignIn: message => audibleUpdated(model, message),
+      ConnectedAudible: message => audibleUpdated(model, message),
+      FailedConnectAudible: message => audibleUpdated(model, message),
+      ReceivedAudibleLibrary: message => audibleUpdated(model, message),
+      FailedReadAudibleLibrary: message => audibleUpdated(model, message),
+      AdvancedAudibleImport: message => audibleUpdated(model, message),
+      ImportedAudibleTitles: message => audibleUpdated(model, message),
+      FailedImportAudibleTitles: message => audibleUpdated(model, message),
       OpenedUri: fact => [Navigation.foldMessage(navigation, model, fact), []],
       NavigatedBack: fact => [
         Navigation.foldMessage(navigation, model, fact),

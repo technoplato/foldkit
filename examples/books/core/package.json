@@ -22,6 +22,11 @@
       "types": "./dist/linkPreviews.node.d.ts",
       "import": "./dist/linkPreviews.node.js",
       "default": "./dist/linkPreviews.node.js"
+    },
+    "./audible-endpoint": {
+      "types": "./dist/audible/index.node.d.ts",
+      "import": "./dist/audible/index.node.js",
+      "default": "./dist/audible/index.node.js"
     }
   },
   "scripts": {

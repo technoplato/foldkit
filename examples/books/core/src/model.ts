@@ -4,6 +4,7 @@ import { ts } from 'foldkit/schema'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
+import { AudibleModel } from './audible/model.js'
 import { Destination } from './destination.js'
 import {
   BookmarkId,
@@ -127,9 +128,11 @@ export type PlayerControls = typeof PlayerControls.Type
 /**
  * The Books Model: the shared shelf, this device's player and speed, the
  * last write the library store refused, the picture books read aloud and
- * the previews checked for them, and the navigation stack. The shelf comes
- * from the library store, the readings from the reading source, and the
- * player counts on this device, so none of them is folded from the log.
+ * the previews checked for them, this device's Audible import, and the
+ * navigation stack. The shelf comes from the library store, the readings
+ * from the reading source, the player counts on this device, and the
+ * Audible import happens on the device where it was started, so none of
+ * them is folded from the log.
  */
 export const Model = S.Struct({
   library: Library,
@@ -141,6 +144,7 @@ export const Model = S.Struct({
   maybeMember: S.Option(S.String),
   readings: ReadAloud.ReadingsState,
   previewChecks: S.Array(ReadAloud.PreviewCheck),
+  audible: AudibleModel,
   navigation: Navigation.NavigationStack(Destination),
 })
 /**

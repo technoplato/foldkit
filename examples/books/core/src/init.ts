@@ -3,6 +3,7 @@ import { Navigation } from 'foldkit'
 import type { Command } from 'foldkit'
 import * as ReadAloud from 'read-aloud-core-example'
 
+import * as Audible from './audible/model.js'
 import { type Destination, LibraryPage } from './destination.js'
 import type { Message } from './message.js'
 import { Idle, type Model, ShelfLoading } from './model.js'
@@ -27,6 +28,7 @@ export const init = (): readonly [
     maybeMember: Option.none(),
     readings: ReadAloud.ReadingsLoading(),
     previewChecks: [],
+    audible: Audible.init(),
     navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
   },
   [],

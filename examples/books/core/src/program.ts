@@ -1,6 +1,7 @@
 import { Match as M } from 'effect'
 import { Program } from 'foldkit'
 
+import * as Audible from './audible/index.js'
 import { init } from './init.js'
 import { Message, catalog } from './message.js'
 import { Model } from './model.js'
@@ -65,6 +66,25 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       FailedLoadTranscript: () => 'Navigation',
       CompletedWriteLibrary: () => 'Domain',
       FailedWriteLibrary: () => 'Domain',
+      ShowAddBooks: () => 'Navigation',
+      ImportFromAudible: () => 'Navigation',
+      ReconnectAudible: () => 'Navigation',
+      ConnectAudible: () => 'Navigation',
+      TryAudibleSignInAgain: () => 'Navigation',
+      ToggleAudibleTitle: () => 'Navigation',
+      SelectAllAudibleTitles: () => 'Navigation',
+      DeselectAudibleTitles: () => 'Navigation',
+      ImportAudibleTitles: () => 'Navigation',
+      ReadAudibleLibraryAgain: () => 'Navigation',
+      StartedAudibleSignIn: () => 'Navigation',
+      FailedStartAudibleSignIn: () => 'Navigation',
+      ConnectedAudible: () => 'Navigation',
+      FailedConnectAudible: () => 'Navigation',
+      ReceivedAudibleLibrary: () => 'Navigation',
+      FailedReadAudibleLibrary: () => 'Navigation',
+      AdvancedAudibleImport: () => 'Navigation',
+      ImportedAudibleTitles: () => 'Navigation',
+      FailedImportAudibleTitles: () => 'Navigation',
       OpenedUri: () => 'Navigation',
       NavigatedBack: () => 'Navigation',
     }),
@@ -77,7 +97,9 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
  * change to it goes back there as a Command, so every device reads the
  * same progress and bookmarks. The player counts on this device; playing,
  * pausing, turning a picture book's page, and moving around are
- * Navigation, which the session mirrors or keeps local. It knows nothing
+ * Navigation, which the session mirrors or keeps local. The Audible
+ * import's Messages stay on the device that sent them: the log never holds
+ * them, so a pasted sign-in address never reaches it. It knows nothing
  * about React, terminals, Scribe's files, or Instant.
  */
 export const BooksProgram = Program.make({
@@ -94,12 +116,14 @@ export const BooksProgram = Program.make({
   synchronization: {
     messageCategory: categoryOf,
     projectDomain: model => ({ library: model.library }),
+    isLocalOnly: Audible.isMessage,
     keepOnRefold: (current, refolded) => ({
       ...refolded,
       library: current.library,
       listening: current.listening,
       readings: current.readings,
       previewChecks: current.previewChecks,
+      audible: current.audible,
     }),
   },
 })

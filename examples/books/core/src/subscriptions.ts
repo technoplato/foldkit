@@ -3,6 +3,8 @@ import { Subscription } from 'foldkit'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
+import { audibleViewOf } from './addBooks.js'
+import * as Audible from './audible/index.js'
 import { Milliseconds, TitleSlug } from './ids.js'
 import { LibraryStore } from './library.js'
 import {
@@ -53,7 +55,10 @@ export const addressCueOfModel = (
  * are read again only when the place crosses into another window. The
  * books read aloud come from the reading source for as long as the
  * Program runs, so the library's Read aloud row and an open page follow
- * the reader, and each book read aloud is asked once for a preview.
+ * the reader, and each book read aloud is asked once for a preview. The
+ * Audible import starts a sign-in while its sign-in page shows, reads the
+ * titles while its titles page shows, and follows an import until it is
+ * done, wherever the person goes meanwhile.
  */
 export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
   entry => ({
@@ -129,6 +134,36 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
           maybeIsbn13: ReadAloud.uncheckedIsbnOf(model),
         }),
         dependenciesToStream: ReadAloud.previewStream,
+      },
+    ),
+    audibleSignIn: entry(
+      { isStarting: S.Boolean },
+      {
+        modelToDependencies: model => ({
+          isStarting: Audible.isStartingSignIn(audibleViewOf(model)),
+        }),
+        dependenciesToStream: ({ isStarting }) =>
+          Audible.signInStream(isStarting),
+      },
+    ),
+    audibleLibrary: entry(
+      { isReading: S.Boolean },
+      {
+        modelToDependencies: model => ({
+          isReading: Audible.isReadingTitles(audibleViewOf(model)),
+        }),
+        dependenciesToStream: ({ isReading }) =>
+          Audible.libraryStream(isReading),
+      },
+    ),
+    audibleImport: entry(
+      { maybeAsins: S.Option(S.Array(Audible.Asin)) },
+      {
+        modelToDependencies: model => ({
+          maybeAsins: Audible.importingAsinsOf(model.audible),
+        }),
+        dependenciesToStream: ({ maybeAsins }) =>
+          Audible.importStream(maybeAsins),
       },
     ),
   }),

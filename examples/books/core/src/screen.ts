@@ -17,6 +17,12 @@ import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
+  ImportFromAudible,
+  ReconnectAudible,
+  ShowAddBooks,
+} from './addBooks.js'
+import * as Audible from './audible/index.js'
+import {
   type BookmarkId,
   Milliseconds,
   type TitleSlug,
@@ -62,6 +68,7 @@ import {
   titleOf,
   titlesOf,
 } from './model.js'
+import { bookSources, emptyLibraryButtonsOf } from './sources.js'
 import { shownTitleOf } from './stack.js'
 
 // VIEW
@@ -419,18 +426,81 @@ export const readAloudScreen = (
       Column({ gap: 1 }, node, ...noticeLines(model), dockOf(model, 'Neither')),
   )
 
+const emptyLibraryOf = (model: Model): ReadonlyArray<UiNode> => [
+  Text('Your library is empty'),
+  Text('Bring in the audiobooks you already own.', { dim: true }),
+  Row({}, ...emptyLibraryButtonsOf(model)),
+]
+
+const sourcesLine = Array.match(bookSources, {
+  onEmpty: () => 'Bring in the audiobooks you own',
+  onNonEmpty: sources =>
+    sources.length === 1
+      ? `${Array.headNonEmpty(sources).line} on ${Array.headNonEmpty(sources).name}`
+      : `From ${Array.join(
+          Array.map(sources, source => source.name),
+          ', ',
+        )}`,
+})
+
+const addMoreOf = (model: Model): UiNode =>
+  List({
+    label: 'Add books',
+    items: [
+      {
+        key: 'add-books',
+        title: 'Add more of your books',
+        lines: [sourcesLine],
+        ...offeredActionOf(entriesOf(model), ShowAddBooks.tag),
+      },
+    ],
+  })
+
+const shelfSectionsOf = (model: Model): ReadonlyArray<UiNode> => {
+  const continuing = continueTitlesOf(model)
+  const others = Array.filter(
+    titlesOf(model),
+    title => !Array.some(continuing, kept => kept.slug === title.slug),
+  )
+  return [
+    ...Array.match(continuing, {
+      onEmpty: () => [],
+      onNonEmpty: titles => [
+        Text('Continue listening', { dim: true }),
+        List({
+          label: 'Continue listening',
+          items: Array.map(titles, title => continueItemOf(model, title)),
+        }),
+      ],
+    }),
+    ...readAloudSectionOf(model),
+    ...Array.match(others, {
+      onEmpty: () => [],
+      onNonEmpty: titles => [
+        Text('Your books', { dim: true }),
+        List({
+          label: 'Your books',
+          items: Array.map(titles, title => titleItemOf(model, title)),
+        }),
+      ],
+    }),
+    addMoreOf(model),
+  ]
+}
+
 /**
  * The library, the home: up to three books to continue, the one playing
  * first, the picture book being read aloud, or the last one read, then
- * every other book with who wrote it and how far along it is. Pressing a
- * row opens the book; its round button plays it; the Read aloud row opens
- * the books read aloud. What is playing and the tabs stay pinned at the
- * bottom.
+ * every other book with who wrote it and how far along it is, and "Add
+ * more of your books" last. Pressing a row opens the book; its round
+ * button plays it; the Read aloud row opens the books read aloud. An
+ * empty shelf says so and offers "Import from Audible" instead. What is
+ * playing and the tabs stay pinned at the bottom.
  *
  * @example
  * ```typescript
  * libraryScreen(model)
- * // Column: Library, Continue listening, Read aloud, Your books, Dock(now playing, Library | Profile)
+ * // Column: Library, Continue listening, Read aloud, Your books, Add more of your books, Dock(now playing, Library | Profile)
  * ```
  */
 export const libraryScreen = (model: Model): UiNode =>
@@ -449,48 +519,38 @@ export const libraryScreen = (model: Model): UiNode =>
           Text(`Your library could not be opened: ${library.reason}`),
           ...readAloudSectionOf(model),
         ]
+      } else if (Array.isReadonlyArrayEmpty(titlesOf(model))) {
+        return [...emptyLibraryOf(model), ...readAloudSectionOf(model)]
       } else {
-        const continuing = continueTitlesOf(model)
-        const others = Array.filter(
-          titlesOf(model),
-          title => !Array.some(continuing, kept => kept.slug === title.slug),
-        )
-        return [
-          ...Array.match(continuing, {
-            onEmpty: () => [],
-            onNonEmpty: titles => [
-              Text('Continue listening', { dim: true }),
-              List({
-                label: 'Continue listening',
-                items: Array.map(titles, title => continueItemOf(model, title)),
-              }),
-            ],
-          }),
-          ...readAloudSectionOf(model),
-          ...Array.match(others, {
-            onEmpty: () => [],
-            onNonEmpty: titles => [
-              Text('Your books', { dim: true }),
-              List({
-                label: 'Your books',
-                items: Array.map(titles, title => titleItemOf(model, title)),
-              }),
-            ],
-          }),
-        ]
+        return shelfSectionsOf(model)
       }
     }),
     dockOf(model, 'Library'),
   )
 
+const importRowsOf = (model: Model): ReadonlyArray<UiNode> => [
+  Text('Add books', { dim: true }),
+  List({
+    label: 'Add books',
+    items: [
+      {
+        key: 'import-from-audible',
+        title: 'Import from Audible',
+        lines: ['Bring in the audiobooks you own'],
+        ...offeredActionOf(entriesOf(model), ImportFromAudible.tag),
+      },
+    ],
+  }),
+]
+
 /**
- * Who is signed in, through Cloudflare Access, and how the library stands:
- * how many books, how many started and finished.
+ * Who is signed in, through Cloudflare Access, how the library stands:
+ * how many books, how many started and finished, and Import from Audible.
  *
  * @example
  * ```typescript
  * profileScreen(model)
- * // Column: Profile, Account (you@example.com), Listening (5 books), Dock(Library | Profile)
+ * // Column: Profile, Account (you@example.com), Listening (5 books), Add books (Import from Audible), Dock(Library | Profile)
  * ```
  */
 export const profileScreen = (model: Model): UiNode => {
@@ -534,9 +594,37 @@ export const profileScreen = (model: Model): UiNode => {
         },
       ],
     }),
+    ...importRowsOf(model),
     dockOf(model, 'Profile'),
   )
 }
+
+/**
+ * Connecting Audible, at `/books/audible/connect`: open Amazon's sign-in,
+ * then paste the address it lands on.
+ */
+export const audibleConnectScreen = (model: Model): UiNode =>
+  Audible.connectScreen(
+    { page: 'Connect', audible: model.audible },
+    entriesOf(model),
+  )
+
+/**
+ * The family member's Audible titles, at `/books/audible`: choose, import,
+ * and go back to the library with them on it.
+ */
+export const audibleTitlesScreen = (model: Model): UiNode =>
+  Audible.titlesScreen(
+    { page: 'Titles', audible: model.audible },
+    entriesOf(model),
+    {
+      reconnect: buttonsOf(model, [ReconnectAudible], 'Primary'),
+      openLibrary: Array.map(
+        buttonsOf(model, [ShowLibrary], 'Primary'),
+        button => ({ ...button, label: 'Go to your library' }),
+      ),
+    },
+  )
 
 const bookmarkItemOf = (
   model: Model,

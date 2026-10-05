@@ -1,4 +1,11 @@
 import {
+  audibleDemoLanding,
+  audibleImportEndpoint,
+  demoBridge,
+  demoLibraryImport,
+  memoryVault,
+} from 'books-core-example/audible-endpoint'
+import {
   booksLinkPreviews,
   instantTitlesLoader,
 } from 'books-core-example/link-previews'
@@ -7,7 +14,7 @@ import {
   thingsDirectoryFromEnv,
 } from 'read-aloud-core-example'
 import { readAloudEndpoint } from 'read-aloud-core-example/endpoint'
-import { defineConfig } from 'vite'
+import { type PluginOption, defineConfig } from 'vite'
 
 import {
   foldkitTelemetry,
@@ -37,6 +44,18 @@ const linkPreviews = booksLinkPreviews({
   loadReadAloudBooks: readAloudBooksLoader(thingsDirectoryFromEnv()),
 })
 
+const audibleImport = (): ReadonlyArray<PluginOption> =>
+  envValue('BOOKS_AUDIBLE_DEMO') === '1'
+    ? [
+        audibleDemoLanding(),
+        audibleImportEndpoint({
+          bridge: demoBridge,
+          vault: memoryVault,
+          libraryImport: demoLibraryImport({ appId, adminToken }),
+        }),
+      ]
+    : [audibleImportEndpoint()]
+
 export default defineConfig({
   plugins: [
     tailwindcss(),
@@ -44,6 +63,7 @@ export default defineConfig({
     hostedIdentity({ publicRoutes: linkPreviews }),
     foldkitTelemetry(),
     readAloudEndpoint(),
+    ...audibleImport(),
   ],
   resolve: {
     alias: instantBrowserAlias,

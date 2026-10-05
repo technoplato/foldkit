@@ -1,1 +1,6 @@
 @import 'tailwindcss';
+
+.fk-item:has(.fk-item-check[data-checked]) .fk-item-title {
+  color: #111827;
+  font-weight: 600;
+}

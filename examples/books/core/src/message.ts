@@ -5,6 +5,13 @@ import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
+  ImportFromAudible,
+  ReconnectAudible,
+  ShowAddBooks,
+  audibleActions,
+} from './addBooks.js'
+import * as Audible from './audible/index.js'
+import {
   BookmarkId,
   ChapterNumber,
   ChapterNumberSegment,
@@ -391,12 +398,24 @@ export const CancelDeleteBookmark = Catalog.action('CancelDeleteBookmark', {
   meta: { label: 'Cancel', keys: ['n'] },
 })
 
+/** The Audible import's Actions, each reading the page on top. */
+export const [
+  ConnectAudible,
+  TryAudibleSignInAgain,
+  ToggleAudibleTitle,
+  SelectAllAudibleTitles,
+  DeselectAudibleTitles,
+  ImportAudibleTitles,
+  ReadAudibleLibraryAgain,
+] = audibleActions.actions
+
 /**
  * Every Books Action in the order surfaces list them. The action menu
  * shows each once; the ones that act on a title, chapter, speed, or
  * bookmark ask which next. The CLI reads them as `books play
- * the-lantern-keeper`. Read Aloud's own Actions come last, with Share for
- * a page, so `books turn-to-page 7` turns the book on screen.
+ * the-lantern-keeper`. Read Aloud's own Actions come next, with Share for
+ * a page, so `books turn-to-page 7` turns the book on screen. Adding
+ * books and the Audible import's Actions come last.
  */
 export const catalog = Catalog.make([
   Listen,
@@ -428,6 +447,16 @@ export const catalog = Catalog.make([
   CancelDeleteBookmark,
   ...ReadAloud.catalog.actions,
   ReadAloud.SharePage,
+  ShowAddBooks,
+  ImportFromAudible,
+  ReconnectAudible,
+  ConnectAudible,
+  TryAudibleSignInAgain,
+  ToggleAudibleTitle,
+  SelectAllAudibleTitles,
+  DeselectAudibleTitles,
+  ImportAudibleTitles,
+  ReadAudibleLibraryAgain,
 ])
 
 /** The library store sent the shelf. */
@@ -460,8 +489,8 @@ export const FailedWriteLibrary = m('FailedWriteLibrary', {
 
 /**
  * Every Message Books accepts: the Catalog's Actions, the facts the
- * library store, the player, and Read Aloud's sources report, and the
- * carrier facts its stack folds.
+ * library store, the player, Read Aloud's sources, and the Audible import
+ * report, and the carrier facts its stack folds.
  */
 export const Message = S.Union([
   ...catalog.Message.members,
@@ -482,6 +511,15 @@ export const Message = S.Union([
   TranscriptPlayer.FailedLoadTranscript,
   CompletedWriteLibrary,
   FailedWriteLibrary,
+  Audible.StartedAudibleSignIn,
+  Audible.FailedStartAudibleSignIn,
+  Audible.ConnectedAudible,
+  Audible.FailedConnectAudible,
+  Audible.ReceivedAudibleLibrary,
+  Audible.FailedReadAudibleLibrary,
+  Audible.AdvancedAudibleImport,
+  Audible.ImportedAudibleTitles,
+  Audible.FailedImportAudibleTitles,
   Navigation.OpenedUri,
   Navigation.NavigatedBack,
 ])

@@ -13,6 +13,8 @@ import {
 } from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
+import { httpAudibleImport } from './audible/http.js'
+import { AudibleImport } from './audible/service.js'
 import { makeInstantLibraryStore } from './instantLibrary.js'
 import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
@@ -34,7 +36,8 @@ export type StartBooksConfig = Readonly<{
  * the shelf, write progress and bookmarks as that member, play through
  * the browser's audio, and read each title's words as it plays. The program log keeps only this member's rows.
  * The books read aloud come from the origin's dev endpoint over Scribe's
- * logs, and their previews from Google Books.
+ * logs, and their previews from Google Books. The Audible import asks the
+ * same origin, which keeps every Audible login to itself.
  *
  * @example
  * ```typescript
@@ -59,6 +62,7 @@ export const startBooks = (config: StartBooksConfig): BooksHandleOnHost => {
       browserLinkSharing,
       endpointReadingSource(),
       scriptPreviewSource,
+      Layer.succeed(AudibleImport, httpAudibleImport({ origin: '' })),
     ),
     database,
   )
