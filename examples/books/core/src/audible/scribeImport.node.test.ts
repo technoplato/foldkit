@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   type AppliedAudibleImport,
+  DEMO_BOOK_IDS,
   type LibrarySnapshot,
   emptyJournal,
   planFromSnapshot,
@@ -57,6 +58,9 @@ const library = {
     itemOf('B002V0RAUU', 'A New Earth', {
       authors: [{ name: 'Eckhart Tolle' }],
     }),
+    itemOf('B0FAKEKIND', 'Kindred', {
+      authors: [{ name: 'Octavia E. Butler' }],
+    }),
   ],
 }
 
@@ -78,8 +82,22 @@ const snapshot: LibrarySnapshot = {
       audioRenditionIDs: [],
       chapterCount: 3,
     },
+    {
+      id: DEMO_BOOK_IDS[0] ?? 'no-demo-book',
+      fields: { title: 'Kindred' },
+      authors: [{ id: 'author-butler', name: 'Octavia E. Butler' }],
+      narrators: [],
+      items: [],
+      coverIDs: [],
+      hasCoverBytes: false,
+      audioRenditionIDs: [],
+      chapterCount: 1,
+    },
   ],
-  authors: [{ id: 'author-tolle', name: 'Eckhart Tolle' }],
+  authors: [
+    { id: 'author-tolle', name: 'Eckhart Tolle' },
+    { id: 'author-butler', name: 'Octavia E. Butler' },
+  ],
   narrators: [],
   shelves: [],
   rows: {},
@@ -98,7 +116,7 @@ const details = Array.map(['B0FAKE0001', 'B0FAKE0002', 'B0FAKE0003'], asin => ({
 const plan = planFromSnapshot({ library, owner, snapshot, nowMs, details })
 
 describe('the Scribe importer as Books shows it', () => {
-  it('lists new titles with their marks, the one on the shelf, and why the rest are skipped', () => {
+  it('lists new titles with their marks, the one on the shelf, and why the rest are skipped, a sample book among them', () => {
     expect(plannedTitlesOf(plan)).toEqual([
       PlannedNew({ asin: Asin.make('B0FAKE0001'), marks: [] }),
       PlannedNew({ asin: Asin.make('B0FAKE0002'), marks: ['Free'] }),
@@ -106,6 +124,7 @@ describe('the Scribe importer as Books shows it', () => {
       PlannedSkip({ asin: Asin.make('B0FAKEPOD1'), kind: 'Podcast' }),
       PlannedSkip({ asin: Asin.make('B0FAKEPLUS'), kind: 'AudiblePlusLoan' }),
       PlannedInLibrary({ asin: Asin.make('B002V0RAUU'), marks: [] }),
+      PlannedSkip({ asin: Asin.make('B0FAKEKIND'), kind: 'SampleMatch' }),
     ])
   })
 

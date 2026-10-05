@@ -92,6 +92,8 @@ const skipKindOf = (skip: ScribeSkipKind): Option.Option<SkipKind> =>
     M.when('audiblePlus', () => Option.some('AudiblePlusLoan')),
     M.when('part', () => Option.some('Part')),
     M.when('duplicate', () => Option.some('Duplicate')),
+    M.when('demoRow', () => Option.some('SampleMatch')),
+    M.when('ambiguous', () => Option.some('ShelfConflict')),
     M.when('unchanged', () => Option.none()),
     M.orElse(() => Option.some('Other')),
   )

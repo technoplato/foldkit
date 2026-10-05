@@ -85,14 +85,18 @@ export type AudibleTitle = typeof AudibleTitle.Type
 /**
  * Why the importer leaves an Audible title out: a podcast, an Audible
  * Plus loan, which the family member borrows rather than owns, a part of
- * a book that comes in whole, a second edition of a book, or another
- * reason, such as a row on the shelf it must not touch.
+ * a book that comes in whole, a second edition of a book, a title that
+ * matches one of the shelf's sample books, which stay as they are, one
+ * that matches more than one book on the shelf, or another reason, such
+ * as a title Audible no longer lists as active.
  */
 export const SkipKind = S.Literals([
   'Podcast',
   'AudiblePlusLoan',
   'Part',
   'Duplicate',
+  'SampleMatch',
+  'ShelfConflict',
   'Other',
 ])
 /** Why the importer leaves an Audible title out. */

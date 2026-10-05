@@ -176,7 +176,7 @@ describe('the Audible titles screen', () => {
     expect(wordsOf(screen)).toEqual(
       expect.arrayContaining([
         '2 books on Audible · 1 already in your library',
-        'Skipped 4 podcasts and 2 Audible Plus loans, which Books does not import.',
+        'Skipped 4 podcasts and 2 Audible Plus loans.',
       ]),
     )
     expect(rowsOf(screen)).toEqual([
@@ -226,7 +226,10 @@ describe('the Audible titles screen', () => {
           ],
           leftOut: ['Publisher', 'SeriesName', 'ReleaseDate'],
         },
-        skipped: [{ kind: 'Podcast', count: 4 }],
+        skipped: [
+          { kind: 'Podcast', count: 4 },
+          { kind: 'SampleMatch', count: 1 },
+        ],
       }),
     })
     expect(wordsOf(screen)).toEqual(
@@ -236,7 +239,11 @@ describe('the Audible titles screen', () => {
       ]),
     )
     expect(rowsOf(screen)).toEqual([
-      ['Skipped 4 podcasts', 'Books imports only the books you own'],
+      ['Skipped 4 podcasts', 'Books imports books, not podcasts'],
+      [
+        'Skipped 1 title that matches a sample book',
+        'The sample book on your shelf stays as it is',
+      ],
       ['3 free titles', 'Imported, and marked free'],
       ['1 explicit title', 'Imported, and marked explicit'],
       ['Listening positions', 'Not imported from Audible yet'],

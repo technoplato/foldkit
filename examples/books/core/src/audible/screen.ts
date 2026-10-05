@@ -209,7 +209,34 @@ const skipWordOf = (kind: SkipKind, count: number): string =>
     M.when('Duplicate', () =>
       countedWord(count, 'second edition', 'second editions'),
     ),
+    M.when('SampleMatch', () =>
+      countedWord(
+        count,
+        'title that matches a sample book',
+        'titles that match a sample book',
+      ),
+    ),
+    M.when('ShelfConflict', () =>
+      countedWord(
+        count,
+        'title your shelf has more than once',
+        'titles your shelf has more than once',
+      ),
+    ),
     M.when('Other', () => countedWord(count, 'other title', 'other titles')),
+    M.exhaustive,
+  )
+
+const skipReasonOf = (kind: SkipKind): string =>
+  M.value(kind).pipe(
+    M.withReturnType<string>(),
+    M.when('Podcast', () => 'Books imports books, not podcasts'),
+    M.when('AudiblePlusLoan', () => 'Borrowed through Audible Plus, not owned'),
+    M.when('Part', () => 'The whole book comes in instead'),
+    M.when('Duplicate', () => 'The edition you bought first comes in'),
+    M.when('SampleMatch', () => 'The sample book on your shelf stays as it is'),
+    M.when('ShelfConflict', () => 'Remove the extra copy on your shelf first'),
+    M.when('Other', () => 'Audible’s record of it is incomplete or inactive'),
     M.exhaustive,
   )
 
@@ -229,10 +256,7 @@ const skippedWordsOf = (
 const skippedSentenceOf = (
   skipped: ReadonlyArray<SkippedCount>,
 ): Option.Option<string> =>
-  Option.map(
-    skippedWordsOf(skipped),
-    words => `Skipped ${words}, which Books does not import.`,
-  )
+  Option.map(skippedWordsOf(skipped), words => `Skipped ${words}.`)
 
 const markWordOf = (mark: TitleMark): string =>
   M.value(mark).pipe(
@@ -456,13 +480,11 @@ const noteItemsOf = (
   summary: ImportSummary,
   skipped: ReadonlyArray<SkippedCount>,
 ): ReadonlyArray<ListItem> => [
-  ...Array.fromOption(
-    Option.map(skippedWordsOf(skipped), words => ({
-      key: 'skipped',
-      title: `Skipped ${words}`,
-      lines: ['Books imports only the books you own'],
-    })),
-  ),
+  ...Array.map(skipped, ({ kind, count }) => ({
+    key: `skipped-${kind}`,
+    title: `Skipped ${skipWordOf(kind, count)}`,
+    lines: [skipReasonOf(kind)],
+  })),
   ...Array.map(summary.marked, markedItemOf),
   {
     key: 'positions',

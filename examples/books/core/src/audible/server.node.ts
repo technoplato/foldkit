@@ -523,6 +523,8 @@ const everySkipKind: ReadonlyArray<SkipKind> = [
   'AudiblePlusLoan',
   'Part',
   'Duplicate',
+  'SampleMatch',
+  'ShelfConflict',
   'Other',
 ]
 
