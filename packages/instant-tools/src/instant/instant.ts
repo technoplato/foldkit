@@ -327,6 +327,36 @@ export const makeInstantIssueRecord = (issue: Issue): InstantIssueRecord =>
     updatedAtMs: issue.updatedAtMs,
   })
 
+const StoredIssuePayload = S.fromJsonString(S.Record(S.String, S.Unknown))
+
+/**
+ * Encodes one Issue over the payload already stored for it, so keys the Issue
+ * schema does not model survive a save. A stored payload that holds
+ * `relatedIssueIds: ['147']` keeps it when a Client changes the Issue's status.
+ * Stored payloads carry `relatedIssueIds` and `files` that a plain re-encode
+ * would drop (#591).
+ */
+export const makeInstantIssueRecordOver = (
+  issue: Issue,
+  maybeStoredRecord: Option.Option<InstantIssueRecord>,
+): InstantIssueRecord => {
+  const record = makeInstantIssueRecord(issue)
+  const maybeStoredPayload = Option.flatMap(maybeStoredRecord, storedRecord =>
+    S.decodeUnknownOption(StoredIssuePayload)(storedRecord.payloadJson),
+  )
+  if (Option.isSome(maybeStoredPayload)) {
+    return InstantIssueRecord.make({
+      ...record,
+      payloadJson: JSON.stringify({
+        ...maybeStoredPayload.value,
+        ...S.encodeSync(Issue)(issue),
+      }),
+    })
+  } else {
+    return record
+  }
+}
+
 /** Decodes one InstantDB Issue envelope into its portable domain value. */
 export const decodeIssueRecord = (record: InstantIssueRecord): Issue =>
   S.decodeUnknownSync(IssueJson)(record.payloadJson)
@@ -596,7 +626,11 @@ export const makeIssueTracker = (
       ),
     ),
   save: issue =>
-    store.saveIssue(makeInstantIssueRecord(issue)).pipe(
+    Stream.runHead(store.observeIssue(issue.id)).pipe(
+      Effect.map(Option.flatten),
+      Effect.flatMap(maybeStoredRecord =>
+        store.saveIssue(makeInstantIssueRecordOver(issue, maybeStoredRecord)),
+      ),
       Effect.mapError(
         cause =>
           new IssueTrackerError({

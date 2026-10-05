@@ -258,6 +258,40 @@ describe('Instant adapter', () => {
       }),
   )
 
+  it.effect(
+    'keeps stored payload keys the Issue schema does not model when it saves',
+    () =>
+      Effect.gen(function* () {
+        const { issues, savedIssues, store } = yield* makeStore
+        const storedRecord = makeInstantIssueRecord(issue)
+        yield* Ref.set(issues, [
+          {
+            ...storedRecord,
+            payloadJson: JSON.stringify({
+              ...JSON.parse(storedRecord.payloadJson),
+              files: [{ path: 'issues/files/042.md' }],
+              relatedIssueIds: ['147'],
+            }),
+          },
+        ])
+        const issueTracker = makeIssueTracker(store)
+
+        yield* issueTracker.save(Issue.make({ ...issue, status: 'Blocked' }))
+
+        const savedPayloads = Array.map(yield* Ref.get(savedIssues), record =>
+          JSON.parse(record.payloadJson),
+        )
+        expect(savedPayloads).toHaveLength(1)
+        expect(savedPayloads).toMatchObject([
+          {
+            files: [{ path: 'issues/files/042.md' }],
+            relatedIssueIds: ['147'],
+            status: 'Blocked',
+          },
+        ])
+      }),
+  )
+
   it.effect('filters queried Issues through the portable query domain', () =>
     Effect.gen(function* () {
       const { store } = yield* makeStore
