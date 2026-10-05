@@ -4,6 +4,42 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 8:20:29 p.m. EDT — `5ad204c0844f` chore(books): vendor the Scribe repository's Audible importer
+
+- **Implementation commit:** `5ad204c0844fc3a114c22b63d80087e06fda0284`
+- **Change:** Vendor the Scribe repository's Audible importer
+- **Details:**
+  - audibleImport.node.ts is the Scribe importer, byte-identical, for plan, apply, and rollback.
+- **Files:**
+  - `examples/books/core/src/audibleImport.node.ts` — Vendored importer.
+- **User context (verbatim):**
+  > I'd like to import my library, please, with this with this tool.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:20:29 p.m. EDT — `1b72be6fbf44` feat(books): read a title without chapters as one section
+
+- **Implementation commit:** `1b72be6fbf449c1bf325837af94f959c665987e2`
+- **Change:** Read a title without chapters as one section
+- **Details:**
+  - Imported titles Audible gives no chapters for show as one section spanning the runtime.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — One-section fallback.
+- **User context (verbatim):**
+  > I'd like to import my library, please, with this with this tool.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:20:28 p.m. EDT — `62ab57aa66b1` feat(foldkit): keep a Program's local-only Messages off the shared log
+
+- **Implementation commit:** `62ab57aa66b1525385ef9404d16ca3dc72291796`
+- **Change:** Keep a Program's local-only Messages off the shared log
+- **Details:**
+  - synchronization.isLocalOnly keeps chosen Messages, such as a pasted Amazon sign-in address, on the device.
+- **Files:**
+  - `packages/foldkit/src/program/localOnly.test.ts` — The guard.
+- **User context (verbatim):**
+  > Can you just get that working in the application so I can import my Audible library from the app instead of having these two separate steps?
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 8:09:44 p.m. EDT — `3c00b697722d` feat(books): record each terminal client on its own surface
 
 - **Implementation commit:** `3c00b697722d8fa5768b8a4e3dec03d563cfb732`
