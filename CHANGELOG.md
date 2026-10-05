@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 8:20:52 p.m. EDT — `6f0ec384aeff` feat(books): say why the Audible import skips each title
+
+- **Implementation commit:** `6f0ec384aeffad5892c923105f9cac52d6f92605`
+- **Change:** Say why the Audible import skips each title
+- **Details:**
+  - The summary names podcasts, Plus loans, free and explicit titles, and fields not kept.
+- **Files:**
+  - `examples/books/core/src/audible/screen.ts` — Skip reasons in the summary.
+- **User context (verbatim):**
+  > Can you just get that working in the application so I can import my Audible library from the app instead of having these two separate steps?
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:20:52 p.m. EDT — `76292b3e3e34` feat(books): import the books you own from Audible
+
+- **Implementation commit:** `76292b3e3e34ddccbc2f7b7a804617f3bb04571b`
+- **Change:** Import the books you own from Audible
+- **Details:**
+  - Empty-library, Add more of your books, and Profile entry points; Amazon sign-in through the toolshed bridge; a checklist, progress, and summary; encrypted per-member logins.
+- **Files:**
+  - `examples/books/core/src/addBooks.ts` — The Add your books Sheet and its sources.
+  - `examples/books/core/src/audible/endpoint.node.ts` — Server endpoints behind the login.
+  - `examples/books/core/src/audible/bridge.node.ts` — Runs the private toolshed bridge.
+- **User context (verbatim):**
+  > Add more Of your books, which maybe opens a modal that lets you select Audible if there are multiple options, but for now, just the one.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 8:20:29 p.m. EDT — `5ad204c0844f` chore(books): vendor the Scribe repository's Audible importer
 
 - **Implementation commit:** `5ad204c0844fc3a114c22b63d80087e06fda0284`
