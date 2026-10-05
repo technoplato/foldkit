@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Option } from 'effect'
-  import { Interaction, Navigation } from 'foldkit'
+  import { Environment, Interaction, Navigation } from 'foldkit'
   import type { ButtonNode } from 'foldkit/renderers'
 
   import ActionMenuDialog from './ActionMenuDialog.svelte'
@@ -30,8 +30,15 @@
   }
 
   const followLink = (href: string): boolean =>
-    typeof window !== 'undefined' &&
-    Navigation.followLink(window, program.bound, href, 'ProgramOnly', 'Push')
+    Option.exists(Environment.maybePage(), page =>
+      Navigation.followLink(
+        page.window,
+        program.bound,
+        href,
+        'ProgramOnly',
+        'Push',
+      ),
+    )
 
   const stylesheet = `<style id="foldkit-screen">${Interaction.screenStylesheet}</style>`
 

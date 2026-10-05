@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Navigation } from 'foldkit'
+  import { Option } from 'effect'
+  import { Environment, Navigation } from 'foldkit'
   import type { ButtonNode, UiNode } from 'foldkit/renderers'
 
   import CopyButton from './CopyButton.svelte'
@@ -36,10 +37,11 @@
   }
 
   $effect(() => {
-    if (typeof document === 'undefined' || dockHeight === 0) {
+    const maybeCurrentPage = Environment.maybePage()
+    if (Option.isNone(maybeCurrentPage) || dockHeight === 0) {
       return undefined
     }
-    const root = document.documentElement
+    const root = maybeCurrentPage.value.document.documentElement
     root.style.setProperty('--fk-dock-height', `${dockHeight.toString()}px`)
     return () => {
       root.style.removeProperty('--fk-dock-height')
