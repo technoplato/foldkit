@@ -2,7 +2,6 @@ import { Effect, Option, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
 
 import {
-  IssueQuery,
   IssueTracker,
   type IssueTrackerError,
   ProductCatalog,
@@ -14,6 +13,7 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
+import { catalogIssueQuery } from './issueQuery.js'
 import {
   FailedObserveIssue,
   FailedObserveIssueLogs,
@@ -59,25 +59,16 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
       Stream.unwrap(
         IssueTracker.pipe(
           Effect.map(tracker =>
-            tracker
-              .observe(
-                IssueQuery.make({
-                  limit: 500,
-                  productId: Option.none(),
-                  projectId: Option.none(),
-                  statuses: [],
-                }),
-              )
-              .pipe(
-                Stream.map(issues => ObservedIssues.make({ issues })),
-                Stream.catch(error =>
-                  Stream.make(
-                    FailedObserveIssues.make({
-                      reason: issueTrackerFailureReason(error),
-                    }),
-                  ),
+            tracker.observe(catalogIssueQuery).pipe(
+              Stream.map(issues => ObservedIssues.make({ issues })),
+              Stream.catch(error =>
+                Stream.make(
+                  FailedObserveIssues.make({
+                    reason: issueTrackerFailureReason(error),
+                  }),
                 ),
               ),
+            ),
           ),
         ),
       ),

@@ -7,6 +7,7 @@ import {
   IssueAttachment,
   IssueComplexity,
   IssueMention,
+  IssueNewestFirst,
   type IssuePriority,
   IssueSourceDocument,
   IssueStatus,
@@ -22,7 +23,7 @@ import {
 } from './domain.js'
 
 const firstMention = IssueMention.make({
-  capturedAtMs: 1_753_825_157_000,
+  capturedAtMs: Option.some(1_753_825_157_000),
   directQuote: Option.some('the date time stamp is still not in the gutter'),
   id: 'mention-1',
   issueId: 'issue-021',
@@ -185,6 +186,182 @@ describe('issue domain', () => {
 
     expect(mention.directQuote).toEqual(Option.none())
     expect(mention.reporter).toEqual(Option.none())
+  })
+
+  it('reads a Mention stored without a capture time, with a bare reporter name and a note', () => {
+    const storedMention = {
+      directQuote: 'The list stops before the newest Issue.',
+      id: 'mention-584-1',
+      issueId: '584',
+      note: 'Recording 199 #245',
+      reporter: 'main',
+      source: { _tag: 'Agent', id: 'claude-code-main' },
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.capturedAtMs).toEqual(Option.none())
+    expect(mention.note).toEqual(Option.some('Recording 199 #245'))
+    expect(mention.reporter).toEqual(
+      Option.some({ _tag: 'Unrecognized', value: 'main' }),
+    )
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual({
+      ...storedMention,
+      capturedAtMs: null,
+      related: [],
+    })
+  })
+
+  it('keeps reference shapes it does not model verbatim through a save', () => {
+    const conversation = {
+      _tag: 'Conversation',
+      conversation: { note: 'Relayed by the coordinating session.' },
+    }
+    const labeledRecording = {
+      _tag: 'Recording',
+      id: '096',
+      label: 'Recording 096 timestamp 0:18',
+    }
+    const storedMention = {
+      capturedAtMs: 1_753_825_157_000,
+      directQuote: null,
+      id: 'mention-478-1',
+      issueId: '478',
+      note: null,
+      related: ['147', { issueId: '216' }, labeledRecording],
+      reporter: null,
+      source: conversation,
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.source).toEqual({
+      _tag: 'Unrecognized',
+      value: conversation,
+    })
+    expect(Array.map(mention.related, reference => reference._tag)).toEqual([
+      'Unrecognized',
+      'Unrecognized',
+      'Unrecognized',
+    ])
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual(storedMention)
+  })
+
+  it('still reads a modeled reference as its own variant', () => {
+    const mention = S.decodeUnknownSync(IssueMention)({
+      capturedAtMs: 1_753_825_157_000,
+      id: 'mention-modeled',
+      issueId: '218',
+      related: [{ _tag: 'Issue', id: '044' }],
+      source: { _tag: 'Agent', id: 'grok-4.6-issues-evidence' },
+    })
+
+    expect(mention.source).toEqual({
+      _tag: 'Agent',
+      id: 'grok-4.6-issues-evidence',
+    })
+    expect(mention.related).toEqual([{ _tag: 'Issue', id: '044' }])
+  })
+
+  it('reads work-log rows an older writer stored under other keys', () => {
+    const issue = makeIssue()
+    const encoded = S.encodeUnknownSync(Issue)(issue)
+    const decoded = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      workLog: [
+        {
+          agent: 'claude-code',
+          atMs: 1_785_851_462_354,
+          id: 'issue-146-work-1',
+          note: 'Diagnosed from a sample capture.',
+        },
+        {
+          agentId: 'grok-4.6-playback-blink',
+          id: 'issue-221-worklog-claim',
+          summary: 'Claimed.',
+          timestampMs: 1_787_155_632_190,
+        },
+        {
+          id: 'issue-146-work-2',
+          occurredAtMs: 1_785_878_005_116,
+          summary: 'Consumed the fix.',
+        },
+      ],
+    })
+
+    expect(decoded.workLog).toEqual([
+      IssueWorkLogEntry.make({
+        agentId: Option.some('claude-code'),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-146-work-1',
+        occurredAtMs: 1_785_851_462_354,
+        state: Option.none(),
+        summary: 'Diagnosed from a sample capture.',
+      }),
+      IssueWorkLogEntry.make({
+        agentId: Option.some('grok-4.6-playback-blink'),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-221-worklog-claim',
+        occurredAtMs: 1_787_155_632_190,
+        state: Option.none(),
+        summary: 'Claimed.',
+      }),
+      IssueWorkLogEntry.make({
+        agentId: Option.none(),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-146-work-2',
+        occurredAtMs: 1_785_878_005_116,
+        state: Option.none(),
+        summary: 'Consumed the fix.',
+      }),
+    ])
+  })
+
+  it('rejects a work-log row with no time under any known key', () => {
+    const issue = makeIssue()
+    const encoded = S.encodeUnknownSync(Issue)(issue)
+
+    expect(() =>
+      S.decodeUnknownSync(Issue)({
+        ...encoded,
+        workLog: [{ id: 'issue-undated', summary: 'No time.' }],
+      }),
+    ).toThrow()
+  })
+
+  it('preserves the stored Complex complexity label', () => {
+    expect(S.decodeUnknownSync(IssueComplexity)('Complex')).toBe('Complex')
+  })
+
+  it('keeps updatedAtMs when a registered Mention has no capture time', () => {
+    const issue = makeIssue()
+    const registration = registerMention(
+      issue,
+      IssueMention.make({
+        ...firstMention,
+        capturedAtMs: Option.none(),
+        id: 'mention-undated',
+        issueId: issue.id,
+      }),
+    )
+
+    expect(registration._tag).toBe('Accepted')
+    expect(registration.issue.updatedAtMs).toBe(issue.updatedAtMs)
+  })
+
+  it('orders Issues newest first and breaks a creation-time tie by id', () => {
+    const issue = makeIssue()
+    const older = Issue.make({ ...issue, createdAtMs: 1_000, id: '575' })
+    const newerLowId = Issue.make({ ...issue, createdAtMs: 2_000, id: '583' })
+    const newerHighId = Issue.make({ ...issue, createdAtMs: 2_000, id: '584' })
+
+    expect(
+      Array.map(
+        Array.sort([older, newerLowId, newerHighId], IssueNewestFirst),
+        sorted => sorted.id,
+      ),
+    ).toEqual(['584', '583', '575'])
   })
 
   it('defaults missing legacy work-log metadata to none', () => {

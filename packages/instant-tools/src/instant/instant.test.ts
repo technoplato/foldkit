@@ -342,6 +342,46 @@ describe('Instant adapter', () => {
   )
 
   it.effect(
+    'lists the newest Issues first before applying the query limit',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeStore
+        const oldest = Issue.make({ ...issue, createdAtMs: 1_000, id: '001' })
+        const newest = Issue.make({ ...issue, createdAtMs: 3_000, id: '584' })
+        const middle = Issue.make({ ...issue, createdAtMs: 2_000, id: '300' })
+        const catalogOrderStore: InstantEntityStoreService = {
+          ...store,
+          fetchIssues: Effect.succeed(
+            Array.map([oldest, newest, middle], makeInstantIssueRecord),
+          ),
+          observeIssues: Stream.succeed(
+            Array.map([oldest, newest, middle], makeInstantIssueRecord),
+          ),
+        }
+        const issueTracker = makeIssueTracker(catalogOrderStore)
+        const query = IssueQuery.make({
+          limit: 2,
+          productId: Option.none(),
+          projectId: Option.none(),
+          statuses: [],
+        })
+
+        const fetched = yield* issueTracker.fetch(query)
+        const observed = yield* Stream.runCollect(issueTracker.observe(query))
+
+        expect(Array.map(fetched, fetchedIssue => fetchedIssue.id)).toEqual([
+          '584',
+          '300',
+        ])
+        expect(
+          Array.map(observed, snapshot =>
+            Array.map(snapshot, observedIssue => observedIssue.id),
+          ),
+        ).toEqual([['584', '300']])
+      }),
+  )
+
+  it.effect(
     'keeps readable Issues when one catalog payload cannot decode',
     () =>
       Effect.gen(function* () {

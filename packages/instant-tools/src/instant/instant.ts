@@ -15,6 +15,7 @@ import { InstantCoreDatabase, i } from '@instantdb/core'
 
 import {
   Issue,
+  IssueNewestFirst,
   type IssueQuery,
   IssueTracker,
   IssueTrackerError,
@@ -527,7 +528,10 @@ export const makeIssueTracker = (
       ),
       Effect.map(issues =>
         Array.take(
-          Array.filter(issues, issue => matchesQuery(issue, query)),
+          Array.sort(
+            Array.filter(issues, issue => matchesQuery(issue, query)),
+            IssueNewestFirst,
+          ),
           Math.max(0, query.limit),
         ),
       ),
@@ -554,7 +558,10 @@ export const makeIssueTracker = (
       ),
       Stream.map(issues =>
         Array.take(
-          Array.filter(issues, issue => matchesQuery(issue, query)),
+          Array.sort(
+            Array.filter(issues, issue => matchesQuery(issue, query)),
+            IssueNewestFirst,
+          ),
           Math.max(0, query.limit),
         ),
       ),

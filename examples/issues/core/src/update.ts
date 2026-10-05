@@ -7,7 +7,6 @@ import {
   CatalogIssueReference,
   Issue,
   IssueMention,
-  IssueQuery,
   IssueTracker,
   IssueWorkLogEntry,
   ProductCatalog,
@@ -26,6 +25,7 @@ import {
 import { Logger } from '@foldkit/instant-tools/logging'
 
 import { IssueIdentity } from './issueIdentity.js'
+import { catalogIssueQuery } from './issueQuery.js'
 import {
   LeftoverStatus,
   catalogIssueRefsOf,
@@ -174,7 +174,7 @@ export const ReviewTriageCandidate = Command.define(
       issueType: Option.none(),
       mentions: [
         IssueMention.make({
-          capturedAtMs: candidate.createdAtMs,
+          capturedAtMs: Option.some(candidate.createdAtMs),
           directQuote: Option.some(candidate.segment.transcript),
           id: `mention-${id}`,
           issueId: id,
@@ -215,7 +215,6 @@ export const ReviewTriageCandidate = Command.define(
 
 const COMMENT_AGENT_ID = 'issues-245-grok'
 const WORK_LOG_AGENT_ID = 'issues-245-grok'
-const ISSUE_QUERY_LIMIT = 500
 const LEFTOVER_VIEWER_AGENT_ID = 'issues-viewer'
 const LEFTOVER_VIEWER_ORIGIN = 'issues.knophy.com'
 const LEFTOVER_VIEWER_ROLE = 'viewer'
@@ -223,14 +222,7 @@ const LEFTOVER_VIEWER_ROLE = 'viewer'
 const loadTrackedIssue = (issueId: string) =>
   Effect.gen(function* () {
     const tracker = yield* IssueTracker
-    const issues = yield* tracker.fetch(
-      IssueQuery.make({
-        limit: ISSUE_QUERY_LIMIT,
-        productId: Option.none(),
-        projectId: Option.none(),
-        statuses: [],
-      }),
-    )
+    const issues = yield* tracker.fetch(catalogIssueQuery)
     return Array.findFirst(issues, candidate => candidate.id === issueId)
   })
 
@@ -359,7 +351,7 @@ export const LinkCatalogIssue = Command.define(
           mentions: Array.append(
             issue.mentions,
             IssueMention.make({
-              capturedAtMs: nowMs,
+              capturedAtMs: Option.some(nowMs),
               directQuote: Option.none(),
               id: `link-${issue.id}-${targetIssueId}`,
               issueId: issue.id,

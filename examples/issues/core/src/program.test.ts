@@ -444,7 +444,7 @@ describe('Issue Tracker Program', () => {
       ...issue,
       mentions: [
         {
-          capturedAtMs: 2_000,
+          capturedAtMs: Option.some(2_000),
           directQuote: Option.none(),
           id: 'link-issue-021-240',
           issueId: issue.id,
