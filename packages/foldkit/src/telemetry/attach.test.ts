@@ -31,6 +31,8 @@ import { attach, observer } from './attach.js'
 import { type TelemetryEvent, encodeLine } from './event.js'
 import { fileSink, readTelemetryFiles } from './node.js'
 import * as Telemetry from './public.js'
+import { makeRecorder } from './recorder.js'
+import { makeRedactionPolicy } from './redact.js'
 import { makeMemorySink } from './sink.js'
 
 // PROGRAM
@@ -683,6 +685,36 @@ describe('Telemetry.attach', () => {
     expect(events.find(isTransitionOf('ClickedFetch'))).toMatchObject({
       source: { _tag: 'Host', clientHost: { _tag: 'Tui' } },
     })
+  })
+
+  it('records nothing after SessionStopped', () => {
+    const offered: Array<TelemetryEvent> = []
+    const recorder = makeRecorder({
+      session: 'cafe0001',
+      app: 'books',
+      surface: 'terminal-cli',
+      maybeRole: Option.none(),
+      sink: {
+        offer: event => {
+          offered.push(event)
+        },
+        flush: Effect.void,
+      },
+      policy: makeRedactionPolicy([]),
+      isRecordingModels: false,
+    })
+    const facts = {
+      programId: 'books',
+      programVersion: 1,
+      maybePid: Option.none(),
+    }
+    recorder.recordSessionStarted(facts)
+    recorder.recordSessionStopped(facts, 12)
+    recorder.recordRendered({ painter: 'Terminal', durationMs: 1 }, 0)
+    expect(Array.map(offered, event => event._tag)).toStrictEqual([
+      'SessionStarted',
+      'SessionStopped',
+    ])
   })
 
   it('takes no handle that was started without a Host', () => {

@@ -203,7 +203,8 @@ class TelemetrySpan implements Tracer.Span {
 /**
  * Makes the recorder one telemetry session writes through. Every event it
  * offers carries the session, the next sequence number, the ISO time the
- * fact happened, and the surface it happened on.
+ * fact happened, and the surface it happened on. SessionStopped is the
+ * session's last event; the recorder offers nothing after it.
  *
  * An event's surface is the session's, unless a client on another Host
  * caused it. A Message sent on behalf of a client, such as a key a
@@ -230,6 +231,7 @@ export const makeRecorder = (
   let nextSequence = 1
   let nextSpanNumber = 1
   let isPendingStartFlushScheduled = false
+  let isSessionStopped = false
   let maybeLastTime = Option.none<Readonly<{ atMs: number; at: string }>>()
 
   const rememberClientOperation = (
@@ -313,7 +315,11 @@ export const makeRecorder = (
       : { args: toTelemetryJson(Record.fromEntries(span.attributes), policy) }
 
   const writePendingStarts = (): void => {
-    Array.forEach(pendingStarts.splice(0), span => {
+    const heldStarts = pendingStarts.splice(0)
+    if (isSessionStopped) {
+      return
+    }
+    Array.forEach(heldStarts, span => {
       write(span.startedAtMs, span.surface, envelope => ({
         _tag: 'CommandStarted',
         ...envelope,
@@ -329,6 +335,9 @@ export const makeRecorder = (
     surface: TelemetrySurface,
     build: (envelope: Envelope) => TelemetryEvent,
   ): void => {
+    if (isSessionStopped) {
+      return
+    }
     writePendingStarts()
     write(atMs, surface, build)
   }
@@ -436,6 +445,7 @@ export const makeRecorder = (
         ...sessionFields(facts),
         durationMs: roundDuration(durationMs),
       }))
+      isSessionStopped = true
     },
     recordTransition: transition => {
       record(

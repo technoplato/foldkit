@@ -16,6 +16,7 @@ import type {
   ProgramRuntimeObserver,
 } from '../runtime/programRuntime.js'
 import { type TelemetryName, isTelemetryName } from './event.js'
+import { watchProcessEnding } from './processEnding.js'
 import {
   type RenderReport,
   type SessionFacts,
@@ -175,12 +176,13 @@ const startRecording = <Model, Message extends Readonly<{ _tag: string }>>(
         }),
       ),
     )
+    const sink = Context.get(sinkContext, TelemetrySink)
     const recorder = makeRecorder({
       session: config.session,
       app: config.app,
       surface: config.surface,
       maybeRole: config.maybeRole,
-      sink: Context.get(sinkContext, TelemetrySink),
+      sink,
       policy: makeRedactionPolicy(config.redactKeys),
       isRecordingModels: config.isRecordingModels,
     })
@@ -199,6 +201,15 @@ const startRecording = <Model, Message extends Readonly<{ _tag: string }>>(
     }
     maybeStopSession = Option.some(stopSession)
     recorder.recordSessionStarted(facts)
+    yield* Effect.acquireRelease(
+      Effect.sync(() =>
+        watchProcessEnding(() => {
+          stopSession()
+          return Effect.runPromise(sink.flush)
+        }),
+      ),
+      stopWatching => Effect.sync(stopWatching),
+    )
     yield* Effect.acquireRelease(
       Effect.sync(() => observation.journal.observe(recorder.recordTransition)),
       stopObserving => Effect.sync(stopObserving),
@@ -237,10 +248,13 @@ const sessionConfigOf = (
  * A runtime observer that records one telemetry session for the Program it
  * observes: SessionStarted, then every transition, Command span,
  * diagnostic, and crash, then SessionStopped when the Program shuts down,
- * or in a browser when the page goes away for good.
- * It builds its sink in the observer's Scope, so shutdown flushes the sink
- * and releases it. Use it with a runtime you start yourself; for a handle
- * from `Runtime.startHandle`, use {@link attach}.
+ * in a browser when the page goes away for good, or in a Node process
+ * told to stop by SIGINT or SIGTERM that nothing else handles, such as
+ * Ctrl-C in `books watch`, after which it writes what is waiting and lets
+ * the signal end the process. It builds its sink in the observer's Scope,
+ * so shutdown flushes the sink and releases it. Use it with a runtime you
+ * start yourself; for a handle from `Runtime.startHandle`, use
+ * {@link attach}.
  *
  * Throws a RangeError when `app` is not a {@link TelemetryName}.
  *
@@ -282,9 +296,11 @@ export type ObservableHandle<Model, Message> = Readonly<{
  * React, Foldkit, or Svelte page, the CLI, the TUI, OpenTUI, a CLI
  * daemon, or a phone. It records the Program's transitions, Command spans,
  * Subscription and ManagedResource diagnostics, and crashes to `sink`,
- * from the moment it attaches until the handle stops or
- * {@link TelemetryAttachment.detach} runs. Attach on the line after
- * `Runtime.startHandle` to record from the Program's first transition.
+ * from the moment it attaches until the handle stops,
+ * {@link TelemetryAttachment.detach} runs, or a Node process is told to
+ * stop by a SIGINT or SIGTERM nothing else handles. Attach on the line
+ * after `Runtime.startHandle` to record from the Program's first
+ * transition.
  *
  * The session's surface comes from the Host the handle was started on, so
  * a handle on `Processor.Host.Tui()` records `terminal-tui` on every line
