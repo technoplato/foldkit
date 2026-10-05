@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 5th, 2026 at 7:31:50 a.m. EDT — `e5587c2e1c16` fix(instant-tools): read every stored Issue and list the newest first
+
+- **Implementation commit:** `e5587c2e1c16c786d1faa26f62f40002158de4bf`
+- **Change:** Read every stored Issue and list the newest first
+- **Details:**
+  - The hosted tracker painted 500 Issues oldest first and hid everything after #522 (#591); it now sorts newest first before the limit (2,000) and reads the stored shapes it used to reject, keeping unmodeled references verbatim.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Tolerant reader: Unrecognized references, optional capture time, Mention note, legacy work-log keys, Complex, IssueNewestFirst.
+  - `packages/instant-tools/src/instant/instant.ts` — Sort before the query limit.
+  - `examples/issues/core/src/issueQuery.ts` — One catalog query with the raised limit.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Pins each stored shape and the verbatim write-back.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Pins newest-first ordering before the limit.
+- **User context (verbatim):**
+  > So let's make sure we get that up and working.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 8:20:52 p.m. EDT — `6f0ec384aeff` feat(books): say why the Audible import skips each title
 
 - **Implementation commit:** `6f0ec384aeffad5892c923105f9cac52d6f92605`
