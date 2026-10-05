@@ -284,9 +284,12 @@ export const makeTelemetryMiddleware = (
   const sinksByOrigin = new Map<string, Promise<TelemetrySinkService>>()
 
   const sinkFor = (
-    origin: Readonly<{ app: string; host: string }>,
+    origin: Readonly<{
+      app: string
+      surface: Telemetry.TelemetrySurface
+    }>,
   ): Promise<TelemetrySinkService> => {
-    const key = `${origin.app}-${origin.host}`
+    const key = `${origin.app}-${origin.surface}`
     const maybeExisting = Option.fromNullishOr(sinksByOrigin.get(key))
     if (Option.isSome(maybeExisting)) {
       return maybeExisting.value
@@ -300,7 +303,10 @@ export const makeTelemetryMiddleware = (
               ? {}
               : { directory: options.directory }),
           }),
-          Layer.succeed(Telemetry.TelemetryOrigin, origin),
+          Layer.succeed(Telemetry.TelemetryOrigin, {
+            ...origin,
+            maybeRole: Option.none(),
+          }),
         ),
         sinksScope,
       ).pipe(Effect.map(Context.get(Telemetry.TelemetrySink))),
@@ -312,7 +318,7 @@ export const makeTelemetryMiddleware = (
   const appendBatch = async (
     batch: Telemetry.TelemetryBatch,
   ): Promise<void> => {
-    const sink = await sinkFor({ app: batch.app, host: batch.host })
+    const sink = await sinkFor({ app: batch.app, surface: batch.surface })
     Array.forEach(batch.events, event => {
       sink.offer(event)
     })
@@ -359,13 +365,15 @@ export const makeTelemetryMiddleware = (
 /**
  * Serves `POST /__foldkit/telemetry` in Vite dev and preview: a browser's
  * {@link Telemetry.browserSink} posts batches there, and the endpoint
- * appends each batch to the file for its app and host, such as
- * `~/Library/Logs/foldkit/telemetry/books-react.ndjson`, through the
+ * appends each batch to the file for its app and surface, such as
+ * `~/Library/Logs/foldkit/telemetry/books-web-react.ndjson`, through the
  * Node file sink, with its disk caps and its scrub of this process's
- * environment values. It answers only local development and visitors with
- * a verified Access login; anyone else gets 404, as for a path that does
- * not exist. See `answerTelemetryRequest`. Closing the server flushes every
- * file and closes it.
+ * environment values. Each batch keeps the surface the page declared, and
+ * a surface outside the vocabulary, such as `desktop`, is refused with
+ * 400. It answers only local development and visitors with a verified
+ * Access login; anyone else gets 404, as for a path that does not exist.
+ * See `answerTelemetryRequest`. Closing the server flushes every file and
+ * closes it.
  *
  * Throws a RangeError when a file limit is invalid.
  *

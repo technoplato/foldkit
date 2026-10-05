@@ -14,18 +14,20 @@ const verifyAccessToken = async (
     ? Option.some(AccessIdentity.make({ email: 'owner@example.invalid' }))
     : Option.none()
 
+const rendered = Telemetry.Rendered.make({
+  at: '2026-10-04T20:15:03.410Z',
+  sequence: 1,
+  session: '9f3c2a71',
+  app: 'books',
+  surface: 'web-react',
+  painter: 'React',
+  durationMs: 3.2,
+})
+
 const batch: Telemetry.TelemetryBatch = {
   app: 'books',
-  host: 'react',
-  events: [
-    Telemetry.Rendered.make({
-      at: '2026-10-04T20:15:03.410Z',
-      sequence: 1,
-      session: '9f3c2a71',
-      painter: 'React',
-      durationMs: 3.2,
-    }),
-  ],
+  surface: 'web-react',
+  events: [rendered],
 }
 
 const throughCloudflare = {
@@ -97,6 +99,60 @@ describe('answerTelemetryRequest', () => {
       Option.map(await posted.answer, answer => answer.status),
     ).toStrictEqual(Option.some(204))
     expect(posted.appendBatch).toHaveBeenCalledWith(batch)
+  })
+
+  it('keeps the surface the page declared', async () => {
+    const foldkitBatch: Telemetry.TelemetryBatch = {
+      app: 'books',
+      surface: 'web-foldkit',
+      events: [{ ...rendered, surface: 'web-foldkit', painter: 'Foldkit' }],
+    }
+    const posted = ask(onThisMachine, {
+      body: Option.some(JSON.stringify(foldkitBatch)),
+    })
+    expect(
+      Option.map(await posted.answer, answer => answer.status),
+    ).toStrictEqual(Option.some(204))
+    expect(posted.appendBatch).toHaveBeenCalledWith(foldkitBatch)
+  })
+
+  it('refuses a surface outside the vocabulary, and events from another origin', async () => {
+    const unknownSurface = ask(onThisMachine, {
+      body: Option.some('{"app":"books","surface":"desktop","events":[]}'),
+    })
+    const refusal = await unknownSurface.answer
+    expect(Option.map(refusal, answer => answer.status)).toStrictEqual(
+      Option.some(400),
+    )
+    expect(Option.map(refusal, answer => answer.body)).toStrictEqual(
+      Option.some(
+        'Not a telemetry batch: a batch is { app, surface, role, events }, and its surface is one of terminal-cli, terminal-tui, terminal-opentui, headless, web-foldkit, web-react, web-svelte, mobile-ios, mobile-android',
+      ),
+    )
+    expect(unknownSurface.appendBatch).not.toHaveBeenCalled()
+
+    const eventsFromElsewhere: ReadonlyArray<Telemetry.TelemetryEvent> = [
+      { ...rendered, surface: 'terminal-tui' },
+      { ...rendered, app: 'reminders' },
+      { ...rendered, role: 'daemon' },
+    ]
+    for (const event of eventsFromElsewhere) {
+      const mixed = ask(onThisMachine, {
+        body: Option.some(
+          JSON.stringify({ ...batch, events: [rendered, event] }),
+        ),
+      })
+      const answer = await mixed.answer
+      expect(Option.map(answer, refused => refused.status)).toStrictEqual(
+        Option.some(400),
+      )
+      expect(Option.map(answer, refused => refused.body)).toStrictEqual(
+        Option.some(
+          'Every event in a telemetry batch carries the batch app, surface, and role',
+        ),
+      )
+      expect(mixed.appendBatch).not.toHaveBeenCalled()
+    }
   })
 
   it('refuses a body that is not a batch, too large, or not POSTed', async () => {

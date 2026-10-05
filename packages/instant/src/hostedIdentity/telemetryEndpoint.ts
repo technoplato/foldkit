@@ -1,4 +1,4 @@
-import { Option, Schema as S } from 'effect'
+import { Array, Option, Schema as S } from 'effect'
 import { Telemetry } from 'foldkit'
 
 import type { AccessIdentity } from './hostedIdentity.js'
@@ -35,7 +35,15 @@ const methodNotAllowed: PublicAnswer = {
 
 const tooLarge = answerOf(413, 'Telemetry batch too large')
 
-const notABatch = answerOf(400, 'Not a telemetry batch')
+const notABatch = answerOf(
+  400,
+  `Not a telemetry batch: a batch is { app, surface, role, events }, and its surface is one of ${Array.join(Telemetry.TelemetrySurface.literals, ', ')}`,
+)
+
+const mixedOrigins = answerOf(
+  400,
+  'Every event in a telemetry batch carries the batch app, surface, and role',
+)
 
 const noPublicRoutes: PublicRoutes = async () => Option.none()
 
@@ -55,9 +63,16 @@ export type TelemetryRequest = Readonly<{
   url: string
   /** Reads the body, or None when it is longer than the endpoint reads. */
   readBody: () => Promise<Option.Option<string>>
-  /** Appends one decoded batch to the file for its app and host. */
+  /** Appends one decoded batch to the file for its app and surface. */
   appendBatch: (batch: Telemetry.TelemetryBatch) => Promise<void>
 }>
+
+const isFromBatchOrigin =
+  (batch: Telemetry.TelemetryBatch) =>
+  (event: Telemetry.TelemetryEvent): boolean =>
+    event.app === batch.app &&
+    event.surface === batch.surface &&
+    event.role === batch.role
 
 /**
  * How a development server answers one request for browser telemetry at
@@ -65,10 +80,14 @@ export type TelemetryRequest = Readonly<{
  * as usual. A visitor with no verified Access login, outside local
  * development, gets 404 as if the path did not exist: the same
  * {@link guardHostedRequest} that guards public routes decides. A signed-in
- * visitor or local development gets 204 once the batch is appended, 400
- * for a body that is not a {@link Telemetry.TelemetryBatch}, 413 for a body
- * over {@link maximumTelemetryRequestBytes}, and 405 for any method but
- * POST.
+ * visitor or local development gets 204 once the batch is appended, 413
+ * for a body over {@link maximumTelemetryRequestBytes}, 405 for any method
+ * but POST, and 400 for a body that is not a
+ * {@link Telemetry.TelemetryBatch}: a surface outside the vocabulary, such
+ * as `"surface":"desktop"`, or an event whose app, surface, or role is not
+ * the batch's. A batch it takes is appended as the page declared it, so
+ * `books` on `web-react` lands in `books-web-react.ndjson` with
+ * `"surface":"web-react"` on every line.
  *
  * @example
  * ```typescript
@@ -104,6 +123,10 @@ export const answerTelemetryRequest = async (
   if (Option.isNone(maybeBatch)) {
     return Option.some(notABatch)
   }
-  await request.appendBatch(maybeBatch.value)
+  const batch = maybeBatch.value
+  if (!Array.every(batch.events, isFromBatchOrigin(batch))) {
+    return Option.some(mixedOrigins)
+  }
+  await request.appendBatch(batch)
   return Option.some(stored)
 }
