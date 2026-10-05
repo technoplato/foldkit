@@ -628,6 +628,63 @@ describe('Telemetry.attach', () => {
     ).toHaveLength(1)
   })
 
+  it('records what a client on another Host causes on that client’s surface, beside the session and role', async () => {
+    const memory = makeMemorySink()
+    const handle = startHandle({
+      program: SyncedLibrary,
+      sync: Memory({ processor: 'daemon-telemetry' }),
+      host: Host.Cli(),
+    })
+    const telemetry = attach(handle, {
+      app: 'books',
+      role: 'daemon',
+      sink: memory.layer,
+    })
+    await vi.waitFor(() => {
+      expect(handle.readModel()._tag).toBe('Ready')
+    })
+    handle.onBehalfOf(Host.Tui(), () => {
+      handle.send(ClickedFetch({ bookId: 'dune' }))
+    })
+    telemetry.recordRendered({
+      painter: 'Terminal',
+      durationMs: 2.5,
+      phase: 'key',
+      clientHost: Host.Tui(),
+    })
+    handle.send(ToggledTicking())
+    await vi.waitFor(() => {
+      expect(memory.events().some(isTransitionOf('SucceededFetch'))).toBe(true)
+    })
+    await handle.stop()
+
+    const events = memory.events()
+    const surfaceOfEvent = new Map(
+      Array.map(events, event => [describeEvent(event), event.surface]),
+    )
+    expect(Object.fromEntries(surfaceOfEvent)).toMatchObject({
+      SessionStarted: 'terminal-cli',
+      'Transition SnapshotReceived from Sync': 'terminal-cli',
+      'Transition ClickedFetch from Host': 'terminal-tui',
+      'CommandStarted FetchBook': 'terminal-tui',
+      'CommandFinished FetchBook Success': 'terminal-tui',
+      'Transition SucceededFetch from Command': 'terminal-tui',
+      'Rendered Terminal': 'terminal-tui',
+      'Transition ToggledTicking from Host': 'terminal-cli',
+      SessionStopped: 'terminal-cli',
+    })
+    Array.forEach(events, event => {
+      expect(event).toMatchObject({
+        session: telemetry.session,
+        app: 'books',
+        role: 'daemon',
+      })
+    })
+    expect(events.find(isTransitionOf('ClickedFetch'))).toMatchObject({
+      source: { _tag: 'Host', clientHost: { _tag: 'Tui' } },
+    })
+  })
+
   it('takes no handle that was started without a Host', () => {
     const attachHandleWithNoHost = (): void => {
       const handle = startHandle({

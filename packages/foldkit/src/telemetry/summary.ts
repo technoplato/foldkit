@@ -258,18 +258,11 @@ const countRows = (
     Array.take(limit),
   )
 
-const syncEngineMessages: ReadonlySet<string> = new Set([
-  'SnapshotReceived',
-  'RemoteMessageReceived',
-  'LogRefolded',
-  'SyncFailed',
-])
-
 const actionNameOf = (
   event: Extract<TelemetryEvent, { _tag: 'Transition' }>,
 ): Option.Option<string> => {
   const source = event.source
-  if (source._tag === 'Host' && !syncEngineMessages.has(event.message)) {
+  if (source._tag === 'Host') {
     return Option.some(source.actionName ?? event.message)
   } else {
     return Option.none()
@@ -590,9 +583,9 @@ const surfaceSummaryOf = (
  * with p50 and max, every Command failure, every Command started and never
  * finished, update and render duration percentiles, transitions per minute
  * on average and at the peak, Subscription restarts, and crashes. An
- * Action is a Message the Host sent, named by its Action name when it has
- * one, other than the Messages a sync engine sends itself, such as
- * `SnapshotReceived`. Ranked tables keep `limit` rows.
+ * Action is a Message a Host sent, named by its Action name when it has
+ * one, and never one the sync runtime sends itself, such as
+ * SnapshotReceived, whose source is Sync. Ranked tables keep `limit` rows.
  *
  * @example
  * ```typescript

@@ -49,6 +49,26 @@ const withoutHost = (
   return rest
 }
 
+const syncRuntimeMessages: ReadonlySet<string> = new Set([
+  'SnapshotReceived',
+  'RemoteMessageReceived',
+  'LogRefolded',
+  'SyncFailed',
+])
+
+const withSyncSource = (
+  fields: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> => {
+  const { _tag: tag, message, source } = fields
+  const isSentBySync =
+    tag === 'Transition' &&
+    Predicate.isString(message) &&
+    syncRuntimeMessages.has(message) &&
+    Predicate.hasProperty(source, '_tag') &&
+    source._tag === 'Host'
+  return isSentBySync ? { ...fields, source: { _tag: 'Sync' } } : fields
+}
+
 type LegacyLine = Readonly<{
   fields: Readonly<Record<string, unknown>>
   session: string
@@ -72,9 +92,11 @@ const legacyLineOf = (line: string): Option.Option<LegacyLine> =>
  * session named its Host on SessionStarted, `"host":"react"`, and its
  * other lines named neither app nor surface. Such a session is read as if
  * it had declared the surface its Host names, `web-react`, on every line,
- * so a file from the first telemetry release still summarizes. A line of
- * such a session whose SessionStarted is not among the lines, such as one
- * in a rotated file already deleted, cannot be placed and counts as
+ * so a file from the first telemetry release still summarizes. That
+ * release also labeled the Messages the sync runtime sends, such as
+ * SnapshotReceived, as sent by the Host; they read as sent by Sync. A line
+ * of such a session whose SessionStarted is not among the lines, such as
+ * one in a rotated file already deleted, cannot be placed and counts as
  * unreadable.
  *
  * @example
@@ -106,7 +128,11 @@ export const decodeLines = (lines: ReadonlyArray<string>): DecodedLines => {
       return Option.flatMap(
         Option.fromNullishOr(legacyOrigins.get(session)),
         origin =>
-          decodeEvent({ ...fields, app: origin.app, surface: origin.surface }),
+          decodeEvent({
+            ...withSyncSource(fields),
+            app: origin.app,
+            surface: origin.surface,
+          }),
       )
     }
   }

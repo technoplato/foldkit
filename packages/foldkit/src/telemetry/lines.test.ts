@@ -68,6 +68,26 @@ describe('decodeLines', () => {
     })
   })
 
+  it('reads a first-release Message the sync runtime sent as sent by Sync', () => {
+    const transitionOf = (message: string) =>
+      `{"_tag":"Transition","at":"2026-10-04T20:00:02.000Z","sequence":2,"session":"9f3c2a71","transition":1,"message":"${message}","source":{"_tag":"Host"},"commands":[],"isModelChanged":true,"changedPathCount":1}`
+    const { events } = decodeLines([
+      legacyReactStarted,
+      transitionOf('SnapshotReceived'),
+      transitionOf('RemoteMessageReceived'),
+      transitionOf('PressedPlay'),
+    ])
+    expect(
+      events.flatMap(event =>
+        event._tag === 'Transition' ? [[event.message, event.source._tag]] : [],
+      ),
+    ).toStrictEqual([
+      ['SnapshotReceived', 'Sync'],
+      ['RemoteMessageReceived', 'Sync'],
+      ['PressedPlay', 'Host'],
+    ])
+  })
+
   it('counts as unreadable a line it cannot place on a surface', () => {
     const orphan = legacyReactRendered
     const unknownHostStarted = legacyReactStarted

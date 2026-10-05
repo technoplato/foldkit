@@ -5,9 +5,13 @@
  * from a string a caller types, so `Processor.Host.Tui()` is always
  * `terminal-tui` and two hosts can never spell one surface two ways.
  *
- * Every telemetry line carries its surface, and its file is named for it,
- * so `grep '"surface":"terminal-tui"'` finds every line from the TUI and
- * `books-terminal-tui.ndjson` holds them.
+ * Every telemetry line carries its surface, and its file is named for its
+ * session's, so `grep '"surface":"terminal-tui"'` finds every line from
+ * the TUI and `books-terminal-tui.ndjson` holds an in-process TUI's
+ * session. A client on another Host keeps its surface too: a `books tui`
+ * view's keys, which the CLI daemon answers, are lines of the daemon's
+ * session in `books-terminal-cli.ndjson` that say `terminal-tui`, because
+ * the daemon sends them on behalf of a `Processor.Host.Tui()` client.
  */
 import { Match as M, Option, Schema as S } from 'effect'
 

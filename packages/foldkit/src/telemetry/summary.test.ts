@@ -135,7 +135,7 @@ const sessionStopped = (
 
 const events: ReadonlyArray<TelemetryEvent> = [
   sessionStarted(0, reactTab),
-  transition(0.5, 'SnapshotReceived', { _tag: 'Host' }, 0.1),
+  transition(0.5, 'SnapshotReceived', { _tag: 'Sync' }, 0.1),
   transition(1, 'PressedPlay', { _tag: 'Host', actionName: 'Play' }, 0.2),
   transition(
     2,
@@ -189,7 +189,7 @@ const events: ReadonlyArray<TelemetryEvent> = [
   finished(32, 'PlayAudio', 50, 'Success', undefined, terminalTui),
   sessionStopped(40, terminalTui, 10_000),
   sessionStarted(5, cliDaemon),
-  transition(6, 'SnapshotReceived', { _tag: 'Host' }, 0.4, cliDaemon),
+  transition(6, 'SnapshotReceived', { _tag: 'Sync' }, 0.4, cliDaemon),
 ]
 
 describe('durationSummaryOf', () => {

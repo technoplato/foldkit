@@ -290,7 +290,10 @@ export type ObservableHandle<Model, Message> = Readonly<{
  * a handle on `Processor.Host.Tui()` records `terminal-tui` on every line
  * and writes `books-terminal-tui.ndjson`. There is no surface to pass, and
  * a handle with no Host is a type error, so no session is ever recorded
- * under a surface it is not on.
+ * under a surface it is not on. What a client on another Host causes
+ * through `handle.onBehalfOf`, such as a `books tui` key a CLI daemon
+ * answers, records that client's surface, `terminal-tui`, beside the
+ * daemon's session and role.
  *
  * Throws a RangeError when `app` is not a {@link TelemetryName}.
  *

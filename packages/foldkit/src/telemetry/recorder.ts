@@ -1,7 +1,7 @@
 import {
   Array,
   Cause,
-  type Context,
+  Context,
   Exit,
   HashSet,
   Option,
@@ -12,9 +12,11 @@ import {
 } from 'effect'
 
 import type { Host } from '../processor/host.js'
+import { CommandOperation } from '../runtime/commandTracing.js'
 import type {
   CommandRecord,
   Transition as JournalTransition,
+  TransitionSource,
 } from '../runtime/programJournal.js'
 import type {
   RuntimeDiagnostic,
@@ -33,16 +35,20 @@ import {
   toTelemetryJson,
 } from './redact.js'
 import type { TelemetrySink } from './sink.js'
-import type { TelemetryRole, TelemetrySurface } from './surface.js'
+import {
+  type TelemetryRole,
+  type TelemetrySurface,
+  surfaceOf,
+} from './surface.js'
 
-type SessionEnvelope = Readonly<{
+type Envelope = Readonly<{
+  at: string
+  sequence: number
   session: string
   app: TelemetryName
   surface: TelemetrySurface
   role?: TelemetryRole
 }>
-
-type Envelope = SessionEnvelope & Readonly<{ at: string; sequence: number }>
 
 type AnyMessage = Readonly<{ _tag: string }>
 
@@ -100,6 +106,13 @@ const monotonicNow: () => number =
 const roundDuration = (durationMs: number): number =>
   Math.max(0, Math.round(durationMs * durationDecimals) / durationDecimals)
 
+const maximumClientOperations = 256
+
+const clientHostOf = (source: TransitionSource): Option.Option<Host> =>
+  source._tag === 'Host'
+    ? Option.fromNullishOr(source.clientHost)
+    : Option.none()
+
 const tagOf = (value: unknown): Option.Option<string> =>
   Predicate.hasProperty(value, '_tag') && Predicate.isString(value._tag)
     ? Option.some(value._tag)
@@ -144,6 +157,7 @@ class TelemetrySpan implements Tracer.Span {
     options: Parameters<Tracer.Tracer['span']>[0],
     readonly spanNumber: number,
     session: string,
+    readonly surface: TelemetrySurface,
     private readonly onEnd: (
       span: TelemetrySpan,
       exit: Exit.Exit<unknown, unknown>,
@@ -188,8 +202,15 @@ class TelemetrySpan implements Tracer.Span {
 
 /**
  * Makes the recorder one telemetry session writes through. Every event it
- * offers carries the session, the next sequence number, and the ISO time
- * the fact happened.
+ * offers carries the session, the next sequence number, the ISO time the
+ * fact happened, and the surface it happened on.
+ *
+ * An event's surface is the session's, unless a client on another Host
+ * caused it. A Message sent on behalf of a client, such as a key a
+ * `books tui` view sent to the CLI daemon, records the client's surface,
+ * `terminal-tui`, and so does everything its runtime operation goes on to
+ * do: the Commands it returned, the Messages they produced, and theirs. A
+ * paint reported with a `clientHost` records that client's surface too.
  *
  * A Command span's attributes, its args, are set just after the span
  * begins, so the recorder holds a CommandStarted until the next event it
@@ -200,20 +221,63 @@ export const makeRecorder = (
   config: TelemetryRecorderConfig,
 ): TelemetryRecorder => {
   const { sink, policy, isRecordingModels } = config
-  const sessionEnvelope: SessionEnvelope = {
-    session: config.session,
-    app: config.app,
-    surface: config.surface,
-    ...Option.match(config.maybeRole, {
-      onNone: () => ({}),
-      onSome: role => ({ role }),
-    }),
-  }
+  const roleFields = Option.match(config.maybeRole, {
+    onNone: () => ({}),
+    onSome: role => ({ role }),
+  })
   const pendingStarts: Array<TelemetrySpan> = []
+  const clientOperationSurfaces = new Map<number, TelemetrySurface>()
   let nextSequence = 1
   let nextSpanNumber = 1
   let isPendingStartFlushScheduled = false
   let maybeLastTime = Option.none<Readonly<{ atMs: number; at: string }>>()
+
+  const rememberClientOperation = (
+    operationId: number,
+    surface: TelemetrySurface,
+  ): void => {
+    clientOperationSurfaces.set(operationId, surface)
+    if (clientOperationSurfaces.size > maximumClientOperations) {
+      Option.map(
+        Option.fromNullishOr(clientOperationSurfaces.keys().next().value),
+        oldestOperationId => clientOperationSurfaces.delete(oldestOperationId),
+      )
+    }
+  }
+
+  const operationSurfaceOf = (operationId: number): TelemetrySurface =>
+    clientOperationSurfaces.get(operationId) ?? config.surface
+
+  const transitionSurfaceOf = (
+    transition: JournalTransition<unknown, AnyMessage>,
+  ): TelemetrySurface => {
+    const operationId = transition.operationId
+    const surface = Option.match(clientHostOf(transition.source), {
+      onNone: () =>
+        operationId === undefined
+          ? config.surface
+          : operationSurfaceOf(operationId),
+      onSome: clientHost => {
+        const clientSurface = surfaceOf(clientHost)
+        if (operationId !== undefined) {
+          rememberClientOperation(operationId, clientSurface)
+        }
+        return clientSurface
+      },
+    })
+    if (operationId !== undefined && transition.isOperationSettled) {
+      clientOperationSurfaces.delete(operationId)
+    }
+    return surface
+  }
+
+  const spanSurfaceOf = (
+    options: Parameters<Tracer.Tracer['span']>[0],
+  ): TelemetrySurface =>
+    Option.match(Context.getOption(options.annotations, CommandOperation), {
+      onNone: () => config.surface,
+      onSome: ({ operationId }) => operationSurfaceOf(operationId),
+    })
 
   const isoTimeOf = (atMs: number): string => {
     if (Option.isSome(maybeLastTime) && maybeLastTime.value.atMs === atMs) {
@@ -226,11 +290,21 @@ export const makeRecorder = (
 
   const write = (
     atMs: number,
+    surface: TelemetrySurface,
     build: (envelope: Envelope) => TelemetryEvent,
   ): void => {
     const sequence = nextSequence
     nextSequence += 1
-    sink.offer(build({ at: isoTimeOf(atMs), sequence, ...sessionEnvelope }))
+    sink.offer(
+      build({
+        at: isoTimeOf(atMs),
+        sequence,
+        session: config.session,
+        app: config.app,
+        surface,
+        ...roleFields,
+      }),
+    )
   }
 
   const argsOf = (span: TelemetrySpan): Partial<Record<'args', Schema.Json>> =>
@@ -240,7 +314,7 @@ export const makeRecorder = (
 
   const writePendingStarts = (): void => {
     Array.forEach(pendingStarts.splice(0), span => {
-      write(span.startedAtMs, envelope => ({
+      write(span.startedAtMs, span.surface, envelope => ({
         _tag: 'CommandStarted',
         ...envelope,
         command: span.name,
@@ -252,10 +326,11 @@ export const makeRecorder = (
 
   const record = (
     atMs: number,
+    surface: TelemetrySurface,
     build: (envelope: Envelope) => TelemetryEvent,
   ): void => {
     writePendingStarts()
-    write(atMs, build)
+    write(atMs, surface, build)
   }
 
   const holdStart = (span: TelemetrySpan): void => {
@@ -291,7 +366,7 @@ export const makeRecorder = (
   ): void => {
     const durationMs = roundDuration(monotonicNow() - span.startedAt)
     const outcome = outcomeOf(exit)
-    record(Date.now(), envelope => ({
+    record(Date.now(), span.surface, envelope => ({
       _tag: 'CommandFinished',
       ...envelope,
       command: span.name,
@@ -308,6 +383,7 @@ export const makeRecorder = (
         options,
         nextSpanNumber,
         config.session,
+        spanSurfaceOf(options),
         finishSpan,
       )
       nextSpanNumber += 1
@@ -347,14 +423,14 @@ export const makeRecorder = (
   // path. decodeLine validates every line that is read back.
   return {
     recordSessionStarted: facts => {
-      record(Date.now(), envelope => ({
+      record(Date.now(), config.surface, envelope => ({
         _tag: 'SessionStarted',
         ...envelope,
         ...sessionFields(facts),
       }))
     },
     recordSessionStopped: (facts, durationMs) => {
-      record(Date.now(), envelope => ({
+      record(Date.now(), config.surface, envelope => ({
         _tag: 'SessionStopped',
         ...envelope,
         ...sessionFields(facts),
@@ -362,26 +438,30 @@ export const makeRecorder = (
       }))
     },
     recordTransition: transition => {
-      record(transition.timestamp, envelope => ({
-        _tag: 'Transition',
-        ...envelope,
-        transition: transition.sequence,
-        message: transition.message._tag,
-        ...payloadOf(transition.message),
-        source: transition.source,
-        commands: commandsOf(transition.commands),
-        isModelChanged: transition.isModelChanged,
-        changedPathCount: HashSet.size(transition.diff.changedPaths),
-        ...(transition.updateDurationMs === undefined
-          ? {}
-          : { updateDurationMs: roundDuration(transition.updateDurationMs) }),
-        ...(isRecordingModels
-          ? { model: toTelemetryJson(transition.model, policy) }
-          : {}),
-      }))
+      record(
+        transition.timestamp,
+        transitionSurfaceOf(transition),
+        envelope => ({
+          _tag: 'Transition',
+          ...envelope,
+          transition: transition.sequence,
+          message: transition.message._tag,
+          ...payloadOf(transition.message),
+          source: transition.source,
+          commands: commandsOf(transition.commands),
+          isModelChanged: transition.isModelChanged,
+          changedPathCount: HashSet.size(transition.diff.changedPaths),
+          ...(transition.updateDurationMs === undefined
+            ? {}
+            : { updateDurationMs: roundDuration(transition.updateDurationMs) }),
+          ...(isRecordingModels
+            ? { model: toTelemetryJson(transition.model, policy) }
+            : {}),
+        }),
+      )
     },
     recordDiagnostic: diagnostic => {
-      record(diagnostic.timestamp, envelope => ({
+      record(diagnostic.timestamp, config.surface, envelope => ({
         _tag: 'Diagnostic',
         ...envelope,
         kind: diagnostic._tag,
@@ -393,7 +473,7 @@ export const makeRecorder = (
       }))
     },
     recordFailure: failure => {
-      record(failure.timestamp, envelope => ({
+      record(failure.timestamp, config.surface, envelope => ({
         _tag: 'Crashed',
         ...envelope,
         source: failure.source,
@@ -405,7 +485,11 @@ export const makeRecorder = (
       }))
     },
     recordRendered: (render, atMs) => {
-      record(atMs, envelope => ({
+      const surface =
+        render.clientHost === undefined
+          ? config.surface
+          : surfaceOf(render.clientHost)
+      record(atMs, surface, envelope => ({
         _tag: 'Rendered',
         ...envelope,
         painter: render.painter,

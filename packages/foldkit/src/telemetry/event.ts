@@ -8,9 +8,13 @@
  *
  * Every event carries `at`, the ISO time it happened, `session`, the id of
  * one attached run, `sequence`, which counts up from 1 within that session
- * in the order events were recorded, and the session's `app`, `surface`,
- * and `role` when it has one. So any one line says where it came from,
- * and `grep '"surface":"terminal-tui"'` finds every line from the TUI. Two
+ * in the order events were recorded, the session's `app` and `role` when
+ * it has one, and the `surface` it happened on. That is the session's own
+ * surface, unless a client on another Host caused the event: a key a
+ * `books tui` view sent to the CLI daemon records `"surface":"terminal-tui"`
+ * beside the daemon's session and `"role":"daemon"`, and so do the
+ * Commands it caused. So any one line says where it came from, and
+ * `grep '"surface":"terminal-tui"'` finds every line the TUI caused. Two
  * sessions may share one file, so order lines by `session` and
  * `sequence`, not by position:
  *
