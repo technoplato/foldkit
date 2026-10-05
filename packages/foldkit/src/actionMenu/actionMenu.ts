@@ -1355,7 +1355,15 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const childSynchronization = child.synchronization
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
   const childKeepsOwnNavigation = childSynchronization?.keepsOwnNavigation
+  const childIsLocalOnly = childSynchronization?.isLocalOnly
   const childScreen = child.screen
+
+  const isMenuMessage = (message: AppMessage): boolean =>
+    isMessage(message) ||
+    (hold === 'Owns' && NavigationMessage.isMessage(message))
+
+  const isChildMessage = (message: AppMessage): message is ChildMessage =>
+    !isMenuMessage(message)
 
   const keptOnRefold = (
     maybeKeep:
@@ -1382,8 +1390,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     ...liftEffects(child, (model: AppModel) => Option.some(childOf(model))),
     synchronization: {
       messageCategory: message =>
-        isMessage(message) ||
-        (hold === 'Owns' && NavigationMessage.isMessage(message))
+        isMenuMessage(message)
           ? 'Navigation'
           : (childSynchronization?.messageCategory(message as ChildMessage) ??
             'Domain'),
@@ -1401,6 +1408,12 @@ export const compose = <Child extends ActionMenuChild>(config: {
         ? {}
         : { keepsOwnNavigation: childKeepsOwnNavigation }),
       ...keptOnRefold(childSynchronization?.keepOnRefold),
+      ...(childIsLocalOnly === undefined
+        ? {}
+        : {
+            isLocalOnly: (message: AppMessage): boolean =>
+              isChildMessage(message) && childIsLocalOnly(message),
+          }),
     },
     ...(child.catalog === undefined ? {} : { catalog: child.catalog }),
     ...(childScreen === undefined

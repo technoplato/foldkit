@@ -831,6 +831,7 @@ export const compose = <Child extends SessionChild>(config: {
 
   const childSynchronization = child.synchronization
   const childKeepOnRefold = childSynchronization?.keepOnRefold
+  const childIsLocalOnly = childSynchronization?.isLocalOnly
   const childScreen = child.screen
   const ownNavigationHosts = config.ownNavigationHosts ?? []
 
@@ -838,6 +839,14 @@ export const compose = <Child extends SessionChild>(config: {
     Option.exists(hostOfFrom(processorId), host =>
       Array.some(ownNavigationHosts, own => own._tag === host._tag),
     )
+
+  const isSessionMessage = (message: AppMessage): boolean =>
+    isModeMessage(message) ||
+    isMessage(message) ||
+    (hold === 'Owns' && NavigationMessage.isMessage(message))
+
+  const isChildMessage = (message: AppMessage): message is ChildMessage =>
+    !isSessionMessage(message)
 
   const program = make({
     id: config.id ?? `session:${child.id}`,
@@ -880,6 +889,12 @@ export const compose = <Child extends SessionChild>(config: {
                 refolded,
                 childKeepOnRefold(childOf(current), childOf(refolded)),
               ),
+          }),
+      ...(childIsLocalOnly === undefined
+        ? {}
+        : {
+            isLocalOnly: (message: AppMessage): boolean =>
+              isChildMessage(message) && childIsLocalOnly(message),
           }),
     },
     ...(childScreen === undefined

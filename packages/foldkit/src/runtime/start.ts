@@ -403,6 +403,10 @@ export function start<
       isChildMessage(message) &&
       !appliesTo(currentPolicy(), message, engine.processor, engine.processor)
 
+    const isLocalOnly = (message: Message): boolean =>
+      isChildMessage(message) &&
+      (childSynchronization?.isLocalOnly?.(message) ?? false)
+
     const learnTime = (row: unknown): void => {
       const createdAtMs = readRowNumber(row, 'createdAtMs')
       if (
@@ -1116,14 +1120,21 @@ export function start<
           return
         }
         runtime.send(message, options)
-        Effect.runFork(persist(message))
+        if (!isLocalOnly(message)) {
+          Effect.runFork(persist(message))
+        }
       },
-      run: (message: Message, options) =>
-        isRejectedLocally(message)
-          ? Effect.sync(() => runtime.readModel())
-          : runtime
-              .run(message, options)
-              .pipe(Effect.tap(() => persist(message))),
+      run: (message: Message, options) => {
+        if (isRejectedLocally(message)) {
+          return Effect.sync(() => runtime.readModel())
+        } else if (isLocalOnly(message)) {
+          return runtime.run(message, options)
+        } else {
+          return runtime
+            .run(message, options)
+            .pipe(Effect.tap(() => persist(message)))
+        }
+      },
       lastWrite: () => lastWrite,
     }
   })
