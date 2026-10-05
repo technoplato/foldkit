@@ -165,6 +165,8 @@ describe('scrubEvent', () => {
       at: '2026-10-04T20:15:02.114Z',
       sequence: 2,
       session: '9f3c2a71',
+      app: 'books',
+      surface: 'terminal-cli',
       transition: 1,
       message: 'OpenedFile',
       payload: { path: '/Users/ada/private-folder/book.epub' },

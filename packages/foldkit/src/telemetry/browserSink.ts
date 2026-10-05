@@ -59,16 +59,28 @@ const byteLengthOf = (text: string): number =>
     (byteCount, character) => byteCount + utf8BytesOf(character),
   )
 
+const batchPrefixOf = (origin: typeof TelemetryOrigin.Service): string => {
+  const batchFields = {
+    app: origin.app,
+    surface: origin.surface,
+    ...Option.match(origin.maybeRole, {
+      onNone: () => ({}),
+      onSome: role => ({ role }),
+    }),
+  }
+  return `${JSON.stringify(batchFields).slice(0, -1)},"events":[`
+}
+
 /**
  * Splits events into JSON bodies, each a TelemetryBatch of at most
  * {@link maximumKeepaliveBodyBytes}, keeping their order. An event too
  * large for one body gets a body of its own.
  */
 const bodiesOf = (
-  origin: Readonly<{ app: string; host: string }>,
+  origin: typeof TelemetryOrigin.Service,
   events: ReadonlyArray<TelemetryEvent>,
 ): ReadonlyArray<string> => {
-  const prefix = `{"app":${JSON.stringify(origin.app)},"host":${JSON.stringify(origin.host)},"events":[`
+  const prefix = batchPrefixOf(origin)
   const suffix = ']}'
   const emptyBodyBytes = byteLengthOf(prefix) + byteLengthOf(suffix)
   const bodies: Array<string> = []
@@ -101,12 +113,12 @@ const bodiesOf = (
 
 /**
  * A sink for a Program in a browser. It batches events and posts each
- * batch as JSON, `{ app, host, events }`, to the development server's
- * telemetry endpoint, which appends them to the file for that app and
- * host, such as `books-react.ndjson`. When the page is hidden it sends
- * what is waiting at once, and when the page goes away it sends the rest
- * with `navigator.sendBeacon`, so the last Actions before a reload land
- * too.
+ * batch as JSON, `{ app, surface, role, events }`, to the development
+ * server's telemetry endpoint, which appends them to the file for that
+ * app and surface, such as `books-web-react.ndjson`, keeping the surface
+ * the page declared. When the page is hidden it sends what is waiting at
+ * once, and when the page goes away it sends the rest with
+ * `navigator.sendBeacon`, so the last Actions before a reload land too.
  *
  * The endpoint answers only local development and verified logins. When
  * it answers 401, 403, or 404, such as on a host that does not serve it,

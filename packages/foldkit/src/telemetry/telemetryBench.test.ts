@@ -16,6 +16,7 @@ import { describe, it } from 'vitest'
 
 import * as Command from '../command/index.js'
 import { m } from '../message/index.js'
+import { Host } from '../processor/public.js'
 import { make } from '../program/program.js'
 import {
   type ProgramRuntimeObserver,
@@ -204,7 +205,7 @@ const memoryTelemetry = () =>
   Effect.succeed([
     observer<Model, Message>({
       app: 'bench',
-      host: 'headless',
+      host: Host.Headless(),
       sink: makeMemorySink().layer,
     }),
   ])
@@ -222,7 +223,7 @@ describe.skipIf(!isBenchEnabled)('telemetry overhead', () => {
         Effect.succeed([
           observer<Model, Message>({
             app: 'bench',
-            host: 'headless',
+            host: Host.Headless(),
             sink: fileSink({ directory }),
           }),
         ])

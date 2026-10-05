@@ -18,7 +18,7 @@ import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
 import { BooksProgram } from './program.js'
 import { browserLinkSharing } from './share.browser.js'
-import { type BooksHandle } from './startConfig.js'
+import { type BooksHandleOnHost } from './startConfig.js'
 import { SyncedBooks } from './synced.js'
 
 /** How a browser Books Processor starts: its Instant app, host, and instance. */
@@ -41,7 +41,7 @@ export type StartBooksConfig = Readonly<{
  * const handle = startBooks({ appId: import.meta.env.VITE_INSTANT_APP_ID, host: Processor.Host.React(), instance: newProcessorInstance() })
  * ```
  */
-export const startBooks = (config: StartBooksConfig): BooksHandle => {
+export const startBooks = (config: StartBooksConfig): BooksHandleOnHost => {
   const database = init({ appId: config.appId })
   const sync = Instant({
     app: { id: config.appId },

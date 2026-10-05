@@ -2,6 +2,7 @@
 import { Array, Effect, Option, Order, Record, Schema as S, pipe } from 'effect'
 import { basename, dirname, join } from 'node:path'
 
+import { everyHost, print } from '../processor/host.js'
 import {
   type TelemetryFileError,
   entriesOf,
@@ -17,6 +18,7 @@ import {
   summarize,
   wholeWindow,
 } from './summary.js'
+import { TelemetrySurface } from './surface.js'
 
 const durationPattern = /^(\d+(?:\.\d+)?)(s|m|h|d)$/
 
@@ -49,6 +51,7 @@ const parseTimeMs = (text: string): Option.Option<number> => {
 /** The files and flags `foldkit telemetry` was asked for. */
 export const TelemetryCommandRequest = S.Struct({
   files: S.Array(S.String),
+  surface: S.optionalKey(TelemetrySurface),
   since: S.optionalKey(S.String),
   from: S.optionalKey(S.String),
   to: S.optionalKey(S.String),
@@ -62,30 +65,38 @@ export type TelemetryCommandRequest = typeof TelemetryCommandRequest.Type
 
 const usage = Array.join(
   [
-    'Usage: foldkit telemetry <file or app-host>... [options]',
+    'Usage: foldkit telemetry <app, app-surface, or file>... [options]',
     '',
-    'Summarizes Foldkit telemetry: the top Messages and Actions, the slowest',
-    'Commands, Command failures, update and render durations, transitions per',
-    'minute, and Subscription restarts.',
+    'Summarizes Foldkit telemetry surface by surface: the top Messages and',
+    'Actions, the slowest Commands, Command failures, update and render',
+    'durations, transitions per minute, and Subscription restarts.',
     '',
-    '  books-react          the file for app books on host react',
-    '  ./trace.ndjson       any telemetry file',
-    '  --since 30m          only the last 30 minutes (s, m, h, or d)',
-    '  --from <ISO time>    only events at or after this time',
-    '  --to <ISO time>      only events at or before this time',
-    '  --rotated            also read the rotated files beside each file',
-    '  --limit 10           rows per ranked table',
-    '  --json               print the summary as JSON',
+    '  books                 every surface of app books, such as books-web-react,',
+    '                        and its files from before surfaces, such as books-react',
+    '  books-terminal-tui    the file for app books on surface terminal-tui',
+    '  ./trace.ndjson        any telemetry file',
+    '  --surface web-react   only one surface',
+    '  --since 30m           only the last 30 minutes (s, m, h, or d)',
+    '  --from <ISO time>     only events at or after this time',
+    '  --to <ISO time>       only events at or before this time',
+    '  --rotated             also read the rotated files beside each file',
+    '  --limit 10            rows per ranked table',
+    '  --json                print the summary as JSON',
+    '',
+    `Surfaces: ${Array.join(TelemetrySurface.literals, ', ')}`,
   ],
   '\n',
 )
 
 const valueFlags: ReadonlyArray<string> = [
+  '--surface',
   '--since',
   '--from',
   '--to',
   '--limit',
 ]
+
+const isTelemetrySurface = S.is(TelemetrySurface)
 
 const isValidWhenPresent = <A>(
   maybeValue: Option.Option<A>,
@@ -107,8 +118,8 @@ const optionalField = <Key extends string, A>(
  *
  * @example
  * ```typescript
- * parseTelemetryArguments(['books-react', '--since', '30m'])
- * // Some({ files: ['books-react'], since: '30m', isJson: false, isIncludingRotated: false })
+ * parseTelemetryArguments(['books', '--surface', 'terminal-tui', '--since', '30m'])
+ * // Some({ files: ['books'], surface: 'terminal-tui', since: '30m', isJson: false, isIncludingRotated: false })
  * ```
  */
 export const parseTelemetryArguments = (
@@ -139,11 +150,14 @@ export const parseTelemetryArguments = (
     }
     index += 1
   }
+  const maybeSurfaceText = Record.get(values, '--surface')
+  const maybeSurface = Option.filter(maybeSurfaceText, isTelemetrySurface)
   const maybeSince = Record.get(values, '--since')
   const maybeFrom = Record.get(values, '--from')
   const maybeTo = Record.get(values, '--to')
   const maybeLimit = Option.map(Record.get(values, '--limit'), Number)
   const isValid =
+    Option.isSome(maybeSurfaceText) === Option.isSome(maybeSurface) &&
     isValidWhenPresent(maybeSince, since =>
       Option.isSome(parseDurationMs(since)),
     ) &&
@@ -158,6 +172,7 @@ export const parseTelemetryArguments = (
   }
   return Option.some({
     files,
+    ...optionalField('surface', maybeSurface),
     ...optionalField('since', maybeSince),
     ...optionalField('from', maybeFrom),
     ...optionalField('to', maybeTo),
@@ -190,10 +205,54 @@ const windowOf = (
   }
 }
 
-const resolveFile = (file: string, directory: string): string =>
-  file.includes('/') || file.endsWith(telemetryExtension)
-    ? file
-    : join(directory, `${file}${telemetryExtension}`)
+const stemOfName = (name: string): string =>
+  name.endsWith(telemetryExtension)
+    ? name.slice(0, name.length - telemetryExtension.length)
+    : name
+
+/**
+ * The files one argument names. A path with a slash is that file. A name
+ * of a file in the directory, such as `books-terminal-tui` or
+ * `books-terminal-tui.ndjson`, is that file. Any other name is an app,
+ * and names every file of that app's surfaces, `books` naming
+ * `books-terminal-tui.ndjson` and `books-web-react.ndjson`, in the order
+ * TelemetrySurface lists them, then its files from before surfaces, named
+ * for a Host, such as `books-react.ndjson`. A file name found nowhere
+ * names a file in the current directory when it ends in `.ndjson`, and
+ * otherwise its file in the telemetry directory, which reads as empty.
+ */
+const filesNamedBy = (
+  name: string,
+  directory: string,
+  directoryNames: ReadonlySet<string>,
+): ReadonlyArray<string> => {
+  if (name.includes('/')) {
+    return [name]
+  }
+  const stem = stemOfName(name)
+  const fileName = `${stem}${telemetryExtension}`
+  if (directoryNames.has(fileName)) {
+    return [join(directory, fileName)]
+  }
+  const appFileNames = Array.filter(
+    Array.dedupe([
+      ...Array.map(
+        TelemetrySurface.literals,
+        surface => `${stem}-${surface}${telemetryExtension}`,
+      ),
+      ...Array.map(
+        everyHost,
+        host => `${stem}-${print(host)}${telemetryExtension}`,
+      ),
+    ]),
+    appFileName => directoryNames.has(appFileName),
+  )
+  return Array.match(appFileNames, {
+    onNonEmpty: names => Array.map(names, found => join(directory, found)),
+    onEmpty: () =>
+      name.endsWith(telemetryExtension) ? [name] : [join(directory, fileName)],
+  })
+}
 
 type RotatedFile = Readonly<{ path: string; generation: number }>
 
@@ -249,15 +308,18 @@ const listingOf = (
 
 /**
  * Runs `foldkit telemetry`: reads the files named, summarizes the window
- * asked for, and returns what to print. A bare name such as `books-react`
- * reads `books-react.ndjson` in `directory`. With no file, it prints usage
- * and lists the telemetry files in `directory`. Exit code 2 means the
- * arguments were not understood, and 1 that a file could not be read.
+ * asked for surface by surface, and returns what to print. An app name
+ * such as `books` reads every surface's file of that app in `directory`,
+ * and an app-surface name such as `books-terminal-tui` reads that one
+ * file. `--surface` keeps only one surface's events. With no file, it
+ * prints usage and lists the telemetry files in `directory`. Exit code 2
+ * means the arguments were not understood, such as a surface that is not
+ * one of TelemetrySurface, and 1 that a file could not be read.
  *
  * @example
  * ```typescript
- * yield* runTelemetryCommand(['books-react', '--since', '1h'])
- * // { stdout: 'Telemetry for books-react.ndjson\nFrom 2026-10-04T19:40:11.002Z …', exitCode: 0 }
+ * yield* runTelemetryCommand(['books', '--since', '1h'])
+ * // { stdout: 'Telemetry for books-terminal-tui.ndjson, books-web-react.ndjson\nFrom 2026-10-04T19:40:11.002Z …', exitCode: 0 }
  * ```
  */
 export const runTelemetryCommand = (
@@ -275,7 +337,14 @@ export const runTelemetryCommand = (
       const listing = yield* listingOf(directory)
       return { stdout: Array.join([usage, '', ...listing], '\n'), exitCode: 0 }
     }
-    const files = Array.map(request.files, file => resolveFile(file, directory))
+    const directoryNames = new Set(
+      Array.map(yield* entriesOf(directory), entry => basename(entry.path)),
+    )
+    const files = Array.dedupe(
+      Array.flatMap(request.files, name =>
+        filesNamedBy(name, directory, directoryNames),
+      ),
+    )
     const paths = yield* Effect.forEach(files, file =>
       pathsToRead(file, request.isIncludingRotated),
     )
@@ -283,7 +352,11 @@ export const runTelemetryCommand = (
       Array.flatten(paths),
     )
     const summary = summarize(
-      events,
+      Option.match(Option.fromNullishOr(request.surface), {
+        onNone: () => events,
+        onSome: surface =>
+          Array.filter(events, event => event.surface === surface),
+      }),
       windowOf(request, nowMs),
       request.limit ?? defaultSummaryRowLimit,
     )

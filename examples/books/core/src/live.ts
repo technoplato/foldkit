@@ -22,7 +22,7 @@ import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
 import { BooksProgram } from './program.js'
 import { terminalLinkSharing } from './share.node.js'
-import type { BooksHandle } from './startConfig.js'
+import type { BooksHandle, BooksHandleOnHost } from './startConfig.js'
 import { SyncedBooks } from './synced.js'
 
 // START
@@ -162,7 +162,7 @@ export type StartBooksConfig = Readonly<{
 export const startBooks = (
   signedIn: SignedInBooks,
   config: StartBooksConfig,
-): BooksHandle =>
+): BooksHandleOnHost =>
   Runtime.startHandle({
     program: SyncedBooks,
     sync: booksEngine(signedIn, config),

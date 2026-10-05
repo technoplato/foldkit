@@ -10,16 +10,22 @@ import {
 } from 'effect'
 
 import type { TelemetryEvent, TelemetryName } from './event.js'
+import type { TelemetryRole, TelemetrySurface } from './surface.js'
 
 /**
- * The app and host a sink writes for, such as `books` on `react`. A file
- * sink names its file from them, `books-react.ndjson`, and a browser sink
- * sends them with every batch. Telemetry provides it to the sink Layer it
- * builds, from its own options.
+ * The app, surface, and role a sink writes for, such as `books` on
+ * `web-react` with no role. A file sink names its file from the app and
+ * surface, `books-web-react.ndjson`, and a browser sink sends all three
+ * with every batch. Telemetry provides it to the sink Layer it builds,
+ * from the session it records.
  */
 export class TelemetryOrigin extends Context.Service<
   TelemetryOrigin,
-  Readonly<{ app: TelemetryName; host: TelemetryName }>
+  Readonly<{
+    app: TelemetryName
+    surface: TelemetrySurface
+    maybeRole: Option.Option<TelemetryRole>
+  }>
 >()('@foldkit/TelemetryOrigin') {}
 
 /**

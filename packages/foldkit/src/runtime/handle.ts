@@ -28,8 +28,19 @@ export type ObserveRuntime<Model, Message> = (
   observer: ProgramRuntimeObserver<Model, Message>,
 ) => () => Promise<void>
 
+type HostOfHandle<OnHost extends Host | undefined> = [OnHost] extends [Host]
+  ? Readonly<{ host: OnHost }>
+  : unknown
+
 /**
  * The handle {@link startHandle} returns for one synced Program.
+ *
+ * `OnHost` is the Host it was started on, when the start named one. A
+ * handle from `startHandle({ ..., host: Processor.Host.Tui() })` is a
+ * `SyncedHandle<typeof App, Processor.Host.Tui>`, and its `host` is always
+ * there. The default, `undefined`, makes no such promise, for a handle
+ * started without a Host. Telemetry needs the promise, so it can name the
+ * surface a session runs on and never guess one.
  *
  * `observeRuntime` connects an observer to the runtime the handle starts.
  * An observer connected before the runtime boots, such as one connected on
@@ -39,7 +50,7 @@ export type ObserveRuntime<Model, Message> = (
  *
  * @example
  * ```typescript
- * const handle = Runtime.startHandle({ program: SyncedCounter, sync })
+ * const handle = Runtime.startHandle({ program: SyncedCounter, sync, host: Processor.Host.Tui() })
  * const disconnect = handle.observeRuntime(observation =>
  *   Effect.acquireRelease(
  *     Effect.sync(() => observation.journal.observe(transition => {
@@ -51,7 +62,10 @@ export type ObserveRuntime<Model, Message> = (
  * await disconnect()
  * ```
  */
-export type SyncedHandle<Child extends SyncChild> = ProgramHandle<
+export type SyncedHandle<
+  Child extends SyncChild,
+  OnHost extends Host | undefined = undefined,
+> = ProgramHandle<
   SyncedModel<ModelOf<Child>, MessageOf<Child>>,
   SyncedMessage<ModelOf<Child>, MessageOf<Child>> & Readonly<{ _tag: string }>
 > &
@@ -61,7 +75,8 @@ export type SyncedHandle<Child extends SyncChild> = ProgramHandle<
       SyncedMessage<ModelOf<Child>, MessageOf<Child>> &
         Readonly<{ _tag: string }>
     >
-  }>
+  }> &
+  HostOfHandle<OnHost>
 
 type ObserverConnection<Model, Message> = Readonly<{
   observation: ProgramRuntimeObservation<Model, Message>
@@ -164,17 +179,32 @@ const causeOf = (error: unknown): string => {
 }
 
 /**
+ * What {@link startHandle} starts, and on which Host. Name the `host`, such
+ * as `Processor.Host.Tui()`, and the handle carries it in its type.
+ */
+export type StartHandleConfig<Child extends SyncChild, Resources> = Readonly<{
+  program: SyncProgram<Child>
+  sync: SyncEngine
+  resources?: Layer.Layer<Resources>
+  policy?: SessionPolicy
+  localSnapshot?: LocalSnapshotStore
+  host?: Host
+}>
+
+/**
  * Starts a synced Program for a long-lived Client and returns a plain
  * handle. The Model is Starting until the first snapshot, then Ready. If
  * the runtime cannot start, the Model becomes Failed with the cause. It
  * never invents a count.
  *
  * Call `stop` when the Client goes away; it closes the runtime's Scope.
- * Pass the `host` it runs on, so a bound window is titled by it, and the
- * `resources` its Commands and Subscriptions use, such as a browser audio
- * output Layer. `observeRuntime` connects observers such as telemetry; see
- * {@link SyncedHandle}. The runtime starts on the next microtask, so an
- * observer connected on the line after `startHandle` sees it boot.
+ * Pass the `host` it runs on, so a bound window is titled by it and
+ * telemetry names its surface, and the `resources` its Commands and
+ * Subscriptions use, such as a browser audio output Layer. A handle
+ * started with a `host` carries it in its type; see {@link SyncedHandle}.
+ * `observeRuntime` connects observers such as telemetry. The runtime
+ * starts on the next microtask, so an observer connected on the line after
+ * `startHandle` sees it boot.
  *
  * @example
  * ```typescript
@@ -186,16 +216,19 @@ const causeOf = (error: unknown): string => {
  * handle.subscribe(() => paint(handle.readModel()))
  * ```
  */
-export const startHandle = <Child extends SyncChild, Resources = never>(
-  config: Readonly<{
-    program: SyncProgram<Child>
-    sync: SyncEngine
-    resources?: Layer.Layer<Resources>
-    policy?: SessionPolicy
-    localSnapshot?: LocalSnapshotStore
-    host?: Host
-  }>,
-): SyncedHandle<Child> => {
+export function startHandle<
+  Child extends SyncChild,
+  Resources = never,
+  OnHost extends Host = Host,
+>(
+  config: StartHandleConfig<Child, Resources> & Readonly<{ host: OnHost }>,
+): SyncedHandle<Child, OnHost>
+export function startHandle<Child extends SyncChild, Resources = never>(
+  config: StartHandleConfig<Child, Resources>,
+): SyncedHandle<Child>
+export function startHandle<Child extends SyncChild, Resources = never>(
+  config: StartHandleConfig<Child, Resources>,
+): SyncedHandle<Child> {
   type Model = SyncedModel<ModelOf<Child>, MessageOf<Child>>
   type Message = SyncedMessage<ModelOf<Child>, MessageOf<Child>> &
     Readonly<{ _tag: string }>

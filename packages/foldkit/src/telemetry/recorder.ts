@@ -32,8 +32,16 @@ import {
   toTelemetryJson,
 } from './redact.js'
 import type { TelemetrySink } from './sink.js'
+import type { TelemetryRole, TelemetrySurface } from './surface.js'
 
-type Envelope = Readonly<{ at: string; sequence: number; session: string }>
+type SessionEnvelope = Readonly<{
+  session: string
+  app: TelemetryName
+  surface: TelemetrySurface
+  role?: TelemetryRole
+}>
+
+type Envelope = SessionEnvelope & Readonly<{ at: string; sequence: number }>
 
 type AnyMessage = Readonly<{ _tag: string }>
 
@@ -46,8 +54,6 @@ export type RenderReport = Readonly<{
 
 /** The facts every SessionStarted and SessionStopped line repeats. */
 export type SessionFacts = Readonly<{
-  app: TelemetryName
-  host: TelemetryName
   programId: string
   programVersion: number
   maybePid: Option.Option<number>
@@ -64,9 +70,15 @@ export type TelemetryRecorder = Readonly<{
   tracer: Tracer.Tracer
 }>
 
-/** How one recorder writes: its session, its sink, and its policy. */
+/**
+ * How one recorder writes: its session, the app, surface, and role every
+ * line carries, its sink, and its policy.
+ */
 export type TelemetryRecorderConfig = Readonly<{
   session: string
+  app: TelemetryName
+  surface: TelemetrySurface
+  maybeRole: Option.Option<TelemetryRole>
   sink: typeof TelemetrySink.Service
   policy: RedactionPolicy
   isRecordingModels: boolean
@@ -93,8 +105,6 @@ const isObjectValued = (
 ): boolean => Predicate.isObject(fields[key])
 
 const sessionFields = (facts: SessionFacts) => ({
-  app: facts.app,
-  host: facts.host,
   programId: facts.programId,
   programVersion: facts.programVersion,
   ...Option.match(facts.maybePid, {
@@ -183,7 +193,16 @@ class TelemetrySpan implements Tracer.Span {
 export const makeRecorder = (
   config: TelemetryRecorderConfig,
 ): TelemetryRecorder => {
-  const { session, sink, policy, isRecordingModels } = config
+  const { sink, policy, isRecordingModels } = config
+  const sessionEnvelope: SessionEnvelope = {
+    session: config.session,
+    app: config.app,
+    surface: config.surface,
+    ...Option.match(config.maybeRole, {
+      onNone: () => ({}),
+      onSome: role => ({ role }),
+    }),
+  }
   const pendingStarts: Array<TelemetrySpan> = []
   let nextSequence = 1
   let nextSpanNumber = 1
@@ -205,7 +224,7 @@ export const makeRecorder = (
   ): void => {
     const sequence = nextSequence
     nextSequence += 1
-    sink.offer(build({ at: isoTimeOf(atMs), sequence, session }))
+    sink.offer(build({ at: isoTimeOf(atMs), sequence, ...sessionEnvelope }))
   }
 
   const argsOf = (span: TelemetrySpan): Partial<Record<'args', Schema.Json>> =>
@@ -282,7 +301,7 @@ export const makeRecorder = (
       const span = new TelemetrySpan(
         options,
         nextSpanNumber,
-        session,
+        config.session,
         finishSpan,
       )
       nextSpanNumber += 1

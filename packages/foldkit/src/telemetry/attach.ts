@@ -9,7 +9,7 @@ import {
   type Scope,
 } from 'effect'
 
-import { type Host, print as printHost } from '../processor/host.js'
+import type { Host } from '../processor/host.js'
 import type { ObserveRuntime } from '../runtime/handle.js'
 import type {
   ProgramRuntimeObservation,
@@ -28,13 +28,21 @@ import {
   TelemetrySink,
   type TelemetrySinkLayer,
 } from './sink.js'
+import {
+  type TelemetryRole,
+  type TelemetrySurface,
+  surfaceOf,
+} from './surface.js'
 
 /**
- * What one telemetry session records, and where. `app` and `host` name
- * the session and its file, such as `books` and `react`
- * for `books-react.ndjson`; both must be {@link TelemetryName}s. `sink`
- * says where events go, such as `fileSink()` from `foldkit/telemetry/node`
- * or {@link browserSink} in a browser.
+ * What one telemetry session records, and where. `app` names the
+ * session's app, a {@link TelemetryName} such as `books`, and with the
+ * session's surface its file: Books on `web-react` writes
+ * `books-web-react.ndjson`. The surface itself comes from the Host the
+ * Program runs on, never from these options. `role` names a special job
+ * the process does, such as `daemon` for a CLI daemon. `sink` says where
+ * events go, such as `fileSink()` from `foldkit/telemetry/node` or
+ * {@link browserSink} in a browser.
  *
  * Telemetry records Message tags and payloads, the Commands each update
  * returns with their args, and a summary of each Model diff, never whole
@@ -47,20 +55,18 @@ import {
  */
 export type TelemetryOptions = Readonly<{
   app: string
-  host: string
   sink: TelemetrySinkLayer
+  role?: TelemetryRole
   withModels?: boolean
   redactKeys?: ReadonlyArray<string>
 }>
 
 /**
- * {@link TelemetryOptions} for {@link attach}, where `host` defaults to the
- * Host the handle was started on, such as `react` for
- * `Processor.Host.React()`, and to `headless` for a handle started without
- * one.
+ * {@link TelemetryOptions} for {@link observer}, which has no handle to read
+ * a Host from, so it takes the Host its runtime runs on, such as
+ * `Processor.Host.Headless()`, and records that Host's surface.
  */
-export type AttachOptions = Omit<TelemetryOptions, 'host'> &
-  Readonly<{ host?: string }>
+export type ObserverOptions = TelemetryOptions & Readonly<{ host: Host }>
 
 /** One attached telemetry session. */
 export type TelemetryAttachment = Readonly<{
@@ -83,8 +89,6 @@ const sessionIdLength = 8
 
 const maximumHeldRenders = 100
 
-const headlessHost = 'headless'
-
 const makeSessionId = (): string =>
   globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, sessionIdLength)
 
@@ -96,10 +100,10 @@ const processId = (): Option.Option<number> => {
     : Option.none()
 }
 
-const telemetryName = (field: string, name: string): TelemetryName => {
+const appNameOf = (name: string): TelemetryName => {
   if (!isTelemetryName(name)) {
     throw new RangeError(
-      `Telemetry ${field} must be lowercase letters, digits, and hyphens, such as 'books'; got '${name}'.`,
+      `A telemetry app must be lowercase letters, digits, and hyphens, such as 'books'; got '${name}'.`,
     )
   }
   return name
@@ -110,7 +114,8 @@ const monotonicNow: () => number =
 
 type SessionConfig = Readonly<{
   app: TelemetryName
-  host: TelemetryName
+  surface: TelemetrySurface
+  maybeRole: Option.Option<TelemetryRole>
   session: string
   sink: TelemetrySinkLayer
   isRecordingModels: boolean
@@ -163,18 +168,23 @@ const startRecording = <Model, Message extends Readonly<{ _tag: string }>>(
     const sinkContext = yield* Layer.build(
       Layer.provide(
         config.sink,
-        Layer.succeed(TelemetryOrigin, { app: config.app, host: config.host }),
+        Layer.succeed(TelemetryOrigin, {
+          app: config.app,
+          surface: config.surface,
+          maybeRole: config.maybeRole,
+        }),
       ),
     )
     const recorder = makeRecorder({
       session: config.session,
+      app: config.app,
+      surface: config.surface,
+      maybeRole: config.maybeRole,
       sink: Context.get(sinkContext, TelemetrySink),
       policy: makeRedactionPolicy(config.redactKeys),
       isRecordingModels: config.isRecordingModels,
     })
     const facts: SessionFacts = {
-      app: config.app,
-      host: config.host,
       programId: observation.programId,
       programVersion: observation.programVersion,
       maybePid: processId(),
@@ -213,9 +223,11 @@ const startRecording = <Model, Message extends Readonly<{ _tag: string }>>(
 
 const sessionConfigOf = (
   options: TelemetryOptions,
+  host: Host,
 ): Omit<SessionConfig, 'session'> => ({
-  app: telemetryName('app', options.app),
-  host: telemetryName('host', options.host),
+  app: appNameOf(options.app),
+  surface: surfaceOf(host),
+  maybeRole: Option.fromNullishOr(options.role),
   sink: options.sink,
   isRecordingModels: options.withModels === true,
   redactKeys: options.redactKeys ?? [],
@@ -230,21 +242,22 @@ const sessionConfigOf = (
  * and releases it. Use it with a runtime you start yourself; for a handle
  * from `Runtime.startHandle`, use {@link attach}.
  *
- * Throws a RangeError when `app` or `host` is not a {@link TelemetryName}.
+ * Throws a RangeError when `app` is not a {@link TelemetryName}.
  *
  * @example
  * ```typescript
  * const runtime = yield* makeProgramRuntime({
  *   program: Counter,
  *   resources: Layer.empty,
- *   observers: [Telemetry.observer({ app: 'counter', host: 'headless', sink: fileSink() })],
+ *   observers: [Telemetry.observer({ app: 'counter', host: Processor.Host.Headless(), sink: fileSink() })],
  * })
+ * // writes counter-headless.ndjson
  * ```
  */
 export const observer = <Model, Message extends Readonly<{ _tag: string }>>(
-  options: TelemetryOptions,
+  options: ObserverOptions,
 ): ProgramRuntimeObserver<Model, Message> => {
-  const config = sessionConfigOf(options)
+  const config = sessionConfigOf(options, options.host)
   return observation =>
     Effect.asVoid(
       Effect.suspend(() =>
@@ -253,22 +266,33 @@ export const observer = <Model, Message extends Readonly<{ _tag: string }>>(
     )
 }
 
-/** A handle telemetry can attach to, such as one from `Runtime.startHandle`. */
+/**
+ * A handle telemetry can attach to: one that says the Host it was started
+ * on, such as `Runtime.startHandle({ ..., host: Processor.Host.Tui() })`.
+ * A handle started without a Host is not one, so attaching to it does not
+ * compile.
+ */
 export type ObservableHandle<Model, Message> = Readonly<{
   observeRuntime: ObserveRuntime<Model, Message>
-  host?: Host
+  host: Host
 }>
 
 /**
- * Attaches telemetry to a running Program's handle in any host: React,
- * Svelte, the CLI, the TUI, OpenTUI, or a CLI daemon. It records the
- * Program's transitions, Command spans, Subscription and ManagedResource
- * diagnostics, and crashes to `sink`, from the moment it attaches until
- * the handle stops or {@link TelemetryAttachment.detach} runs. Attach on
- * the line after `Runtime.startHandle` to record from the Program's first
- * transition.
+ * Attaches telemetry to a running Program's handle on any surface: a
+ * React, Foldkit, or Svelte page, the CLI, the TUI, OpenTUI, a CLI
+ * daemon, or a phone. It records the Program's transitions, Command spans,
+ * Subscription and ManagedResource diagnostics, and crashes to `sink`,
+ * from the moment it attaches until the handle stops or
+ * {@link TelemetryAttachment.detach} runs. Attach on the line after
+ * `Runtime.startHandle` to record from the Program's first transition.
  *
- * Throws a RangeError when `app` or `host` is not a {@link TelemetryName}.
+ * The session's surface comes from the Host the handle was started on, so
+ * a handle on `Processor.Host.Tui()` records `terminal-tui` on every line
+ * and writes `books-terminal-tui.ndjson`. There is no surface to pass, and
+ * a handle with no Host is a type error, so no session is ever recorded
+ * under a surface it is not on.
+ *
+ * Throws a RangeError when `app` is not a {@link TelemetryName}.
  *
  * @example
  * ```typescript
@@ -276,20 +300,16 @@ export type ObservableHandle<Model, Message> = Readonly<{
  * const telemetry = Telemetry.attach(handle, { app: 'books', sink: Telemetry.browserSink() })
  * telemetry.recordRendered({ painter: 'React', durationMs: 4.1, phase: 'update' })
  * await telemetry.detach()
+ *
+ * Telemetry.attach(daemonHandle, { app: 'counter', role: 'daemon', sink: fileSink() })
  * ```
  */
 export const attach = <Model, Message extends Readonly<{ _tag: string }>>(
   handle: ObservableHandle<Model, Message>,
-  options: AttachOptions,
+  options: TelemetryOptions,
 ): TelemetryAttachment => {
-  const host =
-    options.host ??
-    Option.match(Option.fromNullishOr(handle.host), {
-      onNone: () => headlessHost,
-      onSome: printHost,
-    })
   const session = makeSessionId()
-  const config = { ...sessionConfigOf({ ...options, host }), session }
+  const config = { ...sessionConfigOf(options, handle.host), session }
   const heldRenders: Array<Readonly<{ render: RenderReport; atMs: number }>> =
     []
   let maybeRecorder = Option.none<TelemetryRecorder>()

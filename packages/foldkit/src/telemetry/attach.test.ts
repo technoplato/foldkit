@@ -28,7 +28,7 @@ import { Memory } from '../runtime/syncEngine.js'
 import { m } from '../schema/index.js'
 import * as Subscription from '../subscription/subscription.js'
 import { attach, observer } from './attach.js'
-import type { TelemetryEvent } from './event.js'
+import { type TelemetryEvent, encodeLine } from './event.js'
 import { fileSink, readTelemetryFiles } from './node.js'
 import * as Telemetry from './public.js'
 import { makeMemorySink } from './sink.js'
@@ -174,7 +174,7 @@ describe('Telemetry.observer', () => {
               observers: [
                 observer({
                   app: 'telemetry-test',
-                  host: 'headless',
+                  host: Host.Headless(),
                   sink: memory.layer,
                 }),
               ],
@@ -250,6 +250,14 @@ describe('Telemetry.observer', () => {
         expect(new Set(events.map(event => event.session)).size).toBe(1)
         events.forEach(event => {
           expect(new Date(event.at).toISOString()).toBe(event.at)
+          expect(event).toMatchObject({
+            app: 'telemetry-test',
+            surface: 'headless',
+          })
+          expect(event).not.toHaveProperty('role')
+          expect(encodeLine(event)).toContain(
+            '"app":"telemetry-test","surface":"headless"',
+          )
         })
 
         expect(Array.head(events)).toStrictEqual(
@@ -257,7 +265,7 @@ describe('Telemetry.observer', () => {
             expect.objectContaining({
               _tag: 'SessionStarted',
               app: 'telemetry-test',
-              host: 'headless',
+              surface: 'headless',
               programId: 'telemetry-library',
               programVersion: 3,
               pid: process.pid,
@@ -351,7 +359,8 @@ describe('Telemetry.observer', () => {
             observers: [
               observer({
                 app: 'telemetry-test',
-                host: 'cli',
+                host: Host.Cli(),
+                role: 'daemon',
                 sink: memory.layer,
               }),
             ],
@@ -371,6 +380,11 @@ describe('Telemetry.observer', () => {
         'CommandFinished Wait Interrupted',
         'SessionStopped',
       ])
+      Array.forEach(memory.events(), event => {
+        expect(encodeLine(event)).toContain(
+          '"app":"telemetry-test","surface":"terminal-cli","role":"daemon"',
+        )
+      })
     }),
   )
 
@@ -378,7 +392,7 @@ describe('Telemetry.observer', () => {
     expect(() =>
       observer({
         app: '../books',
-        host: 'react',
+        host: Host.React(),
         sink: makeMemorySink().layer,
       }),
     ).toThrow(RangeError)
@@ -460,7 +474,7 @@ describe('Telemetry.attach', () => {
         expect.objectContaining({
           _tag: 'SessionStarted',
           app: 'telemetry-test',
-          host: 'react',
+          surface: 'web-react',
           programId: 'sync:telemetry-library',
           session: telemetry.session,
         }),
@@ -509,7 +523,7 @@ describe('Telemetry.attach', () => {
     })
     const events = memory.events()
     expect(Array.head(events)).toStrictEqual(
-      Option.some(expect.objectContaining({ host: 'cli' })),
+      Option.some(expect.objectContaining({ surface: 'terminal-cli' })),
     )
     expect(Option.map(Array.last(events), event => event._tag)).toStrictEqual(
       Option.some('SessionStopped'),
@@ -565,7 +579,7 @@ describe('Telemetry.attach', () => {
       await handle.stop()
 
       const { events } = await Effect.runPromise(
-        readTelemetryFiles([join(directory, 'books-cli.ndjson')]),
+        readTelemetryFiles([join(directory, 'books-terminal-cli.ndjson')]),
       )
       expect(Array.map(events, describeEvent)).toEqual(
         expect.arrayContaining([
@@ -575,9 +589,9 @@ describe('Telemetry.attach', () => {
           'Transition SucceededFetch from Command',
         ]),
       )
-      expect(
-        Option.map(Array.last(events), event => event._tag),
-      ).toStrictEqual(Option.some('SessionStopped'))
+      expect(Option.map(Array.last(events), event => event._tag)).toStrictEqual(
+        Option.some('SessionStopped'),
+      )
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
@@ -612,5 +626,17 @@ describe('Telemetry.attach', () => {
     expect(
       Array.filter(memory.events(), event => event._tag === 'SessionStopped'),
     ).toHaveLength(1)
+  })
+
+  it('takes no handle that was started without a Host', () => {
+    const attachHandleWithNoHost = (): void => {
+      const handle = startHandle({
+        program: SyncedLibrary,
+        sync: Memory({ processor: 'no-host' }),
+      })
+      // @ts-expect-error A handle with no Host has no surface to record.
+      attach(handle, { app: 'telemetry-test', sink: makeMemorySink().layer })
+    }
+    expect(attachHandleWithNoHost).toBeTypeOf('function')
   })
 })

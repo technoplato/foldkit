@@ -21,6 +21,15 @@ export {
 } from './event.js'
 
 export {
+  TelemetryRole,
+  TelemetrySurface,
+  surfaceOf,
+  surfaceOfHostName,
+} from './surface.js'
+
+export { decodeLines, type DecodedLines } from './lines.js'
+
+export {
   TelemetryOrigin,
   TelemetrySink,
   defaultFlushIntervalMs,
@@ -43,8 +52,8 @@ export {
 export {
   attach,
   observer,
-  type AttachOptions,
   type ObservableHandle,
+  type ObserverOptions,
   type TelemetryAttachment,
   type TelemetryOptions,
 } from './attach.js'
@@ -73,6 +82,7 @@ export {
   DurationSummary,
   SessionRow,
   SubscriptionLifecycle,
+  SurfaceSummary,
   TelemetrySummary,
   UnfinishedCommand,
   defaultSummaryRowLimit,

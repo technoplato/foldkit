@@ -3,11 +3,12 @@
 /**
  * The `foldkit` command. Today it has one subcommand:
  *
- *   foldkit telemetry books-react --since 30m
+ *   foldkit telemetry books --since 30m
  *
- * which summarizes `~/Library/Logs/foldkit/telemetry/books-react.ndjson`
- * for the last 30 minutes. Run `foldkit telemetry` for its usage and the
- * telemetry files on this machine.
+ * which summarizes every `~/Library/Logs/foldkit/telemetry/books-*.ndjson`
+ * file, such as `books-web-react.ndjson`, surface by surface for the last
+ * 30 minutes. Run `foldkit telemetry` for its usage and the telemetry
+ * files on this machine.
  */
 import { Array, Effect } from 'effect'
 

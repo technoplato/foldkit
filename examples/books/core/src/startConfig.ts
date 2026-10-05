@@ -1,4 +1,4 @@
-import type { Runtime } from 'foldkit'
+import type { Processor, Runtime } from 'foldkit'
 
 import type { SyncedBooks } from './synced.js'
 
@@ -6,6 +6,16 @@ import type { SyncedBooks } from './synced.js'
 
 /** A live synced Books any Client can read, watch, and send to. */
 export type BooksHandle = Runtime.SyncedHandle<typeof SyncedBooks.of>
+
+/**
+ * A live synced Books started on a Host, as `startBooks` returns it. Its
+ * `host` is always there, so telemetry can name the surface it runs on,
+ * such as `web-react` or `terminal-tui`.
+ */
+export type BooksHandleOnHost = Runtime.SyncedHandle<
+  typeof SyncedBooks.of,
+  Processor.Host.Host
+>
 
 const instanceLength = 8
 

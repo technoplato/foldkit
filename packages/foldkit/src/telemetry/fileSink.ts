@@ -24,7 +24,8 @@ import {
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import { type TelemetryEvent, decodeLine, encodeLine } from './event.js'
+import { type TelemetryEvent, encodeLine } from './event.js'
+import { decodeLines } from './lines.js'
 import {
   makeRedactionPolicy,
   scrubEvent,
@@ -39,6 +40,7 @@ import {
   defaultTelemetryBatching,
   makeBufferedSink,
 } from './sink.js'
+import type { TelemetrySurface } from './surface.js'
 
 // LIMITS
 
@@ -47,7 +49,7 @@ const bytesPerMegabyte = 1024 * 1024
 /** The size at which a telemetry file rotates: 10 MB. */
 export const defaultMaximumFileBytes = 10 * bytesPerMegabyte
 
-/** How many rotated files one app and host keeps beside its live file: 3. */
+/** How many rotated files one app and surface keeps beside its live file: 3. */
 export const defaultMaximumRotatedFiles = 3
 
 /** The most the whole telemetry directory holds across apps: 200 MB. */
@@ -57,14 +59,15 @@ export const defaultMaximumDirectoryBytes = 200 * bytesPerMegabyte
 export const defaultMaximumLineBytes = 256 * 1024
 
 /**
- * How much disk a file sink may use. One app and host holds at most
+ * How much disk a file sink may use. One app and surface holds at most
  * `maximumFileBytes × (1 + maximumRotatedFiles)`, 40 MB by default: the
- * live file and its rotated files, `books-react.ndjson` and
- * `books-react.1.ndjson` through `books-react.3.ndjson`, where `.1` is the
- * newest. The whole directory holds at most `maximumDirectoryBytes`, 200
- * MB by default; before a write would pass it, the sink deletes the oldest
- * telemetry files of any app. A line longer than `maximumLineBytes` loses
- * its payload, args, and Model, and a line still too long is dropped.
+ * live file and its rotated files, `books-web-react.ndjson` and
+ * `books-web-react.1.ndjson` through `books-web-react.3.ndjson`, where
+ * `.1` is the newest. The whole directory holds at most
+ * `maximumDirectoryBytes`, 200 MB by default; before a write would pass
+ * it, the sink deletes the oldest telemetry files of any app. A line
+ * longer than `maximumLineBytes` loses its payload, args, and Model, and a
+ * line still too long is dropped.
  */
 export type TelemetryFileLimits = Readonly<{
   maximumFileBytes: number
@@ -164,19 +167,19 @@ export const telemetryDirectory = (): string =>
       )
 
 /**
- * The live file for one app and host in a directory.
+ * The live file for one app and surface in a directory.
  *
  * @example
  * ```typescript
- * telemetryFilePath({ app: 'books', host: 'react' })
- * // '/Users/ada/Library/Logs/foldkit/telemetry/books-react.ndjson'
+ * telemetryFilePath({ app: 'books', surface: 'terminal-tui' })
+ * // '/Users/ada/Library/Logs/foldkit/telemetry/books-terminal-tui.ndjson'
  * ```
  */
 export const telemetryFilePath = (
-  origin: Readonly<{ app: string; host: string }>,
+  origin: Readonly<{ app: string; surface: TelemetrySurface }>,
   directory: string = telemetryDirectory(),
 ): string =>
-  join(directory, `${origin.app}-${origin.host}${telemetryExtension}`)
+  join(directory, `${origin.app}-${origin.surface}${telemetryExtension}`)
 
 const stemOf = (path: string): string =>
   path.slice(0, path.length - telemetryExtension.length)
@@ -186,8 +189,8 @@ const rotatedPathOf = (path: string, generation: number): string =>
 
 /**
  * Which rotation a file is of a live file, such as 2 for
- * `books-react.2.ndjson` beside `books-react.ndjson`, or None for any
- * other file.
+ * `books-web-react.2.ndjson` beside `books-web-react.ndjson`, or None for
+ * any other file.
  */
 export const generationOf = (
   livePath: string,
@@ -294,7 +297,7 @@ const removeFile = (path: string): Effect.Effect<void, TelemetryFileError> =>
   Effect.asVoid(attemptUnlessMissing(path, () => unlink(path)))
 
 /**
- * One app and host's telemetry file. It appends lines, rotates the file
+ * One app and surface's telemetry file. It appends lines, rotates the file
  * before a write would pass `maximumFileBytes`, keeps
  * `maximumRotatedFiles` rotated files, and deletes the oldest telemetry
  * files in the directory before a write would pass
@@ -505,7 +508,7 @@ const environmentValues = (): ReadonlyArray<string> =>
 
 /**
  * Where a file sink writes. `path` names the file outright; otherwise the
- * sink writes `<app>-<host>.ndjson` in `directory`, which defaults to
+ * sink writes `<app>-<surface>.ndjson` in `directory`, which defaults to
  * {@link telemetryDirectory}. `limits` overrides any of
  * {@link defaultTelemetryFileLimits}.
  */
@@ -519,9 +522,10 @@ export type FileSinkOptions = Readonly<{
 /**
  * A sink that appends events to a local file, one NDJSON line each, for
  * the CLI, TUI, OpenTUI, a CLI daemon, or a development server: by default
- * `~/Library/Logs/foldkit/telemetry/<app>-<host>.ndjson`, such as
- * `books-cli.ndjson`. It is a scoped Layer that owns its file handle:
- * closing its Scope writes every waiting event and closes the handle.
+ * `~/Library/Logs/foldkit/telemetry/<app>-<surface>.ndjson`, such as
+ * `books-terminal-cli.ndjson`. It is a scoped Layer that owns its file
+ * handle: closing its Scope writes every waiting event and closes the
+ * handle.
  *
  * Disk use is capped by {@link TelemetryFileLimits}: the file rotates at
  * 10 MB, three rotated files are kept, and the whole directory never
@@ -606,11 +610,13 @@ export type ReadTelemetry = Readonly<{
 /**
  * Reads every event in telemetry files, in the order given. A line that is
  * not an event, such as one cut short when a process stopped mid-write, is
- * counted and skipped. A file that does not exist reads as empty.
+ * counted and skipped. A file that does not exist reads as empty. Lines
+ * written before sessions declared a surface are read too, with the
+ * surface their session's Host names; see {@link decodeLines}.
  *
  * @example
  * ```typescript
- * const { events, unreadableLineCount } = yield* readTelemetryFiles([telemetryFilePath({ app: 'books', host: 'react' })])
+ * const { events, unreadableLineCount } = yield* readTelemetryFiles([telemetryFilePath({ app: 'books', surface: 'web-react' })])
  * ```
  */
 export const readTelemetryFiles = (
@@ -624,9 +630,5 @@ export const readTelemetryFiles = (
       Array.flatMap(Array.getSomes(texts), text => text.split('\n')),
       line => line.trim() !== '',
     )
-    const decoded = Array.map(lines, decodeLine)
-    return {
-      events: Array.getSomes(decoded),
-      unreadableLineCount: Array.filter(decoded, Option.isNone).length,
-    }
+    return decodeLines(lines)
   })

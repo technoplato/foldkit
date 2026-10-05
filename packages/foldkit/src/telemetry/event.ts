@@ -7,35 +7,39 @@
  * diagnostic, a crash, and each paint a renderer reports.
  *
  * Every event carries `at`, the ISO time it happened, `session`, the id of
- * one attached run, and `sequence`, which counts up from 1 within that
- * session in the order events were recorded. Two sessions may share one
- * file, so order lines by `session` and `sequence`, not by position:
+ * one attached run, `sequence`, which counts up from 1 within that session
+ * in the order events were recorded, and the session's `app`, `surface`,
+ * and `role` when it has one. So any one line says where it came from,
+ * and `grep '"surface":"terminal-tui"'` finds every line from the TUI. Two
+ * sessions may share one file, so order lines by `session` and
+ * `sequence`, not by position:
  *
  * ```json
- * {"_tag":"SessionStarted","at":"2026-10-04T20:15:02.114Z","sequence":1,"session":"9f3c2a71","app":"books","host":"react","programId":"sync:books","programVersion":1}
- * {"_tag":"Transition","at":"2026-10-04T20:15:03.020Z","sequence":2,"session":"9f3c2a71","transition":1,"message":"PressedPlay","payload":{"bookId":"a-new-earth"},"source":{"_tag":"Host"},"commands":[{"name":"PlayAudio","args":{"bookId":"a-new-earth"}}],"isModelChanged":true,"changedPathCount":2,"updateDurationMs":0.05}
- * {"_tag":"CommandStarted","at":"2026-10-04T20:15:03.021Z","sequence":3,"session":"9f3c2a71","command":"PlayAudio","span":1,"args":{"bookId":"a-new-earth"}}
- * {"_tag":"CommandFinished","at":"2026-10-04T20:15:03.233Z","sequence":4,"session":"9f3c2a71","command":"PlayAudio","span":1,"durationMs":212.4,"outcome":"Success","result":"StartedPlayback"}
+ * {"_tag":"SessionStarted","at":"2026-10-04T20:15:02.114Z","sequence":1,"session":"9f3c2a71","app":"books","surface":"web-react","programId":"sync:books","programVersion":1}
+ * {"_tag":"Transition","at":"2026-10-04T20:15:03.020Z","sequence":2,"session":"9f3c2a71","app":"books","surface":"web-react","transition":1,"message":"PressedPlay","payload":{"bookId":"a-new-earth"},"source":{"_tag":"Host"},"commands":[{"name":"PlayAudio","args":{"bookId":"a-new-earth"}}],"isModelChanged":true,"changedPathCount":2,"updateDurationMs":0.05}
+ * {"_tag":"CommandStarted","at":"2026-10-04T20:15:03.021Z","sequence":3,"session":"9f3c2a71","app":"books","surface":"web-react","command":"PlayAudio","span":1,"args":{"bookId":"a-new-earth"}}
+ * {"_tag":"CommandFinished","at":"2026-10-04T20:15:03.233Z","sequence":4,"session":"9f3c2a71","app":"books","surface":"web-react","command":"PlayAudio","span":1,"durationMs":212.4,"outcome":"Success","result":"StartedPlayback"}
  * ```
  */
 import { Option, Schema as S } from 'effect'
 
 import { TransitionSource } from '../runtime/programJournal.js'
 import { RuntimeFailureSource } from '../runtime/runtimeDiagnostic.js'
+import { TelemetryRole, TelemetrySurface } from './surface.js'
 
 // MODEL
 
 const telemetryNamePattern = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 /**
- * An app or host name as telemetry writes it, and as its file name uses
- * it: lowercase letters, digits, and hyphens, starting with a letter or a
- * digit, at most 64 characters. `books` and `react` name the file
- * `books-react.ndjson`; `Books` and `../react` are refused.
+ * An app name as telemetry writes it, and as its file name uses it:
+ * lowercase letters, digits, and hyphens, starting with a letter or a
+ * digit, at most 64 characters. `books` on `web-react` names the file
+ * `books-web-react.ndjson`; `Books` and `../books` are refused.
  */
 export const TelemetryName = S.String.check(S.isPattern(telemetryNamePattern))
 
-/** An app or host name as telemetry writes it. */
+/** An app name as telemetry writes it. */
 export type TelemetryName = typeof TelemetryName.Type
 
 /**
@@ -58,6 +62,9 @@ const envelope = {
   at: S.String,
   sequence: S.Int.check(S.isGreaterThanOrEqualTo(1)),
   session: S.String,
+  app: TelemetryName,
+  surface: TelemetrySurface,
+  role: S.optionalKey(TelemetryRole),
 }
 
 /** One Command a transition returned, with its args after redaction. */
@@ -75,8 +82,6 @@ export type TelemetryCommand = typeof TelemetryCommand.Type
  */
 export const SessionStarted = S.TaggedStruct('SessionStarted', {
   ...envelope,
-  app: TelemetryName,
-  host: TelemetryName,
   programId: S.String,
   programVersion: S.Number,
   pid: S.optionalKey(NonNegativeInt),
@@ -91,8 +96,6 @@ export type SessionStarted = typeof SessionStarted.Type
  */
 export const SessionStopped = S.TaggedStruct('SessionStopped', {
   ...envelope,
-  app: TelemetryName,
-  host: TelemetryName,
   programId: S.String,
   programVersion: S.Number,
   pid: S.optionalKey(NonNegativeInt),
@@ -249,16 +252,18 @@ export const TelemetryEvent = S.Union([
 export type TelemetryEvent = typeof TelemetryEvent.Type
 
 /**
- * A batch of events from one app and host, as a browser sends it to the
- * development server's telemetry endpoint.
+ * A batch of events from one session's app, surface, and role, as a
+ * browser sends it to the development server's telemetry endpoint. Every
+ * event in it carries the same app, surface, and role as the batch.
  */
 export const TelemetryBatch = S.Struct({
   app: TelemetryName,
-  host: TelemetryName,
+  surface: TelemetrySurface,
+  role: S.optionalKey(TelemetryRole),
   events: S.Array(TelemetryEvent),
 })
 
-/** A batch of events from one app and host. */
+/** A batch of events from one session's app, surface, and role. */
 export type TelemetryBatch = typeof TelemetryBatch.Type
 
 /**
@@ -281,7 +286,7 @@ const decodeLineOption = S.decodeUnknownOption(TelemetryLine)
  *
  * @example
  * ```typescript
- * encodeLine(event) // '{"_tag":"Rendered","at":"2026-10-04T20:15:03.410Z","sequence":7,"session":"9f3c2a71","painter":"React","durationMs":3.2}'
+ * encodeLine(event) // '{"_tag":"Rendered","at":"2026-10-04T20:15:03.410Z","sequence":7,"session":"9f3c2a71","app":"books","surface":"web-react","painter":"React","durationMs":3.2}'
  * ```
  */
 export const encodeLine = (event: TelemetryEvent): string =>

@@ -33,6 +33,7 @@ export {
 export {
   startHandle,
   type ObserveRuntime,
+  type StartHandleConfig,
   type SyncedHandle,
 } from './handle.js'
 export * as LocalSnapshot from './localSnapshot.js'

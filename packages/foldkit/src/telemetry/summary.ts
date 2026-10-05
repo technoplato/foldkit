@@ -11,6 +11,7 @@ import {
 
 import { RuntimeFailureSource } from '../runtime/runtimeDiagnostic.js'
 import type { TelemetryEvent } from './event.js'
+import { TelemetryRole, TelemetrySurface } from './surface.js'
 
 // MODEL
 
@@ -94,14 +95,16 @@ export const SubscriptionLifecycle = S.Struct({
 export type SubscriptionLifecycle = typeof SubscriptionLifecycle.Type
 
 /**
- * One telemetry session in a summary. `stoppedAt` is absent for a session
- * that never recorded SessionStopped, such as one still running or a
- * process that was killed; `lastEventAt` says when it was last heard from.
+ * One telemetry session in a summary, with the app, surface, and role it
+ * declared. `stoppedAt` is absent for a session that never recorded
+ * SessionStopped, such as one still running or a process that was killed;
+ * `lastEventAt` says when it was last heard from.
  */
 export const SessionRow = S.Struct({
   session: S.String,
   app: S.String,
-  host: S.String,
+  surface: TelemetrySurface,
+  role: S.optionalKey(TelemetryRole),
   programId: S.String,
   programVersion: S.Number,
   startedAt: S.String,
@@ -138,17 +141,20 @@ export const CrashRow = S.Struct({
 export type CrashRow = typeof CrashRow.Type
 
 /**
- * What a telemetry file says about the Programs that wrote it, for one
- * window: the busiest Messages and Actions, the slowest Commands, the
- * Commands that failed or never finished, update and render durations,
- * how many transitions ran per minute, and how often each Subscription
- * restarted.
+ * What one surface's sessions did in a window: which roles they had, the
+ * busiest Messages and Actions, the slowest Commands, the Commands that
+ * failed or never finished, update and render durations, how many
+ * transitions ran per minute, how often each Subscription restarted, and
+ * every crash. `fromAt` and `toAt` are the surface's own first and last
+ * events.
  */
-export const TelemetrySummary = S.Struct({
-  fromAt: S.optionalKey(S.String),
-  toAt: S.optionalKey(S.String),
+export const SurfaceSummary = S.Struct({
+  surface: TelemetrySurface,
+  roles: S.Array(TelemetryRole),
+  sessionCount: S.Int,
   eventCount: S.Int,
-  sessions: S.Array(SessionRow),
+  fromAt: S.String,
+  toAt: S.String,
   topMessages: S.Array(CountRow),
   topActions: S.Array(CountRow),
   slowestCommands: S.Array(CommandDurations),
@@ -164,7 +170,25 @@ export const TelemetrySummary = S.Struct({
   crashes: S.Array(CrashRow),
 })
 
-/** What a telemetry file says about the Programs that wrote it. */
+/** What one surface's sessions did in a window. */
+export type SurfaceSummary = typeof SurfaceSummary.Type
+
+/**
+ * What telemetry files say about the Programs that wrote them, for one
+ * window: every session with the surface it declared, then one
+ * {@link SurfaceSummary} for each surface with events, in the order
+ * {@link TelemetrySurface} lists them, so the TUI and the React page of
+ * one app never blur into one set of numbers.
+ */
+export const TelemetrySummary = S.Struct({
+  fromAt: S.optionalKey(S.String),
+  toAt: S.optionalKey(S.String),
+  eventCount: S.Int,
+  sessions: S.Array(SessionRow),
+  surfaces: S.Array(SurfaceSummary),
+})
+
+/** What telemetry files say about the Programs that wrote them. */
 export type TelemetrySummary = typeof TelemetrySummary.Type
 
 // SUMMARY
@@ -428,7 +452,8 @@ const sessionRowsOf = (
           {
             session: event.session,
             app: event.app,
-            host: event.host,
+            surface: event.surface,
+            ...(event.role === undefined ? {} : { role: event.role }),
             programId: event.programId,
             programVersion: event.programVersion,
             startedAt: event.at,
@@ -449,36 +474,11 @@ const sessionRowsOf = (
 const minuteLabelOf = (minute: number): string =>
   `${new Date(minute * millisecondsPerMinute).toISOString().slice(0, 16)}Z`
 
-/**
- * Summarizes telemetry events for one window: the busiest Messages and
- * Actions, the slowest Commands by p95 with p50 and max, every Command
- * failure, every Command started and never finished, update and render
- * duration percentiles, transitions per minute on average and at the
- * peak, Subscription restarts, and crashes. An Action is a Message the
- * Host sent, named by its Action name when it has one, other than the
- * Messages a sync engine sends itself, such as `SnapshotReceived`.
- * Ranked tables keep `limit` rows.
- *
- * @example
- * ```typescript
- * const summary = summarize(events, { maybeFromMs: Option.some(Date.now() - 30 * 60_000), maybeToMs: Option.none() })
- * summary.slowestCommands[0] // { command: 'PlayAudio', count: 3, p50Ms: 180.2, p95Ms: 212.4, p99Ms: 212.4, maxMs: 212.4 }
- * ```
- */
-export const summarize = (
-  events: ReadonlyArray<TelemetryEvent>,
-  window: TelemetryWindow = wholeWindow,
-  limit: number = defaultSummaryRowLimit,
-): TelemetrySummary => {
-  const isIncluded = isInWindow(window)
-  const timed: ReadonlyArray<TimedEvent> = pipe(
-    events,
-    Array.map(event => ({ atMs: Date.parse(event.at), event })),
-    Array.filter(({ atMs }) => Number.isFinite(atMs) && isIncluded(atMs)),
-    Array.sort(
-      Order.mapInput(Order.Number, (timedEvent: TimedEvent) => timedEvent.atMs),
-    ),
-  )
+const surfaceSummaryOf = (
+  surface: TelemetrySurface,
+  timed: Array.NonEmptyReadonlyArray<TimedEvent>,
+  limit: number,
+): SurfaceSummary => {
   const included = Array.map(timed, ({ event }) => event)
   const transitions = Array.filter(
     included,
@@ -512,8 +512,8 @@ export const summarize = (
         ]
       : [],
   )
-  const maybeFirst = Array.head(timed)
-  const maybeLast = Array.last(timed)
+  const first = Array.headNonEmpty(timed)
+  const last = Array.lastNonEmpty(timed)
   const transitionMinutes = Array.map(
     Array.filter(timed, ({ event }) => event._tag === 'Transition'),
     ({ atMs }) => Math.floor(atMs / millisecondsPerMinute),
@@ -522,24 +522,22 @@ export const summarize = (
     Array.map(transitionMinutes, minute => minute.toString()),
     1,
   )
-  const spanMinutes = Option.match(Option.all([maybeFirst, maybeLast]), {
-    onNone: () => 0,
-    onSome: ([first, last]) => (last.atMs - first.atMs) / millisecondsPerMinute,
-  })
+  const spanMinutes = (last.atMs - first.atMs) / millisecondsPerMinute
   const transitionsPerMinute =
     transitions.length / Math.max(spanMinutes, minimumAveragedMinutes)
   const maybePeak = Array.head(perMinute)
   return {
-    ...Option.match(maybeFirst, {
-      onNone: () => ({}),
-      onSome: first => ({ fromAt: first.event.at }),
-    }),
-    ...Option.match(maybeLast, {
-      onNone: () => ({}),
-      onSome: last => ({ toAt: last.event.at }),
-    }),
+    surface,
+    roles: Array.dedupe(
+      Array.flatMap(included, event =>
+        event.role === undefined ? [] : [event.role],
+      ),
+    ),
+    sessionCount: Array.dedupe(Array.map(included, event => event.session))
+      .length,
     eventCount: included.length,
-    sessions: sessionRowsOf(included),
+    fromAt: first.event.at,
+    toAt: last.event.at,
     topMessages: countRows(
       Array.map(transitions, transition => transition.message),
       limit,
@@ -583,6 +581,62 @@ export const summarize = (
     }),
     subscriptions: subscriptionLifecyclesOf(diagnostics),
     crashes,
+  }
+}
+
+/**
+ * Summarizes telemetry events for one window, surface by surface. For each
+ * surface: the busiest Messages and Actions, the slowest Commands by p95
+ * with p50 and max, every Command failure, every Command started and never
+ * finished, update and render duration percentiles, transitions per minute
+ * on average and at the peak, Subscription restarts, and crashes. An
+ * Action is a Message the Host sent, named by its Action name when it has
+ * one, other than the Messages a sync engine sends itself, such as
+ * `SnapshotReceived`. Ranked tables keep `limit` rows.
+ *
+ * @example
+ * ```typescript
+ * const summary = summarize(events, { maybeFromMs: Option.some(Date.now() - 30 * 60_000), maybeToMs: Option.none() })
+ * summary.surfaces.map(surface => surface.surface) // ['terminal-tui', 'web-react']
+ * ```
+ */
+export const summarize = (
+  events: ReadonlyArray<TelemetryEvent>,
+  window: TelemetryWindow = wholeWindow,
+  limit: number = defaultSummaryRowLimit,
+): TelemetrySummary => {
+  const isIncluded = isInWindow(window)
+  const timed: ReadonlyArray<TimedEvent> = pipe(
+    events,
+    Array.map(event => ({ atMs: Date.parse(event.at), event })),
+    Array.filter(({ atMs }) => Number.isFinite(atMs) && isIncluded(atMs)),
+    Array.sort(
+      Order.mapInput(Order.Number, (timedEvent: TimedEvent) => timedEvent.atMs),
+    ),
+  )
+  const surfaces = Array.flatMap(TelemetrySurface.literals, surface =>
+    Array.match(
+      Array.filter(timed, ({ event }) => event.surface === surface),
+      {
+        onEmpty: () => [],
+        onNonEmpty: surfaceEvents => [
+          surfaceSummaryOf(surface, surfaceEvents, limit),
+        ],
+      },
+    ),
+  )
+  return {
+    ...Option.match(Array.head(timed), {
+      onNone: () => ({}),
+      onSome: first => ({ fromAt: first.event.at }),
+    }),
+    ...Option.match(Array.last(timed), {
+      onNone: () => ({}),
+      onSome: last => ({ toAt: last.event.at }),
+    }),
+    eventCount: timed.length,
+    sessions: sessionRowsOf(Array.map(timed, ({ event }) => event)),
+    surfaces,
   }
 }
 
@@ -652,57 +706,25 @@ const crashSourceOf = (crash: CrashRow): string =>
 const crashLine = (crash: CrashRow): string =>
   `${crash.at}  ${crashSourceOf(crash)}: ${crash.cause}`
 
-/**
- * Prints a summary as text a person reads in a terminal, one section per
- * question, with columns aligned.
- *
- * @example
- * ```typescript
- * console.log(formatSummary(summarize(events), 'books-react.ndjson'))
- * // Telemetry for books-react.ndjson
- * // From 2026-10-04T20:15:02.114Z to 2026-10-04T20:31:40.002Z, 412 events
- * // …
- * ```
- */
-export const formatSummary = (
-  summary: TelemetrySummary,
-  title: string,
-): string => {
-  const windowLine =
-    summary.fromAt === undefined || summary.toAt === undefined
-      ? 'No events in this window'
-      : `From ${summary.fromAt} to ${summary.toAt}, ${summary.eventCount} events`
-  const lines = [
-    `Telemetry for ${title}`,
-    windowLine,
-    '',
-    ...section(
-      'Sessions',
-      Array.match(summary.sessions, {
-        onEmpty: () => [],
-        onNonEmpty: sessions =>
-          tableLines(
-            [
-              'session',
-              'app',
-              'host',
-              'program',
-              'started',
-              'stopped',
-              'last event',
-            ],
-            Array.map(sessions, session => [
-              session.session,
-              session.app,
-              session.host,
-              `${session.programId}@${session.programVersion}`,
-              session.startedAt,
-              session.stoppedAt ?? 'not recorded',
-              session.lastEventAt,
-            ]),
-          ),
-      }),
-    ),
+const indented = (lines: ReadonlyArray<string>): ReadonlyArray<string> =>
+  Array.map(lines, line => (line === '' ? line : `  ${line}`))
+
+const rolesLabelOf = (roles: ReadonlyArray<TelemetryRole>): string =>
+  Array.match(roles, {
+    onEmpty: () => '-',
+    onNonEmpty: nonEmptyRoles => Array.join(nonEmptyRoles, ', '),
+  })
+
+const countLabelOf = (count: number, noun: string): string =>
+  `${count} ${noun}${count === 1 ? '' : 's'}`
+
+const surfaceLines = (summary: SurfaceSummary): ReadonlyArray<string> => [
+  `Surface ${summary.surface}, ${countLabelOf(summary.sessionCount, 'session')}, ${countLabelOf(summary.eventCount, 'event')}, from ${summary.fromAt} to ${summary.toAt}`,
+  ...(Array.isReadonlyArrayEmpty(summary.roles)
+    ? []
+    : [`  roles: ${rolesLabelOf(summary.roles)}`]),
+  '',
+  ...indented([
     ...section(
       'Top Messages',
       Array.match(summary.topMessages, {
@@ -778,7 +800,7 @@ export const formatSummary = (
       durationLine('render', summary.renderDurations),
     ]),
     ...section('Transitions', [
-      `${summary.transitionCount} transitions, ${summary.transitionsPerMinute} per minute on average`,
+      `${countLabelOf(summary.transitionCount, 'transition')}, ${summary.transitionsPerMinute} per minute on average`,
       ...(summary.peakMinute === undefined
         ? []
         : [
@@ -802,6 +824,94 @@ export const formatSummary = (
       }),
     ),
     ...section('Crashes', Array.map(summary.crashes, crashLine)),
+  ]),
+]
+
+/**
+ * Prints a summary as text a person reads in a terminal: the surfaces at a
+ * glance, every session with the surface it declared, then one section
+ * per surface, each with the same questions, with columns aligned.
+ *
+ * @example
+ * ```typescript
+ * console.log(formatSummary(summarize(events), 'books-terminal-tui.ndjson, books-web-react.ndjson'))
+ * // Telemetry for books-terminal-tui.ndjson, books-web-react.ndjson
+ * // From 2026-10-04T20:15:02.114Z to 2026-10-04T20:31:40.002Z, 412 events
+ * //
+ * // Surfaces
+ * //   surface       roles  sessions  events  transitions  per minute
+ * //   terminal-tui  -      1         112     40           20.1
+ * //   web-react     -      2         300     120          38
+ * // …
+ * ```
+ */
+export const formatSummary = (
+  summary: TelemetrySummary,
+  title: string,
+): string => {
+  const windowLine =
+    summary.fromAt === undefined || summary.toAt === undefined
+      ? 'No events in this window'
+      : `From ${summary.fromAt} to ${summary.toAt}, ${summary.eventCount} events`
+  const lines = [
+    `Telemetry for ${title}`,
+    windowLine,
+    '',
+    ...section(
+      'Surfaces',
+      Array.match(summary.surfaces, {
+        onEmpty: () => [],
+        onNonEmpty: surfaces =>
+          tableLines(
+            [
+              'surface',
+              'roles',
+              'sessions',
+              'events',
+              'transitions',
+              'per minute',
+            ],
+            Array.map(surfaces, surface => [
+              surface.surface,
+              rolesLabelOf(surface.roles),
+              surface.sessionCount.toString(),
+              surface.eventCount.toString(),
+              surface.transitionCount.toString(),
+              surface.transitionsPerMinute.toString(),
+            ]),
+          ),
+      }),
+    ),
+    ...section(
+      'Sessions',
+      Array.match(summary.sessions, {
+        onEmpty: () => [],
+        onNonEmpty: sessions =>
+          tableLines(
+            [
+              'session',
+              'app',
+              'surface',
+              'role',
+              'program',
+              'started',
+              'stopped',
+              'last event',
+            ],
+            Array.map(sessions, session => [
+              session.session,
+              session.app,
+              session.surface,
+              session.role ?? '-',
+              `${session.programId}@${session.programVersion}`,
+              session.startedAt,
+              session.stoppedAt ?? 'not recorded',
+              session.lastEventAt,
+            ]),
+          ),
+      }),
+    ),
+    ...Array.flatMap(summary.surfaces, surfaceLines),
   ]
   return Array.join(lines, '\n').trimEnd()
 }
