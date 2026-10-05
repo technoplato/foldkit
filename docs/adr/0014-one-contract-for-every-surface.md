@@ -74,6 +74,7 @@ Foldkit promises that a Program written once runs on every surface. Only the web
    - nothing overflows the surface
 
    A new painter joins by passing it. A surface that cannot pass an assertion carries a visible, documented exception, never a silent skip.
+
 3. **One way to ask "is this a page?" (done).** `Environment.maybePage()` returns the window and document only for a real page: a `window` that takes listeners, a `document`, and not React Native. `Environment.isPage()` is its boolean. Foldkit's telemetry and renderer, React, and Svelte use it. The lint rule `foldkit/no-raw-page-check` reports `typeof window` and `typeof document` anywhere in package source except `environment/environment.ts`, so the raw check cannot return.
 4. **Fixed in core on 2026-10-04.**
    - Screens have an identity (`identityOf`), and painters key by it.
