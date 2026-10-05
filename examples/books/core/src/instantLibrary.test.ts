@@ -85,6 +85,30 @@ describe('decodeLibrary', () => {
     )
   })
 
+  it('reads a title with no chapters as one section, the whole book under its name', () => {
+    const { shelf } = decodeLibrary({
+      libraryItems: [itemRow('item-1', 'Notes from the Night Ferry', 1, [])],
+    })
+    expect(
+      Array.map(shelf.titles, title => [
+        title.name,
+        title.durationMs,
+        Array.map(title.chapters, chapter => [
+          chapter.chapterNumber,
+          chapter.name,
+          chapter.startMs,
+          chapter.endMs,
+        ]),
+      ]),
+    ).toEqual([
+      [
+        'Notes from the Night Ferry',
+        2_400_000,
+        [[1, 'Notes from the Night Ferry', 0, 2_400_000]],
+      ],
+    ])
+  })
+
   it('keeps the newest progress per title and the bookmarks that name a title', () => {
     const { shelf, index } = decodeLibrary({
       libraryItems: [itemRow('item-1', 'Small Hours', 1, chapters)],

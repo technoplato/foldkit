@@ -2,6 +2,7 @@ import {
   Array,
   Cause,
   Effect,
+  Function,
   Match as M,
   Option,
   Order,
@@ -167,6 +168,23 @@ const firstUrlOf = (
   blobs: ReadonlyArray<typeof BlobRow.Type>,
 ): Option.Option<string> => Option.map(Array.head(blobs), blob => blob.url)
 
+/**
+ * The one section a title with no chapters reads as: the whole book, under
+ * its own name, so a title Audible gives no chapters still has a place on
+ * the shelf.
+ */
+const wholeBookSection = (
+  name: string,
+  durationMs: Milliseconds,
+): Array.NonEmptyReadonlyArray<Chapter> => [
+  {
+    chapterNumber: ChapterNumber.make(1),
+    name,
+    startMs: Milliseconds.make(0),
+    endMs: durationMs,
+  },
+]
+
 const titleOfItem = (
   item: typeof ItemRow.Type,
   slug: TitleSlug,
@@ -198,38 +216,34 @@ const titleOfItem = (
           () => 0,
         ),
     )
-    const maybeChapters = Array.match(chapters, {
-      onEmpty: () => Option.none<Array.NonEmptyReadonlyArray<Chapter>>(),
-      onNonEmpty: Option.some,
-    })
-    return pipe(
-      maybeChapters,
-      Option.map(nonEmptyChapters => ({
-        slug,
-        mediaId: MediaId.make(
-          Option.getOrElse(
-            Option.map(maybeRendition, rendition => rendition.id),
-            () => slug,
-          ),
-        ),
-        name: book.title,
-        authors: Array.map(linkedOf(book.authors), author => author.name),
-        narrators: Array.map(
-          linkedOf(book.narrators),
-          narrator => narrator.name,
-        ),
-        durationMs: Milliseconds.make(Math.max(0, Math.round(durationMs))),
-        chapters: nonEmptyChapters,
-        maybeCoverUrl: Option.flatMap(Array.head(linkedOf(book.cover)), cover =>
-          firstUrlOf(linkedOf(cover.blob)),
-        ),
-        maybeAudioUrl: Option.flatMap(maybeRendition, rendition =>
-          Option.flatMap(Array.head(linkedOf(rendition.files)), file =>
-            firstUrlOf(linkedOf(file.blob)),
-          ),
-        ),
-      })),
+    const titleDurationMs = Milliseconds.make(
+      Math.max(0, Math.round(durationMs)),
     )
+    return Option.some({
+      slug,
+      mediaId: MediaId.make(
+        Option.getOrElse(
+          Option.map(maybeRendition, rendition => rendition.id),
+          () => slug,
+        ),
+      ),
+      name: book.title,
+      authors: Array.map(linkedOf(book.authors), author => author.name),
+      narrators: Array.map(linkedOf(book.narrators), narrator => narrator.name),
+      durationMs: titleDurationMs,
+      chapters: Array.match(chapters, {
+        onEmpty: () => wholeBookSection(book.title, titleDurationMs),
+        onNonEmpty: Function.identity,
+      }),
+      maybeCoverUrl: Option.flatMap(Array.head(linkedOf(book.cover)), cover =>
+        firstUrlOf(linkedOf(cover.blob)),
+      ),
+      maybeAudioUrl: Option.flatMap(maybeRendition, rendition =>
+        Option.flatMap(Array.head(linkedOf(rendition.files)), file =>
+          firstUrlOf(linkedOf(file.blob)),
+        ),
+      ),
+    })
   })
 
 const finishedKind = 'finished'
@@ -240,9 +254,10 @@ const isFinishedKind = (kind: string): boolean =>
   kind.toLowerCase() === finishedKind
 
 /**
- * The shelf one library query gives: every title with chapters, the
- * listener's newest progress per title, and their bookmarks. A row that
- * does not decode is left out instead of breaking the shelf.
+ * The shelf one library query gives: every title, one with no chapters
+ * read as a single section, the listener's newest progress per title, and
+ * their bookmarks. A row that does not decode is left out instead of
+ * breaking the shelf.
  */
 export const decodeLibrary = (data: unknown): Decoded => {
   const tables: typeof LibraryData.Type = Option.getOrElse(
