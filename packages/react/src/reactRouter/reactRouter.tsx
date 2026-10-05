@@ -1,5 +1,5 @@
 import { Option, String } from 'effect'
-import { Navigation } from 'foldkit'
+import { Environment, Navigation } from 'foldkit'
 import {
   type ReactElement,
   type ReactNode,
@@ -22,14 +22,16 @@ const hrefOf = (to: To): string =>
   typeof to === 'string' ? to : createPath(to)
 
 const subscribeToLocation = (listener: () => void): (() => void) => {
-  if (typeof window === 'undefined') {
+  const maybeCurrentPage = Environment.maybePage()
+  if (Option.isNone(maybeCurrentPage)) {
     return () => {}
   }
-  window.addEventListener('popstate', listener)
-  window.addEventListener(Navigation.locationChangedEvent, listener)
+  const pageWindow = maybeCurrentPage.value.window
+  pageWindow.addEventListener('popstate', listener)
+  pageWindow.addEventListener(Navigation.locationChangedEvent, listener)
   return () => {
-    window.removeEventListener('popstate', listener)
-    window.removeEventListener(Navigation.locationChangedEvent, listener)
+    pageWindow.removeEventListener('popstate', listener)
+    pageWindow.removeEventListener(Navigation.locationChangedEvent, listener)
   }
 }
 
@@ -40,7 +42,7 @@ const serverLocation = (): string => ''
 const useBrowserLocation = (): Option.Option<string> => {
   const location = useSyncExternalStore(
     subscribeToLocation,
-    typeof window === 'undefined' ? serverLocation : readLocation,
+    Environment.isPage() ? readLocation : serverLocation,
     serverLocation,
   )
   return String.isEmpty(location) ? Option.none() : Option.some(location)
@@ -55,11 +57,18 @@ const follow = (
   mode: 'Push' | 'Replace',
 ): void => {
   const href = hrefOf(to)
+  const maybeCurrentPage = Environment.maybePage()
   if (
-    typeof window !== 'undefined' &&
-    !Navigation.followLink(window, bound, href, hostPages, mode)
+    Option.isSome(maybeCurrentPage) &&
+    !Navigation.followLink(
+      maybeCurrentPage.value.window,
+      bound,
+      href,
+      hostPages,
+      mode,
+    )
   ) {
-    window.location.assign(href)
+    maybeCurrentPage.value.window.location.assign(href)
   }
 }
 
@@ -83,8 +92,9 @@ export const navigatorOf = (
     follow(bound, hostPages, to, 'Replace')
   },
   go: delta => {
-    if (typeof window !== 'undefined') {
-      window.history.go(delta)
+    const maybeCurrentPage = Environment.maybePage()
+    if (Option.isSome(maybeCurrentPage)) {
+      maybeCurrentPage.value.window.history.go(delta)
     }
   },
 })

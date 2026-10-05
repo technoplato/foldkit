@@ -8,7 +8,7 @@ import {
   String,
   pipe,
 } from 'effect'
-import { type Catalog, Interaction } from 'foldkit'
+import { type Catalog, Environment, Interaction } from 'foldkit'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import {
   Fragment,
@@ -696,10 +696,12 @@ export const ActionMenuButton = ({
  */
 export const useKeyBindings = (): void => {
   const bound = useBound()
-  useEffect(() => {
-    if (typeof document === 'undefined') {
-      return undefined
-    }
-    return Interaction.listenToDocumentKeys(bound, document)
-  }, [bound])
+  useEffect(
+    () =>
+      Option.match(Environment.maybePage(), {
+        onNone: () => undefined,
+        onSome: page => Interaction.listenToDocumentKeys(bound, page.document),
+      }),
+    [bound],
+  )
 }

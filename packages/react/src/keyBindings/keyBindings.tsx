@@ -1,3 +1,4 @@
+import { Environment } from 'foldkit'
 import { useEffect } from 'react'
 
 import {
@@ -5,18 +6,7 @@ import {
   getProgramHandle,
 } from '../programHandle/programHandle.js'
 
-const canAttachDomKeydown = (): boolean => {
-  if (typeof window === 'undefined') {
-    return false
-  }
-  if (typeof window.addEventListener !== 'function') {
-    return false
-  }
-  if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
-    return false
-  }
-  return typeof document !== 'undefined'
-}
+const canAttachDomKeydown = (): boolean => Environment.isPage()
 
 /**
  * One document keydown listener for a bound Program.
