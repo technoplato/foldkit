@@ -90,6 +90,7 @@
     "packages/website/public/example-apps-embed/",
     "packages/website/playwright-report/",
     "packages/website/test-results/",
-    "packages/website/src/snippet/"
+    "packages/website/src/snippet/",
+    "examples/books/core/src/audibleImport.node.ts"
   ]
 }
