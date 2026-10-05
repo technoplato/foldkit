@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 5th, 2026 at 8:02:42 a.m. EDT — `63efccae9f2b` fix(instant-tools): keep stored payload keys the Issue schema does not model on save
+
+- **Implementation commit:** `63efccae9f2b5b4dfa8a864ad686cd6bbd4e2066`
+- **Change:** Keep stored payload keys the Issue schema does not model on save
+- **Details:**
+  - A save from a Client re-encoded the whole payload and dropped relatedIssueIds (257 stored Issues) and files (153); the tracker now writes the encoded Issue over the stored payload (#591).
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — makeInstantIssueRecordOver and the reading save.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Pins that a save keeps relatedIssueIds and files.
+- **User context (verbatim):**
+  > So let's make sure we get that up and working.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 5th, 2026 at 7:31:50 a.m. EDT — `e5587c2e1c16` fix(instant-tools): read every stored Issue and list the newest first
 
 - **Implementation commit:** `e5587c2e1c16c786d1faa26f62f40002158de4bf`
