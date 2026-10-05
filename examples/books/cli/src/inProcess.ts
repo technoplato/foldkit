@@ -41,7 +41,8 @@ export const runTail = async (): Promise<void> => {
 /**
  * `books watch`: repaints the library as it changes on any device, until
  * Ctrl-C. It plays nothing; the player is `books listen`. Its telemetry
- * goes to `books-cli.ndjson`, beside the player's.
+ * goes to `books-terminal-cli.ndjson`, beside the player's, and Ctrl-C
+ * ends its session with SessionStopped.
  */
 export const runWatch = async (): Promise<void> => {
   const signedIn = await signedInOrExit()

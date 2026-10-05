@@ -12,8 +12,8 @@
  * process, so it stops when it closes; `books tui` shows the player that
  * keeps playing in the background instead. Its telemetry, every Message,
  * Command, and frame, goes to
- * `~/Library/Logs/foldkit/telemetry/books-opentui.ndjson`; read it with
- * `foldkit telemetry books-opentui`.
+ * `~/Library/Logs/foldkit/telemetry/books-terminal-opentui.ndjson`; read
+ * it with `foldkit telemetry books-terminal-opentui`.
  */
 import {
   bindBooks,

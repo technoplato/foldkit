@@ -10,6 +10,7 @@ import {
   suggestedPressesOf,
 } from 'books-core-example'
 import { Array, Deferred, Duration, Effect, Option, pipe } from 'effect'
+import { Interaction, type Processor } from 'foldkit'
 import {
   CliDaemonError,
   type CliDaemonFlags,
@@ -167,9 +168,14 @@ const loadedNowOf = (bound: BoundBooks) =>
  * Pauses the title playing, if one is, and waits for its place to save,
  * up to five seconds. Says what it stopped, or that nothing was playing.
  * A player runs it before it exits for any reason, so `books stop` and a
- * SIGTERM both keep the place.
+ * SIGTERM both keep the place. `maybeClient` is the Host of the client
+ * that asked, such as `Cli` for `books stop`, which the Pause is sent for.
  */
-export const pausedAndSaved = (bound: BoundBooks, writes: LibraryWrites) =>
+export const pausedAndSaved = (
+  bound: BoundBooks,
+  writes: LibraryWrites,
+  maybeClient: Option.Option<Processor.Host.Host> = Option.none(),
+) =>
   Effect.gen(function* () {
     const maybeLoaded = loadedNowOf(bound)
     if (Option.isNone(maybeLoaded)) {
@@ -181,7 +187,11 @@ export const pausedAndSaved = (bound: BoundBooks, writes: LibraryWrites) =>
       placeOf(loaded) !== loaded.savedPlaceMs
     const before = writes.count()
     if (TranscriptPlayer.isSounding(loaded.player)) {
-      bound.press('Pause')
+      Option.match(maybeClient, {
+        onNone: () => bound.press('Pause'),
+        onSome: client =>
+          Interaction.onBehalfOf(bound, client, () => bound.press('Pause')),
+      })
     }
     if (isUnsaved) {
       yield* Effect.promise(() => writes.whenDone(before, saveTimeoutMs))
@@ -210,9 +220,11 @@ export type BooksPlayer = Readonly<{
  * `books help` print the brief, `books actions` every command, and
  * `books stop` pauses, waits for the place to save, says so, and ends the
  * player. A terminal UI view gets the player's screen, fitted to its
- * terminal, and its keys go through the same Program. `onPainted` hears
- * how long each of those frames took to paint, such as telemetry's
- * `recordRendered`.
+ * terminal, and its keys go through the same Program. Every command and
+ * key is sent on behalf of the client that asked, `Cli` for `books pause`
+ * and `Tui` for a `books tui` key, so telemetry records what each caused
+ * on that client's surface. `onPainted` hears how long each frame took to
+ * paint, such as telemetry's `recordRendered`.
  *
  * @example
  * ```typescript
@@ -237,33 +249,37 @@ export const makeBooksPlayer = (
   const ran = (
     words: ReadonlyArray<string>,
     flags: CliDaemonFlags,
+    client: Processor.Host.Host,
   ): CliDaemonPaintedResult => {
-    const result = runProgramCommand(bound, booksCommandName, words, flags)
+    const result = Interaction.onBehalfOf(bound, client, () =>
+      runProgramCommand(bound, booksCommandName, words, flags),
+    )
     return {
       stdout: paintBrief(bound),
       exitCode: result.exitCode,
       ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
     }
   }
-  const stop = Effect.gen(function* () {
-    const sentence = yield* pausedAndSaved(bound, writes)
-    yield* Deferred.succeed(stopped, undefined)
-    return { stdout: sentence, exitCode: 0 }
-  })
+  const stop = (client: Processor.Host.Host) =>
+    Effect.gen(function* () {
+      const sentence = yield* pausedAndSaved(bound, writes, Option.some(client))
+      yield* Deferred.succeed(stopped, undefined)
+      return { stdout: sentence, exitCode: 0 }
+    })
   return {
     stopped: Deferred.await(stopped),
     surface: {
       read: programSurface.read,
       run: programSurface.run,
-      show: flags =>
+      show: (flags, client) =>
         isTerminalViewRequest(flags)
-          ? terminal.paint(flags)
+          ? terminal.paint(flags, client)
           : Effect.sync(brief),
-      do: (token, flags) => {
+      do: (token, flags, client) => {
         const words = wordsOf(token)
         const head = Option.getOrElse(Array.head(words), () => '')
         if (isTerminalViewRequest(flags)) {
-          return terminal.pressKey(flags)
+          return terminal.pressKey(flags, client)
         } else if (briefWords.has(head)) {
           return Effect.sync(brief)
         } else if (head === 'actions') {
@@ -272,13 +288,13 @@ export const makeBooksPlayer = (
             exitCode: 0,
           }))
         } else if (head === 'stop') {
-          return stop
+          return stop(client)
         } else if (head === 'where') {
           return Effect.sync(() =>
             runProgramCommand(bound, booksCommandName, words, flags),
           )
         } else {
-          return Effect.sync(() => ran(words, flags))
+          return Effect.sync(() => ran(words, flags, client))
         }
       },
     },

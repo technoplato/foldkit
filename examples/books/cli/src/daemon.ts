@@ -10,8 +10,11 @@
  * It keeps its own screen and player even while the session mirrors
  * navigation, so a browser never moves it. Its telemetry, every Message,
  * Command, and terminal frame, goes to
- * `~/Library/Logs/foldkit/telemetry/books-cli.ndjson`; read it with
- * `foldkit telemetry books-cli`.
+ * `~/Library/Logs/foldkit/telemetry/books-terminal-cli.ndjson` with
+ * `"role":"daemon"` on every line. What a `books tui` view's keys cause
+ * there records `"surface":"terminal-tui"`, and what a one-shot command
+ * causes records `"surface":"terminal-cli"`. Read it with
+ * `foldkit telemetry books`.
  */
 import {
   SyncedBooks,
@@ -64,7 +67,11 @@ const serve = Effect.gen(function* () {
     instance: newProcessorInstance(),
     library: writes.wrap,
   })
-  const telemetry = Telemetry.attach(handle, { app: 'books', sink: fileSink() })
+  const telemetry = Telemetry.attach(handle, {
+    app: 'books',
+    role: 'daemon',
+    sink: fileSink(),
+  })
   yield* Effect.addFinalizer(() =>
     Effect.promise(() =>
       Promise.race([

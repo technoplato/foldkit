@@ -105,8 +105,11 @@ const openBooks = async (
   const reporting = Option.match(Option.fromNullishOr(options.telemetry), {
     onNone: () => ({}),
     onSome: sink => ({
-      onPainted: Telemetry.attach(handle, { app: 'books', sink })
-        .recordRendered,
+      onPainted: Telemetry.attach(handle, {
+        app: 'books',
+        role: 'daemon',
+        sink,
+      }).recordRendered,
     }),
   })
   const bound = bindBooks(handle)
@@ -419,6 +422,15 @@ describe('the Books player daemon', () => {
       ),
     )
     await eventually(() => !isSounding(bound))
+    await eventually(() =>
+      memory
+        .events()
+        .some(
+          event =>
+            event._tag === 'CommandFinished' &&
+            event.command === 'WriteLibrary',
+        ),
+    )
     const recorded = Array.drop(memory.events(), recordedBefore)
     const pressed = Array.filter(
       recorded,
@@ -430,6 +442,49 @@ describe('the Books player daemon', () => {
       'GoBack',
       'Pause',
     ])
+    Array.forEach(pressed, event => {
+      expect(event).toMatchObject({
+        surface: 'terminal-tui',
+        role: 'daemon',
+        source: { _tag: 'Host', clientHost: { _tag: 'Tui' } },
+      })
+    })
+    const listened = Array.findFirst(
+      memory.events(),
+      (event): event is Telemetry.Transition =>
+        event._tag === 'Transition' && event.source._tag === 'Host',
+    )
+    expect(listened).toStrictEqual(
+      Option.some(
+        expect.objectContaining({
+          surface: 'terminal-cli',
+          source: { _tag: 'Host', clientHost: { _tag: 'Cli' } },
+        }),
+      ),
+    )
+    const savedByPause = Array.filter(
+      recorded,
+      event =>
+        (event._tag === 'CommandStarted' || event._tag === 'CommandFinished') &&
+        event.command === 'WriteLibrary',
+    )
+    expect(Array.map(savedByPause, event => event._tag)).toEqual([
+      'CommandStarted',
+      'CommandFinished',
+    ])
+    Array.forEach(savedByPause, event => {
+      expect(event).toMatchObject({ surface: 'terminal-tui', role: 'daemon' })
+    })
+    Array.forEach(
+      Array.filter(
+        recorded,
+        event =>
+          event._tag === 'Transition' && event.source._tag === 'Subscription',
+      ),
+      event => {
+        expect(event.surface).toBe('terminal-cli')
+      },
+    )
     expect(
       Array.every(
         pressed,
@@ -444,5 +499,8 @@ describe('the Books player daemon', () => {
         event.phase === 'key',
     )
     expect(keyPaints).toHaveLength(keys.length)
+    Array.forEach(keyPaints, event => {
+      expect(event).toMatchObject({ surface: 'terminal-tui', role: 'daemon' })
+    })
   })
 })
