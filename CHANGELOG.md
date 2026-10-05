@@ -4,6 +4,98 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 8:09:44 p.m. EDT — `3c00b697722d` feat(books): record each terminal client on its own surface
+
+- **Implementation commit:** `3c00b697722d8fa5768b8a4e3dec03d563cfb732`
+- **Change:** Record each terminal client on its own surface
+- **Details:**
+  - The player daemon's lines say role daemon, a books tui key's events say terminal-tui, and a one-shot command's say terminal-cli, all in the daemon's session.
+- **Files:**
+  - `examples/books/cli/src/daemon.ts` — Attaches telemetry with role daemon.
+  - `examples/books/cli/src/player.ts` — Sends each command and key for the client that asked.
+- **User context (verbatim):**
+  > role: 'daemon' for the Books daemon. Wire it in examples/books/cli where the daemon calls Telemetry.attach.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `85d8a7d07f9c` feat(foldkit): write SessionStopped when Ctrl-C ends a Node process
+
+- **Implementation commit:** `85d8a7d07f9c996b4eaf66cfd3aaf6b5269a80b5`
+- **Change:** Write SessionStopped when Ctrl-C ends a Node process
+- **Details:**
+  - When nothing else handles SIGINT or SIGTERM, telemetry ends every session, waits up to a second for the sinks, and re-sends the signal; a host that handles the signal owns its shutdown.
+- **Files:**
+  - `packages/foldkit/src/telemetry/processEnding.ts` — Stands in for Node's default exit.
+  - `packages/foldkit/src/telemetry/attach.ts` — Ends the session on SIGINT and SIGTERM.
+- **User context (verbatim):**
+  > Write SessionStopped on SIGINT and SIGTERM (Ctrl-C) in Node hosts, then flush.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `f5f7942e258b` feat(foldkit): record what another Host's client causes on its surface
+
+- **Implementation commit:** `f5f7942e258ba704ad6ac645e88be52af39954d5`
+- **Change:** Record what another Host's client causes on its surface
+- **Details:**
+  - A transition sent for a client, the Commands its operation returned, their results, and the frames painted for it record the client's surface beside the daemon's session and role.
+  - An Action is a Message with the source Host, and a first-release line that labeled a sync Message Host reads as Sync.
+- **Files:**
+  - `packages/foldkit/src/telemetry/recorder.ts` — Gives each event the surface of the client that caused it.
+  - `packages/foldkit/src/telemetry/summary.ts` — Counts only Host Messages as Actions.
+- **User context (verbatim):**
+  > Events caused by that request then record the client's surface, alongside the daemon's session and role.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `0f3f99846439` feat(foldkit)!: record which client or sync runtime sent each Message
+
+- **Implementation commit:** `0f3f998464398e58c56d4b0e5f42087e9935c000`
+- **Change:** Record which client or sync runtime sent each Message
+- **Details:**
+  - The sync runtime's own Messages have the source Sync, and a Host source may name the clientHost a Message was sent for.
+  - A synced handle's onBehalfOf and Interaction.onBehalfOf send for a client; Command spans carry their runtime operation.
+  - CLI daemon Show and Do requests carry the client's Host, and the daemon surface sends a view's keys and commands on its behalf.
+- **Files:**
+  - `packages/foldkit/src/runtime/programJournal.ts` — Sync and client provenance.
+  - `packages/foldkit/src/runtime/start.ts` — Sends the sync runtime's Messages from Sync.
+  - `packages/foldkit/src/runtime/handle.ts` — onBehalfOf.
+  - `packages/foldkit/src/runtime/commandTracing.ts` — CommandOperation on Command spans.
+  - `packages/foldkit/src/cli/listen.ts` — Hears each request's client.
+  - `packages/foldkit/src/cli/surface.ts` — Sends a view's keys and commands on its behalf.
+- **User context (verbatim):**
+  > SnapshotReceived is labeled with source Host, but the sync runtime sends it itself. Give it an accurate source, such as Sync, if the journal can tell.
+  > Let a daemon request carry its client's surface: terminal-tui for a TUI view, terminal-cli for a one-shot command.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `fa5c691d3d49` feat(instant): keep the surface a page declares in its telemetry file
+
+- **Implementation commit:** `fa5c691d3d49a5ff63fbbee82d84dd7fc8935f49`
+- **Change:** Keep the surface a page declares in its telemetry file
+- **Details:**
+  - A browser batch is { app, surface, role, events } and lands in the file for its app and surface; an unknown surface or a mismatched event is refused with 400.
+- **Files:**
+  - `packages/instant/src/hostedIdentity/telemetryEndpoint.ts` — Refuses unknown surfaces and mixed origins.
+  - `packages/instant/src/hostedIdentity/vite.ts` — Appends to the app and surface's file.
+- **User context (verbatim):**
+  > Update the browser endpoint so web events keep the surface the browser declared. Reject a surface value that isn't in the vocabulary.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:43 p.m. EDT — `489c9f60788c` feat(foldkit)!: name each telemetry session's surface from its Host
+
+- **Implementation commit:** `489c9f60788c6b1dc65945ac8c93258412d2a42d`
+- **Change:** Name each telemetry session's surface from its Host
+- **Details:**
+  - An exhaustive Match maps every Processor Host to a surface, such as Tui to terminal-tui, and an optional role names a daemon.
+  - Every line carries app, surface, and role, files are named for app and surface, and attach reads the Host from the handle, so a handle without one is a type error.
+  - foldkit telemetry books reads every surface's file and the app's files from before surfaces, and prints one section per surface.
+- **Files:**
+  - `packages/foldkit/src/telemetry/surface.ts` — The surface vocabulary and the Host mapping.
+  - `packages/foldkit/src/telemetry/attach.ts` — Reads the surface from the handle's Host.
+  - `packages/foldkit/src/runtime/handle.ts` — Carries the start's host in the handle's type.
+  - `packages/foldkit/src/telemetry/command.ts` — Reads an app's surfaces and earlier files.
+  - `packages/foldkit/src/telemetry/summary.ts` — One section per surface.
+  - `packages/foldkit/src/telemetry/lines.ts` — Reads first-release lines.
+- **User context (verbatim):**
+  > I want every session to declare its surface, you know, terminal [TUI], terminal CLI, web react, web fold kit, etc., along with all of its telemetry.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 6:44:27 p.m. EDT — `3495e37e55a4` test(books): type the live test's player helper so the core typechecks
 
 - **Implementation commit:** `3495e37e55a4d497a69126299ea60a56f0202c62`
