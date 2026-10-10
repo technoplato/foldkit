@@ -1,6 +1,7 @@
 import {
   type BoundBooks,
   ChapterNumber,
+  type ChaptersBySlug,
   InProgress,
   LibraryStore,
   MediaId,
@@ -9,9 +10,11 @@ import {
   SyncedBooks,
   TitleSlug,
   bindBooks,
+  chaptersOf,
   makeTestLibraryStore,
   makeTestLinkSharing,
   noReadAloud,
+  sampleChapters,
   sampleShelf,
   whenLibraryOpened,
 } from 'books-core-example'
@@ -77,13 +80,17 @@ type Opened = Readonly<{
 const openBooks = async (
   options: Readonly<{
     shelf?: Shelf
+    chapters?: ChaptersBySlug
     audio?: Layer.Layer<AudioOutput>
     transcripts?: typeof noTranscripts
     telemetry?: Telemetry.TelemetrySinkLayer
   }> = {},
 ): Promise<Opened> => {
   const store = await Effect.runPromise(
-    makeTestLibraryStore(options.shelf ?? sampleShelf),
+    makeTestLibraryStore(
+      options.shelf ?? sampleShelf,
+      options.chapters ?? sampleChapters,
+    ),
   )
   const sharing = await Effect.runPromise(makeTestLinkSharing())
   const tracked = trackLibraryWrites()
@@ -172,17 +179,21 @@ const longShelf: Shelf = {
       authors: ['A Made-Up Author'],
       narrators: ['A Made-Up Reader'],
       durationMs: Milliseconds.make(chapterCount * 5 * minuteMs),
-      chapters: Array.map(Array.range(1, chapterCount), number => ({
-        chapterNumber: ChapterNumber.make(number),
-        name: `Chapter ${number.toString()}`,
-        startMs: Milliseconds.make((number - 1) * 5 * minuteMs),
-        endMs: Milliseconds.make(number * 5 * minuteMs),
-      })),
       maybeCoverUrl: Option.none(),
       maybeAudioUrl: Option.some('https://audio.invalid/a-new-earth.mp3'),
     },
     ...sampleShelf.titles,
   ],
+}
+
+const longChapters: ChaptersBySlug = {
+  ...sampleChapters,
+  [longTitleSlug]: Array.map(Array.range(1, chapterCount), number => ({
+    chapterNumber: ChapterNumber.make(number),
+    name: `Chapter ${number.toString()}`,
+    startMs: Milliseconds.make((number - 1) * 5 * minuteMs),
+    endMs: Milliseconds.make(number * 5 * minuteMs),
+  })),
 }
 
 const hourMs = 60 * minuteMs
@@ -200,20 +211,6 @@ const resumedShelf: Shelf = {
       authors: ['A Made-Up Author'],
       narrators: ['A Made-Up Reader'],
       durationMs: Milliseconds.make(resumedDurationMs),
-      chapters: [
-        {
-          chapterNumber: ChapterNumber.make(1),
-          name: 'Chapter 1: A made-up part',
-          startMs: Milliseconds.make(0),
-          endMs: Milliseconds.make(hourMs),
-        },
-        {
-          chapterNumber: ChapterNumber.make(2),
-          name: 'Chapter 2: A long made-up part about waiting for the bus',
-          startMs: Milliseconds.make(hourMs),
-          endMs: Milliseconds.make(resumedDurationMs),
-        },
-      ],
       maybeCoverUrl: Option.none(),
       maybeAudioUrl: Option.some('https://audio.invalid/a-new-earth.mp3'),
     },
@@ -226,6 +223,23 @@ const resumedShelf: Shelf = {
     }),
   ],
   bookmarks: [],
+}
+
+const resumedChapters: ChaptersBySlug = {
+  [longTitleSlug]: [
+    {
+      chapterNumber: ChapterNumber.make(1),
+      name: 'Chapter 1: A made-up part',
+      startMs: Milliseconds.make(0),
+      endMs: Milliseconds.make(hourMs),
+    },
+    {
+      chapterNumber: ChapterNumber.make(2),
+      name: 'Chapter 2: A long made-up part about waiting for the bus',
+      startMs: Milliseconds.make(hourMs),
+      endMs: Milliseconds.make(resumedDurationMs),
+    },
+  ],
 }
 
 const longTranscript = transcriptsInMemory(
@@ -275,7 +289,10 @@ describe('books CLI', () => {
   })
 
   it('prints a line wider than the terminal whole, for the terminal to wrap', async () => {
-    const { player } = await openBooks({ shelf: resumedShelf })
+    const { player } = await openBooks({
+      shelf: resumedShelf,
+      chapters: resumedChapters,
+    })
     const idle = await run(player, 'help')
     expect(idle.stdout.split('\n')).toContain(
       'Continue A New Earth: Chapter 2: A long made-up part about waiting for the bus · 1:42:15 of 9:13:01 · 7h 31m left',
@@ -283,12 +300,19 @@ describe('books CLI', () => {
   })
 
   it('plays a title from a command and the next command acts on that playback', async () => {
-    const { player } = await openBooks()
+    const { player, bound } = await openBooks()
     const listened = await run(player, 'listen the-lantern-keeper')
     expect(listened.exitCode).toBe(0)
     expect(listened.stdout).toMatch(/^▶ Playing The Lantern Keeper$/m)
     expect(listened.stdout).toMatch(/^ {2}books pause +Pauses where it is$/m)
     expect(listened.stdout).toMatch(/^ {2}books stop +Stops and saves/m)
+    await eventually(() => {
+      const model = bound.readModel()
+      return (
+        model._tag === 'Ready' &&
+        Option.isSome(chaptersOf(model, TitleSlug.make('the-lantern-keeper')))
+      )
+    })
     const sought = await run(player, 'seek-to 1h00m00s')
     expect(sought.stdout).toMatch(/The Keeper · 1:00:00 of 1:20:00 · 20m left/)
     const paused = await run(player, 'pause')
@@ -355,6 +379,7 @@ describe('the Books player daemon', () => {
   it('keeps its terminal UI answering keys within 250 ms while a long title plays', async () => {
     const { bound, player } = await openBooks({
       shelf: longShelf,
+      chapters: longChapters,
       audio: tickingAudio(20),
       transcripts: longTranscript,
     })
@@ -402,6 +427,7 @@ describe('the Books player daemon', () => {
     const memory = Telemetry.makeMemorySink()
     const { bound, player } = await openBooks({
       shelf: longShelf,
+      chapters: longChapters,
       audio: tickingAudio(20),
       transcripts: longTranscript,
       telemetry: memory.layer,

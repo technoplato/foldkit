@@ -20,12 +20,14 @@ import {
   clockOf,
 } from './ids.js'
 import {
+  Chapter,
   type Model,
   Shelf,
   type Title,
   bookmarkOf,
   bookmarksOf,
-  chapterAt,
+  chapterNumberAt,
+  chaptersOf,
   loadedPlayerOf,
   loadedTitleOf,
   placeOf,
@@ -106,16 +108,24 @@ const whichChapter = (
   prompt: 'Which chapter?',
   token: ChapterNumberSegment,
   choicesOf: model =>
-    Option.match(titleOfModel(model), {
-      onNone: () => [],
-      onSome: title =>
-        Array.map(title.chapters, chapter => ({
-          value: chapter.chapterNumber,
-          title: chapter.name,
-          detail: clockOf(chapter.startMs),
-          availability: availabilityOf(model, title, chapter.chapterNumber),
+    Option.match(
+      Option.flatMap(titleOfModel(model), title =>
+        Option.map(chaptersOf(model, title.slug), chapters => ({
+          title,
+          chapters,
         })),
-    }),
+      ),
+      {
+        onNone: () => [],
+        onSome: ({ title, chapters }) =>
+          Array.map(chapters, chapter => ({
+            value: chapter.chapterNumber,
+            title: chapter.name,
+            detail: clockOf(chapter.startMs),
+            availability: availabilityOf(model, title, chapter.chapterNumber),
+          })),
+      },
+    ),
   nothingToChoose: 'no title is open',
 })
 
@@ -243,7 +253,10 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
         loadedTitleOf(model),
         ({ title: loaded, loaded: player }) =>
           loaded.slug === title.slug &&
-          chapterAt(loaded, placeOf(player)).chapterNumber === chapterNumber,
+          Option.contains(
+            chapterNumberAt(model, loaded.slug, placeOf(player)),
+            chapterNumber,
+          ),
       )
     ) {
       return Catalog.Disabled({ because: 'it is playing now' })
@@ -467,6 +480,16 @@ export const ReceivedMember = m('ReceivedMember', {
 })
 /** The library store could not be read, and why, safe to show. */
 export const FailedReadShelf = m('FailedReadShelf', { reason: S.String })
+/** The library store sent one title's chapters. */
+export const ReceivedChapters = m('ReceivedChapters', {
+  slug: TitleSlug,
+  chapters: S.NonEmptyArray(Chapter),
+})
+/** One title's chapters could not be read, and why, safe to show. */
+export const FailedReadChapters = m('FailedReadChapters', {
+  slug: TitleSlug,
+  reason: S.String,
+})
 /**
  * The player's address names a place the player is not at: someone opened
  * a link to a moment, went back or forward to one, or the shelf arrived
@@ -496,6 +519,8 @@ export const Message = S.Union([
   ...catalog.Message.members,
   ReceivedShelf,
   FailedReadShelf,
+  ReceivedChapters,
+  FailedReadChapters,
   ReceivedMember,
   ReadAloud.ReceivedReadings,
   ReadAloud.FailedReadReadings,
