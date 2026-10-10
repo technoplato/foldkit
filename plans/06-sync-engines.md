@@ -341,6 +341,65 @@ a daemon that idles out loses nothing. One daemon per `(app, engine, OS user)`
 holds the file under an exclusive lock (plan 01). Engines that can go offline
 keep an outbox under the same path until `append` returns `Delivered`.
 
+## Offline first
+
+The owner, on 2026-10-10 (`plans/user-messages/2026-10-10-relayed-through-scribe.md`,
+Recording 208 #2814 to #2817): "we need to make sure that the things don't lose
+their offline first capabilities ... and restore messages sent ... offline to
+the network. I think that's a hole in the current implementation." This
+section is that requirement, and it binds every plan.
+
+What offline means for a Program: a press is applied to the local Model at
+once, whether or not the network is there (the fold is the law, the engine is
+transport); the row it produced is kept on the device until the engine
+returns `Delivered`; on reconnect every kept row is sent in its own `seq`
+order and lands exactly once (readers deduplicate by `id`, plan 09); the
+screen says so (`Link = Queued({ because })`, a count of rows waiting) and
+never blocks a press on the network.
+
+What today does: `packages/foldkit/src/runtime/start.ts` applies the Message,
+tries `engine.write`, and on failure pushes the row onto an `outbox` array,
+reports `link: 'queued'`, sends a `transportFailed` fact ("Keep the local
+number. Retry the same Message id when Instant is back."), and `flushOutbox`
+retries in order later. That array lives in the process, so a reload, a
+closed tab, or a killed app while offline drops every row in it, and the
+Model that was folded from them is gone with the process (nothing is saved).
+Rows the Instant client itself accepted while offline (its `Enqueued`
+outcome, reported as `queued`) are kept by Instant's own store and survive a
+reload, so the hole is the failure path and every engine without a client
+queue. The owner's suspicion is right.
+
+The rule, for every host and engine:
+
+- Every Processor keeps a durable outbox of encoded rows awaiting
+  `Delivered`, written before `update` returns, in the device's own store: the
+  actor's state path on a terminal (plan 01), IndexedDB in a browser, the
+  app's storage on Expo. The outbox is the log's own rows, not a snapshot and
+  not a derived value, so principle 7 and decision 6 are untouched: nothing
+  folded is ever saved, only what the device has not yet delivered.
+- On boot the Processor replays its outbox into the fold before it reads the
+  log, so the device sees its own offline presses at once, then sends them in
+  `seq` order; `append` is idempotent by `id`, so a retry after a crash lands
+  once.
+- `Link` is the Processor's own report: `Delivered` only when the engine
+  confirmed the row, `Queued({ because })` with the reason (`Offline`,
+  `Refused`, `Slow`), never a guess; every host paints it; `tail` prints it.
+- A `Refused` row (a policy said no, plan 06's Supabase and Instant rules) is
+  not retried forever: after the engine confirms the refusal it leaves the
+  outbox as a `RefusedRow` fact the Program folds, so the person sees what
+  did not land instead of a silent gap (today's "Not Synced: Instant refused 5
+  changes" in Scribe is the case to learn from).
+- An engine's own offline queue (Instant's) is welcome but never relied on:
+  the Processor's outbox is the record, and a row both kept is sent once by
+  `id`.
+
+Conformance (added to the suite below): a Processor writes three rows
+offline, is killed, restarts offline and shows them, reconnects, and the log
+gains exactly those three rows in order; two Processors do the same at once
+and both land, and every device folds the same Model; a refused row surfaces
+as `RefusedRow` and is not retried; a daemon killed while offline loses no
+row (plan 01's case, the same mechanism).
+
 ## Snapshots
 
 The owner's words: "I can't think of a reason why we would need snapshots
@@ -484,19 +543,20 @@ is a `serverOnly` Subscription that emits facts, so it has one writer.
 
 ## Audit of the sync models
 
-| Today                                                   | Total form                                                                   |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `SyncRead { snapshot: unknown \| undefined, messages }` | gone; boot is `readSince(None)` or a verified peer offer                     |
-| `SyncWrite { snapshot, message }`                       | `append(row)`                                                                |
-| `readSince?`                                            | required; `paging` says how its cursor orders                                |
-| `SyncEvent = Snapshot \| Message`                       | `Received { row }`                                                           |
-| `SyncLink = 'offline' \| 'queued' \| 'delivered'`       | `Link = Delivered \| Queued({ because })`                                    |
-| `from` as a parsed string                               | `host`, `instance` fields; `from` printed for display; rooms are owners      |
-| `LogRowOrder.from?`, `seq?`                             | required on `EncodedRow`; upcast at the Instant boundary                     |
-| no actor, no owner                                      | `actor: Authenticated \| Guest \| System`; `owner: Person \| Public \| Room` |
-| `processor: string` on the engine                       | `key: EngineKey`                                                             |
-| `StartCounterConfig.tape?`                              | `Engine` sum passed by the host                                              |
-| `Program.synchronization?`                              | required (plan 02); category derived from ownership                          |
+| Today                                                   | Total form                                                                         |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `SyncRead { snapshot: unknown \| undefined, messages }` | gone; boot is `readSince(None)` or a verified peer offer                           |
+| `SyncWrite { snapshot, message }`                       | `append(row)`                                                                      |
+| `readSince?`                                            | required; `paging` says how its cursor orders                                      |
+| `SyncEvent = Snapshot \| Message`                       | `Received { row }`                                                                 |
+| `SyncLink = 'offline' \| 'queued' \| 'delivered'`       | `Link = Delivered \| Queued({ because })`                                          |
+| `outbox: Array<SyncWrite>` in process memory            | a durable per-device outbox, replayed on boot, sent in `seq` order (Offline first) |
+| `from` as a parsed string                               | `host`, `instance` fields; `from` printed for display; rooms are owners            |
+| `LogRowOrder.from?`, `seq?`                             | required on `EncodedRow`; upcast at the Instant boundary                           |
+| no actor, no owner                                      | `actor: Authenticated \| Guest \| System`; `owner: Person \| Public \| Room`       |
+| `processor: string` on the engine                       | `key: EngineKey`                                                                   |
+| `StartCounterConfig.tape?`                              | `Engine` sum passed by the host                                                    |
+| `Program.synchronization?`                              | required (plan 02); category derived from ownership                                |
 
 ## The engine conformance suite
 
@@ -514,6 +574,9 @@ One Vitest suite, run against Memory, Local, Instant (a test app), Supabase
   the overlap re-read on a `ReceiptOrdered` one.
 - A late row is delivered and the runtime refolds; the fold equals a fresh
   fold of the full log.
+- The offline-first cases above: rows written offline survive a kill and a
+  restart, land once and in order on reconnect, and a refused row surfaces as
+  a fact.
 - A peer offer from another actor is refused by the channel; one with a wrong
   watermark is dropped; a right one is painted read-only and then replaced by
   the requester's own fold with no visible change.

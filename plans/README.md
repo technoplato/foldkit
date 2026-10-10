@@ -203,6 +203,28 @@ owner says nothing.
     positions, and tokens, which the inventory counts (proposed), or out of
     the first cut (R4-12).
 
+45. **The words-synced playback primitive**: design it as the next plan, built
+    on plan 02's declarations and plan 10's capabilities (an `AudioPlayer` and
+    a `Words` capability) before anything else is built (proposed), or build it
+    first inside `examples/words` on today's APIs and lift it later.
+
+## Asks relayed through Scribe on 2026-10-10
+
+Spoken into Scribe while this work ran, held undelivered at this session, and
+read from the mirror afterwards (`user-messages/2026-10-10-relayed-through-scribe.md`):
+
+- **Offline first** (Recording 208 #2812 to #2819): a requirement on every
+  plan, recorded in plan 06 under "Offline first", with the hole it names in
+  today's in-memory outbox and the conformance cases that close it.
+- **A words-synced playback primitive** (#1114 to #1123): play, seek by word,
+  search, and scrub with the words shown, as a library primitive reused by
+  Books, the transcription apps, and video, introduced through
+  `examples/words`. `examples/words` and `examples/transcript-player` are the
+  seeds. Not designed yet; decision 45.
+- **Books "library cannot be read"** (#1412 to #1418): fixed by another agent
+  the same day.
+- **Derivable Programs** (#2769 to #2772): plans 02 and 05 and principle 8.
+
 ## Conventions
 
 Plans quote North Star syntax as it should read when built, and label a
