@@ -166,3 +166,25 @@ Do not:
 Use the global `/host` skill. The origin must be a KeepAlive LaunchAgent bound
 to `127.0.0.1`. Routing is one Caddyfile site block. Do not add hostnames to
 `~/.cloudflared/config.yml`.
+
+## Composition rubric
+
+Every example is scored 1, 2, or 3 by the rubric in
+`skills/foldkit-composition/SKILL.md` (design in `plans/05-composition.md`).
+3 is best. The rubric has two dates: the "3 today" column is what the current
+APIs can meet and is the gate for a new example now; the "3 (planned)" column applies
+once `plans/02` and `plans/05` land. A new example below the gate does not
+merge. An existing example below it records its score in its README and keeps
+merging bug fixes; it migrates on its own schedule with an issue naming the
+missing combinator.
+
+Hand rolling is the thing the rubric forbids: row updates by id, ids minted in
+`update` (today's `forEach` included), a `Got*` union a combinator would
+derive, tag filters over the whole Catalog in a screen, a daemon, view,
+settings, or in-process file per terminal host beyond `entry` and `daemon`,
+and click-to-Message maps in a `react-bindings` package. Today's required
+`messageCategory` classifier and stack moves through `Navigation.pushed`,
+`presented`, and `withoutDestinations` are allowed until the declaration and
+composition plans land. A `Got*` wrapper at a Submodel boundary with
+OutMessages is the repository's convention, not hand rolling. The skill names
+the file that does each smell today so the pattern is recognizable.

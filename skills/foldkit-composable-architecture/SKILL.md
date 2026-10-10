@@ -13,20 +13,28 @@ next Model plus finite Commands, and the runtime performs effects. Start with
 
 1. Read the nearest complete example before designing. Use
    `examples/counter/core/src/` for a small renderer-free Program,
-   `examples/counters/core/src/` for identified child composition, and
-   `examples/auth/src/` for Submodels with OutMessages.
+   `examples/multiple-counters/core/src/` for identified child composition
+   (its `message.ts` shows `Catalog.lift`; its `update.ts` is the hand-rolled
+   shape `$foldkit-composition` replaces), and `examples/auth/src/` for
+   Submodels with OutMessages. For lists, modal children, nesting, and the
+   composition rubric, use `$foldkit-composition`.
 2. Define Model and Message with Effect Schema. Give Messages verb-first,
    past-tense factual names. Make mutually exclusive states a tagged union.
 3. Type init and update returns explicitly. Keep update pure and exhaustive
    with Effect `Match` and `withReturnType`.
 4. Define each side effect as a named `Command.define`. Convert success and
    failure into Messages inside the Effect. Never run an Effect from update.
-5. Wrap child Messages in a `Got*Message` constructor. Delegate to the child,
-   map child Commands with `Command.mapMessages`, and interpret OutMessages at
-   the parent boundary. Opening a nested tool such as a vending menu is
-   `Operating(childModel)` on the parent attention union, not a boolean beside
-   the walker. See `examples/world/core` (`GotVendingMessage` +
-   `Command.mapMessages`).
+5. Compose children with the combinators (`Program.compose`, `scope`,
+   `compose.forEach`, `compose.sync`, `Catalog.lift`), which derive the child
+   Message wrapper, the fold arm, and `Command.mapMessages` for you. A
+   hand-written `Got*Message` constructor is the convention at a Submodel
+   boundary with OutMessages (`examples/auth`) and needs no comment; a `Got*`
+   wrapper around a child a combinator would have lifted is hand rolling.
+   Opening a nested tool such as a vending menu is `Operating(childModel)` on
+   the parent attention union, not a boolean beside the walker;
+   `examples/world/core` shows that union, and its `GotVendingMessage` wrapper
+   around a child with no OutMessage is the hand rolling to avoid (it scores
+   1 in the composition rubric).
 6. Choose the lifecycle primitive by cause: Command after a Message,
    Subscription for an external stream gated by Model, ManagedResource for a
    stateful handle needed by Commands, Mount for element-scoped DOM work, and
@@ -52,8 +60,10 @@ next Model plus finite Commands, and the runtime performs effects. Start with
 ## Source anchors
 
 - `packages/foldkit/src/program/program.ts`
+- `packages/foldkit/src/program/compose.ts`
+- `packages/foldkit/src/catalog/catalog.ts` (`lift`, `within`)
 - `packages/foldkit/src/command/index.ts`
 - `packages/foldkit/src/update/update.ts`
 - `packages/foldkit/src/submodel/submodel.ts`
-- `examples/counters/core/src/update.ts`
+- `examples/multiple-counters/core/src/message.ts`
 - `examples/auth/src/update.ts`
