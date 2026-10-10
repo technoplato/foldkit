@@ -1,6 +1,9 @@
 # Foldkit Principles
 
-**Status:** Draft for review, September 23, 2026.
+**Status:** Draft for review, September 23, 2026. Principles 7 and 8 were
+added October 9, 2026 from the owner's words in
+`plans/user-messages/2026-10-09-follow-ups.md` (message 2); they are proposed
+until the owner accepts this file.
 
 These are the design principles Foldkit builds toward. They say what good
 looks like and why. `CONSTITUTION.md` holds the enforceable rules; when a
@@ -9,8 +12,8 @@ amended. Shared words (Program, Catalog, Destination, Carrier, Mount) are
 defined in `glossary.md`.
 
 Every principle comes with a test you can run against a change and a concrete
-example from `examples/counter` (one count) or `examples/counters` (a list of
-counters with detail pages).
+example from `examples/counter` (one count) or `examples/multiple-counters` (a
+list of counters with detail pages).
 
 ## 1. Define once
 
@@ -141,9 +144,58 @@ it should.
 Follow without a `synchronization` classifier. Runtime.start refuses that with
 `MissingProgramSynchronization` rather than guessing.
 
+## 7. Sync engine, not database
+
+The Message log carried by a sync engine (Instant, Supabase used as a log
+store, a Kafka topic) is the only truth, and every value a product shows is
+folded from it on every device. Nobody writes a SQL function, a nightly job, a
+cache, or a read model to keep a computed value in step, because there is
+nothing to keep in step: a computed value is a derived Model field, and a
+history series is a Model field a Subscription appends to. A projection to a
+table exists only for an outside system that cannot read the log, and it is
+written from facts, never computed by hand.
+
+Example: a finance Program derives `netWorth` from balances, positions,
+quotes, exchange rates, manual valuations, and debts with one function, and
+keeps `netWorthHistory` as a Model field appended once a day by one declared
+writer. A chart host reads the Model. A hand-kept copy of such a formula in a
+database function or a scheduled job is the thing this principle rules out.
+
+**Test:** list every place a product value is computed. The target is one, the
+Program. Every extra place is a copy that will drift.
+
+**Smell:** a database function or scheduled job that restates a rule `update`
+already encodes; a table column holding a value the Model derives.
+
+## 8. Declare actions and schema; the implementation falls out
+
+A Program is declared, not assembled: its Model Schema, its Catalog of Actions
+(each with what, why, where it is offered, and what it writes), its
+Destinations and their routes. Hosts, the CLI, menus, keyboard maps, the
+skills markdown an agent reads, the static graph, and the wire are derived
+from that declaration. The Elixir world's declarative resources (the Ash
+framework on Phoenix, where attributes and actions are declared and the data
+layer, API, and authorization derive from them) are the closest prior art;
+Foldkit's version keeps the Elm loop and derives the surfaces.
+
+Example (proposed syntax, `plans/02-action-declarations.md`):
+`Action.press('Increment', { what, why, label, keys, at, writes })` is the
+whole declaration. From it come the React button, the `+` key, the
+`counter increment` command, the menu row, the skill's Actions table row, and
+the graph edge that answers "what changes the count". Today's
+`Catalog.action('Increment', { what, why, meta })` already derives the first
+four.
+
+**Test:** add one Action and count the files touched beyond its declaration
+and update arm. Every extra file is an implementation detail that should have
+fallen out.
+
+**Smell:** a surface that lists Actions by hand; a markdown page that
+describes a Program and is edited by a person.
+
 ## Using these principles
 
-When reviewing a change, run the six tests. A change that fails one needs
+When reviewing a change, run the eight tests. A change that fails one needs
 either a fix or a written exception under the Constitution's governance
 section.
 
