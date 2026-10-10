@@ -7,7 +7,8 @@ import {
 } from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
 
-import { Milliseconds } from './ids.js'
+import { Milliseconds, TitleSlug } from './ids.js'
+import { chaptersOf } from './model.js'
 import { makeTestLibraryStore, noReadAloud, sampleShelf } from './sample.js'
 import { makeTestLinkSharing } from './share.js'
 import { SyncedBooks, bindBooks } from './synced.js'
@@ -120,6 +121,38 @@ describe('live Books', () => {
     expect(loadedSlugOf(browser.bound)).toEqual(Option.none())
     await browser.handle.stop()
     await terminal.handle.stop()
+  })
+
+  it('loads the chapters of the title in the player, and the player takes them as sections', async () => {
+    const { handle, bound } = await startBooks()
+    await Interaction.whenSettled(bound, 2_000)
+    await eventually(() =>
+      Array.some(
+        bound.entries(),
+        entry =>
+          entry.tag === 'Listen' && entry.availability._tag === 'Enabled',
+      ),
+    )
+    const before = handle.readModel()
+    expect(before._tag === 'Ready' ? before.chapters : {}).toEqual({})
+    bound.press('Listen:the-lantern-keeper')
+    await eventually(() => {
+      const model = handle.readModel()
+      return (
+        model._tag === 'Ready' &&
+        Option.isSome(chaptersOf(model, TitleSlug.make('the-lantern-keeper')))
+      )
+    })
+    const model = handle.readModel()
+    expect(
+      model._tag === 'Ready' && model.listening._tag === 'Loaded'
+        ? Array.map(
+            model.listening.player.media.sections,
+            section => section.title,
+          )
+        : [],
+    ).toEqual(['The Tide', 'The Light', 'The Storm', 'The Keeper'])
+    await handle.stop()
   })
 
   it('reads the shelf, plays, and saves the place to the library store', async () => {

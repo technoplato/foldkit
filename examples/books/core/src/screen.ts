@@ -1,4 +1,11 @@
-import { Array, Option, Order, pipe } from 'effect'
+import {
+  Array,
+  Match as M,
+  Option,
+  Order,
+  Record as Record_,
+  pipe,
+} from 'effect'
 import { Catalog } from 'foldkit'
 import {
   type ButtonNode,
@@ -60,6 +67,7 @@ import {
   bookmarkOf,
   bookmarksOf,
   chapterAt,
+  chapterNameAt,
   loadedTitleOf,
   placeOf,
   progressOf,
@@ -215,6 +223,48 @@ const isStarted = (model: Model, title: Title): boolean =>
     progress => progress._tag === 'InProgress',
   )
 
+/**
+ * Where a title is, in words: its chapter, once the chapters are here,
+ * and what is left.
+ */
+const placeLineOf = (model: Model, title: Title, place: Milliseconds): string =>
+  Array.join(
+    [
+      ...Array.fromOption(chapterNameAt(model, title.slug, place)),
+      TranscriptPlayer.leftWordsOf(title.durationMs - place),
+    ],
+    ' · ',
+  )
+
+/**
+ * The chapters of a title as a list, the one playing marked, or a word on
+ * why there is no list yet.
+ */
+const contentsOf = (model: Model, title: Title): UiNode =>
+  Option.match(Record_.get(model.chapters, title.slug), {
+    onNone: () => Text('Loading the chapters…', { dim: true }),
+    onSome: state =>
+      M.value(state).pipe(
+        M.withReturnType<UiNode>(),
+        M.tagsExhaustive({
+          ChaptersUnavailable: ({ reason }) =>
+            Text(`The chapters could not be read: ${reason}`, { dim: true }),
+          ChaptersReady: ({ chapters }) => {
+            const maybePlayingNumber = Option.map(
+              loadedFor(model, title),
+              loaded => chapterAt(chapters, placeOf(loaded)).chapterNumber,
+            )
+            return List({
+              label: 'Chapters',
+              items: Array.map(chapters, chapter =>
+                chapterItemOf(entriesOf(model), maybePlayingNumber, chapter),
+              ),
+            })
+          },
+        }),
+      ),
+  })
+
 const progressText = (model: Model, title: Title): string => {
   const isFinished = Option.exists(
     progressOf(model, title.slug),
@@ -300,9 +350,7 @@ const nowPlayingOf = (model: Model): ReadonlyArray<UiNode> =>
             {
               key: `now-${title.slug}`,
               title: title.name,
-              lines: [
-                `${chapterAt(title, placeOf(loaded)).name} · ${TranscriptPlayer.leftWordsOf(title.durationMs - placeOf(loaded))}`,
-              ],
+              lines: [placeLineOf(model, title, placeOf(loaded))],
               ...imageOf(title),
               progress: { value: placeOf(loaded), max: title.durationMs },
               ...offeredActionOf(entries, OpenPlayer.tag),
@@ -634,7 +682,7 @@ const bookmarkItemOf = (
   key: bookmark.bookmarkId,
   href: placePathOf(title.slug, bookmark.atMs),
   title: clockOf(bookmark.atMs),
-  lines: [chapterAt(title, bookmark.atMs).name],
+  lines: Array.fromOption(chapterNameAt(model, title.slug, bookmark.atMs)),
   trailing: choiceButtonsOf(
     model,
     bookmark.bookmarkId,
@@ -708,7 +756,10 @@ const collapsedControlsOf = (
     items: [
       {
         key: `controls-${title.slug}`,
-        title: chapterAt(title, placeOf(loaded)).name,
+        title: Option.getOrElse(
+          chapterNameAt(model, title.slug, placeOf(loaded)),
+          () => title.name,
+        ),
         lines: [
           TranscriptPlayer.leftWordsOf(title.durationMs - placeOf(loaded)),
         ],
@@ -785,9 +836,12 @@ export const playerScreen = (model: Model): UiNode =>
               { gap: 1 },
               ...coverOf(title, playerCoverWidth),
               Text(title.name, { emphasis: 'Headline' }),
-              Text(chapterAt(title, placeFor(model, title)).name, {
-                dim: true,
-              }),
+              ...Array.fromOption(
+                Option.map(
+                  chapterNameAt(model, title.slug, placeFor(model, title)),
+                  name => Text(name, { dim: true }),
+                ),
+              ),
               Progress({
                 value: placeFor(model, title),
                 max: title.durationMs,
@@ -840,26 +894,15 @@ export const contentsScreen = (model: Model): UiNode =>
     Option.flatMap(shownTitleOf(model), slug => titleOf(model, slug)),
     {
       onNone: () => Column({}, Text('No title is open.', { dim: true })),
-      onSome: title => {
-        const entries = entriesOf(model)
-        const maybePlayingNumber = Option.map(
-          loadedFor(model, title),
-          loaded => chapterAt(title, placeOf(loaded)).chapterNumber,
-        )
-        return Column(
+      onSome: title =>
+        Column(
           { gap: 1 },
           Text('Contents', {
             emphasis: 'Headline',
             label: `${title.name} contents`,
           }),
-          List({
-            label: 'Chapters',
-            items: Array.map(title.chapters, chapter =>
-              chapterItemOf(entries, maybePlayingNumber, chapter),
-            ),
-          }),
-        )
-      },
+          contentsOf(model, title),
+        ),
     },
   )
 

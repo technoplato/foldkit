@@ -1,4 +1,4 @@
-import { Array, Option } from 'effect'
+import { Array, Option, Record as Record_ } from 'effect'
 import { Catalog, Interaction, Navigation } from 'foldkit'
 import {
   FailedPlayAudio,
@@ -9,17 +9,28 @@ import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
-import { Open, OpenedPlace, ReceivedShelf, ShowContents } from './message.js'
-import { sampleShelf } from './sample.js'
+import {
+  Open,
+  OpenedPlace,
+  ReceivedChapters,
+  ReceivedShelf,
+  ShowContents,
+} from './message.js'
+import { sampleChapters, sampleShelf } from './sample.js'
 import { addressCueOfModel } from './subscriptions.js'
 
 type Written = Readonly<{ name: string; args: string }>
 
 const bindApp = () => {
-  let model: AppModel = App.update(
-    App.init()[0],
-    ReceivedShelf({ shelf: sampleShelf }),
-  )[0]
+  let model: AppModel = Array.reduce(
+    Record_.toEntries(sampleChapters),
+    App.update(App.init()[0], ReceivedShelf({ shelf: sampleShelf }))[0],
+    (current, [slug, chapters]) =>
+      App.update(
+        current,
+        ReceivedChapters({ slug: TitleSlug.make(slug), chapters }),
+      )[0],
+  )
   const written: Array<Written> = []
   const handle = {
     readModel: () => model,

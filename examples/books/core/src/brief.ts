@@ -17,7 +17,7 @@ import {
   type Loaded,
   type Model,
   type Title,
-  chapterAt,
+  chapterNameAt,
   continueOf,
   loadedTitleOf,
   placeOf,
@@ -34,8 +34,15 @@ const hourMs = 60 * minuteMs
 
 const titlesToSuggest = 3
 
-const placeLineOf = (title: Title, place: Milliseconds): string =>
-  `${chapterAt(title, place).name} · ${clockOf(place)} of ${clockOf(title.durationMs)} · ${TranscriptPlayer.leftWordsOf(title.durationMs - place)}`
+const placeLineOf = (model: Model, title: Title, place: Milliseconds): string =>
+  Array.join(
+    [
+      ...Array.fromOption(chapterNameAt(model, title.slug, place)),
+      `${clockOf(place)} of ${clockOf(title.durationMs)}`,
+      TranscriptPlayer.leftWordsOf(title.durationMs - place),
+    ],
+    ' · ',
+  )
 
 const transportLineOf = (title: Title, loaded: Loaded): string =>
   M.value(loaded.player.transport).pipe(
@@ -64,9 +71,13 @@ const wordsLinesOf = (player: TranscriptPlayer.Model): ReadonlyArray<UiNode> =>
     }),
   )
 
-const loadedLinesOf = (title: Title, loaded: Loaded): ReadonlyArray<UiNode> => [
+const loadedLinesOf = (
+  model: Model,
+  title: Title,
+  loaded: Loaded,
+): ReadonlyArray<UiNode> => [
   Text(transportLineOf(title, loaded), { emphasis: 'Headline' }),
-  Text(placeLineOf(title, placeOf(loaded)), { dim: true }),
+  Text(placeLineOf(model, title, placeOf(loaded)), { dim: true }),
   ...TranscriptPlayer.problemOf(loaded.player),
   ...wordsLinesOf(loaded.player),
 ]
@@ -77,7 +88,7 @@ const idleLinesOf = (model: Model): ReadonlyArray<UiNode> => [
     Option.flatMap(continueOf(model), progress =>
       Option.map(titleOf(model, progress.slug), title =>
         Text(
-          `Continue ${title.name}: ${placeLineOf(title, resumePlaceOf(model, title.slug))}`,
+          `Continue ${title.name}: ${placeLineOf(model, title, resumePlaceOf(model, title.slug))}`,
           { dim: true },
         ),
       ),
@@ -96,7 +107,7 @@ const libraryLinesOf = (model: Model): ReadonlyArray<UiNode> =>
       ShelfReady: () =>
         Option.match(loadedTitleOf(model), {
           onNone: () => idleLinesOf(model),
-          onSome: ({ title, loaded }) => loadedLinesOf(title, loaded),
+          onSome: ({ title, loaded }) => loadedLinesOf(model, title, loaded),
         }),
     }),
   )

@@ -1,8 +1,16 @@
-import { Context, Data, Effect, Option, Schema as S, Stream } from 'effect'
+import {
+  type Array,
+  Context,
+  Data,
+  Effect,
+  Option,
+  Schema as S,
+  Stream,
+} from 'effect'
 import { ts } from 'foldkit/schema'
 
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
-import type { Shelf } from './model.js'
+import type { Chapter, Shelf } from './model.js'
 
 // LIBRARY
 
@@ -38,14 +46,21 @@ export class LibraryStoreError extends Data.TaggedError('LibraryStoreError')<{
 
 /**
  * Where the listener's library lives: the shelf, sent again whenever it
- * changes on any device, who is signed in, and the writes that change the
- * shelf. The live store reads and writes the library tables in Instant;
- * tests use one in memory.
+ * changes on any device, one title's chapters, sent while asked for, who
+ * is signed in, and the writes that change the shelf. The shelf carries
+ * every title and the listener's progress and bookmarks, never the
+ * chapters: a library of a hundred audiobooks holds thousands, and they are
+ * read a title at a time. A title with no chapters reads as one section,
+ * the whole book. The live store reads and writes the library tables in
+ * Instant; tests use one in memory.
  */
 export class LibraryStore extends Context.Service<
   LibraryStore,
   Readonly<{
     shelf: Stream.Stream<Shelf, LibraryStoreError>
+    chapters: (
+      slug: TitleSlug,
+    ) => Stream.Stream<Array.NonEmptyReadonlyArray<Chapter>, LibraryStoreError>
     member: Stream.Stream<Option.Option<string>>
     write: (write: LibraryWrite) => Effect.Effect<void, LibraryStoreError>
   }>

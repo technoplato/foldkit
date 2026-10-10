@@ -20,6 +20,7 @@ export const init = (): readonly [
 ] => [
   {
     library: ShelfLoading(),
+    chapters: {},
     listening: Idle(),
     speed: 1,
     maybeProblem: Option.none(),

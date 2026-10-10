@@ -1,4 +1,4 @@
-import { Option } from 'effect'
+import { Array, Option, Record as Record_ } from 'effect'
 import { Interaction } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 import {
@@ -11,15 +11,23 @@ import { describe, expect, it } from 'vitest'
 import { App, type AppModel } from './app.js'
 import { briefScreen, suggestedPressesOf } from './brief.js'
 import { Milliseconds, TitleSlug } from './ids.js'
-import { OpenedPlace, ReceivedShelf } from './message.js'
+import { OpenedPlace, ReceivedChapters, ReceivedShelf } from './message.js'
 import { InProgress } from './model.js'
-import { sampleShelf } from './sample.js'
+import { sampleChapters, sampleShelf } from './sample.js'
 import { addressCueOfModel } from './subscriptions.js'
 
 const lanternKeeper = TitleSlug.make('the-lantern-keeper')
 
 const bindApp = (shelf = sampleShelf) => {
-  let model: AppModel = App.update(App.init()[0], ReceivedShelf({ shelf }))[0]
+  let model: AppModel = Array.reduce(
+    Record_.toEntries(sampleChapters),
+    App.update(App.init()[0], ReceivedShelf({ shelf }))[0],
+    (current, [slug, chapters]) =>
+      App.update(
+        current,
+        ReceivedChapters({ slug: TitleSlug.make(slug), chapters }),
+      )[0],
+  )
   const handle = {
     readModel: () => model,
     subscribe: () => () => {},

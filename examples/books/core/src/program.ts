@@ -54,6 +54,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       CancelDeleteBookmark: () => 'Navigation',
       ReceivedShelf: () => 'Domain',
       FailedReadShelf: () => 'Domain',
+      ReceivedChapters: () => 'Navigation',
+      FailedReadChapters: () => 'Navigation',
       OpenedPlace: () => 'Navigation',
       ReceivedMember: () => 'Navigation',
       SharePlace: () => 'Navigation',
@@ -120,6 +122,7 @@ export const BooksProgram = Program.make({
     keepOnRefold: (current, refolded) => ({
       ...refolded,
       library: current.library,
+      chapters: current.chapters,
       listening: current.listening,
       readings: current.readings,
       previewChecks: current.previewChecks,
