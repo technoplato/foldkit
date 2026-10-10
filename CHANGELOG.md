@@ -366,6 +366,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   > Make sure there's only one script and only one way to file issues.
 - **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
 
+## October 10th, 2026 at 12:00:03 p.m. EDT — `b6b271582663` fix(books): read the library in three queries, the chapters flat
+
+- **Implementation commit:** `b6b271582663e0d925e697349331486d1fd31c14`
+- **Change:** Read the library in three queries, the chapters flat
+- **Details:**
+  - Root cause: Instant fails a reactive query it cannot answer within 5 s ("Operation timed out: handle-receive"), and the one library query joined every chapter through each item's book; after the Audible import (107 titles, 4,665 chapters) that join took Instant 11 s, where the flat `libraryChapters` table takes 2 s. The store replaced the error with a fixed reason, so the Library screen said only "the library could not be read".
+  - The shelf, the chapters (flat, each naming its book, five fields), and the marks are now three subscriptions, each with its own 5 s; the decoder joins chapters to titles by book id; an error keeps Instant's message.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — The three queries, the flat chapter decode, and the merged subscription.
+  - `examples/books/core/src/instantLibrary.test.ts` — Flat chapters in the real row shape; the store's three queries and Instant's error words.
+- **User context (verbatim):**
+  > See, I'm getting library cannot be read. Can you dispatch that off? Start an agent on my machine. … And have it root caused.
+
 ## October 5th, 2026 at 9:06:56 a.m. EDT — `eef68d29acae` docs(foldkit): record why terminal Books broke, in ADR 0014
 
 - **Implementation commit:** `eef68d29acae4c5d093d730d999e6547ada3339a`
