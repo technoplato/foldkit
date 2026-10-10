@@ -14,6 +14,15 @@ Repo-local `skills/foldkit`, `skills/generate-program`, and `skills/audit-progra
 - `bench/` is a rehearsal against `https://counter.knophy.com`. It is not DEATH.
 - Interview questions live in `DEATH/qanda.md`. Chat asks one at a time.
 
+## Project wiki
+
+`wiki/` is the project's memory: what was said, what was decided, by whom, and why, across calls, chats, DEATH, and ShrinkBench. Full rules: `wiki/AGENTS.md`.
+
+- Consult it before any decision or recommendation about the benchmark, before asking the user a question it may already answer, and whenever recalling past discussions or people. Read `wiki/index.md` first, then only the pages it names.
+- Trust order: running code, then decided Q&A records (`DEATH/qanda.md`, ShrinkBench ADR 0001), then wiki pages, then raw sources. Never present a **Said** or **Proposed** claim as decided.
+- When the user shares a transcript, chat, or email about the project, ingest it. File syntheses worth keeping under `wiki/analyses/`. Run `python3 wiki/lint.py` after wiki changes.
+- Some rules in the DEATH section above are contested by newer ShrinkBench records (name, and whether `DEATH/` is history). See `wiki/open-questions.md` O2 and O3.
+
 When writing or reviewing documentation (TSDoc, module docs), load `.agents/skills/document/SKILL.md` (the `document` skill). Point-Free's libraries (the Composable Architecture, Swift Sharing, SQLiteData) are the quality bar. Shared vocabulary lives in `glossary.md`; define new terms there first. In documentation, comments, questions, and explanations, pair every abstract claim with a concrete example ("mounting composes transitively" must be followed by `/counters/counter/c1`).
 
 ## Project Conventions
@@ -52,6 +61,7 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 - Every example shares its state through Instant from the first run, through `Program.compose.sync`. One Instant project carries every app: each log row names its app and its Program version, such as `multiple-counters` at version 1.
 - Never ship an example that syncs through a Memory engine, a file tape, `localStorage`, `BroadcastChannel`, or any other per-process or per-tab store. `Runtime.Memory` is a fake for unit tests only.
 - When Instant's schema cannot type a Message strictly, wrap the row in an Effect Schema envelope (app, version, tag, payload) that rejects anything else, and evolve the schema. Never fall back to local-only state.
+- Every Instant app uses Scribe's schema, permanently, for every app we build, so all the apps are interconnected: a Books title, a Read Aloud page, and a Scribe recording can link to each other's rows. Production is `e7c49961` and dev is `bd40c50a`; both carry that one schema. Never give an app a schema of its own. Add an app's entities to Scribe's `instant.schema.ts` (in `~/Development/instant-scribe-verification/scribe`, currently on branch `agent/claude-opus-5.5/books`), with names that can't collide, such as `libraryItems` for Books and `remindersLists` for Reminders. Coordinate the change with the Scribe agents. Push only from that full schema: a push from a partial copy drops what the copy lacks.
 
 ## State Modeling
 
@@ -67,7 +77,7 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 - Drive navigation by state. A Client (browser history, argv, custom scheme) translates a URI into `OpenedNavigation` or `ChangedUrl`. update decides the next Model. Named Commands emit `pushUrl`, `replaceUrl`, or `back`. Do not hand-build paths at call sites when the printer exists.
 - Every destination a user can occupy must have a deep link. That includes share states (private, unlisted, public). Private still prints a URI. Access is permissions, not the absence of a link.
 - Keep the portable relative URI in core. Each Client adds an origin, scheme, or argv. Do not put tokens, refresh secrets, or PII in a URI. Instant share secrets belong in `ruleParams` (query `s`), not in the path.
-- Proofs live in `examples/routing`, `examples/counters`, `examples/books`, and `examples/cardboard`. Follow `skills/foldkit-navigation/SKILL.md`.
+- Proofs live in `examples/routing`, `examples/multiple-counters`, `examples/books`, and `examples/cardboard`. Follow `skills/foldkit-navigation/SKILL.md`.
 
 ## Code Style
 

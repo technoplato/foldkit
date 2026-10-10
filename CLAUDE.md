@@ -10,6 +10,14 @@ Read those when a rule needs context.
 
 Also read `AGENTS.md`; it is the canonical convention source when the two files drift. Shared vocabulary lives in `glossary.md`. In all documentation, comments, and explanations, include concrete examples next to theory, never theory alone (e.g. show `/counters/counter/c1` beside any mount-law claim). For documentation quality, follow `.agents/skills/document/SKILL.md`.
 
+## Project Wiki
+
+`wiki/` is the project's memory: what was said, what was decided, by whom, and why, across calls, chats, DEATH, and ShrinkBench. Full rules: `wiki/AGENTS.md`.
+
+- Consult it before any decision or recommendation about the benchmark, before asking a question it may already answer, and whenever recalling past discussions or people. Read `wiki/index.md` first, then only the pages it names.
+- Trust order: running code, then decided Q&A records (`DEATH/qanda.md`, ShrinkBench ADR 0001), then wiki pages, then raw sources. Never present a **Said** or **Proposed** claim as decided.
+- When I share a transcript, chat, or email about the project, ingest it. File syntheses worth keeping under `wiki/analyses/`. Run `python3 wiki/lint.py` after wiki changes.
+
 ## Project Conventions
 
 - "Foldkit" is always capitalized in prose. The only exception is the npm package name (`foldkit`) and import paths.
