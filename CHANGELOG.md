@@ -366,6 +366,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   > Make sure there's only one script and only one way to file issues.
 - **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
 
+## October 10th, 2026 at 12:32:38 p.m. EDT — `5daaad9b6e50` feat(books): read a title's chapters when it is opened, not with the shelf
+
+- **Implementation commit:** `5daaad9b6e50d2342896f1b53109f1b5ea6b5ec8`
+- **Change:** Read a title's chapters when it is opened, not with the shelf
+- **Details:**
+  - The shelf query is the titles (people, cover, audio) and the listener's progress and bookmarks; a Title no longer carries chapters. 107 titles answer in under 2 s.
+  - The library store's `chapters(slug)` is one small reactive query per book (about 100 ms); a subscription asks for the titles on screen, in the player, and in progress. The Model keeps them by slug (`ChaptersReady` / `ChaptersUnavailable`); the contents sheet says "Loading the chapters…" meanwhile; a player loaded first takes the chapters as sections when they arrive.
+  - The chapter rows' `book` link is neither asked for nor decoded: the browser's Instant store does not return a link as a field, which made the earlier flat chapters query decode no chapters in a browser.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — The shelf query, `chaptersQueryOf`, `decodeChapters`, and the store's `chapters(slug)`.
+  - `examples/books/core/src/model.ts` — Title without chapters; `TitleChapters`, `chaptersOf`, `chapterAt`, `chapterNameAt`, `wholeBookChapters`.
+  - `examples/books/core/src/subscriptions.ts` — `wantedChapterSlugsOf` and the chapters subscription.
+  - `examples/books/core/src/update.ts` — ReceivedChapters and FailedReadChapters; the player takes sections late.
+  - `examples/books/core/src/screen.ts`, `brief.ts`, `message.ts` — Chapter names from the Model's chapters; the contents sheet's loading state.
+  - `examples/books/core/src/sample.ts` — `sampleChapters` and the test store's `chapters`.
+- **User context (verbatim):**
+  > You don't need all the chapters in the root query. You need all the books and the progress and stuff.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 10th, 2026 at 12:00:03 p.m. EDT — `b6b271582663` fix(books): read the library in three queries, the chapters flat
 
 - **Implementation commit:** `b6b271582663e0d925e697349331486d1fd31c14`
