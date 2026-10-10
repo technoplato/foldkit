@@ -1,25 +1,24 @@
-import { Array, Option } from 'effect'
+import { Array, Effect, Fiber, Option, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { decodeLibrary } from './instantLibrary.js'
+import type { ProgramLogDatabase } from '@foldkit/instant/browser'
+
+import {
+  decodeLibrary,
+  libraryQueries,
+  makeInstantLibraryStore,
+} from './instantLibrary.js'
 import { decodeSegments } from './instantTranscript.js'
 
-const itemRow = (
-  itemId: string,
-  title: string,
-  addedAtMs: number,
-  chapters: ReadonlyArray<
-    Readonly<{ index: number; title: string; startMs: number; endMs: number }>
-  >,
-) => ({
+const itemRow = (itemId: string, title: string, addedAtMs: number) => ({
   id: itemId,
   addedAtMs,
   book: [
     {
+      id: `book-of-${itemId}`,
       title,
       authors: [{ name: 'Ada Quill' }],
       narrators: [{ name: 'Sam Reed' }],
-      chapters,
       cover: [{ blob: [{ url: 'https://files.example/cover.jpg' }] }],
     },
   ],
@@ -37,11 +36,52 @@ const chapters = [
   { index: 0, title: 'One', startMs: 0, endMs: 1_200_000 },
 ]
 
+const chapterRow = (
+  bookId: string,
+  chapter: Readonly<{
+    index: number
+    title: string
+    startMs: number
+    endMs: number
+  }>,
+) => ({
+  id: `${bookId}-chapter-${chapter.index.toString()}`,
+  ownerUserID: 'owner-1',
+  formatVersion: 1,
+  bindingKind: 'audiobook',
+  book: bookId,
+  ...chapter,
+})
+
+const chapterRows = (bookId: string) =>
+  Array.map(chapters, chapter => chapterRow(bookId, chapter))
+
+const fakeDatabase = () => {
+  const subscriptions: Array<
+    Readonly<{ query: unknown; respond: (response: unknown) => void }>
+  > = []
+  const database = {
+    subscribeQuery: (query: unknown, respond: (response: unknown) => void) => {
+      subscriptions.push({ query, respond })
+      return () => undefined
+    },
+    subscribeAuth: () => () => undefined,
+  }
+  return {
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+    database: database as unknown as ProgramLogDatabase,
+    subscriptions,
+  }
+}
+
+const nextTick = () => new Promise(resolve => setTimeout(resolve, 0))
+
 describe('decodeLibrary', () => {
   it('reads a finished title in either vocabulary', () => {
     const finishedAs = (finishedKind: string) =>
       decodeLibrary({
-        libraryItems: [itemRow('item-1', 'Small Hours', 1, chapters)],
+        libraryItems: [itemRow('item-1', 'Small Hours', 1)],
+        libraryChapters: chapterRows('book-of-item-1'),
         libraryProgress: [
           {
             id: 'p-1',
@@ -61,9 +101,13 @@ describe('decodeLibrary', () => {
   it('reads titles with chapters in order, their covers and audio, and unique name tags', () => {
     const { shelf } = decodeLibrary({
       libraryItems: [
-        itemRow('item-1', 'The Lantern Keeper', 1, chapters),
-        itemRow('item-2', 'The Lantern Keeper', 2, chapters),
+        itemRow('item-1', 'The Lantern Keeper', 1),
+        itemRow('item-2', 'The Lantern Keeper', 2),
         { id: 'broken', addedAtMs: 3 },
+      ],
+      libraryChapters: [
+        ...chapterRows('book-of-item-1'),
+        ...chapterRows('book-of-item-2'),
       ],
     })
     expect(shelf.titles.map(title => title.slug)).toEqual([
@@ -85,9 +129,46 @@ describe('decodeLibrary', () => {
     )
   })
 
+  it('reads the chapters from their own table, by the book they belong to, in index order', () => {
+    const { shelf } = decodeLibrary({
+      libraryItems: [
+        itemRow('item-1', 'The Lantern Keeper', 1),
+        itemRow('item-2', 'Small Hours', 2),
+      ],
+      libraryChapters: [
+        chapterRow('book-of-item-2', {
+          index: 0,
+          title: 'Dusk',
+          startMs: 0,
+          endMs: 900_000,
+        }),
+        ...chapterRows('book-of-item-1'),
+        { id: 'broken', book: 'book-of-item-1', title: 'No times' },
+      ],
+    })
+    expect(
+      Array.map(shelf.titles, title => [
+        title.slug,
+        Array.map(title.chapters, chapter => [
+          chapter.chapterNumber,
+          chapter.name,
+        ]),
+      ]),
+    ).toEqual([
+      [
+        'the-lantern-keeper',
+        [
+          [1, 'One'],
+          [2, 'Two'],
+        ],
+      ],
+      ['small-hours', [[1, 'Dusk']]],
+    ])
+  })
+
   it('reads a title with no chapters as one section, the whole book under its name', () => {
     const { shelf } = decodeLibrary({
-      libraryItems: [itemRow('item-1', 'Notes from the Night Ferry', 1, [])],
+      libraryItems: [itemRow('item-1', 'Notes from the Night Ferry', 1)],
     })
     expect(
       Array.map(shelf.titles, title => [
@@ -111,7 +192,8 @@ describe('decodeLibrary', () => {
 
   it('keeps the newest progress per title and the bookmarks that name a title', () => {
     const { shelf, index } = decodeLibrary({
-      libraryItems: [itemRow('item-1', 'Small Hours', 1, chapters)],
+      libraryItems: [itemRow('item-1', 'Small Hours', 1)],
+      libraryChapters: chapterRows('book-of-item-1'),
       libraryProgress: [
         {
           id: 'p-old',
@@ -164,6 +246,56 @@ describe('decodeLibrary', () => {
           Option.map(entry.maybeProgress, progress => progress.progressId),
       ),
     ).toEqual(Option.some(Option.some('p-new')))
+  })
+})
+
+describe('makeInstantLibraryStore', () => {
+  it('reads the library as three queries, none joining the chapters through the books', async () => {
+    const { database, subscriptions } = fakeDatabase()
+    const store = await Effect.runPromise(makeInstantLibraryStore(database))
+    const first = Effect.runFork(Stream.runHead(store.shelf))
+    await nextTick()
+    expect(subscriptions.map(subscription => subscription.query)).toEqual([
+      libraryQueries.shelf,
+      libraryQueries.chapters,
+      libraryQueries.marks,
+    ])
+    expect(JSON.stringify(libraryQueries.shelf)).not.toContain('chapters')
+    const [shelfQuery, chaptersQuery, marksQuery] = subscriptions
+    shelfQuery?.respond({
+      data: { libraryItems: [itemRow('item-1', 'Small Hours', 1)] },
+    })
+    chaptersQuery?.respond({
+      data: { libraryChapters: chapterRows('book-of-item-1') },
+    })
+    marksQuery?.respond({ data: { libraryProgress: [], libraryBookmarks: [] } })
+    const maybeShelf = await Effect.runPromise(Fiber.join(first))
+    expect(
+      Option.map(maybeShelf, read =>
+        Array.map(read.titles, title => [
+          title.slug,
+          Array.map(title.chapters, chapter => chapter.name),
+        ]),
+      ),
+    ).toEqual(Option.some([['small-hours', ['One', 'Two']]]))
+  })
+
+  it("fails with Instant's own words when a query cannot be answered", async () => {
+    const { database, subscriptions } = fakeDatabase()
+    const store = await Effect.runPromise(makeInstantLibraryStore(database))
+    const first = Effect.runFork(Effect.flip(Stream.runHead(store.shelf)))
+    await nextTick()
+    const [, chaptersQuery] = subscriptions
+    chaptersQuery?.respond({
+      error: {
+        message: 'Operation timed out: handle-receive',
+        hint: { 'timeout-ms': 5000 },
+      },
+    })
+    const error = await Effect.runPromise(Fiber.join(first))
+    expect(error.reason).toEqual(
+      'the library could not be read: Operation timed out: handle-receive',
+    )
   })
 })
 
