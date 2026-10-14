@@ -3,6 +3,7 @@ import { Schema as S } from 'effect'
 import {
   Issue,
   IssuePriority,
+  IssueStatus,
   ProductCatalogEntry,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
@@ -10,7 +11,7 @@ import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { LeftoverStatus, ProductFilter } from './leftover.js'
-import { Navigation } from './model.js'
+import { IssueDraft, Navigation } from './model.js'
 
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
   issues: S.Array(Issue),
@@ -74,6 +75,9 @@ export const SelectedIssueProduct = S.TaggedStruct('SelectedIssueProduct', {
 export const SelectedIssuePriority = S.TaggedStruct('SelectedIssuePriority', {
   priority: IssuePriority,
 })
+export const ComposedIssueDraft = S.TaggedStruct('ComposedIssueDraft', {
+  draft: IssueDraft,
+})
 export const SubmittedIssue = S.TaggedStruct('SubmittedIssue', {})
 export const SucceededSaveIssue = S.TaggedStruct('SucceededSaveIssue', {
   issue: Issue,
@@ -113,6 +117,36 @@ export const SucceededSaveIssueWorkLog = S.TaggedStruct(
   { issue: Issue },
 )
 export const FailedSaveIssueWorkLog = S.TaggedStruct('FailedSaveIssueWorkLog', {
+  reason: S.String,
+})
+export const SubmittedIssueWorkLogEntry = S.TaggedStruct(
+  'SubmittedIssueWorkLogEntry',
+  {
+    agentId: S.Option(S.String),
+    claimantId: S.Option(S.String),
+    commitSha: S.Option(S.String),
+    issueId: S.String,
+    state: S.String,
+    status: S.Option(IssueStatus),
+    summary: S.String,
+  },
+)
+export const SucceededAppendIssueWorkLogEntry = S.TaggedStruct(
+  'SucceededAppendIssueWorkLogEntry',
+  { entryId: S.String, issue: Issue },
+)
+export const SelectedIssueStatus = S.TaggedStruct('SelectedIssueStatus', {
+  issueId: S.String,
+  status: IssueStatus,
+})
+export const ConfirmedIssueDeletion = S.TaggedStruct('ConfirmedIssueDeletion', {
+  issueId: S.String,
+})
+export const SucceededDeleteIssue = S.TaggedStruct('SucceededDeleteIssue', {
+  issue: Issue,
+})
+export const FailedDeleteIssue = S.TaggedStruct('FailedDeleteIssue', {
+  issueId: S.String,
   reason: S.String,
 })
 export const LinkedCatalogIssue = S.TaggedStruct('LinkedCatalogIssue', {
@@ -180,6 +214,7 @@ export const Message = S.Union([
   UpdatedIssueDetails,
   SelectedIssueProduct,
   SelectedIssuePriority,
+  ComposedIssueDraft,
   SubmittedIssue,
   SucceededSaveIssue,
   FailedSaveIssue,
@@ -193,6 +228,12 @@ export const Message = S.Union([
   AppendedIssueWorkLog,
   SucceededSaveIssueWorkLog,
   FailedSaveIssueWorkLog,
+  SubmittedIssueWorkLogEntry,
+  SucceededAppendIssueWorkLogEntry,
+  SelectedIssueStatus,
+  ConfirmedIssueDeletion,
+  SucceededDeleteIssue,
+  FailedDeleteIssue,
   LinkedCatalogIssue,
   ClickedLeftoverStatus,
   RetargetedIssueProduct,

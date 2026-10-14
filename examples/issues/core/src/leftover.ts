@@ -103,7 +103,10 @@ const catalogIssueId = (reference: {
     ? Option.some(reference.id)
     : Option.none()
 
-/** CatalogIssueReference ids already linked from this Issue. */
+/**
+ * Issue numbers linked from this Issue: its `relatedIssueIds` first, then
+ * CatalogIssueReference values in its Mentions.
+ */
 export const catalogIssueIds = (issue: Issue): ReadonlyArray<string> => {
   const ids: Array<string> = []
   const seen = new Set<string>()
@@ -112,6 +115,9 @@ export const catalogIssueIds = (issue: Issue): ReadonlyArray<string> => {
       seen.add(id)
       ids.push(id)
     }
+  }
+  for (const relatedIssueId of issue.relatedIssueIds) {
+    remember(relatedIssueId)
   }
   for (const mention of issue.mentions) {
     const maybeSource = catalogIssueId(mention.source)

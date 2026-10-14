@@ -2,6 +2,7 @@ import { Array, Effect, Option, Stream } from 'effect'
 import { buttonsOf, inputsOf, textsOf } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
+import { InstantEntityStoreError } from '@foldkit/instant-tools/instant'
 import {
   ApplicationProduct,
   ConversationReference,
@@ -17,7 +18,6 @@ import {
   TriageCandidate,
   UriReference,
 } from '@foldkit/instant-tools/issues'
-import { InstantEntityStoreError } from '@foldkit/instant-tools/instant'
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
@@ -27,12 +27,10 @@ import {
   AppendedIssueWorkLog,
   ClickedFileIssue,
   ClickedLeftoverStatus,
-  ComposedIssueDraft,
-  ConfirmedIssueDeletion,
-  SelectedIssueStatus,
-  SubmittedIssueWorkLogEntry,
   ClickedOpenTriage,
   ClickedPromoteTriageCandidate,
+  ComposedIssueDraft,
+  ConfirmedIssueDeletion,
   DismissedIssueDetail,
   LinkedCatalogIssue,
   ObservedIssue,
@@ -42,9 +40,11 @@ import {
   ObservedProducts,
   ObservedTriageCandidates,
   SelectedIssue,
+  SelectedIssueStatus,
   SelectedProductFilter,
   SubmittedIssue,
   SubmittedIssueComment,
+  SubmittedIssueWorkLogEntry,
   UpdatedIssueTitle,
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
@@ -69,7 +69,7 @@ import {
   interactionsForModel,
   messageForScreenToken,
 } from './presentation.js'
-import { issuesScreen } from './program.js'
+import { type IssueTrackerResources, issuesScreen } from './program.js'
 import {
   StaticIssueTrackerResources,
   makeMemoryIssueTracker,
@@ -131,8 +131,10 @@ const candidate = TriageCandidate.make({
   updatedAtMs: 1_000,
 })
 
-
 const runNow = <A, E>(effect: Effect.Effect<A, E>): A => Effect.runSync(effect)
+
+const unusedTracker = (): IssueTrackerService =>
+  runNow(makeMemoryIssueTracker([]))
 
 describe('Issue Tracker Program', () => {
   it.each([
@@ -258,6 +260,7 @@ describe('Issue Tracker Program', () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         const failingIssueTracker: IssueTrackerService = {
+          ...unusedTracker(),
           fetch: () => Effect.succeed([]),
           observe: () =>
             Stream.fail(
@@ -681,16 +684,7 @@ describe('Issue Tracker Program', () => {
   })
 
   it('SaveIssueWorkLog keeps status and records issues-245-grok', async () => {
-    const saved: Array<typeof Issue.Type> = []
-    const tracker: IssueTrackerService = {
-      fetch: () => Effect.succeed([]),
-      observe: () => Stream.empty,
-      observeIssue: () => Stream.empty,
-      save: next =>
-        Effect.sync(() => {
-          saved.push(next)
-        }),
-    }
+    const tracker = await Effect.runPromise(makeMemoryIssueTracker([issue]))
     const result = await Effect.runPromise(
       SaveIssueWorkLog({
         issue,
@@ -712,13 +706,18 @@ describe('Issue Tracker Program', () => {
       expect(maybeEntry.value.summary).toBe('Keep leftover Open.')
       expect(maybeEntry.value.agentId).toEqual(Option.some('issues-245-grok'))
     }
-    expect(saved).toHaveLength(1)
+    expect(
+      Option.map(runNow(tracker.fetchIssue(issue.id)), stored =>
+        stored.workLog.map(entry => entry.summary),
+      ),
+    ).toEqual(Option.some(['Keep leftover Open.']))
   })
 
   it('refuses Closed leftover status on 240-243 without saving', async () => {
     const unclosable = Issue.make({ ...issue, id: '242' })
     const saved: Array<typeof Issue.Type> = []
     const tracker: IssueTrackerService = {
+      ...unusedTracker(),
       fetch: () => Effect.succeed([unclosable]),
       observe: () => Stream.empty,
       observeIssue: () => Stream.empty,
@@ -744,9 +743,9 @@ describe('Issue Tracker Program', () => {
   const stored = (id: string, title: string) =>
     Issue.make({ ...issue, id, title, workLog: [] })
 
-  const runWith = <A,>(
+  const runWith = <A>(
     tracker: IssueTrackerService,
-    effect: Effect.Effect<A, never, IssueTracker>,
+    effect: Effect.Effect<A, never, IssueTrackerResources>,
   ) =>
     Effect.runPromise(
       effect.pipe(
@@ -885,9 +884,9 @@ describe('Issue Tracker Program', () => {
       'mention-006-1',
       'mention-006-2',
     ])
-    expect(Array.map(result.issue.mentions, mention => mention.issueId)).toEqual(
-      ['006', '006'],
-    )
+    expect(
+      Array.map(result.issue.mentions, mention => mention.issueId),
+    ).toEqual(['006', '006'])
     expect(
       Option.map(runNow(tracker.fetchIssue('006')), found => found.title),
     ).toEqual(Option.some('issues file hides the cause of a failed save'))
@@ -1074,7 +1073,10 @@ describe('Issue Tracker Program', () => {
     )
     const [, commands] = update(
       observed,
-      SelectedIssueStatus.make({ issueId: '692', status: 'VerificationNeeded' }),
+      SelectedIssueStatus.make({
+        issueId: '692',
+        status: 'VerificationNeeded',
+      }),
     )
 
     const result = await runWith(

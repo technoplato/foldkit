@@ -408,18 +408,15 @@ const reportIssueDecodeFailure = (issueID: string, cause: unknown): void => {
 export const decodeIssueRecords = (
   records: ReadonlyArray<InstantIssueRecord>,
 ): ReadonlyArray<Issue> => {
-  const issues = Array.reduce(
-    records,
-    [] as ReadonlyArray<Issue>,
-    (decoded, record) => {
-      try {
-        return Array.append(decoded, decodeIssueRecord(record))
-      } catch (cause) {
-        reportIssueDecodeFailure(record.issueID, cause)
-        return decoded
-      }
-    },
-  )
+  const noIssues: ReadonlyArray<Issue> = []
+  const issues = Array.reduce(records, noIssues, (decoded, record) => {
+    try {
+      return Array.append(decoded, decodeIssueRecord(record))
+    } catch (cause) {
+      reportIssueDecodeFailure(record.issueID, cause)
+      return decoded
+    }
+  })
   if (
     Array.isReadonlyArrayEmpty(issues) &&
     Array.isReadonlyArrayNonEmpty(records)
