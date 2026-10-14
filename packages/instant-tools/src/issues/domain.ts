@@ -142,6 +142,24 @@ export const CatalogIssueReference = S.TaggedStruct('Issue', {
   id: S.String,
 })
 /**
+ * The message a person typed to an agent, such as Michael's line in a Claude
+ * Code chat: `{ harness: 'claude-code', sessionId: 'c863fc6a-…', messageId:
+ * '82fc7bc4-…', typedAtMs: 1791713374021, note: 'Typed in the Claude chat.' }`.
+ * Stored sources hold only the note, so every other key is optional and an
+ * absent key stays absent when the reference is written back.
+ */
+export const ConversationMoment = S.Struct({
+  harness: S.optionalKey(S.String),
+  messageId: S.optionalKey(S.String),
+  note: S.String,
+  sessionId: S.optionalKey(S.String),
+  typedAtMs: S.optionalKey(S.Number),
+})
+/** A reference to a message a person typed to an agent. */
+export const ConversationReference = S.TaggedStruct('Conversation', {
+  conversation: ConversationMoment,
+})
+/**
  * A stored reference whose shape no variant above models, kept verbatim so a
  * save writes it back unchanged. A writer that stores the reporter `"main"` or
  * `{ _tag: 'Conversation', conversation: { note } }` reads back as
@@ -173,6 +191,7 @@ export const IssueReference = S.Union([
   AgentReference,
   CatalogIssueReference,
   CommitReference,
+  ConversationReference,
   MediaReference,
   ProjectReference,
   RecordingReference,
@@ -472,6 +491,11 @@ export const Issue = S.Struct({
   priority: IssuePriority,
   product: TrackedProduct,
   projectId: S.OptionFromNullOr(S.String),
+  // NOTE: 329 stored Issues name their related Issues here, beside the Mentions.
+  relatedIssueIds: S.Array(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed([])),
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
   reportedDate: OptionalIssueString,
   sourceDocument: S.OptionFromNullOr(IssueSourceDocument),
   status: IssueStatus,
@@ -494,6 +518,45 @@ export const IssueNewestFirst: Order.Order<Issue> = Order.combine(
   Order.mapInput(Order.flip(Order.Number), (issue: Issue) => issue.createdAtMs),
   Order.mapInput(Order.flip(Order.String), (issue: Issue) => issue.id),
 )
+
+const issueNumberPadding = 3
+const issueReferencePrefix = /^issue\s*#?\s*/i
+
+/**
+ * Reads an Issue number in the spellings agents write and prints it the way
+ * the tracker stores it: digits, zero-padded to three below 1,000. `'92'`,
+ * `'#92'`, and `'issue 92'` all read as `'092'`; `'1001'` stays `'1001'`.
+ * Anything else, such as `'issue-041'` or `'0'`, is not an Issue number.
+ */
+export const normalizeIssueId = (value: string): Option.Option<string> => {
+  const withoutPrefix = value.trim().replace(issueReferencePrefix, '')
+  const digits = withoutPrefix.startsWith('#')
+    ? withoutPrefix.slice(1).trim()
+    : withoutPrefix
+  if (!/^\d+$/.test(digits)) {
+    return Option.none()
+  }
+  const number = Number(digits)
+  if (!Number.isSafeInteger(number) || number <= 0) {
+    return Option.none()
+  }
+  return Option.some(String(number).padStart(issueNumberPadding, '0'))
+}
+
+/**
+ * The number after the highest Issue number in use, past any gap. Numbers in
+ * use `['001', '153', '692']` give `'693'`; ids that are not numbers, such as
+ * `'issue-preview'`, are ignored, so an empty tracker starts at `'001'`.
+ */
+export const nextIssueId = (issueIds: ReadonlyArray<string>): string => {
+  const highest = Array.reduce(issueIds, 0, (current, issueId) =>
+    Option.match(normalizeIssueId(issueId), {
+      onNone: () => current,
+      onSome: normalized => Math.max(current, Number(normalized)),
+    }),
+  )
+  return String(highest + 1).padStart(issueNumberPadding, '0')
+}
 
 /** A first unique Mention was recorded at the Issue's baseline priority. */
 export const Accepted = S.TaggedStruct('Accepted', {

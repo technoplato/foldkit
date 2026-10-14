@@ -246,7 +246,6 @@ const makeStore = Effect.gen(function* () {
   }
 })
 
-
 type NumberedStoreOptions = Readonly<{
   isUniqueIssueIdEnforced: boolean
   isSaveDropped: boolean
@@ -395,8 +394,8 @@ describe('Instant adapter', () => {
             ...storedRecord,
             payloadJson: JSON.stringify({
               ...JSON.parse(storedRecord.payloadJson),
+              derivedMessageEdges: [{ from: 'ClickedRecord', to: 'Started' }],
               files: [{ path: 'issues/files/042.md' }],
-              relatedIssueIds: ['147'],
             }),
           },
         ])
@@ -410,8 +409,8 @@ describe('Instant adapter', () => {
         expect(savedPayloads).toHaveLength(1)
         expect(savedPayloads).toMatchObject([
           {
+            derivedMessageEdges: [{ from: 'ClickedRecord', to: 'Started' }],
             files: [{ path: 'issues/files/042.md' }],
-            relatedIssueIds: ['147'],
             status: 'Blocked',
           },
         ])
