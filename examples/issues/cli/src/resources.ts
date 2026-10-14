@@ -1,19 +1,28 @@
-import { Data, Effect, Layer, Option, String } from 'effect'
+import { Array, Data, Effect, Option, String } from 'effect'
 import {
-  IssueIdentity,
   StaticIssueTrackerResources,
   makeLiveIssueTrackerResources,
 } from 'issues-core-example'
-import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  type InstantEntityStoreError,
+  type InstantIssueRecord,
   type InstantToolsDatabase,
   InstantToolsSchema,
+  makeInstantEntityStore,
+  makeInstantIssueRecord,
 } from '@foldkit/instant-tools/instant'
+import {
+  IssueQuery,
+  type IssueTrackerError,
+  type IssueTrackerService,
+} from '@foldkit/instant-tools/issues'
 import { init as initAdmin, lookup } from '@instantdb/admin'
+
+import { type IssueFilesService } from './commands.js'
 
 /** Instant Tools env documented by the issues example and listener. */
 export const documentedInstantEnvPath = join(
@@ -88,53 +97,83 @@ const instantAppId = (): string | undefined =>
   envValue('VITE_INSTANT_APP_ID')
 
 const instantAdminToken = (): string | undefined =>
-  envValue('INSTANT_APP_ADMIN_TOKEN')
+  envValue('INSTANT_APP_ADMIN_TOKEN') ?? envValue('INSTANT_ADMIN_TOKEN')
 
 const instantApiUri = (): string | undefined =>
   envValue('INSTANT_API_URI') ??
   envValue('INSTANT_API_URL') ??
   envValue('VITE_INSTANT_API_URI')
 
-const adminPollMs = 1_000
-
-/** Instant core refuses Node; admin query/transact is the Node Instant surface. */
+/**
+ * Adapts Instant's admin client to the client surface the tracker reads.
+ * Instant core refuses Node, and the admin client has no live queries, so a
+ * subscription answers with one snapshot. A one-shot command patches its
+ * Model from each Command's result, so it never needs a second snapshot, and
+ * no timer is left to hold the process open.
+ */
 const adminAsInstantToolsDatabase = (
   admin: ReturnType<typeof initAdmin>,
+): InstantToolsDatabase => {
+  const answers = new Map<string, Promise<unknown>>()
+  const readOnce = (query: unknown): Promise<unknown> => {
+    const key = JSON.stringify(query)
+    // oxlint-disable-next-line typescript/consistent-type-assertions
+    const answer = answers.get(key) ?? admin.query(query as never)
+    answers.set(key, answer)
+    answer.catch(() => answers.delete(key))
+    return answer
+  }
+  return adminDatabase(admin, readOnce, () => answers.clear())
+}
+
+/**
+ * The read-once adapter behind `adminAsInstantToolsDatabase`: one command
+ * reads the 7 MB catalog once, not once for the first snapshot and again for
+ * the subscription, and every write forgets what was read, so a check after a
+ * write reads the store again.
+ */
+const adminDatabase = (
+  admin: ReturnType<typeof initAdmin>,
+  readOnce: (query: unknown) => Promise<unknown>,
+  forgetReads: () => void,
 ): InstantToolsDatabase =>
+  // NOTE: a structural adapter: the admin client lacks core's typings.
+  // oxlint-disable-next-line typescript/consistent-type-assertions
   ({
     queryOnce: async (
       query: Parameters<InstantToolsDatabase['queryOnce']>[0],
     ) => {
-      const data = await admin.query(query)
+      const data = await readOnce(query)
       return { data }
     },
     subscribeQuery: (
       query: Parameters<InstantToolsDatabase['subscribeQuery']>[0],
       onResponse: Parameters<InstantToolsDatabase['subscribeQuery']>[1],
     ) => {
-      let isRunning = true
-      const tick = (): void => {
-        void admin.query(query).then(
-          data => {
-            if (isRunning) {
-              onResponse({ data } as never)
-              setTimeout(tick, adminPollMs)
-            }
-          },
-          error => {
-            if (isRunning) {
-              onResponse({ error } as never)
-            }
-          },
-        )
-      }
-      tick()
+      const subscription = { isRunning: true }
+      void readOnce(query).then(
+        data => {
+          if (subscription.isRunning) {
+            // oxlint-disable-next-line typescript/consistent-type-assertions
+            onResponse({ data } as never)
+          }
+        },
+        error => {
+          if (subscription.isRunning) {
+            // oxlint-disable-next-line typescript/consistent-type-assertions
+            onResponse({ error } as never)
+          }
+        },
+      )
       return () => {
-        isRunning = false
+        subscription.isRunning = false
       }
     },
-    transact: (ops: Parameters<InstantToolsDatabase['transact']>[0]) =>
-      admin.transact(ops as never),
+    transact: (ops: Parameters<InstantToolsDatabase['transact']>[0]) => {
+      forgetReads()
+      // oxlint-disable-next-line typescript/consistent-type-assertions
+      return admin.transact(ops as never).finally(forgetReads)
+    },
     tx: new Proxy(admin.tx, {
       get(target, property, receiver) {
         const value = Reflect.get(target, property, receiver)
@@ -152,76 +191,176 @@ const adminAsInstantToolsDatabase = (
         })
       },
     }),
+    // oxlint-disable-next-line typescript/consistent-type-assertions
   }) as unknown as InstantToolsDatabase
 
-let cachedDatabase: InstantToolsDatabase | undefined
+/**
+ * The stored records behind Issues, read without decoding them: the numbers
+ * in use, to account for every stored Issue, and one number's raw records, to
+ * back them up before a delete.
+ */
+export type IssueRecordsService = Readonly<{
+  fetchIssueIds: Effect.Effect<
+    ReadonlyArray<string>,
+    InstantEntityStoreError | IssueTrackerError
+  >
+  fetchIssueRecordsById: (
+    issueId: string,
+  ) => Effect.Effect<
+    ReadonlyArray<InstantIssueRecord>,
+    InstantEntityStoreError | IssueTrackerError
+  >
+}>
 
-const issuesDatabase = (): InstantToolsDatabase | IssuesInstantConfigError => {
+/** Every live resource the one-shot command needs. */
+export type LiveIssueHostServices = Readonly<{
+  files: IssueFilesService
+  records: IssueRecordsService
+  resources: ReturnType<typeof makeLiveIssueTrackerResources>
+}>
+
+const contentDispositionFor = (fileName: string): string =>
+  `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
+
+/**
+ * Instant storage through an admin client initialized without a schema: the
+ * shared schema links `instantToolsIssues.files` to `$files`, which the Issue
+ * Tracker's own schema does not declare.
+ */
+const liveIssueFiles = (
+  files: ReturnType<typeof initAdmin>,
+): IssueFilesService => ({
+  download: path =>
+    Effect.tryPromise(async () => {
+      const response = await files.query({ $files: { $: { where: { path } } } })
+      const [stored] = response.$files
+      if (stored === undefined) {
+        throw new Error(`No stored file ${path}.`)
+      }
+      const url = stored['url']
+      if (typeof url !== 'string') {
+        throw new Error(`Instant holds no download address for ${path}.`)
+      }
+      const fetched = await fetch(url)
+      if (!fetched.ok) {
+        throw new Error(
+          `${path}: HTTP ${fetched.status.toString()} ${fetched.statusText}`,
+        )
+      }
+      return new Uint8Array(await fetched.arrayBuffer())
+    }),
+  link: ({ entityId, fileId }) =>
+    Effect.tryPromise(() =>
+      files
+        .transact(
+          files.tx['instantToolsIssues']?.[entityId]?.link({ files: fileId }) ??
+            [],
+        )
+        .then(() => undefined),
+    ),
+  remove: ({ fileId, path }) =>
+    Effect.tryPromise(async () => {
+      try {
+        await files.transact(files.tx['$files']?.[fileId]?.delete() ?? [])
+      } catch {
+        await files.storage.delete(path)
+      }
+    }),
+  upload: ({ bytes, contentType, fileName, path }) =>
+    Effect.tryPromise(async () => {
+      const response = await files.storage.uploadFile(path, bytes, {
+        contentDisposition: contentDispositionFor(fileName),
+        contentType,
+        fileSize: bytes.byteLength,
+      })
+      const fileId = response.data?.id
+      if (typeof fileId !== 'string') {
+        throw new Error(`Instant returned no file id for ${path}.`)
+      }
+      return fileId
+    }),
+})
+
+/** Live Instant resources for the one-shot CLI, or a missing-config error. */
+export const liveIssueHostServices = ():
+  | LiveIssueHostServices
+  | IssuesInstantConfigError => {
+  loadDocumentedInstantEnv()
   const appId = instantAppId()
   if (appId === undefined) {
     return new IssuesInstantConfigError({
-      message: `Missing INSTANT_APP_ID. Expected ${documentedInstantEnvPath} (the Instant Tools env documented by the issues example) or INSTANT_APP_ID in the process environment.`,
+      message: `Missing INSTANT_APP_ID. Expected ${documentedInstantEnvPath} (the Instant Tools env) or INSTANT_APP_ID in the process environment.`,
     })
   }
   const adminToken = instantAdminToken()
   if (adminToken === undefined) {
     return new IssuesInstantConfigError({
-      message: `Missing INSTANT_APP_ADMIN_TOKEN. Expected ${documentedInstantEnvPath} (the Instant Tools env documented by the issues example). Instant core cannot observe or transact from Node.`,
+      message: `Missing INSTANT_APP_ADMIN_TOKEN. Expected ${documentedInstantEnvPath} (the Instant Tools env).`,
     })
   }
-  if (cachedDatabase === undefined) {
-    const apiURI = instantApiUri()
-    const admin = initAdmin({
-      adminToken,
-      appId,
-      disableValidation: true,
-      schema: InstantToolsSchema,
-      ...(apiURI === undefined ? {} : { apiURI }),
-    })
-    cachedAdmin = admin
-    cachedDatabase = adminAsInstantToolsDatabase(admin)
+  const apiURI = instantApiUri()
+  const admin = initAdmin({
+    adminToken,
+    appId,
+    disableValidation: true,
+    schema: InstantToolsSchema,
+    ...(apiURI === undefined ? {} : { apiURI }),
+  })
+  const database = adminAsInstantToolsDatabase(admin)
+  const store = makeInstantEntityStore(database)
+  return {
+    files: liveIssueFiles(
+      initAdmin({
+        adminToken,
+        appId,
+        ...(apiURI === undefined ? {} : { apiURI }),
+      }),
+    ),
+    records: {
+      fetchIssueIds: store.fetchIssueIds,
+      fetchIssueRecordsById: store.fetchIssueRecordsById,
+    },
+    resources: makeLiveIssueTrackerResources(database),
   }
-  return cachedDatabase
 }
 
-const nextNumericIssueId = (
-  admin: ReturnType<typeof initAdmin>,
-): Effect.Effect<string> =>
-  Effect.promise(async () => {
-    try {
-      const data = await admin.query({ instantToolsIssues: {} })
-      const max = data.instantToolsIssues.reduce((current, record) => {
-        const parsed = Number.parseInt(globalThis.String(record['issueID']), 10)
-        return Number.isFinite(parsed) && parsed > current ? parsed : current
-      }, 0)
-      return globalThis.String(max + 1).padStart(3, '0')
-    } catch {
-      return randomUUID()
-    }
-  })
+const everyIssue = IssueQuery.make({
+  limit: Number.MAX_SAFE_INTEGER,
+  productId: Option.none(),
+  projectId: Option.none(),
+  statuses: [],
+})
 
-let cachedAdmin: ReturnType<typeof initAdmin> | undefined
+/** Stored records read through an in-memory tracker, for tests and previews. */
+export const memoryIssueRecords = (
+  tracker: IssueTrackerService,
+): IssueRecordsService => ({
+  fetchIssueIds: tracker
+    .fetch(everyIssue)
+    .pipe(Effect.map(issues => Array.map(issues, issue => issue.id))),
+  fetchIssueRecordsById: issueId =>
+    tracker.fetchIssue(issueId).pipe(
+      Effect.map(maybeIssue =>
+        Option.match(maybeIssue, {
+          onNone: () => [],
+          onSome: issue => [
+            {
+              ...makeInstantIssueRecord(issue),
+              id: `memory-${issue.id}`,
+            },
+          ],
+        }),
+      ),
+    ),
+})
 
-/** Live Instant resources for the one-shot CLI, or a missing-config error. */
+/** Live layer used by the screen runner (`issues run`). */
 export const liveIssueTrackerResources = () => {
-  loadDocumentedInstantEnv()
-  const database = issuesDatabase()
-  if (database instanceof IssuesInstantConfigError) {
-    return database
+  const services = liveIssueHostServices()
+  if (services instanceof IssuesInstantConfigError) {
+    return services
   }
-  const identity = {
-    next: Effect.gen(function* () {
-      const id =
-        cachedAdmin === undefined
-          ? randomUUID()
-          : yield* nextNumericIssueId(cachedAdmin)
-      return { id, nowMs: Date.now() }
-    }),
-  }
-  return Layer.merge(
-    makeLiveIssueTrackerResources(database),
-    Layer.succeed(IssueIdentity, identity),
-  )
+  return services.resources
 }
 
 export { StaticIssueTrackerResources }

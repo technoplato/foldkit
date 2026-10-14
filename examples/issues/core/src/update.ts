@@ -4,6 +4,7 @@ import { Command } from 'foldkit'
 import {
   ApplicationProduct,
   Issue,
+  IssueAttachment,
   IssueLogEvidenceQuery,
   IssueMention,
   IssueStatus,
@@ -474,6 +475,37 @@ export const AppendIssueWorkLogEntry = Command.define(
   ),
 )
 
+/** Adds one uploaded file to the Issue's attachments and reads it back. */
+export const AppendIssueAttachment = Command.define(
+  'AppendIssueAttachment',
+  { attachment: IssueAttachment, issueId: S.String },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ attachment, issueId }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const hasAttachment = (issue: Issue) =>
+      Array.some(issue.attachments, current => current.id === attachment.id)
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        hasAttachment(current)
+          ? current
+          : Issue.make({
+              ...current,
+              attachments: Array.append(current.attachments, attachment),
+              updatedAtMs: nextUpdatedAtMs(current, nowMs),
+            }),
+      hasLanded: hasAttachment,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
 /** Sets any stored IssueStatus and reads it back. */
 export const SetIssueStatus = Command.define(
   'SetIssueStatus',
@@ -859,22 +891,44 @@ const casinoProduct = ProductCatalogEntry.make({
   updatedAtMs: 1_753_800_000_000,
 })
 
+type ProductTally = Readonly<{
+  count: number
+  entry: typeof ProductCatalogEntry.Type
+}>
+
+const productShapeKey = (product: typeof TrackedProduct.Type): string =>
+  `${product.id}\u0000${product._tag}\u0000${product.name}`
+
+/**
+ * One catalog entry per product id, shaped the way most of its Issues name
+ * it: 26 Issues under the Foldkit Library outweigh one under an Application
+ * called FoldKit. A tie keeps the shape seen first.
+ */
 const productsFromIssues = (
   issues: ReadonlyArray<typeof Issue.Type>,
 ): ReadonlyArray<typeof ProductCatalogEntry.Type> => {
-  const seen = new Map<string, typeof ProductCatalogEntry.Type>()
+  const tallies = new Map<string, ProductTally>()
   for (const issue of issues) {
-    if (!seen.has(issue.product.id)) {
-      seen.set(
-        issue.product.id,
+    const key = productShapeKey(issue.product)
+    const current = tallies.get(key)
+    tallies.set(key, {
+      count: (current?.count ?? 0) + 1,
+      entry:
+        current?.entry ??
         ProductCatalogEntry.make({
           product: issue.product,
           updatedAtMs: issue.updatedAtMs,
         }),
-      )
+    })
+  }
+  const byProductId = new Map<string, ProductTally>()
+  for (const tally of tallies.values()) {
+    const current = byProductId.get(tally.entry.product.id)
+    if (current === undefined || tally.count > current.count) {
+      byProductId.set(tally.entry.product.id, tally)
     }
   }
-  return [...seen.values()]
+  return Array.map([...byProductId.values()], tally => tally.entry)
 }
 
 const mergeCatalog = (
@@ -972,19 +1026,20 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
       ObservedIssues: ({ issues }) => {
-        const current =
+        const nextProducts =
           model.products._tag === 'LoadedProducts'
-            ? model.products.products
-            : []
-        const merged = mergeCatalog(current, productsFromIssues(issues))
+            ? LoadedProducts.make({
+                products: mergeCatalog(
+                  model.products.products,
+                  productsFromIssues(issues),
+                ),
+              })
+            : model.products
         return [
           Model.make({
             ...model,
             issues: LoadedIssues.make({ issues }),
-            products:
-              merged.length === 0
-                ? model.products
-                : LoadedProducts.make({ products: merged }),
+            products: nextProducts,
           }),
           [],
         ]
@@ -994,9 +1049,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       ObservedProducts: ({ products }) => {
+        const nextProducts = mergeCatalog(
+          products,
+          model.issues._tag === 'LoadedIssues'
+            ? productsFromIssues(model.issues.issues)
+            : [],
+        )
         const nextProductId =
           model.draft.productId === ''
-            ? Option.match(Array.head(products), {
+            ? Option.match(Array.head(nextProducts), {
                 onNone: () => '',
                 onSome: entry => entry.product.id,
               })
@@ -1008,7 +1069,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               ...model.draft,
               productId: nextProductId,
             }),
-            products: LoadedProducts.make({ products }),
+            products: LoadedProducts.make({ products: nextProducts }),
           }),
           [],
         ]
@@ -1275,6 +1336,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
+      SubmittedIssueAttachment: ({ attachment, issueId }) =>
+        startLeftoverCommand(
+          model,
+          AppendIssueAttachment({ attachment, issueId }),
+        ),
       SelectedIssueStatus: ({ issueId, status }) =>
         startLeftoverCommand(model, SetIssueStatus({ issueId, status })),
       ConfirmedIssueDeletion: ({ issueId }) =>

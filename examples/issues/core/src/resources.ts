@@ -7,6 +7,7 @@ import {
 import {
   ApplicationProduct,
   Issue,
+  IssueNewestFirst,
   type IssueQuery,
   IssueTracker,
   IssueTrackerError,
@@ -199,7 +200,10 @@ export const makeMemoryIssueTracker = (
       Ref.get(issues).pipe(
         Effect.map(stored =>
           Array.take(
-            Array.filter(stored, issue => matchesQuery(issue, query)),
+            Array.sort(
+              Array.filter(stored, issue => matchesQuery(issue, query)),
+              IssueNewestFirst,
+            ),
             query.limit,
           ),
         ),

@@ -1,4 +1,4 @@
-import { Array, Effect, Option, String } from 'effect'
+import { Array, Effect, Option } from 'effect'
 import {
   destinationForModel,
   interactionsForModel,
@@ -105,16 +105,29 @@ describe('Issue Tracker CLI host', () => {
     )
   })
 
-  it('declares leftover comment, link, and status subcommands', () => {
+  it('declares the one issues command and no second way to write a work log', () => {
     const source = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), 'entry.ts'),
       'utf8',
     )
-    expect(source).toContain("Command.make(\n  'comment'")
-    expect(source).toContain("Command.make(\n  'link'")
-    expect(source).toContain("Command.make(\n  'status'")
-    expect(source).toContain("Command.make(\n  'log'")
-    expect(source).toContain('`log:${summary}`')
+    for (const name of [
+      'file',
+      'show',
+      'list',
+      'log',
+      'claim',
+      'status',
+      'link',
+      'delete',
+      'products',
+      'version',
+      'run',
+    ]) {
+      expect(source).toMatch(new RegExp(`Command\\.make\\(\\s*'${name}'`))
+    }
+    expect(source).toContain("Command.make('issues')")
+    expect(source).not.toContain("'comment'")
+    expect(source).not.toContain('foldkit-issues')
   })
 
   it('paints the Program screen with paintCli(issuesScreen)', () => {

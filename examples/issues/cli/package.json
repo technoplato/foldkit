@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "foldkit-issues": "./dist/entry.js"
+    "issues": "./dist/entry.js"
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",

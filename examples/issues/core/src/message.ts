@@ -2,6 +2,7 @@ import { Schema as S } from 'effect'
 
 import {
   Issue,
+  IssueAttachment,
   IssuePriority,
   IssueStatus,
   ProductCatalogEntry,
@@ -135,6 +136,10 @@ export const SucceededAppendIssueWorkLogEntry = S.TaggedStruct(
   'SucceededAppendIssueWorkLogEntry',
   { entryId: S.String, issue: Issue },
 )
+export const SubmittedIssueAttachment = S.TaggedStruct(
+  'SubmittedIssueAttachment',
+  { attachment: IssueAttachment, issueId: S.String },
+)
 export const SelectedIssueStatus = S.TaggedStruct('SelectedIssueStatus', {
   issueId: S.String,
   status: IssueStatus,
@@ -230,6 +235,7 @@ export const Message = S.Union([
   FailedSaveIssueWorkLog,
   SubmittedIssueWorkLogEntry,
   SucceededAppendIssueWorkLogEntry,
+  SubmittedIssueAttachment,
   SelectedIssueStatus,
   ConfirmedIssueDeletion,
   SucceededDeleteIssue,
