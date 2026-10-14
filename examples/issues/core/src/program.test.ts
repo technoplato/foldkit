@@ -45,6 +45,7 @@ import {
   SelectedIssueStatus,
   SelectedProductFilter,
   SubmittedIssue,
+  SubmittedIssueAttachment,
   SubmittedIssueComment,
   SubmittedIssueWorkLogEntry,
   UpdatedIssueTitle,
@@ -1222,5 +1223,36 @@ describe('Issue Tracker Program', () => {
       _tag: 'SucceededSaveIssue',
       issue: { attachments: [{ fileName: 'not-synced.png', id: 'file-1' }] },
     })
+  })
+
+  it('names each product the way most of its Issues do', () => {
+    const foldkitApplication = ApplicationProduct.make({
+      id: 'foldkit',
+      name: 'FoldKit',
+    })
+    const foldkitLibrary = LibraryProduct.make({
+      id: 'foldkit',
+      name: 'Foldkit',
+    })
+    const [observed] = update(
+      modelForNavigation(FileIssue.make({})),
+      ObservedIssues.make({
+        issues: [
+          Issue.make({ ...issue, id: '692', product: foldkitApplication }),
+          Issue.make({ ...issue, id: '600', product: foldkitLibrary }),
+          Issue.make({ ...issue, id: '601', product: foldkitLibrary }),
+        ],
+      }),
+    )
+    const [cataloged] = update(
+      observed,
+      ObservedProducts.make({ products: [] }),
+    )
+
+    expect(
+      cataloged.products._tag === 'LoadedProducts'
+        ? cataloged.products.products.map(entry => entry.product)
+        : [],
+    ).toContainEqual(foldkitLibrary)
   })
 })
