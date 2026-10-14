@@ -568,16 +568,22 @@ export const EditIssue = Command.define(
   ),
 )
 
+/**
+ * The id a new child of an Issue gets: its position after the children it
+ * already has, moved on past any id in use. Two criteria named
+ * `issue-692-crit-1` and `-2` by an older writer give `issue-692-criterion-3`.
+ */
 const nextChildId = (
   prefix: string,
   existingIds: ReadonlyArray<string>,
 ): string => {
   const taken = new Set(existingIds)
-  const firstFree = Array.findFirst(
-    Array.makeBy(existingIds.length + 1, index => index + 1),
+  const firstPosition = existingIds.length + 1
+  const maybeFree = Array.findFirst(
+    Array.makeBy(existingIds.length + 1, offset => firstPosition + offset),
     position => !taken.has(`${prefix}${position.toString()}`),
   )
-  return `${prefix}${Option.getOrElse(firstFree, () => existingIds.length + 1).toString()}`
+  return `${prefix}${Option.getOrElse(maybeFree, () => firstPosition + existingIds.length + 1).toString()}`
 }
 
 /** Adds one success criterion under the next free criterion id. */
