@@ -1443,4 +1443,38 @@ describe('Issue Tracker Program', () => {
       },
     })
   })
+
+  it('numbers an added criterion after the ones an older writer named differently', async () => {
+    const older = Issue.make({
+      ...withCriteria(),
+      successCriteria: [
+        {
+          id: 'issue-692-crit-1',
+          isSatisfied: true,
+          outcome: 'First.',
+          requiredEvidence: ['FocusedTest'],
+        },
+        {
+          id: 'issue-692-crit-2',
+          isSatisfied: false,
+          outcome: 'Second.',
+          requiredEvidence: ['FocusedTest'],
+        },
+      ],
+    })
+    const { result } = await runOnDetail(
+      [older],
+      SubmittedIssueSuccessCriterion.make({
+        issueId: '692',
+        outcome: 'Third.',
+        requiredEvidence: ['Log'],
+      }),
+    )
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      issue: {
+        successCriteria: [{}, {}, { id: 'issue-692-criterion-3' }],
+      },
+    })
+  })
 })
