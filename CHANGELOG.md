@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 7:36:04 p.m. EDT — `e744f7552e5c` feat(issues): one issues command to file, read, and change Issues
+
+- **Implementation commit:** `e744f7552e5c6f565041df7f9d18676f63cc69bb`
+- **Change:** One issues command to file, read, and change Issues
+- **Details:**
+  - Red aa3af182d, 8282506eb, fa8504941; green e744f7552 (#692). Verified on the real tracker 2026-10-14 19:31-19:35 EDT with throwaway #695 (filed with every field, shown, logged, claimed, status, linked, attached, downloaded, deleted after a backup; Instant refused a second record for 695). The old save failure: Instant refuses a lookup-keyed write that sets the unique issueID of an Issue that does not exist yet.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — file, show, list, log, claim, status, link, attach, download, delete, products, with exit codes and real causes.
+  - `examples/issues/cli/src/mentions.ts` — --said lines from the Scribe mirror, typed-chat Mentions.
+  - `examples/issues/cli/src/entry.ts` — The issues command and its subcommands.
+  - `examples/issues/cli/src/host.ts` — executeMessages, IssuesCommandFailure, ISSUES_TRACE.
+  - `examples/issues/cli/src/resources.ts` — Snapshot admin adapter that reuses reads until a write, stored-record reads, Instant storage.
+  - `examples/issues/cli/src/host.test.ts` — The new subcommand set.
+  - `examples/issues/cli/package.json` — The bin is issues.
+  - `examples/issues/core/src/update.ts` — AppendIssueAttachment, product catalog by most common shape, catalog merge order.
+  - `examples/issues/core/src/message.ts` — SubmittedIssueAttachment.
+  - `examples/issues/core/src/resources.ts` — The memory tracker lists newest first.
+  - `examples/issues/README.md` — How agents use issues.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 7:12:01 p.m. EDT — `c25a181dbc07` feat(issues): file every field, log checked work, set any status, delete
 
 - **Implementation commit:** `c25a181dbc07988237de38c6d6a24b27a2587784`
