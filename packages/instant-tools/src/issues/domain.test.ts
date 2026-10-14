@@ -19,6 +19,8 @@ import {
   RecordingReference,
   RepositoryAttachmentSource,
   escalatePriority,
+  nextIssueId,
+  normalizeIssueId,
   registerMention,
 } from './domain.js'
 
@@ -233,10 +235,7 @@ describe('issue domain', () => {
     }
     const mention = S.decodeUnknownSync(IssueMention)(storedMention)
 
-    expect(mention.source).toEqual({
-      _tag: 'Unrecognized',
-      value: conversation,
-    })
+    expect(mention.source).toEqual(conversation)
     expect(Array.map(mention.related, reference => reference._tag)).toEqual([
       'Unrecognized',
       'Unrecognized',
@@ -487,5 +486,70 @@ describe('issue domain', () => {
       S.decodeUnknownSync(Issue)(legacyPayload).evidenceLogQueries,
     ).toEqual([])
     expect(S.decodeUnknownSync(Issue)(legacyPayload).nightlyEligible).toBe(true)
+  })
+
+  it('reads an Issue number in every spelling agents use and pads it below 1,000', () => {
+    expect(normalizeIssueId('92')).toEqual(Option.some('092'))
+    expect(normalizeIssueId(' #92 ')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('issue 92')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('Issue #692')).toEqual(Option.some('692'))
+    expect(normalizeIssueId('092')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('1001')).toEqual(Option.some('1001'))
+    expect(normalizeIssueId('0')).toEqual(Option.none())
+    expect(normalizeIssueId('92a')).toEqual(Option.none())
+    expect(normalizeIssueId('issue-041')).toEqual(Option.none())
+    expect(normalizeIssueId('')).toEqual(Option.none())
+  })
+
+  it('takes the number after the highest one in use, past any gap', () => {
+    expect(nextIssueId(['001', '153', '692', 'issue-preview'])).toBe('693')
+    expect(nextIssueId(['issue-041'])).toBe('001')
+    expect(nextIssueId([])).toBe('001')
+    expect(nextIssueId(['998', '999'])).toBe('1000')
+  })
+
+  it('reads a typed-chat Conversation source as its own variant and writes it back unchanged', () => {
+    const typed = {
+      _tag: 'Conversation',
+      conversation: {
+        harness: 'claude-code',
+        messageId: '82fc7bc4-3fb8-47f9-93de-90ec9d004131',
+        note: 'Typed in the Claude chat.',
+        sessionId: 'c863fc6a-8ae7-4eca-8838-49cc9408897c',
+        typedAtMs: 1_791_713_374_021,
+      },
+    }
+    const storedMention = {
+      capturedAtMs: 1_791_713_374_021,
+      directQuote: 'Ensure those are all documented issues.',
+      id: 'mention-689-typed-1',
+      issueId: '689',
+      note: null,
+      related: [],
+      reporter: null,
+      source: typed,
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.source._tag).toBe('Conversation')
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual(storedMention)
+  })
+
+  it('reads and writes the related Issue numbers stored beside the mentions', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    const withRelated = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      relatedIssueIds: ['147', '539'],
+    })
+    expect(withRelated.relatedIssueIds).toEqual(['147', '539'])
+    expect(S.encodeUnknownSync(Issue)(withRelated)).toMatchObject({
+      relatedIssueIds: ['147', '539'],
+    })
+
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['relatedIssueIds']
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).relatedIssueIds).toEqual(
+      [],
+    )
   })
 })
