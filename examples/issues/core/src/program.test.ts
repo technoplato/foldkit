@@ -47,7 +47,11 @@ import {
   SubmittedIssue,
   SubmittedIssueAttachment,
   SubmittedIssueComment,
+  SubmittedIssueEdit,
+  SubmittedIssueMention,
+  SubmittedIssueSuccessCriterion,
   SubmittedIssueWorkLogEntry,
+  SubmittedSuccessCriteriaMarks,
   UpdatedIssueTitle,
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
@@ -1254,5 +1258,189 @@ describe('Issue Tracker Program', () => {
         ? cataloged.products.products.map(entry => entry.product)
         : [],
     ).toContainEqual(foldkitLibrary)
+  })
+
+  const withCriteria = () =>
+    Issue.make({
+      ...stored('692', 'Bare IssueTrackerError'),
+      successCriteria: [
+        {
+          id: 'issue-692-criterion-1',
+          isSatisfied: false,
+          outcome: 'A failed save names its cause.',
+          requiredEvidence: ['FocusedTest'],
+        },
+        {
+          id: 'issue-692-criterion-2',
+          isSatisfied: false,
+          outcome: 'A product reads by name.',
+          requiredEvidence: ['FocusedTest'],
+        },
+      ],
+    })
+
+  const runOnDetail = async (
+    seed: ReadonlyArray<typeof Issue.Type>,
+    message: Parameters<typeof update>[1],
+  ) => {
+    const tracker = await Effect.runPromise(makeMemoryIssueTracker(seed))
+    const [first] = seed
+    const [observed] = update(
+      modelForNavigation(IssueDetail.make({ issueId: first?.id ?? '' })),
+      ObservedIssue.make({
+        issue: Option.fromUndefinedOr(first),
+        issueId: first?.id ?? '',
+      }),
+    )
+    const [saving, commands] = update(observed, message)
+    const maybeCommand = Array.head(commands)
+    if (Option.isNone(maybeCommand)) {
+      return { model: saving, result: Option.none(), tracker }
+    }
+    const result = await runWith(tracker, maybeCommand.value.effect)
+    const [settled] = update(saving, result)
+    return { model: settled, result: Option.some(result), tracker }
+  }
+
+  it('edits the title, details, priority, type, area, and product, and reads them back', async () => {
+    const [withProducts] = update(
+      modelForNavigation(IssueDetail.make({ issueId: '692' })),
+      ObservedProducts.make({
+        products: [
+          productEntry,
+          ProductCatalogEntry.make({
+            product: LibraryProduct.make({ id: 'foldkit', name: 'Foldkit' }),
+            updatedAtMs: 1_000,
+          }),
+        ],
+      }),
+    )
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('692', 'Bare IssueTrackerError')]),
+    )
+    const [, commands] = update(
+      withProducts,
+      SubmittedIssueEdit.make({
+        area: Option.some('issues CLI'),
+        details: Option.some('The save failed on a lookup write.'),
+        issueId: '692',
+        issueType: Option.some('defect'),
+        priority: Option.some('P1'),
+        productId: Option.some('Foldkit'),
+        title: Option.some('issues file hid the cause'),
+      }),
+    )
+
+    const result = await runWith(
+      tracker,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        area: Option.some('issues CLI'),
+        details: 'The save failed on a lookup write.',
+        issueType: Option.some('defect'),
+        priority: 'P1',
+        product: { id: 'foldkit', name: 'Foldkit' },
+        title: 'issues file hid the cause',
+      },
+    })
+  })
+
+  it('adds a success criterion with the next criterion id', async () => {
+    const { result } = await runOnDetail(
+      [withCriteria()],
+      SubmittedIssueSuccessCriterion.make({
+        issueId: '692',
+        outcome: 'issues list counts every stored issue.',
+        requiredEvidence: ['FocusedTest', 'Log'],
+      }),
+    )
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        successCriteria: [
+          { id: 'issue-692-criterion-1' },
+          { id: 'issue-692-criterion-2' },
+          {
+            id: 'issue-692-criterion-3',
+            isSatisfied: false,
+            outcome: 'issues list counts every stored issue.',
+            requiredEvidence: ['FocusedTest', 'Log'],
+          },
+        ],
+      },
+    })
+  })
+
+  it('marks criteria satisfied and refuses one the issue does not have', async () => {
+    const { result } = await runOnDetail(
+      [withCriteria()],
+      SubmittedSuccessCriteriaMarks.make({
+        criterionIds: ['issue-692-criterion-2'],
+        isSatisfied: true,
+        issueId: '692',
+      }),
+    )
+    expect(Option.getOrThrow(result)).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        successCriteria: [{ isSatisfied: false }, { isSatisfied: true }],
+      },
+    })
+
+    const { model } = await runOnDetail(
+      [withCriteria()],
+      SubmittedSuccessCriteriaMarks.make({
+        criterionIds: ['issue-692-criterion-9'],
+        isSatisfied: true,
+        issueId: '692',
+      }),
+    )
+    expect(model.issueMutation).toMatchObject({
+      _tag: 'FailedIssueMutation',
+      reason: expect.stringContaining(
+        'Issue 692 has no criterion issue-692-criterion-9',
+      ),
+    })
+  })
+
+  it('adds a Mention with the next mention id', async () => {
+    const { result } = await runOnDetail(
+      [stored('692', 'Bare IssueTrackerError')],
+      SubmittedIssueMention.make({
+        issueId: '692',
+        mention: DraftMention.make({
+          capturedAtMs: Option.some(1_792_000_000_000),
+          directQuote: Option.some(
+            'Fix the error as well in the issues thing.',
+          ),
+          note: Option.none(),
+          related: [],
+          reporter: Option.none(),
+          source: ConversationReference.make({
+            conversation: { note: 'Typed in the Claude chat.' },
+          }),
+        }),
+      }),
+    )
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        mentions: [
+          {
+            directQuote: Option.some(
+              'Fix the error as well in the issues thing.',
+            ),
+            id: 'mention-692-1',
+            issueId: '692',
+          },
+        ],
+      },
+    })
   })
 })

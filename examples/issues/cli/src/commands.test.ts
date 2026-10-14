@@ -32,14 +32,18 @@ import {
   type IssueFilesService,
   type IssuesHost,
   type IssuesOutcome,
+  addCriterionCommand,
+  addMentionCommand,
   attachIssueFilesCommand,
   claimIssueCommand,
   deleteIssueCommand,
   downloadIssueFileCommand,
+  editIssueCommand,
   fileIssueCommand,
   linkIssuesCommand,
   listIssuesCommand,
   logIssueCommand,
+  markCriteriaCommand,
   resolveSaidMention,
   setIssueStatusCommand,
   showIssueCommand,
@@ -780,5 +784,99 @@ describe('issues command', () => {
       'issues attach failed: Update: Issue 662: the change did not land.',
     )
     expect(storedFiles.size).toBe(0)
+  })
+
+  it('edits fields, adds and marks criteria by position or id, and adds a recording Mention', async () => {
+    const { host, memory } = await run(makeHost([stored('692', 'Filing')]))
+
+    const edited = await run(
+      editIssueCommand(host, {
+        area: Option.some('issues CLI'),
+        details: Option.none(),
+        issue: '692',
+        isJson: false,
+        priority: Option.some('P1'),
+        product: Option.some('foldkit'),
+        title: Option.some('Filing hid the cause'),
+        type: Option.some('defect'),
+      }),
+    )
+    const added = await run(
+      addCriterionCommand(host, {
+        evidence: ['FocusedTest,Log'],
+        issue: '692',
+        isJson: false,
+        outcome: 'A failed save names its cause.',
+      }),
+    )
+    const addedAgain = await run(
+      addCriterionCommand(host, {
+        evidence: [],
+        issue: '692',
+        isJson: false,
+        outcome: 'A product reads by name.',
+      }),
+    )
+    const marked = await run(
+      markCriteriaCommand(host, {
+        criteria: ['2', 'issue-692-criterion-1'],
+        isJson: false,
+        isUnsatisfied: false,
+        issue: '692',
+      }),
+    )
+    const mentioned = await run(
+      addMentionCommand(host, {
+        issue: '692',
+        isJson: false,
+        said: ['208:1885'],
+        typed: Option.none(),
+        typedAt: Option.none(),
+        typedMessage: Option.none(),
+        typedSession: Option.none(),
+      }),
+    )
+
+    expect(
+      [edited, added, addedAgain, marked, mentioned].map(
+        outcome => outcome.exitCode,
+      ),
+    ).toEqual([0, 0, 0, 0, 0])
+    const issue = Option.getOrThrow(fetched(memory, '692'))
+    expect(issue).toMatchObject({
+      area: Option.some('issues CLI'),
+      issueType: Option.some('defect'),
+      priority: 'P1',
+      product: { id: 'foldkit' },
+      title: 'Filing hid the cause',
+    })
+    expect(
+      issue.successCriteria.map(criterion => [
+        criterion.id,
+        criterion.isSatisfied,
+        criterion.requiredEvidence,
+      ]),
+    ).toEqual([
+      ['issue-692-criterion-1', true, ['FocusedTest', 'Log']],
+      ['issue-692-criterion-2', true, ['FocusedTest']],
+    ])
+    expect(issue.mentions.map(mention => mention.directQuote)).toEqual([
+      Option.some(
+        `Recording 208 (${recordingId}) #1885: "Show me the real cause instead."`,
+      ),
+    ])
+
+    const unknown = await run(
+      markCriteriaCommand(host, {
+        criteria: ['7'],
+        isJson: false,
+        isUnsatisfied: false,
+        issue: '692',
+      }),
+    )
+    expect(unknown.exitCode).toBe(2)
+    expect(Array.join(unknown.stderr, '\n')).toContain(
+      'Issue #692 has no criterion 7. Its criteria: 1 issue-692-criterion-1',
+    )
   })
 })
