@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 7:12:01 p.m. EDT — `c25a181dbc07` feat(issues): file every field, log checked work, set any status, delete
+
+- **Implementation commit:** `c25a181dbc07988237de38c6d6a24b27a2587784`
+- **Change:** File every field, log checked work, set any status, delete
+- **Details:**
+  - Red 7ebc71cfd, green c25a181db (#692): the Issue Tracker Program files a composed draft (type, area, status, claimant, related Issues, criteria, recording and typed-chat Mentions, initial work log) under the next free number, reads a product by id or name, appends checked work-log entries with state, agent, commit, claim, and status, sets any status, links relatedIssueIds, and deletes; failures name the operation and the real cause.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — SaveIssue through the tracker's file, AppendIssueWorkLogEntry, SetIssueStatus, DeleteIssue, product by id or name, checked updates for comment, log, link, status, retarget.
+  - `examples/issues/core/src/model.ts` — Draft fields, DraftMention, DraftSuccessCriterion, DraftWorkLogEntry, SavedIssueMutation, DeletedIssueMutation.
+  - `examples/issues/core/src/message.ts` — ComposedIssueDraft, SubmittedIssueWorkLogEntry, SelectedIssueStatus, ConfirmedIssueDeletion and their results.
+  - `examples/issues/core/src/resources.ts` — makeMemoryIssueTracker for previews and tests.
+  - `examples/issues/core/src/subscription.ts` — Real failure reasons.
+  - `examples/issues/core/src/leftover.ts` — relatedIssueIds count as links.
+  - `examples/issues/core/src/program.ts` — Program version 6.
+  - `examples/issues/core/src/program.test.ts` — Existing trackers carry the new operations.
+  - `packages/instant-tools/src/instant/instant.ts` — A typed accumulator instead of a type assertion.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 7:01:27 p.m. EDT — `e27b023ea7e5` feat(instant-tools): file Issues under a free number and read every change back
 
 - **Implementation commit:** `e27b023ea7e5cb2ff91b440334f0c7240d80fc4d`
