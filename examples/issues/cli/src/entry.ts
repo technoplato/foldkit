@@ -10,15 +10,19 @@ import { NodeRuntime, NodeServices } from '@effect/platform-node'
 import {
   type IssuesHost,
   type IssuesOutcome,
+  addCriterionCommand,
+  addMentionCommand,
   attachIssueFilesCommand,
   claimIssueCommand,
   deleteIssueCommand,
   downloadIssueFileCommand,
+  editIssueCommand,
   fileIssueCommand,
   linkIssuesCommand,
   listIssuesCommand,
   listProductsCommand,
   logIssueCommand,
+  markCriteriaCommand,
   setIssueStatusCommand,
   showIssueCommand,
 } from './commands.js'
@@ -296,6 +300,85 @@ const remove = Command.make(
   ),
 )
 
+const edit = Command.make(
+  'edit',
+  {
+    issue: issueArgument,
+    area: optionalText('area', 'New area'),
+    details: optionalText('details', 'New details (the whole body)'),
+    isJson: jsonFlag,
+    priority: optionalText('priority', 'New priority, P0 to P4'),
+    product: optionalText('product', 'New product, by id or name'),
+    title: optionalText('title', 'New title'),
+    type: optionalText('type', 'New issue type'),
+  },
+  input => withLiveHost(host => editIssueCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    "Change an Issue's title, details, priority, type, area, or product (only the fields given)",
+  ),
+)
+
+const criterion = Command.make(
+  'criterion',
+  {
+    issue: issueArgument,
+    outcome: Argument.string('outcome').pipe(
+      Argument.withDescription('One observable, user-visible outcome'),
+    ),
+    evidence: repeatedText(
+      'evidence',
+      'Evidence it needs, such as FocusedTest,Log (default FocusedTest)',
+    ),
+    isJson: jsonFlag,
+  },
+  input => withLiveHost(host => addCriterionCommand(host, input)),
+).pipe(Command.withDescription('Add a success criterion'))
+
+const satisfy = Command.make(
+  'satisfy',
+  {
+    issue: issueArgument,
+    criteria: Argument.string('criterion').pipe(
+      Argument.withDescription('Criterion position (1, 2, ...) or id'),
+      Argument.variadic({ min: 1 }),
+    ),
+    isJson: jsonFlag,
+    isUnsatisfied: Flag.boolean('unsatisfied').pipe(
+      Flag.withDescription('Mark them not satisfied instead'),
+    ),
+  },
+  input => withLiveHost(host => markCriteriaCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    'Mark success criteria satisfied, with the evidence in issues log',
+  ),
+)
+
+const mention = Command.make(
+  'mention',
+  {
+    issue: issueArgument,
+    isJson: jsonFlag,
+    said: repeatedText(
+      'said',
+      "Michael's recording lines, such as 208:1884-1888 (word for word, with deep links)",
+    ),
+    typed: optionalText(
+      'typed',
+      'Words Michael typed in the Claude chat, verbatim',
+    ),
+    typedAt: optionalText('typed-at', 'When he typed them (ISO time)'),
+    typedMessage: optionalText('typed-message', 'The chat message id'),
+    typedSession: optionalText('typed-session', 'The Claude Code session id'),
+  },
+  input => withLiveHost(host => addMentionCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    "Add Michael's later words to an Issue, with their links",
+  ),
+)
+
 const attach = Command.make(
   'attach',
   {
@@ -391,6 +474,10 @@ const issues = Command.make('issues').pipe(
     claim,
     status,
     link,
+    edit,
+    criterion,
+    satisfy,
+    mention,
     remove,
     attach,
     download,

@@ -24,7 +24,11 @@ import {
   SelectedIssueStatus,
   SubmittedIssue,
   SubmittedIssueAttachment,
+  SubmittedIssueEdit,
+  SubmittedIssueMention,
+  SubmittedIssueSuccessCriterion,
   SubmittedIssueWorkLogEntry,
+  SubmittedSuccessCriteriaMarks,
   catalogIssueIds,
   issueFromDraft,
 } from 'issues-core-example'
@@ -661,7 +665,11 @@ const changeIssue = (
   host: IssuesHost,
   command: string,
   issueId: string,
-  messagesFor: (issue: Issue) => ReadonlyArray<Message>,
+  messagesFor: (
+    issue: Issue,
+  ) =>
+    | ReadonlyArray<Message>
+    | Effect.Effect<ReadonlyArray<Message>, IssuesCommandFailure>,
 ): Effect.Effect<
   Readonly<{ entryId: Option.Option<string>; issue: Issue }>,
   IssuesCommandFailure
@@ -670,7 +678,10 @@ const changeIssue = (
     const model = yield* executeMessages(
       IssueDetail.make({ issueId }),
       settled =>
-        Effect.map(loadedIssueOf(command, settled, issueId), messagesFor),
+        Effect.flatMap(loadedIssueOf(command, settled, issueId), issue => {
+          const messages = messagesFor(issue)
+          return Effect.isEffect(messages) ? messages : Effect.succeed(messages)
+        }),
       host.resources,
     )
     return yield* M.value(model.issueMutation).pipe(
@@ -1449,5 +1460,273 @@ export const downloadIssueFileCommand = (
       return succeeded([
         `Downloaded ${input.storagePath} (${bytes.byteLength.toString()} bytes) to ${destination}`,
       ])
+    }),
+  )
+
+/** Everything `issues edit` changes; only the fields given change. */
+export type EditInput = Readonly<{
+  area: Option.Option<string>
+  details: Option.Option<string>
+  issue: string
+  isJson: boolean
+  priority: Option.Option<string>
+  product: Option.Option<string>
+  title: Option.Option<string>
+  type: Option.Option<string>
+}>
+
+/** Changes an Issue's title, details, priority, type, area, or product. */
+export const editIssueCommand = (
+  host: IssuesHost,
+  input: EditInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const priority = yield* parseOptionalChoice(
+        'priority',
+        input.priority,
+        priorities,
+      )
+      const issueType = yield* parseOptionalChoice(
+        'issue type',
+        input.type,
+        issueTypes,
+      )
+      const changes = Array.filter(
+        [
+          Option.map(input.title, () => 'title'),
+          Option.map(input.details, () => 'details'),
+          Option.map(priority, value => `priority ${value}`),
+          Option.map(issueType, value => `type ${value}`),
+          Option.map(input.area, value => `area ${value}`),
+          Option.map(input.product, value => `product ${value}`),
+        ],
+        Option.isSome,
+      )
+      if (Array.isReadonlyArrayEmpty(changes)) {
+        return yield* Effect.fail(
+          usage(
+            'issues edit needs a field to change: --title, --details, --priority, --type, --area, or --product.',
+          ),
+        )
+      }
+      const { issue } = yield* changeIssue(host, 'edit', issueId, () => [
+        SubmittedIssueEdit.make({
+          area: input.area,
+          details: input.details,
+          issueId,
+          issueType,
+          priority,
+          productId: input.product,
+          title: input.title,
+        }),
+      ]).pipe(
+        Effect.mapError(failure =>
+          failure.message.includes('Choose an Application or Library')
+            ? usage(failure.message.replace('issues edit failed: ', ''))
+            : failure,
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `Edited #${issueId}: ${Array.join(
+                Array.map(changes, change =>
+                  Option.getOrElse(change, () => ''),
+                ),
+                ', ',
+              )}.`,
+            ],
+      )
+    }),
+  )
+
+/** Adds one success criterion. */
+export const addCriterionCommand = (
+  host: IssuesHost,
+  input: Readonly<{
+    evidence: ReadonlyArray<string>
+    issue: string
+    isJson: boolean
+    outcome: string
+  }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const outcome = input.outcome.trim()
+      if (outcome === '') {
+        return yield* Effect.fail(
+          usage('issues criterion needs the outcome, one observable sentence.'),
+        )
+      }
+      const criterion = yield* parseCriterion(outcome, input.evidence)
+      const { issue } = yield* changeIssue(host, 'criterion', issueId, () => [
+        SubmittedIssueSuccessCriterion.make({
+          issueId,
+          outcome: criterion.outcome,
+          requiredEvidence: criterion.requiredEvidence,
+        }),
+      ])
+      const added = Option.getOrElse(
+        Option.map(
+          Array.findFirst(
+            issue.successCriteria,
+            stored => stored.outcome === criterion.outcome,
+          ),
+          stored => stored.id,
+        ),
+        () => '',
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [`Added criterion ${added} to #${issueId}.`],
+      )
+    }),
+  )
+
+const criterionIdFor = (
+  issue: Issue,
+  reference: string,
+): Option.Option<string> => {
+  const trimmed = reference.trim()
+  const byPosition = /^\d+$/.test(trimmed)
+    ? Option.map(
+        Array.get(issue.successCriteria, Number(trimmed) - 1),
+        criterion => criterion.id,
+      )
+    : Option.none()
+  return Option.orElse(byPosition, () =>
+    Option.map(
+      Array.findFirst(
+        issue.successCriteria,
+        criterion => criterion.id === trimmed,
+      ),
+      criterion => criterion.id,
+    ),
+  )
+}
+
+const criteriaListing = (issue: Issue): string =>
+  Array.join(
+    Array.map(
+      issue.successCriteria,
+      (criterion, index) =>
+        `${(index + 1).toString()} ${criterion.id} "${criterion.outcome}"`,
+    ),
+    ', ',
+  )
+
+/** Marks success criteria, by position or id, satisfied or not. */
+export const markCriteriaCommand = (
+  host: IssuesHost,
+  input: Readonly<{
+    criteria: ReadonlyArray<string>
+    isJson: boolean
+    isUnsatisfied: boolean
+    issue: string
+  }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const references = splitList(input.criteria)
+      if (Array.isReadonlyArrayEmpty(references)) {
+        return yield* Effect.fail(
+          usage(
+            'issues satisfy needs a criterion: its position (1, 2, ...) or id.',
+          ),
+        )
+      }
+      const { issue } = yield* changeIssue(host, 'satisfy', issueId, current =>
+        Effect.map(
+          Effect.forEach(references, reference =>
+            Option.match(criterionIdFor(current, reference), {
+              onNone: () =>
+                Effect.fail(
+                  usage(
+                    `Issue #${issueId} has no criterion ${reference}. Its criteria: ${criteriaListing(current)}.`,
+                  ),
+                ),
+              onSome: Effect.succeed,
+            }),
+          ),
+          criterionIds => [
+            SubmittedSuccessCriteriaMarks.make({
+              criterionIds: Array.dedupe(criterionIds),
+              isSatisfied: !input.isUnsatisfied,
+              issueId,
+            }),
+          ],
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `Marked ${Array.join(references, ', ')} on #${issueId} ${input.isUnsatisfied ? 'not satisfied' : 'satisfied'}; ${Array.filter(issue.successCriteria, criterion => criterion.isSatisfied).length.toString()} of ${issue.successCriteria.length.toString()} satisfied.`,
+            ],
+      )
+    }),
+  )
+
+/** Everything `issues mention` reads. */
+export type MentionInput = Readonly<{
+  issue: string
+  isJson: boolean
+  said: ReadonlyArray<string>
+  typed: Option.Option<string>
+  typedAt: Option.Option<string>
+  typedMessage: Option.Option<string>
+  typedSession: Option.Option<string>
+}>
+
+/** Adds Michael's later words to an Issue as Mentions, with their links. */
+export const addMentionCommand = (
+  host: IssuesHost,
+  input: MentionInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const saidMentions = yield* Effect.forEach(input.said, spec =>
+        resolveSaidMention(host.mirrorRoot, spec),
+      )
+      const mentions = [
+        ...saidMentions,
+        ...Option.match(input.typed, {
+          onNone: () => [],
+          onSome: text => [
+            typedMention({
+              text,
+              typedAt: input.typedAt,
+              typedMessage: input.typedMessage,
+              typedSession: input.typedSession,
+            }),
+          ],
+        }),
+      ]
+      if (Array.isReadonlyArrayEmpty(mentions)) {
+        return yield* Effect.fail(
+          usage(
+            'issues mention needs --said <recording>:<lines> or --typed "<words>".',
+          ),
+        )
+      }
+      const { issue } = yield* changeIssue(host, 'mention', issueId, () =>
+        Array.map(mentions, mention =>
+          SubmittedIssueMention.make({ issueId, mention }),
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `Added ${mentions.length.toString()} Mention${mentions.length === 1 ? '' : 's'} to #${issueId}; it has ${issue.mentions.length.toString()}.`,
+            ],
+      )
     }),
   )

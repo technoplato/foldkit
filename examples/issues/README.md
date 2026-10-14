@@ -36,6 +36,10 @@ issues log 692 progress "what happened; next step" [--agent …] [--claim …] [
 issues claim 692 claude-code/<agent> ["what the claim is for"]
 issues status 692 VerificationNeeded
 issues link 692 502 691
+issues edit 692 [--title …] [--details …] [--priority P1] [--type …] [--area …] [--product …]
+issues criterion 692 "<one observable outcome>" [--evidence FocusedTest,Log]
+issues satisfy 692 1 issue-692-criterion-2 [--unsatisfied]
+issues mention 692 --said 208:1884-1888 [--typed "…" --typed-session <id> --typed-at <iso>]
 issues attach 662 screenshot.png [--kind Screenshot]
 issues download issues/662/<id>-screenshot.png [directory]
 issues delete 693 --yes "<Michael's typed words>"
@@ -47,8 +51,9 @@ issues products
 - `--said 208:1884-1888` reads those lines from the Scribe mirror (`$SCRIBE_ROOT`,
   default `~/Scribe`) word for word and writes the recording, its time span,
   and a words deep link per line into the Mention.
-- `log`, `claim`, `status`, `link`, and `attach` read the Issue back and fail
-  when the change did not land.
+- `log`, `claim`, `status`, `link`, `edit`, `criterion`, `satisfy`, `mention`,
+  and `attach` change one thing, read the Issue back, and fail when the change
+  did not land. `satisfy` takes a criterion's position or id.
 - `list` fails (exit 1) when a stored Issue cannot be read, naming it.
 - `delete` needs Michael's typed yes and first writes the stored record to
   `$ISSUES_BACKUP_DIR` (default `~/Sync/audit/issues-deleted`).

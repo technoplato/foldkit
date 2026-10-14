@@ -5,6 +5,7 @@ import {
   IssueAttachment,
   IssuePriority,
   IssueStatus,
+  IssueSuccessEvidence,
   ProductCatalogEntry,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
@@ -12,7 +13,7 @@ import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { LeftoverStatus, ProductFilter } from './leftover.js'
-import { IssueDraft, Navigation } from './model.js'
+import { DraftMention, IssueDraft, Navigation } from './model.js'
 
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
   issues: S.Array(Issue),
@@ -140,6 +141,35 @@ export const SubmittedIssueAttachment = S.TaggedStruct(
   'SubmittedIssueAttachment',
   { attachment: IssueAttachment, issueId: S.String },
 )
+export const SubmittedIssueEdit = S.TaggedStruct('SubmittedIssueEdit', {
+  area: S.Option(S.String),
+  details: S.Option(S.String),
+  issueId: S.String,
+  issueType: S.Option(S.String),
+  priority: S.Option(IssuePriority),
+  productId: S.Option(S.String),
+  title: S.Option(S.String),
+})
+export const SubmittedIssueSuccessCriterion = S.TaggedStruct(
+  'SubmittedIssueSuccessCriterion',
+  {
+    issueId: S.String,
+    outcome: S.String,
+    requiredEvidence: S.Array(IssueSuccessEvidence),
+  },
+)
+export const SubmittedSuccessCriteriaMarks = S.TaggedStruct(
+  'SubmittedSuccessCriteriaMarks',
+  {
+    criterionIds: S.Array(S.String),
+    isSatisfied: S.Boolean,
+    issueId: S.String,
+  },
+)
+export const SubmittedIssueMention = S.TaggedStruct('SubmittedIssueMention', {
+  issueId: S.String,
+  mention: DraftMention,
+})
 export const SelectedIssueStatus = S.TaggedStruct('SelectedIssueStatus', {
   issueId: S.String,
   status: IssueStatus,
@@ -236,6 +266,10 @@ export const Message = S.Union([
   SubmittedIssueWorkLogEntry,
   SucceededAppendIssueWorkLogEntry,
   SubmittedIssueAttachment,
+  SubmittedIssueEdit,
+  SubmittedIssueSuccessCriterion,
+  SubmittedSuccessCriteriaMarks,
+  SubmittedIssueMention,
   SelectedIssueStatus,
   ConfirmedIssueDeletion,
   SucceededDeleteIssue,

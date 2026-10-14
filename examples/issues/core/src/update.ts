@@ -53,6 +53,7 @@ import {
 } from './message.js'
 import {
   DeletedIssueMutation,
+  DraftMention,
   EditingIssueDraft,
   FailedIssue,
   FailedIssueDraft,
@@ -497,6 +498,246 @@ export const AppendIssueAttachment = Command.define(
               updatedAtMs: nextUpdatedAtMs(current, nowMs),
             }),
       hasLanded: hasAttachment,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+const optionLanded = <A>(wanted: Option.Option<A>, stored: A): boolean =>
+  Option.match(wanted, {
+    onNone: () => true,
+    onSome: value => value === stored,
+  })
+
+/** Changes the fields of an Issue that were given, and reads them back. */
+export const EditIssue = Command.define(
+  'EditIssue',
+  {
+    area: S.Option(S.String),
+    details: S.Option(S.String),
+    issueId: S.String,
+    issueType: S.Option(S.String),
+    priority: S.Option(Issue.fields.priority),
+    product: S.Option(TrackedProduct),
+    title: S.Option(S.String),
+  },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ area, details, issueId, issueType, priority, product, title }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        Issue.make({
+          ...current,
+          area: Option.orElse(area, () => current.area),
+          details: Option.getOrElse(details, () => current.details),
+          issueType: Option.orElse(issueType, () => current.issueType),
+          priority: Option.getOrElse(priority, () => current.priority),
+          product: Option.getOrElse(product, () => current.product),
+          title: Option.getOrElse(title, () => current.title),
+          updatedAtMs: nextUpdatedAtMs(current, nowMs),
+        }),
+      hasLanded: stored =>
+        optionLanded(details, stored.details) &&
+        optionLanded(priority, stored.priority) &&
+        optionLanded(title, stored.title) &&
+        optionLanded(
+          Option.map(product, chosen => chosen.id),
+          stored.product.id,
+        ) &&
+        Option.match(area, {
+          onNone: () => true,
+          onSome: value => Option.contains(stored.area, value),
+        }) &&
+        Option.match(issueType, {
+          onNone: () => true,
+          onSome: value => Option.contains(stored.issueType, value),
+        }),
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+const nextChildId = (
+  prefix: string,
+  existingIds: ReadonlyArray<string>,
+): string => {
+  const taken = new Set(existingIds)
+  const firstFree = Array.findFirst(
+    Array.makeBy(existingIds.length + 1, index => index + 1),
+    position => !taken.has(`${prefix}${position.toString()}`),
+  )
+  return `${prefix}${Option.getOrElse(firstFree, () => existingIds.length + 1).toString()}`
+}
+
+/** Adds one success criterion under the next free criterion id. */
+export const AddIssueSuccessCriterion = Command.define(
+  'AddIssueSuccessCriterion',
+  {
+    issueId: S.String,
+    outcome: S.String,
+    requiredEvidence: IssueSuccessCriterion.fields.requiredEvidence,
+  },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, outcome, requiredEvidence }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const hasOutcome = (issue: Issue) =>
+      Array.some(
+        issue.successCriteria,
+        criterion => criterion.outcome === outcome,
+      )
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        hasOutcome(current)
+          ? current
+          : Issue.make({
+              ...current,
+              successCriteria: Array.append(
+                current.successCriteria,
+                IssueSuccessCriterion.make({
+                  id: nextChildId(
+                    `issue-${current.id}-criterion-`,
+                    Array.map(
+                      current.successCriteria,
+                      criterion => criterion.id,
+                    ),
+                  ),
+                  isSatisfied: false,
+                  outcome,
+                  requiredEvidence,
+                }),
+              ),
+              updatedAtMs: nextUpdatedAtMs(current, nowMs),
+            }),
+      hasLanded: hasOutcome,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+const criteriaListing = (issue: Issue): string =>
+  Array.join(
+    Array.map(
+      issue.successCriteria,
+      (criterion, index) =>
+        `${(index + 1).toString()} ${criterion.id} "${criterion.outcome}"`,
+    ),
+    ', ',
+  )
+
+/** Marks success criteria satisfied or not, and reads them back. */
+export const MarkIssueSuccessCriteria = Command.define(
+  'MarkIssueSuccessCriteria',
+  {
+    criterionIds: S.Array(S.String),
+    isSatisfied: S.Boolean,
+    issueId: S.String,
+  },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ criterionIds, isSatisfied, issueId }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const maybeIssue = yield* tracker.fetchIssue(issueId)
+    if (Option.isNone(maybeIssue)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${issueId} does not exist.`,
+      })
+    }
+    const knownIds = Array.map(
+      maybeIssue.value.successCriteria,
+      criterion => criterion.id,
+    )
+    const unknownIds = Array.filter(
+      criterionIds,
+      criterionId => !Array.contains(knownIds, criterionId),
+    )
+    if (Array.isReadonlyArrayNonEmpty(unknownIds)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${maybeIssue.value.id} has no criterion ${Array.join(unknownIds, ', ')}. Its criteria: ${criteriaListing(maybeIssue.value)}.`,
+      })
+    }
+    const isMarked = (issue: Issue) =>
+      Array.every(issue.successCriteria, criterion =>
+        Array.contains(criterionIds, criterion.id)
+          ? criterion.isSatisfied === isSatisfied
+          : true,
+      )
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        Issue.make({
+          ...current,
+          successCriteria: Array.map(current.successCriteria, criterion =>
+            Array.contains(criterionIds, criterion.id)
+              ? IssueSuccessCriterion.make({ ...criterion, isSatisfied })
+              : criterion,
+          ),
+          updatedAtMs: nextUpdatedAtMs(current, nowMs),
+        }),
+      hasLanded: isMarked,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+/** Adds one Mention under the next free mention id. */
+export const AddIssueMention = Command.define(
+  'AddIssueMention',
+  { issueId: S.String, mention: DraftMention },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, mention }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const isSameMention = (stored: IssueMention) =>
+      Option.getOrUndefined(stored.directQuote) ===
+        Option.getOrUndefined(mention.directQuote) &&
+      JSON.stringify(stored.source) === JSON.stringify(mention.source)
+    const hasMention = (issue: Issue) =>
+      Array.some(issue.mentions, isSameMention)
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        hasMention(current)
+          ? current
+          : Issue.make({
+              ...current,
+              mentions: Array.append(
+                current.mentions,
+                IssueMention.make({
+                  ...mention,
+                  id: nextChildId(
+                    `mention-${current.id}-`,
+                    Array.map(current.mentions, stored => stored.id),
+                  ),
+                  issueId: current.id,
+                }),
+              ),
+              updatedAtMs: nextUpdatedAtMs(current, nowMs),
+            }),
+      hasLanded: hasMention,
     })
     return SucceededSaveIssue.make({ issue })
   }).pipe(
@@ -1341,6 +1582,50 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model,
           AppendIssueAttachment({ attachment, issueId }),
         ),
+      SubmittedIssueEdit: edit => {
+        const maybeProduct = Option.map(edit.productId, reference =>
+          productForReference(catalogProducts(model), reference),
+        )
+        if (Option.isSome(maybeProduct) && Option.isNone(maybeProduct.value)) {
+          return [
+            Model.make({
+              ...model,
+              issueMutation: FailedIssueMutation.make({
+                reason: `Choose an Application or Library: "${Option.getOrElse(edit.productId, () => '')}" names none. Valid: ${productChoices(catalogProducts(model))}.`,
+              }),
+            }),
+            [],
+          ]
+        }
+        return startLeftoverCommand(
+          model,
+          EditIssue({
+            area: edit.area,
+            details: edit.details,
+            issueId: edit.issueId,
+            issueType: edit.issueType,
+            priority: edit.priority,
+            product: Option.flatten(maybeProduct),
+            title: edit.title,
+          }),
+        )
+      },
+      SubmittedIssueSuccessCriterion: ({
+        issueId,
+        outcome,
+        requiredEvidence,
+      }) =>
+        startLeftoverCommand(
+          model,
+          AddIssueSuccessCriterion({ issueId, outcome, requiredEvidence }),
+        ),
+      SubmittedSuccessCriteriaMarks: ({ criterionIds, isSatisfied, issueId }) =>
+        startLeftoverCommand(
+          model,
+          MarkIssueSuccessCriteria({ criterionIds, isSatisfied, issueId }),
+        ),
+      SubmittedIssueMention: ({ issueId, mention }) =>
+        startLeftoverCommand(model, AddIssueMention({ issueId, mention })),
       SelectedIssueStatus: ({ issueId, status }) =>
         startLeftoverCommand(model, SetIssueStatus({ issueId, status })),
       ConfirmedIssueDeletion: ({ issueId }) =>
