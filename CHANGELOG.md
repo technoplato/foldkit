@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 7:51:59 p.m. EDT — `86323ed4027e` fix(issues): number an added criterion after the ones already there
+
+- **Implementation commit:** `86323ed4027e2ce8ee1f69571f24d6b2f90afcc0`
+- **Change:** Number an added criterion after the ones already there
+- **Details:**
+  - Red e628cc19d, green 86323ed40 (#692).
+- **Files:**
+  - `examples/issues/core/src/update.ts` — nextChildId starts after the existing children.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 7:50:30 p.m. EDT — `ffe6c0003f9d` feat(issues): edit fields, add and mark criteria, and add Mentions
 
 - **Implementation commit:** `ffe6c0003f9de7649456bbb96d61909092250b36`
