@@ -6,7 +6,9 @@ import { InstantEntityStoreError } from '@foldkit/instant-tools/instant'
 import {
   ApplicationProduct,
   ConversationReference,
+  InstantStorageAttachmentSource,
   Issue,
+  IssueAttachment,
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
@@ -949,7 +951,7 @@ describe('Issue Tracker Program', () => {
     expect(refused.draftState).toEqual({
       _tag: 'FailedIssueDraft',
       reason:
-        'Choose an Application or Library: "Scribee" names none. Valid: scribe (Scribe), foldkit (Foldkit).',
+        'Choose an Application or Library: "Scribee" names none. Valid: scribe (Scribe), foldkit (Foldkit), casino (Casino).',
     })
   })
 
@@ -1181,6 +1183,44 @@ describe('Issue Tracker Program', () => {
     expect(deleted.issueMutation).toMatchObject({
       _tag: 'DeletedIssueMutation',
       issue: { id: '693' },
+    })
+  })
+
+  it('adds an uploaded file to the Issue and reads it back', async () => {
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('662', 'Not Synced')]),
+    )
+    const attachment = IssueAttachment.make({
+      byteCount: Option.some(334_048),
+      capturedAtMs: Option.some(1_792_000_000_000),
+      contentType: 'image/png',
+      fileName: 'not-synced.png',
+      id: 'file-1',
+      issueId: '662',
+      kind: 'Screenshot',
+      sha256: Option.some('ab'),
+      source: InstantStorageAttachmentSource.make({ fileId: 'file-1' }),
+    })
+    const [observed] = update(
+      modelForNavigation(IssueDetail.make({ issueId: '662' })),
+      ObservedIssue.make({
+        issue: Option.some(stored('662', 'Not Synced')),
+        issueId: '662',
+      }),
+    )
+    const [, commands] = update(
+      observed,
+      SubmittedIssueAttachment.make({ attachment, issueId: '662' }),
+    )
+
+    const result = await runWith(
+      tracker,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: { attachments: [{ fileName: 'not-synced.png', id: 'file-1' }] },
     })
   })
 })

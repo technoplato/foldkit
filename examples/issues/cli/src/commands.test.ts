@@ -29,10 +29,13 @@ import {
 } from '@foldkit/instant-tools/issues'
 
 import {
+  type IssueFilesService,
   type IssuesHost,
   type IssuesOutcome,
+  attachIssueFilesCommand,
   claimIssueCommand,
   deleteIssueCommand,
+  downloadIssueFileCommand,
   fileIssueCommand,
   linkIssuesCommand,
   listIssuesCommand,
@@ -118,9 +121,32 @@ const makeHost = (
     const memory = yield* makeMemoryIssueTracker(seed)
     const tracker = override(memory)
     const backupDirectory = mkdtempSync(join(tmpdir(), 'issues-backups-'))
+    const storedFiles = new Map<string, Uint8Array>()
+    const links: Array<string> = []
+    const files: IssueFilesService = {
+      download: path =>
+        Option.match(Option.fromUndefinedOr(storedFiles.get(path)), {
+          onNone: () => Effect.fail(new Error(`No stored file ${path}.`)),
+          onSome: Effect.succeed,
+        }),
+      link: ({ entityId, fileId }) =>
+        Effect.sync(() => {
+          links.push(`${entityId}->${fileId}`)
+        }),
+      remove: ({ path }) =>
+        Effect.sync(() => {
+          storedFiles.delete(path)
+        }),
+      upload: ({ bytes, path }) =>
+        Effect.sync(() => {
+          storedFiles.set(path, bytes)
+          return `file-${storedFiles.size.toString()}`
+        }),
+    }
     const host: IssuesHost = {
       backupDirectory,
       defaultAgent: 'claude-code/test',
+      files,
       mirrorRoot: makeMirror(),
       nowMs: () => 1_792_000_000_000,
       readStandardInput: Effect.succeed(''),
@@ -130,7 +156,7 @@ const makeHost = (
         Layer.succeed(IssueTracker, tracker),
       ),
     }
-    return { backupDirectory, host, memory }
+    return { backupDirectory, host, links, memory, storedFiles }
   })
 
 const run = <A>(effect: Effect.Effect<A>) => Effect.runPromise(effect)
@@ -590,9 +616,8 @@ describe('issues command', () => {
         type: Option.none(),
       }),
     )
-    expect(
-      Array.map(JSON.parse(linesOf(open)), (issue: { id: string }) => issue.id),
-    ).toEqual(['692', '690'])
+    const listed: ReadonlyArray<{ id: string }> = JSON.parse(linesOf(open))
+    expect(Array.map(listed, issue => issue.id)).toEqual(['692', '690'])
     expect(open.stderr).toEqual([])
 
     const fromRecording = await run(
@@ -639,17 +664,121 @@ describe('issues command', () => {
       backupDirectory,
       Option.getOrThrow(Array.head(backups)),
     )
-    const backup = JSON.parse(readFileSync(backupPath, 'utf8'))
+    const backup: Readonly<{
+      records: ReadonlyArray<{ payloadJson: string }>
+    }> = JSON.parse(readFileSync(backupPath, 'utf8'))
     expect(backup).toMatchObject({
       authorization: 'Delete the throwaway test issue.',
       issueId: '693',
       records: [{ issueID: '693' }],
     })
     expect(
-      Array.map(backup.records, (record: { payloadJson: string }) =>
-        JSON.parse(record.payloadJson),
-      ),
+      Array.map(backup.records, record => JSON.parse(record.payloadJson)),
     ).toMatchObject([{ title: 'Throwaway' }])
     expect(linesOf(deleted)).toContain(backupPath)
+  })
+
+  it('attaches a file: uploads it, links it, and records it on the Issue', async () => {
+    const { host, links, memory, storedFiles } = await run(
+      makeHost([stored('662', 'Not Synced')]),
+    )
+    const folder = mkdtempSync(join(tmpdir(), 'issues-attach-'))
+    const screenshot = join(folder, 'not synced.png')
+    writeFileSync(screenshot, 'png bytes')
+
+    const outcome = await run(
+      attachIssueFilesCommand(host, {
+        capturedAt: Option.none(),
+        contentType: Option.none(),
+        files: [screenshot],
+        issue: '662',
+        isJson: false,
+        kind: Option.none(),
+      }),
+    )
+
+    expect(outcome.exitCode).toBe(0)
+    const [path] = [...storedFiles.keys()]
+    expect(path).toMatch(/^issues\/662\/[0-9a-f-]{36}-not synced\.png$/)
+    expect(links).toEqual(['memory-662->file-1'])
+    expect(
+      Option.map(fetched(memory, '662'), issue =>
+        issue.attachments.map(attachment => ({
+          byteCount: attachment.byteCount,
+          contentType: attachment.contentType,
+          fileName: attachment.fileName,
+          id: attachment.id,
+          kind: attachment.kind,
+          source: attachment.source,
+        })),
+      ),
+    ).toEqual(
+      Option.some([
+        {
+          byteCount: Option.some(9),
+          contentType: 'image/png',
+          fileName: 'not synced.png',
+          id: 'file-1',
+          kind: 'Screenshot',
+          source: { _tag: 'InstantStorage', fileId: 'file-1' },
+        },
+      ]),
+    )
+
+    const target = mkdtempSync(join(tmpdir(), 'issues-download-'))
+    const downloaded = await run(
+      downloadIssueFileCommand(host, {
+        directory: Option.some(target),
+        isForced: false,
+        storagePath: path ?? '',
+      }),
+    )
+    expect(downloaded.exitCode).toBe(0)
+    expect(readFileSync(join(target, 'not synced.png'), 'utf8')).toBe(
+      'png bytes',
+    )
+    const again = await run(
+      downloadIssueFileCommand(host, {
+        directory: Option.some(target),
+        isForced: false,
+        storagePath: path ?? '',
+      }),
+    )
+    expect(again.exitCode).toBe(2)
+  })
+
+  it('removes the uploaded file when the Issue does not take it', async () => {
+    const { host, storedFiles } = await run(
+      makeHost([stored('662', 'Not Synced')], tracker => ({
+        ...tracker,
+        update: issueId =>
+          Effect.fail(
+            new IssueTrackerError({
+              cause: new Error(`Issue ${issueId}: the change did not land.`),
+              operation: 'Update',
+            }),
+          ),
+      })),
+    )
+    const folder = mkdtempSync(join(tmpdir(), 'issues-attach-'))
+    const log = join(folder, 'crash.log')
+    writeFileSync(log, 'trace')
+
+    const outcome = await run(
+      attachIssueFilesCommand(host, {
+        capturedAt: Option.none(),
+        contentType: Option.none(),
+        files: [log],
+        issue: '662',
+        isJson: false,
+        kind: Option.none(),
+      }),
+    )
+
+    expect(outcome.exitCode).toBe(1)
+    expect(Array.join(outcome.stderr, '\n')).toContain(
+      'issues attach failed: Update: Issue 662: the change did not land.',
+    )
+    expect(storedFiles.size).toBe(0)
   })
 })
