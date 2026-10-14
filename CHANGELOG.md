@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 7:01:27 p.m. EDT — `e27b023ea7e5` feat(instant-tools): file Issues under a free number and read every change back
+
+- **Implementation commit:** `e27b023ea7e5cb2ff91b440334f0c7240d80fc4d`
+- **Change:** File Issues under a free number and read every change back
+- **Details:**
+  - Red 33e0a5d44 (tests in instant.test.ts and domain.test.ts), green e27b023ea (#692): file, fetchIssue, update, delete on the Issue tracker; numbering never writes over a stored Issue (#502's class); errors name the operation and the real cause.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — Store primitives (fetchIssueIds, fetchIssueRecordsById, createIssue, deleteIssue) and the tracker's file, fetchIssue, update, delete.
+  - `packages/instant-tools/src/issues/issueTracker.ts` — IssueChange, the new service operations, describeIssueTrackerError.
+  - `packages/instant-tools/src/issues/domain.ts` — normalizeIssueId, nextIssueId, ConversationReference, relatedIssueIds.
+  - `packages/instant-tools/src/instant/instant.test.ts` — An unmodeled-key example now that relatedIssueIds is modeled.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 5th, 2026 at 8:02:42 a.m. EDT — `63efccae9f2b` fix(instant-tools): keep stored payload keys the Issue schema does not model on save
 
 - **Implementation commit:** `63efccae9f2b5b4dfa8a864ad686cd6bbd4e2066`
