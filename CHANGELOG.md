@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 7:50:30 p.m. EDT — `ffe6c0003f9d` feat(issues): edit fields, add and mark criteria, and add Mentions
+
+- **Implementation commit:** `ffe6c0003f9de7649456bbb96d61909092250b36`
+- **Change:** Edit fields, add and mark criteria, and add Mentions
+- **Details:**
+  - Red ef343ef15, green ffe6c0003 (#692): issues edit, criterion, satisfy, mention through Program Messages and the checked update.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — EditIssue, AddIssueSuccessCriterion, MarkIssueSuccessCriteria, AddIssueMention.
+  - `examples/issues/core/src/message.ts` — Their Messages.
+  - `examples/issues/cli/src/commands.ts` — editIssueCommand, addCriterionCommand, markCriteriaCommand, addMentionCommand.
+  - `examples/issues/cli/src/entry.ts` — The four subcommands.
+  - `examples/issues/cli/src/host.test.ts` — The subcommand set.
+  - `examples/issues/README.md` — The four subcommands.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 7:36:04 p.m. EDT — `e744f7552e5c` feat(issues): one issues command to file, read, and change Issues
 
 - **Implementation commit:** `e744f7552e5c6f565041df7f9d18676f63cc69bb`
