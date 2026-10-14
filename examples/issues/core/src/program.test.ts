@@ -4,15 +4,20 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ApplicationProduct,
+  ConversationReference,
   Issue,
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
   LibraryProduct,
   ProductCatalogEntry,
+  RecordingMention,
+  RecordingReference,
   RecordingSegment,
   TriageCandidate,
+  UriReference,
 } from '@foldkit/instant-tools/issues'
+import { InstantEntityStoreError } from '@foldkit/instant-tools/instant'
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
@@ -22,6 +27,10 @@ import {
   AppendedIssueWorkLog,
   ClickedFileIssue,
   ClickedLeftoverStatus,
+  ComposedIssueDraft,
+  ConfirmedIssueDeletion,
+  SelectedIssueStatus,
+  SubmittedIssueWorkLogEntry,
   ClickedOpenTriage,
   ClickedPromoteTriageCandidate,
   DismissedIssueDetail,
@@ -41,8 +50,12 @@ import {
   UpdatedLeftoverLink,
 } from './message.js'
 import {
+  DraftMention,
+  DraftSuccessCriterion,
+  DraftWorkLogEntry,
   FileIssue,
   IssueDetail,
+  IssueDraft,
   IssueList,
   LoadedLeftoverPresence,
   LoadingIssue,
@@ -57,10 +70,18 @@ import {
   messageForScreenToken,
 } from './presentation.js'
 import { issuesScreen } from './program.js'
-import { StaticIssueTrackerResources } from './resources.js'
+import {
+  StaticIssueTrackerResources,
+  makeMemoryIssueTracker,
+} from './resources.js'
 import { navigationToPath, pathToNavigation } from './route.js'
 import { subscriptions } from './subscription.js'
-import { SaveIssueWorkLog, SetLeftoverStatus, update } from './update.js'
+import {
+  CommentOnIssue,
+  SaveIssueWorkLog,
+  SetLeftoverStatus,
+  update,
+} from './update.js'
 
 const product = ApplicationProduct.make({ id: 'scribe', name: 'Scribe' })
 const productEntry = ProductCatalogEntry.make({
@@ -109,6 +130,9 @@ const candidate = TriageCandidate.make({
   suggestedTitle: 'Keep transcript aligned',
   updatedAtMs: 1_000,
 })
+
+
+const runNow = <A, E>(effect: Effect.Effect<A, E>): A => Effect.runSync(effect)
 
 describe('Issue Tracker Program', () => {
   it.each([
@@ -715,5 +739,446 @@ describe('Issue Tracker Program', () => {
     expect(result._tag).toBe('FailedSaveIssue')
     expect(saved).toEqual([])
     expect(unclosable.status).toBe('Open')
+  })
+
+  const stored = (id: string, title: string) =>
+    Issue.make({ ...issue, id, title, workLog: [] })
+
+  const runWith = <A,>(
+    tracker: IssueTrackerService,
+    effect: Effect.Effect<A, never, IssueTracker>,
+  ) =>
+    Effect.runPromise(
+      effect.pipe(
+        Effect.provideService(IssueTracker, tracker),
+        Effect.provide(StaticIssueTrackerResources),
+      ),
+    )
+
+  const filingModel = () => {
+    const [withProducts] = update(
+      modelForNavigation(FileIssue.make({})),
+      ObservedProducts.make({
+        products: [
+          productEntry,
+          ProductCatalogEntry.make({
+            product: LibraryProduct.make({ id: 'foldkit', name: 'Foldkit' }),
+            updatedAtMs: 1_000,
+          }),
+        ],
+      }),
+    )
+    return withProducts
+  }
+
+  const composedDraft = (productId: string) =>
+    IssueDraft.make({
+      area: Option.some('Issue tracker / CLI'),
+      claimantId: Option.some('claude-code/issues-one-way'),
+      details: 'Filing fails with a bare IssueTrackerError.',
+      issueType: Option.some('defect'),
+      leftoverKind: Option.none(),
+      mentions: [
+        DraftMention.make({
+          capturedAtMs: Option.some(1_791_640_000_000),
+          directQuote: Option.some('Recording 208 #1884: "the save failed"'),
+          note: Option.none(),
+          related: [
+            UriReference.make({
+              value:
+                'https://words.pisspoursoftware.xyz/recording/faa684c2/section/60f587e4?t=10130.35',
+            }),
+          ],
+          reporter: Option.none(),
+          source: RecordingReference.make({
+            recording: RecordingMention.make({
+              endMilliseconds: Option.some(10_151_528),
+              recordingId: 'faa684c2-34e4-47e5-8f9b-3b2196da9463',
+              screenshotIds: [],
+              startMilliseconds: 10_130_348,
+            }),
+          }),
+        }),
+        DraftMention.make({
+          capturedAtMs: Option.some(1_791_713_374_021),
+          directQuote: Option.some('Make sure there is only one way.'),
+          note: Option.none(),
+          related: [],
+          reporter: Option.none(),
+          source: ConversationReference.make({
+            conversation: {
+              harness: 'claude-code',
+              messageId: '82fc7bc4',
+              note: 'Typed in the Claude chat.',
+              sessionId: 'f1283b96',
+            },
+          }),
+        }),
+      ],
+      priority: 'P1',
+      productId,
+      relatedIssueIds: ['502', '691'],
+      status: 'InProgress',
+      successCriteria: [
+        DraftSuccessCriterion.make({
+          outcome: 'issues file names the real cause of a failed save.',
+          requiredEvidence: ['FocusedTest'],
+        }),
+      ],
+      title: 'issues file hides the cause of a failed save',
+      workLog: [
+        DraftWorkLogEntry.make({
+          agentId: Option.some('claude-code/issues-one-way'),
+          commitSha: Option.none(),
+          occurredAtMs: 1_791_640_000_000,
+          state: Option.some('filed'),
+          summary: 'Filed from the session that hit the failure.',
+        }),
+      ],
+    })
+
+  it('files a composed draft with every field under the next free number', async () => {
+    const [composed] = update(
+      filingModel(),
+      ComposedIssueDraft.make({ draft: composedDraft('scribe') }),
+    )
+    const [saving, commands] = update(composed, SubmittedIssue.make({}))
+    expect(saving.draftState._tag).toBe('SavingIssueDraft')
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('001', 'One'), stored('005', 'Five')]),
+    )
+
+    const result = await runWith(
+      tracker,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        area: Option.some('Issue tracker / CLI'),
+        claimantId: Option.some('claude-code/issues-one-way'),
+        id: '006',
+        issueType: Option.some('defect'),
+        priority: 'P1',
+        product: { id: 'scribe' },
+        relatedIssueIds: ['502', '691'],
+        status: 'InProgress',
+        successCriteria: [
+          {
+            id: 'issue-006-criterion-1',
+            isSatisfied: false,
+            outcome: 'issues file names the real cause of a failed save.',
+          },
+        ],
+        title: 'issues file hides the cause of a failed save',
+        viewerURL: Option.some('https://issues.knophy.com/issues/006'),
+        workLog: [
+          { id: 'work-006-filed-1791640000000', summary: expect.any(String) },
+        ],
+      },
+    })
+    if (result._tag !== 'SucceededSaveIssue') {
+      return
+    }
+    expect(Array.map(result.issue.mentions, mention => mention.id)).toEqual([
+      'mention-006-1',
+      'mention-006-2',
+    ])
+    expect(Array.map(result.issue.mentions, mention => mention.issueId)).toEqual(
+      ['006', '006'],
+    )
+    expect(
+      Option.map(runNow(tracker.fetchIssue('006')), found => found.title),
+    ).toEqual(Option.some('issues file hides the cause of a failed save'))
+    const [filed] = update(saving, result)
+    expect(filed.navigation).toEqual(IssueDetail.make({ issueId: '006' }))
+  })
+
+  it('names the operation and the real cause when the save fails', async () => {
+    const [composed] = update(
+      filingModel(),
+      ComposedIssueDraft.make({ draft: composedDraft('scribe') }),
+    )
+    const [saving, commands] = update(composed, SubmittedIssue.make({}))
+    const working = await Effect.runPromise(makeMemoryIssueTracker([]))
+    const refusing: IssueTrackerService = {
+      ...working,
+      file: () =>
+        Effect.fail(
+          new IssueTrackerError({
+            cause: new InstantEntityStoreError({
+              cause: new Error('Permission denied: instantToolsIssues'),
+              operation: 'CreateIssue',
+            }),
+            operation: 'File',
+          }),
+        ),
+    }
+
+    const result = await runWith(
+      refusing,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toEqual({
+      _tag: 'FailedSaveIssue',
+      reason: 'File: CreateIssue: Permission denied: instantToolsIssues',
+    })
+    const [failed] = update(saving, result)
+    expect(failed.draftState).toEqual({
+      _tag: 'FailedIssueDraft',
+      reason: 'File: CreateIssue: Permission denied: instantToolsIssues',
+    })
+  })
+
+  it('takes a product by its name in any case and lists the valid ids for one it does not know', () => {
+    const [byName] = update(
+      filingModel(),
+      ComposedIssueDraft.make({ draft: composedDraft('SCRIBE') }),
+    )
+    const [saving, commands] = update(byName, SubmittedIssue.make({}))
+    expect(saving.draftState._tag).toBe('SavingIssueDraft')
+    expect(commands[0]?.name).toBe('SaveIssue')
+
+    const [unknown] = update(
+      filingModel(),
+      ComposedIssueDraft.make({ draft: composedDraft('Scribee') }),
+    )
+    const [refused, refusedCommands] = update(unknown, SubmittedIssue.make({}))
+    expect(refusedCommands).toEqual([])
+    expect(refused.draftState).toEqual({
+      _tag: 'FailedIssueDraft',
+      reason:
+        'Choose an Application or Library: "Scribee" names none. Valid: scribe (Scribe), foldkit (Foldkit).',
+    })
+  })
+
+  it('appends a work-log entry with its state, agent, commit, claim, and status, and reads it back', async () => {
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('692', 'Bare IssueTrackerError')]),
+    )
+    const detail = modelForNavigation(IssueDetail.make({ issueId: '692' }))
+    const [observed] = update(
+      detail,
+      ObservedIssue.make({
+        issue: Option.some(stored('692', 'Bare IssueTrackerError')),
+        issueId: '692',
+      }),
+    )
+    const [saving, commands] = update(
+      observed,
+      SubmittedIssueWorkLogEntry.make({
+        agentId: Option.some('claude-code/issues-one-way'),
+        claimantId: Option.some('claude-code/issues-one-way'),
+        commitSha: Option.some('e27b023ea'),
+        issueId: '692',
+        state: 'claimed',
+        status: Option.some('InProgress'),
+        summary: 'Claimed; red tests next.',
+      }),
+    )
+    expect(saving.issueMutation._tag).toBe('SavingIssueMutation')
+
+    const result = await runWith(
+      tracker,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'SucceededAppendIssueWorkLogEntry',
+      issue: {
+        claimantId: Option.some('claude-code/issues-one-way'),
+        status: 'InProgress',
+      },
+    })
+    if (result._tag !== 'SucceededAppendIssueWorkLogEntry') {
+      return
+    }
+    expect(Array.last(result.issue.workLog)).toEqual(
+      Option.some({
+        agentId: Option.some('claude-code/issues-one-way'),
+        commitSha: Option.some('e27b023ea'),
+        durationSeconds: Option.none(),
+        id: result.entryId,
+        occurredAtMs: expect.any(Number),
+        state: Option.some('claimed'),
+        summary: 'Claimed; red tests next.',
+      }),
+    )
+    const [saved] = update(saving, result)
+    expect(saved.issueMutation).toEqual({
+      _tag: 'SavedIssueMutation',
+      entryId: Option.some(result.entryId),
+      issueId: '692',
+    })
+  })
+
+  it('reports a work-log write that did not land, with its reason', async () => {
+    const working = await Effect.runPromise(makeMemoryIssueTracker([]))
+    const dropping: IssueTrackerService = {
+      ...working,
+      update: issueId =>
+        Effect.fail(
+          new IssueTrackerError({
+            cause: new Error(
+              `Issue ${issueId}: the change did not land after 3 writes; the stored Issue still reads without it.`,
+            ),
+            operation: 'Update',
+          }),
+        ),
+    }
+    const [observed] = update(
+      modelForNavigation(IssueDetail.make({ issueId: '692' })),
+      ObservedIssue.make({
+        issue: Option.some(stored('692', 'Bare IssueTrackerError')),
+        issueId: '692',
+      }),
+    )
+    const [saving, commands] = update(
+      observed,
+      SubmittedIssueWorkLogEntry.make({
+        agentId: Option.none(),
+        claimantId: Option.none(),
+        commitSha: Option.none(),
+        issueId: '692',
+        state: 'progress',
+        status: Option.none(),
+        summary: 'Still going.',
+      }),
+    )
+
+    const result = await runWith(
+      dropping,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+    const [failed] = update(saving, result)
+
+    expect(failed.issueMutation).toEqual({
+      _tag: 'FailedIssueMutation',
+      reason:
+        'Update: Issue 692: the change did not land after 3 writes; the stored Issue still reads without it.',
+    })
+  })
+
+  it('sets any stored status, not only the leftover three', async () => {
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('692', 'Bare IssueTrackerError')]),
+    )
+    const [observed] = update(
+      modelForNavigation(IssueDetail.make({ issueId: '692' })),
+      ObservedIssue.make({
+        issue: Option.some(stored('692', 'Bare IssueTrackerError')),
+        issueId: '692',
+      }),
+    )
+    const [, commands] = update(
+      observed,
+      SelectedIssueStatus.make({ issueId: '692', status: 'VerificationNeeded' }),
+    )
+
+    const result = await runWith(
+      tracker,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: { status: 'VerificationNeeded' },
+    })
+  })
+
+  it('links related Issue numbers where the stored Issues keep them', async () => {
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('692', 'Bare IssueTrackerError')]),
+    )
+    const [observed] = update(
+      modelForNavigation(IssueDetail.make({ issueId: '692' })),
+      ObservedIssue.make({
+        issue: Option.some(stored('692', 'Bare IssueTrackerError')),
+        issueId: '692',
+      }),
+    )
+    const [, commands] = update(
+      observed,
+      LinkedCatalogIssue.make({ sourceIssueId: '692', targetIssueId: '502' }),
+    )
+
+    const result = await runWith(
+      tracker,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: { relatedIssueIds: ['502'] },
+    })
+    if (result._tag !== 'SucceededSaveIssue') {
+      return
+    }
+    const [linked] = update(
+      observed,
+      ObservedIssue.make({ issue: Option.some(result.issue), issueId: '692' }),
+    )
+    expect(
+      interactionsForModel(linked).map(interaction => interaction.token),
+    ).toContain('open:502')
+  })
+
+  it('comments on an Issue the catalog read does not hold', async () => {
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('692', 'Bare IssueTrackerError')]),
+    )
+    const outsideTheCatalog: IssueTrackerService = {
+      ...tracker,
+      fetch: () => Effect.succeed([]),
+    }
+
+    const result = await runWith(
+      outsideTheCatalog,
+      CommentOnIssue({ issueId: '692', summary: 'Written.' }).effect,
+    )
+
+    expect(result._tag).toBe('SucceededSaveIssue')
+    expect(
+      Option.map(runNow(tracker.fetchIssue('692')), found =>
+        found.workLog.map(entry => entry.summary),
+      ),
+    ).toEqual(Option.some(['Written.']))
+  })
+
+  it('deletes an Issue and returns to the list', async () => {
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('693', 'Throwaway')]),
+    )
+    const [observed] = update(
+      modelForNavigation(IssueDetail.make({ issueId: '693' })),
+      ObservedIssue.make({
+        issue: Option.some(stored('693', 'Throwaway')),
+        issueId: '693',
+      }),
+    )
+    const [deleting, commands] = update(
+      observed,
+      ConfirmedIssueDeletion.make({ issueId: '693' }),
+    )
+    expect(deleting.issueMutation._tag).toBe('SavingIssueMutation')
+
+    const result = await runWith(
+      tracker,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'SucceededDeleteIssue',
+      issue: { id: '693', title: 'Throwaway' },
+    })
+    expect(runNow(tracker.fetchIssue('693'))).toEqual(Option.none())
+    const [deleted] = update(deleting, result)
+    expect(deleted.navigation).toEqual(IssueList.make({}))
+    expect(deleted.issueMutation).toMatchObject({
+      _tag: 'DeletedIssueMutation',
+      issue: { id: '693' },
+    })
   })
 })
