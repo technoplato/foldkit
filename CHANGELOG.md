@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:21:28 p.m. EDT — `fef14728ee83` fix(issues): show an Issue on the site as it is stored
+
+- **Implementation commit:** `fef14728ee835b1b631d9933914bf577ca88663a`
+- **Change:** Show an Issue on the site as it is stored
+- **Details:**
+  - Red 90a5f9350 (examples/issues/core/src/screen.test.ts), green fef14728e (#695): the list and the page show the stored status (VerificationNeeded, InProgress, ...) instead of Open, Blocked, or Closed; the page adds the type, area, claimant, report date, times, every Mention with its words, source, reporter, and links, and the attachments. Only http and https values become links. The page links to itself on issues.pisspoursoftware.xyz. describeIssueReference moved from the CLI into the core so issues show and the site describe a source the same way.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — The stored status in the list and on the page, metadata, Mentions, attachments, the page link.
+  - `examples/issues/core/src/reference.ts` — describeIssueReference and the web-link checks.
+  - `examples/issues/core/src/index.ts` — Exports reference.ts.
+  - `examples/issues/cli/src/commands.ts` — Uses describeIssueReference from the core.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 10:18:00 p.m. EDT — `525b1d0a84c6` fix(issues): let a person file an Issue from the site's File form
 
 - **Implementation commit:** `525b1d0a84c642b0f40ea9f88e6db167732c7823`
