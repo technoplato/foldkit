@@ -5,7 +5,7 @@ export const Currency = S.Literals(['USD'])
 /** USD is the only currency in this slice. */
 export type Currency = typeof Currency.Type
 
-/** Manual account classes that match Silvia's asset-class URIs. */
+/** Manual account classes, such as `cash` or `real_estate`. */
 export const AccountKind = S.Literals([
   'cash',
   'brokerage',
@@ -17,7 +17,7 @@ export const AccountKind = S.Literals([
   'private',
   'liability',
 ])
-/** Manual account classes that match Silvia's asset-class URIs. */
+/** Manual account classes, such as `cash` or `real_estate`. */
 export type AccountKind = typeof AccountKind.Type
 
 /**

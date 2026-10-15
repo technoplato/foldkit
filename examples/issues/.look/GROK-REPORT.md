@@ -33,7 +33,7 @@ From Instant issue payloads / `product:` tokens after `show --product foldkit --
 | universal-software-shop | Application | Universal Software Shop (privacy-bounded proof challenge / participation economics, issues 060 064) |
 | casino                  | Application | Casino (NEW — 243 retargeted off Foldkit)                                                           |
 
-Also present on the live catalog (not invented, not requested as chrome): ACESS, Instant Tools Issue Tracker, Predictev GPT, Firstmate, DomainAsTree / PIS, SwiftAudioCapture, rust-instantdb, TCA Rust Port, Issue tracker.
+Also present on the live catalog (not invented, not requested as chrome): ACESS, Instant Tools Issue Tracker, Firstmate, DomainAsTree / PIS, SwiftAudioCapture, rust-instantdb, TCA Rust Port, Issue tracker.
 
 Instant `instantToolsProducts` table cannot take string ids; catalog is derived from issue product payloads + Casino merged in. Filter chips are that live catalog, not hardcoded chrome.
 

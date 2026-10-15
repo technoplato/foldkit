@@ -1,4 +1,4 @@
-# Personal CFO (CFO Silvia clone)
+# Personal CFO
 
 Read-only personal AI CFO / net-worth OS. One Foldkit Program owns the
 rules. CLI and Expo only paint.
