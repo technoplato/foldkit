@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 8:47:57 p.m. EDT — `792837c20caa` docs(issues): describe the read-back message and refused links
+
+- **Implementation commit:** `792837c20caa4ba852c62de4a305bc4e4f14ec1c`
+- **Change:** Describe the read-back message and refused links
+- **Details:**
+  - README lines for 154f5df7c and 503c7824c (#692).
+- **Files:**
+  - `examples/issues/README.md` — Two behavior lines.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 8:46:37 p.m. EDT — `503c7824c60d` fix(issues): refuse links to Issues that do not exist
 
 - **Implementation commit:** `503c7824c60d6a0c329aebd3d11d3c5e89f3a680`
