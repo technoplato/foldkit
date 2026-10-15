@@ -921,4 +921,38 @@ describe('Instant adapter', () => {
       'File: CreateIssue: Permission denied: instantToolsIssues',
     )
   })
+
+  it('never names a credential that Instant echoes back in its hint', () => {
+    const refusal = Object.assign(
+      new Error('Record not found: app-admin-token'),
+      {
+        body: {
+          hint: {
+            args: [
+              {
+                'app-id': 'app-692',
+                token: 'secret-admin-token-692',
+              },
+            ],
+            message: 'This admin token may be expired or invalid.',
+          },
+          message: 'Record not found: app-admin-token',
+        },
+      },
+    )
+    const error = new IssueTrackerError({
+      cause: new InstantEntityStoreError({
+        cause: refusal,
+        operation: 'FetchIssueIds',
+      }),
+      operation: 'File',
+    })
+
+    const described = describeIssueTrackerError(error)
+
+    expect(described).not.toContain('secret-admin-token-692')
+    expect(described).toBe(
+      'File: FetchIssueIds: Record not found: app-admin-token: Record not found: app-admin-token ({"args":[{"app-id":"app-692","token":"[redacted]"}],"message":"This admin token may be expired or invalid."})',
+    )
+  })
 })
