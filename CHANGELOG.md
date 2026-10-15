@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:32:37 p.m. EDT — `87bcff5d1466` fix(issues): name a bare-name reporter without JSON quotes
+
+- **Implementation commit:** `87bcff5d14661d5004bb2a4f000b1a687776d427`
+- **Change:** Name a bare-name reporter without JSON quotes
+- **Details:**
+  - Red 935d11cfd (examples/issues/core/src/reference.test.ts), green 87bcff5d1 (#695): a reporter stored as the bare string "Michael" read as reported by "Michael"; it now reads Michael on the Issue page and in issues show.
+- **Files:**
+  - `examples/issues/core/src/reference.ts` — Unrecognized string values print as themselves.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:32:37 p.m. EDT — `401c625a118a` fix(issues): mark the chosen product, priority, and status on the site
+
+- **Implementation commit:** `401c625a118a2c097cd99a747f9e8afa51bd31d6`
+- **Change:** Mark the chosen product, priority, and status on the site
+- **Details:**
+  - (#695) The site's .fk-button rule styled every button alike, so the File form's chosen product and priority, the Issue's own status, and Submit issue were not marked. Primary buttons are amber; links in text are amber and wrap. Checked in headless Chrome against the throwaway app bd40c50a (/Users/laptop/Sync/audit/issues-site-2026-10-14/probe/form-bd40c50a-styled).
+- **Files:**
+  - `examples/issues/react/src/styles.css` — Primary buttons and text links.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 10:25:16 p.m. EDT — `cea80e5ec8cf` fix(issues): store a comment under the person or agent who wrote it
 
 - **Implementation commit:** `cea80e5ec8cf96cfd3602ca7d27357c1e1363c48`
