@@ -25,7 +25,11 @@ import {
   leftoverStatusesForIssue,
   newestWorkLog,
 } from './leftover.js'
-import { type IssueDraftState, type Model } from './model.js'
+import {
+  type IssueDraftState,
+  type IssueLogsState,
+  type Model,
+} from './model.js'
 import { interactionsForModel } from './presentation.js'
 import {
   describeIssueReference,
@@ -270,6 +274,36 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
     }),
   )
 
+const issueLogNodes = (state: IssueLogsState): ReadonlyArray<UiNode> =>
+  M.value(state).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      NotObservingIssueLogs: () => [],
+      LoadingIssueLogs: () => [
+        Text('Tagged logs'),
+        Text('Loading tagged logs…'),
+      ],
+      FailedIssueLogs: ({ reason }) => [Text('Tagged logs'), Text(reason)],
+      LoadedIssueLogs: ({ logs }) => [
+        Column(
+          { gap: 1 },
+          Text('Tagged logs'),
+          ...Array.match(logs, {
+            onEmpty: () => [
+              Text('No logs have been tagged with this Issue yet.'),
+            ],
+            onNonEmpty: tagged =>
+              Array.map(tagged, log =>
+                Text(
+                  `${isoTimeOf(log.timestampMs)}  ${log.level}  ${log.name}  ${log.message}`,
+                ),
+              ),
+          }),
+        ),
+      ],
+    }),
+  )
+
 const leftoverPresenceNodes = (model: Model): ReadonlyArray<UiNode> =>
   M.value(model.leftoverPresence).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
@@ -425,6 +459,7 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
       IssueList: () => listNodes(model),
       IssueDetail: () => [
         ...detailNodes(model),
+        ...issueLogNodes(model.issueLogs),
         ...leftoverPresenceNodes(model),
         Text('Comment'),
         TextInput({
