@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:35:41 p.m. EDT — `d7149a36439d` docs(issues): describe the site, its links, and its write permissions
+
+- **Implementation commit:** `d7149a36439d0cc06238ba602eee9d1e142cf63c`
+- **Change:** Describe the site, its links, and its write permissions
+- **Details:**
+  - (#695) README section for the site: the list, the Issue page, the File form, the viewer links, comment authorship, and that the live tracker's Instant rules allow no create or update of instantToolsIssues (checked with a dry run that commits nothing), so only the issues command writes.
+- **Files:**
+  - `examples/issues/README.md` — The site section.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 10:34:58 p.m. EDT — `a5a0f08d549e` fix(issues): give the site an icon so browsers stop asking for one
 
 - **Implementation commit:** `a5a0f08d549e37885a5babab0dc943b2627674a3`
