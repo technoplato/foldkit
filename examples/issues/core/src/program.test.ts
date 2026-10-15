@@ -24,6 +24,7 @@ import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { modelForNavigation } from './init.js'
+import { IssueIdentity, type IssueIdentityService } from './issueIdentity.js'
 import { OneProduct, leftoverStatusOf, newestWorkLog } from './leftover.js'
 import {
   AppendedIssueWorkLog,
@@ -80,6 +81,7 @@ import { type IssueTrackerResources, issuesScreen } from './program.js'
 import {
   StaticIssueTrackerResources,
   makeMemoryIssueTracker,
+  signedInAuthor,
 } from './resources.js'
 import { navigationToPath, pathToNavigation } from './route.js'
 import { subscriptions } from './subscription.js'
@@ -139,6 +141,11 @@ const candidate = TriageCandidate.make({
 })
 
 const runNow = <A, E>(effect: Effect.Effect<A, E>): A => Effect.runSync(effect)
+
+const authoredBy = (author: string): IssueIdentityService => ({
+  author: Effect.succeed(author),
+  next: Effect.succeed({ id: 'issue-preview', nowMs: 2_000 }),
+})
 
 const unusedTracker = (): IssueTrackerService =>
   runNow(makeMemoryIssueTracker([]))
@@ -690,13 +697,16 @@ describe('Issue Tracker Program', () => {
     expect(loadingCommands).toEqual([])
   })
 
-  it('SaveIssueWorkLog keeps status and records issues-245-grok', async () => {
+  it('SaveIssueWorkLog keeps status and records who wrote the entry', async () => {
     const tracker = await Effect.runPromise(makeMemoryIssueTracker([issue]))
     const result = await Effect.runPromise(
       SaveIssueWorkLog({
         issue,
         summary: 'Keep leftover Open.',
-      }).effect.pipe(Effect.provideService(IssueTracker, tracker)),
+      }).effect.pipe(
+        Effect.provideService(IssueTracker, tracker),
+        Effect.provideService(IssueIdentity, authoredBy('owner@example.com')),
+      ),
     )
     expect(result._tag).toBe('SucceededSaveIssueWorkLog')
     if (result._tag !== 'SucceededSaveIssueWorkLog') {
@@ -711,7 +721,7 @@ describe('Issue Tracker Program', () => {
     expect(Option.isSome(maybeEntry)).toBe(true)
     if (Option.isSome(maybeEntry)) {
       expect(maybeEntry.value.summary).toBe('Keep leftover Open.')
-      expect(maybeEntry.value.agentId).toEqual(Option.some('issues-245-grok'))
+      expect(maybeEntry.value.agentId).toEqual(Option.some('owner@example.com'))
     }
     expect(
       Option.map(runNow(tracker.fetchIssue(issue.id)), stored =>
@@ -1137,6 +1147,51 @@ describe('Issue Tracker Program', () => {
     expect(
       interactionsForModel(linked).map(interaction => interaction.token),
     ).toContain('open:502')
+  })
+
+  it('stores a comment under the person who wrote it, not under another agent', async () => {
+    const tracker = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('692', 'Bare IssueTrackerError')]),
+    )
+
+    const result = await Effect.runPromise(
+      CommentOnIssue({
+        issueId: '692',
+        summary: 'Still fails on my phone.',
+      }).effect.pipe(
+        Effect.provideService(IssueTracker, tracker),
+        Effect.provideService(IssueIdentity, authoredBy('owner@example.com')),
+      ),
+    )
+
+    expect(result._tag).toBe('SucceededSaveIssue')
+    expect(
+      Option.map(runNow(tracker.fetchIssue('692')), found =>
+        found.workLog.map(entry => [entry.agentId, entry.summary]),
+      ),
+    ).toEqual(
+      Option.some([
+        [Option.some('owner@example.com'), 'Still fails on my phone.'],
+      ]),
+    )
+  })
+
+  it('names the person signed in on the site as the author, and the site when no one is', async () => {
+    const signedIn = await Effect.runPromise(
+      signedInAuthor({
+        getAuth: () => Promise.resolve({ email: 'owner@example.com' }),
+      }),
+    )
+    const signedOut = await Effect.runPromise(
+      signedInAuthor({ getAuth: () => Promise.resolve(null) }),
+    )
+    const guest = await Effect.runPromise(
+      signedInAuthor({ getAuth: () => Promise.resolve({ email: null }) }),
+    )
+
+    expect(signedIn).toBe('owner@example.com')
+    expect(signedOut).toBe('issues.pisspoursoftware.xyz')
+    expect(guest).toBe('issues.pisspoursoftware.xyz')
   })
 
   it('comments on an Issue the catalog read does not hold', async () => {
