@@ -312,8 +312,6 @@ export const ReviewTriageCandidate = Command.define(
   ),
 )
 
-const COMMENT_AGENT_ID = 'issues-245-grok'
-const WORK_LOG_AGENT_ID = 'issues-245-grok'
 const LEFTOVER_VIEWER_AGENT_ID = 'issues-viewer'
 const LEFTOVER_VIEWER_ORIGIN = new URL(ISSUE_VIEWER_ORIGIN).host
 const LEFTOVER_VIEWER_ROLE = 'viewer'
@@ -373,9 +371,10 @@ export const CommentOnIssue = Command.define(
     const identity = yield* IssueIdentity
     const tracker = yield* IssueTracker
     const { nowMs } = yield* identity.next
+    const author = yield* identity.author
     const issue = yield* tracker.update(
       issueId,
-      appendSummary(issueId, COMMENT_AGENT_ID, summary, nowMs),
+      appendSummary(issueId, author, summary, nowMs),
     )
     return SucceededSaveIssue.make({ issue })
   }).pipe(
@@ -393,11 +392,13 @@ export const SaveIssueWorkLog = Command.define(
   FailedSaveIssueWorkLog,
 )(({ issue, summary }) =>
   Effect.gen(function* () {
+    const identity = yield* IssueIdentity
     const tracker = yield* IssueTracker
     const nowMs = yield* Clock.currentTimeMillis
+    const author = yield* identity.author
     const stored = yield* tracker.update(
       issue.id,
-      appendSummary(issue.id, WORK_LOG_AGENT_ID, summary, nowMs),
+      appendSummary(issue.id, author, summary, nowMs),
     )
     return SucceededSaveIssueWorkLog.make({ issue: stored })
   }).pipe(

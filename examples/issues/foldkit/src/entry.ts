@@ -10,6 +10,7 @@ import {
   modelForNavigation,
   navigationToPath,
   pathToNavigation,
+  signedInAuthor,
 } from 'issues-core-example'
 
 import { overlay } from '@foldkit/devtools'
@@ -28,7 +29,10 @@ const database =
 const resources =
   database === undefined
     ? StaticIssueTrackerResources
-    : withHostedIdentity(makeLiveIssueTrackerResources(database), database)
+    : withHostedIdentity(
+        makeLiveIssueTrackerResources(database, signedInAuthor(database)),
+        database,
+      )
 const initialNavigation = pathToNavigation(window.location.href)
 const historyReconciliation = { isActive: false }
 

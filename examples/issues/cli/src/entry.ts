@@ -31,6 +31,7 @@ import { runIssues } from './host.js'
 import {
   IssuesInstantConfigError,
   type LiveIssueHostServices,
+  defaultIssuesAgent,
   liveIssueHostServices,
 } from './resources.js'
 
@@ -59,7 +60,7 @@ const liveHost = (services: LiveIssueHostServices): IssuesHost => ({
     'ISSUES_BACKUP_DIR',
     join(homedir(), 'Sync', 'audit', 'issues-deleted'),
   ),
-  defaultAgent: environmentPath('SCRIBE_AGENT', 'claude-code'),
+  defaultAgent: defaultIssuesAgent(),
   files: services.files,
   mirrorRoot: environmentPath('SCRIBE_ROOT', join(homedir(), 'Scribe')),
   nowMs: () => Date.now(),

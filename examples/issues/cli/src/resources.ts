@@ -282,6 +282,12 @@ const liveIssueFiles = (
     }),
 })
 
+/** Who the CLI writes as: `$SCRIBE_AGENT`, or `claude-code` when it is unset. */
+export const defaultIssuesAgent = (): string => {
+  const value = process.env['SCRIBE_AGENT']
+  return value === undefined || value === '' ? 'claude-code' : value
+}
+
 /** Live Instant resources for the one-shot CLI, or a missing-config error. */
 export const liveIssueHostServices = ():
   | LiveIssueHostServices
@@ -322,7 +328,10 @@ export const liveIssueHostServices = ():
       fetchIssueIds: store.fetchIssueIds,
       fetchIssueRecordsById: store.fetchIssueRecordsById,
     },
-    resources: makeLiveIssueTrackerResources(database),
+    resources: makeLiveIssueTrackerResources(
+      database,
+      Effect.sync(defaultIssuesAgent),
+    ),
   }
 }
 
