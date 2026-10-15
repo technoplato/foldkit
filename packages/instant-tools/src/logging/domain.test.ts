@@ -66,11 +66,11 @@ describe('logging domain', () => {
     expect(event.issueReferences).toEqual([
       IssueLogReference.make({
         issueID: '023',
-        viewerURL: 'https://issues.knophy.com/issues/023',
+        viewerURL: 'https://issues.pisspoursoftware.xyz/issues/023',
       }),
       IssueLogReference.make({
         issueID: '041',
-        viewerURL: 'https://issues.knophy.com/issues/041',
+        viewerURL: 'https://issues.pisspoursoftware.xyz/issues/041',
       }),
     ])
   })

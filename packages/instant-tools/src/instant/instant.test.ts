@@ -621,7 +621,7 @@ describe('Instant adapter', () => {
       expect(yield* Ref.get(logIssueLinks)).toEqual([
         expect.objectContaining({
           issueID: '023',
-          viewerURL: 'https://issues.knophy.com/issues/023',
+          viewerURL: 'https://issues.pisspoursoftware.xyz/issues/023',
         }),
       ])
       expect(yield* Stream.runCollect(logger.observeIssue('023'))).toEqual([

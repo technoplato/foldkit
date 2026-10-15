@@ -19,6 +19,7 @@ import {
   RecordingReference,
   RepositoryAttachmentSource,
   escalatePriority,
+  issueViewerUrl,
   nextIssueId,
   normalizeIssueId,
   registerMention,
@@ -506,6 +507,12 @@ describe('issue domain', () => {
     expect(nextIssueId(['issue-041'])).toBe('001')
     expect(nextIssueId([])).toBe('001')
     expect(nextIssueId(['998', '999'])).toBe('1000')
+  })
+
+  it('links an Issue to its page on issues.pisspoursoftware.xyz', () => {
+    expect(issueViewerUrl('692')).toBe(
+      'https://issues.pisspoursoftware.xyz/issues/692',
+    )
   })
 
   it('reads a typed-chat Conversation source as its own variant and writes it back unchanged', () => {

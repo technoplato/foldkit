@@ -25,7 +25,7 @@ describe('Issue Tracker CLI host', () => {
       'Linked issues',
       'No linked issues.',
       'Library: Foldkit',
-      'https://issues.knophy.com/issues/041',
+      'https://issues.pisspoursoftware.xyz/issues/041',
     ])
   })
 

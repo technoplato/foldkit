@@ -878,7 +878,9 @@ describe('Issue Tracker Program', () => {
           },
         ],
         title: 'issues file hides the cause of a failed save',
-        viewerURL: Option.some('https://issues.knophy.com/issues/006'),
+        viewerURL: Option.some(
+          'https://issues.pisspoursoftware.xyz/issues/006',
+        ),
         workLog: [
           { id: 'work-006-filed-1791640000000', summary: expect.any(String) },
         ],
@@ -887,6 +889,9 @@ describe('Issue Tracker Program', () => {
     if (result._tag !== 'SucceededSaveIssue') {
       return
     }
+    expect(
+      Array.map(result.issue.evidenceLogQueries, query => query.viewerURL),
+    ).toEqual(['https://issues.pisspoursoftware.xyz/issues/006#evidence-logs'])
     expect(Array.map(result.issue.mentions, mention => mention.id)).toEqual([
       'mention-006-1',
       'mention-006-2',
