@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:15:00 p.m. EDT — `654cc73d1d55` fix: link new Issues to issues.pisspoursoftware.xyz
+
+- **Implementation commit:** `654cc73d1d553c1a34d9b71d0d4472f4455e929d`
+- **Change:** Link new Issues to issues.pisspoursoftware.xyz
+- **Details:**
+  - Red 391384c31, green 654cc73d1 (#695): new Issues, their tagged-log queries, inferred log evidence, the leftover presence origin, the CLI's printed link, and the listener's default share link all name https://issues.pisspoursoftware.xyz, the name the site is served under (issues.knophy.com page loads redirect there). One constant and one function in instant-tools replace three copies.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — ISSUE_VIEWER_ORIGIN and issueViewerUrl.
+  - `packages/instant-tools/src/logging/domain.ts` — Inferred Issue links on log events use issueViewerUrl.
+  - `examples/issues/core/src/update.ts` — Filing, triage promotion, the tagged-log query, and presence use the shared host.
+  - `examples/issues/core/src/resources.ts` — Static preview data links to the shared host.
+  - `examples/issues/cli/src/commands.ts` — issueUrl is issueViewerUrl.
+  - `examples/issues/listener/src/entry.ts` — The default share link is the shared host.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 8:47:57 p.m. EDT — `792837c20caa` docs(issues): describe the read-back message and refused links
 
 - **Implementation commit:** `792837c20caa4ba852c62de4a305bc4e4f14ec1c`
