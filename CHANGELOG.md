@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 8:39:57 p.m. EDT — `5406da320cf9` fix(issues): redact the admin token from everything the command prints
+
+- **Implementation commit:** `5406da320cf9b10aa527859387d2fda23be1f0ff`
+- **Change:** Redact the admin token from everything the issues command prints
+- **Details:**
+  - Red f182ed377 (commands.test.ts), green 5406da320 (#692): every live subcommand's output passes through redactCredentials with the admin token the host loaded, so no failure shape can print it.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — redactCredentials.
+  - `examples/issues/cli/src/entry.ts` — withLiveHost redacts before printing.
+  - `examples/issues/cli/src/resources.ts` — liveIssueHostServices returns its credentials.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:39:57 p.m. EDT — `c1e1150010e3` fix(instant-tools): redact credential fields Instant echoes in a hint
+
+- **Implementation commit:** `c1e1150010e39f8b6a1afa1aeab0578c21ed2dce`
+- **Change:** Redact credential fields Instant echoes in a hint
+- **Details:**
+  - Red 1ca54efc9 (instant.test.ts, the live refusal's shape), green c1e115001 (#692): Instant refuses a bad admin token by echoing the token in its hint, and describeIssueTrackerCause printed the hint whole. Found while verifying that a failed save prints its real cause.
+- **Files:**
+  - `packages/instant-tools/src/issues/issueTracker.ts` — describeBody stringifies a copy of the hint with credential-named fields redacted.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 7:51:59 p.m. EDT — `86323ed4027e` fix(issues): number an added criterion after the ones already there
 
 - **Implementation commit:** `86323ed4027e2ce8ee1f69571f24d6b2f90afcc0`
