@@ -295,7 +295,7 @@ describe('issues command', () => {
         logState: Option.none(),
         priority: Option.some('P1'),
         product: Option.some('Scribe'),
-        related: ['502', '#691'],
+        related: ['001', '#005'],
         said: ['208:1884-1885'],
         status: Option.some('InProgress'),
         title: Option.some('issues file hides the cause'),
@@ -318,7 +318,7 @@ describe('issues command', () => {
       issueType: Option.some('defect'),
       priority: 'P1',
       product: { id: 'scribe' },
-      relatedIssueIds: ['502', '691'],
+      relatedIssueIds: ['001', '005'],
       status: 'InProgress',
       successCriteria: [
         {
@@ -555,7 +555,13 @@ describe('issues command', () => {
   })
 
   it('sets any status and links related Issues', async () => {
-    const { host, memory } = await run(makeHost([stored('692', 'Filing')]))
+    const { host, memory } = await run(
+      makeHost([
+        stored('502', 'Overwrite'),
+        stored('539', 'Mac mini transcription'),
+        stored('692', 'Filing'),
+      ]),
+    )
 
     const status = await run(
       setIssueStatusCommand(host, {

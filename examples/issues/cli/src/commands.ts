@@ -186,6 +186,54 @@ const missing = (issueId: string) =>
     message: `Issue #${issueId} does not exist.`,
   })
 
+const describeMissingIssues = (
+  issueIds: Array.NonEmptyReadonlyArray<string>,
+): string => {
+  const numbers = Array.join(
+    Array.map(issueIds, issueId => `#${issueId}`),
+    ', ',
+  )
+  return issueIds.length === 1
+    ? `Issue ${numbers} does not exist`
+    : `Issues ${numbers} do not exist`
+}
+
+/**
+ * Fails with exit code 3 when any of the Issue numbers names no stored
+ * Issue, so a mistyped number never becomes a link to nothing.
+ */
+const requireExistingIssues = (
+  host: IssuesHost,
+  command: string,
+  issueIds: ReadonlyArray<string>,
+  consequence: string,
+): Effect.Effect<void, IssuesCommandFailure> =>
+  Effect.forEach(issueIds, issueId =>
+    host.records.fetchIssueRecordsById(issueId).pipe(
+      Effect.map(records =>
+        Array.isReadonlyArrayEmpty(records)
+          ? Option.some(issueId)
+          : Option.none(),
+      ),
+      Effect.mapError(cause =>
+        failed(command, describeIssueTrackerCause(cause)),
+      ),
+    ),
+  ).pipe(
+    Effect.flatMap(maybeMissingIssueIds =>
+      Array.match(Array.getSomes(maybeMissingIssueIds), {
+        onEmpty: () => Effect.void,
+        onNonEmpty: missingIssueIds =>
+          Effect.fail(
+            new IssuesCommandFailure({
+              exitCode: MISSING_EXIT_CODE,
+              message: `${describeMissingIssues(missingIssueIds)}; ${consequence}`,
+            }),
+          ),
+      }),
+    ),
+  )
+
 const finish = (
   effect: Effect.Effect<IssuesOutcome, IssuesCommandFailure>,
 ): Effect.Effect<IssuesOutcome> =>
@@ -747,6 +795,12 @@ export const fileIssueCommand = (
   finish(
     Effect.gen(function* () {
       const draft = yield* composeDraft(host, input)
+      yield* requireExistingIssues(
+        host,
+        'file',
+        draft.relatedIssueIds,
+        'nothing was filed.',
+      )
       if (input.dryRun) {
         const preview = issueFromDraft(
           draft,
@@ -1121,6 +1175,7 @@ export const linkIssuesCommand = (
       if (Array.isReadonlyArrayEmpty(targets)) {
         return yield* Effect.fail(usage('issues link needs an Issue to link.'))
       }
+      yield* requireExistingIssues(host, 'link', targets, 'nothing was linked.')
       const { issue } = yield* changeIssue(host, 'link', issueId, () =>
         Array.map(targets, targetIssueId =>
           LinkedCatalogIssue.make({ sourceIssueId: issueId, targetIssueId }),
