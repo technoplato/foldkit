@@ -5,7 +5,7 @@ Share: https://grok.com/share/c2hhcmQtMg_543dbb05-adc4-4468-8230-2fa78afd2342
 
 ## Product
 
-CFO Silvia-shaped **personal AI CFO / net-worth OS**. Not a budget app.
+A **personal AI CFO / net-worth OS**. Not a budget app.
 **Read-only** is a hard invariant: no transfer, trade, or account change.
 
 Today the live product is a mobile-first PWA. Careers copy says the native

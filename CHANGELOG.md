@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 15th, 2026 at 12:01:13 a.m. EDT — `6ad3820ab5bd` chore: remove client names from the examples
+
+- **Implementation commit:** `6ad3820ab5bd0fd5e2aebb90910d276e8b5096ef`
+- **Change:** Remove client names from the examples (the Personal CFO CLI's one-off screen dump script, whose file name named a client, is deleted; names dropped from Personal CFO text and two issues .look reports)
+- **Details:**
+  - No history rewrite: older commits still hold the file and the names; what a rewrite would take is in /Users/laptop/Scribe/handoff.md for Michael to decide.
+- **Files:**
+  - `examples/personal-cfo/README.md` — client name removed from the title
+  - `examples/personal-cfo/core/src/domain.ts` — client name removed from the AccountKind docs
+  - `examples/personal-cfo/core/src/product.ts` — sign-in line no longer names the client
+  - `examples/personal-cfo/docs/s0-ask.md` — client name removed
+  - `examples/issues/.look/GROK-REPORT.md` — client product name removed
+  - `examples/issues/.look/PAINT-FOLDKIT-FILTER.txt` — client product name removed
+- **User context (verbatim):**
+  > Should I allow site writes and restrict reads to your email (both together), and remove the client-named file from FoldKit main? (answered: Yes, typed 2026-10-14 ~23:20 EDT)
+- **SpecStory:** unavailable — Headless Claude Code run on the second account; no SpecStory capture.
+
 ## October 14th, 2026 at 11:46:37 p.m. EDT — `700b8c5f5ff5` feat(issues): Instant rules that keep the tracker to its owners
 
 - **Implementation commit:** `700b8c5f5ff529fc11395f51c5f96555f1da0a8d`

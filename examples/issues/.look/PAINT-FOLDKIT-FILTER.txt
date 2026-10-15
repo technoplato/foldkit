@@ -8,7 +8,7 @@ Product filter chips:
   product:ayutia AYUTIA
   product:casino Casino
   product:universal-software-shop Universal Software Shop
-  plus live extras: ACESS, Instant Tools Issue Tracker, Predictev GPT, Firstmate, DomainAsTree / PIS, SwiftAudioCapture, rust-instantdb, TCA Rust Port, Issue tracker
+  plus live extras: ACESS, Instant Tools Issue Tracker, Firstmate, DomainAsTree / PIS, SwiftAudioCapture, rust-instantdb, TCA Rust Port, Issue tracker
 
 open cards: 20
 foldkit cards: 20
