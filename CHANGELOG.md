@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 8:44:06 p.m. EDT — `154f5df7ce5c` fix(instant-tools): say a filed Issue exists when its read-back fails
+
+- **Implementation commit:** `154f5df7ce5c75e8bd1ad331a49aa5f461882b3e`
+- **Change:** Say a filed Issue exists when its read-back fails
+- **Details:**
+  - Red bbe2a1d4b (instant.test.ts), green 154f5df7c (#692). Found by filing five Issues at once on the throwaway Instant app bd40c50a: two filed (#002, #003: the race took the next number), three hit Instant's rate limit before writing anything. A rate limit after the create would have hidden that the Issue was filed.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — fileIssue names the created number and entity when the read-back fails.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 8:39:57 p.m. EDT — `5406da320cf9` fix(issues): redact the admin token from everything the command prints
 
 - **Implementation commit:** `5406da320cf9b10aa527859387d2fda23be1f0ff`
