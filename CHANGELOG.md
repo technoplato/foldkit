@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 8:46:37 p.m. EDT — `503c7824c60d` fix(issues): refuse links to Issues that do not exist
+
+- **Implementation commit:** `503c7824c60d6a0c329aebd3d11d3c5e89f3a680`
+- **Change:** Refuse links to Issues that do not exist
+- **Details:**
+  - Red 01813967f, green 503c7824c (#692). Found on the throwaway Instant app bd40c50a: issues link 1 999 exited 0 and stored a link to no Issue. link and file --related now exit 3 naming the missing numbers and write nothing.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — requireExistingIssues before link and file.
+  - `examples/issues/cli/src/commands.test.ts` — Two older tests seed the Issues they link.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 8:44:06 p.m. EDT — `154f5df7ce5c` fix(instant-tools): say a filed Issue exists when its read-back fails
 
 - **Implementation commit:** `154f5df7ce5c75e8bd1ad331a49aa5f461882b3e`
