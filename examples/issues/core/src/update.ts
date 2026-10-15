@@ -3,6 +3,7 @@ import { Command } from 'foldkit'
 
 import {
   ApplicationProduct,
+  ISSUE_VIEWER_ORIGIN,
   Issue,
   IssueAttachment,
   IssueLogEvidenceQuery,
@@ -20,6 +21,7 @@ import {
   TriageInbox as TriageInboxServiceTag,
   UriReference,
   describeIssueTrackerCause,
+  issueViewerUrl,
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
 import {
@@ -90,12 +92,8 @@ import {
 
 // COMMAND
 
-const ISSUE_VIEWER_BASE_URL = 'https://issues.knophy.com'
 const TAGGED_LOGS_LIMIT = 200
 const DATE_PART_WIDTH = 2
-
-const issueViewerUrl = (issueId: string): string =>
-  `${ISSUE_VIEWER_BASE_URL}/issues/${issueId}`
 
 const taggedLogsQuery = (issueId: string) =>
   IssueLogEvidenceQuery.make({
@@ -316,7 +314,7 @@ export const ReviewTriageCandidate = Command.define(
 const COMMENT_AGENT_ID = 'issues-245-grok'
 const WORK_LOG_AGENT_ID = 'issues-245-grok'
 const LEFTOVER_VIEWER_AGENT_ID = 'issues-viewer'
-const LEFTOVER_VIEWER_ORIGIN = 'issues.knophy.com'
+const LEFTOVER_VIEWER_ORIGIN = new URL(ISSUE_VIEWER_ORIGIN).host
 const LEFTOVER_VIEWER_ROLE = 'viewer'
 
 /** Persists one already-built Issue through the tracker. */

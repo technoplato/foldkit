@@ -3,6 +3,7 @@ import { Schema as S } from 'effect'
 
 import {
   ApplicationProduct,
+  ISSUE_VIEWER_ORIGIN,
   LibraryProduct,
 } from '@foldkit/instant-tools/issues'
 
@@ -40,8 +41,7 @@ const product =
 await runListener({
   analysis: ListenerAnalysisConfig.make({
     product,
-    shareBaseUrl:
-      process.env['ISSUES_SHARE_BASE_URL'] ?? 'https://issues.knophy.com',
+    shareBaseUrl: process.env['ISSUES_SHARE_BASE_URL'] ?? ISSUE_VIEWER_ORIGIN,
   }),
   instantAppId: required('ISSUES_INSTANT_APP_ID'),
   observerScript:

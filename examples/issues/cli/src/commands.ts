@@ -59,6 +59,7 @@ import {
   IssueStatus,
   IssueSuccessEvidence,
   describeIssueTrackerCause,
+  issueViewerUrl,
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
 
@@ -76,7 +77,6 @@ const SUCCEEDED_EXIT_CODE = 0
 const FAILED_EXIT_CODE = 1
 const USAGE_EXIT_CODE = 2
 const MISSING_EXIT_CODE = 3
-const ISSUES_BASE_URL = 'https://issues.pisspoursoftware.xyz'
 const RECORDING_ID_PREFIX_LENGTH = 8
 const MILLISECONDS_PER_SECOND = 1_000
 
@@ -248,8 +248,7 @@ const finish = (
   )
 
 /** The canonical web address of one Issue on issues. */
-export const issueUrl = (issueId: string): string =>
-  `${ISSUES_BASE_URL}/issues/${issueId}`
+export const issueUrl = (issueId: string): string => issueViewerUrl(issueId)
 
 const parseIssueNumber = (
   text: string,

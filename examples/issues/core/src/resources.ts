@@ -20,6 +20,7 @@ import {
   TriageCandidate,
   TriageInbox,
   type TriageInboxService,
+  issueViewerUrl,
   nextIssueId,
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
@@ -84,7 +85,7 @@ const seedIssue = Issue.make({
   successCriteria: [],
   title: 'Application-agnostic logging and issue tracking',
   updatedAtMs: 1_753_800_000_000,
-  viewerURL: Option.some('https://issues.knophy.com/issues/041'),
+  viewerURL: Option.some(issueViewerUrl('041')),
   workLog: [],
 })
 const scribeIssue = Issue.make({
@@ -106,7 +107,7 @@ const scribeIssue = Issue.make({
   successCriteria: [],
   title: 'Scribe transcript card',
   updatedAtMs: 1_753_800_000_000,
-  viewerURL: Option.some('https://issues.knophy.com/issues/scribe'),
+  viewerURL: Option.some(issueViewerUrl('scribe')),
   workLog: [],
 })
 
@@ -122,7 +123,7 @@ const staticIssueLogs = [
     message: 'Issue #041 is available in the lightweight viewer.',
     name: 'issue.preview.loaded',
     timestampMs: 1_753_800_000_000,
-    viewerURL: 'https://issues.knophy.com/issues/041',
+    viewerURL: issueViewerUrl('041'),
   }),
 ]
 const staticProducts: ReadonlyArray<ProductCatalogEntry> = [
