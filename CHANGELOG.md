@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:18:00 p.m. EDT — `525b1d0a84c6` fix(issues): let a person file an Issue from the site's File form
+
+- **Implementation commit:** `525b1d0a84c642b0f40ea9f88e6db167732c7823`
+- **Change:** Let a person file an Issue from the site's File form
+- **Details:**
+  - Red 200e1e30f (examples/issues/core/src/screen.test.ts), green 525b1d0a8 (#695): the site's File form had no field to type into, so only the CLI could file. It now has Title and Details fields, product and priority choices, one Submit issue button, and its state in words (Filing…, or Not filed: <the real cause>). A filed Issue empties the form and keeps its product. The form's tokens moved from the CLI host into the shared presentation.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — The File form's fields, choices, submit button, and state.
+  - `examples/issues/core/src/presentation.ts` — title:, details:, product:, priority: tokens and the form's interactions.
+  - `examples/issues/core/src/update.ts` — A filed Issue empties the form.
+  - `examples/issues/core/src/init.ts` — emptyIssueDraft.
+  - `examples/issues/cli/src/host.ts` — Reads the form's tokens through messageForScreenToken.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 10:15:00 p.m. EDT — `654cc73d1d55` fix: link new Issues to issues.pisspoursoftware.xyz
 
 - **Implementation commit:** `654cc73d1d553c1a34d9b71d0d4472f4455e929d`
