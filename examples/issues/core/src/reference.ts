@@ -14,7 +14,8 @@ const secondsOf = (milliseconds: number): string =>
 /**
  * One line naming what a reference points at: a Recording reads
  * `recording b24165ca-… 1961.74 s-1964.8 s`, a typed chat message reads its
- * note, another Issue reads `#692`, and a link reads itself.
+ * note, another Issue reads `#692`, a link reads itself, and a reporter an
+ * older writer stored as a bare name, `"Michael"`, reads `Michael`.
  */
 export const describeIssueReference = (reference: IssueReference): string =>
   M.value(reference).pipe(
@@ -36,7 +37,8 @@ export const describeIssueReference = (reference: IssueReference): string =>
           },
         )}`,
       Release: ({ productId, version }) => `release ${productId} ${version}`,
-      Unrecognized: ({ value }) => JSON.stringify(value),
+      Unrecognized: ({ value }) =>
+        typeof value === 'string' ? value : JSON.stringify(value),
       Uri: ({ value }) => value,
     }),
   )
