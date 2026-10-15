@@ -1,9 +1,11 @@
 import {
+  Array,
   Context,
   Data,
   Effect,
   Option,
   Predicate,
+  Record,
   Schema as S,
   Stream,
 } from 'effect'
@@ -82,6 +84,29 @@ export class IssueTracker extends Context.Service<
   IssueTrackerService
 >()('@foldkit/instant-tools/IssueTracker') {}
 
+const credentialFieldName = /token|secret|password|authorization|cookie/i
+
+const REDACTED_CREDENTIAL = '[redacted]'
+
+/**
+ * A copy of what Instant echoed back with every credential-named field
+ * replaced: Instant refuses a bad admin token by repeating the token in its
+ * hint, and a described failure must never print it.
+ */
+const redactCredentialFields = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return Array.map(value, redactCredentialFields)
+  }
+  if (Predicate.isObject(value)) {
+    return Record.map(value, (field, name) =>
+      credentialFieldName.test(name)
+        ? REDACTED_CREDENTIAL
+        : redactCredentialFields(field),
+    )
+  }
+  return value
+}
+
 const describeBody = (body: unknown): Option.Option<string> => {
   if (!Predicate.isObject(body)) {
     return Option.none()
@@ -90,7 +115,7 @@ const describeBody = (body: unknown): Option.Option<string> => {
     ? String(body.message)
     : ''
   const hint = Predicate.hasProperty(body, 'hint')
-    ? JSON.stringify(body.hint)
+    ? JSON.stringify(redactCredentialFields(body.hint))
     : ''
   if (message === '' && hint === '') {
     return Option.none()
