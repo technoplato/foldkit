@@ -19,12 +19,14 @@ import {
   UriAttachmentSource,
   UriReference,
 } from '@foldkit/instant-tools/issues'
+import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { modelForNavigation } from './init.js'
 import {
   ClickedFileIssue,
   type Message,
   ObservedIssue,
+  ObservedIssueLogs,
   ObservedIssues,
   ObservedProducts,
   SelectedIssuePriority,
@@ -358,5 +360,44 @@ describe('Issue Tracker screen: an Issue as it is stored', () => {
       'https://issues.pisspoursoftware.xyz/files/file-form.png',
     )
     expect(links).not.toContain('javascript:alert(1)')
+  })
+})
+
+describe('Issue Tracker screen: the logs tagged with an Issue', () => {
+  it('shows the logs tagged with an Issue on its page', () => {
+    const [tagged] = update(
+      opened(stored),
+      ObservedIssueLogs.make({
+        issueId: stored.id,
+        logs: [
+          IssueLogEvidence.make({
+            category: 'transcript',
+            contributingPaths: [],
+            issueID: stored.id,
+            level: 'Warning',
+            logID: 'log-001',
+            logNamespace: 'instantToolsLogs',
+            message: 'Transcript content exceeded its available width.',
+            name: 'transcript.wrapping.failed',
+            timestampMs: 1_753_825_167_000,
+            viewerURL: 'https://issues.pisspoursoftware.xyz/issues/021',
+          }),
+        ],
+      }),
+    )
+    const [untagged] = update(
+      opened(stored),
+      ObservedIssueLogs.make({ issueId: stored.id, logs: [] }),
+    )
+
+    expect(contentsOf(tagged)).toEqual(
+      expect.arrayContaining([
+        'Tagged logs',
+        '2025-07-29T21:39:27.000Z  Warning  transcript.wrapping.failed  Transcript content exceeded its available width.',
+      ]),
+    )
+    expect(contentsOf(untagged)).toContain(
+      'No logs have been tagged with this Issue yet.',
+    )
   })
 })
