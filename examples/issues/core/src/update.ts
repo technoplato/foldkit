@@ -30,6 +30,7 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
+import { emptyIssueDraft } from './init.js'
 import { IssueIdentity } from './issueIdentity.js'
 import {
   LeftoverStatus,
@@ -1428,6 +1429,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         return withNavigation(
           Model.make({
             ...model,
+            draft:
+              model.draftState._tag === 'SavingIssueDraft'
+                ? emptyIssueDraft(model.draft.productId)
+                : model.draft,
             draftState: EditingIssueDraft.make({}),
             issueMutation: IdleIssueMutation.make({}),
             issues: patchIssues(model.issues, issue),

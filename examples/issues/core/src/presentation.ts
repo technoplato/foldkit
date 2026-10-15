@@ -1,6 +1,6 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
 
-import { Issue } from '@foldkit/instant-tools/issues'
+import { Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 
 import {
   AllProducts,
@@ -22,9 +22,13 @@ import {
   Message,
   RetargetedIssueProduct,
   SelectedIssue,
+  SelectedIssuePriority,
+  SelectedIssueProduct,
   SelectedProductFilter,
   SubmittedIssue,
   SubmittedIssueComment,
+  UpdatedIssueDetails,
+  UpdatedIssueTitle,
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
 } from './message.js'
@@ -208,6 +212,22 @@ export const interactionsForModel = (
       FileIssue: () => [
         interaction('submit', 'Submit issue', SubmittedIssue.make({})),
         interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
+        ...(model.products._tag === 'LoadedProducts'
+          ? Array.map(model.products.products, entry =>
+              interaction(
+                `product:${entry.product.id}`,
+                entry.product.name,
+                SelectedIssueProduct.make({ productId: entry.product.id }),
+              ),
+            )
+          : []),
+        ...Array.map(IssuePriority.literals, priority =>
+          interaction(
+            `priority:${priority}`,
+            priority,
+            SelectedIssuePriority.make({ priority }),
+          ),
+        ),
       ],
       TriageInbox: () => [
         interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
@@ -250,7 +270,37 @@ export const messageForInteractionToken = (
     candidate => candidate.message,
   )
 
-/** Resolves a screen or CLI token, including leftover comment/link prefixes. */
+const draftMessageForToken = (token: string): Option.Option<Message> => {
+  if (token.startsWith('title:')) {
+    return Option.some(
+      UpdatedIssueTitle.make({ value: token.slice('title:'.length) }),
+    )
+  }
+  if (token.startsWith('details:')) {
+    return Option.some(
+      UpdatedIssueDetails.make({ value: token.slice('details:'.length) }),
+    )
+  }
+  if (token.startsWith('product:')) {
+    return Option.some(
+      SelectedIssueProduct.make({ productId: token.slice('product:'.length) }),
+    )
+  }
+  if (token.startsWith('priority:')) {
+    return Option.map(
+      S.decodeUnknownOption(IssuePriority)(token.slice('priority:'.length)),
+      priority => SelectedIssuePriority.make({ priority }),
+    )
+  }
+  return Option.none()
+}
+
+/**
+ * Resolves a screen or CLI token, including the prefixes that carry text: on
+ * the filing form `title:Audio stops`, `details:<text>`, `product:scribe` (an
+ * id or a name), and `priority:P1`; on an Issue `comment:`, `link:`, `log:`,
+ * and `status:`.
+ */
 export const messageForScreenToken = (
   model: Model,
   token: string,
@@ -275,6 +325,9 @@ export const messageForScreenToken = (
       )
     }
     return Option.none()
+  }
+  if (model.navigation._tag === 'FileIssue') {
+    return draftMessageForToken(token)
   }
   if (model.navigation._tag !== 'IssueDetail') {
     return Option.none()

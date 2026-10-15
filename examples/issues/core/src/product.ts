@@ -8,7 +8,7 @@ import {
   type UiNode,
 } from 'foldkit/renderers'
 
-import { type Issue } from '@foldkit/instant-tools/issues'
+import { type Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
 import {
@@ -20,8 +20,9 @@ import {
   leftoverStatusesForIssue,
   newestWorkLog,
 } from './leftover.js'
-import { type Model } from './model.js'
+import { type IssueDraftState, type Model } from './model.js'
 import { interactionsForModel } from './presentation.js'
+import { productForReference } from './update.js'
 
 const kindLabel = (issue: Issue): string =>
   Option.getOrElse(leftoverKindOf(issue), () => '')
@@ -112,8 +113,7 @@ const navigationButtons = (model: Model): ReadonlyArray<UiNode> =>
       interaction =>
         interaction.token === 'file' ||
         interaction.token === 'triage' ||
-        interaction.token === 'back' ||
-        interaction.token === 'submit',
+        interaction.token === 'back',
     ),
     interaction =>
       Button({ token: interaction.token, label: interaction.label }),
@@ -234,16 +234,74 @@ const detailNodes = (model: Model): ReadonlyArray<UiNode> =>
     }),
   )
 
+const draftProductNodes = (model: Model): ReadonlyArray<UiNode> =>
+  M.value(model.products).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      LoadingProducts: () => [Text('Loading products…')],
+      FailedProducts: ({ reason }) => [Text(reason)],
+      LoadedProducts: ({ products }) => {
+        const maybeChosen = productForReference(products, model.draft.productId)
+        return [
+          Row(
+            { gap: 1 },
+            ...Array.map(products, entry =>
+              Button({
+                token: `product:${entry.product.id}`,
+                label: entry.product.name,
+                variant: Option.exists(
+                  maybeChosen,
+                  chosen => chosen.id === entry.product.id,
+                )
+                  ? 'Primary'
+                  : 'Ghost',
+              }),
+            ),
+          ),
+        ]
+      },
+    }),
+  )
+
+const draftStateNodes = (state: IssueDraftState): ReadonlyArray<UiNode> =>
+  M.value(state).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      EditingIssueDraft: () => [],
+      SavingIssueDraft: () => [Text('Filing…')],
+      FailedIssueDraft: ({ reason }) => [Text(`Not filed: ${reason}`)],
+    }),
+  )
+
 const fileNodes = (model: Model): ReadonlyArray<UiNode> => [
   Text('File issue'),
-  Text(`Title: ${model.draft.title}`),
-  Text(`Product: ${model.draft.productId}`),
-  Text(`Priority: ${model.draft.priority}`),
-  Text(`State: ${model.draftState._tag}`),
-  ...(model.draftState._tag === 'FailedIssueDraft'
-    ? [Text(model.draftState.reason)]
-    : []),
-  Text(`Catalog: ${model.products._tag}`),
+  TextInput({
+    label: 'Title',
+    placeholder: 'Title',
+    token: 'title:',
+    value: model.draft.title,
+  }),
+  TextInput({
+    label: 'Details',
+    placeholder: 'What is wrong or wanted',
+    token: 'details:',
+    value: model.draft.details,
+  }),
+  Text('Product'),
+  ...draftProductNodes(model),
+  Text('Priority'),
+  Row(
+    { gap: 1 },
+    ...Array.map(IssuePriority.literals, priority =>
+      Button({
+        token: `priority:${priority}`,
+        label: priority,
+        variant: priority === model.draft.priority ? 'Primary' : 'Ghost',
+      }),
+    ),
+  ),
+  Button({ token: 'submit', label: 'Submit issue', variant: 'Primary' }),
+  ...draftStateNodes(model.draftState),
 ]
 
 const triageNodes = (model: Model): ReadonlyArray<UiNode> =>

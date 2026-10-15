@@ -19,16 +19,24 @@ import {
   NotObservingLeftoverPresence,
 } from './model.js'
 
+/**
+ * A blank filing form under one product: `emptyIssueDraft('scribe')` has no
+ * title or details and priority P2. Filing an Issue leaves its product
+ * chosen for the next one.
+ */
+export const emptyIssueDraft = (productId: string): IssueDraft =>
+  IssueDraft.make({
+    details: '',
+    leftoverKind: Option.none(),
+    priority: 'P2',
+    productId,
+    title: '',
+  })
+
 /** Creates the stable initial Model for one navigation destination. */
 export const modelForNavigation = (navigation: Navigation): Model =>
   Model.make({
-    draft: IssueDraft.make({
-      details: '',
-      leftoverKind: Option.none(),
-      priority: 'P2',
-      productId: '',
-      title: '',
-    }),
+    draft: emptyIssueDraft(''),
     draftState: EditingIssueDraft.make({}),
     issueDetail: NotObservingIssue.make({}),
     issueLogs: NotObservingIssueLogs.make({}),
