@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:41:32 p.m. EDT — `25139adf66d1` fix(ci): allow sharp's install script so CI installs again
+
+- **Implementation commit:** `25139adf66d13554d06bc5f2234df94c8c24d34e`
+- **Change:** Allow sharp's install script so CI installs again
+- **Details:**
+  - PR technoplato/foldkit#5, squash 25139adf6 (bonus for #695): every CI, Release, Deploy Website, and Examples E2E run since 2026-10-10 stopped at Install dependencies with ERR_PNPM_IGNORED_BUILDS for sharp@0.34.5 (from next@15.5.23). allowBuilds now names sharp; its script only checks whether to build from source. CI then installs and fails on older work already on main: prettier --check finds 20 unformatted files, and the website build that Examples E2E runs fails.
+- **Files:**
+  - `pnpm-workspace.yaml` — allowBuilds: sharp: true.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 10:36:41 p.m. EDT — `99c10664a2ec` refactor(issues): name the Issue page's Mention and attachment sections
 
 - **Implementation commit:** `99c10664a2ec7a867b75be857b3794c279c13482`
