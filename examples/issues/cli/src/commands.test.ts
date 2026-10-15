@@ -44,6 +44,7 @@ import {
   listIssuesCommand,
   logIssueCommand,
   markCriteriaCommand,
+  redactCredentials,
   resolveSaidMention,
   setIssueStatusCommand,
   showIssueCommand,
@@ -878,5 +879,25 @@ describe('issues command', () => {
     expect(Array.join(unknown.stderr, '\n')).toContain(
       'Issue #692 has no criterion 7. Its criteria: 1 issue-692-criterion-1',
     )
+  })
+
+  it('prints no credential the host holds, wherever a failure names it', () => {
+    const adminToken = '7f3c1a52-0692-4e2b-9d41-credential'
+    const outcome: IssuesOutcome = {
+      exitCode: 1,
+      stderr: [
+        `issues file failed: File: FetchIssueIds: Record not found: app-admin-token ({"token":"${adminToken}"})`,
+      ],
+      stdout: [`{"reason":"refused ${adminToken}"}`],
+    }
+
+    expect(redactCredentials(outcome, [adminToken])).toEqual({
+      exitCode: 1,
+      stderr: [
+        'issues file failed: File: FetchIssueIds: Record not found: app-admin-token ({"token":"[redacted]"})',
+      ],
+      stdout: ['{"reason":"refused [redacted]"}'],
+    })
+    expect(redactCredentials(outcome, ['', 'short'])).toEqual(outcome)
   })
 })
