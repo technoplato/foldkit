@@ -23,11 +23,16 @@ import {
   listProductsCommand,
   logIssueCommand,
   markCriteriaCommand,
+  redactCredentials,
   setIssueStatusCommand,
   showIssueCommand,
 } from './commands.js'
 import { runIssues } from './host.js'
-import { IssuesInstantConfigError, liveIssueHostServices } from './resources.js'
+import {
+  IssuesInstantConfigError,
+  type LiveIssueHostServices,
+  liveIssueHostServices,
+} from './resources.js'
 
 const DEVELOPMENT_PROVENANCE = 'development build (not installed from a bundle)'
 
@@ -49,25 +54,19 @@ const environmentPath = (name: string, fallback: string): string => {
   return value === undefined || value === '' ? fallback : value
 }
 
-const liveHost = (): IssuesHost | IssuesInstantConfigError => {
-  const services = liveIssueHostServices()
-  if (services instanceof IssuesInstantConfigError) {
-    return services
-  }
-  return {
-    backupDirectory: environmentPath(
-      'ISSUES_BACKUP_DIR',
-      join(homedir(), 'Sync', 'audit', 'issues-deleted'),
-    ),
-    defaultAgent: environmentPath('SCRIBE_AGENT', 'claude-code'),
-    files: services.files,
-    mirrorRoot: environmentPath('SCRIBE_ROOT', join(homedir(), 'Scribe')),
-    nowMs: () => Date.now(),
-    readStandardInput: Effect.promise(readStandardInput),
-    records: services.records,
-    resources: services.resources,
-  }
-}
+const liveHost = (services: LiveIssueHostServices): IssuesHost => ({
+  backupDirectory: environmentPath(
+    'ISSUES_BACKUP_DIR',
+    join(homedir(), 'Sync', 'audit', 'issues-deleted'),
+  ),
+  defaultAgent: environmentPath('SCRIBE_AGENT', 'claude-code'),
+  files: services.files,
+  mirrorRoot: environmentPath('SCRIBE_ROOT', join(homedir(), 'Scribe')),
+  nowMs: () => Date.now(),
+  readStandardInput: Effect.promise(readStandardInput),
+  records: services.records,
+  resources: services.resources,
+})
 
 const report = (outcome: IssuesOutcome): Effect.Effect<void> =>
   Effect.gen(function* () {
@@ -87,15 +86,17 @@ const report = (outcome: IssuesOutcome): Effect.Effect<void> =>
 const withLiveHost = (
   run: (host: IssuesHost) => Effect.Effect<IssuesOutcome>,
 ): Effect.Effect<void> => {
-  const host = liveHost()
-  if (host instanceof IssuesInstantConfigError) {
+  const services = liveIssueHostServices()
+  if (services instanceof IssuesInstantConfigError) {
     return report({
       exitCode: 1,
-      stderr: [`issues: ${host.message}`],
+      stderr: [`issues: ${services.message}`],
       stdout: [],
     })
   }
-  return Effect.flatMap(run(host), report)
+  return Effect.flatMap(run(liveHost(services)), outcome =>
+    report(redactCredentials(outcome, services.credentials)),
+  )
 }
 
 const jsonFlag = Flag.boolean('json').pipe(

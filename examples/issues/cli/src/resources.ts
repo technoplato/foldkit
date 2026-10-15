@@ -214,6 +214,7 @@ export type IssueRecordsService = Readonly<{
 
 /** Every live resource the one-shot command needs. */
 export type LiveIssueHostServices = Readonly<{
+  credentials: ReadonlyArray<string>
   files: IssueFilesService
   records: IssueRecordsService
   resources: ReturnType<typeof makeLiveIssueTrackerResources>
@@ -309,6 +310,7 @@ export const liveIssueHostServices = ():
   const database = adminAsInstantToolsDatabase(admin)
   const store = makeInstantEntityStore(database)
   return {
+    credentials: [adminToken],
     files: liveIssueFiles(
       initAdmin({
         adminToken,

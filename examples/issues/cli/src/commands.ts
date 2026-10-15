@@ -137,6 +137,34 @@ export type IssuesOutcome = Readonly<{
   stdout: ReadonlyArray<string>
 }>
 
+const MINIMUM_CREDENTIAL_LENGTH = 8
+
+const REDACTED_CREDENTIAL = '[redacted]'
+
+/**
+ * The outcome with every credential the host holds replaced by
+ * `[redacted]`, so nothing printed names one, however Instant words a
+ * failure. A value shorter than any real credential is never searched for.
+ */
+export const redactCredentials = (
+  outcome: IssuesOutcome,
+  credentials: ReadonlyArray<string>,
+): IssuesOutcome => {
+  const searchedCredentials = Array.filter(
+    credentials,
+    credential => credential.length >= MINIMUM_CREDENTIAL_LENGTH,
+  )
+  const redactLine = (line: string): string =>
+    Array.reduce(searchedCredentials, line, (redactedLine, credential) =>
+      redactedLine.replaceAll(credential, REDACTED_CREDENTIAL),
+    )
+  return {
+    exitCode: outcome.exitCode,
+    stderr: Array.map(outcome.stderr, redactLine),
+    stdout: Array.map(outcome.stdout, redactLine),
+  }
+}
+
 const succeeded = (stdout: ReadonlyArray<string>): IssuesOutcome => ({
   exitCode: SUCCEEDED_EXIT_CODE,
   stderr: [],
