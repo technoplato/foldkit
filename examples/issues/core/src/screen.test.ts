@@ -5,17 +5,27 @@ import { describe, expect, it } from 'vitest'
 import { InstantEntityStoreError } from '@foldkit/instant-tools/instant'
 import {
   ApplicationProduct,
+  ConversationReference,
+  Issue,
+  IssueAttachment,
+  IssueMention,
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
   LibraryProduct,
   ProductCatalogEntry,
+  RecordingMention,
+  RecordingReference,
+  UriAttachmentSource,
+  UriReference,
 } from '@foldkit/instant-tools/issues'
 
 import { modelForNavigation } from './init.js'
 import {
   ClickedFileIssue,
   type Message,
+  ObservedIssue,
+  ObservedIssues,
   ObservedProducts,
   SelectedIssuePriority,
   SelectedIssueProduct,
@@ -23,7 +33,7 @@ import {
   UpdatedIssueDetails,
   UpdatedIssueTitle,
 } from './message.js'
-import { FileIssue, type Model } from './model.js'
+import { FileIssue, IssueDetail, IssueList, type Model } from './model.js'
 import { messageForScreenToken } from './presentation.js'
 import { type IssueTrackerResources, issuesScreen } from './program.js'
 import {
@@ -63,6 +73,35 @@ const primaryTokensOf = (model: Model): ReadonlyArray<string> =>
       ? [button.token]
       : [],
   )
+
+const stored = Issue.make({
+  area: Option.none(),
+  attachments: [],
+  claimantId: Option.none(),
+  complexity: Option.none(),
+  createdAtMs: 1_000,
+  details: 'The transcript shifted sideways.',
+  id: '021',
+  issueType: Option.none(),
+  mentions: [],
+  priority: 'P1',
+  product: scribe.product,
+  projectId: Option.none(),
+  reportedDate: Option.none(),
+  sourceDocument: Option.none(),
+  status: 'Open',
+  successCriteria: [],
+  title: 'Keep transcript aligned',
+  updatedAtMs: 1_000,
+  viewerURL: Option.none(),
+  workLog: [],
+})
+
+const opened = (issue: Issue): Model =>
+  update(
+    modelForNavigation(IssueDetail.make({ issueId: issue.id })),
+    ObservedIssue.make({ issue: Option.some(issue), issueId: issue.id }),
+  )[0]
 
 const runWith = <A>(
   tracker: IssueTrackerService,
@@ -195,5 +234,129 @@ describe('Issue Tracker screen: the File form', () => {
       Array.map(inputsOf(issuesScreen(next)), input => input.value),
     ).toEqual(['', ''])
     expect(primaryTokensOf(next)).toContain('product:foldkit')
+  })
+})
+
+describe('Issue Tracker screen: an Issue as it is stored', () => {
+  it('shows each Issue with its stored status, in the list and on its page', () => {
+    const verifying = Issue.make({
+      ...stored,
+      id: '692',
+      status: 'VerificationNeeded',
+    })
+    const [listed] = update(
+      modelForNavigation(IssueList.make({})),
+      ObservedIssues.make({ issues: [verifying] }),
+    )
+
+    expect(
+      Array.map(buttonsOf(issuesScreen(listed)), button => button.label),
+    ).toContain(
+      '692  P1  VerificationNeeded  Keep transcript aligned  [Scribe]',
+    )
+    expect(contentsOf(opened(verifying))).toContain(
+      '692  P1  VerificationNeeded',
+    )
+    expect(
+      Array.filter(primaryTokensOf(opened(verifying)), token =>
+        token.startsWith('status:'),
+      ),
+    ).toEqual([])
+    expect(
+      Array.filter(
+        primaryTokensOf(opened(Issue.make({ ...stored, status: 'Blocked' }))),
+        token => token.startsWith('status:'),
+      ),
+    ).toEqual(['status:Blocked'])
+  })
+
+  it('shows on the page of an Issue who said what, where it came from, and its links', () => {
+    const wordsLink =
+      'https://words.pisspoursoftware.xyz/recording/b24165ca-0c53-449c-b690-55344173b844/section/d6a6b86b-477c-4349-bcea-425fb10638a3?t=1961.74'
+    const quoted = Issue.make({
+      ...stored,
+      area: Option.some('Issue tracker web'),
+      attachments: [
+        IssueAttachment.make({
+          byteCount: Option.none(),
+          capturedAtMs: Option.none(),
+          contentType: 'image/png',
+          fileName: 'file-form.png',
+          id: 'attachment-695-1',
+          issueId: '695',
+          kind: 'Screenshot',
+          sha256: Option.none(),
+          source: UriAttachmentSource.make({
+            value: 'https://issues.pisspoursoftware.xyz/files/file-form.png',
+          }),
+        }),
+      ],
+      claimantId: Option.some('claude-code/claude-opus-5.5/issues-site'),
+      id: '695',
+      issueType: Option.some('defect'),
+      mentions: [
+        IssueMention.make({
+          capturedAtMs: Option.some(1_792_028_655_000),
+          directQuote: Option.some('Fix all the issues stuff with the site'),
+          id: 'mention-695-1',
+          issueId: '695',
+          related: [UriReference.make({ value: 'javascript:alert(1)' })],
+          reporter: Option.none(),
+          source: ConversationReference.make({
+            conversation: {
+              harness: 'claude-code',
+              messageId: 'b7d408cb',
+              note: 'Typed in the Claude chat, Claude Code session f1283b96.',
+              sessionId: 'f1283b96',
+            },
+          }),
+        }),
+        IssueMention.make({
+          capturedAtMs: Option.some(1_791_197_694_898),
+          directQuote: Option.some(
+            "Well, now it's going to be issues.pissport software. XYZ.",
+          ),
+          id: 'mention-695-2',
+          issueId: '695',
+          related: [UriReference.make({ value: wordsLink })],
+          reporter: Option.none(),
+          source: RecordingReference.make({
+            recording: RecordingMention.make({
+              endMilliseconds: Option.some(1_964_800),
+              recordingId: 'b24165ca-0c53-449c-b690-55344173b844',
+              screenshotIds: [],
+              startMilliseconds: 1_961_740,
+            }),
+          }),
+        }),
+      ],
+      reportedDate: Option.some('2026-10-14'),
+    })
+    const screen = issuesScreen(opened(quoted))
+
+    expect(contentsOf(opened(quoted))).toEqual(
+      expect.arrayContaining([
+        'Type: defect',
+        'Area: Issue tracker web',
+        'Claimed by: claude-code/claude-opus-5.5/issues-site',
+        'Reported: 2026-10-14',
+        'Mentions',
+        '2026-10-15T01:44:15.000Z  Fix all the issues stuff with the site',
+        'from Typed in the Claude chat, Claude Code session f1283b96.',
+        "2026-10-05T10:54:54.898Z  Well, now it's going to be issues.pissport software. XYZ.",
+        'from recording b24165ca-0c53-449c-b690-55344173b844 1961.74 s-1964.8 s',
+        wordsLink,
+        'Attachments',
+        'file-form.png (Screenshot)',
+      ]),
+    )
+    const links = Array.flatMap(textsOf(screen), text =>
+      text.href === undefined ? [] : [text.href],
+    )
+    expect(links).toContain(wordsLink)
+    expect(links).toContain(
+      'https://issues.pisspoursoftware.xyz/files/file-form.png',
+    )
+    expect(links).not.toContain('javascript:alert(1)')
   })
 })
