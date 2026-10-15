@@ -47,13 +47,17 @@ issues products
 ```
 
 - `file` takes the next free number. It never writes over a stored Issue:
-  when another writer takes the number first, it takes the next one.
+  when another writer takes the number first, it takes the next one. When the
+  Issue is created but cannot be read back, the message names the number it
+  was created under, so check it before filing again.
 - `--said 208:1884-1888` reads those lines from the Scribe mirror (`$SCRIBE_ROOT`,
   default `~/Scribe`) word for word and writes the recording, its time span,
   and a words deep link per line into the Mention.
 - `log`, `claim`, `status`, `link`, `edit`, `criterion`, `satisfy`, `mention`,
   and `attach` change one thing, read the Issue back, and fail when the change
   did not land. `satisfy` takes a criterion's position or id.
+- `link` and `file --related` refuse a number no Issue holds (exit 3) and
+  write nothing.
 - `list` fails (exit 1) when a stored Issue cannot be read, naming it.
 - `delete` needs Michael's typed yes and first writes the stored record to
   `$ISSUES_BACKUP_DIR` (default `~/Sync/audit/issues-deleted`).
