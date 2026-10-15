@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:34:58 p.m. EDT — `a5a0f08d549e` fix(issues): give the site an icon so browsers stop asking for one
+
+- **Implementation commit:** `a5a0f08d549e37885a5babab0dc943b2627674a3`
+- **Change:** Give the site an icon so browsers stop asking for one
+- **Details:**
+  - (#695) Every page load logged a 404 for /favicon.ico; the page declares an inline SVG icon.
+- **Files:**
+  - `examples/issues/react/index.html` — Inline SVG icon.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:34:58 p.m. EDT — `41f45707a363` fix(issues): show the logs tagged with an Issue on its page
+
+- **Implementation commit:** `41f45707a363efa665ca5323994d3f00d0a3f1a0`
+- **Change:** Show the logs tagged with an Issue on its page
+- **Details:**
+  - Red ae94124b4 (examples/issues/core/src/screen.test.ts), green 41f45707a (#695): the Model observed each open Issue's tagged logs, but the shared screen never painted them, so the site showed none of the 715 tagged logs (164 on #041). The page now has a Tagged logs section.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — Tagged logs section.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 10:32:37 p.m. EDT — `87bcff5d1466` fix(issues): name a bare-name reporter without JSON quotes
 
 - **Implementation commit:** `87bcff5d14661d5004bb2a4f000b1a687776d427`
