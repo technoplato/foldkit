@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 11:46:37 p.m. EDT — `700b8c5f5ff5` feat(issues): Instant rules that keep the tracker to its owners
+
+- **Implementation commit:** `700b8c5f5ff529fc11395f51c5f96555f1da0a8d`
+- **Change:** Instant rules that keep the issue tracker to its owners (red 8bff10e87 adds perms.test.ts and the export, green 700b8c5f5)
+- **Details:**
+  - instantToolsOwnerRules gates every Instant Tools entity and $files on auth.email being an owner; pushed to the tracker app 28c98cc4 with only halfjew22@gmail.com, after a rules matrix on an ephemeral app (audit: /Users/laptop/Sync/audit/issues-site-2026-10-14/perms/).
+- **Files:**
+  - `packages/instant-tools/src/instant/perms.ts` — the rules builder and OwnerEmail
+- **User context (verbatim):**
+  > Should I allow site writes and restrict reads to your email (both together), and remove the client-named file from FoldKit main? (answered: Yes, typed 2026-10-14 ~23:20 EDT)
+- **SpecStory:** unavailable — Headless Claude Code run on the second account; no SpecStory capture.
+
 ## October 14th, 2026 at 10:41:32 p.m. EDT — `25139adf66d1` fix(ci): allow sharp's install script so CI installs again
 
 - **Implementation commit:** `25139adf66d13554d06bc5f2234df94c8c24d34e`
