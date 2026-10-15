@@ -8,7 +8,13 @@ import {
   type UiNode,
 } from 'foldkit/renderers'
 
-import { type Issue, IssuePriority } from '@foldkit/instant-tools/issues'
+import {
+  type Issue,
+  type IssueMention,
+  IssuePriority,
+  type IssueReference,
+  issueViewerUrl,
+} from '@foldkit/instant-tools/issues'
 import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
 import {
@@ -16,12 +22,16 @@ import {
   issuesForProductFilter,
   leftoverKindOf,
   leftoverQuorumRequired,
-  leftoverStatusOf,
   leftoverStatusesForIssue,
   newestWorkLog,
 } from './leftover.js'
 import { type IssueDraftState, type Model } from './model.js'
 import { interactionsForModel } from './presentation.js'
+import {
+  describeIssueReference,
+  issueAttachmentWebLink,
+  issueReferenceWebLink,
+} from './reference.js'
 import { productForReference } from './update.js'
 
 const kindLabel = (issue: Issue): string =>
@@ -29,33 +39,104 @@ const kindLabel = (issue: Issue): string =>
 
 const listIssueLabel = (issue: Issue): string => {
   const kind = kindLabel(issue)
-  const leftover = leftoverStatusOf(issue.status)
   return kind === ''
-    ? `${issue.id}  ${issue.priority}  ${leftover}  ${issue.title}`
-    : `${issue.id}  ${issue.priority}  ${leftover}  ${kind}  ${issue.title}`
+    ? `${issue.id}  ${issue.priority}  ${issue.status}  ${issue.title}`
+    : `${issue.id}  ${issue.priority}  ${issue.status}  ${kind}  ${issue.title}`
 }
 
+const isoTimeOf = (timeMs: number): string => new Date(timeMs).toISOString()
+
 const workLogLine = (entry: Issue['workLog'][number]): string => {
-  const when = new Date(entry.occurredAtMs).toISOString()
+  const when = isoTimeOf(entry.occurredAtMs)
   const agent = Option.getOrElse(entry.agentId, () => '')
   return agent === ''
     ? `${when}  ${entry.summary}`
     : `${when}  ${entry.summary}  [${agent}]`
 }
 
+const labeledNodes = (
+  label: string,
+  value: Option.Option<string>,
+): ReadonlyArray<UiNode> =>
+  Option.toArray(Option.map(value, text => Text(`${label}: ${text}`)))
+
+const referenceNode = (prefix: string, reference: IssueReference): UiNode => {
+  const content = `${prefix}${describeIssueReference(reference)}`
+  return Option.match(issueReferenceWebLink(reference), {
+    onNone: () => Text(content),
+    onSome: href => Text(content, { href }),
+  })
+}
+
+const mentionNodes = (mention: IssueMention): ReadonlyArray<UiNode> => [
+  Text(
+    Array.join(
+      [
+        ...Option.toArray(Option.map(mention.capturedAtMs, isoTimeOf)),
+        Option.getOrElse(
+          Option.orElse(mention.directQuote, () => mention.note),
+          () => '(no quote)',
+        ),
+      ],
+      '  ',
+    ),
+  ),
+  referenceNode('from ', mention.source),
+  ...Option.toArray(
+    Option.map(mention.reporter, reporter =>
+      referenceNode('reported by ', reporter),
+    ),
+  ),
+  ...Array.map(mention.related, related => referenceNode('', related)),
+]
+
+const mentionsNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+  Array.match(issue.mentions, {
+    onEmpty: () => [],
+    onNonEmpty: mentions => [
+      Column(
+        { gap: 1 },
+        Text('Mentions'),
+        ...Array.flatMap(mentions, mentionNodes),
+      ),
+    ],
+  })
+
+const attachmentNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+  Array.match(issue.attachments, {
+    onEmpty: () => [],
+    onNonEmpty: attachments => [
+      Column(
+        { gap: 1 },
+        Text('Attachments'),
+        ...Array.map(attachments, attachment => {
+          const content = `${attachment.fileName} (${attachment.kind})`
+          return Option.match(issueAttachmentWebLink(attachment.source), {
+            onNone: () => Text(content),
+            onSome: href => Text(content, { href }),
+          })
+        }),
+      ),
+    ],
+  })
+
 const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
-  const leftover = leftoverStatusOf(issue.status)
-  const kind = leftoverKindOf(issue)
   const progress = newestWorkLog(issue.workLog)
   const links = catalogIssueRefsOf(issue)
+  const pageUrl = issueViewerUrl(issue.id)
   return [
-    Text(`${issue.id}  ${issue.priority}  ${leftover}`),
-    ...Option.match(kind, {
-      onNone: () => [],
-      onSome: value => [Text(value)],
-    }),
+    Text(`${issue.id}  ${issue.priority}  ${issue.status}`),
     Text(issue.title),
+    ...labeledNodes('Type', issue.issueType),
+    ...labeledNodes('Area', issue.area),
+    ...labeledNodes('Claimed by', issue.claimantId),
+    ...labeledNodes('Reported', issue.reportedDate),
+    Text(
+      `Created ${isoTimeOf(issue.createdAtMs)}  Updated ${isoTimeOf(issue.updatedAtMs)}`,
+      { dim: true },
+    ),
     Text(issue.details),
+    ...mentionsNodes(issue),
     Column(
       { gap: 1 },
       Text('Work log'),
@@ -81,7 +162,7 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
         Button({
           token: `status:${status}`,
           label: status,
-          variant: status === leftover ? 'Primary' : 'Ghost',
+          variant: status === issue.status ? 'Primary' : 'Ghost',
         }),
       ),
     ),
@@ -98,11 +179,9 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
             ),
           ),
         ]),
+    ...attachmentNodes(issue),
     Text(`${issue.product._tag}: ${issue.product.name}`),
-    ...Option.match(issue.viewerURL, {
-      onNone: () => [],
-      onSome: url => (url === '' ? [] : [Text(url, { href: url })]),
-    }),
+    Text(pageUrl, { href: pageUrl }),
   ]
 }
 
