@@ -153,6 +153,67 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   > Make sure there's only one script and only one way to file issues.
 - **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
 
+## October 5th, 2026 at 9:06:56 a.m. EDT — `eef68d29acae` docs(foldkit): record why terminal Books broke, in ADR 0014
+
+- **Implementation commit:** `eef68d29acae4c5d093d730d999e6547ada3339a`
+- **Change:** Record why terminal Books broke, in ADR 0014
+- **Details:**
+  - Five whys to core, and three decisions: one terminal host, a conformance suite, Environment.maybePage.
+- **Files:**
+  - `docs/adr/0014-one-contract-for-every-surface.md` — The record.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 9:06:56 a.m. EDT — `87649e3aaf6f` feat(oxlint-plugin): forbid raw typeof window and document checks
+
+- **Implementation commit:** `87649e3aaf6fbdb669a752cfb1b99db798f3e2b9`
+- **Change:** Forbid raw typeof window and document checks
+- **Details:**
+  - no-raw-page-check reports them outside the environment module.
+- **Files:**
+  - `packages/oxlint-plugin-foldkit/src/rules/no-raw-page-check.ts` — The rule.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 9:06:56 a.m. EDT — `e21b4d469419` fix(svelte): check for a page with Environment.maybePage
+
+- **Implementation commit:** `e21b4d4694190334f2b87eac5f44e768a04d8134`
+- **Change:** Check for a page with Environment.maybePage
+- **Details:**
+  - Svelte links and dock height stop testing typeof window or document.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — Dock page check.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 9:06:55 a.m. EDT — `e3e20e439898` fix(react): check for a page with Environment.maybePage
+
+- **Implementation commit:** `e3e20e43989809fc0e490c4394c2eb6137bfa6fb`
+- **Change:** Check for a page with Environment.maybePage
+- **Details:**
+  - React navigation, title, key bindings, and router stop testing typeof window.
+- **Files:**
+  - `packages/react/src/navigation/navigation.tsx` — Page checks.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 9:06:55 a.m. EDT — `d8858c6834c9` feat(foldkit): tell a real page from a terminal with Environment.maybePage
+
+- **Implementation commit:** `d8858c6834c97c0e847d9108c13974d6835444c5`
+- **Change:** Tell a real page from a terminal with Environment.maybePage
+- **Details:**
+  - A bare typeof window check took a terminal with Instant's stand-in window for a browser and silenced telemetry.
+- **Files:**
+  - `packages/foldkit/src/environment/environment.ts` — maybePage and isPage.
+  - `packages/foldkit/src/telemetry/attach.ts` — Uses maybePage.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 5th, 2026 at 8:02:42 a.m. EDT — `63efccae9f2b` fix(instant-tools): keep stored payload keys the Issue schema does not model on save
 
 - **Implementation commit:** `63efccae9f2b5b4dfa8a864ad686cd6bbd4e2066`

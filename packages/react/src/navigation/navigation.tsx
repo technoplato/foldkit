@@ -1,5 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
-import { Interaction, Navigation } from 'foldkit'
+import { Environment, Interaction, Navigation } from 'foldkit'
 import type { ButtonNode } from 'foldkit/renderers'
 import {
   type ReactElement,
@@ -111,8 +111,9 @@ export const HostPagesProvider = HostPagesContext.Provider
 const followLinkOf =
   (bound: AnyBound, hostPages: Navigation.HostPages) =>
   (href: string): boolean =>
-    typeof window !== 'undefined' &&
-    Navigation.followLink(window, bound, href, hostPages, 'Push')
+    Option.exists(Environment.maybePage(), page =>
+      Navigation.followLink(page.window, bound, href, hostPages, 'Push'),
+    )
 
 type LayerShape = Readonly<{
   key: string
@@ -318,8 +319,9 @@ export const useDocumentTitle = (): void => {
   const bound = useBound()
   const title = useBoundRead(bound, bound.windowTitle)
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.title = title
+    const maybeCurrentPage = Environment.maybePage()
+    if (Option.isSome(maybeCurrentPage)) {
+      maybeCurrentPage.value.document.title = title
     }
   }, [title])
 }
@@ -405,14 +407,16 @@ export const useBrowserHistory = (
   const onDiagnostic = useRef(options.onDiagnostic)
   onDiagnostic.current = options.onDiagnostic
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    const maybeCurrentPage = Environment.maybePage()
+    if (Option.isNone(maybeCurrentPage)) {
       return undefined
     }
+    const pageWindow = maybeCurrentPage.value.window
     return Navigation.runCarrier(
       bound,
-      Navigation.browserHistoryDriver(window),
+      Navigation.browserHistoryDriver(pageWindow),
       {
-        launchUri: Option.some(Navigation.windowUri(window)),
+        launchUri: Option.some(Navigation.windowUri(pageWindow)),
         ...(isCarried === undefined ? {} : { isCarried }),
         ...(expectationTimeoutMs === undefined ? {} : { expectationTimeoutMs }),
         ...(reportTimeoutMs === undefined ? {} : { reportTimeoutMs }),

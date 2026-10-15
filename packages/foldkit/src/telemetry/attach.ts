@@ -9,6 +9,7 @@ import {
   type Scope,
 } from 'effect'
 
+import { maybePage } from '../environment/environment.js'
 import type { Host } from '../processor/host.js'
 import type { ObserveRuntime } from '../runtime/handle.js'
 import type {
@@ -123,32 +124,26 @@ type SessionConfig = Readonly<{
   redactKeys: ReadonlyArray<string>
 }>
 
-// NOTE: A Node process can have a `window` that is no page, such as the
-// empty object @foldkit/instant's Node client defines so @instantdb/core
-// runs in a terminal, so a page is a `window` that takes listeners.
-const isInPage = (): boolean =>
-  typeof window !== 'undefined' &&
-  Predicate.isFunction(Reflect.get(window, 'addEventListener'))
-
 /**
  * Calls `onPageEnded` when the page this runs in is going away for good,
  * and not when it is only being kept in the back-forward cache, which can
  * bring it back. Does nothing outside a browser.
  */
-const watchPageEnding = (onPageEnded: () => void): (() => void) => {
-  if (!isInPage()) {
-    return Function.constVoid
-  }
-  const onPageHide = (event: PageTransitionEvent): void => {
-    if (!event.persisted) {
-      onPageEnded()
-    }
-  }
-  window.addEventListener('pagehide', onPageHide)
-  return () => {
-    window.removeEventListener('pagehide', onPageHide)
-  }
-}
+const watchPageEnding = (onPageEnded: () => void): (() => void) =>
+  Option.match(maybePage(), {
+    onNone: () => Function.constVoid,
+    onSome: ({ window: pageWindow }) => {
+      const onPageHide = (event: PageTransitionEvent): void => {
+        if (!event.persisted) {
+          onPageEnded()
+        }
+      }
+      pageWindow.addEventListener('pagehide', onPageHide)
+      return () => {
+        pageWindow.removeEventListener('pagehide', onPageHide)
+      }
+    },
+  })
 
 const startRecording = <Model, Message extends Readonly<{ _tag: string }>>(
   observation: ProgramRuntimeObservation<Model, Message>,
