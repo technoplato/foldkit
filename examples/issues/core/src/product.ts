@@ -94,7 +94,7 @@ const mentionNodes = (mention: IssueMention): ReadonlyArray<UiNode> => [
   ...Array.map(mention.related, related => referenceNode('', related)),
 ]
 
-const mentionsNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+const mentionSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
   Array.match(issue.mentions, {
     onEmpty: () => [],
     onNonEmpty: mentions => [
@@ -106,7 +106,7 @@ const mentionsNodes = (issue: Issue): ReadonlyArray<UiNode> =>
     ],
   })
 
-const attachmentNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+const attachmentSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
   Array.match(issue.attachments, {
     onEmpty: () => [],
     onNonEmpty: attachments => [
@@ -140,7 +140,7 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
       { dim: true },
     ),
     Text(issue.details),
-    ...mentionsNodes(issue),
+    ...mentionSectionNodes(issue),
     Column(
       { gap: 1 },
       Text('Work log'),
@@ -183,7 +183,7 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
             ),
           ),
         ]),
-    ...attachmentNodes(issue),
+    ...attachmentSectionNodes(issue),
     Text(`${issue.product._tag}: ${issue.product.name}`),
     Text(pageUrl, { href: pageUrl }),
   ]
