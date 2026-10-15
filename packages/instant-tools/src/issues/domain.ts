@@ -1,4 +1,13 @@
-import { Array, Effect, Match as M, Schema as S } from 'effect'
+import {
+  Array,
+  Effect,
+  Match as M,
+  Option,
+  Order,
+  Schema as S,
+  SchemaIssue,
+  SchemaTransformation,
+} from 'effect'
 
 /** The urgency of an Issue, ordered from immediate P0 to eventual P4. */
 export const IssuePriority = S.Literals(['P0', 'P1', 'P2', 'P3', 'P4'])
@@ -132,17 +141,63 @@ export const UriReference = S.TaggedStruct('Uri', {
 export const CatalogIssueReference = S.TaggedStruct('Issue', {
   id: S.String,
 })
+/**
+ * The message a person typed to an agent, such as Michael's line in a Claude
+ * Code chat: `{ harness: 'claude-code', sessionId: 'c863fc6a-…', messageId:
+ * '82fc7bc4-…', typedAtMs: 1791713374021, note: 'Typed in the Claude chat.' }`.
+ * Stored sources hold only the note, so every other key is optional and an
+ * absent key stays absent when the reference is written back.
+ */
+export const ConversationMoment = S.Struct({
+  harness: S.optionalKey(S.String),
+  messageId: S.optionalKey(S.String),
+  note: S.String,
+  sessionId: S.optionalKey(S.String),
+  typedAtMs: S.optionalKey(S.Number),
+})
+/** A reference to a message a person typed to an agent. */
+export const ConversationReference = S.TaggedStruct('Conversation', {
+  conversation: ConversationMoment,
+})
+/**
+ * A stored reference whose shape no variant above models, kept verbatim so a
+ * save writes it back unchanged. A writer that stores the reporter `"main"` or
+ * `{ _tag: 'Conversation', conversation: { note } }` reads back as
+ * `{ _tag: 'Unrecognized', value: "main" }`. Issue #591 lists the stored shapes
+ * that made whole Issues unreadable before this variant existed.
+ */
+export const UnrecognizedReference = S.TaggedStruct('Unrecognized', {
+  value: S.Union([
+    S.String,
+    S.Number,
+    S.Boolean,
+    S.Array(S.Json),
+    S.Record(S.String, S.Json),
+  ]),
+})
+
+const UnrecognizedReferenceFromStored = UnrecognizedReference.fields.value.pipe(
+  S.decodeTo(
+    UnrecognizedReference,
+    SchemaTransformation.transform({
+      decode: value => UnrecognizedReference.make({ value }),
+      encode: reference => reference.value,
+    }),
+  ),
+)
 
 /** A polymorphic link from Issue data to one related artifact. */
 export const IssueReference = S.Union([
   AgentReference,
   CatalogIssueReference,
   CommitReference,
+  ConversationReference,
   MediaReference,
   ProjectReference,
   RecordingReference,
   ReleaseReference,
   UriReference,
+  UnrecognizedReferenceFromStored,
 ])
 /** A polymorphic link from Issue data to one related artifact. */
 export type IssueReference = typeof IssueReference.Type
@@ -208,12 +263,20 @@ export type IssueAttachment = typeof IssueAttachment.Type
 
 /** One user or Agent report of an Issue. */
 export const IssueMention = S.Struct({
-  capturedAtMs: S.Number,
+  // NOTE: Writers store Mentions without a capture time, so it is optional (#591).
+  capturedAtMs: S.OptionFromNullOr(S.Number).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   directQuote: S.OptionFromNullOr(S.String).pipe(
     S.withDecodingDefaultKey(Effect.succeed(null)),
   ),
   id: S.String,
   issueId: S.String,
+  // NOTE: Kept so a save from a Client does not drop a writer's note (#591).
+  note: S.OptionFromNullOr(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+    S.withConstructorDefault(Effect.succeed(Option.none())),
+  ),
   related: S.Array(IssueReference).pipe(
     S.withDecodingDefaultKey(Effect.succeed([])),
     S.withConstructorDefault(Effect.succeed([])),
@@ -239,11 +302,86 @@ export const IssueWorkLogEntry = S.Struct({
   ),
   id: S.String,
   occurredAtMs: S.Number,
-  state: S.OptionFromNullOr(S.String),
+  state: S.OptionFromNullOr(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   summary: S.String,
 })
 /** One dated unit of work associated with an Issue. */
 export type IssueWorkLogEntry = typeof IssueWorkLogEntry.Type
+
+const LegacyIssueWorkLogEntry = S.Struct({
+  agent: S.optionalKey(S.String),
+  agentId: S.optionalKey(S.String),
+  atMs: S.optionalKey(S.Number),
+  id: S.String,
+  note: S.optionalKey(S.String),
+  summary: S.optionalKey(S.String),
+  timestampMs: S.optionalKey(S.Number),
+})
+
+/**
+ * Reads a work-log row an older writer stored under other keys: `atMs` or
+ * `timestampMs` for `occurredAtMs`, `note` for `summary`, and `agent` for
+ * `agentId`. `{ id: 'work-1', atMs: 1785851462354, agent: 'claude-code', note:
+ * 'Diagnosed' }` reads as an entry that occurred at 1785851462354. Without it
+ * the Issues holding such rows could not be read at all (#591).
+ */
+const IssueWorkLogEntryFromLegacyKeys = LegacyIssueWorkLogEntry.pipe(
+  S.decodeTo(
+    IssueWorkLogEntry,
+    SchemaTransformation.transformOrFail<
+      typeof IssueWorkLogEntry.Encoded,
+      typeof LegacyIssueWorkLogEntry.Type
+    >({
+      decode: legacy => {
+        const maybeOccurredAtMs = Option.orElse(
+          Option.fromUndefinedOr(legacy.atMs),
+          () => Option.fromUndefinedOr(legacy.timestampMs),
+        )
+        const maybeSummary = Option.orElse(
+          Option.fromUndefinedOr(legacy.summary),
+          () => Option.fromUndefinedOr(legacy.note),
+        )
+        if (Option.isNone(maybeOccurredAtMs) || Option.isNone(maybeSummary)) {
+          return Effect.fail(
+            new SchemaIssue.InvalidValue(Option.some(legacy), {
+              description:
+                'Expected a work-log row with atMs or timestampMs and a summary or note',
+            }),
+          )
+        }
+        const maybeAgentId = Option.orElse(
+          Option.fromUndefinedOr(legacy.agentId),
+          () => Option.fromUndefinedOr(legacy.agent),
+        )
+        return Effect.succeed({
+          agentId: Option.getOrNull(maybeAgentId),
+          commitSha: null,
+          durationSeconds: null,
+          id: legacy.id,
+          occurredAtMs: maybeOccurredAtMs.value,
+          state: null,
+          summary: maybeSummary.value,
+        })
+      },
+      encode: entry =>
+        Effect.succeed({
+          ...(typeof entry.agentId === 'string'
+            ? { agentId: entry.agentId }
+            : {}),
+          atMs: entry.occurredAtMs,
+          id: entry.id,
+          summary: entry.summary,
+        }),
+    }),
+  ),
+)
+
+const IssueWorkLogEntryFromStored = S.Union([
+  IssueWorkLogEntry,
+  IssueWorkLogEntryFromLegacyKeys,
+])
 
 /** A closed kind of proof required to demonstrate that an Issue outcome succeeded. */
 export const IssueSuccessEvidence = S.Literals([
@@ -305,6 +443,8 @@ const IssueLogEvidenceQueries = S.Array(IssueLogEvidenceQuery).pipe(
 
 /** A coarse estimate used to keep unattended repair work bounded. */
 export const IssueComplexity = S.Literals([
+  // NOTE: Stored Issues use Complex, and rejecting it hid them (#591).
+  'Complex',
   'High',
   'Large',
   'Medium',
@@ -351,6 +491,11 @@ export const Issue = S.Struct({
   priority: IssuePriority,
   product: TrackedProduct,
   projectId: S.OptionFromNullOr(S.String),
+  // NOTE: 329 stored Issues name their related Issues here, beside the Mentions.
+  relatedIssueIds: S.Array(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed([])),
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
   reportedDate: OptionalIssueString,
   sourceDocument: S.OptionFromNullOr(IssueSourceDocument),
   status: IssueStatus,
@@ -358,10 +503,60 @@ export const Issue = S.Struct({
   title: S.String,
   updatedAtMs: S.Number,
   viewerURL: OptionalIssueString,
-  workLog: S.Array(IssueWorkLogEntry),
+  workLog: S.Array(IssueWorkLogEntryFromStored),
 })
 /** A transport-independent Issue with durable evidence and work history. */
 export type Issue = typeof Issue.Type
+
+/**
+ * Orders Issues newest first by `createdAtMs`, then by descending `id` when two
+ * Issues share a creation time. Issue `584` created at 07:05 sorts before Issue
+ * `575` created at 00:05. The tracker sorts with it before applying a query
+ * limit, so a capped read keeps the newest Issues instead of the oldest (#591).
+ */
+export const IssueNewestFirst: Order.Order<Issue> = Order.combine(
+  Order.mapInput(Order.flip(Order.Number), (issue: Issue) => issue.createdAtMs),
+  Order.mapInput(Order.flip(Order.String), (issue: Issue) => issue.id),
+)
+
+const issueNumberPadding = 3
+const issueReferencePrefix = /^issue\s*#?\s*/i
+
+/**
+ * Reads an Issue number in the spellings agents write and prints it the way
+ * the tracker stores it: digits, zero-padded to three below 1,000. `'92'`,
+ * `'#92'`, and `'issue 92'` all read as `'092'`; `'1001'` stays `'1001'`.
+ * Anything else, such as `'issue-041'` or `'0'`, is not an Issue number.
+ */
+export const normalizeIssueId = (value: string): Option.Option<string> => {
+  const withoutPrefix = value.trim().replace(issueReferencePrefix, '')
+  const digits = withoutPrefix.startsWith('#')
+    ? withoutPrefix.slice(1).trim()
+    : withoutPrefix
+  if (!/^\d+$/.test(digits)) {
+    return Option.none()
+  }
+  const number = Number(digits)
+  if (!Number.isSafeInteger(number) || number <= 0) {
+    return Option.none()
+  }
+  return Option.some(String(number).padStart(issueNumberPadding, '0'))
+}
+
+/**
+ * The number after the highest Issue number in use, past any gap. Numbers in
+ * use `['001', '153', '692']` give `'693'`; ids that are not numbers, such as
+ * `'issue-preview'`, are ignored, so an empty tracker starts at `'001'`.
+ */
+export const nextIssueId = (issueIds: ReadonlyArray<string>): string => {
+  const highest = Array.reduce(issueIds, 0, (current, issueId) =>
+    Option.match(normalizeIssueId(issueId), {
+      onNone: () => current,
+      onSome: normalized => Math.max(current, Number(normalized)),
+    }),
+  )
+  return String(highest + 1).padStart(issueNumberPadding, '0')
+}
 
 /** A first unique Mention was recorded at the Issue's baseline priority. */
 export const Accepted = S.TaggedStruct('Accepted', {
@@ -426,7 +621,10 @@ export const registerMention = (
     priority: isRepeatedMention
       ? escalatePriority(issue.priority)
       : issue.priority,
-    updatedAtMs: Math.max(issue.updatedAtMs, mention.capturedAtMs),
+    updatedAtMs: Math.max(
+      issue.updatedAtMs,
+      Option.getOrElse(mention.capturedAtMs, () => issue.updatedAtMs),
+    ),
   })
 
   if (isRepeatedMention) {

@@ -2,7 +2,10 @@ import { Schema as S } from 'effect'
 
 import {
   Issue,
+  IssueAttachment,
   IssuePriority,
+  IssueStatus,
+  IssueSuccessEvidence,
   ProductCatalogEntry,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
@@ -10,7 +13,7 @@ import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { LeftoverStatus, ProductFilter } from './leftover.js'
-import { Navigation } from './model.js'
+import { DraftMention, IssueDraft, Navigation } from './model.js'
 
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
   issues: S.Array(Issue),
@@ -74,6 +77,9 @@ export const SelectedIssueProduct = S.TaggedStruct('SelectedIssueProduct', {
 export const SelectedIssuePriority = S.TaggedStruct('SelectedIssuePriority', {
   priority: IssuePriority,
 })
+export const ComposedIssueDraft = S.TaggedStruct('ComposedIssueDraft', {
+  draft: IssueDraft,
+})
 export const SubmittedIssue = S.TaggedStruct('SubmittedIssue', {})
 export const SucceededSaveIssue = S.TaggedStruct('SucceededSaveIssue', {
   issue: Issue,
@@ -113,6 +119,69 @@ export const SucceededSaveIssueWorkLog = S.TaggedStruct(
   { issue: Issue },
 )
 export const FailedSaveIssueWorkLog = S.TaggedStruct('FailedSaveIssueWorkLog', {
+  reason: S.String,
+})
+export const SubmittedIssueWorkLogEntry = S.TaggedStruct(
+  'SubmittedIssueWorkLogEntry',
+  {
+    agentId: S.Option(S.String),
+    claimantId: S.Option(S.String),
+    commitSha: S.Option(S.String),
+    issueId: S.String,
+    state: S.String,
+    status: S.Option(IssueStatus),
+    summary: S.String,
+  },
+)
+export const SucceededAppendIssueWorkLogEntry = S.TaggedStruct(
+  'SucceededAppendIssueWorkLogEntry',
+  { entryId: S.String, issue: Issue },
+)
+export const SubmittedIssueAttachment = S.TaggedStruct(
+  'SubmittedIssueAttachment',
+  { attachment: IssueAttachment, issueId: S.String },
+)
+export const SubmittedIssueEdit = S.TaggedStruct('SubmittedIssueEdit', {
+  area: S.Option(S.String),
+  details: S.Option(S.String),
+  issueId: S.String,
+  issueType: S.Option(S.String),
+  priority: S.Option(IssuePriority),
+  productId: S.Option(S.String),
+  title: S.Option(S.String),
+})
+export const SubmittedIssueSuccessCriterion = S.TaggedStruct(
+  'SubmittedIssueSuccessCriterion',
+  {
+    issueId: S.String,
+    outcome: S.String,
+    requiredEvidence: S.Array(IssueSuccessEvidence),
+  },
+)
+export const SubmittedSuccessCriteriaMarks = S.TaggedStruct(
+  'SubmittedSuccessCriteriaMarks',
+  {
+    criterionIds: S.Array(S.String),
+    isSatisfied: S.Boolean,
+    issueId: S.String,
+  },
+)
+export const SubmittedIssueMention = S.TaggedStruct('SubmittedIssueMention', {
+  issueId: S.String,
+  mention: DraftMention,
+})
+export const SelectedIssueStatus = S.TaggedStruct('SelectedIssueStatus', {
+  issueId: S.String,
+  status: IssueStatus,
+})
+export const ConfirmedIssueDeletion = S.TaggedStruct('ConfirmedIssueDeletion', {
+  issueId: S.String,
+})
+export const SucceededDeleteIssue = S.TaggedStruct('SucceededDeleteIssue', {
+  issue: Issue,
+})
+export const FailedDeleteIssue = S.TaggedStruct('FailedDeleteIssue', {
+  issueId: S.String,
   reason: S.String,
 })
 export const LinkedCatalogIssue = S.TaggedStruct('LinkedCatalogIssue', {
@@ -180,6 +249,7 @@ export const Message = S.Union([
   UpdatedIssueDetails,
   SelectedIssueProduct,
   SelectedIssuePriority,
+  ComposedIssueDraft,
   SubmittedIssue,
   SucceededSaveIssue,
   FailedSaveIssue,
@@ -193,6 +263,17 @@ export const Message = S.Union([
   AppendedIssueWorkLog,
   SucceededSaveIssueWorkLog,
   FailedSaveIssueWorkLog,
+  SubmittedIssueWorkLogEntry,
+  SucceededAppendIssueWorkLogEntry,
+  SubmittedIssueAttachment,
+  SubmittedIssueEdit,
+  SubmittedIssueSuccessCriterion,
+  SubmittedSuccessCriteriaMarks,
+  SubmittedIssueMention,
+  SelectedIssueStatus,
+  ConfirmedIssueDeletion,
+  SucceededDeleteIssue,
+  FailedDeleteIssue,
   LinkedCatalogIssue,
   ClickedLeftoverStatus,
   RetargetedIssueProduct,

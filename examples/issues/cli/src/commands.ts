@@ -1,0 +1,1815 @@
+import {
+  Array,
+  Effect,
+  Layer,
+  Match as M,
+  Option,
+  Order,
+  Schema as S,
+} from 'effect'
+import {
+  ComposedIssueDraft,
+  ConfirmedIssueDeletion,
+  DraftMention,
+  DraftSuccessCriterion,
+  DraftWorkLogEntry,
+  FileIssue,
+  IssueDetail,
+  IssueDraft,
+  IssueList,
+  type IssueTrackerResources,
+  LinkedCatalogIssue,
+  type Message,
+  type Model,
+  SelectedIssueStatus,
+  SubmittedIssue,
+  SubmittedIssueAttachment,
+  SubmittedIssueEdit,
+  SubmittedIssueMention,
+  SubmittedIssueSuccessCriterion,
+  SubmittedIssueWorkLogEntry,
+  SubmittedSuccessCriteriaMarks,
+  catalogIssueIds,
+  issueFromDraft,
+} from 'issues-core-example'
+import { createHash, randomUUID } from 'node:crypto'
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs'
+import { basename, extname, join, resolve } from 'node:path'
+
+import {
+  ApplicationProduct,
+  InstantStorageAttachmentSource,
+  Issue,
+  IssueAttachment,
+  IssueAttachmentKind,
+  IssueMention,
+  IssuePriority,
+  type IssueReference,
+  IssueReference as IssueReferenceSchema,
+  IssueStatus,
+  IssueSuccessEvidence,
+  describeIssueTrackerCause,
+  normalizeIssueId,
+} from '@foldkit/instant-tools/issues'
+
+import { IssuesCommandFailure, executeMessages } from './host.js'
+import {
+  findRecordingFolder,
+  resolveSaidMention,
+  typedMention,
+} from './mentions.js'
+import { type IssueRecordsService } from './resources.js'
+
+export { resolveSaidMention, typedMention } from './mentions.js'
+
+const SUCCEEDED_EXIT_CODE = 0
+const FAILED_EXIT_CODE = 1
+const USAGE_EXIT_CODE = 2
+const MISSING_EXIT_CODE = 3
+const ISSUES_BASE_URL = 'https://issues.pisspoursoftware.xyz'
+const RECORDING_ID_PREFIX_LENGTH = 8
+const MILLISECONDS_PER_SECOND = 1_000
+
+/**
+ * The issue types the tracker holds, as `scripts/instant-tools.mjs` enforced
+ * them before `issues` replaced it.
+ */
+export const issueTypes: ReadonlyArray<string> = [
+  'architecture',
+  'defect',
+  'enhancement',
+  'feature',
+  'infrastructure',
+  'investigation',
+  'process',
+  'product direction',
+  'prototype',
+]
+
+/**
+ * Instant storage for Issue files: upload one, link it to the Issue's record,
+ * remove it again, and download one by its storage path.
+ */
+export type IssueFilesService = Readonly<{
+  download: (path: string) => Effect.Effect<Uint8Array, unknown>
+  link: (
+    input: Readonly<{ entityId: string; fileId: string }>,
+  ) => Effect.Effect<void, unknown>
+  remove: (
+    input: Readonly<{ fileId: string; path: string }>,
+  ) => Effect.Effect<void, unknown>
+  upload: (
+    input: Readonly<{
+      bytes: Uint8Array
+      contentType: string
+      fileName: string
+      path: string
+    }>,
+  ) => Effect.Effect<string, unknown>
+}>
+
+/** Everything a command needs from the machine it runs on. */
+export type IssuesHost = Readonly<{
+  backupDirectory: string
+  defaultAgent: string
+  files: IssueFilesService
+  mirrorRoot: string
+  nowMs: () => number
+  readStandardInput: Effect.Effect<string>
+  records: IssueRecordsService
+  resources: Layer.Layer<IssueTrackerResources>
+}>
+
+/** What a command prints and the exit code it ends with. */
+export type IssuesOutcome = Readonly<{
+  exitCode: number
+  stderr: ReadonlyArray<string>
+  stdout: ReadonlyArray<string>
+}>
+
+const MINIMUM_CREDENTIAL_LENGTH = 8
+
+const REDACTED_CREDENTIAL = '[redacted]'
+
+/**
+ * The outcome with every credential the host holds replaced by
+ * `[redacted]`, so nothing printed names one, however Instant words a
+ * failure. A value shorter than any real credential is never searched for.
+ */
+export const redactCredentials = (
+  outcome: IssuesOutcome,
+  credentials: ReadonlyArray<string>,
+): IssuesOutcome => {
+  const searchedCredentials = Array.filter(
+    credentials,
+    credential => credential.length >= MINIMUM_CREDENTIAL_LENGTH,
+  )
+  const redactLine = (line: string): string =>
+    Array.reduce(searchedCredentials, line, (redactedLine, credential) =>
+      redactedLine.replaceAll(credential, REDACTED_CREDENTIAL),
+    )
+  return {
+    exitCode: outcome.exitCode,
+    stderr: Array.map(outcome.stderr, redactLine),
+    stdout: Array.map(outcome.stdout, redactLine),
+  }
+}
+
+const succeeded = (stdout: ReadonlyArray<string>): IssuesOutcome => ({
+  exitCode: SUCCEEDED_EXIT_CODE,
+  stderr: [],
+  stdout,
+})
+
+const usage = (message: string) =>
+  new IssuesCommandFailure({ exitCode: USAGE_EXIT_CODE, message })
+
+const failed = (command: string, reason: string) =>
+  new IssuesCommandFailure({
+    exitCode: FAILED_EXIT_CODE,
+    message: `issues ${command} failed: ${reason}`,
+  })
+
+const missing = (issueId: string) =>
+  new IssuesCommandFailure({
+    exitCode: MISSING_EXIT_CODE,
+    message: `Issue #${issueId} does not exist.`,
+  })
+
+const describeMissingIssues = (
+  issueIds: Array.NonEmptyReadonlyArray<string>,
+): string => {
+  const numbers = Array.join(
+    Array.map(issueIds, issueId => `#${issueId}`),
+    ', ',
+  )
+  return issueIds.length === 1
+    ? `Issue ${numbers} does not exist`
+    : `Issues ${numbers} do not exist`
+}
+
+/**
+ * Fails with exit code 3 when any of the Issue numbers names no stored
+ * Issue, so a mistyped number never becomes a link to nothing.
+ */
+const requireExistingIssues = (
+  host: IssuesHost,
+  command: string,
+  issueIds: ReadonlyArray<string>,
+  consequence: string,
+): Effect.Effect<void, IssuesCommandFailure> =>
+  Effect.forEach(issueIds, issueId =>
+    host.records.fetchIssueRecordsById(issueId).pipe(
+      Effect.map(records =>
+        Array.isReadonlyArrayEmpty(records)
+          ? Option.some(issueId)
+          : Option.none(),
+      ),
+      Effect.mapError(cause =>
+        failed(command, describeIssueTrackerCause(cause)),
+      ),
+    ),
+  ).pipe(
+    Effect.flatMap(maybeMissingIssueIds =>
+      Array.match(Array.getSomes(maybeMissingIssueIds), {
+        onEmpty: () => Effect.void,
+        onNonEmpty: missingIssueIds =>
+          Effect.fail(
+            new IssuesCommandFailure({
+              exitCode: MISSING_EXIT_CODE,
+              message: `${describeMissingIssues(missingIssueIds)}; ${consequence}`,
+            }),
+          ),
+      }),
+    ),
+  )
+
+const finish = (
+  effect: Effect.Effect<IssuesOutcome, IssuesCommandFailure>,
+): Effect.Effect<IssuesOutcome> =>
+  effect.pipe(
+    Effect.catchTag('IssuesCommandFailure', failure =>
+      Effect.succeed({
+        exitCode: failure.exitCode,
+        stderr: [failure.message],
+        stdout: [],
+      }),
+    ),
+  )
+
+/** The canonical web address of one Issue on issues. */
+export const issueUrl = (issueId: string): string =>
+  `${ISSUES_BASE_URL}/issues/${issueId}`
+
+const parseIssueNumber = (
+  text: string,
+): Effect.Effect<string, IssuesCommandFailure> =>
+  Option.match(normalizeIssueId(text), {
+    onNone: () =>
+      Effect.fail(
+        usage(
+          `"${text}" is not an Issue number. Write it as digits, such as 692 or #692.`,
+        ),
+      ),
+    onSome: Effect.succeed,
+  })
+
+const splitList = (values: ReadonlyArray<string>): ReadonlyArray<string> =>
+  Array.flatMap(values, value =>
+    Array.filter(value.split(/[\s,]+/), part => part !== ''),
+  )
+
+const parseChoice = <A extends string>(
+  kind: string,
+  text: string,
+  choices: ReadonlyArray<A>,
+): Effect.Effect<A, IssuesCommandFailure> =>
+  Option.match(
+    Array.findFirst(
+      choices,
+      choice => choice.toLowerCase() === text.trim().toLowerCase(),
+    ),
+    {
+      onNone: () =>
+        Effect.fail(
+          usage(
+            `"${text}" is not a ${kind}. Valid: ${Array.join(choices, ', ')}.`,
+          ),
+        ),
+      onSome: Effect.succeed,
+    },
+  )
+
+const parseOptionalChoice = <A extends string>(
+  kind: string,
+  maybeText: Option.Option<string>,
+  choices: ReadonlyArray<A>,
+): Effect.Effect<Option.Option<A>, IssuesCommandFailure> =>
+  Option.match(maybeText, {
+    onNone: () => Effect.succeed(Option.none<A>()),
+    onSome: text => Effect.map(parseChoice(kind, text, choices), Option.some),
+  })
+
+const statuses = IssueStatus.literals
+const priorities = IssuePriority.literals
+const evidenceKinds = IssueSuccessEvidence.literals
+
+const parseIssueNumbers = (
+  values: ReadonlyArray<string>,
+): Effect.Effect<ReadonlyArray<string>, IssuesCommandFailure> =>
+  Effect.map(Effect.forEach(splitList(values), parseIssueNumber), Array.dedupe)
+
+// INPUT
+
+const JsonReference = S.Union([S.String, S.Number])
+
+const JsonMentionInput = S.Struct({
+  capturedAtMs: S.optionalKey(S.NullOr(S.Number)),
+  directQuote: S.optionalKey(S.NullOr(S.String)),
+  note: S.optionalKey(S.NullOr(S.String)),
+  related: S.optionalKey(S.Array(IssueReferenceSchema)),
+  reporter: S.optionalKey(S.NullOr(IssueReferenceSchema)),
+  source: IssueReferenceSchema,
+})
+
+const JsonDraftInput = S.Struct({
+  area: S.optionalKey(S.NullOr(S.String)),
+  claimantId: S.optionalKey(S.NullOr(S.String)),
+  details: S.optionalKey(S.String),
+  id: S.optionalKey(S.Unknown),
+  issueType: S.optionalKey(S.NullOr(S.String)),
+  mentions: S.optionalKey(S.Array(JsonMentionInput)),
+  priority: S.optionalKey(S.String),
+  product: S.optionalKey(
+    S.Union([
+      S.String,
+      S.Struct({ id: S.String, name: S.optionalKey(S.String) }),
+    ]),
+  ),
+  relatedIssueIds: S.optionalKey(S.Array(JsonReference)),
+  status: S.optionalKey(S.String),
+  successCriteria: S.optionalKey(
+    S.Array(
+      S.Struct({
+        outcome: S.String,
+        requiredEvidence: S.optionalKey(S.Array(S.String)),
+      }),
+    ),
+  ),
+  title: S.optionalKey(S.String),
+  type: S.optionalKey(S.String),
+  workLog: S.optionalKey(
+    S.Array(
+      S.Struct({
+        agentId: S.optionalKey(S.NullOr(S.String)),
+        commitSha: S.optionalKey(S.NullOr(S.String)),
+        occurredAtMs: S.optionalKey(S.Number),
+        state: S.optionalKey(S.NullOr(S.String)),
+        summary: S.String,
+      }),
+    ),
+  ),
+})
+type JsonDraftInput = typeof JsonDraftInput.Type
+
+const emptyJsonDraft: JsonDraftInput = {}
+
+/** Everything `issues file` reads from its flags. */
+export type FileInput = Readonly<{
+  agent: Option.Option<string>
+  area: Option.Option<string>
+  claim: Option.Option<string>
+  criteria: ReadonlyArray<string>
+  details: Option.Option<string>
+  dryRun: boolean
+  evidence: ReadonlyArray<string>
+  isJson: boolean
+  jsonInput: Option.Option<string>
+  log: Option.Option<string>
+  logState: Option.Option<string>
+  priority: Option.Option<string>
+  product: Option.Option<string>
+  related: ReadonlyArray<string>
+  said: ReadonlyArray<string>
+  status: Option.Option<string>
+  title: Option.Option<string>
+  type: Option.Option<string>
+  typed: Option.Option<string>
+  typedAt: Option.Option<string>
+  typedMessage: Option.Option<string>
+  typedSession: Option.Option<string>
+}>
+
+const readJsonDraft = (
+  host: IssuesHost,
+  maybeSource: Option.Option<string>,
+): Effect.Effect<JsonDraftInput, IssuesCommandFailure> =>
+  Option.match(maybeSource, {
+    onNone: () => Effect.succeed(emptyJsonDraft),
+    onSome: source =>
+      Effect.gen(function* () {
+        const text =
+          source === '-'
+            ? yield* host.readStandardInput
+            : yield* Effect.try({
+                try: () => readFileSync(source, 'utf8'),
+                catch: cause =>
+                  usage(
+                    `--from-json ${source} could not be read: ${describeIssueTrackerCause(cause)}`,
+                  ),
+              })
+        return yield* S.decodeUnknownEffect(S.fromJsonString(JsonDraftInput))(
+          text,
+        ).pipe(
+          Effect.mapError(cause =>
+            usage(
+              `--from-json ${source} is not an Issue draft: ${describeIssueTrackerCause(cause)}`,
+            ),
+          ),
+        )
+      }),
+  })
+
+const firstSome = <A>(
+  ...options: ReadonlyArray<Option.Option<A>>
+): Option.Option<A> => Option.flatten(Array.findFirst(options, Option.isSome))
+
+const jsonOptional = <A>(value: A | null | undefined): Option.Option<A> =>
+  Option.fromNullishOr(value)
+
+const parseCriterion = (
+  outcome: string,
+  evidence: ReadonlyArray<string>,
+): Effect.Effect<DraftSuccessCriterion, IssuesCommandFailure> =>
+  Effect.map(
+    Effect.forEach(
+      Array.match(splitList(evidence), {
+        onEmpty: () => ['FocusedTest'],
+        onNonEmpty: kinds => kinds,
+      }),
+      kind => parseChoice('kind of evidence', kind, evidenceKinds),
+    ),
+    requiredEvidence =>
+      DraftSuccessCriterion.make({ outcome, requiredEvidence }),
+  )
+
+const jsonProductReference = (
+  product: JsonDraftInput['product'],
+): Option.Option<string> =>
+  Option.map(Option.fromUndefinedOr(product), value =>
+    typeof value === 'string' ? value : value.id,
+  )
+
+/** Builds the draft `issues file` submits from its flags and `--from-json`. */
+export const composeDraft = (
+  host: IssuesHost,
+  input: FileInput,
+): Effect.Effect<IssueDraft, IssuesCommandFailure> =>
+  Effect.gen(function* () {
+    const json = yield* readJsonDraft(host, input.jsonInput)
+    if (json.id !== undefined) {
+      return yield* Effect.fail(
+        usage(
+          'issues file takes the next free number itself; remove "id" from the draft.',
+        ),
+      )
+    }
+    const title = firstSome(input.title, jsonOptional(json.title))
+    if (Option.isNone(title) || title.value.trim() === '') {
+      return yield* Effect.fail(
+        usage('A title is required: --title or "title" in --from-json.'),
+      )
+    }
+    const priority = yield* parseChoice(
+      'priority',
+      Option.getOrElse(
+        firstSome(input.priority, jsonOptional(json.priority)),
+        () => 'P2',
+      ),
+      priorities,
+    )
+    const status = yield* parseChoice(
+      'status',
+      Option.getOrElse(
+        firstSome(input.status, jsonOptional(json.status)),
+        () => 'Open',
+      ),
+      statuses,
+    )
+    const issueType = yield* parseOptionalChoice(
+      'issue type',
+      firstSome(
+        input.type,
+        jsonOptional(json.issueType),
+        jsonOptional(json.type),
+      ),
+      issueTypes,
+    )
+    const relatedIssueIds = yield* parseIssueNumbers([
+      ...Array.map(json.relatedIssueIds ?? [], String),
+      ...input.related,
+    ])
+    const jsonCriteria = yield* Effect.forEach(
+      json.successCriteria ?? [],
+      criterion =>
+        parseCriterion(criterion.outcome, criterion.requiredEvidence ?? []),
+    )
+    const flagCriteria = yield* Effect.forEach(input.criteria, outcome =>
+      parseCriterion(outcome, input.evidence),
+    )
+    const saidMentions = yield* Effect.forEach(input.said, spec =>
+      resolveSaidMention(host.mirrorRoot, spec),
+    )
+    const typedMentions = Option.match(input.typed, {
+      onNone: () => [],
+      onSome: text => [
+        typedMention({
+          text,
+          typedAt: input.typedAt,
+          typedMessage: input.typedMessage,
+          typedSession: input.typedSession,
+        }),
+      ],
+    })
+    const jsonMentions = Array.map(json.mentions ?? [], mention =>
+      DraftMention.make({
+        capturedAtMs: jsonOptional(mention.capturedAtMs),
+        directQuote: jsonOptional(mention.directQuote),
+        note: jsonOptional(mention.note),
+        related: mention.related ?? [],
+        reporter: jsonOptional(mention.reporter),
+        source: mention.source,
+      }),
+    )
+    const agent = Option.getOrElse(input.agent, () => host.defaultAgent)
+    const jsonWorkLog = Array.map(json.workLog ?? [], entry =>
+      DraftWorkLogEntry.make({
+        agentId: firstSome(jsonOptional(entry.agentId), Option.some(agent)),
+        commitSha: jsonOptional(entry.commitSha),
+        occurredAtMs: entry.occurredAtMs ?? host.nowMs(),
+        state: jsonOptional(entry.state),
+        summary: entry.summary,
+      }),
+    )
+    const flagWorkLog = Option.match(input.log, {
+      onNone: () => [],
+      onSome: summary => [
+        DraftWorkLogEntry.make({
+          agentId: Option.some(agent),
+          commitSha: Option.none(),
+          occurredAtMs: host.nowMs(),
+          state: Option.some(Option.getOrElse(input.logState, () => 'filed')),
+          summary,
+        }),
+      ],
+    })
+    return IssueDraft.make({
+      area: firstSome(input.area, jsonOptional(json.area)),
+      claimantId: firstSome(input.claim, jsonOptional(json.claimantId)),
+      details: Option.getOrElse(
+        firstSome(input.details, jsonOptional(json.details)),
+        () => '',
+      ),
+      issueType,
+      leftoverKind: Option.none(),
+      mentions: [...jsonMentions, ...saidMentions, ...typedMentions],
+      priority,
+      productId: Option.getOrElse(
+        firstSome(input.product, jsonProductReference(json.product)),
+        () => '',
+      ),
+      relatedIssueIds,
+      status,
+      successCriteria: [...jsonCriteria, ...flagCriteria],
+      title: title.value.trim(),
+      workLog: [...jsonWorkLog, ...flagWorkLog],
+    })
+  })
+
+// OUTPUT
+
+const isoTime = (timeMs: number): string => new Date(timeMs).toISOString()
+
+const describeReference = (reference: IssueReference): string =>
+  M.value(reference).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      Agent: ({ id }) => `agent ${id}`,
+      Commit: ({ repository, sha }) => `commit ${sha} (${repository})`,
+      Conversation: ({ conversation }) => conversation.note,
+      Issue: ({ id }) => `#${id}`,
+      Media: ({ id, kind }) => `${kind} ${id}`,
+      Project: ({ productId, projectId }) =>
+        `project ${productId}/${projectId}`,
+      Recording: ({ recording }) =>
+        `recording ${recording.recordingId} ${(recording.startMilliseconds / MILLISECONDS_PER_SECOND).toString()} s${Option.match(
+          recording.endMilliseconds,
+          {
+            onNone: () => '',
+            onSome: end => `-${(end / MILLISECONDS_PER_SECOND).toString()} s`,
+          },
+        )}`,
+      Release: ({ productId, version }) => `release ${productId} ${version}`,
+      Unrecognized: ({ value }) => JSON.stringify(value),
+      Uri: ({ value }) => value,
+    }),
+  )
+
+const issueHeadline = (issue: Issue): string =>
+  Array.join(
+    [
+      `#${issue.id}`,
+      issue.priority,
+      issue.status,
+      ...Option.toArray(issue.issueType),
+      `[${issue.product.name}]`,
+    ],
+    '  ',
+  )
+
+/** One `issues list` line: `#692  P2  Open  <title>  [Scribe]`. */
+export const issueListLine = (issue: Issue): string =>
+  `#${issue.id}  ${issue.priority}  ${issue.status}  ${issue.title}  [${issue.product.name}]`
+
+const optionalLine = (
+  label: string,
+  value: Option.Option<string>,
+): ReadonlyArray<string> =>
+  Option.match(value, {
+    onNone: () => [],
+    onSome: text => [`${label}: ${text}`],
+  })
+
+const section = (
+  title: string,
+  lines: ReadonlyArray<string>,
+): ReadonlyArray<string> =>
+  Array.match(lines, {
+    onEmpty: () => [],
+    onNonEmpty: nonEmpty => ['', title, ...nonEmpty],
+  })
+
+const mentionLines = (mention: IssueMention): ReadonlyArray<string> => [
+  `  ${Array.join(
+    [
+      ...Option.toArray(Option.map(mention.capturedAtMs, isoTime)),
+      Option.getOrElse(
+        firstSome(mention.directQuote, mention.note),
+        () => '(no quote)',
+      ),
+    ],
+    '  ',
+  )}`,
+  `    from ${describeReference(mention.source)}`,
+  ...Array.map(mention.related, related => `    ${describeReference(related)}`),
+]
+
+/** Prints one Issue in full, its work log oldest first. */
+export const issueDetailLines = (issue: Issue): ReadonlyArray<string> => [
+  issueHeadline(issue),
+  issue.title,
+  ...optionalLine('Area', issue.area),
+  ...optionalLine('Claimed by', issue.claimantId),
+  ...optionalLine('Reported', issue.reportedDate),
+  `Created: ${isoTime(issue.createdAtMs)}  Updated: ${isoTime(issue.updatedAtMs)}`,
+  issueUrl(issue.id),
+  ...section('Details', issue.details === '' ? [] : [issue.details]),
+  ...section(
+    'Success criteria',
+    Array.map(
+      issue.successCriteria,
+      criterion =>
+        `  [${criterion.isSatisfied ? 'x' : ' '}] ${criterion.outcome} (${Array.join(criterion.requiredEvidence, ', ')})`,
+    ),
+  ),
+  ...section('Mentions', Array.flatMap(issue.mentions, mentionLines)),
+  ...Array.match(catalogIssueIds(issue), {
+    onEmpty: () => [],
+    onNonEmpty: ids => [
+      '',
+      `Related: ${Array.join(
+        Array.map(ids, id => `#${id}`),
+        ', ',
+      )}`,
+    ],
+  }),
+  ...section(
+    'Attachments',
+    Array.map(
+      issue.attachments,
+      attachment => `  ${attachment.fileName} (${attachment.kind})`,
+    ),
+  ),
+  ...section(
+    'Work log',
+    Array.map(
+      Array.sortWith(issue.workLog, entry => entry.occurredAtMs, Order.Number),
+      entry =>
+        `  ${Array.join(
+          [
+            isoTime(entry.occurredAtMs),
+            ...Option.toArray(entry.state),
+            ...Option.toArray(entry.agentId),
+            entry.summary,
+            ...Option.toArray(Option.map(entry.commitSha, sha => `[${sha}]`)),
+          ],
+          '  ',
+        )}`,
+    ),
+  ),
+]
+
+const encodeIssue = S.encodeSync(Issue)
+
+const issueJson = (issue: Issue): string =>
+  JSON.stringify(encodeIssue(issue), null, 2)
+
+// RUN
+
+const loadedIssueOf = (
+  command: string,
+  model: Model,
+  issueId: string,
+): Effect.Effect<Issue, IssuesCommandFailure> =>
+  M.value(model.issueDetail).pipe(
+    M.withReturnType<Effect.Effect<Issue, IssuesCommandFailure>>(),
+    M.tagsExhaustive({
+      NotObservingIssue: () =>
+        Effect.fail(failed(command, `Issue #${issueId} was not read.`)),
+      LoadingIssue: () =>
+        Effect.fail(failed(command, `Issue #${issueId} is still loading.`)),
+      FailedIssue: ({ reason }) => Effect.fail(failed(command, reason)),
+      LoadedIssue: ({ issue }) =>
+        Option.match(issue, {
+          onNone: () => Effect.fail(missing(issueId)),
+          onSome: Effect.succeed,
+        }),
+    }),
+  )
+
+const changeIssue = (
+  host: IssuesHost,
+  command: string,
+  issueId: string,
+  messagesFor: (
+    issue: Issue,
+  ) =>
+    | ReadonlyArray<Message>
+    | Effect.Effect<ReadonlyArray<Message>, IssuesCommandFailure>,
+): Effect.Effect<
+  Readonly<{ entryId: Option.Option<string>; issue: Issue }>,
+  IssuesCommandFailure
+> =>
+  Effect.gen(function* () {
+    const model = yield* executeMessages(
+      IssueDetail.make({ issueId }),
+      settled =>
+        Effect.flatMap(loadedIssueOf(command, settled, issueId), issue => {
+          const messages = messagesFor(issue)
+          return Effect.isEffect(messages) ? messages : Effect.succeed(messages)
+        }),
+      host.resources,
+    )
+    return yield* M.value(model.issueMutation).pipe(
+      M.withReturnType<
+        Effect.Effect<
+          Readonly<{ entryId: Option.Option<string>; issue: Issue }>,
+          IssuesCommandFailure
+        >
+      >(),
+      M.tagsExhaustive({
+        SavedIssueMutation: ({ entryId }) =>
+          Effect.map(loadedIssueOf(command, model, issueId), issue => ({
+            entryId,
+            issue,
+          })),
+        FailedIssueMutation: ({ reason }) =>
+          Effect.fail(failed(command, reason)),
+        DeletedIssueMutation: ({ issue }) =>
+          Effect.succeed({ entryId: Option.none(), issue }),
+        IdleIssueMutation: () =>
+          Effect.fail(
+            failed(command, 'the tracker did not confirm the change.'),
+          ),
+        SavingIssueMutation: () =>
+          Effect.fail(failed(command, 'the change is still saving.')),
+      }),
+    )
+  })
+
+/** Files one Issue under the next free number. */
+export const fileIssueCommand = (
+  host: IssuesHost,
+  input: FileInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const draft = yield* composeDraft(host, input)
+      yield* requireExistingIssues(
+        host,
+        'file',
+        draft.relatedIssueIds,
+        'nothing was filed.',
+      )
+      if (input.dryRun) {
+        const preview = issueFromDraft(
+          draft,
+          ApplicationProduct.make({
+            id: draft.productId,
+            name: draft.productId,
+          }),
+          'next',
+          host.nowMs(),
+        )
+        return succeeded([issueJson(preview)])
+      }
+      const model = yield* executeMessages(
+        FileIssue.make({}),
+        () =>
+          Effect.succeed([
+            ComposedIssueDraft.make({ draft }),
+            SubmittedIssue.make({}),
+          ]),
+        host.resources,
+      )
+      if (model.draftState._tag === 'FailedIssueDraft') {
+        const reason = model.draftState.reason
+        const isUsage =
+          reason.startsWith('Choose an Application or Library') ||
+          reason === 'A title is required.'
+        return yield* Effect.fail(
+          isUsage ? usage(reason) : failed('file', reason),
+        )
+      }
+      if (model.navigation._tag !== 'IssueDetail') {
+        return yield* Effect.fail(
+          failed('file', 'the tracker did not report the new Issue.'),
+        )
+      }
+      const issue = yield* loadedIssueOf(
+        'file',
+        model,
+        model.navigation.issueId,
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [`Filed #${issue.id}: ${issue.title}`, issueUrl(issue.id)],
+      )
+    }),
+  )
+
+/** Prints one Issue in full, or as JSON. */
+export const showIssueCommand = (
+  host: IssuesHost,
+  input: Readonly<{ issue: string; isJson: boolean }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const model = yield* executeMessages(
+        IssueDetail.make({ issueId }),
+        () => Effect.succeed([]),
+        host.resources,
+      )
+      const issue = yield* loadedIssueOf('show', model, issueId)
+      return succeeded(
+        input.isJson ? [issueJson(issue)] : issueDetailLines(issue),
+      )
+    }),
+  )
+
+/** Everything `issues list` filters by. */
+export type ListInput = Readonly<{
+  claimant: Option.Option<string>
+  isJson: boolean
+  limit: Option.Option<number>
+  product: Option.Option<string>
+  recording: Option.Option<string>
+  search: Option.Option<string>
+  statuses: ReadonlyArray<string>
+  type: Option.Option<string>
+}>
+
+const recordingFolderIdPattern = /— ([0-9a-f]{8})$/
+
+const recordingFilter = (
+  host: IssuesHost,
+  recording: string,
+): ((issue: Issue) => boolean) => {
+  const isNumber =
+    /^\d+$/.test(recording) && recording.length < RECORDING_ID_PREFIX_LENGTH
+  const maybeIdPrefix = isNumber
+    ? Option.flatMap(findRecordingFolder(host.mirrorRoot, recording), folder =>
+        Option.flatMap(
+          Option.fromNullOr(recordingFolderIdPattern.exec(folder)),
+          match => Option.fromUndefinedOr(match[1]),
+        ),
+      )
+    : Option.some(recording.toLowerCase())
+  const maybeLabel = isNumber
+    ? Option.some(new RegExp(`\\bRecording ${String(Number(recording))}\\b`))
+    : Option.none()
+  const namesRecording = (reference: IssueReference): boolean =>
+    Option.match(maybeIdPrefix, {
+      onNone: () => false,
+      onSome: prefix =>
+        M.value(reference).pipe(
+          M.withReturnType<boolean>(),
+          M.tag('Recording', ({ recording: mention }) =>
+            mention.recordingId.toLowerCase().startsWith(prefix),
+          ),
+          M.tag('Uri', ({ value }) =>
+            value.toLowerCase().includes(`/recording/${prefix}`),
+          ),
+          M.tag('Unrecognized', ({ value }) =>
+            JSON.stringify(value).toLowerCase().includes(prefix),
+          ),
+          M.orElse(() => false),
+        ),
+    })
+  return issue =>
+    Array.some(
+      issue.mentions,
+      mention =>
+        Array.some([mention.source, ...mention.related], namesRecording) ||
+        Option.match(maybeLabel, {
+          onNone: () => false,
+          onSome: label =>
+            Array.some(
+              [
+                ...Option.toArray(mention.directQuote),
+                ...Option.toArray(mention.note),
+              ],
+              text => label.test(text),
+            ),
+        }),
+    )
+}
+
+/** Lists Issues newest first, filtered, and accounts for every stored one. */
+export const listIssuesCommand = (
+  host: IssuesHost,
+  input: ListInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const wantedStatuses = yield* Effect.forEach(
+        splitList(input.statuses),
+        status => parseChoice('status', status, statuses),
+      )
+      const wantedType = yield* parseOptionalChoice(
+        'issue type',
+        input.type,
+        issueTypes,
+      )
+      const model = yield* executeMessages(
+        IssueList.make({}),
+        () => Effect.succeed([]),
+        host.resources,
+      )
+      const issues = yield* M.value(model.issues).pipe(
+        M.withReturnType<
+          Effect.Effect<ReadonlyArray<Issue>, IssuesCommandFailure>
+        >(),
+        M.tagsExhaustive({
+          LoadingIssues: () =>
+            Effect.fail(failed('list', 'the Issue list is still loading.')),
+          FailedIssues: ({ reason }) => Effect.fail(failed('list', reason)),
+          LoadedIssues: ({ issues: loaded }) => Effect.succeed(loaded),
+        }),
+      )
+      const storedIds = yield* host.records.fetchIssueIds.pipe(
+        Effect.mapError(cause =>
+          failed('list', describeIssueTrackerCause(cause)),
+        ),
+      )
+      const readIds = new Set(Array.map(issues, issue => issue.id))
+      const unreadable = Array.filter(storedIds, id => !readIds.has(id))
+      const matchesProduct = (issue: Issue) =>
+        Option.match(input.product, {
+          onNone: () => true,
+          onSome: product =>
+            issue.product.id.toLowerCase() === product.toLowerCase() ||
+            issue.product.name.toLowerCase() === product.toLowerCase(),
+        })
+      const matchesRecording = Option.match(input.recording, {
+        onNone: () => (_issue: Issue) => true,
+        onSome: recording => recordingFilter(host, recording),
+      })
+      const filtered = Array.filter(
+        issues,
+        issue =>
+          (Array.isReadonlyArrayEmpty(wantedStatuses) ||
+            Array.contains(wantedStatuses, issue.status)) &&
+          matchesProduct(issue) &&
+          matchesRecording(issue) &&
+          Option.match(input.claimant, {
+            onNone: () => true,
+            onSome: claimant => Option.contains(issue.claimantId, claimant),
+          }) &&
+          Option.match(wantedType, {
+            onNone: () => true,
+            onSome: type => Option.contains(issue.issueType, type),
+          }) &&
+          Option.match(input.search, {
+            onNone: () => true,
+            onSome: search =>
+              `${issue.title}\n${issue.details}`
+                .toLowerCase()
+                .includes(search.toLowerCase()),
+          }),
+      )
+      const shown = Option.match(input.limit, {
+        onNone: () => filtered,
+        onSome: limit => Array.take(filtered, limit),
+      })
+      const stdout = input.isJson
+        ? [JSON.stringify(Array.map(shown, issue => encodeIssue(issue)))]
+        : Array.map(shown, issueListLine)
+      if (Array.isReadonlyArrayNonEmpty(unreadable)) {
+        return {
+          exitCode: FAILED_EXIT_CODE,
+          stderr: [
+            `Read ${issues.length.toString()} of ${storedIds.length.toString()} stored Issues; not read: ${Array.join(
+              Array.map(unreadable, id => `#${id}`),
+              ', ',
+            )}. issues show <number> names the cause.`,
+          ],
+          stdout,
+        }
+      }
+      return succeeded(stdout)
+    }),
+  )
+
+/** Everything `issues log` reads. */
+export type LogInput = Readonly<{
+  agent: Option.Option<string>
+  claim: Option.Option<string>
+  commit: Option.Option<string>
+  issue: string
+  isJson: boolean
+  state: string
+  status: Option.Option<string>
+  summary: string
+}>
+
+const logEntry = (
+  host: IssuesHost,
+  command: string,
+  input: LogInput,
+): Effect.Effect<IssuesOutcome, IssuesCommandFailure> =>
+  Effect.gen(function* () {
+    const issueId = yield* parseIssueNumber(input.issue)
+    const state = input.state.trim()
+    if (state === '') {
+      return yield* Effect.fail(
+        usage(
+          'A work-log state is required, such as claimed, progress, landed, waiting, or blocked.',
+        ),
+      )
+    }
+    const summary =
+      input.summary === '-'
+        ? (yield* host.readStandardInput).trim()
+        : input.summary.trim()
+    if (summary === '') {
+      return yield* Effect.fail(
+        usage(
+          `issues ${command} needs a summary (or - to read it from standard input).`,
+        ),
+      )
+    }
+    const status = yield* parseOptionalChoice('status', input.status, statuses)
+    const { entryId, issue } = yield* changeIssue(
+      host,
+      command,
+      issueId,
+      () => [
+        SubmittedIssueWorkLogEntry.make({
+          agentId: Option.some(
+            Option.getOrElse(input.agent, () => host.defaultAgent),
+          ),
+          claimantId: input.claim,
+          commitSha: input.commit,
+          issueId,
+          state,
+          status,
+          summary,
+        }),
+      ],
+    )
+    const entry = Option.getOrElse(entryId, () => '')
+    return succeeded(
+      input.isJson
+        ? [
+            JSON.stringify({
+              entry,
+              issue: issueId,
+              status: issue.status,
+              workLog: issue.workLog.length,
+            }),
+          ]
+        : [
+            `Logged on #${issueId} (${state}): ${entry}; ${issue.workLog.length.toString()} work-log entries; status ${issue.status}.`,
+          ],
+    )
+  })
+
+/** Appends one work-log entry, optionally claiming and setting status. */
+export const logIssueCommand = (
+  host: IssuesHost,
+  input: LogInput,
+): Effect.Effect<IssuesOutcome> => finish(logEntry(host, 'log', input))
+
+/** Claims an Issue: a `claimed` entry, the claimant, and InProgress. */
+export const claimIssueCommand = (
+  host: IssuesHost,
+  input: Readonly<{
+    agent: string
+    issue: string
+    isJson: boolean
+    summary: Option.Option<string>
+  }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    logEntry(host, 'claim', {
+      agent: Option.some(input.agent),
+      claim: Option.some(input.agent),
+      commit: Option.none(),
+      issue: input.issue,
+      isJson: input.isJson,
+      state: 'claimed',
+      status: Option.some('InProgress'),
+      summary: Option.getOrElse(
+        input.summary,
+        () => `Claimed by ${input.agent}.`,
+      ),
+    }),
+  )
+
+/** Sets any stored status. */
+export const setIssueStatusCommand = (
+  host: IssuesHost,
+  input: Readonly<{ issue: string; isJson: boolean; status: string }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const status = yield* parseChoice('status', input.status, statuses)
+      const { issue } = yield* changeIssue(host, 'status', issueId, () => [
+        SelectedIssueStatus.make({ issueId, status }),
+      ])
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [`Set #${issueId} to ${issue.status}.`],
+      )
+    }),
+  )
+
+/** Links related Issue numbers. */
+export const linkIssuesCommand = (
+  host: IssuesHost,
+  input: Readonly<{
+    issue: string
+    isJson: boolean
+    targets: ReadonlyArray<string>
+  }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const targets = yield* parseIssueNumbers(input.targets)
+      if (Array.isReadonlyArrayEmpty(targets)) {
+        return yield* Effect.fail(usage('issues link needs an Issue to link.'))
+      }
+      yield* requireExistingIssues(host, 'link', targets, 'nothing was linked.')
+      const { issue } = yield* changeIssue(host, 'link', issueId, () =>
+        Array.map(targets, targetIssueId =>
+          LinkedCatalogIssue.make({ sourceIssueId: issueId, targetIssueId }),
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `Linked #${issueId} to ${Array.join(
+                Array.map(targets, target => `#${target}`),
+                ', ',
+              )}.`,
+            ],
+      )
+    }),
+  )
+
+const writeBackup = (
+  host: IssuesHost,
+  issueId: string,
+  authorization: string,
+  records: ReadonlyArray<unknown>,
+): Effect.Effect<string, IssuesCommandFailure> =>
+  Effect.try({
+    try: () => {
+      const backedUpAtMs = host.nowMs()
+      mkdirSync(host.backupDirectory, { recursive: true })
+      const path = join(
+        host.backupDirectory,
+        `issue-${issueId}-${isoTime(backedUpAtMs).replace(/[:.]/g, '-')}.json`,
+      )
+      const descriptor = openSync(path, 'wx', 0o600)
+      try {
+        writeSync(
+          descriptor,
+          `${JSON.stringify(
+            {
+              authorization,
+              backedUpAt: isoTime(backedUpAtMs),
+              issueId,
+              records,
+            },
+            null,
+            2,
+          )}\n`,
+        )
+        fsyncSync(descriptor)
+      } finally {
+        closeSync(descriptor)
+      }
+      return path
+    },
+    catch: cause =>
+      failed(
+        'delete',
+        `the backup could not be written to ${host.backupDirectory}: ${describeIssueTrackerCause(cause)}; nothing was deleted.`,
+      ),
+  })
+
+/** Deletes one Issue on Michael's typed yes, after backing up its record. */
+export const deleteIssueCommand = (
+  host: IssuesHost,
+  input: Readonly<{ issue: string; isJson: boolean; yes: string }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      if (input.yes.trim() === '') {
+        return yield* Effect.fail(
+          usage(
+            'issues delete needs --yes "<Michael\'s typed words>": a permanent delete needs his yes typed in the chat. Nothing was deleted.',
+          ),
+        )
+      }
+      const records = yield* host.records
+        .fetchIssueRecordsById(issueId)
+        .pipe(
+          Effect.mapError(cause =>
+            failed('delete', describeIssueTrackerCause(cause)),
+          ),
+        )
+      if (Array.isReadonlyArrayEmpty(records)) {
+        return yield* Effect.fail(missing(issueId))
+      }
+      if (records.length > 1) {
+        return yield* Effect.fail(
+          failed(
+            'delete',
+            `Issue #${issueId} is held by ${records.length.toString()} records; nothing was deleted.`,
+          ),
+        )
+      }
+      const backupPath = yield* writeBackup(
+        host,
+        issueId,
+        input.yes.trim(),
+        records,
+      )
+      const { issue } = yield* changeIssue(host, 'delete', issueId, () => [
+        ConfirmedIssueDeletion.make({ issueId }),
+      ]).pipe(
+        Effect.mapError(
+          failure =>
+            new IssuesCommandFailure({
+              exitCode: failure.exitCode,
+              message: `${failure.message} The backup is at ${backupPath}.`,
+            }),
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [JSON.stringify({ backup: backupPath, deleted: issue.id })]
+          : [`Deleted #${issue.id} (${issue.title}).`, `Backup: ${backupPath}`],
+      )
+    }),
+  )
+
+/** Lists the products an Issue may be filed under. */
+export const listProductsCommand = (
+  host: IssuesHost,
+  input: Readonly<{ isJson: boolean }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const model = yield* executeMessages(
+        FileIssue.make({}),
+        () => Effect.succeed([]),
+        host.resources,
+      )
+      const products =
+        model.products._tag === 'LoadedProducts' ? model.products.products : []
+      return succeeded(
+        input.isJson
+          ? [JSON.stringify(Array.map(products, entry => entry.product))]
+          : Array.map(
+              products,
+              entry =>
+                `${entry.product.id}  ${entry.product.name}  (${entry.product._tag})`,
+            ),
+      )
+    }),
+  )
+
+const MAXIMUM_FILE_BYTES = 100 * 1024 * 1024
+const uploadPrefix =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/
+
+const contentTypesByExtension: ReadonlyMap<string, string> = new Map([
+  ['.csv', 'text/csv'],
+  ['.gif', 'image/gif'],
+  ['.heic', 'image/heic'],
+  ['.html', 'text/html'],
+  ['.jpeg', 'image/jpeg'],
+  ['.jpg', 'image/jpeg'],
+  ['.json', 'application/json'],
+  ['.log', 'text/plain'],
+  ['.m4a', 'audio/mp4'],
+  ['.md', 'text/markdown'],
+  ['.mov', 'video/quicktime'],
+  ['.mp3', 'audio/mpeg'],
+  ['.mp4', 'video/mp4'],
+  ['.pdf', 'application/pdf'],
+  ['.png', 'image/png'],
+  ['.txt', 'text/plain'],
+  ['.wav', 'audio/wav'],
+  ['.webp', 'image/webp'],
+  ['.zip', 'application/zip'],
+])
+
+const inferredContentType = (fileName: string): string =>
+  contentTypesByExtension.get(extname(fileName).toLowerCase()) ??
+  'application/octet-stream'
+
+const inferredKind = (contentType: string): typeof IssueAttachmentKind.Type => {
+  if (contentType.startsWith('audio/')) {
+    return 'Audio'
+  }
+  if (contentType.startsWith('image/')) {
+    return 'Screenshot'
+  }
+  if (contentType.startsWith('video/')) {
+    return 'Video'
+  }
+  return 'File'
+}
+
+const storageSafeName = (fileName: string): string =>
+  fileName.replace(/[\u0000-\u001f\u007f/]/g, '_')
+
+/** Everything `issues attach` reads. */
+export type AttachInput = Readonly<{
+  capturedAt: Option.Option<string>
+  contentType: Option.Option<string>
+  files: ReadonlyArray<string>
+  issue: string
+  isJson: boolean
+  kind: Option.Option<string>
+}>
+
+const attachOne = (
+  host: IssuesHost,
+  input: AttachInput,
+  issueId: string,
+  entityId: string,
+  filePath: string,
+): Effect.Effect<string, IssuesCommandFailure> =>
+  Effect.gen(function* () {
+    const stat = yield* Effect.try({
+      try: () => statSync(filePath),
+      catch: cause =>
+        usage(
+          `${filePath} cannot be read: ${describeIssueTrackerCause(cause)}`,
+        ),
+    })
+    if (!stat.isFile()) {
+      return yield* Effect.fail(usage(`${filePath} is not a file.`))
+    }
+    if (stat.size > MAXIMUM_FILE_BYTES) {
+      return yield* Effect.fail(
+        usage(`${filePath} is larger than the 100 MiB an Issue file may be.`),
+      )
+    }
+    const bytes = new Uint8Array(readFileSync(filePath))
+    const fileName = basename(filePath)
+    const contentType = Option.getOrElse(input.contentType, () =>
+      inferredContentType(fileName),
+    )
+    const kind = yield* Option.match(input.kind, {
+      onNone: () => Effect.succeed(inferredKind(contentType)),
+      onSome: text =>
+        parseChoice('file kind', text, IssueAttachmentKind.literals),
+    })
+    const capturedAtMs = Option.getOrElse(
+      Option.filter(
+        Option.map(input.capturedAt, Date.parse),
+        timeMs => !Number.isNaN(timeMs),
+      ),
+      () => Math.round(stat.mtimeMs),
+    )
+    const path = `issues/${issueId}/${randomUUID()}-${storageSafeName(fileName)}`
+    const fileId = yield* host.files
+      .upload({ bytes, contentType, fileName, path })
+      .pipe(
+        Effect.mapError(cause =>
+          failed(
+            'attach',
+            `upload ${path}: ${describeIssueTrackerCause(cause)}`,
+          ),
+        ),
+      )
+    const removeUpload = (failure: IssuesCommandFailure) =>
+      host.files.remove({ fileId, path }).pipe(
+        Effect.matchEffect({
+          onFailure: cause =>
+            Effect.fail(
+              new IssuesCommandFailure({
+                exitCode: failure.exitCode,
+                message: `${failure.message} Removing the uploaded ${path} failed too: ${describeIssueTrackerCause(cause)}`,
+              }),
+            ),
+          onSuccess: () => Effect.fail(failure),
+        }),
+      )
+    yield* host.files.link({ entityId, fileId }).pipe(
+      Effect.mapError(cause =>
+        failed('attach', `link ${path}: ${describeIssueTrackerCause(cause)}`),
+      ),
+      Effect.catchTag('IssuesCommandFailure', removeUpload),
+    )
+    yield* changeIssue(host, 'attach', issueId, () => [
+      SubmittedIssueAttachment.make({
+        attachment: IssueAttachment.make({
+          byteCount: Option.some(bytes.byteLength),
+          capturedAtMs: Option.some(capturedAtMs),
+          contentType,
+          fileName,
+          id: fileId,
+          issueId,
+          kind,
+          sha256: Option.some(createHash('sha256').update(bytes).digest('hex')),
+          source: InstantStorageAttachmentSource.make({ fileId }),
+        }),
+        issueId,
+      }),
+    ]).pipe(Effect.catchTag('IssuesCommandFailure', removeUpload))
+    return input.isJson
+      ? JSON.stringify({ fileId, fileName, issue: issueId, kind, path })
+      : `Attached ${fileName} to #${issueId} (${kind}, ${bytes.byteLength.toString()} bytes): ${path}`
+  })
+
+/** Uploads files, links them to the Issue, and records them on it. */
+export const attachIssueFilesCommand = (
+  host: IssuesHost,
+  input: AttachInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      if (Array.isReadonlyArrayEmpty(input.files)) {
+        return yield* Effect.fail(usage('issues attach needs a file.'))
+      }
+      const records = yield* host.records
+        .fetchIssueRecordsById(issueId)
+        .pipe(
+          Effect.mapError(cause =>
+            failed('attach', describeIssueTrackerCause(cause)),
+          ),
+        )
+      const record = yield* Array.match(records, {
+        onEmpty: () => Effect.fail(missing(issueId)),
+        onNonEmpty: nonEmpty =>
+          nonEmpty.length === 1
+            ? Effect.succeed(Array.headNonEmpty(nonEmpty))
+            : Effect.fail(
+                failed(
+                  'attach',
+                  `Issue #${issueId} is held by ${nonEmpty.length.toString()} records.`,
+                ),
+              ),
+      })
+      const lines = yield* Effect.forEach(input.files, filePath =>
+        attachOne(host, input, issueId, record.id, filePath),
+      )
+      return succeeded(lines)
+    }),
+  )
+
+/** Downloads one stored Issue file by its storage path. */
+export const downloadIssueFileCommand = (
+  host: IssuesHost,
+  input: Readonly<{
+    directory: Option.Option<string>
+    isForced: boolean
+    storagePath: string
+  }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const directory = resolve(Option.getOrElse(input.directory, () => '.'))
+      const destination = join(
+        directory,
+        basename(input.storagePath).replace(uploadPrefix, ''),
+      )
+      if (!input.isForced && existsSync(destination)) {
+        return yield* Effect.fail(
+          usage(`${destination} already exists; pass --force to replace it.`),
+        )
+      }
+      const bytes = yield* host.files
+        .download(input.storagePath)
+        .pipe(
+          Effect.mapError(cause =>
+            failed('download', describeIssueTrackerCause(cause)),
+          ),
+        )
+      yield* Effect.try({
+        try: () => writeFileSync(destination, bytes),
+        catch: cause =>
+          failed(
+            'download',
+            `${destination} could not be written: ${describeIssueTrackerCause(cause)}`,
+          ),
+      })
+      return succeeded([
+        `Downloaded ${input.storagePath} (${bytes.byteLength.toString()} bytes) to ${destination}`,
+      ])
+    }),
+  )
+
+/** Everything `issues edit` changes; only the fields given change. */
+export type EditInput = Readonly<{
+  area: Option.Option<string>
+  details: Option.Option<string>
+  issue: string
+  isJson: boolean
+  priority: Option.Option<string>
+  product: Option.Option<string>
+  title: Option.Option<string>
+  type: Option.Option<string>
+}>
+
+/** Changes an Issue's title, details, priority, type, area, or product. */
+export const editIssueCommand = (
+  host: IssuesHost,
+  input: EditInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const priority = yield* parseOptionalChoice(
+        'priority',
+        input.priority,
+        priorities,
+      )
+      const issueType = yield* parseOptionalChoice(
+        'issue type',
+        input.type,
+        issueTypes,
+      )
+      const changes = Array.filter(
+        [
+          Option.map(input.title, () => 'title'),
+          Option.map(input.details, () => 'details'),
+          Option.map(priority, value => `priority ${value}`),
+          Option.map(issueType, value => `type ${value}`),
+          Option.map(input.area, value => `area ${value}`),
+          Option.map(input.product, value => `product ${value}`),
+        ],
+        Option.isSome,
+      )
+      if (Array.isReadonlyArrayEmpty(changes)) {
+        return yield* Effect.fail(
+          usage(
+            'issues edit needs a field to change: --title, --details, --priority, --type, --area, or --product.',
+          ),
+        )
+      }
+      const { issue } = yield* changeIssue(host, 'edit', issueId, () => [
+        SubmittedIssueEdit.make({
+          area: input.area,
+          details: input.details,
+          issueId,
+          issueType,
+          priority,
+          productId: input.product,
+          title: input.title,
+        }),
+      ]).pipe(
+        Effect.mapError(failure =>
+          failure.message.includes('Choose an Application or Library')
+            ? usage(failure.message.replace('issues edit failed: ', ''))
+            : failure,
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `Edited #${issueId}: ${Array.join(
+                Array.map(changes, change =>
+                  Option.getOrElse(change, () => ''),
+                ),
+                ', ',
+              )}.`,
+            ],
+      )
+    }),
+  )
+
+/** Adds one success criterion. */
+export const addCriterionCommand = (
+  host: IssuesHost,
+  input: Readonly<{
+    evidence: ReadonlyArray<string>
+    issue: string
+    isJson: boolean
+    outcome: string
+  }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const outcome = input.outcome.trim()
+      if (outcome === '') {
+        return yield* Effect.fail(
+          usage('issues criterion needs the outcome, one observable sentence.'),
+        )
+      }
+      const criterion = yield* parseCriterion(outcome, input.evidence)
+      const { issue } = yield* changeIssue(host, 'criterion', issueId, () => [
+        SubmittedIssueSuccessCriterion.make({
+          issueId,
+          outcome: criterion.outcome,
+          requiredEvidence: criterion.requiredEvidence,
+        }),
+      ])
+      const added = Option.getOrElse(
+        Option.map(
+          Array.findFirst(
+            issue.successCriteria,
+            stored => stored.outcome === criterion.outcome,
+          ),
+          stored => stored.id,
+        ),
+        () => '',
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [`Added criterion ${added} to #${issueId}.`],
+      )
+    }),
+  )
+
+const criterionIdFor = (
+  issue: Issue,
+  reference: string,
+): Option.Option<string> => {
+  const trimmed = reference.trim()
+  const byPosition = /^\d+$/.test(trimmed)
+    ? Option.map(
+        Array.get(issue.successCriteria, Number(trimmed) - 1),
+        criterion => criterion.id,
+      )
+    : Option.none()
+  return Option.orElse(byPosition, () =>
+    Option.map(
+      Array.findFirst(
+        issue.successCriteria,
+        criterion => criterion.id === trimmed,
+      ),
+      criterion => criterion.id,
+    ),
+  )
+}
+
+const criteriaListing = (issue: Issue): string =>
+  Array.join(
+    Array.map(
+      issue.successCriteria,
+      (criterion, index) =>
+        `${(index + 1).toString()} ${criterion.id} "${criterion.outcome}"`,
+    ),
+    ', ',
+  )
+
+/** Marks success criteria, by position or id, satisfied or not. */
+export const markCriteriaCommand = (
+  host: IssuesHost,
+  input: Readonly<{
+    criteria: ReadonlyArray<string>
+    isJson: boolean
+    isUnsatisfied: boolean
+    issue: string
+  }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const references = splitList(input.criteria)
+      if (Array.isReadonlyArrayEmpty(references)) {
+        return yield* Effect.fail(
+          usage(
+            'issues satisfy needs a criterion: its position (1, 2, ...) or id.',
+          ),
+        )
+      }
+      const { issue } = yield* changeIssue(host, 'satisfy', issueId, current =>
+        Effect.map(
+          Effect.forEach(references, reference =>
+            Option.match(criterionIdFor(current, reference), {
+              onNone: () =>
+                Effect.fail(
+                  usage(
+                    `Issue #${issueId} has no criterion ${reference}. Its criteria: ${criteriaListing(current)}.`,
+                  ),
+                ),
+              onSome: Effect.succeed,
+            }),
+          ),
+          criterionIds => [
+            SubmittedSuccessCriteriaMarks.make({
+              criterionIds: Array.dedupe(criterionIds),
+              isSatisfied: !input.isUnsatisfied,
+              issueId,
+            }),
+          ],
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `Marked ${Array.join(references, ', ')} on #${issueId} ${input.isUnsatisfied ? 'not satisfied' : 'satisfied'}; ${Array.filter(issue.successCriteria, criterion => criterion.isSatisfied).length.toString()} of ${issue.successCriteria.length.toString()} satisfied.`,
+            ],
+      )
+    }),
+  )
+
+/** Everything `issues mention` reads. */
+export type MentionInput = Readonly<{
+  issue: string
+  isJson: boolean
+  said: ReadonlyArray<string>
+  typed: Option.Option<string>
+  typedAt: Option.Option<string>
+  typedMessage: Option.Option<string>
+  typedSession: Option.Option<string>
+}>
+
+/** Adds Michael's later words to an Issue as Mentions, with their links. */
+export const addMentionCommand = (
+  host: IssuesHost,
+  input: MentionInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const saidMentions = yield* Effect.forEach(input.said, spec =>
+        resolveSaidMention(host.mirrorRoot, spec),
+      )
+      const mentions = [
+        ...saidMentions,
+        ...Option.match(input.typed, {
+          onNone: () => [],
+          onSome: text => [
+            typedMention({
+              text,
+              typedAt: input.typedAt,
+              typedMessage: input.typedMessage,
+              typedSession: input.typedSession,
+            }),
+          ],
+        }),
+      ]
+      if (Array.isReadonlyArrayEmpty(mentions)) {
+        return yield* Effect.fail(
+          usage(
+            'issues mention needs --said <recording>:<lines> or --typed "<words>".',
+          ),
+        )
+      }
+      const { issue } = yield* changeIssue(host, 'mention', issueId, () =>
+        Array.map(mentions, mention =>
+          SubmittedIssueMention.make({ issueId, mention }),
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `Added ${mentions.length.toString()} Mention${mentions.length === 1 ? '' : 's'} to #${issueId}; it has ${issue.mentions.length.toString()}.`,
+            ],
+      )
+    }),
+  )

@@ -1,7 +1,10 @@
-import { Schema as S } from 'effect'
+import { Effect, Option, Schema as S } from 'effect'
 
 import {
   Issue,
+  IssueReference,
+  IssueStatus,
+  IssueSuccessEvidence,
   ProductCatalogEntry,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
@@ -138,13 +141,84 @@ export const Navigation = S.Union([
 /** Every representable navigation destination. */
 export type Navigation = typeof Navigation.Type
 
-/** The editable fields required to file one Issue. */
+const defaultDraftStatus: IssueStatus = 'Open'
+
+const DraftOptionalString = S.Option(S.String).pipe(
+  S.withDecodingDefaultKey(Effect.succeed(Option.none())),
+  S.withConstructorDefault(Effect.succeed(Option.none())),
+)
+
+/**
+ * One Mention written into a draft before the Issue has a number: Michael's
+ * line in Recording 208, its words, and its deep link. Filing gives it the id
+ * `mention-<number>-<position>`.
+ */
+export const DraftMention = S.Struct({
+  capturedAtMs: S.Option(S.Number),
+  directQuote: S.Option(S.String),
+  note: S.Option(S.String),
+  related: S.Array(IssueReference),
+  reporter: S.Option(IssueReference),
+  source: IssueReference,
+})
+/** One Mention written into a draft before the Issue has a number. */
+export type DraftMention = typeof DraftMention.Type
+
+/** One outcome a draft promises and the proof it needs. */
+export const DraftSuccessCriterion = S.Struct({
+  outcome: S.String,
+  requiredEvidence: S.Array(IssueSuccessEvidence),
+})
+/** One outcome a draft promises and the proof it needs. */
+export type DraftSuccessCriterion = typeof DraftSuccessCriterion.Type
+
+/**
+ * One work-log entry written into a draft, such as the agent that filed the
+ * Issue saying so. Filing gives it the id `work-<number>-<state>-<time>`.
+ */
+export const DraftWorkLogEntry = S.Struct({
+  agentId: S.Option(S.String),
+  commitSha: S.Option(S.String),
+  occurredAtMs: S.Number,
+  state: S.Option(S.String),
+  summary: S.String,
+})
+/** One work-log entry written into a draft. */
+export type DraftWorkLogEntry = typeof DraftWorkLogEntry.Type
+
+/**
+ * The editable fields required to file one Issue. `productId` holds the
+ * product as written, its id or its name, until filing resolves it.
+ */
 export const IssueDraft = S.Struct({
+  area: DraftOptionalString,
+  claimantId: DraftOptionalString,
   details: S.String,
+  issueType: DraftOptionalString,
   leftoverKind: S.Option(LeftoverKind),
+  mentions: S.Array(DraftMention).pipe(
+    S.withDecodingDefaultKey(Effect.succeed([])),
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
   priority: Issue.fields.priority,
   productId: S.String,
+  relatedIssueIds: S.Array(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed([])),
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
+  status: IssueStatus.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(defaultDraftStatus)),
+    S.withConstructorDefault(Effect.succeed(defaultDraftStatus)),
+  ),
+  successCriteria: S.Array(DraftSuccessCriterion).pipe(
+    S.withDecodingDefaultKey(Effect.succeed([])),
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
   title: S.String,
+  workLog: S.Array(DraftWorkLogEntry).pipe(
+    S.withDecodingDefaultKey(Effect.succeed([])),
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
 })
 /** The editable fields required to file one Issue. */
 export type IssueDraft = typeof IssueDraft.Type
@@ -174,11 +248,25 @@ export const SavingIssueMutation = S.TaggedStruct('SavingIssueMutation', {})
 export const FailedIssueMutation = S.TaggedStruct('FailedIssueMutation', {
   reason: S.String,
 })
+/**
+ * The last change to an Issue was read back from the store. A work-log entry
+ * names its id, such as `work-692-claimed-1792017248455`.
+ */
+export const SavedIssueMutation = S.TaggedStruct('SavedIssueMutation', {
+  entryId: S.Option(S.String),
+  issueId: S.String,
+})
+/** The last mutation deleted this Issue. */
+export const DeletedIssueMutation = S.TaggedStruct('DeletedIssueMutation', {
+  issue: Issue,
+})
 /** Every leftover mutation phase. */
 export const IssueMutationState = S.Union([
   IdleIssueMutation,
   SavingIssueMutation,
   FailedIssueMutation,
+  SavedIssueMutation,
+  DeletedIssueMutation,
 ])
 /** Every leftover mutation phase. */
 export type IssueMutationState = typeof IssueMutationState.Type

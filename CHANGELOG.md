@@ -4,6 +4,155 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 8:47:57 p.m. EDT — `792837c20caa` docs(issues): describe the read-back message and refused links
+
+- **Implementation commit:** `792837c20caa4ba852c62de4a305bc4e4f14ec1c`
+- **Change:** Describe the read-back message and refused links
+- **Details:**
+  - README lines for 154f5df7c and 503c7824c (#692).
+- **Files:**
+  - `examples/issues/README.md` — Two behavior lines.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:46:37 p.m. EDT — `503c7824c60d` fix(issues): refuse links to Issues that do not exist
+
+- **Implementation commit:** `503c7824c60d6a0c329aebd3d11d3c5e89f3a680`
+- **Change:** Refuse links to Issues that do not exist
+- **Details:**
+  - Red 01813967f, green 503c7824c (#692). Found on the throwaway Instant app bd40c50a: issues link 1 999 exited 0 and stored a link to no Issue. link and file --related now exit 3 naming the missing numbers and write nothing.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — requireExistingIssues before link and file.
+  - `examples/issues/cli/src/commands.test.ts` — Two older tests seed the Issues they link.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:44:06 p.m. EDT — `154f5df7ce5c` fix(instant-tools): say a filed Issue exists when its read-back fails
+
+- **Implementation commit:** `154f5df7ce5c75e8bd1ad331a49aa5f461882b3e`
+- **Change:** Say a filed Issue exists when its read-back fails
+- **Details:**
+  - Red bbe2a1d4b (instant.test.ts), green 154f5df7c (#692). Found by filing five Issues at once on the throwaway Instant app bd40c50a: two filed (#002, #003: the race took the next number), three hit Instant's rate limit before writing anything. A rate limit after the create would have hidden that the Issue was filed.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — fileIssue names the created number and entity when the read-back fails.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:39:57 p.m. EDT — `5406da320cf9` fix(issues): redact the admin token from everything the command prints
+
+- **Implementation commit:** `5406da320cf9b10aa527859387d2fda23be1f0ff`
+- **Change:** Redact the admin token from everything the issues command prints
+- **Details:**
+  - Red f182ed377 (commands.test.ts), green 5406da320 (#692): every live subcommand's output passes through redactCredentials with the admin token the host loaded, so no failure shape can print it.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — redactCredentials.
+  - `examples/issues/cli/src/entry.ts` — withLiveHost redacts before printing.
+  - `examples/issues/cli/src/resources.ts` — liveIssueHostServices returns its credentials.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:39:57 p.m. EDT — `c1e1150010e3` fix(instant-tools): redact credential fields Instant echoes in a hint
+
+- **Implementation commit:** `c1e1150010e39f8b6a1afa1aeab0578c21ed2dce`
+- **Change:** Redact credential fields Instant echoes in a hint
+- **Details:**
+  - Red 1ca54efc9 (instant.test.ts, the live refusal's shape), green c1e115001 (#692): Instant refuses a bad admin token by echoing the token in its hint, and describeIssueTrackerCause printed the hint whole. Found while verifying that a failed save prints its real cause.
+- **Files:**
+  - `packages/instant-tools/src/issues/issueTracker.ts` — describeBody stringifies a copy of the hint with credential-named fields redacted.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:51:59 p.m. EDT — `86323ed4027e` fix(issues): number an added criterion after the ones already there
+
+- **Implementation commit:** `86323ed4027e2ce8ee1f69571f24d6b2f90afcc0`
+- **Change:** Number an added criterion after the ones already there
+- **Details:**
+  - Red e628cc19d, green 86323ed40 (#692).
+- **Files:**
+  - `examples/issues/core/src/update.ts` — nextChildId starts after the existing children.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:50:30 p.m. EDT — `ffe6c0003f9d` feat(issues): edit fields, add and mark criteria, and add Mentions
+
+- **Implementation commit:** `ffe6c0003f9de7649456bbb96d61909092250b36`
+- **Change:** Edit fields, add and mark criteria, and add Mentions
+- **Details:**
+  - Red ef343ef15, green ffe6c0003 (#692): issues edit, criterion, satisfy, mention through Program Messages and the checked update.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — EditIssue, AddIssueSuccessCriterion, MarkIssueSuccessCriteria, AddIssueMention.
+  - `examples/issues/core/src/message.ts` — Their Messages.
+  - `examples/issues/cli/src/commands.ts` — editIssueCommand, addCriterionCommand, markCriteriaCommand, addMentionCommand.
+  - `examples/issues/cli/src/entry.ts` — The four subcommands.
+  - `examples/issues/cli/src/host.test.ts` — The subcommand set.
+  - `examples/issues/README.md` — The four subcommands.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:36:04 p.m. EDT — `e744f7552e5c` feat(issues): one issues command to file, read, and change Issues
+
+- **Implementation commit:** `e744f7552e5c6f565041df7f9d18676f63cc69bb`
+- **Change:** One issues command to file, read, and change Issues
+- **Details:**
+  - Red aa3af182d, 8282506eb, fa8504941; green e744f7552 (#692). Verified on the real tracker 2026-10-14 19:31-19:35 EDT with throwaway #695 (filed with every field, shown, logged, claimed, status, linked, attached, downloaded, deleted after a backup; Instant refused a second record for 695). The old save failure: Instant refuses a lookup-keyed write that sets the unique issueID of an Issue that does not exist yet.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — file, show, list, log, claim, status, link, attach, download, delete, products, with exit codes and real causes.
+  - `examples/issues/cli/src/mentions.ts` — --said lines from the Scribe mirror, typed-chat Mentions.
+  - `examples/issues/cli/src/entry.ts` — The issues command and its subcommands.
+  - `examples/issues/cli/src/host.ts` — executeMessages, IssuesCommandFailure, ISSUES_TRACE.
+  - `examples/issues/cli/src/resources.ts` — Snapshot admin adapter that reuses reads until a write, stored-record reads, Instant storage.
+  - `examples/issues/cli/src/host.test.ts` — The new subcommand set.
+  - `examples/issues/cli/package.json` — The bin is issues.
+  - `examples/issues/core/src/update.ts` — AppendIssueAttachment, product catalog by most common shape, catalog merge order.
+  - `examples/issues/core/src/message.ts` — SubmittedIssueAttachment.
+  - `examples/issues/core/src/resources.ts` — The memory tracker lists newest first.
+  - `examples/issues/README.md` — How agents use issues.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:12:01 p.m. EDT — `c25a181dbc07` feat(issues): file every field, log checked work, set any status, delete
+
+- **Implementation commit:** `c25a181dbc07988237de38c6d6a24b27a2587784`
+- **Change:** File every field, log checked work, set any status, delete
+- **Details:**
+  - Red 7ebc71cfd, green c25a181db (#692): the Issue Tracker Program files a composed draft (type, area, status, claimant, related Issues, criteria, recording and typed-chat Mentions, initial work log) under the next free number, reads a product by id or name, appends checked work-log entries with state, agent, commit, claim, and status, sets any status, links relatedIssueIds, and deletes; failures name the operation and the real cause.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — SaveIssue through the tracker's file, AppendIssueWorkLogEntry, SetIssueStatus, DeleteIssue, product by id or name, checked updates for comment, log, link, status, retarget.
+  - `examples/issues/core/src/model.ts` — Draft fields, DraftMention, DraftSuccessCriterion, DraftWorkLogEntry, SavedIssueMutation, DeletedIssueMutation.
+  - `examples/issues/core/src/message.ts` — ComposedIssueDraft, SubmittedIssueWorkLogEntry, SelectedIssueStatus, ConfirmedIssueDeletion and their results.
+  - `examples/issues/core/src/resources.ts` — makeMemoryIssueTracker for previews and tests.
+  - `examples/issues/core/src/subscription.ts` — Real failure reasons.
+  - `examples/issues/core/src/leftover.ts` — relatedIssueIds count as links.
+  - `examples/issues/core/src/program.ts` — Program version 6.
+  - `examples/issues/core/src/program.test.ts` — Existing trackers carry the new operations.
+  - `packages/instant-tools/src/instant/instant.ts` — A typed accumulator instead of a type assertion.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:01:27 p.m. EDT — `e27b023ea7e5` feat(instant-tools): file Issues under a free number and read every change back
+
+- **Implementation commit:** `e27b023ea7e5cb2ff91b440334f0c7240d80fc4d`
+- **Change:** File Issues under a free number and read every change back
+- **Details:**
+  - Red 33e0a5d44 (tests in instant.test.ts and domain.test.ts), green e27b023ea (#692): file, fetchIssue, update, delete on the Issue tracker; numbering never writes over a stored Issue (#502's class); errors name the operation and the real cause.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — Store primitives (fetchIssueIds, fetchIssueRecordsById, createIssue, deleteIssue) and the tracker's file, fetchIssue, update, delete.
+  - `packages/instant-tools/src/issues/issueTracker.ts` — IssueChange, the new service operations, describeIssueTrackerError.
+  - `packages/instant-tools/src/issues/domain.ts` — normalizeIssueId, nextIssueId, ConversationReference, relatedIssueIds.
+  - `packages/instant-tools/src/instant/instant.test.ts` — An unmodeled-key example now that relatedIssueIds is modeled.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 5th, 2026 at 9:06:56 a.m. EDT — `eef68d29acae` docs(foldkit): record why terminal Books broke, in ADR 0014
 
 - **Implementation commit:** `eef68d29acae4c5d093d730d999e6547ada3339a`
@@ -63,6 +212,35 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `packages/foldkit/src/telemetry/attach.ts` — Uses maybePage.
 - **User context (verbatim):**
   > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 8:02:42 a.m. EDT — `63efccae9f2b` fix(instant-tools): keep stored payload keys the Issue schema does not model on save
+
+- **Implementation commit:** `63efccae9f2b5b4dfa8a864ad686cd6bbd4e2066`
+- **Change:** Keep stored payload keys the Issue schema does not model on save
+- **Details:**
+  - A save from a Client re-encoded the whole payload and dropped relatedIssueIds (257 stored Issues) and files (153); the tracker now writes the encoded Issue over the stored payload (#591).
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — makeInstantIssueRecordOver and the reading save.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Pins that a save keeps relatedIssueIds and files.
+- **User context (verbatim):**
+  > So let's make sure we get that up and working.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 7:31:50 a.m. EDT — `e5587c2e1c16` fix(instant-tools): read every stored Issue and list the newest first
+
+- **Implementation commit:** `e5587c2e1c16c786d1faa26f62f40002158de4bf`
+- **Change:** Read every stored Issue and list the newest first
+- **Details:**
+  - The hosted tracker painted 500 Issues oldest first and hid everything after #522 (#591); it now sorts newest first before the limit (2,000) and reads the stored shapes it used to reject, keeping unmodeled references verbatim.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Tolerant reader: Unrecognized references, optional capture time, Mention note, legacy work-log keys, Complex, IssueNewestFirst.
+  - `packages/instant-tools/src/instant/instant.ts` — Sort before the query limit.
+  - `examples/issues/core/src/issueQuery.ts` — One catalog query with the raised limit.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Pins each stored shape and the verbatim write-back.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Pins newest-first ordering before the limit.
+- **User context (verbatim):**
+  > So let's make sure we get that up and working.
 - **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
 
 ## October 4th, 2026 at 8:20:52 p.m. EDT — `6f0ec384aeff` feat(books): say why the Audible import skips each title

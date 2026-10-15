@@ -7,6 +7,7 @@ import {
   IssueAttachment,
   IssueComplexity,
   IssueMention,
+  IssueNewestFirst,
   type IssuePriority,
   IssueSourceDocument,
   IssueStatus,
@@ -18,11 +19,13 @@ import {
   RecordingReference,
   RepositoryAttachmentSource,
   escalatePriority,
+  nextIssueId,
+  normalizeIssueId,
   registerMention,
 } from './domain.js'
 
 const firstMention = IssueMention.make({
-  capturedAtMs: 1_753_825_157_000,
+  capturedAtMs: Option.some(1_753_825_157_000),
   directQuote: Option.some('the date time stamp is still not in the gutter'),
   id: 'mention-1',
   issueId: 'issue-021',
@@ -187,6 +190,179 @@ describe('issue domain', () => {
     expect(mention.reporter).toEqual(Option.none())
   })
 
+  it('reads a Mention stored without a capture time, with a bare reporter name and a note', () => {
+    const storedMention = {
+      directQuote: 'The list stops before the newest Issue.',
+      id: 'mention-584-1',
+      issueId: '584',
+      note: 'Recording 199 #245',
+      reporter: 'main',
+      source: { _tag: 'Agent', id: 'claude-code-main' },
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.capturedAtMs).toEqual(Option.none())
+    expect(mention.note).toEqual(Option.some('Recording 199 #245'))
+    expect(mention.reporter).toEqual(
+      Option.some({ _tag: 'Unrecognized', value: 'main' }),
+    )
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual({
+      ...storedMention,
+      capturedAtMs: null,
+      related: [],
+    })
+  })
+
+  it('keeps reference shapes it does not model verbatim through a save', () => {
+    const conversation = {
+      _tag: 'Conversation',
+      conversation: { note: 'Relayed by the coordinating session.' },
+    }
+    const labeledRecording = {
+      _tag: 'Recording',
+      id: '096',
+      label: 'Recording 096 timestamp 0:18',
+    }
+    const storedMention = {
+      capturedAtMs: 1_753_825_157_000,
+      directQuote: null,
+      id: 'mention-478-1',
+      issueId: '478',
+      note: null,
+      related: ['147', { issueId: '216' }, labeledRecording],
+      reporter: null,
+      source: conversation,
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.source).toEqual(conversation)
+    expect(Array.map(mention.related, reference => reference._tag)).toEqual([
+      'Unrecognized',
+      'Unrecognized',
+      'Unrecognized',
+    ])
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual(storedMention)
+  })
+
+  it('still reads a modeled reference as its own variant', () => {
+    const mention = S.decodeUnknownSync(IssueMention)({
+      capturedAtMs: 1_753_825_157_000,
+      id: 'mention-modeled',
+      issueId: '218',
+      related: [{ _tag: 'Issue', id: '044' }],
+      source: { _tag: 'Agent', id: 'grok-4.6-issues-evidence' },
+    })
+
+    expect(mention.source).toEqual({
+      _tag: 'Agent',
+      id: 'grok-4.6-issues-evidence',
+    })
+    expect(mention.related).toEqual([{ _tag: 'Issue', id: '044' }])
+  })
+
+  it('reads work-log rows an older writer stored under other keys', () => {
+    const issue = makeIssue()
+    const encoded = S.encodeUnknownSync(Issue)(issue)
+    const decoded = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      workLog: [
+        {
+          agent: 'claude-code',
+          atMs: 1_785_851_462_354,
+          id: 'issue-146-work-1',
+          note: 'Diagnosed from a sample capture.',
+        },
+        {
+          agentId: 'grok-4.6-playback-blink',
+          id: 'issue-221-worklog-claim',
+          summary: 'Claimed.',
+          timestampMs: 1_787_155_632_190,
+        },
+        {
+          id: 'issue-146-work-2',
+          occurredAtMs: 1_785_878_005_116,
+          summary: 'Consumed the fix.',
+        },
+      ],
+    })
+
+    expect(decoded.workLog).toEqual([
+      IssueWorkLogEntry.make({
+        agentId: Option.some('claude-code'),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-146-work-1',
+        occurredAtMs: 1_785_851_462_354,
+        state: Option.none(),
+        summary: 'Diagnosed from a sample capture.',
+      }),
+      IssueWorkLogEntry.make({
+        agentId: Option.some('grok-4.6-playback-blink'),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-221-worklog-claim',
+        occurredAtMs: 1_787_155_632_190,
+        state: Option.none(),
+        summary: 'Claimed.',
+      }),
+      IssueWorkLogEntry.make({
+        agentId: Option.none(),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-146-work-2',
+        occurredAtMs: 1_785_878_005_116,
+        state: Option.none(),
+        summary: 'Consumed the fix.',
+      }),
+    ])
+  })
+
+  it('rejects a work-log row with no time under any known key', () => {
+    const issue = makeIssue()
+    const encoded = S.encodeUnknownSync(Issue)(issue)
+
+    expect(() =>
+      S.decodeUnknownSync(Issue)({
+        ...encoded,
+        workLog: [{ id: 'issue-undated', summary: 'No time.' }],
+      }),
+    ).toThrow()
+  })
+
+  it('preserves the stored Complex complexity label', () => {
+    expect(S.decodeUnknownSync(IssueComplexity)('Complex')).toBe('Complex')
+  })
+
+  it('keeps updatedAtMs when a registered Mention has no capture time', () => {
+    const issue = makeIssue()
+    const registration = registerMention(
+      issue,
+      IssueMention.make({
+        ...firstMention,
+        capturedAtMs: Option.none(),
+        id: 'mention-undated',
+        issueId: issue.id,
+      }),
+    )
+
+    expect(registration._tag).toBe('Accepted')
+    expect(registration.issue.updatedAtMs).toBe(issue.updatedAtMs)
+  })
+
+  it('orders Issues newest first and breaks a creation-time tie by id', () => {
+    const issue = makeIssue()
+    const older = Issue.make({ ...issue, createdAtMs: 1_000, id: '575' })
+    const newerLowId = Issue.make({ ...issue, createdAtMs: 2_000, id: '583' })
+    const newerHighId = Issue.make({ ...issue, createdAtMs: 2_000, id: '584' })
+
+    expect(
+      Array.map(
+        Array.sort([older, newerLowId, newerHighId], IssueNewestFirst),
+        sorted => sorted.id,
+      ),
+    ).toEqual(['584', '583', '575'])
+  })
+
   it('defaults missing legacy work-log metadata to none', () => {
     const entry = S.decodeUnknownSync(IssueWorkLogEntry)({
       id: 'work-log-legacy',
@@ -310,5 +486,70 @@ describe('issue domain', () => {
       S.decodeUnknownSync(Issue)(legacyPayload).evidenceLogQueries,
     ).toEqual([])
     expect(S.decodeUnknownSync(Issue)(legacyPayload).nightlyEligible).toBe(true)
+  })
+
+  it('reads an Issue number in every spelling agents use and pads it below 1,000', () => {
+    expect(normalizeIssueId('92')).toEqual(Option.some('092'))
+    expect(normalizeIssueId(' #92 ')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('issue 92')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('Issue #692')).toEqual(Option.some('692'))
+    expect(normalizeIssueId('092')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('1001')).toEqual(Option.some('1001'))
+    expect(normalizeIssueId('0')).toEqual(Option.none())
+    expect(normalizeIssueId('92a')).toEqual(Option.none())
+    expect(normalizeIssueId('issue-041')).toEqual(Option.none())
+    expect(normalizeIssueId('')).toEqual(Option.none())
+  })
+
+  it('takes the number after the highest one in use, past any gap', () => {
+    expect(nextIssueId(['001', '153', '692', 'issue-preview'])).toBe('693')
+    expect(nextIssueId(['issue-041'])).toBe('001')
+    expect(nextIssueId([])).toBe('001')
+    expect(nextIssueId(['998', '999'])).toBe('1000')
+  })
+
+  it('reads a typed-chat Conversation source as its own variant and writes it back unchanged', () => {
+    const typed = {
+      _tag: 'Conversation',
+      conversation: {
+        harness: 'claude-code',
+        messageId: '82fc7bc4-3fb8-47f9-93de-90ec9d004131',
+        note: 'Typed in the Claude chat.',
+        sessionId: 'c863fc6a-8ae7-4eca-8838-49cc9408897c',
+        typedAtMs: 1_791_713_374_021,
+      },
+    }
+    const storedMention = {
+      capturedAtMs: 1_791_713_374_021,
+      directQuote: 'Ensure those are all documented issues.',
+      id: 'mention-689-typed-1',
+      issueId: '689',
+      note: null,
+      related: [],
+      reporter: null,
+      source: typed,
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.source._tag).toBe('Conversation')
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual(storedMention)
+  })
+
+  it('reads and writes the related Issue numbers stored beside the mentions', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    const withRelated = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      relatedIssueIds: ['147', '539'],
+    })
+    expect(withRelated.relatedIssueIds).toEqual(['147', '539'])
+    expect(S.encodeUnknownSync(Issue)(withRelated)).toMatchObject({
+      relatedIssueIds: ['147', '539'],
+    })
+
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['relatedIssueIds']
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).relatedIssueIds).toEqual(
+      [],
+    )
   })
 })

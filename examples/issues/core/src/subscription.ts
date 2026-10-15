@@ -2,11 +2,11 @@ import { Effect, Option, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
 
 import {
-  IssueQuery,
   IssueTracker,
-  type IssueTrackerError,
   ProductCatalog,
   TriageInbox,
+  describeIssueTrackerCause,
+  describeIssueTrackerError,
 } from '@foldkit/instant-tools/issues'
 import {
   LeftoverPresence,
@@ -14,6 +14,7 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
+import { catalogIssueQuery } from './issueQuery.js'
 import {
   FailedObserveIssue,
   FailedObserveIssueLogs,
@@ -46,12 +47,6 @@ const leftoverPresenceFailureReason = (
   return `${error.operation}: ${cause}`
 }
 
-const issueTrackerFailureReason = (error: IssueTrackerError): string => {
-  const cause =
-    error.cause instanceof Error ? error.cause.message : String(error.cause)
-  return `${error.operation}: ${cause}`
-}
-
 /** Observes the Issue collection, filing catalog, and selected Issue. */
 export const subscriptions = Subscription.make<Model, Message, Resources>()(
   entry => ({
@@ -59,25 +54,16 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
       Stream.unwrap(
         IssueTracker.pipe(
           Effect.map(tracker =>
-            tracker
-              .observe(
-                IssueQuery.make({
-                  limit: 500,
-                  productId: Option.none(),
-                  projectId: Option.none(),
-                  statuses: [],
-                }),
-              )
-              .pipe(
-                Stream.map(issues => ObservedIssues.make({ issues })),
-                Stream.catch(error =>
-                  Stream.make(
-                    FailedObserveIssues.make({
-                      reason: issueTrackerFailureReason(error),
-                    }),
-                  ),
+            tracker.observe(catalogIssueQuery).pipe(
+              Stream.map(issues => ObservedIssues.make({ issues })),
+              Stream.catch(error =>
+                Stream.make(
+                  FailedObserveIssues.make({
+                    reason: describeIssueTrackerError(error),
+                  }),
                 ),
               ),
+            ),
           ),
         ),
       ),
@@ -90,7 +76,9 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
               Stream.map(products => ObservedProducts.make({ products })),
               Stream.catch(error =>
                 Stream.make(
-                  FailedObserveProducts.make({ reason: String(error) }),
+                  FailedObserveProducts.make({
+                    reason: describeIssueTrackerCause(error),
+                  }),
                 ),
               ),
             ),
@@ -109,7 +97,7 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
               Stream.catch(error =>
                 Stream.make(
                   FailedObserveTriageCandidates.make({
-                    reason: String(error),
+                    reason: describeIssueTrackerCause(error),
                   }),
                 ),
               ),
@@ -141,7 +129,7 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
                     Stream.make(
                       FailedObserveIssue.make({
                         issueId,
-                        reason: issueTrackerFailureReason(error),
+                        reason: describeIssueTrackerError(error),
                       }),
                     ),
                   ),
@@ -175,7 +163,7 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
                     Stream.make(
                       FailedObserveIssueLogs.make({
                         issueId,
-                        reason: String(error),
+                        reason: describeIssueTrackerCause(error),
                       }),
                     ),
                   ),

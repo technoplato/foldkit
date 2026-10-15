@@ -2,10 +2,13 @@ import {
   Array,
   Console,
   Data,
+  Duration,
   Effect,
+  Layer,
   Match as M,
   Option,
   Schema as S,
+  Scope,
 } from 'effect'
 import { Runtime } from 'foldkit'
 import {
@@ -17,6 +20,7 @@ import {
   type Model,
   type Navigation,
   ObservedProducts,
+  type IssueTrackerResources as ProgramResources,
   SelectedIssuePriority,
   SelectedIssueProduct,
   StaticIssueTrackerResources,
@@ -51,6 +55,14 @@ export class IssuesCliError extends Data.TaggedError('IssuesCliError')<{
   readonly message: string
 }> {}
 
+/** A command could not do what it was asked; `exitCode` says how. */
+export class IssuesCommandFailure extends Data.TaggedError(
+  'IssuesCommandFailure',
+)<{
+  readonly exitCode: number
+  readonly message: string
+}> {}
+
 /** The state transition evidence from one CLI action sequence. */
 export type IssuesCliExecution = Readonly<{
   finalModel: Model
@@ -58,7 +70,7 @@ export type IssuesCliExecution = Readonly<{
   messages: ReadonlyArray<Message>
 }>
 
-type IssueTrackerResources = typeof StaticIssueTrackerResources
+type IssueTrackerResources = Layer.Layer<ProgramResources>
 
 const fallbackProducts = [
   ProductCatalogEntry.make({
@@ -133,6 +145,119 @@ const awaitObservations = (
         observedModel(runtime.readModel())
         return Effect.sync(stop)
       }).pipe(Effect.timeout(timeout), Effect.orDie)
+
+const pendingWork = (model: Model): string =>
+  Array.join(
+    Array.filter(
+      [
+        model.issues._tag === 'LoadingIssues' ? 'the Issue list' : '',
+        model.products._tag === 'LoadingProducts' ? 'the product catalog' : '',
+        model.navigation._tag === 'IssueDetail' &&
+        model.issueDetail._tag === 'LoadingIssue'
+          ? `Issue ${model.navigation.issueId}`
+          : '',
+        model.issueMutation._tag === 'SavingIssueMutation' ? 'a change' : '',
+        model.navigation._tag === 'FileIssue' &&
+        model.draftState._tag === 'SavingIssueDraft'
+          ? 'the new Issue'
+          : '',
+      ],
+      label => label !== '',
+    ),
+    ', ',
+  )
+
+const awaitSettled = (
+  runtime: Runtime.ProgramRuntime<Model, Message>,
+  timeout: Duration.Input,
+): Effect.Effect<Model, IssuesCommandFailure> =>
+  hasSettledObservations(runtime.readModel())
+    ? Effect.succeed(runtime.readModel())
+    : Effect.callback<Model>(resume => {
+        const observedModel = (model: Model) => {
+          if (hasSettledObservations(model)) resume(Effect.succeed(model))
+        }
+        const stop = runtime.observeModel(observedModel)
+        observedModel(runtime.readModel())
+        return Effect.sync(stop)
+      }).pipe(
+        Effect.timeoutOrElse({
+          duration: timeout,
+          orElse: () =>
+            Effect.fail(
+              new IssuesCommandFailure({
+                exitCode: 1,
+                message: `the tracker did not answer within ${Duration.format(Duration.fromInputUnsafe(timeout))} (waiting for ${pendingWork(runtime.readModel())})`,
+              }),
+            ),
+        }),
+      )
+
+const isTracing = (): boolean => {
+  const value = process.env['ISSUES_TRACE']
+  return value !== undefined && value !== '' && value !== '0'
+}
+
+/**
+ * With `ISSUES_TRACE=1`, prints each Message the Program applies, with the
+ * milliseconds since the command started, on standard error.
+ */
+const traceTransitions = (
+  runtime: Runtime.ProgramRuntime<Model, Message>,
+): Effect.Effect<void, never, Scope.Scope> => {
+  if (!isTracing()) {
+    return Effect.void
+  }
+  const startedAtMs = Date.now()
+  return Effect.acquireRelease(
+    Effect.sync(() =>
+      runtime.journal.observe(transition => {
+        process.stderr.write(
+          `issues trace +${(Date.now() - startedAtMs).toString()} ms ${transition.message._tag}\n`,
+        )
+      }),
+    ),
+    stop => Effect.sync(stop),
+  ).pipe(Effect.asVoid)
+}
+
+/**
+ * Runs typed Messages through the renderer-free Program runtime, one at a
+ * time, waiting for each to settle. `messagesFor` reads the settled starting
+ * Model, so a command can refuse before it changes anything: `issues log 404`
+ * stops when Issue 404 reads back as missing.
+ */
+export const executeMessages = (
+  navigation: Navigation,
+  messagesFor: (
+    settled: Model,
+  ) => Effect.Effect<ReadonlyArray<Message>, IssuesCommandFailure>,
+  resources: IssueTrackerResources,
+  timeout: Duration.Input = '30 seconds',
+): Effect.Effect<Model, IssuesCommandFailure> =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const runtime = yield* Effect.orDie(
+        Runtime.makeProgramRuntime({
+          program: IssueTrackerProgram,
+          resources,
+          start: Runtime.fromModel(modelForNavigation(navigation)),
+        }),
+      )
+      yield* traceTransitions(runtime)
+      yield* runtime.initialization
+      const observedModel = yield* awaitSettled(runtime, timeout)
+      const settledModel = yield* ensureFilingCatalog(runtime, observedModel)
+      const messages = yield* messagesFor(settledModel)
+      for (const message of messages) {
+        yield* runtime.run(message)
+        yield* awaitSettled(runtime, timeout)
+      }
+      const finalModel = runtime.readModel()
+      yield* runtime.shutdown
+      return finalModel
+    }),
+  )
 
 const prefixedValue = (token: string, prefix: string): Option.Option<string> =>
   token.startsWith(prefix)
@@ -398,7 +523,7 @@ const resolveLiveResources = (): Effect.Effect<
   if (resources instanceof IssuesInstantConfigError) {
     return Effect.fail(resources)
   }
-  return Effect.succeed(resources as IssueTrackerResources)
+  return Effect.succeed(resources)
 }
 
 /** Prints the final screen and optionally the Messages valid in that state. */
@@ -416,7 +541,7 @@ export const runIssues = (
       '20 seconds',
     )
     const painting = paintCli(issuesScreen(execution.finalModel), {
-      binaryName: 'foldkit-issues',
+      binaryName: 'issues',
       whatFor: token => token,
     })
     yield* Console.log(painting.screen)

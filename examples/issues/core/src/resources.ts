@@ -1,4 +1,4 @@
-import { Array, Effect, Layer, Option, Stream } from 'effect'
+import { Array, Effect, Layer, Option, Ref, Stream } from 'effect'
 
 import {
   type InstantToolsDatabase,
@@ -7,7 +7,10 @@ import {
 import {
   ApplicationProduct,
   Issue,
+  IssueNewestFirst,
+  type IssueQuery,
   IssueTracker,
+  IssueTrackerError,
   type IssueTrackerService,
   LibraryProduct,
   ProductCatalog,
@@ -17,6 +20,8 @@ import {
   TriageCandidate,
   TriageInbox,
   type TriageInboxService,
+  nextIssueId,
+  normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
 import {
   MemoryLeftoverPresenceLive,
@@ -151,15 +156,116 @@ const staticTriageCandidates: ReadonlyArray<TriageCandidate> = [
   }),
 ]
 
-const StaticIssueTracker: IssueTrackerService = {
-  fetch: query => Effect.succeed(Array.take(staticIssues, query.limit)),
-  observe: query => Stream.succeed(Array.take(staticIssues, query.limit)),
-  observeIssue: issueId =>
-    Stream.succeed(
-      Array.findFirst(staticIssues, issue => issue.id === issueId),
-    ),
-  save: () => Effect.void,
-}
+const memoryIssueId = (issueId: string): string =>
+  Option.getOrElse(normalizeIssueId(issueId), () => issueId.trim())
+
+const matchesQuery = (issue: Issue, query: IssueQuery): boolean =>
+  Option.match(query.productId, {
+    onNone: () => true,
+    onSome: productId => issue.product.id === productId,
+  }) &&
+  Option.match(query.projectId, {
+    onNone: () => true,
+    onSome: projectId => Option.contains(issue.projectId, projectId),
+  }) &&
+  (Array.isReadonlyArrayEmpty(query.statuses) ||
+    Array.contains(query.statuses, issue.status))
+
+const missingIssue = (
+  operation: IssueTrackerError['operation'],
+  issueId: string,
+): IssueTrackerError =>
+  new IssueTrackerError({
+    cause: new Error(`Issue ${issueId} does not exist.`),
+    operation,
+  })
+
+/**
+ * An in-memory Issue tracker that numbers, checks, and deletes the way the
+ * Instant tracker does, for previews, tests, and offline Clients. Seeded with
+ * `001` and `005`, it files the next Issue as `006`.
+ */
+export const makeMemoryIssueTracker = (
+  seed: ReadonlyArray<Issue>,
+): Effect.Effect<IssueTrackerService> =>
+  Effect.gen(function* () {
+    const issues = yield* Ref.make(seed)
+    const find = (issueId: string) =>
+      Ref.get(issues).pipe(
+        Effect.map(stored =>
+          Array.findFirst(stored, issue => issue.id === memoryIssueId(issueId)),
+        ),
+      )
+    const fetch = (query: IssueQuery) =>
+      Ref.get(issues).pipe(
+        Effect.map(stored =>
+          Array.take(
+            Array.sort(
+              Array.filter(stored, issue => matchesQuery(issue, query)),
+              IssueNewestFirst,
+            ),
+            query.limit,
+          ),
+        ),
+      )
+    const replace = (next: Issue) =>
+      Ref.update(issues, stored =>
+        Array.map(stored, issue => (issue.id === next.id ? next : issue)),
+      )
+    return {
+      delete: issueId =>
+        Effect.gen(function* () {
+          const maybeIssue = yield* find(issueId)
+          if (Option.isNone(maybeIssue)) {
+            return yield* Effect.fail(missingIssue('Delete', issueId))
+          }
+          yield* Ref.update(issues, stored =>
+            Array.filter(stored, issue => issue.id !== maybeIssue.value.id),
+          )
+          return maybeIssue.value
+        }),
+      fetch,
+      fetchIssue: find,
+      file: makeIssue =>
+        Ref.modify(issues, stored => {
+          const issue = makeIssue(
+            nextIssueId(Array.map(stored, current => current.id)),
+          )
+          return [issue, Array.append(stored, issue)]
+        }),
+      observe: query => Stream.fromEffect(fetch(query)),
+      observeIssue: issueId => Stream.fromEffect(find(issueId)),
+      save: issue =>
+        Ref.update(issues, stored =>
+          Array.some(stored, current => current.id === issue.id)
+            ? Array.map(stored, current =>
+                current.id === issue.id ? issue : current,
+              )
+            : Array.append(stored, issue),
+        ),
+      update: (issueId, change) =>
+        Effect.gen(function* () {
+          const maybeIssue = yield* find(issueId)
+          if (Option.isNone(maybeIssue)) {
+            return yield* Effect.fail(missingIssue('Update', issueId))
+          }
+          yield* replace(change.apply(maybeIssue.value))
+          const maybeStored = yield* find(issueId)
+          if (
+            Option.isSome(maybeStored) &&
+            change.hasLanded(maybeStored.value)
+          ) {
+            return maybeStored.value
+          }
+          return yield* Effect.fail(
+            new IssueTrackerError({
+              cause: new Error(`Issue ${issueId}: the change did not land.`),
+              operation: 'Update',
+            }),
+          )
+        }),
+    }
+  })
 
 const StaticProductCatalog: ProductCatalogService = {
   fetch: Effect.succeed(staticProducts),
@@ -187,7 +293,7 @@ const StaticLogger: LoggerService = {
 
 /** Deterministic resources for previews, tests, and offline Clients. */
 export const StaticIssueTrackerResources = Layer.mergeAll(
-  Layer.succeed(IssueTracker, StaticIssueTracker),
+  Layer.effect(IssueTracker, makeMemoryIssueTracker(staticIssues)),
   Layer.succeed(Logger, StaticLogger),
   Layer.succeed(ProductCatalog, StaticProductCatalog),
   Layer.succeed(TriageInbox, StaticTriageInbox),

@@ -18,6 +18,55 @@ The live web Clients use one Instant app through `@foldkit/instant-tools`.
 Offline and test Clients use the same service contracts with deterministic
 resources.
 
+## The `issues` command: the one way to file and change Issues
+
+`cli` builds `issues`, installed as `~/.local/bin/issues`. It is the only
+writer agents use for the tracker at issues.pisspoursoftware.xyz: every
+subcommand runs the `IssueTrackerProgram`, and every write goes through the
+tracker's checked operations in `@foldkit/instant-tools`.
+
+```sh
+issues file --title "…" --details "…" --product scribe --priority P1 --type defect \
+  --area "Recording / images" --related 502,691 --criterion "…" --evidence FocusedTest \
+  --said 208:1884-1888 --typed "…" --typed-session <id> --typed-message <id> --typed-at <iso> \
+  --log "Filed from Recording 208." --claim claude-code/<agent>   # or --from-json draft.json
+issues show 692 [--json]
+issues list [--status Open,InProgress] [--product scribe] [--recording 208] [--claimant …] [--search …] [--json]
+issues log 692 progress "what happened; next step" [--agent …] [--claim …] [--status …] [--commit …] [--json]
+issues claim 692 claude-code/<agent> ["what the claim is for"]
+issues status 692 VerificationNeeded
+issues link 692 502 691
+issues edit 692 [--title …] [--details …] [--priority P1] [--type …] [--area …] [--product …]
+issues criterion 692 "<one observable outcome>" [--evidence FocusedTest,Log]
+issues satisfy 692 1 issue-692-criterion-2 [--unsatisfied]
+issues mention 692 --said 208:1884-1888 [--typed "…" --typed-session <id> --typed-at <iso>]
+issues attach 662 screenshot.png [--kind Screenshot]
+issues download issues/662/<id>-screenshot.png [directory]
+issues delete 693 --yes "<Michael's typed words>"
+issues products
+```
+
+- `file` takes the next free number. It never writes over a stored Issue:
+  when another writer takes the number first, it takes the next one. When the
+  Issue is created but cannot be read back, the message names the number it
+  was created under, so check it before filing again.
+- `--said 208:1884-1888` reads those lines from the Scribe mirror (`$SCRIBE_ROOT`,
+  default `~/Scribe`) word for word and writes the recording, its time span,
+  and a words deep link per line into the Mention.
+- `log`, `claim`, `status`, `link`, `edit`, `criterion`, `satisfy`, `mention`,
+  and `attach` change one thing, read the Issue back, and fail when the change
+  did not land. `satisfy` takes a criterion's position or id.
+- `link` and `file --related` refuse a number no Issue holds (exit 3) and
+  write nothing.
+- `list` fails (exit 1) when a stored Issue cannot be read, naming it.
+- `delete` needs Michael's typed yes and first writes the stored record to
+  `$ISSUES_BACKUP_DIR` (default `~/Sync/audit/issues-deleted`).
+- Exit codes: 0 done, 1 the tracker failed (the message names the operation
+  and the real cause), 2 a usage error (the message lists the valid values),
+  3 the Issue does not exist.
+- Credentials come from `~/.config/instant-tools/instant.env`
+  (`INSTANT_TOOLS_ENV_FILE` overrides it) and are never printed.
+
 ## Mac listener
 
 `listener` follows the guest-readable Scribe Instant projection with the
