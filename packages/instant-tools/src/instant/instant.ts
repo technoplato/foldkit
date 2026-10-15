@@ -666,8 +666,8 @@ const fileIssue = (
     const created = yield* Effect.result(
       store.createIssue(makeInstantIssueRecord(issue)),
     )
-    const holders = yield* issueRecordsFor(store, 'File', issueId)
     if (Result.isFailure(created)) {
+      const holders = yield* issueRecordsFor(store, 'File', issueId)
       if (Array.isReadonlyArrayEmpty(holders)) {
         return yield* Effect.fail(
           new IssueTrackerError({ cause: created.failure, operation: 'File' }),
@@ -679,6 +679,18 @@ const fileIssue = (
       ])
     }
     const entityId = created.success
+    const holders = yield* store.fetchIssueRecordsById(issueId).pipe(
+      Effect.mapError(
+        cause =>
+          new IssueTrackerError({
+            cause: new Error(
+              `Issue ${issueId} was created as entity ${entityId}, but reading it back failed, so check Issue ${issueId} before filing it again`,
+              { cause },
+            ),
+            operation: 'File',
+          }),
+      ),
+    )
     if (!Array.some(holders, record => record.id === entityId)) {
       return yield* failIssueTracker(
         'File',
