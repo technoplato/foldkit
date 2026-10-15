@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:36:41 p.m. EDT — `99c10664a2ec` refactor(issues): name the Issue page's Mention and attachment sections
+
+- **Implementation commit:** `99c10664a2ec7a867b75be857b3794c279c13482`
+- **Change:** Name the Issue page's Mention and attachment sections
+- **Details:**
+  - (#695) mentionsNodes and mentionNodes differed by one letter; the section builders are now mentionSectionNodes and attachmentSectionNodes. No behavior change; core 46/46.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — Renamed section builders.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 10:35:41 p.m. EDT — `d7149a36439d` docs(issues): describe the site, its links, and its write permissions
 
 - **Implementation commit:** `d7149a36439d0cc06238ba602eee9d1e142cf63c`
