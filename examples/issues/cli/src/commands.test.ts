@@ -581,6 +581,65 @@ describe('issues command', () => {
     ).toEqual(Option.some(['VerificationNeeded', ['502', '539']]))
   })
 
+  it('refuses to link an Issue that does not exist and links nothing', async () => {
+    const { host, memory } = await run(
+      makeHost([stored('502', 'Overwrite'), stored('692', 'Filing')]),
+    )
+
+    const linked = await run(
+      linkIssuesCommand(host, {
+        issue: '692',
+        isJson: false,
+        targets: ['502', '999'],
+      }),
+    )
+
+    expect(linked.exitCode).toBe(3)
+    expect(linked.stderr).toEqual([
+      'Issue #999 does not exist; nothing was linked.',
+    ])
+    expect(
+      Option.map(fetched(memory, '692'), issue => issue.relatedIssueIds),
+    ).toEqual(Option.some([]))
+  })
+
+  it('refuses to file an Issue related to ones that do not exist and files nothing', async () => {
+    const { host, memory } = await run(makeHost([stored('001', 'One')]))
+
+    const outcome = await run(
+      fileIssueCommand(host, {
+        agent: Option.none(),
+        area: Option.none(),
+        claim: Option.none(),
+        criteria: [],
+        details: Option.none(),
+        dryRun: false,
+        evidence: [],
+        isJson: false,
+        jsonInput: Option.none(),
+        log: Option.none(),
+        logState: Option.none(),
+        priority: Option.none(),
+        product: Option.some('scribe'),
+        related: ['001', '998', '#999'],
+        said: [],
+        status: Option.none(),
+        title: Option.some('Related to missing Issues'),
+        type: Option.none(),
+        typed: Option.none(),
+        typedAt: Option.none(),
+        typedMessage: Option.none(),
+        typedSession: Option.none(),
+      }),
+    )
+
+    expect(outcome.exitCode).toBe(3)
+    expect(outcome.stderr).toEqual([
+      'Issues #998, #999 do not exist; nothing was filed.',
+    ])
+    expect(Option.isNone(fetched(memory, '002'))).toBe(true)
+  })
+
   it('lists with filters and accounts for every stored Issue', async () => {
     const { host } = await run(
       makeHost([
