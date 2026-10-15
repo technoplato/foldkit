@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:25:16 p.m. EDT — `cea80e5ec8cf` fix(issues): store a comment under the person or agent who wrote it
+
+- **Implementation commit:** `cea80e5ec8cf96cfd3602ca7d27357c1e1363c48`
+- **Change:** Store a comment under the person or agent who wrote it
+- **Details:**
+  - Red b4fd980f1 (examples/issues/core/src/program.test.ts), green cea80e5ec (#695): web comments and work-log lines were stored under issues-245-grok whoever wrote them. IssueIdentity now carries the author; the web hosts write as the email Access signed in to Instant (or issues.pisspoursoftware.xyz), and the CLI as $SCRIBE_AGENT or claude-code.
+- **Files:**
+  - `examples/issues/core/src/issueIdentity.ts` — IssueIdentityService.author and liveIssueIdentity(author).
+  - `examples/issues/core/src/resources.ts` — signedInAuthor and makeLiveIssueTrackerResources(database, author).
+  - `examples/issues/core/src/update.ts` — CommentOnIssue and SaveIssueWorkLog write as the author.
+  - `examples/issues/react/src/client.ts` — The site writes as signedInAuthor(database).
+  - `examples/issues/foldkit/src/entry.ts` — The Foldkit web host writes as signedInAuthor(database).
+  - `examples/issues/cli/src/resources.ts` — defaultIssuesAgent and the CLI's author.
+  - `examples/issues/cli/src/entry.ts` — The --agent default reads defaultIssuesAgent.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 10:21:28 p.m. EDT — `fef14728ee83` fix(issues): show an Issue on the site as it is stored
 
 - **Implementation commit:** `fef14728ee835b1b631d9933914bf577ca88663a`
