@@ -67,6 +67,30 @@ issues products
 - Credentials come from `~/.config/instant-tools/instant.env`
   (`INSTANT_TOOLS_ENV_FILE` overrides it) and are never printed.
 
+## The site: issues.pisspoursoftware.xyz
+
+`react` is the site behind Cloudflare Access at issues.pisspoursoftware.xyz
+(page loads on issues.knophy.com redirect there). It paints the same
+`issuesScreen` as `issues run`:
+
+- the list, newest first, each Issue with its stored status, such as
+  `692  P2  VerificationNeeded`;
+- an Issue's page: its type, area, claimant, dates, and details; every Mention
+  with its words, where they came from, and its deep links; the work log; the
+  logs tagged with it; linked Issues; success criteria; and attachments;
+- a File form with Title and Details fields, product and priority choices, and
+  the reason when an Issue is not filed.
+
+New Issues link to `https://issues.pisspoursoftware.xyz/issues/<number>`
+(`issueViewerUrl`). A comment made on the site is stored under the email
+Cloudflare Access signed in to Instant (`signedInAuthor`).
+
+The site writes through Instant's permission rules. On the live tracker those
+rules allow no create or update of `instantToolsIssues` today, so the site
+reads and the `issues` command writes: a File, Comment, Link, or status from
+the site shows Instant's reason, such as
+`Not filed: File: CreateIssue: Permission denied: not perms-pass?`.
+
 ## Mac listener
 
 `listener` follows the guest-readable Scribe Instant projection with the
