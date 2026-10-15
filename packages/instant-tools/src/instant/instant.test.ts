@@ -777,6 +777,43 @@ describe('Instant adapter', () => {
   )
 
   it.effect(
+    'says a filed Issue was created when reading it back fails, so nobody files it twice',
+    () =>
+      Effect.gen(function* () {
+        const { createdEntityIds, records, store } = yield* makeNumberedStore({
+          isSaveDropped: false,
+          isUniqueIssueIdEnforced: true,
+          takenWhileCreating: [],
+        })
+        const rateLimitedAfterCreating: InstantEntityStoreService = {
+          ...store,
+          fetchIssueRecordsById: issueId =>
+            Effect.flatMap(Ref.get(createdEntityIds), created =>
+              Array.isReadonlyArrayEmpty(created)
+                ? store.fetchIssueRecordsById(issueId)
+                : Effect.fail(
+                    new InstantEntityStoreError({
+                      cause: new Error('Your request exceeded the rate limit.'),
+                      operation: 'FetchIssueRecords',
+                    }),
+                  ),
+            ),
+        }
+
+        const error = yield* Effect.flip(
+          makeIssueTracker(rateLimitedAfterCreating).file(titledIssue),
+        )
+
+        expect(describeIssueTrackerError(error)).toBe(
+          'File: Issue 006 was created as entity created-006, but reading it back failed, so check Issue 006 before filing it again: FetchIssueRecords: Your request exceeded the rate limit.',
+        )
+        expect(
+          Array.map(yield* Ref.get(records), record => record.issueID),
+        ).toEqual(['001', '005', '006'])
+      }),
+  )
+
+  it.effect(
     'reads one Issue by its number in any spelling without reading the catalog',
     () =>
       Effect.gen(function* () {
