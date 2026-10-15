@@ -1,6 +1,7 @@
 import {
   StaticIssueTrackerResources,
   makeLiveIssueTrackerResources,
+  signedInAuthor,
 } from 'issues-core-example'
 import { makeIssueTrackerReactClient } from 'issues-react-bindings-example'
 
@@ -16,7 +17,10 @@ const database =
 const resources =
   database === undefined
     ? StaticIssueTrackerResources
-    : withHostedIdentity(makeLiveIssueTrackerResources(database), database)
+    : withHostedIdentity(
+        makeLiveIssueTrackerResources(database, signedInAuthor(database)),
+        database,
+      )
 
 /** The React host selects live Instant resources when configured. */
 export const IssueTrackerClient = makeIssueTrackerReactClient(resources)

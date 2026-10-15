@@ -8,7 +8,13 @@ import {
   type UiNode,
 } from 'foldkit/renderers'
 
-import { type Issue } from '@foldkit/instant-tools/issues'
+import {
+  type Issue,
+  type IssueMention,
+  IssuePriority,
+  type IssueReference,
+  issueViewerUrl,
+} from '@foldkit/instant-tools/issues'
 import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
 import {
@@ -16,45 +22,125 @@ import {
   issuesForProductFilter,
   leftoverKindOf,
   leftoverQuorumRequired,
-  leftoverStatusOf,
   leftoverStatusesForIssue,
   newestWorkLog,
 } from './leftover.js'
-import { type Model } from './model.js'
+import {
+  type IssueDraftState,
+  type IssueLogsState,
+  type Model,
+} from './model.js'
 import { interactionsForModel } from './presentation.js'
+import {
+  describeIssueReference,
+  issueAttachmentWebLink,
+  issueReferenceWebLink,
+} from './reference.js'
+import { productForReference } from './update.js'
 
 const kindLabel = (issue: Issue): string =>
   Option.getOrElse(leftoverKindOf(issue), () => '')
 
 const listIssueLabel = (issue: Issue): string => {
   const kind = kindLabel(issue)
-  const leftover = leftoverStatusOf(issue.status)
   return kind === ''
-    ? `${issue.id}  ${issue.priority}  ${leftover}  ${issue.title}`
-    : `${issue.id}  ${issue.priority}  ${leftover}  ${kind}  ${issue.title}`
+    ? `${issue.id}  ${issue.priority}  ${issue.status}  ${issue.title}`
+    : `${issue.id}  ${issue.priority}  ${issue.status}  ${kind}  ${issue.title}`
 }
 
+const isoTimeOf = (timeMs: number): string => new Date(timeMs).toISOString()
+
 const workLogLine = (entry: Issue['workLog'][number]): string => {
-  const when = new Date(entry.occurredAtMs).toISOString()
+  const when = isoTimeOf(entry.occurredAtMs)
   const agent = Option.getOrElse(entry.agentId, () => '')
   return agent === ''
     ? `${when}  ${entry.summary}`
     : `${when}  ${entry.summary}  [${agent}]`
 }
 
+const labeledNodes = (
+  label: string,
+  value: Option.Option<string>,
+): ReadonlyArray<UiNode> =>
+  Option.toArray(Option.map(value, text => Text(`${label}: ${text}`)))
+
+const referenceNode = (prefix: string, reference: IssueReference): UiNode => {
+  const content = `${prefix}${describeIssueReference(reference)}`
+  return Option.match(issueReferenceWebLink(reference), {
+    onNone: () => Text(content),
+    onSome: href => Text(content, { href }),
+  })
+}
+
+const mentionNodes = (mention: IssueMention): ReadonlyArray<UiNode> => [
+  Text(
+    Array.join(
+      [
+        ...Option.toArray(Option.map(mention.capturedAtMs, isoTimeOf)),
+        Option.getOrElse(
+          Option.orElse(mention.directQuote, () => mention.note),
+          () => '(no quote)',
+        ),
+      ],
+      '  ',
+    ),
+  ),
+  referenceNode('from ', mention.source),
+  ...Option.toArray(
+    Option.map(mention.reporter, reporter =>
+      referenceNode('reported by ', reporter),
+    ),
+  ),
+  ...Array.map(mention.related, related => referenceNode('', related)),
+]
+
+const mentionSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+  Array.match(issue.mentions, {
+    onEmpty: () => [],
+    onNonEmpty: mentions => [
+      Column(
+        { gap: 1 },
+        Text('Mentions'),
+        ...Array.flatMap(mentions, mentionNodes),
+      ),
+    ],
+  })
+
+const attachmentSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+  Array.match(issue.attachments, {
+    onEmpty: () => [],
+    onNonEmpty: attachments => [
+      Column(
+        { gap: 1 },
+        Text('Attachments'),
+        ...Array.map(attachments, attachment => {
+          const content = `${attachment.fileName} (${attachment.kind})`
+          return Option.match(issueAttachmentWebLink(attachment.source), {
+            onNone: () => Text(content),
+            onSome: href => Text(content, { href }),
+          })
+        }),
+      ),
+    ],
+  })
+
 const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
-  const leftover = leftoverStatusOf(issue.status)
-  const kind = leftoverKindOf(issue)
   const progress = newestWorkLog(issue.workLog)
   const links = catalogIssueRefsOf(issue)
+  const pageUrl = issueViewerUrl(issue.id)
   return [
-    Text(`${issue.id}  ${issue.priority}  ${leftover}`),
-    ...Option.match(kind, {
-      onNone: () => [],
-      onSome: value => [Text(value)],
-    }),
+    Text(`${issue.id}  ${issue.priority}  ${issue.status}`),
     Text(issue.title),
+    ...labeledNodes('Type', issue.issueType),
+    ...labeledNodes('Area', issue.area),
+    ...labeledNodes('Claimed by', issue.claimantId),
+    ...labeledNodes('Reported', issue.reportedDate),
+    Text(
+      `Created ${isoTimeOf(issue.createdAtMs)}  Updated ${isoTimeOf(issue.updatedAtMs)}`,
+      { dim: true },
+    ),
     Text(issue.details),
+    ...mentionSectionNodes(issue),
     Column(
       { gap: 1 },
       Text('Work log'),
@@ -80,7 +166,7 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
         Button({
           token: `status:${status}`,
           label: status,
-          variant: status === leftover ? 'Primary' : 'Ghost',
+          variant: status === issue.status ? 'Primary' : 'Ghost',
         }),
       ),
     ),
@@ -97,11 +183,9 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
             ),
           ),
         ]),
+    ...attachmentSectionNodes(issue),
     Text(`${issue.product._tag}: ${issue.product.name}`),
-    ...Option.match(issue.viewerURL, {
-      onNone: () => [],
-      onSome: url => (url === '' ? [] : [Text(url, { href: url })]),
-    }),
+    Text(pageUrl, { href: pageUrl }),
   ]
 }
 
@@ -112,8 +196,7 @@ const navigationButtons = (model: Model): ReadonlyArray<UiNode> =>
       interaction =>
         interaction.token === 'file' ||
         interaction.token === 'triage' ||
-        interaction.token === 'back' ||
-        interaction.token === 'submit',
+        interaction.token === 'back',
     ),
     interaction =>
       Button({ token: interaction.token, label: interaction.label }),
@@ -191,6 +274,36 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
     }),
   )
 
+const issueLogNodes = (state: IssueLogsState): ReadonlyArray<UiNode> =>
+  M.value(state).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      NotObservingIssueLogs: () => [],
+      LoadingIssueLogs: () => [
+        Text('Tagged logs'),
+        Text('Loading tagged logs…'),
+      ],
+      FailedIssueLogs: ({ reason }) => [Text('Tagged logs'), Text(reason)],
+      LoadedIssueLogs: ({ logs }) => [
+        Column(
+          { gap: 1 },
+          Text('Tagged logs'),
+          ...Array.match(logs, {
+            onEmpty: () => [
+              Text('No logs have been tagged with this Issue yet.'),
+            ],
+            onNonEmpty: tagged =>
+              Array.map(tagged, log =>
+                Text(
+                  `${isoTimeOf(log.timestampMs)}  ${log.level}  ${log.name}  ${log.message}`,
+                ),
+              ),
+          }),
+        ),
+      ],
+    }),
+  )
+
 const leftoverPresenceNodes = (model: Model): ReadonlyArray<UiNode> =>
   M.value(model.leftoverPresence).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
@@ -234,16 +347,74 @@ const detailNodes = (model: Model): ReadonlyArray<UiNode> =>
     }),
   )
 
+const draftProductNodes = (model: Model): ReadonlyArray<UiNode> =>
+  M.value(model.products).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      LoadingProducts: () => [Text('Loading products…')],
+      FailedProducts: ({ reason }) => [Text(reason)],
+      LoadedProducts: ({ products }) => {
+        const maybeChosen = productForReference(products, model.draft.productId)
+        return [
+          Row(
+            { gap: 1 },
+            ...Array.map(products, entry =>
+              Button({
+                token: `product:${entry.product.id}`,
+                label: entry.product.name,
+                variant: Option.exists(
+                  maybeChosen,
+                  chosen => chosen.id === entry.product.id,
+                )
+                  ? 'Primary'
+                  : 'Ghost',
+              }),
+            ),
+          ),
+        ]
+      },
+    }),
+  )
+
+const draftStateNodes = (state: IssueDraftState): ReadonlyArray<UiNode> =>
+  M.value(state).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      EditingIssueDraft: () => [],
+      SavingIssueDraft: () => [Text('Filing…')],
+      FailedIssueDraft: ({ reason }) => [Text(`Not filed: ${reason}`)],
+    }),
+  )
+
 const fileNodes = (model: Model): ReadonlyArray<UiNode> => [
   Text('File issue'),
-  Text(`Title: ${model.draft.title}`),
-  Text(`Product: ${model.draft.productId}`),
-  Text(`Priority: ${model.draft.priority}`),
-  Text(`State: ${model.draftState._tag}`),
-  ...(model.draftState._tag === 'FailedIssueDraft'
-    ? [Text(model.draftState.reason)]
-    : []),
-  Text(`Catalog: ${model.products._tag}`),
+  TextInput({
+    label: 'Title',
+    placeholder: 'Title',
+    token: 'title:',
+    value: model.draft.title,
+  }),
+  TextInput({
+    label: 'Details',
+    placeholder: 'What is wrong or wanted',
+    token: 'details:',
+    value: model.draft.details,
+  }),
+  Text('Product'),
+  ...draftProductNodes(model),
+  Text('Priority'),
+  Row(
+    { gap: 1 },
+    ...Array.map(IssuePriority.literals, priority =>
+      Button({
+        token: `priority:${priority}`,
+        label: priority,
+        variant: priority === model.draft.priority ? 'Primary' : 'Ghost',
+      }),
+    ),
+  ),
+  Button({ token: 'submit', label: 'Submit issue', variant: 'Primary' }),
+  ...draftStateNodes(model.draftState),
 ]
 
 const triageNodes = (model: Model): ReadonlyArray<UiNode> =>
@@ -288,6 +459,7 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
       IssueList: () => listNodes(model),
       IssueDetail: () => [
         ...detailNodes(model),
+        ...issueLogNodes(model.issueLogs),
         ...leftoverPresenceNodes(model),
         Text('Comment'),
         TextInput({

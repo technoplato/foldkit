@@ -6,6 +6,7 @@ import {
 } from '@foldkit/instant-tools/instant'
 import {
   ApplicationProduct,
+  ISSUE_VIEWER_ORIGIN,
   Issue,
   IssueNewestFirst,
   type IssueQuery,
@@ -20,6 +21,7 @@ import {
   TriageCandidate,
   TriageInbox,
   type TriageInboxService,
+  issueViewerUrl,
   nextIssueId,
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
@@ -33,7 +35,7 @@ import {
   type LoggerService,
 } from '@foldkit/instant-tools/logging'
 
-import { IssueIdentity, LiveIssueIdentity } from './issueIdentity.js'
+import { IssueIdentity, liveIssueIdentity } from './issueIdentity.js'
 
 const scribe = ProductCatalogEntry.make({
   product: ApplicationProduct.make({ id: 'scribe', name: 'Scribe' }),
@@ -84,7 +86,7 @@ const seedIssue = Issue.make({
   successCriteria: [],
   title: 'Application-agnostic logging and issue tracking',
   updatedAtMs: 1_753_800_000_000,
-  viewerURL: Option.some('https://issues.knophy.com/issues/041'),
+  viewerURL: Option.some(issueViewerUrl('041')),
   workLog: [],
 })
 const scribeIssue = Issue.make({
@@ -106,7 +108,7 @@ const scribeIssue = Issue.make({
   successCriteria: [],
   title: 'Scribe transcript card',
   updatedAtMs: 1_753_800_000_000,
-  viewerURL: Option.some('https://issues.knophy.com/issues/scribe'),
+  viewerURL: Option.some(issueViewerUrl('scribe')),
   workLog: [],
 })
 
@@ -122,7 +124,7 @@ const staticIssueLogs = [
     message: 'Issue #041 is available in the lightweight viewer.',
     name: 'issue.preview.loaded',
     timestampMs: 1_753_800_000_000,
-    viewerURL: 'https://issues.knophy.com/issues/041',
+    viewerURL: issueViewerUrl('041'),
   }),
 ]
 const staticProducts: ReadonlyArray<ProductCatalogEntry> = [
@@ -299,14 +301,58 @@ export const StaticIssueTrackerResources = Layer.mergeAll(
   Layer.succeed(TriageInbox, StaticTriageInbox),
   MemoryLeftoverPresenceLive,
   Layer.succeed(IssueIdentity, {
+    author: Effect.succeed('issues-preview'),
     next: Effect.succeed({ id: 'issue-preview', nowMs: 1_753_800_100_000 }),
   }),
 )
 
-/** Live Instant resources for browser and native Clients. */
-export const makeLiveIssueTrackerResources = (database: InstantToolsDatabase) =>
+const SIGNED_IN_AUTHOR_TIMEOUT = '2 seconds'
+const SITE_AUTHOR = new URL(ISSUE_VIEWER_ORIGIN).host
+
+/** The person an Instant client is signed in as, if any: `{ email }`. */
+export type SignedInUser = Readonly<{ email?: string | null | undefined }>
+
+/** The part of an Instant client that says who is signed in. */
+export type SignedInDatabase = Readonly<{
+  getAuth: () => Promise<SignedInUser | null>
+}>
+
+const signedInEmail = (
+  maybeUser: Option.Option<SignedInUser | null>,
+): Option.Option<string> =>
+  maybeUser.pipe(
+    Option.flatMap(Option.fromNullishOr),
+    Option.flatMap(user => Option.fromNullishOr(user.email)),
+    Option.filter(email => email !== ''),
+  )
+
+/**
+ * Who writes from a host signed in to Instant, such as the issues site: the
+ * signed-in email, `owner@example.com`, or the site's own name,
+ * `issues.pisspoursoftware.xyz`, when no one is signed in, the session is a
+ * guest's, or Instant does not answer within two seconds.
+ */
+export const signedInAuthor = (
+  database: SignedInDatabase,
+): Effect.Effect<string> =>
+  Effect.tryPromise(() => database.getAuth()).pipe(
+    Effect.timeoutOption(SIGNED_IN_AUTHOR_TIMEOUT),
+    Effect.map(maybeUser =>
+      Option.getOrElse(signedInEmail(maybeUser), () => SITE_AUTHOR),
+    ),
+    Effect.catch(() => Effect.succeed(SITE_AUTHOR)),
+  )
+
+/**
+ * Live Instant resources for browser, native, and CLI Clients, writing as
+ * `author`: `signedInAuthor(database)` on the site, an agent's name on the CLI.
+ */
+export const makeLiveIssueTrackerResources = (
+  database: InstantToolsDatabase,
+  author: Effect.Effect<string>,
+) =>
   Layer.mergeAll(
     makeInstantToolsLayer(database),
     makeInstantLeftoverPresenceLayer(database),
-    Layer.succeed(IssueIdentity, LiveIssueIdentity),
+    Layer.succeed(IssueIdentity, liveIssueIdentity(author)),
   )

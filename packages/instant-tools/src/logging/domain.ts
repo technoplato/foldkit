@@ -1,5 +1,7 @@
 import { Array, Effect, Option, Schema as S } from 'effect'
 
+import { issueViewerUrl } from '../issues/domain.js'
+
 /** The severity of a structured Log Event. */
 export const LogLevel = S.Literals([
   'Debug',
@@ -166,7 +168,7 @@ export const withInferredIssueReferences = (event: LogEvent): LogEvent => {
           explicit.get(issueID) ??
           IssueLogReference.make({
             issueID,
-            viewerURL: `https://issues.knophy.com/issues/${issueID}`,
+            viewerURL: issueViewerUrl(issueID),
           }),
       ),
   })

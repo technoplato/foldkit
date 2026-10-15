@@ -558,6 +558,19 @@ export const nextIssueId = (issueIds: ReadonlyArray<string>): string => {
   return String(highest + 1).padStart(issueNumberPadding, '0')
 }
 
+/**
+ * Where people read Issues: the issues site behind Cloudflare Access. Page
+ * loads on its old name, `https://issues.knophy.com`, redirect here.
+ */
+export const ISSUE_VIEWER_ORIGIN = 'https://issues.pisspoursoftware.xyz'
+
+/**
+ * The page of one Issue on the issues site: `issueViewerUrl('692')` is
+ * `https://issues.pisspoursoftware.xyz/issues/692`.
+ */
+export const issueViewerUrl = (issueId: string): string =>
+  `${ISSUE_VIEWER_ORIGIN}/issues/${issueId}`
+
 /** A first unique Mention was recorded at the Issue's baseline priority. */
 export const Accepted = S.TaggedStruct('Accepted', {
   issue: Issue,

@@ -4,6 +4,156 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 14th, 2026 at 10:41:32 p.m. EDT — `25139adf66d1` fix(ci): allow sharp's install script so CI installs again
+
+- **Implementation commit:** `25139adf66d13554d06bc5f2234df94c8c24d34e`
+- **Change:** Allow sharp's install script so CI installs again
+- **Details:**
+  - PR technoplato/foldkit#5, squash 25139adf6 (bonus for #695): every CI, Release, Deploy Website, and Examples E2E run since 2026-10-10 stopped at Install dependencies with ERR_PNPM_IGNORED_BUILDS for sharp@0.34.5 (from next@15.5.23). allowBuilds now names sharp; its script only checks whether to build from source. CI then installs and fails on older work already on main: prettier --check finds 20 unformatted files, and the website build that Examples E2E runs fails.
+- **Files:**
+  - `pnpm-workspace.yaml` — allowBuilds: sharp: true.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:36:41 p.m. EDT — `99c10664a2ec` refactor(issues): name the Issue page's Mention and attachment sections
+
+- **Implementation commit:** `99c10664a2ec7a867b75be857b3794c279c13482`
+- **Change:** Name the Issue page's Mention and attachment sections
+- **Details:**
+  - (#695) mentionsNodes and mentionNodes differed by one letter; the section builders are now mentionSectionNodes and attachmentSectionNodes. No behavior change; core 46/46.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — Renamed section builders.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:35:41 p.m. EDT — `d7149a36439d` docs(issues): describe the site, its links, and its write permissions
+
+- **Implementation commit:** `d7149a36439d0cc06238ba602eee9d1e142cf63c`
+- **Change:** Describe the site, its links, and its write permissions
+- **Details:**
+  - (#695) README section for the site: the list, the Issue page, the File form, the viewer links, comment authorship, and that the live tracker's Instant rules allow no create or update of instantToolsIssues (checked with a dry run that commits nothing), so only the issues command writes.
+- **Files:**
+  - `examples/issues/README.md` — The site section.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:34:58 p.m. EDT — `a5a0f08d549e` fix(issues): give the site an icon so browsers stop asking for one
+
+- **Implementation commit:** `a5a0f08d549e37885a5babab0dc943b2627674a3`
+- **Change:** Give the site an icon so browsers stop asking for one
+- **Details:**
+  - (#695) Every page load logged a 404 for /favicon.ico; the page declares an inline SVG icon.
+- **Files:**
+  - `examples/issues/react/index.html` — Inline SVG icon.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:34:58 p.m. EDT — `41f45707a363` fix(issues): show the logs tagged with an Issue on its page
+
+- **Implementation commit:** `41f45707a363efa665ca5323994d3f00d0a3f1a0`
+- **Change:** Show the logs tagged with an Issue on its page
+- **Details:**
+  - Red ae94124b4 (examples/issues/core/src/screen.test.ts), green 41f45707a (#695): the Model observed each open Issue's tagged logs, but the shared screen never painted them, so the site showed none of the 715 tagged logs (164 on #041). The page now has a Tagged logs section.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — Tagged logs section.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:32:37 p.m. EDT — `87bcff5d1466` fix(issues): name a bare-name reporter without JSON quotes
+
+- **Implementation commit:** `87bcff5d14661d5004bb2a4f000b1a687776d427`
+- **Change:** Name a bare-name reporter without JSON quotes
+- **Details:**
+  - Red 935d11cfd (examples/issues/core/src/reference.test.ts), green 87bcff5d1 (#695): a reporter stored as the bare string "Michael" read as reported by "Michael"; it now reads Michael on the Issue page and in issues show.
+- **Files:**
+  - `examples/issues/core/src/reference.ts` — Unrecognized string values print as themselves.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:32:37 p.m. EDT — `401c625a118a` fix(issues): mark the chosen product, priority, and status on the site
+
+- **Implementation commit:** `401c625a118a2c097cd99a747f9e8afa51bd31d6`
+- **Change:** Mark the chosen product, priority, and status on the site
+- **Details:**
+  - (#695) The site's .fk-button rule styled every button alike, so the File form's chosen product and priority, the Issue's own status, and Submit issue were not marked. Primary buttons are amber; links in text are amber and wrap. Checked in headless Chrome against the throwaway app bd40c50a (/Users/laptop/Sync/audit/issues-site-2026-10-14/probe/form-bd40c50a-styled).
+- **Files:**
+  - `examples/issues/react/src/styles.css` — Primary buttons and text links.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:25:16 p.m. EDT — `cea80e5ec8cf` fix(issues): store a comment under the person or agent who wrote it
+
+- **Implementation commit:** `cea80e5ec8cf96cfd3602ca7d27357c1e1363c48`
+- **Change:** Store a comment under the person or agent who wrote it
+- **Details:**
+  - Red b4fd980f1 (examples/issues/core/src/program.test.ts), green cea80e5ec (#695): web comments and work-log lines were stored under issues-245-grok whoever wrote them. IssueIdentity now carries the author; the web hosts write as the email Access signed in to Instant (or issues.pisspoursoftware.xyz), and the CLI as $SCRIBE_AGENT or claude-code.
+- **Files:**
+  - `examples/issues/core/src/issueIdentity.ts` — IssueIdentityService.author and liveIssueIdentity(author).
+  - `examples/issues/core/src/resources.ts` — signedInAuthor and makeLiveIssueTrackerResources(database, author).
+  - `examples/issues/core/src/update.ts` — CommentOnIssue and SaveIssueWorkLog write as the author.
+  - `examples/issues/react/src/client.ts` — The site writes as signedInAuthor(database).
+  - `examples/issues/foldkit/src/entry.ts` — The Foldkit web host writes as signedInAuthor(database).
+  - `examples/issues/cli/src/resources.ts` — defaultIssuesAgent and the CLI's author.
+  - `examples/issues/cli/src/entry.ts` — The --agent default reads defaultIssuesAgent.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:21:28 p.m. EDT — `fef14728ee83` fix(issues): show an Issue on the site as it is stored
+
+- **Implementation commit:** `fef14728ee835b1b631d9933914bf577ca88663a`
+- **Change:** Show an Issue on the site as it is stored
+- **Details:**
+  - Red 90a5f9350 (examples/issues/core/src/screen.test.ts), green fef14728e (#695): the list and the page show the stored status (VerificationNeeded, InProgress, ...) instead of Open, Blocked, or Closed; the page adds the type, area, claimant, report date, times, every Mention with its words, source, reporter, and links, and the attachments. Only http and https values become links. The page links to itself on issues.pisspoursoftware.xyz. describeIssueReference moved from the CLI into the core so issues show and the site describe a source the same way.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — The stored status in the list and on the page, metadata, Mentions, attachments, the page link.
+  - `examples/issues/core/src/reference.ts` — describeIssueReference and the web-link checks.
+  - `examples/issues/core/src/index.ts` — Exports reference.ts.
+  - `examples/issues/cli/src/commands.ts` — Uses describeIssueReference from the core.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:18:00 p.m. EDT — `525b1d0a84c6` fix(issues): let a person file an Issue from the site's File form
+
+- **Implementation commit:** `525b1d0a84c642b0f40ea9f88e6db167732c7823`
+- **Change:** Let a person file an Issue from the site's File form
+- **Details:**
+  - Red 200e1e30f (examples/issues/core/src/screen.test.ts), green 525b1d0a8 (#695): the site's File form had no field to type into, so only the CLI could file. It now has Title and Details fields, product and priority choices, one Submit issue button, and its state in words (Filing…, or Not filed: <the real cause>). A filed Issue empties the form and keeps its product. The form's tokens moved from the CLI host into the shared presentation.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — The File form's fields, choices, submit button, and state.
+  - `examples/issues/core/src/presentation.ts` — title:, details:, product:, priority: tokens and the form's interactions.
+  - `examples/issues/core/src/update.ts` — A filed Issue empties the form.
+  - `examples/issues/core/src/init.ts` — emptyIssueDraft.
+  - `examples/issues/cli/src/host.ts` — Reads the form's tokens through messageForScreenToken.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:15:00 p.m. EDT — `654cc73d1d55` fix: link new Issues to issues.pisspoursoftware.xyz
+
+- **Implementation commit:** `654cc73d1d553c1a34d9b71d0d4472f4455e929d`
+- **Change:** Link new Issues to issues.pisspoursoftware.xyz
+- **Details:**
+  - Red 391384c31, green 654cc73d1 (#695): new Issues, their tagged-log queries, inferred log evidence, the leftover presence origin, the CLI's printed link, and the listener's default share link all name https://issues.pisspoursoftware.xyz, the name the site is served under (issues.knophy.com page loads redirect there). One constant and one function in instant-tools replace three copies.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — ISSUE_VIEWER_ORIGIN and issueViewerUrl.
+  - `packages/instant-tools/src/logging/domain.ts` — Inferred Issue links on log events use issueViewerUrl.
+  - `examples/issues/core/src/update.ts` — Filing, triage promotion, the tagged-log query, and presence use the shared host.
+  - `examples/issues/core/src/resources.ts` — Static preview data links to the shared host.
+  - `examples/issues/cli/src/commands.ts` — issueUrl is issueViewerUrl.
+  - `examples/issues/listener/src/entry.ts` — The default share link is the shared host.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
 ## October 14th, 2026 at 8:47:57 p.m. EDT — `792837c20caa` docs(issues): describe the read-back message and refused links
 
 - **Implementation commit:** `792837c20caa4ba852c62de4a305bc4e4f14ec1c`

@@ -30,6 +30,7 @@ import {
   SubmittedIssueWorkLogEntry,
   SubmittedSuccessCriteriaMarks,
   catalogIssueIds,
+  describeIssueReference,
   issueFromDraft,
 } from 'issues-core-example'
 import { createHash, randomUUID } from 'node:crypto'
@@ -59,6 +60,7 @@ import {
   IssueStatus,
   IssueSuccessEvidence,
   describeIssueTrackerCause,
+  issueViewerUrl,
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
 
@@ -76,9 +78,7 @@ const SUCCEEDED_EXIT_CODE = 0
 const FAILED_EXIT_CODE = 1
 const USAGE_EXIT_CODE = 2
 const MISSING_EXIT_CODE = 3
-const ISSUES_BASE_URL = 'https://issues.pisspoursoftware.xyz'
 const RECORDING_ID_PREFIX_LENGTH = 8
-const MILLISECONDS_PER_SECOND = 1_000
 
 /**
  * The issue types the tracker holds, as `scripts/instant-tools.mjs` enforced
@@ -248,8 +248,7 @@ const finish = (
   )
 
 /** The canonical web address of one Issue on issues. */
-export const issueUrl = (issueId: string): string =>
-  `${ISSUES_BASE_URL}/issues/${issueId}`
+export const issueUrl = (issueId: string): string => issueViewerUrl(issueId)
 
 const parseIssueNumber = (
   text: string,
@@ -580,31 +579,6 @@ export const composeDraft = (
 
 const isoTime = (timeMs: number): string => new Date(timeMs).toISOString()
 
-const describeReference = (reference: IssueReference): string =>
-  M.value(reference).pipe(
-    M.withReturnType<string>(),
-    M.tagsExhaustive({
-      Agent: ({ id }) => `agent ${id}`,
-      Commit: ({ repository, sha }) => `commit ${sha} (${repository})`,
-      Conversation: ({ conversation }) => conversation.note,
-      Issue: ({ id }) => `#${id}`,
-      Media: ({ id, kind }) => `${kind} ${id}`,
-      Project: ({ productId, projectId }) =>
-        `project ${productId}/${projectId}`,
-      Recording: ({ recording }) =>
-        `recording ${recording.recordingId} ${(recording.startMilliseconds / MILLISECONDS_PER_SECOND).toString()} s${Option.match(
-          recording.endMilliseconds,
-          {
-            onNone: () => '',
-            onSome: end => `-${(end / MILLISECONDS_PER_SECOND).toString()} s`,
-          },
-        )}`,
-      Release: ({ productId, version }) => `release ${productId} ${version}`,
-      Unrecognized: ({ value }) => JSON.stringify(value),
-      Uri: ({ value }) => value,
-    }),
-  )
-
 const issueHeadline = (issue: Issue): string =>
   Array.join(
     [
@@ -650,8 +624,11 @@ const mentionLines = (mention: IssueMention): ReadonlyArray<string> => [
     ],
     '  ',
   )}`,
-  `    from ${describeReference(mention.source)}`,
-  ...Array.map(mention.related, related => `    ${describeReference(related)}`),
+  `    from ${describeIssueReference(mention.source)}`,
+  ...Array.map(
+    mention.related,
+    related => `    ${describeIssueReference(related)}`,
+  ),
 ]
 
 /** Prints one Issue in full, its work log oldest first. */

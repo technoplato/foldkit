@@ -3,6 +3,7 @@ import { Command } from 'foldkit'
 
 import {
   ApplicationProduct,
+  ISSUE_VIEWER_ORIGIN,
   Issue,
   IssueAttachment,
   IssueLogEvidenceQuery,
@@ -20,6 +21,7 @@ import {
   TriageInbox as TriageInboxServiceTag,
   UriReference,
   describeIssueTrackerCause,
+  issueViewerUrl,
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
 import {
@@ -28,6 +30,7 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
+import { emptyIssueDraft } from './init.js'
 import { IssueIdentity } from './issueIdentity.js'
 import {
   LeftoverStatus,
@@ -90,12 +93,8 @@ import {
 
 // COMMAND
 
-const ISSUE_VIEWER_BASE_URL = 'https://issues.knophy.com'
 const TAGGED_LOGS_LIMIT = 200
 const DATE_PART_WIDTH = 2
-
-const issueViewerUrl = (issueId: string): string =>
-  `${ISSUE_VIEWER_BASE_URL}/issues/${issueId}`
 
 const taggedLogsQuery = (issueId: string) =>
   IssueLogEvidenceQuery.make({
@@ -313,10 +312,8 @@ export const ReviewTriageCandidate = Command.define(
   ),
 )
 
-const COMMENT_AGENT_ID = 'issues-245-grok'
-const WORK_LOG_AGENT_ID = 'issues-245-grok'
 const LEFTOVER_VIEWER_AGENT_ID = 'issues-viewer'
-const LEFTOVER_VIEWER_ORIGIN = 'issues.knophy.com'
+const LEFTOVER_VIEWER_ORIGIN = new URL(ISSUE_VIEWER_ORIGIN).host
 const LEFTOVER_VIEWER_ROLE = 'viewer'
 
 /** Persists one already-built Issue through the tracker. */
@@ -374,9 +371,10 @@ export const CommentOnIssue = Command.define(
     const identity = yield* IssueIdentity
     const tracker = yield* IssueTracker
     const { nowMs } = yield* identity.next
+    const author = yield* identity.author
     const issue = yield* tracker.update(
       issueId,
-      appendSummary(issueId, COMMENT_AGENT_ID, summary, nowMs),
+      appendSummary(issueId, author, summary, nowMs),
     )
     return SucceededSaveIssue.make({ issue })
   }).pipe(
@@ -394,11 +392,13 @@ export const SaveIssueWorkLog = Command.define(
   FailedSaveIssueWorkLog,
 )(({ issue, summary }) =>
   Effect.gen(function* () {
+    const identity = yield* IssueIdentity
     const tracker = yield* IssueTracker
     const nowMs = yield* Clock.currentTimeMillis
+    const author = yield* identity.author
     const stored = yield* tracker.update(
       issue.id,
-      appendSummary(issue.id, WORK_LOG_AGENT_ID, summary, nowMs),
+      appendSummary(issue.id, author, summary, nowMs),
     )
     return SucceededSaveIssueWorkLog.make({ issue: stored })
   }).pipe(
@@ -1430,6 +1430,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         return withNavigation(
           Model.make({
             ...model,
+            draft:
+              model.draftState._tag === 'SavingIssueDraft'
+                ? emptyIssueDraft(model.draft.productId)
+                : model.draft,
             draftState: EditingIssueDraft.make({}),
             issueMutation: IdleIssueMutation.make({}),
             issues: patchIssues(model.issues, issue),

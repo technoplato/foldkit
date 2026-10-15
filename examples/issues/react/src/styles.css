@@ -237,3 +237,13 @@ textarea {
 .fk-button:hover {
   border-color: #fbbf24;
 }
+.fk-button[data-variant='Primary'] {
+  background: #fbbf24;
+  border-color: #fbbf24;
+  color: #18181b;
+  font-weight: 750;
+}
+.fk-text-link {
+  color: #fbbf24;
+  overflow-wrap: anywhere;
+}
