@@ -446,6 +446,7 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
               recording: {},
               segments: {},
               readers: {},
+              audioClip: {},
             },
           },
           response =>

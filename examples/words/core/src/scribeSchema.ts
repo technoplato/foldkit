@@ -354,6 +354,10 @@ const _schema = i.schema({
       linkToken: i.string().optional(),
       sharedByDisplayName: i.string().optional(),
       note: i.string().optional(),
+      // ADR 0014 section 13.4 (the additive subset ADR 0044 uses): the share's audio clip, the `audioClip` file.
+      // "none" | "preparing" | "ready" | "failed".
+      audioClipStatus: i.string().optional(),
+      audioClipDurationSeconds: i.number().optional(),
       createdAtMs: i.number().indexed(),
       updatedAtMs: i.number().indexed(),
     }),
@@ -817,6 +821,10 @@ const _schema = i.schema({
         has: 'many',
         label: 'segmentShares',
       },
+    },
+    recordingSegmentShareAudioClip: {
+      forward: { on: 'recordingSegmentShares', has: 'one', label: 'audioClip' },
+      reverse: { on: '$files', has: 'many', label: 'shareClips' },
     },
     recordingTranscriptions: {
       forward: {

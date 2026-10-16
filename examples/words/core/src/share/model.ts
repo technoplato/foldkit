@@ -88,13 +88,39 @@ export const SharesState = S.Union([LoadingShares, LoadedShares, FailedShares])
 /** Where the open recording's shares stand. */
 export type SharesState = typeof SharesState.Type
 
-/** The shared range a share link opens: the share, its recording, and its sections. */
+/** The share carries no audio clip. */
+export const NoSharedAudio = ts('NoSharedAudio')
+/** The share's audio clip is still being cut or uploaded by the sharer's device. */
+export const PreparingSharedAudio = ts('PreparingSharedAudio')
+/**
+ * The share's audio clip (ADR 0044), ready to play: its file's URL and its
+ * length when the sharer's device wrote one. A share of lines that are not next
+ * to each other is still one clip, its blocks back to back.
+ */
+export const ReadySharedAudio = ts('ReadySharedAudio', {
+  url: S.String,
+  maybeDurationSeconds: S.Option(S.Number),
+})
+/** The sharer's device could not make or upload the clip. */
+export const FailedSharedAudio = ts('FailedSharedAudio')
+/** Where a share's audio clip stands. */
+export const SharedAudio = S.Union([
+  NoSharedAudio,
+  PreparingSharedAudio,
+  ReadySharedAudio,
+  FailedSharedAudio,
+])
+/** Where a share's audio clip stands. */
+export type SharedAudio = typeof SharedAudio.Type
+
+/** The shared range a share link opens: the share, its recording, its sections, and its audio clip. */
 export const SharedRange = S.Struct({
   share: RecordingShare,
   recordingTitle: S.String,
   recordingStartedAtMs: S.Number,
   sections: S.Array(Section),
   isClaimedByViewer: S.Boolean,
+  audio: SharedAudio,
 })
 /** The shared range a share link opens. */
 export type SharedRange = typeof SharedRange.Type

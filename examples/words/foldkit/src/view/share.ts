@@ -616,6 +616,120 @@ const sharedRangeNotice = (
   )
 }
 
+const sharedAudioCard = (
+  iconName: IconName,
+  title: string,
+  body: string,
+  isLoading: boolean,
+): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Class('card mb-4 flex items-start gap-3 rounded-[22px] p-4'),
+      h.AriaLive('polite'),
+    ],
+    [
+      isLoading
+        ? spinner('mt-0.5 size-5')
+        : icon(iconName, 'mt-0.5 size-5 text-secondary'),
+      h.div(
+        [h.Class('flex flex-col gap-1')],
+        [
+          h.p([h.Class('text-headline font-semibold text-label')], [title]),
+          h.p([h.Class('text-subhead text-secondary')], [body]),
+        ],
+      ),
+    ],
+  )
+}
+
+const readySharedAudio = (
+  url: string,
+  maybeDurationSeconds: Option.Option<number>,
+): Html => {
+  const h = html<Message>()
+  const maybeLength = Option.map(maybeDurationSeconds, formatClock)
+  return h.section(
+    [h.Class('card mb-4 flex flex-col gap-3 rounded-[22px] p-4')],
+    [
+      h.div(
+        [h.Class('flex items-center gap-2')],
+        [
+          icon('Waveform', 'size-5 text-secondary'),
+          h.h2([h.Class('text-headline font-semibold text-label')], ['Audio']),
+          ...Option.match(maybeLength, {
+            onNone: () => [],
+            onSome: length => [
+              h.span(
+                [h.Class('tabular ml-auto text-subhead text-secondary')],
+                [length],
+              ),
+            ],
+          }),
+        ],
+      ),
+      h.audio(
+        [
+          h.Class('w-full'),
+          h.Controls(true),
+          h.Preload('metadata'),
+          h.Src(url),
+          h.AriaLabel(
+            Option.match(maybeLength, {
+              onNone: () => 'Shared audio',
+              onSome: length => `Shared audio, ${length}`,
+            }),
+          ),
+        ],
+        [],
+      ),
+    ],
+  )
+}
+
+const sharedAudio = (audio: Share.Model.SharedAudio): ReadonlyArray<Html> =>
+  M.value(audio).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tagsExhaustive({
+      NoSharedAudio: () => [],
+      PreparingSharedAudio: () => [
+        sharedAudioCard(
+          'Waveform',
+          'Audio is still uploading',
+          'It plays here as soon as it arrives.',
+          true,
+        ),
+      ],
+      ReadySharedAudio: ({ url, maybeDurationSeconds }) => [
+        readySharedAudio(url, maybeDurationSeconds),
+      ],
+      FailedSharedAudio: () => [
+        sharedAudioCard(
+          'Alert',
+          'The audio could not be shared',
+          'The shared lines are below.',
+          false,
+        ),
+      ],
+    }),
+  )
+
+const laterAudioNotice = (
+  audio: Share.Model.SharedAudio,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return M.value(audio).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tag('NoSharedAudio', () => [
+      h.p(
+        [h.Class('px-2 pt-6 text-footnote text-secondary')],
+        ['Audio for shared sections comes in a later update.'],
+      ),
+    ]),
+    M.orElse(() => []),
+  )
+}
+
 const viewerEmailOf = (model: Model): string =>
   M.value(model.identity).pipe(
     M.withReturnType<string>(),
@@ -625,7 +739,7 @@ const viewerEmailOf = (model: Model): string =>
     M.orElse(() => 'this account'),
   )
 
-/** A share link's page: who shared which sections of which recording, and those sections. */
+/** A share link's page: who shared which sections of which recording, its audio clip, and those sections. */
 export const sharedRangePage = (model: Model): Html => {
   const h = html<Message>()
   return h.main(
@@ -687,6 +801,7 @@ export const sharedRangePage = (model: Model): Html => {
                 ...claimLine(claim),
               ],
             ),
+            ...sharedAudio(range.audio),
             readOnlySections(range.sections, section =>
               Option.getOrUndefined(
                 Option.map(
@@ -695,10 +810,7 @@ export const sharedRangePage = (model: Model): Html => {
                 ),
               ),
             ),
-            h.p(
-              [h.Class('px-2 pt-6 text-footnote text-secondary')],
-              ['Audio for shared sections comes in a later update.'],
-            ),
+            ...laterAudioNotice(range.audio),
           ],
         }),
       ),

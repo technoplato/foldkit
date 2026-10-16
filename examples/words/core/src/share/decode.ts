@@ -1,7 +1,16 @@
-import { Array, Option, Order, Schema as S, pipe } from 'effect'
+import { Array, Match as M, Option, Order, Schema as S, pipe } from 'effect'
 
 import { decodeSections, rowsOf } from '../decode.js'
-import type { RecordingShare, ShareRecipient, SharedRange } from './model.js'
+import {
+  FailedSharedAudio,
+  NoSharedAudio,
+  PreparingSharedAudio,
+  ReadySharedAudio,
+  type RecordingShare,
+  type ShareRecipient,
+  type SharedAudio,
+  type SharedRange,
+} from './model.js'
 
 const OptionalString = S.optionalKey(S.NullOr(S.String))
 const OptionalNumber = S.optionalKey(S.NullOr(S.Number))
@@ -117,15 +126,57 @@ export const decodeShareRecipients = (
 
 const SharedRangeRow = S.Struct({
   ...ShareRow.fields,
+  audioClipStatus: OptionalString,
+  audioClipDurationSeconds: OptionalNumber,
+  audioClip: S.optionalKey(S.Unknown),
   recording: S.optionalKey(S.Unknown),
   segments: S.optionalKey(S.Unknown),
   readers: S.optionalKey(S.Unknown),
 })
+type SharedRangeRow = typeof SharedRangeRow.Type
+
+const ClipFileRow = S.Struct({ url: S.String })
+
+const readyClipOf = (row: SharedRangeRow): SharedAudio =>
+  Option.match(
+    pipe(
+      Array.head(rowsOf(row.audioClip)),
+      Option.flatMap(file => S.decodeUnknownOption(ClipFileRow)(file)),
+      Option.flatMap(file => presentText(file.url)),
+    ),
+    {
+      onNone: () => PreparingSharedAudio(),
+      onSome: url =>
+        ReadySharedAudio({
+          url,
+          maybeDurationSeconds: Option.filter(
+            Option.fromNullishOr(row.audioClipDurationSeconds),
+            seconds => seconds > 0,
+          ),
+        }),
+    },
+  )
+
+/**
+ * Reads a share's audio clip from its status and its `audioClip` file. A
+ * ready status whose file the viewer cannot read yet still reads as preparing:
+ * the subscription shows the clip once the file arrives.
+ */
+const sharedAudioOf = (row: SharedRangeRow): SharedAudio =>
+  M.value(
+    Option.getOrElse(Option.fromNullishOr(row.audioClipStatus), () => 'none'),
+  ).pipe(
+    M.withReturnType<SharedAudio>(),
+    M.when('ready', () => readyClipOf(row)),
+    M.when('preparing', () => PreparingSharedAudio()),
+    M.when('failed', () => FailedSharedAudio()),
+    M.orElse(() => NoSharedAudio()),
+  )
 
 /**
  * Reads an opened share: the share row, its recording's title and start, the
- * sections in its range (a range reader can read no others), and whether the
- * viewer already claimed it.
+ * sections in its range (a range reader can read no others), whether the
+ * viewer already claimed it, and its audio clip.
  */
 export const decodeSharedRange = (
   rows: ReadonlyArray<unknown>,
@@ -160,6 +211,7 @@ export const decodeSharedRange = (
               Array.some(reader => reader.id === viewerID),
             ),
           ),
+          audio: sharedAudioOf(row),
         }),
       ),
     ),
