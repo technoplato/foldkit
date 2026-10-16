@@ -443,10 +443,10 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
           {
             recordingSegmentShares: {
               $: { where: { id: shareID } },
-              recording: {},
-              segments: {},
               readers: {},
               audioClip: {},
+              scrubbedLines: {},
+              scrubbedImages: { file: {} },
             },
           },
           response =>

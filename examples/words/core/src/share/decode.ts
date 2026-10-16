@@ -1,15 +1,21 @@
 import { Array, Match as M, Option, Order, Schema as S, pipe } from 'effect'
 
-import { decodeSections, rowsOf } from '../decode.js'
+import { rowsOf } from '../decode.js'
+import type { Section, Word } from '../recording.js'
 import {
   FailedSharedAudio,
   NoSharedAudio,
+  PassedScrub,
+  PendingScrub,
   PreparingSharedAudio,
   ReadySharedAudio,
   type RecordingShare,
+  type ScrubState,
+  type ScrubbedImage,
   type ShareRecipient,
   type SharedAudio,
   type SharedRange,
+  WithheldScrub,
 } from './model.js'
 
 const OptionalString = S.optionalKey(S.NullOr(S.String))
@@ -41,7 +47,6 @@ const RecipientRow = S.Struct({
   createdAtMs: S.Number,
 })
 
-const RecordingHeadRow = S.Struct({ title: S.String, startedAtMs: S.Number })
 const ReaderRow = S.Struct({ id: S.String })
 
 const presentText = (value: string | null | undefined): Option.Option<string> =>
@@ -129,8 +134,12 @@ const SharedRangeRow = S.Struct({
   audioClipStatus: OptionalString,
   audioClipDurationSeconds: OptionalNumber,
   audioClip: S.optionalKey(S.Unknown),
-  recording: S.optionalKey(S.Unknown),
-  segments: S.optionalKey(S.Unknown),
+  scrubStatus: OptionalString,
+  scrubReason: OptionalString,
+  scrubbedTitle: OptionalString,
+  scrubbedNote: OptionalString,
+  scrubbedLines: S.optionalKey(S.Unknown),
+  scrubbedImages: S.optionalKey(S.Unknown),
   readers: S.optionalKey(S.Unknown),
 })
 type SharedRangeRow = typeof SharedRangeRow.Type
@@ -173,10 +182,146 @@ const sharedAudioOf = (row: SharedRangeRow): SharedAudio =>
     M.orElse(() => NoSharedAudio()),
   )
 
+const ScrubbedLineRow = S.Struct({
+  id: S.String,
+  segmentIndex: S.Number,
+  startSeconds: S.Number,
+  endSeconds: S.Number,
+  status: S.String,
+  text: S.String,
+  wordsJSON: OptionalString,
+})
+type ScrubbedLineRow = typeof ScrubbedLineRow.Type
+
+const ScrubbedWord = S.Struct({
+  text: S.String,
+  start: S.Number,
+  end: S.Number,
+})
+const ScrubbedWords = S.fromJsonString(S.Array(ScrubbedWord))
+
+const ScrubbedImageRow = S.Struct({
+  id: S.String,
+  attachmentID: S.String,
+  offsetSeconds: S.Number,
+  status: S.String,
+  width: OptionalNumber,
+  height: OptionalNumber,
+  file: S.optionalKey(S.Unknown),
+})
+
+const PASSED = 'passed'
+
+const scrubbedWordsOf = (row: ScrubbedLineRow): ReadonlyArray<Word> =>
+  pipe(
+    Option.fromNullishOr(row.wordsJSON),
+    Option.flatMap(json => S.decodeUnknownOption(ScrubbedWords)(json)),
+    Option.getOrElse(() => []),
+    Array.map((word, position) => ({
+      id: `${row.id}-${position}`,
+      text: word.text,
+      startSeconds: word.start,
+      endSeconds: word.end,
+    })),
+  )
+
+const bySegmentIndex = Order.mapInput(
+  Order.Number,
+  (line: Section) => line.index,
+)
+
+const passedLinesOf = (row: SharedRangeRow): ReadonlyArray<Section> =>
+  pipe(
+    rowsOf(row.scrubbedLines),
+    Array.map(line => S.decodeUnknownOption(ScrubbedLineRow)(line)),
+    Array.getSomes,
+    Array.filter(line => line.status === PASSED),
+    Array.map(line => ({
+      id: line.id,
+      index: line.segmentIndex,
+      startSeconds: line.startSeconds,
+      endSeconds: line.endSeconds,
+      maybeSpeakerID: Option.none(),
+      text: line.text,
+      words: scrubbedWordsOf(line),
+      isFinal: true,
+    })),
+    Array.sort(bySegmentIndex),
+  )
+
+const passedImagesOf = (row: SharedRangeRow): ReadonlyArray<ScrubbedImage> =>
+  pipe(
+    rowsOf(row.scrubbedImages),
+    Array.map(image => S.decodeUnknownOption(ScrubbedImageRow)(image)),
+    Array.getSomes,
+    Array.filter(image => image.status === PASSED),
+    Array.map(image =>
+      Option.map(
+        pipe(
+          Array.head(rowsOf(image.file)),
+          Option.flatMap(file => S.decodeUnknownOption(ClipFileRow)(file)),
+          Option.flatMap(file => presentText(file.url)),
+        ),
+        url => ({
+          id: image.id,
+          attachmentID: image.attachmentID,
+          offsetSeconds: image.offsetSeconds,
+          url,
+          maybeWidth: Option.fromNullishOr(image.width),
+          maybeHeight: Option.fromNullishOr(image.height),
+        }),
+      ),
+    ),
+    Array.getSomes,
+  )
+
+const scrubStateOf = (row: SharedRangeRow): ScrubState =>
+  M.value(
+    Option.getOrElse(Option.fromNullishOr(row.scrubStatus), () => 'pending'),
+  ).pipe(
+    M.withReturnType<ScrubState>(),
+    M.when(PASSED, () => PassedScrub()),
+    M.when('withheld', () =>
+      WithheldScrub({ maybeReason: presentText(row.scrubReason) }),
+    ),
+    M.orElse(() => PendingScrub()),
+  )
+
+const isViewerClaimed = (
+  row: SharedRangeRow,
+  maybeViewerUserID: Option.Option<string>,
+): boolean =>
+  Option.exists(maybeViewerUserID, viewerID =>
+    pipe(
+      rowsOf(row.readers),
+      Array.map(reader => S.decodeUnknownOption(ReaderRow)(reader)),
+      Array.getSomes,
+      Array.some(reader => reader.id === viewerID),
+    ),
+  )
+
+const withheldRangeOf = (
+  row: SharedRangeRow,
+  scrub: ScrubState,
+  maybeViewerUserID: Option.Option<string>,
+): SharedRange => ({
+  share: shareOf(row),
+  maybeTitle: Option.none(),
+  maybeNote: Option.none(),
+  scrub,
+  lines: [],
+  images: [],
+  isClaimedByViewer: isViewerClaimed(row, maybeViewerUserID),
+  audio: NoSharedAudio(),
+})
+
 /**
- * Reads an opened share: the share row, its recording's title and start, the
- * sections in its range (a range reader can read no others), whether the
- * viewer already claimed it, and its audio clip.
+ * Reads an opened share as its readers may read it (ADR 0014 section 13.11):
+ * the share row, its scrubbed title and note, the scrubbed lines and images
+ * that passed, whether the viewer already claimed it, and its audio clip. It
+ * never reads the original sections or the recording: a share's readers
+ * cannot, and its owner sees the share as they do. A withheld share keeps
+ * nothing but why.
  */
 export const decodeSharedRange = (
   rows: ReadonlyArray<unknown>,
@@ -185,34 +330,23 @@ export const decodeSharedRange = (
   pipe(
     Array.head(rows),
     Option.flatMap(row => S.decodeUnknownOption(SharedRangeRow)(row)),
-    Option.flatMap(row =>
-      Option.map(
-        pipe(
-          Array.head(rowsOf(row.recording)),
-          Option.flatMap(recording =>
-            S.decodeUnknownOption(RecordingHeadRow)(recording),
-          ),
+    Option.map(row => {
+      const scrub = scrubStateOf(row)
+      return M.value(scrub).pipe(
+        M.withReturnType<SharedRange>(),
+        M.tag('WithheldScrub', () =>
+          withheldRangeOf(row, scrub, maybeViewerUserID),
         ),
-        recording => ({
+        M.orElse(() => ({
           share: shareOf(row),
-          recordingTitle: recording.title,
-          recordingStartedAtMs: recording.startedAtMs,
-          sections: Array.filter(
-            decodeSections(rowsOf(row.segments)),
-            section =>
-              section.index >= row.firstSegmentIndex &&
-              section.index <= row.lastSegmentIndex,
-          ),
-          isClaimedByViewer: Option.exists(maybeViewerUserID, viewerID =>
-            pipe(
-              rowsOf(row.readers),
-              Array.map(reader => S.decodeUnknownOption(ReaderRow)(reader)),
-              Array.getSomes,
-              Array.some(reader => reader.id === viewerID),
-            ),
-          ),
+          maybeTitle: presentText(row.scrubbedTitle),
+          maybeNote: presentText(row.scrubbedNote),
+          scrub,
+          lines: passedLinesOf(row),
+          images: passedImagesOf(row),
+          isClaimedByViewer: isViewerClaimed(row, maybeViewerUserID),
           audio: sharedAudioOf(row),
-        }),
-      ),
-    ),
+        })),
+      )
+    }),
   )

@@ -360,6 +360,21 @@ const _schema = i.schema({
       audioClipDurationSeconds: i.number().optional(),
       createdAtMs: i.number().indexed(),
       updatedAtMs: i.number().indexed(),
+      // ADR 0014 section 13 (the share-model module, scripts/schema/share-model-schema.ts in Scribe).
+      // ADR 0014 section 13.4 (#389, #718): absent on a legacy single range. "sections": blocksJSON holds the blocks, the segments links are exactly the picked sections, and the envelope is the first block's start to the last block's end. "recording": the whole recording through `wholeRecording`, no envelope.
+      scope: i.string().indexed().optional(),
+      // [{firstSegmentID, lastSegmentID, firstSegmentIndex, lastSegmentIndex, startSeconds, endSeconds}], in order.
+      blocksJSON: i.string().optional(),
+      scrubStatus: i.string().indexed().optional(),
+      // Why withheld, in words that quote nothing of the share.
+      scrubReason: i.string().optional(),
+      scrubbedAtMs: i.number().indexed().optional(),
+      // The gate's record: versions and counts, never a word of the share.
+      scrubCheckJSON: i.string().optional(),
+      // The recording's title, scrubbed: readers cannot read the recording.
+      scrubbedTitle: i.string().optional(),
+      // The owner's note, scrubbed: readers cannot read `note`.
+      scrubbedNote: i.string().optional(),
     }),
     // Recipient history for autocomplete (ADR 0014): one row per (sharer, email), deterministic id.
     shareRecipients: i.entity({
@@ -603,6 +618,59 @@ const _schema = i.schema({
       claimedAtMs: i.number().optional(),
       claimedByListenerID: i.string().optional().indexed(),
       error: i.string().optional(),
+    }),
+    // ADR 0014 sections 13.4 and 14.1 (the share-model module, scripts/schema/share-model-schema.ts in Scribe).
+    // ADR 0014 section 13.4 (#389, #718): one person a share names, by the email they sign in with. One link opens for
+    // every named person; removing one person deletes one row. The id is derived from the share and the email
+    // (stableUUID "scribe-share-recipient-grant:<shareID>:<email>"), so the same person twice is one row. The person
+    // sees only their own row, never another recipient's email.
+    recordingShareRecipients: i.entity({
+      // The share's owner, stamped when the row is made.
+      ownerUserID: i.string().indexed(),
+      shareID: i.string().indexed(),
+      recordingID: i.string().indexed(),
+      email: i.string().indexed(),
+      createdAtMs: i.number().indexed(),
+    }),
+    // ADR 0014 section 14.1 (#597, #718): one shared line as a reader sees it, after the scrubber: names and other personal
+    // details replaced by their type ("[a person]"), the words' times kept for the clip. The only text of a share a
+    // reader reads, and only once "passed". Id: UUID v5 of "scribe-share-scrubbed-line:<shareID>:<segmentID>". Written
+    // by the scrubber as the owner; deleted with its share.
+    shareScrubbedLines: i.entity({
+      ownerUserID: i.string().indexed(),
+      shareID: i.string().indexed(),
+      recordingID: i.string().indexed(),
+      // The original section (the line's final row); readers cannot read it.
+      segmentID: i.string().indexed(),
+      segmentIndex: i.number().indexed(),
+      startSeconds: i.number(),
+      endSeconds: i.number(),
+      status: i.string().indexed(),
+      // The scrubbed text; empty when withheld.
+      text: i.string(),
+      // [{text, start, end}]: a redaction is one word spanning the muted time.
+      wordsJSON: i.string(),
+      redactions: i.number(),
+      checkedAtMs: i.number().indexed(),
+    }),
+    // ADR 0014 section 14.1 (#597): one image in a share's blocks as a reader sees it: faces and personal text filled solid
+    // black, drawn into a new JPEG with no metadata, at scribe/<recording>/share-scrubbed/<share>/<attachment>.jpg (its
+    // `file`). Readers see it only once "passed"; a failure withholds it. Id: UUID v5 of
+    // "scribe-share-scrubbed-image:<shareID>:<attachmentID>".
+    shareScrubbedImages: i.entity({
+      ownerUserID: i.string().indexed(),
+      shareID: i.string().indexed(),
+      recordingID: i.string().indexed(),
+      attachmentID: i.string().indexed(),
+      offsetSeconds: i.number().indexed(),
+      status: i.string().indexed(),
+      // Why withheld, quoting nothing of the image.
+      reason: i.string().optional(),
+      width: i.number().optional(),
+      height: i.number().optional(),
+      faces: i.number(),
+      textBoxes: i.number(),
+      checkedAtMs: i.number().indexed(),
     }),
   },
   links: {
@@ -945,6 +1013,66 @@ const _schema = i.schema({
         has: 'many',
         label: 'issues',
       },
+    },
+    // ADR 0014 sections 12, 13.4 and 14.1 (the share-model module).
+    // ADR 0014 section 13.4: a named person's row and its share. Deleting the share deletes its people.
+    recordingShareRecipientShare: {
+      forward: {
+        on: 'recordingShareRecipients',
+        has: 'one',
+        label: 'share',
+        onDelete: 'cascade',
+      },
+      reverse: {
+        on: 'recordingSegmentShares',
+        has: 'many',
+        label: 'recipients',
+      },
+    },
+    // ADR 0014 section 14.1: a scrubbed line and its share. Deleting the share deletes its scrubbed copy.
+    shareScrubbedLineShare: {
+      forward: {
+        on: 'shareScrubbedLines',
+        has: 'one',
+        label: 'share',
+        onDelete: 'cascade',
+      },
+      reverse: {
+        on: 'recordingSegmentShares',
+        has: 'many',
+        label: 'scrubbedLines',
+      },
+    },
+    // ADR 0014 section 14.1: a scrubbed image and its share.
+    shareScrubbedImageShare: {
+      forward: {
+        on: 'shareScrubbedImages',
+        has: 'one',
+        label: 'share',
+        onDelete: 'cascade',
+      },
+      reverse: {
+        on: 'recordingSegmentShares',
+        has: 'many',
+        label: 'scrubbedImages',
+      },
+    },
+    // ADR 0014 section 14.1: the scrubbed image's own JPEG, at
+    // scribe/<recording>/share-scrubbed/<share>/<attachment>.jpg.
+    shareScrubbedImageFile: {
+      forward: { on: 'shareScrubbedImages', has: 'one', label: 'file' },
+      reverse: { on: '$files', has: 'many', label: 'shareScrubbedImages' },
+    },
+    // ADR 0014 section 12: a whole-recording share's recording, sections recorded later included. Written only for
+    // scope "recording", so a rule sees whole-recording shares apart from section shares.
+    recordingSegmentShareWholeRecording: {
+      forward: {
+        on: 'recordingSegmentShares',
+        has: 'one',
+        label: 'wholeRecording',
+        onDelete: 'cascade',
+      },
+      reverse: { on: 'recordings', has: 'many', label: 'wholeRecordingShares' },
     },
   },
 })
