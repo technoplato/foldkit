@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 16th, 2026 at 3:34:56 p.m. EDT — `7af93ed85181` feat(words): play a share's audio clip on its share page
+
+- **Implementation commit:** `7af93ed85181359f06a04d451b81b2085352a704`
+- **Change:** The words share page plays the share's audio clip (Scribe #718, #389).
+- **Details:**
+  - The share query also reads audioClipStatus, audioClipDurationSeconds and the audioClip file; ready shows a native audio player with the clip's length above the shared lines, preparing shows 'Audio is still uploading' and turns into the player live, failed shows 'The audio could not be shared', no status leaves the page as before.
+  - The schema copy gains the two attributes and the recordingSegmentShareAudioClip link exactly as Scribe's instant.schema.ts has them (ADR 0044, already in production).
+  - Red 493c81d64 first. Verified: words core 214/214, foldkit 9/9 (4 new Scene tests), core and web tsc, vite build; live on the throwaway Instant app bd40c50a in headless Chrome (duration 12.05 s, currentTime 2.08 s after 2.5 s of play), evidence in ~/Sync/audit/share-718/web/.
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — audio clip attributes and link
+  - `examples/words/core/src/share/model.ts` — SharedAudio states on SharedRange
+  - `examples/words/core/src/share/decode.ts` — reads the clip's status, length and file
+  - `examples/words/core/src/store.ts` — the share query reads audioClip
+  - `examples/words/foldkit/src/view/share.ts` — the player and the preparing and failed cards
+- **User context (verbatim):**
+  > The include audio on share uh is not allowing me to open it.
+- **SpecStory:** unavailable — unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## October 4th, 2026 at 4:34:12 a.m. EDT — `fbac11a07b68` fix(words): name words.pisspoursoftware.xyz in the remaining user-facing texts
 
 - **Implementation commit:** `fbac11a07b68d8f92a4cc2907fa4edd2eb1ac842`
