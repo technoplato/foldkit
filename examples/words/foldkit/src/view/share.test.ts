@@ -113,6 +113,23 @@ describe('the share page reads only the scrubbed copy', () => {
     )
   })
 
+  test('never shows who shared it, which the scrubber does not check', () => {
+    Scene.scene(
+      { update, view: sharedRangePage },
+      Scene.with(
+        sharedPageModel({
+          ...passedRange(),
+          share: {
+            ...passedRange().share,
+            maybeSharedBy: Option.some('Alice Example'),
+          },
+        }),
+      ),
+      Scene.expect(Scene.text('Shared 0:00 to 0:09, 2 sections')).toExist(),
+      Scene.expect(Scene.text('Alice Example', { exact: false })).toBeAbsent(),
+    )
+  })
+
   test('shows only "Being checked" while nothing has passed', () => {
     Scene.scene(
       { update, view: sharedRangePage },

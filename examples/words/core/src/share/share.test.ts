@@ -638,6 +638,30 @@ describe("a share's scrubbed copy", () => {
     )
   })
 
+  it('keeps a pending share to its passed lines: no title, note, or audio until the share passed', () => {
+    expect(
+      Option.map(
+        decodeOne({
+          scrubStatus: 'pending',
+          scrubbedTitle: 'Recording 019',
+          scrubbedNote: 'For [a person]',
+          audioClipStatus: 'ready',
+          audioClip: {
+            id: 'f',
+            url: 'https://instant-storage.example.com/c.m4a',
+          },
+          scrubbedLines: [scrubbedLine(1, 'passed')],
+        }),
+        range => [
+          range.maybeTitle,
+          range.maybeNote,
+          range.audio,
+          Array.map(range.lines, line => line.index),
+        ],
+      ),
+    ).toEqual(Option.some([Option.none(), Option.none(), NoSharedAudio(), [1]]))
+  })
+
   it('reads a withheld share as withheld with its reason, and keeps nothing of it', () => {
     expect(
       Option.map(
