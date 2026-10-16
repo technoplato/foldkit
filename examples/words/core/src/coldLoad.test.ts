@@ -552,10 +552,13 @@ describe('opening the other links in a new tab', () => {
         maybeSharedBy: Option.some('owner@example.com'),
         createdAtMs: 0,
       },
-      recordingTitle: 'Recording 018',
-      recordingStartedAtMs: 0,
-      sections: [linkedSection, lastSection],
+      maybeTitle: Option.some('Recording 018'),
+      maybeNote: Option.none(),
+      scrub: Share.Model.PassedScrub(),
+      lines: [linkedSection, lastSection],
+      images: [],
       isClaimedByViewer: false,
+      audio: Share.Model.NoSharedAudio(),
     }
     const start = modelForRoute(
       routeOfPageLoad(

@@ -65,9 +65,11 @@ const titleOf = (model: Model): string =>
     M.tag('Share', () =>
       M.value(model.share.sharedRange).pipe(
         M.withReturnType<string>(),
-        M.tag(
-          'ReadySharedRange',
-          ({ range }) => `${range.recordingTitle} | Shared | Scribe`,
+        M.tag('ReadySharedRange', ({ range }) =>
+          Option.match(range.maybeTitle, {
+            onNone: () => 'Shared | Scribe',
+            onSome: title => `${title} | Shared | Scribe`,
+          }),
         ),
         M.orElse(() => 'Shared | Scribe'),
       ),

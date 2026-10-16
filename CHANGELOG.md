@@ -4,6 +4,56 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 16th, 2026 at 5:27:12 p.m. EDT — `6f3c1de5e756` fix(words): show a pending share's passed lines only, and never its sharer
+
+- **Implementation commit:** `6f3c1de5e7563884d9ef27bd7903d37911383f4f`
+- **Change:** A pending share's page shows only its passed lines, and no share page names who shared it (Scribe #718, #597).
+- **Details:**
+  - Found on bd40c50a: a pending share still showed an earlier pass's scrubbed title, note and audio card, and the page printed sharedByDisplayName, which the scrubber never checks. Red 7913801cd first.
+  - Verified on bd40c50a: reader screenshots of pending, partly passed, passed and withheld under the app's pushed rules; the page's query read under the share-model rules as an override decodes to the same page (plus the scrubbed image), and the reader reads no recording or section under the override. Evidence in ~/Sync/audit/share-718/web/scrubbed-*.
+- **Files:**
+  - `examples/words/core/src/share/decode.ts` — a pending share keeps only passed lines and images
+  - `examples/words/foldkit/src/view/share.ts` — no sharer name; no audio card while pending
+- **User context (verbatim):**
+  > Nothing goes out until the scrubbing step has passed it
+- **SpecStory:** unavailable — unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 16th, 2026 at 5:27:12 p.m. EDT — `cfa04ea0df24` feat(words): read only a share's scrubbed copy on its share page
+
+- **Implementation commit:** `cfa04ea0df24b86d1a16172c3f1cf433a2dc9d84`
+- **Change:** The words share page reads only the share's scrubbed copy (Scribe #718, #597; ADR 0014 section 13.11).
+- **Details:**
+  - The share query reads the share row, scrubbedLines, scrubbedImages with their files and audioClip; it no longer reads the original sections or the recording. Passed: scrubbedTitle, scrubbedNote, passed lines in segment order, passed images at their offsets, the clip. Pending: 'Being checked' and the lines passed so far with 'The rest is being checked'. Withheld: 'This share could not be checked, so nothing in it is shown' and the reason.
+  - The schema copy gains the share-model module's attributes, entities and links from Scribe's agent/claude/share-model-718-schema (8c38d7677). Red c12a4c10f first.
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — share-model attributes, entities and links
+  - `examples/words/core/src/share/model.ts` — ScrubState, ScrubbedImage, SharedRange as readers read it, sharedItemsOf
+  - `examples/words/core/src/share/decode.ts` — reads the scrubbed copy; drops rows not passed
+  - `examples/words/core/src/store.ts` — the share query reads the scrubbed copy, not the originals
+  - `examples/words/foldkit/src/view/share.ts` — passed, pending and withheld pages
+  - `examples/words/foldkit/src/view/view.ts` — the tab title uses the scrubbed title
+- **User context (verbatim):**
+  > Nothing goes out until the scrubbing step has passed it
+- **SpecStory:** unavailable — unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 16th, 2026 at 3:34:56 p.m. EDT — `7af93ed85181` feat(words): play a share's audio clip on its share page
+
+- **Implementation commit:** `7af93ed85181359f06a04d451b81b2085352a704`
+- **Change:** The words share page plays the share's audio clip (Scribe #718, #389).
+- **Details:**
+  - The share query also reads audioClipStatus, audioClipDurationSeconds and the audioClip file; ready shows a native audio player with the clip's length above the shared lines, preparing shows 'Audio is still uploading' and turns into the player live, failed shows 'The audio could not be shared', no status leaves the page as before.
+  - The schema copy gains the two attributes and the recordingSegmentShareAudioClip link exactly as Scribe's instant.schema.ts has them (ADR 0044, already in production).
+  - Red 493c81d64 first. Verified: words core 214/214, foldkit 9/9 (4 new Scene tests), core and web tsc, vite build; live on the throwaway Instant app bd40c50a in headless Chrome (duration 12.05 s, currentTime 2.08 s after 2.5 s of play), evidence in ~/Sync/audit/share-718/web/.
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — audio clip attributes and link
+  - `examples/words/core/src/share/model.ts` — SharedAudio states on SharedRange
+  - `examples/words/core/src/share/decode.ts` — reads the clip's status, length and file
+  - `examples/words/core/src/store.ts` — the share query reads audioClip
+  - `examples/words/foldkit/src/view/share.ts` — the player and the preparing and failed cards
+- **User context (verbatim):**
+  > The include audio on share uh is not allowing me to open it.
+- **SpecStory:** unavailable — unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## October 4th, 2026 at 4:34:12 a.m. EDT — `fbac11a07b68` fix(words): name words.pisspoursoftware.xyz in the remaining user-facing texts
 
 - **Implementation commit:** `fbac11a07b68d8f92a4cc2907fa4edd2eb1ac842`
