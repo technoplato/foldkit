@@ -733,8 +733,7 @@ const laterAudioNotice = (
 const DEFAULT_SHARE_TITLE = 'A shared recording'
 
 const sharedRangeSummary = (range: Share.Model.SharedRange): string => {
-  const who = Option.getOrElse(range.share.maybeSharedBy, () => 'Someone')
-  const span = `${who} shared ${formatClock(range.share.startSeconds)} to ${formatClock(range.share.endSeconds)}`
+  const span = `Shared ${formatClock(range.share.startSeconds)} to ${formatClock(range.share.endSeconds)}`
   return M.value(range.scrub).pipe(
     M.withReturnType<string>(),
     M.tag('PassedScrub', () => {
@@ -880,7 +879,6 @@ const readySharedRange = (
           'Scribe checks every line for personal details before it is shown here.',
           true,
         ),
-        ...sharedAudio(range.audio),
         ...(hasSharedItems(range)
           ? [sharedItems(range), restBeingChecked()]
           : []),

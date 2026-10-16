@@ -300,28 +300,14 @@ const isViewerClaimed = (
     ),
   )
 
-const withheldRangeOf = (
-  row: SharedRangeRow,
-  scrub: ScrubState,
-  maybeViewerUserID: Option.Option<string>,
-): SharedRange => ({
-  share: shareOf(row),
-  maybeTitle: Option.none(),
-  maybeNote: Option.none(),
-  scrub,
-  lines: [],
-  images: [],
-  isClaimedByViewer: isViewerClaimed(row, maybeViewerUserID),
-  audio: NoSharedAudio(),
-})
-
 /**
  * Reads an opened share as its readers may read it (ADR 0014 section 13.11):
  * the share row, its scrubbed title and note, the scrubbed lines and images
  * that passed, whether the viewer already claimed it, and its audio clip. It
  * never reads the original sections or the recording: a share's readers
- * cannot, and its owner sees the share as they do. A withheld share keeps
- * nothing but why.
+ * cannot, and its owner sees the share as they do. A pending share keeps
+ * only the lines and images passed so far; a withheld share keeps nothing
+ * but why.
  */
 export const decodeSharedRange = (
   rows: ReadonlyArray<unknown>,
@@ -332,21 +318,36 @@ export const decodeSharedRange = (
     Option.flatMap(row => S.decodeUnknownOption(SharedRangeRow)(row)),
     Option.map(row => {
       const scrub = scrubStateOf(row)
+      const isClaimedByViewer = isViewerClaimed(row, maybeViewerUserID)
+      const shareFields = { share: shareOf(row), scrub, isClaimedByViewer }
       return M.value(scrub).pipe(
         M.withReturnType<SharedRange>(),
-        M.tag('WithheldScrub', () =>
-          withheldRangeOf(row, scrub, maybeViewerUserID),
-        ),
-        M.orElse(() => ({
-          share: shareOf(row),
-          maybeTitle: presentText(row.scrubbedTitle),
-          maybeNote: presentText(row.scrubbedNote),
-          scrub,
-          lines: passedLinesOf(row),
-          images: passedImagesOf(row),
-          isClaimedByViewer: isViewerClaimed(row, maybeViewerUserID),
-          audio: sharedAudioOf(row),
-        })),
+        M.tagsExhaustive({
+          PassedScrub: () => ({
+            ...shareFields,
+            maybeTitle: presentText(row.scrubbedTitle),
+            maybeNote: presentText(row.scrubbedNote),
+            lines: passedLinesOf(row),
+            images: passedImagesOf(row),
+            audio: sharedAudioOf(row),
+          }),
+          PendingScrub: () => ({
+            ...shareFields,
+            maybeTitle: Option.none(),
+            maybeNote: Option.none(),
+            lines: passedLinesOf(row),
+            images: passedImagesOf(row),
+            audio: NoSharedAudio(),
+          }),
+          WithheldScrub: () => ({
+            ...shareFields,
+            maybeTitle: Option.none(),
+            maybeNote: Option.none(),
+            lines: [],
+            images: [],
+            audio: NoSharedAudio(),
+          }),
+        }),
       )
     }),
   )
