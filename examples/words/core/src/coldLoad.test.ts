@@ -556,6 +556,7 @@ describe('opening the other links in a new tab', () => {
       recordingStartedAtMs: 0,
       sections: [linkedSection, lastSection],
       isClaimedByViewer: false,
+      audio: Share.Model.NoSharedAudio(),
     }
     const start = modelForRoute(
       routeOfPageLoad(

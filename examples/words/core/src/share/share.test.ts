@@ -23,8 +23,13 @@ import {
   UpdatedShareRecipients,
 } from './message.js'
 import {
+  FailedSharedAudio,
   type Model,
+  NoSharedAudio,
+  PreparingSharedAudio,
+  ReadySharedAudio,
   type ShareRecipient,
+  type SharedAudio,
   type SharedRange,
   init,
   recipientEmailsOf,
@@ -228,6 +233,7 @@ describe('opening a share link', () => {
     recordingStartedAtMs: 0,
     sections: [section(0), section(1)],
     isClaimedByViewer,
+    audio: NoSharedAudio(),
   })
   const reader = context({
     maybeViewer: Option.some({
@@ -506,5 +512,144 @@ describe('share rows', () => {
         range.isClaimedByViewer,
       ]),
     ).toEqual(Option.some(['Recording 019', [1, 2], true]))
+  })
+})
+
+describe("a share's audio clip", () => {
+  const clipURL =
+    'https://instant-storage.example.com/scribe/rec-1/share-clips/share-1.m4a'
+  const sharedRangeRow = (fields: Readonly<Record<string, unknown>>) => ({
+    id: 'share-1',
+    recordingID,
+    firstSegmentIndex: 0,
+    lastSegmentIndex: 0,
+    createdAtMs: 1,
+    visibility: 'link',
+    linkToken: 'a'.repeat(64),
+    recording: [{ title: 'Recording 237', startedAtMs: 5 }],
+    segments: [
+      {
+        id: 's0',
+        segmentIndex: 0,
+        startTimeSeconds: 0,
+        endTimeSeconds: 1,
+        text: 'Section 0',
+        isFinal: true,
+      },
+    ],
+    ...fields,
+  })
+  const audioOf = (
+    fields: Readonly<Record<string, unknown>>,
+  ): Option.Option<SharedAudio> =>
+    Option.map(
+      decodeSharedRange([sharedRangeRow(fields)], Option.none()),
+      range => range.audio,
+    )
+
+  it('reads a ready clip as its file and length', () => {
+    expect(
+      audioOf({
+        audioClipStatus: 'ready',
+        audioClipDurationSeconds: 12.5,
+        audioClip: {
+          id: 'file-1',
+          path: 'scribe/rec-1/share-clips/share-1.m4a',
+          url: clipURL,
+        },
+      }),
+    ).toEqual(
+      Option.some(
+        ReadySharedAudio({
+          url: clipURL,
+          maybeDurationSeconds: Option.some(12.5),
+        }),
+      ),
+    )
+  })
+
+  it('reads a ready clip whose file comes back as a one-row list, without a length', () => {
+    expect(
+      audioOf({
+        audioClipStatus: 'ready',
+        audioClip: [{ id: 'file-1', url: clipURL }],
+      }),
+    ).toEqual(
+      Option.some(
+        ReadySharedAudio({ url: clipURL, maybeDurationSeconds: Option.none() }),
+      ),
+    )
+  })
+
+  it('reads a clip still uploading, and a ready status whose file has not arrived, as preparing', () => {
+    expect(audioOf({ audioClipStatus: 'preparing' })).toEqual(
+      Option.some(PreparingSharedAudio()),
+    )
+    expect(audioOf({ audioClipStatus: 'ready' })).toEqual(
+      Option.some(PreparingSharedAudio()),
+    )
+  })
+
+  it('reads a failed clip as failed', () => {
+    expect(audioOf({ audioClipStatus: 'failed' })).toEqual(
+      Option.some(FailedSharedAudio()),
+    )
+  })
+
+  it('reads a share without audio, or with a status it does not know, as no audio', () => {
+    expect(audioOf({})).toEqual(Option.some(NoSharedAudio()))
+    expect(audioOf({ audioClipStatus: 'none' })).toEqual(
+      Option.some(NoSharedAudio()),
+    )
+    expect(audioOf({ audioClipStatus: null })).toEqual(
+      Option.some(NoSharedAudio()),
+    )
+    expect(audioOf({ audioClipStatus: 'trimming' })).toEqual(
+      Option.some(NoSharedAudio()),
+    )
+  })
+
+  it('shows the clip the moment the observed share turns ready', () => {
+    const rangeWith = (audio: SharedAudio): SharedRange => ({
+      share: {
+        id: 'share-1',
+        recordingID,
+        visibility: 'Link',
+        maybeRecipientEmail: Option.none(),
+        maybeLinkToken: Option.some('a'.repeat(64)),
+        firstSegmentIndex: 0,
+        lastSegmentIndex: 0,
+        startSeconds: 0,
+        endSeconds: 2,
+        maybeNote: Option.none(),
+        maybeSharedBy: Option.some('owner@example.com'),
+        createdAtMs: 1,
+      },
+      recordingTitle: 'Recording 237',
+      recordingStartedAtMs: 0,
+      sections: [section(0)],
+      isClaimedByViewer: false,
+      audio,
+    })
+    const ready = ReadySharedAudio({
+      url: clipURL,
+      maybeDurationSeconds: Option.some(12.5),
+    })
+    const { model } = run(init(), [
+      OpenedSharedRange({ shareID: 'share-1' }),
+      ObservedSharedRange({
+        shareID: 'share-1',
+        maybeRange: Option.some(rangeWith(PreparingSharedAudio())),
+      }),
+      ObservedSharedRange({
+        shareID: 'share-1',
+        maybeRange: Option.some(rangeWith(ready)),
+      }),
+    ])
+    expect(
+      model.sharedRange._tag === 'ReadySharedRange'
+        ? model.sharedRange.range.audio
+        : NoSharedAudio(),
+    ).toEqual(ready)
   })
 })
