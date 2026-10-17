@@ -3,7 +3,7 @@ import { Navigation } from 'foldkit'
 
 import { isReadAloudBook, isReadAloudPage } from './destination.js'
 import type { BookKey, PageNumber } from './ids.js'
-import type { Book } from './model.js'
+import { type Book, contributorsAs } from './model.js'
 import { declared, shelfPathOf } from './routes.js'
 
 // LINK PREVIEW
@@ -51,9 +51,15 @@ const coverUrlOf = (book: Book): Option.Option<string> =>
   )
 
 const authorOf = (book: Book): Option.Option<string> =>
-  Array.match(book.authors, {
+  Array.match(contributorsAs(book, 'Author'), {
     onEmpty: () => Option.none(),
-    onNonEmpty: authors => Option.some(Array.join(authors, ', ')),
+    onNonEmpty: authors =>
+      Option.some(
+        Array.join(
+          Array.map(authors, author => author.name),
+          ', ',
+        ),
+      ),
   })
 
 /**

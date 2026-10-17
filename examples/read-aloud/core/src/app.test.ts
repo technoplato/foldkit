@@ -1,6 +1,7 @@
 import { Array, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import {
+  type ListNode,
   type TextNode,
   type UiNode,
   buttonsOf,
@@ -12,8 +13,10 @@ import { App, type AppMessage, type AppModel } from './app.js'
 import {
   BookId,
   BookKey,
+  ContributorKey,
   Isbn13,
   PageNumber,
+  PublisherKey,
   ReadingId,
   TurnId,
 } from './ids.js'
@@ -41,8 +44,25 @@ const feelingHappy: Book = {
   key: BookKey.make(feelingHappyIsbn),
   maybeIsbn13: Option.some(feelingHappyIsbn),
   title: 'Little Blue Truck Feeling Happy',
-  authors: ['Alice Schertle'],
-  publishers: ['HarperCollins Publishers'],
+  credits: [
+    {
+      role: 'Author',
+      contributor: {
+        key: ContributorKey.make('alice-schertle'),
+        name: 'Alice Schertle',
+      },
+    },
+    {
+      role: 'Illustrator',
+      contributor: { key: ContributorKey.make('noor-vale'), name: 'Noor Vale' },
+    },
+  ],
+  publishedBy: [
+    {
+      key: PublisherKey.make('harpercollins-publishers'),
+      name: 'HarperCollins Publishers',
+    },
+  ],
   maybePublishYear: Option.some('2024'),
   maybePageCount: Option.some(PageNumber.make(14)),
   maybeCoverUrl: Option.some(
@@ -67,8 +87,21 @@ const christmas: Book = {
   key: BookKey.make(christmasIsbn),
   maybeIsbn13: Option.some(christmasIsbn),
   title: "Little Blue Truck's Christmas",
-  authors: ['Alice Schertle'],
-  publishers: ['Houghton Mifflin Harcourt'],
+  credits: [
+    {
+      role: 'Author',
+      contributor: {
+        key: ContributorKey.make('alice-schertle'),
+        name: 'Alice Schertle',
+      },
+    },
+  ],
+  publishedBy: [
+    {
+      key: PublisherKey.make('houghton-mifflin-harcourt'),
+      name: 'Houghton Mifflin Harcourt',
+    },
+  ],
   maybePublishYear: Option.some('2014'),
   maybePageCount: Option.some(PageNumber.make(24)),
   maybeCoverUrl: Option.none(),
@@ -151,6 +184,32 @@ const screenOf = (bound: Bound): UiNode =>
 const wordsOf = (bound: Bound): ReadonlyArray<string> =>
   Array.map(textsOf(screenOf(bound)), text => text.content)
 
+const listsOf = (node: UiNode): ReadonlyArray<ListNode> => {
+  if (node._tag === 'List') {
+    return [node]
+  } else if (
+    node._tag === 'Row' ||
+    node._tag === 'Column' ||
+    node._tag === 'Box' ||
+    node._tag === 'DeviceShell'
+  ) {
+    return Array.flatMap(node.children, listsOf)
+  } else {
+    return []
+  }
+}
+
+const creditsListOf = (bound: Bound) =>
+  Option.map(
+    Array.findFirst(listsOf(screenOf(bound)), list => list.label === 'Credits'),
+    list =>
+      Array.map(list.items, item => ({
+        title: item.title,
+        lines: item.lines,
+        href: item.href,
+      })),
+  )
+
 const embedOf = (bound: Bound): Option.Option<TextNode> =>
   Array.findFirst(
     textsOf(screenOf(bound)),
@@ -188,6 +247,46 @@ describe('Read Aloud', () => {
     expect(wordsOf(bound)).toContain('Page 4')
     expect(wordsOf(bound)).toContain(
       'Following along. The page turns here when Scribe hears you turn it.',
+    )
+  })
+
+  it('says a book was read aloud when Scribe heard none of its pages', () => {
+    const { bound, send } = bindApp()
+    send(
+      ReceivedReadings({
+        readings: { books: [feelingHappy, christmas], turns: [] },
+      }),
+    )
+    expect(
+      Option.map(
+        Array.findFirst(
+          listsOf(screenOf(bound)),
+          list => list.label === 'Books read aloud',
+        ),
+        list => Array.map(list.items, item => item.lines),
+      ),
+    ).toEqual(
+      Option.some([
+        ['Alice Schertle · 2024', 'Read aloud'],
+        ['Alice Schertle · 2014', 'Read aloud'],
+      ]),
+    )
+  })
+
+  it("lists a book's credits on its page, as names while Read Aloud has no page for them", () => {
+    const { bound, receive } = bindApp()
+    receive(pagesOneToFour)
+    bound.press(`OpenBook:${feelingHappy.key}`)
+    expect(creditsListOf(bound)).toEqual(
+      Option.some([
+        { title: 'Alice Schertle', lines: ['Author'], href: undefined },
+        { title: 'Noor Vale', lines: ['Illustrator'], href: undefined },
+        {
+          title: 'HarperCollins Publishers',
+          lines: ['Publisher'],
+          href: undefined,
+        },
+      ]),
     )
   })
 

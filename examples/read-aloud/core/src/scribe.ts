@@ -1,4 +1,14 @@
-import { Array, Option, Order, Record, Schema as S, String, pipe } from 'effect'
+import {
+  Array,
+  Function,
+  Match as M,
+  Option,
+  Order,
+  Record,
+  Schema as S,
+  String,
+  pipe,
+} from 'effect'
 
 import {
   BookId,
@@ -7,8 +17,18 @@ import {
   PageNumber,
   ReadingId,
   TurnId,
+  contributorKeyOf,
+  publisherKeyOf,
 } from './ids.js'
-import type { Book, BookLink, PageTurn, Readings } from './model.js'
+import {
+  type Book,
+  type BookLink,
+  type Credit,
+  CreditRole,
+  type PageTurn,
+  type Publisher,
+  type Readings,
+} from './model.js'
 
 // SCRIBE
 
@@ -17,14 +37,16 @@ const maybe = <Value extends S.Top>(schema: Value) =>
 
 /**
  * One line of Scribe's `things` log, or one `things` row in Instant: a
- * thing someone has, such as a book, with what Scribe found about it.
- * Only the fields Read Aloud reads; the rest, such as the owner, are
+ * thing someone has, such as a book, or a person or publisher its things
+ * graph keeps, with what Scribe found about it. Only the fields Read Aloud
+ * reads; the rest, such as the owner and a person's contact points, are
  * dropped on decode.
  */
 export const ThingRow = S.Struct({
   id: S.String,
   kind: S.String,
   status: maybe(S.String),
+  scope: maybe(S.String),
   title: S.String,
   imageURL: maybe(S.String),
   metadataJSON: maybe(S.String),
@@ -58,6 +80,28 @@ export const RecognitionRow = S.Struct({
 /** One line of Scribe's `recognitions` log. */
 export type RecognitionRow = typeof RecognitionRow.Type
 
+/**
+ * One line of Scribe's things graph `relations` log, or one
+ * `thingRelations` row in Instant: one thing's tie to another, such as a
+ * person who illustrated a book (`illustratorOf`). Only the fields Read
+ * Aloud reads; the evidence, the lines it came from, and who wrote it are
+ * dropped on decode.
+ */
+export const RelationRow = S.Struct({
+  id: S.String,
+  subjectID: S.String,
+  predicate: S.String,
+  objectID: S.String,
+  qualifiersJSON: maybe(S.String),
+  certainty: S.String,
+  status: S.String,
+  review: maybe(S.String),
+  scope: maybe(S.String),
+  updatedAtMs: S.Number,
+})
+/** One line of Scribe's things graph `relations` log. */
+export type RelationRow = typeof RelationRow.Type
+
 const ThingMetadata = S.Struct({
   authors: maybe(S.Array(S.String)),
   publishers: maybe(S.Array(S.String)),
@@ -67,6 +111,8 @@ const ThingMetadata = S.Struct({
 })
 
 const noMetadata: typeof ThingMetadata.Type = {}
+
+const RelationQualifiers = S.Struct({ role: maybe(S.String) })
 
 const WhereToBuy = S.Struct({
   label: S.String,
@@ -108,12 +154,17 @@ const pageDetailOf = ofJsonText(
 const readingDetailOf = ofJsonText(
   S.decodeUnknownOption(S.fromJsonString(ReadingDetail)),
 )
+const qualifiersOf = ofJsonText(
+  S.decodeUnknownOption(S.fromJsonString(RelationQualifiers)),
+)
 
 const decodeJsonLine = S.decodeUnknownOption(S.UnknownFromJsonString)
 
 const decodeThingRow = S.decodeUnknownOption(ThingRow)
 
 const decodeRecognitionRow = S.decodeUnknownOption(RecognitionRow)
+
+const decodeRelationRow = S.decodeUnknownOption(RelationRow)
 
 const decodeWhereToBuy = S.decodeUnknownOption(WhereToBuy)
 
@@ -146,6 +197,12 @@ export const recognitionRowsOf = (
   values: ReadonlyArray<unknown>,
 ): ReadonlyArray<RecognitionRow> =>
   Array.getSomes(Array.map(values, value => decodeRecognitionRow(value)))
+
+/** The rows that decode as relations, in log order. */
+export const relationRowsOf = (
+  values: ReadonlyArray<unknown>,
+): ReadonlyArray<RelationRow> =>
+  Array.getSomes(Array.map(values, value => decodeRelationRow(value)))
 
 /**
  * The newest version of every row: Scribe appends a whole row each time it
@@ -207,9 +264,30 @@ const keyOf = (
     () => S.decodeUnknownOption(BookKey)(bookId),
   )
 
+const isWorld = (scope: string | null | undefined): boolean =>
+  scope !== 'personal'
+
+const authorCreditOf = (name: string): Option.Option<Credit> =>
+  Option.map(contributorKeyOf(name), key => ({
+    role: 'Author',
+    contributor: { key, name: String.trim(name) },
+  }))
+
+const publisherNamed = (name: string): Option.Option<Publisher> =>
+  Option.map(publisherKeyOf(name), key => ({ key, name: String.trim(name) }))
+
+const isSameCredit = (self: Credit, that: Credit): boolean =>
+  self.role === that.role && self.contributor.key === that.contributor.key
+
+const isSamePublisher = (self: Publisher, that: Publisher): boolean =>
+  self.key === that.key
+
 /**
  * The book a `things` row describes, when it is an active book Read Aloud
- * can name in an address: by its ISBN-13, else by its id.
+ * can name in an address: by its ISBN-13, else by its id. It credits the
+ * authors the catalog lists and the first publisher it lists, since the
+ * catalog often lists one publisher under several names; the things graph
+ * replaces either when it keeps the book's own credits.
  */
 export const bookOfThing = (row: ThingRow): Option.Option<Book> => {
   const metadata = Option.getOrElse(
@@ -234,8 +312,18 @@ export const bookOfThing = (row: ThingRow): Option.Option<Book> => {
         key,
         maybeIsbn13,
         title: row.title,
-        authors: metadata.authors ?? [],
-        publishers: metadata.publishers ?? [],
+        credits: pipe(
+          metadata.authors ?? [],
+          Array.map(authorCreditOf),
+          Array.getSomes,
+          Array.dedupeWith(isSameCredit),
+        ),
+        publishedBy: pipe(
+          metadata.publishers ?? [],
+          Array.map(publisherNamed),
+          Array.getSomes,
+          Array.take(1),
+        ),
         maybePublishYear: Option.flatMap(
           Option.fromNullishOr(metadata.publishDate),
           yearOf,
@@ -253,6 +341,140 @@ export const bookOfThing = (row: ThingRow): Option.Option<Book> => {
     ),
   )
 }
+
+const isCreditedThing = (row: ThingRow): boolean =>
+  row.kind === 'person' || row.kind === 'organization'
+
+/**
+ * The people and publishers in the things graph's own `things` log: the
+ * names its credits point at. Never its books: a book the graph keeps
+ * there was mentioned, not read aloud.
+ *
+ * @example
+ * ```typescript
+ * creditedThingsOf(thingRowsOf(rowsOfLines(graphThings))) // [Ada Quill (person), Harbor House (organization)]
+ * ```
+ */
+export const creditedThingsOf = (
+  rows: ReadonlyArray<ThingRow>,
+): ReadonlyArray<ThingRow> => Array.filter(rows, isCreditedThing)
+
+const inCreditsOrder = (
+  credits: ReadonlyArray<Credit>,
+): ReadonlyArray<Credit> =>
+  Array.flatMap(CreditRole.literals, role =>
+    Array.filter(credits, credit => credit.role === role),
+  )
+
+const editorRole = 'editor'
+
+const isEditing = (relation: RelationRow): boolean =>
+  Option.exists(qualifiersOf(relation.qualifiersJSON), qualifiers =>
+    Option.exists(
+      Option.fromNullishOr(qualifiers.role),
+      role => String.toLowerCase(String.trim(role)) === editorRole,
+    ),
+  )
+
+const roleOf = (relation: RelationRow): Option.Option<CreditRole> =>
+  M.value(relation.predicate).pipe(
+    M.withReturnType<Option.Option<CreditRole>>(),
+    M.when('authorOf', () => Option.some('Author')),
+    M.when('illustratorOf', () => Option.some('Illustrator')),
+    M.when('contributedTo', () =>
+      isEditing(relation) ? Option.some('Editor') : Option.none(),
+    ),
+    M.orElse(() => Option.none()),
+  )
+
+const isShown = (relation: RelationRow): boolean =>
+  relation.status === 'active' &&
+  relation.review !== 'rejected' &&
+  relation.certainty !== 'candidate' &&
+  isWorld(relation.scope)
+
+type Graph = Readonly<{
+  named: ReadonlyArray<ThingRow>
+  relations: ReadonlyArray<RelationRow>
+}>
+
+const graphOf = (
+  thingRows: ReadonlyArray<ThingRow>,
+  relationRows: ReadonlyArray<RelationRow>,
+): Graph => ({
+  named: Array.filter(
+    newestById(thingRows),
+    row => isCreditedThing(row) && isActive(row) && isWorld(row.scope),
+  ),
+  relations: Array.filter(newestById(relationRows), isShown),
+})
+
+const namedOf = (
+  graph: Graph,
+  id: string,
+  kinds: ReadonlyArray<string>,
+): Option.Option<ThingRow> =>
+  Array.findFirst(
+    graph.named,
+    row => row.id === id && Array.contains(kinds, row.kind),
+  )
+
+const relationsTo = (graph: Graph, book: Book): ReadonlyArray<RelationRow> =>
+  Array.filter(graph.relations, relation => relation.objectID === book.bookId)
+
+const graphCreditsOf = (graph: Graph, book: Book): ReadonlyArray<Credit> =>
+  pipe(
+    relationsTo(graph, book),
+    Array.map(relation =>
+      Option.flatMap(roleOf(relation), role =>
+        Option.flatMap(
+          namedOf(graph, relation.subjectID, ['person', 'organization']),
+          named =>
+            Option.map(contributorKeyOf(named.title), key => ({
+              role,
+              contributor: { key, name: named.title },
+            })),
+        ),
+      ),
+    ),
+    Array.getSomes,
+    Array.dedupeWith(isSameCredit),
+    inCreditsOrder,
+  )
+
+const graphPublishersOf = (
+  graph: Graph,
+  book: Book,
+): ReadonlyArray<Publisher> =>
+  pipe(
+    relationsTo(graph, book),
+    Array.filter(relation => relation.predicate === 'publisherOf'),
+    Array.map(relation =>
+      Option.flatMap(
+        namedOf(graph, relation.subjectID, ['organization']),
+        named => publisherNamed(named.title),
+      ),
+    ),
+    Array.getSomes,
+    Array.dedupeWith(isSamePublisher),
+  )
+
+const orWhenEmpty = <A>(
+  kept: ReadonlyArray<A>,
+  fallback: ReadonlyArray<A>,
+): ReadonlyArray<A> =>
+  Array.match(kept, {
+    onEmpty: () => fallback,
+    onNonEmpty: Function.identity,
+  })
+
+const creditedFrom =
+  (graph: Graph) =>
+  (book: Book): Book => ({
+    ...book,
+    credits: orWhenEmpty(graphCreditsOf(graph, book), book.credits),
+    publishedBy: orWhenEmpty(graphPublishersOf(graph, book), book.publishedBy),
+  })
 
 const recognizedAtOf = (row: ThingRow): number =>
   row.lastRecognizedAtMs ?? row.updatedAtMs
@@ -313,21 +535,31 @@ const readingTurnOf = ({ row, detail }: ReadingRow): Option.Option<PageTurn> =>
  * reading Scribe logged before it logged each page counts as one turn, to
  * the last page it marked. A recognition a person rejected never counts.
  *
+ * A book's credits come from the things graph: the people and publishers
+ * among `thingRows` and the `relationRows` that tie them to the book.
+ * `authorOf` credits an Author, `illustratorOf` an Illustrator,
+ * `contributedTo` with the role `editor` an Editor, and `publisherOf` its
+ * publisher, authors first. A retracted, rejected, or candidate tie never
+ * counts, and nothing kept in the personal scope does. Where the graph
+ * keeps none, the catalog's credits stand.
+ *
  * @example
  * ```typescript
- * readingsOfRows(thingRowsOf(things), recognitionRowsOf(recognitions))
- * // { books: [Little Blue Truck Feeling Happy], turns: [page 4 (ongoing), page 3, page 2, page 1] }
+ * readingsOfRows(thingRowsOf(things), recognitionRowsOf(recognitions), relationRowsOf(relations))
+ * // { books: [Little Blue Truck Feeling Happy, credits: Alice Schertle, Author], turns: [page 4 (ongoing), page 3, page 2, page 1] }
  * ```
  */
 export const readingsOfRows = (
   thingRows: ReadonlyArray<ThingRow>,
   recognitionRows: ReadonlyArray<RecognitionRow>,
+  relationRows: ReadonlyArray<RelationRow> = [],
 ): Readings => {
   const books = pipe(
     newestById(thingRows),
     Array.sort(byRecognizedDescending),
     Array.map(row => bookOfThing(row)),
     Array.getSomes,
+    Array.map(creditedFrom(graphOf(thingRows, relationRows))),
   )
   const recognitions = Array.filter(
     newestById(recognitionRows),

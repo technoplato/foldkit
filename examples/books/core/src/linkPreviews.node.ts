@@ -1,4 +1,4 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Match as M, Option, pipe } from 'effect'
 import * as ReadAloud from 'read-aloud-core-example'
 
 import {
@@ -9,6 +9,7 @@ import {
 } from '@foldkit/instant'
 import { init } from '@instantdb/admin'
 
+import type { ContributorPage, PublisherPage } from './destination.js'
 import { decodeLibrary, libraryQuery } from './instantLibrary.js'
 import {
   type MomentLink,
@@ -18,6 +19,7 @@ import {
   previewLineOf,
 } from './linkPreview.js'
 import type { Title } from './model.js'
+import { creditPageOf } from './routes.js'
 
 /**
  * Where Books link previews come from: the public origin links name, such
@@ -75,6 +77,21 @@ const readAloudPreviewOf = (
     openPath: signInPathFor(path),
   })
 
+const creditPreviewOf = (
+  config: BooksLinkPreviewConfig,
+  name: string,
+  role: string,
+  path: string,
+): PublicAnswer =>
+  linkPreviewAnswer({
+    siteName: 'Books',
+    title: name,
+    description: role,
+    maybeImageUrl: Option.none(),
+    url: `${config.origin}${path}`,
+    openPath: signInPathFor(path),
+  })
+
 const imageTypeOf = (response: Response): string => {
   const type = response.headers.get('content-type') ?? ''
   return type.startsWith('image/') ? type : 'image/jpeg'
@@ -83,17 +100,21 @@ const imageTypeOf = (response: Response): string => {
 /**
  * The public routes of Books: a preview page for a title or a moment in
  * it, with its name, authors, the moment's time, and its cover, and the
- * cover itself; and for a picture book read aloud, or one of its pages,
- * its title, "Page 4 of 14, by Alice Schertle", and its Open Library
- * cover. Nothing else about the library, its progress, bookmarks, or
- * words, and nothing about what was read when. Titles are read again
- * after five minutes, the books read aloud after a minute, and covers
- * after a day. The books read aloud, `/books/read-aloud`, have no preview.
+ * cover itself; for a picture book read aloud, or one of its pages, its
+ * title, "Page 4 of 14, by Alice Schertle", and its Open Library cover;
+ * and for the page of a person or publisher a book credits, only the name
+ * and the role, "Alice Schertle" and "Author". Nothing else about the
+ * library, its progress, bookmarks, or words, nothing about what was read
+ * when, and never which books a person's page lists. Titles are read
+ * again after five minutes, the books read aloud after a minute, and
+ * covers after a day. The books read aloud, `/books/read-aloud`, have no
+ * preview.
  *
  * @example
  * ```typescript
  * hostedIdentity({ publicRoutes: booksLinkPreviews({ origin, loadTitles, fetchCover: fetch, loadReadAloudBooks }) })
  * // '/books/a-new-earth' → a page titled "A New Earth" with "by Eckhart Tolle" and its cover; '/books/profile' → 404
+ * // '/books/authors/alice-schertle' → a page titled "Alice Schertle" with "Author"
  * ```
  */
 export const booksLinkPreviews = (
@@ -145,6 +166,59 @@ export const booksLinkPreviews = (
       metadata => readAloudPreviewOf(config, metadata, path),
     )
 
+  const contributorNameOf = async ({
+    role,
+    contributor,
+  }: ContributorPage): Promise<Option.Option<string>> => {
+    const maybeCredited = pipe(
+      await readAloudBooksNow(),
+      Array.flatMap(book => book.credits),
+      Array.findFirst(
+        credit =>
+          credit.role === role && credit.contributor.key === contributor,
+      ),
+      Option.map(credit => credit.contributor.name),
+    )
+    if (Option.isSome(maybeCredited) || role !== 'Author') {
+      return maybeCredited
+    } else {
+      return pipe(
+        await titlesNow(),
+        Array.flatMap(title => title.authors),
+        Array.findFirst(author =>
+          Option.contains(ReadAloud.contributorKeyOf(author), contributor),
+        ),
+      )
+    }
+  }
+
+  const publisherNameOf = async ({
+    publisher,
+  }: PublisherPage): Promise<Option.Option<string>> =>
+    pipe(
+      await readAloudBooksNow(),
+      Array.flatMap(book => book.publishedBy),
+      Array.findFirst(each => each.key === publisher),
+      Option.map(each => each.name),
+    )
+
+  const creditAnswerOf = async (
+    page: ContributorPage | PublisherPage,
+    path: string,
+  ): Promise<Option.Option<PublicAnswer>> =>
+    M.value(page).pipe(
+      M.tagsExhaustive({
+        ContributorPage: async contributorPage =>
+          Option.map(await contributorNameOf(contributorPage), name =>
+            creditPreviewOf(config, name, contributorPage.role, path),
+          ),
+        PublisherPage: async publisherPage =>
+          Option.map(await publisherNameOf(publisherPage), name =>
+            creditPreviewOf(config, name, 'Publisher', path),
+          ),
+      }),
+    )
+
   const coverOf = async (
     title: Title,
   ): Promise<Option.Option<PublicAnswer>> => {
@@ -181,6 +255,10 @@ export const booksLinkPreviews = (
   return async ({ path }) => {
     if (ReadAloud.isReadAloudPath(path)) {
       return readAloudAnswerOf(path)
+    }
+    const maybeCreditPage = creditPageOf(path)
+    if (Option.isSome(maybeCreditPage)) {
+      return creditAnswerOf(maybeCreditPage.value, path)
     }
     const maybeLink = booksLinkOf(path)
     if (Option.isNone(maybeLink)) {

@@ -34,6 +34,7 @@ New vocabulary is in `glossary.md` under "Plans vocabulary (proposed)".
 | [08 Skills and finance](08-skills-and-finance.md)           | 08a: skills from today's Catalog, now. 08b: `examples/finance` with 46 declared inputs                     | 08a: none; 08b: 01, 02, 04, 06, 07, 09 |
 | [09 Cross-language protocol](09-cross-language-protocol.md) | The envelope, order, handshake, and vectors; why the Swift and Rust readers failed                         | 06, 08                                 |
 | [10 Hosts matrix](10-hosts-matrix.md)                       | Capabilities; Multiple Counters on Expo and Foldkit HTML; hosts as an open set                             | 01, 02, 03, 06                         |
+| [12 Books credits](12-books-credits.md)                     | Authors, illustrators, editors, and publishers as pages in Books, from Scribe's things graph               |                                        |
 
 ## Build order, if every plan is accepted
 

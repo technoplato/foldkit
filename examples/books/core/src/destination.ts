@@ -80,9 +80,33 @@ export const AddBooksSheet = ts('AddBooksSheet')
 export type AddBooksSheet = typeof AddBooksSheet.Type
 
 /**
+ * One person's page in one role, above the library:
+ * `/books/authors/ada-quill` is Ada Quill as an author, with the books she
+ * wrote; `/books/illustrators/ada-quill` the books she illustrated.
+ */
+export const ContributorPage = ts('ContributorPage', {
+  role: ReadAloud.CreditRole,
+  contributor: ReadAloud.ContributorKey,
+})
+/** One person's page in one role. */
+export type ContributorPage = typeof ContributorPage.Type
+
+/**
+ * One publisher's page, above the library, with the books it published:
+ * `/books/publishers/harbor-house`.
+ */
+export const PublisherPage = ts('PublisherPage', {
+  publisher: ReadAloud.PublisherKey,
+})
+/** One publisher's page. */
+export type PublisherPage = typeof PublisherPage.Type
+
+/**
  * Every place Books can show, and the URI no route matched. A stack holds
  * only these. Read Aloud's places sit above the library:
- * `/books/read-aloud` and `/books/read-aloud/9780063342705/page/4`. The
+ * `/books/read-aloud` and `/books/read-aloud/9780063342705/page/4`, and so
+ * do the pages of the people and publishers books credit:
+ * `/books/authors/ada-quill` and `/books/publishers/harbor-house`. The
  * Audible import's pages sit above the library or the profile:
  * `/books/audible` and `/books/profile/audible/connect`.
  */
@@ -101,6 +125,8 @@ export const Destination = S.Union([
   ReadAloud.ReadAloudShelf,
   ReadAloud.ReadAloudPage,
   ReadAloud.ReadAloudBook,
+  ContributorPage,
+  PublisherPage,
   Navigation.NotFound,
 ])
 /** Every place Books can show. */
@@ -129,3 +155,7 @@ export const isDeleteBookmarkQuestion = S.is(DeleteBookmarkQuestion)
 export const isAddBooksSheet = S.is(AddBooksSheet)
 /** True for any of Read Aloud's places: the shelf, a book, or a page. */
 export const isReadAloudPlace = S.is(ReadAloud.ReadAloudPlace)
+/** True for a person's page in one role. */
+export const isContributorPage = S.is(ContributorPage)
+/** True for a publisher's page. */
+export const isPublisherPage = S.is(PublisherPage)

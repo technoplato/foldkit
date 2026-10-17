@@ -14,27 +14,35 @@ import {
 import { catalog } from './message.js'
 import type { Model, ReadAloudView } from './model.js'
 import { declared } from './routes.js'
-import { openingScreen, pageScreen, shelfScreen } from './screen.js'
+import {
+  type CreditLinks,
+  noCreditLinks,
+  openingScreen,
+  pageScreen,
+  shelfScreen,
+} from './screen.js'
 import { settledEntryOf } from './stack.js'
 
 // NAVIGATION
 
 /**
  * What one of Read Aloud's places paints, for any Model that holds Read
- * Aloud, with the holder's own Catalog entries: the shelf, a book at a
- * page, and a book on its way. None for any other place. A holder such as
- * Books puts the result inside its own frame, with its tabs under it.
+ * Aloud, with the holder's own Catalog entries and the pages it keeps for
+ * credits: the shelf, a book at a page, and a book on its way. None for
+ * any other place. A holder such as Books puts the result inside its own
+ * frame, with its tabs under it.
  *
  * @example
  * ```typescript
- * readAloudScreenOf(model, ReadAloudPage({ book, page: 4 }), Catalog.entries(catalog, model))
- * // Some(Column: List(book), Page 4 of 14, …)
+ * readAloudScreenOf(model, ReadAloudPage({ book, page: 4 }), Catalog.entries(catalog, model), noCreditLinks)
+ * // Some(Column: List(book), Page 4 of 14, …, Credits)
  * ```
  */
 export const readAloudScreenOf = (
   model: ReadAloudView,
   destination: unknown,
   entries: ReadonlyArray<Catalog.Entry>,
+  links: CreditLinks,
 ): Option.Option<UiNode> => {
   if (isReadAloudShelf(destination)) {
     return Option.some(shelfScreen(model, entries))
@@ -43,7 +51,7 @@ export const readAloudScreenOf = (
     model.readings._tag !== 'ReadingsLoading'
   ) {
     return Option.some(
-      pageScreen(model, destination.book, destination.page, entries),
+      pageScreen(model, destination.book, destination.page, entries, links),
     )
   } else if (isReadAloudPage(destination) || isReadAloudBook(destination)) {
     return Option.some(openingScreen())
@@ -66,7 +74,12 @@ const viewOf = (
   isReadAloudShelf(destination)
     ? Option.none()
     : Option.map(
-        readAloudScreenOf(model, destination, Catalog.entries(catalog, model)),
+        readAloudScreenOf(
+          model,
+          destination,
+          Catalog.entries(catalog, model),
+          noCreditLinks,
+        ),
         Navigation.screenView,
       )
 

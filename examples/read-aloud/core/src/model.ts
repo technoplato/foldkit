@@ -1,4 +1,4 @@
-import { Array, Option, Order, Schema as S, pipe } from 'effect'
+import { Array, Effect, Option, Order, Schema as S, pipe } from 'effect'
 import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
 
@@ -6,8 +6,10 @@ import { Destination } from './destination.js'
 import {
   BookId,
   BookKey,
+  ContributorKey,
   Isbn13,
   PageNumber,
+  PublisherKey,
   ReadingId,
   TurnId,
   firstPage,
@@ -29,18 +31,50 @@ export const BookLink = S.Struct({
 export type BookLink = typeof BookLink.Type
 
 /**
+ * What a person did to make a book, in the order a book's credits list
+ * them: wrote it, illustrated it, or edited it.
+ */
+export const CreditRole = S.Literals(['Author', 'Illustrator', 'Editor'])
+/** What a person did to make a book. */
+export type CreditRole = typeof CreditRole.Type
+
+/**
+ * A person a book credits: their name as the book printed it, and the tag
+ * their page's address names them by, `ada-quill` for Ada Quill.
+ */
+export const Contributor = S.Struct({ key: ContributorKey, name: S.String })
+/** A person a book credits. */
+export type Contributor = typeof Contributor.Type
+
+/** One credit on a book: Ada Quill, Author. */
+export const Credit = S.Struct({ role: CreditRole, contributor: Contributor })
+/** One credit on a book. */
+export type Credit = typeof Credit.Type
+
+/**
+ * A book's publisher: its name, and the tag its page's address names it
+ * by, `harbor-house` for Harbor House.
+ */
+export const Publisher = S.Struct({ key: PublisherKey, name: S.String })
+/** A book's publisher. */
+export type Publisher = typeof Publisher.Type
+
+const noneYet = Effect.succeed([])
+
+/**
  * One book someone has read aloud, as Scribe recorded it: its title, who
- * wrote and published it, how many pages it has, its cover from Open
+ * made and published it, how many pages it has, its cover from Open
  * Library, and where to find it. Book information only: never its words or
- * its pages.
+ * its pages. A book sent before books had credits reads as crediting
+ * nobody.
  */
 export const Book = S.Struct({
   bookId: BookId,
   key: BookKey,
   maybeIsbn13: S.Option(Isbn13),
   title: S.String,
-  authors: S.Array(S.String),
-  publishers: S.Array(S.String),
+  credits: S.Array(Credit).pipe(S.withDecodingDefaultKey(noneYet)),
+  publishedBy: S.Array(Publisher).pipe(S.withDecodingDefaultKey(noneYet)),
   maybePublishYear: S.Option(S.String),
   maybePageCount: S.Option(PageNumber),
   maybeCoverUrl: S.Option(S.String),
@@ -283,7 +317,27 @@ export const previewCheckOf = (
   Array.findFirst(model.previewChecks, check => check.isbn13 === isbn13)
 
 /**
- * A book's byline as a person reads it: `Alice Schertle · 2024`.
+ * The people a book credits in one role, in the order its credits list
+ * them.
+ *
+ * @example
+ * ```typescript
+ * contributorsAs(book, 'Author') // [{ key: 'ada-quill', name: 'Ada Quill' }]
+ * ```
+ */
+export const contributorsAs = (
+  book: Book,
+  role: CreditRole,
+): ReadonlyArray<Contributor> =>
+  pipe(
+    book.credits,
+    Array.filter(credit => credit.role === role),
+    Array.map(credit => credit.contributor),
+  )
+
+/**
+ * A book's byline as a person reads it: its authors and its year,
+ * `Alice Schertle · 2024`. Its illustrators and editors are on its page.
  *
  * @example
  * ```typescript
@@ -293,11 +347,73 @@ export const previewCheckOf = (
 export const bylineOf = (book: Book): string =>
   pipe(
     [
-      ...Array.match(book.authors, {
+      ...Array.match(contributorsAs(book, 'Author'), {
         onEmpty: () => [],
-        onNonEmpty: authors => [Array.join(authors, ', ')],
+        onNonEmpty: authors => [
+          Array.join(
+            Array.map(authors, author => author.name),
+            ', ',
+          ),
+        ],
       }),
       ...Option.toArray(book.maybePublishYear),
     ],
     Array.join(' · '),
+  )
+
+const isCreditOf =
+  (key: ContributorKey) =>
+  (credit: Credit): boolean =>
+    credit.contributor.key === key
+
+/**
+ * Every book read aloud that credits the person tagged `key` in `role`,
+ * newest first: `booksCreditingOf(model, 'Author', 'ada-quill')` is every
+ * book Ada Quill wrote.
+ */
+export const booksCreditingOf = (
+  model: HasReadings,
+  role: CreditRole,
+  key: ContributorKey,
+): ReadonlyArray<Book> =>
+  Array.filter(booksOf(model), book =>
+    Array.some(
+      book.credits,
+      credit => credit.role === role && isCreditOf(key)(credit),
+    ),
+  )
+
+/** The person tagged `key`, as the first book crediting them names them. */
+export const contributorOfKey = (
+  model: HasReadings,
+  key: ContributorKey,
+): Option.Option<Contributor> =>
+  pipe(
+    booksOf(model),
+    Array.flatMap(book => book.credits),
+    Array.findFirst(isCreditOf(key)),
+    Option.map(credit => credit.contributor),
+  )
+
+/**
+ * Every book read aloud the publisher tagged `key` published, newest
+ * first.
+ */
+export const booksPublishedByOf = (
+  model: HasReadings,
+  key: PublisherKey,
+): ReadonlyArray<Book> =>
+  Array.filter(booksOf(model), book =>
+    Array.some(book.publishedBy, publisher => publisher.key === key),
+  )
+
+/** The publisher tagged `key`, as the first book it published names it. */
+export const publisherOfKey = (
+  model: HasReadings,
+  key: PublisherKey,
+): Option.Option<Publisher> =>
+  pipe(
+    booksOf(model),
+    Array.flatMap(book => book.publishedBy),
+    Array.findFirst(publisher => publisher.key === key),
   )
