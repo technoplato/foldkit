@@ -4,18 +4,27 @@ import { describe, expect, it } from 'vitest'
 
 import { InstantEntityStoreError } from '@foldkit/instant-tools/instant'
 import {
+  AbandonedWork,
+  ActiveWork,
   ApplicationProduct,
+  CheckedSubtask,
   ConversationReference,
   Issue,
   IssueAttachment,
+  type IssueLandingState,
   IssueMention,
+  IssueSubtask,
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
+  type IssueWorkActivity,
+  IssueWorkInProgress,
   LibraryProduct,
   ProductCatalogEntry,
   RecordingMention,
   RecordingReference,
+  StuckWork,
+  UncheckedSubtask,
   UriAttachmentSource,
   UriReference,
 } from '@foldkit/instant-tools/issues'
@@ -399,5 +408,128 @@ describe('Issue Tracker screen: the logs tagged with an Issue', () => {
     expect(contentsOf(untagged)).toContain(
       'No logs have been tagged with this Issue yet.',
     )
+  })
+})
+
+const workingAt = (
+  id: string,
+  landingState: IssueLandingState,
+  activity: IssueWorkActivity = ActiveWork.make({}),
+): Issue =>
+  Issue.make({
+    ...stored,
+    id,
+    status: 'InProgress',
+    workInProgress: Option.some(
+      IssueWorkInProgress.make({
+        activity,
+        agentId: Option.some('claude-code/wip-835'),
+        branch: Option.some(`agent/claude/issue-${id}`),
+        commitSha: Option.some('5e1f00d'),
+        landingState,
+        lastStep: Option.some('Green: 37 focused tests pass'),
+        repository: Option.some('realtime-voice'),
+        targetBuild: Option.some('106'),
+        updatedAtMs: 1_792_260_000_000,
+        worktree: Option.some(`/Users/laptop/Sync/worktrees/scribe-${id}`),
+      }),
+    ),
+  })
+
+const openTokensOf = (model: Model): ReadonlyArray<string> =>
+  Array.flatMap(buttonsOf(issuesScreen(model)), button =>
+    button.token !== undefined && button.token.startsWith('open:')
+      ? [button.label]
+      : [],
+  )
+
+describe('Issue Tracker screen: work in progress', () => {
+  it('shows on the page of an Issue where its work is and its subtasks', () => {
+    const working = Issue.make({
+      ...workingAt(
+        '804',
+        'Green',
+        StuckWork.make({ reason: 'Waits on a review' }),
+      ),
+      subtasks: [
+        IssueSubtask.make({
+          id: 'issue-804-subtask-1',
+          state: CheckedSubtask.make({ checkedAtMs: 1_792_250_000_000 }),
+          title: 'Red: the window census',
+        }),
+        IssueSubtask.make({
+          id: 'issue-804-subtask-2',
+          state: UncheckedSubtask.make({}),
+          title: 'Merge for build 106',
+        }),
+      ],
+    })
+
+    expect(contentsOf(opened(working))).toEqual(
+      expect.arrayContaining([
+        'Work in progress',
+        'State: Green for build 106',
+        'Stuck: Waits on a review',
+        'Branch: agent/claude/issue-804 in realtime-voice',
+        'Worktree: /Users/laptop/Sync/worktrees/scribe-804',
+        'Commit: 5e1f00d',
+        'Last step: Green: 37 focused tests pass',
+        'Recorded 2026-10-17T18:00:00.000Z by claude-code/wip-835',
+        'Subtasks: 1 of 2 done',
+        'done  Red: the window census',
+        'todo  Merge for build 106',
+      ]),
+    )
+    expect(contentsOf(opened(stored))).not.toContain('Work in progress')
+  })
+
+  it('names where the work is beside each Issue in the list, and lists only the work close to landing when asked', () => {
+    const [listed] = update(
+      modelForNavigation(IssueList.make({})),
+      ObservedIssues.make({
+        issues: [
+          workingAt('804', 'Green'),
+          workingAt(
+            '805',
+            'Pushed',
+            StuckWork.make({ reason: 'Waits on Michael' }),
+          ),
+          workingAt('806', 'Red'),
+          workingAt(
+            '807',
+            'Green',
+            AbandonedWork.make({ reason: 'Replaced by #804' }),
+          ),
+          workingAt('808', 'Merged'),
+          stored,
+        ],
+      }),
+    )
+
+    expect(openTokensOf(listed)).toEqual([
+      '804  P1  InProgress  Keep transcript aligned  [Scribe]  Green for build 106',
+      '805  P1  InProgress  Keep transcript aligned  [Scribe]  Pushed for build 106, stuck',
+      '806  P1  InProgress  Keep transcript aligned  [Scribe]  Red for build 106',
+      '807  P1  InProgress  Keep transcript aligned  [Scribe]  Green for build 106, abandoned',
+      '808  P1  InProgress  Keep transcript aligned  [Scribe]  Merged for build 106',
+      '021  P1  Open  Keep transcript aligned  [Scribe]',
+    ])
+
+    const [landing] = update(
+      listed,
+      Option.getOrThrow(messageForScreenToken(listed, 'landing:close')),
+    )
+    expect(openTokensOf(landing)).toEqual([
+      '804  P1  InProgress  Keep transcript aligned  [Scribe]  Green for build 106',
+      '805  P1  InProgress  Keep transcript aligned  [Scribe]  Pushed for build 106, stuck',
+    ])
+    expect(primaryTokensOf(landing)).toContain('landing:close')
+
+    const [all] = update(
+      landing,
+      Option.getOrThrow(messageForScreenToken(landing, 'landing:all')),
+    )
+    expect(openTokensOf(all)).toHaveLength(6)
+    expect(primaryTokensOf(all)).toContain('landing:all')
   })
 })
