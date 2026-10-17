@@ -461,6 +461,79 @@ const OptionalIssueComplexity = S.OptionFromNullOr(IssueComplexity).pipe(
   S.withDecodingDefaultKey(Effect.succeed(null)),
 )
 
+/** A subtask nobody has checked off yet. */
+export const UncheckedSubtask = S.TaggedStruct('Unchecked', {})
+/** A subtask checked off at `checkedAtMs`. */
+export const CheckedSubtask = S.TaggedStruct('Checked', {
+  checkedAtMs: S.Number,
+})
+/** Whether a subtask is checked off. */
+export const IssueSubtaskState = S.Union([UncheckedSubtask, CheckedSubtask])
+/** Whether a subtask is checked off. */
+export type IssueSubtaskState = typeof IssueSubtaskState.Type
+
+/**
+ * One step of an Issue's work on its checklist, such as
+ * `{ id: 'issue-835-subtask-1', title: 'Red tests', state: { _tag: 'Unchecked' } }`.
+ */
+export const IssueSubtask = S.Struct({
+  id: S.String,
+  state: IssueSubtaskState,
+  title: S.String,
+})
+/** One step of an Issue's work on its checklist. */
+export type IssueSubtask = typeof IssueSubtask.Type
+
+/**
+ * Where an Issue's code is on its way to a build: Exploring before any test,
+ * Red once failing tests are committed, Green once they pass, Pushed once the
+ * branch is on its remote, Merged once it is on main, Shipped once a build
+ * holding it is installed.
+ */
+export const IssueLandingState = S.Literals([
+  'Exploring',
+  'Red',
+  'Green',
+  'Pushed',
+  'Merged',
+  'Shipped',
+])
+/** Where an Issue's code is on its way to a build. */
+export type IssueLandingState = typeof IssueLandingState.Type
+
+/** Someone is moving the work forward. */
+export const ActiveWork = S.TaggedStruct('Active', {})
+/** The work cannot move until something changes, such as "Waits on a review". */
+export const StuckWork = S.TaggedStruct('Stuck', { reason: S.String })
+/** Nobody will carry the work on, such as "Replaced by #804". */
+export const AbandonedWork = S.TaggedStruct('Abandoned', { reason: S.String })
+/** Whether an Issue's work is moving, stuck, or abandoned, and why. */
+export const IssueWorkActivity = S.Union([ActiveWork, StuckWork, AbandonedWork])
+/** Whether an Issue's work is moving, stuck, or abandoned, and why. */
+export type IssueWorkActivity = typeof IssueWorkActivity.Type
+
+/**
+ * Where an Issue's work in progress is: branch `agent/claude/timeline-804` in
+ * `realtime-voice`, its worktree and last commit, the build it targets (`106`),
+ * its landing state, the last step and the agent that recorded it.
+ */
+export const IssueWorkInProgress = S.Struct({
+  activity: IssueWorkActivity.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(ActiveWork.make({}))),
+  ),
+  agentId: OptionalIssueString,
+  branch: OptionalIssueString,
+  commitSha: OptionalIssueString,
+  landingState: IssueLandingState,
+  lastStep: OptionalIssueString,
+  repository: OptionalIssueString,
+  targetBuild: OptionalIssueString,
+  updatedAtMs: S.Number,
+  worktree: OptionalIssueString,
+})
+/** Where an Issue's work in progress is. */
+export type IssueWorkInProgress = typeof IssueWorkInProgress.Type
+
 /** A lossless human-readable source document imported into the Issue tracker. */
 export const IssueSourceDocument = S.Struct({
   body: S.String,
@@ -499,14 +572,35 @@ export const Issue = S.Struct({
   reportedDate: OptionalIssueString,
   sourceDocument: S.OptionFromNullOr(IssueSourceDocument),
   status: IssueStatus,
+  subtasks: S.Array(IssueSubtask).pipe(
+    S.withDecodingDefaultKey(Effect.succeed([])),
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
   successCriteria: IssueSuccessCriteria,
   title: S.String,
   updatedAtMs: S.Number,
   viewerURL: OptionalIssueString,
+  workInProgress: S.OptionFromNullOr(IssueWorkInProgress).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+    S.withConstructorDefault(Effect.succeed(Option.none())),
+  ),
   workLog: S.Array(IssueWorkLogEntryFromStored),
 })
 /** A transport-independent Issue with durable evidence and work history. */
 export type Issue = typeof Issue.Type
+
+/**
+ * True while an Issue's work is Green or Pushed and not abandoned: tested and
+ * waiting to merge. Work that is stuck still counts, so a reader sees what
+ * holds it; Merged and Shipped work has landed.
+ */
+export const isCloseToLanding = (issue: Issue): boolean =>
+  Option.exists(
+    issue.workInProgress,
+    work =>
+      (work.landingState === 'Green' || work.landingState === 'Pushed') &&
+      work.activity._tag !== 'Abandoned',
+  )
 
 /**
  * Orders Issues newest first by `createdAtMs`, then by descending `id` when two
