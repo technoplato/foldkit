@@ -13,7 +13,13 @@ import {
   actionButtons,
 } from 'foldkit/renderers'
 
-import { type BookKey, Isbn13, type PageNumber } from './ids.js'
+import {
+  type BookKey,
+  type ContributorKey,
+  Isbn13,
+  type PageNumber,
+  type PublisherKey,
+} from './ids.js'
 import {
   FollowReading,
   NextPage,
@@ -23,6 +29,7 @@ import {
 } from './message.js'
 import {
   type Book,
+  type CreditRole,
   type GooglePreview,
   type PreviewCheck,
   type ReadAloudView,
@@ -227,7 +234,10 @@ const detailsOf = (book: Book): ReadonlyArray<string> =>
     Option.liftPredicate(
       Array.join(
         [
-          ...Array.take(book.publishers, 1),
+          ...Array.map(
+            Array.take(book.publishedBy, 1),
+            publisher => publisher.name,
+          ),
           ...Option.toArray(
             Option.map(
               book.maybePageCount,
@@ -429,6 +439,82 @@ const previewSectionOf = (
       }),
   })
 
+/**
+ * Where the Program that holds Read Aloud keeps a page for each credit: the
+ * address of a person's page in one role, and of a publisher's page. Books
+ * keeps them at `/books/authors/ada-quill` and
+ * `/books/publishers/harbor-house`; Read Aloud on its own keeps none, so
+ * its credits are names, `noCreditLinks`.
+ */
+export type CreditLinks = Readonly<{
+  contributorPathOf: (
+    role: CreditRole,
+    contributor: ContributorKey,
+  ) => Option.Option<string>
+  publisherPathOf: (publisher: PublisherKey) => Option.Option<string>
+}>
+
+/** No page for any credit: a book's credits are names, not links. */
+export const noCreditLinks: CreditLinks = {
+  contributorPathOf: () => Option.none(),
+  publisherPathOf: () => Option.none(),
+}
+
+const publisherLine = 'Publisher'
+
+const hrefOf = (maybePath: Option.Option<string>): Pick<ListItem, 'href'> =>
+  Option.match(maybePath, {
+    onNone: () => ({}),
+    onSome: href => ({ href }),
+  })
+
+/**
+ * A book's credits as rows, in the order its credits list them, its
+ * publisher last: each person's name with their role, and the publisher's
+ * name, each a link to its page where the holder keeps one.
+ *
+ * @example
+ * ```typescript
+ * creditItemsOf(book, links)
+ * // [{ title: 'Ada Quill', lines: ['Author'], href: '/books/authors/ada-quill' }, …, { title: 'Harbor House', lines: ['Publisher'], href: '/books/publishers/harbor-house' }]
+ * ```
+ */
+export const creditItemsOf = (
+  book: Book,
+  links: CreditLinks,
+): ReadonlyArray<ListItem> => [
+  ...Array.map(book.credits, credit => ({
+    key: `${credit.role}-${credit.contributor.key}`,
+    title: credit.contributor.name,
+    lines: [credit.role],
+    ...hrefOf(links.contributorPathOf(credit.role, credit.contributor.key)),
+  })),
+  ...Array.map(book.publishedBy, publisher => ({
+    key: `${publisherLine}-${publisher.key}`,
+    title: publisher.name,
+    lines: [publisherLine],
+    ...hrefOf(links.publisherPathOf(publisher.key)),
+  })),
+]
+
+const creditsOf = (
+  maybeBook: Option.Option<Book>,
+  links: CreditLinks,
+): ReadonlyArray<UiNode> =>
+  Array.match(
+    Option.match(maybeBook, {
+      onNone: () => [],
+      onSome: book => creditItemsOf(book, links),
+    }),
+    {
+      onEmpty: () => [],
+      onNonEmpty: items => [
+        Text('Credits', { dim: true }),
+        List({ label: 'Credits', items }),
+      ],
+    },
+  )
+
 const shareIcon: IconName = 'Share'
 
 const shareRowOf = (entries: Entries): ReadonlyArray<UiNode> =>
@@ -447,14 +533,15 @@ const shareRowOf = (entries: Entries): ReadonlyArray<UiNode> =>
  * One book open at one page: the book, the page in large type, whether
  * the screen is following the reading, Previous and Next page, the
  * preview turned to the page, or a clear "No preview available" with the
- * cover and where to find the book, and Share where the holder shares
- * links. Its buttons come from `entries`, the holder's own Catalog
- * entries, so a holder that cannot share shows no Share button.
+ * cover and where to find the book, the book's credits, and Share where
+ * the holder shares links. Its buttons come from `entries`, the holder's
+ * own Catalog entries, so a holder that cannot share shows no Share
+ * button, and its credits link where `links` names a page.
  *
  * @example
  * ```typescript
- * pageScreen(model, key, page, Catalog.entries(catalog, model))
- * // Column: List(book), Page 4 of 14, Following along., [Previous page] [Next page], No preview available, [Share]
+ * pageScreen(model, key, page, Catalog.entries(catalog, model), links)
+ * // Column: List(book), Page 4 of 14, Following along., [Previous page] [Next page], No preview available, Credits, [Share]
  * ```
  */
 export const pageScreen = (
@@ -462,6 +549,7 @@ export const pageScreen = (
   key: BookKey,
   page: PageNumber,
   entries: Entries,
+  links: CreditLinks,
 ): UiNode => {
   const maybeBook = shownBookOf(model)
   const maybeIsbn13 = Option.orElse(
@@ -489,6 +577,7 @@ export const pageScreen = (
       nameOfBookKey(model, key),
       page,
     ),
+    ...creditsOf(maybeBook, links),
     ...shareRowOf(entries),
   )
 }

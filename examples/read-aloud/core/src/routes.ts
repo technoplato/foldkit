@@ -116,6 +116,26 @@ export const pagePathOf = (
   )
 
 /**
+ * The address of one book with no page in it, which opens at the page
+ * being read, or its first page.
+ *
+ * @example
+ * ```typescript
+ * bookPathOf(BookKey.make('9780063342705')) // Some('/books/read-aloud/9780063342705')
+ * ```
+ */
+export const bookPathOf = (book: BookKey): Option.Option<string> =>
+  Navigation.printStack(
+    declared,
+    Navigation.stackWithEntries<ReadAloudPlace>(ReadAloudShelf(), [
+      Navigation.presented<ReadAloudPlace>(
+        ReadAloudBook({ book }),
+        Navigation.Push(),
+      ),
+    ]),
+  )
+
+/**
  * The address of the books read aloud, the shelf: `/books/read-aloud`.
  *
  * @example

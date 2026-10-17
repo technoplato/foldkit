@@ -42,3 +42,14 @@ export const BookmarkId = S.String.check(S.isMinLength(1)).pipe(
 )
 /** A bookmark's id. */
 export type BookmarkId = typeof BookmarkId.Type
+
+/**
+ * A credit's role as its page's first word: `authors` in
+ * `/books/authors/ada-quill` is the Author role, `illustrators` the
+ * Illustrator, and `editors` the Editor.
+ */
+export const CreditRoleSegment = S.Literals([
+  'authors',
+  'illustrators',
+  'editors',
+]).transform(['Author', 'Illustrator', 'Editor'])

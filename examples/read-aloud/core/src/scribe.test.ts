@@ -475,17 +475,21 @@ describe('Credits from the things graph', () => {
 
   it('reads the readings Scribe sent before books had credits, with no credits', () => {
     const readings = readingsWithGraph([harborLightsLine()], [])
-    const before = JSON.parse(S.encodeSync(ReadingsJson)(readings))
-    const written = JSON.stringify({
-      ...before,
-      books: Array.map(
-        before.books,
-        (book: Readonly<Record<string, unknown>>) => ({
-          ...Struct.omit(book, ['credits', 'publishedBy']),
-          authors: ['Ada Quill'],
-          publishers: ['Harbor House'],
+    const before = S.decodeUnknownSync(
+      S.fromJsonString(
+        S.Struct({
+          books: S.Array(S.Record(S.String, S.Unknown)),
+          turns: S.Array(S.Unknown),
         }),
       ),
+    )(S.encodeSync(ReadingsJson)(readings))
+    const written = JSON.stringify({
+      ...before,
+      books: Array.map(before.books, book => ({
+        ...Struct.omit(book, ['credits', 'publishedBy']),
+        authors: ['Ada Quill'],
+        publishers: ['Harbor House'],
+      })),
     })
     const decoded = S.decodeUnknownSync(ReadingsJson)(written)
     expect(

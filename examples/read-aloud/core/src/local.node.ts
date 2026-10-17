@@ -16,8 +16,10 @@ import { join } from 'node:path'
 import type { Book, Readings } from './model.js'
 import { ReadingSource, ReadingSourceError, ReadingsJson } from './reading.js'
 import {
+  creditedThingsOf,
   readingsOfRows,
   recognitionRowsOf,
+  relationRowsOf,
   rowsOfLines,
   thingRowsOf,
 } from './scribe.js'
@@ -29,6 +31,25 @@ export const thingsFileName = 'things.jsonl'
 
 /** Scribe's log of recognitions, such as a book being read, in its folder. */
 export const recognitionsFileName = 'recognitions.jsonl'
+
+/**
+ * The folder beside Scribe's logs where its things graph keeps the people
+ * and publishers it found, in a `things.jsonl` of its own, and how they
+ * tie to books: `~/Scribe/things/graph`.
+ */
+export const graphFolderName = 'graph'
+
+/**
+ * The things graph's log of ties between things, such as who illustrated
+ * a book, in its folder.
+ */
+export const relationsFileName = 'relations.jsonl'
+
+const graphThingsPathOf = (directory: string): string =>
+  join(directory, graphFolderName, thingsFileName)
+
+const relationsPathOf = (directory: string): string =>
+  join(directory, graphFolderName, relationsFileName)
 
 /** Where Scribe keeps its logs on this laptop: `~/Scribe/things`. */
 export const defaultThingsDirectory = (): string =>
@@ -64,13 +85,14 @@ const textOf = (path: string): Effect.Effect<string, ReadingSourceError> =>
   })
 
 /**
- * The readings in Scribe's logs in `directory` right now. A log that does
- * not exist yet reads as empty.
+ * The readings in Scribe's logs in `directory` right now, each book with
+ * the credits its things graph keeps in `graph/`. A log that does not
+ * exist yet reads as empty.
  *
  * @example
  * ```typescript
  * await Effect.runPromise(readingsOfDirectory('/Users/me/Scribe/things'))
- * // { books: [Little Blue Truck Feeling Happy], turns: [page 4, page 3, ...] }
+ * // { books: [Little Blue Truck Feeling Happy, credits: Alice Schertle, Author], turns: [page 4, page 3, ...] }
  * ```
  */
 export const readingsOfDirectory = (
@@ -80,11 +102,17 @@ export const readingsOfDirectory = (
     Effect.all([
       textOf(join(directory, thingsFileName)),
       textOf(join(directory, recognitionsFileName)),
+      textOf(graphThingsPathOf(directory)),
+      textOf(relationsPathOf(directory)),
     ]),
-    ([things, recognitions]) =>
+    ([things, recognitions, graphThings, relations]) =>
       readingsOfRows(
-        thingRowsOf(rowsOfLines(things)),
+        [
+          ...thingRowsOf(rowsOfLines(things)),
+          ...creditedThingsOf(thingRowsOf(rowsOfLines(graphThings))),
+        ],
         recognitionRowsOf(rowsOfLines(recognitions)),
+        relationRowsOf(rowsOfLines(relations)),
       ),
   )
 
@@ -166,16 +194,18 @@ const writesTo = (path: string): Stream.Stream<void> =>
   )
 
 /**
- * A signal for each write to either log, watching each file, since a
- * folder watch on macOS misses writes and lags by up to a second and a
- * half, and every two seconds besides, so a write no watch saw still
- * arrives.
+ * A signal for each write to any of the logs, the graph's two included,
+ * watching each file, since a folder watch on macOS misses writes and
+ * lags by up to a second and a half, and every two seconds besides, so a
+ * write no watch saw still arrives.
  */
 const changesIn = (directory: string): Stream.Stream<void> =>
   Stream.mergeAll(
     [
       writesTo(join(directory, thingsFileName)),
       writesTo(join(directory, recognitionsFileName)),
+      writesTo(graphThingsPathOf(directory)),
+      writesTo(relationsPathOf(directory)),
       Stream.tick(Duration.millis(rereadMs)),
     ],
     { concurrency: 'unbounded' },
@@ -185,7 +215,7 @@ const encodeReadings = S.encodeSync(ReadingsJson)
 
 /**
  * The readings in Scribe's logs in `directory`, now and again each time
- * Scribe writes either log, a few milliseconds after the write settles,
+ * Scribe writes any of them, a few milliseconds after the write settles,
  * or at most two seconds later when no watch saw it. Rereads that change
  * nothing send nothing.
  */

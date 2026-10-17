@@ -34,6 +34,7 @@ import {
 } from './model.js'
 import { readAloudScreenOf } from './navigation.js'
 import { pageLinkOf } from './routes.js'
+import { noCreditLinks } from './screen.js'
 import { updateReadAloud } from './update.js'
 
 const hostCatalog = Catalog.make([...catalog.actions, SharePage])
@@ -159,6 +160,7 @@ describe('Read Aloud held by another Program', () => {
           received,
           place,
           Catalog.entries(hostCatalog, received),
+          noCreditLinks,
         ),
         node => Array.map(textsOf(node), text => text.content),
       )
@@ -185,7 +187,7 @@ describe('Read Aloud held by another Program', () => {
     const shareLabelsWith = (entries: ReadonlyArray<Catalog.Entry>) =>
       Option.map(
         Option.flatMap(Array.last(opened.navigation.pages), page =>
-          readAloudScreenOf(opened, page, entries),
+          readAloudScreenOf(opened, page, entries, noCreditLinks),
         ),
         node =>
           Array.filter(

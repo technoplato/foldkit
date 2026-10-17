@@ -1,4 +1,4 @@
-import { Schema as S } from 'effect'
+import { Array, Option, Schema as S, String, pipe } from 'effect'
 
 // IDS
 
@@ -66,3 +66,91 @@ export type ReadingId = typeof ReadingId.Type
 export const TurnId = S.String.check(S.isMinLength(1)).pipe(S.brand('TurnId'))
 /** One page turn. */
 export type TurnId = typeof TurnId.Type
+
+const nameTagPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
+
+/**
+ * A person's word in an address: a tag of their name, `ada-quill` in
+ * `/books/authors/ada-quill`. Branded, so a title's slug or a book's key
+ * never stands in for it.
+ */
+export const ContributorKey = S.String.check(S.isPattern(nameTagPattern)).pipe(
+  S.brand('ContributorKey'),
+)
+/** A person's word in an address. */
+export type ContributorKey = typeof ContributorKey.Type
+
+/**
+ * A publisher's word in an address: a tag of its name, `harbor-house` in
+ * `/books/publishers/harbor-house`. Branded, so a person's tag never
+ * stands in for it.
+ */
+export const PublisherKey = S.String.check(S.isPattern(nameTagPattern)).pipe(
+  S.brand('PublisherKey'),
+)
+/** A publisher's word in an address. */
+export type PublisherKey = typeof PublisherKey.Type
+
+const combiningMarks = /\p{M}/gu
+
+const runsOutsideTag = /[^a-z0-9]+/gu
+
+const edgeHyphens = /^-+|-+$/gu
+
+const blank = /^\s$/u
+
+const codePointRadix = 16
+
+const latinTagOf = (name: string): string =>
+  pipe(
+    name.normalize('NFKD'),
+    String.toLowerCase,
+    String.replace(combiningMarks, ''),
+    String.replace(runsOutsideTag, '-'),
+    String.replace(edgeHyphens, ''),
+  )
+
+const codePointTagOf = (name: string): string =>
+  pipe(
+    Array.fromIterable(name),
+    Array.filter(character => !blank.test(character)),
+    Array.map(character => Option.fromNullishOr(character.codePointAt(0))),
+    Array.getSomes,
+    Array.map(codePoint => codePoint.toString(codePointRadix)),
+    Array.join('-'),
+  )
+
+const nameTagOf = (name: string): Option.Option<string> =>
+  pipe(
+    Option.liftPredicate(latinTagOf(name), String.isNonEmpty),
+    Option.orElse(() =>
+      Option.liftPredicate(codePointTagOf(name), String.isNonEmpty),
+    ),
+  )
+
+/**
+ * The tag an address names a person by: their name's words in lowercase,
+ * joined by hyphens, with accents and stops dropped. A name with no Latin
+ * letters or digits is tagged by its code points, so it still has a page.
+ * None for a blank name.
+ *
+ * @example
+ * ```typescript
+ * contributorKeyOf('H. G. Marsh') // Some('h-g-marsh')
+ * contributorKeyOf('Renée Lune') // Some('renee-lune')
+ * contributorKeyOf('宮崎 駿') // Some('5bae-5d0e-99ff')
+ * ```
+ */
+export const contributorKeyOf = (name: string): Option.Option<ContributorKey> =>
+  Option.flatMap(nameTagOf(name), S.decodeUnknownOption(ContributorKey))
+
+/**
+ * The tag an address names a publisher by, made as a person's is.
+ *
+ * @example
+ * ```typescript
+ * publisherKeyOf('Harbor House, Inc.') // Some('harbor-house-inc')
+ * ```
+ */
+export const publisherKeyOf = (name: string): Option.Option<PublisherKey> =>
+  Option.flatMap(nameTagOf(name), S.decodeUnknownOption(PublisherKey))

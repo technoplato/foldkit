@@ -4,6 +4,7 @@ import {
   Option,
   Order,
   Record as Record_,
+  String,
   pipe,
 } from 'effect'
 import { Catalog } from 'foldkit'
@@ -29,6 +30,7 @@ import {
   ShowAddBooks,
 } from './addBooks.js'
 import * as Audible from './audible/index.js'
+import type { ContributorPage, PublisherPage } from './destination.js'
 import {
   type BookmarkId,
   Milliseconds,
@@ -76,6 +78,12 @@ import {
   titleOf,
   titlesOf,
 } from './model.js'
+import {
+  contributorPathOf,
+  creditLinks,
+  nameOfTag,
+  titlePathOf,
+} from './routes.js'
 import { bookSources, emptyLibraryButtonsOf } from './sources.js'
 import { shownTitleOf } from './stack.js'
 
@@ -469,10 +477,203 @@ export const readAloudScreen = (
   destination: unknown,
 ): Option.Option<UiNode> =>
   Option.map(
-    ReadAloud.readAloudScreenOf(model, destination, entriesOf(model)),
+    ReadAloud.readAloudScreenOf(
+      model,
+      destination,
+      entriesOf(model),
+      creditLinks,
+    ),
     node =>
       Column({ gap: 1 }, node, ...noticeLines(model), dockOf(model, 'Neither')),
   )
+
+const hrefOf = (maybePath: Option.Option<string>): Pick<ListItem, 'href'> =>
+  Option.match(maybePath, {
+    onNone: () => ({}),
+    onSome: href => ({ href }),
+  })
+
+const isAuthorTagged =
+  (key: ReadAloud.ContributorKey) =>
+  (author: string): boolean =>
+    Option.contains(ReadAloud.contributorKeyOf(author), key)
+
+const libraryTitlesBy = (
+  model: Model,
+  key: ReadAloud.ContributorKey,
+): ReadonlyArray<Title> =>
+  Array.filter(titlesOf(model), title =>
+    Array.some(title.authors, isAuthorTagged(key)),
+  )
+
+const contributorNameOf = (
+  model: Model,
+  key: ReadAloud.ContributorKey,
+): string =>
+  pipe(
+    Option.map(
+      ReadAloud.contributorOfKey(model, key),
+      contributor => contributor.name,
+    ),
+    Option.orElse(() =>
+      pipe(
+        titlesOf(model),
+        Array.flatMap(title => title.authors),
+        Array.findFirst(isAuthorTagged(key)),
+      ),
+    ),
+    Option.getOrElse(() => nameOfTag(key)),
+  )
+
+const roleWordOf = (role: ReadAloud.CreditRole): string =>
+  String.toLowerCase(role)
+
+const isRoleHeld = (
+  model: Model,
+  key: ReadAloud.ContributorKey,
+  role: ReadAloud.CreditRole,
+): boolean =>
+  Array.isReadonlyArrayNonEmpty(ReadAloud.booksCreditingOf(model, role, key)) ||
+  (role === 'Author' &&
+    Array.isReadonlyArrayNonEmpty(libraryTitlesBy(model, key)))
+
+const otherRoleLinksOf = (
+  model: Model,
+  page: ContributorPage,
+): ReadonlyArray<UiNode> =>
+  pipe(
+    ReadAloud.CreditRole.literals,
+    Array.filter(
+      role => role !== page.role && isRoleHeld(model, page.contributor, role),
+    ),
+    Array.map(role =>
+      Option.map(contributorPathOf(role, page.contributor), href =>
+        Text(`Also an ${roleWordOf(role)}`, { href }),
+      ),
+    ),
+    Array.getSomes,
+  )
+
+const booksReadAloudOf = (
+  model: Model,
+  books: ReadonlyArray<ReadAloud.Book>,
+  noneWords: string,
+): ReadonlyArray<UiNode> =>
+  M.value(model.readings).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      ReadingsLoading: () => [
+        Text('Opening the books you read aloud…', { dim: true }),
+      ],
+      ReadingsUnavailable: ({ reason }) => [
+        Text(`The books you read aloud could not be opened: ${reason}`),
+      ],
+      ReadingsReady: () =>
+        Array.match(books, {
+          onEmpty: () => [Text(noneWords, { dim: true })],
+          onNonEmpty: credited => [
+            Text('Books read aloud', { dim: true }),
+            List({
+              label: 'Books read aloud',
+              items: Array.map(credited, book => ({
+                ...ReadAloud.bookRowOf(model, book),
+                ...hrefOf(ReadAloud.bookPathOf(book.key)),
+              })),
+            }),
+          ],
+        }),
+    }),
+  )
+
+const inLibraryOf = (
+  model: Model,
+  page: ContributorPage,
+): ReadonlyArray<UiNode> =>
+  page.role === 'Author'
+    ? Array.match(libraryTitlesBy(model, page.contributor), {
+        onEmpty: () => [],
+        onNonEmpty: titles => [
+          Text('In your library', { dim: true }),
+          List({
+            label: 'In your library',
+            items: Array.map(titles, title => ({
+              key: title.slug,
+              title: title.name,
+              lines: [byline(title), progressText(model, title)],
+              ...imageOf(title),
+              ...progressBarOf(model, title),
+              ...hrefOf(titlePathOf(title.slug)),
+            })),
+          }),
+        ],
+      })
+    : []
+
+/**
+ * One person's page in one role: their name, the role, links to their
+ * pages in the other roles books credit them in, the books read aloud that
+ * credit them in this role, each a link to the book, and for an author,
+ * their audiobooks in the library. What is playing stays pinned at the
+ * bottom.
+ *
+ * @example
+ * ```typescript
+ * contributorScreen(model, ContributorPage({ role: 'Author', contributor: 'ada-quill' }))
+ * // Column: Ada Quill, Author, Also an illustrator, List('Books read aloud'), List('In your library'), Dock
+ * ```
+ */
+export const contributorScreen = (
+  model: Model,
+  page: ContributorPage,
+): UiNode => {
+  const name = contributorNameOf(model, page.contributor)
+  return Column(
+    { gap: 1 },
+    Text(name, { emphasis: 'Headline' }),
+    Text(page.role, { dim: true }),
+    ...otherRoleLinksOf(model, page),
+    ...booksReadAloudOf(
+      model,
+      ReadAloud.booksCreditingOf(model, page.role, page.contributor),
+      `No book read aloud names ${name} as an ${roleWordOf(page.role)}.`,
+    ),
+    ...inLibraryOf(model, page),
+    ...noticeLines(model),
+    dockOf(model, 'Neither'),
+  )
+}
+
+/**
+ * A publisher's page: its name, and the books read aloud it published,
+ * each a link to the book. What is playing stays pinned at the bottom.
+ *
+ * @example
+ * ```typescript
+ * publisherScreen(model, PublisherPage({ publisher: 'harbor-house' }))
+ * // Column: Harbor House, Publisher, List('Books read aloud'), Dock
+ * ```
+ */
+export const publisherScreen = (model: Model, page: PublisherPage): UiNode => {
+  const name = Option.getOrElse(
+    Option.map(
+      ReadAloud.publisherOfKey(model, page.publisher),
+      publisher => publisher.name,
+    ),
+    () => nameOfTag(page.publisher),
+  )
+  return Column(
+    { gap: 1 },
+    Text(name, { emphasis: 'Headline' }),
+    Text('Publisher', { dim: true }),
+    ...booksReadAloudOf(
+      model,
+      ReadAloud.booksPublishedByOf(model, page.publisher),
+      `No book read aloud names ${name} as its publisher.`,
+    ),
+    ...noticeLines(model),
+    dockOf(model, 'Neither'),
+  )
+}
 
 const emptyLibraryOf = (model: Model): ReadonlyArray<UiNode> => [
   Text('Your library is empty'),
@@ -705,6 +906,27 @@ const bookmarkLists = (model: Model, title: Title): ReadonlyArray<UiNode> =>
     ],
   })
 
+const authorLinksOf = (title: Title): ReadonlyArray<UiNode> =>
+  Array.match(title.authors, {
+    onEmpty: () => [],
+    onNonEmpty: authors => [
+      Row(
+        { gap: 1 },
+        ...Array.map(authors, author =>
+          Option.match(
+            Option.flatMap(ReadAloud.contributorKeyOf(author), key =>
+              contributorPathOf('Author', key),
+            ),
+            {
+              onNone: () => Text(author),
+              onSome: href => Text(author, { href }),
+            },
+          ),
+        ),
+      ),
+    ],
+  })
+
 const narratorLines = (title: Title): ReadonlyArray<UiNode> =>
   Array.match(title.narrators, {
     onEmpty: () => [],
@@ -714,16 +936,17 @@ const narratorLines = (title: Title): ReadonlyArray<UiNode> =>
   })
 
 /**
- * One book's page: its cover, who wrote and reads it, how far the
- * listener is, Play and Contents, and its bookmarks, each a link to its
- * moment. What is playing stays pinned at the bottom.
+ * One book's page: its cover, who wrote it, each author a link to their
+ * page, who reads it, how far the listener is, Play and Contents, and its
+ * bookmarks, each a link to its moment. What is playing stays pinned at
+ * the bottom.
  */
 export const titleScreen = (model: Model, title: Title): UiNode =>
   Column(
     { gap: 1 },
     ...coverOf(title, pageCoverWidth),
     Text(title.name, { emphasis: 'Headline' }),
-    Text(byline(title)),
+    ...authorLinksOf(title),
     ...narratorLines(title),
     Progress({
       value: placeFor(model, title),
