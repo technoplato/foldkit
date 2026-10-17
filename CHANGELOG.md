@@ -24,7 +24,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/issues/README.md` — documents products add
 - **User context (verbatim):**
   > Akaga is a project though, not its own. idea root it's a project um it should have its own project in uh in our issues application and ideas that talk about it should be linked to it. (Michael, Recording 243 #534-537, 2026-10-17 10:15, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/66f2e1e3-c278-42d3-b8f7-cbc2a8c6483b?t=3420.12)
-- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on account halfjew22, session 1f72c106-d9c6-41ce-91de-2712b1879e88, started by the Scribe listener for issue #790; no SpecStory capture.
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 1f72c106-d9c6-41ce-91de-2712b1879e88, started by the Scribe listener for issue #790; no SpecStory capture.
 
 ## October 17th, 2026 at 10:33:37 a.m. EDT — `728199441841` fix(instant-tools): save each product under a UUID row with its product id
 
@@ -36,7 +36,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `packages/instant-tools/src/instant/instant.ts` — UUID row ids for products, the productId attribute, and decoding the product id from it
 - **User context (verbatim):**
   > Akaga is a project though, not its own. idea root it's a project um it should have its own project in uh in our issues application (Michael, Recording 243 #534-536, 2026-10-17 10:15, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/66f2e1e3-c278-42d3-b8f7-cbc2a8c6483b?t=3420.12)
-- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on account halfjew22, session 1f72c106-d9c6-41ce-91de-2712b1879e88, started by the Scribe listener for issue #790; no SpecStory capture.
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 1f72c106-d9c6-41ce-91de-2712b1879e88, started by the Scribe listener for issue #790; no SpecStory capture.
 
 ## October 15th, 2026 at 12:01:13 a.m. EDT — `6ad3820ab5bd` chore: remove client names from the examples
 
@@ -60,7 +60,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **Implementation commit:** `700b8c5f5ff529fc11395f51c5f96555f1da0a8d`
 - **Change:** Instant rules that keep the issue tracker to its owners (red 8bff10e87 adds perms.test.ts and the export, green 700b8c5f5)
 - **Details:**
-  - instantToolsOwnerRules gates every Instant Tools entity and $files on auth.email being an owner; pushed to the tracker app 28c98cc4 with only halfjew22@gmail.com, after a rules matrix on an ephemeral app (audit: /Users/laptop/Sync/audit/issues-site-2026-10-14/perms/).
+  - instantToolsOwnerRules gates every Instant Tools entity and $files on auth.email being an owner; pushed to the tracker app 28c98cc4 with only the owner's sign-in email, after a rules matrix on an ephemeral app (audit: /Users/laptop/Sync/audit/issues-site-2026-10-14/perms/).
 - **Files:**
   - `packages/instant-tools/src/instant/perms.ts` — the rules builder and OwnerEmail
 - **User context (verbatim):**
