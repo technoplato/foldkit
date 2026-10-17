@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 17th, 2026 at 1:33 a.m. EDT — `5cdfb8f36` feat(words): a share link opens for a reader with no login
+
+- **Implementation commit:** `5cdfb8f36` (red `d154d5f6c`)
+- **Change:** A share link opens for a reader with no Cloudflare Access login and no Scribe account: the page signs them in as an anonymous Instant guest and shows the share's scrubbed copy (Scribe #754).
+- **Details:**
+  - Scribe's rules let a link holder read a share only when signed in. The guest sign-in runs only on a share with its key, only while Instant has no one signed in, and only once the origin said Access has no login for this browser, so the owner's own account connects instead and is never made a guest. The share is read once the reader has an identity. Cloudflare Access now lets `/recording/*/share/*` and the page's assets through (an Access app with the account's bypass policy); every other words path stays behind Access.
+  - Checked against production from a local preview of the branch as a fresh headless browser (no Access cookie, no session): with the key, both passed link shares show every scrubbed line and no original; without it, "This share is not available" and no guest. Each guest reads only the share row and its scrubbed copy, never a recording, a section, an attachment or a route; the run deleted its guests. words core 227/227, view 14/14, tsc and oxlint clean.
+- **Files:**
+  - `examples/words/core/src/update.ts` — `guestReaderShareIDOf`: when a share link's reader needs a guest identity
+  - `examples/words/core/src/subscription.ts` — the guest sign-in Subscription; the share is read once the reader has an identity
+  - `examples/words/core/src/store.ts` — `signInAsGuest`
+  - `examples/words/core/src/guestReader.test.ts` — the reader with no login
+- **User context (verbatim):**
+  > Share link should open for readers without Claude file access, yes.
+  > so that it's accessible in an incognito browser window to anybody that clicks the link for that little range of shared segment for that particular recording that I'm making.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## October 16th, 2026 at 9:49:17 p.m. EDT — `6df61d448a18` fix(words): a share without audio says it has none
 
 - **Implementation commit:** `6df61d448a18a36aa5c549304d49611586b3d20e`

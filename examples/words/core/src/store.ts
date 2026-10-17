@@ -47,6 +47,7 @@ export type WordsStoreOperation =
   | 'FetchSharedRange'
   | 'CheckSignIn'
   | 'SignIn'
+  | 'SignInAsGuest'
   | 'SignOut'
   | 'ObserveShares'
   | 'ObserveShareRecipients'
@@ -70,6 +71,10 @@ const storeFailureOf = (operation: WordsStoreOperation): string =>
     M.when('FetchSharedRange', () => 'Scribe could not check the share.'),
     M.when('CheckSignIn', () => 'Scribe could not check the sign-in.'),
     M.when('SignIn', () => 'Signing in did not finish.'),
+    M.when(
+      'SignInAsGuest',
+      () => 'Scribe could not open this share for reading.',
+    ),
     M.when('SignOut', () => 'Signing out did not finish.'),
     M.when('ObserveShares', () => 'The shares did not load.'),
     M.when('ObserveShareRecipients', () => 'The suggestions did not load.'),
@@ -167,6 +172,11 @@ export type WordsStoreService = Readonly<{
   hasRecording: (recordingID: string) => Effect.Effect<boolean, WordsStoreError>
   currentMember: Effect.Effect<Option.Option<InstantMember>, WordsStoreError>
   signInWithToken: (token: string) => Effect.Effect<void, WordsStoreError>
+  /**
+   * Signs a share link's reader in as an anonymous Instant guest: Scribe's
+   * rules let a link holder read a share only when signed in (#754).
+   */
+  signInAsGuest: Effect.Effect<void, WordsStoreError>
   signOut: Effect.Effect<void, WordsStoreError>
   observeRecordingShares: (
     recordingID: string,
@@ -375,6 +385,9 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
       boundedAuth('SignIn', () => database.auth.signInWithToken(token)).pipe(
         Effect.asVoid,
       ),
+    signInAsGuest: boundedAuth('SignInAsGuest', () =>
+      database.auth.signInAsGuest(),
+    ).pipe(Effect.asVoid),
     signOut: boundedAuth('SignOut', () => database.auth.signOut()),
     observeRecordingShares: (recordingID, ownerUserID) =>
       observe<ReadonlyArray<RecordingShare>>('ObserveShares', emit =>
@@ -522,6 +535,7 @@ export const makeStaticWordsResources = (
       ),
     ),
     signInWithToken: () => Effect.void,
+    signInAsGuest: Effect.void,
     signOut: Effect.void,
     observeRecordingShares: () => Stream.succeed([]),
     observeShareRecipients: () => Stream.succeed([]),
