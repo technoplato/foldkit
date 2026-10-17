@@ -67,6 +67,7 @@ const passedRange = (): Share.Model.SharedRange => ({
     },
   ],
   isClaimedByViewer: false,
+  audience: Share.Model.LinkAudience(),
   audio: Share.Model.NoSharedAudio(),
 })
 
@@ -251,6 +252,29 @@ describe('the share page and its audio clip', () => {
       Scene.expect(Scene.role('heading', { name: 'Recording 237' })).toExist(),
       Scene.expect(Scene.text(noAudioNotice)).toExist(),
       Scene.expect(Scene.text(laterUpdateNotice)).toBeAbsent(),
+    )
+  })
+})
+
+// Recording 242 #33 (https://words.pisspoursoftware.xyz/recording/1dd708ee-edef-4e8a-9483-5ac3a16cf3d7/section/1d4def79-5c28-42fb-940d-502d5ffb4e43?t=469.72):
+// "And it says shared with you, but it was shared publicly."
+describe('the share page says who the share reaches', () => {
+  const withAudience = (audience: Share.Model.ShareAudience): Model =>
+    sharedPageModel({ ...passedRange(), audience })
+
+  test.each([
+    [Share.Model.LinkAudience(), 'Anyone with the link'],
+    [Share.Model.PublicAudience(), 'Public'],
+    [Share.Model.NamedAudience(), 'Shared with You'],
+    [Share.Model.OwnShare(), 'Your share'],
+  ] as const)('%o reads "%s"', (audience, label) => {
+    Scene.scene(
+      { update, view: sharedRangePage },
+      Scene.with(withAudience(audience)),
+      Scene.expect(Scene.text(label)).toExist(),
+      ...(label === 'Shared with You'
+        ? []
+        : [Scene.expect(Scene.text('Shared with You')).toBeAbsent()]),
     )
   })
 })

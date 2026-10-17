@@ -24,11 +24,15 @@ import {
 } from './message.js'
 import {
   FailedSharedAudio,
+  LinkAudience,
   type Model,
+  NamedAudience,
   NoSharedAudio,
+  OwnShare,
   PassedScrub,
   PendingScrub,
   PreparingSharedAudio,
+  PublicAudience,
   ReadySharedAudio,
   type ShareRecipient,
   type SharedAudio,
@@ -239,6 +243,7 @@ describe('opening a share link', () => {
     lines: [section(0), section(1)],
     images: [],
     isClaimedByViewer,
+    audience: NamedAudience(),
     audio: NoSharedAudio(),
   })
   const reader = context({
@@ -839,6 +844,7 @@ describe("a share's audio clip", () => {
       lines: [section(0)],
       images: [],
       isClaimedByViewer: false,
+      audience: LinkAudience(),
       audio,
     })
     const ready = ReadySharedAudio({
@@ -861,5 +867,66 @@ describe("a share's audio clip", () => {
         ? model.sharedRange.range.audio
         : NoSharedAudio(),
     ).toEqual(ready)
+  })
+})
+
+// Recording 242 #33 (https://words.pisspoursoftware.xyz/recording/1dd708ee-edef-4e8a-9483-5ac3a16cf3d7/section/1d4def79-5c28-42fb-940d-502d5ffb4e43?t=469.72):
+// "And it says shared with you, but it was shared publicly."
+describe('who a share reaches, as its viewer sees it', () => {
+  const row = (fields: Readonly<Record<string, unknown>>) => ({
+    id: 'share-1',
+    ownerUserID: 'owner-phone',
+    recordingID,
+    firstSegmentIndex: 0,
+    lastSegmentIndex: 0,
+    createdAtMs: 1,
+    scrubStatus: 'passed',
+    ...fields,
+  })
+  const audienceOf = (
+    fields: Readonly<Record<string, unknown>>,
+    maybeViewerUserID: Option.Option<string> = Option.some('guest-1'),
+  ) =>
+    Option.map(
+      decodeSharedRange([row(fields)], maybeViewerUserID),
+      range => range.audience,
+    )
+  const link = { visibility: 'link', linkToken: 'a'.repeat(64) }
+
+  it('reads a link share as anyone with the link, for a guest or a stranger', () => {
+    expect(audienceOf(link)).toEqual(Option.some(LinkAudience()))
+    expect(audienceOf(link, Option.none())).toEqual(Option.some(LinkAudience()))
+  })
+
+  it('reads a public share as public', () => {
+    expect(audienceOf({ visibility: 'public' })).toEqual(
+      Option.some(PublicAudience()),
+    )
+  })
+
+  it('reads a share to named people as shared with the viewer', () => {
+    expect(
+      audienceOf({
+        visibility: 'people',
+        recipientEmail: 'reader@example.com',
+      }),
+    ).toEqual(Option.some(NamedAudience()))
+  })
+
+  it("reads the viewer's own share as theirs, from the sign-in that made it or another of the same account", () => {
+    expect(audienceOf(link, Option.some('owner-phone'))).toEqual(
+      Option.some(OwnShare()),
+    )
+    // Only the owner's sign-ins can read the share's owner (the rules' $users view): the web sign-in sees the
+    // iPhone sign-in that made the share.
+    expect(
+      audienceOf(
+        { ...link, owner: { id: 'owner-phone' } },
+        Option.some('owner-web'),
+      ),
+    ).toEqual(Option.some(OwnShare()))
+    expect(
+      audienceOf({ visibility: 'public', owner: [{ id: 'owner-phone' }] }),
+    ).toEqual(Option.some(OwnShare()))
   })
 })

@@ -31,6 +31,8 @@ import {
 
 import { init } from '@instantdb/core'
 
+import { originFailureReason } from './originFailure.js'
+
 const appId = import.meta.env.VITE_INSTANT_APP_ID
 
 /** Scribe's Instant app id, public, from the build environment. */
@@ -68,11 +70,8 @@ const requestOrigin = <A>(
       const body: unknown = await response.json().catch(() => ({}))
       return { status: response.status, body }
     },
-    catch: () =>
-      new WordsOriginError({
-        operation,
-        reason: 'words.pisspoursoftware.xyz did not answer within 5 seconds.',
-      }),
+    catch: cause =>
+      new WordsOriginError({ operation, reason: originFailureReason(cause) }),
   }).pipe(Effect.flatMap(({ status, body }) => decode(status, body)))
 
 /** Whether this browser has a system share sheet for links (the Web Share API). */

@@ -152,6 +152,27 @@ export const ScrubState = S.Union([PendingScrub, PassedScrub, WithheldScrub])
 /** Where a share's scrubbed copy stands. */
 export type ScrubState = typeof ScrubState.Type
 
+/** The viewer made the share, from this sign-in or another of the same account (ADR 0024). */
+export const OwnShare = ts('OwnShare')
+/** Anyone holding the share's secret link may read it. */
+export const LinkAudience = ts('LinkAudience')
+/** The share is public. */
+export const PublicAudience = ts('PublicAudience')
+/** The share names its readers, and the viewer is one of them. */
+export const NamedAudience = ts('NamedAudience')
+/**
+ * Who an opened share reaches, as its viewer sees it (Recording 242 #33: "And
+ * it says shared with you, but it was shared publicly.").
+ */
+export const ShareAudience = S.Union([
+  OwnShare,
+  LinkAudience,
+  PublicAudience,
+  NamedAudience,
+])
+/** Who an opened share reaches, as its viewer sees it. */
+export type ShareAudience = typeof ShareAudience.Type
+
 /**
  * The share a share link opens, as its readers may read it (ADR 0014 section
  * 13.11): the share row, its scrubbed title and note, its passed scrubbed lines
@@ -166,6 +187,7 @@ export const SharedRange = S.Struct({
   lines: S.Array(Section),
   images: S.Array(ScrubbedImage),
   isClaimedByViewer: S.Boolean,
+  audience: ShareAudience,
   audio: SharedAudio,
 })
 /** The shared range a share link opens. */
