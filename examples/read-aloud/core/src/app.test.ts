@@ -250,6 +250,29 @@ describe('Read Aloud', () => {
     )
   })
 
+  it('says a book was read aloud when Scribe heard none of its pages', () => {
+    const { bound, send } = bindApp()
+    send(
+      ReceivedReadings({
+        readings: { books: [feelingHappy, christmas], turns: [] },
+      }),
+    )
+    expect(
+      Option.map(
+        Array.findFirst(
+          listsOf(screenOf(bound)),
+          list => list.label === 'Books read aloud',
+        ),
+        list => Array.map(list.items, item => item.lines),
+      ),
+    ).toEqual(
+      Option.some([
+        ['Alice Schertle · 2024', 'Read aloud'],
+        ['Alice Schertle · 2014', 'Read aloud'],
+      ]),
+    )
+  })
+
   it("lists a book's credits on its page, as names while Read Aloud has no page for them", () => {
     const { bound, receive } = bindApp()
     receive(pagesOneToFour)
