@@ -22,6 +22,7 @@ const clipURL =
 const imageURL =
   'https://instant-storage.example.com/scribe/7bc520fe/share-scrubbed/share/a1.jpg'
 const laterUpdateNotice = 'Audio for shared sections comes in a later update.'
+const noAudioNotice = 'This share has no audio.'
 const firstLine = 'The include audio on share is not allowing me to open it.'
 const secondLine = 'It says comes with the new sharing rules.'
 
@@ -240,7 +241,7 @@ describe('the share page and its audio clip', () => {
     )
   })
 
-  test('shows no player for a share without audio, as before', () => {
+  test('says a share without audio has none, now that the app can include it', () => {
     Scene.scene(
       { update, view: sharedRangePage },
       Scene.with(withAudio(Share.Model.NoSharedAudio())),
@@ -248,7 +249,8 @@ describe('the share page and its audio clip', () => {
       Scene.expect(Scene.text('Audio is still uploading')).toBeAbsent(),
       Scene.expect(Scene.text('The audio could not be shared')).toBeAbsent(),
       Scene.expect(Scene.role('heading', { name: 'Recording 237' })).toExist(),
-      Scene.expect(Scene.text(laterUpdateNotice)).toExist(),
+      Scene.expect(Scene.text(noAudioNotice)).toExist(),
+      Scene.expect(Scene.text(laterUpdateNotice)).toBeAbsent(),
     )
   })
 })
