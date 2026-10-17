@@ -1,4 +1,12 @@
-import { Array, Match as M, Option, Order, Schema as S, pipe } from 'effect'
+import {
+  Array,
+  Match as M,
+  Option,
+  Order,
+  Record as Record_,
+  Schema as S,
+  pipe,
+} from 'effect'
 import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
 import * as ReadAloud from 'read-aloud-core-example'
@@ -29,8 +37,10 @@ export type Chapter = typeof Chapter.Type
 
 /**
  * One audiobook in the library: who wrote and reads it, how long it runs,
- * its chapters in order, and where its cover and audio are, when they are
- * stored. `mediaId` names its audio for the transcript, the rendition id.
+ * and where its cover and audio are, when they are stored. `mediaId` names
+ * its audio for the transcript, the rendition id. Its chapters are not
+ * here: the library store sends them for one title at a time, when Books
+ * asks ({@link TitleChapters}).
  */
 export const Title = S.Struct({
   slug: TitleSlug,
@@ -39,12 +49,32 @@ export const Title = S.Struct({
   authors: S.Array(S.String),
   narrators: S.Array(S.String),
   durationMs: Milliseconds,
-  chapters: S.NonEmptyArray(Chapter),
   maybeCoverUrl: S.Option(S.String),
   maybeAudioUrl: S.Option(S.String),
 })
 /** One audiobook in the library. */
 export type Title = typeof Title.Type
+
+/** The chapters of one title, in order, as the library store sent them. */
+export const ChaptersReady = ts('ChaptersReady', {
+  chapters: S.NonEmptyArray(Chapter),
+})
+/** One title's chapters could not be read, and why, safe to show. */
+export const ChaptersUnavailable = ts('ChaptersUnavailable', {
+  reason: S.String,
+})
+/**
+ * How one title's chapters stand once the store has answered. A title
+ * with no entry has not been asked for, or its chapters are on their way.
+ */
+export const TitleChapters = S.Union([ChaptersReady, ChaptersUnavailable])
+/** How one title's chapters stand. */
+export type TitleChapters = typeof TitleChapters.Type
+
+/** Each title's chapters, by its slug, for the titles Books asked about. */
+export const ChaptersByTitle = S.Record(TitleSlug, TitleChapters)
+/** Each title's chapters, by its slug. */
+export type ChaptersByTitle = typeof ChaptersByTitle.Type
 
 /** A title someone has started and not finished, and where they were. */
 export const InProgress = ts('InProgress', {
@@ -126,16 +156,18 @@ export const PlayerControls = S.Literals(['Collapsed', 'Expanded'])
 export type PlayerControls = typeof PlayerControls.Type
 
 /**
- * The Books Model: the shared shelf, this device's player and speed, the
- * last write the library store refused, the picture books read aloud and
- * the previews checked for them, this device's Audible import, and the
- * navigation stack. The shelf comes from the library store, the readings
- * from the reading source, the player counts on this device, and the
- * Audible import happens on the device where it was started, so none of
- * them is folded from the log.
+ * The Books Model: the shared shelf, the chapters of the titles on screen,
+ * in the player, or in progress, this device's player and speed, the last
+ * write the library store refused, the picture books read aloud and the
+ * previews checked for them, this device's Audible import, and the
+ * navigation stack. The shelf and the chapters come from the library
+ * store, the readings from the reading source, the player counts on this
+ * device, and the Audible import happens on the device where it was
+ * started, so none of them is folded from the log.
  */
 export const Model = S.Struct({
   library: Library,
+  chapters: ChaptersByTitle,
   listening: Listening,
   speed: Speed,
   maybeProblem: S.Option(S.String),
@@ -261,28 +293,88 @@ export const bookmarkOf = (
     ),
   )
 
-/** The chapter `chapterNumber` names in `title`. */
+type HasChapters = Readonly<{ chapters: ChaptersByTitle }>
+
+/** The chapters of `slug`, once the library store has sent them. */
+export const chaptersOf = (
+  model: HasChapters,
+  slug: TitleSlug,
+): Option.Option<Array.NonEmptyReadonlyArray<Chapter>> =>
+  Option.flatMap(Record_.get(model.chapters, slug), state =>
+    state._tag === 'ChaptersReady'
+      ? Option.some(state.chapters)
+      : Option.none(),
+  )
+
+/**
+ * The one section a title with no chapters reads as: the whole book, under
+ * its own name, so a title Audible gives no chapters still has a place on
+ * the shelf.
+ */
+export const wholeBookChapters = (
+  name: string,
+  durationMs: Milliseconds,
+): Array.NonEmptyReadonlyArray<Chapter> => [
+  {
+    chapterNumber: ChapterNumber.make(1),
+    name,
+    startMs: Milliseconds.make(0),
+    endMs: durationMs,
+  },
+]
+
+/** The chapter `chapterNumber` names among `chapters`. */
 export const chapterOf = (
-  title: Title,
+  chapters: Array.NonEmptyReadonlyArray<Chapter>,
   chapterNumber: ChapterNumber,
 ): Option.Option<Chapter> =>
-  Array.findFirst(
-    title.chapters,
-    chapter => chapter.chapterNumber === chapterNumber,
-  )
+  Array.findFirst(chapters, chapter => chapter.chapterNumber === chapterNumber)
 
 /**
  * The chapter a place falls in: the last one starting at or before it.
  *
  * @example
  * ```typescript
- * chapterAt(title, Milliseconds.make(0)) // Chapter 1
+ * chapterAt(chapters, Milliseconds.make(0)) // Chapter 1
  * ```
  */
-export const chapterAt = (title: Title, place: Milliseconds): Chapter =>
+export const chapterAt = (
+  chapters: Array.NonEmptyReadonlyArray<Chapter>,
+  place: Milliseconds,
+): Chapter =>
   Option.getOrElse(
-    Array.findLast(title.chapters, chapter => chapter.startMs <= place),
-    () => Array.headNonEmpty(title.chapters),
+    Array.findLast(chapters, chapter => chapter.startMs <= place),
+    () => Array.headNonEmpty(chapters),
+  )
+
+/**
+ * The name of the chapter a place in `slug` falls in, once its chapters
+ * are here.
+ *
+ * @example
+ * ```typescript
+ * chapterNameAt(model, slug, Milliseconds.make(723_000)) // Some('The Light')
+ * ```
+ */
+export const chapterNameAt = (
+  model: HasChapters,
+  slug: TitleSlug,
+  place: Milliseconds,
+): Option.Option<string> =>
+  Option.map(
+    chaptersOf(model, slug),
+    chapters => chapterAt(chapters, place).name,
+  )
+
+/** The number of the chapter a place in `slug` falls in, once its chapters are here. */
+export const chapterNumberAt = (
+  model: HasChapters,
+  slug: TitleSlug,
+  place: Milliseconds,
+): Option.Option<ChapterNumber> =>
+  Option.map(
+    chaptersOf(model, slug),
+    chapters => chapterAt(chapters, place).chapterNumber,
   )
 
 /** The title loaded in this device's player, while it is on the shelf. */
@@ -320,17 +412,27 @@ export const loadedPlayerOf = (
 /** Where the loaded title is now. */
 export const placeOf = (loaded: Loaded): Milliseconds => loaded.player.placeMs
 
-/**
- * A title as the Transcript Player holds it: its audio's id, length, and
- * file, with its chapters as the player's sections.
- */
-export const mediaOf = (title: Title): TranscriptPlayer.Media => ({
-  mediaId: title.mediaId,
-  durationMs: title.durationMs,
-  maybeAudioUrl: title.maybeAudioUrl,
-  sections: Array.map(title.chapters, chapter => ({
+/** Chapters as the Transcript Player's sections. */
+export const sectionsOf = (
+  chapters: ReadonlyArray<Chapter>,
+): ReadonlyArray<TranscriptPlayer.Section> =>
+  Array.map(chapters, chapter => ({
     title: chapter.name,
     startMs: chapter.startMs,
     endMs: chapter.endMs,
-  })),
+  }))
+
+/**
+ * A title as the Transcript Player holds it: its audio's id, length, and
+ * file, with its chapters as the player's sections. None yet, when the
+ * chapters have not arrived: they are set on the player when they do.
+ */
+export const mediaOf = (
+  title: Title,
+  chapters: ReadonlyArray<Chapter>,
+): TranscriptPlayer.Media => ({
+  mediaId: title.mediaId,
+  durationMs: title.durationMs,
+  maybeAudioUrl: title.maybeAudioUrl,
+  sections: sectionsOf(chapters),
 })

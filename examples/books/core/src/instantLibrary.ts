@@ -37,6 +37,7 @@ import {
   type Progress,
   type Shelf,
   type Title,
+  wholeBookChapters,
 } from './model.js'
 
 // ROWS
@@ -59,10 +60,10 @@ const ChapterRow = S.Struct({
 const FileRow = S.Struct({ blob: LinkOf(BlobRow) })
 const CoverRow = S.Struct({ blob: LinkOf(BlobRow) })
 const BookRow = S.Struct({
+  id: S.String,
   title: S.String,
   authors: LinkOf(NameRow),
   narrators: LinkOf(NameRow),
-  chapters: LinkOf(ChapterRow),
   cover: LinkOf(CoverRow),
 })
 const RenditionRow = S.Struct({
@@ -96,17 +97,29 @@ const LibraryData = S.Struct({
   libraryProgress: S.optionalKey(S.Array(S.Unknown)),
   libraryBookmarks: S.optionalKey(S.Array(S.Unknown)),
 })
+const ChaptersData = S.Struct({
+  libraryChapters: S.optionalKey(S.Array(S.Unknown)),
+})
 
 const rowsLimit = 500
 
-/** The one bounded query Books reads its library with. */
+const chapterRowsLimit = 2_000
+
+/**
+ * The one bounded query Books reads its shelf with: every title with its
+ * people, cover, and audio, and the listener's progress and bookmarks.
+ * Never the chapters: Instant answers a reactive query within 5 s or
+ * fails it with "Operation timed out: handle-receive", and the chapters
+ * joined through each title's book (`book: { chapters: {} }`) took it
+ * 11 s for 107 titles and 4,665 chapters. They are read one title at a
+ * time with {@link chaptersQueryOf}.
+ */
 export const libraryQuery = {
   libraryItems: {
     $: { limit: rowsLimit },
     book: {
       authors: {},
       narrators: {},
-      chapters: {},
       cover: { blob: {} },
     },
     preferredAudio: { files: { blob: {} } },
@@ -115,9 +128,32 @@ export const libraryQuery = {
   libraryBookmarks: { $: { limit: rowsLimit }, item: {} },
 }
 
-/** Where the library store's writes land for one title. */
+/**
+ * The query for one book's chapters, in the four fields a chapter reads
+ * as. A hundred rows answer in well under a second. The row's `book` link
+ * is not asked for: the browser's store does not return a link as a field,
+ * and the query already names the book.
+ *
+ * @example
+ * ```typescript
+ * chaptersQueryOf('1202837f-801f-5351-9997-ed544c007093')
+ * ```
+ */
+export const chaptersQueryOf = (bookId: string) => ({
+  libraryChapters: {
+    $: {
+      where: { book: bookId },
+      limit: chapterRowsLimit,
+      fields: ['index', 'title', 'startMs', 'endMs'],
+    },
+  },
+})
+
+/** Where the library store's reads and writes land for one title. */
 type IndexEntry = Readonly<{
   itemId: string
+  bookId: string
+  title: Title
   maybeProgress: Option.Option<
     Readonly<{ progressId: string; startedAtMs: number }>
   >
@@ -169,80 +205,82 @@ const firstUrlOf = (
 ): Option.Option<string> => Option.map(Array.head(blobs), blob => blob.url)
 
 /**
- * The one section a title with no chapters reads as: the whole book, under
- * its own name, so a title Audible gives no chapters still has a place on
- * the shelf.
+ * One title's chapters as one chapters query gives them: in index order,
+ * numbered from one, or the whole book as one section when the title has
+ * none. A row that does not decode is left out.
+ *
+ * @example
+ * ```typescript
+ * decodeChapters(data, title) // [{ chapterNumber: 1, name: 'The Tide', startMs: 0, endMs: 1_200_000 }, …]
+ * ```
  */
-const wholeBookSection = (
-  name: string,
-  durationMs: Milliseconds,
-): Array.NonEmptyReadonlyArray<Chapter> => [
-  {
-    chapterNumber: ChapterNumber.make(1),
-    name,
-    startMs: Milliseconds.make(0),
-    endMs: durationMs,
-  },
-]
+export const decodeChapters = (
+  data: unknown,
+  title: Title,
+): Array.NonEmptyReadonlyArray<Chapter> => {
+  const tables: typeof ChaptersData.Type = Option.getOrElse(
+    S.decodeUnknownOption(ChaptersData)(data),
+    () => ({}),
+  )
+  const chapters = pipe(
+    decodeAll(ChapterRow, tables.libraryChapters),
+    Array.sort(
+      Order.mapInput(
+        Order.Number,
+        (chapter: typeof ChapterRow.Type) => chapter.index,
+      ),
+    ),
+    Array.map((chapter, position) => ({
+      chapterNumber: ChapterNumber.make(position + 1),
+      name: chapter.title,
+      startMs: Milliseconds.make(Math.max(0, Math.round(chapter.startMs))),
+      endMs: Milliseconds.make(Math.max(0, Math.round(chapter.endMs))),
+    })),
+  )
+  return Array.match(chapters, {
+    onEmpty: () => wholeBookChapters(title.name, title.durationMs),
+    onNonEmpty: Function.identity,
+  })
+}
 
 const titleOfItem = (
   item: typeof ItemRow.Type,
   slug: TitleSlug,
-): Option.Option<Title> =>
+): Option.Option<Readonly<{ title: Title; bookId: string }>> =>
   Option.flatMap(Array.head(linkedOf(item.book)), book => {
-    const chapters = pipe(
-      linkedOf(book.chapters),
-      Array.sort(
-        Order.mapInput(
-          Order.Number,
-          (chapter: typeof ChapterRow.Type) => chapter.index,
-        ),
-      ),
-      Array.map((chapter, position) => ({
-        chapterNumber: ChapterNumber.make(position + 1),
-        name: chapter.title,
-        startMs: Milliseconds.make(Math.max(0, Math.round(chapter.startMs))),
-        endMs: Milliseconds.make(Math.max(0, Math.round(chapter.endMs))),
-      })),
-    )
     const maybeRendition = Array.head(linkedOf(item.preferredAudio))
     const durationMs = Option.getOrElse(
       Option.flatMap(maybeRendition, rendition =>
         Option.fromNullishOr(rendition.durationMs),
       ),
-      () =>
-        Option.getOrElse(
-          Option.map(Array.last(chapters), chapter => chapter.endMs),
-          () => 0,
-        ),
-    )
-    const titleDurationMs = Milliseconds.make(
-      Math.max(0, Math.round(durationMs)),
+      () => 0,
     )
     return Option.some({
-      slug,
-      mediaId: MediaId.make(
-        Option.getOrElse(
-          Option.map(maybeRendition, rendition => rendition.id),
-          () => slug,
+      bookId: book.id,
+      title: {
+        slug,
+        mediaId: MediaId.make(
+          Option.getOrElse(
+            Option.map(maybeRendition, rendition => rendition.id),
+            () => slug,
+          ),
         ),
-      ),
-      name: book.title,
-      authors: Array.map(linkedOf(book.authors), author => author.name),
-      narrators: Array.map(linkedOf(book.narrators), narrator => narrator.name),
-      durationMs: titleDurationMs,
-      chapters: Array.match(chapters, {
-        onEmpty: () => wholeBookSection(book.title, titleDurationMs),
-        onNonEmpty: Function.identity,
-      }),
-      maybeCoverUrl: Option.flatMap(Array.head(linkedOf(book.cover)), cover =>
-        firstUrlOf(linkedOf(cover.blob)),
-      ),
-      maybeAudioUrl: Option.flatMap(maybeRendition, rendition =>
-        Option.flatMap(Array.head(linkedOf(rendition.files)), file =>
-          firstUrlOf(linkedOf(file.blob)),
+        name: book.title,
+        authors: Array.map(linkedOf(book.authors), author => author.name),
+        narrators: Array.map(
+          linkedOf(book.narrators),
+          narrator => narrator.name,
         ),
-      ),
+        durationMs: Milliseconds.make(Math.max(0, Math.round(durationMs))),
+        maybeCoverUrl: Option.flatMap(Array.head(linkedOf(book.cover)), cover =>
+          firstUrlOf(linkedOf(cover.blob)),
+        ),
+        maybeAudioUrl: Option.flatMap(maybeRendition, rendition =>
+          Option.flatMap(Array.head(linkedOf(rendition.files)), file =>
+            firstUrlOf(linkedOf(file.blob)),
+          ),
+        ),
+      },
     })
   })
 
@@ -254,10 +292,9 @@ const isFinishedKind = (kind: string): boolean =>
   kind.toLowerCase() === finishedKind
 
 /**
- * The shelf one library query gives: every title, one with no chapters
- * read as a single section, the listener's newest progress per title, and
- * their bookmarks. A row that does not decode is left out instead of
- * breaking the shelf.
+ * The shelf one library query gives: every title, the listener's newest
+ * progress per title, and their bookmarks. A row that does not decode is
+ * left out instead of breaking the shelf.
  */
 export const decodeLibrary = (data: unknown): Decoded => {
   const tables: typeof LibraryData.Type = Option.getOrElse(
@@ -282,7 +319,11 @@ export const decodeLibrary = (data: unknown): Decoded => {
   const slugs = uniqueSlugs(names)
   const titled = Array.getSomes(
     Array.map(Array.zip(items, slugs), ([item, slug]) =>
-      Option.map(titleOfItem(item, slug), title => ({ item, title })),
+      Option.map(titleOfItem(item, slug), ({ title, bookId }) => ({
+        item,
+        title,
+        bookId,
+      })),
     ),
   )
   const slugOfItem = new Map(
@@ -336,12 +377,15 @@ export const decodeLibrary = (data: unknown): Decoded => {
     ),
   )
   const index = new Map(
-    Array.map(titled, ({ item, title }) => {
+    Array.map(titled, ({ item, title, bookId }) => {
       const maybeProgress = Option.map(
         Array.findFirst(newestProgress, ({ slug }) => slug === title.slug),
         ({ row }) => ({ progressId: row.id, startedAtMs: row.startedAtMs }),
       )
-      return [title.slug, { itemId: item.id, maybeProgress }] as const
+      return [
+        title.slug,
+        { itemId: item.id, bookId, title, maybeProgress },
+      ] as const
     }),
   )
   return {
@@ -358,6 +402,49 @@ export const decodeLibrary = (data: unknown): Decoded => {
 
 const reasonOf = (cause: unknown): string =>
   cause instanceof Error ? cause.message : 'the library store refused it'
+
+const QueryError = S.Struct({ message: S.String })
+
+const unreadable = 'the library could not be read'
+
+const queryErrorReason = (error: unknown): string =>
+  Option.match(S.decodeUnknownOption(QueryError)(error), {
+    onNone: () => unreadable,
+    onSome: ({ message }) => `${unreadable}: ${message}`,
+  })
+
+type QueryResponse = Readonly<{ error?: unknown; data?: unknown }>
+
+/**
+ * One reactive query on the database as a Stream of what it decodes to:
+ * it fails with Instant's own words when the query cannot be answered.
+ */
+const observed = <A>(
+  database: ProgramLogDatabase,
+  query: Parameters<ProgramLogDatabase['subscribeQuery']>[0],
+  decode: (data: unknown) => A,
+): Stream.Stream<A, LibraryStoreError> =>
+  Stream.callback<A, LibraryStoreError>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        database.subscribeQuery(query, (response: QueryResponse) => {
+          if (response.error !== undefined) {
+            Queue.failCauseUnsafe(
+              queue,
+              Cause.fail(
+                new LibraryStoreError({
+                  reason: queryErrorReason(response.error),
+                }),
+              ),
+            )
+          } else {
+            Queue.offerUnsafe(queue, decode(response.data))
+          }
+        }),
+      ),
+      unsubscribe => Effect.sync(unsubscribe),
+    ),
+  )
 
 const ownerOf = (database: ProgramLogDatabase) =>
   Effect.flatMap(
@@ -436,9 +523,10 @@ const progressStep = (
 /**
  * The library store on an Instant app with the universal library schema:
  * the shelf is one bounded query, sent again on every change from any
- * device, and each write is one transaction owned by the signed-in
- * member. The app's rules decide what the member reads: their own library
- * and the ones they were invited to, never anyone else's progress.
+ * device, a title's chapters are one small query while asked for, and
+ * each write is one transaction owned by the signed-in member. The app's
+ * rules decide what the member reads: their own library and the ones they
+ * were invited to, never anyone else's progress.
  *
  * @example
  * ```typescript
@@ -452,32 +540,21 @@ export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
       index: new Map(),
     }),
     latest => {
-      const shelf = Stream.callback<Shelf, LibraryStoreError>(queue =>
-        Effect.acquireRelease(
-          Effect.sync(() =>
-            database.subscribeQuery(
-              libraryQuery,
-              (response: Readonly<{ error?: unknown; data?: unknown }>) => {
-                if (response.error !== undefined) {
-                  Queue.failCauseUnsafe(
-                    queue,
-                    Cause.fail(
-                      new LibraryStoreError({
-                        reason: 'the library could not be read',
-                      }),
-                    ),
-                  )
-                } else {
-                  const decoded = decodeLibrary(response.data)
-                  Effect.runSync(Ref.set(latest, decoded))
-                  Queue.offerUnsafe(queue, decoded.shelf)
-                }
-              },
-            ),
+      const shelf = Stream.tap(
+        observed(database, libraryQuery, decodeLibrary),
+        decoded => Ref.set(latest, decoded),
+      ).pipe(Stream.map(decoded => decoded.shelf))
+
+      const chapters = (slug: TitleSlug) =>
+        Stream.unwrap(
+          Effect.map(
+            Effect.flatMap(Ref.get(latest), decoded => entryFor(decoded, slug)),
+            entry =>
+              observed(database, chaptersQueryOf(entry.bookId), data =>
+                decodeChapters(data, entry.title),
+              ),
           ),
-          unsubscribe => Effect.sync(unsubscribe),
-        ),
-      )
+        )
 
       const stepsFor = (write: LibraryWrite, owner: string, decoded: Decoded) =>
         M.value(write).pipe(
@@ -546,6 +623,6 @@ export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
           unsubscribe => Effect.sync(unsubscribe),
         ),
       )
-      return LibraryStore.of({ shelf, member, write })
+      return LibraryStore.of({ shelf, chapters, member, write })
     },
   )

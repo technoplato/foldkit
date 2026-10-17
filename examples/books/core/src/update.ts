@@ -1,4 +1,11 @@
-import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
+import {
+  Array,
+  Effect,
+  Match as M,
+  Option,
+  Record as Record_,
+  Schema as S,
+} from 'effect'
 import { Command, Navigation } from 'foldkit'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -49,17 +56,23 @@ import {
   SharedLink,
 } from './message.js'
 import {
+  type Chapter,
+  ChaptersReady,
+  ChaptersUnavailable,
   Loaded,
   type Model,
   ShelfReady,
   ShelfUnavailable,
   type Title,
+  type TitleChapters,
   bookmarkOf,
   chapterOf,
+  chaptersOf,
   loadedTitleOf,
   mediaOf,
   placeOf,
   resumePlaceOf,
+  sectionsOf,
   titleOf,
 } from './model.js'
 import { navigation } from './navigation.js'
@@ -321,6 +334,37 @@ const playerUpdated = (
     }),
   )
 
+const withChapters = (
+  model: Model,
+  slug: TitleSlug,
+  state: TitleChapters,
+): Model => ({ ...model, chapters: Record_.set(model.chapters, slug, state) })
+
+/**
+ * The chapters as the loaded player's sections, when the chapters are
+ * the loaded title's: a player loaded before they arrived gets them now.
+ */
+const withPlayerSections = (
+  model: Model,
+  slug: TitleSlug,
+  chapters: Array.NonEmptyReadonlyArray<Chapter>,
+): Model =>
+  model.listening._tag === 'Loaded' && model.listening.slug === slug
+    ? {
+        ...model,
+        listening: {
+          ...model.listening,
+          player: {
+            ...model.listening.player,
+            media: {
+              ...model.listening.player.media,
+              sections: sectionsOf(chapters),
+            },
+          },
+        },
+      }
+    : model
+
 const savedBeforeSwitch = (model: Model): Commands =>
   model.listening._tag === 'Loaded' &&
   placeOf(model.listening) !== model.listening.savedPlaceMs
@@ -337,10 +381,16 @@ const loadedWith = (model: Model, title: Title): Model => {
       Loaded({
         slug: title.slug,
         savedPlaceMs: placeMs,
-        player: TranscriptPlayer.init(mediaOf(title), {
-          placeMs,
-          speed: model.speed,
-        }),
+        player: TranscriptPlayer.init(
+          mediaOf(
+            title,
+            Option.getOrElse(chaptersOf(model, title.slug), () => []),
+          ),
+          {
+            placeMs,
+            speed: model.speed,
+          },
+        ),
       }),
     )
   }
@@ -395,8 +445,8 @@ const jumpedToChapter = (
 ): UpdateReturn =>
   Option.match(
     Option.flatMap(shownTitleOf(model), slug =>
-      Option.flatMap(titleOf(model, slug), title =>
-        Option.map(chapterOf(title, chapterNumber), chapter => ({
+      Option.flatMap(chaptersOf(model, slug), chapters =>
+        Option.map(chapterOf(chapters, chapterNumber), chapter => ({
           slug,
           chapter,
         })),
@@ -606,6 +656,18 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       ],
       FailedReadShelf: ({ reason }) => [
         { ...model, library: ShelfUnavailable({ reason }) },
+        [],
+      ],
+      ReceivedChapters: ({ slug, chapters }) => [
+        withPlayerSections(
+          withChapters(model, slug, ChaptersReady({ chapters })),
+          slug,
+          chapters,
+        ),
+        [],
+      ],
+      FailedReadChapters: ({ slug, reason }) => [
+        withChapters(model, slug, ChaptersUnavailable({ reason })),
         [],
       ],
       ReachedPlace: message => playerUpdated(model, message),

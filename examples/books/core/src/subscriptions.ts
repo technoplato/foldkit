@@ -1,4 +1,4 @@
-import { Effect, Option, Schema as S, Stream } from 'effect'
+import { Array, Effect, Option, Order, Schema as S, Stream, pipe } from 'effect'
 import { Subscription } from 'foldkit'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -8,21 +8,25 @@ import * as Audible from './audible/index.js'
 import { Milliseconds, TitleSlug } from './ids.js'
 import { LibraryStore } from './library.js'
 import {
+  FailedReadChapters,
   FailedReadShelf,
   type Message,
   OpenedPlace,
+  ReceivedChapters,
   ReceivedMember,
   ReceivedShelf,
 } from './message.js'
 import {
+  type InProgress,
   type Model,
   loadedPlayerOf,
   placeOf,
   resumePlaceOf,
+  shelfOf,
   titleOf,
 } from './model.js'
 import type { BooksServices } from './services.js'
-import { addressCueOf } from './stack.js'
+import { addressCueOf, loadedSlugOf, shownTitleOf } from './stack.js'
 
 // SUBSCRIPTION
 
@@ -47,8 +51,42 @@ export const addressCueOfModel = (
   )
 
 /**
+ * The titles whose chapters Books needs now: the one on screen, the one in
+ * the player, and the ones in progress, whose rows name the chapter they
+ * are at. Only titles on the shelf, each once, in slug order.
+ *
+ * @example
+ * ```typescript
+ * wantedChapterSlugsOf(model) // ['small-hours', 'the-lantern-keeper'] on the library with Small Hours in progress and The Lantern Keeper open
+ * ```
+ */
+export const wantedChapterSlugsOf = (model: Model): ReadonlyArray<TitleSlug> =>
+  pipe(
+    [
+      ...Array.fromOption(shownTitleOf(model)),
+      ...Array.fromOption(loadedSlugOf(model)),
+      ...Option.match(shelfOf(model), {
+        onNone: () => [],
+        onSome: shelf =>
+          Array.map(
+            Array.filter(
+              shelf.progress,
+              (progress): progress is InProgress =>
+                progress._tag === 'InProgress',
+            ),
+            progress => progress.slug,
+          ),
+      }),
+    ],
+    Array.filter(slug => Option.isSome(titleOf(model, slug))),
+    Array.dedupe,
+    Array.sort(Order.String),
+  )
+
+/**
  * What Books listens to: the shelf from the library store for as long as
- * the Program runs, the player's address when it names a place the player
+ * the Program runs, the chapters of each title that needs them, the
+ * player's address when it names a place the player
  * is not at, and the loaded player's audio and words, built from
  * the Transcript Player's own entries. A new place or title restarts the
  * audio; a new speed does not, the clock reads it every step. The words
@@ -75,6 +113,33 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
                 Stream.catch(error =>
                   Stream.make(FailedReadShelf({ reason: error.reason })),
                 ),
+              )
+            }),
+          ),
+      },
+    ),
+    chapters: entry(
+      { slugs: S.Array(TitleSlug) },
+      {
+        modelToDependencies: model => ({ slugs: wantedChapterSlugsOf(model) }),
+        dependenciesToStream: ({ slugs }) =>
+          Stream.unwrap(
+            Effect.gen(function* () {
+              const store = yield* LibraryStore
+              return Stream.mergeAll(
+                Array.map(slugs, slug =>
+                  store.chapters(slug).pipe(
+                    Stream.map(chapters =>
+                      ReceivedChapters({ slug, chapters }),
+                    ),
+                    Stream.catch(error =>
+                      Stream.make(
+                        FailedReadChapters({ slug, reason: error.reason }),
+                      ),
+                    ),
+                  ),
+                ),
+                { concurrency: 'unbounded' },
               )
             }),
           ),
