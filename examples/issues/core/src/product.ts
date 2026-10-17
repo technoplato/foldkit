@@ -18,8 +18,12 @@ import {
 import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
 import {
+  landingHeadline,
+  subtaskProgress,
+  workInProgressLines,
+} from './landing.js'
+import {
   catalogIssueRefsOf,
-  issuesForProductFilter,
   leftoverKindOf,
   leftoverQuorumRequired,
   leftoverStatusesForIssue,
@@ -30,7 +34,7 @@ import {
   type IssueLogsState,
   type Model,
 } from './model.js'
-import { interactionsForModel } from './presentation.js'
+import { interactionsForModel, listedIssues } from './presentation.js'
 import {
   describeIssueReference,
   issueAttachmentWebLink,
@@ -46,6 +50,14 @@ const listIssueLabel = (issue: Issue): string => {
   return kind === ''
     ? `${issue.id}  ${issue.priority}  ${issue.status}  ${issue.title}`
     : `${issue.id}  ${issue.priority}  ${issue.status}  ${kind}  ${issue.title}`
+}
+
+const listButtonLabel = (issue: Issue): string => {
+  const label = `${listIssueLabel(issue)}  [${issue.product.name}]`
+  return Option.match(issue.workInProgress, {
+    onNone: () => label,
+    onSome: work => `${label}  ${landingHeadline(work)}`,
+  })
 }
 
 const isoTimeOf = (timeMs: number): string => new Date(timeMs).toISOString()
@@ -106,6 +118,34 @@ const mentionSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
     ],
   })
 
+const workInProgressSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+  Option.match(issue.workInProgress, {
+    onNone: () => [],
+    onSome: work => [
+      Column(
+        { gap: 1 },
+        Text('Work in progress'),
+        ...Array.map(workInProgressLines(work), line => Text(line)),
+      ),
+    ],
+  })
+
+const subtaskSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+  Array.match(issue.subtasks, {
+    onEmpty: () => [],
+    onNonEmpty: subtasks => [
+      Column(
+        { gap: 1 },
+        Text(`Subtasks: ${subtaskProgress(issue)}`),
+        ...Array.map(subtasks, subtask =>
+          Text(
+            `${subtask.state._tag === 'Checked' ? 'done' : 'todo'}  ${subtask.title}`,
+          ),
+        ),
+      ),
+    ],
+  })
+
 const attachmentSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
   Array.match(issue.attachments, {
     onEmpty: () => [],
@@ -140,6 +180,8 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
       { dim: true },
     ),
     Text(issue.details),
+    ...workInProgressSectionNodes(issue),
+    ...subtaskSectionNodes(issue),
     ...mentionSectionNodes(issue),
     Column(
       { gap: 1 },
@@ -209,7 +251,7 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
       LoadingIssues: () => [Text('Observing…')],
       FailedIssues: ({ reason }) => [Text(reason)],
       LoadedIssues: ({ issues }) => {
-        const visible = issuesForProductFilter(issues, model.productFilter)
+        const visible = listedIssues(model, issues)
         const catalog =
           model.products._tag === 'LoadedProducts'
             ? model.products.products
@@ -262,11 +304,28 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
               }),
             ),
           ),
+          Row(
+            { gap: 1 },
+            Button({
+              token: 'landing:all',
+              label: 'All work',
+              variant:
+                model.landingFilter._tag === 'AllWork' ? 'Primary' : 'Ghost',
+            }),
+            Button({
+              token: 'landing:close',
+              label: 'Close to landing',
+              variant:
+                model.landingFilter._tag === 'CloseToLanding'
+                  ? 'Primary'
+                  : 'Ghost',
+            }),
+          ),
           Text('Current issues'),
           ...Array.map(visible, issue =>
             Button({
               token: `open:${issue.id}`,
-              label: `${listIssueLabel(issue)}  [${issue.product.name}]`,
+              label: listButtonLabel(issue),
             }),
           ),
         ]

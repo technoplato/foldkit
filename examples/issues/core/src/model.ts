@@ -2,9 +2,11 @@ import { Effect, Option, Schema as S } from 'effect'
 
 import {
   Issue,
+  IssueLandingState,
   IssueReference,
   IssueStatus,
   IssueSuccessEvidence,
+  IssueWorkActivity,
   ProductCatalogEntry,
   TrackedProduct,
   TriageCandidate,
@@ -12,6 +14,7 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { LandingFilter } from './landing.js'
 import { LeftoverKind, ProductFilter } from './leftover.js'
 
 /** The live collection has not emitted its first snapshot. */
@@ -224,6 +227,30 @@ export const IssueDraft = S.Struct({
 /** The editable fields required to file one Issue. */
 export type IssueDraft = typeof IssueDraft.Type
 
+/**
+ * One change to an Issue's work in progress: only the fields given change.
+ * `{ landingState: Option.some('Green'), commitSha: Option.some('5e1f00d') }`
+ * moves the work to Green at that commit and keeps its branch and worktree.
+ */
+export const WorkInProgressEdit = S.Struct({
+  activity: S.Option(IssueWorkActivity),
+  agentId: S.Option(S.String),
+  branch: S.Option(S.String),
+  commitSha: S.Option(S.String),
+  landingState: S.Option(IssueLandingState),
+  lastStep: S.Option(S.String),
+  repository: S.Option(S.String),
+  targetBuild: S.Option(S.String),
+  worktree: S.Option(S.String),
+})
+/** One change to an Issue's work in progress. */
+export type WorkInProgressEdit = typeof WorkInProgressEdit.Type
+
+/** Which way subtasks are marked: checked off, or back to unchecked. */
+export const SubtaskMark = S.Literals(['Checked', 'Unchecked'])
+/** Which way subtasks are marked. */
+export type SubtaskMark = typeof SubtaskMark.Type
+
 /** The filing form is ready for editing or submission. */
 export const EditingIssueDraft = S.TaggedStruct('EditingIssueDraft', {})
 /** The filing form is saving an Issue. */
@@ -348,6 +375,7 @@ export const Model = S.Struct({
   issueLogs: IssueLogsState,
   issueMutation: IssueMutationState,
   issues: IssuesState,
+  landingFilter: LandingFilter,
   leftoverComment: S.String,
   leftoverLink: S.String,
   leftoverPresence: LeftoverPresenceState,

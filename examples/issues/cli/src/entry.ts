@@ -13,6 +13,7 @@ import {
   addCriterionCommand,
   addMentionCommand,
   addProductCommand,
+  addSubtasksCommand,
   attachIssueFilesCommand,
   claimIssueCommand,
   deleteIssueCommand,
@@ -24,9 +25,11 @@ import {
   listProductsCommand,
   logIssueCommand,
   markCriteriaCommand,
+  markSubtasksCommand,
   redactCredentials,
   setIssueStatusCommand,
   showIssueCommand,
+  workInProgressCommand,
 } from './commands.js'
 import { runIssues } from './host.js'
 import {
@@ -185,6 +188,17 @@ const list = Command.make(
   {
     claimant: optionalText('claimant', 'Only Issues this agent claimed'),
     isJson: jsonFlag,
+    isLanding: Flag.boolean('landing').pipe(
+      Flag.withDescription(
+        'Only work close to landing: Green or Pushed, not merged, not abandoned (stuck work shows why)',
+      ),
+    ),
+    isStuck: Flag.boolean('stuck').pipe(
+      Flag.withDescription('Only work recorded as stuck, with the reason'),
+    ),
+    isWorkInProgress: Flag.boolean('wip').pipe(
+      Flag.withDescription('Only Issues with work in progress recorded'),
+    ),
     limit: Flag.integer('limit').pipe(
       Flag.withDescription('At most this many'),
       Flag.optional,
@@ -201,6 +215,10 @@ const list = Command.make(
     statuses: repeatedText(
       'status',
       'Only these statuses, such as Open,InProgress',
+    ),
+    targetBuild: optionalText(
+      'target-build',
+      'Only work meant for this build, such as 106',
     ),
     type: optionalText('type', 'Only this issue type'),
   },
@@ -358,6 +376,108 @@ const satisfy = Command.make(
   ),
 )
 
+const subtaskReferences = Argument.string('subtask').pipe(
+  Argument.withDescription('Subtask position (1, 2, ...) or id'),
+  Argument.variadic({ min: 1 }),
+)
+
+const addSubtasks = Command.make(
+  'add',
+  {
+    issue: issueArgument,
+    isJson: jsonFlag,
+    titles: Argument.string('title').pipe(
+      Argument.withDescription(
+        'One step, such as "Red tests"; give several to add several',
+      ),
+      Argument.variadic({ min: 1 }),
+    ),
+  },
+  input => withLiveHost(host => addSubtasksCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    "Add subtasks to an Issue's checklist, unchecked, each title once",
+  ),
+)
+
+const checkSubtasks = Command.make(
+  'check',
+  { issue: issueArgument, isJson: jsonFlag, subtasks: subtaskReferences },
+  input =>
+    withLiveHost(host =>
+      markSubtasksCommand(host, { ...input, mark: 'Checked' }),
+    ),
+).pipe(Command.withDescription('Check subtasks off, by position or id'))
+
+const uncheckSubtasks = Command.make(
+  'uncheck',
+  { issue: issueArgument, isJson: jsonFlag, subtasks: subtaskReferences },
+  input =>
+    withLiveHost(host =>
+      markSubtasksCommand(host, { ...input, mark: 'Unchecked' }),
+    ),
+).pipe(Command.withDescription('Mark subtasks not done again'))
+
+const subtask = Command.make('subtask').pipe(
+  Command.withDescription(
+    "An Issue's checklist: subtask add, check, and uncheck; issues show prints it",
+  ),
+  Command.withSubcommands([addSubtasks, checkSubtasks, uncheckSubtasks]),
+)
+
+const wip = Command.make(
+  'wip',
+  {
+    abandoned: optionalText(
+      'abandoned',
+      'Nobody will carry the work on, and why, such as "Replaced by #804"',
+    ),
+    agent: optionalText(
+      'agent',
+      'Who records it (default $SCRIBE_AGENT or claude-code)',
+    ),
+    branch: optionalText(
+      'branch',
+      'The branch, such as agent/claude/timeline-804',
+    ),
+    commit: optionalText('commit', 'The last commit on the branch'),
+    isActive: Flag.boolean('active').pipe(
+      Flag.withDescription('The work is moving again'),
+    ),
+    isClear: Flag.boolean('clear').pipe(
+      Flag.withDescription('Remove the work in progress from the Issue'),
+    ),
+    isJson: jsonFlag,
+    issue: issueArgument,
+    repository: optionalText(
+      'repo',
+      'The repository, such as realtime-voice, foldkit, or instant-data-swift',
+    ),
+    state: optionalText(
+      'state',
+      'Landing state: exploring, red, green, pushed, merged, or shipped',
+    ),
+    step: optionalText('step', 'The last step taken, or the next one'),
+    stuck: optionalText(
+      'stuck',
+      'Why the work cannot move, such as "Waits on a review"',
+    ),
+    targetBuild: optionalText(
+      'target-build',
+      'The build it is meant for, such as 106',
+    ),
+    worktree: optionalText(
+      'worktree',
+      'The worktree, such as ~/Sync/worktrees/scribe-timeline-804',
+    ),
+  },
+  input => withLiveHost(host => workInProgressCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    "Record where an Issue's work is (only the flags given change); with no flag, print it",
+  ),
+)
+
 const mention = Command.make(
   'mention',
   {
@@ -503,6 +623,8 @@ const issues = Command.make('issues').pipe(
     edit,
     criterion,
     satisfy,
+    subtask,
+    wip,
     mention,
     remove,
     attach,

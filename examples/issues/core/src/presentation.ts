@@ -2,6 +2,7 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 
 import { Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 
+import { AllWork, CloseToLanding, issuesForLandingFilter } from './landing.js'
 import {
   AllProducts,
   LeftoverStatus,
@@ -24,6 +25,7 @@ import {
   SelectedIssue,
   SelectedIssuePriority,
   SelectedIssueProduct,
+  SelectedLandingFilter,
   SelectedProductFilter,
   SubmittedIssue,
   SubmittedIssueComment,
@@ -84,6 +86,19 @@ export type Interaction = typeof Interaction.Type
 const loadedIssues = (state: IssuesState): ReadonlyArray<Issue> =>
   state._tag === 'LoadedIssues' ? state.issues : []
 
+/**
+ * The Issues the list shows: those of the chosen product, then only the work
+ * close to landing when that filter is on.
+ */
+export const listedIssues = (
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<Issue> =>
+  issuesForLandingFilter(
+    issuesForProductFilter(issues, model.productFilter),
+    model.landingFilter,
+  )
+
 /** Exhaustively projects the Model into one host-neutral destination. */
 export const destinationForModel = (model: Model): Destination =>
   M.value(model.navigation).pipe(
@@ -94,10 +109,7 @@ export const destinationForModel = (model: Model): Destination =>
           state:
             model.issues._tag === 'LoadedIssues'
               ? LoadedIssues.make({
-                  issues: issuesForProductFilter(
-                    model.issues.issues,
-                    model.productFilter,
-                  ),
+                  issues: listedIssues(model, model.issues.issues),
                 })
               : model.issues,
         }),
@@ -149,17 +161,22 @@ export const interactionsForModel = (
               ),
             )
           : []),
-        ...Array.map(
-          issuesForProductFilter(
-            loadedIssues(model.issues),
-            model.productFilter,
+        interaction(
+          'landing:all',
+          'All work',
+          SelectedLandingFilter.make({ filter: AllWork.make({}) }),
+        ),
+        interaction(
+          'landing:close',
+          'Close to landing',
+          SelectedLandingFilter.make({ filter: CloseToLanding.make({}) }),
+        ),
+        ...Array.map(listedIssues(model, loadedIssues(model.issues)), issue =>
+          interaction(
+            `open:${issue.id}`,
+            `Open ${issue.id}`,
+            SelectedIssue.make({ issueId: issue.id }),
           ),
-          issue =>
-            interaction(
-              `open:${issue.id}`,
-              `Open ${issue.id}`,
-              SelectedIssue.make({ issueId: issue.id }),
-            ),
         ),
       ],
       IssueDetail: ({ issueId }) => {

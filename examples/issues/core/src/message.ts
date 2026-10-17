@@ -13,8 +13,15 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { LandingFilter } from './landing.js'
 import { LeftoverStatus, ProductFilter } from './leftover.js'
-import { DraftMention, IssueDraft, Navigation } from './model.js'
+import {
+  DraftMention,
+  IssueDraft,
+  Navigation,
+  SubtaskMark,
+  WorkInProgressEdit,
+} from './model.js'
 
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
   issues: S.Array(Issue),
@@ -167,6 +174,26 @@ export const SubmittedSuccessCriteriaMarks = S.TaggedStruct(
     issueId: S.String,
   },
 )
+export const SubmittedIssueSubtasks = S.TaggedStruct('SubmittedIssueSubtasks', {
+  issueId: S.String,
+  titles: S.Array(S.String),
+})
+export const SubmittedSubtaskMarks = S.TaggedStruct('SubmittedSubtaskMarks', {
+  issueId: S.String,
+  mark: SubtaskMark,
+  subtaskIds: S.Array(S.String),
+})
+export const SubmittedIssueWorkInProgress = S.TaggedStruct(
+  'SubmittedIssueWorkInProgress',
+  { edit: WorkInProgressEdit, issueId: S.String },
+)
+export const ClearedIssueWorkInProgress = S.TaggedStruct(
+  'ClearedIssueWorkInProgress',
+  { issueId: S.String },
+)
+export const SelectedLandingFilter = S.TaggedStruct('SelectedLandingFilter', {
+  filter: LandingFilter,
+})
 export const SubmittedIssueMention = S.TaggedStruct('SubmittedIssueMention', {
   issueId: S.String,
   mention: DraftMention,
@@ -279,6 +306,11 @@ export const Message = S.Union([
   SubmittedIssueEdit,
   SubmittedIssueSuccessCriterion,
   SubmittedSuccessCriteriaMarks,
+  SubmittedIssueSubtasks,
+  SubmittedSubtaskMarks,
+  SubmittedIssueWorkInProgress,
+  ClearedIssueWorkInProgress,
+  SelectedLandingFilter,
   SubmittedIssueMention,
   SelectedIssueStatus,
   ConfirmedIssueDeletion,

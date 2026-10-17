@@ -32,6 +32,7 @@ issues file --title "…" --details "…" --product scribe --priority P1 --type 
   --log "Filed from Recording 208." --claim claude-code/<agent>   # or --from-json draft.json
 issues show 692 [--json]
 issues list [--status Open,InProgress] [--product scribe] [--recording 208] [--claimant …] [--search …] [--json]
+issues list --landing | --wip | --stuck | --target-build 106   # work in progress, one line each
 issues log 692 progress "what happened; next step" [--agent …] [--claim …] [--status …] [--commit …] [--json]
 issues claim 692 claude-code/<agent> ["what the claim is for"]
 issues status 692 VerificationNeeded
@@ -39,6 +40,13 @@ issues link 692 502 691
 issues edit 692 [--title …] [--details …] [--priority P1] [--type …] [--area …] [--product …]
 issues criterion 692 "<one observable outcome>" [--evidence FocusedTest,Log]
 issues satisfy 692 1 issue-692-criterion-2 [--unsatisfied]
+issues subtask add 804 "Red: the window census" "Green" "Merge for build 106"
+issues subtask check 804 1 issue-804-subtask-2      # uncheck takes the same
+issues wip 804 --branch agent/claude/timeline-804 --repo realtime-voice \
+  --worktree ~/Sync/worktrees/scribe-timeline-804 --commit 8b89b2f1b \
+  --target-build 106 --state green --step "Green: 37 focused tests"
+issues wip 804 --stuck "Waits on the 106 cutter"     # or --abandoned "…", --active
+issues wip 804                                       # print it; --clear removes it
 issues mention 692 --said 208:1884-1888 [--typed "…" --typed-session <id> --typed-at <iso>]
 issues attach 662 screenshot.png [--kind Screenshot]
 issues download issues/662/<id>-screenshot.png [directory]
@@ -59,6 +67,22 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   did not land. `satisfy` takes a criterion's position or id.
 - `link` and `file --related` refuse a number no Issue holds (exit 3) and
   write nothing.
+- `subtask add` adds each title once, unchecked, as `issue-804-subtask-1`,
+  `-2`, and so on; `subtask check` and `uncheck` take a position or an id.
+  `show` prints the checklist as `Subtasks (1 of 3 done)`.
+- `wip` records where an Issue's work is. Only the flags given change, so
+  `issues wip 804 --state pushed` keeps the branch and worktree. The landing
+  states run Exploring (no test yet), Red (failing tests committed), Green
+  (they pass), Pushed (on the remote), Merged (on main), and Shipped (in an
+  installed build). `--stuck "why"` and `--abandoned "why"` say what holds
+  the work, `--active` says it moves again. The agent recorded is `--agent`,
+  or `$SCRIBE_AGENT`.
+- `list --landing` lists the work close to landing: Green or Pushed, not
+  abandoned. Stuck work stays in that list with its reason. `--wip` lists
+  every Issue with work recorded, `--stuck` the stuck ones, and
+  `--target-build 106` the work meant for build 106. Each line ends with where
+  the work is and its branch, such as
+  `Green for build 106  agent/claude/timeline-804`.
 - `list` fails (exit 1) when a stored Issue cannot be read, naming it.
 - `delete` needs Michael's typed yes and first writes the stored record to
   `$ISSUES_BACKUP_DIR` (default `~/Sync/audit/issues-deleted`).
@@ -81,9 +105,13 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
 
 - the list, newest first, each Issue with its stored status, such as
   `692  P2  VerificationNeeded`;
-- an Issue's page: its type, area, claimant, dates, and details; every Mention
-  with its words, where they came from, and its deep links; the work log; the
-  logs tagged with it; linked Issues; success criteria; and attachments;
+- an Issue's page: its type, area, claimant, dates, and details; where its
+  work in progress is and its subtasks; every Mention with its words, where
+  they came from, and its deep links; the work log; the logs tagged with it;
+  linked Issues; success criteria; and attachments;
+- beside each Issue in the list, where its work is, such as
+  `Green for build 106` or `Red, stuck`, and a Close to landing choice that
+  lists only the Green or Pushed work not abandoned;
 - a File form with Title and Details fields, product and priority choices, and
   the reason when an Issue is not filed.
 
