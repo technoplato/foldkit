@@ -2,23 +2,33 @@ import { Array, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
+  AbandonedWork,
+  ActiveWork,
   ApplicationProduct,
+  CheckedSubtask,
   Issue,
   IssueAttachment,
   IssueComplexity,
+  IssueLandingState,
   IssueMention,
   IssueNewestFirst,
   type IssuePriority,
   IssueSourceDocument,
   IssueStatus,
+  IssueSubtask,
   IssueSuccessCriterion,
   IssueSuccessEvidence,
+  type IssueWorkActivity,
+  IssueWorkInProgress,
   IssueWorkLogEntry,
   MediaReference,
   RecordingMention,
   RecordingReference,
   RepositoryAttachmentSource,
+  StuckWork,
+  UncheckedSubtask,
   escalatePriority,
+  isCloseToLanding,
   issueViewerUrl,
   nextIssueId,
   normalizeIssueId,
@@ -46,6 +56,25 @@ const firstMention = IssueMention.make({
     }),
   }),
 })
+
+const workAt = (
+  landingState: IssueLandingState,
+  activity: IssueWorkActivity = ActiveWork.make({}),
+) =>
+  IssueWorkInProgress.make({
+    activity,
+    agentId: Option.some('claude-code/wip-835'),
+    branch: Option.some('agent/claude/issues-wip-835'),
+    commitSha: Option.some('84be45c4e'),
+    landingState,
+    lastStep: Option.some('Green: every focused test passes'),
+    repository: Option.some('foldkit'),
+    targetBuild: Option.some('106'),
+    updatedAtMs: 1_792_260_000_000,
+    worktree: Option.some(
+      '/Users/laptop/Sync/worktrees/foldkit-issues-wip-835',
+    ),
+  })
 
 const makeIssue = () =>
   Issue.make({
@@ -558,5 +587,112 @@ describe('issue domain', () => {
     expect(S.decodeUnknownSync(Issue)(legacyPayload).relatedIssueIds).toEqual(
       [],
     )
+  })
+
+  it('reads an Issue stored before subtasks and work in progress as having neither', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['subtasks']
+    delete legacyPayload['workInProgress']
+
+    const decoded = S.decodeUnknownSync(Issue)(legacyPayload)
+
+    expect(decoded.subtasks).toEqual([])
+    expect(decoded.workInProgress).toEqual(Option.none())
+  })
+
+  it('round-trips subtasks and work in progress through the stored JSON', () => {
+    const IssueJson = S.fromJsonString(Issue)
+    const issue = Issue.make({
+      ...makeIssue(),
+      subtasks: [
+        IssueSubtask.make({
+          id: 'issue-021-subtask-1',
+          state: CheckedSubtask.make({ checkedAtMs: 1_792_260_000_000 }),
+          title: 'Red tests for the gutter timestamp',
+        }),
+        IssueSubtask.make({
+          id: 'issue-021-subtask-2',
+          state: UncheckedSubtask.make({}),
+          title: 'Green',
+        }),
+      ],
+      workInProgress: Option.some(
+        workAt('Pushed', StuckWork.make({ reason: 'Waits on a review' })),
+      ),
+    })
+
+    const json = S.encodeSync(IssueJson)(issue)
+
+    expect(S.decodeUnknownSync(IssueJson)(json)).toEqual(issue)
+    expect(JSON.parse(json)).toMatchObject({
+      subtasks: [
+        {
+          id: 'issue-021-subtask-1',
+          state: { _tag: 'Checked', checkedAtMs: 1_792_260_000_000 },
+        },
+        { id: 'issue-021-subtask-2', state: { _tag: 'Unchecked' } },
+      ],
+      workInProgress: {
+        activity: { _tag: 'Stuck', reason: 'Waits on a review' },
+        branch: 'agent/claude/issues-wip-835',
+        landingState: 'Pushed',
+        targetBuild: '106',
+      },
+    })
+  })
+
+  it('reads stored work in progress that names only its state, as active work', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+
+    const decoded = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      workInProgress: { landingState: 'Red', updatedAtMs: 5 },
+    })
+
+    expect(decoded.workInProgress).toEqual(
+      Option.some(
+        IssueWorkInProgress.make({
+          activity: ActiveWork.make({}),
+          agentId: Option.none(),
+          branch: Option.none(),
+          commitSha: Option.none(),
+          landingState: 'Red',
+          lastStep: Option.none(),
+          repository: Option.none(),
+          targetBuild: Option.none(),
+          updatedAtMs: 5,
+          worktree: Option.none(),
+        }),
+      ),
+    )
+  })
+
+  it('counts an Issue close to landing while its work is green or pushed and not abandoned', () => {
+    const workingAt = (
+      landingState: IssueLandingState,
+      activity?: IssueWorkActivity,
+    ) =>
+      Issue.make({
+        ...makeIssue(),
+        workInProgress: Option.some(workAt(landingState, activity)),
+      })
+
+    expect(
+      Array.map(IssueLandingState.literals, landingState =>
+        isCloseToLanding(workingAt(landingState)),
+      ),
+    ).toEqual([false, false, true, true, false, false])
+    expect(
+      isCloseToLanding(
+        workingAt('Green', StuckWork.make({ reason: 'Waits on a review' })),
+      ),
+    ).toBe(true)
+    expect(
+      isCloseToLanding(
+        workingAt('Pushed', AbandonedWork.make({ reason: 'Replaced by #804' })),
+      ),
+    ).toBe(false)
+    expect(isCloseToLanding(makeIssue())).toBe(false)
   })
 })
