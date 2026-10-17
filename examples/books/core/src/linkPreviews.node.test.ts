@@ -40,8 +40,21 @@ const feelingHappy: ReadAloud.Book = {
   key: ReadAloud.BookKey.make('9780063342705'),
   maybeIsbn13: Option.some(ReadAloud.Isbn13.make('9780063342705')),
   title: 'Little Blue Truck Feeling Happy',
-  authors: ['Alice Schertle'],
-  publishers: ['HarperCollins Publishers'],
+  credits: [
+    {
+      role: 'Author',
+      contributor: {
+        key: ReadAloud.ContributorKey.make('alice-schertle'),
+        name: 'Alice Schertle',
+      },
+    },
+  ],
+  publishedBy: [
+    {
+      key: ReadAloud.PublisherKey.make('harpercollins-publishers'),
+      name: 'HarperCollins Publishers',
+    },
+  ],
   maybePublishYear: Option.some('2024'),
   maybePageCount: Option.some(ReadAloud.PageNumber.make(14)),
   maybeCoverUrl: Option.some(
@@ -196,6 +209,44 @@ describe('booksLinkPreviews', () => {
     expect(await answer('/books/read-aloud/9780152056612/page/3')).toEqual(
       Option.none(),
     )
+  })
+
+  it("previews an author's page with their name and role, and never their books", async () => {
+    const { answer } = previewsWith()
+    const maybeAnswer = await answer('/books/authors/alice-schertle')
+    expect(maybeAnswer).toEqual(
+      Option.some(
+        linkPreviewAnswer({
+          siteName: 'Books',
+          title: 'Alice Schertle',
+          description: 'Author',
+          maybeImageUrl: Option.none(),
+          url: `${origin}/books/authors/alice-schertle`,
+          openPath:
+            '/__foldkit/sign-in?next=%2Fbooks%2Fauthors%2Falice-schertle',
+        }),
+      ),
+    )
+    expect(bodyOf(maybeAnswer)).not.toContain('Little Blue Truck')
+  })
+
+  it("previews a publisher's page, and an author known only from the library", async () => {
+    const { answer } = previewsWith()
+    expect(
+      bodyOf(await answer('/books/publishers/harpercollins-publishers')),
+    ).toContain('content="Publisher"')
+    expect(bodyOf(await answer('/books/authors/ada-quill'))).toContain(
+      'content="Ada Quill"',
+    )
+  })
+
+  it('answers nothing for a name no book credits in that role', async () => {
+    const { answer } = previewsWith()
+    expect(await answer('/books/illustrators/alice-schertle')).toEqual(
+      Option.none(),
+    )
+    expect(await answer('/books/authors/nobody-at-all')).toEqual(Option.none())
+    expect(await answer('/books/publishers/ada-quill')).toEqual(Option.none())
   })
 
   it('reads the books read aloud again only after a minute', async () => {

@@ -1,7 +1,14 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { BookId, BookKey, Isbn13, PageNumber } from './ids.js'
+import {
+  BookId,
+  BookKey,
+  ContributorKey,
+  Isbn13,
+  PageNumber,
+  PublisherKey,
+} from './ids.js'
 import { isReadAloudPath, readAloudLinkMetadataOf } from './linkPreview.js'
 import type { Book } from './model.js'
 
@@ -10,8 +17,25 @@ const feelingHappy: Book = {
   key: BookKey.make('9780063342705'),
   maybeIsbn13: Option.some(Isbn13.make('9780063342705')),
   title: 'Little Blue Truck Feeling Happy: a Touch-And-Feel Book',
-  authors: ['Alice Schertle'],
-  publishers: ['HarperCollins Publishers'],
+  credits: [
+    {
+      role: 'Author',
+      contributor: {
+        key: ContributorKey.make('alice-schertle'),
+        name: 'Alice Schertle',
+      },
+    },
+    {
+      role: 'Illustrator',
+      contributor: { key: ContributorKey.make('noor-vale'), name: 'Noor Vale' },
+    },
+  ],
+  publishedBy: [
+    {
+      key: PublisherKey.make('harpercollins-publishers'),
+      name: 'HarperCollins Publishers',
+    },
+  ],
   maybePublishYear: Option.some('2024'),
   maybePageCount: Option.some(PageNumber.make(14)),
   maybeCoverUrl: Option.some(
@@ -35,13 +59,18 @@ const noAuthor: Book = {
   bookId: BookId.make('thing-no-author'),
   key: BookKey.make('thing-no-author'),
   maybeIsbn13: Option.none(),
-  authors: [],
+  credits: [
+    {
+      role: 'Illustrator',
+      contributor: { key: ContributorKey.make('noor-vale'), name: 'Noor Vale' },
+    },
+  ],
 }
 
 const books = [feelingHappy, christmas, noAuthor]
 
 describe('Link metadata', () => {
-  it('names the book, its author, the page, and its large Open Library cover', () => {
+  it('names the book, its author but not its illustrator, the page, and its large Open Library cover', () => {
     expect(
       readAloudLinkMetadataOf(books, '/books/read-aloud/9780063342705/page/4'),
     ).toEqual(

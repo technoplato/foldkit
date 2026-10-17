@@ -1,12 +1,14 @@
 import { Array, Effect, Fiber, Stream } from 'effect'
-import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  graphFolderName,
   readingsOfDirectory,
   recognitionsFileName,
+  relationsFileName,
   thingsFileName,
   watchedReadings,
 } from './local.node.js'
@@ -40,6 +42,29 @@ const pageLine = (page: number): string =>
     }),
   })
 
+const illustrator = JSON.stringify({
+  id: 'person-made-up',
+  kind: 'person',
+  status: 'active',
+  title: 'Ada Quill',
+  updatedAtMs: 1,
+})
+
+const illustratorOf = JSON.stringify({
+  id: 'relation-made-up',
+  subjectID: 'person-made-up',
+  subjectKind: 'person',
+  predicate: 'illustratorOf',
+  objectID: 'thing-made-up',
+  objectKind: 'book',
+  certainty: 'exact',
+  status: 'active',
+  updatedAtMs: 1,
+})
+
+const creditsOf = (readings: Readings) =>
+  Array.map(readings.books, each => each.credits)
+
 const pagesOf = (readings: Readings): ReadonlyArray<number> =>
   Array.map(readings.turns, turn => turn.page)
 
@@ -61,6 +86,59 @@ describe('Scribe logs on this machine', () => {
   it('reads a folder with no logs yet as no books', async () => {
     const readings = await Effect.runPromise(readingsOfDirectory(directory))
     expect(readings).toEqual({ books: [], turns: [] })
+  })
+
+  it('reads the credits Scribe keeps in its graph folder beside the books', async () => {
+    await writeFile(join(directory, thingsFileName), `${book}\n`)
+    await mkdir(join(directory, graphFolderName))
+    await writeFile(
+      join(directory, graphFolderName, thingsFileName),
+      `${illustrator}\n`,
+    )
+    await writeFile(
+      join(directory, graphFolderName, relationsFileName),
+      `${illustratorOf}\n`,
+    )
+    const readings = await Effect.runPromise(readingsOfDirectory(directory))
+    expect(creditsOf(readings)).toEqual([
+      [
+        {
+          role: 'Illustrator',
+          contributor: { key: 'ada-quill', name: 'Ada Quill' },
+        },
+      ],
+    ])
+  })
+
+  it('sends the readings again when Scribe credits a book in its graph, well before the two-second reread', async () => {
+    await writeFile(join(directory, thingsFileName), `${book}\n`)
+    await mkdir(join(directory, graphFolderName))
+    await writeFile(
+      join(directory, graphFolderName, thingsFileName),
+      `${illustrator}\n`,
+    )
+    await writeFile(join(directory, graphFolderName, relationsFileName), '')
+    const fiber = Effect.runFork(
+      Stream.runCollect(Stream.take(watchedReadings(directory), 2)),
+    )
+    await Effect.runPromise(Effect.sleep(300))
+    const appendedAtMs = Date.now()
+    await appendFile(
+      join(directory, graphFolderName, relationsFileName),
+      `${illustratorOf}\n`,
+    )
+    const collected = await Effect.runPromise(
+      Fiber.join(fiber).pipe(Effect.timeout(withinMs)),
+    )
+    const elapsedMs = Date.now() - appendedAtMs
+    expect(
+      Array.map(collected, readings =>
+        Array.flatMap(creditsOf(readings), credits =>
+          Array.map(credits, credit => credit.role),
+        ),
+      ),
+    ).toEqual([['Author'], ['Illustrator']])
+    expect(elapsedMs).toBeLessThan(watchedWithinMs)
   })
 
   it('sends the readings again when Scribe appends a page, well before the two-second reread', async () => {

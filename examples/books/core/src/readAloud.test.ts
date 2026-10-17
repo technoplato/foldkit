@@ -15,8 +15,21 @@ const feelingHappy: ReadAloud.Book = {
   key: ReadAloud.BookKey.make('9780063342705'),
   maybeIsbn13: Option.some(ReadAloud.Isbn13.make('9780063342705')),
   title: 'Little Blue Truck Feeling Happy',
-  authors: ['Alice Schertle'],
-  publishers: ['HarperCollins Publishers'],
+  credits: [
+    {
+      role: 'Author',
+      contributor: {
+        key: ReadAloud.ContributorKey.make('alice-schertle'),
+        name: 'Alice Schertle',
+      },
+    },
+  ],
+  publishedBy: [
+    {
+      key: ReadAloud.PublisherKey.make('harpercollins-publishers'),
+      name: 'HarperCollins Publishers',
+    },
+  ],
   maybePublishYear: Option.some('2024'),
   maybePageCount: Option.some(ReadAloud.PageNumber.make(14)),
   maybeCoverUrl: Option.some(

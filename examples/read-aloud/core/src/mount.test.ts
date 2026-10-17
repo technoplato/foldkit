@@ -12,6 +12,7 @@ import {
 import {
   BookId,
   BookKey,
+  ContributorKey,
   Isbn13,
   PageNumber,
   ReadingId,
@@ -53,8 +54,16 @@ const book: Book = {
   key: BookKey.make('9780063342705'),
   maybeIsbn13: Option.some(Isbn13.make('9780063342705')),
   title: 'Little Blue Truck Feeling Happy',
-  authors: ['Alice Schertle'],
-  publishers: [],
+  credits: [
+    {
+      role: 'Author',
+      contributor: {
+        key: ContributorKey.make('alice-schertle'),
+        name: 'Alice Schertle',
+      },
+    },
+  ],
+  publishedBy: [],
   maybePublishYear: Option.none(),
   maybePageCount: Option.some(PageNumber.make(14)),
   maybeCoverUrl: Option.none(),
