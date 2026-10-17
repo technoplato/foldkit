@@ -4,6 +4,43 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 17th, 2026 at 1:46:19 p.m. EDT — `0fbccc551561` feat(issues): add issues subtask, issues wip, and the close-to-landing view
+
+- **Implementation commit:** `0fbccc551561a5f30dff3102f58e0d884b8a88ad`
+- **Change:** Add issues subtask, issues wip, and the close-to-landing view (red cb4c43de9, green 0fbccc551; issues #835)
+- **Details:**
+  - issues subtask add, check, and uncheck keep an Issue's checklist; issues wip records where its work is, changing only the flags given, prints it with no flag, and clears it with --clear; issues show prints both; issues list --landing, --wip, --stuck, and --target-build 106 list the matching work with where it is and its branch. The Program gains SubmittedIssueSubtasks, SubmittedSubtaskMarks, SubmittedIssueWorkInProgress, ClearedIssueWorkInProgress, and SelectedLandingFilter, and is version 8. Tests: instant-tools 66, issues core 56, issues CLI 36, issues React host 8; tsc, oxlint, and prettier clean.
+  - End to end on a throwaway ephemeral Instant app (84a05333) with the Instant Tools schema pushed: file, subtask add (and again, one new), check by position and id, uncheck, an unknown subtask (exit 2), wip none, record, pushed keeping the rest, print, stuck, abandoned, every list filter, show, clear, and --clear with a change (exit 2). The installed 1.4.0 CLI's log, status, edit, and criterion on that Issue kept its subtasks and work in progress.
+  - The site shows an Issue's work in progress and subtasks on its page, the landing state beside each Issue in the list, and a Close to landing choice.
+- **Files:**
+  - `examples/issues/core/src/landing.ts` — LandingFilter, issuesForLandingFilter, and the shared landing and work-in-progress wording
+  - `examples/issues/core/src/update.ts` — AddIssueSubtasks, MarkIssueSubtasks, RecordIssueWorkInProgress, ClearIssueWorkInProgress, and their Messages
+  - `examples/issues/core/src/model.ts` — WorkInProgressEdit, SubtaskMark, and the Model's landingFilter
+  - `examples/issues/core/src/message.ts` — the five new Messages
+  - `examples/issues/core/src/presentation.ts` — listedIssues and the landing:all and landing:close interactions
+  - `examples/issues/core/src/product.ts` — the Work in progress and Subtasks sections, the list's landing state, and the Close to landing choice
+  - `examples/issues/core/src/init.ts` — landingFilter starts at AllWork
+  - `examples/issues/core/src/program.ts` — version 8
+  - `examples/issues/cli/src/commands.ts` — addSubtasksCommand, markSubtasksCommand, workInProgressCommand, the list filters, and show's new sections
+  - `examples/issues/cli/src/entry.ts` — issues subtask add, check, uncheck; issues wip; issues list --landing, --wip, --stuck, --target-build
+  - `examples/issues/README.md` — documents the new commands and the site's view
+- **User context (verbatim):**
+  > Also, I want you to audit all the work in progress. that isn't going into this next build and I want to modify issues so that you can do this work. um so that we can track in-progress work um and like the subtask list and stuff like that so we can get an idea of what work is close to landing but hasn't landed yet. (Michael, Recording 243 #2285-2289, 2026-10-17 13:19, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/263930ff-7694-4221-9f4c-f55815deebf5?t=14406.42)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 4a5e56c2-cf9c-4ee0-b5a1-43be7d467d97, started by the Scribe listener for issue #835; no SpecStory capture.
+
+## October 17th, 2026 at 1:46:18 p.m. EDT — `f12651d55668` feat(instant-tools): record subtasks and work in progress on an Issue
+
+- **Implementation commit:** `f12651d5566862e31468d0761c921b508edf7ae5`
+- **Change:** Record subtasks and work in progress on an Issue (red 1a2e15ef8, green f12651d55; issues #835)
+- **Details:**
+  - An Issue gains subtasks (each Unchecked, or Checked at a time) and workInProgress: branch, repository, worktree, commit, target build, landing state (Exploring, Red, Green, Pushed, Merged, Shipped), last step, the agent that recorded it, and whether the work is Active, Stuck, or Abandoned with the reason. isCloseToLanding is true while the work is Green or Pushed and not abandoned.
+  - Both live in the Issue's stored JSON, so the tracker's Instant schema does not change. Proved on a backup of all 833 stored Issues of the tracker app 28c98cc4: each reads with the old and the new schema, re-encodes exactly as before plus subtasks [] and workInProgress null, and a save over the stored payload keeps every stored key.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — IssueSubtask, IssueLandingState, IssueWorkActivity, IssueWorkInProgress, the Issue's subtasks and workInProgress, and isCloseToLanding
+- **User context (verbatim):**
+  > Also, I want you to audit all the work in progress. that isn't going into this next build and I want to modify issues so that you can do this work. um so that we can track in-progress work um and like the subtask list and stuff like that so we can get an idea of what work is close to landing but hasn't landed yet. (Michael, Recording 243 #2285-2289, 2026-10-17 13:19, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/263930ff-7694-4221-9f4c-f55815deebf5?t=14406.42)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 4a5e56c2-cf9c-4ee0-b5a1-43be7d467d97, started by the Scribe listener for issue #835; no SpecStory capture.
+
 ## October 17th, 2026 at 11:50:08 a.m. EDT — `092077fa9fe2` fix(read-aloud): say a book was read aloud when no page of it was heard
 
 - **Implementation commit:** `092077fa9fe21758a8d9a42278a69f4c20a5f5de`

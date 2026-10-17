@@ -5,9 +5,11 @@ import {
   Match as M,
   Option,
   Order,
+  Ref,
   Schema as S,
 } from 'effect'
 import {
+  ClearedIssueWorkInProgress,
   ComposedIssueDraft,
   ConfirmedIssueDeletion,
   DraftMention,
@@ -26,13 +28,21 @@ import {
   SubmittedIssueAttachment,
   SubmittedIssueEdit,
   SubmittedIssueMention,
+  SubmittedIssueSubtasks,
   SubmittedIssueSuccessCriterion,
+  SubmittedIssueWorkInProgress,
   SubmittedIssueWorkLogEntry,
   SubmittedProduct,
+  SubmittedSubtaskMarks,
   SubmittedSuccessCriteriaMarks,
+  type SubtaskMark,
+  WorkInProgressEdit,
   catalogIssueIds,
   describeIssueReference,
   issueFromDraft,
+  landingSummary,
+  subtaskProgress,
+  workInProgressLines,
 } from 'issues-core-example'
 import { createHash, randomUUID } from 'node:crypto'
 import {
@@ -49,20 +59,28 @@ import {
 import { basename, extname, join, resolve } from 'node:path'
 
 import {
+  AbandonedWork,
+  ActiveWork,
   ApplicationProduct,
   InstantStorageAttachmentSource,
   Issue,
   IssueAttachment,
   IssueAttachmentKind,
+  IssueLandingState,
   IssueMention,
   IssuePriority,
   type IssueReference,
   IssueReference as IssueReferenceSchema,
   IssueStatus,
+  type IssueSubtask,
   IssueSuccessEvidence,
+  type IssueWorkActivity,
+  IssueWorkInProgress,
   LibraryProduct,
+  StuckWork,
   type TrackedProduct,
   describeIssueTrackerCause,
+  isCloseToLanding,
   issueViewerUrl,
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
@@ -305,6 +323,7 @@ const parseOptionalChoice = <A extends string>(
 const statuses = IssueStatus.literals
 const priorities = IssuePriority.literals
 const evidenceKinds = IssueSuccessEvidence.literals
+const landingStates = IssueLandingState.literals
 
 const parseIssueNumbers = (
   values: ReadonlyArray<string>,
@@ -598,6 +617,34 @@ const issueHeadline = (issue: Issue): string =>
 export const issueListLine = (issue: Issue): string =>
   `#${issue.id}  ${issue.priority}  ${issue.status}  ${issue.title}  [${issue.product.name}]`
 
+/**
+ * One line of `issues list --landing`, `--wip`, `--stuck`, or
+ * `--target-build`: the list line, where the work is, and its branch, such as
+ * `#804  P1  InProgress  <title>  [Scribe]  Green for build 106  agent/claude/timeline-804`.
+ */
+export const issueWorkLine = (issue: Issue): string =>
+  Option.match(issue.workInProgress, {
+    onNone: () => issueListLine(issue),
+    onSome: work =>
+      Array.join(
+        [
+          issueListLine(issue),
+          landingSummary(work),
+          ...Option.toArray(work.branch),
+        ],
+        '  ',
+      ),
+  })
+
+const subtaskLine = (subtask: IssueSubtask, position: number): string =>
+  `  [${subtask.state._tag === 'Checked' ? 'x' : ' '}] ${position.toString()} ${subtask.title} (${subtask.id})`
+
+const subtaskLines = (issue: Issue): ReadonlyArray<string> =>
+  Array.map(issue.subtasks, (subtask, index) => subtaskLine(subtask, index + 1))
+
+const indented = (lines: ReadonlyArray<string>): ReadonlyArray<string> =>
+  Array.map(lines, line => `  ${line}`)
+
 const optionalLine = (
   label: string,
   value: Option.Option<string>,
@@ -644,6 +691,12 @@ export const issueDetailLines = (issue: Issue): ReadonlyArray<string> => [
   `Created: ${isoTime(issue.createdAtMs)}  Updated: ${isoTime(issue.updatedAtMs)}`,
   issueUrl(issue.id),
   ...section('Details', issue.details === '' ? [] : [issue.details]),
+  ...Option.match(issue.workInProgress, {
+    onNone: () => [],
+    onSome: work =>
+      section('Work in progress', indented(workInProgressLines(work))),
+  }),
+  ...section(`Subtasks (${subtaskProgress(issue)})`, subtaskLines(issue)),
   ...section(
     'Success criteria',
     Array.map(
@@ -853,13 +906,40 @@ export const showIssueCommand = (
 export type ListInput = Readonly<{
   claimant: Option.Option<string>
   isJson: boolean
+  isLanding: boolean
+  isStuck: boolean
+  isWorkInProgress: boolean
   limit: Option.Option<number>
   product: Option.Option<string>
   recording: Option.Option<string>
   search: Option.Option<string>
   statuses: ReadonlyArray<string>
+  targetBuild: Option.Option<string>
   type: Option.Option<string>
 }>
+
+const isStuckWork = (issue: Issue): boolean =>
+  Option.exists(issue.workInProgress, work => work.activity._tag === 'Stuck')
+
+const targetsBuild = (issue: Issue, build: string): boolean =>
+  Option.exists(issue.workInProgress, work =>
+    Option.contains(work.targetBuild, build),
+  )
+
+const matchesWorkFilters = (input: ListInput, issue: Issue): boolean =>
+  (!input.isLanding || isCloseToLanding(issue)) &&
+  (!input.isWorkInProgress || Option.isSome(issue.workInProgress)) &&
+  (!input.isStuck || isStuckWork(issue)) &&
+  Option.match(input.targetBuild, {
+    onNone: () => true,
+    onSome: build => targetsBuild(issue, build.trim()),
+  })
+
+const isWorkListing = (input: ListInput): boolean =>
+  input.isLanding ||
+  input.isWorkInProgress ||
+  input.isStuck ||
+  Option.isSome(input.targetBuild)
 
 const recordingFolderIdPattern = /— ([0-9a-f]{8})$/
 
@@ -988,7 +1068,8 @@ export const listIssuesCommand = (
               `${issue.title}\n${issue.details}`
                 .toLowerCase()
                 .includes(search.toLowerCase()),
-          }),
+          }) &&
+          matchesWorkFilters(input, issue),
       )
       const shown = Option.match(input.limit, {
         onNone: () => filtered,
@@ -996,7 +1077,7 @@ export const listIssuesCommand = (
       })
       const stdout = input.isJson
         ? [JSON.stringify(Array.map(shown, issue => encodeIssue(issue)))]
-        : Array.map(shown, issueListLine)
+        : Array.map(shown, isWorkListing(input) ? issueWorkLine : issueListLine)
       if (Array.isReadonlyArrayNonEmpty(unreadable)) {
         return {
           exitCode: FAILED_EXIT_CODE,
@@ -1890,6 +1971,331 @@ export const addMentionCommand = (
           : [
               `Added ${mentions.length.toString()} Mention${mentions.length === 1 ? '' : 's'} to #${issueId}; it has ${issue.mentions.length.toString()}.`,
             ],
+      )
+    }),
+  )
+
+const subtaskListing = (issue: Issue): string =>
+  Array.join(
+    Array.map(
+      issue.subtasks,
+      (subtask, index) =>
+        `${(index + 1).toString()} ${subtask.id} "${subtask.title}"`,
+    ),
+    ', ',
+  )
+
+/** Everything `issues subtask add` reads. */
+export type AddSubtasksInput = Readonly<{
+  issue: string
+  isJson: boolean
+  titles: ReadonlyArray<string>
+}>
+
+/**
+ * Adds subtasks to an Issue's checklist, unchecked, each title once, and
+ * prints the checklist: `Added 3 subtasks to #835; 0 of 3 done.`
+ */
+export const addSubtasksCommand = (
+  host: IssuesHost,
+  input: AddSubtasksInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const titles = Array.filter(
+        Array.map(input.titles, title => title.trim()),
+        title => title !== '',
+      )
+      if (Array.isReadonlyArrayEmpty(titles)) {
+        return yield* Effect.fail(
+          usage(
+            'issues subtask add needs a title: one short step, such as "Red tests".',
+          ),
+        )
+      }
+      const before = yield* Ref.make<ReadonlyArray<IssueSubtask>>([])
+      const { issue } = yield* changeIssue(
+        host,
+        'subtask add',
+        issueId,
+        current =>
+          Effect.as(Ref.set(before, current.subtasks), [
+            SubmittedIssueSubtasks.make({ issueId, titles }),
+          ]),
+      )
+      const beforeIds = new Set(
+        Array.map(yield* Ref.get(before), subtask => subtask.id),
+      )
+      const addedCount = Array.filter(
+        issue.subtasks,
+        subtask => !beforeIds.has(subtask.id),
+      ).length
+      const plural = addedCount === 1 ? '' : 's'
+      const headline =
+        addedCount === 0
+          ? `#${issueId} already has every subtask given; ${subtaskProgress(issue)}.`
+          : `Added ${addedCount.toString()} subtask${plural} to #${issueId}; ${subtaskProgress(issue)}.`
+      return succeeded(
+        input.isJson ? [issueJson(issue)] : [headline, ...subtaskLines(issue)],
+      )
+    }),
+  )
+
+/** Everything `issues subtask check` and `uncheck` read. */
+export type MarkSubtasksInput = Readonly<{
+  issue: string
+  isJson: boolean
+  mark: SubtaskMark
+  subtasks: ReadonlyArray<string>
+}>
+
+const subtaskIdFor = (
+  issue: Issue,
+  reference: string,
+): Option.Option<string> => {
+  const trimmed = reference.trim()
+  const byPosition = /^\d+$/.test(trimmed)
+    ? Option.map(
+        Array.get(issue.subtasks, Number(trimmed) - 1),
+        subtask => subtask.id,
+      )
+    : Option.none()
+  return Option.orElse(byPosition, () =>
+    Option.map(
+      Array.findFirst(issue.subtasks, subtask => subtask.id === trimmed),
+      subtask => subtask.id,
+    ),
+  )
+}
+
+/**
+ * Checks subtasks off, or back to unchecked, by position or id:
+ * `Checked 1, issue-835-subtask-3 on #835; 2 of 3 done.`
+ */
+export const markSubtasksCommand = (
+  host: IssuesHost,
+  input: MarkSubtasksInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const command =
+        input.mark === 'Checked' ? 'subtask check' : 'subtask uncheck'
+      const references = splitList(input.subtasks)
+      if (Array.isReadonlyArrayEmpty(references)) {
+        return yield* Effect.fail(
+          usage(
+            `issues ${command} needs a subtask: its position (1, 2, ...) or id.`,
+          ),
+        )
+      }
+      const { issue } = yield* changeIssue(host, command, issueId, current =>
+        Effect.map(
+          Effect.forEach(references, reference =>
+            Option.match(subtaskIdFor(current, reference), {
+              onNone: () =>
+                Effect.fail(
+                  usage(
+                    `Issue #${issueId} has no subtask ${reference}. Its subtasks: ${Array.match(
+                      current.subtasks,
+                      {
+                        onEmpty: () => 'none',
+                        onNonEmpty: () => subtaskListing(current),
+                      },
+                    )}.`,
+                  ),
+                ),
+              onSome: Effect.succeed,
+            }),
+          ),
+          subtaskIds => [
+            SubmittedSubtaskMarks.make({
+              issueId,
+              mark: input.mark,
+              subtaskIds: Array.dedupe(subtaskIds),
+            }),
+          ],
+        ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `${input.mark} ${Array.join(references, ', ')} on #${issueId}; ${subtaskProgress(issue)}.`,
+            ],
+      )
+    }),
+  )
+
+/** Everything `issues wip` reads; only the flags given change. */
+export type WorkInProgressInput = Readonly<{
+  abandoned: Option.Option<string>
+  agent: Option.Option<string>
+  branch: Option.Option<string>
+  commit: Option.Option<string>
+  isActive: boolean
+  isClear: boolean
+  isJson: boolean
+  issue: string
+  repository: Option.Option<string>
+  state: Option.Option<string>
+  step: Option.Option<string>
+  stuck: Option.Option<string>
+  targetBuild: Option.Option<string>
+  worktree: Option.Option<string>
+}>
+
+const requiredReason = (
+  flag: string,
+  maybeReason: Option.Option<string>,
+): Effect.Effect<Option.Option<string>, IssuesCommandFailure> =>
+  Option.match(maybeReason, {
+    onNone: () => Effect.succeed(Option.none()),
+    onSome: reason =>
+      reason.trim() === ''
+        ? Effect.fail(
+            usage(
+              `issues wip ${flag} needs the reason, such as ${flag} "Waits on a review".`,
+            ),
+          )
+        : Effect.succeed(Option.some(reason.trim())),
+  })
+
+const parseActivity = (
+  input: WorkInProgressInput,
+): Effect.Effect<Option.Option<IssueWorkActivity>, IssuesCommandFailure> =>
+  Effect.gen(function* () {
+    const maybeStuck = yield* requiredReason('--stuck', input.stuck)
+    const maybeAbandoned = yield* requiredReason('--abandoned', input.abandoned)
+    const activities: ReadonlyArray<IssueWorkActivity> = [
+      ...(input.isActive ? [ActiveWork.make({})] : []),
+      ...Option.toArray(
+        Option.map(maybeStuck, reason => StuckWork.make({ reason })),
+      ),
+      ...Option.toArray(
+        Option.map(maybeAbandoned, reason => AbandonedWork.make({ reason })),
+      ),
+    ]
+    if (activities.length > 1) {
+      return yield* Effect.fail(
+        usage('issues wip takes one of --active, --stuck, or --abandoned.'),
+      )
+    }
+    return Array.head(activities)
+  })
+
+const trimmedText = (maybeText: Option.Option<string>): Option.Option<string> =>
+  Option.filter(
+    Option.map(maybeText, text => text.trim()),
+    text => text !== '',
+  )
+
+const hasWorkChange = (edit: WorkInProgressEdit): boolean =>
+  Option.isSome(edit.activity) ||
+  Option.isSome(edit.landingState) ||
+  Array.some(
+    [
+      edit.branch,
+      edit.commitSha,
+      edit.lastStep,
+      edit.repository,
+      edit.targetBuild,
+      edit.worktree,
+    ],
+    Option.isSome,
+  )
+
+const encodeWorkInProgress = S.encodeSync(IssueWorkInProgress)
+
+const printedWorkInProgress = (issue: Issue, isJson: boolean): IssuesOutcome =>
+  Option.match(issue.workInProgress, {
+    onNone: () =>
+      succeeded(
+        isJson
+          ? ['null']
+          : [`No work in progress is recorded on #${issue.id}.`],
+      ),
+    onSome: work =>
+      succeeded(
+        isJson
+          ? [JSON.stringify(encodeWorkInProgress(work), null, 2)]
+          : [
+              `#${issue.id} work in progress`,
+              ...indented(workInProgressLines(work)),
+            ],
+      ),
+  })
+
+/**
+ * Records where an Issue's work is (only the flags given change), prints it
+ * when no flag changes it, or clears it: `issues wip 804 --state green
+ * --commit 8b89b2f1b` keeps its branch and worktree.
+ */
+export const workInProgressCommand = (
+  host: IssuesHost,
+  input: WorkInProgressInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const landingState = yield* parseOptionalChoice(
+        'landing state',
+        input.state,
+        landingStates,
+      )
+      const activity = yield* parseActivity(input)
+      const edit = WorkInProgressEdit.make({
+        activity,
+        agentId: Option.some(
+          Option.getOrElse(trimmedText(input.agent), () => host.defaultAgent),
+        ),
+        branch: trimmedText(input.branch),
+        commitSha: trimmedText(input.commit),
+        landingState,
+        lastStep: trimmedText(input.step),
+        repository: trimmedText(input.repository),
+        targetBuild: trimmedText(input.targetBuild),
+        worktree: trimmedText(input.worktree),
+      })
+      if (input.isClear) {
+        if (hasWorkChange(edit)) {
+          return yield* Effect.fail(
+            usage(
+              'issues wip --clear takes no other change; run it alone to remove the work in progress.',
+            ),
+          )
+        }
+        const { issue } = yield* changeIssue(host, 'wip', issueId, () => [
+          ClearedIssueWorkInProgress.make({ issueId }),
+        ])
+        return succeeded(
+          input.isJson
+            ? [issueJson(issue)]
+            : [`Cleared the work in progress on #${issueId}.`],
+        )
+      }
+      if (!hasWorkChange(edit)) {
+        const model = yield* executeMessages(
+          IssueDetail.make({ issueId }),
+          () => Effect.succeed([]),
+          host.resources,
+        )
+        const issue = yield* loadedIssueOf('wip', model, issueId)
+        return printedWorkInProgress(issue, input.isJson)
+      }
+      const { issue } = yield* changeIssue(host, 'wip', issueId, () => [
+        SubmittedIssueWorkInProgress.make({ edit, issueId }),
+      ])
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : Option.match(issue.workInProgress, {
+              onNone: () => [`No work in progress is recorded on #${issueId}.`],
+              onSome: work => [
+                `Recorded the work in progress on #${issueId}: ${landingSummary(work)}.`,
+              ],
+            }),
       )
     }),
   )

@@ -2,15 +2,21 @@ import { Array, Clock, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command } from 'foldkit'
 
 import {
+  ActiveWork,
   ApplicationProduct,
+  CheckedSubtask,
   ISSUE_VIEWER_ORIGIN,
   Issue,
   IssueAttachment,
+  type IssueLandingState,
   IssueLogEvidenceQuery,
   IssueMention,
   IssueStatus,
+  IssueSubtask,
   IssueSuccessCriterion,
   IssueTracker,
+  type IssueWorkActivity,
+  IssueWorkInProgress,
   IssueWorkLogEntry,
   ProductCatalog,
   ProductCatalogEntry,
@@ -19,6 +25,7 @@ import {
   TrackedProduct,
   TriageCandidate,
   TriageInbox as TriageInboxServiceTag,
+  UncheckedSubtask,
   UriReference,
   describeIssueTrackerCause,
   issueViewerUrl,
@@ -95,8 +102,10 @@ import {
   SavingIssueDraft,
   SavingIssueMutation,
   SavingProductAddition,
+  SubtaskMark,
   TriageInbox,
   UnchangedProductAddition,
+  WorkInProgressEdit,
 } from './model.js'
 
 // COMMAND
@@ -707,6 +716,296 @@ export const MarkIssueSuccessCriteria = Command.define(
           updatedAtMs: nextUpdatedAtMs(current, nowMs),
         }),
       hasLanded: isMarked,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+const subtaskListing = (issue: Issue): string =>
+  Array.join(
+    Array.map(
+      issue.subtasks,
+      (subtask, index) =>
+        `${(index + 1).toString()} ${subtask.id} "${subtask.title}"`,
+    ),
+    ', ',
+  )
+
+const hasSubtaskTitled = (
+  subtasks: ReadonlyArray<IssueSubtask>,
+  title: string,
+): boolean => Array.some(subtasks, subtask => subtask.title === title)
+
+/**
+ * Adds subtasks under the next free subtask ids, unchecked, and reads them
+ * back. A title the checklist already holds is not added again.
+ */
+export const AddIssueSubtasks = Command.define(
+  'AddIssueSubtasks',
+  { issueId: S.String, titles: S.Array(S.String) },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, titles }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const holdsEveryTitle = (issue: Issue) =>
+      Array.every(titles, title => hasSubtaskTitled(issue.subtasks, title))
+    const issue = yield* tracker.update(issueId, {
+      apply: current => {
+        if (holdsEveryTitle(current)) {
+          return current
+        }
+        const nextSubtasks = Array.reduce(
+          titles,
+          current.subtasks,
+          (subtasks, title) =>
+            hasSubtaskTitled(subtasks, title)
+              ? subtasks
+              : Array.append(
+                  subtasks,
+                  IssueSubtask.make({
+                    id: nextChildId(
+                      `issue-${current.id}-subtask-`,
+                      Array.map(subtasks, subtask => subtask.id),
+                    ),
+                    state: UncheckedSubtask.make({}),
+                    title,
+                  }),
+                ),
+        )
+        return Issue.make({
+          ...current,
+          subtasks: nextSubtasks,
+          updatedAtMs: nextUpdatedAtMs(current, nowMs),
+        })
+      },
+      hasLanded: holdsEveryTitle,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+const markedSubtask = (
+  subtask: IssueSubtask,
+  mark: SubtaskMark,
+  nowMs: number,
+): IssueSubtask =>
+  M.value(mark).pipe(
+    M.withReturnType<IssueSubtask>(),
+    M.when('Checked', () =>
+      subtask.state._tag === 'Checked'
+        ? subtask
+        : IssueSubtask.make({
+            ...subtask,
+            state: CheckedSubtask.make({ checkedAtMs: nowMs }),
+          }),
+    ),
+    M.when('Unchecked', () =>
+      IssueSubtask.make({ ...subtask, state: UncheckedSubtask.make({}) }),
+    ),
+    M.exhaustive,
+  )
+
+/**
+ * Checks subtasks off, or back to unchecked, and reads them back. A subtask
+ * already checked keeps the time it was first checked.
+ */
+export const MarkIssueSubtasks = Command.define(
+  'MarkIssueSubtasks',
+  { issueId: S.String, mark: SubtaskMark, subtaskIds: S.Array(S.String) },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, mark, subtaskIds }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const maybeIssue = yield* tracker.fetchIssue(issueId)
+    if (Option.isNone(maybeIssue)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${issueId} does not exist.`,
+      })
+    }
+    const knownIds = Array.map(maybeIssue.value.subtasks, subtask => subtask.id)
+    const unknownIds = Array.filter(
+      subtaskIds,
+      subtaskId => !Array.contains(knownIds, subtaskId),
+    )
+    if (Array.isReadonlyArrayNonEmpty(unknownIds)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${maybeIssue.value.id} has no subtask ${Array.join(unknownIds, ', ')}. Its subtasks: ${subtaskListing(maybeIssue.value)}.`,
+      })
+    }
+    const isMarked = (issue: Issue) =>
+      Array.every(
+        issue.subtasks,
+        subtask =>
+          !Array.contains(subtaskIds, subtask.id) ||
+          subtask.state._tag === mark,
+      )
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        Issue.make({
+          ...current,
+          subtasks: Array.map(current.subtasks, subtask =>
+            Array.contains(subtaskIds, subtask.id)
+              ? markedSubtask(subtask, mark, nowMs)
+              : subtask,
+          ),
+          updatedAtMs: nextUpdatedAtMs(current, nowMs),
+        }),
+      hasLanded: isMarked,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+const firstLandingState: IssueLandingState = 'Exploring'
+
+/**
+ * The work in progress after one change: the fields the change gives, and
+ * the rest as they were. Work recorded for the first time starts Exploring
+ * and active.
+ */
+export const editedWorkInProgress = (
+  maybeCurrent: Option.Option<IssueWorkInProgress>,
+  edit: WorkInProgressEdit,
+  nowMs: number,
+): IssueWorkInProgress => {
+  const current = Option.getOrElse(maybeCurrent, () =>
+    IssueWorkInProgress.make({
+      activity: ActiveWork.make({}),
+      agentId: Option.none(),
+      branch: Option.none(),
+      commitSha: Option.none(),
+      landingState: firstLandingState,
+      lastStep: Option.none(),
+      repository: Option.none(),
+      targetBuild: Option.none(),
+      updatedAtMs: nowMs,
+      worktree: Option.none(),
+    }),
+  )
+  return IssueWorkInProgress.make({
+    activity: Option.getOrElse(edit.activity, () => current.activity),
+    agentId: Option.orElse(edit.agentId, () => current.agentId),
+    branch: Option.orElse(edit.branch, () => current.branch),
+    commitSha: Option.orElse(edit.commitSha, () => current.commitSha),
+    landingState: Option.getOrElse(
+      edit.landingState,
+      () => current.landingState,
+    ),
+    lastStep: Option.orElse(edit.lastStep, () => current.lastStep),
+    repository: Option.orElse(edit.repository, () => current.repository),
+    targetBuild: Option.orElse(edit.targetBuild, () => current.targetBuild),
+    updatedAtMs: nowMs,
+    worktree: Option.orElse(edit.worktree, () => current.worktree),
+  })
+}
+
+const isSameActivity = (
+  left: IssueWorkActivity,
+  right: IssueWorkActivity,
+): boolean =>
+  M.value(left).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      Active: () => right._tag === 'Active',
+      Stuck: ({ reason }) => right._tag === 'Stuck' && right.reason === reason,
+      Abandoned: ({ reason }) =>
+        right._tag === 'Abandoned' && right.reason === reason,
+    }),
+  )
+
+const textLanded = (
+  wanted: Option.Option<string>,
+  stored: Option.Option<string>,
+): boolean =>
+  Option.match(wanted, {
+    onNone: () => true,
+    onSome: value => Option.contains(stored, value),
+  })
+
+const holdsEdit = (
+  work: IssueWorkInProgress,
+  edit: WorkInProgressEdit,
+): boolean =>
+  optionLanded(edit.landingState, work.landingState) &&
+  Option.match(edit.activity, {
+    onNone: () => true,
+    onSome: activity => isSameActivity(activity, work.activity),
+  }) &&
+  textLanded(edit.agentId, work.agentId) &&
+  textLanded(edit.branch, work.branch) &&
+  textLanded(edit.commitSha, work.commitSha) &&
+  textLanded(edit.lastStep, work.lastStep) &&
+  textLanded(edit.repository, work.repository) &&
+  textLanded(edit.targetBuild, work.targetBuild) &&
+  textLanded(edit.worktree, work.worktree)
+
+/** Records one change to an Issue's work in progress and reads it back. */
+export const RecordIssueWorkInProgress = Command.define(
+  'RecordIssueWorkInProgress',
+  { edit: WorkInProgressEdit, issueId: S.String },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ edit, issueId }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        Issue.make({
+          ...current,
+          updatedAtMs: nextUpdatedAtMs(current, nowMs),
+          workInProgress: Option.some(
+            editedWorkInProgress(current.workInProgress, edit, nowMs),
+          ),
+        }),
+      hasLanded: stored =>
+        Option.exists(stored.workInProgress, work => holdsEdit(work, edit)),
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+/** Removes an Issue's work in progress and reads the Issue back without it. */
+export const ClearIssueWorkInProgress = Command.define(
+  'ClearIssueWorkInProgress',
+  { issueId: S.String },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const isCleared = (issue: Issue) => Option.isNone(issue.workInProgress)
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        isCleared(current)
+          ? current
+          : Issue.make({
+              ...current,
+              updatedAtMs: nextUpdatedAtMs(current, nowMs),
+              workInProgress: Option.none(),
+            }),
+      hasLanded: isCleared,
     })
     return SucceededSaveIssue.make({ issue })
   }).pipe(
@@ -1762,6 +2061,45 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model,
           MarkIssueSuccessCriteria({ criterionIds, isSatisfied, issueId }),
         ),
+      SubmittedIssueSubtasks: ({ issueId, titles }) => {
+        const nextTitles = Array.dedupe(
+          Array.filter(
+            Array.map(titles, title => title.trim()),
+            title => title !== '',
+          ),
+        )
+        if (Array.isReadonlyArrayEmpty(nextTitles)) {
+          return [
+            Model.make({
+              ...model,
+              issueMutation: FailedIssueMutation.make({
+                reason: 'A subtask title is required.',
+              }),
+            }),
+            [],
+          ]
+        }
+        return startLeftoverCommand(
+          model,
+          AddIssueSubtasks({ issueId, titles: nextTitles }),
+        )
+      },
+      SubmittedSubtaskMarks: ({ issueId, mark, subtaskIds }) =>
+        startLeftoverCommand(
+          model,
+          MarkIssueSubtasks({ issueId, mark, subtaskIds }),
+        ),
+      SubmittedIssueWorkInProgress: ({ edit, issueId }) =>
+        startLeftoverCommand(
+          model,
+          RecordIssueWorkInProgress({ edit, issueId }),
+        ),
+      ClearedIssueWorkInProgress: ({ issueId }) =>
+        startLeftoverCommand(model, ClearIssueWorkInProgress({ issueId })),
+      SelectedLandingFilter: ({ filter }) => [
+        Model.make({ ...model, landingFilter: filter }),
+        [],
+      ],
       SubmittedIssueMention: ({ issueId, mention }) =>
         startLeftoverCommand(model, AddIssueMention({ issueId, mention })),
       SelectedIssueStatus: ({ issueId, status }) =>

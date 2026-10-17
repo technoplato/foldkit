@@ -1,6 +1,7 @@
 import { Option } from 'effect'
 import { type Command } from 'foldkit'
 
+import { AllWork } from './landing.js'
 import { AllProducts } from './leftover.js'
 import { type Message } from './message.js'
 import {
@@ -43,6 +44,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     issueLogs: NotObservingIssueLogs.make({}),
     issueMutation: IdleIssueMutation.make({}),
     issues: LoadingIssues.make({}),
+    landingFilter: AllWork.make({}),
     leftoverComment: '',
     leftoverLink: '',
     leftoverPresence:

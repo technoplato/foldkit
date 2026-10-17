@@ -16,13 +16,18 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  AbandonedWork,
+  ActiveWork,
   ApplicationProduct,
   Issue,
+  type IssueLandingState,
   IssueMention,
   IssueSuccessCriterion,
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
+  type IssueWorkActivity,
+  IssueWorkInProgress,
   IssueWorkLogEntry,
   ProductCatalog,
   ProductCatalogEntry,
@@ -30,6 +35,7 @@ import {
   type ProductCatalogService,
   RecordingMention,
   RecordingReference,
+  StuckWork,
   UriReference,
 } from '@foldkit/instant-tools/issues'
 
@@ -38,9 +44,12 @@ import {
   type IssueFilesService,
   type IssuesHost,
   type IssuesOutcome,
+  type ListInput,
+  type WorkInProgressInput,
   addCriterionCommand,
   addMentionCommand,
   addProductCommand,
+  addSubtasksCommand,
   attachIssueFilesCommand,
   claimIssueCommand,
   deleteIssueCommand,
@@ -52,11 +61,13 @@ import {
   listProductsCommand,
   logIssueCommand,
   markCriteriaCommand,
+  markSubtasksCommand,
   redactCredentials,
   resolveSaidMention,
   setIssueStatusCommand,
   showIssueCommand,
   typedMention,
+  workInProgressCommand,
 } from './commands.js'
 import { memoryIssueRecords } from './resources.js'
 
@@ -194,6 +205,56 @@ const scribeEntry = ProductCatalogEntry.make({
   product,
   updatedAtMs: 1_790_000_000_000,
 })
+
+const allIssues: ListInput = {
+  claimant: Option.none(),
+  isJson: false,
+  isLanding: false,
+  isStuck: false,
+  isWorkInProgress: false,
+  limit: Option.none(),
+  product: Option.none(),
+  recording: Option.none(),
+  search: Option.none(),
+  statuses: [],
+  targetBuild: Option.none(),
+  type: Option.none(),
+}
+
+const noWorkChange = (issue: string): WorkInProgressInput => ({
+  abandoned: Option.none(),
+  agent: Option.none(),
+  branch: Option.none(),
+  commit: Option.none(),
+  isActive: false,
+  isClear: false,
+  isJson: false,
+  issue,
+  repository: Option.none(),
+  state: Option.none(),
+  step: Option.none(),
+  stuck: Option.none(),
+  targetBuild: Option.none(),
+  worktree: Option.none(),
+})
+
+const workAt = (
+  landingState: IssueLandingState,
+  maybeTargetBuild: Option.Option<string>,
+  activity: IssueWorkActivity = ActiveWork.make({}),
+) =>
+  IssueWorkInProgress.make({
+    activity,
+    agentId: Option.some('claude-code/wip-835'),
+    branch: Option.some('agent/claude/work'),
+    commitSha: Option.none(),
+    landingState,
+    lastStep: Option.none(),
+    repository: Option.none(),
+    targetBuild: maybeTargetBuild,
+    updatedAtMs: 1_792_260_000_000,
+    worktree: Option.none(),
+  })
 
 const acagaInput: AddProductInput = {
   id: Option.some('acaga'),
@@ -707,14 +768,9 @@ describe('issues command', () => {
 
     const open = await run(
       listIssuesCommand(host, {
-        claimant: Option.none(),
+        ...allIssues,
         isJson: true,
-        limit: Option.none(),
-        product: Option.none(),
-        recording: Option.none(),
-        search: Option.none(),
         statuses: ['Open'],
-        type: Option.none(),
       }),
     )
     const listed: ReadonlyArray<{ id: string }> = JSON.parse(linesOf(open))
@@ -723,14 +779,8 @@ describe('issues command', () => {
 
     const fromRecording = await run(
       listIssuesCommand(host, {
-        claimant: Option.none(),
-        isJson: false,
-        limit: Option.none(),
-        product: Option.none(),
+        ...allIssues,
         recording: Option.some('208'),
-        search: Option.none(),
-        statuses: [],
-        type: Option.none(),
       }),
     )
     expect(fromRecording.stdout).toEqual([
@@ -1123,5 +1173,322 @@ describe('issues command', () => {
       ],
       stdout: [],
     })
+  })
+
+  it('adds, checks, and unchecks subtasks by position or id, and shows them', async () => {
+    const { host, memory } = await run(
+      makeHost([stored('835', 'Track work in progress')]),
+    )
+
+    const added = await run(
+      addSubtasksCommand(host, {
+        issue: '835',
+        isJson: false,
+        titles: ['Red tests', 'Green', 'Install the CLI'],
+      }),
+    )
+    const checked = await run(
+      markSubtasksCommand(host, {
+        issue: '835',
+        isJson: false,
+        mark: 'Checked',
+        subtasks: ['1', 'issue-835-subtask-3'],
+      }),
+    )
+    const unchecked = await run(
+      markSubtasksCommand(host, {
+        issue: '835',
+        isJson: false,
+        mark: 'Unchecked',
+        subtasks: ['3'],
+      }),
+    )
+    const shown = await run(
+      showIssueCommand(host, { issue: '835', isJson: false }),
+    )
+
+    expect(added.stdout).toEqual([
+      'Added 3 subtasks to #835; 0 of 3 done.',
+      '  [ ] 1 Red tests (issue-835-subtask-1)',
+      '  [ ] 2 Green (issue-835-subtask-2)',
+      '  [ ] 3 Install the CLI (issue-835-subtask-3)',
+    ])
+    expect(checked.stdout).toEqual([
+      'Checked 1, issue-835-subtask-3 on #835; 2 of 3 done.',
+    ])
+    expect(unchecked.stdout).toEqual(['Unchecked 3 on #835; 1 of 3 done.'])
+    expect(
+      Option.getOrThrow(fetched(memory, '835')).subtasks.map(subtask => [
+        subtask.id,
+        subtask.state._tag,
+        subtask.title,
+      ]),
+    ).toEqual([
+      ['issue-835-subtask-1', 'Checked', 'Red tests'],
+      ['issue-835-subtask-2', 'Unchecked', 'Green'],
+      ['issue-835-subtask-3', 'Unchecked', 'Install the CLI'],
+    ])
+    expect(shown.stdout).toEqual(
+      expect.arrayContaining([
+        'Subtasks (1 of 3 done)',
+        '  [x] 1 Red tests (issue-835-subtask-1)',
+        '  [ ] 2 Green (issue-835-subtask-2)',
+      ]),
+    )
+
+    const unknown = await run(
+      markSubtasksCommand(host, {
+        issue: '835',
+        isJson: false,
+        mark: 'Checked',
+        subtasks: ['7'],
+      }),
+    )
+    expect(unknown.exitCode).toBe(2)
+    expect(Array.join(unknown.stderr, '\n')).toContain(
+      'Issue #835 has no subtask 7. Its subtasks: 1 issue-835-subtask-1 "Red tests"',
+    )
+
+    const blank = await run(
+      addSubtasksCommand(host, { issue: '835', isJson: false, titles: [' '] }),
+    )
+    expect(blank.exitCode).toBe(2)
+    expect(Array.join(blank.stderr, '\n')).toContain(
+      'issues subtask add needs a title',
+    )
+  })
+
+  it('records work in progress, prints it, keeps what a later change leaves out, and clears it', async () => {
+    const { host, memory } = await run(
+      makeHost([stored('835', 'Track work in progress')]),
+    )
+
+    const none = await run(workInProgressCommand(host, noWorkChange('835')))
+    expect(none.stdout).toEqual(['No work in progress is recorded on #835.'])
+
+    const red = await run(
+      workInProgressCommand(host, {
+        ...noWorkChange('835'),
+        branch: Option.some('agent/claude/issues-wip-835'),
+        repository: Option.some('foldkit'),
+        state: Option.some('red'),
+        step: Option.some('Red tests written'),
+        worktree: Option.some(
+          '/Users/laptop/Sync/worktrees/foldkit-issues-wip-835',
+        ),
+      }),
+    )
+    const green = await run(
+      workInProgressCommand(host, {
+        ...noWorkChange('835'),
+        commit: Option.some('5e1f00d'),
+        state: Option.some('GREEN'),
+        targetBuild: Option.some('106'),
+      }),
+    )
+    expect([red.exitCode, green.exitCode]).toEqual([0, 0])
+    expect(green.stdout).toEqual([
+      'Recorded the work in progress on #835: Green for build 106.',
+    ])
+    expect(
+      Option.getOrThrow(fetched(memory, '835')).workInProgress,
+    ).toMatchObject(
+      Option.some({
+        activity: { _tag: 'Active' },
+        agentId: Option.some('claude-code/test'),
+        branch: Option.some('agent/claude/issues-wip-835'),
+        commitSha: Option.some('5e1f00d'),
+        landingState: 'Green',
+        lastStep: Option.some('Red tests written'),
+        repository: Option.some('foldkit'),
+        targetBuild: Option.some('106'),
+        worktree: Option.some(
+          '/Users/laptop/Sync/worktrees/foldkit-issues-wip-835',
+        ),
+      }),
+    )
+
+    const shown = await run(workInProgressCommand(host, noWorkChange('835')))
+    expect(shown.stdout).toEqual([
+      '#835 work in progress',
+      '  State: Green for build 106',
+      '  Branch: agent/claude/issues-wip-835 in foldkit',
+      '  Worktree: /Users/laptop/Sync/worktrees/foldkit-issues-wip-835',
+      '  Commit: 5e1f00d',
+      '  Last step: Red tests written',
+      expect.stringMatching(/^  Recorded \S+ by claude-code\/test$/),
+    ])
+
+    const stuck = await run(
+      workInProgressCommand(host, {
+        ...noWorkChange('835'),
+        agent: Option.some('claude-code/wip-835@second-account'),
+        stuck: Option.some('Waits on a review'),
+      }),
+    )
+    expect(stuck.stdout).toEqual([
+      'Recorded the work in progress on #835: Green for build 106, stuck: Waits on a review.',
+    ])
+    expect(
+      Option.getOrThrow(fetched(memory, '835')).workInProgress,
+    ).toMatchObject(
+      Option.some({
+        activity: { _tag: 'Stuck', reason: 'Waits on a review' },
+        agentId: Option.some('claude-code/wip-835@second-account'),
+      }),
+    )
+
+    const unknownState = await run(
+      workInProgressCommand(host, {
+        ...noWorkChange('835'),
+        state: Option.some('done'),
+      }),
+    )
+    expect(unknownState.exitCode).toBe(2)
+    expect(Array.join(unknownState.stderr, '\n')).toContain(
+      '"done" is not a landing state. Valid: Exploring, Red, Green, Pushed, Merged, Shipped.',
+    )
+
+    const twoActivities = await run(
+      workInProgressCommand(host, {
+        ...noWorkChange('835'),
+        isActive: true,
+        stuck: Option.some('Waits on a review'),
+      }),
+    )
+    expect(twoActivities.exitCode).toBe(2)
+    expect(Array.join(twoActivities.stderr, '\n')).toContain(
+      'issues wip takes one of --active, --stuck, or --abandoned.',
+    )
+
+    const clearWithChange = await run(
+      workInProgressCommand(host, {
+        ...noWorkChange('835'),
+        isClear: true,
+        state: Option.some('red'),
+      }),
+    )
+    expect(clearWithChange.exitCode).toBe(2)
+
+    const cleared = await run(
+      workInProgressCommand(host, { ...noWorkChange('835'), isClear: true }),
+    )
+    expect(cleared.stdout).toEqual(['Cleared the work in progress on #835.'])
+    expect(Option.getOrThrow(fetched(memory, '835')).workInProgress).toEqual(
+      Option.none(),
+    )
+
+    const missingIssue = await run(
+      workInProgressCommand(host, {
+        ...noWorkChange('999'),
+        state: Option.some('red'),
+      }),
+    )
+    expect(missingIssue.exitCode).toBe(3)
+  })
+
+  it('shows the work in progress on an Issue', async () => {
+    const { host } = await run(
+      makeHost([
+        stored('804', 'Timeline window drops device events', {
+          workInProgress: Option.some(
+            workAt(
+              'Pushed',
+              Option.some('106'),
+              StuckWork.make({ reason: 'Waits on the 106 cutter' }),
+            ),
+          ),
+        }),
+      ]),
+    )
+
+    const shown = await run(
+      showIssueCommand(host, { issue: '804', isJson: false }),
+    )
+
+    expect(shown.stdout).toEqual(
+      expect.arrayContaining([
+        'Work in progress',
+        '  State: Pushed for build 106',
+        '  Stuck: Waits on the 106 cutter',
+        '  Branch: agent/claude/work',
+        '  Recorded 2026-10-17T18:00:00.000Z by claude-code/wip-835',
+      ]),
+    )
+  })
+
+  it('lists the work close to landing, the work in progress, the stuck work, and the work for one build', async () => {
+    const { host } = await run(
+      makeHost([
+        stored('801', 'Green work', {
+          workInProgress: Option.some(workAt('Green', Option.some('106'))),
+        }),
+        stored('802', 'Pushed and stuck', {
+          workInProgress: Option.some(
+            workAt(
+              'Pushed',
+              Option.none(),
+              StuckWork.make({ reason: 'Waits on Michael' }),
+            ),
+          ),
+        }),
+        stored('803', 'Red work', {
+          workInProgress: Option.some(workAt('Red', Option.none())),
+        }),
+        stored('804', 'Merged work', {
+          workInProgress: Option.some(workAt('Merged', Option.some('106'))),
+        }),
+        stored('805', 'Abandoned green', {
+          workInProgress: Option.some(
+            workAt(
+              'Green',
+              Option.none(),
+              AbandonedWork.make({ reason: 'Replaced by #801' }),
+            ),
+          ),
+        }),
+        stored('806', 'Not started'),
+      ]),
+    )
+
+    const landing = await run(
+      listIssuesCommand(host, { ...allIssues, isLanding: true }),
+    )
+    const working = await run(
+      listIssuesCommand(host, { ...allIssues, isWorkInProgress: true }),
+    )
+    const stuck = await run(
+      listIssuesCommand(host, { ...allIssues, isStuck: true }),
+    )
+    const forBuild = await run(
+      listIssuesCommand(host, {
+        ...allIssues,
+        targetBuild: Option.some('106'),
+      }),
+    )
+    const landingJson = await run(
+      listIssuesCommand(host, { ...allIssues, isJson: true, isLanding: true }),
+    )
+
+    expect(landing.stdout).toEqual([
+      '#802  P2  Open  Pushed and stuck  [Scribe]  Pushed, stuck: Waits on Michael  agent/claude/work',
+      '#801  P2  Open  Green work  [Scribe]  Green for build 106  agent/claude/work',
+    ])
+    expect(working.stdout).toHaveLength(5)
+    expect(stuck.stdout).toEqual([
+      '#802  P2  Open  Pushed and stuck  [Scribe]  Pushed, stuck: Waits on Michael  agent/claude/work',
+    ])
+    expect(forBuild.stdout).toEqual([
+      '#804  P2  Open  Merged work  [Scribe]  Merged for build 106  agent/claude/work',
+      '#801  P2  Open  Green work  [Scribe]  Green for build 106  agent/claude/work',
+    ])
+    const listed: ReadonlyArray<{ id: string }> = JSON.parse(
+      linesOf(landingJson),
+    )
+    expect(Array.map(listed, issue => issue.id)).toEqual(['802', '801'])
+
+    const everything = await run(listIssuesCommand(host, allIssues))
+    expect(everything.stdout).toContain('#806  P2  Open  Not started  [Scribe]')
+    expect(everything.stdout).toContain('#801  P2  Open  Green work  [Scribe]')
   })
 })

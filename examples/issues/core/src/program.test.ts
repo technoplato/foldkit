@@ -4,11 +4,14 @@ import { describe, expect, it } from 'vitest'
 
 import { InstantEntityStoreError } from '@foldkit/instant-tools/instant'
 import {
+  ActiveWork,
   ApplicationProduct,
+  CheckedSubtask,
   ConversationReference,
   InstantStorageAttachmentSource,
   Issue,
   IssueAttachment,
+  IssueSubtask,
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
@@ -20,8 +23,10 @@ import {
   RecordingMention,
   RecordingReference,
   RecordingSegment,
+  StuckWork,
   type TrackedProduct,
   TriageCandidate,
+  UncheckedSubtask,
   UriReference,
 } from '@foldkit/instant-tools/issues'
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
@@ -32,6 +37,7 @@ import { IssueIdentity, type IssueIdentityService } from './issueIdentity.js'
 import { OneProduct, leftoverStatusOf, newestWorkLog } from './leftover.js'
 import {
   AppendedIssueWorkLog,
+  ClearedIssueWorkInProgress,
   ClickedFileIssue,
   ClickedLeftoverStatus,
   ClickedOpenTriage,
@@ -54,9 +60,12 @@ import {
   SubmittedIssueComment,
   SubmittedIssueEdit,
   SubmittedIssueMention,
+  SubmittedIssueSubtasks,
   SubmittedIssueSuccessCriterion,
+  SubmittedIssueWorkInProgress,
   SubmittedIssueWorkLogEntry,
   SubmittedProduct,
+  SubmittedSubtaskMarks,
   SubmittedSuccessCriteriaMarks,
   UpdatedIssueTitle,
   UpdatedLeftoverComment,
@@ -81,6 +90,7 @@ import {
   SavingProductAddition,
   TriageInbox,
   UnchangedProductAddition,
+  WorkInProgressEdit,
 } from './model.js'
 import {
   destinationForModel,
@@ -1706,6 +1716,231 @@ describe('Issue Tracker Program', () => {
       issue: {
         successCriteria: [{}, {}, { id: 'issue-692-criterion-3' }],
       },
+    })
+  })
+
+  const withSubtasks = () =>
+    Issue.make({
+      ...stored('835', 'Track work in progress'),
+      subtasks: [
+        IssueSubtask.make({
+          id: 'issue-835-subtask-1',
+          state: UncheckedSubtask.make({}),
+          title: 'Red tests',
+        }),
+        IssueSubtask.make({
+          id: 'issue-835-subtask-2',
+          state: CheckedSubtask.make({ checkedAtMs: 5 }),
+          title: 'Green',
+        }),
+      ],
+    })
+
+  const noEdit = WorkInProgressEdit.make({
+    activity: Option.none(),
+    agentId: Option.none(),
+    branch: Option.none(),
+    commitSha: Option.none(),
+    landingState: Option.none(),
+    lastStep: Option.none(),
+    repository: Option.none(),
+    targetBuild: Option.none(),
+    worktree: Option.none(),
+  })
+
+  it('adds subtasks under the next subtask ids, each title once', async () => {
+    const { result } = await runOnDetail(
+      [withSubtasks()],
+      SubmittedIssueSubtasks.make({
+        issueId: '835',
+        titles: ['Install the CLI', 'Green', 'Install the CLI'],
+      }),
+    )
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        subtasks: [
+          { id: 'issue-835-subtask-1', title: 'Red tests' },
+          { id: 'issue-835-subtask-2', title: 'Green' },
+          {
+            id: 'issue-835-subtask-3',
+            state: { _tag: 'Unchecked' },
+            title: 'Install the CLI',
+          },
+        ],
+      },
+    })
+  })
+
+  it('checks and unchecks subtasks, keeps when one was first checked, and refuses one the Issue does not have', async () => {
+    const { result: checked } = await runOnDetail(
+      [withSubtasks()],
+      SubmittedSubtaskMarks.make({
+        issueId: '835',
+        mark: 'Checked',
+        subtaskIds: ['issue-835-subtask-1', 'issue-835-subtask-2'],
+      }),
+    )
+    expect(Option.getOrThrow(checked)).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        subtasks: [
+          { state: { _tag: 'Checked', checkedAtMs: expect.any(Number) } },
+          { state: { _tag: 'Checked', checkedAtMs: 5 } },
+        ],
+      },
+    })
+
+    const { result: unchecked } = await runOnDetail(
+      [withSubtasks()],
+      SubmittedSubtaskMarks.make({
+        issueId: '835',
+        mark: 'Unchecked',
+        subtaskIds: ['issue-835-subtask-2'],
+      }),
+    )
+    expect(Option.getOrThrow(unchecked)).toMatchObject({
+      issue: {
+        subtasks: [
+          { state: { _tag: 'Unchecked' } },
+          { state: { _tag: 'Unchecked' } },
+        ],
+      },
+    })
+
+    const { model } = await runOnDetail(
+      [withSubtasks()],
+      SubmittedSubtaskMarks.make({
+        issueId: '835',
+        mark: 'Checked',
+        subtaskIds: ['issue-835-subtask-9'],
+      }),
+    )
+    expect(model.issueMutation).toMatchObject({
+      _tag: 'FailedIssueMutation',
+      reason: expect.stringContaining(
+        'Issue 835 has no subtask issue-835-subtask-9. Its subtasks: 1 issue-835-subtask-1 "Red tests", 2 issue-835-subtask-2 "Green"',
+      ),
+    })
+  })
+
+  it('records work in progress, starting at Exploring and active, and keeps what a later change leaves out', async () => {
+    const { result: first } = await runOnDetail(
+      [stored('835', 'Track work in progress')],
+      SubmittedIssueWorkInProgress.make({
+        edit: WorkInProgressEdit.make({
+          ...noEdit,
+          agentId: Option.some('claude-code/wip-835'),
+          branch: Option.some('agent/claude/issues-wip-835'),
+          lastStep: Option.some('Red tests written'),
+          repository: Option.some('foldkit'),
+          worktree: Option.some(
+            '/Users/laptop/Sync/worktrees/foldkit-issues-wip-835',
+          ),
+        }),
+        issueId: '835',
+      }),
+    )
+    const recorded = Option.getOrThrow(first)
+    expect(recorded).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        workInProgress: Option.some({
+          activity: { _tag: 'Active' },
+          agentId: Option.some('claude-code/wip-835'),
+          branch: Option.some('agent/claude/issues-wip-835'),
+          commitSha: Option.none(),
+          landingState: 'Exploring',
+          lastStep: Option.some('Red tests written'),
+          repository: Option.some('foldkit'),
+          targetBuild: Option.none(),
+          updatedAtMs: expect.any(Number),
+          worktree: Option.some(
+            '/Users/laptop/Sync/worktrees/foldkit-issues-wip-835',
+          ),
+        }),
+      },
+    })
+    if (recorded._tag !== 'SucceededSaveIssue') {
+      return
+    }
+
+    const { result: second } = await runOnDetail(
+      [recorded.issue],
+      SubmittedIssueWorkInProgress.make({
+        edit: WorkInProgressEdit.make({
+          ...noEdit,
+          activity: Option.some(
+            StuckWork.make({ reason: 'Waits on a review' }),
+          ),
+          agentId: Option.some('claude-code/other'),
+          commitSha: Option.some('5e1f00d'),
+          landingState: Option.some('Green'),
+          targetBuild: Option.some('106'),
+        }),
+        issueId: '835',
+      }),
+    )
+    expect(Option.getOrThrow(second)).toMatchObject({
+      issue: {
+        workInProgress: Option.some({
+          activity: { _tag: 'Stuck', reason: 'Waits on a review' },
+          agentId: Option.some('claude-code/other'),
+          branch: Option.some('agent/claude/issues-wip-835'),
+          commitSha: Option.some('5e1f00d'),
+          landingState: 'Green',
+          lastStep: Option.some('Red tests written'),
+          repository: Option.some('foldkit'),
+          targetBuild: Option.some('106'),
+        }),
+      },
+    })
+
+    const { result: active } = await runOnDetail(
+      [recorded.issue],
+      SubmittedIssueWorkInProgress.make({
+        edit: WorkInProgressEdit.make({
+          ...noEdit,
+          activity: Option.some(ActiveWork.make({})),
+        }),
+        issueId: '835',
+      }),
+    )
+    expect(Option.getOrThrow(active)).toMatchObject({
+      issue: {
+        workInProgress: Option.some({
+          activity: { _tag: 'Active' },
+          landingState: 'Exploring',
+        }),
+      },
+    })
+  })
+
+  it('clears the work in progress of an Issue', async () => {
+    const { result: recorded } = await runOnDetail(
+      [stored('835', 'Track work in progress')],
+      SubmittedIssueWorkInProgress.make({
+        edit: WorkInProgressEdit.make({
+          ...noEdit,
+          landingState: Option.some('Red'),
+        }),
+        issueId: '835',
+      }),
+    )
+    const working = Option.getOrThrow(recorded)
+    if (working._tag !== 'SucceededSaveIssue') {
+      throw new Error('Expected the work in progress to be recorded')
+    }
+
+    const { result } = await runOnDetail(
+      [working.issue],
+      ClearedIssueWorkInProgress.make({ issueId: '835' }),
+    )
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: { workInProgress: Option.none() },
     })
   })
 })
