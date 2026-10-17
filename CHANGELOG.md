@@ -4,6 +4,41 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 17th, 2026 at 11:50:08 a.m. EDT — `092077fa9fe2` fix(read-aloud): say a book was read aloud when no page of it was heard
+
+- **Implementation commit:** `092077fa9fe21758a8d9a42278a69f4c20a5f5de`
+- **Change:** Say a book was read aloud when no page of it was heard (red 5abfb95e2, green 092077fa9; issues #798)
+- **Details:**
+  - A shelf row with no page turn said Not read aloud yet, though every book on the shelf came from a reading; it showed under Books read aloud on an author's page. Such a row now says Read aloud.
+- **Files:**
+  - `examples/read-aloud/core/src/screen.ts` — statusOf's words for a book with no page turn.
+- **User context (verbatim):**
+  > We want all that uh richly represented Ed at books.pisportsoftware.xyz and all those should be linkable to different pages.
+- **SpecStory:** unavailable — headless Claude Code session 999281c9-0e3d-4994-9f41-f6621894bb79 on the second Claude account, started by the Scribe listener for issue #798; no SpecStory URI was captured
+
+## October 17th, 2026 at 11:50:07 a.m. EDT — `9af2ebcbb696` feat(books): give each author, illustrator, editor, and publisher a page
+
+- **Implementation commit:** `9af2ebcbb696bff1e9f2c95e6a90cc1882dd5d39`
+- **Change:** Give each author, illustrator, editor, and publisher a page in Books (red 9cd9d0ceb, green 9af2ebcbb; plan 12; issues #798)
+- **Details:**
+  - A book read aloud lists its credits, each a link above the library: /books/authors/<name-tag>, /books/illustrators/…, /books/editors/…, /books/publishers/….
+  - A person's page lists the books read aloud crediting them in that role, links their other roles, and for an author, their library audiobooks; library titles link their authors there too.
+  - Read Aloud reads credits from Scribe's things graph (graph/things.jsonl, graph/relations.jsonl): authorOf, illustratorOf, contributedTo role editor, publisherOf; never retracted, rejected, candidate, or personal rows; the catalog fills only what the graph lacks.
+  - Book carries credits and publishedBy in place of authors and publishers, both decoding to none from older log rows and kept snapshots.
+  - Link previews of credit pages give the name and role only, never the books.
+- **Files:**
+  - `examples/read-aloud/core/src/ids.ts` — ContributorKey, PublisherKey, and the name tags addresses use.
+  - `examples/read-aloud/core/src/model.ts` — CreditRole, Contributor, Credit, Publisher; the Book's credits and publishedBy; lookups by tag.
+  - `examples/read-aloud/core/src/scribe.ts` — RelationRow and the graph credits with the catalog fallback.
+  - `examples/read-aloud/core/src/local.node.ts` — Reads and watches the graph folder beside the books.
+  - `examples/read-aloud/core/src/screen.ts` — The Credits list and CreditLinks; navigation.ts, routes.ts, and linkPreview.ts pass the links, print bookPathOf, and take the author from credits.
+  - `examples/books/core/src/routes.ts` — The route table moved from navigation.ts, the credit pages, and their printers.
+  - `examples/books/core/src/screen.ts` — The contributor and publisher pages and linked authors on a title; destination.ts, ids.ts, and navigation.ts add ContributorPage, PublisherPage, and the role word.
+  - `examples/books/core/src/linkPreviews.node.ts` — Name-and-role previews for credit pages.
+- **User context (verbatim):**
+  > So books and then slash authors slash author ID.
+- **SpecStory:** unavailable — headless Claude Code session 999281c9-0e3d-4994-9f41-f6621894bb79 on the second Claude account, started by the Scribe listener for issue #798; no SpecStory URI was captured
+
 ## October 17th, 2026 at 10:46:22 a.m. EDT — `ad2052762d6b` feat(issues): add a product with issues products add
 
 - **Implementation commit:** `ad2052762d6b53cfef11e25a971354cc7e853b71`
