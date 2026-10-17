@@ -6,6 +6,7 @@ import { type Message } from './message.js'
 import {
   EditingIssueDraft,
   IdleIssueMutation,
+  IdleProductAddition,
   IssueDraft,
   IssueList,
   LoadingIssues,
@@ -49,6 +50,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
         ? LoadingLeftoverPresence.make({ leftoverId: navigation.issueId })
         : NotObservingLeftoverPresence.make({}),
     navigation,
+    productAddition: IdleProductAddition.make({}),
     productFilter: AllProducts.make({}),
     products: LoadingProducts.make({}),
     triageCandidates: LoadingTriageCandidates.make({}),

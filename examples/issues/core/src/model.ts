@@ -6,6 +6,7 @@ import {
   IssueStatus,
   IssueSuccessEvidence,
   ProductCatalogEntry,
+  TrackedProduct,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
@@ -271,6 +272,44 @@ export const IssueMutationState = S.Union([
 /** Every leftover mutation phase. */
 export type IssueMutationState = typeof IssueMutationState.Type
 
+/** No product is being added to the catalog. */
+export const IdleProductAddition = S.TaggedStruct('IdleProductAddition', {})
+/** A new product, such as `acaga` named ACAGA, is being saved. */
+export const SavingProductAddition = S.TaggedStruct('SavingProductAddition', {
+  product: TrackedProduct,
+})
+/** The catalog saved the new product and read it back. */
+export const SavedProductAddition = S.TaggedStruct('SavedProductAddition', {
+  product: TrackedProduct,
+})
+/** The catalog already holds the product as given, so nothing was written. */
+export const UnchangedProductAddition = S.TaggedStruct(
+  'UnchangedProductAddition',
+  { product: TrackedProduct },
+)
+/**
+ * The product was refused before anything was written: a malformed id, a
+ * blank name, or an id or name another product already holds.
+ */
+export const RefusedProductAddition = S.TaggedStruct('RefusedProductAddition', {
+  reason: S.String,
+})
+/** The catalog was not loaded, refused the save, or lost the product. */
+export const FailedProductAddition = S.TaggedStruct('FailedProductAddition', {
+  reason: S.String,
+})
+/** Every phase of adding one product to the catalog. */
+export const ProductAdditionState = S.Union([
+  IdleProductAddition,
+  SavingProductAddition,
+  SavedProductAddition,
+  UnchangedProductAddition,
+  RefusedProductAddition,
+  FailedProductAddition,
+])
+/** Every phase of adding one product to the catalog. */
+export type ProductAdditionState = typeof ProductAdditionState.Type
+
 /** No leftover room is being observed. */
 export const NotObservingLeftoverPresence = S.TaggedStruct(
   'NotObservingLeftoverPresence',
@@ -313,6 +352,7 @@ export const Model = S.Struct({
   leftoverLink: S.String,
   leftoverPresence: LeftoverPresenceState,
   navigation: Navigation,
+  productAddition: ProductAdditionState,
   productFilter: ProductFilter,
   products: ProductsState,
   triageCandidates: TriageCandidatesState,

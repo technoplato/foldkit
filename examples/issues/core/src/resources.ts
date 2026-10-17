@@ -269,11 +269,26 @@ export const makeMemoryIssueTracker = (
     }
   })
 
-const StaticProductCatalog: ProductCatalogService = {
-  fetch: Effect.succeed(staticProducts),
-  observe: Stream.succeed(staticProducts),
-  save: () => Effect.void,
-}
+/**
+ * An in-memory product catalog for previews, tests, and offline Clients.
+ * Seeded with Scribe, saving ACAGA keeps both, and saving `acaga` again
+ * replaces its one entry.
+ */
+export const makeMemoryProductCatalog = (
+  seed: ReadonlyArray<ProductCatalogEntry>,
+): Effect.Effect<ProductCatalogService> =>
+  Effect.map(Ref.make(seed), entries => ({
+    fetch: Ref.get(entries),
+    observe: Stream.fromEffect(Ref.get(entries)),
+    save: entry =>
+      Ref.update(entries, stored =>
+        Array.some(stored, current => current.product.id === entry.product.id)
+          ? Array.map(stored, current =>
+              current.product.id === entry.product.id ? entry : current,
+            )
+          : Array.append(stored, entry),
+      ),
+  }))
 
 const StaticTriageInbox: TriageInboxService = {
   observeCandidates: Stream.succeed(staticTriageCandidates),
@@ -297,7 +312,7 @@ const StaticLogger: LoggerService = {
 export const StaticIssueTrackerResources = Layer.mergeAll(
   Layer.effect(IssueTracker, makeMemoryIssueTracker(staticIssues)),
   Layer.succeed(Logger, StaticLogger),
-  Layer.succeed(ProductCatalog, StaticProductCatalog),
+  Layer.effect(ProductCatalog, makeMemoryProductCatalog(staticProducts)),
   Layer.succeed(TriageInbox, StaticTriageInbox),
   MemoryLeftoverPresenceLive,
   Layer.succeed(IssueIdentity, {

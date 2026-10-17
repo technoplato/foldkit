@@ -119,6 +119,7 @@ const hasSettledObservations = (model: Model): boolean =>
   (model.navigation._tag !== 'FileIssue' ||
     model.draftState._tag !== 'SavingIssueDraft') &&
   model.issueMutation._tag !== 'SavingIssueMutation' &&
+  model.productAddition._tag !== 'SavingProductAddition' &&
   model.issues._tag !== 'LoadingIssues' &&
   model.products._tag !== 'LoadingProducts' &&
   (model.navigation._tag !== 'IssueDetail' ||
@@ -151,6 +152,9 @@ const pendingWork = (model: Model): string =>
           ? `Issue ${model.navigation.issueId}`
           : '',
         model.issueMutation._tag === 'SavingIssueMutation' ? 'a change' : '',
+        model.productAddition._tag === 'SavingProductAddition'
+          ? 'the new product'
+          : '',
         model.navigation._tag === 'FileIssue' &&
         model.draftState._tag === 'SavingIssueDraft'
           ? 'the new Issue'

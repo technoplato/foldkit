@@ -28,6 +28,7 @@ import {
   SubmittedIssueMention,
   SubmittedIssueSuccessCriterion,
   SubmittedIssueWorkLogEntry,
+  SubmittedProduct,
   SubmittedSuccessCriteriaMarks,
   catalogIssueIds,
   describeIssueReference,
@@ -59,6 +60,8 @@ import {
   IssueReference as IssueReferenceSchema,
   IssueStatus,
   IssueSuccessEvidence,
+  LibraryProduct,
+  type TrackedProduct,
   describeIssueTrackerCause,
   issueViewerUrl,
   normalizeIssueId,
@@ -1293,6 +1296,106 @@ export const listProductsCommand = (
               entry =>
                 `${entry.product.id}  ${entry.product.name}  (${entry.product._tag})`,
             ),
+      )
+    }),
+  )
+
+const ProductKind = S.Literals(['Application', 'Library'])
+const productKinds = ProductKind.literals
+
+/** Everything `issues products add` takes: the new product's id, name, and kind. */
+export type AddProductInput = Readonly<{
+  id: Option.Option<string>
+  isJson: boolean
+  kind: Option.Option<string>
+  name: Option.Option<string>
+}>
+
+const requireFlag = (
+  maybeValue: Option.Option<string>,
+  missingMessage: string,
+): Effect.Effect<string, IssuesCommandFailure> =>
+  Option.match(maybeValue, {
+    onNone: () => Effect.fail(usage(missingMessage)),
+    onSome: value => Effect.succeed(value.trim()),
+  })
+
+const productOf = (
+  kind: typeof ProductKind.Type,
+  id: string,
+  name: string,
+): TrackedProduct =>
+  M.value(kind).pipe(
+    M.withReturnType<TrackedProduct>(),
+    M.when('Application', () => ApplicationProduct.make({ id, name })),
+    M.when('Library', () => LibraryProduct.make({ id, name })),
+    M.exhaustive,
+  )
+
+const describeProduct = (product: TrackedProduct): string =>
+  `${product.id} (${product.name}, ${product._tag})`
+
+/**
+ * Adds one product Issues may be filed under, such as `acaga` named ACAGA,
+ * an Application, and reads it back. Adding the same product again changes
+ * nothing.
+ */
+export const addProductCommand = (
+  host: IssuesHost,
+  input: AddProductInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const id = yield* requireFlag(
+        input.id,
+        'issues products add needs --id, such as --id acaga.',
+      )
+      const name = yield* requireFlag(
+        input.name,
+        'issues products add needs --name, such as --name ACAGA.',
+      )
+      const kindText = yield* requireFlag(
+        input.kind,
+        'issues products add needs --kind: Application or Library.',
+      )
+      const kind = yield* parseChoice('product kind', kindText, productKinds)
+      const model = yield* executeMessages(
+        FileIssue.make({}),
+        () =>
+          Effect.succeed([
+            SubmittedProduct.make({ product: productOf(kind, id, name) }),
+          ]),
+        host.resources,
+      )
+      const printed = (product: TrackedProduct, line: string) =>
+        succeeded(input.isJson ? [JSON.stringify(product)] : [line])
+      return yield* M.value(model.productAddition).pipe(
+        M.withReturnType<Effect.Effect<IssuesOutcome, IssuesCommandFailure>>(),
+        M.tagsExhaustive({
+          SavedProductAddition: ({ product }) =>
+            Effect.succeed(
+              printed(product, `Added product ${describeProduct(product)}.`),
+            ),
+          UnchangedProductAddition: ({ product }) =>
+            Effect.succeed(
+              printed(
+                product,
+                `Product ${describeProduct(product)} is already in the catalog; nothing changed.`,
+              ),
+            ),
+          RefusedProductAddition: ({ reason }) => Effect.fail(usage(reason)),
+          FailedProductAddition: ({ reason }) =>
+            Effect.fail(failed('products add', reason)),
+          IdleProductAddition: () =>
+            Effect.fail(
+              failed(
+                'products add',
+                'the tracker did not confirm the product.',
+              ),
+            ),
+          SavingProductAddition: () =>
+            Effect.fail(failed('products add', 'the product is still saving.')),
+        }),
       )
     }),
   )

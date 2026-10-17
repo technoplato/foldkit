@@ -12,6 +12,7 @@ import {
   type IssuesOutcome,
   addCriterionCommand,
   addMentionCommand,
+  addProductCommand,
   attachIssueFilesCommand,
   claimIssueCommand,
   deleteIssueCommand,
@@ -429,9 +430,32 @@ const download = Command.make(
   input => withLiveHost(host => downloadIssueFileCommand(host, input)),
 ).pipe(Command.withDescription('Download one stored Issue file'))
 
+const addProduct = Command.make(
+  'add',
+  {
+    id: optionalText(
+      'id',
+      'The product id: lowercase words joined by hyphens, such as acaga',
+    ),
+    isJson: jsonFlag,
+    kind: optionalText('kind', 'Application or Library'),
+    name: optionalText('name', 'The name Issues show, such as ACAGA'),
+  },
+  input => withLiveHost(host => addProductCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    'Add a product Issues may be filed under, and read it back. Adding the same product again changes nothing.',
+  ),
+)
+
 const products = Command.make('products', { isJson: jsonFlag }, input =>
   withLiveHost(host => listProductsCommand(host, input)),
-).pipe(Command.withDescription('List the products an Issue may be filed under'))
+).pipe(
+  Command.withDescription(
+    'List the products an Issue may be filed under; products add adds one',
+  ),
+  Command.withSubcommands([addProduct]),
+)
 
 const version = Command.make('version', {}, () =>
   Console.log(buildProvenance()),

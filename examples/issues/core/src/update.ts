@@ -47,12 +47,14 @@ import {
   FailedReviewTriageCandidate,
   FailedSaveIssue,
   FailedSaveIssueWorkLog,
+  FailedSaveProduct,
   type Message,
   SucceededAppendIssueWorkLogEntry,
   SucceededDeleteIssue,
   SucceededReviewTriageCandidate,
   SucceededSaveIssue,
   SucceededSaveIssueWorkLog,
+  SucceededSaveProduct,
 } from './message.js'
 import {
   DeletedIssueMutation,
@@ -64,6 +66,7 @@ import {
   FailedIssueMutation,
   FailedIssues,
   FailedLeftoverPresence,
+  FailedProductAddition,
   FailedProducts,
   FailedTriageCandidates,
   FileIssue,
@@ -85,10 +88,15 @@ import {
   NotObservingIssue,
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
+  type ProductAdditionState,
+  RefusedProductAddition,
   SavedIssueMutation,
+  SavedProductAddition,
   SavingIssueDraft,
   SavingIssueMutation,
+  SavingProductAddition,
   TriageInbox,
+  UnchangedProductAddition,
 } from './model.js'
 
 // COMMAND
@@ -895,6 +903,40 @@ export const RetargetIssueProduct = Command.define(
   ),
 )
 
+const isSameProduct = (left: TrackedProduct, right: TrackedProduct): boolean =>
+  left._tag === right._tag && left.id === right.id && left.name === right.name
+
+/**
+ * Saves one new product to the catalog, then reads the catalog back: the
+ * product counts as saved only once a fetch returns it with its name and
+ * kind.
+ */
+export const SaveProduct = Command.define(
+  'SaveProduct',
+  { product: TrackedProduct },
+  SucceededSaveProduct,
+  FailedSaveProduct,
+)(({ product }) =>
+  Effect.gen(function* () {
+    const catalog = yield* ProductCatalog
+    const nowMs = yield* Clock.currentTimeMillis
+    const entry = ProductCatalogEntry.make({ product, updatedAtMs: nowMs })
+    yield* catalog.save(entry)
+    const stored = yield* catalog.fetch
+    if (Array.some(stored, read => isSameProduct(read.product, product))) {
+      return SucceededSaveProduct.make({ entry })
+    } else {
+      return FailedSaveProduct.make({
+        reason: `Product ${product.id} was saved but does not read back.`,
+      })
+    }
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveProduct.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
 /** Publishes this viewer into one leftover Instant room. */
 export const JoinLeftoverRoom = Command.define(
   'JoinLeftoverRoom',
@@ -1189,6 +1231,92 @@ const mergeCatalog = (
     }
   }
   return [...seen.values()]
+}
+
+const PRODUCT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+const withProductAddition = (
+  model: Model,
+  productAddition: ProductAdditionState,
+): UpdateReturn => [Model.make({ ...model, productAddition }), []]
+
+const refuseProduct = (model: Model, reason: string): UpdateReturn =>
+  withProductAddition(model, RefusedProductAddition.make({ reason }))
+
+const isSameName = (left: TrackedProduct, right: TrackedProduct): boolean =>
+  left.name.trim().toLowerCase() === right.name.trim().toLowerCase()
+
+const addToCatalog = (
+  model: Model,
+  products: ReadonlyArray<typeof ProductCatalogEntry.Type>,
+  product: TrackedProduct,
+): UpdateReturn =>
+  Option.match(
+    Array.findFirst(products, entry => entry.product.id === product.id),
+    {
+      onSome: ({ product: holder }) =>
+        isSameProduct(holder, product)
+          ? withProductAddition(
+              model,
+              UnchangedProductAddition.make({ product }),
+            )
+          : refuseProduct(
+              model,
+              `Product ${holder.id} is already ${holder.name} (${holder._tag}); nothing changed.`,
+            ),
+      onNone: () =>
+        Option.match(
+          Array.findFirst(products, entry =>
+            isSameName(entry.product, product),
+          ),
+          {
+            onSome: ({ product: holder }) =>
+              refuseProduct(
+                model,
+                `Product ${holder.id} is already named ${holder.name}; nothing was added.`,
+              ),
+            onNone: () => [
+              Model.make({
+                ...model,
+                productAddition: SavingProductAddition.make({ product }),
+              }),
+              [SaveProduct({ product })],
+            ],
+          },
+        ),
+    },
+  )
+
+const addProduct = (model: Model, product: TrackedProduct): UpdateReturn => {
+  if (!PRODUCT_ID_PATTERN.test(product.id)) {
+    return refuseProduct(
+      model,
+      `"${product.id}" is not a product id: use lowercase letters and digits joined by hyphens, such as acaga or instant-data-swift.`,
+    )
+  }
+  if (product.name.trim() === '') {
+    return refuseProduct(model, 'A product needs a name, such as ACAGA.')
+  }
+  return M.value(model.products).pipe(
+    M.withReturnType<UpdateReturn>(),
+    M.tagsExhaustive({
+      LoadingProducts: () =>
+        withProductAddition(
+          model,
+          FailedProductAddition.make({
+            reason: 'The product catalog has not loaded; nothing was added.',
+          }),
+        ),
+      FailedProducts: ({ reason }) =>
+        withProductAddition(
+          model,
+          FailedProductAddition.make({
+            reason: `The product catalog did not load (${reason}); nothing was added.`,
+          }),
+        ),
+      LoadedProducts: ({ products }) => addToCatalog(model, products, product),
+    }),
+  )
 }
 
 const reviewTriageCandidate = (
@@ -1699,6 +1827,24 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             ),
         })
       },
+      SubmittedProduct: ({ product }) => addProduct(model, product),
+      SucceededSaveProduct: ({ entry }) => [
+        Model.make({
+          ...model,
+          productAddition: SavedProductAddition.make({
+            product: entry.product,
+          }),
+          products:
+            model.products._tag === 'LoadedProducts'
+              ? LoadedProducts.make({
+                  products: mergeCatalog(model.products.products, [entry]),
+                })
+              : model.products,
+        }),
+        [],
+      ],
+      FailedSaveProduct: ({ reason }) =>
+        withProductAddition(model, FailedProductAddition.make({ reason })),
       OpenedNavigation: ({ navigation }) => withNavigation(model, navigation),
       ObservedLeftoverPeers: ({ leftoverId, peers }) => {
         if (

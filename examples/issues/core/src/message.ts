@@ -7,6 +7,7 @@ import {
   IssueStatus,
   IssueSuccessEvidence,
   ProductCatalogEntry,
+  TrackedProduct,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
@@ -196,6 +197,15 @@ export const RetargetedIssueProduct = S.TaggedStruct('RetargetedIssueProduct', {
   issueId: S.String,
   productId: S.String,
 })
+export const SubmittedProduct = S.TaggedStruct('SubmittedProduct', {
+  product: TrackedProduct,
+})
+export const SucceededSaveProduct = S.TaggedStruct('SucceededSaveProduct', {
+  entry: ProductCatalogEntry,
+})
+export const FailedSaveProduct = S.TaggedStruct('FailedSaveProduct', {
+  reason: S.String,
+})
 export const ObservedLeftoverPeers = S.TaggedStruct('ObservedLeftoverPeers', {
   leftoverId: S.String,
   peers: S.Array(LeftoverPeer),
@@ -277,6 +287,9 @@ export const Message = S.Union([
   LinkedCatalogIssue,
   ClickedLeftoverStatus,
   RetargetedIssueProduct,
+  SubmittedProduct,
+  SucceededSaveProduct,
+  FailedSaveProduct,
   ObservedLeftoverPeers,
   FailedObserveLeftoverPeers,
   CompletedJoinLeftoverRoom,
