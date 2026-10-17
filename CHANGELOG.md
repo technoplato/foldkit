@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 16th, 2026 at 9:49:17 p.m. EDT — `6df61d448a18` fix(words): a share without audio says it has none
+
+- **Implementation commit:** `6df61d448a18a36aa5c549304d49611586b3d20e`
+- **Change:** A share without audio says it has none, not that audio comes in a later update (Scribe #597).
+- **Details:**
+  - Scribe build 105 includes the scrubbed clip when the sharer turns Include Audio on, so a share without audio is one shared without it, or one over the scrubber's 30-minute clip limit (Scribe #753). Red 719545f8f (share.test.ts expects the new notice) first; words core 219/219, view 14/14, tsc clean.
+- **Files:**
+  - `examples/words/foldkit/src/view/share.ts` — the no-audio notice says the share has no audio
+- **User context (verbatim):**
+  > Public. I want the audio in there.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## October 16th, 2026 at 5:27:12 p.m. EDT — `6f3c1de5e756` fix(words): show a pending share's passed lines only, and never its sharer
 
 - **Implementation commit:** `6f3c1de5e7563884d9ef27bd7903d37911383f4f`
