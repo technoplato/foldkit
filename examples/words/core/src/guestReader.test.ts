@@ -17,7 +17,7 @@ import {
   WordsStoreError,
   makeStaticWordsResources,
 } from './store.js'
-import { subscriptions } from './subscription.js'
+import { signInGuestReader, subscriptions } from './subscription.js'
 import { guestReaderShareIDOf, modelForRoute } from './update.js'
 
 // #754: a share link opens for a reader with no Cloudflare Access login and no
@@ -152,18 +152,16 @@ describe('a share link opened by a reader with no login', () => {
     expect(dependencies).toEqual({ maybeShareID: Option.some(shareID) })
     let signIns = 0
     const messages = await Effect.runPromise(
-      guestReader
-        .dependenciesToStream(dependencies, () => dependencies)
-        .pipe(
-          Stream.runCollect,
-          Effect.provide(
-            storeWith(
-              Effect.sync(() => {
-                signIns += 1
-              }),
-            ),
+      signInGuestReader(dependencies.maybeShareID).pipe(
+        Stream.runCollect,
+        Effect.provide(
+          storeWith(
+            Effect.sync(() => {
+              signIns += 1
+            }),
           ),
         ),
+      ),
     )
     expect(signIns).toBe(1)
     expect(messages).toEqual([])
@@ -175,21 +173,19 @@ describe('a share link opened by a reader with no login', () => {
     }
     const dependencies = guestReader.modelToDependencies(readerAt())
     const messages = await Effect.runPromise(
-      guestReader
-        .dependenciesToStream(dependencies, () => dependencies)
-        .pipe(
-          Stream.runCollect,
-          Effect.provide(
-            storeWith(
-              Effect.fail(
-                new WordsStoreError({
-                  operation: 'SignInAsGuest',
-                  cause: new Error('offline'),
-                }),
-              ),
+      signInGuestReader(dependencies.maybeShareID).pipe(
+        Stream.runCollect,
+        Effect.provide(
+          storeWith(
+            Effect.fail(
+              new WordsStoreError({
+                operation: 'SignInAsGuest',
+                cause: new Error('offline'),
+              }),
             ),
           ),
         ),
+      ),
     )
     expect(messages).toEqual([
       GotShareMessage({

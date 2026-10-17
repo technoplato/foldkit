@@ -43,6 +43,7 @@ import {
 import {
   audioOwnerOf,
   fileIDsOf,
+  guestReaderShareIDOf,
   isCountingLiveOf,
   observedRecordingIDOf,
   openingWaitOf,
@@ -272,8 +273,66 @@ const openShareIDOf = (model: Model): Option.Option<string> =>
     M.orElse(() => Option.none()),
   )
 
+/**
+ * The share to read now. A link holder who is signed out reads it once they
+ * have an identity (the guest sign-in, or the owner's account connecting):
+ * Scribe's rules show a signed-out reader nothing, so reading earlier would
+ * only flash "not found" (#754).
+ */
+const readableShareIDOf = (model: Model): Option.Option<string> =>
+  Option.isSome(shareLinkTokenOf(model)) && model.identity._tag === 'SignedOut'
+    ? Option.none()
+    : openShareIDOf(model)
+
+/**
+ * Signs a share link's reader with no login in as an anonymous guest, once:
+ * nothing more on success (the identity Subscription reports the guest), the
+ * share page's failure when it does not land (#754).
+ */
+export const signInGuestReader = (
+  maybeShareID: Option.Option<string>,
+): Stream.Stream<Message, never, WordsStore> =>
+  Option.match(maybeShareID, {
+    onNone: () => Stream.empty,
+    onSome: shareID =>
+      Stream.unwrap(
+        WordsStore.pipe(
+          Effect.map(store =>
+            Stream.fromEffect(store.signInAsGuest).pipe(
+              Stream.drain,
+              Stream.catch(error =>
+                Stream.make(
+                  GotShareMessage({
+                    message: Share.reportSharedRangeFailure({
+                      shareID,
+                      reason: reasonOf(error),
+                    }),
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+  })
+
 const shareSubscriptions = Subscription.make<Model, Message, WordsStore>()(
   entry => ({
+    /**
+     * Signs a share link's reader with no login in as an anonymous guest, so
+     * the share's rules let them read its scrubbed copy (#754). The identity
+     * Subscription reports the guest; a failure shows on the share page.
+     */
+    guestReader: entry(
+      { maybeShareID: S.Option(S.String) },
+      {
+        modelToDependencies: model => ({
+          maybeShareID: guestReaderShareIDOf(model),
+        }),
+        dependenciesToStream: ({ maybeShareID }) =>
+          signInGuestReader(maybeShareID),
+      },
+    ),
     recordingShares: entry(
       {
         maybeKey: S.Option(
@@ -393,7 +452,7 @@ const shareSubscriptions = Subscription.make<Model, Message, WordsStore>()(
       },
       {
         modelToDependencies: model => ({
-          maybeShare: Option.map(openShareIDOf(model), shareID => ({
+          maybeShare: Option.map(readableShareIDOf(model), shareID => ({
             shareID,
             maybeLinkToken: shareLinkTokenOf(model),
             maybeViewerUserID: signedInUserIDOf(model),

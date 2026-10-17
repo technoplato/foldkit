@@ -2044,6 +2044,39 @@ export const shareLinkTokenOf = (model: Model): Option.Option<string> =>
   )
 
 /**
+ * The share whose link a reader with no login opened, while that reader needs
+ * an identity to read it: Scribe's rules let a link holder read a share only
+ * when signed in, so such a reader signs in as an anonymous Instant guest
+ * (#754; Michael, Recording 186 #307: "so that it's accessible in an incognito
+ * browser window to anybody that clicks the link"). Only on a share with its
+ * key, only while Instant has no one signed in, and only once the origin said
+ * Cloudflare Access has no login for this browser: while Access may still
+ * know the reader (the owner on his own site), the account connects instead
+ * and nobody is made a guest.
+ */
+export const guestReaderShareIDOf = (model: Model): Option.Option<string> => {
+  const hasNoAccessLogin = M.value(model.account.connection).pipe(
+    M.withReturnType<boolean>(),
+    M.tags({
+      NoAccessIdentity: () => true,
+      FailedAccountCheck: () => true,
+    }),
+    M.orElse(() => false),
+  )
+  return M.value(model.route).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tag('Share', ({ shareID, k }) =>
+      Option.isSome(k) &&
+      model.identity._tag === 'SignedOut' &&
+      hasNoAccessLogin
+        ? Option.some(shareID)
+        : Option.none(),
+    ),
+    M.orElse(() => Option.none()),
+  )
+}
+
+/**
  * The share a recording on screen was shared with this account by: the
  * newest share another account made to this one of that recording, unless
  * this account owns it.
