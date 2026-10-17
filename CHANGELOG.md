@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 17th, 2026 at 2:40 a.m. EDT — `3da9ed751` fix(words): the share page says who a share reaches
+
+- **Implementation commit:** `3da9ed751` (red `f7a01c162`)
+- **Change:** The share page's badge says who the share reaches, as the viewer sees it, instead of "Shared with You" on every share; a failed request to the words origin says what happened instead of always "did not answer within 5 seconds" (Scribe #754, #718).
+- **Details:**
+  - "Your share" for any of the owner's sign-ins: the page reads the share's `owner` link, which Scribe's rules show only to the owner's own sign-ins (ADR 0024), so the web sign-in knows a share its iPhone sign-in made. "Anyone with the link" for a link share, "Public" for a public one, "Shared with You" only for a named recipient.
+  - Only a request that ran out of time says it did not answer within 5 seconds. A request the browser could not complete (most often Cloudflare Access sending it to a sign-in on another site) says so and names the likely cause; anything else says what it was. words core 231/231, view 21/21, tsc and oxlint clean.
+- **Files:**
+  - `examples/words/core/src/share/model.ts` — `ShareAudience`: `OwnShare`, `LinkAudience`, `PublicAudience`, `NamedAudience`
+  - `examples/words/core/src/share/decode.ts` — `audienceOf`
+  - `examples/words/core/src/store.ts` — the opened share's query reads its `owner`
+  - `examples/words/foldkit/src/view/share.ts` — `audienceLabel` in the share header
+  - `examples/words/foldkit/src/originFailure.ts` — `originFailureReason`, used by `browser.ts`
+- **User context (verbatim):**
+  > Still being checked. the share I made. And it says shared with you, but it was shared publicly.
+  (Michael, Scribe Recording 242 #31-33, https://words.pisspoursoftware.xyz/recording/1dd708ee-edef-4e8a-9483-5ac3a16cf3d7/section/1d4def79-5c28-42fb-940d-502d5ffb4e43?t=469.72)
+- **SpecStory:** unavailable — headless Claude Code agent scribe-B-share-linked (account halfjew22).
+
 ## October 17th, 2026 at 1:33 a.m. EDT — `5cdfb8f36` feat(words): a share link opens for a reader with no login
 
 - **Implementation commit:** `5cdfb8f36` (red `d154d5f6c`)
