@@ -97,11 +97,16 @@ export const InstantLogIssueLinkRecord = S.Struct({
 /** A denormalized, queryable link from one Log Event to one Issue. */
 export type InstantLogIssueLinkRecord = typeof InstantLogIssueLinkRecord.Type
 
-/** A queryable InstantDB envelope for one first-class Application or Library. */
+/**
+ * A queryable InstantDB envelope for one first-class Application or Library.
+ * `id` is the row's UUID and `productId` the product's own id, such as
+ * `acaga`, because Instant takes only UUIDs as row ids.
+ */
 export const InstantProductRecord = S.Struct({
   id: S.String,
   kind: S.Literals(['Application', 'Library']),
   name: S.String,
+  productId: S.String,
   updatedAtMs: S.Number,
 })
 /** A queryable InstantDB envelope for one first-class Application or Library. */
@@ -184,6 +189,7 @@ export const InstantToolsEntities = {
   instantToolsProducts: i.entity({
     kind: i.string().indexed(),
     name: i.string().indexed(),
+    productId: i.string().unique().indexed(),
     updatedAtMs: i.number().indexed(),
   }),
   instantToolsRecordingSegments: i.entity({
@@ -426,14 +432,23 @@ export const decodeIssueRecords = (
   return issues
 }
 
+/**
+ * Derives the one Instant row UUID for a product id: `acaga` is always
+ * `a07f9008-c1d6-5f59-a814-5d0d9ccfde0e`, so saving a product again updates
+ * its row instead of adding a second one.
+ */
+export const makeInstantProductID = (productId: string): string =>
+  uuidV5(`instantToolsProducts/${productId}`, uuidV5.URL)
+
 /** Encodes one catalog entry into its queryable InstantDB envelope. */
 export const makeInstantProductRecord = (
   entry: ProductCatalogEntry,
 ): InstantProductRecord =>
   InstantProductRecord.make({
-    id: entry.product.id,
+    id: makeInstantProductID(entry.product.id),
     kind: entry.product._tag,
     name: entry.product.name,
+    productId: entry.product.id,
     updatedAtMs: entry.updatedAtMs,
   })
 
@@ -444,7 +459,7 @@ export const decodeProductRecord = (
   ProductCatalogEntry.make({
     product: S.decodeUnknownSync(TrackedProduct)({
       _tag: record.kind,
-      id: record.id,
+      id: record.productId,
       name: record.name,
     }),
     updatedAtMs: record.updatedAtMs,
@@ -1486,6 +1501,7 @@ export const makeInstantEntityStore = (
             entity.update({
               kind: record.kind,
               name: record.name,
+              productId: record.productId,
               updatedAtMs: record.updatedAtMs,
             }),
           )
