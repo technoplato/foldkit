@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 17th, 2026 at 1:46:18 p.m. EDT — `f12651d55668` feat(instant-tools): record subtasks and work in progress on an Issue
+
+- **Implementation commit:** `f12651d5566862e31468d0761c921b508edf7ae5`
+- **Change:** Record subtasks and work in progress on an Issue (red 1a2e15ef8, green f12651d55; issues #835)
+- **Details:**
+  - An Issue gains subtasks (each Unchecked, or Checked at a time) and workInProgress: branch, repository, worktree, commit, target build, landing state (Exploring, Red, Green, Pushed, Merged, Shipped), last step, the agent that recorded it, and whether the work is Active, Stuck, or Abandoned with the reason. isCloseToLanding is true while the work is Green or Pushed and not abandoned.
+  - Both live in the Issue's stored JSON, so the tracker's Instant schema does not change. Proved on a backup of all 833 stored Issues of the tracker app 28c98cc4: each reads with the old and the new schema, re-encodes exactly as before plus subtasks [] and workInProgress null, and a save over the stored payload keeps every stored key.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — IssueSubtask, IssueLandingState, IssueWorkActivity, IssueWorkInProgress, the Issue's subtasks and workInProgress, and isCloseToLanding
+- **User context (verbatim):**
+  > Also, I want you to audit all the work in progress. that isn't going into this next build and I want to modify issues so that you can do this work. um so that we can track in-progress work um and like the subtask list and stuff like that so we can get an idea of what work is close to landing but hasn't landed yet. (Michael, Recording 243 #2285-2289, 2026-10-17 13:19, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/263930ff-7694-4221-9f4c-f55815deebf5?t=14406.42)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 4a5e56c2-cf9c-4ee0-b5a1-43be7d467d97, started by the Scribe listener for issue #835; no SpecStory capture.
+
 ## October 17th, 2026 at 11:50:08 a.m. EDT — `092077fa9fe2` fix(read-aloud): say a book was read aloud when no page of it was heard
 
 - **Implementation commit:** `092077fa9fe21758a8d9a42278a69f4c20a5f5de`
