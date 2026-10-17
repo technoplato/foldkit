@@ -714,7 +714,7 @@ const sharedAudio = (audio: Share.Model.SharedAudio): ReadonlyArray<Html> =>
     }),
   )
 
-const laterAudioNotice = (
+const noAudioNotice = (
   audio: Share.Model.SharedAudio,
 ): ReadonlyArray<Html> => {
   const h = html<Message>()
@@ -723,7 +723,7 @@ const laterAudioNotice = (
     M.tag('NoSharedAudio', () => [
       h.p(
         [h.Class('px-2 pt-6 text-footnote text-secondary')],
-        ['Audio for shared sections comes in a later update.'],
+        ['This share has no audio.'],
       ),
     ]),
     M.orElse(() => []),
@@ -887,7 +887,7 @@ const readySharedRange = (
         sharedRangeHeader(range, claim),
         ...sharedAudio(range.audio),
         sharedItems(range),
-        ...laterAudioNotice(range.audio),
+        ...noAudioNotice(range.audio),
       ],
     }),
   )
