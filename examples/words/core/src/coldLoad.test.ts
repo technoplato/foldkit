@@ -558,6 +558,7 @@ describe('opening the other links in a new tab', () => {
       lines: [linkedSection, lastSection],
       images: [],
       isClaimedByViewer: false,
+      audience: Share.Model.LinkAudience(),
       audio: Share.Model.NoSharedAudio(),
     }
     const start = modelForRoute(

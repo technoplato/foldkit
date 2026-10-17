@@ -4,14 +4,19 @@ import { rowsOf } from '../decode.js'
 import type { Section, Word } from '../recording.js'
 import {
   FailedSharedAudio,
+  LinkAudience,
+  NamedAudience,
   NoSharedAudio,
+  OwnShare,
   PassedScrub,
   PendingScrub,
   PreparingSharedAudio,
+  PublicAudience,
   ReadySharedAudio,
   type RecordingShare,
   type ScrubState,
   type ScrubbedImage,
+  type ShareAudience,
   type ShareRecipient,
   type SharedAudio,
   type SharedRange,
@@ -141,6 +146,7 @@ const SharedRangeRow = S.Struct({
   scrubbedLines: S.optionalKey(S.Unknown),
   scrubbedImages: S.optionalKey(S.Unknown),
   readers: S.optionalKey(S.Unknown),
+  owner: S.optionalKey(S.Unknown),
 })
 type SharedRangeRow = typeof SharedRangeRow.Type
 
@@ -301,6 +307,31 @@ const isViewerClaimed = (
   )
 
 /**
+ * Who the share reaches, as the viewer sees it. The viewer's own share is one
+ * made by this sign-in, or one whose owner the viewer can read: Scribe's rules
+ * show a share's owner only to that owner's own sign-ins (ADR 0024), so the
+ * web sign-in knows a share its iPhone sign-in made.
+ */
+const audienceOf = (
+  row: SharedRangeRow,
+  maybeViewerUserID: Option.Option<string>,
+): ShareAudience => {
+  const isOwnShare =
+    Option.exists(
+      maybeViewerUserID,
+      viewerID => row.ownerUserID === viewerID,
+    ) || Array.isReadonlyArrayNonEmpty(rowsOf(row.owner))
+  return isOwnShare
+    ? OwnShare()
+    : M.value(row.visibility ?? '').pipe(
+        M.withReturnType<ShareAudience>(),
+        M.when('public', () => PublicAudience()),
+        M.when('link', () => LinkAudience()),
+        M.orElse(() => NamedAudience()),
+      )
+}
+
+/**
  * Reads an opened share as its readers may read it (ADR 0014 section 13.11):
  * the share row, its scrubbed title and note, the scrubbed lines and images
  * that passed, whether the viewer already claimed it, and its audio clip. It
@@ -319,7 +350,12 @@ export const decodeSharedRange = (
     Option.map(row => {
       const scrub = scrubStateOf(row)
       const isClaimedByViewer = isViewerClaimed(row, maybeViewerUserID)
-      const shareFields = { share: shareOf(row), scrub, isClaimedByViewer }
+      const shareFields = {
+        share: shareOf(row),
+        scrub,
+        isClaimedByViewer,
+        audience: audienceOf(row, maybeViewerUserID),
+      }
       return M.value(scrub).pipe(
         M.withReturnType<SharedRange>(),
         M.tagsExhaustive({

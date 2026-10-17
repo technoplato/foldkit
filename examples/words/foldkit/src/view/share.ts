@@ -714,9 +714,7 @@ const sharedAudio = (audio: Share.Model.SharedAudio): ReadonlyArray<Html> =>
     }),
   )
 
-const noAudioNotice = (
-  audio: Share.Model.SharedAudio,
-): ReadonlyArray<Html> => {
+const noAudioNotice = (audio: Share.Model.SharedAudio): ReadonlyArray<Html> => {
   const h = html<Message>()
   return M.value(audio).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
@@ -744,6 +742,18 @@ const sharedRangeSummary = (range: Share.Model.SharedRange): string => {
   )
 }
 
+/** Who the share reaches, as the viewer sees it (Recording 242 #33). */
+const audienceLabel = (audience: Share.Model.ShareAudience): string =>
+  M.value(audience).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      OwnShare: () => 'Your share',
+      LinkAudience: () => 'Anyone with the link',
+      PublicAudience: () => 'Public',
+      NamedAudience: () => 'Shared with You',
+    }),
+  )
+
 const sharedRangeHeader = (
   range: Share.Model.SharedRange,
   claim: Share.Model.ClaimState,
@@ -752,7 +762,10 @@ const sharedRangeHeader = (
   return h.header(
     [h.Class('flex flex-col gap-2 pb-4 pt-2')],
     [
-      h.div([h.Class('flex')], [badge('Shared', 'Shared with You')]),
+      h.div(
+        [h.Class('flex')],
+        [badge('Shared', audienceLabel(range.audience))],
+      ),
       h.h1(
         [
           h.Class(

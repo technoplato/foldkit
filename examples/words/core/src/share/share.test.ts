@@ -27,12 +27,12 @@ import {
   LinkAudience,
   type Model,
   NamedAudience,
-  OwnShare,
-  PublicAudience,
   NoSharedAudio,
+  OwnShare,
   PassedScrub,
   PendingScrub,
   PreparingSharedAudio,
+  PublicAudience,
   ReadySharedAudio,
   type ShareRecipient,
   type SharedAudio,
@@ -243,6 +243,7 @@ describe('opening a share link', () => {
     lines: [section(0), section(1)],
     images: [],
     isClaimedByViewer,
+    audience: NamedAudience(),
     audio: NoSharedAudio(),
   })
   const reader = context({
@@ -843,6 +844,7 @@ describe("a share's audio clip", () => {
       lines: [section(0)],
       images: [],
       isClaimedByViewer: false,
+      audience: LinkAudience(),
       audio,
     })
     const ready = ReadySharedAudio({

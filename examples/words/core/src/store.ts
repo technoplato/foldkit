@@ -457,6 +457,8 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
             recordingSegmentShares: {
               $: { where: { id: shareID } },
               readers: {},
+              // Readable only by the owner's own sign-ins: how the page knows the viewer's own share.
+              owner: {},
               audioClip: {},
               scrubbedLines: {},
               scrubbedImages: { file: {} },
