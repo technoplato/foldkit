@@ -43,7 +43,8 @@ issues mention 692 --said 208:1884-1888 [--typed "…" --typed-session <id> --ty
 issues attach 662 screenshot.png [--kind Screenshot]
 issues download issues/662/<id>-screenshot.png [directory]
 issues delete 693 --yes "<Michael's typed words>"
-issues products
+issues products [--json]
+issues products add --id acaga --name ACAGA --kind Application [--json]
 ```
 
 - `file` takes the next free number. It never writes over a stored Issue:
@@ -61,6 +62,11 @@ issues products
 - `list` fails (exit 1) when a stored Issue cannot be read, naming it.
 - `delete` needs Michael's typed yes and first writes the stored record to
   `$ISSUES_BACKUP_DIR` (default `~/Sync/audit/issues-deleted`).
+- `products add` saves a product under its own Instant row and reads it back,
+  so `issues edit 790 --product acaga` can file under it at once. It refuses
+  (exit 2) an id that is not lowercase words joined by hyphens, a blank name,
+  and an id or name another product holds; adding the same product again
+  changes nothing.
 - Exit codes: 0 done, 1 the tracker failed (the message names the operation
   and the real cause), 2 a usage error (the message lists the valid values),
   3 the Issue does not exist.

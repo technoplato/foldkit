@@ -4,6 +4,40 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 17th, 2026 at 10:46:22 a.m. EDT — `ad2052762d6b` feat(issues): add a product with issues products add
+
+- **Implementation commit:** `ad2052762d6b53cfef11e25a971354cc7e853b71`
+- **Change:** Add a product with issues products add (red 29f329839, green ad2052762; issues #790)
+- **Details:**
+  - The CLI sends SubmittedProduct; the Program refuses a malformed id, a blank name, or an id or name another product holds (exit 2), changes nothing for a product already there as given, and otherwise runs SaveProduct, which counts the product saved only once a catalog fetch returns it (exit 1 with the real cause otherwise). Program version 7. Tests: instant-tools 62, issues core 50, issues CLI 32, issues React host 8; tsc and oxlint clean on every changed file.
+  - End to end on a throwaway ephemeral Instant app (5648d22d) with the Instant Tools schema pushed: products add, products, the same add again (nothing changed), both refusals, file --product acaga, edit 002 --product ACAGA, and list --product acaga all behaved as pinned; the stored row is a07f9008-c1d6-5f59-a814-5d0d9ccfde0e with productId acaga. Without the schema, Instant refuses the write (Attributes are missing in your schema), so the tracker app needs instantToolsProducts pushed before its first product.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — SaveProduct and the refusals for a new product
+  - `examples/issues/core/src/model.ts` — productAddition, every phase of adding a product
+  - `examples/issues/core/src/message.ts` — SubmittedProduct, SucceededSaveProduct, FailedSaveProduct
+  - `examples/issues/core/src/init.ts` — productAddition starts Idle
+  - `examples/issues/core/src/program.ts` — version 7 for the new Message and Model field
+  - `examples/issues/core/src/resources.ts` — makeMemoryProductCatalog backs the static resources
+  - `examples/issues/cli/src/commands.ts` — addProductCommand and its exit codes
+  - `examples/issues/cli/src/entry.ts` — issues products add, with issues products still listing
+  - `examples/issues/cli/src/host.ts` — waits for a product save to settle and names it when it does not
+  - `examples/issues/README.md` — documents products add
+- **User context (verbatim):**
+  > Akaga is a project though, not its own. idea root it's a project um it should have its own project in uh in our issues application and ideas that talk about it should be linked to it. (Michael, Recording 243 #534-537, 2026-10-17 10:15, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/66f2e1e3-c278-42d3-b8f7-cbc2a8c6483b?t=3420.12)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on account halfjew22, session 1f72c106-d9c6-41ce-91de-2712b1879e88, started by the Scribe listener for issue #790; no SpecStory capture.
+
+## October 17th, 2026 at 10:33:37 a.m. EDT — `728199441841` fix(instant-tools): save each product under a UUID row with its product id
+
+- **Implementation commit:** `7281994418413162dc408d9b8965c453d80f4dc3`
+- **Change:** Save each product under a UUID row with its product id (red c5be101ce, green 728199441; issues #790)
+- **Details:**
+  - Instant takes only UUIDs as row ids, so ProductCatalog.save (instantToolsProducts[<product id>]) never stored a product: the tracker app 28c98cc4 had 0 product rows, and its 16 listed products came from Issues' own product fields. A product now lives under makeInstantProductID(id), a UUID v5 of instantToolsProducts/<id>, with its id in a new productId attribute (unique, indexed).
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — UUID row ids for products, the productId attribute, and decoding the product id from it
+- **User context (verbatim):**
+  > Akaga is a project though, not its own. idea root it's a project um it should have its own project in uh in our issues application (Michael, Recording 243 #534-536, 2026-10-17 10:15, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/66f2e1e3-c278-42d3-b8f7-cbc2a8c6483b?t=3420.12)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on account halfjew22, session 1f72c106-d9c6-41ce-91de-2712b1879e88, started by the Scribe listener for issue #790; no SpecStory capture.
+
 ## October 15th, 2026 at 12:01:13 a.m. EDT — `6ad3820ab5bd` chore: remove client names from the examples
 
 - **Implementation commit:** `6ad3820ab5bd0fd5e2aebb90910d276e8b5096ef`

@@ -4,6 +4,7 @@ import { expect, expectTypeOf } from 'vitest'
 import { describe, it } from '@effect/vitest'
 import {
   InstantCoreDatabase,
+  getOps,
   i,
   txInit,
   validateTransactions,
@@ -37,6 +38,7 @@ import {
   type InstantEntityStoreService,
   type InstantIssueRecord,
   type InstantLogIssueLinkRecord,
+  type InstantToolsDatabase,
   InstantToolsEntities,
   InstantToolsSchema,
   decodeIssueRecord,
@@ -64,6 +66,30 @@ const ApplicationSchema = i.schema({
 const adaptApplicationDatabase = (
   database: InstantCoreDatabase<typeof ApplicationSchema>,
 ) => makeInstantEntityStore(database)
+
+type ProductTransaction = Parameters<typeof getOps>[0]
+
+const makeValidatingProductDatabase = () => {
+  const rows = new Map<string, Readonly<Record<string, unknown>>>()
+  const database = {
+    tx: txInit<typeof InstantToolsSchema>(),
+    queryOnce: () =>
+      Promise.resolve({ data: { instantToolsProducts: [...rows.values()] } }),
+    transact: (transaction: ProductTransaction) => {
+      validateTransactions(transaction, InstantToolsSchema)
+      for (const [, , entityId, attributes] of getOps(transaction)) {
+        const rowId = String(entityId)
+        rows.set(rowId, { ...rows.get(rowId), ...attributes, id: rowId })
+      }
+      return Promise.resolve({ clientId: 'products-test', status: 'synced' })
+    },
+  }
+  return {
+    // oxlint-disable-next-line typescript/consistent-type-assertions
+    database: database as unknown as InstantToolsDatabase,
+    rows: () => [...rows.values()],
+  }
+}
 
 const issue = Issue.make({
   area: Option.none(),
@@ -606,6 +632,47 @@ describe('Instant adapter', () => {
               }),
             }),
           ]),
+        ])
+      }),
+  )
+
+  it.effect(
+    'saves a product through Instant under one UUID row and reads it back by its product id',
+    () =>
+      Effect.gen(function* () {
+        const { database, rows } = makeValidatingProductDatabase()
+        const productCatalog = makeProductCatalog(
+          makeInstantEntityStore(database),
+        )
+        const acaga = ApplicationProduct.make({ id: 'acaga', name: 'ACAGA' })
+
+        yield* productCatalog.save(
+          ProductCatalogEntry.make({
+            product: acaga,
+            updatedAtMs: 1_792_000_000_000,
+          }),
+        )
+        yield* productCatalog.save(
+          ProductCatalogEntry.make({
+            product: acaga,
+            updatedAtMs: 1_792_000_000_500,
+          }),
+        )
+
+        expect(rows()).toEqual([
+          {
+            id: 'a07f9008-c1d6-5f59-a814-5d0d9ccfde0e',
+            kind: 'Application',
+            name: 'ACAGA',
+            productId: 'acaga',
+            updatedAtMs: 1_792_000_000_500,
+          },
+        ])
+        expect(yield* productCatalog.fetch).toEqual([
+          ProductCatalogEntry.make({
+            product: acaga,
+            updatedAtMs: 1_792_000_000_500,
+          }),
         ])
       }),
   )

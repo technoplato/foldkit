@@ -1,7 +1,8 @@
-import { Array, Effect, Layer, Option } from 'effect'
+import { Array, Effect, Layer, Option, Stream } from 'effect'
 import {
   StaticIssueTrackerResources,
   makeMemoryIssueTracker,
+  makeMemoryProductCatalog,
 } from 'issues-core-example'
 import {
   mkdirSync,
@@ -23,17 +24,23 @@ import {
   IssueTrackerError,
   type IssueTrackerService,
   IssueWorkLogEntry,
+  ProductCatalog,
+  ProductCatalogEntry,
+  ProductCatalogError,
+  type ProductCatalogService,
   RecordingMention,
   RecordingReference,
   UriReference,
 } from '@foldkit/instant-tools/issues'
 
 import {
+  type AddProductInput,
   type IssueFilesService,
   type IssuesHost,
   type IssuesOutcome,
   addCriterionCommand,
   addMentionCommand,
+  addProductCommand,
   attachIssueFilesCommand,
   claimIssueCommand,
   deleteIssueCommand,
@@ -42,6 +49,7 @@ import {
   fileIssueCommand,
   linkIssuesCommand,
   listIssuesCommand,
+  listProductsCommand,
   logIssueCommand,
   markCriteriaCommand,
   redactCredentials,
@@ -170,6 +178,29 @@ const fetched = (tracker: IssueTrackerService, issueId: string) =>
   Effect.runSync(tracker.fetchIssue(issueId))
 
 const linesOf = (outcome: IssuesOutcome) => Array.join(outcome.stdout, '\n')
+
+const withProductCatalog = (
+  host: IssuesHost,
+  catalog: ProductCatalogService,
+): IssuesHost => ({
+  ...host,
+  resources: Layer.merge(
+    host.resources,
+    Layer.succeed(ProductCatalog, catalog),
+  ),
+})
+
+const scribeEntry = ProductCatalogEntry.make({
+  product,
+  updatedAtMs: 1_790_000_000_000,
+})
+
+const acagaInput: AddProductInput = {
+  id: Option.some('acaga'),
+  isJson: false,
+  kind: Option.some('Application'),
+  name: Option.some('ACAGA'),
+}
 
 describe('issues command', () => {
   it('refuses anything that is not an Issue number, with exit code 2', async () => {
@@ -964,5 +995,133 @@ describe('issues command', () => {
       stdout: ['{"reason":"refused [redacted]"}'],
     })
     expect(redactCredentials(outcome, ['', 'short'])).toEqual(outcome)
+  })
+
+  it('adds a product, lists it, files an Issue under it, and changes nothing when run again', async () => {
+    const { host, memory } = await run(
+      makeHost([stored('790', 'ACAGA is its own project')]),
+    )
+    const catalog = await run(makeMemoryProductCatalog([scribeEntry]))
+    const withCatalog = withProductCatalog(host, catalog)
+
+    const added = await run(
+      addProductCommand(withCatalog, {
+        ...acagaInput,
+        kind: Option.some('application'),
+      }),
+    )
+    const listed = await run(
+      listProductsCommand(withCatalog, { isJson: false }),
+    )
+    const moved = await run(
+      editIssueCommand(withCatalog, {
+        area: Option.none(),
+        details: Option.none(),
+        issue: '790',
+        isJson: false,
+        priority: Option.none(),
+        product: Option.some('acaga'),
+        title: Option.none(),
+        type: Option.none(),
+      }),
+    )
+    const again = await run(addProductCommand(withCatalog, acagaInput))
+    const againAsJson = await run(
+      addProductCommand(withCatalog, { ...acagaInput, isJson: true }),
+    )
+
+    expect(added).toEqual({
+      exitCode: 0,
+      stderr: [],
+      stdout: ['Added product acaga (ACAGA, Application).'],
+    })
+    expect(linesOf(listed)).toContain('acaga  ACAGA  (Application)')
+    expect(moved.exitCode).toBe(0)
+    expect(Option.map(fetched(memory, '790'), issue => issue.product)).toEqual(
+      Option.some(ApplicationProduct.make({ id: 'acaga', name: 'ACAGA' })),
+    )
+    expect(again).toEqual({
+      exitCode: 0,
+      stderr: [],
+      stdout: [
+        'Product acaga (ACAGA, Application) is already in the catalog; nothing changed.',
+      ],
+    })
+    expect(againAsJson.stdout).toEqual([
+      '{"_tag":"Application","id":"acaga","name":"ACAGA"}',
+    ])
+    expect(
+      Array.map(
+        await Effect.runPromise(catalog.fetch),
+        entry => entry.product.id,
+      ),
+    ).toEqual(['scribe', 'acaga'])
+  })
+
+  it('refuses a product it cannot add with exit code 2 and writes nothing', async () => {
+    const { host } = await run(makeHost([]))
+    const catalog = await run(makeMemoryProductCatalog([scribeEntry]))
+    const withCatalog = withProductCatalog(host, catalog)
+    const addWith = (input: Partial<AddProductInput>) =>
+      run(addProductCommand(withCatalog, { ...acagaInput, ...input }))
+
+    const outcomes = [
+      await addWith({ id: Option.none() }),
+      await addWith({ name: Option.none() }),
+      await addWith({ kind: Option.none() }),
+      await addWith({ kind: Option.some('Tool') }),
+      await addWith({ id: Option.some('ACAGA') }),
+      await addWith({
+        id: Option.some('scribe'),
+        name: Option.some('Scribe Two'),
+      }),
+    ]
+
+    expect(Array.map(outcomes, outcome => outcome.exitCode)).toEqual([
+      2, 2, 2, 2, 2, 2,
+    ])
+    expect(
+      Array.map(outcomes, outcome => Array.join(outcome.stderr, '\n')),
+    ).toEqual([
+      'issues products add needs --id, such as --id acaga.',
+      'issues products add needs --name, such as --name ACAGA.',
+      'issues products add needs --kind: Application or Library.',
+      '"Tool" is not a product kind. Valid: Application, Library.',
+      '"ACAGA" is not a product id: use lowercase letters and digits joined by hyphens, such as acaga or instant-data-swift.',
+      'Product scribe is already Scribe (Application); nothing changed.',
+    ])
+    expect(
+      Array.map(
+        await Effect.runPromise(catalog.fetch),
+        entry => entry.product.id,
+      ),
+    ).toEqual(['scribe'])
+  })
+
+  it('reports a catalog that refuses the product with exit code 1', async () => {
+    const { host } = await run(makeHost([]))
+    const refusing: ProductCatalogService = {
+      fetch: Effect.succeed([scribeEntry]),
+      observe: Stream.succeed([scribeEntry]),
+      save: () =>
+        Effect.fail(
+          new ProductCatalogError({
+            cause: new Error('Permission denied: instantToolsProducts'),
+            operation: 'Save',
+          }),
+        ),
+    }
+
+    const outcome = await run(
+      addProductCommand(withProductCatalog(host, refusing), acagaInput),
+    )
+
+    expect(outcome).toEqual({
+      exitCode: 1,
+      stderr: [
+        'issues products add failed: Save: Permission denied: instantToolsProducts',
+      ],
+      stdout: [],
+    })
   })
 })

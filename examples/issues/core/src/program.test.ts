@@ -13,10 +13,14 @@ import {
   IssueTrackerError,
   type IssueTrackerService,
   LibraryProduct,
+  ProductCatalog,
   ProductCatalogEntry,
+  ProductCatalogError,
+  type ProductCatalogService,
   RecordingMention,
   RecordingReference,
   RecordingSegment,
+  type TrackedProduct,
   TriageCandidate,
   UriReference,
 } from '@foldkit/instant-tools/issues'
@@ -52,6 +56,7 @@ import {
   SubmittedIssueMention,
   SubmittedIssueSuccessCriterion,
   SubmittedIssueWorkLogEntry,
+  SubmittedProduct,
   SubmittedSuccessCriteriaMarks,
   UpdatedIssueTitle,
   UpdatedLeftoverComment,
@@ -61,6 +66,7 @@ import {
   DraftMention,
   DraftSuccessCriterion,
   DraftWorkLogEntry,
+  FailedProductAddition,
   FileIssue,
   IssueDetail,
   IssueDraft,
@@ -70,7 +76,11 @@ import {
   LoadingIssueLogs,
   LoadingLeftoverPresence,
   NotObservingLeftoverPresence,
+  RefusedProductAddition,
+  SavedProductAddition,
+  SavingProductAddition,
   TriageInbox,
+  UnchangedProductAddition,
 } from './model.js'
 import {
   destinationForModel,
@@ -81,6 +91,7 @@ import { type IssueTrackerResources, issuesScreen } from './program.js'
 import {
   StaticIssueTrackerResources,
   makeMemoryIssueTracker,
+  makeMemoryProductCatalog,
   signedInAuthor,
 } from './resources.js'
 import { navigationToPath, pathToNavigation } from './route.js'
@@ -973,6 +984,166 @@ describe('Issue Tracker Program', () => {
       reason:
         'Choose an Application or Library: "Scribee" names none. Valid: scribe (Scribe), foldkit (Foldkit), casino (Casino).',
     })
+  })
+
+  const acaga = ApplicationProduct.make({ id: 'acaga', name: 'ACAGA' })
+
+  const runWithCatalog = <A>(
+    catalog: ProductCatalogService,
+    effect: Effect.Effect<A, never, IssueTrackerResources>,
+  ) =>
+    Effect.runPromise(
+      effect.pipe(
+        Effect.provideService(ProductCatalog, catalog),
+        Effect.provide(StaticIssueTrackerResources),
+      ),
+    )
+
+  it('adds a product to the catalog and reads it back', async () => {
+    const [saving, commands] = update(
+      filingModel(),
+      SubmittedProduct.make({ product: acaga }),
+    )
+    expect(saving.productAddition).toEqual(
+      SavingProductAddition.make({ product: acaga }),
+    )
+    expect(Array.map(commands, command => command.name)).toEqual([
+      'SaveProduct',
+    ])
+    const catalog = await Effect.runPromise(
+      makeMemoryProductCatalog([productEntry]),
+    )
+
+    const result = await runWithCatalog(
+      catalog,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    expect(result).toMatchObject({
+      _tag: 'SucceededSaveProduct',
+      entry: { product: acaga },
+    })
+    expect(
+      Array.map(await Effect.runPromise(catalog.fetch), entry => entry.product),
+    ).toEqual([product, acaga])
+    const [saved] = update(saving, result)
+    expect(saved.productAddition).toEqual(
+      SavedProductAddition.make({ product: acaga }),
+    )
+    expect(saved.products).toMatchObject({
+      _tag: 'LoadedProducts',
+      products: expect.arrayContaining([
+        expect.objectContaining({ product: acaga }),
+      ]),
+    })
+  })
+
+  it('refuses a malformed id, a blank name, and an id or name another product holds', () => {
+    const additionOf = (submitted: TrackedProduct) => {
+      const [refused, commands] = update(
+        filingModel(),
+        SubmittedProduct.make({ product: submitted }),
+      )
+      expect(commands).toEqual([])
+      return refused.productAddition
+    }
+
+    expect(
+      additionOf(ApplicationProduct.make({ id: 'ACAGA', name: 'ACAGA' })),
+    ).toEqual(
+      RefusedProductAddition.make({
+        reason:
+          '"ACAGA" is not a product id: use lowercase letters and digits joined by hyphens, such as acaga or instant-data-swift.',
+      }),
+    )
+    expect(
+      additionOf(ApplicationProduct.make({ id: 'acaga', name: ' ' })),
+    ).toEqual(
+      RefusedProductAddition.make({
+        reason: 'A product needs a name, such as ACAGA.',
+      }),
+    )
+    expect(
+      additionOf(LibraryProduct.make({ id: 'scribe', name: 'Scribe' })),
+    ).toEqual(
+      RefusedProductAddition.make({
+        reason:
+          'Product scribe is already Scribe (Application); nothing changed.',
+      }),
+    )
+    expect(
+      additionOf(ApplicationProduct.make({ id: 'scribe-app', name: 'SCRIBE' })),
+    ).toEqual(
+      RefusedProductAddition.make({
+        reason: 'Product scribe is already named Scribe; nothing was added.',
+      }),
+    )
+  })
+
+  it('changes nothing for a product the catalog holds as given, and adds nothing before the catalog loads', () => {
+    const [unchanged, unchangedCommands] = update(
+      filingModel(),
+      SubmittedProduct.make({ product }),
+    )
+    const [early, earlyCommands] = update(
+      modelForNavigation(FileIssue.make({})),
+      SubmittedProduct.make({ product: acaga }),
+    )
+
+    expect(unchangedCommands).toEqual([])
+    expect(unchanged.productAddition).toEqual(
+      UnchangedProductAddition.make({ product }),
+    )
+    expect(earlyCommands).toEqual([])
+    expect(early.productAddition).toEqual(
+      FailedProductAddition.make({
+        reason: 'The product catalog has not loaded; nothing was added.',
+      }),
+    )
+  })
+
+  it('names the real cause when the catalog refuses a product or does not read it back', async () => {
+    const [saving, commands] = update(
+      filingModel(),
+      SubmittedProduct.make({ product: acaga }),
+    )
+    const save = Option.getOrThrow(Array.head(commands)).effect
+    const refusing: ProductCatalogService = {
+      fetch: Effect.succeed([productEntry]),
+      observe: Stream.succeed([productEntry]),
+      save: () =>
+        Effect.fail(
+          new ProductCatalogError({
+            cause: new InstantEntityStoreError({
+              cause: new Error('Permission denied: instantToolsProducts'),
+              operation: 'SaveProduct',
+            }),
+            operation: 'Save',
+          }),
+        ),
+    }
+    const forgetting: ProductCatalogService = {
+      ...refusing,
+      save: () => Effect.void,
+    }
+
+    const refused = await runWithCatalog(refusing, save)
+    const forgotten = await runWithCatalog(forgetting, save)
+
+    expect(refused).toEqual({
+      _tag: 'FailedSaveProduct',
+      reason: 'Save: SaveProduct: Permission denied: instantToolsProducts',
+    })
+    expect(forgotten).toEqual({
+      _tag: 'FailedSaveProduct',
+      reason: 'Product acaga was saved but does not read back.',
+    })
+    const [failed] = update(saving, refused)
+    expect(failed.productAddition).toEqual(
+      FailedProductAddition.make({
+        reason: 'Save: SaveProduct: Permission denied: instantToolsProducts',
+      }),
+    )
   })
 
   it('appends a work-log entry with its state, agent, commit, claim, and status, and reads it back', async () => {
