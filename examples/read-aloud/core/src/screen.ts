@@ -105,7 +105,7 @@ const ofPagesText = (book: Book): string =>
 
 const statusOf = (model: ReadAloudView, book: Book): string =>
   Option.match(newestTurnOf(model, book), {
-    onNone: () => 'Not read aloud yet',
+    onNone: () => 'Read aloud',
     onSome: turn =>
       turn.isOngoing
         ? `Reading now · page ${turn.page.toString()}${ofPagesText(book)}`
