@@ -35,6 +35,7 @@ import {
   titleOf,
   titlesOf,
 } from './model.js'
+import { UnendedPlay } from './scribeTimeline.js'
 import { SharedHow } from './share.js'
 import {
   askedBookmarkOf,
@@ -525,6 +526,22 @@ export const FailedReportStretch = m('FailedReportStretch', {
   report: StretchReport,
   reason: S.String,
 })
+/**
+ * Scribe's timeline has these Books plays with a start and no end, as of
+ * `checkedAtMs`: pages closed while they played.
+ */
+export const ReceivedUnendedPlays = m('ReceivedUnendedPlays', {
+  plays: S.Array(UnendedPlay),
+  checkedAtMs: S.Number,
+})
+/** Scribe's timeline took the ends of `closedCount` unended plays. */
+export const CompletedCloseUnendedPlays = m('CompletedCloseUnendedPlays', {
+  closedCount: S.Int,
+})
+/** Scribe's timeline could not take the unended plays' ends, and why. */
+export const FailedCloseUnendedPlays = m('FailedCloseUnendedPlays', {
+  reason: S.String,
+})
 
 /**
  * Every Message Books accepts: the Catalog's Actions, the facts the
@@ -554,6 +571,9 @@ export const Message = S.Union([
   FailedWriteLibrary,
   CompletedReportStretch,
   FailedReportStretch,
+  ReceivedUnendedPlays,
+  CompletedCloseUnendedPlays,
+  FailedCloseUnendedPlays,
   Audible.StartedAudibleSignIn,
   Audible.FailedStartAudibleSignIn,
   Audible.ConnectedAudible,

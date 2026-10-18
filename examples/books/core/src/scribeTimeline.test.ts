@@ -479,12 +479,47 @@ describe('a play a closed page left open', () => {
         playbackRate: 1,
         startSeconds: 600,
         startPayload: startRow.payloadJSON,
+        maybeNextPlayStartedAtMs: Option.none(),
       },
     ])
     expect(unendedPlaysOf([startRow, endRow], recordings, booksPlayer)).toEqual(
       [],
     )
     expect(unendedPlaysOf([startRow], [], booksPlayer)).toEqual([])
+  })
+
+  it('knows when a later play of the same title began, but not the same stretch on a recording begun later', () => {
+    const laterPlay = {
+      ...startRow,
+      id: 'later-start',
+      capturedAtMs: stretchStartMs + 600_000,
+      payloadJSON: startRow.payloadJSON
+        .replace(
+          `"startedAt":${stretchStartMs.toString()}`,
+          `"startedAt":${(stretchStartMs + 600_000).toString()}`,
+        )
+        .replace('"mediaStartSeconds":723.4', '"mediaStartSeconds":100'),
+    }
+    const sameStretchLater = {
+      ...startRow,
+      id: 'same-stretch-start',
+      recordingID: 'late-recording',
+      capturedAtMs: stretchStartMs + 30_000,
+      payloadJSON: startRow.payloadJSON
+        .replace(
+          `"startedAt":${stretchStartMs.toString()}`,
+          `"startedAt":${(stretchStartMs + 30_000).toString()}`,
+        )
+        .replace('"mediaStartSeconds":723.4', '"mediaStartSeconds":753.4'),
+    }
+    const [play] = unendedPlaysOf(
+      [startRow, sameStretchLater, laterPlay],
+      [liveRecording],
+      booksPlayer,
+    )
+    expect(play?.maybeNextPlayStartedAtMs).toEqual(
+      Option.some(stretchStartMs + 600_000),
+    )
   })
 
   it('ends where the listener was last saved, with the start’s own words, as the page closing', () => {

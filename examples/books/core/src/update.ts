@@ -16,6 +16,7 @@ import {
   presentedAddBooks,
   reconnectedAudible,
 } from './addBooks.js'
+import { closingsOf } from './closings.js'
 import {
   ContentsSheet,
   DeleteBookmarkQuestion,
@@ -49,8 +50,10 @@ import {
 } from './library.js'
 import { placePathOf, secondOf } from './links.js'
 import {
+  CompletedCloseUnendedPlays,
   CompletedReportStretch,
   CompletedWriteLibrary,
+  FailedCloseUnendedPlays,
   FailedReportStretch,
   FailedShareLink,
   FailedWriteLibrary,
@@ -79,7 +82,7 @@ import {
   titleOf,
 } from './model.js'
 import { navigation } from './navigation.js'
-import { ScribeTimeline } from './scribeTimeline.js'
+import { PlayClosing, ScribeTimeline } from './scribeTimeline.js'
 import type { BooksServices } from './services.js'
 import { LinkSharing, type SharedHow } from './share.js'
 import {
@@ -168,6 +171,28 @@ export const ReportStretch = Command.define(
           reason: error.reason,
         }),
       ),
+    ),
+  ),
+)
+
+/**
+ * Writes the ends of plays a closed page left open on Scribe's timeline.
+ * A refusal becomes FailedCloseUnendedPlays; the next check finds the
+ * plays again.
+ */
+export const CloseUnendedPlays = Command.define(
+  'CloseUnendedPlays',
+  { closings: S.Array(PlayClosing) },
+  CompletedCloseUnendedPlays,
+  FailedCloseUnendedPlays,
+)(({ closings }) =>
+  Effect.gen(function* () {
+    const timeline = yield* ScribeTimeline
+    const closedCount = yield* timeline.closePlays(closings)
+    return CompletedCloseUnendedPlays({ closedCount })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedCloseUnendedPlays({ reason: error.reason })),
     ),
   ),
 )
@@ -841,6 +866,13 @@ const updated = (model: Model, message: Message): UpdateReturn =>
           { ...model, maybeTimelineProblem: Option.none() },
           model.unsentReports,
         ),
+      ReceivedUnendedPlays: ({ plays, checkedAtMs }) =>
+        Array.match(closingsOf(model, plays, checkedAtMs), {
+          onEmpty: (): UpdateReturn => [model, []],
+          onNonEmpty: closings => [model, [CloseUnendedPlays({ closings })]],
+        }),
+      CompletedCloseUnendedPlays: () => [model, []],
+      FailedCloseUnendedPlays: () => [model, []],
       FailedReportStretch: ({ report, reason }) => [
         {
           ...model,

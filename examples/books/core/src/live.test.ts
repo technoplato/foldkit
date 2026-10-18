@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from 'vitest'
 
 import { Milliseconds, TitleSlug } from './ids.js'
-import { chaptersOf } from './model.js'
+import { InProgress, chaptersOf } from './model.js'
 import {
   makeTestLibraryStore,
   makeTestScribeTimeline,
@@ -16,6 +16,7 @@ import {
   noScribeTimeline,
   sampleShelf,
 } from './sample.js'
+import type { UnendedPlay } from './scribeTimeline.js'
 import { makeTestLinkSharing } from './share.js'
 import { SyncedBooks, bindBooks } from './synced.js'
 
@@ -272,6 +273,66 @@ describe('live Books', () => {
     expect(
       model._tag === 'Ready' ? model.maybeTimelineProblem : 'not ready',
     ).toEqual(Option.none())
+    await handle.stop()
+  })
+
+  it('ends a play a closed page left open once the shelf is here', async () => {
+    const lantern = TitleSlug.make('the-lantern-keeper')
+    const playedAtMs = Date.now() - 7_200_000
+    const play: UnendedPlay = {
+      playId: 'play-1',
+      recording: {
+        recordingId: 'recording-1',
+        ownerUserId: 'owner-1',
+        clock: { startedAtMs: playedAtMs - 600_000, gaps: [] },
+        durationSeconds: 3_600,
+        status: 'Stopped',
+      },
+      mediaKey: 'audiobook:the-lantern-keeper',
+      mediaStartSeconds: 60,
+      startedAtMs: playedAtMs,
+      playbackRate: 1,
+      startSeconds: 600,
+      startPayload: '{}',
+      maybeNextPlayStartedAtMs: Option.none(),
+    }
+    const store = await Effect.runPromise(
+      makeTestLibraryStore({
+        ...sampleShelf,
+        progress: [
+          InProgress({
+            slug: lantern,
+            placeMs: Milliseconds.make(240_000),
+            savedAtMs: playedAtMs + 180_000,
+          }),
+        ],
+      }),
+    )
+    const sharing = await Effect.runPromise(makeTestLinkSharing())
+    const timeline = await Effect.runPromise(makeTestScribeTimeline([play]))
+    const handle = Runtime.startHandle({
+      program: SyncedBooks,
+      sync: Runtime.Memory({ processor: 'books-closing-test' }),
+      resources: Layer.mergeAll(
+        store.layer,
+        Layer.succeed(AudioOutput, { sound: () => Stream.never }),
+        noTranscripts,
+        sharing.layer,
+        noReadAloud,
+        timeline.layer,
+      ),
+    })
+    await eventually(() =>
+      Array.isReadonlyArrayNonEmpty(Effect.runSync(timeline.closings)),
+    )
+    expect(Effect.runSync(timeline.closings)).toEqual([
+      {
+        play,
+        mediaEndMs: 240_000,
+        endedAtMs: playedAtMs + 180_000,
+        reason: 'PageClosed',
+      },
+    ])
     await handle.stop()
   })
 })

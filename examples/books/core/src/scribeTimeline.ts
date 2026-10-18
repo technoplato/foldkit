@@ -24,7 +24,11 @@ import {
   wallClockMsAt,
 } from './recordingClock.js'
 import { stableUUID } from './stableId.js'
-import type { StretchEndReason, StretchEvent } from './stretch.js'
+import {
+  StretchEndReason,
+  type StretchEvent,
+  jumpToleranceMs,
+} from './stretch.js'
 
 // SCRIBE TIMELINE
 
@@ -39,8 +43,9 @@ export class ScribeTimelineError extends Data.TaggedError(
  * Where Books tells Scribe what it played: each stretch's start once it
  * has played 3 s, and its end, on every one of his recordings that was live
  * while it played. It answers how many recordings the stretch landed on: 0
- * when none was live. The live one writes Scribe's own rows in Instant;
- * tests use one that keeps what it is told.
+ * when none was live. It also finds the plays a closed page left with a
+ * start and no end, and ends the ones Books decides to. The live one writes
+ * Scribe's own rows in Instant; tests use one that keeps what it is told.
  */
 export class ScribeTimeline extends Context.Service<
   ScribeTimeline,
@@ -48,6 +53,10 @@ export class ScribeTimeline extends Context.Service<
     report: (
       title: Title,
       event: StretchEvent,
+    ) => Effect.Effect<number, ScribeTimelineError>
+    unendedPlays: Effect.Effect<ReadonlyArray<UnendedPlay>, ScribeTimelineError>
+    closePlays: (
+      closings: ReadonlyArray<PlayClosing>,
     ) => Effect.Effect<number, ScribeTimelineError>
   }>
 >()('books/ScribeTimeline') {}
@@ -152,6 +161,37 @@ export const WrittenStart = S.Struct({
 })
 /** A play's start as Instant already has it. */
 export type WrittenStart = typeof WrittenStart.Type
+
+/**
+ * A Books play Instant has the start of and no end, on one recording: a
+ * page closed while it played wrote the start and never the end. Its id,
+ * its recording, what it played and from where, when, at what speed, its
+ * second on the recording, the start's payload, whose words the end
+ * repeats, and when the next play of the same title began, if one did.
+ */
+export const UnendedPlay = S.Struct({
+  playId: S.String,
+  recording: TimelineRecording,
+  mediaKey: S.String,
+  mediaStartSeconds: S.Number,
+  startedAtMs: S.Number,
+  playbackRate: S.Number,
+  startSeconds: S.Number,
+  startPayload: S.String,
+  maybeNextPlayStartedAtMs: S.Option(S.Number),
+})
+/** A Books play Instant has the start of and no end. */
+export type UnendedPlay = typeof UnendedPlay.Type
+
+/** How Books ends an unended play: where in the title, when, and why. */
+export const PlayClosing = S.Struct({
+  play: UnendedPlay,
+  mediaEndMs: Milliseconds,
+  endedAtMs: S.Number,
+  reason: StretchEndReason,
+})
+/** How Books ends an unended play. */
+export type PlayClosing = typeof PlayClosing.Type
 
 /** The runtime event kind Scribe reads as `RuntimeEvent.mediaPlay`. */
 export const mediaPlayKind = 'mediaPlay'
@@ -369,7 +409,8 @@ export const bookPlayOpenUrlOf = (
     `${origin}${placePathOf(title.slug, Milliseconds.make(Math.max(0, Math.round(mediaSeconds * 1000))))}`,
   )
 
-const wireReasonOf = (reason: StretchEndReason): string =>
+/** A Books end reason in the words Scribe's timeline knows: `videoChanged` for another title. */
+export const wireReasonOf = (reason: StretchEndReason): string =>
   M.value(reason).pipe(
     M.withReturnType<string>(),
     M.when('Paused', () => 'paused'),
@@ -615,6 +656,41 @@ export const isPlacedOn = (
 
 // ROWS
 
+const mediaPlayEventRow = (
+  row: Readonly<{
+    recording: TimelineRecording
+    id: string
+    atSeconds: number
+    atMs: number
+    payloadJSON: string
+    span: Readonly<Record<string, unknown>>
+  }>,
+): InstantRow => ({
+  namespace: 'recordingRuntimeEvents',
+  id: row.id,
+  attrs: {
+    ownerUserID: row.recording.ownerUserId,
+    recordingID: row.recording.recordingId,
+    formatVersion: 1,
+    kind: mediaPlayKind,
+    timestampSeconds: r3(row.atSeconds),
+    capturedAtMs: Math.round(row.atMs),
+    payloadJSON: row.payloadJSON,
+    updatedAtMs: Math.round(row.atMs),
+    ...row.span,
+  },
+  links: { recording: row.recording.recordingId },
+})
+
+const spanOf = (
+  playId: string,
+  start: WrittenStart,
+  end: PlacedEnd,
+): Readonly<Record<string, unknown>> => ({
+  spanStartID: mediaPlayEventIdOf(playId, 'start'),
+  spanDurationSeconds: r3(Math.max(0, end.endSeconds - start.startSeconds)),
+})
+
 /**
  * The rows one stretch writes on one recording, Scribe Videos' rows: the
  * play's start event at the recording's second where it began, and once it
@@ -649,8 +725,10 @@ export const rowsOnRecording = (
     {
       onNone: () => [],
       onSome: ({ start, maybeEnd }) => {
-        const { recordingId, ownerUserId } = input.recording
-        const playId = mediaPlayIdOf(input.stretch.stretchId, recordingId)
+        const playId = mediaPlayIdOf(
+          input.stretch.stretchId,
+          input.recording.recordingId,
+        )
         const startEventId = mediaPlayEventIdOf(playId, 'start')
         const payloadOf = (change: PlayChange): string =>
           mediaPlayPayload({
@@ -668,22 +746,15 @@ export const rowsOnRecording = (
           atMs: number,
           change: PlayChange,
           span: Readonly<Record<string, unknown>>,
-        ): InstantRow => ({
-          namespace: 'recordingRuntimeEvents',
-          id,
-          attrs: {
-            ownerUserID: ownerUserId,
-            recordingID: recordingId,
-            formatVersion: 1,
-            kind: mediaPlayKind,
-            timestampSeconds: r3(atSeconds),
-            capturedAtMs: Math.round(atMs),
+        ): InstantRow =>
+          mediaPlayEventRow({
+            recording: input.recording,
+            id,
+            atSeconds,
+            atMs,
             payloadJSON: payloadOf(change),
-            updatedAtMs: Math.round(atMs),
-            ...span,
-          },
-          links: { recording: recordingId },
-        })
+            span,
+          })
         const startRows = Option.isSome(input.maybeWrittenStart)
           ? []
           : [
@@ -706,12 +777,7 @@ export const rowsOnRecording = (
                 mediaEndSeconds: end.mediaEndSeconds,
                 reason: end.reason,
               }),
-              {
-                spanStartID: startEventId,
-                spanDurationSeconds: r3(
-                  Math.max(0, end.endSeconds - start.startSeconds),
-                ),
-              },
+              spanOf(playId, start, end),
             ),
           ],
         })
@@ -719,3 +785,209 @@ export const rowsOnRecording = (
       },
     },
   )
+
+// UNENDED PLAYS
+
+const EventRow = S.Struct({
+  id: S.String,
+  recordingID: S.String,
+  timestampSeconds: S.Number,
+  capturedAtMs: S.Number,
+  payloadJSON: S.String,
+  spanStartID: S.optionalKey(S.NullOr(S.String)),
+})
+
+const PlayPayload = S.fromJsonString(
+  S.Struct({
+    mediaPlay: S.Struct({
+      _0: S.Struct({
+        playID: S.String,
+        mediaKey: S.String,
+        mediaStartSeconds: S.Number,
+        playbackRate: S.Number,
+        player: S.String,
+      }),
+    }),
+  }),
+)
+
+type PlayEvent = Readonly<{
+  event: typeof EventRow.Type
+  play: typeof PlayPayload.Type.mediaPlay._0
+}>
+
+const playEventsOf = (rows: ReadonlyArray<unknown>): ReadonlyArray<PlayEvent> =>
+  Array.getSomes(
+    Array.map(rows, row =>
+      Option.flatMap(S.decodeUnknownOption(EventRow)(row), event =>
+        Option.map(
+          S.decodeUnknownOption(PlayPayload)(event.payloadJSON),
+          payload => ({ event, play: payload.mediaPlay._0 }),
+        ),
+      ),
+    ),
+  )
+
+const isStart = ({ event }: PlayEvent): boolean =>
+  Option.isNone(Option.fromNullishOr(event.spanStartID))
+
+const isSameStretch = (self: PlayEvent, that: PlayEvent): boolean =>
+  Math.abs(
+    (that.play.mediaStartSeconds - self.play.mediaStartSeconds) * 1000 -
+      (that.event.capturedAtMs - self.event.capturedAtMs) *
+        self.play.playbackRate,
+  ) <= jumpToleranceMs
+
+/**
+ * When the next play of the same media began after `start`: a start of
+ * another stretch, on any recording. The same stretch's start on a
+ * recording begun later continues it (its media second moved with the
+ * clock), so it is not a next play.
+ */
+const nextPlayStartedAtMsOf = (
+  starts: ReadonlyArray<PlayEvent>,
+  start: PlayEvent,
+): Option.Option<number> =>
+  pipe(
+    starts,
+    Array.filter(
+      other =>
+        other.play.mediaKey === start.play.mediaKey &&
+        other.event.capturedAtMs > start.event.capturedAtMs &&
+        !isSameStretch(start, other),
+    ),
+    Array.map(other => other.event.capturedAtMs),
+    Array.match({
+      onEmpty: () => Option.none(),
+      onNonEmpty: times => Option.some(Math.min(...times)),
+    }),
+  )
+
+/**
+ * The plays `player` started on these recordings and never ended: a start
+ * event whose end event (its play's `end` id) is not among the rows. Rows of
+ * other players, such as Scribe Videos', and starts on a recording not
+ * given are left out.
+ *
+ * @example
+ * ```typescript
+ * unendedPlaysOf(mediaPlayRows, recordings, booksPlayer) // [{ playId, recording, mediaKey: 'audiobook:…', … }]
+ * ```
+ */
+export const unendedPlaysOf = (
+  rows: ReadonlyArray<unknown>,
+  recordings: ReadonlyArray<TimelineRecording>,
+  player: string,
+): ReadonlyArray<UnendedPlay> => {
+  const events = playEventsOf(rows)
+  const ids = new Set(Array.map(events, ({ event }) => event.id))
+  const starts = Array.filter(
+    events,
+    start => isStart(start) && start.play.player === player,
+  )
+  return Array.getSomes(
+    Array.map(
+      Array.filter(
+        starts,
+        ({ play }) =>
+          !ids.has(mediaPlayEventIdOf(String.toLowerCase(play.playID), 'end')),
+      ),
+      start =>
+        Option.map(
+          Array.findFirst(
+            recordings,
+            recording => recording.recordingId === start.event.recordingID,
+          ),
+          recording => ({
+            playId: String.toLowerCase(start.play.playID),
+            recording,
+            mediaKey: start.play.mediaKey,
+            mediaStartSeconds: start.play.mediaStartSeconds,
+            startedAtMs: start.event.capturedAtMs,
+            playbackRate: start.play.playbackRate,
+            startSeconds: start.event.timestampSeconds,
+            startPayload: start.event.payloadJSON,
+            maybeNextPlayStartedAtMs: nextPlayStartedAtMsOf(starts, start),
+          }),
+        ),
+    ),
+  )
+}
+
+const StartBody = S.fromJsonString(
+  S.Struct({
+    mediaPlay: S.Struct({ _0: S.Record(S.String, S.Unknown) }),
+  }),
+)
+
+const stoppedPayloadOf = (
+  startPayload: string,
+  end: PlacedEnd,
+): Option.Option<string> =>
+  Option.map(S.decodeUnknownOption(StartBody)(startPayload), start =>
+    JSON.stringify(
+      sortedJsonOf({
+        mediaPlay: {
+          _0: {
+            ...start.mediaPlay._0,
+            change: changeJsonOf(
+              PlayStopped({
+                mediaEndSeconds: end.mediaEndSeconds,
+                reason: end.reason,
+              }),
+            ),
+          },
+        },
+      }),
+    ),
+  )
+
+/**
+ * The end event of a play a closed page left open: placed on its
+ * recording's clock like any end, clipped at the recording's stop, linked to
+ * its start, and in the start's own words with the change stopped. None
+ * when the end does not land on the recording.
+ *
+ * @example
+ * ```typescript
+ * closingRowOf({ play, end: { mediaEndSeconds: 843.4, endedAtMs, reason: 'appClosed' }, nowMs })
+ * // Some({ namespace: 'recordingRuntimeEvents', id: <the play's end id>, attrs: { timestampSeconds: 720, … } })
+ * ```
+ */
+export const closingRowOf = (
+  input: Readonly<{
+    play: UnendedPlay
+    end: typeof TimelineStretchEnd.Type
+    nowMs: number
+  }>,
+): Option.Option<InstantRow> => {
+  const { play } = input
+  const stretch: TimelineStretch = {
+    stretchId: play.playId,
+    mediaStartSeconds: play.mediaStartSeconds,
+    startedAtMs: play.startedAtMs,
+    playbackRate: play.playbackRate,
+    maybeEnd: Option.some(input.end),
+  }
+  const start: WrittenStart = {
+    startSeconds: play.startSeconds,
+    mediaStartSeconds: play.mediaStartSeconds,
+    startedAtMs: play.startedAtMs,
+  }
+  return pipe(
+    placementOf(play.recording, stretch, input.nowMs),
+    Option.flatMap(placement => endOf(stretch, placement, start)),
+    Option.flatMap(end =>
+      Option.map(stoppedPayloadOf(play.startPayload, end), payloadJSON =>
+        mediaPlayEventRow({
+          recording: play.recording,
+          id: mediaPlayEventIdOf(play.playId, 'end'),
+          atSeconds: end.endSeconds,
+          atMs: end.endedAtMs,
+          payloadJSON,
+          span: spanOf(play.playId, start, end),
+        }),
+      ),
+    ),
+  )
+}

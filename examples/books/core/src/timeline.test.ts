@@ -142,6 +142,7 @@ const unendedPlayAt = (startedAtMs: number): UnendedPlay => ({
   playbackRate: 1,
   startSeconds: 600,
   startPayload: '{}',
+  maybeNextPlayStartedAtMs: Option.none(),
 })
 
 const shelfSavedAt = (placeMs: number, savedAtMs: number) => ({
@@ -477,8 +478,11 @@ describe('Books on Scribe’s timeline', () => {
 
   it('claims only the first 3 s when no save came after the play, or a later play of the title began', () => {
     const { send, sent } = bindApp()
-    const older = unendedPlayAt(startMs - 7_200_000)
     const newer = { ...unendedPlayAt(startMs - 3_600_000), playId: 'play-2' }
+    const older = {
+      ...unendedPlayAt(startMs - 7_200_000),
+      maybeNextPlayStartedAtMs: Option.some(newer.startedAtMs),
+    }
     send(
       ReceivedShelf({
         shelf: shelfSavedAt(900_000, newer.startedAtMs + 60_000),

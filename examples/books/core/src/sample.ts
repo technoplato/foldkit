@@ -30,7 +30,11 @@ import {
   type Title,
   wholeBookChapters,
 } from './model.js'
-import { ScribeTimeline } from './scribeTimeline.js'
+import {
+  type PlayClosing,
+  ScribeTimeline,
+  type UnendedPlay,
+} from './scribeTimeline.js'
 import type { StretchEvent } from './stretch.js'
 
 // SAMPLE
@@ -266,8 +270,9 @@ export type TestReport = Readonly<{ title: Title; event: StretchEvent }>
 
 /**
  * A Scribe timeline held in memory, for tests only: it keeps every report
- * in order and says each landed on one recording. Every example ships on
- * the Instant timeline.
+ * in order and says each landed on one recording, answers `unended` as the
+ * plays a closed page left open, and keeps every closing. Every example
+ * ships on the Instant timeline.
  *
  * @example
  * ```typescript
@@ -275,17 +280,30 @@ export type TestReport = Readonly<{ title: Title; event: StretchEvent }>
  * Runtime.startHandle({ program: SyncedBooks, sync, resources: Layer.mergeAll(store.layer, timeline.layer, …) })
  * ```
  */
-export const makeTestScribeTimeline = () =>
-  Effect.map(SubscriptionRef.make<ReadonlyArray<TestReport>>([]), reports => ({
-    layer: Layer.succeed(ScribeTimeline, {
-      report: (title, event) =>
-        Effect.as(
-          SubscriptionRef.update(reports, Array.append({ title, event })),
-          1,
-        ),
-    }),
-    reports: SubscriptionRef.get(reports),
-  }))
+export const makeTestScribeTimeline = (
+  unended: ReadonlyArray<UnendedPlay> = [],
+) =>
+  Effect.gen(function* () {
+    const reports = yield* SubscriptionRef.make<ReadonlyArray<TestReport>>([])
+    const closings = yield* SubscriptionRef.make<ReadonlyArray<PlayClosing>>([])
+    return {
+      layer: Layer.succeed(ScribeTimeline, {
+        report: (title, event) =>
+          Effect.as(
+            SubscriptionRef.update(reports, Array.append({ title, event })),
+            1,
+          ),
+        unendedPlays: Effect.succeed(unended),
+        closePlays: closed =>
+          Effect.as(
+            SubscriptionRef.update(closings, Array.appendAll(closed)),
+            closed.length,
+          ),
+      }),
+      reports: SubscriptionRef.get(reports),
+      closings: SubscriptionRef.get(closings),
+    }
+  })
 
 /**
  * No Scribe timeline, for tests of Books that do not check what it
@@ -298,4 +316,6 @@ export const makeTestScribeTimeline = () =>
  */
 export const noScribeTimeline = Layer.succeed(ScribeTimeline, {
   report: () => Effect.succeed(0),
+  unendedPlays: Effect.succeed([]),
+  closePlays: () => Effect.succeed(0),
 })
