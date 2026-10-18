@@ -92,9 +92,17 @@ const playedFromWord = (model: Model, wordId: WordId): UpdateReturn =>
     },
   )
 
-const reachedPlace = (model: Model, placeMs: Milliseconds): UpdateReturn =>
+const reachedPlace = (
+  model: Model,
+  placeMs: Milliseconds,
+  wallClockMs: number,
+): UpdateReturn =>
   isSounding(model)
-    ? [{ ...model, placeMs }, [], Option.some(Advanced({ placeMs }))]
+    ? [
+        { ...model, placeMs },
+        [],
+        Option.some(Advanced({ placeMs, wallClockMs })),
+      ]
     : unchanged(model)
 
 const reachedEnd = (model: Model): UpdateReturn =>
@@ -145,7 +153,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.none(),
       ],
       SetSpeed: ({ speed }) => [{ ...model, speed }, [], Option.none()],
-      ReachedPlace: ({ placeMs }) => reachedPlace(model, placeMs),
+      ReachedPlace: ({ placeMs, wallClockMs }) =>
+        reachedPlace(model, placeMs, wallClockMs),
       ReachedEnd: () => reachedEnd(model),
       FailedPlayAudio: ({ reason }) => stoppedAs(model, Unplayable({ reason })),
       ReceivedPassages: ({ passages }) => [

@@ -1,4 +1,12 @@
-import { Context, Data, Duration, Layer, Schema as S, Stream } from 'effect'
+import {
+  Clock,
+  Context,
+  Data,
+  Duration,
+  Layer,
+  Schema as S,
+  Stream,
+} from 'effect'
 
 import { MediaId, Milliseconds, Speed } from './ids.js'
 
@@ -15,9 +23,13 @@ export const Track = S.Struct({
 /** What the player sounds. */
 export type Track = typeof Track.Type
 
-/** What an audio output reports while it sounds a track. */
+/**
+ * What an audio output reports while it sounds a track: each new second it
+ * reaches, with the wall clock's time when it reached it, so a holder can
+ * tell what played when; the end; or why it stopped.
+ */
 export type AudioEvent = Data.TaggedEnum<{
-  Advanced: { readonly placeMs: Milliseconds }
+  Advanced: { readonly placeMs: Milliseconds; readonly wallClockMs: number }
   Ended: {}
   Failed: { readonly reason: string }
 }>
@@ -50,15 +62,17 @@ export const countedSound = (
 ): Stream.Stream<AudioEvent> =>
   Stream.tick(Duration.millis(stepMs)).pipe(
     Stream.drop(1),
+    Stream.mapEffect(() => Clock.currentTimeMillis),
     Stream.mapAccum(
       (): number => track.fromMs,
-      (place): readonly [number, ReadonlyArray<AudioEvent>] => {
+      (place, wallClockMs): readonly [number, ReadonlyArray<AudioEvent>] => {
         const next = Math.min(
           track.durationMs,
           Math.round(place + stepMs * readSpeed()),
         )
         const reached = AudioEvent.Advanced({
           placeMs: Milliseconds.make(next),
+          wallClockMs,
         })
         return [
           next,

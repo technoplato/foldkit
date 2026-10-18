@@ -9,7 +9,13 @@ import { describe, expect, it } from 'vitest'
 
 import { Milliseconds, TitleSlug } from './ids.js'
 import { chaptersOf } from './model.js'
-import { makeTestLibraryStore, noReadAloud, sampleShelf } from './sample.js'
+import {
+  makeTestLibraryStore,
+  makeTestScribeTimeline,
+  noReadAloud,
+  noScribeTimeline,
+  sampleShelf,
+} from './sample.js'
 import { makeTestLinkSharing } from './share.js'
 import { SyncedBooks, bindBooks } from './synced.js'
 
@@ -33,9 +39,13 @@ const eventually = async (
 const quickAudio = Layer.succeed(AudioOutput, {
   sound: track =>
     Stream.make(
-      AudioEvent.Advanced({ placeMs: Milliseconds.make(track.fromMs + 5_000) }),
+      AudioEvent.Advanced({
+        placeMs: Milliseconds.make(track.fromMs + 5_000),
+        wallClockMs: Date.now(),
+      }),
       AudioEvent.Advanced({
         placeMs: Milliseconds.make(track.fromMs + 35_000),
+        wallClockMs: Date.now(),
       }),
     ),
 })
@@ -52,6 +62,7 @@ const startBooks = async () => {
       noTranscripts,
       sharing.layer,
       noReadAloud,
+      noScribeTimeline,
     ),
   })
   return { store, handle, bound: bindBooks(handle) }
@@ -72,6 +83,7 @@ const startProcessor = (
         noTranscripts,
         sharing.layer,
         noReadAloud,
+        noScribeTimeline,
       ),
     })
     return { handle, bound: bindBooks(handle) }
@@ -183,6 +195,83 @@ describe('live Books', () => {
     expect(
       Option.map(Array.head(shelf.progress), progress => progress._tag),
     ).toEqual(Option.some('InProgress'))
+    await handle.stop()
+  })
+
+  it('tells Scribe’s timeline what it plays: the start 3 s in, the end at the pause', async () => {
+    const heardFromMs = Date.UTC(2026, 9, 18, 19, 30, 0)
+    const secondsHeard = 6
+    const timedAudio = Layer.succeed(AudioOutput, {
+      sound: track =>
+        Stream.concat(
+          Stream.fromIterable(
+            Array.makeBy(secondsHeard, second =>
+              AudioEvent.Advanced({
+                placeMs: Milliseconds.make(track.fromMs + second * 1000),
+                wallClockMs: heardFromMs + second * 1000,
+              }),
+            ),
+          ),
+          Stream.never,
+        ),
+    })
+    const store = await Effect.runPromise(makeTestLibraryStore(sampleShelf))
+    const sharing = await Effect.runPromise(makeTestLinkSharing())
+    const timeline = await Effect.runPromise(makeTestScribeTimeline())
+    const handle = Runtime.startHandle({
+      program: SyncedBooks,
+      sync: Runtime.Memory({ processor: 'books-timeline-test' }),
+      resources: Layer.mergeAll(
+        store.layer,
+        timedAudio,
+        noTranscripts,
+        sharing.layer,
+        noReadAloud,
+        timeline.layer,
+      ),
+    })
+    const bound = bindBooks(handle)
+    await Interaction.whenSettled(bound, 2_000)
+    await eventually(() =>
+      Array.some(
+        bound.entries(),
+        entry =>
+          entry.tag === 'Listen' && entry.availability._tag === 'Enabled',
+      ),
+    )
+    const reportTags = () =>
+      Array.map(Effect.runSync(timeline.reports), ({ event }) => event._tag)
+    bound.press('Listen:the-lantern-keeper')
+    await eventually(() => Array.isReadonlyArrayNonEmpty(reportTags()))
+    bound.press('Pause')
+    await eventually(() => reportTags().length === 2)
+    const reports = Effect.runSync(timeline.reports)
+    expect(reportTags()).toEqual(['StretchBegan', 'StretchEnded'])
+    expect(Array.map(reports, ({ title }) => title.slug)).toEqual([
+      'the-lantern-keeper',
+      'the-lantern-keeper',
+    ])
+    expect(Option.map(Array.last(reports), ({ event }) => event)).toEqual(
+      Option.some({
+        _tag: 'StretchEnded',
+        stretch: {
+          mediaStartMs: 0,
+          startedAtMs: heardFromMs,
+          speed: 1,
+          lastPlaceMs: (secondsHeard - 1) * 1000,
+          lastAtMs: heardFromMs + (secondsHeard - 1) * 1000,
+        },
+        end: {
+          mediaEndMs: (secondsHeard - 1) * 1000,
+          endedAtMs: heardFromMs + (secondsHeard - 1) * 1000,
+          reason: 'Paused',
+        },
+      }),
+    )
+    const model = handle.readModel()
+    expect(
+      model._tag === 'Ready' ? model.maybeTimelineProblem : 'not ready',
+    ).toEqual(Option.none())
     await handle.stop()
   })
 })

@@ -113,12 +113,15 @@ describe('the Transcript Player', () => {
     expect(keyed(playing, 'p')).toEqual(Option.some('Pause'))
     const { model, outs } = run(
       playing,
-      ReachedPlace({ placeMs: Milliseconds.make(21_000) }),
+      ReachedPlace({
+        placeMs: Milliseconds.make(21_000),
+        wallClockMs: 1_792_350_021_000,
+      }),
       ...Array.fromOption(Catalog.messageFor(catalog, playing, 'Pause')),
     )
     expect(model.transport._tag).toBe('Paused')
     expect(outs).toEqual([
-      { _tag: 'Advanced', placeMs: 21_000 },
+      { _tag: 'Advanced', placeMs: 21_000, wallClockMs: 1_792_350_021_000 },
       { _tag: 'Stopped', placeMs: 21_000 },
     ])
   })

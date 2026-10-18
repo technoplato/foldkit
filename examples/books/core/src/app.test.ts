@@ -53,6 +53,8 @@ const bindApp = () => {
 
 const lanternKeeper = TitleSlug.make('the-lantern-keeper')
 
+const heardFromMs = Date.UTC(2026, 9, 18, 19, 0, 0)
+
 const uriOf = (bound: ReturnType<typeof bindApp>['bound']) =>
   Option.map(bound.navigation(), plan => plan.uri)
 
@@ -94,7 +96,12 @@ describe('Books', () => {
   it('keeps the address on the second being heard, so it is always a link', () => {
     const { bound, send } = bindApp()
     bound.press(`Listen:${lanternKeeper}`)
-    send(ReachedPlace({ placeMs: Milliseconds.make(31_400) }))
+    send(
+      ReachedPlace({
+        placeMs: Milliseconds.make(31_400),
+        wallClockMs: heardFromMs + 31_400,
+      }),
+    )
     expect(uriOf(bound)).toEqual(
       Option.some('/books/the-lantern-keeper/listen/31s'),
     )
@@ -107,7 +114,12 @@ describe('Books', () => {
   it('shares a link to the second being heard', () => {
     const { bound, send, written } = bindApp()
     bound.press(`Listen:${lanternKeeper}`)
-    send(ReachedPlace({ placeMs: Milliseconds.make(723_400) }))
+    send(
+      ReachedPlace({
+        placeMs: Milliseconds.make(723_400),
+        wallClockMs: heardFromMs + 723_400,
+      }),
+    )
     bound.pressKey(Interaction.keyInput('l'))
     expect(written).toContainEqual({
       name: 'ShareLink',
@@ -132,14 +144,34 @@ describe('Books', () => {
   it('saves the place on pause, every 10 seconds, and the finish', () => {
     const { bound, written, send } = bindApp()
     bound.press(`Listen:${lanternKeeper}`)
-    send(ReachedPlace({ placeMs: Milliseconds.make(5_000) }))
+    send(
+      ReachedPlace({
+        placeMs: Milliseconds.make(5_000),
+        wallClockMs: heardFromMs + 5_000,
+      }),
+    )
     expect(written).toEqual([])
-    send(ReachedPlace({ placeMs: Milliseconds.make(11_000) }))
-    send(ReachedPlace({ placeMs: Milliseconds.make(15_000) }))
+    send(
+      ReachedPlace({
+        placeMs: Milliseconds.make(11_000),
+        wallClockMs: heardFromMs + 11_000,
+      }),
+    )
+    send(
+      ReachedPlace({
+        placeMs: Milliseconds.make(15_000),
+        wallClockMs: heardFromMs + 15_000,
+      }),
+    )
     bound.press('Pause')
     bound.press('Play')
     send(ReachedEnd())
-    expect(Array.map(written, ({ args }) => args)).toEqual(
+    expect(
+      Array.map(
+        Array.filter(written, ({ name }) => name === 'WriteLibrary'),
+        ({ args }) => args,
+      ),
+    ).toEqual(
       Array.map(
         [
           { _tag: 'SavePlace', slug: lanternKeeper, placeMs: 11_000 },
@@ -277,7 +309,12 @@ describe('Books', () => {
   it('stops and says why when the audio will not play, and Play tries again', () => {
     const { bound, send, written } = bindApp()
     bound.press(`Listen:${lanternKeeper}`)
-    send(ReachedPlace({ placeMs: Milliseconds.make(12_000) }))
+    send(
+      ReachedPlace({
+        placeMs: Milliseconds.make(12_000),
+        wallClockMs: heardFromMs + 12_000,
+      }),
+    )
     send(FailedPlayAudio({ reason: 'the audio file stopped downloading' }))
     const transportOf = () => {
       const { listening } = bound.readModel()

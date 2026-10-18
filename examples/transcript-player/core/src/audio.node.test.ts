@@ -53,12 +53,29 @@ const eventsOf = (url: string, durationMs: number) =>
   ).then(events => Array.fromIterable(events))
 
 describe('the ffplay audio output', () => {
-  it('reports each new second from ffplay’s clock, then the end', async () => {
-    expect(await eventsOf('https://audio.invalid/a.mp3', 15_000)).toEqual([
+  it('reports each new second from ffplay’s clock, when it was reached, then the end', async () => {
+    const beforeMs = Date.now()
+    const events = await eventsOf('https://audio.invalid/a.mp3', 15_000)
+    const afterMs = Date.now()
+    expect(
+      Array.map(events, event =>
+        event._tag === 'Advanced'
+          ? { _tag: event._tag, placeMs: event.placeMs }
+          : event,
+      ),
+    ).toEqual([
       { _tag: 'Advanced', placeMs: 13_010 },
       { _tag: 'Advanced', placeMs: 14_020 },
       { _tag: 'Ended' },
     ])
+    expect(
+      Array.every(
+        events,
+        event =>
+          event._tag !== 'Advanced' ||
+          (event.wallClockMs >= beforeMs && event.wallClockMs <= afterMs),
+      ),
+    ).toBe(true)
   })
 
   it('says the file could not be reached when ffplay never plays it', async () => {

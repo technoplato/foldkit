@@ -22,6 +22,7 @@ import {
   Speed,
   TitleSlug,
 } from './ids.js'
+import { StretchEvent, StretchState } from './stretch.js'
 
 // MODEL
 
@@ -132,16 +133,26 @@ export type Library = typeof Library.Type
 export const Idle = ts('Idle')
 /**
  * One title in this device's player: the Transcript Player holding its
- * audio and words, and the last place saved, so it saves again every 30
- * seconds of listening.
+ * audio and words, the last place saved, so it saves again every 10
+ * seconds of listening, and the stretch it is playing, which Scribe's
+ * timeline shows.
  */
 export const Loaded = ts('Loaded', {
   slug: TitleSlug,
   savedPlaceMs: Milliseconds,
   player: TranscriptPlayer.Model,
+  stretch: StretchState,
 })
 /** One title in this device's player. */
 export type Loaded = typeof Loaded.Type
+
+/**
+ * What Books tells Scribe's timeline about one stretch: the title, and
+ * that its stretch began or ended.
+ */
+export const StretchReport = S.Struct({ title: Title, event: StretchEvent })
+/** What Books tells Scribe's timeline about one stretch. */
+export type StretchReport = typeof StretchReport.Type
 /** This device's player. */
 export const Listening = S.Union([Idle, Loaded])
 /** This device's player. */
@@ -158,12 +169,14 @@ export type PlayerControls = typeof PlayerControls.Type
 /**
  * The Books Model: the shared shelf, the chapters of the titles on screen,
  * in the player, or in progress, this device's player and speed, the last
- * write the library store refused, the picture books read aloud and the
- * previews checked for them, this device's Audible import, and the
- * navigation stack. The shelf and the chapters come from the library
- * store, the readings from the reading source, the player counts on this
- * device, and the Audible import happens on the device where it was
- * started, so none of them is folded from the log.
+ * write the library store refused, why Scribe's timeline last refused a
+ * stretch and the reports it refused, to send again, the picture books read
+ * aloud and the previews checked for them,
+ * this device's Audible import, and the navigation stack. The shelf and the
+ * chapters come from the library store, the readings from the reading
+ * source, the player counts on this device, and the Audible import happens
+ * on the device where it was started, so none of them is folded from the
+ * log.
  */
 export const Model = S.Struct({
   library: Library,
@@ -171,6 +184,8 @@ export const Model = S.Struct({
   listening: Listening,
   speed: Speed,
   maybeProblem: S.Option(S.String),
+  maybeTimelineProblem: S.Option(S.String),
+  unsentReports: S.Array(StretchReport),
   maybeNotice: S.Option(S.String),
   controls: PlayerControls,
   maybeMember: S.Option(S.String),

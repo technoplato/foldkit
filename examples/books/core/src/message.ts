@@ -23,6 +23,7 @@ import {
   Chapter,
   type Model,
   Shelf,
+  StretchReport,
   type Title,
   bookmarkOf,
   bookmarksOf,
@@ -509,6 +510,21 @@ export const CompletedWriteLibrary = m('CompletedWriteLibrary')
 export const FailedWriteLibrary = m('FailedWriteLibrary', {
   reason: S.String,
 })
+/**
+ * Scribe's timeline took a stretch's start or end, on `recordingCount`
+ * recordings: 0 when none was live while it played.
+ */
+export const CompletedReportStretch = m('CompletedReportStretch', {
+  recordingCount: S.Int,
+})
+/**
+ * Scribe's timeline could not take a stretch's report, and why, safe to
+ * show, so Books can send it again.
+ */
+export const FailedReportStretch = m('FailedReportStretch', {
+  report: StretchReport,
+  reason: S.String,
+})
 
 /**
  * Every Message Books accepts: the Catalog's Actions, the facts the
@@ -536,6 +552,8 @@ export const Message = S.Union([
   TranscriptPlayer.FailedLoadTranscript,
   CompletedWriteLibrary,
   FailedWriteLibrary,
+  CompletedReportStretch,
+  FailedReportStretch,
   Audible.StartedAudibleSignIn,
   Audible.FailedStartAudibleSignIn,
   Audible.ConnectedAudible,

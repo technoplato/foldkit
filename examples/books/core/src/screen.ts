@@ -969,6 +969,15 @@ const noticeLines = (model: Model): ReadonlyArray<UiNode> =>
     Option.map(model.maybeNotice, notice => Text(notice, { dim: true })),
   )
 
+const timelineLines = (model: Model): ReadonlyArray<UiNode> =>
+  Array.fromOption(
+    Option.map(model.maybeTimelineProblem, problem =>
+      Text(`Scribe’s timeline did not get this listen: ${problem}`, {
+        dim: true,
+      }),
+    ),
+  )
+
 const collapsedControlsOf = (
   model: Model,
   title: Title,
@@ -1081,6 +1090,7 @@ export const playerScreen = (model: Model): UiNode =>
               Dock(
                 ...TranscriptPlayer.problemOf(loaded.player),
                 ...problemLines(model),
+                ...timelineLines(model),
                 ...noticeLines(model),
                 model.controls === 'Expanded'
                   ? expandedControlsOf(model, loaded)

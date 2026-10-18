@@ -70,7 +70,12 @@ describe('the brief', () => {
         ],
       }),
     )
-    send(ReachedPlace({ placeMs: Milliseconds.make(32_400) }))
+    send(
+      ReachedPlace({
+        placeMs: Milliseconds.make(32_400),
+        wallClockMs: Date.UTC(2026, 9, 18, 19, 0, 32, 400),
+      }),
+    )
     expect(briefOf(bound)).toEqual([
       '▶ Playing The Lantern Keeper',
       'The Tide · 0:32 of 1:20:00 · 1h 19m left',
