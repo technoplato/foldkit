@@ -15,12 +15,15 @@ import {
   type TimelineStretch,
   bookPlayFactsOf,
   bookPlayOpenUrlOf,
+  booksPlayer,
+  closingRowOf,
   mediaPlayEventIdOf,
   mediaPlayIdOf,
   mediaPlayPayload,
   recordingOfRow,
   rowsOnRecording,
   stretchIdOf,
+  unendedPlaysOf,
   writtenStartOfRow,
 } from './scribeTimeline.js'
 import { stableUUID } from './stableId.js'
@@ -428,6 +431,125 @@ describe('a play on Scribe’s timeline', () => {
       ),
     ).toEqual(Option.some('Deleted'))
     expect(recordingOfRow({ id: 'no-start' })).toEqual(Option.none())
+  })
+})
+
+describe('a play a closed page left open', () => {
+  const playId = mediaPlayIdOf(stretchId, liveRecordingId)
+  const startRow = {
+    id: mediaPlayEventIdOf(playId, 'start'),
+    recordingID: liveRecordingId,
+    kind: 'mediaPlay',
+    timestampSeconds: 600,
+    capturedAtMs: stretchStartMs,
+    payloadJSON: bookPayload(playId, '{"started":{}}'),
+  }
+  const endRow = {
+    id: mediaPlayEventIdOf(playId, 'end'),
+    recordingID: liveRecordingId,
+    kind: 'mediaPlay',
+    timestampSeconds: 689,
+    capturedAtMs: stretchEndMs,
+    spanStartID: mediaPlayEventIdOf(playId, 'start'),
+    payloadJSON: bookPayload(
+      playId,
+      '{"stopped":{"mediaEndSeconds":812.4,"reason":"paused"}}',
+    ),
+  }
+  const scribeVideosStart = {
+    ...startRow,
+    id: 'another-start',
+    payloadJSON: startRow.payloadJSON.replace(
+      '"player":"books.pisspoursoftware.xyz"',
+      '"player":"com.michaellustig.scribevideos"',
+    ),
+  }
+
+  it('is a start Books wrote whose end never came, on a recording it knows', () => {
+    const recordings = [liveRecording]
+    expect(
+      unendedPlaysOf([startRow, scribeVideosStart], recordings, booksPlayer),
+    ).toEqual([
+      {
+        playId,
+        recording: liveRecording,
+        mediaKey: 'audiobook:the-lantern-keeper',
+        mediaStartSeconds: 723.4,
+        startedAtMs: stretchStartMs,
+        playbackRate: 1,
+        startSeconds: 600,
+        startPayload: startRow.payloadJSON,
+      },
+    ])
+    expect(unendedPlaysOf([startRow, endRow], recordings, booksPlayer)).toEqual(
+      [],
+    )
+    expect(unendedPlaysOf([startRow], [], booksPlayer)).toEqual([])
+  })
+
+  it('ends where the listener was last saved, with the start’s own words, as the page closing', () => {
+    const [play] = unendedPlaysOf([startRow], [liveRecording], booksPlayer)
+    expect(
+      closingRowOf({
+        play: Option.getOrThrow(Option.fromNullishOr(play)),
+        end: {
+          mediaEndSeconds: 843.4,
+          endedAtMs: stretchStartMs + 120_000,
+          reason: 'appClosed',
+        },
+        nowMs: stretchStartMs + 3_600_000,
+      }),
+    ).toEqual(
+      Option.some({
+        namespace: 'recordingRuntimeEvents',
+        id: mediaPlayEventIdOf(playId, 'end'),
+        attrs: {
+          ownerUserID: appleOwner,
+          recordingID: liveRecordingId,
+          formatVersion: 1,
+          kind: 'mediaPlay',
+          timestampSeconds: 720,
+          capturedAtMs: stretchStartMs + 120_000,
+          payloadJSON: bookPayload(
+            playId,
+            '{"stopped":{"mediaEndSeconds":843.4,"reason":"appClosed"}}',
+          ),
+          updatedAtMs: stretchStartMs + 120_000,
+          spanStartID: mediaPlayEventIdOf(playId, 'start'),
+          spanDurationSeconds: 120,
+        },
+        links: { recording: liveRecordingId },
+      }),
+    )
+  })
+
+  it('ends at the recording’s stop when the recording stopped first', () => {
+    const stopped = recordingOf({
+      recordingId: liveRecordingId,
+      status: 'Stopped',
+      durationSeconds: 640,
+    })
+    const [play] = unendedPlaysOf([startRow], [stopped], booksPlayer)
+    const row = closingRowOf({
+      play: Option.getOrThrow(Option.fromNullishOr(play)),
+      end: {
+        mediaEndSeconds: 843.4,
+        endedAtMs: stretchStartMs + 120_000,
+        reason: 'appClosed',
+      },
+      nowMs: stretchStartMs + 3_600_000,
+    })
+    expect(
+      Option.map(row, ({ attrs }) => [
+        attrs['timestampSeconds'],
+        JSON.parse(String(attrs['payloadJSON'])).mediaPlay._0.change,
+      ]),
+    ).toEqual(
+      Option.some([
+        640,
+        { stopped: { mediaEndSeconds: 763.4, reason: 'recordingStopped' } },
+      ]),
+    )
   })
 })
 

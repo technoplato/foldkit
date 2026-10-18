@@ -164,7 +164,89 @@ const playId = mediaPlayIdOf(
   liveRecordingId,
 )
 
+const bookStartRow = {
+  id: mediaPlayEventIdOf(playId, 'start'),
+  recordingID: liveRecordingId,
+  kind: 'mediaPlay',
+  timestampSeconds: 600,
+  capturedAtMs: stretchStartMs,
+  payloadJSON: `{"mediaPlay":{"_0":{"change":{"started":{}},"kind":"audiobook","mediaKey":"audiobook:${lanternKeeper.mediaId}","mediaStartSeconds":723,"playID":"${playId.toUpperCase()}","playbackRate":1,"player":"books.pisspoursoftware.xyz","source":"books","startedAt":${stretchStartMs.toString()}}}}`,
+}
+
+const unendedOf = (fake: ReturnType<typeof fakeDatabase>, nowMs: number) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      yield* TestClock.setTime(nowMs)
+      const timeline = yield* makeInstantScribeTimeline(fake.database, {
+        origin: 'https://books.pisspoursoftware.xyz',
+      })
+      return yield* timeline.unendedPlays
+    }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
+  )
+
 describe('the Instant timeline reporter', () => {
+  it('finds the Books plays the account’s recent recordings have a start of and no end', async () => {
+    const fake = fakeDatabase({
+      recordings: [{ ...liveRecordingRow, activityKind: null }],
+      runtimeEvents: [bookStartRow],
+    })
+    const nowMs = stretchStartMs + 3_600_000
+    const plays = await unendedOf(fake, nowMs)
+    expect(Array.map(plays, play => [play.playId, play.mediaKey])).toEqual([
+      [playId, `audiobook:${lanternKeeper.mediaId}`],
+    ])
+    expect(
+      Array.findFirst(fake.queries, query =>
+        JSON.stringify(query).includes('recordingRuntimeEvents'),
+      ),
+    ).toEqual(
+      Option.some({
+        recordingRuntimeEvents: {
+          $: {
+            where: {
+              and: [
+                { recordingID: { $in: [liveRecordingId] } },
+                { kind: 'mediaPlay' },
+              ],
+            },
+            limit: 500,
+          },
+        },
+      }),
+    )
+  })
+
+  it('writes the end of each play it is told to close', async () => {
+    const fake = fakeDatabase({
+      recordings: [{ ...liveRecordingRow, activityKind: null }],
+      runtimeEvents: [bookStartRow],
+    })
+    const nowMs = stretchStartMs + 3_600_000
+    const [play] = await unendedOf(fake, nowMs)
+    const closed = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(nowMs)
+        const timeline = yield* makeInstantScribeTimeline(fake.database, {
+          origin: 'https://books.pisspoursoftware.xyz',
+        })
+        return yield* timeline.closePlays([
+          {
+            play: Option.getOrThrow(Option.fromNullishOr(play)),
+            mediaEndMs: Milliseconds.make(780_000),
+            endedAtMs: stretchStartMs + 30_000,
+            reason: 'PageClosed',
+          },
+        ])
+      }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
+    )
+    expect(closed).toBe(1)
+    expect(
+      Option.map(Array.head(fake.transactions), steps =>
+        Array.map(steps, step => [step.id, step.attrs['timestampSeconds']]),
+      ),
+    ).toEqual(Option.some([[mediaPlayEventIdOf(playId, 'end'), 630]]))
+  })
+
   it('places a stretch on the account’s live recording and writes its start as the recording’s owner', async () => {
     const fake = fakeDatabase({ recordings: [liveRecordingRow] })
     const result = await reported(fake, began, stretchStartMs + 3_000)

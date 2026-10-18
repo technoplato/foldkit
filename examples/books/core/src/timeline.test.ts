@@ -15,9 +15,12 @@ import {
   FailedReportStretch,
   ReceivedChapters,
   ReceivedShelf,
+  ReceivedUnendedPlays,
 } from './message.js'
-import { titleOf } from './model.js'
+import { InProgress, titleOf } from './model.js'
+import { sampleTitles } from './sample.js'
 import { sampleChapters, sampleShelf } from './sample.js'
+import type { UnendedPlay } from './scribeTimeline.js'
 import { StretchEnded } from './stretch.js'
 
 const startMs = Date.UTC(2026, 9, 18, 19, 20, 0)
@@ -123,6 +126,44 @@ const refusedReport = (bound: Bound) => ({
     },
   }),
 })
+
+const unendedPlayAt = (startedAtMs: number): UnendedPlay => ({
+  playId: 'play-1',
+  recording: {
+    recordingId: 'recording-1',
+    ownerUserId: 'owner-1',
+    clock: { startedAtMs: startedAtMs - 600_000, gaps: [] },
+    durationSeconds: 3_600,
+    status: 'Stopped',
+  },
+  mediaKey: 'audiobook:the-lantern-keeper',
+  mediaStartSeconds: 60,
+  startedAtMs,
+  playbackRate: 1,
+  startSeconds: 600,
+  startPayload: '{}',
+})
+
+const shelfSavedAt = (placeMs: number, savedAtMs: number) => ({
+  titles: sampleTitles,
+  progress: [
+    InProgress({
+      slug: lanternKeeper,
+      placeMs: Milliseconds.make(placeMs),
+      savedAtMs,
+    }),
+  ],
+  bookmarks: [],
+})
+
+const closingsOf = (sent: ReadonlyArray<Sent>) =>
+  Array.map(
+    Array.filter(sent, ({ name }) => name === 'CloseUnendedPlays'),
+    ({ args }) =>
+      typeof args === 'object' && args !== null && 'closings' in args
+        ? args.closings
+        : args,
+  )
 
 const screenOf = (bound: Bound): UiNode =>
   Option.getOrThrow(
@@ -391,6 +432,74 @@ describe('Books on Scribe’s timeline', () => {
       'StretchEnded',
       'StretchBegan',
       'StretchEnded',
+    ])
+  })
+
+  it('ends a play a closed page left open at the title’s last save, as the page closing', () => {
+    const { send, sent } = bindApp()
+    const play = unendedPlayAt(startMs - 3_600_000)
+    send(
+      ReceivedShelf({
+        shelf: shelfSavedAt(180_000, play.startedAtMs + 120_000),
+      }),
+    )
+    send(ReceivedUnendedPlays({ plays: [play], checkedAtMs: startMs }))
+    expect(closingsOf(sent)).toEqual([
+      [
+        {
+          play,
+          mediaEndMs: 180_000,
+          endedAtMs: play.startedAtMs + 120_000,
+          reason: 'PageClosed',
+        },
+      ],
+    ])
+  })
+
+  it('waits while the title was saved in the last minute, since it may still play elsewhere', () => {
+    const { send, sent } = bindApp()
+    const play = unendedPlayAt(startMs - 3_600_000)
+    send(ReceivedShelf({ shelf: shelfSavedAt(180_000, startMs - 30_000) }))
+    send(ReceivedUnendedPlays({ plays: [play], checkedAtMs: startMs }))
+    expect(closingsOf(sent)).toEqual([])
+  })
+
+  it('leaves the play this page is playing now', () => {
+    const { bound, send, sent } = bindApp()
+    bound.press(`Listen:${lanternKeeper}`)
+    heardSeconds(send, 0, [0, 1, 2, 3, 4])
+    const ours = unendedPlayAt(startMs)
+    send(
+      ReceivedUnendedPlays({ plays: [ours], checkedAtMs: startMs + 300_000 }),
+    )
+    expect(closingsOf(sent)).toEqual([])
+  })
+
+  it('claims only the first 3 s when no save came after the play, or a later play of the title began', () => {
+    const { send, sent } = bindApp()
+    const older = unendedPlayAt(startMs - 7_200_000)
+    const newer = { ...unendedPlayAt(startMs - 3_600_000), playId: 'play-2' }
+    send(
+      ReceivedShelf({
+        shelf: shelfSavedAt(900_000, newer.startedAtMs + 60_000),
+      }),
+    )
+    send(ReceivedUnendedPlays({ plays: [older, newer], checkedAtMs: startMs }))
+    expect(closingsOf(sent)).toEqual([
+      [
+        {
+          play: older,
+          mediaEndMs: 63_000,
+          endedAtMs: older.startedAtMs + 3_000,
+          reason: 'PageClosed',
+        },
+        {
+          play: newer,
+          mediaEndMs: 900_000,
+          endedAtMs: newer.startedAtMs + 60_000,
+          reason: 'PageClosed',
+        },
+      ],
     ])
   })
 
