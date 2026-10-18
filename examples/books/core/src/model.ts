@@ -22,7 +22,7 @@ import {
   Speed,
   TitleSlug,
 } from './ids.js'
-import { StretchState } from './stretch.js'
+import { StretchEvent, StretchState } from './stretch.js'
 
 // MODEL
 
@@ -145,6 +145,14 @@ export const Loaded = ts('Loaded', {
 })
 /** One title in this device's player. */
 export type Loaded = typeof Loaded.Type
+
+/**
+ * What Books tells Scribe's timeline about one stretch: the title, and
+ * that its stretch began or ended.
+ */
+export const StretchReport = S.Struct({ title: Title, event: StretchEvent })
+/** What Books tells Scribe's timeline about one stretch. */
+export type StretchReport = typeof StretchReport.Type
 /** This device's player. */
 export const Listening = S.Union([Idle, Loaded])
 /** This device's player. */
@@ -162,7 +170,8 @@ export type PlayerControls = typeof PlayerControls.Type
  * The Books Model: the shared shelf, the chapters of the titles on screen,
  * in the player, or in progress, this device's player and speed, the last
  * write the library store refused, why Scribe's timeline last refused a
- * stretch, the picture books read aloud and the previews checked for them,
+ * stretch and the reports it refused, to send again, the picture books read
+ * aloud and the previews checked for them,
  * this device's Audible import, and the navigation stack. The shelf and the
  * chapters come from the library store, the readings from the reading
  * source, the player counts on this device, and the Audible import happens
@@ -176,6 +185,7 @@ export const Model = S.Struct({
   speed: Speed,
   maybeProblem: S.Option(S.String),
   maybeTimelineProblem: S.Option(S.String),
+  unsentReports: S.Array(StretchReport),
   maybeNotice: S.Option(S.String),
   controls: PlayerControls,
   maybeMember: S.Option(S.String),

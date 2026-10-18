@@ -25,6 +25,7 @@ export const init = (): readonly [
     speed: 1,
     maybeProblem: Option.none(),
     maybeTimelineProblem: Option.none(),
+    unsentReports: [],
     maybeNotice: Option.none(),
     controls: 'Collapsed',
     maybeMember: Option.none(),

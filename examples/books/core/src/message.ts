@@ -23,6 +23,7 @@ import {
   Chapter,
   type Model,
   Shelf,
+  StretchReport,
   type Title,
   bookmarkOf,
   bookmarksOf,
@@ -516,8 +517,12 @@ export const FailedWriteLibrary = m('FailedWriteLibrary', {
 export const CompletedReportStretch = m('CompletedReportStretch', {
   recordingCount: S.Int,
 })
-/** Scribe's timeline could not take a stretch, and why, safe to show. */
+/**
+ * Scribe's timeline could not take a stretch's report, and why, safe to
+ * show, so Books can send it again.
+ */
 export const FailedReportStretch = m('FailedReportStretch', {
+  report: StretchReport,
   reason: S.String,
 })
 

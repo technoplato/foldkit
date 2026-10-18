@@ -127,6 +127,7 @@ export const BooksProgram = Program.make({
       chapters: current.chapters,
       listening: current.listening,
       maybeTimelineProblem: current.maybeTimelineProblem,
+      unsentReports: current.unsentReports,
       readings: current.readings,
       previewChecks: current.previewChecks,
       audible: current.audible,

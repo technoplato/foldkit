@@ -18,6 +18,7 @@ import {
 } from './message.js'
 import { titleOf } from './model.js'
 import { sampleChapters, sampleShelf } from './sample.js'
+import { StretchEnded } from './stretch.js'
 
 const startMs = Date.UTC(2026, 9, 18, 19, 20, 0)
 
@@ -93,6 +94,35 @@ const eventTagsOf = (sent: ReadonlyArray<Sent>) =>
 
 const lastReport = (sent: ReadonlyArray<Sent>) =>
   Option.map(Array.last(reportsOf(sent)), ({ args }) => args)
+
+const beganAtZero = {
+  _tag: 'StretchBegan',
+  stretch: {
+    mediaStartMs: 0,
+    startedAtMs: startMs,
+    speed: 1,
+    lastPlaceMs: 3_000,
+    lastAtMs: startMs + 3_000,
+  },
+}
+
+const refusedReport = (bound: Bound) => ({
+  title: titleNamed(bound, lanternKeeper),
+  event: StretchEnded({
+    stretch: {
+      mediaStartMs: Milliseconds.make(60_000),
+      startedAtMs: startMs - 600_000,
+      speed: 1,
+      lastPlaceMs: Milliseconds.make(120_000),
+      lastAtMs: startMs - 540_000,
+    },
+    end: {
+      mediaEndMs: Milliseconds.make(120_000),
+      endedAtMs: startMs - 540_000,
+      reason: 'Paused',
+    },
+  }),
+})
 
 const screenOf = (bound: Bound): UiNode =>
   Option.getOrThrow(
@@ -329,7 +359,12 @@ describe('Books on Scribe’s timeline', () => {
   it('says under the player when Scribe’s timeline refused a stretch, until one lands', () => {
     const { bound, send } = bindApp()
     bound.press(`Listen:${lanternKeeper}`)
-    send(FailedReportStretch({ reason: 'the network is offline' }))
+    send(
+      FailedReportStretch({
+        report: refusedReport(bound),
+        reason: 'the network is offline',
+      }),
+    )
     expect(wordsOf(bound)).toContain(
       'Scribe’s timeline did not get this listen: the network is offline',
     )
@@ -339,5 +374,35 @@ describe('Books on Scribe’s timeline', () => {
         words.startsWith('Scribe’s timeline'),
       ),
     ).toBe(false)
+  })
+
+  it('sends a stretch Scribe’s timeline refused again, first, with the next report', () => {
+    const { bound, send, sent } = bindApp()
+    bound.press(`Listen:${lanternKeeper}`)
+    const refused = refusedReport(bound)
+    send(FailedReportStretch({ report: refused, reason: 'offline' }))
+    heardSeconds(send, 0, [0, 1, 2, 3])
+    expect(Array.map(reportsOf(sent), ({ args }) => args)).toEqual([
+      refused,
+      { title: refused.title, event: beganAtZero },
+    ])
+    bound.press('Pause')
+    expect(eventTagsOf(sent)).toEqual([
+      'StretchEnded',
+      'StretchBegan',
+      'StretchEnded',
+    ])
+  })
+
+  it('sends refused stretches again as soon as a report lands', () => {
+    const { bound, send, sent } = bindApp()
+    bound.press(`Listen:${lanternKeeper}`)
+    const refused = refusedReport(bound)
+    send(FailedReportStretch({ report: refused, reason: 'offline' }))
+    expect(reportsOf(sent)).toEqual([])
+    send(CompletedReportStretch({ recordingCount: 0 }))
+    expect(Array.map(reportsOf(sent), ({ args }) => args)).toEqual([refused])
+    send(CompletedReportStretch({ recordingCount: 1 }))
+    expect(reportsOf(sent).length).toBe(1)
   })
 })

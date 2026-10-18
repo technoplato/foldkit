@@ -65,6 +65,7 @@ import {
   type Model,
   ShelfReady,
   ShelfUnavailable,
+  type StretchReport,
   Title,
   type TitleChapters,
   bookmarkOf,
@@ -161,7 +162,12 @@ export const ReportStretch = Command.define(
     return CompletedReportStretch({ recordingCount })
   }).pipe(
     Effect.catch(error =>
-      Effect.succeed(FailedReportStretch({ reason: error.reason })),
+      Effect.succeed(
+        FailedReportStretch({
+          report: { title, event },
+          reason: error.reason,
+        }),
+      ),
     ),
   ),
 )
@@ -375,17 +381,39 @@ const recordedStretch = (
     ),
   })
 
-/** Scribe's timeline hears each begin and end of a stretch of `slug`. */
-const reportsOf = (
+/** Each begin and end of a stretch of `slug`, as Scribe's timeline hears it. */
+const stretchReportsOf = (
   model: Model,
   slug: TitleSlug,
   events: ReadonlyArray<StretchEvent>,
-): Commands =>
+): ReadonlyArray<StretchReport> =>
   Option.match(titleOf(model, slug), {
     onNone: () => [],
-    onSome: title =>
-      Array.map(events, event => ReportStretch({ title, event })),
+    onSome: title => Array.map(events, event => ({ title, event })),
   })
+
+const unsentReportsLimit = 50
+
+const sentReports = (
+  model: Model,
+  reports: ReadonlyArray<StretchReport>,
+): UpdateReturn => [
+  { ...model, unsentReports: [] },
+  Array.map(reports, ReportStretch),
+]
+
+/**
+ * Sends `reports` to Scribe's timeline after every report it refused
+ * before, oldest first, as Scribe Videos does: a stretch heard offline goes
+ * out with the next one.
+ */
+const withReportsSent = (
+  model: Model,
+  reports: ReadonlyArray<StretchReport>,
+): UpdateReturn =>
+  Array.isReadonlyArrayEmpty(reports)
+    ? [model, []]
+    : sentReports(model, [...model.unsentReports, ...reports])
 
 /**
  * Ends the loaded title's stretch for `reason`, and tells Scribe's
@@ -398,10 +426,10 @@ const stretchEndedAs = (model: Model, reason: StretchEndReason): UpdateReturn =>
       Idle: () => [model, []],
       Loaded: loaded => {
         const [stretch, events] = stoppedAt(loaded.stretch, reason)
-        return [
+        return withReportsSent(
           withLoaded(model, Loaded({ ...loaded, stretch })),
-          reportsOf(model, loaded.slug, events),
-        ]
+          stretchReportsOf(model, loaded.slug, events),
+        )
       },
     }),
   )
@@ -430,10 +458,11 @@ const playerUpdated = (
           Loaded({ ...loaded, player, stretch }),
           maybeOutMessage,
         )
-        return [
+        const [sent, reports] = withReportsSent(
           next,
-          [...commands, ...saves, ...reportsOf(model, loaded.slug, events)],
-        ]
+          stretchReportsOf(model, loaded.slug, events),
+        )
+        return [sent, [...commands, ...saves, ...reports]]
       },
     }),
   )
@@ -480,10 +509,10 @@ const savedBeforeSwitch = (model: Model): Commands =>
  * its place, and its stretch ends, so Scribe's timeline hears another title
  * started.
  */
-const leftBeforeSwitch = (model: Model): Commands => [
-  ...savedBeforeSwitch(model),
-  ...stretchEndedAs(model, 'TitleChanged')[1],
-]
+const leftBeforeSwitch = (model: Model): UpdateReturn => {
+  const [ended, reports] = stretchEndedAs(model, 'TitleChanged')
+  return [ended, [...savedBeforeSwitch(model), ...reports]]
+}
 
 const loadedWith = (model: Model, title: Title): Model => {
   if (Option.contains(loadedSlugOf(model), title.slug)) {
@@ -531,14 +560,14 @@ const listened = (
     {
       onNone: () => [model, []],
       onSome: title => {
-        const switchSaves = Option.contains(loadedSlugOf(model), slug)
-          ? []
+        const [left, switchSaves] = Option.contains(loadedSlugOf(model), slug)
+          ? [model, []]
           : leftBeforeSwitch(model)
         const [sought, seekSaves] = Option.match(maybePlaceMs, {
-          onNone: (): UpdateReturn => [loadedWith(model, title), []],
+          onNone: (): UpdateReturn => [loadedWith(left, title), []],
           onSome: placeMs =>
             playerUpdated(
-              loadedWith(model, title),
+              loadedWith(left, title),
               TranscriptPlayer.SeekTo({ placeMs }),
             ),
         })
@@ -807,12 +836,20 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         { ...model, maybeProblem: Option.some(reason) },
         [],
       ],
-      CompletedReportStretch: () => [
-        { ...model, maybeTimelineProblem: Option.none() },
-        [],
-      ],
-      FailedReportStretch: ({ reason }) => [
-        { ...model, maybeTimelineProblem: Option.some(reason) },
+      CompletedReportStretch: () =>
+        sentReports(
+          { ...model, maybeTimelineProblem: Option.none() },
+          model.unsentReports,
+        ),
+      FailedReportStretch: ({ report, reason }) => [
+        {
+          ...model,
+          maybeTimelineProblem: Option.some(reason),
+          unsentReports: Array.takeRight(
+            [...model.unsentReports, report],
+            unsentReportsLimit,
+          ),
+        },
         [],
       ],
       ShowAddBooks: () => [presentedAddBooks(model), []],
@@ -870,10 +907,10 @@ const openedPlace = (
   Option.match(titleOf(model, slug), {
     onNone: () => [model, []],
     onSome: title => {
-      const switchSaves = Option.contains(loadedSlugOf(model), slug)
-        ? []
+      const [left, switchSaves] = Option.contains(loadedSlugOf(model), slug)
+        ? [model, []]
         : leftBeforeSwitch(model)
-      return [movedQuietly(loadedWith(model, title), atMs), switchSaves]
+      return [movedQuietly(loadedWith(left, title), atMs), switchSaves]
     },
   })
 
