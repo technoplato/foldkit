@@ -48,7 +48,6 @@ const recordingFields = [
   'ownerUserID',
   'startedAtMs',
   'durationSeconds',
-  'activityKind',
   'deletedAtMs',
   'captureGapsJSON',
 ]

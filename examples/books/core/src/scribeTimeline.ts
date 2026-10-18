@@ -107,17 +107,18 @@ export const PlayChange = S.Union([PlayStarted, PlayStopped])
 export type PlayChange = typeof PlayChange.Type
 
 /**
- * How one of his recordings stands: recording now, stopped at its length,
- * or in Recently Deleted, where nothing lands.
+ * Whether one of his recordings is still listed or in Recently Deleted,
+ * where nothing lands. Whether it is capturing now is its heartbeat's
+ * business, not a stamp's ({@link heartbeatWindowMs}).
  */
-export const RecordingStatus = S.Literals(['Live', 'Stopped', 'Deleted'])
-/** How one of his recordings stands. */
+export const RecordingStatus = S.Literals(['Listed', 'RecentlyDeleted'])
+/** Whether one of his recordings is listed or in Recently Deleted. */
 export type RecordingStatus = typeof RecordingStatus.Type
 
 /**
  * One of his Scribe recordings, as Books reads it to place a stretch: its
- * id, the sign-in that owns it, its clock, its length, and whether it is
- * live.
+ * id, the sign-in that owns it, its clock, its length, which the recording
+ * device writes every 5 s while it captures, and whether it is listed.
  */
 export const TimelineRecording = S.Struct({
   recordingId: S.String,
@@ -210,6 +211,15 @@ export const audiobookKind = 'audiobook'
 
 /** How far back a recording may have started and still cover a stretch. */
 export const lookBackMs = 36 * 3_600_000
+
+/**
+ * How long after its last heartbeat a recording still counts as capturing:
+ * Scribe's `RecordingLiveness.liveWindow`, three of the recording device's
+ * 5-second duration writes. A recording whose heartbeat is older stopped,
+ * paused, or crashed, whatever its `activityKind` stamp says: a crash leaves
+ * `active` behind, and a playback on another device writes over it.
+ */
+export const heartbeatWindowMs = 15_000
 
 const clippedEndToleranceMs = 500
 
@@ -453,29 +463,23 @@ const RecordingRow = S.Struct({
   ownerUserID: S.String,
   startedAtMs: S.Number,
   durationSeconds: S.optionalKey(S.NullOr(S.Number)),
-  activityKind: S.optionalKey(S.NullOr(S.String)),
   deletedAtMs: S.optionalKey(S.NullOr(S.Number)),
   captureGapsJSON: S.optionalKey(S.NullOr(S.String)),
 })
 
-const statusOfRow = (row: typeof RecordingRow.Type): RecordingStatus => {
-  if (Option.isSome(Option.fromNullishOr(row.deletedAtMs))) {
-    return 'Deleted'
-  } else if (row.activityKind === 'active') {
-    return 'Live'
-  } else {
-    return 'Stopped'
-  }
-}
+const statusOfRow = (row: typeof RecordingRow.Type): RecordingStatus =>
+  Option.isSome(Option.fromNullishOr(row.deletedAtMs))
+    ? 'RecentlyDeleted'
+    : 'Listed'
 
 /**
- * One `recordings` row as Books places a stretch on it: live while its
- * activity is `active`, deleted once it has a `deletedAtMs`, its clock from
- * its start and capture gaps. None for a row without an owner or a start.
+ * One `recordings` row as Books places a stretch on it: its clock from its
+ * start and capture gaps, its length, and in Recently Deleted once it has a
+ * `deletedAtMs`. None for a row without an owner or a start.
  *
  * @example
  * ```typescript
- * recordingOfRow({ id, ownerUserID, startedAtMs, durationSeconds: 774.2, activityKind: 'active' }) // Some({ …, status: 'Live' })
+ * recordingOfRow({ id, ownerUserID, startedAtMs, durationSeconds: 774.2 }) // Some({ …, status: 'Listed' })
  * ```
  */
 export const recordingOfRow = (
@@ -541,10 +545,14 @@ type Placed = Readonly<{
   maybeEnd: Option.Option<PlacedEnd>
 }>
 
-const liveUntilMsOf = (recording: TimelineRecording, nowMs: number): number =>
-  recording.status === 'Live'
-    ? nowMs
-    : wallClockMsAt(recording.clock, recording.durationSeconds)
+/**
+ * Until when a recording captured: now while its heartbeat is fresh, else
+ * the wall time its last heartbeat reached (its length on its own clock).
+ */
+const liveUntilMsOf = (recording: TimelineRecording, nowMs: number): number => {
+  const heardUntilMs = wallClockMsAt(recording.clock, recording.durationSeconds)
+  return nowMs - heardUntilMs <= heartbeatWindowMs ? nowMs : heardUntilMs
+}
 
 const placementOf = (
   recording: TimelineRecording,
@@ -565,7 +573,7 @@ const placementOf = (
       ? Option.some(startPosition.offsetSeconds)
       : Option.none()
   const isPlaced =
-    recording.status !== 'Deleted' &&
+    recording.status === 'Listed' &&
     liveUntilMs >= stretch.startedAtMs &&
     (Option.isSome(maybeStartSeconds) || Array.isReadonlyArrayNonEmpty(parts))
   return isPlaced
