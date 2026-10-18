@@ -35,6 +35,7 @@ New vocabulary is in `glossary.md` under "Plans vocabulary (proposed)".
 | [09 Cross-language protocol](09-cross-language-protocol.md) | The envelope, order, handshake, and vectors; why the Swift and Rust readers failed                         | 06, 08                                 |
 | [10 Hosts matrix](10-hosts-matrix.md)                       | Capabilities; Multiple Counters on Expo and Foldkit HTML; hosts as an open set                             | 01, 02, 03, 06                         |
 | [12 Books credits](12-books-credits.md)                     | Authors, illustrators, editors, and publishers as pages in Books, from Scribe's things graph               |                                        |
+| [13 Books on Scribe's timeline](13-books-timeline.md)       | Each stretch Books plays lands on the live Scribe recording, as Scribe Videos' plays do                    |                                        |
 
 ## Build order, if every plan is accepted
 
