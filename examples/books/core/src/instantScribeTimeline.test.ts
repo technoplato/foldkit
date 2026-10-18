@@ -333,10 +333,50 @@ describe('the Instant timeline reporter', () => {
     ).toEqual(
       Option.some({
         recordingRuntimeEvents: {
-          $: { where: { id: { $in: [mediaPlayEventIdOf(playId, 'start')] } } },
+          $: {
+            where: {
+              id: {
+                $in: [
+                  mediaPlayEventIdOf(playId, 'start'),
+                  mediaPlayEventIdOf(playId, 'end'),
+                ],
+              },
+            },
+          },
         },
       }),
     )
+  })
+
+  it('writes nothing for a retry of an end Instant already has, however the recording moved since', async () => {
+    const fake = fakeDatabase({
+      recordings: [liveRecordingRow],
+      runtimeEvents: [
+        {
+          id: mediaPlayEventIdOf(playId, 'start'),
+          kind: 'mediaPlay',
+          recordingID: liveRecordingId,
+          timestampSeconds: 600,
+          capturedAtMs: stretchStartMs,
+          payloadJSON:
+            '{"mediaPlay":{"_0":{"change":{"started":{}},"mediaStartSeconds":723}}}',
+        },
+        {
+          id: mediaPlayEventIdOf(playId, 'end'),
+          kind: 'mediaPlay',
+          recordingID: liveRecordingId,
+          timestampSeconds: 640,
+          capturedAtMs: stretchStartMs + 40_000,
+          payloadJSON:
+            '{"mediaPlay":{"_0":{"change":{"stopped":{"mediaEndSeconds":763,"reason":"paused"}},"mediaStartSeconds":723}}}',
+        },
+      ],
+    })
+    expect(await reported(fake, ended, stretchStartMs + 600_000)).toEqual({
+      _tag: 'Success',
+      success: 1,
+    })
+    expect(fake.transactions).toEqual([])
   })
 
   it('fails with Instant’s words when the write is refused', async () => {

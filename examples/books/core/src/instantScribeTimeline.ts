@@ -19,7 +19,6 @@ import {
   ScribeTimelineError,
   type TimelineRecording,
   type TimelineStretch,
-  type WrittenStart,
   bookPlayFactsOf,
   bookPlayOpenUrlOf,
   booksPlayer,
@@ -221,68 +220,43 @@ const startIdOn = (stretch: TimelineStretch, recording: TimelineRecording) =>
 
 const IdOfRow = S.Struct({ id: S.String })
 
-/** The ids among these that Instant already has. */
-const existingIdsOf = (
+type WrittenRow = Readonly<{ id: string; row: unknown }>
+
+/**
+ * The rows among these ids that Instant already has. A row once written
+ * never changes, so Books writes only the ones missing: an end is placed
+ * from the start already there, and a retry of a written row writes
+ * nothing, however the recording's clock moved since.
+ */
+const writtenRowsOf = (
   database: ProgramLogDatabase,
   ids: ReadonlyArray<string>,
 ) =>
   Array.isReadonlyArrayEmpty(ids)
-    ? Effect.succeed(new Set<string>())
+    ? Effect.succeed(Array.empty<WrittenRow>())
     : Effect.map(
         answered(database, {
           recordingRuntimeEvents: {
             $: { where: { id: { $in: Array.fromIterable(ids) } } },
           },
         }),
-        data =>
-          new Set(
-            Array.getSomes(
-              Array.map(rowsIn(data, 'recordingRuntimeEvents'), row =>
-                Option.map(S.decodeUnknownOption(IdOfRow)(row), ({ id }) => id),
-              ),
-            ),
-          ),
-      )
-
-type WrittenStartRow = Readonly<{ id: string; written: WrittenStart }>
-
-/**
- * The starts Instant already has for a stretch that ended, with their ids:
- * an end is written from them, since a start never changes.
- */
-const writtenStartsOf = (
-  database: ProgramLogDatabase,
-  stretch: TimelineStretch,
-  recordings: ReadonlyArray<TimelineRecording>,
-) =>
-  Option.isNone(stretch.maybeEnd) || Array.isReadonlyArrayEmpty(recordings)
-    ? Effect.succeed(Array.empty<WrittenStartRow>())
-    : Effect.map(
-        answered(database, {
-          recordingRuntimeEvents: {
-            $: {
-              where: {
-                id: {
-                  $in: Array.map(recordings, recording =>
-                    startIdOn(stretch, recording),
-                  ),
-                },
-              },
-            },
-          },
-        }),
-        (data): ReadonlyArray<WrittenStartRow> =>
+        (data): ReadonlyArray<WrittenRow> =>
           Array.getSomes(
             Array.map(rowsIn(data, 'recordingRuntimeEvents'), row =>
-              Option.flatMap(S.decodeUnknownOption(IdOfRow)(row), ({ id }) =>
-                Option.map(writtenStartOfRow(row), written => ({
-                  id,
-                  written,
-                })),
-              ),
+              Option.map(S.decodeUnknownOption(IdOfRow)(row), ({ id }) => ({
+                id,
+                row,
+              })),
             ),
           ),
       )
+
+const playIdsOn = (stretch: TimelineStretch, recording: TimelineRecording) => {
+  const playId = mediaPlayIdOf(stretch.stretchId, recording.recordingId)
+  return Option.isSome(stretch.maybeEnd)
+    ? [mediaPlayEventIdOf(playId, 'start'), mediaPlayEventIdOf(playId, 'end')]
+    : [mediaPlayEventIdOf(playId, 'start')]
+}
 
 const stepOf = (database: ProgramLogDatabase, row: InstantRow) =>
   Option.match(Option.fromNullishOr(database.tx[row.namespace]?.[row.id]), {
@@ -353,11 +327,13 @@ export const makeInstantScribeTimeline = (
             yield* recordingsAround(database, owners, stretch, nowMs),
             recording => isPlacedOn(recording, stretch, nowMs),
           )
-          const writtenStarts = yield* writtenStartsOf(
+          const existing = yield* writtenRowsOf(
             database,
-            stretch,
-            recordings,
+            Array.flatMap(recordings, recording =>
+              playIdsOn(stretch, recording),
+            ),
           )
+          const existingIds = new Set(Array.map(existing, ({ id }) => id))
           const facts = bookPlayFactsOf(title, config.origin)
           const rows = Array.flatMap(recordings, recording =>
             rowsOnRecording({
@@ -367,17 +343,18 @@ export const makeInstantScribeTimeline = (
               openUrlAt: mediaSeconds =>
                 bookPlayOpenUrlOf(title, config.origin, mediaSeconds),
               nowMs,
-              maybeWrittenStart: Option.map(
+              maybeWrittenStart: Option.flatMap(
                 Array.findFirst(
-                  writtenStarts,
+                  existing,
                   ({ id }) => id === startIdOn(stretch, recording),
                 ),
-                ({ written }) => written,
+                ({ row }) => writtenStartOfRow(row),
               ),
             }),
           )
-          if (Array.isReadonlyArrayNonEmpty(rows)) {
-            yield* written(database, rows)
+          const missing = Array.filter(rows, row => !existingIds.has(row.id))
+          if (Array.isReadonlyArrayNonEmpty(missing)) {
+            yield* written(database, missing)
           }
           return recordings.length
         }),
@@ -419,11 +396,12 @@ export const makeInstantScribeTimeline = (
               }),
             ),
           )
-          const existing = yield* existingIdsOf(
+          const existing = yield* writtenRowsOf(
             database,
             Array.map(rows, row => row.id),
           )
-          const missing = Array.filter(rows, row => !existing.has(row.id))
+          const existingIds = new Set(Array.map(existing, ({ id }) => id))
+          const missing = Array.filter(rows, row => !existingIds.has(row.id))
           if (Array.isReadonlyArrayNonEmpty(missing)) {
             yield* written(database, missing)
           }
