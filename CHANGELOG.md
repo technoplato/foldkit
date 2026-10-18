@@ -4,6 +4,46 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 18th, 2026 at 4:34:56 p.m. EDT — `6261698c577f` feat(books): report each played stretch to Scribe's timeline
+
+- **Implementation commit:** `6261698c577f8811e1dd70243407fef38e5e3f9d`
+- **Change:** Report each played stretch to Scribe's timeline as Scribe Videos does (red 720e8a953, green 6261698c5; issue #842)
+- **Details:**
+  - transcript-player: ReachedPlace and Advanced carry wallClockMs, stamped when the audio reached the second (browser, ffplay, counted output).
+  - books: the loaded title keeps its stretch (Quiet, Starting, Begun); it opens at the first second heard, begins at 3 s, and ends at a pause, a failed file, a seek or a jump of more than 2 s, a new speed, another title, or the end. Each begin and end is a ReportStretch Command to the ScribeTimeline service; a refusal shows under the player.
+  - The Instant timeline places the stretch on every recording of the person's account link that was live while it played, through its capture gaps (the YouTube companion's clock.ts, case for case), and writes Scribe Videos' two mediaPlay runtime events per recording, owned by the recording's sign-in: stable ids (ADR 0048), the payload byte for byte Scribe's shared fixture (copied in the red commit), kind audiobook, the book's authors, its public cover, and a link to the second. No schema or rules change.
+  - Proved on the throwaway Instant app bd40c50a under Scribe main's instant.perms.ts through the debug endpoints, with made-up people: the email sign-in writes start and end on the Apple sign-in's live recording, a retry lands on the same rows, a stranger is refused. Tests: books core 155, transcript-player 12.
+- **Files:**
+  - `examples/books/core/src/stretch.ts` — the stretch recorder
+  - `examples/books/core/src/scribeTimeline.ts` — ids, payload, placement, rows, and the ScribeTimeline service
+  - `examples/books/core/src/instantScribeTimeline.ts` — the Instant reporter
+  - `examples/books/core/src/recordingClock.ts` — a recording's clock against the wall clock
+  - `examples/books/core/src/stableId.ts` — SHA-256 and the version-5 stable UUID
+  - `examples/books/core/src/update.ts` — ReportStretch, the recorder in playerUpdated, the speed and title switches
+  - `examples/books/core/src/live.browser.ts` — the browser provides the Instant timeline
+  - `examples/books/core/src/live.ts` — the terminal provides the Instant timeline
+  - `examples/books/core/src/screen.ts` — a refusal shows under the player
+  - `examples/transcript-player/core/src/audio.ts` — Advanced carries wallClockMs; the counted output stamps it with Clock
+  - `examples/transcript-player/core/src/message.ts` — ReachedPlace carries wallClockMs
+- **User context (verbatim):**
+  > And then also make it so when I listen to a book in books.pisspoorsoftware.xyz, it automatically reports into the scribe timeline exactly the same as the video application does. (Michael, typed in a Claude chat, 2026-10-18 15:05 EDT, issue #842 criterion 3)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p), session 6309ddf0-add5-402f-9101-765f3da32df2, started by the Scribe listener for issue #842; no SpecStory capture.
+
+## October 18th, 2026 at 4:34:46 p.m. EDT — `9e086e9410e9` feat(books): send a stretch Scribe's timeline refused again
+
+- **Implementation commit:** `9e086e9410e9788e31c6125954e34d25cb1738b5`
+- **Change:** Send a stretch Scribe's timeline refused again (issue #842)
+- **Details:**
+  - A report that fails, offline or at Instant's 30 s query timeout, stays on the Model and goes out again, oldest first, with the next report or as soon as one lands, as Scribe Videos does with its waiting stretches. FailedReportStretch carries the report. Red first: the two new timeline.test.ts cases failed before the change; books core 157/157 after.
+- **Files:**
+  - `examples/books/core/src/update.ts` — withReportsSent and sentReports; FailedReportStretch keeps the report, CompletedReportStretch sends what waits
+  - `examples/books/core/src/model.ts` — StretchReport and the Model's unsentReports
+  - `examples/books/core/src/message.ts` — FailedReportStretch carries the report
+  - `examples/books/core/src/timeline.test.ts` — resend cases
+- **User context (verbatim):**
+  > And then also make it so when I listen to a book in books.pisspoorsoftware.xyz, it automatically reports into the scribe timeline exactly the same as the video application does. (Michael, typed in a Claude chat, 2026-10-18 15:05 EDT, issue #842 criterion 3)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p), session 6309ddf0-add5-402f-9101-765f3da32df2, started by the Scribe listener for issue #842; no SpecStory capture.
+
 ## October 17th, 2026 at 1:46:19 p.m. EDT — `0fbccc551561` feat(issues): add issues subtask, issues wip, and the close-to-landing view
 
 - **Implementation commit:** `0fbccc551561a5f30dff3102f58e0d884b8a88ad`
