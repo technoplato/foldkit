@@ -4,6 +4,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 18th, 2026 at 5:14:22 p.m. EDT — `8041dabfd318` fix(books): judge a recording live by its heartbeat; write only missing timeline rows (#20)
+
+- **Implementation commit:** `8041dabfd3185a22d06ac6069bc11f9e36d186c8`
+- **Change:** Judge a recording live by its heartbeat; write only missing timeline rows (PR #20, red 4ca3d3e24; issue #842)
+- **Details:**
+  - A recording counts as capturing until 15 s after the wall time its duration last reached (Scribe's RecordingLiveness.liveWindow; the recording device writes the duration every 5 s). Its activityKind stamp no longer counts: a crash leaves active behind, and a playback on another device writes over it.
+  - A report reads which of its rows Instant already has, places an end from the start already there, and writes only the missing rows, so a retry is never refused after the recording's clock moved. Found by the throwaway-app rules proof (a retried end was refused); proof 16/16 after. books core 170 tests. Deployed 17:04.
+- **Files:**
+  - `examples/books/core/src/scribeTimeline.ts` — heartbeatWindowMs and liveUntilMsOf; RecordingStatus is Listed or RecentlyDeleted
+  - `examples/books/core/src/instantScribeTimeline.ts` — writtenRowsOf: write only what Instant lacks
+- **User context (verbatim):**
+  > And then also make it so when I listen to a book in books.pisspoorsoftware.xyz, it automatically reports into the scribe timeline exactly the same as the video application does. (Michael, typed in a Claude chat, 2026-10-18 15:05 EDT, issue #842 criterion 3)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p), session 6309ddf0-add5-402f-9101-765f3da32df2, started by the Scribe listener for issue #842; no SpecStory capture.
+
+## October 18th, 2026 at 5:14:21 p.m. EDT — `eff711608bc4` feat(books): end a stretch a closed page left open (#19)
+
+- **Implementation commit:** `eff711608bc4587b5d05957b361bcf6fb529aa04`
+- **Change:** End a stretch a closed page left open (PR #19, red 9be7cb5c4; issue #842)
+- **Details:**
+  - Every 10 minutes from when the shelf arrives, Books asks Scribe's timeline for its plays with a start and no end on the account's recordings of the last 36 h, and ends each at the title's last save as the page closing (appClosed; Scribe reads 'Books closed'), in the start's own words.
+  - It leaves the play this page is playing and any title saved in the last minute, and claims only the first 3 s when no save came after the play or a later play of the title began (a start on a recording begun later that continues the same stretch is not a later play). An end another device already wrote is not written again.
+  - Proved on the throwaway Instant app bd40c50a under Scribe main's instant.perms.ts through the debug endpoints, with made-up people. books core 168 tests. Deployed 16:55.
+- **Files:**
+  - `examples/books/core/src/closings.ts` — closingsOf decides how each unended play ends
+  - `examples/books/core/src/scribeTimeline.ts` — UnendedPlay, PlayClosing, unendedPlaysOf, closingRowOf, and the service's unendedPlays and closePlays
+  - `examples/books/core/src/instantScribeTimeline.ts` — the Instant unendedPlays and closePlays
+  - `examples/books/core/src/subscriptions.ts` — the check every 10 minutes once the shelf is here
+  - `examples/books/core/src/update.ts` — CloseUnendedPlays and ReceivedUnendedPlays
+  - `examples/books/core/src/message.ts` — ReceivedUnendedPlays and the close results
+- **User context (verbatim):**
+  > And then also make it so when I listen to a book in books.pisspoorsoftware.xyz, it automatically reports into the scribe timeline exactly the same as the video application does. (Michael, typed in a Claude chat, 2026-10-18 15:05 EDT, issue #842 criterion 3)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p), session 6309ddf0-add5-402f-9101-765f3da32df2, started by the Scribe listener for issue #842; no SpecStory capture.
+
 ## October 18th, 2026 at 4:34:56 p.m. EDT — `6261698c577f` feat(books): report each played stretch to Scribe's timeline
 
 - **Implementation commit:** `6261698c577f8811e1dd70243407fef38e5e3f9d`
