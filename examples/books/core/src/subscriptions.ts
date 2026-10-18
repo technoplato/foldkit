@@ -1,4 +1,15 @@
-import { Array, Effect, Option, Order, Schema as S, Stream, pipe } from 'effect'
+import {
+  Array,
+  Clock,
+  Duration,
+  Effect,
+  Option,
+  Order,
+  Schema as S,
+  Schedule,
+  Stream,
+  pipe,
+} from 'effect'
 import { Subscription } from 'foldkit'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -15,6 +26,7 @@ import {
   ReceivedChapters,
   ReceivedMember,
   ReceivedShelf,
+  ReceivedUnendedPlays,
 } from './message.js'
 import {
   type InProgress,
@@ -25,10 +37,40 @@ import {
   shelfOf,
   titleOf,
 } from './model.js'
+import { ScribeTimeline } from './scribeTimeline.js'
 import type { BooksServices } from './services.js'
 import { addressCueOf, loadedSlugOf, shownTitleOf } from './stack.js'
 
 // SUBSCRIPTION
+
+/** How often Books looks for plays a closed page left open on Scribe's timeline. */
+export const unendedPlaysCheckEvery = Duration.minutes(10)
+
+const checkedUnendedPlays = Effect.gen(function* () {
+  const timeline = yield* ScribeTimeline
+  const plays = yield* timeline.unendedPlays
+  const checkedAtMs = yield* Clock.currentTimeMillis
+  return Option.some(ReceivedUnendedPlays({ plays, checkedAtMs }))
+}).pipe(Effect.catch(() => Effect.succeed(Option.none())))
+
+/**
+ * The plays a closed page left open on Scribe's timeline, as of each
+ * check: once the shelf is here, then every 10 minutes. A check that fails
+ * waits for the next.
+ */
+export const unendedPlaysStream = (
+  isShelfReady: boolean,
+): Stream.Stream<Message, never, BooksServices> =>
+  isShelfReady
+    ? Stream.fromEffectSchedule(
+        checkedUnendedPlays,
+        Schedule.spaced(unendedPlaysCheckEvery),
+      ).pipe(
+        Stream.flatMap(maybeMessage =>
+          Stream.fromIterable(Option.toArray(maybeMessage)),
+        ),
+      )
+    : Stream.empty
 
 /**
  * The place the player's address asks for, when the player is not there.
@@ -151,6 +193,16 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
       keepAliveEquivalence: TranscriptPlayer.isSameClock,
       dependenciesToStream: TranscriptPlayer.clockStream,
     }),
+    unendedPlays: entry(
+      { isShelfReady: S.Boolean },
+      {
+        modelToDependencies: model => ({
+          isShelfReady: model.library._tag === 'ShelfReady',
+        }),
+        dependenciesToStream: ({ isShelfReady }) =>
+          unendedPlaysStream(isShelfReady),
+      },
+    ),
     member: entry(
       {},
       {

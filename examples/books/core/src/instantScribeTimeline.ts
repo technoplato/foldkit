@@ -14,6 +14,7 @@ import type { ProgramLogDatabase } from '@foldkit/instant/browser'
 import type { Title } from './model.js'
 import {
   type InstantRow,
+  type PlayClosing,
   ScribeTimeline,
   ScribeTimelineError,
   type TimelineRecording,
@@ -21,13 +22,18 @@ import {
   type WrittenStart,
   bookPlayFactsOf,
   bookPlayOpenUrlOf,
+  booksPlayer,
+  closingRowOf,
   isPlacedOn,
   lookBackMs,
   mediaPlayEventIdOf,
   mediaPlayIdOf,
+  mediaPlayKind,
   recordingOfRow,
   rowsOnRecording,
   timelineStretchOf,
+  unendedPlaysOf,
+  wireReasonOf,
   writtenStartOfRow,
 } from './scribeTimeline.js'
 import type { StretchEvent } from './stretch.js'
@@ -35,6 +41,8 @@ import type { StretchEvent } from './stretch.js'
 // INSTANT SCRIBE TIMELINE
 
 const recordingsLimit = 50
+
+const playRowsLimit = 500
 
 const recordingFields = [
   'ownerUserID',
@@ -136,12 +144,12 @@ const endOrNowMs = (stretch: TimelineStretch, nowMs: number): number =>
     onSome: end => end.endedAtMs,
   })
 
-/** His recordings that could cover a stretch: begun up to 36 h before it, and before it ended. */
-const recordingsAround = (
+/** The owners' recordings begun between two moments. */
+const recordingsBetween = (
   database: ProgramLogDatabase,
   owners: ReadonlyArray<string>,
-  stretch: TimelineStretch,
-  nowMs: number,
+  fromMs: number,
+  toMs: number,
 ) =>
   Effect.map(
     answered(database, {
@@ -150,8 +158,8 @@ const recordingsAround = (
           where: {
             and: [
               { ownerUserID: { $in: owners } },
-              { startedAtMs: { $gte: stretch.startedAtMs - lookBackMs } },
-              { startedAtMs: { $lte: endOrNowMs(stretch, nowMs) } },
+              { startedAtMs: { $gte: fromMs } },
+              { startedAtMs: { $lte: toMs } },
             ],
           },
           limit: recordingsLimit,
@@ -163,6 +171,49 @@ const recordingsAround = (
       Array.getSomes(Array.map(rowsIn(data, 'recordings'), recordingOfRow)),
   )
 
+/** His recordings that could cover a stretch: begun up to 36 h before it, and before it ended. */
+const recordingsAround = (
+  database: ProgramLogDatabase,
+  owners: ReadonlyArray<string>,
+  stretch: TimelineStretch,
+  nowMs: number,
+) =>
+  recordingsBetween(
+    database,
+    owners,
+    stretch.startedAtMs - lookBackMs,
+    endOrNowMs(stretch, nowMs),
+  )
+
+/** Every mediaPlay event on these recordings, any app's. */
+const playRowsOn = (
+  database: ProgramLogDatabase,
+  recordings: ReadonlyArray<TimelineRecording>,
+) =>
+  Effect.map(
+    answered(database, {
+      recordingRuntimeEvents: {
+        $: {
+          where: {
+            and: [
+              {
+                recordingID: {
+                  $in: Array.map(
+                    recordings,
+                    recording => recording.recordingId,
+                  ),
+                },
+              },
+              { kind: mediaPlayKind },
+            ],
+          },
+          limit: playRowsLimit,
+        },
+      },
+    }),
+    data => rowsIn(data, 'recordingRuntimeEvents'),
+  )
+
 const startIdOn = (stretch: TimelineStretch, recording: TimelineRecording) =>
   mediaPlayEventIdOf(
     mediaPlayIdOf(stretch.stretchId, recording.recordingId),
@@ -170,6 +221,29 @@ const startIdOn = (stretch: TimelineStretch, recording: TimelineRecording) =>
   )
 
 const IdOfRow = S.Struct({ id: S.String })
+
+/** The ids among these that Instant already has. */
+const existingIdsOf = (
+  database: ProgramLogDatabase,
+  ids: ReadonlyArray<string>,
+) =>
+  Array.isReadonlyArrayEmpty(ids)
+    ? Effect.succeed(new Set<string>())
+    : Effect.map(
+        answered(database, {
+          recordingRuntimeEvents: {
+            $: { where: { id: { $in: Array.fromIterable(ids) } } },
+          },
+        }),
+        data =>
+          new Set(
+            Array.getSomes(
+              Array.map(rowsIn(data, 'recordingRuntimeEvents'), row =>
+                Option.map(S.decodeUnknownOption(IdOfRow)(row), ({ id }) => id),
+              ),
+            ),
+          ),
+      )
 
 type WrittenStartRow = Readonly<{ id: string; written: WrittenStart }>
 
@@ -238,7 +312,10 @@ const written = (
  * recording it played during, each owned by the recording's sign-in. An
  * end reads the starts already in Instant first and writes only what is
  * missing. Reports go out one at a time, so an end never races its start.
- * Offline, Instant keeps the write and sends it once back online.
+ * Offline, Instant keeps the write and sends it once back online. The plays
+ * a closed page left open are the account's Books starts from the last
+ * 36 h with no end; closing one writes its end, unless another device
+ * already did.
  *
  * @example
  * ```typescript
@@ -307,5 +384,53 @@ export const makeInstantScribeTimeline = (
         }),
       )
 
-    return ScribeTimeline.of({ report })
+    const unendedPlays = semaphore.withPermits(1)(
+      Effect.gen(function* () {
+        const nowMs = yield* Clock.currentTimeMillis
+        const userId = yield* signedInUserOf(database)
+        const owners = yield* membersOf(userId)
+        const recordings = yield* recordingsBetween(
+          database,
+          owners,
+          nowMs - lookBackMs,
+          nowMs,
+        )
+        if (Array.isReadonlyArrayEmpty(recordings)) {
+          return []
+        }
+        const rows = yield* playRowsOn(database, recordings)
+        return unendedPlaysOf(rows, recordings, booksPlayer)
+      }),
+    )
+
+    const closePlays = (closings: ReadonlyArray<PlayClosing>) =>
+      semaphore.withPermits(1)(
+        Effect.gen(function* () {
+          const nowMs = yield* Clock.currentTimeMillis
+          const rows = Array.getSomes(
+            Array.map(closings, closing =>
+              closingRowOf({
+                play: closing.play,
+                end: {
+                  mediaEndSeconds: closing.mediaEndMs / 1000,
+                  endedAtMs: closing.endedAtMs,
+                  reason: wireReasonOf(closing.reason),
+                },
+                nowMs,
+              }),
+            ),
+          )
+          const existing = yield* existingIdsOf(
+            database,
+            Array.map(rows, row => row.id),
+          )
+          const missing = Array.filter(rows, row => !existing.has(row.id))
+          if (Array.isReadonlyArrayNonEmpty(missing)) {
+            yield* written(database, missing)
+          }
+          return missing.length
+        }),
+      )
+
+    return ScribeTimeline.of({ report, unendedPlays, closePlays })
   })
