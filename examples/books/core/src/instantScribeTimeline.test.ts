@@ -15,10 +15,10 @@ import {
 } from './scribeTimeline.js'
 import { type Stretch, StretchBegan, StretchEnded } from './stretch.js'
 
-const emailUser = '155454dd-0000-4000-8000-000000000001'
-const appleUser = '2fd17171-0000-4000-8000-000000000002'
-const liveRecordingId = 'e582db5d-c255-4862-b0f9-6adcfc0b2292'
-const recordingStartMs = 1_792_347_809_096
+const emailUser = 'a1b2c3d4-0000-4000-8000-0000000000e1'
+const appleUser = 'a1b2c3d4-0000-4000-8000-0000000000a2'
+const liveRecordingId = '0f0e0d0c-0b0a-4908-8706-050403020100'
+const recordingStartMs = 1_792_347_800_000
 const stretchStartMs = recordingStartMs + 600_000
 
 const lanternKeeper: Title = Option.getOrThrow(Array.head(sampleTitles))

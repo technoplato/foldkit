@@ -17,8 +17,8 @@ const companionStableUUID = (name: string): string => {
 const names = [
   '',
   'abc',
-  'media-play|2c1d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f|e582db5d-c255-4862-b0f9-6adcfc0b2292',
-  'books-stretch|audiobook:27212be7-2a7a-5301-9fd8-671ad96d4846|1792350301500',
+  'media-play|2c1d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f|0f0e0d0c-0b0a-4908-8706-050403020100',
+  'books-stretch|audiobook:5d1c0e2a-3b4f-5a6d-8e7f-90a1b2c3d4e5|1792350301500',
   'Nietzsche: Jenseits von Gut und Böse — Vorrede',
   'x'.repeat(55),
   'x'.repeat(56),

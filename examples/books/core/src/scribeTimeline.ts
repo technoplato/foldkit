@@ -184,7 +184,7 @@ const r3 = (value: number): number =>
  *
  * @example
  * ```typescript
- * mediaKeyOf(title) // 'audiobook:27212be7-2a7a-5301-9fd8-671ad96d4846'
+ * mediaKeyOf(title) // 'audiobook:5d1c0e2a-3b4f-5a6d-8e7f-90a1b2c3d4e5'
  * ```
  */
 export const mediaKeyOf = (title: Title): string =>
@@ -196,7 +196,7 @@ export const mediaKeyOf = (title: Title): string =>
  *
  * @example
  * ```typescript
- * stretchIdOf('audiobook:27212be7-2a7a-5301-9fd8-671ad96d4846', 1_792_350_301_500)
+ * stretchIdOf('audiobook:5d1c0e2a-3b4f-5a6d-8e7f-90a1b2c3d4e5', 1_792_350_301_500)
  * ```
  */
 export const stretchIdOf = (mediaKey: string, startedAtMs: number): string =>
