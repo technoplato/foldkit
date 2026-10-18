@@ -9,7 +9,12 @@ import { describe, expect, it } from 'vitest'
 
 import { Milliseconds, TitleSlug } from './ids.js'
 import { chaptersOf } from './model.js'
-import { makeTestLibraryStore, noReadAloud, sampleShelf } from './sample.js'
+import {
+  makeTestLibraryStore,
+  noReadAloud,
+  noScribeTimeline,
+  sampleShelf,
+} from './sample.js'
 import { makeTestLinkSharing } from './share.js'
 import { SyncedBooks, bindBooks } from './synced.js'
 
@@ -33,9 +38,13 @@ const eventually = async (
 const quickAudio = Layer.succeed(AudioOutput, {
   sound: track =>
     Stream.make(
-      AudioEvent.Advanced({ placeMs: Milliseconds.make(track.fromMs + 5_000) }),
+      AudioEvent.Advanced({
+        placeMs: Milliseconds.make(track.fromMs + 5_000),
+        wallClockMs: Date.now(),
+      }),
       AudioEvent.Advanced({
         placeMs: Milliseconds.make(track.fromMs + 35_000),
+        wallClockMs: Date.now(),
       }),
     ),
 })
@@ -52,6 +61,7 @@ const startBooks = async () => {
       noTranscripts,
       sharing.layer,
       noReadAloud,
+      noScribeTimeline,
     ),
   })
   return { store, handle, bound: bindBooks(handle) }
@@ -72,6 +82,7 @@ const startProcessor = (
         noTranscripts,
         sharing.layer,
         noReadAloud,
+        noScribeTimeline,
       ),
     })
     return { handle, bound: bindBooks(handle) }

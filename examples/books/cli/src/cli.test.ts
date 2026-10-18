@@ -14,6 +14,7 @@ import {
   makeTestLibraryStore,
   makeTestLinkSharing,
   noReadAloud,
+  noScribeTimeline,
   sampleChapters,
   sampleShelf,
   whenLibraryOpened,
@@ -64,6 +65,7 @@ const tickingAudio = (everyMs: number) =>
             [
               AudioEvent.Advanced({
                 placeMs: Milliseconds.make(place + secondMs),
+                wallClockMs: Date.now(),
               }),
             ],
           ],
@@ -105,6 +107,7 @@ const openBooks = async (
       options.transcripts ?? noTranscripts,
       sharing.layer,
       noReadAloud,
+      noScribeTimeline,
     ),
     host: Processor.Host.Cli(),
   })

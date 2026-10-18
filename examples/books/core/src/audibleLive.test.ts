@@ -5,7 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import * as Audible from './audible/index.js'
 import { Milliseconds } from './ids.js'
-import { makeTestLibraryStore, noReadAloud, sampleShelf } from './sample.js'
+import {
+  makeTestLibraryStore,
+  noReadAloud,
+  noScribeTimeline,
+  sampleShelf,
+} from './sample.js'
 import { makeTestLinkSharing } from './share.js'
 import { SyncedBooks, bindBooks } from './synced.js'
 
@@ -106,6 +111,7 @@ const startProcessor = async (
       noTranscripts,
       sharing.layer,
       noReadAloud,
+      noScribeTimeline,
       audible,
     ),
   })
