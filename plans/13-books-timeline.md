@@ -56,10 +56,29 @@ criterion 3); his words are in
    login, so the artwork is Books' public cover,
    `https://books.pisspoursoftware.xyz/books/a-new-earth/cover`, already
    served to link previews.
+8. **A recording is live by its heartbeat.** The recording device writes its
+   duration every 5 s; a recording counts as capturing until 15 s after the
+   wall time that duration reached (Scribe's `RecordingLiveness.liveWindow`).
+   Its `activityKind` stamp does not count: a crash leaves `active` behind,
+   and a playback on another device writes over it. A book heard at 21:00
+   never lands on a recording that crashed at 18:00.
+9. **Rows are written once.** A report reads which of its rows Instant has,
+   places an end from the start already there, and writes only what is
+   missing, so a retry never conflicts with a row that landed.
+10. **A closed page's play is ended later.** Every 10 minutes from the
+    shelf's arrival, Books finds its plays with a start and no end on the
+    account's recordings of the last 36 h and ends each at the title's last
+    save, as the page closing (Scribe reads "Books closed"). It leaves the
+    play this page is playing and any title saved in the last minute, and
+    claims only the first 3 s when no save came after the play or a later
+    play of the title began.
 
 ## Not done here
 
-- A stretch a closed tab left open keeps only its start. Ending it on the
-  next load at the title's last saved place is the next slice.
-- Scribe's row still says "Open in Scribe Videos" for a book until Scribe
-  learns the Books source; that change is in Scribe, not here.
+- Scribe's row says "Open in Scribe Videos" for a book until Scribe learns
+  the Books source (`Source.books`, `Kind.audiobook`, "Open in Books",
+  "Played in Books"); that change is in Scribe, for its build 108.
+- A pause from the lock screen or a call pauses the audio without telling
+  the player, so its stretch stays open until the audio moves again (the
+  jump ends it at the last second heard) or the page closes (the next check
+  ends it).
