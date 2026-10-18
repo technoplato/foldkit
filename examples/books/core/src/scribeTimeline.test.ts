@@ -76,8 +76,8 @@ const recordingOf = (
 ): TimelineRecording => ({
   ownerUserId: appleOwner,
   clock: { startedAtMs: recordingStartMs, gaps: [] },
-  durationSeconds: 0,
-  status: 'Live',
+  durationSeconds: (stretchEndMs - recordingStartMs) / 1000,
+  status: 'Listed',
   ...fields,
 })
 
@@ -329,7 +329,6 @@ describe('a play on Scribe’s timeline', () => {
   it('ends at the recording’s stop when the recording stopped while the book played', () => {
     const stopped = recordingOf({
       recordingId: 'stopped-recording',
-      status: 'Stopped',
       durationSeconds: 640,
     })
     const rows = rowsOf(stopped, pausedStretch, stretchEndMs + 500)
@@ -368,12 +367,26 @@ describe('a play on Scribe’s timeline', () => {
     ).toEqual(Option.some(59))
   })
 
+  it('counts a recording live while its duration heartbeat is under 15 s old, whatever its stamp says', () => {
+    const quietSince = (seconds: number) =>
+      recordingOf({
+        recordingId: liveRecordingId,
+        durationSeconds:
+          (stretchStartMs + 3_000 - seconds * 1000 - recordingStartMs) / 1000,
+      })
+    expect(rowsOf(quietSince(4), openStretch, stretchStartMs + 3_000)).toEqual(
+      rowsOf(liveRecording, openStretch, stretchStartMs + 3_000),
+    )
+    expect(rowsOf(quietSince(20), openStretch, stretchStartMs + 3_000)).toEqual(
+      [],
+    )
+  })
+
   it('leaves out a recording that stopped before the book played, and one in Recently Deleted', () => {
     expect(
       rowsOf(
         recordingOf({
           recordingId: 'earlier',
-          status: 'Stopped',
           durationSeconds: 300,
         }),
         pausedStretch,
@@ -382,14 +395,14 @@ describe('a play on Scribe’s timeline', () => {
     ).toEqual([])
     expect(
       rowsOf(
-        recordingOf({ recordingId: 'deleted', status: 'Deleted' }),
+        recordingOf({ recordingId: 'deleted', status: 'RecentlyDeleted' }),
         pausedStretch,
         stretchEndMs + 500,
       ),
     ).toEqual([])
   })
 
-  it('reads a recording row: live while active, stopped at its length, deleted once in Recently Deleted', () => {
+  it('reads a recording row, deleted once in Recently Deleted, whatever its activity stamp says', () => {
     const row = {
       id: liveRecordingId,
       ownerUserID: appleOwner,
@@ -415,7 +428,7 @@ describe('a play on Scribe’s timeline', () => {
           ],
         },
         durationSeconds: 774.2,
-        status: 'Live',
+        status: 'Listed',
       }),
     )
     expect(
@@ -423,13 +436,13 @@ describe('a play on Scribe’s timeline', () => {
         recordingOfRow({ ...row, activityKind: null }),
         recording => recording.status,
       ),
-    ).toEqual(Option.some('Stopped'))
+    ).toEqual(Option.some('Listed'))
     expect(
       Option.map(
         recordingOfRow({ ...row, deletedAtMs: recordingStartMs + 1 }),
         recording => recording.status,
       ),
-    ).toEqual(Option.some('Deleted'))
+    ).toEqual(Option.some('RecentlyDeleted'))
     expect(recordingOfRow({ id: 'no-start' })).toEqual(Option.none())
   })
 })
@@ -523,7 +536,11 @@ describe('a play a closed page left open', () => {
   })
 
   it('ends where the listener was last saved, with the start’s own words, as the page closing', () => {
-    const [play] = unendedPlaysOf([startRow], [liveRecording], booksPlayer)
+    const hourLong = recordingOf({
+      recordingId: liveRecordingId,
+      durationSeconds: 3_600,
+    })
+    const [play] = unendedPlaysOf([startRow], [hourLong], booksPlayer)
     expect(
       closingRowOf({
         play: Option.getOrThrow(Option.fromNullishOr(play)),
@@ -561,7 +578,6 @@ describe('a play a closed page left open', () => {
   it('ends at the recording’s stop when the recording stopped first', () => {
     const stopped = recordingOf({
       recordingId: liveRecordingId,
-      status: 'Stopped',
       durationSeconds: 640,
     })
     const [play] = unendedPlaysOf([startRow], [stopped], booksPlayer)

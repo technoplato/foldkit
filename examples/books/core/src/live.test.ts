@@ -286,7 +286,7 @@ describe('live Books', () => {
         ownerUserId: 'owner-1',
         clock: { startedAtMs: playedAtMs - 600_000, gaps: [] },
         durationSeconds: 3_600,
-        status: 'Stopped',
+        status: 'Listed',
       },
       mediaKey: 'audiobook:the-lantern-keeper',
       mediaStartSeconds: 60,

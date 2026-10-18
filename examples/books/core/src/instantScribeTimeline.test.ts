@@ -280,7 +280,6 @@ describe('the Instant timeline reporter', () => {
               'ownerUserID',
               'startedAtMs',
               'durationSeconds',
-              'activityKind',
               'deletedAtMs',
               'captureGapsJSON',
             ],
