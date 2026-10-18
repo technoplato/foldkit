@@ -1,7 +1,7 @@
 import { Array } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { Milliseconds } from './ids.js'
+import { Milliseconds, type Speed } from './ids.js'
 import {
   Begun,
   Quiet,
@@ -22,7 +22,7 @@ type Heard = readonly [StretchState, ReadonlyArray<StretchEvent>]
 const heard = (
   state: StretchState,
   steps: ReadonlyArray<Step>,
-  speed = 1,
+  speed: Speed = 1,
 ): Heard => {
   const initial: Heard = [state, []]
   return Array.reduce(
@@ -53,7 +53,7 @@ const stretchAt = (
   mediaStartMs: number,
   lastPlaceMs: number,
   lastAtMs: number,
-  speed = 1,
+  speed: Speed = 1,
 ) => ({
   mediaStartMs: Milliseconds.make(mediaStartMs),
   startedAtMs: startMs,

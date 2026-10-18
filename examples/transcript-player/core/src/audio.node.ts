@@ -87,6 +87,7 @@ const ffplaySound = (
                     queue,
                     AudioEvents.Advanced({
                       placeMs: Milliseconds.make(placeMs),
+                      wallClockMs: Date.now(),
                     }),
                   )
                 }

@@ -30,6 +30,8 @@ import {
   type Title,
   wholeBookChapters,
 } from './model.js'
+import { ScribeTimeline } from './scribeTimeline.js'
+import type { StretchEvent } from './stretch.js'
 
 // SAMPLE
 
@@ -258,3 +260,42 @@ export const noReadAloud = Layer.mergeAll(
   ReadAloud.noReadings,
   ReadAloud.noPreviews,
 )
+
+/** One report a test Scribe timeline was told: the title and what its stretch did. */
+export type TestReport = Readonly<{ title: Title; event: StretchEvent }>
+
+/**
+ * A Scribe timeline held in memory, for tests only: it keeps every report
+ * in order and says each landed on one recording. Every example ships on
+ * the Instant timeline.
+ *
+ * @example
+ * ```typescript
+ * const timeline = yield* makeTestScribeTimeline()
+ * Runtime.startHandle({ program: SyncedBooks, sync, resources: Layer.mergeAll(store.layer, timeline.layer, …) })
+ * ```
+ */
+export const makeTestScribeTimeline = () =>
+  Effect.map(SubscriptionRef.make<ReadonlyArray<TestReport>>([]), reports => ({
+    layer: Layer.succeed(ScribeTimeline, {
+      report: (title, event) =>
+        Effect.as(
+          SubscriptionRef.update(reports, Array.append({ title, event })),
+          1,
+        ),
+    }),
+    reports: SubscriptionRef.get(reports),
+  }))
+
+/**
+ * No Scribe timeline, for tests of Books that do not check what it
+ * reports: every stretch lands on no recording.
+ *
+ * @example
+ * ```typescript
+ * Runtime.startHandle({ program: SyncedBooks, sync, resources: Layer.mergeAll(store.layer, virtualAudioOutput, noTranscripts, noReadAloud, noScribeTimeline) })
+ * ```
+ */
+export const noScribeTimeline = Layer.succeed(ScribeTimeline, {
+  report: () => Effect.succeed(0),
+})

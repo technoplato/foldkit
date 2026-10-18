@@ -219,8 +219,15 @@ export const catalog = Catalog.make([
   SetSpeed,
 ])
 
-/** The audio reached a place. */
-export const ReachedPlace = m('ReachedPlace', { placeMs: Milliseconds })
+/**
+ * The audio reached a place, at a moment by the wall clock: `placeMs` into
+ * the recording at `wallClockMs` since 1970, so a holder knows what played
+ * when, such as 12:03 into a book at 15:20:03.
+ */
+export const ReachedPlace = m('ReachedPlace', {
+  placeMs: Milliseconds,
+  wallClockMs: S.Number,
+})
 /** The audio reached the end of the recording. */
 export const ReachedEnd = m('ReachedEnd')
 /** The audio would not play, and why, safe to show. */

@@ -5,8 +5,14 @@ import { Milliseconds } from './ids.js'
 
 // OUT MESSAGE
 
-/** The audio played on to a new second. A parent may save the place. */
-export const Advanced = ts('Advanced', { placeMs: Milliseconds })
+/**
+ * The audio played on to a new second, at a moment by the wall clock. A
+ * parent may save the place, or tell what played when.
+ */
+export const Advanced = ts('Advanced', {
+  placeMs: Milliseconds,
+  wallClockMs: S.Number,
+})
 /** The player stopped, paused or unplayable, at a place. */
 export const Stopped = ts('Stopped', { placeMs: Milliseconds })
 /** A person moved the place: a skip, a seek, or a word. */

@@ -1,4 +1,4 @@
-import { Array, Effect, Option } from 'effect'
+import { Array, Effect, Option, Result } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, it } from 'vitest'
 
@@ -13,7 +13,7 @@ import {
   mediaPlayIdOf,
   stretchIdOf,
 } from './scribeTimeline.js'
-import { StretchBegan, StretchEnded } from './stretch.js'
+import { type Stretch, StretchBegan, StretchEnded } from './stretch.js'
 
 const emailUser = '155454dd-0000-4000-8000-000000000001'
 const appleUser = '2fd17171-0000-4000-8000-000000000002'
@@ -23,7 +23,7 @@ const stretchStartMs = recordingStartMs + 600_000
 
 const lanternKeeper: Title = Option.getOrThrow(Array.head(sampleTitles))
 
-const stretch = {
+const stretch: Stretch = {
   mediaStartMs: Milliseconds.make(723_000),
   startedAtMs: stretchStartMs,
   speed: 1,
@@ -151,7 +151,11 @@ const reported = (
       const timeline = yield* makeInstantScribeTimeline(fake.database, {
         origin: 'https://books.pisspoursoftware.xyz',
       })
-      return yield* Effect.result(timeline.report(lanternKeeper, event))
+      const result = yield* Effect.result(timeline.report(lanternKeeper, event))
+      return Result.match(result, {
+        onSuccess: success => ({ _tag: 'Success', success }),
+        onFailure: failure => ({ _tag: 'Failure', failure }),
+      })
     }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
   )
 
@@ -190,6 +194,14 @@ describe('the Instant timeline reporter', () => {
               ],
             },
             limit: 50,
+            fields: [
+              'ownerUserID',
+              'startedAtMs',
+              'durationSeconds',
+              'activityKind',
+              'deletedAtMs',
+              'captureGapsJSON',
+            ],
           },
         },
       }),

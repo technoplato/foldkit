@@ -22,9 +22,12 @@ import {
 import { httpAudibleImport } from './audible/http.js'
 import { AudibleImport } from './audible/service.js'
 import { makeInstantLibraryStore } from './instantLibrary.js'
+import { makeInstantScribeTimeline } from './instantScribeTimeline.js'
 import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
+import { booksOrigin } from './links.js'
 import { BooksProgram } from './program.js'
+import { ScribeTimeline } from './scribeTimeline.js'
 import { terminalLinkSharing } from './share.node.js'
 import type { BooksHandle, BooksHandleOnHost } from './startConfig.js'
 import { SyncedBooks } from './synced.js'
@@ -32,7 +35,7 @@ import { SyncedBooks } from './synced.js'
 // START
 
 /** The mint a terminal signs in through by default: the hosted reader. */
-export const defaultBooksOrigin = 'https://books.pisspoursoftware.xyz'
+export const defaultBooksOrigin = booksOrigin
 
 /**
  * Where a terminal Books finds the library and its sign-in: the Instant
@@ -171,10 +174,10 @@ const terminalAudibleImport = (signedIn: SignedInBooks) =>
 
 /**
  * Starts Books in a terminal as the signed-in member: the shelf and the
- * words from Instant, the audio through ffplay, the books read aloud from
- * Scribe's logs on this machine, the Audible import through the reader it
- * signed in with, and this machine's fold of the log in a file, so the
- * next run paints at once.
+ * words from Instant, the audio through ffplay, what it plays on Scribe's
+ * timeline, the books read aloud from Scribe's logs on this machine, the
+ * Audible import through the reader it signed in with, and this machine's
+ * fold of the log in a file, so the next run paints at once.
  *
  * @example
  * ```typescript
@@ -198,6 +201,12 @@ export const startBooks = (
       ),
       ffplayAudioOutput,
       instantTranscriptSource(signedIn.database),
+      Layer.effect(
+        ScribeTimeline,
+        makeInstantScribeTimeline(signedIn.database, {
+          origin: publicOriginOf(signedIn.sessionOrigin),
+        }),
+      ),
       terminalLinkSharing(publicOriginOf(signedIn.sessionOrigin)),
       localReadingSource(thingsDirectoryFromEnv()),
       fetchPreviewSource,

@@ -54,6 +54,7 @@ const audioSound = (
                 placeMs: Milliseconds.make(
                   Math.round(audio.currentTime * millisecondsPerSecond),
                 ),
+                wallClockMs: Date.now(),
               }),
             )
           }

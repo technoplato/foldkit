@@ -24,6 +24,7 @@ export const init = (): readonly [
     listening: Idle(),
     speed: 1,
     maybeProblem: Option.none(),
+    maybeTimelineProblem: Option.none(),
     maybeNotice: Option.none(),
     controls: 'Collapsed',
     maybeMember: Option.none(),

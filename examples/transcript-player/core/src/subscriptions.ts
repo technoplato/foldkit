@@ -72,7 +72,8 @@ const messageOfAudioEvent = (event: AudioEvent): Message =>
   M.value(event).pipe(
     M.withReturnType<Message>(),
     M.tagsExhaustive({
-      Advanced: ({ placeMs }) => ReachedPlace({ placeMs }),
+      Advanced: ({ placeMs, wallClockMs }) =>
+        ReachedPlace({ placeMs, wallClockMs }),
       Ended: () => ReachedEnd(),
       Failed: ({ reason }) => FailedPlayAudio({ reason }),
     }),
