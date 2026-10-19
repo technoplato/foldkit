@@ -370,6 +370,51 @@ describe('Issue Tracker screen: an Issue as it is stored', () => {
     )
     expect(links).not.toContain('javascript:alert(1)')
   })
+
+  it('lists above the Mentions every recording and line that mentioned the Issue, each range linked to its words', () => {
+    const wordsLink =
+      'https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/e98a8032-ea7e-4d0e-bcd9-a7463612ed4f?t=14266.38'
+    const mentioned = Issue.make({
+      ...stored,
+      id: '721',
+      mentions: [
+        IssueMention.make({
+          capturedAtMs: Option.some(1_792_257_466_000),
+          directQuote: Option.some(
+            'Recording 243 (77314e54-340e-446d-a0c4-94c1117f94eb) #2273: "Okay, yeah, definitely get the topics out."',
+          ),
+          id: 'mention-721-4',
+          issueId: '721',
+          related: [UriReference.make({ value: wordsLink })],
+          reporter: Option.none(),
+          source: RecordingReference.make({
+            recording: RecordingMention.make({
+              endMilliseconds: Option.none(),
+              recordingId: '77314e54-340e-446d-a0c4-94c1117f94eb',
+              screenshotIds: [],
+              startMilliseconds: 14_266_380,
+            }),
+          }),
+        }),
+      ],
+    })
+    const contents = contentsOf(opened(mentioned))
+
+    expect(contents).toEqual(
+      expect.arrayContaining([
+        'Mentioned in',
+        'Recording 243  2026-10-17',
+        '#2273  "Okay, yeah, definitely get the topics out."',
+      ]),
+    )
+    expect(contents.indexOf('Mentioned in')).toBeLessThan(
+      contents.indexOf('Mentions'),
+    )
+    const rangeLink = textsOf(issuesScreen(opened(mentioned))).find(text =>
+      text.content.startsWith('#2273'),
+    )
+    expect(rangeLink?.href).toBe(wordsLink)
+  })
 })
 
 describe('Issue Tracker screen: the logs tagged with an Issue', () => {
