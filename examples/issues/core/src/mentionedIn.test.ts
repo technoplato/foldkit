@@ -15,7 +15,11 @@ import { lineRangeLabel, mentionedIn } from './mentionedIn.js'
 
 const recording208 = 'faa684c2-34e4-47e5-8f9b-3b2196da9463'
 const recording243 = '77314e54-340e-446d-a0c4-94c1117f94eb'
-const words = (recordingId: string, segmentId: string, seconds: number): string =>
+const words = (
+  recordingId: string,
+  segmentId: string,
+  seconds: number,
+): string =>
   `https://words.pisspoursoftware.xyz/recording/${recordingId}/section/${segmentId}?t=${seconds.toString()}`
 
 const said = (
@@ -84,14 +88,18 @@ const decisions = said('mention-721-3', {
   capturedAtMs: 1_792_160_000_000,
   quote: `Recording 243 (${recording243}) #506-523: "Ooh yeah, this is this is good topics."`,
   note: 'Lines: #506 c4882394-455e-43cb-8d4b-e44a86c108f2, #523 4a9fd2c1-0b13-4c3e-9a67-8f9b2b1d3e4f',
-  related: [words(recording243, 'c4882394-455e-43cb-8d4b-e44a86c108f2', 3297.75)],
+  related: [
+    words(recording243, 'c4882394-455e-43cb-8d4b-e44a86c108f2', 3297.75),
+  ],
 })
 const getTheTopicsOut = said('mention-721-4', {
   recordingId: recording243,
   startMilliseconds: 14_266_380,
   capturedAtMs: 1_792_172_000_000,
   quote: `Recording 243 (${recording243}) #2273: "Okay, yeah, definitely get the topics out."`,
-  related: [words(recording243, 'e98a8032-ea7e-4d0e-bcd9-a7463612ed4f', 14266.38)],
+  related: [
+    words(recording243, 'e98a8032-ea7e-4d0e-bcd9-a7463612ed4f', 14266.38),
+  ],
 })
 const topicTree = said('mention-721-2', {
   recordingId: recording208.toUpperCase(),
@@ -185,7 +193,9 @@ describe('Mentioned in: every recording and line that mentioned an Issue', () =>
       capturedAtMs: 1_792_160_000_000,
       quote: 'Ooh yeah, this is this is good topics.',
       note: 'Lines: #506 c4882394-455e-43cb-8d4b-e44a86c108f2, #507 3b8a1f2e-4c5d-4e6f-8a9b-0c1d2e3f4a5b',
-      related: [words(recording243, 'c4882394-455e-43cb-8d4b-e44a86c108f2', 3297.75)],
+      related: [
+        words(recording243, 'c4882394-455e-43cb-8d4b-e44a86c108f2', 3297.75),
+      ],
     })
 
     expect(
