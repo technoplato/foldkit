@@ -7,9 +7,10 @@ criterion 3); his words are in
 ## What a person sees
 
 - He plays A New Earth in Books from 12:03 while Scribe records. Three
-  seconds in, his recording's timeline shows "Listening to A New Earth ·
-  Eckhart Tolle, from 12:03" with the book's cover. When he pauses at 15:00,
-  it shows "Listened to A New Earth, 12:03–15:00 · 2 min 57 s".
+  seconds in, the stretch begins and Books writes it; seconds later his
+  recording's timeline shows "Listening to A New Earth" with the book's
+  cover. When he pauses at 15:00, it shows "Listened to A New Earth", and
+  opened, "Listened to A New Earth, 12:03–15:00 · 2 min 57 s".
 - A tap on the row opens
   `https://books.pisspoursoftware.xyz/books/a-new-earth/listen/12m03s`: the
   player, paused at the second the stretch began.
@@ -73,11 +74,31 @@ criterion 3); his words are in
     claims only the first 3 s when no save came after the play or a later
     play of the title began.
 
+## Verified
+
+On 2026-10-18 at 21:43, while a recording was live on his iPhone, the
+deployed Books played A New Earth from 1:47:20 for 19 s (headless Chrome,
+muted). Its two rows landed on that recording, owned by his Apple sign-in:
+the start at the recording's second 144.5, and the end at 163.6, 19.1 s
+later, paused. Scribe on the Mac showed both, at 2:24 and 2:43, with Open in
+Books.
+
+| From                      | To                        | Took                                                                          |
+| ------------------------- | ------------------------- | ----------------------------------------------------------------------------- |
+| The first second of audio | The start row in Instant  | 10.6 s: the 3 s threshold, 7.0 s until the write left the page, 0.6 s to land |
+| Pause                     | The end row in Instant    | 5 to 6 s                                                                      |
+| Play                      | The first second of audio | 26.7 s, headless Chrome fetching the audio                                    |
+
+Before a write, Books reads the recordings and the rows already written.
+The check ran on a busy Mac (the player took 79 s to load), so those reads
+and the audio's start ran slow; the 3 s threshold is the only fixed wait.
+
 ## Not done here
 
-- Scribe's row says "Open in Scribe Videos" for a book until Scribe learns
-  the Books source (`Source.books`, `Kind.audiobook`, "Open in Books",
-  "Played in Books"); that change is in Scribe, for its build 108.
+- Until Scribe's build 109, its compact timeline rows show a play's symbol
+  instead of the cover, and an end says its length twice ("· 19 s · 19 s").
+  The fix is on Scribe's main (857a829b4). Build 108 already names Books:
+  "Open in Books", "Played in Books".
 - A pause from the lock screen or a call pauses the audio without telling
   the player, so its stretch stays open until the audio moves again (the
   jump ends it at the last second heard) or the page closes (the next check
