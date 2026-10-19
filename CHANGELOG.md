@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 19th, 2026 at 6:24:15 p.m. EDT — `87287953848c` feat(issues): an Issue's page lists the recordings that mentioned it
+
+- **Implementation commit:** `87287953848cdc36744ebc31522488e7808cd700`
+- **Change:** An Issue's page lists every recording and line that mentioned it (Mentioned in), for Scribe issue #721 criterion 4
+- **Details:**
+  - mentionedIn groups the tracker's Recording Mentions by recording, newest first, with each line range linked to its words page; a Mention found only by the recording clock says no line link. Red 2d3a4dd86 (the tests, the page test in screen.test.ts, and the owner's words in plans/user-messages/2026-10-19-issues-mentioned-in.md), green 872879538. Core tests 63 of 63.
+- **Files:**
+  - `examples/issues/core/src/mentionedIn.ts` — the pure grouping and parsing
+  - `examples/issues/core/src/product.ts` — the Mentioned in section above Mentions
+  - `examples/issues/core/src/mentionedIn.test.ts` — the behaviors
+  - `examples/issues/README.md` — the site's behavior list
+- **User context (verbatim):**
+  > we should probably have a link where I can look and see where, at the schema level, where an issue came from or where it's been mentioned in various different recordings (the owner, typed 2026-10-16 ~18:10)
+  > And then also get the functionality built in. (the owner, typed 2026-10-19 17:10)
+- **SpecStory:** unavailable — Headless claude -p run (claude-code/topics-721); no SpecStory capture for this session.
+
 ## October 18th, 2026 at 5:14:22 p.m. EDT — `8041dabfd318` fix(books): judge a recording live by its heartbeat; write only missing timeline rows (#20)
 
 - **Implementation commit:** `8041dabfd3185a22d06ac6069bc11f9e36d186c8`

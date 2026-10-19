@@ -30,6 +30,12 @@ import {
   newestWorkLog,
 } from './leftover.js'
 import {
+  type MentionedLine,
+  type RecordingMentionGroup,
+  lineRangeLabel,
+  mentionedIn,
+} from './mentionedIn.js'
+import {
   type IssueDraftState,
   type IssueLogsState,
   type Model,
@@ -118,6 +124,35 @@ const mentionSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
     ],
   })
 
+const mentionedLineNode = (line: MentionedLine): UiNode => {
+  const content = `${lineRangeLabel(line)}  ${line.quote}`
+  return Option.match(line.deepLink, {
+    onNone: () => Text(content),
+    onSome: href => Text(content, { href }),
+  })
+}
+
+const recordingGroupHeader = (group: RecordingMentionGroup): string =>
+  Option.match(group.newestAtMs, {
+    onNone: () => group.recordingLabel,
+    onSome: atMs => `${group.recordingLabel}  ${isoTimeOf(atMs).slice(0, 10)}`,
+  })
+
+const mentionedInSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+  Array.match(mentionedIn(issue), {
+    onEmpty: () => [],
+    onNonEmpty: groups => [
+      Column(
+        { gap: 1 },
+        Text('Mentioned in'),
+        ...Array.flatMap(groups, group => [
+          Text(recordingGroupHeader(group), { dim: true }),
+          ...Array.map(group.lines, mentionedLineNode),
+        ]),
+      ),
+    ],
+  })
+
 const workInProgressSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
   Option.match(issue.workInProgress, {
     onNone: () => [],
@@ -182,6 +217,7 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
     Text(issue.details),
     ...workInProgressSectionNodes(issue),
     ...subtaskSectionNodes(issue),
+    ...mentionedInSectionNodes(issue),
     ...mentionSectionNodes(issue),
     Column(
       { gap: 1 },

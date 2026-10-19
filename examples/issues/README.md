@@ -106,7 +106,10 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
 - the list, newest first, each Issue with its stored status, such as
   `692  P2  VerificationNeeded`;
 - an Issue's page: its type, area, claimant, dates, and details; where its
-  work in progress is and its subtasks; every Mention with its words, where
+  work in progress is and its subtasks; Mentioned in, every recording and line
+  that mentioned it, the recording with the newest line first, each line range
+  such as `#2735-2737` linked to its words page (a Mention found only by the
+  recording clock says `no line link`); every Mention with its words, where
   they came from, and its deep links; the work log; the logs tagged with it;
   linked Issues; success criteria; and attachments;
 - beside each Issue in the list, where its work is, such as
