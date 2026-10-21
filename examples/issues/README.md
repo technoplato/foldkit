@@ -33,6 +33,8 @@ issues file --title "…" --details "…" --product scribe --priority P1 --type 
 issues show 692 [--json]
 issues list [--status Open,InProgress] [--product scribe] [--recording 208] [--claimant …] [--search …] [--json]
 issues list --landing | --wip | --stuck | --target-build 106   # work in progress, one line each
+issues list --backlog [--product scribe] [--limit 20] [--json]  # the next build, then P0 to P4 in rank order
+issues rank 971 --before 930 | --after 930 | --top | --clear    # order an Issue within its priority
 issues log 692 progress "what happened; next step" [--agent …] [--claim …] [--status …] [--commit …] [--json]
 issues claim 692 claude-code/<agent> ["what the claim is for"]
 issues status 692 VerificationNeeded
@@ -83,6 +85,21 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   `--target-build 106` the work meant for build 106. Each line ends with where
   the work is and its branch, such as
   `Green for build 106  agent/claude/timeline-804`.
+- `list --backlog` prints the backlog: a lane per upcoming build, the next
+  build first (`Build 111, the next build: 34 Issues`), then a section per
+  priority (`P0: 12 Issues`). The next build is the lowest target build above
+  every build that shipped work; work for an older build that never shipped
+  stays in its priority with its headline, such as `Exploring for build 107`.
+  Within a lane Issues run P0 first; within a priority, in rank order, and
+  unranked Issues oldest first. Closed, Fixed, Resolved, Verified, and
+  VerificationNeeded Issues stay out of the priority sections. `--limit 20`
+  keeps the first 20; `--json` prints them in that order.
+- `rank` orders an Issue within its priority: `--before 930` or `--after 930`
+  (the same priority only; otherwise it names the `issues edit --priority`
+  that would allow it), `--top`, or `--clear` for age order. The rank is a
+  place on the filing-time axis kept in the Issue's stored JSON
+  (`backlogRank`), so ranking one Issue changes no other. It prints the new
+  place, such as `Ranked #907 before #905: 2nd of 3 in P0.`
 - `list` fails (exit 1) when a stored Issue cannot be read, naming it.
 - `delete` needs Michael's typed yes and first writes the stored record to
   `$ISSUES_BACKUP_DIR` (default `~/Sync/audit/issues-deleted`).
@@ -115,6 +132,9 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
 - beside each Issue in the list, where its work is, such as
   `Green for build 106` or `Red, stuck`, and a Close to landing choice that
   lists only the Green or Pushed work not abandoned;
+- a Backlog page at `/issues/backlog`, the same order as
+  `issues list --backlog`: each upcoming build's lane, the next build first,
+  then P0 to P4 in rank order, with the product filter;
 - a File form with Title and Details fields, product and priority choices, and
   the reason when an Issue is not filed.
 

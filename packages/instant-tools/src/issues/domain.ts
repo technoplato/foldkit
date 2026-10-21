@@ -549,6 +549,15 @@ export type IssueSourceDocument = typeof IssueSourceDocument.Type
 export const Issue = S.Struct({
   area: OptionalIssueString,
   attachments: S.Array(IssueAttachment),
+  /**
+   * Where `issues rank` placed the Issue within its priority, on the same axis
+   * as `createdAtMs`: an Issue ranked between two filed on Monday and Tuesday
+   * holds a Monday-night time. None keeps it in age order.
+   */
+  backlogRank: S.OptionFromNullOr(S.Number).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+    S.withConstructorDefault(Effect.succeed(Option.none())),
+  ),
   claimantId: OptionalIssueString,
   complexity: OptionalIssueComplexity,
   createdAtMs: S.Number,

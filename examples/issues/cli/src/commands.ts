@@ -23,11 +23,13 @@ import {
   LinkedCatalogIssue,
   type Message,
   type Model,
+  type RankPlacement,
   SelectedIssueStatus,
   SubmittedIssue,
   SubmittedIssueAttachment,
   SubmittedIssueEdit,
   SubmittedIssueMention,
+  SubmittedIssueRank,
   SubmittedIssueSubtasks,
   SubmittedIssueSuccessCriterion,
   SubmittedIssueWorkInProgress,
@@ -37,10 +39,18 @@ import {
   SubmittedSuccessCriteriaMarks,
   type SubtaskMark,
   WorkInProgressEdit,
+  backlogIssues,
+  backlogOf,
   catalogIssueIds,
   describeIssueReference,
   issueFromDraft,
   landingSummary,
+  laneHeading,
+  placeInBacklog,
+  rankAfter,
+  rankBefore,
+  rankTop,
+  sectionHeading,
   subtaskProgress,
   workInProgressLines,
 } from 'issues-core-example'
@@ -905,6 +915,7 @@ export const showIssueCommand = (
 /** Everything `issues list` filters by. */
 export type ListInput = Readonly<{
   claimant: Option.Option<string>
+  isBacklog: boolean
   isJson: boolean
   isLanding: boolean
   isStuck: boolean
@@ -997,6 +1008,65 @@ const recordingFilter = (
     )
 }
 
+const loadIssues = (
+  host: IssuesHost,
+  command: string,
+): Effect.Effect<ReadonlyArray<Issue>, IssuesCommandFailure> =>
+  Effect.gen(function* () {
+    const model = yield* executeMessages(
+      IssueList.make({}),
+      () => Effect.succeed([]),
+      host.resources,
+    )
+    return yield* M.value(model.issues).pipe(
+      M.withReturnType<
+        Effect.Effect<ReadonlyArray<Issue>, IssuesCommandFailure>
+      >(),
+      M.tagsExhaustive({
+        LoadingIssues: () =>
+          Effect.fail(failed(command, 'the Issue list is still loading.')),
+        FailedIssues: ({ reason }) => Effect.fail(failed(command, reason)),
+        LoadedIssues: ({ issues: loaded }) => Effect.succeed(loaded),
+      }),
+    )
+  })
+
+/**
+ * The backlog as `issues list --backlog` prints it: each build lane and
+ * priority section under its heading, cut after `limit` Issues.
+ */
+const backlogListing = (
+  issues: ReadonlyArray<Issue>,
+  limit: Option.Option<number>,
+): Readonly<{ issues: ReadonlyArray<Issue>; lines: ReadonlyArray<string> }> => {
+  const backlog = backlogOf(issues)
+  const shown = Option.match(limit, {
+    onNone: () => backlogIssues(backlog),
+    onSome: count => Array.take(backlogIssues(backlog), count),
+  })
+  const shownIds = new Set(Array.map(shown, issue => issue.id))
+  const group = (
+    heading: string,
+    members: ReadonlyArray<Issue>,
+  ): ReadonlyArray<string> => {
+    const kept = Array.filter(members, issue => shownIds.has(issue.id))
+    return Array.isReadonlyArrayEmpty(kept)
+      ? []
+      : [heading, ...Array.map(kept, issueWorkLine)]
+  }
+  return {
+    issues: shown,
+    lines: [
+      ...Array.flatMap(backlog.lanes, lane =>
+        group(laneHeading(lane), lane.issues),
+      ),
+      ...Array.flatMap(backlog.sections, section =>
+        group(sectionHeading(section), section.issues),
+      ),
+    ],
+  }
+}
+
 /** Lists Issues newest first, filtered, and accounts for every stored one. */
 export const listIssuesCommand = (
   host: IssuesHost,
@@ -1013,22 +1083,7 @@ export const listIssuesCommand = (
         input.type,
         issueTypes,
       )
-      const model = yield* executeMessages(
-        IssueList.make({}),
-        () => Effect.succeed([]),
-        host.resources,
-      )
-      const issues = yield* M.value(model.issues).pipe(
-        M.withReturnType<
-          Effect.Effect<ReadonlyArray<Issue>, IssuesCommandFailure>
-        >(),
-        M.tagsExhaustive({
-          LoadingIssues: () =>
-            Effect.fail(failed('list', 'the Issue list is still loading.')),
-          FailedIssues: ({ reason }) => Effect.fail(failed('list', reason)),
-          LoadedIssues: ({ issues: loaded }) => Effect.succeed(loaded),
-        }),
-      )
+      const issues = yield* loadIssues(host, 'list')
       const storedIds = yield* host.records.fetchIssueIds.pipe(
         Effect.mapError(cause =>
           failed('list', describeIssueTrackerCause(cause)),
@@ -1071,13 +1126,27 @@ export const listIssuesCommand = (
           }) &&
           matchesWorkFilters(input, issue),
       )
-      const shown = Option.match(input.limit, {
-        onNone: () => filtered,
-        onSome: limit => Array.take(filtered, limit),
-      })
+      const listing = input.isBacklog
+        ? backlogListing(filtered, input.limit)
+        : {
+            issues: Option.match(input.limit, {
+              onNone: () => filtered,
+              onSome: limit => Array.take(filtered, limit),
+            }),
+            lines: [],
+          }
       const stdout = input.isJson
-        ? [JSON.stringify(Array.map(shown, issue => encodeIssue(issue)))]
-        : Array.map(shown, isWorkListing(input) ? issueWorkLine : issueListLine)
+        ? [
+            JSON.stringify(
+              Array.map(listing.issues, issue => encodeIssue(issue)),
+            ),
+          ]
+        : input.isBacklog
+          ? listing.lines
+          : Array.map(
+              listing.issues,
+              isWorkListing(input) ? issueWorkLine : issueListLine,
+            )
       if (Array.isReadonlyArrayNonEmpty(unreadable)) {
         return {
           exitCode: FAILED_EXIT_CODE,
@@ -1703,6 +1772,156 @@ export const downloadIssueFileCommand = (
       })
       return succeeded([
         `Downloaded ${input.storagePath} (${bytes.byteLength.toString()} bytes) to ${destination}`,
+      ])
+    }),
+  )
+
+/** Where `issues rank` places an Issue; exactly one is given. */
+export type RankInput = Readonly<{
+  after: Option.Option<string>
+  before: Option.Option<string>
+  isClear: boolean
+  isTop: boolean
+  issue: string
+}>
+
+const ordinal = (position: number): string => {
+  const lastTwo = position % 100
+  if (lastTwo >= 11 && lastTwo <= 13) {
+    return `${position.toString()}th`
+  }
+  return M.value(position % 10).pipe(
+    M.withReturnType<string>(),
+    M.when(1, () => `${position.toString()}st`),
+    M.when(2, () => `${position.toString()}nd`),
+    M.when(3, () => `${position.toString()}rd`),
+    M.orElse(() => `${position.toString()}th`),
+  )
+}
+
+const rankOf = (
+  issueId: string,
+  anchorId: string,
+  placement: RankPlacement,
+): Effect.Effect<number, IssuesCommandFailure> =>
+  M.value(placement).pipe(
+    M.withReturnType<Effect.Effect<number, IssuesCommandFailure>>(),
+    M.tagsExhaustive({
+      RankedAt: ({ rank }) => Effect.succeed(rank),
+      DifferentPriority: ({ anchorPriority, issuePriority }) =>
+        Effect.fail(
+          usage(
+            `#${issueId} is ${issuePriority} and #${anchorId} is ${anchorPriority}: a rank orders Issues within one priority. Change the priority first: issues edit ${String(Number(issueId))} --priority ${anchorPriority}.`,
+          ),
+        ),
+      NoRoom: () =>
+        Effect.fail(
+          failed(
+            'rank',
+            `#${issueId} has no room there: its two neighbors hold the same place. Rank one of them first.`,
+          ),
+        ),
+      UnknownIssue: ({ issueId: unknownId }) => Effect.fail(missing(unknownId)),
+    }),
+  )
+
+/**
+ * Places an Issue within its priority: before or after another Issue of the
+ * same priority, at the top, or back in age order with --clear. The backlog
+ * (`issues list --backlog`, the site's Backlog) shows the new order.
+ */
+export const rankIssueCommand = (
+  host: IssuesHost,
+  input: RankInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const maybeBefore = yield* Effect.transposeOption(
+        Option.map(input.before, parseIssueNumber),
+      )
+      const maybeAfter = yield* Effect.transposeOption(
+        Option.map(input.after, parseIssueNumber),
+      )
+      const placeCount = Array.filter(
+        [
+          Option.isSome(maybeBefore),
+          Option.isSome(maybeAfter),
+          input.isTop,
+          input.isClear,
+        ],
+        isGiven => isGiven,
+      ).length
+      if (placeCount !== 1) {
+        return yield* Effect.fail(
+          usage(
+            'issues rank needs one place: --before <n>, --after <n>, --top, or --clear.',
+          ),
+        )
+      }
+      const issues = yield* loadIssues(host, 'rank')
+      const findStored = (id: string) =>
+        Array.findFirst(issues, issue => issue.id === id)
+      const issue = yield* Option.match(findStored(issueId), {
+        onNone: () => Effect.fail(missing(issueId)),
+        onSome: Effect.succeed,
+      })
+      const anchorId = Option.getOrElse(
+        Option.orElse(maybeBefore, () => maybeAfter),
+        () => issueId,
+      )
+      const rank = yield* Effect.transposeOption(
+        input.isClear
+          ? Option.none()
+          : Option.some(
+              rankOf(
+                issueId,
+                anchorId,
+                Option.match(maybeBefore, {
+                  onSome: before => rankBefore(issues, issueId, before),
+                  onNone: () =>
+                    Option.match(maybeAfter, {
+                      onSome: after => rankAfter(issues, issueId, after),
+                      onNone: () => rankTop(issues, issueId),
+                    }),
+                }),
+              ),
+            ),
+      )
+      const { issue: ranked } = yield* changeIssue(
+        host,
+        'rank',
+        issueId,
+        () => [SubmittedIssueRank.make({ issueId, rank })],
+      )
+      const place = Option.match(
+        placeInBacklog(
+          backlogOf(
+            Array.map(issues, stored =>
+              stored.id === ranked.id ? ranked : stored,
+            ),
+          ),
+          issueId,
+        ),
+        {
+          onNone: () => `${issue.status}, so not in the backlog`,
+          onSome: ({ count, group, position }) =>
+            `${ordinal(position)} of ${count.toString()} in ${group}`,
+        },
+      )
+      const where = Option.match(maybeBefore, {
+        onSome: anchorId => `Ranked #${issueId} before #${anchorId}`,
+        onNone: () =>
+          Option.match(maybeAfter, {
+            onSome: anchorId => `Ranked #${issueId} after #${anchorId}`,
+            onNone: () =>
+              input.isClear
+                ? `Cleared the rank of #${issueId}: back in age order,`
+                : `Ranked #${issueId} at the top`,
+          }),
+      })
+      return succeeded([
+        input.isClear ? `${where} ${place}.` : `${where}: ${place}.`,
       ])
     }),
   )

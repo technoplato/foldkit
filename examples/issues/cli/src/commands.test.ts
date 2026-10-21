@@ -1581,9 +1581,7 @@ describe('issues backlog', () => {
     )
 
     expect(before.exitCode).toBe(0)
-    expect(before.stdout).toEqual([
-      'Ranked #907 before #905: 2nd of 3 in P0.',
-    ])
+    expect(before.stdout).toEqual(['Ranked #907 before #905: 2nd of 3 in P0.'])
     const listed = await run(
       listIssuesCommand(host, { ...allIssues, isBacklog: true }),
     )
@@ -1626,11 +1624,11 @@ describe('issues backlog', () => {
       }),
     )
     expect(cleared.stdout).toEqual([
-      'Cleared the rank of #904: back in age order, 1st of 3 in P0.',
+      'Cleared the rank of #904: back in age order, 2nd of 3 in P0.',
     ])
-    expect(Option.map(fetched(memory, '904'), issue => issue.backlogRank)).toEqual(
-      Option.some(Option.none()),
-    )
+    expect(
+      Option.map(fetched(memory, '904'), issue => issue.backlogRank),
+    ).toEqual(Option.some(Option.none()))
     expect(
       Option.flatMap(fetched(memory, '905'), issue => issue.backlogRank),
     ).toEqual(Option.some(1_790_000_000_000 - DAY_MS))
@@ -1646,10 +1644,18 @@ describe('issues backlog', () => {
     }
 
     const across = await run(
-      rankIssueCommand(host, { ...none, before: Option.some('901'), issue: '904' }),
+      rankIssueCommand(host, {
+        ...none,
+        before: Option.some('901'),
+        issue: '904',
+      }),
     )
     const missingAnchor = await run(
-      rankIssueCommand(host, { ...none, before: Option.some('999'), issue: '904' }),
+      rankIssueCommand(host, {
+        ...none,
+        before: Option.some('999'),
+        issue: '904',
+      }),
     )
     const noPlace = await run(rankIssueCommand(host, { ...none, issue: '904' }))
     const twoPlaces = await run(

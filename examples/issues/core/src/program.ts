@@ -58,7 +58,7 @@ export const IssueTrackerProgram: Program.Program<
   IssueTrackerResources
 > = Program.make({
   id: 'issues',
-  version: 8,
+  version: 9,
   Model,
   Message,
   init,

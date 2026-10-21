@@ -17,6 +17,7 @@ import {
 } from '@foldkit/instant-tools/issues'
 import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
+import { laneHeading, sectionHeading } from './backlog.js'
 import {
   landingHeadline,
   subtaskProgress,
@@ -40,7 +41,11 @@ import {
   type IssueLogsState,
   type Model,
 } from './model.js'
-import { interactionsForModel, listedIssues } from './presentation.js'
+import {
+  interactionsForModel,
+  listedBacklog,
+  listedIssues,
+} from './presentation.js'
 import {
   describeIssueReference,
   issueAttachmentWebLink,
@@ -274,11 +279,64 @@ const navigationButtons = (model: Model): ReadonlyArray<UiNode> =>
       interaction =>
         interaction.token === 'file' ||
         interaction.token === 'triage' ||
+        interaction.token === 'backlog' ||
         interaction.token === 'back',
     ),
     interaction =>
       Button({ token: interaction.token, label: interaction.label }),
   )
+
+const productFilterNodes = (
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<UiNode> => {
+  const catalog =
+    model.products._tag === 'LoadedProducts' ? model.products.products : []
+  const seen = new Set(Array.map(catalog, entry => entry.product.id))
+  const fromIssues = Array.reduce(issues, catalog, (entries, issue) => {
+    if (seen.has(issue.product.id)) {
+      return entries
+    }
+    seen.add(issue.product.id)
+    return Array.append(entries, {
+      product: issue.product,
+      updatedAtMs: issue.updatedAtMs,
+    })
+  })
+  const preferred = [
+    'foldkit',
+    'scribe',
+    'instant-data-swift',
+    'casino',
+    'ayutia',
+  ]
+  const products = Array.appendAll(
+    Array.filter(fromIssues, entry => preferred.includes(entry.product.id)),
+    Array.filter(fromIssues, entry => !preferred.includes(entry.product.id)),
+  )
+  const selected =
+    model.productFilter._tag === 'OneProduct'
+      ? model.productFilter.productId
+      : 'all'
+  return [
+    Text('Product filter'),
+    Row(
+      { gap: 1 },
+      Button({
+        token: 'product:all',
+        label: 'All',
+        variant: selected === 'all' ? 'Primary' : 'Ghost',
+      }),
+      ...Array.map(products, entry =>
+        Button({
+          token: `product:${entry.product.id}`,
+          label: entry.product.name,
+          variant: selected === entry.product.id ? 'Primary' : 'Ghost',
+        }),
+      ),
+    ),
+  ]
+}
 
 const listNodes = (model: Model): ReadonlyArray<UiNode> =>
   M.value(model.issues).pipe(
@@ -288,58 +346,8 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
       FailedIssues: ({ reason }) => [Text(reason)],
       LoadedIssues: ({ issues }) => {
         const visible = listedIssues(model, issues)
-        const catalog =
-          model.products._tag === 'LoadedProducts'
-            ? model.products.products
-            : []
-        const seen = new Set(Array.map(catalog, entry => entry.product.id))
-        const fromIssues = Array.reduce(issues, catalog, (entries, issue) => {
-          if (seen.has(issue.product.id)) {
-            return entries
-          }
-          seen.add(issue.product.id)
-          return Array.append(entries, {
-            product: issue.product,
-            updatedAtMs: issue.updatedAtMs,
-          })
-        })
-        const preferred = [
-          'foldkit',
-          'scribe',
-          'instant-data-swift',
-          'casino',
-          'ayutia',
-        ]
-        const products = Array.appendAll(
-          Array.filter(fromIssues, entry =>
-            preferred.includes(entry.product.id),
-          ),
-          Array.filter(
-            fromIssues,
-            entry => !preferred.includes(entry.product.id),
-          ),
-        )
-        const selected =
-          model.productFilter._tag === 'OneProduct'
-            ? model.productFilter.productId
-            : 'all'
         return [
-          Text('Product filter'),
-          Row(
-            { gap: 1 },
-            Button({
-              token: 'product:all',
-              label: 'All',
-              variant: selected === 'all' ? 'Primary' : 'Ghost',
-            }),
-            ...Array.map(products, entry =>
-              Button({
-                token: `product:${entry.product.id}`,
-                label: entry.product.name,
-                variant: selected === entry.product.id ? 'Primary' : 'Ghost',
-              }),
-            ),
-          ),
+          ...productFilterNodes(model, issues),
           Row(
             { gap: 1 },
             Button({
@@ -364,6 +372,44 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
               label: listButtonLabel(issue),
             }),
           ),
+        ]
+      },
+    }),
+  )
+
+const issueButtons = (issues: ReadonlyArray<Issue>): ReadonlyArray<UiNode> =>
+  Array.map(issues, issue =>
+    Button({
+      token: `open:${issue.id}`,
+      label: listButtonLabel(issue),
+    }),
+  )
+
+const backlogNodes = (model: Model): ReadonlyArray<UiNode> =>
+  M.value(model.issues).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      LoadingIssues: () => [Text('Backlog'), Text('Observing…')],
+      FailedIssues: ({ reason }) => [Text('Backlog'), Text(reason)],
+      LoadedIssues: ({ issues }) => {
+        const backlog = listedBacklog(model, issues)
+        return [
+          Text('Backlog'),
+          ...productFilterNodes(model, issues),
+          ...Array.flatMap(backlog.lanes, lane => [
+            Column(
+              { gap: 1 },
+              Text(laneHeading(lane)),
+              ...issueButtons(lane.issues),
+            ),
+          ]),
+          ...Array.flatMap(backlog.sections, section => [
+            Column(
+              { gap: 1 },
+              Text(sectionHeading(section)),
+              ...issueButtons(section.issues),
+            ),
+          ]),
         ]
       },
     }),
@@ -579,6 +625,7 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
       ],
       FileIssue: () => fileNodes(model),
       TriageInbox: () => triageNodes(model),
+      Backlog: () => backlogNodes(model),
     }),
   )
 

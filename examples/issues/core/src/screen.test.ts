@@ -596,8 +596,10 @@ const queuedFor = (
     ...workingAt(id, landingState),
     createdAtMs,
     priority,
-    workInProgress: Option.map(workingAt(id, landingState).workInProgress, work =>
-      IssueWorkInProgress.make({ ...work, targetBuild: Option.some(build) }),
+    workInProgress: Option.map(
+      workingAt(id, landingState).workInProgress,
+      work =>
+        IssueWorkInProgress.make({ ...work, targetBuild: Option.some(build) }),
     ),
   })
 
@@ -643,9 +645,7 @@ describe('Issue Tracker screen: backlog', () => {
       '901  P1  InProgress  Keep transcript aligned  [Scribe]  Shipped for build 110',
       '907  P3  Open  Keep transcript aligned  [Scribe]',
     ])
-    expect(
-      Option.isSome(messageForScreenToken(backlog, 'open:906')),
-    ).toBe(true)
+    expect(Option.isSome(messageForScreenToken(backlog, 'open:906'))).toBe(true)
   })
 
   it('keeps the product filter on the backlog', () => {

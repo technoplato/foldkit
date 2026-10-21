@@ -26,6 +26,7 @@ import {
   logIssueCommand,
   markCriteriaCommand,
   markSubtasksCommand,
+  rankIssueCommand,
   redactCredentials,
   setIssueStatusCommand,
   showIssueCommand,
@@ -187,6 +188,11 @@ const list = Command.make(
   'list',
   {
     claimant: optionalText('claimant', 'Only Issues this agent claimed'),
+    isBacklog: Flag.boolean('backlog').pipe(
+      Flag.withDescription(
+        'The backlog: each upcoming build lane (the next build first), then P0 to P4 in rank order, oldest first; finished and VerificationNeeded Issues stay out',
+      ),
+    ),
     isJson: jsonFlag,
     isLanding: Flag.boolean('landing').pipe(
       Flag.withDescription(
@@ -337,6 +343,26 @@ const edit = Command.make(
 ).pipe(
   Command.withDescription(
     "Change an Issue's title, details, priority, type, area, or product (only the fields given)",
+  ),
+)
+
+const rank = Command.make(
+  'rank',
+  {
+    after: optionalText('after', 'Place it just after this Issue'),
+    before: optionalText('before', 'Place it just before this Issue'),
+    isClear: Flag.boolean('clear').pipe(
+      Flag.withDescription('Return it to age order'),
+    ),
+    isTop: Flag.boolean('top').pipe(
+      Flag.withDescription('Place it first in its priority'),
+    ),
+    issue: issueArgument,
+  },
+  input => withLiveHost(host => rankIssueCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    'Order an Issue within its priority for the backlog: --before <n>, --after <n>, --top, or --clear',
   ),
 )
 
@@ -621,6 +647,7 @@ const issues = Command.make('issues').pipe(
     status,
     link,
     edit,
+    rank,
     criterion,
     satisfy,
     subtask,

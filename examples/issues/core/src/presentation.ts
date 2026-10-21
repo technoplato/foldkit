@@ -2,6 +2,7 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 
 import { Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 
+import { BacklogListing, backlogIssues, backlogOf } from './backlog.js'
 import { AllWork, CloseToLanding, issuesForLandingFilter } from './landing.js'
 import {
   AllProducts,
@@ -16,6 +17,7 @@ import {
   ClickedDismissTriageCandidate,
   ClickedFileIssue,
   ClickedLeftoverStatus,
+  ClickedOpenBacklog,
   ClickedOpenTriage,
   ClickedPromoteTriageCandidate,
   DismissedIssueDetail,
@@ -35,11 +37,13 @@ import {
   UpdatedLeftoverLink,
 } from './message.js'
 import {
+  FailedIssues,
   IssueDetailState,
   IssueDraft,
   IssueDraftState,
   IssuesState,
   LoadedIssues,
+  LoadingIssues,
   type Model,
   ProductsState,
   TriageCandidatesState,
@@ -64,12 +68,29 @@ export const FileIssueDestination = S.TaggedStruct('FileIssueDestination', {
 export const TriageInboxDestination = S.TaggedStruct('TriageInboxDestination', {
   state: TriageCandidatesState,
 })
+/** The backlog, read from the loaded Issue collection. */
+export const LoadedBacklog = S.TaggedStruct('LoadedBacklog', {
+  backlog: BacklogListing,
+})
+/** The backlog while the Issue collection loads, fails, or has loaded. */
+export const BacklogState = S.Union([
+  LoadingIssues,
+  FailedIssues,
+  LoadedBacklog,
+])
+/** The backlog while the Issue collection loads, fails, or has loaded. */
+export type BacklogState = typeof BacklogState.Type
+/** Presents the backlog: build lanes, then priority sections. */
+export const BacklogDestination = S.TaggedStruct('BacklogDestination', {
+  state: BacklogState,
+})
 /** Every host-neutral Issue Tracker destination. */
 export const Destination = S.Union([
   IssueListDestination,
   IssueDetailDestination,
   FileIssueDestination,
   TriageInboxDestination,
+  BacklogDestination,
 ])
 /** Every host-neutral Issue Tracker destination. */
 export type Destination = typeof Destination.Type
@@ -99,6 +120,16 @@ export const listedIssues = (
     model.landingFilter,
   )
 
+/**
+ * The backlog of the chosen product: the next build's lane, later builds'
+ * lanes, then each priority in rank order, oldest first.
+ */
+export const listedBacklog = (
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+): BacklogListing =>
+  backlogOf(issuesForProductFilter(issues, model.productFilter))
+
 /** Exhaustively projects the Model into one host-neutral destination. */
 export const destinationForModel = (model: Model): Destination =>
   M.value(model.navigation).pipe(
@@ -126,6 +157,20 @@ export const destinationForModel = (model: Model): Destination =>
         }),
       TriageInbox: () =>
         TriageInboxDestination.make({ state: model.triageCandidates }),
+      Backlog: () =>
+        BacklogDestination.make({
+          state: M.value(model.issues).pipe(
+            M.withReturnType<BacklogState>(),
+            M.tagsExhaustive({
+              LoadingIssues: state => state,
+              FailedIssues: state => state,
+              LoadedIssues: ({ issues }) =>
+                LoadedBacklog.make({
+                  backlog: listedBacklog(model, issues),
+                }),
+            }),
+          ),
+        }),
     }),
   )
 
@@ -134,6 +179,27 @@ const interaction = (
   label: string,
   message: Message,
 ): Interaction => Interaction.make({ label, message, token })
+
+const productFilterInteractions = (
+  model: Model,
+): ReadonlyArray<Interaction> => [
+  interaction(
+    'product:all',
+    'All products',
+    SelectedProductFilter.make({ filter: AllProducts.make({}) }),
+  ),
+  ...(model.products._tag === 'LoadedProducts'
+    ? Array.map(model.products.products, entry =>
+        interaction(
+          `product:${entry.product.id}`,
+          entry.product.name,
+          SelectedProductFilter.make({
+            filter: OneProduct.make({ productId: entry.product.id }),
+          }),
+        ),
+      )
+    : []),
+]
 
 /** Returns every currently valid high-level host interaction. */
 export const interactionsForModel = (
@@ -145,22 +211,8 @@ export const interactionsForModel = (
       IssueList: () => [
         interaction('file', 'File issue', ClickedFileIssue.make({})),
         interaction('triage', 'Open triage', ClickedOpenTriage.make({})),
-        interaction(
-          'product:all',
-          'All products',
-          SelectedProductFilter.make({ filter: AllProducts.make({}) }),
-        ),
-        ...(model.products._tag === 'LoadedProducts'
-          ? Array.map(model.products.products, entry =>
-              interaction(
-                `product:${entry.product.id}`,
-                entry.product.name,
-                SelectedProductFilter.make({
-                  filter: OneProduct.make({ productId: entry.product.id }),
-                }),
-              ),
-            )
-          : []),
+        interaction('backlog', 'Backlog', ClickedOpenBacklog.make({})),
+        ...productFilterInteractions(model),
         interaction(
           'landing:all',
           'All work',
@@ -246,6 +298,20 @@ export const interactionsForModel = (
           ),
         ),
       ],
+      Backlog: () => [
+        interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
+        interaction('file', 'File issue', ClickedFileIssue.make({})),
+        ...productFilterInteractions(model),
+        ...Array.map(
+          backlogIssues(listedBacklog(model, loadedIssues(model.issues))),
+          issue =>
+            interaction(
+              `open:${issue.id}`,
+              `Open ${issue.id}`,
+              SelectedIssue.make({ issueId: issue.id }),
+            ),
+        ),
+      ],
       TriageInbox: () => [
         interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
         ...(model.triageCandidates._tag === 'LoadedTriageCandidates'
@@ -326,7 +392,10 @@ export const messageForScreenToken = (
   if (Option.isSome(known)) {
     return known
   }
-  if (model.navigation._tag === 'IssueList') {
+  if (
+    model.navigation._tag === 'IssueList' ||
+    model.navigation._tag === 'Backlog'
+  ) {
     if (token === 'product:all') {
       return Option.some(
         SelectedProductFilter.make({ filter: AllProducts.make({}) }),

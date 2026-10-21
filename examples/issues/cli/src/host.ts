@@ -25,15 +25,18 @@ import {
   destinationForModel,
   interactionsForModel,
   issuesScreen,
+  laneHeading,
   leftoverKindOf,
   leftoverStatusOf,
   messageForScreenToken,
   modelForNavigation,
   newestWorkLog,
+  sectionHeading,
 } from 'issues-core-example'
 
 import {
   ApplicationProduct,
+  type Issue,
   LibraryProduct,
   ProductCatalogEntry,
 } from '@foldkit/instant-tools/issues'
@@ -288,6 +291,7 @@ const runTokens = (
               ', log:<text>, comment:<text>, link:<id>, status:Open|Blocked|Closed',
             IssueList: () => '',
             TriageInbox: () => '',
+            Backlog: () => '',
           }),
         )
         return yield* Effect.fail(
@@ -340,6 +344,9 @@ const viewerUrlLine = (url: Option.Option<string>): ReadonlyArray<string> =>
     onSome: value => (value === '' ? [] : [value]),
   })
 
+const destinationIssueLine = (issue: Issue): string =>
+  `${issue.id}  ${issue.priority}  ${issue.title}  [${issue.product.name}]`
+
 /** Formats one host-neutral destination as plain terminal lines. */
 export const formatDestination = (
   destination: Destination,
@@ -355,11 +362,7 @@ export const formatDestination = (
             FailedIssues: ({ reason }) => ['Issues unavailable', reason],
             LoadedIssues: ({ issues }) => [
               'Issues',
-              ...Array.map(
-                issues,
-                issue =>
-                  `${issue.id}  ${issue.priority}  ${issue.title}  [${issue.product.name}]`,
-              ),
+              ...Array.map(issues, destinationIssueLine),
             ],
           }),
         ),
@@ -415,6 +418,25 @@ export const formatDestination = (
         ...(draftState._tag === 'FailedIssueDraft' ? [draftState.reason] : []),
         `Catalog: ${products._tag}`,
       ],
+      BacklogDestination: ({ state }) =>
+        M.value(state).pipe(
+          M.withReturnType<ReadonlyArray<string>>(),
+          M.tagsExhaustive({
+            LoadingIssues: () => ['Backlog', 'Observing…'],
+            FailedIssues: ({ reason }) => ['Backlog unavailable', reason],
+            LoadedBacklog: ({ backlog }) => [
+              'Backlog',
+              ...Array.flatMap(backlog.lanes, lane => [
+                laneHeading(lane),
+                ...Array.map(lane.issues, destinationIssueLine),
+              ]),
+              ...Array.flatMap(backlog.sections, section => [
+                sectionHeading(section),
+                ...Array.map(section.issues, destinationIssueLine),
+              ]),
+            ],
+          }),
+        ),
       TriageInboxDestination: ({ state }) =>
         state._tag === 'LoadedTriageCandidates'
           ? [
