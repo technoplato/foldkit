@@ -62,6 +62,7 @@ import {
   logIssueCommand,
   markCriteriaCommand,
   markSubtasksCommand,
+  rankIssueCommand,
   redactCredentials,
   resolveSaidMention,
   setIssueStatusCommand,
@@ -208,6 +209,7 @@ const scribeEntry = ProductCatalogEntry.make({
 
 const allIssues: ListInput = {
   claimant: Option.none(),
+  isBacklog: false,
   isJson: false,
   isLanding: false,
   isStuck: false,
@@ -1490,5 +1492,184 @@ describe('issues command', () => {
     const everything = await run(listIssuesCommand(host, allIssues))
     expect(everything.stdout).toContain('#806  P2  Open  Not started  [Scribe]')
     expect(everything.stdout).toContain('#801  P2  Open  Green work  [Scribe]')
+  })
+})
+
+const DAY_MS = 86_400_000
+
+describe('issues backlog', () => {
+  const backlogSeed = () => [
+    stored('901', 'Shipped last build', {
+      priority: 'P1',
+      status: 'InProgress',
+      workInProgress: Option.some(workAt('Shipped', Option.some('110'))),
+    }),
+    stored('902', 'Green for the next build', {
+      priority: 'P2',
+      status: 'InProgress',
+      workInProgress: Option.some(workAt('Green', Option.some('111'))),
+    }),
+    stored('903', 'Red for the next build', {
+      priority: 'P0',
+      status: 'InProgress',
+      workInProgress: Option.some(workAt('Red', Option.some('111'))),
+    }),
+    stored('904', 'Oldest P0', {
+      priority: 'P0',
+      createdAtMs: 1_790_000_000_000,
+    }),
+    stored('905', 'Newer P0', { priority: 'P0' }),
+    stored('906', 'Fixed P0', { priority: 'P0', status: 'Fixed' }),
+    stored('907', 'Another P0', { priority: 'P0' }),
+  ]
+
+  it('lists the backlog: the next build, then each priority, oldest first', async () => {
+    const { host } = await run(makeHost(backlogSeed()))
+
+    const listed = await run(
+      listIssuesCommand(host, { ...allIssues, isBacklog: true }),
+    )
+    const listedJson = await run(
+      listIssuesCommand(host, { ...allIssues, isBacklog: true, isJson: true }),
+    )
+    const firstTwo = await run(
+      listIssuesCommand(host, {
+        ...allIssues,
+        isBacklog: true,
+        limit: Option.some(2),
+      }),
+    )
+
+    expect(listed.stdout).toEqual([
+      'Build 111, the next build: 2 Issues',
+      '#903  P0  InProgress  Red for the next build  [Scribe]  Red for build 111  agent/claude/work',
+      '#902  P2  InProgress  Green for the next build  [Scribe]  Green for build 111  agent/claude/work',
+      'P0: 3 Issues',
+      '#904  P0  Open  Oldest P0  [Scribe]',
+      '#905  P0  Open  Newer P0  [Scribe]',
+      '#907  P0  Open  Another P0  [Scribe]',
+      'P1: 1 Issue',
+      '#901  P1  InProgress  Shipped last build  [Scribe]  Shipped for build 110  agent/claude/work',
+    ])
+    const ids: ReadonlyArray<{ id: string }> = JSON.parse(linesOf(listedJson))
+    expect(Array.map(ids, issue => issue.id)).toEqual([
+      '903',
+      '902',
+      '904',
+      '905',
+      '907',
+      '901',
+    ])
+    expect(firstTwo.stdout).toEqual([
+      'Build 111, the next build: 2 Issues',
+      '#903  P0  InProgress  Red for the next build  [Scribe]  Red for build 111  agent/claude/work',
+      '#902  P2  InProgress  Green for the next build  [Scribe]  Green for build 111  agent/claude/work',
+    ])
+  })
+
+  it('ranks an Issue before, after, or at the top of its priority, and the backlog follows', async () => {
+    const { host, memory } = await run(makeHost(backlogSeed()))
+
+    const before = await run(
+      rankIssueCommand(host, {
+        after: Option.none(),
+        before: Option.some('905'),
+        isClear: false,
+        isTop: false,
+        issue: '907',
+      }),
+    )
+
+    expect(before.exitCode).toBe(0)
+    expect(before.stdout).toEqual([
+      'Ranked #907 before #905: 2nd of 3 in P0.',
+    ])
+    const listed = await run(
+      listIssuesCommand(host, { ...allIssues, isBacklog: true }),
+    )
+    expect(listed.stdout.slice(3, 7)).toEqual([
+      'P0: 3 Issues',
+      '#904  P0  Open  Oldest P0  [Scribe]',
+      '#907  P0  Open  Another P0  [Scribe]',
+      '#905  P0  Open  Newer P0  [Scribe]',
+    ])
+
+    const top = await run(
+      rankIssueCommand(host, {
+        after: Option.none(),
+        before: Option.none(),
+        isClear: false,
+        isTop: true,
+        issue: '905',
+      }),
+    )
+    expect(top.stdout).toEqual(['Ranked #905 at the top: 1st of 3 in P0.'])
+
+    const after = await run(
+      rankIssueCommand(host, {
+        after: Option.some('907'),
+        before: Option.none(),
+        isClear: false,
+        isTop: false,
+        issue: '904',
+      }),
+    )
+    expect(after.stdout).toEqual(['Ranked #904 after #907: 3rd of 3 in P0.'])
+
+    const cleared = await run(
+      rankIssueCommand(host, {
+        after: Option.none(),
+        before: Option.none(),
+        isClear: true,
+        isTop: false,
+        issue: '904',
+      }),
+    )
+    expect(cleared.stdout).toEqual([
+      'Cleared the rank of #904: back in age order, 1st of 3 in P0.',
+    ])
+    expect(Option.map(fetched(memory, '904'), issue => issue.backlogRank)).toEqual(
+      Option.some(Option.none()),
+    )
+    expect(
+      Option.flatMap(fetched(memory, '905'), issue => issue.backlogRank),
+    ).toEqual(Option.some(1_790_000_000_000 - DAY_MS))
+  })
+
+  it('refuses a rank across priorities, a missing Issue, and no place, with exit code 2 or 3', async () => {
+    const { host } = await run(makeHost(backlogSeed()))
+    const none = {
+      after: Option.none(),
+      before: Option.none(),
+      isClear: false,
+      isTop: false,
+    }
+
+    const across = await run(
+      rankIssueCommand(host, { ...none, before: Option.some('901'), issue: '904' }),
+    )
+    const missingAnchor = await run(
+      rankIssueCommand(host, { ...none, before: Option.some('999'), issue: '904' }),
+    )
+    const noPlace = await run(rankIssueCommand(host, { ...none, issue: '904' }))
+    const twoPlaces = await run(
+      rankIssueCommand(host, {
+        ...none,
+        after: Option.some('905'),
+        before: Option.some('907'),
+        issue: '904',
+      }),
+    )
+
+    expect(across.exitCode).toBe(2)
+    expect(across.stderr).toEqual([
+      '#904 is P0 and #901 is P1: a rank orders Issues within one priority. Change the priority first: issues edit 904 --priority P1.',
+    ])
+    expect(missingAnchor.exitCode).toBe(3)
+    expect(noPlace.exitCode).toBe(2)
+    expect(noPlace.stderr).toEqual([
+      'issues rank needs one place: --before <n>, --after <n>, --top, or --clear.',
+    ])
+    expect(twoPlaces.exitCode).toBe(2)
   })
 })

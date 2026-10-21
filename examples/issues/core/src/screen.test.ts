@@ -44,7 +44,13 @@ import {
   UpdatedIssueDetails,
   UpdatedIssueTitle,
 } from './message.js'
-import { FileIssue, IssueDetail, IssueList, type Model } from './model.js'
+import {
+  Backlog,
+  FileIssue,
+  IssueDetail,
+  IssueList,
+  type Model,
+} from './model.js'
 import { messageForScreenToken } from './presentation.js'
 import { type IssueTrackerResources, issuesScreen } from './program.js'
 import {
@@ -576,5 +582,89 @@ describe('Issue Tracker screen: work in progress', () => {
     )
     expect(openTokensOf(all)).toHaveLength(6)
     expect(primaryTokensOf(all)).toContain('landing:all')
+  })
+})
+
+const queuedFor = (
+  id: string,
+  priority: Issue['priority'],
+  build: string,
+  landingState: IssueLandingState,
+  createdAtMs: number,
+): Issue =>
+  Issue.make({
+    ...workingAt(id, landingState),
+    createdAtMs,
+    priority,
+    workInProgress: Option.map(workingAt(id, landingState).workInProgress, work =>
+      IssueWorkInProgress.make({ ...work, targetBuild: Option.some(build) }),
+    ),
+  })
+
+describe('Issue Tracker screen: backlog', () => {
+  const backlogIssues = [
+    queuedFor('901', 'P1', '110', 'Shipped', 1_000),
+    queuedFor('902', 'P2', '111', 'Green', 2_000),
+    queuedFor('903', 'P0', '111', 'Red', 3_000),
+    queuedFor('904', 'P1', '112', 'Exploring', 4_000),
+    Issue.make({ ...stored, id: '905', priority: 'P0', createdAtMs: 5_000 }),
+    Issue.make({ ...stored, id: '906', priority: 'P0', createdAtMs: 500 }),
+    Issue.make({ ...stored, id: '907', priority: 'P3', createdAtMs: 100 }),
+    Issue.make({ ...stored, id: '908', priority: 'P0', status: 'Fixed' }),
+  ]
+
+  it('opens from the list and leads with the next build, then each priority oldest first', () => {
+    const [listed] = update(
+      modelForNavigation(IssueList.make({})),
+      ObservedIssues.make({ issues: backlogIssues }),
+    )
+    const [backlog] = update(
+      listed,
+      Option.getOrThrow(messageForScreenToken(listed, 'backlog')),
+    )
+
+    expect(backlog.navigation).toEqual(Backlog.make({}))
+    expect(contentsOf(backlog)).toEqual(
+      expect.arrayContaining([
+        'Backlog',
+        'Build 111, the next build: 2 Issues',
+        'Build 112: 1 Issue',
+        'P0: 2 Issues',
+        'P1: 1 Issue',
+        'P3: 1 Issue',
+      ]),
+    )
+    expect(openTokensOf(backlog)).toEqual([
+      '903  P0  InProgress  Keep transcript aligned  [Scribe]  Red for build 111',
+      '902  P2  InProgress  Keep transcript aligned  [Scribe]  Green for build 111',
+      '904  P1  InProgress  Keep transcript aligned  [Scribe]  Exploring for build 112',
+      '906  P0  Open  Keep transcript aligned  [Scribe]',
+      '905  P0  Open  Keep transcript aligned  [Scribe]',
+      '901  P1  InProgress  Keep transcript aligned  [Scribe]  Shipped for build 110',
+      '907  P3  Open  Keep transcript aligned  [Scribe]',
+    ])
+    expect(
+      Option.isSome(messageForScreenToken(backlog, 'open:906')),
+    ).toBe(true)
+  })
+
+  it('keeps the product filter on the backlog', () => {
+    const foldkitIssue = Issue.make({
+      ...stored,
+      id: '909',
+      priority: 'P0',
+      product: foldkit.product,
+    })
+    const backlog = applyAll(modelForNavigation(Backlog.make({})), [
+      ObservedIssues.make({ issues: [...backlogIssues, foldkitIssue] }),
+    ])
+    const [onlyFoldkit] = update(
+      backlog,
+      Option.getOrThrow(messageForScreenToken(backlog, 'product:foldkit')),
+    )
+
+    expect(openTokensOf(onlyFoldkit)).toEqual([
+      '909  P0  Open  Keep transcript aligned  [Foldkit]',
+    ])
   })
 })
