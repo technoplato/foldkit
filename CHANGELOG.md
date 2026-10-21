@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 21st, 2026 at 12:44:58 p.m. EDT — `ce9a8f755897` feat(issues): a Backlog page, issues list --backlog, and issues rank
+
+- **Implementation commit:** `ce9a8f755897fdf8453d3bae6f272f3ab7a45e14`
+- **Change:** A Backlog page and issues list --backlog ordered by build lane, priority, rank, and age, and issues rank to order an Issue within its priority, for Scribe issue #971
+- **Details:**
+  - The next build is the lowest target build above every build that shipped work (with 110 shipped and work for 107, 111, and 112 open, it is 111). Lanes list unfinished, unshipped, unabandoned work per upcoming build; priority sections hold the rest, leaving out Closed, Fixed, Resolved, Verified, and VerificationNeeded. backlogRank lives in the Issue's stored JSON on the createdAtMs axis, so one rank writes one Issue and the Instant schema does not change. Program version 9. Red 2b40a496a, green ce9a8f755. instant-tools 66, core 75, CLI 39, React 8, React Native 2 tests pass.
+- **Files:**
+  - `examples/issues/core/src/backlog.ts` — the order, the next build, the lanes and sections, and the rank math
+  - `examples/issues/core/src/route.ts` — /issues/backlog
+  - `examples/issues/core/src/product.ts` — the Backlog page
+  - `examples/issues/core/src/update.ts` — RankIssue
+  - `examples/issues/cli/src/commands.ts` — list --backlog and rank
+  - `packages/instant-tools/src/issues/domain.ts` — backlogRank on Issue
+  - `examples/issues/README.md` — the commands and the page
+- **User context (verbatim):**
+  > How are these different uh priorities organized? Um is there prioritization in the issues dot pissport software dot xyz for our backlog? (the owner, typed 2026-10-21)
+- **SpecStory:** unavailable — Claude Code side session started by session local_9ac5f846; no SpecStory capture.
+
 ## October 19th, 2026 at 6:24:15 p.m. EDT — `87287953848c` feat(issues): an Issue's page lists the recordings that mentioned it
 
 - **Implementation commit:** `87287953848cdc36744ebc31522488e7808cd700`

@@ -1,4 +1,12 @@
-import { Array, Clock, Effect, Match as M, Option, Schema as S } from 'effect'
+import {
+  Array,
+  Clock,
+  Effect,
+  Equivalence,
+  Match as M,
+  Option,
+  Schema as S,
+} from 'effect'
 import { Command } from 'foldkit'
 
 import {
@@ -64,6 +72,7 @@ import {
   SucceededSaveProduct,
 } from './message.js'
 import {
+  Backlog,
   DeletedIssueMutation,
   DraftMention,
   EditingIssueDraft,
@@ -1015,6 +1024,40 @@ export const ClearIssueWorkInProgress = Command.define(
   ),
 )
 
+/**
+ * Places an Issue within its priority at `rank`, a time on the `createdAtMs`
+ * axis, or returns it to age order when the rank is None.
+ */
+export const RankIssue = Command.define(
+  'RankIssue',
+  { issueId: S.String, rank: S.Option(S.Number) },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, rank }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const isRanked = (issue: Issue) =>
+      Option.makeEquivalence(Equivalence.Number)(issue.backlogRank, rank)
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        isRanked(current)
+          ? current
+          : Issue.make({
+              ...current,
+              backlogRank: rank,
+              updatedAtMs: nextUpdatedAtMs(current, nowMs),
+            }),
+      hasLanded: isRanked,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
 /** Adds one Mention under the next free mention id. */
 export const AddIssueMention = Command.define(
   'AddIssueMention',
@@ -1815,6 +1858,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       DismissedIssueDetail: () => withNavigation(model, IssueList.make({})),
       ClickedFileIssue: () => withNavigation(model, FileIssue.make({})),
       ClickedOpenTriage: () => withNavigation(model, TriageInbox.make({})),
+      ClickedOpenBacklog: () => withNavigation(model, Backlog.make({})),
       ClickedPromoteTriageCandidate: ({ candidateId }) =>
         reviewTriageCandidate(model, candidateId, 'Promote'),
       ClickedDismissTriageCandidate: ({ candidateId }) =>
@@ -2096,6 +2140,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ),
       ClearedIssueWorkInProgress: ({ issueId }) =>
         startLeftoverCommand(model, ClearIssueWorkInProgress({ issueId })),
+      SubmittedIssueRank: ({ issueId, rank }) =>
+        startLeftoverCommand(model, RankIssue({ issueId, rank })),
       SelectedLandingFilter: ({ filter }) => [
         Model.make({ ...model, landingFilter: filter }),
         [],

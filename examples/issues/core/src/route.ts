@@ -4,6 +4,7 @@ import { literal, r, slash, string } from 'foldkit/route'
 import { type Url, fromString } from 'foldkit/url'
 
 import {
+  Backlog,
   FileIssue,
   IssueDetail,
   IssueList,
@@ -15,6 +16,7 @@ const IssueListRoute = r('IssueListRoute')
 const IssueDetailRoute = r('IssueDetailRoute', { issueId: S.String })
 const FileIssueRoute = r('FileIssueRoute')
 const TriageInboxRoute = r('TriageInboxRoute')
+const BacklogRoute = r('BacklogRoute')
 const NotFoundRoute = r('NotFoundRoute', { path: S.String })
 
 const issueListRouter = pipe(literal('issues'), Route.mapTo(IssueListRoute))
@@ -34,9 +36,16 @@ const triageInboxRouter = pipe(
   Route.mapTo(TriageInboxRoute),
 )
 
+const backlogRouter = pipe(
+  literal('issues'),
+  slash(literal('backlog')),
+  Route.mapTo(BacklogRoute),
+)
+
 const routeParser = Route.oneOf(
   fileIssueRouter,
   triageInboxRouter,
+  backlogRouter,
   issueDetailRouter,
   issueListRouter,
 )
@@ -51,6 +60,7 @@ export const urlToNavigation = (url: Url): Navigation =>
       IssueDetailRoute: ({ issueId }) => IssueDetail.make({ issueId }),
       FileIssueRoute: () => FileIssue.make({}),
       TriageInboxRoute: () => TriageInbox.make({}),
+      BacklogRoute: () => Backlog.make({}),
       NotFoundRoute: () => IssueList.make({}),
     }),
   )
@@ -75,5 +85,6 @@ export const navigationToPath = (navigation: Navigation): string =>
       IssueDetail: ({ issueId }) => issueDetailRouter({ issueId }),
       FileIssue: () => fileIssueRouter(),
       TriageInbox: () => triageInboxRouter(),
+      Backlog: () => backlogRouter(),
     }),
   )

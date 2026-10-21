@@ -72,6 +72,7 @@ import {
   UpdatedLeftoverLink,
 } from './message.js'
 import {
+  Backlog,
   DraftMention,
   DraftSuccessCriterion,
   DraftWorkLogEntry,
@@ -177,6 +178,7 @@ describe('Issue Tracker Program', () => {
     IssueDetail.make({ issueId: 'issue-021' }),
     FileIssue.make({}),
     TriageInbox.make({}),
+    Backlog.make({}),
   ])('round trips each navigation path', navigation => {
     const path = navigationToPath(navigation)
     expect(pathToNavigation(path)).toEqual(navigation)

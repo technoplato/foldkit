@@ -65,6 +65,7 @@ export const SelectedIssue = S.TaggedStruct('SelectedIssue', {
 export const DismissedIssueDetail = S.TaggedStruct('DismissedIssueDetail', {})
 export const ClickedFileIssue = S.TaggedStruct('ClickedFileIssue', {})
 export const ClickedOpenTriage = S.TaggedStruct('ClickedOpenTriage', {})
+export const ClickedOpenBacklog = S.TaggedStruct('ClickedOpenBacklog', {})
 export const ClickedPromoteTriageCandidate = S.TaggedStruct(
   'ClickedPromoteTriageCandidate',
   { candidateId: S.String },
@@ -191,6 +192,10 @@ export const ClearedIssueWorkInProgress = S.TaggedStruct(
   'ClearedIssueWorkInProgress',
   { issueId: S.String },
 )
+export const SubmittedIssueRank = S.TaggedStruct('SubmittedIssueRank', {
+  issueId: S.String,
+  rank: S.Option(S.Number),
+})
 export const SelectedLandingFilter = S.TaggedStruct('SelectedLandingFilter', {
   filter: LandingFilter,
 })
@@ -280,6 +285,7 @@ export const Message = S.Union([
   DismissedIssueDetail,
   ClickedFileIssue,
   ClickedOpenTriage,
+  ClickedOpenBacklog,
   ClickedPromoteTriageCandidate,
   ClickedDismissTriageCandidate,
   UpdatedIssueTitle,
@@ -310,6 +316,7 @@ export const Message = S.Union([
   SubmittedSubtaskMarks,
   SubmittedIssueWorkInProgress,
   ClearedIssueWorkInProgress,
+  SubmittedIssueRank,
   SelectedLandingFilter,
   SubmittedIssueMention,
   SelectedIssueStatus,

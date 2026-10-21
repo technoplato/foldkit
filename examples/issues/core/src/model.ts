@@ -135,12 +135,15 @@ export const IssueDetail = S.TaggedStruct('IssueDetail', {
 export const FileIssue = S.TaggedStruct('FileIssue', {})
 /** Transcript-derived draft triage candidates are visible. */
 export const TriageInbox = S.TaggedStruct('TriageInbox', {})
+/** The backlog: the next build's lane, then each priority in rank order. */
+export const Backlog = S.TaggedStruct('Backlog', {})
 /** Every representable navigation destination. */
 export const Navigation = S.Union([
   IssueList,
   IssueDetail,
   FileIssue,
   TriageInbox,
+  Backlog,
 ])
 /** Every representable navigation destination. */
 export type Navigation = typeof Navigation.Type
