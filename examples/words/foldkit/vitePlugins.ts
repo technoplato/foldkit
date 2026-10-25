@@ -610,6 +610,28 @@ const unavailableOnFailure =
     }
   }
 
+const liveBeatFailureLog = { lastLogAtMs: 0 }
+
+/**
+ * Answers 503 when a live room could not be read, logging it at most once a
+ * minute: every open page asks every 5 seconds.
+ */
+const liveBeatUnavailable =
+  (response: ServerResponse) =>
+  (cause: unknown): void => {
+    const nowMs = Date.now()
+    if (
+      nowMs - liveBeatFailureLog.lastLogAtMs >=
+      VERIFICATION_LOG_INTERVAL_MS
+    ) {
+      liveBeatFailureLog.lastLogAtMs = nowMs
+      console.error(`words: LiveBeatUnavailable: ${String(cause)}`)
+    }
+    if (!response.headersSent) {
+      writeJson(response, HTTP_UNAVAILABLE, { error: 'LiveBeatUnavailable' })
+    }
+  }
+
 /**
  * Cloudflare Access lets `/.well-known/apple-app-site-association` and every
  * path under it through without login. Only the file itself is served there;
@@ -647,7 +669,7 @@ export const makeIdentityMiddleware = (
       )
     } else if (requestPath === liveBeatPath) {
       void answerLiveBeat(request, response, liveRooms, verifier).catch(
-        unavailableOnFailure('LiveBeatUnavailable')(response),
+        liveBeatUnavailable(response),
       )
     } else {
       next()
