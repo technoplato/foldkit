@@ -57,6 +57,7 @@ import {
   MovedScrub,
   ObservedFileUrls,
   ObservedIdentity,
+  ObservedLiveBeat,
   ObservedRecording,
   ObservedRecordings,
   PressedScrubberArrow,
@@ -89,6 +90,7 @@ import {
   isLiveRecording,
   isReturnShownOf,
   liveDurationSecondsOf,
+  liveRoomRecordingIDsOf,
   modelForRoute,
   openingWaitOf,
   playbackPhaseOf,
@@ -1548,6 +1550,107 @@ describe('the live length of a recording in progress elsewhere', () => {
       listed({ ...liveAt(22, savedAtMs + 5_500), activity: 'Idle' }),
     ]).model
     expect(listedLengthOf(stopped)).toBe(22)
+  })
+})
+
+describe("the live clock from the recording device's beat", () => {
+  const savedAtMs = 1_790_000_000_000
+  const roomedAt = (
+    durationSeconds: number,
+    updatedAtMs: number,
+    overrides: Partial<RecordingSummary> = {},
+  ): RecordingSummary => ({
+    ...detail().summary,
+    activity: 'Recording',
+    durationSeconds,
+    maybeUpdatedAtMs: Option.some(updatedAtMs),
+    isLiveRoomSet: true,
+    ...overrides,
+  })
+  const listed = (summary: RecordingSummary) =>
+    ObservedRecordings({
+      window: firstRecordingWindow,
+      recordings: [summary],
+      skippedCount: 0,
+      maybeSkippedReason: Option.none(),
+      hasOlder: false,
+    })
+  const beat = (durationSeconds: number, beatAtMs: number) =>
+    ObservedLiveBeat({ recordingID, beat: { durationSeconds, beatAtMs } })
+  const listedLengthOf = (model: Model): number => {
+    if (model.recordings._tag !== 'LoadedRecordings') {
+      throw new Error(`Expected LoadedRecordings, got ${model.recordings._tag}`)
+    }
+    const summary = Option.getOrThrow(Array.head(model.recordings.recordings))
+    return displayedLengthOf(model, summary)
+  }
+  const lengthAt = (model: Model, nowMs: number): number =>
+    listedLengthOf(run(model, [TickedLiveClock({ nowMs })]).model)
+
+  it('counts from the newest beat, at most 7 s past it', () => {
+    const counted = run(opened(RecordingListRoute()), [
+      listed(roomedAt(60, savedAtMs)),
+      beat(90, savedAtMs + 30_000),
+    ]).model
+    expect(lengthAt(counted, savedAtMs + 33_000)).toBe(93)
+    expect(lengthAt(counted, savedAtMs + 45_000)).toBe(97)
+  })
+
+  it('ignores a beat no newer than the one it counts from', () => {
+    const counted = run(opened(RecordingListRoute()), [
+      listed(roomedAt(60, savedAtMs)),
+      beat(90, savedAtMs + 30_000),
+      beat(80, savedAtMs + 25_000),
+      beat(85, savedAtMs + 30_000),
+    ]).model
+    expect(lengthAt(counted, savedAtMs + 31_000)).toBe(91)
+  })
+
+  it('counts from a save newer than the last beat', () => {
+    const counted = run(opened(RecordingListRoute()), [
+      listed(roomedAt(60, savedAtMs)),
+      beat(90, savedAtMs + 30_000),
+      listed(roomedAt(100, savedAtMs + 40_000)),
+    ]).model
+    expect(lengthAt(counted, savedAtMs + 50_000)).toBe(110)
+  })
+
+  it('holds on a beat while the recording is paused', () => {
+    const pausedAtMs = savedAtMs + 31_000
+    const counted = run(opened(RecordingListRoute()), [
+      listed(
+        roomedAt(60, savedAtMs, {
+          captureGaps: [
+            { startedAtMs: pausedAtMs, maybeEndedAtMs: Option.none() },
+          ],
+        }),
+      ),
+      beat(91, pausedAtMs),
+    ]).model
+    expect(lengthAt(counted, savedAtMs + 50_000)).toBe(91)
+  })
+
+  it('asks for beats only for live recordings whose device publishes in a room, and forgets them once stopped', () => {
+    const counted = run(opened(RecordingListRoute()), [
+      listed(roomedAt(60, savedAtMs)),
+      beat(90, savedAtMs + 30_000),
+    ]).model
+    expect(liveRoomRecordingIDsOf(counted)).toEqual([recordingID])
+    expect(
+      liveRoomRecordingIDsOf(
+        run(opened(RecordingListRoute()), [
+          listed(roomedAt(60, savedAtMs, { isLiveRoomSet: false })),
+        ]).model,
+      ),
+    ).toEqual([])
+
+    const stopped = run(counted, [
+      listed(roomedAt(95, savedAtMs + 35_000, { activity: 'Idle' })),
+      TickedLiveClock({ nowMs: savedAtMs + 36_000 }),
+    ]).model
+    expect(liveRoomRecordingIDsOf(stopped)).toEqual([])
+    expect(stopped.liveBeats).toEqual({})
+    expect(listedLengthOf(stopped)).toBe(95)
   })
 })
 

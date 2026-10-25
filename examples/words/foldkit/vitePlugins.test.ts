@@ -3,7 +3,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { makeAccessVerifier } from '../../../packages/instant/src/hostedIdentity/accessVerifier'
-import { makeIdentityMiddleware } from './vitePlugins'
+import {
+  type LiveRooms,
+  makeIdentityMiddleware,
+  newestTrustedBeatOf,
+} from './vitePlugins'
 
 const teamDomain = 'team.example.cloudflareaccess.com'
 const audience = 'aud-words'
@@ -63,6 +67,7 @@ const verifier = makeAccessVerifier({
 })
 
 const noDatabase = { database: () => Option.none() }
+const noLiveRooms = () => Option.none()
 
 type Answer = Readonly<{ status: number; body: unknown }> | 'Passed'
 
@@ -72,7 +77,9 @@ const answerOf = (
     host?: string
     headers?: Readonly<Record<string, string>>
     remoteAddress?: string
+    method?: string
   }>,
+  liveRooms: () => Option.Option<LiveRooms> = noLiveRooms,
 ): Promise<Answer> =>
   new Promise(resolve => {
     const response = {
@@ -82,11 +89,14 @@ const answerOf = (
       end: (body: string) =>
         resolve({ status: response.statusCode, body: JSON.parse(body) }),
     }
-    makeIdentityMiddleware(verifier, noDatabase)(
+    makeIdentityMiddleware(verifier, noDatabase, liveRooms)(
       {
         url: request.url,
-        method: 'GET',
-        headers: { host: request.host ?? 'words.knophy.com', ...request.headers },
+        method: request.method ?? 'GET',
+        headers: {
+          host: request.host ?? 'words.knophy.com',
+          ...request.headers,
+        },
         socket: { remoteAddress: request.remoteAddress ?? '127.0.0.1' },
       } as unknown as IncomingMessage,
       response as unknown as ServerResponse,
@@ -94,7 +104,9 @@ const answerOf = (
     )
   })
 
-const statusOf = async (answer: Promise<Answer>): Promise<number | 'Passed'> => {
+const statusOf = async (
+  answer: Promise<Answer>,
+): Promise<number | 'Passed'> => {
   const settled = await answer
   return settled === 'Passed' ? settled : settled.status
 }
@@ -164,17 +176,24 @@ describe('words identity endpoints', () => {
       expect(await statusOf(answerOf({ url }))).toBe(NOT_FOUND)
     }
     expect(
-      await statusOf(answerOf({ url: '/.well-known/apple-app-site-association' })),
+      await statusOf(
+        answerOf({ url: '/.well-known/apple-app-site-association' }),
+      ),
     ).toBe('Passed')
   })
 
   it('keeps the loopback identity for a preview opened on this Mac only', async () => {
-    process.env['FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL'] = 'preview@example.invalid'
+    process.env['FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL'] =
+      'preview@example.invalid'
     expect(
-      await statusOf(answerOf({ url: '/__words/access', host: '127.0.0.1:5232' })),
+      await statusOf(
+        answerOf({ url: '/__words/access', host: '127.0.0.1:5232' }),
+      ),
     ).toBe(IDENTIFIED_WITHOUT_DATABASE)
     expect(
-      await statusOf(answerOf({ url: '/__words/access', host: 'words.knophy.com' })),
+      await statusOf(
+        answerOf({ url: '/__words/access', host: 'words.knophy.com' }),
+      ),
     ).toBe(UNAUTHORIZED)
     expect(
       await statusOf(
@@ -185,5 +204,160 @@ describe('words identity endpoints', () => {
         }),
       ),
     ).toBe(UNAUTHORIZED)
+  })
+})
+
+describe('the live beat', () => {
+  afterEach(() => {
+    delete process.env['FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL']
+  })
+
+  const recordingID = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
+  const ownerUserID = 'owner-user'
+  const nowMs = 1_790_000_000_000
+  const beatOf = (
+    userID: string | null,
+    durationSeconds: number,
+    beatAtMs: number,
+    beatRecordingID: string = recordingID,
+  ) => ({
+    data: {
+      recordingID: beatRecordingID,
+      durationSeconds,
+      beatAtMs,
+      version: 1,
+    },
+    user: userID === null ? null : { id: userID },
+  })
+
+  it('takes the newest beat of a member signed in as the owner, published within 15 s', () => {
+    expect(
+      newestTrustedBeatOf(
+        {
+          phone: beatOf(ownerUserID, 120, nowMs - 4_000),
+          watch: beatOf(ownerUserID, 124, nowMs - 1_000),
+          stranger: beatOf('someone-else', 999, nowMs),
+          guest: beatOf(null, 998, nowMs),
+          otherRecording: beatOf(
+            ownerUserID,
+            997,
+            nowMs,
+            '0a0b0c0d-0e0f-4a0b-8c0d-0e0f0a0b0c0d',
+          ),
+        },
+        recordingID,
+        ownerUserID,
+        nowMs,
+      ),
+    ).toEqual(Option.some({ durationSeconds: 124, beatAtMs: nowMs - 1_000 }))
+  })
+
+  it('reads a recording id in any case and ignores a beat kept after its device stopped', () => {
+    expect(
+      newestTrustedBeatOf(
+        {
+          phone: beatOf(
+            ownerUserID,
+            120,
+            nowMs - 2_000,
+            recordingID.toUpperCase(),
+          ),
+        },
+        recordingID,
+        ownerUserID,
+        nowMs,
+      ),
+    ).toEqual(Option.some({ durationSeconds: 120, beatAtMs: nowMs - 2_000 }))
+    expect(
+      newestTrustedBeatOf(
+        { phone: beatOf(ownerUserID, 120, nowMs - 16_000) },
+        recordingID,
+        ownerUserID,
+        nowMs,
+      ),
+    ).toEqual(Option.none())
+    expect(
+      newestTrustedBeatOf(
+        { phone: { data: { recordingID }, user: { id: ownerUserID } } },
+        recordingID,
+        ownerUserID,
+        nowMs,
+      ),
+    ).toEqual(Option.none())
+  })
+
+  const liveRoomsOf =
+    (sessions: Readonly<Record<string, unknown>>) =>
+    (): Option.Option<LiveRooms> =>
+      Option.some({
+        userIDOf: async email =>
+          email === 'preview@example.invalid'
+            ? Option.some(ownerUserID)
+            : Option.some('someone-else'),
+        liveRecordingOf: async id =>
+          id === recordingID
+            ? Option.some({ ownerUserID, liveRoomKey: 'room-key' })
+            : Option.none(),
+        sessionsOf: async liveRoomKey =>
+          liveRoomKey === 'room-key' ? sessions : {},
+      })
+
+  const beatAnswerOf = (
+    url: string,
+    sessions: Readonly<Record<string, unknown>> = {
+      phone: beatOf(ownerUserID, 120, Date.now() - 1_000),
+    },
+  ) => answerOf({ url, host: '127.0.0.1:5232' }, liveRoomsOf(sessions))
+
+  it("hands the recording's owner only its newest trusted beat", async () => {
+    process.env['FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL'] =
+      'preview@example.invalid'
+    const answer = await beatAnswerOf(
+      `/__words/live-beat?recording=${recordingID}`,
+    )
+    expect(answer).toEqual({
+      status: 200,
+      body: { durationSeconds: 120, beatAtMs: expect.any(Number) },
+    })
+  })
+
+  it('answers no beat for a recording the listener does not own, or one with no live room', async () => {
+    process.env['FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL'] =
+      'someone@example.invalid'
+    expect(
+      await beatAnswerOf(`/__words/live-beat?recording=${recordingID}`),
+    ).toEqual({ status: 200, body: {} })
+    process.env['FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL'] =
+      'preview@example.invalid'
+    expect(
+      await beatAnswerOf(
+        '/__words/live-beat?recording=0a0b0c0d-0e0f-4a0b-8c0d-0e0f0a0b0c0d',
+      ),
+    ).toEqual({ status: 200, body: {} })
+    expect(await beatAnswerOf('/__words/live-beat')).toEqual({
+      status: 200,
+      body: {},
+    })
+  })
+
+  it('needs a signed-in listener and the admin connection', async () => {
+    expect(
+      await statusOf(
+        answerOf(
+          { url: `/__words/live-beat?recording=${recordingID}` },
+          liveRoomsOf({}),
+        ),
+      ),
+    ).toBe(UNAUTHORIZED)
+    process.env['FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL'] =
+      'preview@example.invalid'
+    expect(
+      await statusOf(
+        answerOf({
+          url: `/__words/live-beat?recording=${recordingID}`,
+          host: '127.0.0.1:5232',
+        }),
+      ),
+    ).toBe(IDENTIFIED_WITHOUT_DATABASE)
   })
 })
