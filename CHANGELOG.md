@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 25th, 2026 at 12:25 p.m. EDT — `b3aa7b741` feat(words): green: the live clock runs 65 s past a live-room save, holds through a pause and skips capture gaps
+
+- **Implementation commit:** `b3aa7b741` (red 96dc870dd)
+- **Change:** A recording live on another device keeps counting each second when its device saves the row only once a minute (ADR 0094 landing W-lite, so #1097's landing B can land). While the row has a liveRoomKey the clock runs up to 65 s past the length save (6 s otherwise); an open capture gap (a pause) holds it and a closed one is skipped; a save that moves updatedAtMs but not the length (a rename, an image) no longer holds it back.
+- **Issues:** [#1178](https://issues.knophy.com/issues/1178), [#1097](https://issues.knophy.com/issues/1097)
+- **Details:**
+  - Measured on a simulated phone, 10 minutes sampled every 5 s with a 60 s pause and two stamp-only saves: before, rows every 60 s were off by up to 54 s (8% of samples within 1 s) and rows every 5 s by up to 6 s at the pause; after, 0 s on both.
+  - Capture gaps overlap in real rows (a microphone outage inside a pause), so the clock subtracts their union.
+  - A phone that dies with the row still stamped active now shows its clock running up to 65 s past the last save before it stops (6 s before), as the lab accepted on #1097.
+  - Verified: words core 245/245, web 26/26, core and web tsc, oxlint on the changed files.
+- **Files:**
+  - `examples/words/core/src/recording.ts` — CaptureGap; the summary's isLiveRoomSet and captureGaps
+  - `examples/words/core/src/decode.ts` — reads liveRoomKey and captureGapsJSON
+  - `examples/words/core/src/model.ts` — liveLengthSaves, the save each live clock counts from
+  - `examples/words/core/src/update.ts` — liveDurationSecondsOf skips capture gaps and caps at 65 s with a live room
+- **User context (verbatim):**
+  > none: the lab's decision of 12:10 on #1097 (W-lite before landing B)
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/words-live-1178@ld); no SpecStory URI was captured
+
 ## October 25th, 2026 at 11:46:46 a.m. EDT — `b8d66151e865` feat(words): green: the questions page reads 2,000 and says when it is full
 
 - **Implementation commit:** `b8d66151e865574dd88352306c54414edebd9a21`
