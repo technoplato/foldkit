@@ -7,7 +7,7 @@ import { ScribeRoute } from './link.js'
 import { OlderEdge, RecordingWindow } from './listWindow.js'
 import { Connectivity } from './network.js'
 import * as Questions from './questions/model.js'
-import { RecordingDetail, RecordingSummary } from './recording.js'
+import { LiveBeat, RecordingDetail, RecordingSummary } from './recording.js'
 import * as Share from './share/model.js'
 
 /** Waiting for the first recording list snapshot. */
@@ -248,6 +248,9 @@ export type LiveLengthSave = typeof LiveLengthSave.Type
  * `liveLengthSaves` holds, per such recording, the save its clock counts
  * from: the first save of its current length, so a later save that moves the
  * save time but not the length (a rename, an image) never holds it back.
+ * `liveBeats` holds, per such recording whose device publishes in a live
+ * room, the newest beat the origin read there; the clock counts from it when
+ * it is newer than the length save.
  * `liveLengthFloors` holds, per such recording, the longest length shown so
  * far, so a save that comes in behind the clock never makes it run backward. `recordingAttempt` counts Try Again presses; each one asks
  * Scribe for the open recording again. `recordingWindow` is the run of list
@@ -270,6 +273,7 @@ export const Model = S.Struct({
   resumePositions: S.Record(S.String, S.Number),
   maybeLiveClockMs: S.Option(S.Number),
   liveLengthSaves: S.Record(S.String, LiveLengthSave),
+  liveBeats: S.Record(S.String, LiveBeat),
   liveLengthFloors: S.Record(S.String, S.Number),
   recordingAttempt: S.Number,
   maybeCopyNotice: S.Option(CopyNotice),

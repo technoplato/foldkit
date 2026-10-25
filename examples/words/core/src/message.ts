@@ -12,7 +12,7 @@ import { ListEdge, RecordingWindow } from './listWindow.js'
 import { CopyNotice, IdentityState, PlayheadVisibility } from './model.js'
 import { Connectivity } from './network.js'
 import * as Questions from './questions/message.js'
-import { RecordingDetail, RecordingSummary } from './recording.js'
+import { LiveBeat, RecordingDetail, RecordingSummary } from './recording.js'
 import * as Share from './share/message.js'
 import { TranscriptFormat } from './transcript.js'
 
@@ -230,6 +230,11 @@ export const ElapsedAnnouncementPause = m('ElapsedAnnouncementPause', {
 })
 /** A second passed while a recording in progress on another device is on screen. */
 export const TickedLiveClock = m('TickedLiveClock', { nowMs: S.Number })
+/** The origin read the newest beat of a recording in progress from its live room. */
+export const ObservedLiveBeat = m('ObservedLiveBeat', {
+  recordingID: S.String,
+  beat: LiveBeat,
+})
 /** The browser lost or regained its network connection. */
 export const ChangedConnectivity = m('ChangedConnectivity', {
   connectivity: Connectivity,
@@ -359,6 +364,7 @@ export const Message = S.Union([
   PressedShortcut,
   ElapsedAnnouncementPause,
   TickedLiveClock,
+  ObservedLiveBeat,
   ChangedConnectivity,
   ElapsedFocusHighlight,
   ClickedCopyRecordingLink,

@@ -245,6 +245,7 @@ describe('ConnectAccount', () => {
           reason: 'unused',
         }),
       ),
+      readLiveBeat: () => Effect.succeed(Option.none()),
     })
   const emptyList = {
     recordings: [],

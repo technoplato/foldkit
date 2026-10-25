@@ -1,4 +1,4 @@
-import { Option, Schema as S } from 'effect'
+import { Array, Option, Record, Schema as S, pipe } from 'effect'
 import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
@@ -21,6 +21,7 @@ const associationPath = '/.well-known/apple-app-site-association'
 const accessIdentityPath = '/__words/access'
 const hostedIdentitySessionPath = '/__foldkit/hosted-identity/session'
 const transcriptionTokenPath = '/__words/transcription-token'
+const liveBeatPath = '/__words/live-beat'
 
 const MILLISECONDS_PER_SECOND = 1_000
 const HTTP_OK = 200
@@ -34,6 +35,12 @@ const deepgramGrantUrl = 'https://api.deepgram.com/v1/auth/grant'
 const deepgramModel = 'nova-3'
 const TRANSCRIPTION_TOKEN_TTL_SECONDS = 30
 const UPSTREAM_TIMEOUT_MS = 5_000
+
+const LIVE_ROOM_TYPE = 'scribe-live-recording'
+const LIVE_BEAT_WINDOW_MS = 15_000
+const LIVE_ROOM_TIMEOUT_MS = 4_000
+const RECORDING_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * Creating a Scribe account from the Cloudflare Access email stays off until
@@ -327,6 +334,216 @@ const answerSession = async (
   }
 }
 
+/** One beat a recording's device published in its live room. */
+export type LiveBeat = Readonly<{ durationSeconds: number; beatAtMs: number }>
+
+const LiveRoomSession = S.Struct({
+  data: S.Struct({
+    recordingID: S.String,
+    durationSeconds: S.Number,
+    beatAtMs: S.Number,
+  }),
+  user: S.Struct({ id: S.String }),
+})
+const decodeLiveRoomSession = S.decodeUnknownOption(LiveRoomSession)
+
+/**
+ * The newest beat for `recordingID` among the live room's members signed in
+ * as `ownerUserID`, published within 15 s of `nowMs`. Rooms have no
+ * permissions: any session that knows the room's key can publish there, and
+ * Instant sets each member's user, so only the owner's members count. A
+ * member keeps its last value after its device stops, so an older beat is
+ * none. The same rule as Scribe's mirror (ADR 0094).
+ *
+ * @example
+ * ```ts
+ * newestTrustedBeatOf(
+ *   { phone: { data: { recordingID, durationSeconds: 124, beatAtMs: 9_000 }, user: { id: owner } } },
+ *   recordingID,
+ *   owner,
+ *   10_000,
+ * )
+ * // Option.some({ durationSeconds: 124, beatAtMs: 9_000 })
+ * ```
+ */
+export const newestTrustedBeatOf = (
+  sessions: Readonly<Record<string, unknown>>,
+  recordingID: string,
+  ownerUserID: string,
+  nowMs: number,
+): Option.Option<LiveBeat> =>
+  pipe(
+    Record.values(sessions),
+    Array.map(session => decodeLiveRoomSession(session)),
+    Array.getSomes,
+    Array.filter(
+      ({ data, user }) =>
+        user.id === ownerUserID &&
+        data.recordingID.toLowerCase() === recordingID.toLowerCase() &&
+        data.durationSeconds >= 0 &&
+        Math.abs(nowMs - data.beatAtMs) <= LIVE_BEAT_WINDOW_MS,
+    ),
+    Array.reduce(Option.none<LiveBeat>(), (maybeNewest, { data }) =>
+      Option.match(maybeNewest, {
+        onNone: () => true,
+        onSome: newest => data.beatAtMs > newest.beatAtMs,
+      })
+        ? Option.some({
+            durationSeconds: data.durationSeconds,
+            beatAtMs: data.beatAtMs,
+          })
+        : maybeNewest,
+    ),
+  )
+
+/** A recording stamped active whose device publishes in a live room. */
+type LiveRecording = Readonly<{ ownerUserID: string; liveRoomKey: string }>
+
+/**
+ * What the live beat endpoint reads with admin rights: a Scribe account's id
+ * by email, a live recording's owner and room key, and its room's members.
+ */
+export type LiveRooms = Readonly<{
+  userIDOf: (email: string) => Promise<Option.Option<string>>
+  liveRecordingOf: (
+    recordingID: string,
+  ) => Promise<Option.Option<LiveRecording>>
+  sessionsOf: (
+    liveRoomKey: string,
+  ) => Promise<Readonly<Record<string, unknown>>>
+}>
+
+const UserRow = S.Struct({ id: S.String })
+
+const LiveRecordingRow = S.Struct({
+  ownerUserID: S.String,
+  liveRoomKey: S.String,
+  activityKind: S.Literal('active'),
+})
+
+const withinLiveRoomTimeout = <A>(promise: Promise<A>): Promise<A> =>
+  Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error(`no answer within ${LIVE_ROOM_TIMEOUT_MS} ms`)),
+        LIVE_ROOM_TIMEOUT_MS,
+      ).unref()
+    }),
+  ])
+
+const makeLiveRooms = (
+  admin: AdminAccess,
+): (() => Option.Option<LiveRooms>) => {
+  const userIDsByEmail = new Map<string, string>()
+  return () =>
+    Option.map(admin.database(), database => ({
+      userIDOf: async email => {
+        const known = userIDsByEmail.get(email)
+        if (known !== undefined) {
+          return Option.some(known)
+        } else {
+          const result = await database.query({
+            $users: { $: { where: { email } } },
+          })
+          const maybeUserID = Option.map(
+            Option.flatMap(
+              Array.head(result.$users),
+              S.decodeUnknownOption(UserRow),
+            ),
+            user => user.id,
+          )
+          if (Option.isSome(maybeUserID)) {
+            userIDsByEmail.set(email, maybeUserID.value)
+          }
+          return maybeUserID
+        }
+      },
+      liveRecordingOf: async recordingID => {
+        const result = await database.query({
+          recordings: {
+            $: {
+              where: { id: recordingID },
+              fields: ['ownerUserID', 'liveRoomKey', 'activityKind'],
+            },
+          },
+        })
+        return Option.map(
+          Option.flatMap(
+            Array.head(result.recordings),
+            S.decodeUnknownOption(LiveRecordingRow),
+          ),
+          ({ ownerUserID, liveRoomKey }) => ({ ownerUserID, liveRoomKey }),
+        )
+      },
+      sessionsOf: liveRoomKey =>
+        withinLiveRoomTimeout(
+          database.rooms.getPresence(LIVE_ROOM_TYPE, liveRoomKey),
+        ),
+    }))
+}
+
+const recordingIDOf = (request: IncomingMessage): Option.Option<string> =>
+  pipe(
+    Option.fromNullishOr(
+      new URL(request.url ?? '', 'http://origin.invalid').searchParams.get(
+        'recording',
+      ),
+    ),
+    Option.filter(recordingID => RECORDING_ID_PATTERN.test(recordingID)),
+    Option.map(recordingID => recordingID.toLowerCase()),
+  )
+
+const noLiveBeat = {}
+
+const answerLiveBeat = async (
+  request: IncomingMessage,
+  response: ServerResponse,
+  liveRooms: () => Option.Option<LiveRooms>,
+  verifier: AccessVerifier,
+): Promise<void> => {
+  if (request.method !== 'GET') {
+    writeJson(response, HTTP_METHOD_NOT_ALLOWED, { error: 'MethodNotAllowed' })
+    return
+  }
+  const maybeIdentity = await requestIdentityOf(request, verifier)
+  const maybeLiveRooms = liveRooms()
+  const maybeRecordingID = recordingIDOf(request)
+  if (Option.isNone(maybeIdentity)) {
+    writeJson(response, HTTP_UNAUTHORIZED, { error: 'MissingAccessIdentity' })
+  } else if (Option.isNone(maybeLiveRooms)) {
+    writeJson(response, HTTP_UNAVAILABLE, { error: 'LiveBeatUnavailable' })
+  } else if (Option.isNone(maybeRecordingID)) {
+    writeJson(response, HTTP_OK, noLiveBeat)
+  } else {
+    const rooms = maybeLiveRooms.value
+    const recordingID = maybeRecordingID.value
+    const [maybeUserID, maybeRecording] = await Promise.all([
+      rooms.userIDOf(maybeIdentity.value.email),
+      rooms.liveRecordingOf(recordingID),
+    ])
+    const maybeOwnRecording = Option.filter(
+      maybeRecording,
+      recording =>
+        Option.isSome(maybeUserID) &&
+        recording.ownerUserID === maybeUserID.value,
+    )
+    if (Option.isNone(maybeOwnRecording)) {
+      writeJson(response, HTTP_OK, noLiveBeat)
+    } else {
+      const { ownerUserID, liveRoomKey } = maybeOwnRecording.value
+      const sessions = await rooms.sessionsOf(liveRoomKey)
+      Option.match(
+        newestTrustedBeatOf(sessions, recordingID, ownerUserID, Date.now()),
+        {
+          onNone: () => writeJson(response, HTTP_OK, noLiveBeat),
+          onSome: beat => writeJson(response, HTTP_OK, beat),
+        },
+      )
+    }
+  }
+}
+
 const deepgramKey = (): string =>
   (
     process.env['DEEPGRAM_API_KEY'] ??
@@ -410,6 +627,7 @@ const isUnderAssociationBypass = (requestPath: string): boolean =>
 export const makeIdentityMiddleware = (
   verifier: AccessVerifier = makeEnvAccessVerifier(),
   admin: AdminAccess = makeAdminAccess(),
+  liveRooms: () => Option.Option<LiveRooms> = makeLiveRooms(admin),
 ): Middleware => {
   return (request, response, next) => {
     const requestPath = pathOf(request)
@@ -426,6 +644,10 @@ export const makeIdentityMiddleware = (
     } else if (requestPath === transcriptionTokenPath) {
       void answerTranscriptionToken(request, response, verifier).catch(
         unavailableOnFailure('TranscriptionUnavailable')(response),
+      )
+    } else if (requestPath === liveBeatPath) {
+      void answerLiveBeat(request, response, liveRooms, verifier).catch(
+        unavailableOnFailure('LiveBeatUnavailable')(response),
       )
     } else {
       next()
@@ -476,6 +698,10 @@ export const appleAppSiteAssociation = (): Plugin => {
  *   that rule once the existing-account merge is proven.
  * - `POST /__words/transcription-token` mints a 30 second Deepgram token that
  *   opens one live transcription stream; the API key never leaves the origin.
+ * - `GET /__words/live-beat?recording=<id>` reads the live room of one of the
+ *   listener's own recordings with admin rights and answers only the newest
+ *   beat of a member signed in as its owner (`newestTrustedBeatOf`), or `{}`.
+ *   The browser never sees the room's members.
  *
  * Identity comes only from a `Cf-Access-Jwt-Assertion` whose signature,
  * issuer, expiry and audience (`CF_ACCESS_AUD`) check out. A request opened on

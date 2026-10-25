@@ -75,6 +75,18 @@ export const CaptureGap = S.Struct({
 export type CaptureGap = typeof CaptureGap.Type
 
 /**
+ * One beat a recording's device published in its live room: its length, and
+ * when that was true by the device's clock. The origin hands the browser only
+ * the newest beat of a member signed in as the recording's owner.
+ */
+export const LiveBeat = S.Struct({
+  durationSeconds: S.Number,
+  beatAtMs: S.Number,
+})
+/** One beat a recording's device published in its live room. */
+export type LiveBeat = typeof LiveBeat.Type
+
+/**
  * One row of the recording list. `maybeUpdatedAtMs` is when the row last
  * changed, by the writer's clock; a recording in progress saves its length
  * with it every few seconds, or every minute once its device publishes a 5 s

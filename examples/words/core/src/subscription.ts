@@ -1,4 +1,5 @@
 import {
+  Array,
   Clock,
   Duration,
   Effect,
@@ -28,6 +29,7 @@ import {
   type Message,
   ObservedFileUrls,
   ObservedIdentity,
+  ObservedLiveBeat,
   ObservedRecording,
   ObservedRecordings,
   PressedShortcut,
@@ -35,6 +37,7 @@ import {
 } from './message.js'
 import type { Model } from './model.js'
 import { NetworkStatus } from './network.js'
+import { WordsOrigin } from './origin.js'
 import * as Questions from './questions/index.js'
 import * as Share from './share/index.js'
 import {
@@ -47,6 +50,7 @@ import {
   fileIDsOf,
   guestReaderShareIDOf,
   isCountingLiveOf,
+  liveRoomRecordingIDsOf,
   observedRecordingIDOf,
   openingWaitOf,
   shareLinkTokenOf,
@@ -56,6 +60,7 @@ import {
 const reasonOf = (error: WordsStoreError): string => storeFailureReasonOf(error)
 
 const LIVE_CLOCK_INTERVAL = Duration.seconds(1)
+const LIVE_BEAT_INTERVAL = Duration.seconds(5)
 
 /** How long a recording opens before the page says it is still loading and offers Try Again. */
 export const OPENING_PATIENCE = Duration.seconds(8)
@@ -542,12 +547,13 @@ const shareSubscriptions = Subscription.make<Model, Message, WordsStore>()(
  * The page's own inputs: keyboard shortcuts, answered only where they apply
  * (Space plays on a recording page with audio, R starts a recording where
  * New Recording shows), the wait before a slow recording says it is still
- * loading, the live clock, and the browser's network connection.
+ * loading, the live clock and the live beats it counts from, and the
+ * browser's network connection.
  */
 const pageSubscriptions = Subscription.make<
   Model,
   Message,
-  KeyboardInput | NetworkStatus
+  KeyboardInput | NetworkStatus | WordsOrigin
 >()(entry => ({
   shortcuts: entry(
     { context: ShortcutContext },
@@ -603,6 +609,39 @@ const pageSubscriptions = Subscription.make<
         ),
     },
   ),
+  liveBeats: entry(
+    { recordingIDs: S.Array(S.String) },
+    {
+      modelToDependencies: model => ({
+        recordingIDs: liveRoomRecordingIDsOf(model),
+      }),
+      dependenciesToStream: ({ recordingIDs }) =>
+        Array.isReadonlyArrayEmpty(recordingIDs)
+          ? Stream.empty
+          : Stream.unwrap(
+              WordsOrigin.pipe(
+                Effect.map(origin =>
+                  Stream.tick(LIVE_BEAT_INTERVAL).pipe(
+                    Stream.flatMap(() => Stream.fromIterable(recordingIDs)),
+                    Stream.mapEffect(recordingID =>
+                      origin.readLiveBeat(recordingID).pipe(
+                        Effect.map(maybeBeat =>
+                          Option.toArray(
+                            Option.map(maybeBeat, beat =>
+                              ObservedLiveBeat({ recordingID, beat }),
+                            ),
+                          ),
+                        ),
+                        Effect.catch(() => Effect.succeed([])),
+                      ),
+                    ),
+                    Stream.flattenIterable,
+                  ),
+                ),
+              ),
+            ),
+    },
+  ),
   connectivity: Subscription.persistent(
     Stream.unwrap(
       NetworkStatus.pipe(
@@ -616,7 +655,7 @@ const pageSubscriptions = Subscription.make<
   ),
 }))
 
-/** Every web Scribe Subscription: the Instant observations, the account recheck, the recorder, sharing, the keyboard, the live clock, and the network. */
+/** Every web Scribe Subscription: the Instant observations, the account recheck, the recorder, sharing, the keyboard, the live clock and its beats, and the network. */
 export const subscriptions = Subscription.aggregate<
   Model,
   Message,
@@ -626,6 +665,7 @@ export const subscriptions = Subscription.aggregate<
   | Capture.CaptureEnvironment
   | KeyboardInput
   | NetworkStatus
+  | WordsOrigin
 >()(
   instantSubscriptions,
   accountSubscriptions,

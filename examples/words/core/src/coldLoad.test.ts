@@ -143,6 +143,7 @@ const originFor = (check: AccessCheck) =>
         reason: 'Not used when opening links.',
       }),
     ),
+    readLiveBeat: () => Effect.succeed(Option.none()),
   })
 
 const browserWithoutSession = makeStaticWordsResources(

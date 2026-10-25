@@ -21,9 +21,11 @@ import {
   type WordsOriginService,
   accessIdentityPath,
   decodeAccessResponse,
+  decodeLiveBeatResponse,
   decodeSessionResponse,
   decodeTranscriptionTokenResponse,
   hostedSessionPath,
+  liveBeatPath,
   scribeSchema,
   sectionElementIDOf,
   transcriptionTokenPath,
@@ -106,6 +108,13 @@ export const browserOrigin: WordsOriginService = {
     'POST',
     decodeTranscriptionTokenResponse,
   ),
+  readLiveBeat: recordingID =>
+    requestOrigin(
+      'ReadLiveBeat',
+      `${liveBeatPath}?recording=${encodeURIComponent(recordingID)}`,
+      'GET',
+      decodeLiveBeatResponse,
+    ),
 }
 
 /** The origin requests as a Layer. */

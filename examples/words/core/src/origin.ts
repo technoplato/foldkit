@@ -1,6 +1,8 @@
 import { Context, Data, Effect, Match as M, Option, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
+import { type LiveBeat } from './recording.js'
+
 /** The origin path that reports who Cloudflare Access says the listener is. */
 export const accessIdentityPath = '/__words/access'
 
@@ -9,6 +11,12 @@ export const hostedSessionPath = '/__foldkit/hosted-identity/session'
 
 /** The origin path that mints a short-lived live transcription token. */
 export const transcriptionTokenPath = '/__words/transcription-token'
+
+/**
+ * The origin path that reads a recording's newest beat from its live room,
+ * like `/__words/live-beat?recording=9a8b7c6d-…`.
+ */
+export const liveBeatPath = '/__words/live-beat'
 
 /**
  * How the origin learned who the listener is: from Cloudflare Access on
@@ -102,6 +110,16 @@ export const TranscriptionToken = S.Struct({
 /** A token that opens one live transcription stream from the browser. */
 export type TranscriptionToken = typeof TranscriptionToken.Type
 
+/**
+ * The body the origin answers a live beat request with: the newest beat it
+ * trusts, or `{}` when there is none, the recording is not the listener's, or
+ * it has no live room.
+ */
+export const LiveBeatResponseBody = S.Struct({
+  durationSeconds: S.optionalKey(S.Number),
+  beatAtMs: S.optionalKey(S.Number),
+})
+
 /** The body the origin answers a refused request with. */
 export const OriginErrorBody = S.Struct({ error: S.String })
 
@@ -110,6 +128,7 @@ export type WordsOriginOperation =
   | 'CheckAccess'
   | 'MintSession'
   | 'MintTranscriptionToken'
+  | 'ReadLiveBeat'
 
 /** An origin request failed; `reason` is written for the listener. */
 export class WordsOriginError extends Data.TaggedError('WordsOriginError')<{
@@ -122,6 +141,9 @@ export type WordsOriginService = Readonly<{
   checkAccess: Effect.Effect<AccessCheck, WordsOriginError>
   mintSession: Effect.Effect<MintedSession, WordsOriginError>
   mintTranscriptionToken: Effect.Effect<TranscriptionToken, WordsOriginError>
+  readLiveBeat: (
+    recordingID: string,
+  ) => Effect.Effect<Option.Option<LiveBeat>, WordsOriginError>
 }>
 
 /** The requests web Scribe makes to its own origin, provided by the host. */
@@ -147,10 +169,18 @@ const originFailureOf = (operation: WordsOriginOperation): string =>
       'CheckAccess',
       () => 'words.pisspoursoftware.xyz could not check your account.',
     ),
-    M.when('MintSession', () => 'words.pisspoursoftware.xyz could not sign you in.'),
+    M.when(
+      'MintSession',
+      () => 'words.pisspoursoftware.xyz could not sign you in.',
+    ),
     M.when(
       'MintTranscriptionToken',
       () => 'Live transcription could not start.',
+    ),
+    M.when(
+      'ReadLiveBeat',
+      () =>
+        "words.pisspoursoftware.xyz could not read the recording device's live beat.",
     ),
     M.exhaustive,
   )
@@ -158,7 +188,10 @@ const originFailureOf = (operation: WordsOriginOperation): string =>
 const reasonForError = (operation: WordsOriginOperation, name: string) =>
   M.value(name).pipe(
     M.withReturnType<string>(),
-    M.when('MintUnavailable', () => 'words.pisspoursoftware.xyz could not reach Scribe.'),
+    M.when(
+      'MintUnavailable',
+      () => 'words.pisspoursoftware.xyz could not reach Scribe.',
+    ),
     M.when(
       'CheckUnavailable',
       () => 'words.pisspoursoftware.xyz could not reach Scribe.',
@@ -248,7 +281,8 @@ export const decodeSessionResponse = (
         Effect.fail(
           new WordsOriginError({
             operation: 'MintSession',
-            reason: 'words.pisspoursoftware.xyz answered the sign-in in a new shape.',
+            reason:
+              'words.pisspoursoftware.xyz answered the sign-in in a new shape.',
           }),
         ),
       onSome: Effect.succeed,
@@ -274,6 +308,34 @@ export const decodeTranscriptionTokenResponse = (
           }),
         ),
       onSome: Effect.succeed,
+    })
+  }
+}
+
+/** Reads the origin's answer to a live beat request: the newest beat it trusts, if any. */
+export const decodeLiveBeatResponse = (
+  status: number,
+  body: unknown,
+): Effect.Effect<Option.Option<LiveBeat>, WordsOriginError> => {
+  if (status !== HTTP_OK) {
+    return Effect.fail(failure('ReadLiveBeat', body))
+  } else {
+    return Option.match(S.decodeUnknownOption(LiveBeatResponseBody)(body), {
+      onNone: () =>
+        Effect.fail(
+          new WordsOriginError({
+            operation: 'ReadLiveBeat',
+            reason:
+              'words.pisspoursoftware.xyz answered the live beat request in a new shape.',
+          }),
+        ),
+      onSome: ({ durationSeconds, beatAtMs }) =>
+        Effect.succeed(
+          Option.all({
+            durationSeconds: Option.fromNullishOr(durationSeconds),
+            beatAtMs: Option.fromNullishOr(beatAtMs),
+          }),
+        ),
     })
   }
 }

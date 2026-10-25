@@ -121,6 +121,7 @@ import type { WordsOrigin } from './origin.js'
 import * as Questions from './questions/index.js'
 import type {
   CaptureGap,
+  LiveBeat,
   RecordingDetail,
   RecordingSummary,
   Section,
@@ -146,6 +147,7 @@ const COPY_NOTICE_DURATION = Duration.seconds(2)
 const SEARCH_URL_PAUSE = Duration.millis(400)
 const LIVE_COUNT_UP_LIMIT_SECONDS = 6
 const LIVE_ROOM_COUNT_UP_LIMIT_SECONDS = 65
+const LIVE_BEAT_COUNT_UP_LIMIT_SECONDS = 7
 const MILLISECONDS_PER_SECOND = 1_000
 const ANNOUNCEMENT_PAUSE = Duration.seconds(5)
 
@@ -483,6 +485,20 @@ const waitedMsBetween = (
     ({ waitedMs }) => waitedMs,
   )
 
+const countedUpFrom = (
+  durationSeconds: number,
+  fromMs: number,
+  nowMs: number,
+  gaps: ReadonlyArray<CaptureGap>,
+  limitSeconds: number,
+): number =>
+  durationSeconds +
+  Number_.clamp(
+    (nowMs - fromMs - waitedMsBetween(gaps, fromMs, nowMs)) /
+      MILLISECONDS_PER_SECOND,
+    { minimum: 0, maximum: limitSeconds },
+  )
+
 const countUpLimitSecondsOf = (summary: RecordingSummary): number =>
   summary.isLiveRoomSet
     ? LIVE_ROOM_COUNT_UP_LIMIT_SECONDS
@@ -531,16 +547,12 @@ export const liveDurationSecondsOf = (
         {
           onNone: () => summary.durationSeconds,
           onSome: ({ nowMs, updatedAtMs }) =>
-            summary.durationSeconds +
-            Number_.clamp(
-              (nowMs -
-                updatedAtMs -
-                waitedMsBetween(summary.captureGaps, updatedAtMs, nowMs)) /
-                MILLISECONDS_PER_SECOND,
-              {
-                minimum: 0,
-                maximum: countUpLimitSecondsOf(summary),
-              },
+            countedUpFrom(
+              summary.durationSeconds,
+              updatedAtMs,
+              nowMs,
+              summary.captureGaps,
+              countUpLimitSecondsOf(summary),
             ),
         },
       )
@@ -579,6 +591,72 @@ const countedFromSave = (
     maybeUpdatedAtMs: () =>
       Option.map(liveLengthSaveOf(saves, summary), save => save.savedAtMs),
   })
+
+/**
+ * The beat a recording's live clock counts from: the newest one the origin
+ * read from its live room, when it is no older than the length save.
+ */
+const countedBeatOf = (
+  model: Model,
+  summary: RecordingSummary,
+): Option.Option<LiveBeat> =>
+  Option.filter(Record.get(model.liveBeats, summary.id), beat =>
+    Option.match(liveLengthSaveOf(model.liveLengthSaves, summary), {
+      onNone: () => true,
+      onSome: save => beat.beatAtMs >= save.savedAtMs,
+    }),
+  )
+
+/**
+ * The length a recording in progress elsewhere shows at `maybeNowMs`: counted
+ * from its device's newest beat, at most 7 s past it, when that beat is newer
+ * than the length save; else from the save (`liveDurationSecondsOf`). Either
+ * way a capture gap since holds it.
+ *
+ * @example
+ * ```ts
+ * // saved 0:60 at 1_000; the origin read a beat of 0:90 at 31_000
+ * liveLengthOf(model, summary, Option.some(34_000))
+ * // 93
+ * ```
+ */
+const liveLengthOf = (
+  model: Model,
+  summary: RecordingSummary,
+  maybeNowMs: Option.Option<number>,
+): number =>
+  Option.match(
+    Option.all({ beat: countedBeatOf(model, summary), nowMs: maybeNowMs }),
+    {
+      onNone: () =>
+        liveDurationSecondsOf(
+          countedFromSave(model.liveLengthSaves, summary),
+          maybeNowMs,
+        ),
+      onSome: ({ beat, nowMs }) =>
+        countedUpFrom(
+          beat.durationSeconds,
+          beat.beatAtMs,
+          nowMs,
+          summary.captureGaps,
+          LIVE_BEAT_COUNT_UP_LIMIT_SECONDS,
+        ),
+    },
+  )
+
+/**
+ * The recordings in progress elsewhere, on screen, whose device publishes a
+ * beat in a live room, sorted: the ones whose newest beat the page asks the
+ * origin for.
+ */
+export const liveRoomRecordingIDsOf = (model: Model): ReadonlyArray<string> =>
+  pipe(
+    countedLiveSummariesOf(model),
+    Array.filter(summary => summary.isLiveRoomSet),
+    Array.map(summary => summary.id),
+    Array.dedupe,
+    Array.sort(Order.String),
+  )
 
 /** The save each counted recording's clock counts from. Recordings no longer counted drop out. */
 const liveLengthSavesOf = (
@@ -652,10 +730,7 @@ export const displayedLengthOf = (
           Record.get(model.liveLengthFloors, summary.id),
           () => 0,
         ),
-        liveDurationSecondsOf(
-          countedFromSave(model.liveLengthSaves, summary),
-          model.maybeLiveClockMs,
-        ),
+        liveLengthOf(model, summary, model.maybeLiveClockMs),
       )
     : summary.durationSeconds
 
@@ -680,10 +755,7 @@ const liveLengthFloorsAt = (
             Record.get(model.liveLengthFloors, summary.id),
             () => 0,
           ),
-          liveDurationSecondsOf(
-            countedFromSave(model.liveLengthSaves, summary),
-            Option.some(nowMs),
-          ),
+          liveLengthOf(model, summary, Option.some(nowMs)),
         ),
       ),
   )
@@ -1328,6 +1400,7 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       resumePositions: {},
       maybeLiveClockMs: Option.none(),
       liveLengthSaves: {},
+      liveBeats: {},
       liveLengthFloors: {},
       recordingAttempt: 0,
       maybeCopyNotice: Option.none(),
@@ -2478,8 +2551,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           : [model, []],
       CompletedReplaceUrl: () => [model, []],
       TickedLiveClock: ({ nowMs }) => {
+        const liveRoomRecordingIDs = liveRoomRecordingIDsOf(model)
         const counted = evo(model, {
           liveLengthSaves: () => liveLengthSavesOf(model),
+          liveBeats: () =>
+            Record.filter(model.liveBeats, (_beat, recordingID) =>
+              Array.contains(liveRoomRecordingIDs, recordingID),
+            ),
         })
         return [
           evo(counted, {
@@ -2488,6 +2566,24 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           }),
           [],
         ]
+      },
+      ObservedLiveBeat: ({ recordingID, beat }) => {
+        const isNewer =
+          Array.contains(liveRoomRecordingIDsOf(model), recordingID) &&
+          Option.match(Record.get(model.liveBeats, recordingID), {
+            onNone: () => true,
+            onSome: last => beat.beatAtMs > last.beatAtMs,
+          })
+        if (isNewer) {
+          return [
+            evo(model, {
+              liveBeats: () => Record.set(model.liveBeats, recordingID, beat),
+            }),
+            [],
+          ]
+        } else {
+          return [model, []]
+        }
       },
       CompletedFocusSearch: () => [model, []],
       ApproachedListEdge: ({ edge, window }) =>
