@@ -10,6 +10,7 @@ import {
 
 import {
   type Activity,
+  type CaptureGap,
   type ClipboardEntry,
   type ImageEntry,
   NoAudio,
@@ -70,6 +71,15 @@ const SpeakerRow = S.Struct({
   ),
 })
 
+const CaptureGapRow = S.Struct({
+  startedAtMs: S.Number,
+  endedAtMs: OptionalNumber,
+})
+
+const CaptureGapRows = S.fromJsonString(S.Array(S.Unknown))
+
+const decodeCaptureGapRow = S.decodeUnknownOption(CaptureGapRow)
+
 const ClipboardRow = S.Struct({
   id: S.String,
   timestamp: S.Number,
@@ -93,6 +103,8 @@ const RecordingRow = S.Struct({
   ownerUserID: OptionalString,
   activityKind: OptionalString,
   deviceIcon: OptionalString,
+  liveRoomKey: OptionalString,
+  captureGapsJSON: OptionalString,
   speakers: OptionalRows,
   clipboardEntries: OptionalRows,
   previewSegmentA: OptionalRows,
@@ -171,6 +183,26 @@ const activityOf = (activityKind: string | null | undefined): Activity =>
     M.when('active', () => 'Recording'),
     M.when('playback', () => 'Playing'),
     M.orElse(() => 'Idle'),
+  )
+
+const captureGapsOf = (
+  captureGapsJSON: string | null | undefined,
+): ReadonlyArray<CaptureGap> =>
+  pipe(
+    Option.fromNullishOr(captureGapsJSON),
+    Option.flatMap(S.decodeUnknownOption(CaptureGapRows)),
+    Option.map(rows =>
+      pipe(
+        rows,
+        Array.map(row => decodeCaptureGapRow(row)),
+        Array.getSomes,
+        Array.map(gap => ({
+          startedAtMs: gap.startedAtMs,
+          maybeEndedAtMs: Option.fromNullishOr(gap.endedAtMs),
+        })),
+      ),
+    ),
+    Option.getOrElse(() => []),
   )
 
 const wordsOf = (
@@ -289,6 +321,8 @@ const summaryOf = (row: RecordingRow): RecordingSummary => ({
   activity: activityOf(row.activityKind),
   maybeDeviceIcon: presentString(row.deviceIcon),
   previewLines: previewLinesOf(row),
+  isLiveRoomSet: Option.isSome(presentString(row.liveRoomKey)),
+  captureGaps: captureGapsOf(row.captureGapsJSON),
 })
 
 const audioOf = (

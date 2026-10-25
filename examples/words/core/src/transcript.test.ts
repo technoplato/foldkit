@@ -188,7 +188,12 @@ describe('what the live clock reads from a row', () => {
         liveRoomKey: '7f0e1c2d-3b4a-4c5d-8e6f-7a8b9c0d1e2f',
         captureGapsJSON,
       },
-      { ...recordingRow, id: 'unreadable', startedAtMs: 0, captureGapsJSON: '{' },
+      {
+        ...recordingRow,
+        id: 'unreadable',
+        startedAtMs: 0,
+        captureGapsJSON: '{',
+      },
     ])
     expect(
       decoded.recordings.map(recording => [

@@ -97,6 +97,7 @@ import {
   CopyNotice,
   FailedPlayback,
   FailedRecordings,
+  type LiveLengthSave,
   LoadedRecordings,
   LoadingRecordings,
   MissingRecording,
@@ -118,7 +119,12 @@ import {
 } from './model.js'
 import type { WordsOrigin } from './origin.js'
 import * as Questions from './questions/index.js'
-import type { RecordingDetail, RecordingSummary, Section } from './recording.js'
+import type {
+  CaptureGap,
+  RecordingDetail,
+  RecordingSummary,
+  Section,
+} from './recording.js'
 import { SectionPlacement, TranscriptScroller } from './scroller.js'
 import { SEARCH_FIELD_ID, searchTermsOf } from './search.js'
 import * as Share from './share/index.js'
@@ -139,6 +145,7 @@ const FOCUS_HIGHLIGHT_DURATION = Duration.seconds(4)
 const COPY_NOTICE_DURATION = Duration.seconds(2)
 const SEARCH_URL_PAUSE = Duration.millis(400)
 const LIVE_COUNT_UP_LIMIT_SECONDS = 6
+const LIVE_ROOM_COUNT_UP_LIMIT_SECONDS = 65
 const MILLISECONDS_PER_SECOND = 1_000
 const ANNOUNCEMENT_PAUSE = Duration.seconds(5)
 
@@ -438,12 +445,57 @@ export const ClearFocusHighlightLater = Command.define(
 export const isLiveRecording = (ready: ReadyPlayback): boolean =>
   ready.detail.summary.activity === 'Recording'
 
+type Stretch = Readonly<{ startMs: number; endMs: number }>
+
+const byStretchStart = Order.mapInput(
+  Order.Number,
+  (stretch: Stretch) => stretch.startMs,
+)
+
+const waitedMsBetween = (
+  gaps: ReadonlyArray<CaptureGap>,
+  fromMs: number,
+  toMs: number,
+): number =>
+  pipe(
+    gaps,
+    Array.map(gap => ({
+      startMs: Math.max(gap.startedAtMs, fromMs),
+      endMs: Math.min(
+        Option.getOrElse(gap.maybeEndedAtMs, () => toMs),
+        toMs,
+      ),
+    })),
+    Array.filter(stretch => stretch.endMs > stretch.startMs),
+    Array.sort(byStretchStart),
+    Array.reduce(
+      { waitedMs: 0, coveredThroughMs: fromMs },
+      ({ waitedMs, coveredThroughMs }, stretch) => ({
+        waitedMs:
+          waitedMs +
+          Math.max(
+            0,
+            stretch.endMs - Math.max(stretch.startMs, coveredThroughMs),
+          ),
+        coveredThroughMs: Math.max(coveredThroughMs, stretch.endMs),
+      }),
+    ),
+    ({ waitedMs }) => waitedMs,
+  )
+
+const countUpLimitSecondsOf = (summary: RecordingSummary): number =>
+  summary.isLiveRoomSet
+    ? LIVE_ROOM_COUNT_UP_LIMIT_SECONDS
+    : LIVE_COUNT_UP_LIMIT_SECONDS
+
 /**
  * The length to show for a recording. One in progress on another device
- * shows its last saved length plus the time since that save, at most a few
- * seconds more, so it counts up each second between saves (its writer saves
- * every few seconds, the web every 5) and stops soon after saves stop, as
- * when that recording pauses. Others show their saved length.
+ * shows its last saved length plus the time its clock ran since that save:
+ * the time since, less any stretch it waited (`captureGaps`), so an open gap,
+ * as when it pauses, holds it and a closed one is skipped. It counts at most a
+ * few seconds past the save (its writer saves every 5), or 65 seconds while
+ * its device publishes a beat in a live room (that writer saves every
+ * minute), so it stops soon after saves stop. Others show their saved length.
  *
  * @example
  * ```ts
@@ -452,6 +504,18 @@ export const isLiveRecording = (ready: ReadyPlayback): boolean =>
  *   Option.some(4_000),
  * )
  * // 63
+ * liveDurationSecondsOf(
+ *   {
+ *     ...summary,
+ *     activity: 'Recording',
+ *     durationSeconds: 60,
+ *     maybeUpdatedAtMs: Option.some(1_000),
+ *     isLiveRoomSet: true,
+ *     captureGaps: [{ startedAtMs: 11_000, maybeEndedAtMs: Option.none() }],
+ *   },
+ *   Option.some(41_000),
+ * )
+ * // 70: paused 10 s after the save
  * ```
  */
 export const liveDurationSecondsOf = (
@@ -468,13 +532,67 @@ export const liveDurationSecondsOf = (
           onNone: () => summary.durationSeconds,
           onSome: ({ nowMs, updatedAtMs }) =>
             summary.durationSeconds +
-            Number_.clamp((nowMs - updatedAtMs) / MILLISECONDS_PER_SECOND, {
-              minimum: 0,
-              maximum: LIVE_COUNT_UP_LIMIT_SECONDS,
-            }),
+            Number_.clamp(
+              (nowMs -
+                updatedAtMs -
+                waitedMsBetween(summary.captureGaps, updatedAtMs, nowMs)) /
+                MILLISECONDS_PER_SECOND,
+              {
+                minimum: 0,
+                maximum: countUpLimitSecondsOf(summary),
+              },
+            ),
         },
       )
     : summary.durationSeconds
+
+/**
+ * The save a recording's live clock counts from: the one it remembers while
+ * the recording keeps that length, else the recording's newest. A save that
+ * moves the save time but not the length, as a rename or an image does, is no
+ * new reading of the clock.
+ */
+const liveLengthSaveOf = (
+  saves: Readonly<Record<string, LiveLengthSave>>,
+  summary: RecordingSummary,
+): Option.Option<LiveLengthSave> =>
+  Option.map(summary.maybeUpdatedAtMs, updatedAtMs =>
+    Option.getOrElse(
+      Option.filter(
+        Record.get(saves, summary.id),
+        save =>
+          save.durationSeconds === summary.durationSeconds &&
+          save.savedAtMs <= updatedAtMs,
+      ),
+      () => ({
+        durationSeconds: summary.durationSeconds,
+        savedAtMs: updatedAtMs,
+      }),
+    ),
+  )
+
+const countedFromSave = (
+  saves: Readonly<Record<string, LiveLengthSave>>,
+  summary: RecordingSummary,
+): RecordingSummary =>
+  evo(summary, {
+    maybeUpdatedAtMs: () =>
+      Option.map(liveLengthSaveOf(saves, summary), save => save.savedAtMs),
+  })
+
+/** The save each counted recording's clock counts from. Recordings no longer counted drop out. */
+const liveLengthSavesOf = (
+  model: Model,
+): Readonly<Record<string, LiveLengthSave>> =>
+  Array.reduce(
+    countedLiveSummariesOf(model),
+    Record.empty<string, LiveLengthSave>(),
+    (saves, summary) =>
+      Option.match(liveLengthSaveOf(model.liveLengthSaves, summary), {
+        onNone: () => saves,
+        onSome: save => Record.set(saves, summary.id, save),
+      }),
+  )
 
 /**
  * Whether a recording in progress on another device is on screen: a list row
@@ -534,7 +652,10 @@ export const displayedLengthOf = (
           Record.get(model.liveLengthFloors, summary.id),
           () => 0,
         ),
-        liveDurationSecondsOf(summary, model.maybeLiveClockMs),
+        liveDurationSecondsOf(
+          countedFromSave(model.liveLengthSaves, summary),
+          model.maybeLiveClockMs,
+        ),
       )
     : summary.durationSeconds
 
@@ -559,7 +680,10 @@ const liveLengthFloorsAt = (
             Record.get(model.liveLengthFloors, summary.id),
             () => 0,
           ),
-          liveDurationSecondsOf(summary, Option.some(nowMs)),
+          liveDurationSecondsOf(
+            countedFromSave(model.liveLengthSaves, summary),
+            Option.some(nowMs),
+          ),
         ),
       ),
   )
@@ -1203,6 +1327,7 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       maybeBackgroundPlayback: Option.none(),
       resumePositions: {},
       maybeLiveClockMs: Option.none(),
+      liveLengthSaves: {},
       liveLengthFloors: {},
       recordingAttempt: 0,
       maybeCopyNotice: Option.none(),
@@ -2352,13 +2477,18 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             })
           : [model, []],
       CompletedReplaceUrl: () => [model, []],
-      TickedLiveClock: ({ nowMs }) => [
-        evo(model, {
-          maybeLiveClockMs: () => Option.some(nowMs),
-          liveLengthFloors: () => liveLengthFloorsAt(model, nowMs),
-        }),
-        [],
-      ],
+      TickedLiveClock: ({ nowMs }) => {
+        const counted = evo(model, {
+          liveLengthSaves: () => liveLengthSavesOf(model),
+        })
+        return [
+          evo(counted, {
+            maybeLiveClockMs: () => Option.some(nowMs),
+            liveLengthFloors: () => liveLengthFloorsAt(counted, nowMs),
+          }),
+          [],
+        ]
+      },
       CompletedFocusSearch: () => [model, []],
       ApproachedListEdge: ({ edge, window }) =>
         Option.match(windowForApproachOf(model, edge, window), {

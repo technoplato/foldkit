@@ -1342,9 +1342,9 @@ describe('the live clock', () => {
         gap(savedAtMs + 20_000, Option.some(savedAtMs + 40_000)),
       ],
     }
-    expect(liveDurationSecondsOf(resumed, Option.some(savedAtMs + 50_000))).toBe(
-      80,
-    )
+    expect(
+      liveDurationSecondsOf(resumed, Option.some(savedAtMs + 50_000)),
+    ).toBe(80)
   })
 
   it('stops at the saved length once the recording stops', () => {
@@ -1465,8 +1465,9 @@ describe('the live length of a recording in progress elsewhere', () => {
     ]).model
     expect(listedLengthOf(counted)).toBe(23)
 
-    const imageSaved = run(counted, [listed(liveAt(20, savedAtMs + 3_000))])
-      .model
+    const imageSaved = run(counted, [
+      listed(liveAt(20, savedAtMs + 3_000)),
+    ]).model
     expect(listedLengthOf(imageSaved)).toBe(23)
 
     const oneSecondLater = run(imageSaved, [
@@ -1536,7 +1537,7 @@ describe('the live length of a recording in progress elsewhere', () => {
       TickedLiveClock({ nowMs: savedAtMs + 4_000 }),
     ]).model
     expect(displayedLengthOf(openLive, readyOf(openLive).detail.summary)).toBe(
-      23,
+      24,
     )
   })
 

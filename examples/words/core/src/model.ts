@@ -226,6 +226,17 @@ export const CopyNotice = S.Struct({
 export type CopyNotice = typeof CopyNotice.Type
 
 /**
+ * A save of a recording in progress elsewhere that its live clock counts
+ * from: its length, and when it was saved by the writer's clock.
+ */
+export const LiveLengthSave = S.Struct({
+  durationSeconds: S.Number,
+  savedAtMs: S.Number,
+})
+/** A save a live clock counts from. */
+export type LiveLengthSave = typeof LiveLengthSave.Type
+
+/**
  * The web Scribe Model. `resumePositions` holds, per recording, where the
  * listener left it part way through in this tab, so opening it again resumes
  * there. `maybeBackgroundPlayback` is a recording whose audio keeps playing
@@ -234,9 +245,11 @@ export type CopyNotice = typeof CopyNotice.Type
  * live chip; opening another recording replaces it. `maybeLiveClockMs` is the
  * browser's clock, ticking each second while a recording in progress on
  * another device is on screen, so its length counts up between saves;
+ * `liveLengthSaves` holds, per such recording, the save its clock counts
+ * from: the first save of its current length, so a later save that moves the
+ * save time but not the length (a rename, an image) never holds it back.
  * `liveLengthFloors` holds, per such recording, the longest length shown so
- * far, so a save that moves the save time but not the length never makes it
- * run backward. `recordingAttempt` counts Try Again presses; each one asks
+ * far, so a save that comes in behind the clock never makes it run backward. `recordingAttempt` counts Try Again presses; each one asks
  * Scribe for the open recording again. `recordingWindow` is the run of list
  * pages the list observes; it moves as the listener scrolls near an edge of
  * the loaded rows. `maybeFocusedRowID` is the recording row that holds
@@ -256,6 +269,7 @@ export const Model = S.Struct({
   maybeBackgroundPlayback: S.Option(ReadyPlayback),
   resumePositions: S.Record(S.String, S.Number),
   maybeLiveClockMs: S.Option(S.Number),
+  liveLengthSaves: S.Record(S.String, LiveLengthSave),
   liveLengthFloors: S.Record(S.String, S.Number),
   recordingAttempt: S.Number,
   maybeCopyNotice: S.Option(CopyNotice),

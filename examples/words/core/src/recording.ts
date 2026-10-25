@@ -63,11 +63,26 @@ export const PreviewLine = S.Struct({
 export type PreviewLine = typeof PreviewLine.Type
 
 /**
+ * A stretch the recording's clock waited (a pause, a microphone outage, a
+ * capture restart, the app closed), by the writer's wall clock. One still
+ * open has no end: the recording is paused, or its microphone is away.
+ */
+export const CaptureGap = S.Struct({
+  startedAtMs: S.Number,
+  maybeEndedAtMs: S.Option(S.Number),
+})
+/** A stretch the recording's clock waited. */
+export type CaptureGap = typeof CaptureGap.Type
+
+/**
  * One row of the recording list. `maybeUpdatedAtMs` is when the row last
  * changed, by the writer's clock; a recording in progress saves its length
- * with it every few seconds. `maybeOwnerUserID` is the account that owns it;
- * a recording someone else shared with this account has another owner, and
- * rows written before owners were stamped have none.
+ * with it every few seconds, or every minute once its device publishes a 5 s
+ * beat in a live room (`isLiveRoomSet`). `captureGaps` are the stretches its
+ * clock waited; the writer saves one the moment it opens or closes.
+ * `maybeOwnerUserID` is the account that owns it; a recording someone else
+ * shared with this account has another owner, and rows written before owners
+ * were stamped have none.
  */
 export const RecordingSummary = S.Struct({
   id: S.String,
@@ -79,6 +94,8 @@ export const RecordingSummary = S.Struct({
   activity: Activity,
   maybeDeviceIcon: S.Option(S.String),
   previewLines: S.Array(PreviewLine),
+  isLiveRoomSet: S.Boolean,
+  captureGaps: S.Array(CaptureGap),
 })
 /** One row of the recording list. */
 export type RecordingSummary = typeof RecordingSummary.Type
