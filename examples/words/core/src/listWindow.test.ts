@@ -57,6 +57,8 @@ const recordingAt =
     activity: 'Idle',
     maybeDeviceIcon: Option.none(),
     previewLines: [],
+    isLiveRoomSet: false,
+    captureGaps: [],
   })
 
 const listOf = (total: number): ReadonlyArray<RecordingSummary> =>

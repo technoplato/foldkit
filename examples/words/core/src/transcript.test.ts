@@ -168,6 +168,48 @@ describe('decodeRecordingList', () => {
   })
 })
 
+describe('what the live clock reads from a row', () => {
+  it('reads whether the recording device publishes its beat in a live room, and the stretches its clock waited', () => {
+    const captureGapsJSON = JSON.stringify([
+      {
+        cause: 'paused',
+        endedAtMs: 2_500,
+        id: 'gap-a',
+        offsetSeconds: 1,
+        startedAtMs: 2_000,
+      },
+      { cause: 'paused', id: 'gap-b', offsetSeconds: 3, startedAtMs: 4_000 },
+    ])
+    const decoded = decodeRecordingList([
+      {
+        ...recordingRow,
+        id: 'live',
+        startedAtMs: 1,
+        liveRoomKey: '7f0e1c2d-3b4a-4c5d-8e6f-7a8b9c0d1e2f',
+        captureGapsJSON,
+      },
+      { ...recordingRow, id: 'unreadable', startedAtMs: 0, captureGapsJSON: '{' },
+    ])
+    expect(
+      decoded.recordings.map(recording => [
+        recording.id,
+        recording.isLiveRoomSet,
+        recording.captureGaps,
+      ]),
+    ).toEqual([
+      [
+        'live',
+        true,
+        [
+          { startedAtMs: 2_000, maybeEndedAtMs: Option.some(2_500) },
+          { startedAtMs: 4_000, maybeEndedAtMs: Option.none() },
+        ],
+      ],
+      ['unreadable', false, []],
+    ])
+  })
+})
+
 describe('the recording owner', () => {
   it('reads who owns each recording, so one shared by someone else can be told apart', () => {
     const decoded = decodeRecordingList([

@@ -107,6 +107,8 @@ const detail: RecordingDetail = {
     activity: 'Idle',
     maybeDeviceIcon: Option.none(),
     previewLines: [],
+    isLiveRoomSet: false,
+    captureGaps: [],
   },
   sections: [firstSection, linkedSection, lastSection],
   speakers: [],

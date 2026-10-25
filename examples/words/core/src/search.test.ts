@@ -24,6 +24,8 @@ const recording = (
   maybeOwnerUserID: Option.none(),
   activity: 'Idle',
   maybeDeviceIcon: Option.none(),
+  isLiveRoomSet: false,
+  captureGaps: [],
   previewLines: lines.map((text, index) => ({
     sectionID: `${id}-section-${index}`,
     startSeconds: index * LINE_SPACING_SECONDS,

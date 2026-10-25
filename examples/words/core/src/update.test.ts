@@ -137,6 +137,8 @@ const detail = (overrides: Partial<RecordingDetail> = {}): RecordingDetail => ({
     activity: 'Idle',
     maybeDeviceIcon: Option.none(),
     previewLines: [],
+    isLiveRoomSet: false,
+    captureGaps: [],
   },
   sections: [sectionA, sectionB],
   speakers: [],
@@ -1297,6 +1299,63 @@ describe('the live clock', () => {
     ).toBe(60)
   })
 
+  const roomed: RecordingSummary = { ...live, isLiveRoomSet: true }
+  const gap = (startedAtMs: number, maybeEndedAtMs: Option.Option<number>) => ({
+    startedAtMs,
+    maybeEndedAtMs,
+  })
+
+  it('counts up to 65 s past the last save while the recording device publishes its beat in a live room', () => {
+    expect(liveDurationSecondsOf(roomed, Option.some(savedAtMs + 30_000))).toBe(
+      90,
+    )
+    expect(liveDurationSecondsOf(roomed, Option.some(savedAtMs + 64_000))).toBe(
+      124,
+    )
+    expect(liveDurationSecondsOf(roomed, Option.some(savedAtMs + 90_000))).toBe(
+      125,
+    )
+    expect(liveDurationSecondsOf(live, Option.some(savedAtMs + 30_000))).toBe(
+      66,
+    )
+  })
+
+  it('holds while a capture gap is open, as when the recording pauses', () => {
+    const paused: RecordingSummary = {
+      ...roomed,
+      captureGaps: [gap(savedAtMs + 10_000, Option.none())],
+    }
+    expect(liveDurationSecondsOf(paused, Option.some(savedAtMs + 10_000))).toBe(
+      70,
+    )
+    expect(liveDurationSecondsOf(paused, Option.some(savedAtMs + 40_000))).toBe(
+      70,
+    )
+  })
+
+  it('counts on from a resume without the time the clock waited', () => {
+    const resumed: RecordingSummary = {
+      ...roomed,
+      captureGaps: [
+        gap(savedAtMs - 50_000, Option.some(savedAtMs - 40_000)),
+        gap(savedAtMs + 10_000, Option.some(savedAtMs + 30_000)),
+        gap(savedAtMs + 20_000, Option.some(savedAtMs + 40_000)),
+      ],
+    }
+    expect(liveDurationSecondsOf(resumed, Option.some(savedAtMs + 50_000))).toBe(
+      80,
+    )
+  })
+
+  it('stops at the saved length once the recording stops', () => {
+    expect(
+      liveDurationSecondsOf(
+        { ...roomed, activity: 'Idle' },
+        Option.some(savedAtMs + 30_000),
+      ),
+    ).toBe(60)
+  })
+
   it('ticks only while a recording in progress on another device is on screen', () => {
     const listOf = (summary: RecordingSummary) =>
       run(opened(RecordingListRoute()), [
@@ -1399,33 +1458,74 @@ describe('the live length of a recording in progress elsewhere', () => {
     return displayedLengthOf(model, summary)
   }
 
-  it('holds what it showed when a section save moves the save time but not the length', () => {
+  it('keeps counting from the length save when a later save moves the save time but not the length', () => {
     const counted = run(opened(RecordingListRoute()), [
       listed(liveAt(20, savedAtMs)),
       TickedLiveClock({ nowMs: savedAtMs + 3_000 }),
     ]).model
     expect(listedLengthOf(counted)).toBe(23)
 
-    const sectionSaved = run(counted, [
-      listed(liveAt(20, savedAtMs + 3_000)),
-    ]).model
-    expect(listedLengthOf(sectionSaved)).toBe(23)
+    const imageSaved = run(counted, [listed(liveAt(20, savedAtMs + 3_000))])
+      .model
+    expect(listedLengthOf(imageSaved)).toBe(23)
 
-    const oneSecondLater = run(sectionSaved, [
+    const oneSecondLater = run(imageSaved, [
       TickedLiveClock({ nowMs: savedAtMs + 4_000 }),
     ]).model
-    expect(listedLengthOf(oneSecondLater)).toBe(23)
+    expect(listedLengthOf(oneSecondLater)).toBe(24)
 
-    const caughtUp = run(oneSecondLater, [
-      TickedLiveClock({ nowMs: savedAtMs + 7_000 }),
-    ]).model
-    expect(listedLengthOf(caughtUp)).toBe(24)
-
-    const lengthSaved = run(caughtUp, [
-      listed(liveAt(25, savedAtMs + 7_500)),
+    const lengthSaved = run(oneSecondLater, [
+      listed(liveAt(27.5, savedAtMs + 7_500)),
       TickedLiveClock({ nowMs: savedAtMs + 8_000 }),
     ]).model
-    expect(listedLengthOf(lengthSaved)).toBe(25.5)
+    expect(listedLengthOf(lengthSaved)).toBe(28)
+  })
+
+  it('holds what it showed when a save comes in behind it', () => {
+    const counted = run(opened(RecordingListRoute()), [
+      listed(liveAt(20, savedAtMs)),
+      TickedLiveClock({ nowMs: savedAtMs + 3_000 }),
+    ]).model
+    const behind = run(counted, [
+      listed(liveAt(21, savedAtMs + 3_000)),
+      TickedLiveClock({ nowMs: savedAtMs + 3_500 }),
+    ]).model
+    expect(listedLengthOf(behind)).toBe(23)
+  })
+
+  it('counts from the resume after a pause written once a minute', () => {
+    const roomedAt = (
+      durationSeconds: number,
+      updatedAtMs: number,
+      captureGaps: RecordingSummary['captureGaps'],
+    ): RecordingSummary => ({
+      ...liveAt(durationSeconds, updatedAtMs),
+      isLiveRoomSet: true,
+      captureGaps,
+    })
+    const pauseStartedAtMs = savedAtMs + 30_000
+    const resumedAtMs = savedAtMs + 90_000
+    const pausedGap = {
+      startedAtMs: pauseStartedAtMs,
+      maybeEndedAtMs: Option.none(),
+    }
+    const closedGap = {
+      startedAtMs: pauseStartedAtMs,
+      maybeEndedAtMs: Option.some(resumedAtMs),
+    }
+    const paused = run(opened(RecordingListRoute()), [
+      listed(roomedAt(20, savedAtMs, [])),
+      TickedLiveClock({ nowMs: savedAtMs + 20_000 }),
+      listed(roomedAt(50, pauseStartedAtMs, [pausedGap])),
+      TickedLiveClock({ nowMs: savedAtMs + 60_000 }),
+    ]).model
+    expect(listedLengthOf(paused)).toBe(50)
+
+    const resumed = run(paused, [
+      listed(roomedAt(50, resumedAtMs, [closedGap])),
+      TickedLiveClock({ nowMs: resumedAtMs + 10_000 }),
+    ]).model
+    expect(listedLengthOf(resumed)).toBe(60)
   })
 
   it('counts the open recording the same way, in its live bar', () => {
