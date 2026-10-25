@@ -4,6 +4,58 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 25th, 2026 at 11:46:46 a.m. EDT — `b8d66151e865` feat(words): green: the questions page reads 2,000 and says when it is full
+
+- **Implementation commit:** `b8d66151e865574dd88352306c54414edebd9a21`
+- **Change:** The questions page reads his newest 2,000 questions (was 500) and says when the limit cut the list (red 534ceab99; Scribe #1176).
+- **Issues:** [#1176](https://issues.knophy.com/issues/1176)
+- **Details:**
+  - Scribe's backfill keeps about 600 questions; 2,000 made-up questions with answers and topics read in 2.2 s (median of 5, 2.8 s at most) on the throwaway app and search in 2 ms.
+  - Verified: words core 238/238, web 26/26, core and web tsc, prettier.
+- **Files:**
+  - `examples/words/core/src/questions/decode.ts` — decodeQuestions(rows, limit) reports isLimitReached
+  - `examples/words/core/src/store.ts` — QUESTION_LIMIT 2000
+  - `examples/words/foldkit/src/view/questions.ts` — the limit notice
+- **User context (verbatim):**
+  > want to be able to look at that.
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/qa-1176@ld); no SpecStory URI was captured
+
+## October 25th, 2026 at 11:46:46 a.m. EDT — `428970f20c00` feat(words): a Questions page lists Michael's questions with their answers
+
+- **Implementation commit:** `428970f20c005cadfe2f06466cb6a5547804f924`
+- **Change:** A Questions page lists Michael's questions with their answers, his words linked to their lines, each answer linked to its thread (Scribe #1176, ADR 0095).
+- **Issues:** [#1176](https://issues.knophy.com/issues/1176)
+- **Details:**
+  - Route /questions?q=; search over his words, the answers and the topics; All / To Learn / Open filters with counts; topic chips search by topic; unreadable rows counted aloud.
+  - Verified: words core and web tests, Scene tests for the page, core and web tsc.
+- **Files:**
+  - `examples/words/core/src/questions/model.ts` — the questions Submodel: questions, stretches, answers, filters, search
+  - `examples/words/core/src/questions/decode.ts` — reads question rows, counts unreadable ones
+  - `examples/words/core/src/questions/update.ts` — folds observed questions, search and filter
+  - `examples/words/core/src/link.ts` — the Questions route with q
+  - `examples/words/core/src/store.ts` — observeQuestions
+  - `examples/words/core/src/subscription.ts` — observes questions while the page is open and signed in
+  - `examples/words/foldkit/src/view/questions.ts` — the page
+  - `examples/words/foldkit/src/view/shell.ts` — the question-mark link
+- **User context (verbatim):**
+  > Create a Q&A document where if I ask a question in any recording, you just record it down.
+  > want to be able to look at that.
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/qa-1176@ld); no SpecStory URI was captured
+
+## October 25th, 2026 at 11:46:35 a.m. EDT — `0c0aae5c1ec2` chore(words): sync Scribe's schema at 479d6324 (questions and answers)
+
+- **Implementation commit:** `0c0aae5c1ec2ed7f2d5699aa003d2867057ed600`
+- **Change:** Words reads Scribe's questions and answers: the schema synced at Scribe 479d6324 (Scribe #1176, ADR 0095).
+- **Issues:** [#1176](https://issues.knophy.com/issues/1176)
+- **Details:**
+  - core/src/scribeSchema.ts and its .source.json carry questions, questionAnswers and the widened sourceMoments (134 entities).
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — Scribe's schema with questions and answers
+  - `examples/words/core/src/scribeSchema.source.json` — where it came from
+- **User context (verbatim):**
+  > Create a Q&A document where if I ask a question in any recording, you just record it down.
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/qa-1176@ld); no SpecStory URI was captured
+
 ## October 17th, 2026 at 2:40 a.m. EDT — `3da9ed751` fix(words): the share page says who a share reaches
 
 - **Implementation commit:** `3da9ed751` (red `f7a01c162`)
