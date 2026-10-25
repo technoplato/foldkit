@@ -11,6 +11,7 @@ import { ScribeAppScheme } from './link.js'
 import { ListEdge, RecordingWindow } from './listWindow.js'
 import { CopyNotice, IdentityState, PlayheadVisibility } from './model.js'
 import { Connectivity } from './network.js'
+import * as Questions from './questions/message.js'
 import { RecordingDetail, RecordingSummary } from './recording.js'
 import * as Share from './share/message.js'
 import { TranscriptFormat } from './transcript.js'
@@ -286,6 +287,10 @@ export const GotCaptureMessage = m('GotCaptureMessage', {
 export const GotShareMessage = m('GotShareMessage', {
   message: Share.Message,
 })
+/** The questions Submodel handled a Message. */
+export const GotQuestionsMessage = m('GotQuestionsMessage', {
+  message: Questions.Message,
+})
 
 /** Every web Scribe Message. */
 export const Message = S.Union([
@@ -370,6 +375,7 @@ export const Message = S.Union([
   GotAccountMessage,
   GotCaptureMessage,
   GotShareMessage,
+  GotQuestionsMessage,
 ])
 /** Every web Scribe Message. */
 export type Message = typeof Message.Type

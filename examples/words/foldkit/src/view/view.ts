@@ -31,6 +31,7 @@ import {
   recordingPage,
   returnPill,
 } from './playback.js'
+import { questionsPage } from './questions.js'
 import { shareSheet, sharedRangePage } from './share.js'
 import { type ViewConfig, largeTitle, toast, topBar } from './shell.js'
 import { button } from './ui.js'
@@ -60,6 +61,7 @@ const titleOf = (model: Model): string =>
   M.value(model.route).pipe(
     M.withReturnType<string>(),
     M.tag('Account', () => 'Settings | Scribe'),
+    M.tag('Questions', () => 'Questions | Scribe'),
     M.tag('NewRecording', () => 'New Recording | Scribe'),
     M.tag('SearchRecordings', () => 'Search | Scribe'),
     M.tag('Share', () =>
@@ -137,6 +139,7 @@ const content = (model: Model, config: ViewConfig): Html =>
     M.tagsExhaustive({
       RecordingList: () => recordingList(model, config, isSplitOf(model)),
       Account: () => accountPage(model),
+      Questions: () => questionsPage(model),
       NewRecording: () => newRecordingPage(model),
       Share: () => sharedRangePage(model),
       RecordingsMap: () =>

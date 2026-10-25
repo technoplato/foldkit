@@ -23,6 +23,7 @@ import {
   FailedObserveRecordings,
   GotAccountMessage,
   GotCaptureMessage,
+  GotQuestionsMessage,
   GotShareMessage,
   type Message,
   ObservedFileUrls,
@@ -34,6 +35,7 @@ import {
 } from './message.js'
 import type { Model } from './model.js'
 import { NetworkStatus } from './network.js'
+import * as Questions from './questions/index.js'
 import * as Share from './share/index.js'
 import {
   WordsStore,
@@ -331,6 +333,42 @@ const shareSubscriptions = Subscription.make<Model, Message, WordsStore>()(
         }),
         dependenciesToStream: ({ maybeShareID }) =>
           signInGuestReader(maybeShareID),
+      },
+    ),
+    questions: entry(
+      { isObserving: S.Boolean },
+      {
+        modelToDependencies: model => ({
+          isObserving:
+            model.route._tag === 'Questions' &&
+            Option.isSome(signedInUserIDOf(model)),
+        }),
+        dependenciesToStream: ({ isObserving }) =>
+          Stream.when(
+            Stream.unwrap(
+              WordsStore.pipe(
+                Effect.map(store =>
+                  store.observeQuestions.pipe(
+                    Stream.map(observed =>
+                      GotQuestionsMessage({
+                        message: Questions.reportQuestions(observed),
+                      }),
+                    ),
+                    Stream.catch(error =>
+                      Stream.make(
+                        GotQuestionsMessage({
+                          message: Questions.reportQuestionsFailure({
+                            reason: reasonOf(error),
+                          }),
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Effect.sync(() => isObserving),
+          ),
       },
     ),
     recordingShares: entry(

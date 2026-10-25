@@ -38,6 +38,7 @@ export const IconName = S.Literals([
   'Contract',
   'Search',
   'Playhead',
+  'Question',
 ])
 /** Every icon web Scribe draws. */
 export type IconName = typeof IconName.Type
@@ -178,6 +179,11 @@ const shapes: Readonly<Record<IconName, Shape>> = {
   Search: stroked(
     'M10.5 4a6.5 6.5 0 110 13 6.5 6.5 0 010-13z',
     'M15.5 15.5L20 20',
+  ),
+  Question: stroked(
+    'M12 3.5a8.5 8.5 0 110 17 8.5 8.5 0 010-17z',
+    'M9.6 9.4a2.5 2.5 0 014.8.9c0 1.7-2.4 2.1-2.4 3.7',
+    'M12 16.6v.4',
   ),
   Contract: stroked(
     'M20 9.5h-5.5V4',

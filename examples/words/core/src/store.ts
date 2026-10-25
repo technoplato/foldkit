@@ -24,6 +24,7 @@ import {
 import { failureTextOf } from './failure.js'
 import { type RecordingWindow, recordingWindowRangeOf } from './listWindow.js'
 import { type IdentityState, SignedIn, SignedOut } from './model.js'
+import * as Questions from './questions/index.js'
 import type { AppSchema } from './scribeSchema.js'
 import {
   decodeReceivedShares,
@@ -53,6 +54,7 @@ export type WordsStoreOperation =
   | 'ObserveShareRecipients'
   | 'ObserveReceivedShares'
   | 'ObserveSharedRange'
+  | 'ObserveQuestions'
 
 /** An Instant query, observation, or sign-in check failed. */
 export class WordsStoreError extends Data.TaggedError('WordsStoreError')<{
@@ -83,6 +85,7 @@ const storeFailureOf = (operation: WordsStoreOperation): string =>
       () => 'The shares made to this account did not load.',
     ),
     M.when('ObserveSharedRange', () => 'The shared sections did not load.'),
+    M.when('ObserveQuestions', () => 'Your questions did not load.'),
     M.exhaustive,
   )
 
@@ -198,6 +201,17 @@ export type WordsStoreService = Readonly<{
     shareID: string,
     maybeLinkToken: Option.Option<string>,
   ) => Effect.Effect<boolean, WordsStoreError>
+  /**
+   * His questions (Scribe ADR 0095), newest first, with their answers, the stretches of his words, and their topics.
+   * The rules show each account its own.
+   */
+  observeQuestions: Stream.Stream<
+    Readonly<{
+      questions: ReadonlyArray<Questions.Model.Question>
+      unreadableCount: number
+    }>,
+    WordsStoreError
+  >
 }>
 
 /** The Instant reads the web Scribe Program needs, chosen by the host. */
@@ -244,6 +258,9 @@ const identityOf = (maybeUser: Option.Option<User>): IdentityState =>
         isGuest: user.isGuest,
       }),
   })
+
+/** How many of his newest questions the questions page reads (Scribe ADR 0095). */
+export const QUESTION_LIMIT = 500
 
 /** How many recent recipients autocomplete reads (ADR 0014). */
 export const SHARE_RECIPIENT_LIMIT = 50
@@ -389,6 +406,27 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
       database.auth.signInAsGuest(),
     ).pipe(Effect.asVoid),
     signOut: boundedAuth('SignOut', () => database.auth.signOut()),
+    observeQuestions: observe<
+      Readonly<{
+        questions: ReadonlyArray<Questions.Model.Question>
+        unreadableCount: number
+      }>
+    >('ObserveQuestions', emit =>
+      database.subscribeQuery(
+        {
+          questions: {
+            $: { order: { askedAtMs: 'desc' }, limit: QUESTION_LIMIT },
+            answers: { moments: {} },
+            moments: {},
+            topics: {},
+          },
+        },
+        response =>
+          emitResponse(emit, response, data =>
+            Questions.decodeQuestions(data.questions),
+          ),
+      ),
+    ),
     observeRecordingShares: (recordingID, ownerUserID) =>
       observe<ReadonlyArray<RecordingShare>>('ObserveShares', emit =>
         database.subscribeQuery(
@@ -544,5 +582,6 @@ export const makeStaticWordsResources = (
     observeReceivedShares: () => Stream.succeed([]),
     observeSharedRange: () => Stream.succeed(Option.none()),
     hasSharedRange: () => Effect.succeed(false),
+    observeQuestions: Stream.succeed({ questions: [], unreadableCount: 0 }),
   })
 }

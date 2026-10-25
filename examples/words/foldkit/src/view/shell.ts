@@ -5,6 +5,7 @@ import {
   AccountRoute,
   type Message,
   type Model,
+  QuestionsRoute,
   RecordingListRoute,
   type ScribeAppScheme,
   isListRoute,
@@ -16,6 +17,7 @@ import { avatar, spinner } from './ui.js'
 
 const listPath = scribeRouteToPath(RecordingListRoute())
 const accountPath = scribeRouteToPath(AccountRoute())
+const questionsPath = scribeRouteToPath(QuestionsRoute({ q: Option.none() }))
 
 /** Host settings the views read. */
 export type ViewConfig = Readonly<{
@@ -286,6 +288,7 @@ const leadingOf = (
 export const topBar = (model: Model, isSplit: boolean): Html => {
   const h = html<Message>()
   const isOnAccount = model.route._tag === 'Account'
+  const isOnQuestions = model.route._tag === 'Questions'
   const isOnList = isListRoute(model.route)
   return h.header(
     [h.Class('bar sticky top-0 z-30')],
@@ -301,11 +304,23 @@ export const topBar = (model: Model, isSplit: boolean): Html => {
           ...barTitleOf(model),
           h.a(
             [
+              h.Href(questionsPath),
+              h.AriaLabel('Questions'),
+              h.Title('Questions'),
+              h.AriaCurrent(isOnQuestions ? 'page' : 'false'),
+              h.Class(
+                `ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-full text-label transition hover:bg-fill ${isOnQuestions ? 'bg-fill' : ''}`,
+              ),
+            ],
+            [icon('Question', 'size-[22px]')],
+          ),
+          h.a(
+            [
               h.Href(accountPath),
               h.AriaLabel(accountChipLabel(model)),
               h.AriaCurrent(isOnAccount ? 'page' : 'false'),
               h.Class(
-                `ml-auto flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-full py-1 pl-1 transition hover:bg-fill sm:pr-3.5 ${model.connectivity === 'Offline' ? 'pr-3' : 'pr-1'} ${isOnAccount ? 'bg-fill' : ''}`,
+                `flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-full py-1 pl-1 transition hover:bg-fill sm:pr-3.5 ${model.connectivity === 'Offline' ? 'pr-3' : 'pr-1'} ${isOnAccount ? 'bg-fill' : ''}`,
               ),
             ],
             accountChipContent(model),

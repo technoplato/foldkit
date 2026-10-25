@@ -131,6 +131,11 @@ export const SearchRecordingsRoute = r('SearchRecordings', {
 export const NewRecordingRoute = r('NewRecording')
 /** The account: who is signed in, and how the web and the iPhone share one account. */
 export const AccountRoute = r('Account')
+/**
+ * The questions he asked, kept with their answers to learn from (Scribe ADR 0095); `q` searches them, as
+ * `/questions?q=proximity`.
+ */
+export const QuestionsRoute = r('Questions', { q: S.Option(S.String) })
 /** A path that is not a Scribe link. */
 export const NotFoundRoute = r('NotFound', { path: S.String })
 
@@ -147,6 +152,7 @@ export const ScribeRoute = S.Union([
   SearchRecordingsRoute,
   NewRecordingRoute,
   AccountRoute,
+  QuestionsRoute,
   NotFoundRoute,
 ])
 /** Every place a Scribe link can open. */
@@ -161,6 +167,12 @@ const newRecordingRouter = pipe(
 )
 
 const accountRouter = pipe(literal('account'), Route.mapTo(AccountRoute))
+
+const questionsRouter = pipe(
+  literal('questions'),
+  Route.query(S.Struct({ q: S.OptionFromOptional(S.String) })),
+  Route.mapTo(QuestionsRoute),
+)
 
 const recordingRouter = pipe(
   literal('recording'),
@@ -240,6 +252,7 @@ const scribeRouteParser = Route.oneOf(
   recordingsMapRouter,
   searchRecordingsRouter,
   accountRouter,
+  questionsRouter,
   recordingListRouter,
 )
 
@@ -268,6 +281,7 @@ export const scribeRouteToPath = (route: ScribeRoute): string =>
       SearchRecordings: ({ q }) => searchRecordingsRouter({ q }),
       NewRecording: () => newRecordingRouter(),
       Account: () => accountRouter(),
+      Questions: ({ q }) => questionsRouter({ q }),
       NotFound: ({ path }) => path,
     }),
   )

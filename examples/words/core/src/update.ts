@@ -117,6 +117,7 @@ import {
   SignedOut,
 } from './model.js'
 import type { WordsOrigin } from './origin.js'
+import * as Questions from './questions/index.js'
 import type { RecordingDetail, RecordingSummary, Section } from './recording.js'
 import { SectionPlacement, TranscriptScroller } from './scroller.js'
 import { SEARCH_FIELD_ID, searchTermsOf } from './search.js'
@@ -770,6 +771,7 @@ const openingFor = (
       SearchRecordings: () => Option.none(),
       NewRecording: () => Option.none(),
       Account: () => Option.none(),
+      Questions: () => Option.none(),
       Share: () => Option.none(),
       NotFound: () => Option.none(),
       Recording: ({ recordingID }) =>
@@ -1113,6 +1115,21 @@ const openRoutedRecording = (
  * The search a route shows: the `q` of a search link, none on the list
  * itself, and on other pages the search the sidebar already shows.
  */
+const questionsFor = (
+  route: ScribeRoute,
+  questions: Questions.Model.Model,
+): Questions.Model.Model =>
+  M.value(route).pipe(
+    M.withReturnType<Questions.Model.Model>(),
+    M.tag('Questions', ({ q }) =>
+      Questions.withSearch(
+        questions,
+        Option.getOrElse(q, () => ''),
+      ),
+    ),
+    M.orElse(() => questions),
+  )
+
 const searchQueryFor = (route: ScribeRoute, searchQuery: string): string =>
   M.value(route).pipe(
     M.withReturnType<string>(),
@@ -1152,6 +1169,8 @@ const applyRoute = (model: Model, route: ScribeRoute): UpdateReturn => {
       isSamePage ? searchQuery : searchQueryFor(route, searchQuery),
     share: share =>
       evo(share, { sharedRange: () => sharedRangeFor(route, share) }),
+    questions: questions =>
+      isSamePage ? questions : questionsFor(route, questions),
     resumePositions: () => rememberedPositionsOf(model),
   })
   return Option.match(openingFor(route), {
@@ -1176,6 +1195,7 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       account: Account.Model.init(),
       capture: Capture.Model.init(),
       share: Share.Model.init(),
+      questions: Questions.Model.init(),
       recordings: LoadingRecordings(),
       recordingWindow: firstRecordingWindow,
       maybeFocusedRowID: Option.none(),
@@ -2794,5 +2814,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             Share.update(model.share, message, shareContextOf(model)),
           ),
         ),
+      GotQuestionsMessage: ({ message }) => [
+        evo(model, {
+          questions: questions => Questions.update(questions, message),
+        }),
+        [],
+      ],
     }),
   )

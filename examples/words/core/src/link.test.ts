@@ -5,6 +5,7 @@ import {
   AccountRoute,
   NewRecordingRoute,
   PlaybackRoute,
+  QuestionsRoute,
   RecordingListRoute,
   RecordingRoute,
   RecordingsMapRoute,
@@ -128,6 +129,14 @@ describe('scribeRouteFromLink', () => {
         ShareRoute({ recordingID, shareID: sectionID, k: Option.none() }),
       ],
       ['scribe-shared-dev://account', AccountRoute()],
+      [
+        'https://words.pisspoursoftware.xyz/questions',
+        QuestionsRoute({ q: Option.none() }),
+      ],
+      [
+        'https://words.knophy.com/questions?q=proximity',
+        QuestionsRoute({ q: Option.some('proximity') }),
+      ],
     ]
 
     for (const [link, route] of cases) {
@@ -177,11 +186,26 @@ describe('scribeRouteToShareUrl', () => {
     const link = scribeRouteToShareUrl(route)
 
     expect(
-      link.startsWith('https://words.pisspoursoftware.xyz/recordings/search?q='),
+      link.startsWith(
+        'https://words.pisspoursoftware.xyz/recordings/search?q=',
+      ),
     ).toBe(true)
     expect(scribeRouteFromLink(link)).toEqual(Option.some(route))
     expect(scribeRouteToPath(SearchRecordingsRoute({ q: Option.none() }))).toBe(
       '/recordings/search',
+    )
+  })
+
+  it('prints a questions link that keeps the search, which parses back to the same page (Scribe ADR 0095)', () => {
+    const route = QuestionsRoute({ q: Option.some('live capture') })
+    const link = scribeRouteToShareUrl(route)
+
+    expect(link).toBe(
+      'https://words.pisspoursoftware.xyz/questions?q=live+capture',
+    )
+    expect(scribeRouteFromLink(link)).toEqual(Option.some(route))
+    expect(scribeRouteToPath(QuestionsRoute({ q: Option.none() }))).toBe(
+      '/questions',
     )
   })
 

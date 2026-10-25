@@ -6,6 +6,7 @@ import * as Capture from './capture/model.js'
 import { ScribeRoute } from './link.js'
 import { OlderEdge, RecordingWindow } from './listWindow.js'
 import { Connectivity } from './network.js'
+import * as Questions from './questions/model.js'
 import { RecordingDetail, RecordingSummary } from './recording.js'
 import * as Share from './share/model.js'
 
@@ -247,6 +248,7 @@ export const Model = S.Struct({
   account: Account.Model,
   capture: Capture.Model,
   share: Share.Model,
+  questions: Questions.Model,
   recordings: RecordingsState,
   recordingWindow: RecordingWindow,
   maybeFocusedRowID: S.Option(S.String),
