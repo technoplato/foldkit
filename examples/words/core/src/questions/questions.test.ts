@@ -190,7 +190,11 @@ describe('update', () => {
     const { questions } = decodeQuestions([proximityRow], 500)
     const observed = update(
       init(),
-      ObservedQuestions({ questions, unreadableCount: 0, isLimitReached: true }),
+      ObservedQuestions({
+        questions,
+        unreadableCount: 0,
+        isLimitReached: true,
+      }),
     )
     expect(observed.state).toEqual(
       LoadedQuestions({ questions, unreadableCount: 0, isLimitReached: true }),

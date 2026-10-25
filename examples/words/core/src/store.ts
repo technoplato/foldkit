@@ -209,6 +209,7 @@ export type WordsStoreService = Readonly<{
     Readonly<{
       questions: ReadonlyArray<Questions.Model.Question>
       unreadableCount: number
+      isLimitReached: boolean
     }>,
     WordsStoreError
   >
@@ -259,8 +260,12 @@ const identityOf = (maybeUser: Option.Option<User>): IdentityState =>
       }),
   })
 
-/** How many of his newest questions the questions page reads (Scribe ADR 0095). */
-export const QUESTION_LIMIT = 500
+/**
+ * How many of his newest questions the questions page reads (Scribe ADR 0095). Scribe's backfill keeps about 600
+ * (#1176); 2,000 made-up questions with answers and topics read in 2.2 s (median of 5, 2.8 s at most) and search in
+ * 2 ms, inside his ten seconds to find one. Past it the page says the oldest are left out.
+ */
+export const QUESTION_LIMIT = 2000
 
 /** How many recent recipients autocomplete reads (ADR 0014). */
 export const SHARE_RECIPIENT_LIMIT = 50
@@ -410,6 +415,7 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
       Readonly<{
         questions: ReadonlyArray<Questions.Model.Question>
         unreadableCount: number
+        isLimitReached: boolean
       }>
     >('ObserveQuestions', emit =>
       database.subscribeQuery(
@@ -423,7 +429,7 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
         },
         response =>
           emitResponse(emit, response, data =>
-            Questions.decodeQuestions(data.questions),
+            Questions.decodeQuestions(data.questions, QUESTION_LIMIT),
           ),
       ),
     ),
@@ -582,6 +588,10 @@ export const makeStaticWordsResources = (
     observeReceivedShares: () => Stream.succeed([]),
     observeSharedRange: () => Stream.succeed(Option.none()),
     hasSharedRange: () => Effect.succeed(false),
-    observeQuestions: Stream.succeed({ questions: [], unreadableCount: 0 }),
+    observeQuestions: Stream.succeed({
+      questions: [],
+      unreadableCount: 0,
+      isLimitReached: false,
+    }),
   })
 }

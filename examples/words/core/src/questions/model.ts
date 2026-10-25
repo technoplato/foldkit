@@ -92,10 +92,11 @@ export type Question = typeof Question.Type
 
 /** Waiting for his questions. */
 export const LoadingQuestions = ts('LoadingQuestions')
-/** His questions, newest first, and how many rows could not be read. */
+/** His questions, newest first, how many rows could not be read, and whether the query's limit cut the list. */
 export const LoadedQuestions = ts('LoadedQuestions', {
   questions: S.Array(Question),
   unreadableCount: S.Number,
+  isLimitReached: S.Boolean,
 })
 /** His questions could not load. */
 export const FailedQuestions = ts('FailedQuestions', { reason: S.String })

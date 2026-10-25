@@ -9,9 +9,10 @@ export const update = (model: Model, message: Message): Model =>
   M.value(message).pipe(
     M.withReturnType<Model>(),
     M.tagsExhaustive({
-      ObservedQuestions: ({ questions, unreadableCount }) =>
+      ObservedQuestions: ({ questions, unreadableCount, isLimitReached }) =>
         evo(model, {
-          state: () => LoadedQuestions({ questions, unreadableCount }),
+          state: () =>
+            LoadedQuestions({ questions, unreadableCount, isLimitReached }),
         }),
       FailedObserveQuestions: ({ reason }) =>
         evo(model, { state: () => FailedQuestions({ reason }) }),

@@ -4,6 +4,7 @@ import {
   GotQuestionsMessage,
   type Message,
   type Model,
+  QUESTION_LIMIT,
   Questions,
   QuestionsRoute,
   SectionRoute,
@@ -354,22 +355,29 @@ const listOf = (model: Model): ReadonlyArray<Html> => {
       FailedQuestions: ({ reason }) => [
         notice('Your questions did not load', reason),
       ],
-      LoadedQuestions: ({ unreadableCount }) => {
+      LoadedQuestions: ({ unreadableCount, isLimitReached }) => {
         const listed = Questions.Model.listedQuestionsOf(model.questions)
-        const unreadable =
-          unreadableCount > 0
+        const caution = (text: string): Html =>
+          h.p(
+            [h.Role('status'), h.Class('px-1 pt-4 text-footnote text-caution')],
+            [text],
+          )
+        const unreadable = [
+          ...(unreadableCount > 0
             ? [
-                h.p(
-                  [
-                    h.Role('status'),
-                    h.Class('px-1 pt-4 text-footnote text-caution'),
-                  ],
-                  [
-                    `${unreadableCount} ${unreadableCount === 1 ? 'question' : 'questions'} could not be read.`,
-                  ],
+                caution(
+                  `${unreadableCount} ${unreadableCount === 1 ? 'question' : 'questions'} could not be read.`,
                 ),
               ]
-            : []
+            : []),
+          ...(isLimitReached
+            ? [
+                caution(
+                  `Showing your newest ${QUESTION_LIMIT.toLocaleString('en-US')} questions: older ones are not listed or searched here.`,
+                ),
+              ]
+            : []),
+        ]
         return Array.match(listed, {
           onEmpty: () => [
             ...unreadable,

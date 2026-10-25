@@ -180,13 +180,16 @@ const questionOf = (row: QuestionRow): Question => ({
 
 /**
  * Reads his question rows with their answers, stretches and topics. A row that cannot be read is counted, not
- * dropped in silence: the page says how many there are.
+ * dropped in silence: the page says how many there are. Rows as many as the query's `limit` mean the limit cut the
+ * list, and the page says that too.
  */
 export const decodeQuestions = (
   rows: ReadonlyArray<unknown>,
+  limit: number,
 ): Readonly<{
   questions: ReadonlyArray<Question>
   unreadableCount: number
+  isLimitReached: boolean
 }> => {
   const decoded = Array.map(rows, row =>
     S.decodeUnknownOption(QuestionRow)(row),
@@ -194,5 +197,6 @@ export const decodeQuestions = (
   return {
     questions: pipe(decoded, Array.getSomes, Array.map(questionOf)),
     unreadableCount: Array.filter(decoded, Option.isNone).length,
+    isLimitReached: rows.length >= limit,
   }
 }

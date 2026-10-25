@@ -5,10 +5,14 @@ import { Question, QuestionFilter } from './model.js'
 
 // MESSAGE
 
-/** His questions arrived, or changed in Instant; `unreadableCount` rows could not be read. */
+/**
+ * His questions arrived, or changed in Instant; `unreadableCount` rows could not be read, and `isLimitReached` says
+ * the query's limit cut the list.
+ */
 export const ObservedQuestions = m('ObservedQuestions', {
   questions: S.Array(Question),
   unreadableCount: S.Number,
+  isLimitReached: S.Boolean,
 })
 /** His questions could not load. */
 export const FailedObserveQuestions = m('FailedObserveQuestions', {
