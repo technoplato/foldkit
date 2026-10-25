@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 25th, 2026 at 1:10 p.m. EDT — `f64c656c6` feat(words): green: the live clock counts from the owner's newest beat, which the origin reads from the live room
+
+- **Implementation commit:** `f64c656c6` (red 3e0e4d97e; log throttle 5c3640c38)
+- **Change:** The words site's live clock counts from the recording device's 5 s beat (ADR 0094 landing W). The origin reads the recording's live room with Instant's admin presence (`GET /__words/live-beat?recording=<id>`), applies the mirror's owner-only rule (a member signed in as the row's owner, a beat at most 15 s old) and hands the browser only the newest beat; the browser asks every 5 s while such a recording is on screen and counts at most 7 s past the beat, or from the row's length save when that is newer (W-lite).
+- **Issues:** [#1178](https://issues.knophy.com/issues/1178), [#1097](https://issues.knophy.com/issues/1097)
+- **Details:**
+  - The browser never sees the room's members and needs no rooms entry in Scribe's schema; only the listener's own recordings answer, everything else answers `{}`.
+  - Measured end to end on the throwaway app bd40c50a (test owner and stranger publishing in one room, rows saved every 60 s, 10 minutes sampled every 5 s): before, the clock was off by up to 53.7 s (mean 25.4 s, 9% of samples within 1 s); after, 0 s on all 117 samples. Once the beats stopped the clock stopped 7 s past the last one; the stranger's beat never reached the browser.
+  - Program version 7 (the Model and Messages changed).
+  - Verified: words core 252/252, web 31/31, core and web tsc, oxlint on the changed files.
+- **Files:**
+  - `examples/words/foldkit/vitePlugins.ts` — the live beat endpoint and newestTrustedBeatOf
+  - `examples/words/core/src/origin.ts` — liveBeatPath, decodeLiveBeatResponse, readLiveBeat
+  - `examples/words/core/src/subscription.ts` — asks for beats every 5 s while a live-room recording is on screen
+  - `examples/words/core/src/update.ts` — ObservedLiveBeat keeps only a newer beat; liveLengthOf counts from it
+  - `examples/words/foldkit/src/browser.ts` — the browser's request
+- **User context (verbatim):**
+  > none: the lab's decision of 12:10 on #1097 (option b, the origin reads presence)
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/words-live-1178@ld); no SpecStory URI was captured
+
 ## October 25th, 2026 at 12:25 p.m. EDT — `b3aa7b741` feat(words): green: the live clock runs 65 s past a live-room save, holds through a pause and skips capture gaps
 
 - **Implementation commit:** `b3aa7b741` (red 96dc870dd)
