@@ -76,11 +76,14 @@ const loaded = (
   rows: ReadonlyArray<unknown>,
   overrides: Partial<Model> = {},
 ): Model => {
-  const { questions, unreadableCount } = decodeQuestions(rows)
+  const { questions, unreadableCount, isLimitReached } = decodeQuestions(
+    rows,
+    500,
+  )
   return {
     ...init(),
     ...overrides,
-    state: LoadedQuestions({ questions, unreadableCount }),
+    state: LoadedQuestions({ questions, unreadableCount, isLimitReached }),
   }
 }
 
@@ -89,7 +92,7 @@ const textsOf = (questions: ReadonlyArray<Question>): ReadonlyArray<string> =>
 
 describe('decodeQuestions', () => {
   it('reads a question with its stretches, answers, topics and issues', () => {
-    const { questions, unreadableCount } = decodeQuestions([proximityRow])
+    const { questions, unreadableCount } = decodeQuestions([proximityRow], 500)
     expect(unreadableCount).toBe(0)
     const [question] = questions
     expect(question?.askedBy).toBe('Michael')
@@ -118,13 +121,19 @@ describe('decodeQuestions', () => {
   })
 
   it('counts a row it cannot read, and a note left blank is none', () => {
-    const { questions, unreadableCount } = decodeQuestions([
-      buildRow,
-      { id: 'x', text: 'No asker', status: 'open' },
-    ])
+    const { questions, unreadableCount } = decodeQuestions(
+      [buildRow, { id: 'x', text: 'No asker', status: 'open' }],
+      500,
+    )
     expect(textsOf(questions)).toEqual([buildRow.text])
     expect(questions[0]?.maybeNote).toEqual(Option.none())
     expect(unreadableCount).toBe(1)
+  })
+
+  it('says when the query’s limit cut the list, so older questions are never missing in silence', () => {
+    const rows = [proximityRow, buildRow, { id: 'x', text: 'No asker' }]
+    expect(decodeQuestions(rows, 3).isLimitReached).toBe(true)
+    expect(decodeQuestions(rows, 4).isLimitReached).toBe(false)
   })
 })
 
@@ -178,13 +187,13 @@ describe('listed questions', () => {
 
 describe('update', () => {
   it('takes what Instant reports, the search typed and the filter chosen', () => {
-    const { questions } = decodeQuestions([proximityRow])
+    const { questions } = decodeQuestions([proximityRow], 500)
     const observed = update(
       init(),
-      ObservedQuestions({ questions, unreadableCount: 0 }),
+      ObservedQuestions({ questions, unreadableCount: 0, isLimitReached: true }),
     )
     expect(observed.state).toEqual(
-      LoadedQuestions({ questions, unreadableCount: 0 }),
+      LoadedQuestions({ questions, unreadableCount: 0, isLimitReached: true }),
     )
     expect(
       update(observed, FailedObserveQuestions({ reason: 'offline' })).state,

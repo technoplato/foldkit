@@ -5,6 +5,7 @@ import { fromString } from 'foldkit/url'
 import { describe, test } from 'vitest'
 import {
   type Model,
+  QUESTION_LIMIT,
   Questions,
   modelForRoute,
   update,
@@ -78,10 +79,14 @@ const questionsModel = (
     questions: questions => evo(questions, { state: () => state }),
   })
 
-const loaded = (unreadableCount = 0): Questions.Model.QuestionsState =>
+const loaded = (
+  unreadableCount = 0,
+  isLimitReached = false,
+): Questions.Model.QuestionsState =>
   Questions.Model.LoadedQuestions({
     questions: [proximity, build],
     unreadableCount,
+    isLimitReached,
   })
 
 describe('the questions page', () => {
@@ -186,10 +191,25 @@ describe('the questions page', () => {
           Questions.Model.LoadedQuestions({
             questions: [],
             unreadableCount: 0,
+            isLimitReached: false,
           }),
         ),
       ),
       Scene.expect(Scene.text('No questions here yet')).toExist(),
+    )
+  })
+
+  test('says when only the newest questions loaded, so an older one is never missing in silence', () => {
+    const limitNotice = `Showing your newest ${QUESTION_LIMIT.toLocaleString('en-US')} questions: older ones are not listed or searched here.`
+    Scene.scene(
+      { update, view: questionsPage },
+      Scene.with(questionsModel(loaded(0, true))),
+      Scene.expect(Scene.text(limitNotice)).toExist(),
+    )
+    Scene.scene(
+      { update, view: questionsPage },
+      Scene.with(questionsModel(loaded())),
+      Scene.expect(Scene.text(limitNotice)).toBeAbsent(),
     )
   })
 })
