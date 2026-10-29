@@ -4,6 +4,48 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 29th, 2026 at 1:37:18 a.m. EDT — `2c5b33949e53` fix(words): green: every reader skips retired lines and seals sealed ones
+
+- **Implementation commit:** `2c5b33949e535d0d4a093ab2207bd9e467b0c1c6`
+- **Change:** The words site skips retired lines and shows sealed lines sealed, through one rule in core/src/decode.ts (linesOf), on the recording page, its section links, the list previews and search, the share sheet, Copy Transcript and the share page (#1322; red c984f2008; the share page is #1329).
+- **Details:**
+  - A retired row (retiredAtMs) is read for its id, # and the line it names, never its words: it never wins a # it shares with a kept line though its retirement stamped it newer, and a run of retired rows leaves the kept lines their #. A link to a retired line opens at its supersededBy line, else the next kept line, from that line's start.
+  - A sealed row (wordsSeal) keeps its place, time and speaker and shows [sealed], or [checking the voice] while held, never its words; the view draws it in muted italics.
+  - Queries select LINE_FIELDS (recordingLinesQuery, previewLineQuery), so sealedWords never reaches a browser; the share page reads every field of its scrubbed lines so a seal the scrubber starts to copy (#1329) applies without a new build.
+  - Guard: core/src/lineReaders.test.ts scans examples/words with the TypeScript AST and fails when a file outside decode.ts queries, reads or declares line rows, or names sealedWords; proven on a scratch branch (4 findings), then deleted.
+  - End to end on the throwaway app bd40c50a in headless Chromium: the deployed build showed 13 lines (4 retired), no seal and the envelope in 3 websocket frames; this build shows the 9 kept lines, [sealed] and [checking the voice], opens links to retired lines at the kept line, and the envelope reaches 0 frames.
+  - Program version 8 (Section.maybeWordsSeal, RecordingDetail.retiredLines). Verified: core 268/268, web 33/33, core and web tsc, oxlint and prettier on the changed files, vite build.
+- **Files:**
+  - `examples/words/core/src/decode.ts` — the one line rule, its query selections, scrubbedLinesOf and retiredLineNamed
+  - `examples/words/core/src/recording.ts` — WordsSeal, Section.maybeWordsSeal, RetiredLine, RecordingDetail.retiredLines
+  - `examples/words/core/src/store.ts` — every line query uses decode.ts's selections
+  - `examples/words/core/src/update.ts` — a link to a retired line opens at the line that replaced it
+  - `examples/words/core/src/share/decode.ts` — the share page's scrubbed lines go through scrubbedLinesOf
+  - `examples/words/core/src/program.ts` — Program version 8
+  - `examples/words/foldkit/src/view/transcript.ts` — a sealed line drawn as sealed
+  - `examples/words/core/src/lines.test.ts` — the rule's cases (red in c984f2008)
+  - `examples/words/core/src/lineReaders.test.ts` — the guard
+- **User context (verbatim):**
+  > a wrong line is retired, never edited or deleted (#662, ADR 0064 section 8) (docs/FEATURES.md item 2, typed 2026-10-14 21:52)
+  > nothing public unscrubbed (Commandment 6)
+  > so that it's accessible in an incognito browser window to anybody that clicks the link (Recording 186 #307, https://words.pisspoursoftware.xyz/recording/4fcac44e-4eb9-460d-b52f-da6e09525816/section/9cafa8ff-f0c9-40ed-b7ec-d435a38a0f20?t=1966.66)
+- **SpecStory:** unavailable — headless pi RPC session (agent pi/words-1322@ld-credits, started by tools/agent-run); no SpecStory URI was captured
+
+## October 29th, 2026 at 1:37:17 a.m. EDT — `3c59ea8df4c6` chore(words): sync Scribe's schema at ee490cf5 (sealed lines)
+
+- **Implementation commit:** `3c59ea8df4c654f485836516262488f9ab1547ad`
+- **Change:** Words reads Scribe's schema at ee490cf5: transcriptionSegments' wordsSeal and sealedWords (ADR 0097, #1183) and the Voice Memo entities (#1277), so the site can select a line's seal and never its envelope (#1322).
+- **Details:**
+  - core/src/scribeSchema.ts and its .source.json, synced with examples/words/scripts/sync-scribe-schema.sh from realtime-voice main (ee490cf58, same as origin/main): 130 to 134 entities.
+  - Verified: core tsc and 252/252 tests, web tsc and 31/31 tests, prettier.
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — Scribe's schema with the sealed-line fields
+  - `examples/words/core/src/scribeSchema.source.json` — where the copy came from
+- **User context (verbatim):**
+  > a wrong line is retired, never edited or deleted (#662, ADR 0064 section 8) (docs/FEATURES.md item 2, typed 2026-10-14 21:52)
+  > blur out those words. / but make it so I could recover them later. (Recording 297 #844-845, https://words.pisspoursoftware.xyz/recording/3b1d645a-cef4-4ba6-9acd-c52583ade335/section/8c929745-4ad4-49bc-8de3-b9a48390963c?t=9981.01)
+- **SpecStory:** unavailable — headless pi RPC session (agent pi/words-1322@ld-credits, started by tools/agent-run); no SpecStory URI was captured
+
 ## October 25th, 2026 at 1:10 p.m. EDT — `f64c656c6` feat(words): green: the live clock counts from the owner's newest beat, which the origin reads from the live room
 
 - **Implementation commit:** `f64c656c6` (red 3e0e4d97e; log throttle 5c3640c38)
