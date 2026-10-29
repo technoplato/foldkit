@@ -11,7 +11,22 @@ export const Word = S.Struct({
 /** One recognized word and its time in the recording, in seconds. */
 export type Word = typeof Word.Type
 
-/** One transcript section: a run of words from one speaker. */
+/**
+ * Why a line's words are sealed (ADR 0097, issue #1183): `Voice` for a voice
+ * the account's filter withholds, whose words never reach any reader, and
+ * `Held` while the line's voice is still being checked. A sealed line keeps
+ * its place, time and speaker; only his own devices open its words.
+ */
+export const WordsSeal = S.Literals(['Voice', 'Held'])
+/** Why a line's words are sealed. */
+export type WordsSeal = typeof WordsSeal.Type
+
+/**
+ * One transcript section: a run of words from one speaker. A sealed section
+ * (`maybeWordsSeal` is some) has no words, and its `text` is what it shows in
+ * their place, `[sealed]` or `[checking the voice]`, so a copy, an export or
+ * an announcement of it never holds anyone's words.
+ */
 export const Section = S.Struct({
   id: S.String,
   index: S.Number,
@@ -21,9 +36,23 @@ export const Section = S.Struct({
   text: S.String,
   words: S.Array(Word),
   isFinal: S.Boolean,
+  maybeWordsSeal: S.Option(WordsSeal),
 })
 /** One transcript section: a run of words from one speaker. */
 export type Section = typeof Section.Type
+
+/**
+ * A retired line (ADR 0064 section 8): never shown, but a link to it still
+ * opens, at the line that replaced it. `maybeKeptLineID` is the line it names
+ * (`supersededBy`), else the next kept line, else the last one; none only
+ * when the recording has no kept line at all.
+ */
+export const RetiredLine = S.Struct({
+  id: S.String,
+  maybeKeptLineID: S.Option(S.String),
+})
+/** A retired line, and the kept line a link to it opens. */
+export type RetiredLine = typeof RetiredLine.Type
 
 /** A speaker and the label the iPhone shows for them. */
 export const Speaker = S.Struct({ id: S.Number, label: S.String })
@@ -145,10 +174,14 @@ export const TimelineEntry = S.Union([
 /** One item of a recording's timeline, in time order. */
 export type TimelineEntry = typeof TimelineEntry.Type
 
-/** Everything playback needs for one recording. */
+/**
+ * Everything playback needs for one recording. `sections` holds only kept
+ * lines; `retiredLines` holds where a link to each retired line goes.
+ */
 export const RecordingDetail = S.Struct({
   summary: RecordingSummary,
   sections: S.Array(Section),
+  retiredLines: S.Array(RetiredLine),
   speakers: S.Array(Speaker),
   clipboard: S.Array(ClipboardEntry),
   images: S.Array(ImageEntry),

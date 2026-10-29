@@ -56,6 +56,7 @@ const section = (index: number, isFinal = true): Section => ({
   text: `Section ${index}`,
   words: [],
   isFinal,
+  maybeWordsSeal: Option.none(),
 })
 
 const context = (overrides: Partial<ShareContext> = {}): ShareContext => ({

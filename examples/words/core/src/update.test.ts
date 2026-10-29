@@ -123,6 +123,7 @@ const section = (
     },
   ],
   isFinal: true,
+  maybeWordsSeal: Option.none(),
 })
 
 const sectionA = section('0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d', 0, 5, 'Hello')
@@ -143,6 +144,7 @@ const detail = (overrides: Partial<RecordingDetail> = {}): RecordingDetail => ({
     captureGaps: [],
   },
   sections: [sectionA, sectionB],
+  retiredLines: [],
   speakers: [],
   clipboard: [],
   images: [],

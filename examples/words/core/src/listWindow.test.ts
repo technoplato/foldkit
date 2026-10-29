@@ -1,6 +1,7 @@
 import { Array, Effect, Layer, Option, Stream, pipe } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { previewLineQuery } from './decode.js'
 import { RecordingListRoute } from './link.js'
 import {
   AtLeastCount,
@@ -422,15 +423,15 @@ describe('asking Instant for a list window', () => {
     expect(recordingListQueryOf({ firstPage: 2, pageCount: 3 })).toEqual({
       recordings: {
         $: { order: { startedAtMs: 'desc' }, limit: 300, offset: 200 },
-        previewSegmentA: {},
-        previewSegmentB: {},
+        previewSegmentA: previewLineQuery,
+        previewSegmentB: previewLineQuery,
       },
     })
     expect(recordingListQueryOf(firstRecordingWindow)).toEqual({
       recordings: {
         $: { order: { startedAtMs: 'desc' }, limit: 100 },
-        previewSegmentA: {},
-        previewSegmentB: {},
+        previewSegmentA: previewLineQuery,
+        previewSegmentB: previewLineQuery,
       },
     })
   })

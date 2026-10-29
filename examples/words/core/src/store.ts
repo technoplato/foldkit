@@ -20,6 +20,9 @@ import {
   type DecodedRecordingList,
   decodeRecordingDetail,
   decodeRecordingList,
+  previewLineQuery,
+  recordingLinesQuery,
+  scrubbedLinesQuery,
 } from './decode.js'
 import { failureTextOf } from './failure.js'
 import { type RecordingWindow, recordingWindowRangeOf } from './listWindow.js'
@@ -119,14 +122,16 @@ const NEWEST_FIRST: Readonly<{ startedAtMs: 'desc' }> = { startedAtMs: 'desc' }
 
 /**
  * The InstaQL the list sends for a window: the recordings newest first, with
- * the two preview slots. Only the top level is paginated; Instant ignores
- * pagination below it. The first window sends no offset, so its query is the
- * one the list has always sent.
+ * the two preview slots, each read with the line rule's fields
+ * (`previewLineQuery`), so a retired or sealed preview line is left out. Only
+ * the top level is paginated; Instant ignores pagination below it. The first
+ * window sends no offset.
  *
  * @example
  * ```ts
  * recordingListQueryOf({ firstPage: 2, pageCount: 3 })
- * // { recordings: { $: { order: { startedAtMs: 'desc' }, limit: 300, offset: 200 }, previewSegmentA: {}, previewSegmentB: {} } }
+ * // { recordings: { $: { order: { startedAtMs: 'desc' }, limit: 300, offset: 200 },
+ * //   previewSegmentA: previewLineQuery, previewSegmentB: previewLineQuery } }
  * ```
  */
 export const recordingListQueryOf = (window: RecordingWindow) => {
@@ -138,8 +143,8 @@ export const recordingListQueryOf = (window: RecordingWindow) => {
         limit,
         ...(offset > 0 ? { offset } : {}),
       },
-      previewSegmentA: {},
-      previewSegmentB: {},
+      previewSegmentA: previewLineQuery,
+      previewSegmentB: previewLineQuery,
     },
   }
 }
@@ -361,7 +366,7 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
           {
             recordings: {
               $: { where: { id: recordingID } },
-              segments: {},
+              segments: recordingLinesQuery,
               attachments: {},
             },
           },
@@ -504,7 +509,7 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
               // Readable only by the owner's own sign-ins: how the page knows the viewer's own share.
               owner: {},
               audioClip: {},
-              scrubbedLines: {},
+              scrubbedLines: scrubbedLinesQuery,
               scrubbedImages: { file: {} },
             },
           },

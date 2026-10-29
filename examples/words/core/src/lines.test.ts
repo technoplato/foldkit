@@ -1,4 +1,4 @@
-import { Array, Option } from 'effect'
+import { Array, Option, pipe } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { decodeRecordingDetail, decodeRecordingList } from './decode.js'
@@ -197,10 +197,10 @@ const openLink = (
   )
   return {
     ready: readyOf(model),
-    scrolls: Array.filterMap(commands, command =>
-      command.name === 'ScrollToSection'
-        ? Option.some(command.args)
-        : Option.none(),
+    scrolls: pipe(
+      commands,
+      Array.filter(command => command.name === 'ScrollToSection'),
+      Array.map(command => command.args),
     ),
   }
 }
@@ -393,7 +393,7 @@ describe('the share page reads its scrubbed lines through the same rule (#1329)'
           visibility: 'link',
           scrubStatus: 'passed',
           scrubbedLines: [
-            scrubbedLine(1, 'alpha [a person]'),
+            scrubbedLine(1, 'alpha bravo'),
             scrubbedLine(2, 'forbidden secret', { wordsSeal: 'voice' }),
             scrubbedLine(3, 'zebra copy', { retiredAtMs: RETIRED_AT_MS }),
           ],
@@ -413,7 +413,7 @@ describe('the share page reads its scrubbed lines through the same rule (#1329)'
         line.maybeWordsSeal,
       ]),
     ).toEqual([
-      [1, 'alpha [a person]', 2, Option.none()],
+      [1, 'alpha bravo', 2, Option.none()],
       [2, '[sealed]', 0, Option.some('Voice')],
     ])
     expect(JSON.stringify(lines)).not.toContain('forbidden')

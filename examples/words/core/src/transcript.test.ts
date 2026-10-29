@@ -323,6 +323,7 @@ describe('speaker runs', () => {
       text: 'x',
       words: [],
       isFinal: true,
+      maybeWordsSeal: Option.none(),
     }
     const sections = [
       { ...base, id: 'a', index: 0, maybeSpeakerID: Option.some(0) },

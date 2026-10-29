@@ -25,6 +25,7 @@ import {
 } from './audioPlayer.js'
 import * as Capture from './capture/index.js'
 import { ClipboardWriter } from './clipboard.js'
+import { retiredLineNamed } from './decode.js'
 import type { ShortcutContext } from './keyboard.js'
 import {
   PlaybackRoute,
@@ -1078,10 +1079,34 @@ const openingScrollOf = (
         : [ScrollToRecordingTitle()],
   })
 
+/**
+ * What a link asks of a recording once its lines are known: a link to a
+ * retired line opens at the line that replaced it (ADR 0064 section 8), from
+ * that line's start, since its `t` is the retired line's time.
+ */
+const keptLineRequestOf = (
+  detail: RecordingDetail,
+  request: PlaybackRequest,
+): PlaybackRequest =>
+  Option.match(
+    Option.flatMap(request.maybeFocusSectionID, sectionID =>
+      retiredLineNamed(detail, sectionID),
+    ),
+    {
+      onNone: () => request,
+      onSome: retiredLine => ({
+        ...request,
+        maybeStartSeconds: Option.none(),
+        maybeFocusSectionID: retiredLine.maybeKeptLineID,
+      }),
+    },
+  )
+
 const applyRequest = (
   ready: ReadyPlayback,
-  request: PlaybackRequest,
+  linkRequest: PlaybackRequest,
 ): ReadyReturn => {
+  const request = keptLineRequestOf(ready.detail, linkRequest)
   const isFocusing = Option.isSome(request.maybeFocusSectionID)
   const nextRevision = isFocusing
     ? ready.focusRevision + 1

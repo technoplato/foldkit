@@ -12,10 +12,12 @@ import {
   type RecordingDetail,
   type Section,
   type Word,
+  type WordsSeal,
   displayedPositionOf,
   followedSectionOf,
   formatClock,
   isLiveRecording,
+  sealedLineTextOf,
   sectionAt,
   sectionElementIDOf,
   sectionPlaybackStart,
@@ -151,6 +153,46 @@ const playheadSentinel = (section: Section): Html => {
   )
 }
 
+const sealedLineWords = (seal: WordsSeal): Html => {
+  const h = html<Message>()
+  return h.p(
+    [h.Class('text-body leading-relaxed italic text-secondary')],
+    [sealedLineTextOf(seal)],
+  )
+}
+
+const openLineWords = (
+  section: Section,
+  activeWordID: string | undefined,
+  isPlayable: boolean,
+): Html => {
+  const h = html<Message>()
+  return h.p(
+    [
+      h.Class(
+        `text-body leading-relaxed ${section.isFinal ? 'text-label' : 'text-secondary'}`,
+      ),
+    ],
+    Array.match(section.words, {
+      onEmpty: () => [section.text],
+      onNonEmpty: words =>
+        Array.map(words, word =>
+          wordView(word, word.id === activeWordID, isPlayable),
+        ),
+    }),
+  )
+}
+
+const lineWords = (
+  section: Section,
+  activeWordID: string | undefined,
+  isPlayable: boolean,
+): Html =>
+  Option.match(section.maybeWordsSeal, {
+    onNone: () => openLineWords(section, activeWordID, isPlayable),
+    onSome: sealedLineWords,
+  })
+
 const sectionView = (
   section: Section,
   activeWordID: string | undefined,
@@ -186,20 +228,7 @@ const sectionView = (
                   [speakerLabel],
                 ),
               ]),
-          h.p(
-            [
-              h.Class(
-                `text-body leading-relaxed ${section.isFinal ? 'text-label' : 'text-secondary'}`,
-              ),
-            ],
-            Array.match(section.words, {
-              onEmpty: () => [section.text],
-              onNonEmpty: words =>
-                Array.map(words, word =>
-                  wordView(word, word.id === activeWordID, isPlayable),
-                ),
-            }),
-          ),
+          lineWords(section, activeWordID, isPlayable),
         ],
       ),
       ...(isFollowed ? [playheadSentinel(section)] : []),

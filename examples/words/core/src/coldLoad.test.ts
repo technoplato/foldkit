@@ -75,6 +75,7 @@ const section = (
     },
   ],
   isFinal: true,
+  maybeWordsSeal: Option.none(),
 })
 
 const firstSection = section(
@@ -111,6 +112,7 @@ const detail: RecordingDetail = {
     captureGaps: [],
   },
   sections: [firstSection, linkedSection, lastSection],
+  retiredLines: [],
   speakers: [],
   clipboard: [],
   images: [],

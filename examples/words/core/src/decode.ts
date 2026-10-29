@@ -8,6 +8,8 @@ import {
   pipe,
 } from 'effect'
 
+import type { InstaQLFields } from '@instantdb/core'
+
 import {
   type Activity,
   type CaptureGap,
@@ -18,12 +20,15 @@ import {
   type RecordingAudio,
   type RecordingDetail,
   type RecordingSummary,
+  type RetiredLine,
   type Section,
   type Speaker,
   StoredAudio,
   UploadingAudio,
   type Word,
+  type WordsSeal,
 } from './recording.js'
+import type { AppSchema } from './scribeSchema.js'
 
 const OptionalString = S.optionalKey(S.NullOr(S.String))
 const OptionalNumber = S.optionalKey(S.NullOr(S.Number))
@@ -40,6 +45,66 @@ const WordRows = S.fromJsonString(S.Array(S.Unknown))
 
 const decodeWordRow = S.decodeUnknownOption(WordRow)
 
+/**
+ * The fields every query for a recording's transcript lines selects
+ * (`transcriptionSegments`): what places a line, its words, `retiredAtMs`
+ * (ADR 0064 section 8) and `wordsSeal` (ADR 0097). Never the sealed words'
+ * envelope, which only his own devices open, so no browser holds it.
+ * {@link decodeSections} reads a row of exactly these fields.
+ */
+export const LINE_FIELDS: InstaQLFields<AppSchema, 'transcriptionSegments'> = [
+  'id',
+  'segmentIndex',
+  'startTimeSeconds',
+  'endTimeSeconds',
+  'text',
+  'speaker',
+  'wordsJSON',
+  'isFinal',
+  'retiredAtMs',
+  'wordsSeal',
+]
+
+const REPLACING_LINE_FIELDS: InstaQLFields<AppSchema, 'transcriptionSegments'> =
+  ['id']
+
+/**
+ * The recording page's selection of its lines: {@link LINE_FIELDS}, and the
+ * id of the line each retired line names, so a link to a retired line opens
+ * at the line that replaced it. Every query for a recording's lines uses it,
+ * as `segments: recordingLinesQuery`; the guard in `lineReaders.test.ts`
+ * fails on any other shape.
+ */
+export const recordingLinesQuery = {
+  $: { fields: LINE_FIELDS },
+  supersededBy: { $: { fields: REPLACING_LINE_FIELDS } },
+}
+
+/**
+ * The list's selection of a recording's two preview lines,
+ * `previewSegmentA: previewLineQuery`: {@link LINE_FIELDS}, so a retired or a
+ * sealed preview line is left out of the list and its search.
+ */
+export const previewLineQuery = { $: { fields: LINE_FIELDS } }
+
+/**
+ * The share page's selection of a share's scrubbed lines
+ * (`shareScrubbedLines`), `scrubbedLines: scrubbedLinesQuery`: every field.
+ * The scrubber's copy holds no envelope, and a seal or a retirement it starts
+ * to carry (#1329) reaches {@link scrubbedLinesOf} without a new build.
+ */
+export const scrubbedLinesQuery = {}
+
+const LinePlacementRow = S.Struct({
+  id: S.String,
+  segmentIndex: S.Number,
+  retiredAtMs: OptionalNumber,
+  supersededBy: OptionalRows,
+})
+type LinePlacementRow = typeof LinePlacementRow.Type
+
+const ReplacingLineRow = S.Struct({ id: S.String })
+
 const SegmentRow = S.Struct({
   id: S.String,
   segmentIndex: S.Number,
@@ -49,7 +114,9 @@ const SegmentRow = S.Struct({
   speaker: OptionalNumber,
   wordsJSON: OptionalString,
   isFinal: S.Boolean,
+  wordsSeal: OptionalString,
 })
+type SegmentRow = typeof SegmentRow.Type
 
 const SystemAudioContextRow = S.Struct({
   platform: OptionalString,
@@ -231,14 +298,50 @@ const wordsOf = (
     Option.getOrElse(() => []),
   )
 
-const sectionOf = (row: typeof SegmentRow.Type): Section => {
+const isRetiredAt = (retiredAtMs: number | null | undefined): boolean =>
+  Option.isSome(Option.fromNullishOr(retiredAtMs))
+
+const wordsSealOf = (
+  wordsSeal: string | null | undefined,
+): Option.Option<WordsSeal> =>
+  Option.map(presentString(wordsSeal), seal =>
+    M.value(seal).pipe(
+      M.withReturnType<WordsSeal>(),
+      M.when('held', () => 'Held'),
+      M.orElse(() => 'Voice'),
+    ),
+  )
+
+/**
+ * What a sealed line shows in place of its words, after its time and speaker:
+ * the same words the Scribe mirror writes (`SEALED_LINE_TEXT`).
+ *
+ * @example
+ * ```ts
+ * sealedLineTextOf('Voice')
+ * // '[sealed]'
+ * sealedLineTextOf('Held')
+ * // '[checking the voice]'
+ * ```
+ */
+export const sealedLineTextOf = (seal: WordsSeal): string =>
+  M.value(seal).pipe(
+    M.withReturnType<string>(),
+    M.when('Voice', () => '[sealed]'),
+    M.when('Held', () => '[checking the voice]'),
+    M.exhaustive,
+  )
+
+type LineWords = Readonly<{ text: string; words: ReadonlyArray<Word> }>
+
+const sealedLineWordsOf = (seal: WordsSeal): LineWords => ({
+  text: sealedLineTextOf(seal),
+  words: [],
+})
+
+const openLineWordsOf = (row: SegmentRow): LineWords => {
   const words = wordsOf(row.id, row.wordsJSON)
   return {
-    id: row.id,
-    index: row.segmentIndex,
-    startSeconds: row.startTimeSeconds,
-    endSeconds: row.endTimeSeconds,
-    maybeSpeakerID: Option.fromNullishOr(row.speaker),
     text: Array.match(words, {
       onEmpty: () => row.text,
       onNonEmpty: nonEmptyWords =>
@@ -248,7 +351,23 @@ const sectionOf = (row: typeof SegmentRow.Type): Section => {
         ),
     }),
     words,
+  }
+}
+
+const sectionOf = (row: SegmentRow): Section => {
+  const maybeWordsSeal = wordsSealOf(row.wordsSeal)
+  return {
+    id: row.id,
+    index: row.segmentIndex,
+    startSeconds: row.startTimeSeconds,
+    endSeconds: row.endTimeSeconds,
+    maybeSpeakerID: Option.fromNullishOr(row.speaker),
     isFinal: row.isFinal,
+    maybeWordsSeal,
+    ...Option.match(maybeWordsSeal, {
+      onNone: () => openLineWordsOf(row),
+      onSome: sealedLineWordsOf,
+    }),
   }
 }
 
@@ -256,6 +375,191 @@ const bySectionIndex = Order.mapInput(
   Order.Number,
   (section: Section) => section.index,
 )
+
+/**
+ * A recording's transcript lines as every reader of the site sees them: the
+ * kept lines in # order, where a link to each retired line goes, and how many
+ * rows could not be read.
+ */
+export type Lines = Readonly<{
+  sections: ReadonlyArray<Section>
+  retiredLines: ReadonlyArray<RetiredLine>
+  skipped: SkippedRows
+}>
+
+const decodeLinePlacement = S.decodeUnknownResult(LinePlacementRow)
+const decodeLine = S.decodeUnknownResult(SegmentRow)
+
+const replacingLineIDOf = (
+  placement: LinePlacementRow,
+): Option.Option<string> =>
+  pipe(
+    Array.head(presentRows(placement.supersededBy)),
+    Option.flatMap(S.decodeUnknownOption(ReplacingLineRow)),
+    Option.map(line => line.id),
+  )
+
+const keptLineIDOf = (
+  sections: ReadonlyArray<Section>,
+  placement: LinePlacementRow,
+): Option.Option<string> =>
+  Option.orElse(
+    Option.filter(replacingLineIDOf(placement), lineID =>
+      Array.some(sections, section => section.id === lineID),
+    ),
+    () =>
+      Option.map(
+        Option.orElse(
+          Array.findFirst(
+            sections,
+            section => section.index >= placement.segmentIndex,
+          ),
+          () => Array.last(sections),
+        ),
+        section => section.id,
+      ),
+  )
+
+/**
+ * The one line rule of the words site (ADR 0064 section 8, ADR 0097; issue
+ * #1322). Every reader of transcript lines goes through it: the recording
+ * page, its section links, the list previews and so search, the share sheet,
+ * Copy Transcript, and the share page ({@link scrubbedLinesOf}).
+ *
+ * A retired row (`retiredAtMs` set) is read first, for what places it, never
+ * its words: it is no line, so it never wins a # it shares with a kept line,
+ * though its retirement stamped it newer, and a run of retired rows leaves
+ * the kept lines around it with their own #. A link to it opens at the line
+ * it names (`supersededBy`), else the next kept line ({@link RetiredLine}).
+ * A sealed row (`wordsSeal` set) keeps its place, time and speaker and shows
+ * `[sealed]`, or `[checking the voice]` while held, never its words, whatever
+ * the row carries. The sealed words' envelope is never selected
+ * ({@link LINE_FIELDS}) and never kept.
+ *
+ * @example
+ * ```ts
+ * linesOf([kept0, retiredCopyOf1, kept1, sealed2])
+ * // { sections: [kept0, kept1, sealed2 shown '[sealed]'],
+ * //   retiredLines: [{ id: retiredCopyOf1.id, maybeKeptLineID: Option.some(kept1.id) }],
+ * //   skipped: { count: 0, maybeFirstReason: Option.none() } }
+ * ```
+ */
+export const linesOf = (rows: ReadonlyArray<unknown>): Lines => {
+  const [placementFailures, placedRows] = Array.partition(rows, row =>
+    Result.map(decodeLinePlacement(row), placement => ({ row, placement })),
+  )
+  const [keptRows, retiredPlacements] = Array.partition(
+    placedRows,
+    ({ row, placement }) =>
+      isRetiredAt(placement.retiredAtMs)
+        ? Result.succeed(placement)
+        : Result.fail(row),
+  )
+  const [lineFailures, unorderedSections] = Array.partition(keptRows, row =>
+    Result.map(decodeLine(row), sectionOf),
+  )
+  const sections = Array.sort(unorderedSections, bySectionIndex)
+  const failures = [...placementFailures, ...lineFailures]
+  return {
+    sections,
+    retiredLines: Array.map(retiredPlacements, placement => ({
+      id: placement.id,
+      maybeKeptLineID: keptLineIDOf(sections, placement),
+    })),
+    skipped: {
+      count: Array.length(failures),
+      maybeFirstReason: Option.map(
+        Array.head(failures),
+        error => error.message,
+      ),
+    },
+  }
+}
+
+/**
+ * The retired line a link names, when it names one: the recording page opens
+ * such a link at {@link RetiredLine}'s kept line instead.
+ */
+export const retiredLineNamed = (
+  detail: RecordingDetail,
+  sectionID: string,
+): Option.Option<RetiredLine> =>
+  Array.findFirst(detail.retiredLines, line => line.id === sectionID)
+
+const ScrubbedLineRow = S.Struct({
+  id: S.String,
+  segmentIndex: S.Number,
+  startSeconds: S.Number,
+  endSeconds: S.Number,
+  status: S.String,
+  text: S.String,
+  wordsJSON: OptionalString,
+  retiredAtMs: OptionalNumber,
+  wordsSeal: OptionalString,
+})
+type ScrubbedLineRow = typeof ScrubbedLineRow.Type
+
+const ScrubbedWord = S.Struct({
+  text: S.String,
+  start: S.Number,
+  end: S.Number,
+})
+const ScrubbedWords = S.fromJsonString(S.Array(ScrubbedWord))
+
+const SharedLinesRow = S.Struct({ scrubbedLines: OptionalRows })
+
+const PASSED_SCRUB = 'passed'
+
+const scrubbedWordsOf = (row: ScrubbedLineRow): ReadonlyArray<Word> =>
+  pipe(
+    Option.fromNullishOr(row.wordsJSON),
+    Option.flatMap(json => S.decodeUnknownOption(ScrubbedWords)(json)),
+    Option.getOrElse(() => []),
+    Array.map((word, position) => ({
+      id: `${row.id}-${position}`,
+      text: word.text,
+      startSeconds: word.start,
+      endSeconds: word.end,
+    })),
+  )
+
+const scrubbedSectionOf = (row: ScrubbedLineRow): Section => {
+  const maybeWordsSeal = wordsSealOf(row.wordsSeal)
+  return {
+    id: row.id,
+    index: row.segmentIndex,
+    startSeconds: row.startSeconds,
+    endSeconds: row.endSeconds,
+    maybeSpeakerID: Option.none(),
+    isFinal: true,
+    maybeWordsSeal,
+    ...Option.match(maybeWordsSeal, {
+      onNone: () => ({ text: row.text, words: scrubbedWordsOf(row) }),
+      onSome: sealedLineWordsOf,
+    }),
+  }
+}
+
+/**
+ * A share's scrubbed lines (`shareScrubbedLines`) as its readers see them,
+ * through the same rule as {@link linesOf}: only lines the scrubber passed,
+ * in # order, no retired line, and a sealed line shown sealed. `shareRow` is
+ * the opened share's row, read with {@link scrubbedLinesQuery}. The share
+ * page is the site's one page open without a sign-in (#1329).
+ */
+export const scrubbedLinesOf = (shareRow: unknown): ReadonlyArray<Section> =>
+  pipe(
+    S.decodeUnknownOption(SharedLinesRow)(shareRow),
+    Option.map(row => presentRows(row.scrubbedLines)),
+    Option.getOrElse((): ReadonlyArray<unknown> => []),
+    Array.map(line => S.decodeUnknownOption(ScrubbedLineRow)(line)),
+    Array.getSomes,
+    Array.filter(
+      line => line.status === PASSED_SCRUB && !isRetiredAt(line.retiredAtMs),
+    ),
+    Array.map(scrubbedSectionOf),
+    Array.sort(bySectionIndex),
+  )
 
 const systemAudioPrefix = (platform: string | null | undefined): string =>
   M.value(Option.getOrElse(Option.fromNullishOr(platform), () => '')).pipe(
@@ -299,11 +603,15 @@ const clipboardOf = (row: typeof ClipboardRow.Type): ClipboardEntry => ({
 
 const previewLinesOf = (row: RecordingRow): ReadonlyArray<PreviewLine> =>
   pipe(
-    [...presentRows(row.previewSegmentA), ...presentRows(row.previewSegmentB)],
-    rows => decodeEach(SegmentRow, rows, sectionOf).values,
+    linesOf([
+      ...presentRows(row.previewSegmentA),
+      ...presentRows(row.previewSegmentB),
+    ]).sections,
     Array.dedupeWith((first, second) => first.id === second.id),
-    Array.sort(bySectionIndex),
-    Array.filter(section => section.text.trim() !== ''),
+    Array.filter(
+      section =>
+        Option.isNone(section.maybeWordsSeal) && section.text.trim() !== '',
+    ),
     Array.map(section => ({
       sectionID: section.id,
       startSeconds: section.startSeconds,
@@ -401,11 +709,7 @@ export const decodeRecordingDetail = (
         skipped: decodeEach(RecordingRow, rows, row => row).skipped,
       }),
       onSome: row => {
-        const sections = decodeEach(
-          SegmentRow,
-          presentRows(row.segments),
-          sectionOf,
-        )
+        const lines = linesOf(presentRows(row.segments))
         const speakers = decodeEach(
           SpeakerRow,
           presentRows(row.speakers),
@@ -424,7 +728,8 @@ export const decodeRecordingDetail = (
         return {
           maybeDetail: Option.some({
             summary: summaryOf(row),
-            sections: Array.sort(sections.values, bySectionIndex),
+            sections: lines.sections,
+            retiredLines: lines.retiredLines,
             speakers: speakers.values,
             clipboard: clipboard.values,
             images: imagesOf(attachments.values),
@@ -432,7 +737,7 @@ export const decodeRecordingDetail = (
           }),
           skipped: Array.reduce(
             [speakers.skipped, clipboard.skipped, attachments.skipped],
-            sections.skipped,
+            lines.skipped,
             combineSkipped,
           ),
         }
@@ -440,11 +745,14 @@ export const decodeRecordingDetail = (
     }),
   )
 
-/** Reads transcript segment rows into sections, in index order, skipping rows that cannot be read. */
+/**
+ * Reads transcript line rows into the kept sections, in # order, through
+ * {@link linesOf}: no retired line, a sealed one shown sealed, rows that
+ * cannot be read skipped.
+ */
 export const decodeSections = (
   rows: ReadonlyArray<unknown>,
-): ReadonlyArray<Section> =>
-  Array.sort(decodeEach(SegmentRow, rows, sectionOf).values, bySectionIndex)
+): ReadonlyArray<Section> => linesOf(rows).sections
 
 /** Reads rows that may be a list, one object, or absent, as a list. */
 export const rowsOf = (rows: unknown): ReadonlyArray<unknown> =>
