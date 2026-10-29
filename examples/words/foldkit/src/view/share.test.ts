@@ -35,6 +35,7 @@ const scrubbedLine = (index: number, text: string): Section => ({
   text,
   words: [],
   isFinal: true,
+  maybeWordsSeal: Option.none(),
 })
 
 const passedRange = (): Share.Model.SharedRange => ({
@@ -275,6 +276,49 @@ describe('the share page says who the share reaches', () => {
       ...(label === 'Shared with You'
         ? []
         : [Scene.expect(Scene.text('Shared with You')).toBeAbsent()]),
+    )
+  })
+})
+
+// ADR 0097 (#1183, #1329): a sealed line keeps its place and time and shows no words, on the share page as on the
+// recording page (both draw a line with the same view).
+describe('a sealed line on the share page', () => {
+  test('shows as sealed at its time, with no words', () => {
+    Scene.scene(
+      { update, view: sharedRangePage },
+      Scene.with(
+        sharedPageModel({
+          ...passedRange(),
+          lines: [
+            scrubbedLine(0, firstLine),
+            {
+              ...scrubbedLine(1, ''),
+              maybeWordsSeal: Option.some('Voice'),
+            },
+          ],
+        }),
+      ),
+      Scene.expect(Scene.text(firstLine)).toExist(),
+      Scene.expect(Scene.text('[sealed]')).toExist(),
+      Scene.expect(Scene.text('0:05')).toExist(),
+    )
+  })
+
+  test('says a held line is being checked', () => {
+    Scene.scene(
+      { update, view: sharedRangePage },
+      Scene.with(
+        sharedPageModel({
+          ...passedRange(),
+          lines: [
+            {
+              ...scrubbedLine(1, ''),
+              maybeWordsSeal: Option.some('Held'),
+            },
+          ],
+        }),
+      ),
+      Scene.expect(Scene.text('[checking the voice]')).toExist(),
     )
   })
 })
