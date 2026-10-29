@@ -280,8 +280,8 @@ describe('the share page says who the share reaches', () => {
   })
 })
 
-// ADR 0097 (#1183, #1329): a sealed line keeps its place and time and shows no words, on the share page as on the
-// recording page (both draw a line with the same view).
+// ADR 0097 (#1183, #1329), docs/FEATURES.md item 10: a sealed line keeps its place and time as a line with soft bars
+// and shows no words, on the share page as on the recording page (both draw a line with the same view).
 describe('a sealed line on the share page', () => {
   test('shows as sealed at its time, with no words', () => {
     Scene.scene(
@@ -301,6 +301,10 @@ describe('a sealed line on the share page', () => {
       Scene.expect(Scene.text(firstLine)).toExist(),
       Scene.expect(Scene.text('[sealed]')).toExist(),
       Scene.expect(Scene.text('0:05')).toExist(),
+      Scene.expect(Scene.selector('[data-sealed-line="Voice"]')).toExist(),
+      Scene.expect(
+        Scene.selector('[data-sealed-line="Voice"] [aria-hidden="true"]'),
+      ).toExist(),
     )
   })
 
@@ -319,6 +323,7 @@ describe('a sealed line on the share page', () => {
         }),
       ),
       Scene.expect(Scene.text('[checking the voice]')).toExist(),
+      Scene.expect(Scene.selector('[data-sealed-line="Held"]')).toExist(),
     )
   })
 })
