@@ -2,6 +2,7 @@
 import { Array, Console, Effect, Option, Runtime } from 'effect'
 import { Argument, Command, Flag } from 'effect/unstable/cli'
 import { pathToNavigation } from 'issues-core-example'
+import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -31,6 +32,7 @@ import {
   setIssueStatusCommand,
   showIssueCommand,
   workInProgressCommand,
+  workingSyncCommand,
 } from './commands.js'
 import { exitOnceWritten } from './exit.js'
 import { runIssues } from './host.js'
@@ -40,6 +42,7 @@ import {
   defaultIssuesAgent,
   liveIssueHostServices,
 } from './resources.js'
+import { countTouchedFilesWithGit } from './working.js'
 
 const DEVELOPMENT_PROVENANCE = 'development build (not installed from a bundle)'
 
@@ -66,11 +69,13 @@ const liveHost = (services: LiveIssueHostServices): IssuesHost => ({
     'ISSUES_BACKUP_DIR',
     join(homedir(), 'Sync', 'audit', 'issues-deleted'),
   ),
+  countTouchedFiles: worktree => countTouchedFilesWithGit(worktree, Date.now()),
   defaultAgent: defaultIssuesAgent(),
   files: services.files,
   mirrorRoot: environmentPath('SCRIBE_ROOT', join(homedir(), 'Scribe')),
   nowMs: () => Date.now(),
   readStandardInput: Effect.promise(readStandardInput),
+  readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
   records: services.records,
   resources: services.resources,
 })
@@ -216,6 +221,11 @@ const list = Command.make(
     ),
     isWorkInProgress: Flag.boolean('wip').pipe(
       Flag.withDescription('Only Issues with work in progress recorded'),
+    ),
+    isWorking: Flag.boolean('working').pipe(
+      Flag.withDescription(
+        'Only Issues an agent runs on now, with the agent, its branch, and how many files it touches (as issues working sync last saw them)',
+      ),
     ),
     limit: Flag.integer('limit').pipe(
       Flag.withDescription('At most this many'),
@@ -516,6 +526,49 @@ const wip = Command.make(
   ),
 )
 
+const workingSync = Command.make(
+  'sync',
+  {
+    agents: Flag.string('agents').pipe(
+      Flag.withDescription(
+        'The JSON of tools/agent-progress-check --json --no-ledger, such as /tmp/agent-progress.json',
+      ),
+    ),
+    isDryRun: Flag.boolean('dry-run').pipe(
+      Flag.withDescription('Print what would change and save nothing'),
+    ),
+    isSweep: Flag.boolean('sweep').pipe(
+      Flag.withDescription(
+        'Also read every Issue InProgress or Addressing: stale claims and merged work',
+      ),
+    ),
+    registry: optionalText(
+      'registry',
+      'agents-registry.json, whose ended runs release their claims (default ~/Scribe/agents-registry.json)',
+    ),
+  },
+  input =>
+    withLiveHost(host =>
+      workingSyncCommand(host, {
+        ...input,
+        registry: Option.orElse(input.registry, () =>
+          Option.some(join(homedir(), 'Scribe', 'agents-registry.json')),
+        ),
+      }),
+    ),
+).pipe(
+  Command.withDescription(
+    'Record on each Issue the agent working on it now, whether it runs, its branch, worktree and touched files; release claims of runs that ended; move InProgress work recorded Merged or Shipped to VerificationNeeded',
+  ),
+)
+
+const working = Command.make('working').pipe(
+  Command.withDescription(
+    'Who works on what now: working sync records it; issues show prints Now working; issues list --working lists it',
+  ),
+  Command.withSubcommands([workingSync]),
+)
+
 const mention = Command.make(
   'mention',
   {
@@ -666,6 +719,7 @@ const issues = Command.make('issues').pipe(
     satisfy,
     subtask,
     wip,
+    working,
     mention,
     remove,
     attach,

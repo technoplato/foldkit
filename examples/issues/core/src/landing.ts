@@ -4,14 +4,17 @@ import {
   type Issue,
   type IssueWorkInProgress,
   isCloseToLanding,
+  isWorkingNow,
 } from '@foldkit/instant-tools/issues'
 
 /** Every Issue, whatever its work in progress. */
 export const AllWork = S.TaggedStruct('AllWork', {})
 /** Only the Issues whose work is Green or Pushed and not abandoned. */
 export const CloseToLanding = S.TaggedStruct('CloseToLanding', {})
+/** Only the Issues an agent runs on now, as `issues working sync` last saw it. */
+export const WorkingNow = S.TaggedStruct('WorkingNow', {})
 /** Which Issues the list shows by their work in progress, owned by the Program. */
-export const LandingFilter = S.Union([AllWork, CloseToLanding])
+export const LandingFilter = S.Union([AllWork, CloseToLanding, WorkingNow])
 /** Which Issues the list shows by their work in progress. */
 export type LandingFilter = typeof LandingFilter.Type
 
@@ -25,6 +28,7 @@ export const issuesForLandingFilter = (
     M.tagsExhaustive({
       AllWork: () => issues,
       CloseToLanding: () => Array.filter(issues, isCloseToLanding),
+      WorkingNow: () => Array.filter(issues, isWorkingNow),
     }),
   )
 

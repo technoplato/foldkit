@@ -534,6 +534,86 @@ export const IssueWorkInProgress = S.Struct({
 /** Where an Issue's work in progress is. */
 export type IssueWorkInProgress = typeof IssueWorkInProgress.Type
 
+/**
+ * A file a branch changed and the lines git counted:
+ * `{ path: 'packages/instant-tools/src/issues/domain.ts', insertions: 40, deletions: 2 }`.
+ */
+export const ChangedFile = S.TaggedStruct('Changed', {
+  deletions: S.Number,
+  insertions: S.Number,
+  path: S.String,
+})
+/** A binary file a branch changed, such as `docs/shot.png`; git counts no lines in it. */
+export const BinaryFile = S.TaggedStruct('Binary', { path: S.String })
+/** A new file in the worktree that is not yet added to git. */
+export const UntrackedFile = S.TaggedStruct('Untracked', { path: S.String })
+/** One file a branch touches: changed with its line counts, binary, or untracked. */
+export const IssueTouchedFile = S.Union([
+  ChangedFile,
+  BinaryFile,
+  UntrackedFile,
+])
+/** One file a branch touches. */
+export type IssueTouchedFile = typeof IssueTouchedFile.Type
+
+/**
+ * The files a worktree's branch touches against its main line, as git counted
+ * them at `checkedAtMs`: `fileCount` is every file, `files` keeps the first
+ * ones, such as 3 files touched against `technoplato/main`.
+ */
+export const IssueTouchedFiles = S.Struct({
+  base: S.String,
+  checkedAtMs: S.Number,
+  fileCount: S.Number,
+  files: S.Array(IssueTouchedFile),
+})
+/** The files a worktree's branch touches against its main line. */
+export type IssueTouchedFiles = typeof IssueTouchedFiles.Type
+
+/** The agent runs; `sinceMs` is when the tracker first saw it running. */
+export const RunningAgent = S.TaggedStruct('Running', { sinceMs: S.Number })
+/** The agent's run ended, and how, such as `done` or `exit 143`. */
+export const EndedAgent = S.TaggedStruct('Ended', {
+  how: S.String,
+  sinceMs: S.Number,
+})
+/**
+ * Nothing shows the claimant running and no recorded run of it ended either,
+ * such as a hand-started session that went quiet twelve hours ago.
+ */
+export const StaleAgent = S.TaggedStruct('Stale', {
+  reason: S.String,
+  sinceMs: S.Number,
+})
+/** Whether the agent on an Issue runs, ended, or went stale. */
+export const IssueAgentRun = S.Union([RunningAgent, EndedAgent, StaleAgent])
+/** Whether the agent on an Issue runs, ended, or went stale. */
+export type IssueAgentRun = typeof IssueAgentRun.Type
+
+/**
+ * The agent working on an Issue as the Mac last saw it
+ * (`tools/agent-progress-check` and `agents-registry.json`):
+ * `claude-code/issue-wip-1374@max` on account `max`, Running, on
+ * branch `agent/claude/issue-wip-1374` in its worktree, with the files it
+ * touches. Only `issues working sync` writes it.
+ */
+export const IssueAgentPresence = S.Struct({
+  account: OptionalIssueString,
+  agentId: S.String,
+  branch: OptionalIssueString,
+  harness: OptionalIssueString,
+  run: IssueAgentRun,
+  startedAtMs: S.OptionFromNullOr(S.Number).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+  touchedFiles: S.OptionFromNullOr(IssueTouchedFiles).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+  worktree: OptionalIssueString,
+})
+/** The agent working on an Issue as the Mac last saw it. */
+export type IssueAgentPresence = typeof IssueAgentPresence.Type
+
 /** A lossless human-readable source document imported into the Issue tracker. */
 export const IssueSourceDocument = S.Struct({
   body: S.String,
@@ -547,6 +627,10 @@ export type IssueSourceDocument = typeof IssueSourceDocument.Type
 
 /** A transport-independent Issue with durable evidence and work history. */
 export const Issue = S.Struct({
+  agentPresence: S.OptionFromNullOr(IssueAgentPresence).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+    S.withConstructorDefault(Effect.succeed(Option.none())),
+  ),
   area: OptionalIssueString,
   attachments: S.Array(IssueAttachment),
   /**
@@ -609,6 +693,13 @@ export const isCloseToLanding = (issue: Issue): boolean =>
     work =>
       (work.landingState === 'Green' || work.landingState === 'Pushed') &&
       work.activity._tag !== 'Abandoned',
+  )
+
+/** True while the agent on an Issue runs, as `issues working sync` last saw it. */
+export const isWorkingNow = (issue: Issue): boolean =>
+  Option.exists(
+    issue.agentPresence,
+    presence => presence.run._tag === 'Running',
   )
 
 /**

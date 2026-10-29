@@ -3,7 +3,12 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 import { Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 
 import { BacklogListing, backlogIssues, backlogOf } from './backlog.js'
-import { AllWork, CloseToLanding, issuesForLandingFilter } from './landing.js'
+import {
+  AllWork,
+  CloseToLanding,
+  WorkingNow,
+  issuesForLandingFilter,
+} from './landing.js'
 import {
   AllProducts,
   LeftoverStatus,
@@ -222,6 +227,11 @@ export const interactionsForModel = (
           'landing:close',
           'Close to landing',
           SelectedLandingFilter.make({ filter: CloseToLanding.make({}) }),
+        ),
+        interaction(
+          'landing:working',
+          'Working now',
+          SelectedLandingFilter.make({ filter: WorkingNow.make({}) }),
         ),
         ...Array.map(listedIssues(model, loadedIssues(model.issues)), issue =>
           interaction(

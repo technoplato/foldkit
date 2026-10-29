@@ -22,6 +22,7 @@ import {
   IssueStatus,
   IssueSubtask,
   IssueSuccessCriterion,
+  IssueTouchedFiles,
   IssueTracker,
   type IssueWorkActivity,
   IssueWorkInProgress,
@@ -119,6 +120,12 @@ import {
   UnchangedProductAddition,
   WorkInProgressEdit,
 } from './model.js'
+import {
+  AgentSurvey,
+  observedIssue,
+  statusFollowingLanding,
+  workingSyncAgent,
+} from './nowWorking.js'
 
 // COMMAND
 
@@ -978,16 +985,59 @@ export const RecordIssueWorkInProgress = Command.define(
     const tracker = yield* IssueTracker
     const nowMs = yield* Clock.currentTimeMillis
     const issue = yield* tracker.update(issueId, {
-      apply: current =>
-        Issue.make({
-          ...current,
-          updatedAtMs: nextUpdatedAtMs(current, nowMs),
-          workInProgress: Option.some(
-            editedWorkInProgress(current.workInProgress, edit, nowMs),
-          ),
-        }),
+      apply: current => {
+        const namedEdit = WorkInProgressEdit.make({
+          ...edit,
+          agentId: Option.orElse(edit.agentId, () => current.claimantId),
+        })
+        return statusFollowingLanding(
+          Issue.make({
+            ...current,
+            updatedAtMs: nextUpdatedAtMs(current, nowMs),
+            workInProgress: Option.some(
+              editedWorkInProgress(current.workInProgress, namedEdit, nowMs),
+            ),
+          }),
+          nowMs,
+          Option.getOrElse(namedEdit.agentId, () => workingSyncAgent),
+        )
+      },
       hasLanded: stored =>
         Option.exists(stored.workInProgress, work => holdsEdit(work, edit)),
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+const encodeIssue = S.encodeSync(Issue)
+
+const isSameIssue = (left: Issue, right: Issue): boolean =>
+  JSON.stringify(encodeIssue(left)) === JSON.stringify(encodeIssue(right))
+
+/**
+ * Records what the Mac saw of its agents on one Issue (`observedIssue`) and
+ * reads it back until observing the same survey again changes nothing.
+ */
+export const RecordAgentSurvey = Command.define(
+  'RecordAgentSurvey',
+  {
+    issueId: S.String,
+    survey: AgentSurvey,
+    touchedFiles: S.Option(IssueTouchedFiles),
+  },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, survey, touchedFiles }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const issue = yield* tracker.update(issueId, {
+      apply: current => observedIssue(current, survey, touchedFiles),
+      hasLanded: stored =>
+        isSameIssue(observedIssue(stored, survey, touchedFiles), stored),
     })
     return SucceededSaveIssue.make({ issue })
   }).pipe(
@@ -2176,6 +2226,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ),
       ClearedIssueWorkInProgress: ({ issueId }) =>
         startLeftoverCommand(model, ClearIssueWorkInProgress({ issueId })),
+      ObservedAgentSurvey: ({ issueId, survey, touchedFiles }) =>
+        startLeftoverCommand(
+          model,
+          RecordAgentSurvey({ issueId, survey, touchedFiles }),
+        ),
       SubmittedIssueRank: ({ issueId, rank }) =>
         startLeftoverCommand(model, RankIssue({ issueId, rank })),
       SelectedLandingFilter: ({ filter }) => [

@@ -6,6 +6,7 @@ import {
   IssuePriority,
   IssueStatus,
   IssueSuccessEvidence,
+  IssueTouchedFiles,
   ProductCatalogEntry,
   TrackedProduct,
   TriageCandidate,
@@ -23,6 +24,7 @@ import {
   SubtaskMark,
   WorkInProgressEdit,
 } from './model.js'
+import { AgentSurvey } from './nowWorking.js'
 
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
   issues: S.Array(Issue),
@@ -197,6 +199,15 @@ export const SubmittedIssueWorkInProgress = S.TaggedStruct(
   'SubmittedIssueWorkInProgress',
   { edit: WorkInProgressEdit, issueId: S.String },
 )
+/**
+ * The Mac looked at its agents (`issues working sync`): who runs on the Issue,
+ * which runs ended, and the files the running agent's worktree touches.
+ */
+export const ObservedAgentSurvey = S.TaggedStruct('ObservedAgentSurvey', {
+  issueId: S.String,
+  survey: AgentSurvey,
+  touchedFiles: S.Option(IssueTouchedFiles),
+})
 export const ClearedIssueWorkInProgress = S.TaggedStruct(
   'ClearedIssueWorkInProgress',
   { issueId: S.String },
@@ -326,6 +337,7 @@ export const Message = S.Union([
   SubmittedIssueSubtasks,
   SubmittedSubtaskMarks,
   SubmittedIssueWorkInProgress,
+  ObservedAgentSurvey,
   ClearedIssueWorkInProgress,
   SubmittedIssueRank,
   SelectedLandingFilter,

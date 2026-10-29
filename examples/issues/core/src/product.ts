@@ -14,6 +14,7 @@ import {
   type IssueMention,
   IssuePriority,
   type IssueReference,
+  isWorkingNow,
   issueViewerUrl,
 } from '@foldkit/instant-tools/issues'
 import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
@@ -43,6 +44,7 @@ import {
   type IssueLogsState,
   type Model,
 } from './model.js'
+import { nowWorkingLines } from './nowWorking.js'
 import {
   interactionsForModel,
   listedBacklog,
@@ -65,13 +67,25 @@ const listIssueLabel = (issue: Issue): string => {
     : `${issue.id}  ${issue.priority}  ${issue.status}  ${kind}  ${issue.title}`
 }
 
-const listButtonLabel = (issue: Issue): string => {
-  const label = `${listIssueLabel(issue)}  [${issue.product.name}]`
-  return Option.match(issue.workInProgress, {
-    onNone: () => label,
-    onSome: work => `${label}  ${landingHeadline(work)}`,
-  })
-}
+const runningAgentLabel = (issue: Issue): ReadonlyArray<string> =>
+  isWorkingNow(issue)
+    ? Option.toArray(
+        Option.map(
+          issue.agentPresence,
+          presence => `running ${presence.agentId}`,
+        ),
+      )
+    : []
+
+const listButtonLabel = (issue: Issue): string =>
+  Array.join(
+    [
+      `${listIssueLabel(issue)}  [${issue.product.name}]`,
+      ...Option.toArray(Option.map(issue.workInProgress, landingHeadline)),
+      ...runningAgentLabel(issue),
+    ],
+    '  ',
+  )
 
 const isoTimeOf = (timeMs: number): string => new Date(timeMs).toISOString()
 
@@ -156,6 +170,18 @@ const mentionedInSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
           Text(recordingGroupHeader(group), { dim: true }),
           ...Array.map(group.lines, mentionedLineNode),
         ]),
+      ),
+    ],
+  })
+
+const nowWorkingSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+  Array.match(nowWorkingLines(issue), {
+    onEmpty: () => [],
+    onNonEmpty: lines => [
+      Column(
+        { gap: 1 },
+        Text('Now working'),
+        ...Array.map(lines, line => Text(line)),
       ),
     ],
   })
@@ -275,6 +301,7 @@ const issueDetailNodes = (
       { dim: true },
     ),
     Text(issue.details),
+    ...nowWorkingSectionNodes(issue),
     ...workInProgressSectionNodes(issue),
     ...subtaskSectionNodes(issue),
     ...mentionedInSectionNodes(issue),
@@ -418,6 +445,12 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
                 model.landingFilter._tag === 'CloseToLanding'
                   ? 'Primary'
                   : 'Ghost',
+            }),
+            Button({
+              token: 'landing:working',
+              label: 'Working now',
+              variant:
+                model.landingFilter._tag === 'WorkingNow' ? 'Primary' : 'Ghost',
             }),
           ),
           Text('Current issues'),

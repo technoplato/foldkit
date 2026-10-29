@@ -689,10 +689,7 @@ describe('Issue Tracker screen: work in progress', () => {
   })
 })
 
-const presentAs = (
-  issue: Issue,
-  run: IssueAgentPresence['run'],
-): Issue =>
+const presentAs = (issue: Issue, run: IssueAgentPresence['run']): Issue =>
   Issue.make({
     ...issue,
     agentPresence: Option.some(
@@ -704,7 +701,9 @@ const presentAs = (
         run,
         startedAtMs: Option.some(1_793_312_008_000),
         touchedFiles: Option.none(),
-        worktree: Option.some(`/Users/laptop/Sync/worktrees/scribe-${issue.id}`),
+        worktree: Option.some(
+          `/Users/laptop/Sync/worktrees/scribe-${issue.id}`,
+        ),
       }),
     ),
   })
@@ -722,7 +721,7 @@ describe('Issue Tracker screen: now working', () => {
       expect.arrayContaining([
         'Now working',
         'Agent: claude-code/issue-1374@max (account max)',
-        'Running: yes, seen 2026-10-29T22:20:00.000Z (started 2026-10-29T22:13:28.000Z)',
+        'Running: yes, seen since 2026-10-29T22:20:00.000Z (started 2026-10-29T22:13:28.000Z)',
         'Branch: agent/claude/issue-1374 in realtime-voice',
         'Worktree: /Users/laptop/Sync/worktrees/scribe-1374',
         'Last step: Green: 37 focused tests pass (2026-10-17T18:00:00.000Z)',

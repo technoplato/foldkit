@@ -371,7 +371,10 @@ describe('issues command', () => {
     expect(text).toContain('Related: #502')
     expect(text).toContain('segment-1884?t=10130.35')
     expect(text.indexOf('Filed first.')).toBeLessThan(
-      text.indexOf('Landed second.'),
+      text.lastIndexOf('Landed second.'),
+    )
+    expect(text).toContain(
+      'Now working\n  Agent: claude-code/issues-one-way\n  Running: not checked yet\n  Last step: Landed second. (2026-10-14T17:46:40.002Z)',
     )
 
     const json = await run(
@@ -2207,10 +2210,7 @@ describe('issues carry the pictures of the moment they quote', () => {
 })
 
 describe('issues working', () => {
-  const syncInput = (
-    agents: string,
-    registry: string,
-  ): WorkingSyncInput => ({
+  const syncInput = (agents: string, registry: string): WorkingSyncInput => ({
     agents,
     isDryRun: false,
     isSweep: false,
@@ -2395,7 +2395,7 @@ describe('issues working', () => {
       expect.arrayContaining([
         'Now working',
         '  Agent: claude-code/issue-wip-1374@max (account max)',
-        '  Running: yes, seen 2026-10-14T17:46:40.000Z (started 2026-10-14T17:30:00.000Z)',
+        '  Running: yes, seen since 2026-10-14T17:46:40.000Z (started 2026-10-14T17:30:00.000Z)',
         '  Branch: agent/claude/issue-wip-1374',
         '  Worktree: /Users/laptop/Sync/worktrees/foldkit-issue-wip-1374',
         '  Files: 1 touched against technoplato/main (counted 2026-10-14T17:46:40.000Z)',

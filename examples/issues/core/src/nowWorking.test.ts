@@ -100,7 +100,9 @@ const workAt = (landingState: IssueLandingState) =>
     repository: Option.some('foldkit'),
     targetBuild: Option.none(),
     updatedAtMs: 1_793_312_300_000,
-    worktree: Option.some('/Users/laptop/Sync/worktrees/foldkit-issue-wip-1374'),
+    worktree: Option.some(
+      '/Users/laptop/Sync/worktrees/foldkit-issue-wip-1374',
+    ),
   })
 
 const encoded = (value: Issue) => S.encodeSync(Issue)(value)
@@ -192,7 +194,9 @@ describe('Now working', () => {
     expect(
       Option.map(released.agentPresence, presence => presence.run),
     ).toEqual(
-      Option.some(EndedAgent.make({ how: 'done', sinceMs: observedAtMs + 600_000 })),
+      Option.some(
+        EndedAgent.make({ how: 'done', sinceMs: observedAtMs + 600_000 }),
+      ),
     )
     expect(released.workLog).toEqual([
       IssueWorkLogEntry.make({
@@ -273,7 +277,11 @@ describe('Now working', () => {
     )
     expect(
       encoded(
-        observedIssue(stale, surveyOf([], [], observedAtMs + 120_000), Option.none()),
+        observedIssue(
+          stale,
+          surveyOf([], [], observedAtMs + 120_000),
+          Option.none(),
+        ),
       ),
     ).toEqual(encoded(stale))
 
@@ -350,7 +358,7 @@ describe('Now working', () => {
 
     expect(nowWorkingLines(working)).toEqual([
       'Agent: claude-code/issue-wip-1374@max (account max)',
-      'Running: yes, seen 2026-10-29T22:20:00.000Z (started 2026-10-29T22:13:28.000Z)',
+      'Running: yes, seen since 2026-10-29T22:20:00.000Z (started 2026-10-29T22:13:28.000Z)',
       'Branch: agent/claude/issue-wip-1374 in foldkit',
       'Worktree: /Users/laptop/Sync/worktrees/foldkit-issue-wip-1374',
       'Files: 3 touched against technoplato/main (counted 2026-10-29T22:20:00.000Z)',

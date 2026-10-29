@@ -6,9 +6,11 @@ import {
   Option,
   Order,
   Ref,
+  Result,
   Schema as S,
 } from 'effect'
 import {
+  type AgentSurvey,
   ClearedIssueWorkInProgress,
   ComposedIssueDraft,
   ConfirmedIssueDeletion,
@@ -23,6 +25,7 @@ import {
   LinkedCatalogIssue,
   type Message,
   type Model,
+  ObservedAgentSurvey,
   type RankPlacement,
   SelectedIssueStatus,
   SubmittedIssue,
@@ -46,6 +49,8 @@ import {
   issueFromDraft,
   landingSummary,
   laneHeading,
+  nowWorkingLines,
+  observedIssue,
   placeInBacklog,
   rankAfter,
   rankBefore,
@@ -53,6 +58,7 @@ import {
   sectionHeading,
   subtaskProgress,
   workInProgressLines,
+  worktreeToCount,
 } from 'issues-core-example'
 import { createHash, randomUUID } from 'node:crypto'
 import {
@@ -69,6 +75,7 @@ import {
 import { basename, extname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { decodeIssueRecord } from '@foldkit/instant-tools/instant'
 import {
   AbandonedWork,
   ActiveWork,
@@ -85,6 +92,7 @@ import {
   IssueStatus,
   type IssueSubtask,
   IssueSuccessEvidence,
+  type IssueTouchedFiles,
   type IssueWorkActivity,
   IssueWorkInProgress,
   LibraryProduct,
@@ -93,6 +101,7 @@ import {
   UriAttachmentSource,
   describeIssueTrackerCause,
   isCloseToLanding,
+  isWorkingNow,
   issueViewerUrl,
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
@@ -110,6 +119,7 @@ import {
   typedMention,
 } from './mentions.js'
 import { type IssueRecordsService } from './resources.js'
+import { issueIdsToCheck, surveyFromProgressCheck } from './working.js'
 
 export { resolveSaid, resolveSaidMention, typedMention } from './mentions.js'
 
@@ -160,11 +170,19 @@ export type IssueFilesService = Readonly<{
 /** Everything a command needs from the machine it runs on. */
 export type IssuesHost = Readonly<{
   backupDirectory: string
+  /**
+   * The files a worktree's branch touches against its main line, from git;
+   * None when the worktree is gone or git cannot read it.
+   */
+  countTouchedFiles: (
+    worktree: string,
+  ) => Effect.Effect<Option.Option<IssueTouchedFiles>>
   defaultAgent: string
   files: IssueFilesService
   mirrorRoot: string
   nowMs: () => number
   readStandardInput: Effect.Effect<string>
+  readTextFile: (path: string) => Effect.Effect<string, unknown>
   records: IssueRecordsService
   resources: Layer.Layer<IssueTrackerResources>
 }>
@@ -657,6 +675,45 @@ export const issueWorkLine = (issue: Issue): string =>
       ),
   })
 
+const fileCountText = (count: number): string =>
+  `${count.toString()} ${count === 1 ? 'file' : 'files'} touched`
+
+/**
+ * One line of `issues list --working`: the list line, where the work is, the
+ * running agent, its branch, and how many files it touches, such as
+ * `#1374  P2  InProgress  <title>  [Scribe]  running claude-code/issue-wip-1374@max  agent/claude/issue-wip-1374  3 files touched`.
+ */
+export const issueWorkingLine = (issue: Issue): string =>
+  Array.join(
+    [
+      issueListLine(issue),
+      ...Option.toArray(Option.map(issue.workInProgress, landingSummary)),
+      ...Option.toArray(
+        Option.map(
+          issue.agentPresence,
+          presence => `running ${presence.agentId}`,
+        ),
+      ),
+      ...Option.toArray(
+        Option.orElse(
+          Option.flatMap(issue.workInProgress, work => work.branch),
+          () =>
+            Option.flatMap(issue.agentPresence, presence => presence.branch),
+        ),
+      ),
+      ...Option.toArray(
+        Option.map(
+          Option.flatMap(
+            issue.agentPresence,
+            presence => presence.touchedFiles,
+          ),
+          touchedFiles => fileCountText(touchedFiles.fileCount),
+        ),
+      ),
+    ],
+    '  ',
+  )
+
 const subtaskLine = (subtask: IssueSubtask, position: number): string =>
   `  [${subtask.state._tag === 'Checked' ? 'x' : ' '}] ${position.toString()} ${subtask.title} (${subtask.id})`
 
@@ -712,6 +769,7 @@ export const issueDetailLines = (issue: Issue): ReadonlyArray<string> => [
   `Created: ${isoTime(issue.createdAtMs)}  Updated: ${isoTime(issue.updatedAtMs)}`,
   issueUrl(issue.id),
   ...section('Details', issue.details === '' ? [] : [issue.details]),
+  ...section('Now working', indented(nowWorkingLines(issue))),
   ...Option.match(issue.workInProgress, {
     onNone: () => [],
     onSome: work =>
@@ -959,6 +1017,7 @@ export type ListInput = Readonly<{
   isLanding: boolean
   isStuck: boolean
   isWorkInProgress: boolean
+  isWorking: boolean
   limit: Option.Option<number>
   product: Option.Option<string>
   recording: Option.Option<string>
@@ -979,6 +1038,7 @@ const targetsBuild = (issue: Issue, build: string): boolean =>
 const matchesWorkFilters = (input: ListInput, issue: Issue): boolean =>
   (!input.isLanding || isCloseToLanding(issue)) &&
   (!input.isWorkInProgress || Option.isSome(issue.workInProgress)) &&
+  (!input.isWorking || isWorkingNow(issue)) &&
   (!input.isStuck || isStuckWork(issue)) &&
   Option.match(input.targetBuild, {
     onNone: () => true,
@@ -987,9 +1047,20 @@ const matchesWorkFilters = (input: ListInput, issue: Issue): boolean =>
 
 const isWorkListing = (input: ListInput): boolean =>
   input.isLanding ||
+  input.isWorking ||
   input.isWorkInProgress ||
   input.isStuck ||
   Option.isSome(input.targetBuild)
+
+const listLineFor = (input: ListInput): ((issue: Issue) => string) => {
+  if (input.isWorking) {
+    return issueWorkingLine
+  } else if (isWorkListing(input)) {
+    return issueWorkLine
+  } else {
+    return issueListLine
+  }
+}
 
 const recordingFolderIdPattern = /— ([0-9a-f]{8})$/
 
@@ -1185,10 +1256,7 @@ export const listIssuesCommand = (
           ]
         : input.isBacklog
           ? listing.lines
-          : Array.map(
-              listing.issues,
-              isWorkListing(input) ? issueWorkLine : issueListLine,
-            )
+          : Array.map(listing.issues, listLineFor(input))
       if (Array.isReadonlyArrayNonEmpty(unreadable)) {
         return {
           exitCode: FAILED_EXIT_CODE,
@@ -2880,5 +2948,258 @@ export const workInProgressCommand = (
               ],
             }),
       )
+    }),
+  )
+
+/** Everything `issues working sync` reads. */
+export type WorkingSyncInput = Readonly<{
+  agents: string
+  isDryRun: boolean
+  isSweep: boolean
+  registry: Option.Option<string>
+}>
+
+const sweptStatuses: ReadonlyArray<IssueStatus> = ['InProgress', 'Addressing']
+
+const readJsonFile = (
+  host: IssuesHost,
+  what: string,
+  path: string,
+): Effect.Effect<unknown, IssuesCommandFailure> =>
+  host.readTextFile(path).pipe(
+    Effect.flatMap(text => Effect.try((): unknown => JSON.parse(text))),
+    Effect.mapError(cause =>
+      failed(
+        'working sync',
+        `could not read ${what} ${path}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      ),
+    ),
+  )
+
+const readSurvey = (
+  host: IssuesHost,
+  input: WorkingSyncInput,
+): Effect.Effect<AgentSurvey, IssuesCommandFailure> =>
+  Effect.gen(function* () {
+    const progressCheck = yield* readJsonFile(
+      host,
+      'the progress check',
+      input.agents,
+    )
+    const maybeRegistry = yield* Option.match(input.registry, {
+      onNone: () => Effect.succeed(Option.none<unknown>()),
+      onSome: path =>
+        Effect.map(
+          readJsonFile(host, 'the agents registry', path),
+          Option.some,
+        ),
+    })
+    return yield* Result.match(
+      surveyFromProgressCheck(progressCheck, maybeRegistry, host.nowMs()),
+      {
+        onFailure: reason => Effect.fail(failed('working sync', reason)),
+        onSuccess: Effect.succeed,
+      },
+    )
+  })
+
+const readIssueById = (
+  host: IssuesHost,
+  issueId: string,
+): Effect.Effect<Option.Option<Issue>, IssuesCommandFailure> =>
+  host.records.fetchIssueRecordsById(issueId).pipe(
+    Effect.mapError(cause =>
+      failed('working sync', describeIssueTrackerCause(cause)),
+    ),
+    Effect.flatMap(records =>
+      Option.match(Array.head(records), {
+        onNone: () => Effect.succeed(Option.none<Issue>()),
+        onSome: record =>
+          Effect.try({
+            try: () => Option.some(decodeIssueRecord(record)),
+            catch: cause =>
+              failed(
+                'working sync',
+                `Issue #${issueId} could not be read: ${String(cause)}`,
+              ),
+          }),
+      }),
+    ),
+  )
+
+const encodedIssueText = (issue: Issue): string =>
+  JSON.stringify(encodeIssue(issue))
+
+const presenceChangeLines = (
+  before: Issue,
+  after: Issue,
+): ReadonlyArray<string> =>
+  Option.match(after.agentPresence, {
+    onNone: () => [],
+    onSome: presence => {
+      const isSame =
+        JSON.stringify(encodeIssue(before).agentPresence) ===
+        JSON.stringify(encodeIssue(after).agentPresence)
+      if (isSame) {
+        return []
+      }
+      return M.value(presence.run).pipe(
+        M.withReturnType<ReadonlyArray<string>>(),
+        M.tagsExhaustive({
+          Running: () => [
+            `#${after.id} running ${presence.agentId}${Option.match(
+              presence.touchedFiles,
+              {
+                onNone: () => '',
+                onSome: touchedFiles =>
+                  `, ${fileCountText(touchedFiles.fileCount)}`,
+              },
+            )}`,
+          ],
+          Ended: ({ how }) =>
+            Option.isSome(before.claimantId) && Option.isNone(after.claimantId)
+              ? []
+              : [`#${after.id} ${presence.agentId} ended (${how})`],
+          Stale: ({ reason }) => [
+            `#${after.id} claim of ${presence.agentId} is stale: ${reason}`,
+          ],
+        }),
+      )
+    },
+  })
+
+const claimChangeLines = (before: Issue, after: Issue): ReadonlyArray<string> =>
+  Option.match(before.claimantId, {
+    onNone: () => [],
+    onSome: claimant =>
+      Option.isNone(after.claimantId)
+        ? [
+            `#${after.id} claim of ${claimant} released: its run ended (${Option.match(
+              Option.flatMap(after.agentPresence, presence =>
+                presence.run._tag === 'Ended'
+                  ? Option.some(presence.run.how)
+                  : Option.none(),
+              ),
+              { onNone: () => 'ended', onSome: how => how },
+            )})`,
+          ]
+        : [],
+  })
+
+const statusChangeLines = (
+  before: Issue,
+  after: Issue,
+): ReadonlyArray<string> =>
+  before.status === after.status
+    ? []
+    : [
+        `#${after.id} ${before.status} → ${after.status}${Option.match(
+          after.workInProgress,
+          {
+            onNone: () => '',
+            onSome: work => `: the work is ${work.landingState}`,
+          },
+        )}`,
+      ]
+
+/**
+ * What one look at the agents changes on an Issue, one line each:
+ * `#1374 running claude-code/issue-wip-1374@max, 3 files touched`,
+ * `#1201 claim of claude-code/sweep-1201@ld released: its run ended (done)`,
+ * `#880 InProgress → VerificationNeeded: the work is Merged`.
+ */
+export const workingChangeLines = (
+  before: Issue,
+  after: Issue,
+): ReadonlyArray<string> => [
+  ...presenceChangeLines(before, after),
+  ...claimChangeLines(before, after),
+  ...statusChangeLines(before, after),
+]
+
+const pluralOf = (count: number, one: string, many: string): string =>
+  `${count.toString()} ${count === 1 ? one : many}`
+
+/**
+ * Looks at the Mac's agents and records on each Issue who works on it now:
+ * reads `tools/agent-progress-check --json` (`--agents`) and
+ * `agents-registry.json` (`--registry`), reads the Issues of running agents
+ * and of runs that ended in the last six hours (and with `--sweep` every
+ * Issue InProgress or Addressing), counts the files each running agent's
+ * worktree touches, and saves each Issue the survey changes. A dry run
+ * prints the changes and saves nothing.
+ */
+export const workingSyncCommand = (
+  host: IssuesHost,
+  input: WorkingSyncInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const survey = yield* readSurvey(host, input)
+      const byNumber = yield* Effect.forEach(issueIdsToCheck(survey), issueId =>
+        readIssueById(host, issueId),
+      )
+      const swept = input.isSweep
+        ? yield* loadIssues(host, 'working sync', sweptStatuses)
+        : []
+      const issues = Array.dedupeWith(
+        [...Array.getSomes(byNumber), ...swept],
+        (left, right) => left.id === right.id,
+      )
+      const results = yield* Effect.forEach(issues, issue =>
+        Effect.gen(function* () {
+          const touchedFiles = yield* Option.match(
+            worktreeToCount(issue, survey),
+            {
+              onNone: () => Effect.succeed(Option.none<IssueTouchedFiles>()),
+              onSome: host.countTouchedFiles,
+            },
+          )
+          const observed = observedIssue(issue, survey, touchedFiles)
+          if (encodedIssueText(observed) === encodedIssueText(issue)) {
+            return { failure: Option.none<string>(), lines: [] }
+          }
+          const lines = workingChangeLines(issue, observed)
+          if (input.isDryRun) {
+            return { failure: Option.none<string>(), lines }
+          }
+          const saved = yield* Effect.result(
+            changeIssue(host, 'working sync', issue.id, () => [
+              ObservedAgentSurvey.make({
+                issueId: issue.id,
+                survey,
+                touchedFiles,
+              }),
+            ]),
+          )
+          return Result.match(saved, {
+            onFailure: failure => ({
+              failure: Option.some(failure.message),
+              lines: [],
+            }),
+            onSuccess: ({ issue: stored }) => ({
+              failure: Option.none<string>(),
+              lines: workingChangeLines(issue, stored),
+            }),
+          })
+        }),
+      )
+      const changedCount = Array.filter(results, result =>
+        Array.isReadonlyArrayNonEmpty(result.lines),
+      ).length
+      const checked = `${pluralOf(issues.length, 'Issue', 'Issues')} against ${pluralOf(survey.live.length, 'running agent', 'running agents')}`
+      const summary = input.isDryRun
+        ? `Dry run: checked ${checked}: ${changedCount.toString()} would change.`
+        : `Checked ${checked}: ${changedCount.toString()} changed.`
+      const failures = Array.getSomes(
+        Array.map(results, result => result.failure),
+      )
+      const stdout = [
+        ...Array.flatMap(results, result => result.lines),
+        summary,
+      ]
+      return Array.isReadonlyArrayEmpty(failures)
+        ? succeeded(stdout)
+        : { exitCode: FAILED_EXIT_CODE, stderr: failures, stdout }
     }),
   )
