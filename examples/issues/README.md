@@ -33,6 +33,8 @@ issues file --title "…" --details "…" --product scribe --priority P1 --type 
 issues show 692 [--json]
 issues list [--status Open,InProgress] [--product scribe] [--recording 208] [--claimant …] [--search …] [--json]
 issues list --landing | --wip | --stuck | --target-build 106   # work in progress, one line each
+issues list --working                                           # the Issues an agent runs on now
+issues working sync --agents progress.json [--registry agents-registry.json] [--sweep] [--dry-run]
 issues list --backlog [--product scribe] [--limit 20] [--json]  # the next build, then P0 to P4 in rank order
 issues rank 971 --before 930 | --after 930 | --top | --clear    # order an Issue within its priority
 issues log 692 progress "what happened; next step" [--agent …] [--claim …] [--status …] [--commit …] [--json]
@@ -78,7 +80,34 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   (they pass), Pushed (on the remote), Merged (on main), and Shipped (in an
   installed build). `--stuck "why"` and `--abandoned "why"` say what holds
   the work, `--active` says it moves again. The agent recorded is `--agent`,
-  or `$SCRIBE_AGENT`.
+  or `$SCRIBE_AGENT` when it names an agent (`claude-code/issue-wip-1374`),
+  else the Issue's claimant. Recording InProgress or Addressing work as
+  Merged or Shipped moves the Issue to VerificationNeeded, once per
+  recording, with a work-log entry.
+- `working sync` records on each Issue the agent working on it now. It reads
+  `tools/agent-progress-check --json --no-ledger` (`--agents`) for the agents
+  running and `~/Scribe/agents-registry.json` (`--registry`) for the runs
+  that ended. It reads the Issues of running agents and of runs that ended in
+  the last six hours; `--sweep` adds every InProgress and Addressing Issue.
+  On each it saves the running agent (the claimant first) with its account,
+  branch, worktree, and the files its branch touches against its nearest
+  main line (`git diff --numstat` plus new files, counted at most every ten
+  minutes, never in a worktree several running agents share); an agent no
+  longer running as ended; the claim of a run that ended, released with a
+  work-log entry; a claim nothing shows running that stayed quiet twelve
+  hours, as stale (kept); and Merged or Shipped work, as VerificationNeeded.
+  It prints one line per change and a summary, such as
+  `Checked 34 Issues against 19 running agents: 3 changed.`
+  `--dry-run` saves nothing. The LaunchAgent
+  `com.knophy.issues-working-sync` runs it every two minutes, with `--sweep`
+  once an hour.
+- `show` leads with a Now working block: the agent and its account, such as
+  `Agent: claude-code/issue-wip-1374@max (account max)`; whether
+  it runs (`Running: yes, seen since …`, no with how its run ended, or
+  unknown when stale); the branch and repository; the worktree; the files
+  touched with their line counts; and the last step with its time.
+  `list --working` lists the Issues an agent runs on now with the agent, the
+  branch, and the file count.
 - `list --landing` lists the work close to landing: Green or Pushed, not
   abandoned. Stuck work stays in that list with its reason. `--wip` lists
   every Issue with work recorded, `--stuck` the stuck ones, and
@@ -132,6 +161,10 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
 - beside each Issue in the list, where its work is, such as
   `Green for build 106` or `Red, stuck`, and a Close to landing choice that
   lists only the Green or Pushed work not abandoned;
+- a Now working block on an Issue's page, the same as `issues show` prints,
+  and beside each Issue in the list the agent running on it, such as
+  `running claude-code/issue-wip-1374@max`, with a Working now choice
+  that lists only those Issues; both follow `issues working sync` live;
 - a Backlog page at `/issues/backlog`, the same order as
   `issues list --backlog`: each upcoming build's lane, the next build first,
   then P0 to P4 in rank order, with the product filter;
