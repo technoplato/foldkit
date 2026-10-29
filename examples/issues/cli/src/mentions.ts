@@ -17,13 +17,20 @@ const MILLISECONDS_PER_SECOND = 1_000
 const LINK_SECOND_DECIMALS = 2
 const USAGE_EXIT_CODE = 2
 
-/** One final transcript line as the Scribe mirror stores it. */
+/**
+ * One final transcript line as the Scribe mirror stores it. A line Scribe retired (its ADR 0064 section 8:
+ * `retiredAtMs`, or `retired`) is no line, and a sealed one (ADR 0097: `sealed`, voice or held) carries no words:
+ * neither is ever quoted (Scribe #1323).
+ */
 const TranscriptLine = S.Struct({
   atMs: S.optionalKey(S.Number),
   end: S.Number,
   id: S.String,
   index: S.Int,
   recording: S.String,
+  retired: S.optionalKey(S.Boolean),
+  retiredAtMs: S.optionalKey(S.NullOr(S.Number)),
+  sealed: S.optionalKey(S.NullOr(S.String)),
   start: S.Number,
   text: S.String,
 })
@@ -72,6 +79,18 @@ export const findRecordingFolder = (
   )
 }
 
+const isRetiredLine = (line: TranscriptLine): boolean =>
+  line.retired === true ||
+  (line.retiredAtMs !== undefined && line.retiredAtMs !== null)
+
+const isSealedLine = (line: TranscriptLine): boolean =>
+  line.sealed !== undefined && line.sealed !== null && line.sealed !== ''
+
+/**
+ * The mirror's lines by #, each the newest record of a line that is still one: a retired line's records are
+ * passed over, so a # it shares with its kept line is the kept line, whatever the order the records came in
+ * (Scribe #1323, its ADR 0064 section 8).
+ */
 const readTranscript = (
   folder: string,
 ): ReadonlyMap<number, TranscriptLine> => {
@@ -80,10 +99,21 @@ const readTranscript = (
   if (!existsSync(transcriptPath)) {
     return linesByIndex
   }
+  const retiredIds = new Set<string>()
+  const lines: Array<TranscriptLine> = []
   for (const text of readFileSync(transcriptPath, 'utf8').split('\n')) {
     const maybeLine = decodeTranscriptLine(text)
     if (Option.isSome(maybeLine)) {
-      linesByIndex.set(maybeLine.value.index, maybeLine.value)
+      if (isRetiredLine(maybeLine.value)) {
+        retiredIds.add(maybeLine.value.id)
+      } else {
+        lines.push(maybeLine.value)
+      }
+    }
+  }
+  for (const line of lines) {
+    if (!retiredIds.has(line.id)) {
+      linesByIndex.set(line.index, line)
     }
   }
   return linesByIndex
@@ -153,6 +183,17 @@ export const resolveSaidMention = (
         Option.fromUndefinedOr(linesByIndex.get(index)),
       ),
     )
+    const sealed = Array.filter(lines, isSealedLine)
+    if (Array.isReadonlyArrayNonEmpty(sealed)) {
+      return yield* Effect.fail(
+        usage(
+          `--said "${spec}": ${Array.join(
+            Array.map(sealed, line => `#${line.index.toString()}`),
+            ', ',
+          )} ${sealed.length === 1 ? 'is' : 'are'} sealed (Scribe ADR 0097): a sealed line's words are never quoted.`,
+        ),
+      )
+    }
     const maybeFirstLine = Array.head(lines)
     const maybeLastLine = Array.last(lines)
     if (Option.isNone(maybeFirstLine) || Option.isNone(maybeLastLine)) {
