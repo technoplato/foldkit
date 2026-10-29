@@ -64,6 +64,9 @@ import {
   markSubtasksCommand,
   rankIssueCommand,
   redactCredentials,
+  type FileInput,
+  type MentionInput,
+  resolveSaid,
   resolveSaidMention,
   setIssueStatusCommand,
   showIssueCommand,
@@ -383,7 +386,9 @@ describe('issues command', () => {
         details: Option.some('The CLI drops the cause of a failed save.'),
         dryRun: false,
         evidence: ['FocusedTest', 'Log'],
+        images: [],
         isJson: false,
+        isWithoutImages: false,
         jsonInput: Option.none(),
         log: Option.some('Filed from the session that hit it.'),
         logState: Option.none(),
@@ -446,7 +451,9 @@ describe('issues command', () => {
         details: Option.none(),
         dryRun: false,
         evidence: [],
+        images: [],
         isJson: false,
+        isWithoutImages: false,
         jsonInput: Option.none(),
         log: Option.none(),
         logState: Option.none(),
@@ -816,7 +823,9 @@ describe('issues command', () => {
         details: Option.none(),
         dryRun: false,
         evidence: [],
+        images: [],
         isJson: false,
+        isWithoutImages: false,
         jsonInput: Option.none(),
         log: Option.none(),
         logState: Option.none(),
@@ -1112,8 +1121,10 @@ describe('issues command', () => {
     )
     const mentioned = await run(
       addMentionCommand(host, {
+        images: [],
         issue: '692',
         isJson: false,
+        isWithoutImages: false,
         said: ['208:1885'],
         typed: Option.none(),
         typedAt: Option.none(),
@@ -1813,5 +1824,364 @@ describe('issues backlog', () => {
       'issues rank needs one place: --before <n>, --after <n>, --top, or --clear.',
     ])
     expect(twoPlaces.exitCode).toBe(2)
+  })
+})
+
+// Scribe #1345: an Issue carries the screenshots and screen frames of the moment it quotes,
+// above all when the Issue is about design.
+describe('issues carry the pictures of the moment they quote', () => {
+  const designRecordingId = '44b6f249-8e0a-4cb6-b54e-4d1a1100d6b3'
+  const designFolderName = '322 — 2026-10-29 — 44b6f249'
+  const startedAtMs = 1_793_286_718_000
+  // Siri held the microphone for 30 s at 100 s of audio, so from then on a line's wall time is 30 s past
+  // startedAt + its audio time, and the pictures (stamped on the wall clock) sit 30 s later too.
+  const gapMs = 30_000
+
+  type Picture = Readonly<{
+    seconds: number
+    source: string | null
+    bytes?: string
+    extension?: 'jpg' | 'png'
+  }>
+
+  const pictureName = ({ seconds, extension = 'jpg' }: Picture) =>
+    `pic-${seconds.toString()}.${extension}`
+
+  const addDesignRecording = (
+    mirrorRoot: string,
+    pictures: ReadonlyArray<Picture>,
+  ): string => {
+    const folder = join(mirrorRoot, 'recordings', designFolderName)
+    mkdirSync(join(folder, 'images'), { recursive: true })
+    writeFileSync(
+      join(folder, 'meta.json'),
+      JSON.stringify({ id: designRecordingId, startedAtMs }),
+    )
+    const line = (index: number, start: number, end: number, text: string) =>
+      JSON.stringify({
+        atMs: startedAtMs + start * 1_000,
+        end,
+        id: `design-${index.toString()}`,
+        index,
+        recording: designRecordingId,
+        start,
+        text,
+      })
+    writeFileSync(
+      join(folder, 'transcript.jsonl'),
+      Array.join(
+        [
+          line(66, 923.4, 929, 'Include the screen frames.'),
+          line(67, 929, 936.2, 'Especially when we talk about design.'),
+          line(68, 937.2, 941.4, 'In the issues.'),
+        ],
+        '\n',
+      ),
+    )
+    writeFileSync(
+      join(folder, 'events.jsonl'),
+      Array.join(
+        [
+          JSON.stringify({
+            kind: 'capture.gap',
+            offset: 100,
+            startedAtMs: startedAtMs + 100_000,
+            state: 'open',
+          }),
+          JSON.stringify({
+            endedAtMs: startedAtMs + 100_000 + gapMs,
+            kind: 'capture.gap',
+            offset: 100,
+            startedAtMs: startedAtMs + 100_000,
+            state: 'closed',
+          }),
+        ],
+        '\n',
+      ),
+    )
+    const rows = Array.map(pictures, picture => {
+      const name = pictureName(picture)
+      writeFileSync(
+        join(folder, 'images', name),
+        picture.bytes ?? `bytes of ${name}`,
+      )
+      return JSON.stringify({
+        atMs: startedAtMs + picture.seconds * 1_000,
+        attachment: `attachment-${picture.seconds.toString()}`,
+        contentType:
+          (picture.extension ?? 'jpg') === 'png' ? 'image/png' : 'image/jpeg',
+        file: `/somewhere/else/${name}`,
+        offset: picture.seconds,
+        path: `images/${name}`,
+        recording: designRecordingId,
+        source: picture.source,
+        v: 1,
+      })
+    })
+    writeFileSync(join(folder, 'images.jsonl'), Array.join(rows, '\n'))
+    return folder
+  }
+
+  // The lines run 923.4-941.4 s of audio: 953.4-971.4 s on the wall clock after the 30 s gap.
+  const framesEveryFiveSeconds = Array.map(
+    Array.makeBy(13, step => 925 + step * 5),
+    seconds => ({ seconds, source: 'replaykit-frame:other-app' }),
+  )
+  const designPictures: ReadonlyArray<Picture> = [
+    // A screenshot he took just before he spoke: kept (60 s before the first line).
+    { extension: 'png', seconds: 900, source: 'photoLibraryScreenshot' },
+    // Too early to be about these lines.
+    { extension: 'png', seconds: 880, source: 'photoLibraryScreenshot' },
+    // Camera photos, pastes, drops, and unlabelled pictures can be family photos: never attached by --said.
+    { seconds: 955.5, source: 'photoLibrary' },
+    { seconds: 956.5, source: 'pasted' },
+    { seconds: 957.5, source: 'droppedFile' },
+    { extension: 'png', seconds: 958.5, source: null },
+    ...framesEveryFiveSeconds,
+  ]
+
+  const fileWith = (
+    said: ReadonlyArray<string>,
+    overrides: Partial<FileInput> = {},
+  ): FileInput => ({
+    agent: Option.none(),
+    area: Option.none(),
+    claim: Option.none(),
+    criteria: [],
+    details: Option.none(),
+    dryRun: false,
+    evidence: [],
+    images: [],
+    isJson: false,
+    isWithoutImages: false,
+    jsonInput: Option.none(),
+    log: Option.none(),
+    logState: Option.none(),
+    priority: Option.none(),
+    product: Option.some('scribe'),
+    related: [],
+    said,
+    status: Option.none(),
+    title: Option.some('Issues carry their pictures'),
+    type: Option.none(),
+    typed: Option.none(),
+    typedAt: Option.none(),
+    typedMessage: Option.none(),
+    typedSession: Option.none(),
+    ...overrides,
+  })
+
+  const mentionWith = (
+    issue: string,
+    said: ReadonlyArray<string>,
+    overrides: Partial<MentionInput> = {},
+  ): MentionInput => ({
+    images: [],
+    issue,
+    isJson: false,
+    isWithoutImages: false,
+    said,
+    typed: Option.none(),
+    typedAt: Option.none(),
+    typedMessage: Option.none(),
+    typedSession: Option.none(),
+    ...overrides,
+  })
+
+  const attachedNames = (tracker: IssueTrackerService, issueId: string) =>
+    Option.getOrElse(
+      Option.map(fetched(tracker, issueId), issue =>
+        Array.map(issue.attachments, attachment => attachment.fileName),
+      ),
+      () => [],
+    )
+
+  it('picks the screenshots and screen frames of the lines on the wall clock, never a photo', async () => {
+    const mirrorRoot = makeMirror()
+    const folder = addDesignRecording(mirrorRoot, designPictures)
+
+    const said = await run(
+      resolveSaid(mirrorRoot, '322:66-68').pipe(
+        Effect.orElseSucceed(() => undefined),
+      ),
+    )
+
+    // Frames 10 s before to 5 s after the lines (943.4-976.4 s wall): 945 ... 975, seven of them, six kept evenly
+    // spaced. Without the gap the window would be 913.4-946.4 s and pick 915 ... 945.
+    expect(Array.map(said?.images ?? [], image => image.fileName)).toEqual([
+      'pic-900.png',
+      'pic-945.jpg',
+      'pic-950.jpg',
+      'pic-955.jpg',
+      'pic-965.jpg',
+      'pic-970.jpg',
+      'pic-975.jpg',
+    ])
+    expect(said?.images[0]).toMatchObject({
+      attachmentId: 'attachment-900',
+      capturedAtMs: startedAtMs + 900_000,
+      contentType: 'image/png',
+      filePath: join(folder, 'images', 'pic-900.png'),
+      source: 'photoLibraryScreenshot',
+    })
+    expect(said?.mention.source).toMatchObject({
+      _tag: 'Recording',
+      recording: {
+        recordingId: designRecordingId,
+        screenshotIds: [
+          'attachment-900',
+          'attachment-945',
+          'attachment-950',
+          'attachment-955',
+          'attachment-965',
+          'attachment-970',
+          'attachment-975',
+        ],
+      },
+    })
+  })
+
+  it('reads a recording with no pictures as none', async () => {
+    const mirrorRoot = makeMirror()
+
+    const said = await run(
+      resolveSaid(mirrorRoot, '208:1884-1885').pipe(
+        Effect.orElseSucceed(() => undefined),
+      ),
+    )
+
+    expect(said?.images).toEqual([])
+    expect(said?.mention.source).toMatchObject({
+      recording: { screenshotIds: [] },
+    })
+  })
+
+  it('issues file --said attaches them, and --image adds a file once however often it is named', async () => {
+    const { host, links, memory, storedFiles } = await run(makeHost([]))
+    addDesignRecording(host.mirrorRoot, designPictures)
+    const extra = join(mkdtempSync(join(tmpdir(), 'issues-image-')), 'mock.png')
+    writeFileSync(extra, 'a mockup')
+    // The same bytes as the screenshot --said already brings.
+    const sameAsScreenshot = join(
+      mkdtempSync(join(tmpdir(), 'issues-image-')),
+      'copy.png',
+    )
+    writeFileSync(sameAsScreenshot, 'bytes of pic-900.png')
+
+    const outcome = await run(
+      fileIssueCommand(
+        host,
+        fileWith(['322:66-68', '322:67'], {
+          images: [extra, sameAsScreenshot, extra],
+        }),
+      ),
+    )
+
+    expect(outcome.stderr).toEqual([])
+    expect(outcome.exitCode).toBe(0)
+    const [issueId = ''] = /#(\d+)/.exec(linesOf(outcome))?.slice(1) ?? []
+    // 322:67 alone (959-966.2 s wall) also brings frame 960, which the cap left out of 322:66-68; the rest it
+    // shares are attached once.
+    expect(attachedNames(memory, issueId)).toEqual([
+      'pic-900.png',
+      'pic-945.jpg',
+      'pic-950.jpg',
+      'pic-955.jpg',
+      'pic-965.jpg',
+      'pic-970.jpg',
+      'pic-975.jpg',
+      'pic-960.jpg',
+      'mock.png',
+    ])
+    expect(storedFiles.size).toBe(9)
+    expect(links).toHaveLength(9)
+    expect(
+      Option.map(fetched(memory, issueId), issue => issue.attachments[0]),
+    ).toMatchObject(
+      Option.some({
+        capturedAtMs: Option.some(startedAtMs + 900_000),
+        kind: 'Screenshot',
+      }),
+    )
+    expect(linesOf(outcome)).toContain(
+      'Attached 9 pictures: 8 from Recording 322 (1 screenshot, 7 screen frames), 1 named with --image.',
+    )
+  })
+
+  it('issues file --no-images attaches nothing, and --dry-run names the pictures and uploads none', async () => {
+    const { host, storedFiles } = await run(makeHost([]))
+    addDesignRecording(host.mirrorRoot, designPictures)
+
+    const without = await run(
+      fileIssueCommand(
+        host,
+        fileWith(['322:66-68'], { isWithoutImages: true }),
+      ),
+    )
+    expect(without.exitCode).toBe(0)
+    expect(storedFiles.size).toBe(0)
+
+    const preview = await run(
+      fileIssueCommand(
+        host,
+        fileWith(['322:66-68'], { dryRun: true }),
+      ),
+    )
+    expect(preview.exitCode).toBe(0)
+    expect(storedFiles.size).toBe(0)
+    expect(linesOf(preview)).toContain('"fileName": "pic-900.png"')
+  })
+
+  it('issues mention --said adds only the pictures the Issue does not have yet', async () => {
+    const { host, memory, storedFiles } = await run(
+      makeHost([stored('1345', 'Pictures')]),
+    )
+    addDesignRecording(host.mirrorRoot, designPictures)
+
+    const first = await run(
+      addMentionCommand(host, mentionWith('1345', ['322:66'])),
+    )
+    const again = await run(
+      addMentionCommand(host, mentionWith('1345', ['322:66-68'])),
+    )
+
+    expect([first.exitCode, again.exitCode]).toEqual([0, 0])
+    const names = attachedNames(memory, '1345')
+    expect(names).toHaveLength(new Set(names).size)
+    expect(names).toEqual([
+      'pic-900.png',
+      'pic-945.jpg',
+      'pic-950.jpg',
+      'pic-955.jpg',
+      'pic-960.jpg',
+      'pic-965.jpg',
+      'pic-970.jpg',
+      'pic-975.jpg',
+    ])
+    expect(storedFiles.size).toBe(8)
+  })
+
+  it('says which picture failed and that the Issue was still filed', async () => {
+    const { host, memory } = await run(makeHost([]))
+    addDesignRecording(host.mirrorRoot, [
+      { extension: 'png', seconds: 900, source: 'photoLibraryScreenshot' },
+    ])
+    const failingHost: IssuesHost = {
+      ...host,
+      files: {
+        ...host.files,
+        upload: () => Effect.fail(new Error('storage is down')),
+      },
+    }
+
+    const outcome = await run(
+      fileIssueCommand(failingHost, fileWith(['322:66-68'])),
+    )
+
+    expect(outcome.exitCode).toBe(1)
+    expect(Option.isSome(fetched(memory, '001'))).toBe(true)
+    expect(Array.join(outcome.stderr, '\n')).toMatch(
+      /Filed #\d+, but attaching pic-900\.png failed: .*storage is down.*issues attach \d+ /,
+    )
   })
 })
