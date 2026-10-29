@@ -703,6 +703,52 @@ describe('issues command', () => {
     )
   })
 
+  it('shows, logs, claims, and prints work on one Issue without reading the Issue catalog', async () => {
+    const catalogReads: Array<string> = []
+    const { host } = await run(
+      makeHost([stored('692', 'Filing'), stored('693', 'Other')], tracker => ({
+        ...tracker,
+        observe: query => {
+          catalogReads.push(String(query.limit))
+          return tracker.observe(query)
+        },
+      })),
+    )
+
+    const outcomes = [
+      await run(showIssueCommand(host, { issue: '692', isJson: false })),
+      await run(
+        logIssueCommand(host, {
+          agent: Option.some('claude-code/issues-cpu'),
+          claim: Option.none(),
+          commit: Option.none(),
+          issue: '692',
+          isJson: false,
+          state: 'progress',
+          status: Option.none(),
+          summary: 'Measured; fix next.',
+        }),
+      ),
+      await run(
+        claimIssueCommand(host, {
+          agent: 'claude-code/issues-cpu',
+          issue: '692',
+          isJson: false,
+          summary: Option.none(),
+        }),
+      ),
+      await run(workInProgressCommand(host, noWorkChange('692'))),
+    ]
+
+    expect(Array.map(outcomes, outcome => outcome.exitCode)).toEqual([
+      0, 0, 0, 0,
+    ])
+    expect(
+      Option.getOrElse(Option.map(Array.head(outcomes), linesOf), () => ''),
+    ).toContain('Filing')
+    expect(catalogReads).toEqual([])
+  })
+
   it('sets any status and links related Issues', async () => {
     const { host, memory } = await run(
       makeHost([
