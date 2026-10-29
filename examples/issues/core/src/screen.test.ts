@@ -9,6 +9,7 @@ import {
   ApplicationProduct,
   CheckedSubtask,
   ConversationReference,
+  InstantStorageAttachmentSource,
   Issue,
   IssueAttachment,
   type IssueLandingState,
@@ -33,8 +34,10 @@ import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 import { modelForNavigation } from './init.js'
 import {
   ClickedFileIssue,
+  FailedObserveIssueFiles,
   type Message,
   ObservedIssue,
+  ObservedIssueFiles,
   ObservedIssueLogs,
   ObservedIssues,
   ObservedProducts,
@@ -375,6 +378,92 @@ describe('Issue Tracker screen: an Issue as it is stored', () => {
       'https://issues.pisspoursoftware.xyz/files/file-form.png',
     )
     expect(links).not.toContain('javascript:alert(1)')
+  })
+
+  // Scribe #1345: an Issue carries the screenshots and screen frames of the moment it quotes,
+  // above all when the Issue is about design.
+  it('draws the pictures stored with an Issue once Instant gives their addresses, and links its other files', () => {
+    const storedFile = (
+      fileId: string,
+      fileName: string,
+      contentType: string,
+      kind: 'File' | 'Screenshot',
+    ) =>
+      IssueAttachment.make({
+        byteCount: Option.none(),
+        capturedAtMs: Option.none(),
+        contentType,
+        fileName,
+        id: fileId,
+        issueId: stored.id,
+        kind,
+        sha256: Option.none(),
+        source: InstantStorageAttachmentSource.make({ fileId }),
+      })
+    const pictured = Issue.make({
+      ...stored,
+      attachments: [
+        storedFile(
+          'file-1',
+          '11-27-16-+15-17-a51178e8.jpg',
+          'image/jpeg',
+          'Screenshot',
+        ),
+        storedFile('file-2', 'crash.log', 'text/plain', 'File'),
+        storedFile('file-3', 'not-yet.png', 'image/png', 'Screenshot'),
+      ],
+    })
+    const pictureUrl = 'https://files.instantdb.com/app/0/file-1?signature'
+    const logUrl = 'https://files.instantdb.com/app/0/file-2?signature'
+    const model = applyAll(opened(pictured), [
+      ObservedIssueFiles.make({
+        files: [
+          { fileId: 'file-1', url: pictureUrl },
+          { fileId: 'file-2', url: logUrl },
+        ],
+        issueId: stored.id,
+      }),
+      // Another Issue's files never reach this page.
+      ObservedIssueFiles.make({
+        files: [{ fileId: 'file-3', url: 'https://files.instantdb.com/other' }],
+        issueId: '999',
+      }),
+    ])
+    const textNamed = (content: string) =>
+      Array.findFirst(
+        textsOf(issuesScreen(model)),
+        text => text.content === content,
+      )
+
+    expect(textNamed('11-27-16-+15-17-a51178e8.jpg (Screenshot)')).toEqual(
+      Option.some(
+        expect.objectContaining({
+          href: pictureUrl,
+          image: expect.objectContaining({ src: pictureUrl }),
+        }),
+      ),
+    )
+    expect(textNamed('crash.log (File)')).toEqual(
+      Option.some(expect.objectContaining({ href: logUrl, image: undefined })),
+    )
+    expect(textNamed('not-yet.png (Screenshot)')).toEqual(
+      Option.some(
+        expect.objectContaining({ href: undefined, image: undefined }),
+      ),
+    )
+  })
+
+  it('says on the page when its pictures cannot be read, and why', () => {
+    const model = applyAll(opened(stored), [
+      FailedObserveIssueFiles.make({
+        issueId: stored.id,
+        reason: 'Permission denied: $files view',
+      }),
+    ])
+
+    expect(contentsOf(model)).toContain(
+      "This Issue's pictures could not be read: Permission denied: $files view",
+    )
   })
 
   it('lists above the Mentions every recording and line that mentioned the Issue, each range linked to its words', () => {
