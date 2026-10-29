@@ -891,6 +891,41 @@ describe('issues command', () => {
     ])
   })
 
+  it('reads only the asked statuses from the tracker, and still accounts for every Issue in them', async () => {
+    const observedStatuses: Array<ReadonlyArray<string>> = []
+    const { host } = await run(
+      makeHost(
+        [
+          stored('690', 'Open one'),
+          stored('691', 'Working one', { status: 'InProgress' }),
+          stored('692', 'Closed one', { status: 'Closed' }),
+        ],
+        tracker => ({
+          ...tracker,
+          observe: query => {
+            observedStatuses.push(query.statuses)
+            return tracker.observe(query)
+          },
+        }),
+      ),
+    )
+
+    const outcome = await run(
+      listIssuesCommand(host, {
+        ...allIssues,
+        statuses: ['Open,InProgress'],
+      }),
+    )
+
+    expect(outcome.exitCode).toBe(0)
+    expect(outcome.stderr).toEqual([])
+    expect(outcome.stdout).toEqual([
+      '#691  P2  InProgress  Working one  [Scribe]',
+      '#690  P2  Open  Open one  [Scribe]',
+    ])
+    expect(observedStatuses).toEqual([['Open', 'InProgress']])
+  })
+
   it('deletes only with a typed yes, after a backup that holds the stored record', async () => {
     const { backupDirectory, host, memory } = await run(
       makeHost([stored('693', 'Throwaway')]),

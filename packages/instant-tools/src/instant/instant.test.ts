@@ -677,6 +677,64 @@ describe('Instant adapter', () => {
       }),
   )
 
+  it.effect(
+    'asks Instant only for the Issues in the asked statuses, and for every Issue when none is asked',
+    () =>
+      Effect.gen(function* () {
+        const queries: Array<unknown> = []
+        const answer = { data: { instantToolsIssues: [] } }
+        const database = {
+          queryOnce: (query: unknown) => {
+            queries.push(query)
+            return Promise.resolve(answer)
+          },
+          subscribeQuery: (
+            query: unknown,
+            onResponse: (response: typeof answer) => void,
+          ) => {
+            queries.push(query)
+            onResponse(answer)
+            return () => undefined
+          },
+        }
+        const store = makeInstantEntityStore(
+          // oxlint-disable-next-line typescript/consistent-type-assertions
+          database as unknown as InstantToolsDatabase,
+        )
+        const tracker = makeIssueTracker(store)
+        const query = (statuses: IssueQuery['statuses']) =>
+          IssueQuery.make({
+            limit: 10,
+            productId: Option.none(),
+            projectId: Option.none(),
+            statuses,
+          })
+
+        yield* Stream.runHead(tracker.observe(query(['Open', 'InProgress'])))
+        yield* tracker.fetch(query(['Open']))
+        yield* store.fetchIssueIds(['Open', 'InProgress'])
+        yield* Stream.runHead(tracker.observe(query([])))
+        yield* store.fetchIssueIds([])
+
+        const inOpenOrInProgress = {
+          status: { $in: ['Open', 'InProgress'] },
+        }
+        expect(queries).toEqual([
+          { instantToolsIssues: { $: { where: inOpenOrInProgress } } },
+          {
+            instantToolsIssues: { $: { where: { status: { $in: ['Open'] } } } },
+          },
+          {
+            instantToolsIssues: {
+              $: { fields: ['issueID'], where: inOpenOrInProgress },
+            },
+          },
+          { instantToolsIssues: {} },
+          { instantToolsIssues: { $: { fields: ['issueID'] } } },
+        ])
+      }),
+  )
+
   it.effect('persists structured Log Events through the separate Logger', () =>
     Effect.gen(function* () {
       const { logIssueLinks, logs, store } = yield* makeStore
