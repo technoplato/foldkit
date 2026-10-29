@@ -109,9 +109,7 @@ const encoded = (value: Issue) => S.encodeSync(Issue)(value)
 
 describe('Now working', () => {
   it('reads the agent name inside a full agent id', () => {
-    expect(agentNameOf('claude-code/issue-wip-1374@max')).toBe(
-      'issue-wip-1374',
-    )
+    expect(agentNameOf('claude-code/issue-wip-1374@max')).toBe('issue-wip-1374')
     expect(agentNameOf('grok/privacy-tests-1350@grok')).toBe(
       'privacy-tests-1350',
     )
@@ -149,9 +147,24 @@ describe('Now working', () => {
     const later = observedIssue(
       first,
       surveyOf([liveAgent], [], observedAtMs + 120_000),
-      Option.some(touched(observedAtMs + 120_000)),
+      Option.none(),
     )
     expect(encoded(later)).toEqual(encoded(first))
+
+    const recounted = observedIssue(
+      first,
+      surveyOf([liveAgent], [], observedAtMs + 600_000),
+      Option.some(touched(observedAtMs + 600_000)),
+    )
+    expect(
+      Option.flatMap(
+        recounted.agentPresence,
+        presence => presence.touchedFiles,
+      ),
+    ).toEqual(Option.some(touched(observedAtMs + 600_000)))
+    expect(
+      Option.map(recounted.agentPresence, presence => presence.run),
+    ).toEqual(Option.some(RunningAgent.make({ sinceMs: observedAtMs })))
   })
 
   it('prefers the claimant among several agents running on the Issue', () => {
