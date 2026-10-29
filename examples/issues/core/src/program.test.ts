@@ -62,6 +62,7 @@ import {
   SubmittedIssueMention,
   SubmittedIssueSubtasks,
   SubmittedIssueSuccessCriterion,
+  ObservedAgentSurvey,
   SubmittedIssueWorkInProgress,
   SubmittedIssueWorkLogEntry,
   SubmittedProduct,
@@ -105,6 +106,7 @@ import {
   makeMemoryProductCatalog,
   signedInAuthor,
 } from './resources.js'
+import { AgentSurvey, LiveAgent, observedIssue } from './nowWorking.js'
 import { navigationToPath, pathToNavigation } from './route.js'
 import { subscriptions } from './subscription.js'
 import {
@@ -1917,6 +1919,119 @@ describe('Issue Tracker Program', () => {
         }),
       },
     })
+  })
+
+  it('names the claimant as the agent of work in progress recorded without one', async () => {
+    const { result } = await runOnDetail(
+      [
+        Issue.make({
+          ...stored('1374', 'Show who works on what'),
+          claimantId: Option.some('claude-code/issue-wip-1374@max'),
+        }),
+      ],
+      SubmittedIssueWorkInProgress.make({
+        edit: WorkInProgressEdit.make({
+          ...noEdit,
+          branch: Option.some('agent/claude/issue-wip-1374'),
+        }),
+        issueId: '1374',
+      }),
+    )
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        workInProgress: Option.some({
+          agentId: Option.some('claude-code/issue-wip-1374@max'),
+          branch: Option.some('agent/claude/issue-wip-1374'),
+        }),
+      },
+    })
+  })
+
+  it('moves an Issue to VerificationNeeded when its work is recorded as merged or shipped', async () => {
+    const { result } = await runOnDetail(
+      [
+        Issue.make({
+          ...stored('1374', 'Show who works on what'),
+          status: 'InProgress',
+        }),
+      ],
+      SubmittedIssueWorkInProgress.make({
+        edit: WorkInProgressEdit.make({
+          ...noEdit,
+          agentId: Option.some('claude-code/issue-wip-1374@max'),
+          branch: Option.some('agent/claude/issue-wip-1374'),
+          commitSha: Option.some('8b89b2f1b'),
+          landingState: Option.some('Merged'),
+        }),
+        issueId: '1374',
+      }),
+    )
+
+    const saved = Option.getOrThrow(result)
+    expect(saved).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        status: 'VerificationNeeded',
+        workInProgress: Option.some({ landingState: 'Merged' }),
+      },
+    })
+    if (saved._tag !== 'SucceededSaveIssue') {
+      return
+    }
+    expect(Array.map(saved.issue.workLog, entry => entry.summary)).toEqual([
+      'Status InProgress → VerificationNeeded: the work is Merged (agent/claude/issue-wip-1374 at 8b89b2f1b); verify it.',
+    ])
+  })
+
+  it('records what the Mac saw of the agents on an Issue and reads it back', async () => {
+    const claimed = Issue.make({
+      ...stored('1374', 'Show who works on what'),
+      claimantId: Option.some('claude-code/issue-wip-1374@max'),
+      status: 'InProgress',
+    })
+    const survey = AgentSurvey.make({
+      ended: [],
+      live: [
+        LiveAgent.make({
+          account: Option.some('max'),
+          agentId: 'claude-code/issue-wip-1374@max',
+          branch: Option.some('agent/claude/issue-wip-1374'),
+          harness: Option.some('claude'),
+          issueId: Option.some('1374'),
+          name: 'issue-wip-1374',
+          startedAtMs: Option.some(1_793_312_008_000),
+          worktree: Option.some(
+            '/Users/laptop/Sync/worktrees/foldkit-issue-wip-1374',
+          ),
+        }),
+      ],
+      observedAtMs: 1_793_312_400_000,
+    })
+
+    const { result, tracker } = await runOnDetail(
+      [claimed],
+      ObservedAgentSurvey.make({
+        issueId: '1374',
+        survey,
+        touchedFiles: Option.none(),
+      }),
+    )
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      _tag: 'SucceededSaveIssue',
+      issue: {
+        agentPresence: Option.some({
+          agentId: 'claude-code/issue-wip-1374@max',
+          run: { _tag: 'Running', sinceMs: 1_793_312_400_000 },
+        }),
+      },
+    })
+    const reread = Option.getOrThrow(
+      await Effect.runPromise(tracker.fetchIssue('1374')),
+    )
+    expect(reread.agentPresence).toEqual(observedIssue(claimed, survey, Option.none()).agentPresence)
   })
 
   it('clears the work in progress of an Issue', async () => {

@@ -11,6 +11,7 @@ import {
   ConversationReference,
   InstantStorageAttachmentSource,
   Issue,
+  IssueAgentPresence,
   IssueAttachment,
   type IssueLandingState,
   IssueMention,
@@ -24,6 +25,8 @@ import {
   ProductCatalogEntry,
   RecordingMention,
   RecordingReference,
+  RunningAgent,
+  StaleAgent,
   StuckWork,
   UncheckedSubtask,
   UriAttachmentSource,
@@ -683,6 +686,95 @@ describe('Issue Tracker screen: work in progress', () => {
     )
     expect(openTokensOf(all)).toHaveLength(6)
     expect(primaryTokensOf(all)).toContain('landing:all')
+  })
+})
+
+const presentAs = (
+  issue: Issue,
+  run: IssueAgentPresence['run'],
+): Issue =>
+  Issue.make({
+    ...issue,
+    agentPresence: Option.some(
+      IssueAgentPresence.make({
+        account: Option.some('max'),
+        agentId: `claude-code/issue-${issue.id}@max`,
+        branch: Option.some(`agent/claude/issue-${issue.id}`),
+        harness: Option.some('claude'),
+        run,
+        startedAtMs: Option.some(1_793_312_008_000),
+        touchedFiles: Option.none(),
+        worktree: Option.some(`/Users/laptop/Sync/worktrees/scribe-${issue.id}`),
+      }),
+    ),
+  })
+
+describe('Issue Tracker screen: now working', () => {
+  it('shows on the page of an Issue who is working on it, whether it runs, and where', () => {
+    const running = presentAs(
+      workingAt('1374', 'Red'),
+      RunningAgent.make({ sinceMs: 1_793_312_400_000 }),
+    )
+
+    const contents = contentsOf(opened(running))
+
+    expect(contents).toEqual(
+      expect.arrayContaining([
+        'Now working',
+        'Agent: claude-code/issue-1374@max (account max)',
+        'Running: yes, seen 2026-10-29T22:20:00.000Z (started 2026-10-29T22:13:28.000Z)',
+        'Branch: agent/claude/issue-1374 in realtime-voice',
+        'Worktree: /Users/laptop/Sync/worktrees/scribe-1374',
+        'Last step: Green: 37 focused tests pass (2026-10-17T18:00:00.000Z)',
+      ]),
+    )
+    expect(contents.indexOf('Now working')).toBeLessThan(
+      contents.indexOf('Work in progress'),
+    )
+    expect(contentsOf(opened(stored))).not.toContain('Now working')
+  })
+
+  it('names the running agent beside each Issue in the list, and lists only the Issues an agent works on now when asked', () => {
+    const [listed] = update(
+      modelForNavigation(IssueList.make({})),
+      ObservedIssues.make({
+        issues: [
+          presentAs(
+            workingAt('1374', 'Red'),
+            RunningAgent.make({ sinceMs: 1_793_312_400_000 }),
+          ),
+          presentAs(
+            workingAt('1201', 'Green'),
+            StaleAgent.make({ reason: 'not running', sinceMs: 1 }),
+          ),
+          stored,
+        ],
+      }),
+    )
+
+    expect(openTokensOf(listed)).toEqual([
+      '1374  P1  InProgress  Keep transcript aligned  [Scribe]  Red for build 106  running claude-code/issue-1374@max',
+      '1201  P1  InProgress  Keep transcript aligned  [Scribe]  Green for build 106',
+      '021  P1  Open  Keep transcript aligned  [Scribe]',
+    ])
+
+    const [working] = update(
+      listed,
+      Option.getOrThrow(messageForScreenToken(listed, 'landing:working')),
+    )
+    expect(openTokensOf(working)).toEqual([
+      '1374  P1  InProgress  Keep transcript aligned  [Scribe]  Red for build 106  running claude-code/issue-1374@max',
+    ])
+    expect(primaryTokensOf(working)).toContain('landing:working')
+    expect(
+      Array.map(
+        Array.filter(
+          buttonsOf(issuesScreen(working)),
+          button => button.token === 'landing:working',
+        ),
+        button => button.label,
+      ),
+    ).toEqual(['Working now'])
   })
 })
 

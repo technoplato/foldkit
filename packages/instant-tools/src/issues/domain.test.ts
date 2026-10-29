@@ -7,6 +7,9 @@ import {
   ApplicationProduct,
   CheckedSubtask,
   Issue,
+  ChangedFile,
+  EndedAgent,
+  IssueAgentPresence,
   IssueAttachment,
   IssueComplexity,
   IssueLandingState,
@@ -22,13 +25,18 @@ import {
   IssueWorkInProgress,
   IssueWorkLogEntry,
   MediaReference,
+  RunningAgent,
   RecordingMention,
   RecordingReference,
   RepositoryAttachmentSource,
   StuckWork,
   UncheckedSubtask,
+  BinaryFile,
   escalatePriority,
+  StaleAgent,
+  UntrackedFile,
   isCloseToLanding,
+  isWorkingNow,
   issueViewerUrl,
   nextIssueId,
   normalizeIssueId,
@@ -694,5 +702,127 @@ describe('issue domain', () => {
       ),
     ).toBe(false)
     expect(isCloseToLanding(makeIssue())).toBe(false)
+  })
+  it('reads an Issue stored before agent presence as having none', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['agentPresence']
+
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).agentPresence).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('round-trips the running agent, its branch, worktree and touched files through the stored JSON', () => {
+    const IssueJson = S.fromJsonString(Issue)
+    const issue = Issue.make({
+      ...makeIssue(),
+      agentPresence: Option.some(
+        IssueAgentPresence.make({
+          account: Option.some('max'),
+          agentId: 'claude-code/issue-wip-1374@max',
+          branch: Option.some('agent/claude/issue-wip-1374'),
+          harness: Option.some('claude'),
+          run: RunningAgent.make({ sinceMs: 1_793_312_008_000 }),
+          startedAtMs: Option.some(1_793_312_008_000),
+          touchedFiles: Option.some({
+            base: 'technoplato/main',
+            checkedAtMs: 1_793_312_100_000,
+            fileCount: 3,
+            files: [
+              ChangedFile.make({
+                deletions: 2,
+                insertions: 40,
+                path: 'packages/instant-tools/src/issues/domain.ts',
+              }),
+              BinaryFile.make({ path: 'docs/shot.png' }),
+              UntrackedFile.make({ path: 'examples/issues/core/src/now.ts' }),
+            ],
+          }),
+          worktree: Option.some(
+            '/Users/laptop/Sync/worktrees/foldkit-issue-wip-1374',
+          ),
+        }),
+      ),
+    })
+
+    const json = S.encodeSync(IssueJson)(issue)
+
+    expect(S.decodeUnknownSync(IssueJson)(json)).toEqual(issue)
+    expect(JSON.parse(json)).toMatchObject({
+      agentPresence: {
+        account: 'max',
+        agentId: 'claude-code/issue-wip-1374@max',
+        run: { _tag: 'Running', sinceMs: 1_793_312_008_000 },
+        touchedFiles: {
+          base: 'technoplato/main',
+          fileCount: 3,
+          files: [
+            { _tag: 'Changed', deletions: 2, insertions: 40 },
+            { _tag: 'Binary', path: 'docs/shot.png' },
+            { _tag: 'Untracked' },
+          ],
+        },
+      },
+    })
+  })
+
+  it('reads stored agent presence that names only the agent and its run', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+
+    const decoded = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      agentPresence: {
+        agentId: 'codex/backlog-1201@ld',
+        run: { _tag: 'Ended', how: 'exit 0', sinceMs: 9 },
+      },
+    })
+
+    expect(decoded.agentPresence).toEqual(
+      Option.some(
+        IssueAgentPresence.make({
+          account: Option.none(),
+          agentId: 'codex/backlog-1201@ld',
+          branch: Option.none(),
+          harness: Option.none(),
+          run: EndedAgent.make({ how: 'exit 0', sinceMs: 9 }),
+          startedAtMs: Option.none(),
+          touchedFiles: Option.none(),
+          worktree: Option.none(),
+        }),
+      ),
+    )
+  })
+
+  it('counts an Issue as worked on now only while its agent runs', () => {
+    const presentAs = (run: IssueAgentPresence['run']) =>
+      Issue.make({
+        ...makeIssue(),
+        agentPresence: Option.some(
+          IssueAgentPresence.make({
+            account: Option.none(),
+            agentId: 'claude-code/issue-wip-1374@max',
+            branch: Option.none(),
+            harness: Option.none(),
+            run,
+            startedAtMs: Option.none(),
+            touchedFiles: Option.none(),
+            worktree: Option.none(),
+          }),
+        ),
+      })
+
+    expect(isWorkingNow(presentAs(RunningAgent.make({ sinceMs: 1 })))).toBe(
+      true,
+    )
+    expect(
+      isWorkingNow(presentAs(EndedAgent.make({ how: 'exit 0', sinceMs: 1 }))),
+    ).toBe(false)
+    expect(
+      isWorkingNow(
+        presentAs(StaleAgent.make({ reason: 'not running', sinceMs: 1 })),
+      ),
+    ).toBe(false)
+    expect(isWorkingNow(makeIssue())).toBe(false)
   })
 })

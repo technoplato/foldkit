@@ -19,10 +19,12 @@ import {
   AbandonedWork,
   ActiveWork,
   ApplicationProduct,
+  ChangedFile,
   Issue,
   type IssueLandingState,
   IssueMention,
   IssueSuccessCriterion,
+  IssueTouchedFiles,
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
@@ -48,6 +50,7 @@ import {
   type ListInput,
   type MentionInput,
   type WorkInProgressInput,
+  type WorkingSyncInput,
   addCriterionCommand,
   addMentionCommand,
   addProductCommand,
@@ -72,6 +75,7 @@ import {
   showIssueCommand,
   typedMention,
   workInProgressCommand,
+  workingSyncCommand,
 } from './commands.js'
 import { memoryIssueRecords } from './resources.js'
 
@@ -173,11 +177,29 @@ const makeHost = (
     }
     const host: IssuesHost = {
       backupDirectory,
+      countTouchedFiles: worktree =>
+        Effect.succeed(
+          Option.some(
+            IssueTouchedFiles.make({
+              base: 'technoplato/main',
+              checkedAtMs: 1_792_000_000_000,
+              fileCount: 1,
+              files: [
+                ChangedFile.make({
+                  deletions: 2,
+                  insertions: 40,
+                  path: `${worktree.split('/').at(-1) ?? ''}/src/nowWorking.ts`,
+                }),
+              ],
+            }),
+          ),
+        ),
       defaultAgent: 'claude-code/test',
       files,
       mirrorRoot: makeMirror(),
       nowMs: () => 1_792_000_000_000,
       readStandardInput: Effect.succeed(''),
+      readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
       records: memoryIssueRecords(memory),
       resources: Layer.merge(
         StaticIssueTrackerResources,
@@ -217,6 +239,7 @@ const allIssues: ListInput = {
   isLanding: false,
   isStuck: false,
   isWorkInProgress: false,
+  isWorking: false,
   limit: Option.none(),
   product: Option.none(),
   recording: Option.none(),
@@ -2180,5 +2203,211 @@ describe('issues carry the pictures of the moment they quote', () => {
     expect(Array.join(outcome.stderr, '\n')).toMatch(
       /Filed #\d+, but attaching pic-900\.png failed: .*storage is down.*issues attach \d+ /,
     )
+  })
+})
+
+describe('issues working', () => {
+  const syncInput = (
+    agents: string,
+    registry: string,
+  ): WorkingSyncInput => ({
+    agents,
+    isDryRun: false,
+    isSweep: false,
+    registry: Option.some(registry),
+  })
+
+  const writeSurvey = () => {
+    const folder = mkdtempSync(join(tmpdir(), 'issues-working-'))
+    const agents = join(folder, 'progress.json')
+    const registry = join(folder, 'agents-registry.json')
+    writeFileSync(
+      agents,
+      JSON.stringify({
+        agents: [
+          {
+            account: 'max',
+            agentId: 'claude-code/issue-wip-1374@max',
+            branch: 'agent/claude/issue-wip-1374',
+            harness: 'claude-code',
+            issue: 1374,
+            kind: 'run',
+            name: 'issue-wip-1374',
+            startedAtMs: 1_791_999_000_000,
+            worktree: '/Users/laptop/Sync/worktrees/foldkit-issue-wip-1374',
+          },
+          {
+            account: null,
+            agentId: null,
+            branch: null,
+            harness: 'claude-code',
+            issue: null,
+            kind: 'subagent',
+            name: null,
+            startedAtMs: null,
+            worktree: null,
+          },
+        ],
+        dead: [],
+        generatedAtMs: 1_792_000_000_000,
+        sessions: [{ account: 'al', name: 'claude-code', pid: 10675 }],
+      }),
+    )
+    writeFileSync(
+      registry,
+      JSON.stringify({
+        agents: [
+          {
+            ended: '2026-10-29T17:00:00-04:00',
+            issue: 1201,
+            name: 'sweep-1201',
+            started: '2026-10-29T15:00:00-04:00',
+            state: 'done',
+          },
+          {
+            issue: 1374,
+            name: 'issue-wip-1374',
+            started: '2026-10-29T18:13:28-04:00',
+            state: 'running',
+          },
+          { id: 'a row with no name', state: 'stopped' },
+        ],
+        tasks: [],
+      }),
+    )
+    return { agents, registry }
+  }
+
+  const seed = () => [
+    stored('1374', 'Show who works on what', {
+      claimantId: Option.some('claude-code/issue-wip-1374@max'),
+      status: 'InProgress',
+      updatedAtMs: 1_791_999_500_000,
+    }),
+    stored('1201', 'Sweep the backlog', {
+      claimantId: Option.some('claude-code/sweep-1201@ld'),
+      status: 'InProgress',
+      updatedAtMs: 1_791_999_500_000,
+    }),
+    stored('880', 'Merged work', {
+      status: 'InProgress',
+      updatedAtMs: 1_791_999_500_000,
+      workInProgress: Option.some(workAt('Merged', Option.none())),
+    }),
+    stored('806', 'Not started', { updatedAtMs: 1_791_999_500_000 }),
+  ]
+
+  it('records who works on the Issues of running and recently ended agents, and releases ended claims', async () => {
+    const { host, memory } = await run(makeHost(seed()))
+    const { agents, registry } = writeSurvey()
+
+    const synced = await run(
+      workingSyncCommand(host, syncInput(agents, registry)),
+    )
+
+    expect(synced.exitCode).toBe(0)
+    expect(synced.stdout).toEqual([
+      '#1374 running claude-code/issue-wip-1374@max, 1 file touched',
+      '#1201 claim of claude-code/sweep-1201@ld released: its run ended (done)',
+      'Checked 2 Issues against 1 running agent: 2 changed.',
+    ])
+    expect(Option.getOrThrow(fetched(memory, '1201')).claimantId).toEqual(
+      Option.none(),
+    )
+    expect(Option.getOrThrow(fetched(memory, '880')).status).toBe('InProgress')
+
+    const again = await run(
+      workingSyncCommand(host, syncInput(agents, registry)),
+    )
+    expect(again.stdout).toEqual([
+      'Checked 2 Issues against 1 running agent: 0 changed.',
+    ])
+  })
+
+  it('sweeps every Issue in progress, moving merged work to verification', async () => {
+    const { host, memory } = await run(makeHost(seed()))
+    const { agents, registry } = writeSurvey()
+
+    const swept = await run(
+      workingSyncCommand(host, {
+        ...syncInput(agents, registry),
+        isSweep: true,
+      }),
+    )
+
+    expect(swept.stdout).toEqual([
+      '#1374 running claude-code/issue-wip-1374@max, 1 file touched',
+      '#1201 claim of claude-code/sweep-1201@ld released: its run ended (done)',
+      '#880 InProgress → VerificationNeeded: the work is Merged',
+      'Checked 3 Issues against 1 running agent: 3 changed.',
+    ])
+    expect(Option.getOrThrow(fetched(memory, '880')).status).toBe(
+      'VerificationNeeded',
+    )
+  })
+
+  it('says what a dry run would change and writes nothing', async () => {
+    const { host, memory } = await run(makeHost(seed()))
+    const { agents, registry } = writeSurvey()
+
+    const dry = await run(
+      workingSyncCommand(host, {
+        ...syncInput(agents, registry),
+        isDryRun: true,
+      }),
+    )
+
+    expect(dry.stdout).toContain(
+      'Dry run: checked 2 Issues against 1 running agent: 2 would change.',
+    )
+    expect(Option.getOrThrow(fetched(memory, '1201')).claimantId).toEqual(
+      Option.some('claude-code/sweep-1201@ld'),
+    )
+  })
+
+  it('fails with the reason when the progress check cannot be read', async () => {
+    const { host } = await run(makeHost(seed()))
+
+    const failed = await run(
+      workingSyncCommand(host, {
+        agents: '/nonexistent/progress.json',
+        isDryRun: false,
+        isSweep: false,
+        registry: Option.none(),
+      }),
+    )
+
+    expect(failed.exitCode).toBe(1)
+    expect(linesOf({ ...failed, stdout: failed.stderr })).toContain(
+      '/nonexistent/progress.json',
+    )
+  })
+
+  it('shows a Now working block on the Issue and lists the Issues an agent works on now', async () => {
+    const { host } = await run(makeHost(seed()))
+    const { agents, registry } = writeSurvey()
+    await run(workingSyncCommand(host, syncInput(agents, registry)))
+
+    const shown = await run(
+      showIssueCommand(host, { issue: '1374', isJson: false }),
+    )
+    expect(shown.stdout).toEqual(
+      expect.arrayContaining([
+        'Now working',
+        '  Agent: claude-code/issue-wip-1374@max (account max)',
+        '  Running: yes, seen 2026-10-14T17:46:40.000Z (started 2026-10-14T17:30:00.000Z)',
+        '  Branch: agent/claude/issue-wip-1374',
+        '  Worktree: /Users/laptop/Sync/worktrees/foldkit-issue-wip-1374',
+        '  Files: 1 touched against technoplato/main (counted 2026-10-14T17:46:40.000Z)',
+        '    foldkit-issue-wip-1374/src/nowWorking.ts  +40 -2',
+      ]),
+    )
+
+    const working = await run(
+      listIssuesCommand(host, { ...allIssues, isWorking: true }),
+    )
+    expect(working.stdout).toEqual([
+      '#1374  P2  InProgress  Show who works on what  [Scribe]  running claude-code/issue-wip-1374@max  agent/claude/issue-wip-1374  1 file touched',
+    ])
   })
 })
