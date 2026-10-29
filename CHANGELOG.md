@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 29th, 2026 at 1:50:03 a.m. EDT — `932bf226b983` fix(words): green: a sealed line is drawn as soft bars
+
+- **Implementation commit:** `932bf226b983430434ea56cddc946f417218f638`
+- **Change:** The words site draws a sealed line as soft bars where its words would be, keeping its time and speaker, like the app's live screen (docs/FEATURES.md item 10, ADR 0097 amendment A; #1322, red ec146555b).
+- **Details:**
+  - Screen readers and the tooltip read [sealed], or [checking the voice] while held; copies and exports keep that label; no words are ever drawn.
+  - Seen end to end on the throwaway app bd40c50a in headless Chromium (e2e-sealed-soft-bars.png, synthetic words): the sealed and the held line each draw 4 bars at 0:34 and 0:38; the page still shows the 9 kept lines, and links to retired lines open at the kept line.
+  - Verified: web 33/33, web tsc, oxlint, vite build (the bar utilities are in the CSS).
+- **Files:**
+  - `examples/words/foldkit/src/view/transcript.ts` — a sealed line drawn as soft bars with its label for screen readers
+- **User context (verbatim):**
+  > its stretch keeps its place and time as a line with soft bars (docs/FEATURES.md item 10)
+  > blur out those words. / but make it so I could recover them later. (Recording 297 #844-845, https://words.pisspoursoftware.xyz/recording/3b1d645a-cef4-4ba6-9acd-c52583ade335/section/8c929745-4ad4-49bc-8de3-b9a48390963c?t=9981.01)
+- **SpecStory:** unavailable — headless pi RPC session (agent pi/words-1322@ld-credits, started by tools/agent-run); no SpecStory URI was captured
+
 ## October 29th, 2026 at 1:37:18 a.m. EDT — `2c5b33949e53` fix(words): green: every reader skips retired lines and seals sealed ones
 
 - **Implementation commit:** `2c5b33949e535d0d4a093ab2207bd9e467b0c1c6`
