@@ -40,6 +40,7 @@ const ProgressCheckAgent = S.Struct({
 const ProgressCheckDeadRun = S.Struct({
   exit: S.optionalKey(S.NullOr(S.Union([S.String, S.Number]))),
   issue: OptionalIssueNumber,
+  lastSignMs: OptionalNumber,
   name: OptionalText,
 })
 
@@ -55,6 +56,7 @@ const RegistryRow = S.Struct({
   finished: OptionalText,
   issue: OptionalIssueNumber,
   name: OptionalText,
+  started: OptionalText,
   state: OptionalText,
   stopped: OptionalText,
   updated: OptionalText,
@@ -100,10 +102,11 @@ const liveAgentOf = (
 
 const deadRunOf = (
   run: typeof ProgressCheckDeadRun.Type,
+  observedAtMs: number,
 ): Option.Option<EndedRun> =>
   Option.map(textOf(run.name), name =>
     EndedRun.make({
-      endedAtMs: Option.none(),
+      endedAtMs: Option.some(run.lastSignMs ?? observedAtMs),
       how: Option.match(Option.fromNullishOr(run.exit), {
         onNone: () => 'process gone',
         onSome: exit => `exit ${exit}`,
@@ -128,6 +131,7 @@ const timeOf = (row: typeof RegistryRow.Type): Option.Option<number> =>
         textOf(row.finished),
         textOf(row.stopped),
         textOf(row.updated),
+        textOf(row.started),
       ]),
       Date.parse,
     ),
@@ -177,15 +181,21 @@ export const surveyFromProgressCheck = (
                 Array.getSomes(Array.map(agents, endedRegistryRunOf)),
             }),
         }),
-        registryRuns =>
-          AgentSurvey.make({
+        registryRuns => {
+          const observedAtMs = report.generatedAtMs ?? nowMs
+          return AgentSurvey.make({
             ended: [
-              ...Array.getSomes(Array.map(report.dead ?? [], deadRunOf)),
+              ...Array.getSomes(
+                Array.map(report.dead ?? [], run =>
+                  deadRunOf(run, observedAtMs),
+                ),
+              ),
               ...registryRuns,
             ],
             live: Array.getSomes(Array.map(report.agents, liveAgentOf)),
-            observedAtMs: report.generatedAtMs ?? nowMs,
-          }),
+            observedAtMs,
+          })
+        },
       ),
   )
 
@@ -201,7 +211,8 @@ export const recentlyEndedMs = RECENTLY_ENDED_HOURS * HOUR_MS
 
 /**
  * The Issues a sync reads by number: those of running agents, then those of
- * runs found dead or ended in the last six hours, each once.
+ * runs found dead or ended in the last six hours, each once. A registry row
+ * with no time at all waits for `--sweep`.
  */
 export const issueIdsToCheck = (survey: AgentSurvey): ReadonlyArray<string> =>
   Array.dedupe([
@@ -209,11 +220,10 @@ export const issueIdsToCheck = (survey: AgentSurvey): ReadonlyArray<string> =>
     ...Array.getSomes(
       Array.map(
         Array.filter(survey.ended, run =>
-          Option.match(run.endedAtMs, {
-            onNone: () => true,
-            onSome: endedAtMs =>
-              endedAtMs >= survey.observedAtMs - recentlyEndedMs,
-          }),
+          Option.exists(
+            run.endedAtMs,
+            endedAtMs => endedAtMs >= survey.observedAtMs - recentlyEndedMs,
+          ),
         ),
         run => run.issueId,
       ),
@@ -305,19 +315,26 @@ const nearestMainLine = (
   worktree: string,
 ): Effect.Effect<Option.Option<string>, Error> =>
   Effect.gen(function* () {
-    const refs = Array.filter(
+    const remoteRefs = Array.filter(
       nonEmptyLines(
         yield* runGit(worktree, [
           'for-each-ref',
           '--format=%(refname:short)',
           'refs/remotes/*/main',
           'refs/remotes/*/master',
-          'refs/heads/main',
-          'refs/heads/master',
         ]),
       ),
       ref => !ref.endsWith('/HEAD'),
     )
+    const localRefs = nonEmptyLines(
+      yield* runGit(worktree, [
+        'for-each-ref',
+        '--format=%(refname:short)',
+        'refs/heads/main',
+        'refs/heads/master',
+      ]),
+    )
+    const refs = [...remoteRefs, ...localRefs]
     const candidates = yield* Effect.forEach(refs, ref =>
       Effect.map(
         runGit(worktree, ['rev-list', '--count', `${ref}..HEAD`]),
@@ -341,7 +358,8 @@ const nearestMainLine = (
 /**
  * Counts the files a worktree's branch touches with git: committed and
  * uncommitted changes since it left its nearest main line (the `main` or
- * `master` it is fewest commits ahead of, such as `technoplato/main`), and
+ * `master` it is fewest commits ahead of, such as `technoplato/main`, a
+ * remote one on a tie, so unpushed commits on a local main count), and
  * new files not yet added. Git runs without optional locks, so it never
  * holds the index lock an agent working there needs. None when the worktree
  * is gone or git fails.

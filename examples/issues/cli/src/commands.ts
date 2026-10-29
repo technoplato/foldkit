@@ -2961,6 +2961,39 @@ export type WorkingSyncInput = Readonly<{
 
 const sweptStatuses: ReadonlyArray<IssueStatus> = ['InProgress', 'Addressing']
 
+const MINUTE_MS = 60_000
+const RECOUNT_AFTER_MINUTES = 10
+
+/**
+ * How old a worktree's file count may grow before a sync counts it again:
+ * ten minutes. Each count stats every tracked file (about 0.65 s of CPU in
+ * a Scribe worktree).
+ */
+export const recountFilesAfterMs = RECOUNT_AFTER_MINUTES * MINUTE_MS
+
+const hasFreshFileCount = (
+  issue: Issue,
+  worktree: string,
+  observedAtMs: number,
+): boolean =>
+  Option.exists(
+    issue.agentPresence,
+    presence =>
+      presence.run._tag === 'Running' &&
+      Option.exists(
+        presence.touchedFiles,
+        touchedFiles =>
+          observedAtMs - touchedFiles.checkedAtMs < recountFilesAfterMs,
+      ) &&
+      Option.exists(
+        Option.orElse(
+          Option.flatMap(issue.workInProgress, work => work.worktree),
+          () => presence.worktree,
+        ),
+        counted => counted === worktree,
+      ),
+  )
+
 const readJsonFile = (
   host: IssuesHost,
   what: string,
@@ -3126,8 +3159,9 @@ const pluralOf = (count: number, one: string, many: string): string =>
  * `agents-registry.json` (`--registry`), reads the Issues of running agents
  * and of runs that ended in the last six hours (and with `--sweep` every
  * Issue InProgress or Addressing), counts the files each running agent's
- * worktree touches, and saves each Issue the survey changes. A dry run
- * prints the changes and saves nothing.
+ * worktree touches (not in a worktree several running agents share, such as
+ * one main checkout, whose changes no one agent owns), and saves each Issue
+ * the survey changes. A dry run prints the changes and saves nothing.
  */
 export const workingSyncCommand = (
   host: IssuesHost,
@@ -3146,10 +3180,25 @@ export const workingSyncCommand = (
         [...Array.getSomes(byNumber), ...swept],
         (left, right) => left.id === right.id,
       )
+      const worktreeUses = Array.groupBy(
+        Array.getSomes(
+          Array.map(issues, issue => worktreeToCount(issue, survey)),
+        ),
+        worktree => worktree,
+      )
+      const sharedWorktrees = Array.filter(
+        Object.entries(worktreeUses),
+        ([, uses]) => uses.length > 1,
+      )
       const results = yield* Effect.forEach(issues, issue =>
         Effect.gen(function* () {
           const touchedFiles = yield* Option.match(
-            worktreeToCount(issue, survey),
+            Option.filter(
+              worktreeToCount(issue, survey),
+              worktree =>
+                (worktreeUses[worktree]?.length ?? 0) === 1 &&
+                !hasFreshFileCount(issue, worktree, survey.observedAtMs),
+            ),
             {
               onNone: () => Effect.succeed(Option.none<IssueTouchedFiles>()),
               onSome: host.countTouchedFiles,
@@ -3196,6 +3245,11 @@ export const workingSyncCommand = (
       )
       const stdout = [
         ...Array.flatMap(results, result => result.lines),
+        ...Array.map(
+          sharedWorktrees,
+          ([worktree, uses]) =>
+            `Files not counted in ${worktree}: ${pluralOf(uses.length, 'running agent shares', 'running agents share')} it.`,
+        ),
         summary,
       ]
       return Array.isReadonlyArrayEmpty(failures)
