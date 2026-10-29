@@ -13,6 +13,7 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { IssueFileAddress } from './issueFiles.js'
 import { LandingFilter } from './landing.js'
 import { LeftoverStatus, ProductFilter } from './leftover.js'
 import {
@@ -51,6 +52,14 @@ export const FailedObserveIssue = S.TaggedStruct('FailedObserveIssue', {
   issueId: S.String,
   reason: S.String,
 })
+export const ObservedIssueFiles = S.TaggedStruct('ObservedIssueFiles', {
+  files: S.Array(IssueFileAddress),
+  issueId: S.String,
+})
+export const FailedObserveIssueFiles = S.TaggedStruct(
+  'FailedObserveIssueFiles',
+  { issueId: S.String, reason: S.String },
+)
 export const ObservedIssueLogs = S.TaggedStruct('ObservedIssueLogs', {
   issueId: S.String,
   logs: S.Array(IssueLogEvidence),
@@ -279,6 +288,8 @@ export const Message = S.Union([
   FailedObserveTriageCandidates,
   ObservedIssue,
   FailedObserveIssue,
+  ObservedIssueFiles,
+  FailedObserveIssueFiles,
   ObservedIssueLogs,
   FailedObserveIssueLogs,
   SelectedIssue,

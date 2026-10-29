@@ -78,6 +78,7 @@ import {
   EditingIssueDraft,
   FailedIssue,
   FailedIssueDraft,
+  FailedIssueFiles,
   FailedIssueLogs,
   FailedIssueMutation,
   FailedIssues,
@@ -91,6 +92,7 @@ import {
   IssueDraft,
   IssueList,
   LoadedIssue,
+  LoadedIssueFiles,
   LoadedIssueLogs,
   LoadedIssues,
   LoadedLeftoverPresence,
@@ -102,6 +104,7 @@ import {
   Model,
   type Navigation,
   NotObservingIssue,
+  NotObservingIssueFiles,
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
   type ProductAdditionState,
@@ -1410,6 +1413,9 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
         navigation._tag === 'IssueDetail'
           ? LoadingIssue.make({ issueId: navigation.issueId })
           : NotObservingIssue.make({}),
+      issueFiles: isSameIssueDetail
+        ? model.issueFiles
+        : NotObservingIssueFiles.make({}),
       issueLogs:
         navigation._tag === 'IssueDetail'
           ? LoadingIssueLogs.make({ issueId: navigation.issueId })
@@ -1831,6 +1837,36 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
+      ObservedIssueFiles: ({ files, issueId }) => {
+        if (
+          model.navigation._tag !== 'IssueDetail' ||
+          model.navigation.issueId !== issueId
+        ) {
+          return [model, []]
+        }
+        return [
+          Model.make({
+            ...model,
+            issueFiles: LoadedIssueFiles.make({ files, issueId }),
+          }),
+          [],
+        ]
+      },
+      FailedObserveIssueFiles: ({ issueId, reason }) => {
+        if (
+          model.navigation._tag !== 'IssueDetail' ||
+          model.navigation.issueId !== issueId
+        ) {
+          return [model, []]
+        }
+        return [
+          Model.make({
+            ...model,
+            issueFiles: FailedIssueFiles.make({ issueId, reason }),
+          }),
+          [],
+        ]
+      },
       ObservedIssueLogs: ({ issueId, logs }) => {
         if (
           model.navigation._tag !== 'IssueDetail' ||

@@ -14,6 +14,7 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { IssueFileAddress } from './issueFiles.js'
 import { LandingFilter } from './landing.js'
 import { LeftoverKind, ProductFilter } from './leftover.js'
 
@@ -124,6 +125,30 @@ export const IssueLogsState = S.Union([
 ])
 /** Every selected Issue log evidence state. */
 export type IssueLogsState = typeof IssueLogsState.Type
+
+/** No Issue page is open, so no stored files are read. */
+export const NotObservingIssueFiles = S.TaggedStruct(
+  'NotObservingIssueFiles',
+  {},
+)
+/** The open Issue's stored files and where the page can show them. */
+export const LoadedIssueFiles = S.TaggedStruct('LoadedIssueFiles', {
+  files: S.Array(IssueFileAddress),
+  issueId: S.String,
+})
+/** The open Issue's stored files could not be read. */
+export const FailedIssueFiles = S.TaggedStruct('FailedIssueFiles', {
+  issueId: S.String,
+  reason: S.String,
+})
+/** Every state of the open Issue's stored files (Scribe #1345). */
+export const IssueFilesState = S.Union([
+  NotObservingIssueFiles,
+  LoadedIssueFiles,
+  FailedIssueFiles,
+])
+/** Every state of the open Issue's stored files (Scribe #1345). */
+export type IssueFilesState = typeof IssueFilesState.Type
 
 /** The live Issue collection is visible. */
 export const IssueList = S.TaggedStruct('IssueList', {})
@@ -375,6 +400,7 @@ export const Model = S.Struct({
   draft: IssueDraft,
   draftState: IssueDraftState,
   issueDetail: IssueDetailState,
+  issueFiles: IssueFilesState,
   issueLogs: IssueLogsState,
   issueMutation: IssueMutationState,
   issues: IssuesState,

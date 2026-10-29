@@ -429,32 +429,44 @@ describe('Issue Tracker screen: an Issue as it is stored', () => {
         issueId: '999',
       }),
     ])
-    const textNamed = (content: string) =>
-      Array.findFirst(
-        textsOf(issuesScreen(model)),
-        text => text.content === content,
+    const drawn = (content: string) =>
+      Option.map(
+        Array.findFirst(
+          textsOf(issuesScreen(model)),
+          text => text.content === content,
+        ),
+        text => ({ href: text.href, picture: text.image?.src }),
       )
 
-    expect(textNamed('11-27-16-+15-17-a51178e8.jpg (Screenshot)')).toEqual(
-      Option.some(
-        expect.objectContaining({
-          href: pictureUrl,
-          image: expect.objectContaining({ src: pictureUrl }),
-        }),
-      ),
+    expect(drawn('11-27-16-+15-17-a51178e8.jpg (Screenshot)')).toEqual(
+      Option.some({ href: pictureUrl, picture: pictureUrl }),
     )
-    expect(textNamed('crash.log (File)')).toEqual(
-      Option.some(expect.objectContaining({ href: logUrl, image: undefined })),
+    expect(drawn('crash.log (File)')).toEqual(
+      Option.some({ href: logUrl, picture: undefined }),
     )
-    expect(textNamed('not-yet.png (Screenshot)')).toEqual(
-      Option.some(
-        expect.objectContaining({ href: undefined, image: undefined }),
-      ),
+    expect(drawn('not-yet.png (Screenshot)')).toEqual(
+      Option.some({ href: undefined, picture: undefined }),
     )
   })
 
   it('says on the page when its pictures cannot be read, and why', () => {
-    const model = applyAll(opened(stored), [
+    const withPicture = Issue.make({
+      ...stored,
+      attachments: [
+        IssueAttachment.make({
+          byteCount: Option.none(),
+          capturedAtMs: Option.none(),
+          contentType: 'image/png',
+          fileName: 'shot.png',
+          id: 'file-1',
+          issueId: stored.id,
+          kind: 'Screenshot',
+          sha256: Option.none(),
+          source: InstantStorageAttachmentSource.make({ fileId: 'file-1' }),
+        }),
+      ],
+    })
+    const model = applyAll(opened(withPicture), [
       FailedObserveIssueFiles.make({
         issueId: stored.id,
         reason: 'Permission denied: $files view',

@@ -17,6 +17,7 @@ import {
   Model,
   type Navigation,
   NotObservingIssue,
+  NotObservingIssueFiles,
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
 } from './model.js'
@@ -41,6 +42,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     draft: emptyIssueDraft(''),
     draftState: EditingIssueDraft.make({}),
     issueDetail: NotObservingIssue.make({}),
+    issueFiles: NotObservingIssueFiles.make({}),
     issueLogs: NotObservingIssueLogs.make({}),
     issueMutation: IdleIssueMutation.make({}),
     issues: LoadingIssues.make({}),

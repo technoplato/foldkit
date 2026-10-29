@@ -10,8 +10,8 @@ import { join } from 'node:path'
 import {
   type InstantEntityStoreError,
   type InstantIssueRecord,
-  type InstantToolsDatabase,
-  InstantToolsSchema,
+  type InstantToolsDatabaseWithFiles,
+  InstantToolsSchemaWithFiles,
   makeInstantEntityStore,
   makeInstantIssueRecord,
 } from '@foldkit/instant-tools/instant'
@@ -166,19 +166,21 @@ const adminDatabase = (
   readOnce: (query: unknown) => Promise<unknown>,
   write: (ops: unknown) => Promise<unknown>,
   forgetReads: () => void,
-): InstantToolsDatabase =>
+): InstantToolsDatabaseWithFiles =>
   // NOTE: a structural adapter: the admin client lacks core's typings.
   // oxlint-disable-next-line typescript/consistent-type-assertions
   ({
     queryOnce: async (
-      query: Parameters<InstantToolsDatabase['queryOnce']>[0],
+      query: Parameters<InstantToolsDatabaseWithFiles['queryOnce']>[0],
     ) => {
       const data = await readOnce(query)
       return { data }
     },
     subscribeQuery: (
-      query: Parameters<InstantToolsDatabase['subscribeQuery']>[0],
-      onResponse: Parameters<InstantToolsDatabase['subscribeQuery']>[1],
+      query: Parameters<InstantToolsDatabaseWithFiles['subscribeQuery']>[0],
+      onResponse: Parameters<
+        InstantToolsDatabaseWithFiles['subscribeQuery']
+      >[1],
     ) => {
       const subscription = { isRunning: true }
       void readOnce(query).then(
@@ -199,7 +201,9 @@ const adminDatabase = (
         subscription.isRunning = false
       }
     },
-    transact: (ops: Parameters<InstantToolsDatabase['transact']>[0]) => {
+    transact: (
+      ops: Parameters<InstantToolsDatabaseWithFiles['transact']>[0],
+    ) => {
       forgetReads()
       return write(ops).finally(forgetReads)
     },
@@ -221,7 +225,7 @@ const adminDatabase = (
       },
     }),
     // oxlint-disable-next-line typescript/consistent-type-assertions
-  }) as unknown as InstantToolsDatabase
+  }) as unknown as InstantToolsDatabaseWithFiles
 
 /**
  * Adapts Instant's admin client to the client surface the tracker reads.
@@ -235,7 +239,7 @@ const adminDatabase = (
 export const adminAsInstantToolsDatabase = (
   admin: InstantAdminClient,
   retry: Schedule.Schedule<unknown, unknown> = rateLimitRetry,
-): InstantToolsDatabase => {
+): InstantToolsDatabaseWithFiles => {
   const answers = new Map<string, Promise<unknown>>()
   const readOnce = (query: unknown): Promise<unknown> => {
     const key = JSON.stringify(query)
@@ -381,7 +385,7 @@ export const liveIssueHostServices = ():
     adminToken,
     appId,
     disableValidation: true,
-    schema: InstantToolsSchema,
+    schema: InstantToolsSchemaWithFiles,
     ...(apiURI === undefined ? {} : { apiURI }),
   })
   const database = adminAsInstantToolsDatabase(admin)

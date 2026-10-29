@@ -13,6 +13,7 @@ import { LeftoverPresence } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
 import { init } from './init.js'
+import { type IssueFiles } from './issueFiles.js'
 import { IssueIdentity } from './issueIdentity.js'
 import { Message } from './message.js'
 import { Model } from './model.js'
@@ -23,6 +24,7 @@ import { restore, update } from './update.js'
 
 /** Every dependency required by the renderer-independent Issue Tracker. */
 export type IssueTrackerResources =
+  | IssueFiles
   | IssueTracker
   | LeftoverPresence
   | Logger
@@ -56,9 +58,9 @@ export const IssueTrackerProgram: Program.Program<
   Model,
   Message,
   IssueTrackerResources
-> = Program.make({
+> = Program.make<Model, Message, IssueTrackerResources>({
   id: 'issues',
-  version: 9,
+  version: 10,
   Model,
   Message,
   init,

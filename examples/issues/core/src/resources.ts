@@ -1,7 +1,7 @@
 import { Array, Effect, Layer, Option, Ref, Stream } from 'effect'
 
 import {
-  type InstantToolsDatabase,
+  type InstantToolsDatabaseWithFiles,
   makeInstantToolsLayer,
 } from '@foldkit/instant-tools/instant'
 import {
@@ -35,6 +35,7 @@ import {
   type LoggerService,
 } from '@foldkit/instant-tools/logging'
 
+import { IssueFiles, NoIssueFiles, instantIssueFiles } from './issueFiles.js'
 import { IssueIdentity, liveIssueIdentity } from './issueIdentity.js'
 
 const scribe = ProductCatalogEntry.make({
@@ -315,6 +316,7 @@ export const StaticIssueTrackerResources = Layer.mergeAll(
   Layer.effect(ProductCatalog, makeMemoryProductCatalog(staticProducts)),
   Layer.succeed(TriageInbox, StaticTriageInbox),
   MemoryLeftoverPresenceLive,
+  Layer.succeed(IssueFiles, NoIssueFiles),
   Layer.succeed(IssueIdentity, {
     author: Effect.succeed('issues-preview'),
     next: Effect.succeed({ id: 'issue-preview', nowMs: 1_753_800_100_000 }),
@@ -363,11 +365,12 @@ export const signedInAuthor = (
  * `author`: `signedInAuthor(database)` on the site, an agent's name on the CLI.
  */
 export const makeLiveIssueTrackerResources = (
-  database: InstantToolsDatabase,
+  database: InstantToolsDatabaseWithFiles,
   author: Effect.Effect<string>,
 ) =>
   Layer.mergeAll(
     makeInstantToolsLayer(database),
     makeInstantLeftoverPresenceLayer(database),
+    Layer.succeed(IssueFiles, instantIssueFiles(database)),
     Layer.succeed(IssueIdentity, liveIssueIdentity(author)),
   )

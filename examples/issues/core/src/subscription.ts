@@ -14,9 +14,11 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
+import { IssueFiles, describeIssueFilesError } from './issueFiles.js'
 import { catalogIssueQuery } from './issueQuery.js'
 import {
   FailedObserveIssue,
+  FailedObserveIssueFiles,
   FailedObserveIssueLogs,
   FailedObserveIssues,
   FailedObserveLeftoverPeers,
@@ -24,6 +26,7 @@ import {
   FailedObserveTriageCandidates,
   type Message,
   ObservedIssue,
+  ObservedIssueFiles,
   ObservedIssueLogs,
   ObservedIssues,
   ObservedLeftoverPeers,
@@ -33,6 +36,7 @@ import {
 import { type Model } from './model.js'
 
 type Resources =
+  | IssueFiles
   | IssueTracker
   | LeftoverPresence
   | Logger
@@ -130,6 +134,43 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
                       FailedObserveIssue.make({
                         issueId,
                         reason: describeIssueTrackerError(error),
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        },
+      },
+    ),
+    // Scribe #1345: the open Issue's stored files, so its page draws the pictures.
+    selectedIssueFiles: entry(
+      { maybeIssueId: S.Option(S.String) },
+      {
+        modelToDependencies: model => ({
+          maybeIssueId:
+            model.navigation._tag === 'IssueDetail'
+              ? Option.some(model.navigation.issueId)
+              : Option.none(),
+        }),
+        dependenciesToStream: ({ maybeIssueId }) => {
+          if (Option.isNone(maybeIssueId)) {
+            return Stream.empty
+          }
+          const issueId = maybeIssueId.value
+          return Stream.unwrap(
+            IssueFiles.pipe(
+              Effect.map(issueFiles =>
+                issueFiles.observeIssueFiles(issueId).pipe(
+                  Stream.map(files =>
+                    ObservedIssueFiles.make({ files, issueId }),
+                  ),
+                  Stream.catch(error =>
+                    Stream.make(
+                      FailedObserveIssueFiles.make({
+                        issueId,
+                        reason: describeIssueFilesError(error),
                       }),
                     ),
                   ),

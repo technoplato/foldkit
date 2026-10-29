@@ -10,6 +10,7 @@ import {
 
 import {
   type Issue,
+  type IssueAttachment,
   type IssueMention,
   IssuePriority,
   type IssueReference,
@@ -38,6 +39,7 @@ import {
 } from './mentionedIn.js'
 import {
   type IssueDraftState,
+  type IssueFilesState,
   type IssueLogsState,
   type Model,
 } from './model.js'
@@ -186,25 +188,78 @@ const subtaskSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
     ],
   })
 
-const attachmentSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+/** How large a stored picture draws: a phone screen's shape, as wide as the page allows. */
+const PICTURE_WIDTH = 240
+const PICTURE_HEIGHT = 520
+
+/**
+ * Where a stored file opens: its web link, or for a file in Instant storage the
+ * signed address the open Issue's files carry (Scribe #1345).
+ */
+const attachmentAddress = (
+  attachment: IssueAttachment,
+  issueFiles: IssueFilesState,
+): Option.Option<string> =>
+  Option.orElse(issueAttachmentWebLink(attachment.source), () =>
+    attachment.source._tag === 'InstantStorage' &&
+    issueFiles._tag === 'LoadedIssueFiles'
+      ? Option.map(
+          Array.findFirst(
+            issueFiles.files,
+            file =>
+              attachment.source._tag === 'InstantStorage' &&
+              file.fileId === attachment.source.fileId,
+          ),
+          file => file.url,
+        )
+      : Option.none(),
+  )
+
+const isPicture = (attachment: IssueAttachment): boolean =>
+  attachment.contentType.startsWith('image/')
+
+const attachmentSectionNodes = (
+  issue: Issue,
+  issueFiles: IssueFilesState,
+): ReadonlyArray<UiNode> =>
   Array.match(issue.attachments, {
     onEmpty: () => [],
     onNonEmpty: attachments => [
       Column(
         { gap: 1 },
         Text('Attachments'),
+        ...(issueFiles._tag === 'FailedIssueFiles'
+          ? [
+              Text(
+                `This Issue's pictures could not be read: ${issueFiles.reason}`,
+              ),
+            ]
+          : []),
         ...Array.map(attachments, attachment => {
           const content = `${attachment.fileName} (${attachment.kind})`
-          return Option.match(issueAttachmentWebLink(attachment.source), {
+          return Option.match(attachmentAddress(attachment, issueFiles), {
             onNone: () => Text(content),
-            onSome: href => Text(content, { href }),
+            onSome: href =>
+              isPicture(attachment)
+                ? Text(content, {
+                    href,
+                    image: {
+                      height: PICTURE_HEIGHT,
+                      src: href,
+                      width: PICTURE_WIDTH,
+                    },
+                  })
+                : Text(content, { href }),
           })
         }),
       ),
     ],
   })
 
-const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
+const issueDetailNodes = (
+  issue: Issue,
+  issueFiles: IssueFilesState,
+): ReadonlyArray<UiNode> => {
   const progress = newestWorkLog(issue.workLog)
   const links = catalogIssueRefsOf(issue)
   const pageUrl = issueViewerUrl(issue.id)
@@ -266,7 +321,7 @@ const issueDetailNodes = (issue: Issue): ReadonlyArray<UiNode> => {
             ),
           ),
         ]),
-    ...attachmentSectionNodes(issue),
+    ...attachmentSectionNodes(issue, issueFiles),
     Text(`${issue.product._tag}: ${issue.product.name}`),
     Text(pageUrl, { href: pageUrl }),
   ]
@@ -483,7 +538,7 @@ const detailNodes = (model: Model): ReadonlyArray<UiNode> =>
       LoadedIssue: ({ issue, issueId }) =>
         Option.match(issue, {
           onNone: () => [Text(issueId), Text('Issue not found')],
-          onSome: observed => issueDetailNodes(observed),
+          onSome: observed => issueDetailNodes(observed, model.issueFiles),
         }),
     }),
   )

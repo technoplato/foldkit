@@ -239,6 +239,35 @@ export const InstantToolsSchema = i.schema({
   rooms: InstantToolsRooms,
 })
 
+/**
+ * The Instant Tools schema with the files uploaded for each Issue: Instant's
+ * own `$files` and the `issueFiles` link, `instantToolsIssues.files` to
+ * `$files.issues`, as the tracker's server holds them. The tracker's hosts
+ * read an Issue's pictures through it; a host that composes
+ * `InstantToolsEntities` into its own schema needs neither.
+ */
+export const InstantToolsSchemaWithFiles = i.schema({
+  entities: {
+    ...InstantToolsEntities,
+    $files: i.entity({
+      path: i.string().unique().indexed(),
+      url: i.string(),
+    }),
+  },
+  links: {
+    issueFiles: {
+      forward: { on: 'instantToolsIssues', has: 'many', label: 'files' },
+      reverse: { on: '$files', has: 'many', label: 'issues' },
+    },
+  },
+  rooms: InstantToolsRooms,
+})
+
+/** An InstantDB client initialized with `InstantToolsSchemaWithFiles`. */
+export type InstantToolsDatabaseWithFiles = InstantCoreDatabase<
+  typeof InstantToolsSchemaWithFiles
+>
+
 /** An InstantDB client initialized by the host with the Instant Tools schema. */
 export type InstantToolsDatabase = InstantCoreDatabase<
   typeof InstantToolsSchema
