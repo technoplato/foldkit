@@ -520,6 +520,61 @@ describe('issues command', () => {
     })
   })
 
+  it('never quotes a retired line or a sealed one: --said refuses them, and a # a retired copy shares is its kept line', async () => {
+    // Scribe #1323 (its ADR 0064 section 8, ADR 0097): a retired line is no line, and a sealed line carries no words.
+    // The mirror rewrites transcript.jsonl when a line is retired; a record that still says so is no line here either.
+    const mirrorRoot = makeMirror()
+    const folder = join(mirrorRoot, 'recordings', '208 — 2026-10-10 — faa684c2')
+    const record = (
+      index: number,
+      start: number,
+      text: string,
+      extra: Record<string, unknown>,
+    ) =>
+      JSON.stringify({
+        ...JSON.parse(transcriptLine(index, start, text)),
+        ...extra,
+      })
+    writeFileSync(
+      join(folder, 'transcript.jsonl'),
+      Array.join(
+        [
+          transcriptLine(1884, 10_130.348, 'The save fails with a bare tag.'),
+          transcriptLine(1885, 10_139.11, 'Show me the real cause instead.'),
+          // Written after the kept line: the last record at a # used to win.
+          record(1885, 10_139.11, 'An older pass of this line.', {
+            id: 'segment-1885-old',
+            retiredAtMs: 1_791_650_000_000,
+          }),
+          record(1886, 10_150, '', { sealed: 'voice' }),
+          record(1887, 10_160, 'A retired copy.', { retired: true }),
+        ],
+        '\n',
+      ),
+    )
+
+    const kept = await run(
+      resolveSaidMention(mirrorRoot, '208:1885').pipe(
+        Effect.orElseSucceed(() => undefined),
+      ),
+    )
+    expect(kept?.directQuote).toEqual(
+      Option.some(
+        `Recording 208 (${recordingId}) #1885: "Show me the real cause instead."`,
+      ),
+    )
+
+    const refusal = (spec: string) =>
+      run(
+        resolveSaidMention(mirrorRoot, spec).pipe(
+          Effect.flip,
+          Effect.orElseSucceed(() => undefined),
+        ),
+      )
+    expect((await refusal('208:1886'))?.message).toContain('#1886 is sealed')
+    expect((await refusal('208:1887'))?.message).toContain('has no line #1887')
+  })
+
   it('writes a typed-chat Mention with its session, message, and time', () => {
     const mention = typedMention({
       text: 'Just call it issues.',
