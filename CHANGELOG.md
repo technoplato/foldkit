@@ -4,6 +4,35 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 29th, 2026 at 12:07:36 p.m. EDT — `8f6dd4e3896f` feat(issues): green: an Issue's page draws its stored pictures
+
+- **Implementation commit:** `8f6dd4e3896f2067057a773ba80e653fb6f4df5d`
+- **Change:** An Issue's page draws the pictures stored with it in Instant, for Scribe issue #1345
+- **Details:**
+  - InstantToolsSchemaWithFiles adds $files and the issueFiles link as the tracker's server holds them; core gains an IssueFiles service, an issueFiles state and a selectedIssueFiles subscription; pictures draw at 240 by 520 linked to their signed address, other stored files are links, and a failed read says why. Program version 10. Red 9a1677fee, green 8f6dd4e38. instant-tools 66, core 77, CLI 54, React 8 tests pass (after rebase on f9ac958b0).
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — InstantToolsSchemaWithFiles
+  - `examples/issues/core/src/issueFiles.ts` — the IssueFiles service
+  - `examples/issues/core/src/product.ts` — the attachment section draws pictures
+  - `examples/issues/react/src/client.ts` — the site reads with the files schema
+- **User context (verbatim):**
+  > especially when we're talking about design (the owner, Scribe #1345)
+- **SpecStory:** unavailable — Claude Code headless run claude-code/issue-images-1345 started by tools/agent-run; no SpecStory capture.
+
+## October 29th, 2026 at 12:07:35 p.m. EDT — `b9da38be47ff` feat(issues): green: --said attaches the screenshots and screen frames of its lines
+
+- **Implementation commit:** `b9da38be47ff78f4304c3d8f4b81d8fbaf68316f`
+- **Change:** issues file and issues mention --said attach the screenshots and screen frames of the quoted lines; --image and --no-images, for Scribe issue #1345
+- **Details:**
+  - Screenshots from 60 s before to 10 s after the lines and up to six evenly spread screen frames from 10 s before to 5 s after, on the wall clock (closed capture.gap rows), from images.jsonl; camera photos, pastes, drops and unlabelled pictures are never taken. Each picture once, by bytes and against the Issue's stored ones; one batch upload, link and change; a failure removes the uploads and names the picture and the retry command. Red 156c5edee, green b9da38be4. CLI 54 tests pass after rebase on f9ac958b0.
+- **Files:**
+  - `examples/issues/cli/src/mentions.ts` — resolveSaid and the picture choice
+  - `examples/issues/cli/src/commands.ts` — attaching pictures on file and mention
+  - `examples/issues/cli/src/entry.ts` — --image and --no-images
+- **User context (verbatim):**
+  > especially when we're talking about design (the owner, Scribe #1345)
+- **SpecStory:** unavailable — Claude Code headless run claude-code/issue-images-1345 started by tools/agent-run; no SpecStory capture.
+
 ## October 21st, 2026 at 12:44:58 p.m. EDT — `ce9a8f755897` feat(issues): a Backlog page, issues list --backlog, and issues rank
 
 - **Implementation commit:** `ce9a8f755897fdf8453d3bae6f272f3ab7a45e14`
