@@ -4,6 +4,47 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 29th, 2026 at 7:38:55 p.m. EDT — `867f9230cba5` fix(issues): green: a recount replaces the stored count and its time
+
+- **Implementation commit:** `867f9230cba5adccfe09ef76d8ecd906de3c3952`
+- **Change:** A recount replaces the stored file count and its time, for Scribe issue #1374
+- **Details:**
+  - Measured on the LaunchAgent's runs: a recount that found the same files kept the old count and time, so every two-minute sync ran git in all 17 worktrees again (12 s of CPU a run). A quick run now costs 3.8 s of CPU under launchd. Red 77cb9d1ad.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.ts` — a recount replaces the count
+- **User context (verbatim):**
+  > Can you make sure each of these issues is logged? And do we have a way to indicate that things are in progress or currently being worked on and which agent is working on them, what file they're working in, what work tree they're working in, what branch they're working in, etc. (the owner, Recording 322 #2223-2224, 2026-10-29 18:10, Scribe #1374)
+- **SpecStory:** unavailable — unavailable — Claude Code headless run claude-code/issue-wip-1374 started by tools/agent-run; no SpecStory capture.
+
+## October 29th, 2026 at 7:38:55 p.m. EDT — `0682c88c14fe` fix(issues): green: the quick sync skips old runs, shared worktrees, fresh counts
+
+- **Implementation commit:** `0682c88c14feb8e4133b31a01bab6b5395810d59`
+- **Change:** issues working sync reads only recent runs, skips shared worktrees, and counts a worktree at most every ten minutes, for Scribe issue #1374
+- **Details:**
+  - Measured on live data: registry rows with no end time were read on every sync, and the git count ran once per agent (about 0.65 s of CPU per Scribe worktree, 17 worktrees). A run's time falls back to its start, a dead run's to its last sign of life; a worktree several running agents share is not counted; a count younger than ten minutes is kept. Red 905b5a621 and 7fa346a80.
+- **Files:**
+  - `examples/issues/cli/src/working.ts` — issueIdsToCheck and the main line
+  - `examples/issues/cli/src/commands.ts` — shared worktrees and the recount interval
+- **User context (verbatim):**
+  > Can you make sure each of these issues is logged? And do we have a way to indicate that things are in progress or currently being worked on and which agent is working on them, what file they're working in, what work tree they're working in, what branch they're working in, etc. (the owner, Recording 322 #2223-2224, 2026-10-29 18:10, Scribe #1374)
+- **SpecStory:** unavailable — unavailable — Claude Code headless run claude-code/issue-wip-1374 started by tools/agent-run; no SpecStory capture.
+
+## October 29th, 2026 at 7:38:44 p.m. EDT — `f8ebd2d0caac` feat(issues): green: show who works on each Issue now, release ended claims
+
+- **Implementation commit:** `f8ebd2d0caac7cb4b85906f0596d03f9a216d2b5`
+- **Change:** Each Issue shows who works on it now: a Now working block, a Working now filter, issues list --working, and issues working sync, for Scribe issue #1374
+- **Details:**
+  - An Issue carries agentPresence in its stored JSON (agent id and account; Running, Ended with how, or Stale; branch; worktree; files touched from git numstat against the nearest main line). No Instant schema change: all 1,369 stored payloads read with the installed and the new schema, re-encode as before plus agentPresence null, and keep every key through a save. issues working sync reads tools/agent-progress-check --json and agents-registry.json, releases claims of runs that ended, marks claims quiet for 12 h stale, and moves InProgress or Addressing work recorded Merged or Shipped to VerificationNeeded. issues wip names the claimant when no agent is given. Red 97f50a1dd, green f8ebd2d0c. Program version 11 (f06513235).
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — IssueAgentPresence, IssueTouchedFiles, isWorkingNow
+  - `examples/issues/core/src/nowWorking.ts` — observedIssue, nowWorkingLines, statusFollowingLanding
+  - `examples/issues/core/src/product.ts` — the Now working section and the Working now choice
+  - `examples/issues/cli/src/working.ts` — the survey and the git count
+  - `examples/issues/cli/src/commands.ts` — issues working sync, list --working, show's block
+- **User context (verbatim):**
+  > Can you make sure each of these issues is logged? And do we have a way to indicate that things are in progress or currently being worked on and which agent is working on them, what file they're working in, what work tree they're working in, what branch they're working in, etc. (the owner, Recording 322 #2223-2224, 2026-10-29 18:10, Scribe #1374)
+- **SpecStory:** unavailable — unavailable — Claude Code headless run claude-code/issue-wip-1374 started by tools/agent-run; no SpecStory capture.
+
 ## October 29th, 2026 at 12:07:36 p.m. EDT — `8f6dd4e3896f` feat(issues): green: an Issue's page draws its stored pictures
 
 - **Implementation commit:** `8f6dd4e3896f2067057a773ba80e653fb6f4df5d`
