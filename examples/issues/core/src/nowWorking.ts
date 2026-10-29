@@ -151,27 +151,11 @@ const latestEndedRunOf = (
 const isRunningNamed = (survey: AgentSurvey, name: string): boolean =>
   Array.some(survey.live, agent => agent.name === name)
 
-const sameFiles = (left: IssueTouchedFiles, right: IssueTouchedFiles) =>
-  left.base === right.base &&
-  left.fileCount === right.fileCount &&
-  JSON.stringify(
-    S.encodeSync(IssueTouchedFiles)({ ...left, checkedAtMs: 0 }),
-  ) ===
-    JSON.stringify(
-      S.encodeSync(IssueTouchedFiles)({ ...right, checkedAtMs: 0 }),
-    )
-
 const keptTouchedFiles = (
   maybeStored: Option.Option<IssueTouchedFiles>,
   maybeFresh: Option.Option<IssueTouchedFiles>,
 ): Option.Option<IssueTouchedFiles> =>
-  Option.match(maybeFresh, {
-    onNone: () => maybeStored,
-    onSome: fresh =>
-      Option.exists(maybeStored, stored => sameFiles(stored, fresh))
-        ? maybeStored
-        : maybeFresh,
-  })
+  Option.orElse(maybeFresh, () => maybeStored)
 
 const presenceFor = (
   issue: Issue,
