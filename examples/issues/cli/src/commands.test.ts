@@ -2346,6 +2346,61 @@ describe('issues working', () => {
     )
   })
 
+  it('counts no files in a worktree several running agents share, and says so', async () => {
+    const counted: Array<string> = []
+    const made = await run(makeHost(seed()))
+    const host: IssuesHost = {
+      ...made.host,
+      countTouchedFiles: worktree => {
+        counted.push(worktree)
+        return made.host.countTouchedFiles(worktree)
+      },
+    }
+    const folder = mkdtempSync(join(tmpdir(), 'issues-working-'))
+    const agents = join(folder, 'progress.json')
+    const shared = '/Users/laptop/Sync/tools/realtime-voice'
+    writeFileSync(
+      agents,
+      JSON.stringify({
+        agents: [
+          {
+            account: 'max',
+            agentId: 'claude-code/issue-wip-1374@max',
+            issue: 1374,
+            name: 'issue-wip-1374',
+            worktree: shared,
+          },
+          {
+            account: 'max',
+            agentId: 'claude-code/sweep-1201@max',
+            issue: 1201,
+            name: 'sweep-1201',
+            worktree: shared,
+          },
+        ],
+        dead: [],
+        generatedAtMs: 1_792_000_000_000,
+      }),
+    )
+
+    const synced = await run(
+      workingSyncCommand(host, {
+        agents,
+        isDryRun: false,
+        isSweep: false,
+        registry: Option.none(),
+      }),
+    )
+
+    expect(counted).toEqual([])
+    expect(synced.stdout).toEqual([
+      '#1374 running claude-code/issue-wip-1374@max',
+      '#1201 running claude-code/sweep-1201@max',
+      'Files not counted in /Users/laptop/Sync/tools/realtime-voice: 2 running agents share it.',
+      'Checked 2 Issues against 2 running agents: 2 changed.',
+    ])
+  })
+
   it('says what a dry run would change and writes nothing', async () => {
     const { host, memory } = await run(makeHost(seed()))
     const { agents, registry } = writeSurvey()
