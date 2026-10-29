@@ -2401,6 +2401,40 @@ describe('issues working', () => {
     ])
   })
 
+  it('counts a worktree again only once its last count is ten minutes old', async () => {
+    const counted: Array<number> = []
+    const made = await run(makeHost(seed()))
+    const host: IssuesHost = {
+      ...made.host,
+      countTouchedFiles: worktree => {
+        counted.push(counted.length + 1)
+        return made.host.countTouchedFiles(worktree)
+      },
+    }
+    const { agents, registry } = writeSurvey()
+    const surveyAt = (minutes: number) => {
+      const path = join(
+        mkdtempSync(join(tmpdir(), 'issues-working-')),
+        'p.json',
+      )
+      writeFileSync(
+        path,
+        JSON.stringify({
+          ...JSON.parse(readFileSync(agents, 'utf8')),
+          generatedAtMs: 1_792_000_000_000 + minutes * 60_000,
+        }),
+      )
+      return path
+    }
+
+    await run(workingSyncCommand(host, syncInput(agents, registry)))
+    await run(workingSyncCommand(host, syncInput(surveyAt(5), registry)))
+    expect(counted).toEqual([1])
+
+    await run(workingSyncCommand(host, syncInput(surveyAt(11), registry)))
+    expect(counted).toEqual([1, 2])
+  })
+
   it('says what a dry run would change and writes nothing', async () => {
     const { host, memory } = await run(makeHost(seed()))
     const { agents, registry } = writeSurvey()
