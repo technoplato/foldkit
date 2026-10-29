@@ -153,11 +153,29 @@ const playheadSentinel = (section: Section): Html => {
   )
 }
 
+const softBar = (widthClass: string): Html => {
+  const h = html<Message>()
+  return h.span(
+    [h.AriaHidden(true), h.Class(`h-3 ${widthClass} rounded-full bg-fill`)],
+    [],
+  )
+}
+
 const sealedLineWords = (seal: WordsSeal): Html => {
   const h = html<Message>()
   return h.p(
-    [h.Class('text-body leading-relaxed italic text-secondary')],
-    [sealedLineTextOf(seal)],
+    [
+      h.DataAttribute('sealed-line', seal),
+      h.Title(sealedLineTextOf(seal)),
+      h.Class('flex min-h-7 flex-wrap items-center gap-1.5 py-1'),
+    ],
+    [
+      h.span([h.Class('sr-only')], [sealedLineTextOf(seal)]),
+      softBar('w-16'),
+      softBar('w-24'),
+      softBar('w-10'),
+      softBar('w-20'),
+    ],
   )
 }
 
