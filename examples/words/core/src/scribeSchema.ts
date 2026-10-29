@@ -283,6 +283,11 @@ const _schema = i.schema({
       // ADR 0034: when the image or file was captured, by the wall clock; timestampSeconds stays on the recording clock.
       capturedAtMs: i.number().optional(),
       updatedAtMs: i.number().indexed(),
+      // @generated-begin audio-upload-attributes: scripts/schema/generate.ts writes this part from scripts/schema/audio-upload-schema.ts (ADR 0091).
+      // #651 (ADR 0091 amendment A): how the recording device sent this audio, when not as the whole file.
+      // liveAudioChunks: as its generation's live chunks, which the Mac joins into this row's file; absent: the whole file, as before.
+      uploadedAs: i.string().optional(),
+      // @generated-end audio-upload-attributes
     }),
     // #083: bounded, append-only route storage. Active capture rewrites only one
     // open chunk; sealed/terminal chunks are immutable causal history.
@@ -685,6 +690,13 @@ const _schema = i.schema({
       // Why, in a sentence ("Recording 208's live copy of #2460 (#662)"): set exactly when retiredAtMs is.
       retiredReason: i.string().optional(),
       // @generated-end provenance-attributes
+      // @generated-begin sealed-words-attributes: scripts/schema/generate.ts writes this part from scripts/schema/sealed-words-schema.ts (ADR 0097).
+      // ADR 0097 (#1183): a line whose words are sealed: its text and words are empty and sealedWords holds them.
+      // held (its voice not yet known) or voice (a person he seals); null when its words are open.
+      wordsSeal: i.string().optional(),
+      // The words, sealed to his key (sw1.<key id>.<enc>.<ciphertext>).
+      sealedWords: i.string().optional(),
+      // @generated-end sealed-words-attributes
     }),
     transcriptionWords: i.entity({
       // Optional until legacy rows are backfilled; new writes always stamp it.
@@ -1367,6 +1379,9 @@ const _schema = i.schema({
       recognizesSongs: i.boolean().optional(),
       // ADR 0062 (#635): Michael's words for transcription, a JSON string of at most 16 KiB; absent = the suggested words.
       vocabulary: i.string().optional(),
+      // ADR 0097 amendment A1 (#1183): whose voices are transcribed, one choice for the account (everybody | onlyMe |
+      // onlySystemAudio | everybodyExceptOne); absent = everybody.
+      voiceFilter: i.string().optional(),
       createdAtMs: i.number().indexed(),
       updatedAtMs: i.number().indexed(),
     }),
@@ -1864,6 +1879,9 @@ const _schema = i.schema({
       wordCount: i.number(),
       wordsJSON: i.string(),
       updatedAtMs: i.number().indexed(),
+      // ADR 0097 (#1183): held (its voice not yet cleared) or voice (a person he seals): the line shows no words at
+      // all.
+      wordsSeal: i.string().optional(),
     }),
     // @generated-end live-lines-entities
     // @generated-begin speakers-entities: scripts/schema/generate.ts writes this region from scripts/schema/speakers-schema.ts (ADR 0072). Change the Effect Schemas there, then run it with --write.
@@ -1876,6 +1894,8 @@ const _schema = i.schema({
       name: i.string().indexed(),
       // The account holder's own voice: the only person a voice match names without asking.
       isAccountHolder: i.boolean(),
+      // ADR 0097 (#1183): their words are sealed to his key on every recording device; absent is false.
+      sealsWords: i.boolean().optional(),
       createdAtMs: i.number().indexed(),
       updatedAtMs: i.number().indexed(),
     }),
@@ -2875,6 +2895,114 @@ const _schema = i.schema({
       updatedAtMs: i.number().indexed(),
     }),
     // @generated-end questions-entities
+    // @generated-begin sealed-words-entities: scripts/schema/generate.ts writes this region from scripts/schema/sealed-words-schema.ts (ADR 0097). Change the Effect Schemas there, then run it with --write.
+    // ADR 0097 (#1183): the public half of his word-sealing key pair. Every recording device seals a held or sealed line's
+    // words to it; the private half is only in his iCloud Keychain. Owner-only; a share never reaches it.
+    wordSealKeys: i.entity({
+      ownerUserID: i.string().indexed(),
+      formatVersion: i.number(),
+      // The first 16 hex of SHA-256 of the public key: each envelope names it.
+      keyID: i.string().indexed(),
+      // The X25519 public key, 32 bytes, base64url without padding.
+      publicKey: i.string(),
+      suite: i.string(),
+      createdAtMs: i.number().indexed(),
+      updatedAtMs: i.number().indexed(),
+    }),
+    // @generated-end sealed-words-entities
+    // @generated-begin audio-upload-entities: scripts/schema/generate.ts writes this region from scripts/schema/audio-upload-schema.ts (ADR 0091). Change the Effect Schemas there, then run it with --write.
+    // @generated-end audio-upload-entities
+    // @generated-begin voice-memos-entities: scripts/schema/generate.ts writes this region from scripts/schema/voice-memos-schema.ts (ADR 0098). Change the Effect Schemas there, then run it with --write.
+    // ADR 0098 (#1277): one Apple Voice Memo ingested into Scribe. The id follows the Apple unique id, and the
+    // watermark is that id plus the original path, its mtime, and the file's sha256, so a second run ingests nothing
+    // again. recordingID is the recording the phone lists. Originals stay where Apple put them.
+    voiceMemos: i.entity({
+      ownerUserID: i.string().indexed(),
+      formatVersion: i.number(),
+      // Apple's unique id, lowercase. The watermark's identity.
+      appleUniqueID: i.string().unique().indexed(),
+      // Apple's title, for example "Recording 438".
+      title: i.string(),
+      // Wall clock when the memo started. Apple's start does not change.
+      startedAtMs: i.number().indexed(),
+      // Wall clock when the memo ended (start plus the file's duration). A new hash may correct it.
+      endedAtMs: i.number().indexed(),
+      // The copy's duration, from the file. A new hash may correct it.
+      durationSeconds: i.number(),
+      // sha256 of the original file. A changed file updates this row; it does not add one.
+      contentSHA256: i.string().indexed(),
+      // The Apple original. The ingest reads it and never writes it.
+      sourcePath: i.string(),
+      // The original's mtime, the watermark's timestamp.
+      sourceModifiedAtMs: i.number(),
+      // The untouched copy the transcriber reads.
+      copyPath: i.string(),
+      // The recording row that holds the words (VoiceMemoIDs.recording).
+      recordingID: i.string().indexed(),
+      // Its transcription row.
+      transcriptionID: i.string().indexed(),
+      // The model that wrote the words, mlx-community/whisper-large-v3-turbo.
+      modelRepo: i.string(),
+      // When this content hash was ingested.
+      ingestedAtMs: i.number().indexed(),
+      writer: i.string(),
+      createdAtMs: i.number().indexed(),
+      updatedAtMs: i.number().indexed(),
+    }),
+    // ADR 0098 (#1277): one model call the voice-memo ingest made. Recording 313 #218-223: "if there's any LLM calls
+    // that ingest from voice memos" "Should just add them to Scribes schema". A local Whisper run is kind
+    // transcription. An LLM call is kind llm. The audio and the words stay on the memo and its recording; this row is
+    // the call (model, interval, hash, and a bounded request and response).
+    modelCalls: i.entity({
+      ownerUserID: i.string().indexed(),
+      formatVersion: i.number(),
+      // The voiceMemos row this call ingested.
+      voiceMemoID: i.string().indexed(),
+      // The memo's Apple id, so a call can be found without a join.
+      appleUniqueID: i.string().indexed(),
+      // "transcription" | "llm".
+      kind: i.string().indexed(),
+      // "local" | "remote".
+      provider: i.string().indexed(),
+      // The model id, for example mlx-community/whisper-large-v3-turbo.
+      model: i.string(),
+      // "succeeded" | "failed".
+      status: i.string().indexed(),
+      startedAtMs: i.number().indexed(),
+      endedAtMs: i.number().indexed(),
+      // The file the call read.
+      contentSHA256: i.string().indexed(),
+      // Words the call produced, when it transcribes.
+      wordCount: i.number().optional(),
+      // What was asked, bounded. Never a secret and never the audio bytes.
+      requestJSON: i.string(),
+      // What came back, bounded: metrics, or the error. The words live on the recording.
+      responseJSON: i.string(),
+      writer: i.string(),
+      createdAtMs: i.number().indexed(),
+      updatedAtMs: i.number().indexed(),
+    }),
+    // ADR 0098 (#1277): a Watch Voice Memo and a Scribe recording whose wall-clock intervals overlap. Recording 313
+    // #224-228: "link them to other recordings that were taken at the same time". The id follows the memo and the
+    // other recording, so writing it twice is one row. It never links a memo to its own recording.
+    voiceMemoOverlaps: i.entity({
+      ownerUserID: i.string().indexed(),
+      formatVersion: i.number(),
+      voiceMemoID: i.string().indexed(),
+      appleUniqueID: i.string().indexed(),
+      // The recording row that holds this memo's words. The overlap never names it.
+      memoRecordingID: i.string().indexed(),
+      // The other recording, not the memo's own recording row.
+      recordingID: i.string().indexed(),
+      overlapStartedAtMs: i.number().indexed(),
+      overlapEndedAtMs: i.number().indexed(),
+      // The overlap, in seconds.
+      overlapSeconds: i.number(),
+      writer: i.string(),
+      createdAtMs: i.number().indexed(),
+      updatedAtMs: i.number().indexed(),
+    }),
+    // @generated-end voice-memos-entities
   },
   links: {
     agentResponseArtifactOwner: {
