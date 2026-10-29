@@ -3,7 +3,12 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-const builtExit = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'exit.js')
+const builtExit = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'dist',
+  'exit.js',
+)
 
 const EIGHT_MEGABYTES = 8_000_000
 

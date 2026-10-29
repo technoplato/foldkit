@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Array, Console, Effect, Option } from 'effect'
+import { Array, Console, Effect, Option, Runtime } from 'effect'
 import { Argument, Command, Flag } from 'effect/unstable/cli'
 import { pathToNavigation } from 'issues-core-example'
 import { homedir } from 'node:os'
@@ -32,6 +32,7 @@ import {
   showIssueCommand,
   workInProgressCommand,
 } from './commands.js'
+import { exitOnceWritten } from './exit.js'
 import { runIssues } from './host.js'
 import {
   IssuesInstantConfigError,
@@ -662,6 +663,14 @@ const issues = Command.make('issues').pipe(
   ]),
 )
 
+const exitCodeOf = (code: number): number =>
+  code === 0 && typeof process.exitCode === 'number' ? process.exitCode : code
+
+const teardown: Runtime.Teardown = exit =>
+  Runtime.defaultTeardown(exit, code => exitOnceWritten(exitCodeOf(code)))
+
 Command.run(issues, {
   version: Array.join(['issues', buildProvenance()], ' '),
-}).pipe(Effect.provide(NodeServices.layer), NodeRuntime.runMain)
+}).pipe(Effect.provide(NodeServices.layer), effect =>
+  NodeRuntime.runMain(effect, { teardown }),
+)

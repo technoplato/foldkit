@@ -1,6 +1,7 @@
-import { InstantAPIError } from '@instantdb/admin'
 import { Schedule } from 'effect'
 import { describe, expect, it } from 'vitest'
+
+import { InstantAPIError } from '@instantdb/admin'
 
 import {
   type InstantAdminClient,
@@ -14,13 +15,18 @@ const rateLimited = () =>
     body: {
       type: 'rate-limited',
       message: 'Your request exceeded the rate limit.',
+      hint: { 'retry-after': 1 },
     },
   })
 
 const refused = () =>
   new InstantAPIError({
     status: 400,
-    body: { type: 'validation-failed', message: 'Bad query.' },
+    body: {
+      type: 'validation-failed',
+      message: 'Bad query.',
+      hint: { 'data-type': 'query', errors: [] },
+    },
   })
 
 const failingFirst = <A>(

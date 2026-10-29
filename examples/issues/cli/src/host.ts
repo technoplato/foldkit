@@ -8,6 +8,7 @@ import {
   Match as M,
   Option,
   Scope,
+  Stream,
 } from 'effect'
 import { Runtime } from 'foldkit'
 import {
@@ -37,6 +38,7 @@ import {
 import {
   ApplicationProduct,
   type Issue,
+  IssueTracker,
   LibraryProduct,
   ProductCatalogEntry,
 } from '@foldkit/instant-tools/issues'
@@ -118,12 +120,42 @@ const ensureFilingCatalog = (
   })
 }
 
-const hasSettledObservations = (model: Model): boolean =>
+/**
+ * Whether a destination reads the Issue catalog. One Issue's page reads that
+ * Issue alone: `issues show 1358` needs Issue 1358, not all 1,356 Issues
+ * (18.6 MB, 1.2 s of CPU on 2026-10-29, #1358).
+ */
+const readsCatalog = (navigation: Navigation): boolean =>
+  navigation._tag !== 'IssueDetail'
+
+/**
+ * The resources with a tracker whose catalog stream stays silent, for a
+ * command on one Issue: nothing downloads or decodes the catalog, and the
+ * command waits only for that Issue.
+ */
+const withoutCatalog = (
+  resources: IssueTrackerResources,
+): IssueTrackerResources =>
+  Layer.merge(
+    resources,
+    Layer.effect(
+      IssueTracker,
+      Effect.map(IssueTracker, tracker => ({
+        ...tracker,
+        observe: () => Stream.never,
+      })),
+    ).pipe(Layer.provide(resources)),
+  )
+
+const hasSettledObservations = (
+  model: Model,
+  isObservingCatalog: boolean,
+): boolean =>
   (model.navigation._tag !== 'FileIssue' ||
     model.draftState._tag !== 'SavingIssueDraft') &&
   model.issueMutation._tag !== 'SavingIssueMutation' &&
   model.productAddition._tag !== 'SavingProductAddition' &&
-  model.issues._tag !== 'LoadingIssues' &&
+  (!isObservingCatalog || model.issues._tag !== 'LoadingIssues') &&
   model.products._tag !== 'LoadingProducts' &&
   (model.navigation._tag !== 'IssueDetail' ||
     model.issueDetail._tag === 'LoadedIssue' ||
@@ -133,22 +165,26 @@ const awaitObservations = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   timeout: '2 seconds' | '20 seconds',
 ): Effect.Effect<Model> =>
-  hasSettledObservations(runtime.readModel())
+  hasSettledObservations(runtime.readModel(), true)
     ? Effect.succeed(runtime.readModel())
     : Effect.callback<Model>(resume => {
         const observedModel = (model: Model) => {
-          if (hasSettledObservations(model)) resume(Effect.succeed(model))
+          if (hasSettledObservations(model, true)) {
+            resume(Effect.succeed(model))
+          }
         }
         const stop = runtime.observeModel(observedModel)
         observedModel(runtime.readModel())
         return Effect.sync(stop)
       }).pipe(Effect.timeout(timeout), Effect.orDie)
 
-const pendingWork = (model: Model): string =>
+const pendingWork = (model: Model, isObservingCatalog: boolean): string =>
   Array.join(
     Array.filter(
       [
-        model.issues._tag === 'LoadingIssues' ? 'the Issue list' : '',
+        isObservingCatalog && model.issues._tag === 'LoadingIssues'
+          ? 'the Issue list'
+          : '',
         model.products._tag === 'LoadingProducts' ? 'the product catalog' : '',
         model.navigation._tag === 'IssueDetail' &&
         model.issueDetail._tag === 'LoadingIssue'
@@ -171,12 +207,15 @@ const pendingWork = (model: Model): string =>
 const awaitSettled = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   timeout: Duration.Input,
+  isObservingCatalog: boolean,
 ): Effect.Effect<Model, IssuesCommandFailure> =>
-  hasSettledObservations(runtime.readModel())
+  hasSettledObservations(runtime.readModel(), isObservingCatalog)
     ? Effect.succeed(runtime.readModel())
     : Effect.callback<Model>(resume => {
         const observedModel = (model: Model) => {
-          if (hasSettledObservations(model)) resume(Effect.succeed(model))
+          if (hasSettledObservations(model, isObservingCatalog)) {
+            resume(Effect.succeed(model))
+          }
         }
         const stop = runtime.observeModel(observedModel)
         observedModel(runtime.readModel())
@@ -188,7 +227,7 @@ const awaitSettled = (
             Effect.fail(
               new IssuesCommandFailure({
                 exitCode: 1,
-                message: `the tracker did not answer within ${Duration.format(Duration.fromInputUnsafe(timeout))} (waiting for ${pendingWork(runtime.readModel())})`,
+                message: `the tracker did not answer within ${Duration.format(Duration.fromInputUnsafe(timeout))} (waiting for ${pendingWork(runtime.readModel(), isObservingCatalog)})`,
               }),
             ),
         }),
@@ -238,21 +277,26 @@ export const executeMessages = (
 ): Effect.Effect<Model, IssuesCommandFailure> =>
   Effect.scoped(
     Effect.gen(function* () {
+      const isObservingCatalog = readsCatalog(navigation)
       const runtime = yield* Effect.orDie(
         Runtime.makeProgramRuntime({
           program: IssueTrackerProgram,
-          resources,
+          resources: isObservingCatalog ? resources : withoutCatalog(resources),
           start: Runtime.fromModel(modelForNavigation(navigation)),
         }),
       )
       yield* traceTransitions(runtime)
       yield* runtime.initialization
-      const observedModel = yield* awaitSettled(runtime, timeout)
+      const observedModel = yield* awaitSettled(
+        runtime,
+        timeout,
+        isObservingCatalog,
+      )
       const settledModel = yield* ensureFilingCatalog(runtime, observedModel)
       const messages = yield* messagesFor(settledModel)
       for (const message of messages) {
         yield* runtime.run(message)
-        yield* awaitSettled(runtime, timeout)
+        yield* awaitSettled(runtime, timeout, isObservingCatalog)
       }
       const finalModel = runtime.readModel()
       yield* runtime.shutdown

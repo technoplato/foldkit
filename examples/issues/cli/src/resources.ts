@@ -1,4 +1,4 @@
-import { Array, Data, Effect, Option, String } from 'effect'
+import { Array, Data, Effect, Option, Schedule, String } from 'effect'
 import {
   StaticIssueTrackerResources,
   makeLiveIssueTrackerResources,
@@ -20,7 +20,7 @@ import {
   type IssueTrackerError,
   type IssueTrackerService,
 } from '@foldkit/instant-tools/issues'
-import { init as initAdmin, lookup } from '@instantdb/admin'
+import { InstantAPIError, init as initAdmin, lookup } from '@instantdb/admin'
 
 import { type IssueFilesService } from './commands.js'
 
@@ -104,37 +104,66 @@ const instantApiUri = (): string | undefined =>
   envValue('INSTANT_API_URL') ??
   envValue('VITE_INSTANT_API_URI')
 
+const RATE_LIMITED_STATUS = 429
+
+const rateLimitWording = /rate limit/i
+
 /**
- * Adapts Instant's admin client to the client surface the tracker reads.
- * Instant core refuses Node, and the admin client has no live queries, so a
- * subscription answers with one snapshot. A one-shot command patches its
- * Model from each Command's result, so it never needs a second snapshot, and
- * no timer is left to hold the process open.
+ * Whether Instant turned a request away for coming too fast: HTTP 429, type
+ * `rate-limited`, or its wording, "Your request exceeded the rate limit." A
+ * rate-limited request was not applied, so sending it again is safe.
  */
-const adminAsInstantToolsDatabase = (
-  admin: ReturnType<typeof initAdmin>,
-): InstantToolsDatabase => {
-  const answers = new Map<string, Promise<unknown>>()
-  const readOnce = (query: unknown): Promise<unknown> => {
-    const key = JSON.stringify(query)
-    // oxlint-disable-next-line typescript/consistent-type-assertions
-    const answer = answers.get(key) ?? admin.query(query as never)
-    answers.set(key, answer)
-    answer.catch(() => answers.delete(key))
-    return answer
+export const isRateLimited = (cause: unknown): boolean => {
+  if (cause instanceof InstantAPIError) {
+    return (
+      cause.status === RATE_LIMITED_STATUS ||
+      cause.body?.type === 'rate-limited' ||
+      rateLimitWording.test(cause.message)
+    )
   }
-  return adminDatabase(admin, readOnce, () => answers.clear())
+  return cause instanceof Error && rateLimitWording.test(cause.message)
 }
 
 /**
+ * How a rate-limited request is sent again: after about 500 ms, then twice as
+ * long each time, jittered so agents that met the limit together spread out,
+ * five times (about 15 s in all). Instant asks for 1 s (#1329).
+ */
+export const rateLimitRetry: Schedule.Schedule<unknown, unknown> =
+  Schedule.exponential('500 millis').pipe(
+    Schedule.jittered,
+    Schedule.upTo({ times: 5 }),
+  )
+
+const sendRetryingRateLimits = <A>(
+  request: () => Promise<A>,
+  retry: Schedule.Schedule<unknown, unknown>,
+): Promise<A> =>
+  Effect.runPromise(
+    Effect.retry(Effect.tryPromise({ try: request, catch: cause => cause }), {
+      schedule: retry,
+      while: isRateLimited,
+    }),
+  )
+
+/** The admin client surface the adapter uses. */
+
+export type InstantAdminClient = Readonly<{
+  query: (query: never) => Promise<unknown>
+  transact: (ops: never) => Promise<unknown>
+  tx: object
+}>
+
+/**
  * The read-once adapter behind `adminAsInstantToolsDatabase`: one command
- * reads the 7 MB catalog once, not once for the first snapshot and again for
+ * reads the catalog (18.6 MB on 2026-10-29) once, not once for the first snapshot and again for
  * the subscription, and every write forgets what was read, so a check after a
  * write reads the store again.
  */
 const adminDatabase = (
-  admin: ReturnType<typeof initAdmin>,
+  admin: InstantAdminClient,
   readOnce: (query: unknown) => Promise<unknown>,
+  write: (ops: unknown) => Promise<unknown>,
   forgetReads: () => void,
 ): InstantToolsDatabase =>
   // NOTE: a structural adapter: the admin client lacks core's typings.
@@ -171,8 +200,7 @@ const adminDatabase = (
     },
     transact: (ops: Parameters<InstantToolsDatabase['transact']>[0]) => {
       forgetReads()
-      // oxlint-disable-next-line typescript/consistent-type-assertions
-      return admin.transact(ops as never).finally(forgetReads)
+      return write(ops).finally(forgetReads)
     },
     tx: new Proxy(admin.tx, {
       get(target, property, receiver) {
@@ -193,6 +221,46 @@ const adminDatabase = (
     }),
     // oxlint-disable-next-line typescript/consistent-type-assertions
   }) as unknown as InstantToolsDatabase
+
+/**
+ * Adapts Instant's admin client to the client surface the tracker reads.
+ * Instant core refuses Node, and the admin client has no live queries, so a
+ * subscription answers with one snapshot. A one-shot command patches its
+ * Model from each Command's result, so it never needs a second snapshot, and
+ * no timer is left to hold the process open. Every read and write that meets
+ * Instant's rate limit is sent again on `retry`, so a command never fails
+ * for having come too fast.
+ */
+export const adminAsInstantToolsDatabase = (
+  admin: InstantAdminClient,
+  retry: Schedule.Schedule<unknown, unknown> = rateLimitRetry,
+): InstantToolsDatabase => {
+  const answers = new Map<string, Promise<unknown>>()
+  const readOnce = (query: unknown): Promise<unknown> => {
+    const key = JSON.stringify(query)
+    const answer =
+      answers.get(key) ??
+      sendRetryingRateLimits(
+        // oxlint-disable-next-line typescript/consistent-type-assertions
+        () => admin.query(query as never),
+        retry,
+      )
+    answers.set(key, answer)
+    answer.catch(() => answers.delete(key))
+    return answer
+  }
+  return adminDatabase(
+    admin,
+    readOnce,
+    ops =>
+      sendRetryingRateLimits(
+        // oxlint-disable-next-line typescript/consistent-type-assertions
+        () => admin.transact(ops as never),
+        retry,
+      ),
+    () => answers.clear(),
+  )
+}
 
 /**
  * The stored records behind Issues, read without decoding them: the numbers
