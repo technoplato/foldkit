@@ -205,9 +205,9 @@ const makeStore = Effect.gen(function* () {
         Ref.update(logs, records => [...records, record]),
         Ref.update(logIssueLinks, records => [...records, ...issueLinks]),
       ]).pipe(Effect.asVoid),
-    fetchIssues: Ref.get(issues),
+    fetchIssues: () => Ref.get(issues),
     fetchProducts: Ref.get(products),
-    observeIssues: Stream.fromEffect(Ref.get(issues)),
+    observeIssues: () => Stream.fromEffect(Ref.get(issues)),
     observeIssue: issueId =>
       Stream.fromEffect(
         Ref.get(issues).pipe(
@@ -236,9 +236,10 @@ const makeStore = Effect.gen(function* () {
     observeTriageCandidates: Stream.fromEffect(Ref.get(triageCandidates)),
     saveIssue: record =>
       Ref.update(savedIssues, records => [...records, record]),
-    fetchIssueIds: Ref.get(issues).pipe(
-      Effect.map(records => Array.map(records, record => record.issueID)),
-    ),
+    fetchIssueIds: () =>
+      Ref.get(issues).pipe(
+        Effect.map(records => Array.map(records, record => record.issueID)),
+      ),
     fetchIssueRecordsById: issueId =>
       Ref.get(issues).pipe(
         Effect.map(records =>
@@ -318,9 +319,10 @@ const makeNumberedStore = (options: NumberedStoreOptions) =>
       })
     const store: InstantEntityStoreService = {
       ...baseStore,
-      fetchIssueIds: Ref.get(records).pipe(
-        Effect.map(current => Array.map(current, record => record.issueID)),
-      ),
+      fetchIssueIds: () =>
+        Ref.get(records).pipe(
+          Effect.map(current => Array.map(current, record => record.issueID)),
+        ),
       fetchIssueRecordsById: issueId =>
         Ref.get(records).pipe(
           Effect.map(current =>
@@ -497,7 +499,7 @@ describe('Instant adapter', () => {
         }
         const malformedStore: InstantEntityStoreService = {
           ...store,
-          observeIssues: Stream.succeed([malformedRecord]),
+          observeIssues: () => Stream.succeed([malformedRecord]),
           observeIssue: () => Stream.succeed(Option.some(malformedRecord)),
         }
         const issueTracker = makeIssueTracker(malformedStore)
@@ -536,12 +538,14 @@ describe('Instant adapter', () => {
         const middle = Issue.make({ ...issue, createdAtMs: 2_000, id: '300' })
         const catalogOrderStore: InstantEntityStoreService = {
           ...store,
-          fetchIssues: Effect.succeed(
-            Array.map([oldest, newest, middle], makeInstantIssueRecord),
-          ),
-          observeIssues: Stream.succeed(
-            Array.map([oldest, newest, middle], makeInstantIssueRecord),
-          ),
+          fetchIssues: () =>
+            Effect.succeed(
+              Array.map([oldest, newest, middle], makeInstantIssueRecord),
+            ),
+          observeIssues: () =>
+            Stream.succeed(
+              Array.map([oldest, newest, middle], makeInstantIssueRecord),
+            ),
         }
         const issueTracker = makeIssueTracker(catalogOrderStore)
         const query = IssueQuery.make({
@@ -579,10 +583,8 @@ describe('Instant adapter', () => {
         }
         const mixedStore: InstantEntityStoreService = {
           ...store,
-          observeIssues: Stream.succeed([
-            makeInstantIssueRecord(issue),
-            malformedRecord,
-          ]),
+          observeIssues: () =>
+            Stream.succeed([makeInstantIssueRecord(issue), malformedRecord]),
         }
         const issueTracker = makeIssueTracker(mixedStore)
         const query = IssueQuery.make({

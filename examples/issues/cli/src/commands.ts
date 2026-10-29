@@ -95,7 +95,11 @@ import {
   normalizeIssueId,
 } from '@foldkit/instant-tools/issues'
 
-import { IssuesCommandFailure, executeMessages } from './host.js'
+import {
+  IssuesCommandFailure,
+  executeMessages,
+  withCatalogStatuses,
+} from './host.js'
 import {
   findRecordingFolder,
   resolveSaidMention,
@@ -1011,12 +1015,13 @@ const recordingFilter = (
 const loadIssues = (
   host: IssuesHost,
   command: string,
+  statuses: ReadonlyArray<IssueStatus>,
 ): Effect.Effect<ReadonlyArray<Issue>, IssuesCommandFailure> =>
   Effect.gen(function* () {
     const model = yield* executeMessages(
       IssueList.make({}),
       () => Effect.succeed([]),
-      host.resources,
+      withCatalogStatuses(host.resources, statuses),
     )
     return yield* M.value(model.issues).pipe(
       M.withReturnType<
@@ -1083,12 +1088,14 @@ export const listIssuesCommand = (
         input.type,
         issueTypes,
       )
-      const issues = yield* loadIssues(host, 'list')
-      const storedIds = yield* host.records.fetchIssueIds.pipe(
-        Effect.mapError(cause =>
-          failed('list', describeIssueTrackerCause(cause)),
-        ),
-      )
+      const issues = yield* loadIssues(host, 'list', wantedStatuses)
+      const storedIds = yield* host.records
+        .fetchIssueIds(wantedStatuses)
+        .pipe(
+          Effect.mapError(cause =>
+            failed('list', describeIssueTrackerCause(cause)),
+          ),
+        )
       const readIds = new Set(Array.map(issues, issue => issue.id))
       const unreadable = Array.filter(storedIds, id => !readIds.has(id))
       const matchesProduct = (issue: Issue) =>
@@ -1859,7 +1866,7 @@ export const rankIssueCommand = (
           ),
         )
       }
-      const issues = yield* loadIssues(host, 'rank')
+      const issues = yield* loadIssues(host, 'rank', [])
       const findStored = (id: string) =>
         Array.findFirst(issues, issue => issue.id === id)
       const issue = yield* Option.match(findStored(issueId), {

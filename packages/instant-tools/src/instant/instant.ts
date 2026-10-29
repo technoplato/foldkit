@@ -275,18 +275,18 @@ export type InstantEntityStoreService = Readonly<{
     record: InstantLogRecord,
     issueLinks: ReadonlyArray<InstantLogIssueLinkRecord>,
   ) => Effect.Effect<void, InstantEntityStoreError>
-  fetchIssues: Effect.Effect<
-    ReadonlyArray<InstantIssueRecord>,
-    InstantEntityStoreError
-  >
+  /** Reads the Issues in `statuses`, or every Issue when it is empty. */
+  fetchIssues: (
+    statuses: IssueQuery['statuses'],
+  ) => Effect.Effect<ReadonlyArray<InstantIssueRecord>, InstantEntityStoreError>
   fetchProducts: Effect.Effect<
     ReadonlyArray<InstantProductRecord>,
     InstantEntityStoreError
   >
-  observeIssues: Stream.Stream<
-    ReadonlyArray<InstantIssueRecord>,
-    InstantEntityStoreError
-  >
+  /** Observes the Issues in `statuses`, or every Issue when it is empty. */
+  observeIssues: (
+    statuses: IssueQuery['statuses'],
+  ) => Stream.Stream<ReadonlyArray<InstantIssueRecord>, InstantEntityStoreError>
   observeIssue: (
     issueId: string,
   ) => Stream.Stream<Option.Option<InstantIssueRecord>, InstantEntityStoreError>
@@ -313,8 +313,13 @@ export type InstantEntityStoreService = Readonly<{
   saveIssue: (
     record: InstantIssueRecord,
   ) => Effect.Effect<void, InstantEntityStoreError>
-  /** Reads only the Issue numbers in use. */
-  fetchIssueIds: Effect.Effect<ReadonlyArray<string>, InstantEntityStoreError>
+  /**
+   * Reads only the Issue numbers in use, of the Issues in `statuses`, or of
+   * every Issue when it is empty.
+   */
+  fetchIssueIds: (
+    statuses: IssueQuery['statuses'],
+  ) => Effect.Effect<ReadonlyArray<string>, InstantEntityStoreError>
   /**
    * Reads every record stored under one Issue number. A record read back
    * carries its Instant entity id in `id`; two records mean the number is
@@ -665,11 +670,13 @@ const fileIssue = (
         `No free Issue number after ${maximumFilingAttempts} attempts; other writers took ${Array.join(takenIssueIds, ', ')} while this one was filing.`,
       )
     }
-    const storedIds = yield* store.fetchIssueIds.pipe(
-      Effect.mapError(
-        cause => new IssueTrackerError({ cause, operation: 'File' }),
-      ),
-    )
+    const storedIds = yield* store
+      .fetchIssueIds([])
+      .pipe(
+        Effect.mapError(
+          cause => new IssueTrackerError({ cause, operation: 'File' }),
+        ),
+      )
     const issueId = nextIssueId([...storedIds, ...takenIssueIds])
     const issue = makeIssue(issueId)
     if (issue.id !== issueId) {
@@ -808,7 +815,7 @@ export const makeIssueTracker = (
   update: (issueId, change) =>
     updateIssue(store, storedIssueId(issueId), change, maximumUpdateAttempts),
   fetch: query =>
-    store.fetchIssues.pipe(
+    store.fetchIssues(query.statuses).pipe(
       Effect.flatMap(records =>
         Effect.try({
           try: () => decodeIssueRecords(records),
@@ -838,7 +845,7 @@ export const makeIssueTracker = (
       ),
     ),
   observe: query =>
-    store.observeIssues.pipe(
+    store.observeIssues(query.statuses).pipe(
       Stream.mapEffect(records =>
         Effect.try({
           try: () => decodeIssueRecords(records),
@@ -987,6 +994,32 @@ export const makeLogger = (
     ),
 })
 
+/**
+ * The Issues in `statuses`, asked of Instant by its indexed `status`, or every
+ * Issue when it is empty: `issues list --status Open,InProgress` reads 745
+ * Issues (8.3 MB), not all 1,356 (18.6 MB on 2026-10-29, #1358).
+ */
+const issuesInStatuses = (statuses: IssueQuery['statuses']) =>
+  Array.isReadonlyArrayEmpty(statuses)
+    ? { instantToolsIssues: {} }
+    : {
+        instantToolsIssues: {
+          $: { where: { status: { $in: [...statuses] } } },
+        },
+      }
+
+const issueIdField: Array<'issueID'> = ['issueID']
+
+const inStatuses = (statuses: IssueQuery['statuses']) =>
+  Array.isReadonlyArrayEmpty(statuses)
+    ? {}
+    : { where: { status: { $in: [...statuses] } } }
+
+/** The numbers of the Issues in `statuses`, or of every Issue when it is empty. */
+const issueIdsInStatuses = (statuses: IssueQuery['statuses']) => ({
+  instantToolsIssues: { $: { fields: issueIdField, ...inStatuses(statuses) } },
+})
+
 /** Creates the low-level entity capability from a host-initialized database. */
 export const makeInstantEntityStore = (
   database: InstantToolsDatabase,
@@ -1041,21 +1074,20 @@ export const makeInstantEntityStore = (
           operation: 'AppendLog',
         }),
     }),
-  fetchIssues: Effect.tryPromise({
-    try: async () => {
-      const response = await database.queryOnce({
-        instantToolsIssues: {},
-      })
-      return Array.map(response.data.instantToolsIssues, record =>
-        S.decodeUnknownSync(InstantIssueRecord)(record),
-      )
-    },
-    catch: cause =>
-      new InstantEntityStoreError({
-        cause,
-        operation: 'FetchIssues',
-      }),
-  }),
+  fetchIssues: statuses =>
+    Effect.tryPromise({
+      try: async () => {
+        const response = await database.queryOnce(issuesInStatuses(statuses))
+        return Array.map(response.data.instantToolsIssues, record =>
+          S.decodeUnknownSync(InstantIssueRecord)(record),
+        )
+      },
+      catch: cause =>
+        new InstantEntityStoreError({
+          cause,
+          operation: 'FetchIssues',
+        }),
+    }),
   fetchProducts: Effect.tryPromise({
     try: async () => {
       const response = await database.queryOnce({
@@ -1071,29 +1103,32 @@ export const makeInstantEntityStore = (
         operation: 'FetchProducts',
       }),
   }),
-  observeIssues: Stream.concat(
-    Stream.fromEffect(
-      Effect.tryPromise({
-        try: async () => {
-          const response = await database.queryOnce({
-            instantToolsIssues: {},
-          })
-          return Array.map(response.data.instantToolsIssues, record =>
-            S.decodeUnknownSync(InstantIssueRecord)(record),
-          )
-        },
-        catch: cause =>
-          new InstantEntityStoreError({
-            cause,
-            operation: 'ObserveIssues',
-          }),
-      }),
-    ),
-    Stream.callback<ReadonlyArray<InstantIssueRecord>, InstantEntityStoreError>(
-      queue =>
+  observeIssues: statuses =>
+    Stream.concat(
+      Stream.fromEffect(
+        Effect.tryPromise({
+          try: async () => {
+            const response = await database.queryOnce(
+              issuesInStatuses(statuses),
+            )
+            return Array.map(response.data.instantToolsIssues, record =>
+              S.decodeUnknownSync(InstantIssueRecord)(record),
+            )
+          },
+          catch: cause =>
+            new InstantEntityStoreError({
+              cause,
+              operation: 'ObserveIssues',
+            }),
+        }),
+      ),
+      Stream.callback<
+        ReadonlyArray<InstantIssueRecord>,
+        InstantEntityStoreError
+      >(queue =>
         Effect.acquireRelease(
           Effect.sync(() =>
-            database.subscribeQuery({ instantToolsIssues: {} }, response => {
+            database.subscribeQuery(issuesInStatuses(statuses), response => {
               if (response.error !== undefined) {
                 Queue.failCauseUnsafe(
                   queue,
@@ -1128,8 +1163,8 @@ export const makeInstantEntityStore = (
           ),
           unsubscribe => Effect.sync(unsubscribe),
         ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     ),
-  ),
   observeIssue: issueId =>
     Stream.callback<Option.Option<InstantIssueRecord>, InstantEntityStoreError>(
       queue =>
@@ -1377,22 +1412,21 @@ export const makeInstantEntityStore = (
       unsubscribe => Effect.sync(unsubscribe),
     ).pipe(Effect.flatMap(() => Effect.never)),
   ),
-  fetchIssueIds: Effect.tryPromise({
-    try: async () => {
-      const response = await database.queryOnce({
-        instantToolsIssues: { $: { fields: ['issueID'] } },
-      })
-      return Array.map(
-        response.data.instantToolsIssues,
-        record => record.issueID,
-      )
-    },
-    catch: cause =>
-      new InstantEntityStoreError({
-        cause,
-        operation: 'FetchIssueIds',
-      }),
-  }),
+  fetchIssueIds: statuses =>
+    Effect.tryPromise({
+      try: async () => {
+        const response = await database.queryOnce(issueIdsInStatuses(statuses))
+        return Array.map(
+          response.data.instantToolsIssues,
+          record => record.issueID,
+        )
+      },
+      catch: cause =>
+        new InstantEntityStoreError({
+          cause,
+          operation: 'FetchIssueIds',
+        }),
+    }),
   fetchIssueRecordsById: issueId =>
     Effect.tryPromise({
       try: async () => {

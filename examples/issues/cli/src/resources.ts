@@ -17,6 +17,7 @@ import {
 } from '@foldkit/instant-tools/instant'
 import {
   IssueQuery,
+  type IssueStatus,
   type IssueTrackerError,
   type IssueTrackerService,
 } from '@foldkit/instant-tools/issues'
@@ -268,7 +269,9 @@ export const adminAsInstantToolsDatabase = (
  * back them up before a delete.
  */
 export type IssueRecordsService = Readonly<{
-  fetchIssueIds: Effect.Effect<
+  fetchIssueIds: (
+    statuses: ReadonlyArray<IssueStatus>,
+  ) => Effect.Effect<
     ReadonlyArray<string>,
     InstantEntityStoreError | IssueTrackerError
   >
@@ -414,9 +417,10 @@ const everyIssue = IssueQuery.make({
 export const memoryIssueRecords = (
   tracker: IssueTrackerService,
 ): IssueRecordsService => ({
-  fetchIssueIds: tracker
-    .fetch(everyIssue)
-    .pipe(Effect.map(issues => Array.map(issues, issue => issue.id))),
+  fetchIssueIds: statuses =>
+    tracker
+      .fetch(IssueQuery.make({ ...everyIssue, statuses }))
+      .pipe(Effect.map(issues => Array.map(issues, issue => issue.id))),
   fetchIssueRecordsById: issueId =>
     tracker.fetchIssue(issueId).pipe(
       Effect.map(maybeIssue =>

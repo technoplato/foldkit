@@ -38,7 +38,10 @@ import {
 import {
   ApplicationProduct,
   type Issue,
+  IssueQuery,
+  type IssueStatus,
   IssueTracker,
+  type IssueTrackerService,
   LibraryProduct,
   ProductCatalogEntry,
 } from '@foldkit/instant-tools/issues'
@@ -128,6 +131,17 @@ const ensureFilingCatalog = (
 const readsCatalog = (navigation: Navigation): boolean =>
   navigation._tag !== 'IssueDetail'
 
+const withTracker = (
+  resources: IssueTrackerResources,
+  change: (tracker: IssueTrackerService) => IssueTrackerService,
+): IssueTrackerResources =>
+  Layer.merge(
+    resources,
+    Layer.effect(IssueTracker, Effect.map(IssueTracker, change)).pipe(
+      Layer.provide(resources),
+    ),
+  )
+
 /**
  * The resources with a tracker whose catalog stream stays silent, for a
  * command on one Issue: nothing downloads or decodes the catalog, and the
@@ -136,16 +150,27 @@ const readsCatalog = (navigation: Navigation): boolean =>
 const withoutCatalog = (
   resources: IssueTrackerResources,
 ): IssueTrackerResources =>
-  Layer.merge(
-    resources,
-    Layer.effect(
-      IssueTracker,
-      Effect.map(IssueTracker, tracker => ({
-        ...tracker,
-        observe: () => Stream.never,
-      })),
-    ).pipe(Layer.provide(resources)),
-  )
+  withTracker(resources, tracker => ({
+    ...tracker,
+    observe: () => Stream.never,
+  }))
+
+/**
+ * The resources with the catalog narrowed to `statuses`, or whole when it is
+ * empty: `issues list --status Open,InProgress` reads only those Issues.
+ */
+export const withCatalogStatuses = (
+  resources: IssueTrackerResources,
+  statuses: ReadonlyArray<IssueStatus>,
+): IssueTrackerResources => {
+  if (Array.isReadonlyArrayEmpty(statuses)) {
+    return resources
+  }
+  return withTracker(resources, tracker => ({
+    ...tracker,
+    observe: query => tracker.observe(IssueQuery.make({ ...query, statuses })),
+  }))
+}
 
 const hasSettledObservations = (
   model: Model,
