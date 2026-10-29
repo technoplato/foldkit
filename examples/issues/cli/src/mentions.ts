@@ -40,6 +40,39 @@ const decodeTranscriptLine = S.decodeUnknownOption(
   S.fromJsonString(TranscriptLine),
 )
 
+/** One picture Scribe keeps with a recording, as the mirror's `images.jsonl` lists it. */
+const ImageRow = S.Struct({
+  atMs: S.Number,
+  attachment: S.String,
+  contentType: S.optionalKey(S.String),
+  path: S.String,
+  source: S.optionalKey(S.NullOr(S.String)),
+})
+type ImageRow = typeof ImageRow.Type
+
+const decodeImageRow = S.decodeUnknownOption(S.fromJsonString(ImageRow))
+
+/**
+ * A stretch the audio skipped (Siri or an alarm held the microphone): `offset` is where it sits in the audio,
+ * `startedAtMs` and `endedAtMs` on the wall clock. Only a closed gap has both ends.
+ */
+const CaptureGapRow = S.Struct({
+  endedAtMs: S.Number,
+  kind: S.Literal('capture.gap'),
+  offset: S.Number,
+  startedAtMs: S.Number,
+  state: S.Literal('closed'),
+})
+type CaptureGapRow = typeof CaptureGapRow.Type
+
+const decodeCaptureGapRow = S.decodeUnknownOption(
+  S.fromJsonString(CaptureGapRow),
+)
+
+const decodeRecordingStart = S.decodeUnknownOption(
+  S.fromJsonString(S.Struct({ startedAtMs: S.Number })),
+)
+
 const usage = (message: string) =>
   new IssuesCommandFailure({ exitCode: USAGE_EXIT_CODE, message })
 
@@ -119,6 +152,172 @@ const readTranscript = (
   return linesByIndex
 }
 
+const readJsonLines = <A>(
+  path: string,
+  decode: (text: string) => Option.Option<A>,
+): ReadonlyArray<A> =>
+  existsSync(path)
+    ? Array.getSomes(Array.map(readFileSync(path, 'utf8').split('\n'), decode))
+    : []
+
+/**
+ * Seconds of a recording's audio to milliseconds on the wall clock. The audio skips a capture gap, so after one
+ * the wall is later than `startedAt` plus the audio time by the gaps so far; each closed gap anchors the time after
+ * it (Scribe #1173, `audio_clock` in its scripts/process-eval/missed_words.py). Pictures carry wall times.
+ */
+const wallClockMs = (
+  startedAtMs: number,
+  gaps: ReadonlyArray<CaptureGapRow>,
+  audioSeconds: number,
+): number => {
+  const sorted = Array.sort(
+    gaps,
+    Order.mapInput(Order.Number, (gap: CaptureGapRow) => gap.offset),
+  )
+  const beforeAnyGap = Option.match(Array.head(sorted), {
+    onNone: () => startedAtMs + audioSeconds * MILLISECONDS_PER_SECOND,
+    onSome: first =>
+      first.startedAtMs +
+      (audioSeconds - first.offset) * MILLISECONDS_PER_SECOND,
+  })
+  return Array.reduce(sorted, beforeAnyGap, (wall, gap) =>
+    audioSeconds >= gap.offset
+      ? gap.endedAtMs + (audioSeconds - gap.offset) * MILLISECONDS_PER_SECOND
+      : wall,
+  )
+}
+
+/** What a picture shows: a screenshot he took, or a frame Scribe recorded of a screen. */
+export type SaidImageKind = 'Screenshot' | 'ScreenFrame'
+
+/**
+ * Only screenshots and screen frames are pictures of the moment. A camera photo (`photoLibrary`), a paste, a drop,
+ * or a picture with no source can be a family photo, so `--said` never takes one; `--image` names a file on purpose.
+ */
+const imageKindOf = (
+  source: string | null | undefined,
+): Option.Option<SaidImageKind> => {
+  if (source === 'photoLibraryScreenshot') {
+    return Option.some('Screenshot')
+  }
+  if (
+    source !== null &&
+    source !== undefined &&
+    source.startsWith('replaykit-frame')
+  ) {
+    return Option.some('ScreenFrame')
+  }
+  return Option.none()
+}
+
+/** A screenshot he took up to a minute before he spoke is what he is talking about; frames come every 5 s. */
+const SCREENSHOT_LEAD_MS = 60_000
+const SCREENSHOT_TRAIL_MS = 10_000
+const FRAME_LEAD_MS = 10_000
+const FRAME_TRAIL_MS = 5_000
+/** A long quote spans dozens of near-identical frames: keep this many, evenly spread. */
+const MAXIMUM_FRAMES = 6
+
+const evenlySpread = <A>(
+  items: ReadonlyArray<A>,
+  count: number,
+): ReadonlyArray<A> =>
+  items.length <= count
+    ? items
+    : count === 1
+      ? Array.take(items, 1)
+      : Array.getSomes(
+          Array.makeBy(count, position =>
+            Option.fromUndefinedOr(
+              items[Math.round((position * (items.length - 1)) / (count - 1))],
+            ),
+          ),
+        )
+
+/** One picture of the moment a quote is from, read from the Scribe mirror. */
+export type SaidImage = Readonly<{
+  attachmentId: string
+  capturedAtMs: number
+  contentType: string
+  fileName: string
+  filePath: string
+  kind: SaidImageKind
+  source: string
+}>
+
+const imageOf = (
+  folder: string,
+  row: ImageRow,
+  kind: SaidImageKind,
+): SaidImage => ({
+  attachmentId: row.attachment,
+  capturedAtMs: row.atMs,
+  contentType: row.contentType ?? 'image/jpeg',
+  fileName: basename(row.path),
+  filePath: join(folder, row.path),
+  kind,
+  source: row.source ?? '',
+})
+
+/**
+ * The screenshots and screen frames of lines spoken between `firstStart` and `lastEnd` seconds of audio:
+ * screenshots from a minute before to 10 s after, and up to six frames from 10 s before to 5 s after, in time order.
+ * A picture the mirror lists but has not downloaded yet is left out.
+ */
+const imagesAround = (
+  folder: string,
+  maybeFallbackStartedAtMs: Option.Option<number>,
+  firstStart: number,
+  lastEnd: number,
+): ReadonlyArray<SaidImage> => {
+  const maybeStartedAtMs = Option.orElse(
+    Option.flatMap(
+      Option.liftThrowable(() =>
+        readFileSync(join(folder, 'meta.json'), 'utf8'),
+      )(),
+      text => Option.map(decodeRecordingStart(text), meta => meta.startedAtMs),
+    ),
+    () => maybeFallbackStartedAtMs,
+  )
+  if (Option.isNone(maybeStartedAtMs)) {
+    return []
+  }
+  const gaps = readJsonLines(join(folder, 'events.jsonl'), decodeCaptureGapRow)
+  const fromMs = wallClockMs(maybeStartedAtMs.value, gaps, firstStart)
+  const toMs = wallClockMs(maybeStartedAtMs.value, gaps, lastEnd)
+  const rows = Array.sort(
+    Array.filter(
+      readJsonLines(join(folder, 'images.jsonl'), decodeImageRow),
+      row => existsSync(join(folder, row.path)),
+    ),
+    Order.mapInput(Order.Number, (row: ImageRow) => row.atMs),
+  )
+  const within = (row: ImageRow, leadMs: number, trailMs: number) =>
+    row.atMs >= fromMs - leadMs && row.atMs <= toMs + trailMs
+  const screenshots = Array.filter(
+    rows,
+    row =>
+      Option.contains(imageKindOf(row.source), 'Screenshot') &&
+      within(row, SCREENSHOT_LEAD_MS, SCREENSHOT_TRAIL_MS),
+  )
+  const frames = evenlySpread(
+    Array.filter(
+      rows,
+      row =>
+        Option.contains(imageKindOf(row.source), 'ScreenFrame') &&
+        within(row, FRAME_LEAD_MS, FRAME_TRAIL_MS),
+    ),
+    MAXIMUM_FRAMES,
+  )
+  return Array.sort(
+    [
+      ...Array.map(screenshots, row => imageOf(folder, row, 'Screenshot')),
+      ...Array.map(frames, row => imageOf(folder, row, 'ScreenFrame')),
+    ],
+    Order.mapInput(Order.Number, (image: SaidImage) => image.capturedAtMs),
+  )
+}
+
 const secondsForLink = (seconds: number): string =>
   Number(seconds.toFixed(LINK_SECOND_DECIMALS)).toString()
 
@@ -131,15 +330,24 @@ const rangeLabel = (first: number, last: number): string =>
     ? `#${first.toString()}`
     : `#${first.toString()}-${last.toString()}`
 
+/** What `--said 322:66-70` reads: his words as a Mention, and the pictures of that moment. */
+export type ResolvedSaid = Readonly<{
+  images: ReadonlyArray<SaidImage>
+  mention: DraftMention
+  recordingNumber: string
+}>
+
 /**
  * Reads Michael's lines `208:1884-1888` from the Scribe mirror word for word
  * and writes them as one Mention: the recording, the time span, a deep link
- * per line, and the quote with the recording's number and full id.
+ * per line, and the quote with the recording's number and full id. Beside it,
+ * the screenshots and screen frames of that moment, whose Scribe ids the
+ * Mention lists (Scribe #1345).
  */
-export const resolveSaidMention = (
+export const resolveSaid = (
   mirrorRoot: string,
   spec: string,
-): Effect.Effect<DraftMention, IssuesCommandFailure> =>
+): Effect.Effect<ResolvedSaid, IssuesCommandFailure> =>
   Effect.gen(function* () {
     const match = saidSpecPattern.exec(spec)
     if (match === null) {
@@ -211,7 +419,17 @@ export const resolveSaidMention = (
       Array.map(lines, line => `"${line.text}"`),
       ' ',
     )
-    return DraftMention.make({
+    const lastLine = maybeLastLine.value
+    const images = imagesAround(
+      maybeFolder.value,
+      Option.map(
+        Option.fromUndefinedOr(firstLine.atMs),
+        atMs => atMs - firstLine.start * MILLISECONDS_PER_SECOND,
+      ),
+      firstLine.start,
+      lastLine.end,
+    )
+    const mention = DraftMention.make({
       capturedAtMs: Option.fromUndefinedOr(firstLine.atMs),
       directQuote: Option.some(
         `Recording ${folderNumber} (${firstLine.recording}) ${rangeLabel(first, last)}: ${quotes}`,
@@ -229,17 +447,25 @@ export const resolveSaidMention = (
       source: RecordingReference.make({
         recording: RecordingMention.make({
           endMilliseconds: Option.some(
-            Math.round(maybeLastLine.value.end * MILLISECONDS_PER_SECOND),
+            Math.round(lastLine.end * MILLISECONDS_PER_SECOND),
           ),
           recordingId: firstLine.recording,
-          screenshotIds: [],
+          screenshotIds: Array.map(images, image => image.attachmentId),
           startMilliseconds: Math.round(
             firstLine.start * MILLISECONDS_PER_SECOND,
           ),
         }),
       }),
     })
+    return { images, mention, recordingNumber: folderNumber }
   })
+
+/** Reads Michael's lines `208:1884-1888` as one Mention; `resolveSaid` also returns the pictures of the moment. */
+export const resolveSaidMention = (
+  mirrorRoot: string,
+  spec: string,
+): Effect.Effect<DraftMention, IssuesCommandFailure> =>
+  Effect.map(resolveSaid(mirrorRoot, spec), said => said.mention)
 
 /** What a person typed to an agent, and where. */
 export type TypedMentionInput = Readonly<{

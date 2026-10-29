@@ -67,6 +67,7 @@ import {
   writeSync,
 } from 'node:fs'
 import { basename, extname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import {
   AbandonedWork,
@@ -89,6 +90,7 @@ import {
   LibraryProduct,
   StuckWork,
   type TrackedProduct,
+  UriAttachmentSource,
   describeIssueTrackerCause,
   isCloseToLanding,
   issueViewerUrl,
@@ -101,13 +103,15 @@ import {
   withCatalogStatuses,
 } from './host.js'
 import {
+  type ResolvedSaid,
+  type SaidImageKind,
   findRecordingFolder,
-  resolveSaidMention,
+  resolveSaid,
   typedMention,
 } from './mentions.js'
 import { type IssueRecordsService } from './resources.js'
 
-export { resolveSaidMention, typedMention } from './mentions.js'
+export { resolveSaid, resolveSaidMention, typedMention } from './mentions.js'
 
 const SUCCEEDED_EXIT_CODE = 0
 const FAILED_EXIT_CODE = 1
@@ -408,7 +412,11 @@ export type FileInput = Readonly<{
   details: Option.Option<string>
   dryRun: boolean
   evidence: ReadonlyArray<string>
+  /** Files to attach beside the pictures `--said` brings, such as a mockup (`--image`). */
+  images: ReadonlyArray<string>
   isJson: boolean
+  /** `--no-images`: quote the lines, attach none of their pictures. */
+  isWithoutImages: boolean
   jsonInput: Option.Option<string>
   log: Option.Option<string>
   logState: Option.Option<string>
@@ -489,6 +497,7 @@ const jsonProductReference = (
 export const composeDraft = (
   host: IssuesHost,
   input: FileInput,
+  said: ReadonlyArray<ResolvedSaid>,
 ): Effect.Effect<IssueDraft, IssuesCommandFailure> =>
   Effect.gen(function* () {
     const json = yield* readJsonDraft(host, input.jsonInput)
@@ -542,9 +551,7 @@ export const composeDraft = (
     const flagCriteria = yield* Effect.forEach(input.criteria, outcome =>
       parseCriterion(outcome, input.evidence),
     )
-    const saidMentions = yield* Effect.forEach(input.said, spec =>
-      resolveSaidMention(host.mirrorRoot, spec),
-    )
+    const saidMentions = Array.map(said, resolved => resolved.mention)
     const typedMentions = Option.match(input.typed, {
       onNone: () => [],
       onSome: text => [
@@ -841,7 +848,12 @@ export const fileIssueCommand = (
 ): Effect.Effect<IssuesOutcome> =>
   finish(
     Effect.gen(function* () {
-      const draft = yield* composeDraft(host, input)
+      const said = yield* Effect.forEach(input.said, spec =>
+        resolveSaid(host.mirrorRoot, spec),
+      )
+      // Read every picture before filing, so an unreadable --image files nothing.
+      const pictures = yield* picturesToAttach(said, input)
+      const draft = yield* composeDraft(host, input, said)
       yield* requireExistingIssues(
         host,
         'file',
@@ -858,7 +870,16 @@ export const fileIssueCommand = (
           'next',
           host.nowMs(),
         )
-        return succeeded([issueJson(preview)])
+        return succeeded([
+          issueJson(
+            Issue.make({
+              ...preview,
+              attachments: Array.map(pictures, (picture, position) =>
+                previewAttachment(preview.id, picture, position),
+              ),
+            }),
+          ),
+        ])
       }
       const model = yield* executeMessages(
         FileIssue.make({}),
@@ -883,15 +904,29 @@ export const fileIssueCommand = (
           failed('file', 'the tracker did not report the new Issue.'),
         )
       }
-      const issue = yield* loadedIssueOf(
+      const filed = yield* loadedIssueOf(
         'file',
         model,
         model.navigation.issueId,
       )
+      const issue = yield* attachPictures(host, filed.id, pictures).pipe(
+        Effect.mapError(
+          failure =>
+            new IssuesCommandFailure({
+              exitCode: FAILED_EXIT_CODE,
+              message: `Filed #${filed.id}, but ${failure.message} ${retryAttach(filed.id, pictures)}`,
+            }),
+        ),
+        Effect.map(Option.getOrElse(() => filed)),
+      )
       return succeeded(
         input.isJson
           ? [issueJson(issue)]
-          : [`Filed #${issue.id}: ${issue.title}`, issueUrl(issue.id)],
+          : [
+              `Filed #${issue.id}: ${issue.title}`,
+              issueUrl(issue.id),
+              ...picturesSummary(pictures),
+            ],
       )
     }),
   )
@@ -1741,6 +1776,298 @@ export const attachIssueFilesCommand = (
     }),
   )
 
+// PICTURES OF THE MOMENT (Scribe #1345)
+// An Issue carries the screenshots and screen frames of the moment it quotes, above all when it is about design.
+// The tracker's Instant rules let only the owner's signed-in email view `$files`, so the pictures stay private.
+
+/** The `--said` moment a picture is from; a file named with `--image` has none. */
+type PictureMoment = Readonly<{ kind: SaidImageKind; recordingNumber: string }>
+
+/** One picture to attach, read before anything is filed. */
+type Picture = Readonly<{
+  bytes: Uint8Array
+  capturedAtMs: number
+  contentType: string
+  fileName: string
+  filePath: string
+  moment: Option.Option<PictureMoment>
+  sha256: string
+}>
+
+const readPicture = (
+  filePath: string,
+  flag: string,
+): Effect.Effect<
+  Readonly<{ bytes: Uint8Array; mtimeMs: number }>,
+  IssuesCommandFailure
+> =>
+  Effect.try({
+    try: () => {
+      const stat = statSync(filePath)
+      if (!stat.isFile()) {
+        throw new Error('it is not a file')
+      }
+      if (stat.size > MAXIMUM_FILE_BYTES) {
+        throw new Error('it is larger than the 100 MiB an Issue file may be')
+      }
+      return {
+        bytes: new Uint8Array(readFileSync(filePath)),
+        mtimeMs: stat.mtimeMs,
+      }
+    },
+    catch: cause =>
+      usage(
+        `${flag} ${filePath} cannot be read: ${describeIssueTrackerCause(cause)}`,
+      ),
+  })
+
+const sha256Of = (bytes: Uint8Array): string =>
+  createHash('sha256').update(bytes).digest('hex')
+
+/**
+ * The pictures `issues file` and `issues mention` attach: those of each `--said` moment (unless `--no-images`),
+ * then each `--image`, each picture once however often it is named (by its bytes).
+ */
+const picturesToAttach = (
+  said: ReadonlyArray<ResolvedSaid>,
+  input: Readonly<{ images: ReadonlyArray<string>; isWithoutImages: boolean }>,
+): Effect.Effect<ReadonlyArray<Picture>, IssuesCommandFailure> =>
+  Effect.gen(function* () {
+    const fromSaid = input.isWithoutImages
+      ? []
+      : yield* Effect.forEach(
+          Array.flatMap(said, resolved =>
+            Array.map(resolved.images, image => ({
+              image,
+              recordingNumber: resolved.recordingNumber,
+            })),
+          ),
+          ({ image, recordingNumber }) =>
+            Effect.map(readPicture(image.filePath, '--said'), ({ bytes }) => ({
+              bytes,
+              capturedAtMs: image.capturedAtMs,
+              contentType: image.contentType,
+              fileName: image.fileName,
+              filePath: image.filePath,
+              moment: Option.some({ kind: image.kind, recordingNumber }),
+              sha256: sha256Of(bytes),
+            })),
+        )
+    const named = yield* Effect.forEach(input.images, filePath =>
+      Effect.gen(function* () {
+        const fileName = basename(filePath)
+        const contentType = inferredContentType(fileName)
+        if (!contentType.startsWith('image/')) {
+          return yield* Effect.fail(
+            usage(
+              `--image ${filePath} is not a picture (${contentType}); attach other files with issues attach.`,
+            ),
+          )
+        }
+        const { bytes, mtimeMs } = yield* readPicture(filePath, '--image')
+        return {
+          bytes,
+          capturedAtMs: Math.round(mtimeMs),
+          contentType,
+          fileName,
+          filePath: resolve(filePath),
+          moment: Option.none(),
+          sha256: sha256Of(bytes),
+        }
+      }),
+    )
+    return Array.dedupeWith(
+      [...fromSaid, ...named],
+      (first, second) => first.sha256 === second.sha256,
+    )
+  })
+
+const pictureAttachment = (
+  issueId: string,
+  picture: Picture,
+  fileId: string,
+): IssueAttachment =>
+  IssueAttachment.make({
+    byteCount: Option.some(picture.bytes.byteLength),
+    capturedAtMs: Option.some(picture.capturedAtMs),
+    contentType: picture.contentType,
+    fileName: picture.fileName,
+    id: fileId,
+    issueId,
+    kind: 'Screenshot',
+    sha256: Option.some(picture.sha256),
+    source: InstantStorageAttachmentSource.make({ fileId }),
+  })
+
+/** What `--dry-run` shows it would attach: the picture, stored nowhere yet. */
+const previewAttachment = (
+  issueId: string,
+  picture: Picture,
+  position: number,
+): IssueAttachment =>
+  IssueAttachment.make({
+    ...pictureAttachment(
+      issueId,
+      picture,
+      `preview-${(position + 1).toString()}`,
+    ),
+    source: UriAttachmentSource.make({
+      value: pathToFileURL(picture.filePath).href,
+    }),
+  })
+
+const issueRecordOf = (host: IssuesHost, command: string, issueId: string) =>
+  Effect.gen(function* () {
+    const records = yield* host.records
+      .fetchIssueRecordsById(issueId)
+      .pipe(
+        Effect.mapError(cause =>
+          failed(command, describeIssueTrackerCause(cause)),
+        ),
+      )
+    return yield* Array.match(records, {
+      onEmpty: () => Effect.fail(missing(issueId)),
+      onNonEmpty: nonEmpty =>
+        nonEmpty.length === 1
+          ? Effect.succeed(Array.headNonEmpty(nonEmpty))
+          : Effect.fail(
+              failed(
+                command,
+                `Issue #${issueId} is held by ${nonEmpty.length.toString()} records.`,
+              ),
+            ),
+    })
+  })
+
+const attachmentFailure = (message: string) =>
+  new IssuesCommandFailure({ exitCode: FAILED_EXIT_CODE, message })
+
+/**
+ * Uploads each picture, links it to the Issue's record, and records them all on the Issue in one change. When a
+ * step fails, every upload so far is removed and the failure names the picture. None to attach: `Option.none()`.
+ */
+const attachPictures = (
+  host: IssuesHost,
+  issueId: string,
+  pictures: ReadonlyArray<Picture>,
+): Effect.Effect<Option.Option<Issue>, IssuesCommandFailure> =>
+  Array.isReadonlyArrayEmpty(pictures)
+    ? Effect.succeed(Option.none())
+    : Effect.gen(function* () {
+        const record = yield* issueRecordOf(host, 'attach', issueId).pipe(
+          Effect.mapError(failure =>
+            attachmentFailure(`attaching pictures failed: ${failure.message}`),
+          ),
+        )
+        const uploaded: Array<
+          Readonly<{ fileId: string; path: string; picture: Picture }>
+        > = []
+        const removeUploads = (failure: IssuesCommandFailure) =>
+          Effect.forEach(uploaded, ({ fileId, path }) =>
+            Effect.ignore(host.files.remove({ fileId, path })),
+          ).pipe(Effect.andThen(Effect.fail(failure)))
+        for (const picture of pictures) {
+          const path = `issues/${issueId}/${randomUUID()}-${storageSafeName(picture.fileName)}`
+          const fileId = yield* host.files
+            .upload({
+              bytes: picture.bytes,
+              contentType: picture.contentType,
+              fileName: picture.fileName,
+              path,
+            })
+            .pipe(
+              Effect.mapError(cause =>
+                attachmentFailure(
+                  `attaching ${picture.fileName} failed: upload ${path}: ${describeIssueTrackerCause(cause)}.`,
+                ),
+              ),
+              Effect.catchTag('IssuesCommandFailure', removeUploads),
+            )
+          uploaded.push({ fileId, path, picture })
+          yield* host.files.link({ entityId: record.id, fileId }).pipe(
+            Effect.mapError(cause =>
+              attachmentFailure(
+                `attaching ${picture.fileName} failed: link ${path}: ${describeIssueTrackerCause(cause)}.`,
+              ),
+            ),
+            Effect.catchTag('IssuesCommandFailure', removeUploads),
+          )
+        }
+        const { issue } = yield* changeIssue(host, 'attach', issueId, () =>
+          Array.map(uploaded, ({ fileId, picture }) =>
+            SubmittedIssueAttachment.make({
+              attachment: pictureAttachment(issueId, picture, fileId),
+              issueId,
+            }),
+          ),
+        ).pipe(
+          Effect.mapError(failure =>
+            attachmentFailure(
+              `attaching ${Array.join(
+                Array.map(uploaded, ({ picture }) => picture.fileName),
+                ', ',
+              )} failed: ${failure.message}`,
+            ),
+          ),
+          Effect.catchTag('IssuesCommandFailure', removeUploads),
+        )
+        return Option.some(issue)
+      })
+
+const shellQuoted = (text: string): string => `'${text.replace(/'/g, `'\\''`)}'`
+
+const retryAttach = (
+  issueId: string,
+  pictures: ReadonlyArray<Picture>,
+): string =>
+  `None of the pictures were attached; attach them with: issues attach ${issueId} ${Array.join(
+    Array.map(pictures, picture => shellQuoted(picture.filePath)),
+    ' ',
+  )}`
+
+const counted = (count: number, singular: string): string =>
+  `${count.toString()} ${singular}${count === 1 ? '' : 's'}`
+
+/** `Attached 9 pictures: 8 from Recording 322 (1 screenshot, 7 screen frames), 1 named with --image.` */
+const picturesSummary = (
+  pictures: ReadonlyArray<Picture>,
+): ReadonlyArray<string> => {
+  if (Array.isReadonlyArrayEmpty(pictures)) {
+    return []
+  }
+  const said = Array.getSomes(Array.map(pictures, picture => picture.moment))
+  const recordings = Array.dedupe(
+    Array.map(said, moment => moment.recordingNumber),
+  )
+  const fromRecordings = Array.map(recordings, recordingNumber => {
+    const ofRecording = Array.filter(
+      said,
+      moment => moment.recordingNumber === recordingNumber,
+    )
+    const screenshots = Array.filter(
+      ofRecording,
+      moment => moment.kind === 'Screenshot',
+    ).length
+    const frames = ofRecording.length - screenshots
+    const kinds = Array.join(
+      [
+        ...(screenshots === 0 ? [] : [counted(screenshots, 'screenshot')]),
+        ...(frames === 0 ? [] : [counted(frames, 'screen frame')]),
+      ],
+      ', ',
+    )
+    return `${ofRecording.length.toString()} from Recording ${recordingNumber} (${kinds})`
+  })
+  const named = pictures.length - said.length
+  const parts = [
+    ...fromRecordings,
+    ...(named === 0 ? [] : [`${named.toString()} named with --image`]),
+  ]
+  return [
+    `Attached ${counted(pictures.length, 'picture')}: ${Array.join(parts, ', ')}.`,
+  ]
+}
+
 /** Downloads one stored Issue file by its storage path. */
 export const downloadIssueFileCommand = (
   host: IssuesHost,
@@ -2145,8 +2472,12 @@ export const markCriteriaCommand = (
 
 /** Everything `issues mention` reads. */
 export type MentionInput = Readonly<{
+  /** Files to attach beside the pictures `--said` brings (`--image`). */
+  images: ReadonlyArray<string>
   issue: string
   isJson: boolean
+  /** `--no-images`: quote the lines, attach none of their pictures. */
+  isWithoutImages: boolean
   said: ReadonlyArray<string>
   typed: Option.Option<string>
   typedAt: Option.Option<string>
@@ -2162,11 +2493,12 @@ export const addMentionCommand = (
   finish(
     Effect.gen(function* () {
       const issueId = yield* parseIssueNumber(input.issue)
-      const saidMentions = yield* Effect.forEach(input.said, spec =>
-        resolveSaidMention(host.mirrorRoot, spec),
+      const said = yield* Effect.forEach(input.said, spec =>
+        resolveSaid(host.mirrorRoot, spec),
       )
+      const pictures = yield* picturesToAttach(said, input)
       const mentions = [
-        ...saidMentions,
+        ...Array.map(said, resolved => resolved.mention),
         ...Option.match(input.typed, {
           onNone: () => [],
           onSome: text => [
@@ -2186,16 +2518,41 @@ export const addMentionCommand = (
           ),
         )
       }
-      const { issue } = yield* changeIssue(host, 'mention', issueId, () =>
-        Array.map(mentions, mention =>
-          SubmittedIssueMention.make({ issueId, mention }),
+      const { issue: mentioned } = yield* changeIssue(
+        host,
+        'mention',
+        issueId,
+        () =>
+          Array.map(mentions, mention =>
+            SubmittedIssueMention.make({ issueId, mention }),
+          ),
+      )
+      // A picture the Issue already holds (same bytes) is not attached again.
+      const storedHashes = new Set(
+        Array.getSomes(
+          Array.map(mentioned.attachments, attachment => attachment.sha256),
         ),
+      )
+      const newPictures = Array.filter(
+        pictures,
+        picture => !storedHashes.has(picture.sha256),
+      )
+      const issue = yield* attachPictures(host, issueId, newPictures).pipe(
+        Effect.mapError(
+          failure =>
+            new IssuesCommandFailure({
+              exitCode: FAILED_EXIT_CODE,
+              message: `issues mention added the Mention to #${issueId}, but ${failure.message} ${retryAttach(issueId, newPictures)}`,
+            }),
+        ),
+        Effect.map(Option.getOrElse(() => mentioned)),
       )
       return succeeded(
         input.isJson
           ? [issueJson(issue)]
           : [
               `Added ${mentions.length.toString()} Mention${mentions.length === 1 ? '' : 's'} to #${issueId}; it has ${issue.mentions.length.toString()}.`,
+              ...picturesSummary(newPictures),
             ],
       )
     }),

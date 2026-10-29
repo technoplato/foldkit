@@ -41,10 +41,12 @@ import {
 
 import {
   type AddProductInput,
+  type FileInput,
   type IssueFilesService,
   type IssuesHost,
   type IssuesOutcome,
   type ListInput,
+  type MentionInput,
   type WorkInProgressInput,
   addCriterionCommand,
   addMentionCommand,
@@ -64,8 +66,6 @@ import {
   markSubtasksCommand,
   rankIssueCommand,
   redactCredentials,
-  type FileInput,
-  type MentionInput,
   resolveSaid,
   resolveSaidMention,
   setIssueStatusCommand,
@@ -2122,10 +2122,7 @@ describe('issues carry the pictures of the moment they quote', () => {
     expect(storedFiles.size).toBe(0)
 
     const preview = await run(
-      fileIssueCommand(
-        host,
-        fileWith(['322:66-68'], { dryRun: true }),
-      ),
+      fileIssueCommand(host, fileWith(['322:66-68'], { dryRun: true })),
     )
     expect(preview.exitCode).toBe(0)
     expect(storedFiles.size).toBe(0)

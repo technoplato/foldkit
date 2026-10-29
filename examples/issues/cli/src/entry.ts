@@ -113,6 +113,15 @@ const optionalText = (name: string, description: string) =>
   Flag.string(name).pipe(Flag.withDescription(description), Flag.optional)
 const repeatedText = (name: string, description: string) =>
   Flag.string(name).pipe(Flag.withDescription(description), Flag.atLeast(0))
+const imagesFlag = repeatedText(
+  'image',
+  'A picture to attach as well, such as a mockup (repeat for more)',
+)
+const withoutImagesFlag = Flag.boolean('no-images').pipe(
+  Flag.withDescription(
+    "Quote --said lines without attaching that moment's screenshots and screen frames",
+  ),
+)
 const issueArgument = Argument.string('issue').pipe(
   Argument.withDescription('Issue number, such as 692 or #692'),
 )
@@ -138,7 +147,9 @@ const file = Command.make(
       'evidence',
       'Evidence every --criterion needs, such as FocusedTest,Log (default FocusedTest)',
     ),
+    images: imagesFlag,
     isJson: jsonFlag,
+    isWithoutImages: withoutImagesFlag,
     jsonInput: optionalText(
       'from-json',
       'Read the draft from a JSON file, or - for standard input (no "id": the number is allocated)',
@@ -159,7 +170,7 @@ const file = Command.make(
     related: repeatedText('related', 'Related Issue numbers, such as 502,691'),
     said: repeatedText(
       'said',
-      "Michael's recording lines, such as 208:1884-1888: read word for word from ~/Scribe with a deep link per line",
+      "Michael's recording lines, such as 208:1884-1888: read word for word from ~/Scribe with a deep link per line; that moment's screenshots and screen frames are attached",
     ),
     status: optionalText('status', 'Status (default Open)'),
     title: optionalText('title', 'Title'),
@@ -508,11 +519,13 @@ const wip = Command.make(
 const mention = Command.make(
   'mention',
   {
+    images: imagesFlag,
     issue: issueArgument,
     isJson: jsonFlag,
+    isWithoutImages: withoutImagesFlag,
     said: repeatedText(
       'said',
-      "Michael's recording lines, such as 208:1884-1888 (word for word, with deep links)",
+      "Michael's recording lines, such as 208:1884-1888 (word for word, with deep links); attaches that moment's screenshots and screen frames the Issue lacks",
     ),
     typed: optionalText(
       'typed',
