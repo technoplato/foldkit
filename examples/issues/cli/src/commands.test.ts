@@ -42,6 +42,12 @@ import {
 } from '@foldkit/instant-tools/issues'
 
 import {
+  BuildJob,
+  type BuildJobsRead,
+  FoundBuildJobs,
+  UnavailableBuildJobs,
+} from './builds.js'
+import {
   type AddProductInput,
   type FileInput,
   type IssueFilesService,
@@ -198,6 +204,8 @@ const makeHost = (
       files,
       mirrorRoot: makeMirror(),
       nowMs: () => 1_792_000_000_000,
+      readBuildJobs: () =>
+        Effect.succeed(FoundBuildJobs.make({ jobs: [], unreadable: [] })),
       readStandardInput: Effect.succeed(''),
       readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
       records: memoryIssueRecords(memory),
@@ -205,6 +213,7 @@ const makeHost = (
         StaticIssueTrackerResources,
         Layer.succeed(IssueTracker, tracker),
       ),
+      timeZone: 'America/New_York',
     }
     return { backupDirectory, host, links, memory, storedFiles }
   })
@@ -2498,5 +2507,165 @@ describe('issues working', () => {
     expect(working.stdout).toEqual([
       '#1374  P2  InProgress  Show who works on what  [Scribe]  running claude-code/issue-wip-1374@max  agent/claude/issue-wip-1374  1 file touched',
     ])
+  })
+})
+
+describe("issues show lists the Issue's build jobs", () => {
+  const nowMs = 1_792_000_000_000
+  const measured = BuildJob.make({
+    agent: 'build-sh-1412',
+    endedAtMs: nowMs - 60_000,
+    exitCode: 0,
+    heartbeatAtMs: nowMs - 60_000,
+    id: 'job-measure',
+    issueNumber: 1412,
+    label: 'measure-1412-cold',
+    machine: 'mini',
+    queuedAtMs: nowMs - 600_000,
+    slot: 1,
+    startedAtMs: nowMs - 240_000,
+    state: 'passed',
+    warm: true,
+  })
+  const buildIssue = stored('1412', 'build.sh on the mini', {
+    claimantId: Option.some('claude-code/build-sh-1412'),
+    successCriteria: [
+      IssueSuccessCriterion.make({
+        id: 'issue-1412-criterion-1',
+        outcome: 'A job on the mini is queryable from the issues tool.',
+        requiredEvidence: ['FocusedTest'],
+      }),
+    ],
+    workInProgress: Option.some(workAt('Pushed', Option.none())),
+  })
+  const reading = (
+    host: IssuesHost,
+    read: BuildJobsRead,
+  ): Readonly<{ asked: Array<number>; host: IssuesHost }> => {
+    const asked: Array<number> = []
+    return {
+      asked,
+      host: {
+        ...host,
+        readBuildJobs: issueNumber => {
+          asked.push(issueNumber)
+          return Effect.succeed(read)
+        },
+      },
+    }
+  }
+
+  it('prints them after Now working and Work in progress, before the success criteria', async () => {
+    const made = await run(makeHost([buildIssue]))
+    const { asked, host } = reading(
+      made.host,
+      FoundBuildJobs.make({ jobs: [measured], unreadable: [] }),
+    )
+
+    const shown = await run(
+      showIssueCommand(host, { issue: '1412', isJson: false }),
+    )
+
+    expect(shown.exitCode).toBe(0)
+    expect(asked).toEqual([1412])
+    const text = linesOf(shown)
+    expect(text).toContain(
+      "\n\nBuilds (Scribe's buildJobs, newest first)\n  10-14 13:36  passed  mini slot 1 warm  measure-1412-cold  exit 0  ran 3 min, waited 6 min  build-sh-1412\n",
+    )
+    expect(text.indexOf('Now working')).toBeLessThan(
+      text.indexOf('Work in progress'),
+    )
+    expect(text.indexOf('Work in progress')).toBeLessThan(
+      text.indexOf("Builds (Scribe's buildJobs"),
+    )
+    expect(text.indexOf("Builds (Scribe's buildJobs")).toBeLessThan(
+      text.indexOf('Success criteria'),
+    )
+  })
+
+  it('still shows the Issue, with one line saying why, when Scribe cannot be read', async () => {
+    const made = await run(makeHost([buildIssue]))
+    const { host } = reading(
+      made.host,
+      UnavailableBuildJobs.make({
+        reason: "Scribe's Instant app did not answer within 5 seconds.",
+      }),
+    )
+
+    const shown = await run(
+      showIssueCommand(host, { issue: '1412', isJson: false }),
+    )
+
+    expect(shown.exitCode).toBe(0)
+    expect(shown.stderr).toEqual([])
+    expect(shown.stdout).toContain(
+      "Builds not shown: Scribe's Instant app did not answer within 5 seconds.",
+    )
+    expect(shown.stdout).toContain('build.sh on the mini')
+  })
+
+  it('prints no Builds section when the Issue has no jobs', async () => {
+    const { host } = await run(makeHost([buildIssue]))
+
+    const text = linesOf(
+      await run(showIssueCommand(host, { issue: '1412', isJson: false })),
+    )
+
+    expect(text).toContain('Work in progress')
+    expect(text).not.toContain('Builds')
+  })
+
+  it('puts them under builds in --json, or says why under buildsNotShown', async () => {
+    const made = await run(makeHost([buildIssue]))
+    const withJobs = reading(
+      made.host,
+      FoundBuildJobs.make({ jobs: [measured], unreadable: [] }),
+    )
+    const withoutScribe = reading(
+      made.host,
+      UnavailableBuildJobs.make({ reason: 'no Scribe Instant credentials.' }),
+    )
+
+    const json = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(withJobs.host, { issue: '1412', isJson: true }),
+        ),
+      ),
+    )
+    const unavailable = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(withoutScribe.host, {
+            issue: '1412',
+            isJson: true,
+          }),
+        ),
+      ),
+    )
+
+    expect(json).toMatchObject({ builds: [measured], id: '1412' })
+    expect(json).not.toHaveProperty('buildsNotShown')
+    expect(unavailable).toMatchObject({
+      buildsNotShown: 'no Scribe Instant credentials.',
+      id: '1412',
+    })
+    expect(unavailable).not.toHaveProperty('builds')
+  })
+
+  it('asks for the number the Issue is stored under, and nothing for a number it cannot read', async () => {
+    const made = await run(makeHost([stored('041', 'An early Issue')]))
+    const { asked, host } = reading(
+      made.host,
+      FoundBuildJobs.make({ jobs: [], unreadable: [] }),
+    )
+
+    await run(showIssueCommand(host, { issue: '#041', isJson: false }))
+    const refused = await run(
+      showIssueCommand(host, { issue: 'issue-041', isJson: false }),
+    )
+
+    expect(asked).toEqual([41])
+    expect(refused.exitCode).toBe(2)
   })
 })

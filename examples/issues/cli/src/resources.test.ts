@@ -1,12 +1,16 @@
-import { Schedule } from 'effect'
+import { Array, Effect, Result, Schedule } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { InstantAPIError } from '@instantdb/admin'
 
+import { UnavailableBuildJobs } from './builds.js'
 import {
   type InstantAdminClient,
   adminAsInstantToolsDatabase,
   isRateLimited,
+  scribeBuildJobsReader,
+  scribeCredentialsOf,
+  scribeMainEnvPath,
 } from './resources.js'
 
 const rateLimited = () =>
@@ -116,5 +120,93 @@ describe('the Instant admin adapter', () => {
       database.queryOnce({ instantToolsIssues: {} }),
     ).rejects.toMatchObject({ status: 429 })
     expect(read.attempts()).toBe(4)
+  })
+})
+
+describe("Scribe's credentials for an Issue's build jobs", () => {
+  const appId = 'scribe-app-0123456789'
+  const adminToken = 'scribe-token-0123456789abcdef'
+
+  it('takes them from the environment first', () => {
+    expect(
+      scribeCredentialsOf(
+        {
+          SCRIBE_MAIN_INSTANT_ADMIN_TOKEN: adminToken,
+          SCRIBE_MAIN_INSTANT_APP_ID: appId,
+        },
+        Result.fail('no such file'),
+      ),
+    ).toEqual(Result.succeed({ adminToken, appId }))
+  })
+
+  it("reads scribe-main.env otherwise, and never the tracker's own variables", () => {
+    const envFile = Array.join(
+      [
+        '# Scribe production',
+        `SCRIBE_MAIN_INSTANT_APP_ID='${appId}'`,
+        `export SCRIBE_MAIN_INSTANT_ADMIN_TOKEN="${adminToken}"`,
+        'INSTANT_APP_ID=tracker-app',
+      ],
+      '\n',
+    )
+
+    expect(
+      scribeCredentialsOf(
+        { INSTANT_APP_ADMIN_TOKEN: 'tracker-token', INSTANT_APP_ID: 'tracker' },
+        Result.succeed(envFile),
+      ),
+    ).toEqual(Result.succeed({ adminToken, appId }))
+  })
+
+  it('names what is missing and where it looked, never a value', () => {
+    expect(
+      scribeCredentialsOf(
+        {},
+        Result.succeed(`SCRIBE_MAIN_INSTANT_APP_ID=${appId}`),
+      ),
+    ).toEqual(
+      Result.fail(
+        `neither the environment nor ${scribeMainEnvPath} sets SCRIBE_MAIN_INSTANT_ADMIN_TOKEN`,
+      ),
+    )
+    expect(scribeCredentialsOf({}, Result.fail('no such file'))).toEqual(
+      Result.fail(
+        `the environment does not set SCRIBE_MAIN_INSTANT_APP_ID and SCRIBE_MAIN_INSTANT_ADMIN_TOKEN, and ${scribeMainEnvPath} could not be read (no such file)`,
+      ),
+    )
+  })
+
+  it('answers that the builds are not shown, and why, without asking Scribe', async () => {
+    const sent: Array<unknown> = []
+    const read = scribeBuildJobsReader(
+      Result.fail(
+        `neither the environment nor ${scribeMainEnvPath} sets SCRIBE_MAIN_INSTANT_ADMIN_TOKEN`,
+      ),
+      () => query => {
+        sent.push(query)
+        return Promise.resolve({ buildJobs: [] })
+      },
+    )
+
+    expect(await Effect.runPromise(read(1412))).toEqual(
+      UnavailableBuildJobs.make({
+        reason: `no Scribe Instant credentials: neither the environment nor ${scribeMainEnvPath} sets SCRIBE_MAIN_INSTANT_ADMIN_TOKEN.`,
+      }),
+    )
+    expect(sent).toEqual([])
+  })
+
+  it('asks Scribe with the credentials it found', async () => {
+    const askedWith: Array<unknown> = []
+    const read = scribeBuildJobsReader(
+      Result.succeed({ adminToken, appId }),
+      credentials => () => {
+        askedWith.push(credentials)
+        return Promise.resolve({ buildJobs: [] })
+      },
+    )
+
+    expect((await Effect.runPromise(read(1412)))._tag).toBe('FoundBuildJobs')
+    expect(askedWith).toEqual([{ adminToken, appId }])
   })
 })
