@@ -1,4 +1,13 @@
-import { Array, Data, Effect, Option, Schedule, String } from 'effect'
+import {
+  Array,
+  Data,
+  Effect,
+  Option,
+  Result,
+  Schema as S,
+  Schedule,
+  String,
+} from 'effect'
 import {
   StaticIssueTrackerResources,
   makeLiveIssueTrackerResources,
@@ -20,9 +29,16 @@ import {
   type IssueStatus,
   type IssueTrackerError,
   type IssueTrackerService,
+  describeIssueTrackerCause,
 } from '@foldkit/instant-tools/issues'
 import { InstantAPIError, init as initAdmin, lookup } from '@instantdb/admin'
 
+import {
+  type BuildJobsReader,
+  type ScribeQuery,
+  UnavailableBuildJobs,
+  readBuildJobs,
+} from './builds.js'
 import { type IssueFilesService } from './commands.js'
 
 /** Instant Tools env documented by the issues example and listener. */
@@ -51,22 +67,36 @@ const unquote = (value: string): string => {
   return value
 }
 
-const applyLine = (line: string): void => {
+type EnvEntry = Readonly<{ key: string; value: string }>
+
+const exportPrefix = /^export\s+/
+
+const envEntryOf = (line: string): Option.Option<EnvEntry> => {
   const trimmed = line.trim()
   if (trimmed === '' || trimmed.startsWith('#')) {
-    return
+    return Option.none()
   }
-  const maybeSeparator = String.indexOf('=')(trimmed)
-  if (Option.isNone(maybeSeparator)) {
-    return
-  }
-  const key = trimmed.slice(0, maybeSeparator.value)
-  const value = unquote(trimmed.slice(maybeSeparator.value + 1))
-  if (key === '' || process.env[key] !== undefined) {
-    return
-  }
-  process.env[key] = value
+  return Option.flatMap(String.indexOf('=')(trimmed), separator => {
+    const key = trimmed.slice(0, separator).replace(exportPrefix, '')
+    if (key === '') {
+      return Option.none()
+    } else {
+      return Option.some({
+        key,
+        value: unquote(trimmed.slice(separator + 1)),
+      })
+    }
+  })
 }
+
+/**
+ * The `KEY=value` lines of an env file, in order: blank lines and `#`
+ * comments are skipped, and an `export ` prefix and one pair of quotes around
+ * the value are removed, so `export SCRIBE_MAIN_INSTANT_APP_ID='abc'` reads
+ * as `SCRIBE_MAIN_INSTANT_APP_ID` = `abc`.
+ */
+export const envFileEntries = (text: string): ReadonlyArray<EnvEntry> =>
+  Array.getSomes(Array.map(text.split('\n'), envEntryOf))
 
 /** Fills missing Instant keys from the documented Instant Tools env file. */
 export const loadDocumentedInstantEnv = (): void => {
@@ -78,9 +108,10 @@ export const loadDocumentedInstantEnv = (): void => {
   if (!existsSync(path)) {
     return
   }
-  const lines = readFileSync(path, 'utf8').split('\n')
-  for (const fileLine of lines) {
-    applyLine(fileLine)
+  for (const { key, value } of envFileEntries(readFileSync(path, 'utf8'))) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value
+    }
   }
 }
 
@@ -289,11 +320,137 @@ export type IssueRecordsService = Readonly<{
 
 /** Every live resource the one-shot command needs. */
 export type LiveIssueHostServices = Readonly<{
+  buildJobs: BuildJobsReader
   credentials: ReadonlyArray<string>
   files: IssueFilesService
   records: IssueRecordsService
   resources: ReturnType<typeof makeLiveIssueTrackerResources>
 }>
+
+/**
+ * The env file of Scribe's main Instant app, where `issues show` reads an
+ * Issue's build jobs (Scribe #1412): `SCRIBE_MAIN_INSTANT_APP_ID` and
+ * `SCRIBE_MAIN_INSTANT_ADMIN_TOKEN`.
+ */
+export const scribeMainEnvPath = join(
+  homedir(),
+  '.config',
+  'instant-tools',
+  'scribe-main.env',
+)
+
+const scribeAppIdName = 'SCRIBE_MAIN_INSTANT_APP_ID'
+const scribeAdminTokenName = 'SCRIBE_MAIN_INSTANT_ADMIN_TOKEN'
+
+/** The app id and admin token of Scribe's main Instant app. */
+export const ScribeCredentials = S.Struct({
+  adminToken: S.String,
+  appId: S.String,
+})
+/** The app id and admin token of Scribe's main Instant app. */
+export type ScribeCredentials = typeof ScribeCredentials.Type
+
+const nonEmpty = (value: string | undefined): Option.Option<string> =>
+  Option.filter(Option.fromNullishOr(value), String.isNonEmpty)
+
+/**
+ * Scribe's main app credentials: each from `environment`, else from
+ * `scribe-main.env` (`envFile`: its text, or why it could not be read). The
+ * tracker's own `INSTANT_APP_ID` is never read, so `issues show` cannot ask
+ * the tracker's app for Scribe's jobs. A failure names what is missing and
+ * where it looked, never a value.
+ */
+export const scribeCredentialsOf = (
+  environment: Readonly<Record<string, string | undefined>>,
+  envFile: Result.Result<string, string>,
+): Result.Result<ScribeCredentials, string> => {
+  const fileEntries = Result.getOrElse(
+    Result.map(envFile, envFileEntries),
+    () => [],
+  )
+  const credentialOf = (name: string): Option.Option<string> =>
+    Option.orElse(nonEmpty(environment[name]), () =>
+      Option.flatMap(
+        Array.findFirst(fileEntries, entry => entry.key === name),
+        entry => nonEmpty(entry.value),
+      ),
+    )
+  const maybeAppId = credentialOf(scribeAppIdName)
+  const maybeAdminToken = credentialOf(scribeAdminTokenName)
+  if (Option.isSome(maybeAppId) && Option.isSome(maybeAdminToken)) {
+    return Result.succeed(
+      ScribeCredentials.make({
+        adminToken: maybeAdminToken.value,
+        appId: maybeAppId.value,
+      }),
+    )
+  }
+  const missing = Array.join(
+    [
+      ...(Option.isNone(maybeAppId) ? [scribeAppIdName] : []),
+      ...(Option.isNone(maybeAdminToken) ? [scribeAdminTokenName] : []),
+    ],
+    ' and ',
+  )
+  return Result.fail(
+    Result.match(envFile, {
+      onFailure: why =>
+        `the environment does not set ${missing}, and ${scribeMainEnvPath} could not be read (${why})`,
+      onSuccess: () =>
+        `neither the environment nor ${scribeMainEnvPath} sets ${missing}`,
+    }),
+  )
+}
+
+/**
+ * Sends InstaQL to Scribe's main Instant app as its admin, with no schema, so
+ * rows come back as stored. Aborting the signal abandons the request.
+ */
+export const adminScribeQuery =
+  (credentials: ScribeCredentials): ScribeQuery =>
+  (query, signal) =>
+    initAdmin({
+      adminToken: credentials.adminToken,
+      appId: credentials.appId,
+      disableValidation: true,
+    }).query(
+      // oxlint-disable-next-line typescript/consistent-type-assertions
+      query as never,
+      { fetchOpts: { signal } },
+    )
+
+/**
+ * Reads an Issue's build jobs from Scribe's main Instant app, a second app
+ * beside the tracker's (Scribe #1412), with `queryFor`'s client. Without
+ * credentials every read answers `UnavailableBuildJobs` naming what is
+ * missing, and nothing is sent.
+ */
+export const scribeBuildJobsReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): BuildJobsReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableBuildJobs.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readBuildJobs(send, issueNumber)
+    },
+  })
+
+const scribeMainEnvText = (): Result.Result<string, string> => {
+  if (!existsSync(scribeMainEnvPath)) {
+    return Result.fail('no such file')
+  }
+  return Result.try({
+    try: () => readFileSync(scribeMainEnvPath, 'utf8'),
+    catch: describeIssueTrackerCause,
+  })
+}
 
 const contentDispositionFor = (fileName: string): string =>
   `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
@@ -390,8 +547,19 @@ export const liveIssueHostServices = ():
   })
   const database = adminAsInstantToolsDatabase(admin)
   const store = makeInstantEntityStore(database)
+  const scribeCredentials = scribeCredentialsOf(
+    process.env,
+    scribeMainEnvText(),
+  )
   return {
-    credentials: [adminToken],
+    buildJobs: scribeBuildJobsReader(scribeCredentials),
+    credentials: [
+      adminToken,
+      ...Result.match(scribeCredentials, {
+        onFailure: () => [],
+        onSuccess: found => [found.adminToken],
+      }),
+    ],
     files: liveIssueFiles(
       initAdmin({
         adminToken,

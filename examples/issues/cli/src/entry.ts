@@ -74,10 +74,12 @@ const liveHost = (services: LiveIssueHostServices): IssuesHost => ({
   files: services.files,
   mirrorRoot: environmentPath('SCRIBE_ROOT', join(homedir(), 'Scribe')),
   nowMs: () => Date.now(),
+  readBuildJobs: services.buildJobs,
   readStandardInput: Effect.promise(readStandardInput),
   readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
   records: services.records,
   resources: services.resources,
+  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 })
 
 const report = (outcome: IssuesOutcome): Effect.Effect<void> =>
@@ -199,7 +201,11 @@ const show = Command.make(
   'show',
   { isJson: jsonFlag, issue: issueArgument },
   input => withLiveHost(host => showIssueCommand(host, input)),
-).pipe(Command.withDescription('Print one Issue in full'))
+).pipe(
+  Command.withDescription(
+    "Print one Issue in full, with its newest build jobs from Scribe's buildJobs",
+  ),
+)
 
 const list = Command.make(
   'list',

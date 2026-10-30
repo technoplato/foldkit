@@ -108,6 +108,18 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   touched with their line counts; and the last step with its time.
   `list --working` lists the Issues an agent runs on now with the agent, the
   branch, and the file count.
+- After Now working and Work in progress, `show` lists the Issue's newest 10
+  build jobs from Scribe's `buildJobs` (a row for every job Scribe's build
+  script runs; Scribe ADR 0104), newest first, one line each: when it was
+  queued in local time, its state, the machine and slot (warm or cold), its
+  label, its exit code, how long it ran and waited, and its agent, such as
+  `10-30 12:06  passed   mini slot 1 warm  measure-1412-cold  exit 0  ran 4 min, waited 6 min  build-sh-1412`.
+  A running job whose heartbeat is older than 3 minutes adds
+  `last heartbeat 10 min ago`: its machine stopped writing. `--json` carries
+  the rows under `builds`. The jobs are read from Scribe's main Instant app,
+  bounded at 5 seconds and alongside the Issue; when they cannot be read,
+  `show` prints `Builds not shown:` with the reason (`buildsNotShown` in
+  `--json`) and still succeeds.
 - `list --landing` lists the work close to landing: Green or Pushed, not
   abandoned. Stuck work stays in that list with its reason. `--wip` lists
   every Issue with work recorded, `--stuck` the stuck ones, and
@@ -141,7 +153,10 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   and the real cause), 2 a usage error (the message lists the valid values),
   3 the Issue does not exist.
 - Credentials come from `~/.config/instant-tools/instant.env`
-  (`INSTANT_TOOLS_ENV_FILE` overrides it) and are never printed.
+  (`INSTANT_TOOLS_ENV_FILE` overrides it) and are never printed. Build jobs
+  are read with Scribe's own `SCRIBE_MAIN_INSTANT_APP_ID` and
+  `SCRIBE_MAIN_INSTANT_ADMIN_TOKEN`, from the environment, else
+  `~/.config/instant-tools/scribe-main.env`.
 
 ## The site: issues.pisspoursoftware.xyz
 

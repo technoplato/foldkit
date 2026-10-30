@@ -175,6 +175,9 @@ describe("an Issue's build jobs", () => {
     expect(
       Array.join(sectionOf(passedOnTheMini, 'Asia/Tokyo'), '\n'),
     ).toContain('  10-31 01:06  passed')
+    expect(
+      Array.join(sectionOf(passedOnTheMini, 'Etc/Unknown'), '\n'),
+    ).toContain('passed  mini slot 1 warm  measure-1412-cold')
   })
 
   it('counts seconds under 90 s, minutes under 90 min, then hours to one decimal', () => {
@@ -355,6 +358,21 @@ describe("reading an Issue's build jobs from Scribe", () => {
     )
     expect(Array.map(signals, signal => signal.aborted)).toEqual([true])
     expect(Date.now() - startedAtMs).toBeLessThan(2_000)
+  })
+
+  it('says why when the request cannot even be sent', async () => {
+    const read = await run(
+      readBuildJobs(() => {
+        throw new Error('Instant admin needs an app id')
+      }, 1412),
+    )
+
+    expect(read).toEqual(
+      UnavailableBuildJobs.make({
+        reason:
+          "the buildJobs query to Scribe's Instant app failed: Instant admin needs an app id",
+      }),
+    )
   })
 
   it('says so when Scribe answers without a buildJobs list', async () => {

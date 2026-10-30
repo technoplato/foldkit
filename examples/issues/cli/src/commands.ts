@@ -107,6 +107,12 @@ import {
 } from '@foldkit/instant-tools/issues'
 
 import {
+  type BuildJobsRead,
+  type BuildJobsReader,
+  buildJobsJson,
+  buildJobsSection,
+} from './builds.js'
+import {
   IssuesCommandFailure,
   executeMessages,
   withCatalogStatuses,
@@ -181,10 +187,17 @@ export type IssuesHost = Readonly<{
   files: IssueFilesService
   mirrorRoot: string
   nowMs: () => number
+  /**
+   * An Issue's newest build jobs from Scribe's `buildJobs`, by the Issue's
+   * number, such as 1412. It never fails and answers within 5 seconds.
+   */
+  readBuildJobs: BuildJobsReader
   readStandardInput: Effect.Effect<string>
   readTextFile: (path: string) => Effect.Effect<string, unknown>
   records: IssueRecordsService
   resources: Layer.Layer<IssueTrackerResources>
+  /** The time zone build jobs print their times in, such as `America/New_York`. */
+  timeZone: string
 }>
 
 /** What a command prints and the exit code it ends with. */
@@ -759,8 +772,14 @@ const mentionLines = (mention: IssueMention): ReadonlyArray<string> => [
   ),
 ]
 
-/** Prints one Issue in full, its work log oldest first. */
-export const issueDetailLines = (issue: Issue): ReadonlyArray<string> => [
+/**
+ * Prints one Issue in full, its work log oldest first, with
+ * `buildJobLines` (its Builds section) after Now working and Work in progress.
+ */
+export const issueDetailLines = (
+  issue: Issue,
+  buildJobLines: ReadonlyArray<string> = [],
+): ReadonlyArray<string> => [
   issueHeadline(issue),
   issue.title,
   ...optionalLine('Area', issue.area),
@@ -775,6 +794,7 @@ export const issueDetailLines = (issue: Issue): ReadonlyArray<string> => [
     onSome: work =>
       section('Work in progress', indented(workInProgressLines(work))),
   }),
+  ...buildJobLines,
   ...section(`Subtasks (${subtaskProgress(issue)})`, subtaskLines(issue)),
   ...section(
     'Success criteria',
@@ -825,6 +845,9 @@ const encodeIssue = S.encodeSync(Issue)
 
 const issueJson = (issue: Issue): string =>
   JSON.stringify(encodeIssue(issue), null, 2)
+
+const issueWithBuildJobsJson = (issue: Issue, builds: BuildJobsRead): string =>
+  JSON.stringify({ ...encodeIssue(issue), ...buildJobsJson(builds) }, null, 2)
 
 // RUN
 
@@ -989,7 +1012,11 @@ export const fileIssueCommand = (
     }),
   )
 
-/** Prints one Issue in full, or as JSON. */
+/**
+ * Prints one Issue in full, or as JSON, with its newest build jobs from
+ * Scribe (Scribe #1412). The jobs are read while the Issue is, and a failed
+ * or slow read prints why instead of failing the command.
+ */
 export const showIssueCommand = (
   host: IssuesHost,
   input: Readonly<{ issue: string; isJson: boolean }>,
@@ -997,14 +1024,25 @@ export const showIssueCommand = (
   finish(
     Effect.gen(function* () {
       const issueId = yield* parseIssueNumber(input.issue)
-      const model = yield* executeMessages(
-        IssueDetail.make({ issueId }),
-        () => Effect.succeed([]),
-        host.resources,
+      const [model, builds] = yield* Effect.all(
+        [
+          executeMessages(
+            IssueDetail.make({ issueId }),
+            () => Effect.succeed([]),
+            host.resources,
+          ),
+          host.readBuildJobs(Number(issueId)),
+        ],
+        { concurrency: 'unbounded' },
       )
       const issue = yield* loadedIssueOf('show', model, issueId)
       return succeeded(
-        input.isJson ? [issueJson(issue)] : issueDetailLines(issue),
+        input.isJson
+          ? [issueWithBuildJobsJson(issue, builds)]
+          : issueDetailLines(
+              issue,
+              buildJobsSection(builds, host.nowMs(), host.timeZone),
+            ),
       )
     }),
   )
