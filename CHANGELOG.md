@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 30th, 2026 at 12:58:40 p.m. EDT — `7105e39ba422` feat(issues): green: issues show lists the Issue's build jobs
+
+- **Implementation commit:** `7105e39ba4227c6f4a4242d5d99a4aea873de5fe`
+- **Change:** issues show lists the Issue's newest build jobs from Scribe's buildJobs, for Scribe issue #1412
+- **Details:**
+  - issues show reads the Issue's newest 10 buildJobs rows from Scribe's main Instant app alongside the Issue (a second admin query with Scribe's own credentials, from the environment or scribe-main.env, abandoned after 5 seconds) and prints them after Now working and Work in progress, newest first, one aligned line each: queued time in the Mac's time zone, state, machine and slot (warm or cold), label, exit code, how long it ran and waited, a running job's heartbeat when older than 3 minutes, and its agent. --json adds builds (or buildsNotShown); issues --help says show prints them. A missing credential, a refused or failed query, or no answer prints one Builds not shown line and the command still succeeds. Red da1d034ac, green 7105e39ba. CLI tests 91/91 (65 before), tsc and oxlint clean.
+- **Files:**
+  - `examples/issues/cli/src/builds.ts` — the buildJobs read, bounded at 5 seconds, and the Builds section and JSON keys
+  - `examples/issues/cli/src/resources.ts` — Scribe's credentials and the live reader; the env file parser shared with the tracker's
+  - `examples/issues/cli/src/commands.ts` — issues show reads the jobs with the Issue and prints them after Work in progress
+  - `examples/issues/cli/src/entry.ts` — the live host's build-job reader and time zone, and the show help text
+  - `examples/issues/cli/src/builds.test.ts` — a request that cannot be sent, and a time zone the Mac cannot name
+  - `examples/issues/README.md` — the Builds section and Scribe's credentials
+- **User context (verbatim):**
+  > I like the idea of having the issues add this kind of build information to the schema for Scribe so that we can always query it with one tool. (the owner, typed in the Claude chat 2026-10-30, Scribe #1412)
+- **SpecStory:** unavailable — Claude Code headless sub-agent of claude-code/build-sh-1412, started by its parent session; no SpecStory capture.
+
 ## October 29th, 2026 at 7:38:55 p.m. EDT — `867f9230cba5` fix(issues): green: a recount replaces the stored count and its time
 
 - **Implementation commit:** `867f9230cba5adccfe09ef76d8ecd906de3c3952`
