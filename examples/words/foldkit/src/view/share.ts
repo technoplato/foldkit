@@ -7,8 +7,10 @@ import {
   type Model,
   type Section,
   Share,
+  ShareRoute,
   displayedSharedRangeOf,
   formatClock,
+  scribeRouteToPath,
 } from 'words-core-example'
 
 import { ShowShareDialog } from '../mount.js'
@@ -816,7 +818,18 @@ const scrubbedImage = (image: Share.Model.ScrubbedImage): Html => {
   )
 }
 
-const sharedItems = (range: Share.Model.SharedRange): Html => {
+/**
+ * A line's own link inside the share (#1465): the link the reader opened, with its token, and `m` for the line. It opens this
+ * copy, never the recording, so it holds for anyone the share reaches.
+ */
+const sharedMomentHref =
+  (model: Model) =>
+  (line: Section): string | undefined =>
+    model.route._tag === 'Share'
+      ? scribeRouteToPath(ShareRoute({ ...model.route, m: Option.some(line.id) }))
+      : undefined
+
+const sharedItems = (range: Share.Model.SharedRange, model: Model): Html => {
   const h = html<Message>()
   return h.div(
     [h.Class('flex flex-col gap-0.5')],
@@ -825,7 +838,7 @@ const sharedItems = (range: Share.Model.SharedRange): Html => {
         M.withReturnType<Html>(),
         M.tagsExhaustive({
           SharedLineItem: ({ line }) =>
-            readOnlySections([line], () => undefined),
+            readOnlySections([line], () => undefined, sharedMomentHref(model)),
           SharedImageItem: ({ image }) => scrubbedImage(image),
         }),
       ),
@@ -876,6 +889,7 @@ const withheldShare = (maybeReason: Option.Option<string>): Html => {
 const readySharedRange = (
   range: Share.Model.SharedRange,
   claim: Share.Model.ClaimState,
+  model: Model,
 ): ReadonlyArray<Html> =>
   M.value(range.scrub).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
@@ -893,13 +907,13 @@ const readySharedRange = (
           true,
         ),
         ...(hasSharedItems(range)
-          ? [sharedItems(range), restBeingChecked()]
+          ? [sharedItems(range, model), restBeingChecked()]
           : []),
       ],
       PassedScrub: () => [
         sharedRangeHeader(range, claim),
         ...sharedAudio(range.audio),
-        sharedItems(range),
+        sharedItems(range, model),
         ...noAudioNotice(range.audio),
       ],
     }),
@@ -942,7 +956,7 @@ export const sharedRangePage = (model: Model): Html => {
             sharedRangeNotice('The share could not load', reason, false),
           ],
           ReadySharedRange: ({ range, claim }) =>
-            readySharedRange(range, claim),
+            readySharedRange(range, claim, model),
         }),
       ),
     ],

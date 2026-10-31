@@ -99,6 +99,7 @@ export const shareLinkOf = (share: RecordingShare): string =>
       recordingID: share.recordingID,
       shareID: share.id,
       k: share.maybeLinkToken,
+      m: Option.none(),
     }),
   )
 
@@ -144,6 +145,7 @@ export const CreateShares = Command.define(
               recordingID: creation.recordingID,
               shareID,
               k: Option.some(token),
+              m: Option.none(),
             }),
           ),
         ),

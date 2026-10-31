@@ -1800,14 +1800,14 @@ describe('recordings shared with this account', () => {
 
   it('opens the share in place of the recording page, whichever answer comes first', () => {
     const sharePath = scribeRouteToPath(
-      ShareRoute({ recordingID, shareID: 'newer', k: Option.none() }),
+      ShareRoute({ recordingID, shareID: 'newer', k: Option.none(), m: Option.none() }),
     )
     const sharesFirst = run(signedInAt(RecordingRoute({ recordingID })), [
       received([shareOf('newer', 20)]),
       observed(detail({ summary: othersSummary })),
     ])
     expect(sharesFirst.model.route).toEqual(
-      ShareRoute({ recordingID, shareID: 'newer', k: Option.none() }),
+      ShareRoute({ recordingID, shareID: 'newer', k: Option.none(), m: Option.none() }),
     )
     expect(sharesFirst.model.playback._tag).toBe('NoPlayback')
     expect(sharesFirst.model.share.sharedRange._tag).toBe('OpeningSharedRange')

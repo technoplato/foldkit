@@ -134,10 +134,24 @@ const sectionMenuButton = (
   ]
 }
 
-const plainTimestamp = (section: Section): ReadonlyArray<Html> => {
+const plainTimestamp = (
+  section: Section,
+  maybeMomentHref: string | undefined,
+): ReadonlyArray<Html> => {
   const h = html<Message>()
+  const time = formatClock(section.startSeconds)
   return [
-    h.span([h.Class(timestampClass)], [formatClock(section.startSeconds)]),
+    maybeMomentHref === undefined
+      ? h.span([h.Class(timestampClass)], [time])
+      : // A time that opens something is the link, and wears the link's color (#1392, #1465).
+        h.a(
+          [
+            h.Href(maybeMomentHref),
+            h.AriaLabel(`Link to this moment, ${time}`),
+            h.Class(`${timestampClass} !text-tint hover:underline`),
+          ],
+          [time],
+        ),
   ]
 }
 
@@ -220,6 +234,7 @@ const sectionView = (
   speakerLabel: string | undefined,
   isPlayable: boolean,
   hasActions: boolean,
+  maybeMomentHref?: string,
 ): Html => {
   const h = html<Message>()
   const surface = isCurrent ? 'bg-fill/70' : ''
@@ -234,7 +249,7 @@ const sectionView = (
     [
       ...(hasActions
         ? sectionMenuButton(section, isPlayable)
-        : plainTimestamp(section)),
+        : plainTimestamp(section, maybeMomentHref)),
       h.div(
         [h.Class('flex min-w-0 flex-col py-1')],
         [
@@ -447,6 +462,7 @@ export const transcript = (
 export const readOnlySections = (
   sections: ReadonlyArray<Section>,
   speakerLabel: (section: Section) => string | undefined,
+  momentHref?: (section: Section) => string | undefined,
 ): Html => {
   const h = html<Message>()
   const runStartIDs = speakerRunStartIDsOf(sections)
@@ -464,6 +480,7 @@ export const readOnlySections = (
           : undefined,
         false,
         false,
+        momentHref?.(section),
       ),
     ),
   )

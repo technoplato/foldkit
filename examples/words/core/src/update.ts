@@ -2348,6 +2348,7 @@ export const receivedShareRouteOf = (
     recordingID: share.recordingID,
     shareID: share.id,
     k: share.maybeLinkToken,
+    m: Option.none(),
   })
 
 const summaryOnScreenOf = (
@@ -2437,14 +2438,61 @@ const shareContextOf = (model: Model): Share.ShareContext => ({
   maybeLinkToken: shareLinkTokenOf(model),
 })
 
+/** Whether the open share shows this line yet: it can still be waiting on the scrubber. */
+const isSharedLineOnScreen = (
+  model: Model,
+  shareID: string,
+  lineID: string,
+): boolean =>
+  M.value(model.share.sharedRange).pipe(
+    M.withReturnType<boolean>(),
+    M.tag(
+      'ReadySharedRange',
+      ready =>
+        ready.shareID === shareID &&
+        Array.some(ready.range.lines, line => line.id === lineID),
+    ),
+    M.orElse(() => false),
+  )
+
+/**
+ * A moment of a share has its own link, `m` naming the line (#1465): the page moves to that line when
+ * the link is followed or when the line first arrives, and leaves a reader's scrolling alone after that.
+ */
+const momentScrolls = (
+  before: Model,
+  after: Model,
+): Commands =>
+  M.value(after.route).pipe(
+    M.withReturnType<Commands>(),
+    M.tag('Share', ({ shareID, m }) =>
+      Option.match(m, {
+        onNone: () => [],
+        onSome: lineID => {
+          const hadIt =
+            before.route._tag === 'Share' &&
+            Option.contains(before.route.m, lineID) &&
+            isSharedLineOnScreen(before, shareID, lineID)
+          return !hadIt && isSharedLineOnScreen(after, shareID, lineID)
+            ? [ScrollToSection({ sectionID: lineID, placement: 'Center' })]
+            : []
+        },
+      }),
+    ),
+    M.orElse(() => []),
+  )
+
 const applyShareResult = (
   model: Model,
   [nextShare, shareCommands, maybeOutMessage]: Share.UpdateReturn,
 ): UpdateReturn => {
-  const mappedCommands = Command.mapMessages(shareCommands, message =>
-    GotShareMessage({ message }),
-  )
   const nextModel = evo(model, { share: () => nextShare })
+  const mappedCommands = [
+    ...Command.mapMessages(shareCommands, message =>
+      GotShareMessage({ message }),
+    ),
+    ...momentScrolls(model, nextModel),
+  ]
   return Option.match(maybeOutMessage, {
     onNone: () => [nextModel, mappedCommands],
     onSome: outMessage =>
@@ -2504,8 +2552,12 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             External: ({ href }) => [model, [LoadExternal({ href })]],
           }),
         ),
-      ChangedUrl: ({ url }) =>
-        openingReceivedShare(applyRoute(model, urlToScribeRoute(url))),
+      ChangedUrl: ({ url }) => {
+        const [next, commands] = openingReceivedShare(
+          applyRoute(model, urlToScribeRoute(url)),
+        )
+        return [next, [...commands, ...momentScrolls(model, next)]]
+      },
       CompletedNavigate: () => [model, []],
       CompletedLoadExternal: () => [model, []],
 

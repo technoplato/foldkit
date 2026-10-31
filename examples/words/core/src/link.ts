@@ -106,6 +106,8 @@ export const ShareRoute = r('Share', {
   recordingID: S.String,
   shareID: S.String,
   k: S.Option(S.String),
+  /** The moment of the share this link opens at: one of its lines (#1465). */
+  m: S.Option(S.String),
 })
 /** A Stream Interactor thread in a recording. */
 export const ThreadRoute = r('Thread', {
@@ -194,7 +196,12 @@ const shareRouter = pipe(
   slash(uuidSegment('recordingID')),
   slash(literal('share')),
   slash(uuidSegment('shareID')),
-  Route.query(S.Struct({ k: S.OptionFromOptional(S.String) })),
+  Route.query(
+    S.Struct({
+      k: S.OptionFromOptional(S.String),
+      m: S.OptionFromOptional(S.String),
+    }),
+  ),
   Route.mapTo(ShareRoute),
 )
 
@@ -269,8 +276,8 @@ export const scribeRouteToPath = (route: ScribeRoute): string =>
       Recording: ({ recordingID }) => recordingRouter({ recordingID }),
       Section: ({ recordingID, sectionID, t }) =>
         sectionRouter({ recordingID, sectionID, t }),
-      Share: ({ recordingID, shareID, k }) =>
-        shareRouter({ recordingID, shareID, k }),
+      Share: ({ recordingID, shareID, k, m }) =>
+        shareRouter({ recordingID, shareID, k, m }),
       Playback: ({ recordingID, t, focus }) =>
         playbackRouter({ recordingID, t, focus }),
       Thread: ({ recordingID, threadID }) =>

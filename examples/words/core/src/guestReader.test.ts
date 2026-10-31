@@ -49,6 +49,7 @@ const readerAt = (
           recordingID,
           shareID,
           k: options.k ?? Option.some('the-share-key'),
+          m: Option.none(),
         }),
   )
   return {
