@@ -98,6 +98,19 @@ const sharedPageModel = (range: Share.Model.SharedRange): Model => {
 const withAudio = (audio: Share.Model.SharedAudio): Model =>
   sharedPageModel({ ...passedRange(), audio })
 
+describe("a shared moment's link (#1465)", () => {
+  test("each line's time links to that moment in this share, with the share's own token", () => {
+    Scene.scene(
+      { update, view: sharedRangePage },
+      Scene.with(sharedPageModel(passedRange())),
+      Scene.expect(Scene.role('link', { name: 'Link to this moment, 0:05' })).toHaveAttr(
+        'href',
+        `/recording/${recordingID}/share/${shareID}?k=${linkToken}&m=line-1`,
+      ),
+    )
+  })
+})
+
 describe('the share page reads only the scrubbed copy', () => {
   test('shows a passed share: its scrubbed title, note, lines, and images', () => {
     Scene.scene(

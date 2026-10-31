@@ -122,11 +122,22 @@ describe('scribeRouteFromLink', () => {
           recordingID,
           shareID: sectionID,
           k: Option.some('abc123'),
+          m: Option.none(),
         }),
       ],
       [
         `scribe-shared://recording/${recordingID}/share/${sectionID}`,
-        ShareRoute({ recordingID, shareID: sectionID, k: Option.none() }),
+        ShareRoute({ recordingID, shareID: sectionID, k: Option.none(), m: Option.none() }),
+      ],
+      // A moment of a share has its own link (#1465).
+      [
+        `https://words.pisspoursoftware.xyz/recording/${recordingID}/share/${sectionID}?k=abc123&m=line-5`,
+        ShareRoute({
+          recordingID,
+          shareID: sectionID,
+          k: Option.some('abc123'),
+          m: Option.some('line-5'),
+        }),
       ],
       ['scribe-shared-dev://account', AccountRoute()],
       [
