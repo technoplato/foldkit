@@ -107,6 +107,12 @@ export const walletAccountBalanceLabel = (
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return 'Unavailable'
   }
+  if (model.balanceFreshness._tag === 'RefreshingBalances') {
+    return 'Checking…'
+  }
+  if (model.balanceFreshness._tag === 'FailedBalanceRefresh') {
+    return 'Unavailable'
+  }
   const balances = Array.filter(
     model.portfolio.snapshot.balanceSnapshot.balances,
     balance => balance.accountId === accountId,
@@ -235,6 +241,43 @@ export const primaryWalletBalance = (
         )
       : Option.none(),
   )
+
+/**
+ * The selected account's balance as words, never a number the chains have
+ * not just confirmed: while fresh balances are on their way it says it is
+ * checking, and after a failed refresh it says the balance could not be
+ * read.
+ *
+ * @example
+ * ```typescript
+ * primaryWalletBalanceLabel(model) // 'Checking the Solana Mainnet Beta balance…'
+ * ```
+ */
+export const primaryWalletBalanceLabel = (model: Model): string => {
+  if (model.portfolio._tag === 'LoadingPortfolio') {
+    return 'Loading…'
+  }
+  const networkName = Option.match(primaryWalletNetwork(model), {
+    onNone: () => 'selected network',
+    onSome: network => network.displayName,
+  })
+  return M.value(model.balanceFreshness).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      RefreshingBalances: () => `Checking the ${networkName} balance…`,
+      FailedBalanceRefresh: () =>
+        `The ${networkName} balance could not be read. Refresh to try again.`,
+      CurrentBalances: () =>
+        Option.match(primaryWalletBalance(model), {
+          onNone: () =>
+            isPrimaryWalletBalanceUnavailable(model)
+              ? 'Unavailable. Refresh to retry.'
+              : '—',
+          onSome: balance => assetAmountLabelForModel(model, balance.amount),
+        }),
+    }),
+  )
+}
 
 /** Reports whether the selected account's live balance request failed. */
 export const isPrimaryWalletBalanceUnavailable = (model: Model): boolean =>
