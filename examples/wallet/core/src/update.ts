@@ -560,19 +560,6 @@ const refreshWalletBalanceCommands = (
       ]
     : []
 
-const portfolioCommandsForRestore = (
-  model: Model,
-): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
-  model.portfolio._tag === 'LoadingPortfolio' &&
-  model.walletProfileLoading._tag === 'LoadedWalletProfiles'
-    ? [
-        LoadWallet({
-          requestId: model.portfolio.requestId,
-          wallets: model.wallets,
-        }),
-      ]
-    : []
-
 const testFundingCommandsForRestore = (
   model: Model,
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
@@ -597,14 +584,12 @@ const transactionCommandsForRestore = (
         recipientHistory: model.transaction.recipientHistory,
       }),
     ]
-  } else if (model.transaction._tag === 'SubmittingTransaction') {
-    return [SignAndSubmitTransaction({ preview: model.transaction.preview })]
   } else {
     return []
   }
 }
 
-const walletCreationCommandsForRestore = (
+const walletCreationCommandsAfterProfiles = (
   model: Model,
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> => {
   if (model.walletCreation._tag === 'CreatingWallet') {
@@ -621,13 +606,6 @@ const walletProfileCommandsForRestore = (
     ? [LoadWalletProfiles()]
     : []
 
-const signatureCommandsForRestore = (
-  model: Model,
-): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
-  model.signature._tag === 'SigningChallengeState'
-    ? [SignChallenge({ challenge: model.signature.challenge })]
-    : []
-
 const historyCommandsForRestore = (
   model: Model,
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
@@ -640,9 +618,52 @@ const commandsAfterPortfolioHydration = (
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> => [
   ...testFundingCommandsForRestore(model),
   ...transactionCommandsForRestore(model),
-  ...signatureCommandsForRestore(model),
   ...historyCommandsForRestore(model),
 ]
+
+const interruptedSubmissionFailure = NetworkFailure.make({
+  operation: 'SubmitTransaction',
+  code: 'Unavailable',
+  maybeGuidance: Option.some({
+    summary:
+      'This send stopped before it finished. It may already be on the network.',
+    details: ['Check Activity before you send again.'],
+  }),
+})
+
+const transactionForRestore = (
+  transaction: TransactionState,
+): TransactionState => {
+  if (transaction._tag === 'SubmittingTransaction') {
+    return FailedTransactionSubmission.make({
+      preview: transaction.preview,
+      failure: interruptedSubmissionFailure,
+    })
+  } else if (transaction._tag === 'PreviewedTransaction') {
+    return IdleTransaction.make({})
+  } else {
+    return transaction
+  }
+}
+
+const signatureForRestore = (signature: SignatureState): SignatureState =>
+  signature._tag === 'SigningChallengeState'
+    ? IdleSignature.make({})
+    : signature
+
+const modelForSigningRestore = (model: Model): Model => ({
+  ...model,
+  transaction: transactionForRestore(model.transaction),
+  signature: signatureForRestore(model.signature),
+})
+
+const modelForProfileRestore = (model: Model): Model => ({
+  ...model,
+  walletProfileLoading: LoadingWalletProfiles.make({}),
+  wallets: [],
+  portfolio: WaitingForWalletProfiles.make({}),
+  transactionObservation: WaitingForAccounts.make({}),
+})
 
 const modelForClipboardRestore = (model: Model): Model =>
   model.clipboardCopy._tag === 'CopyingToClipboard'
@@ -654,26 +675,6 @@ const modelForClipboardRestore = (model: Model): Model =>
         }),
       }
     : model
-
-const modelForPortfolioRestore = (model: Model): Model => {
-  if (model.walletProfileLoading._tag !== 'LoadedWalletProfiles') {
-    return model
-  }
-  if (model.portfolio._tag === 'LoadingPortfolio') {
-    return {
-      ...model,
-      transactionObservation: WaitingForAccounts.make({}),
-    }
-  }
-  return {
-    ...model,
-    portfolio: LoadingPortfolio.make({
-      requestId: `portfolio-${model.nextPortfolioRequestNumber.toString()}`,
-    }),
-    nextPortfolioRequestNumber: model.nextPortfolioRequestNumber + 1,
-    transactionObservation: WaitingForAccounts.make({}),
-  }
-}
 
 const testFundingAfterPortfolioFailure = (
   testFunding: TestFundingState,
@@ -738,19 +739,18 @@ const historyAfterPortfolioFailure = (
   }
 }
 
-/** Restarts finite work represented by a restored Wallet Model. */
+/**
+ * Restarts finite work represented by a restored Wallet Model. A restored
+ * Model can come from a link, so it never signs: a send cut off while
+ * signing fails with guidance to check Activity, a preview needs a fresh
+ * one, a challenge needs a new request, and the wallets come from the
+ * vault, never from the Model.
+ */
 export const restore = (model: Model): UpdateReturn => {
-  const restoredModel = modelForPortfolioRestore(
-    modelForClipboardRestore(model),
+  const restoredModel = modelForProfileRestore(
+    modelForSigningRestore(modelForClipboardRestore(model)),
   )
-  return [
-    restoredModel,
-    [
-      ...walletProfileCommandsForRestore(restoredModel),
-      ...walletCreationCommandsForRestore(restoredModel),
-      ...portfolioCommandsForRestore(restoredModel),
-    ],
-  ]
+  return [restoredModel, walletProfileCommandsForRestore(restoredModel)]
 }
 
 const replaceAddressBookEntry = (
@@ -1052,7 +1052,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         if (model.walletProfileLoading._tag !== 'LoadingWalletProfiles') {
           return [model, []]
         }
-        return beginPortfolioLoad(
+        const [loadingModel, portfolioCommands] = beginPortfolioLoad(
           {
             ...model,
             wallets,
@@ -1060,6 +1060,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           },
           wallets,
         )
+        return [
+          loadingModel,
+          [
+            ...portfolioCommands,
+            ...walletCreationCommandsAfterProfiles(loadingModel),
+          ],
+        ]
       },
       FailedLoadWalletProfiles: ({ code }) => {
         if (model.walletProfileLoading._tag !== 'LoadingWalletProfiles') {
