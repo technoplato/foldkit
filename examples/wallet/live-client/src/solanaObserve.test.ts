@@ -165,4 +165,80 @@ describe('Solana live observation', () => {
       expect(settled()).toBe(true)
     })
   })
+
+  describe('following one signature to the end', () => {
+    const signature = '5hSignature'
+    const statusesFetch = (value: unknown) =>
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ jsonrpc: '2.0', id: 1, result: { value: [value] } }),
+            { status: 200 },
+          ),
+      )
+    const settlement = () =>
+      Effect.runPromise(
+        Stream.runCollect(
+          makeSolanaLiveAdapter(configuration).observeSettlement(
+            account,
+            signature,
+          ),
+        ),
+      )
+
+    it('ends at once when the chain already says Final', async () => {
+      vi.stubGlobal('WebSocket', FakeSocket)
+      vi.stubGlobal(
+        'fetch',
+        statusesFetch({ err: null, confirmationStatus: 'finalized' }),
+      )
+      expect(await settlement()).toEqual(['Final'])
+    })
+
+    it('hears Final from the chain, with no timer', async () => {
+      vi.stubGlobal('WebSocket', FakeSocket)
+      vi.stubGlobal(
+        'fetch',
+        statusesFetch({ err: null, confirmationStatus: 'confirmed' }),
+      )
+      const settled = settlement()
+      const socket = await subscribedSocket()
+      expect(JSON.parse(socket.sent.at(0) ?? '{}')).toMatchObject({
+        method: 'signatureSubscribe',
+        params: [signature, { commitment: 'finalized' }],
+      })
+      socket.receive({ jsonrpc: '2.0', id: 1, result: 8 })
+      await new Promise(resolve => setTimeout(resolve, 5))
+      socket.receive({
+        method: 'signatureNotification',
+        params: { result: { value: { err: null } }, subscription: 8 },
+      })
+      expect(await settled).toEqual(['Included', 'Final'])
+    })
+
+    it('says a transaction failed on the chain', async () => {
+      vi.stubGlobal('WebSocket', FakeSocket)
+      vi.stubGlobal(
+        'fetch',
+        statusesFetch({
+          err: { InstructionError: [0, 'Custom'] },
+          confirmationStatus: 'finalized',
+        }),
+      )
+      expect(await settlement()).toEqual(['FailedOnChain'])
+    })
+
+    it('says Unknown when the chain has never heard of it, and keeps listening', async () => {
+      vi.stubGlobal('WebSocket', FakeSocket)
+      vi.stubGlobal('fetch', statusesFetch(null))
+      const settled = settlement()
+      const socket = await subscribedSocket()
+      await new Promise(resolve => setTimeout(resolve, 5))
+      socket.receive({
+        method: 'signatureNotification',
+        params: { result: { value: { err: null } }, subscription: 8 },
+      })
+      expect(await settled).toEqual(['Unknown', 'Final'])
+    })
+  })
 })
