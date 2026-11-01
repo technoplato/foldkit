@@ -23,6 +23,7 @@ import {
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
+import { siteSourceHeader } from '../../site-source-header'
 import { instantBrowserAlias } from '../../vite.aliases'
 
 const port = 5183
@@ -64,6 +65,7 @@ export default defineConfig({
     foldkitTelemetry(),
     readAloudEndpoint(),
     ...audibleImport(),
+    siteSourceHeader(),
   ],
   resolve: {
     alias: instantBrowserAlias,

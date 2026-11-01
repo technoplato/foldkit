@@ -6,6 +6,7 @@ import { type Plugin, defineConfig } from 'vite'
 import { foldkit } from '@foldkit/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
+import { siteSourceHeader } from '../../site-source-header'
 import { foldkitAliases, instantBrowserAlias } from '../../vite.aliases'
 
 const knophyHosts = ['casino.knophy.com']
@@ -69,6 +70,7 @@ export default defineConfig({
     tailwindcss(),
     foldkit({ devToolsMcpPort: 9990 }),
     mobileHostIndex(),
+    siteSourceHeader(),
   ],
   resolve: {
     alias: {
