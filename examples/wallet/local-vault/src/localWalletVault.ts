@@ -675,9 +675,7 @@ const canonicalTransferRecord = (
       ? [
           StoredWalletChainKey.make({
             chainId,
-            privateKeyHex: requiredKeyHex(
-              storedKeyId(chainId, sharedKeyScope),
-            ),
+            privateKeyHex: requiredKeyHex(storedKeyId(chainId, sharedKeyScope)),
           }),
         ]
       : Array_.map(keyScopesForChain(canonicalRequest, chainId), scope =>
@@ -1537,9 +1535,7 @@ export const makeOwnerScopedLocalWalletResources = (
 ): Layer.Layer<WalletVault | WalletSigner | WalletCrypto> =>
   Layer.effectContext(
     Effect.gen(function* () {
-      const openedServices = yield* Ref.make(
-        Option.none<LocalWalletServices>(),
-      )
+      const openedServices = yield* Ref.make(Option.none<LocalWalletServices>())
       const openSemaphore = yield* Semaphore.make(1)
 
       const openForOwner = loadOwnerKey.pipe(
@@ -1549,7 +1545,9 @@ export const makeOwnerScopedLocalWalletResources = (
             catch: () => new WalletVaultError({ code: 'Unavailable' }),
           }),
         ),
-        Effect.flatMap(storage => makeLocalWalletServices(randomBytes, storage)),
+        Effect.flatMap(storage =>
+          makeLocalWalletServices(randomBytes, storage),
+        ),
         Effect.tap(services => Ref.set(openedServices, Option.some(services))),
       )
 
