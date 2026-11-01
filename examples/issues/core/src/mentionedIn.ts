@@ -4,7 +4,8 @@ import { type Issue, type IssueMention } from '@foldkit/instant-tools/issues'
 
 const WORDS_ORIGIN = 'https://words.pisspoursoftware.xyz'
 /** The retired host, and Scribe's public preview host at the same path. */
-const OTHER_WORDS_ORIGIN = /^https?:\/\/(?:words\.knophy\.com|og\.pisspoursoftware\.xyz)/i
+const OTHER_WORDS_ORIGIN =
+  /^https?:\/\/(?:words\.knophy\.com|og\.pisspoursoftware\.xyz)/i
 const SECTION_LINK =
   /^https?:\/\/(?:words\.(?:pisspoursoftware\.xyz|knophy\.com)|og\.pisspoursoftware\.xyz)\/recording\/[0-9a-f-]{36}\/section\/[^\s?]+(?:\?\S*)?$/i
 const RECORDING_PREFIX =
