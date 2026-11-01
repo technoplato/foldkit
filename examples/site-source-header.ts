@@ -119,10 +119,12 @@ const escapeHtml = (text: string): string =>
       ] ?? character,
   )
 
-// One 12 px monospace line that wraps rather than overflowing at 390 px; light
-// and dark follow the system. Scoped by attribute, so it styles nothing else.
+// One 12 px monospace line that wraps rather than overflowing at 390 px, never
+// wider than the screen even when the page below it is (words at 390 px);
+// light and dark follow the system. Scoped by attribute, so it styles nothing
+// else.
 const style =
-  '[data-site-source]{display:block;margin:0;padding:4px 10px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;' +
+  '[data-site-source]{display:block;box-sizing:border-box;max-width:100vw;margin:0;padding:4px 10px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;' +
   'background:#f6f6f4;color:#444;border-bottom:1px solid #ddd;overflow-wrap:anywhere;text-align:left}' +
   '[data-site-source] a{color:#0a58ca;text-decoration:underline}' +
   '@media (prefers-color-scheme: dark){[data-site-source]{background:#18181b;color:#bbb;border-bottom-color:#333}' +
