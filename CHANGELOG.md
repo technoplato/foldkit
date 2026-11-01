@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 6:19:19 p.m. EST — `e493ad7b92a7` fix(issues): a link to a number the catalog lacks is still written; README
+
+- **Implementation commit:** `e493ad7b92a704822a36b8a3a125177f7207df3d`
+- **Change:** A link to a number the catalog lacks is still written, and the issues README says what the site does now.
+- **Details:**
+  - The link check refuses only words and the Issue itself.
+  - The README lists the site's views, every key, how writes name the read they were based on, and what it reads of Scribe's rows.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — The link check refuses words and the Issue itself, nothing more.
+  - `examples/issues/README.md` — Views, keys, writes and Scribe's rows on the issues site.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
 ## November 1st, 2026 at 6:13:25 p.m. EST — `847bd697d2c5` fix(issues): keys write where he is, small faults, the kept catalog, one row
 
 - **Implementation commit:** `847bd697d2c502d77a9c88ea34afa414d9706426`
