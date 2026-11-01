@@ -14,6 +14,7 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { DecisionRow } from './decisionFacts.js'
 import { PageEntity } from './entityGraph.js'
 import {
   AgentFinding,
@@ -43,6 +44,8 @@ import {
   WorkInProgressEdit,
 } from './model.js'
 import { AgentSurvey } from './nowWorking.js'
+import { QuestionRow } from './questionFacts.js'
+import { ReminderRow } from './reminderFacts.js'
 import { RowChange } from './rowEdit.js'
 
 /**
@@ -127,6 +130,51 @@ export const ObservedBuilds = S.TaggedStruct('ObservedBuilds', {
 export const FailedObserveBuilds = S.TaggedStruct('FailedObserveBuilds', {
   reason: S.String,
 })
+/** Scribe's rows said what he decided. */
+export const ObservedDecisions = S.TaggedStruct('ObservedDecisions', {
+  decisions: S.Array(DecisionRow),
+})
+/** The Message of every decision, as a typed literal, like every question's. */
+export const observedDecisionsOf = (
+  decisions: ReadonlyArray<DecisionRow>,
+): typeof ObservedDecisions.Type => ({ _tag: 'ObservedDecisions', decisions })
+/** Scribe's rows on his decisions could not be read. */
+export const FailedObserveDecisions = S.TaggedStruct('FailedObserveDecisions', {
+  reason: S.String,
+})
+/** A person asked to see what he decided. */
+export const ClickedOpenDecisions = S.TaggedStruct('ClickedOpenDecisions', {})
+/** Scribe's rows said what he asked. */
+export const ObservedQuestions = S.TaggedStruct('ObservedQuestions', {
+  questions: S.Array(QuestionRow),
+})
+/**
+ * The Message of every question, as a typed literal: `.make` would validate all
+ * 964 rows on each live change.
+ */
+export const observedQuestionsOf = (
+  questions: ReadonlyArray<QuestionRow>,
+): typeof ObservedQuestions.Type => ({ _tag: 'ObservedQuestions', questions })
+/** Scribe's rows on his questions could not be read. */
+export const FailedObserveQuestions = S.TaggedStruct('FailedObserveQuestions', {
+  reason: S.String,
+})
+/** A person asked to see what he asked. */
+export const ClickedOpenQuestions = S.TaggedStruct('ClickedOpenQuestions', {})
+/** Scribe's rows said what his reminders are. */
+export const ObservedReminders = S.TaggedStruct('ObservedReminders', {
+  reminders: S.Array(ReminderRow),
+})
+/** The Message of every reminder, as a typed literal, like every question's. */
+export const observedRemindersOf = (
+  reminders: ReadonlyArray<ReminderRow>,
+): typeof ObservedReminders.Type => ({ _tag: 'ObservedReminders', reminders })
+/** Scribe's rows on his reminders could not be read. */
+export const FailedObserveReminders = S.TaggedStruct('FailedObserveReminders', {
+  reason: S.String,
+})
+/** A person asked to see his reminders. */
+export const ClickedOpenReminders = S.TaggedStruct('ClickedOpenReminders', {})
 /** Scribe's rows said which features and findings stand around an Issue. */
 export const ObservedIssueGraph = S.TaggedStruct('ObservedIssueGraph', {
   graph: IssueGraph,
@@ -638,6 +686,15 @@ export const Message = S.Union([
   ObservedFindings,
   FailedObserveFindings,
   ClickedOpenFindings,
+  ObservedDecisions,
+  FailedObserveDecisions,
+  ClickedOpenDecisions,
+  ObservedQuestions,
+  FailedObserveQuestions,
+  ClickedOpenQuestions,
+  ObservedReminders,
+  FailedObserveReminders,
+  ClickedOpenReminders,
   ClickedPromoteFinding,
   SucceededMarkFindingPromoted,
   FailedMarkFindingPromoted,

@@ -26,11 +26,14 @@ import {
   ClickedFileIssue,
   ClickedOpenAskFlow,
   ClickedOpenBacklog,
+  ClickedOpenDecisions,
   ClickedOpenFeatures,
   ClickedOpenFindings,
   ClickedOpenInbox,
   ClickedOpenIssueList,
   ClickedOpenProducts,
+  ClickedOpenQuestions,
+  ClickedOpenReminders,
   ClickedOpenTriage,
   ClickedSaveView,
   DismissedFailedRowEdits,
@@ -239,6 +242,24 @@ const goToFindings = interaction(
   ClickedOpenFindings.make({}),
   ['g f'],
 )
+const goToDecisions = interaction(
+  'go:decisions',
+  'Go to decisions',
+  ClickedOpenDecisions.make({}),
+  ['g d'],
+)
+const goToQuestions = interaction(
+  'go:questions',
+  'Go to questions',
+  ClickedOpenQuestions.make({}),
+  ['g q'],
+)
+const goToReminders = interaction(
+  'go:reminders',
+  'Go to reminders',
+  ClickedOpenReminders.make({}),
+  ['g r'],
+)
 const goToFeatures = interaction(
   'go:features',
   'Go to features',
@@ -396,6 +417,21 @@ const openFindings = interaction(
   'Findings',
   ClickedOpenFindings.make({}),
 )
+const openDecisions = interaction(
+  'decisions',
+  'Decisions',
+  ClickedOpenDecisions.make({}),
+)
+const openQuestions = interaction(
+  'questions',
+  'Questions',
+  ClickedOpenQuestions.make({}),
+)
+const openReminders = interaction(
+  'reminders',
+  'Reminders',
+  ClickedOpenReminders.make({}),
+)
 const openFeatures = interaction(
   'features',
   'Features',
@@ -425,6 +461,9 @@ export const navigationInteractionsOf = (
         openBacklog,
         openAskFlow,
         openFindings,
+        openDecisions,
+        openQuestions,
+        openReminders,
         openFeatures,
         openProducts,
         openInbox,
@@ -436,6 +475,9 @@ export const navigationInteractionsOf = (
       Inbox: () => [back],
       EntityPage: () => [back],
       Findings: () => [back],
+      Decisions: () => [back],
+      Questions: () => [back],
+      Reminders: () => [back],
       Features: () => [back],
       Products: () => [back],
       TriageInbox: () => [back],
@@ -538,6 +580,9 @@ export const placeInteractions: ReadonlyArray<Interaction> = [
   goToBacklog,
   goToTriage,
   goToFindings,
+  goToDecisions,
+  goToQuestions,
+  goToReminders,
   goToFeatures,
   goToProducts,
   goToViews,
@@ -551,6 +596,9 @@ const goChoices: ReadonlyArray<Interaction> = [
   { ...goToBacklog, keys: ['b'] },
   { ...goToTriage, keys: ['t'] },
   { ...goToFindings, keys: ['f'] },
+  { ...goToDecisions, keys: ['d'] },
+  { ...goToQuestions, keys: ['q'] },
+  { ...goToReminders, keys: ['r'] },
   { ...goToFeatures, keys: ['e'] },
   { ...goToProducts, keys: ['p'] },
   { ...goToViews, keys: ['v'] },
@@ -579,6 +627,9 @@ export const keyInteractionsOf = (model: Model): ReadonlyArray<Interaction> => [
   goToBacklog,
   goToTriage,
   goToFindings,
+  goToDecisions,
+  goToQuestions,
+  goToReminders,
   goToFeatures,
   goToProducts,
   goToViews,

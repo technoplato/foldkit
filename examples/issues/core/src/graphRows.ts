@@ -1,6 +1,13 @@
 import { Array, Clock, Context, Effect, Option, Stream, pipe } from 'effect'
 
 import {
+  type DecisionRow,
+  decisionFactsOf,
+  decisionFactsQuery,
+  decisionsQuery,
+  keptDecisionsOf,
+} from './decisionFacts.js'
+import {
   type AgentFinding,
   type AgentRunChip,
   type FeatureChip,
@@ -39,6 +46,20 @@ import {
   type PageFacts,
   observed,
 } from './issueLandings.js'
+import {
+  type QuestionRow,
+  keptQuestionsOf,
+  questionFactsOf,
+  questionFactsQuery,
+  questionsQuery,
+} from './questionFacts.js'
+import {
+  type ReminderRow,
+  keptRemindersOf,
+  reminderFactsOf,
+  reminderFactsQuery,
+  remindersQuery,
+} from './reminderFacts.js'
 
 // SERVICE
 
@@ -54,10 +75,22 @@ export type GraphRowsService = Readonly<{
   observeAgentFacts: (
     handle: string,
   ) => Stream.Stream<PageFacts, IssueLandingError>
+  observeDecisionFacts: (
+    decisionId: string,
+  ) => Stream.Stream<PageFacts, IssueLandingError>
+  observeDecisions: Stream.Stream<ReadonlyArray<DecisionRow>, IssueLandingError>
   observeFeatureChips: Stream.Stream<
     ReadonlyArray<FeatureChip>,
     IssueLandingError
   >
+  observeQuestionFacts: (
+    questionId: string,
+  ) => Stream.Stream<PageFacts, IssueLandingError>
+  observeQuestions: Stream.Stream<ReadonlyArray<QuestionRow>, IssueLandingError>
+  observeReminderFacts: (
+    reminderId: string,
+  ) => Stream.Stream<PageFacts, IssueLandingError>
+  observeReminders: Stream.Stream<ReadonlyArray<ReminderRow>, IssueLandingError>
   observeFeatureFacts: (
     slug: string,
   ) => Stream.Stream<PageFacts, IssueLandingError>
@@ -93,7 +126,13 @@ export class GraphRows extends Context.Service<GraphRows, GraphRowsService>()(
 export const NoGraphRows: GraphRowsService = {
   observeAgentChips: () => Stream.empty,
   observeAgentFacts: () => Stream.empty,
+  observeDecisionFacts: () => Stream.empty,
+  observeDecisions: Stream.empty,
   observeFeatureChips: Stream.empty,
+  observeQuestionFacts: () => Stream.empty,
+  observeQuestions: Stream.empty,
+  observeReminderFacts: () => Stream.empty,
+  observeReminders: Stream.empty,
   observeFeatureFacts: () => Stream.empty,
   observeFeatures: Stream.empty,
   observeFindingFacts: () => Stream.empty,
@@ -152,6 +191,46 @@ export const fetchedProductsMap: Effect.Effect<unknown, unknown> =
 const mapFailureReason = (failure: unknown): string =>
   failure instanceof Error ? failure.message : String(failure)
 
+const FULL_ROW_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * A row's id from what a link gave: the id itself, or the row among `rows`
+ * whose id starts with the first 8 characters agents cite. `decisions.id` takes
+ * no range, so a short id reads the table's list, which chips hold open anyway.
+ */
+const fullIdOfRow = <Row>(
+  id: string,
+  rows: Stream.Stream<ReadonlyArray<Row>, IssueLandingError>,
+  idOfRow: (row: Row) => string,
+): Stream.Stream<Option.Option<string>, IssueLandingError> =>
+  FULL_ROW_ID.test(id)
+    ? Stream.succeed(Option.some(id))
+    : rows.pipe(
+        Stream.map(found =>
+          Option.map(
+            Array.findFirst(found, row => idOfRow(row).startsWith(id)),
+            idOfRow,
+          ),
+        ),
+        Stream.changes,
+      )
+
+const factsOfRow = <Row>(
+  id: string,
+  rows: Stream.Stream<ReadonlyArray<Row>, IssueLandingError>,
+  idOfRow: (row: Row) => string,
+  factsOf: (fullId: string) => Stream.Stream<PageFacts, IssueLandingError>,
+): Stream.Stream<PageFacts, IssueLandingError> =>
+  fullIdOfRow(id, rows, idOfRow).pipe(
+    Stream.switchMap(maybeId =>
+      Option.match(maybeId, {
+        onNone: () => Stream.succeed<PageFacts>(NoPageFacts.make({})),
+        onSome: factsOf,
+      }),
+    ),
+  )
+
 const numberOfIssueId = (issueId: string): Option.Option<number> =>
   Option.liftPredicate(Number(issueId), Number.isSafeInteger)
 
@@ -203,6 +282,39 @@ export const instantGraphRows = (
       const facts = agentFactsOf(data)
       return facts.runs.length === 0 ? NoPageFacts.make({}) : facts
     }),
+  observeDecisionFacts: decisionId =>
+    factsOfRow(
+      decisionId,
+      observed(openDatabase, decisionsQuery, keptDecisionsOf()),
+      row => row.decisionId,
+      fullId =>
+        observed(openDatabase, decisionFactsQuery(fullId), data =>
+          factsOrNone(decisionFactsOf(data)),
+        ),
+    ),
+  observeDecisions: observed(openDatabase, decisionsQuery, keptDecisionsOf()),
+  observeQuestionFacts: questionId =>
+    factsOfRow(
+      questionId,
+      observed(openDatabase, questionsQuery, keptQuestionsOf()),
+      row => row.questionId,
+      fullId =>
+        observed(openDatabase, questionFactsQuery(fullId), data =>
+          factsOrNone(questionFactsOf(data)),
+        ),
+    ),
+  observeQuestions: observed(openDatabase, questionsQuery, keptQuestionsOf()),
+  observeReminderFacts: reminderId =>
+    factsOfRow(
+      reminderId,
+      observed(openDatabase, remindersQuery, keptRemindersOf()),
+      row => row.reminderId,
+      fullId =>
+        observed(openDatabase, reminderFactsQuery(fullId), data =>
+          factsOrNone(reminderFactsOf(data)),
+        ),
+    ),
+  observeReminders: observed(openDatabase, remindersQuery, keptRemindersOf()),
   observeFeatureChips: observed(
     openDatabase,
     featureChipsQuery,
@@ -227,7 +339,9 @@ export const instantGraphRows = (
     Option.match(numberOfIssueId(issueId), {
       onNone: () => Stream.succeed(noIssueGraph),
       onSome: issueNumber =>
-        observed(openDatabase, issueGraphQuery(issueNumber), issueGraphOf),
+        observed(openDatabase, issueGraphQuery(issueNumber), data =>
+          issueGraphOf(data, Option.some(issueId)),
+        ),
     }),
   observeProductFacts: productId =>
     Stream.unwrap(

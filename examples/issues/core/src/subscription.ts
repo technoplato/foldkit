@@ -14,7 +14,7 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
-import { PageEntity } from './entityGraph.js'
+import { PageEntity, recordingNumbersOf } from './entityGraph.js'
 import { GraphRows, type GraphRowsService } from './graphRows.js'
 import { IssueFiles, describeIssueFilesError } from './issueFiles.js'
 import {
@@ -26,9 +26,11 @@ import {
 } from './issueLandings.js'
 import { catalogIssueQuery } from './issueQuery.js'
 import { IssueViews, describeIssueViewError } from './issueViews.js'
+import { loadedIssuesIn } from './listing.js'
 import {
   FailedObserveAgentChips,
   FailedObserveBuilds,
+  FailedObserveDecisions,
   FailedObserveFeatureChips,
   FailedObserveFeatures,
   FailedObserveFindings,
@@ -41,6 +43,8 @@ import {
   FailedObserveLeftoverPeers,
   FailedObservePageFacts,
   FailedObserveProducts,
+  FailedObserveQuestions,
+  FailedObserveReminders,
   FailedObserveSavedViews,
   FailedObserveTriageCandidates,
   type Message,
@@ -60,10 +64,18 @@ import {
   ObservedSavedViews,
   ObservedTriageCandidates,
   TickedClock,
+  observedDecisionsOf,
   observedIssuesOf,
+  observedQuestionsOf,
+  observedRemindersOf,
 } from './message.js'
 import { type Model } from './model.js'
-import { agentHandlesOfPage, issueNumberOfPage } from './pageAgents.js'
+import {
+  agentHandlesOfPage,
+  issueNumberOfPage,
+  pageCites,
+  pageReadsDecisions,
+} from './pageAgents.js'
 
 type Resources =
   | IssueFiles
@@ -316,13 +328,41 @@ export const subscriptions: Readonly<
   ),
 }))
 
+/**
+ * The Recording a page shows: its id, or for `/recordings/208` the id the
+ * catalog's mentions give that number, once they are loaded.
+ */
+const recordingIdOfPage = (model: Model): Option.Option<string> => {
+  if (model.navigation._tag !== 'EntityPage') {
+    return Option.none()
+  }
+  const { entity } = model.navigation
+  if (entity._tag === 'RecordingEntity') {
+    return Option.some(entity.recordingId)
+  } else if (entity._tag === 'RecordingNumberEntity') {
+    return Option.fromUndefinedOr(
+      recordingNumbersOf(loadedIssuesIn(model)).idOfNumber.get(
+        entity.recordingNumber,
+      ),
+    )
+  }
+  return Option.none()
+}
+
 const factsStream = (
   landings: IssueLandingsService,
   graph: GraphRowsService,
   entity: PageEntity,
+  maybeRecordingId: Option.Option<string>,
 ): Stream.Stream<PageFacts, IssueLandingError> => {
   if (entity._tag === 'AgentEntity') {
     return graph.observeAgentFacts(entity.agentId)
+  } else if (entity._tag === 'DecisionEntity') {
+    return graph.observeDecisionFacts(entity.decisionId)
+  } else if (entity._tag === 'QuestionEntity') {
+    return graph.observeQuestionFacts(entity.questionId)
+  } else if (entity._tag === 'ReminderEntity') {
+    return graph.observeReminderFacts(entity.reminderId)
   } else if (entity._tag === 'SessionEntity') {
     return graph.observeSessionFacts(entity.sessionId)
   } else if (entity._tag === 'FindingEntity') {
@@ -335,8 +375,14 @@ const factsStream = (
     return landings.observeBuildFacts(entity.number)
   } else if (entity._tag === 'CommitEntity') {
     return landings.observeCommitFacts(entity.sha)
-  } else if (entity._tag === 'RecordingEntity') {
-    return landings.observeRecordingFacts(entity.recordingId)
+  } else if (
+    entity._tag === 'RecordingEntity' ||
+    entity._tag === 'RecordingNumberEntity'
+  ) {
+    return Option.match(maybeRecordingId, {
+      onNone: () => Stream.empty,
+      onSome: landings.observeRecordingFacts,
+    })
   } else if (entity._tag === 'SegmentEntity') {
     return landings.observeSegmentFacts(entity.segmentId)
   } else {
@@ -352,6 +398,9 @@ export const graphSubscriptions: Readonly<
   Record<
     | 'selectedIssueLanding'
     | 'selectedEntityFacts'
+    | 'decisions'
+    | 'questions'
+    | 'reminders'
     | 'features'
     | 'findings'
     | 'knownAgents'
@@ -402,15 +451,19 @@ export const graphSubscriptions: Readonly<
     },
   ),
   selectedEntityFacts: entry(
-    { maybeEntity: S.Option(PageEntity) },
+    {
+      maybeEntity: S.Option(PageEntity),
+      maybeRecordingId: S.Option(S.String),
+    },
     {
       modelToDependencies: model => ({
         maybeEntity:
           model.navigation._tag === 'EntityPage'
             ? Option.some(model.navigation.entity)
             : Option.none(),
+        maybeRecordingId: recordingIdOfPage(model),
       }),
-      dependenciesToStream: ({ maybeEntity }) => {
+      dependenciesToStream: ({ maybeEntity, maybeRecordingId }) => {
         if (Option.isNone(maybeEntity)) {
           return Stream.empty
         }
@@ -419,7 +472,7 @@ export const graphSubscriptions: Readonly<
           Effect.gen(function* () {
             const landings = yield* IssueLandings
             const graph = yield* GraphRows
-            return factsStream(landings, graph, entity).pipe(
+            return factsStream(landings, graph, entity, maybeRecordingId).pipe(
               Stream.map(facts => ObservedPageFacts.make({ entity, facts })),
               Stream.catch(error =>
                 Stream.make(
@@ -451,6 +504,91 @@ export const graphSubscriptions: Readonly<
                     Stream.catch(error =>
                       Stream.make(
                         FailedObserveFindings.make({
+                          reason: describeIssueLandingError(error),
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : Stream.empty,
+    },
+  ),
+  decisions: entry(
+    { isReadingDecisions: S.Boolean },
+    {
+      modelToDependencies: model => ({
+        isReadingDecisions: pageReadsDecisions(model),
+      }),
+      dependenciesToStream: ({ isReadingDecisions }) =>
+        isReadingDecisions
+          ? Stream.unwrap(
+              GraphRows.pipe(
+                Effect.map(graph =>
+                  graph.observeDecisions.pipe(
+                    Stream.map(observedDecisionsOf),
+                    Stream.catch(error =>
+                      Stream.make(
+                        FailedObserveDecisions.make({
+                          reason: describeIssueLandingError(error),
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : Stream.empty,
+    },
+  ),
+  questions: entry(
+    { isReadingQuestions: S.Boolean },
+    {
+      modelToDependencies: model => ({
+        isReadingQuestions:
+          model.navigation._tag === 'Questions' ||
+          pageCites(model, 'QuestionEntity'),
+      }),
+      dependenciesToStream: ({ isReadingQuestions }) =>
+        isReadingQuestions
+          ? Stream.unwrap(
+              GraphRows.pipe(
+                Effect.map(graph =>
+                  graph.observeQuestions.pipe(
+                    Stream.map(observedQuestionsOf),
+                    Stream.catch(error =>
+                      Stream.make(
+                        FailedObserveQuestions.make({
+                          reason: describeIssueLandingError(error),
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : Stream.empty,
+    },
+  ),
+  reminders: entry(
+    { isReadingReminders: S.Boolean },
+    {
+      modelToDependencies: model => ({
+        isReadingReminders:
+          model.navigation._tag === 'Reminders' ||
+          pageCites(model, 'ReminderEntity'),
+      }),
+      dependenciesToStream: ({ isReadingReminders }) =>
+        isReadingReminders
+          ? Stream.unwrap(
+              GraphRows.pipe(
+                Effect.map(graph =>
+                  graph.observeReminders.pipe(
+                    Stream.map(observedRemindersOf),
+                    Stream.catch(error =>
+                      Stream.make(
+                        FailedObserveReminders.make({
                           reason: describeIssueLandingError(error),
                         }),
                       ),

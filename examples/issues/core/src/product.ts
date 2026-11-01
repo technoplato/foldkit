@@ -23,8 +23,11 @@ import { laneHeading, sectionHeading } from './backlog.js'
 import { CARD_DROP_TOKEN_PREFIX } from './board.js'
 import { menuHasField, productChoicesOf, sortNameOf } from './choices.js'
 import { entityPageNodes } from './entityPage.js'
+import { decisionsPageNodes } from './decisionPage.js'
 import { featuresPageNodes } from './featurePage.js'
 import { findingsPageNodes } from './findingsPage.js'
+import { questionsPageNodes } from './questionPage.js'
+import { remindersPageNodes } from './reminderPage.js'
 import { inboxNodes } from './inboxPage.js'
 import { type Interaction } from './interaction.js'
 import { issuePageNodes } from './issuePage.js'
@@ -628,13 +631,16 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
       Inbox: ({ kind }) => inboxNodes(model, kind),
       EntityPage: ({ entity }) => entityPageNodes(model, entity),
       Findings: ({ filter }) => findingsPageNodes(model, filter),
+      Decisions: ({ filter }) => decisionsPageNodes(model, filter),
+      Questions: ({ filter }) => questionsPageNodes(model, filter),
+      Reminders: ({ filter }) => remindersPageNodes(model, filter),
       Features: () => featuresPageNodes(model),
       Products: () => productsPageNodes(model),
     }),
   )
 
 const GO_KEY_CHOICES =
-  'Go to: l list, b backlog, t triage, v views, i inbox, f findings, e features, p products'
+  'Go to: l list, b backlog, t triage, v views, i inbox, f findings, d decisions, q questions, r reminders, e features, p products'
 
 const savingWords = (count: number): string =>
   count === 1 ? 'Saving 1 change…' : `Saving ${count.toString()} changes…`

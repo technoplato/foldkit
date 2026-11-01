@@ -372,6 +372,9 @@ const runTokens = (
             Inbox: () => '',
             EntityPage: () => '',
             Findings: () => '',
+            Decisions: () => '',
+            Questions: () => '',
+            Reminders: () => '',
             Features: () => '',
             Products: () => '',
           }),
@@ -567,6 +570,36 @@ export const formatDestination = (
               ),
             ]
           : ['Findings', state._tag],
+      DecisionsDestination: ({ state }) =>
+        state._tag === 'LoadedDecisions'
+          ? [
+              'Decisions',
+              ...Array.map(
+                state.decisions,
+                decision => `${decision.status}  ${decision.text}`,
+              ),
+            ]
+          : ['Decisions', state._tag],
+      QuestionsDestination: ({ state }) =>
+        state._tag === 'LoadedQuestions'
+          ? [
+              'Questions',
+              ...Array.map(
+                state.questions,
+                question => `${question.status}  ${question.text}`,
+              ),
+            ]
+          : ['Questions', state._tag],
+      RemindersDestination: ({ state }) =>
+        state._tag === 'LoadedReminders'
+          ? [
+              'Reminders',
+              ...Array.map(
+                state.reminders,
+                reminder => `${reminder.state}  ${reminder.title}`,
+              ),
+            ]
+          : ['Reminders', state._tag],
       FeaturesDestination: ({ state }) =>
         state._tag === 'LoadedFeatures'
           ? [

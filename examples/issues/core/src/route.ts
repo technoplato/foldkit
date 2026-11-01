@@ -25,12 +25,15 @@ import {
   AgentEntity,
   BuildEntity,
   CommitEntity,
+  DecisionEntity,
   FeatureEntity,
   FindingEntity,
   type PageEntity,
   ProductEntity,
+  QuestionEntity,
   RecordingEntity,
   RecordingNumberEntity,
+  ReminderEntity,
   SegmentEntity,
   SessionEntity,
 } from './entityGraph.js'
@@ -55,6 +58,8 @@ import { AllProducts, OneProduct, type ProductFilter } from './leftover.js'
 import {
   AskFlow,
   Backlog,
+  DecisionFilter,
+  Decisions,
   EntityPage,
   Features,
   FileIssue,
@@ -65,6 +70,10 @@ import {
   IssueList,
   type Navigation,
   Products,
+  QuestionFilter,
+  Questions,
+  ReminderFilter,
+  Reminders,
   TriageInbox,
 } from './model.js'
 
@@ -93,6 +102,12 @@ const FindingsQuery = S.Struct({
   status: S.OptionFromOptional(S.String),
 })
 const InboxQuery = S.Struct({ kind: S.OptionFromOptional(S.String) })
+const DecisionsQuery = S.Struct({ status: S.OptionFromOptional(S.String) })
+const RemindersQuery = S.Struct({ status: S.OptionFromOptional(S.String) })
+const QuestionsQuery = S.Struct({
+  status: S.OptionFromOptional(S.String),
+  learning: S.OptionFromOptional(S.String),
+})
 
 const IssueListRoute = r('IssueListRoute', {
   q: S.Option(S.String),
@@ -121,6 +136,15 @@ const FindingsRoute = r('FindingsRoute', {
   source: S.Option(S.String),
   status: S.Option(S.String),
 })
+const DecisionRoute = r('DecisionRoute', { decisionId: S.String })
+const DecisionsRoute = r('DecisionsRoute', { status: S.Option(S.String) })
+const QuestionRoute = r('QuestionRoute', { questionId: S.String })
+const QuestionsRoute = r('QuestionsRoute', {
+  status: S.Option(S.String),
+  learning: S.Option(S.String),
+})
+const ReminderRoute = r('ReminderRoute', { reminderId: S.String })
+const RemindersRoute = r('RemindersRoute', { status: S.Option(S.String) })
 const CommitRoute = r('CommitRoute', { sha: S.String })
 const BuildRoute = r('BuildRoute', { number: S.String })
 const ProductRoute = r('ProductRoute', { productId: S.String })
@@ -162,6 +186,7 @@ const LIST_SEPARATOR = ','
 const CLOSE_TO_LANDING_WORD = 'close'
 const WORKING_NOW_WORD = 'working'
 const UNCLAIMED_WORD = 'unclaimed'
+const LEARNING_WORD = 'yes'
 
 const productFilterOfWord = (maybeWord: Option.Option<string>): ProductFilter =>
   Option.match(maybeWord, {
@@ -339,6 +364,36 @@ const findingsRouter = pipe(
   query(FindingsQuery),
   Route.mapTo(FindingsRoute),
 )
+const decisionRouter = pipe(
+  literal('decisions'),
+  slash(string('decisionId')),
+  Route.mapTo(DecisionRoute),
+)
+const decisionsRouter = pipe(
+  literal('decisions'),
+  query(DecisionsQuery),
+  Route.mapTo(DecisionsRoute),
+)
+const questionRouter = pipe(
+  literal('questions'),
+  slash(string('questionId')),
+  Route.mapTo(QuestionRoute),
+)
+const questionsRouter = pipe(
+  literal('questions'),
+  query(QuestionsQuery),
+  Route.mapTo(QuestionsRoute),
+)
+const reminderRouter = pipe(
+  literal('reminders'),
+  slash(string('reminderId')),
+  Route.mapTo(ReminderRoute),
+)
+const remindersRouter = pipe(
+  literal('reminders'),
+  query(RemindersQuery),
+  Route.mapTo(RemindersRoute),
+)
 const commitRouter = pipe(
   literal('commits'),
   slash(string('sha')),
@@ -376,6 +431,12 @@ const routeParser = Route.oneOf(
   sessionRouter,
   findingRouter,
   findingsRouter,
+  decisionRouter,
+  decisionsRouter,
+  questionRouter,
+  questionsRouter,
+  reminderRouter,
+  remindersRouter,
   featureRouter,
   featuresRouter,
   commitRouter,
@@ -423,6 +484,33 @@ export const urlToNavigation = (url: Url): Navigation =>
             maybeStatus: status,
           }),
         }),
+      DecisionRoute: ({ decisionId }) =>
+        EntityPage.make({
+          entity: DecisionEntity.make({ decisionId: decisionId.toLowerCase() }),
+        }),
+      DecisionsRoute: ({ status }) =>
+        Decisions.make({
+          filter: DecisionFilter.make({ maybeStatus: status }),
+        }),
+      QuestionRoute: ({ questionId }) =>
+        EntityPage.make({
+          entity: QuestionEntity.make({ questionId: questionId.toLowerCase() }),
+        }),
+      QuestionsRoute: ({ status, learning }) =>
+        Questions.make({
+          filter: QuestionFilter.make({
+            isLearningOnly: Option.contains(learning, LEARNING_WORD),
+            maybeStatus: status,
+          }),
+        }),
+      ReminderRoute: ({ reminderId }) =>
+        EntityPage.make({
+          entity: ReminderEntity.make({ reminderId: reminderId.toLowerCase() }),
+        }),
+      RemindersRoute: ({ status }) =>
+        Reminders.make({
+          filter: ReminderFilter.make({ maybeStatus: status }),
+        }),
       CommitRoute: ({ sha }) =>
         EntityPage.make({
           entity: CommitEntity.make({ sha: sha.toLowerCase() }),
@@ -466,6 +554,9 @@ const entityPagePath = (entity: PageEntity): string =>
       CommitEntity: ({ sha }) => commitRouter({ sha }),
       BuildEntity: ({ number }) => buildRouter({ number }),
       ProductEntity: ({ productId }) => productRouter({ productId }),
+      DecisionEntity: ({ decisionId }) => decisionRouter({ decisionId }),
+      QuestionEntity: ({ questionId }) => questionRouter({ questionId }),
+      ReminderEntity: ({ reminderId }) => reminderRouter({ reminderId }),
     }),
   )
 
@@ -499,6 +590,17 @@ export const navigationToPath = (navigation: Navigation): string =>
           source: filter.maybeSource,
           status: filter.maybeStatus,
         }),
+      Decisions: ({ filter }) =>
+        decisionsRouter({ status: filter.maybeStatus }),
+      Questions: ({ filter }) =>
+        questionsRouter({
+          status: filter.maybeStatus,
+          learning: filter.isLearningOnly
+            ? Option.some(LEARNING_WORD)
+            : Option.none(),
+        }),
+      Reminders: ({ filter }) =>
+        remindersRouter({ status: filter.maybeStatus }),
       Features: () => featuresRouter(),
       Products: () => productsRouter(),
     }),

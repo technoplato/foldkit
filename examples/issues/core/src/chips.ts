@@ -4,8 +4,14 @@ import { Plain, Reference, type TextPart } from 'foldkit/renderers'
 import { type Issue } from '@foldkit/instant-tools/issues'
 
 import { localTimeLabel, recordingClockLabel, whenLabel } from './clock.js'
+import { type DecisionRow } from './decisionFacts.js'
 import { type RecordingNumbers, recordingNumbersOf } from './entityGraph.js'
-import { agentChipOfHandle, featureChip, productChip } from './graphChips.js'
+import {
+  type ChipClock,
+  agentChipOfHandle,
+  featureChip,
+  productChip,
+} from './graphChips.js'
 import {
   type AgentRunChip,
   type FeatureChip,
@@ -17,6 +23,17 @@ import {
   isOnTestflight,
 } from './issueLandings.js'
 import { type Model } from './model.js'
+import { type QuestionRow } from './questionFacts.js'
+import { type ReminderRow } from './reminderFacts.js'
+import {
+  decisionChip,
+  decisionChipOf,
+  questionChip,
+  questionChipOf,
+  reminderChip,
+  reminderChipOf,
+  shortened,
+} from './rowChips.js'
 import {
   type TextPiece,
   type TextReference,
@@ -58,6 +75,11 @@ export type ChipContext = Readonly<{
   agentsByHandle: ReadonlyMap<string, AgentRunChip>
   buildsByNumber: ReadonlyMap<number, LandedBuild>
   commits: ReadonlyArray<LandedCommit>
+  decisionsByShortId: ReadonlyMap<string, DecisionRow>
+  isEveryQuestionRead: boolean
+  isEveryReminderRead: boolean
+  questionsByShortId: ReadonlyMap<string, QuestionRow>
+  remindersByShortId: ReadonlyMap<string, ReminderRow>
   featuresByNumber: ReadonlyMap<number, FeatureChip>
   featuresBySlug: ReadonlyMap<string, FeatureChip>
   issuesById: ReadonlyMap<string, Issue>
@@ -80,8 +102,13 @@ export type ChipFacts = Readonly<{
   agents: ReadonlyArray<AgentRunChip>
   builds: ReadonlyArray<LandedBuild>
   commits: ReadonlyArray<LandedCommit>
+  decisions?: ReadonlyArray<DecisionRow>
   features: ReadonlyArray<FeatureChip>
+  isEveryQuestionRead?: boolean
+  isEveryReminderRead?: boolean
   numberedOnPage?: ReadonlyArray<NumberedFeature>
+  questions?: ReadonlyArray<QuestionRow>
+  reminders?: ReadonlyArray<ReminderRow>
 }>
 
 /** A host with no graph: chips show what the text says. */
@@ -100,6 +127,11 @@ export const chipFactsOf = (model: Model): ChipFacts => ({
     model.issueLanding._tag === 'LoadedIssueLanding'
       ? model.issueLanding.landing.commits
       : [],
+  decisions: decisionsIn(model),
+  isEveryQuestionRead: model.questionsList._tag === 'LoadedQuestions',
+  isEveryReminderRead: model.remindersList._tag === 'LoadedReminders',
+  questions: questionsIn(model),
+  reminders: remindersIn(model),
   features: model.knownFeatures,
   numberedOnPage:
     model.issueGraph._tag === 'LoadedIssueGraph'
@@ -113,6 +145,44 @@ export const chipFactsOf = (model: Model): ChipFacts => ({
         )
       : [],
 })
+
+const NO_DECISIONS: ReadonlyArray<DecisionRow> = []
+
+/** Every decision the page has read, the newest first. */
+export const decisionsIn = (model: Model): ReadonlyArray<DecisionRow> =>
+  model.knownDecisions._tag === 'LoadedDecisions'
+    ? model.knownDecisions.decisions
+    : NO_DECISIONS
+
+const NO_QUESTIONS: ReadonlyArray<QuestionRow> = []
+
+/**
+ * Every question the page has read: all of them once the list is read, else
+ * those that name the open Issue.
+ */
+export const questionsIn = (model: Model): ReadonlyArray<QuestionRow> => {
+  if (model.questionsList._tag === 'LoadedQuestions') {
+    return model.questionsList.questions
+  } else if (model.issueGraph._tag === 'LoadedIssueGraph') {
+    return model.issueGraph.graph.questions
+  }
+  return NO_QUESTIONS
+}
+
+const NO_REMINDERS: ReadonlyArray<ReminderRow> = []
+
+/**
+ * Every reminder the page has read: all of them once the list is read, else
+ * those whose link is the open Issue's page.
+ */
+export const remindersIn = (model: Model): ReadonlyArray<ReminderRow> => {
+  if (model.remindersList._tag === 'LoadedReminders') {
+    return model.remindersList.reminders
+  } else if (model.issueGraph._tag === 'LoadedIssueGraph') {
+    return model.issueGraph.graph.reminders
+  }
+  return NO_REMINDERS
+}
 
 const lineKey = (recordingId: string, line: number): string =>
   `${recordingId}#${line.toString()}`
@@ -293,6 +363,72 @@ const agentsByHandleOf = (
     return byHandle
   })
 
+const decisionsByShortIdMemo = new WeakMap<
+  ReadonlyArray<DecisionRow>,
+  ReadonlyMap<string, DecisionRow>
+>()
+
+const decisionsByShortIdOf = (
+  decisions: ReadonlyArray<DecisionRow>,
+): ReadonlyMap<string, DecisionRow> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(decisionsByShortIdMemo.get(decisions)),
+    () => {
+      const byShortId = new Map(
+        Array.map(decisions, decision => [
+          decision.decisionId.slice(0, SHORT_ID_LENGTH),
+          decision,
+        ]),
+      )
+      decisionsByShortIdMemo.set(decisions, byShortId)
+      return byShortId
+    },
+  )
+
+const questionsByShortIdMemo = new WeakMap<
+  ReadonlyArray<QuestionRow>,
+  ReadonlyMap<string, QuestionRow>
+>()
+
+const questionsByShortIdOf = (
+  questions: ReadonlyArray<QuestionRow>,
+): ReadonlyMap<string, QuestionRow> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(questionsByShortIdMemo.get(questions)),
+    () => {
+      const byShortId = new Map(
+        Array.map(questions, question => [
+          question.questionId.slice(0, SHORT_ID_LENGTH),
+          question,
+        ]),
+      )
+      questionsByShortIdMemo.set(questions, byShortId)
+      return byShortId
+    },
+  )
+
+const remindersByShortIdMemo = new WeakMap<
+  ReadonlyArray<ReminderRow>,
+  ReadonlyMap<string, ReminderRow>
+>()
+
+const remindersByShortIdOf = (
+  reminders: ReadonlyArray<ReminderRow>,
+): ReadonlyMap<string, ReminderRow> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(remindersByShortIdMemo.get(reminders)),
+    () => {
+      const byShortId = new Map(
+        Array.map(reminders, reminder => [
+          reminder.reminderId.slice(0, SHORT_ID_LENGTH),
+          reminder,
+        ]),
+      )
+      remindersByShortIdMemo.set(reminders, byShortId)
+      return byShortId
+    },
+  )
+
 /**
  * The context chips read from: the loaded catalog's indexes, built once per
  * snapshot, the reader's clock, and what Scribe's rows add.
@@ -309,6 +445,11 @@ export const chipContextOf = (
     agentsByHandle: agentsByHandleOf(facts.agents),
     buildsByNumber: buildsByNumberOf(facts.builds),
     commits: facts.commits,
+    decisionsByShortId: decisionsByShortIdOf(facts.decisions ?? NO_DECISIONS),
+    isEveryQuestionRead: facts.isEveryQuestionRead ?? false,
+    isEveryReminderRead: facts.isEveryReminderRead ?? false,
+    questionsByShortId: questionsByShortIdOf(facts.questions ?? NO_QUESTIONS),
+    remindersByShortId: remindersByShortIdOf(facts.reminders ?? NO_REMINDERS),
     featuresByNumber: Array.isReadonlyArrayEmpty(numberedOnPage)
       ? features.byNumber
       : new Map([...features.byNumber, ...numberedOnPage]),
@@ -321,9 +462,6 @@ export const chipContextOf = (
     productsById: productsByIdOf(issues),
   }
 }
-
-const shortened = (text: string, limit: number): string =>
-  text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`
 
 const recordingLabel = (
   maybeNumber: Option.Option<number>,
@@ -423,6 +561,62 @@ const buildDetail = (
       ]
     : []),
 ]
+
+const decisionOfId = (
+  id: string,
+  context: ChipContext,
+): Option.Option<DecisionRow> =>
+  Option.fromUndefinedOr(
+    context.decisionsByShortId.get(id.slice(0, SHORT_ID_LENGTH)),
+  )
+
+const questionOfId = (
+  id: string,
+  context: ChipContext,
+): Option.Option<QuestionRow> =>
+  Option.fromUndefinedOr(
+    context.questionsByShortId.get(id.slice(0, SHORT_ID_LENGTH)),
+  )
+
+const reminderOfId = (
+  id: string,
+  context: ChipContext,
+): Option.Option<ReminderRow> =>
+  Option.fromUndefinedOr(
+    context.remindersByShortId.get(id.slice(0, SHORT_ID_LENGTH)),
+  )
+
+const clockOf = (context: ChipContext): ChipClock => ({
+  nowMs: context.nowMs,
+  offsetMinutes: context.offsetMinutes,
+})
+
+const rawIdChip = (id: string): TextPart =>
+  Reference({
+    label: id.slice(0, SHORT_ID_LENGTH),
+    kind: 'Id',
+    detail: [id],
+  })
+
+/** The chip of the row an id names, when the page has read one. */
+const rowChipOfId = (
+  id: string,
+  context: ChipContext,
+): Option.Option<TextPart> =>
+  pipe(
+    decisionOfId(id, context),
+    Option.map(decision => decisionChip(decision, clockOf(context))),
+    Option.orElse(() =>
+      Option.map(questionOfId(id, context), question =>
+        questionChip(question, clockOf(context)),
+      ),
+    ),
+    Option.orElse(() =>
+      Option.map(reminderOfId(id, context), reminder =>
+        reminderChip(reminder, clockOf(context)),
+      ),
+    ),
+  )
 
 const referenceChip = (
   piece: TextPiece & { readonly _tag: 'Referenced' },
@@ -682,12 +876,29 @@ const referenceChip = (
           href: `/findings/${findingId}`,
           detail: [`Finding ${findingId}`],
         }),
-      RawId: ({ id }) =>
-        Reference({
-          label: id.slice(0, SHORT_ID_LENGTH),
-          kind: 'Id',
-          detail: [id],
+      DecisionId: ({ decisionId }) =>
+        Option.match(decisionOfId(decisionId, context), {
+          onNone: () => decisionChipOf(decisionId),
+          onSome: decision => decisionChip(decision, clockOf(context)),
         }),
+      QuestionId: ({ questionId }) =>
+        Option.match(questionOfId(questionId, context), {
+          onNone: () =>
+            context.isEveryQuestionRead
+              ? rawIdChip(questionId)
+              : questionChipOf(questionId),
+          onSome: question => questionChip(question, clockOf(context)),
+        }),
+      ReminderId: ({ reminderId }) =>
+        Option.match(reminderOfId(reminderId, context), {
+          onNone: () =>
+            context.isEveryReminderRead
+              ? rawIdChip(reminderId)
+              : reminderChipOf(reminderId),
+          onSome: reminder => reminderChip(reminder, clockOf(context)),
+        }),
+      RawId: ({ id }) =>
+        Option.getOrElse(rowChipOfId(id, context), () => rawIdChip(id)),
       FilePath: ({ path }) =>
         Reference({ label: fileLabel(path), kind: 'File', detail: [path] }),
       WebLink: ({ url }) =>

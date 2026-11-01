@@ -8,6 +8,7 @@ import {
   Order,
   Predicate,
   Queue,
+  Record,
   Schema as S,
   Stream,
   pipe,
@@ -15,6 +16,9 @@ import {
 
 import { normalizeIssueId } from '@foldkit/instant-tools/issues'
 
+import { DecisionFacts } from './decisionFacts.js'
+import { QuestionFacts } from './questionFacts.js'
+import { ReminderFacts } from './reminderFacts.js'
 import {
   AgentFacts,
   FeatureFacts,
@@ -151,9 +155,57 @@ export const CommitFacts = S.TaggedStruct('CommitFacts', {
 /** What Scribe's rows say about one commit. */
 export type CommitFacts = typeof CommitFacts.Type
 
-/** What Scribe's rows say about one Recording: its name, start and length. */
+/** Whose words a moment's lines are: his, or what he had on. */
+export const MomentKind = S.Literals(['Said', 'Seen'])
+/** Whose words a moment's lines are. */
+export type MomentKind = typeof MomentKind.Type
+
+/**
+ * One stretch of a Recording an Issue cites: lines 76 to 78, 22:39 into
+ * Recording 208, starting at their first line's row. A `Seen` moment is
+ * another app's sound or a voice named for someone else, never his words.
+ * `isOrigin` says the Issue came from it: the rows call it `introduced` and
+ * he said it before the Issue was filed.
+ */
+export const IssueMoment = S.Struct({
+  firstLineIndex: S.Number,
+  isOrigin: S.Boolean,
+  kind: MomentKind,
+  lastLineIndex: S.Number,
+  recordingId: S.String,
+  segmentId: S.String,
+  startSeconds: S.Number,
+})
+/** One stretch of a Recording an Issue cites. */
+export type IssueMoment = typeof IssueMoment.Type
+
+/** One Issue and its moments on a page, in the order he said them. */
+export const MomentsOfIssue = S.Struct({
+  issueId: S.String,
+  moments: S.Array(IssueMoment),
+})
+/** One Issue and its moments on a page. */
+export type MomentsOfIssue = typeof MomentsOfIssue.Type
+
+/**
+ * The Issues a Recording's or a line's moments name, each once, in the order
+ * he said them. `cameFrom` holds those with their origin here, `alsoCameUp`
+ * those filed from somewhere else or before he said these lines.
+ */
+export const IssuesOfMoments = S.Struct({
+  alsoCameUp: S.Array(MomentsOfIssue),
+  cameFrom: S.Array(MomentsOfIssue),
+})
+/** The Issues a Recording's or a line's moments name. */
+export type IssuesOfMoments = typeof IssuesOfMoments.Type
+
+/**
+ * What Scribe's rows say about one Recording: its name, start and length, and
+ * the Issues its moments name.
+ */
 export const RecordingFacts = S.TaggedStruct('RecordingFacts', {
   durationSeconds: S.Number,
+  issues: IssuesOfMoments,
   recordingId: S.String,
   startedAtMs: S.Number,
   title: S.String,
@@ -161,9 +213,13 @@ export const RecordingFacts = S.TaggedStruct('RecordingFacts', {
 /** What Scribe's rows say about one Recording. */
 export type RecordingFacts = typeof RecordingFacts.Type
 
-/** What Scribe's rows say about one line: its words and where it was said. */
+/**
+ * What Scribe's rows say about one line: its words, where it was said, and the
+ * Issues whose moments cover it.
+ */
 export const SegmentFacts = S.TaggedStruct('SegmentFacts', {
   isSealed: S.Boolean,
+  issues: IssuesOfMoments,
   lineIndex: S.Number,
   recordingId: S.String,
   saidAtMs: S.Number,
@@ -188,6 +244,9 @@ export const PageFacts = S.Union([
   FindingFacts,
   FeatureFacts,
   ProductFacts,
+  DecisionFacts,
+  QuestionFacts,
+  ReminderFacts,
   NoPageFacts,
 ])
 /** What Scribe's rows say about the entity a page shows. */
@@ -524,6 +583,106 @@ export const commitFactsOf = (data: unknown): PageFacts =>
     },
   )
 
+const StoredMomentIssue = S.Struct({
+  createdAtMs: S.Number,
+  number: S.Number,
+})
+
+const StoredMoment = S.Struct({
+  firstLineIndex: OptionalNumber,
+  kind: OptionalText,
+  lastLineIndex: OptionalNumber,
+  role: S.String,
+  segmentID: OptionalText,
+  startSeconds: OptionalNumber,
+  startedAtMs: S.Number,
+  trackedIssue: S.optionalKey(
+    S.NullOr(S.Union([StoredMomentIssue, S.Array(StoredMomentIssue)])),
+  ),
+})
+
+const StoredMoments = S.optionalKey(S.Array(StoredMoment))
+
+const INTRODUCED = 'introduced'
+const SEEN = 'seen'
+
+const momentOf = (
+  stored: typeof StoredMoment.Type,
+  issue: typeof StoredMomentIssue.Type,
+  recordingId: string,
+): Option.Option<IssueMoment> =>
+  Option.all({
+    firstLineIndex: Option.fromNullishOr(stored.firstLineIndex),
+    lastLineIndex: Option.fromNullishOr(stored.lastLineIndex),
+    segmentId: Option.fromNullishOr(stored.segmentID),
+    startSeconds: Option.fromNullishOr(stored.startSeconds),
+  }).pipe(
+    Option.map(line => ({
+      ...line,
+      isOrigin:
+        stored.role === INTRODUCED && stored.startedAtMs <= issue.createdAtMs,
+      kind: stored.kind === SEEN ? 'Seen' : 'Said',
+      recordingId,
+    })),
+  )
+
+const inOrderSaid: Order.Order<IssueMoment> = Order.combine(
+  Order.mapInput(Order.Number, (moment: IssueMoment) => moment.firstLineIndex),
+  Order.mapInput(Order.Number, (moment: IssueMoment) => moment.lastLineIndex),
+)
+
+const firstSaid = ({ moments }: MomentsOfIssue): number =>
+  Option.getOrElse(
+    Option.map(Array.head(moments), moment => moment.firstLineIndex),
+    () => 0,
+  )
+
+const issuesInOrderSaid: Order.Order<MomentsOfIssue> = Order.combine(
+  Order.mapInput(Order.Number, firstSaid),
+  Order.mapInput(Order.Number, ({ issueId }: MomentsOfIssue) =>
+    Number(issueId),
+  ),
+)
+
+const hasOrigin = ({ moments }: MomentsOfIssue): boolean =>
+  Array.some(moments, moment => moment.isOrigin)
+
+/**
+ * The Issues the rows of a Recording or a line name, each once, in the order
+ * he said them, by first line and then by Issue number. One Issue can have
+ * many moments. A moment whose row names no Issue, or no line, is skipped: four
+ * came from an old bridge, and their Issues have moments of their own.
+ */
+const issuesOfMomentsOf = (
+  stored: ReadonlyArray<typeof StoredMoment.Type>,
+  recordingId: string,
+): IssuesOfMoments => {
+  const moments = Array.flatMap(stored, row =>
+    Array.flatMap(Array.take(listOf(row.trackedIssue), 1), issue =>
+      Array.map(Option.toArray(momentOf(row, issue, recordingId)), moment => ({
+        issueId: issueIdOf(issue.number),
+        moment,
+      })),
+    ),
+  )
+  const issues = pipe(
+    Array.groupBy(moments, ({ issueId }) => issueId),
+    Record.toEntries,
+    Array.map(([issueId, ofIssue]) => ({
+      issueId,
+      moments: Array.sort(
+        Array.map(ofIssue, ({ moment }) => moment),
+        inOrderSaid,
+      ),
+    })),
+    Array.sort(issuesInOrderSaid),
+  )
+  return {
+    alsoCameUp: Array.filter(issues, ofIssue => !hasOrigin(ofIssue)),
+    cameFrom: Array.filter(issues, hasOrigin),
+  }
+}
+
 const StoredRecordingPages = S.Struct({
   recordings: S.Array(
     S.Struct({
@@ -533,23 +692,28 @@ const StoredRecordingPages = S.Struct({
       title: S.String,
     }),
   ),
+  sourceMoments: StoredMoments,
 })
 
-/** A Recording's page from the row Instant answers with. */
-export const recordingFactsOf = (data: unknown): PageFacts =>
-  Option.match(
-    Array.head(S.decodeUnknownSync(StoredRecordingPages)(data).recordings),
-    {
-      onNone: () => NoPageFacts.make({}),
-      onSome: stored =>
-        RecordingFacts.make({
-          durationSeconds: stored.durationSeconds,
-          recordingId: stored.id,
-          startedAtMs: stored.startedAtMs,
-          title: stored.title,
-        }),
-    },
-  )
+/**
+ * A Recording's page from the rows Instant answers with: its own row, and its
+ * moments with their Issues.
+ */
+export const recordingFactsOf = (data: unknown): PageFacts => {
+  const { recordings, sourceMoments } =
+    S.decodeUnknownSync(StoredRecordingPages)(data)
+  return Option.match(Array.head(recordings), {
+    onNone: () => NoPageFacts.make({}),
+    onSome: stored =>
+      RecordingFacts.make({
+        durationSeconds: stored.durationSeconds,
+        issues: issuesOfMomentsOf(listOf(sourceMoments), stored.id),
+        recordingId: stored.id,
+        startedAtMs: stored.startedAtMs,
+        title: stored.title,
+      }),
+  })
+}
 
 const StoredSegmentPages = S.Struct({
   transcriptionSegments: S.Array(
@@ -557,6 +721,7 @@ const StoredSegmentPages = S.Struct({
       id: S.String,
       recordingID: S.String,
       segmentIndex: S.Number,
+      sourceMoments: StoredMoments,
       startTimeSeconds: S.Number,
       text: S.String,
       wallClockStartedAtMs: S.Number,
@@ -565,7 +730,10 @@ const StoredSegmentPages = S.Struct({
   ),
 })
 
-/** A line's page from the row Instant answers with. */
+/**
+ * A line's page from the rows Instant answers with: its own row, and through
+ * its link every moment that covers it.
+ */
 export const segmentFactsOf = (data: unknown): PageFacts =>
   Option.match(
     Array.head(
@@ -576,6 +744,10 @@ export const segmentFactsOf = (data: unknown): PageFacts =>
       onSome: stored =>
         SegmentFacts.make({
           isSealed: Option.isSome(Option.fromNullishOr(stored.wordsSeal)),
+          issues: issuesOfMomentsOf(
+            listOf(stored.sourceMoments),
+            stored.recordingID,
+          ),
           lineIndex: stored.segmentIndex,
           recordingId: stored.recordingID,
           saidAtMs: stored.wallClockStartedAtMs,
@@ -723,17 +895,54 @@ export const buildsQuery = { builds: { $: { fields: BUILD_FIELDS } } }
 
 const UUID_LIKE = /^[0-9a-f-]{36}$/i
 
-/** What a Recording's page asks for: its name, start and length. */
-export const recordingFactsQuery = (recordingId: string) => ({
-  recordings: {
-    $: {
-      where: { id: recordingId.toLowerCase() },
-      fields: ['durationSeconds', 'startedAtMs', 'title'],
-    },
-  },
-})
+/** The fields a page draws of a moment; its quoted words stay behind. */
+const MOMENT_FIELDS = [
+  'firstLineIndex',
+  'kind',
+  'lastLineIndex',
+  'role',
+  'segmentID',
+  'startSeconds',
+  'startedAtMs',
+]
 
-/** What a line's page asks for: its words, time and sealing. */
+const ISSUE_SUBJECT = 'issue'
+
+/**
+ * What a page reads of a moment's Issue: which Issue, and when it was filed.
+ * Its title and state come from the catalog, which keeps them live.
+ */
+const MOMENT_ISSUE = { $: { fields: ['createdAtMs', 'number'] } }
+
+/**
+ * What a Recording's page asks for, in one query: its name, start and length,
+ * and every Issue moment in it. Recording 208 answers 100 Issues and 297
+ * moments. Its rows hold ids in lowercase, so any spelling of the id reads.
+ */
+export const recordingFactsQuery = (recordingId: string) => {
+  const id = recordingId.toLowerCase()
+  return {
+    recordings: {
+      $: {
+        where: { id },
+        fields: ['durationSeconds', 'startedAtMs', 'title'],
+      },
+    },
+    sourceMoments: {
+      $: {
+        where: { recordingID: id, subjectKind: ISSUE_SUBJECT },
+        fields: MOMENT_FIELDS,
+      },
+      trackedIssue: MOMENT_ISSUE,
+    },
+  }
+}
+
+/**
+ * What a line's page asks for: its words, time and sealing, and through its
+ * `sourceMoments` link the Issue moments that cover it, the line among the
+ * lines of a stretch such as `#76-115` too.
+ */
 export const segmentFactsQuery = (segmentId: string) => ({
   transcriptionSegments: {
     $: {
@@ -746,6 +955,10 @@ export const segmentFactsQuery = (segmentId: string) => ({
         'wallClockStartedAtMs',
         'wordsSeal',
       ],
+    },
+    sourceMoments: {
+      $: { where: { subjectKind: ISSUE_SUBJECT }, fields: MOMENT_FIELDS },
+      trackedIssue: MOMENT_ISSUE,
     },
   },
 })

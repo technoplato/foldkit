@@ -1,7 +1,12 @@
 import { Array, Option } from 'effect'
 import { Plain, Reference, type TextPart } from 'foldkit/renderers'
 
-import { durationLabel, howLongAgo, localTimeLabel } from './clock.js'
+import {
+  durationLabel,
+  howLongAgo,
+  localTimeLabel,
+  recordingClockLabel,
+} from './clock.js'
 import {
   type AgentRunChip,
   type AgentSession,
@@ -9,12 +14,14 @@ import {
   harnessOfHandle,
 } from './graphFacts.js'
 import {
+  type IssueMoment,
   type LandedBuild,
   type LandedCommit,
   buildLabel,
 } from './issueLandings.js'
 
 const SHORT_SHA_LENGTH = 9
+const WORDS_ORIGIN = 'https://words.pisspoursoftware.xyz'
 
 /** The reader's clock, read once a minute. */
 export type ChipClock = Readonly<{ nowMs: number; offsetMinutes: number }>
@@ -253,6 +260,67 @@ export const productChip = (
     href: `/products/${encodeURIComponent(productId)}`,
     detail: [`${Option.getOrElse(maybeKind, () => 'Product')} ${name}`],
   })
+
+/** A Recording's words in the words app. */
+export const recordingWordsLink = (recordingId: string): string =>
+  `${WORDS_ORIGIN}/recording/${recordingId}`
+
+/** One line's words at their exact time: its section with `?t=1359.22`. */
+export const lineWordsLink = (
+  recordingId: string,
+  segmentId: string,
+  atSeconds: number,
+): string =>
+  `${recordingWordsLink(recordingId)}/section/${segmentId}?t=${atSeconds.toFixed(2)}`
+
+const linesLabel = ({ firstLineIndex, lastLineIndex }: IssueMoment): string =>
+  firstLineIndex === lastLineIndex
+    ? `Line ${firstLineIndex.toString()}`
+    : `Lines ${firstLineIndex.toString()}-${lastLineIndex.toString()}`
+
+const NOT_HIS_WORDS = 'not his words'
+
+const momentTitleOf = (moment: IssueMoment): string =>
+  Array.join(
+    [
+      ...(moment.isOrigin ? ['origin'] : []),
+      ...(moment.kind === 'Seen' ? [NOT_HIS_WORDS] : []),
+    ],
+    ', ',
+  )
+
+const momentDetailOf = (moment: IssueMoment): ReadonlyArray<string> => {
+  const atClock = recordingClockLabel(moment.startSeconds)
+  return [
+    ...(moment.isOrigin ? ['The Issue came from these lines'] : []),
+    ...(moment.kind === 'Seen'
+      ? [
+          'Another app’s sound or another voice',
+          `Opens these lines at ${atClock}`,
+        ]
+      : [`Opens his words at ${atClock}`]),
+  ]
+}
+
+/**
+ * One moment's chip: `Line 76` or `Lines 76-115`, deep linking those lines at
+ * their exact time. Its title says when the Issue came from it, and when the
+ * lines are not his words.
+ */
+export const momentChip = (moment: IssueMoment): TextPart => {
+  const title = momentTitleOf(moment)
+  return Reference({
+    label: linesLabel(moment),
+    ...(title === '' ? {} : { title }),
+    kind: 'Segment',
+    href: lineWordsLink(
+      moment.recordingId,
+      moment.segmentId,
+      moment.startSeconds,
+    ),
+    detail: momentDetailOf(moment),
+  })
+}
 
 /** Chips with two spaces between them, for one line. */
 export const spacedChips = (

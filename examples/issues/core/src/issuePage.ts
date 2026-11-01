@@ -23,8 +23,11 @@ import {
   type ChipContext,
   chipContextOf,
   chipFactsOf,
+  decisionsIn,
   issueChipOf,
   partsOfText,
+  questionsIn,
+  remindersIn,
 } from './chips.js'
 import {
   durationLabel,
@@ -52,6 +55,11 @@ import {
   noLanding,
 } from './issueLandings.js'
 import {
+  decisionsOfIssue,
+  questionsOfIssue,
+  remindersOfIssue,
+} from './issueRows.js'
+import {
   landingHeadline,
   subtaskProgress,
   workInProgressLines,
@@ -74,6 +82,7 @@ import { type IssueFilesState, type Model } from './model.js'
 import { nowWorkingLines } from './nowWorking.js'
 import { runsOfIssue } from './pageAgents.js'
 import { describeIssueReference, issueAttachmentWebLink } from './reference.js'
+import { decisionChip, questionChip, reminderChip } from './rowChips.js'
 import {
   type TimelineStep,
   askedAtOf,
@@ -517,6 +526,42 @@ const findingNodesOf = (
     ),
   )
 
+const decisionNodesOf = (
+  model: Model,
+  issue: Issue,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  Array.map(decisionsOfIssue(decisionsIn(model), issue), decision =>
+    RichText([
+      decisionChip(decision, clockOf(context)),
+      Plain(`  ${whenWords(decision.decidedAtMs, context)}`),
+    ]),
+  )
+
+const questionNodesOf = (
+  model: Model,
+  issue: Issue,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  Array.map(questionsOfIssue(questionsIn(model), issue), question =>
+    RichText([
+      questionChip(question, clockOf(context)),
+      Plain(`  ${whenWords(question.askedAtMs, context)}`),
+    ]),
+  )
+
+const reminderNodesOf = (
+  model: Model,
+  issue: Issue,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  Array.map(remindersOfIssue(remindersIn(model), issue), reminder =>
+    RichText([
+      reminderChip(reminder, clockOf(context)),
+      Plain(`  ${whenWords(reminder.createdAtMs, context)}`),
+    ]),
+  )
+
 const atAGlanceNodes = (
   model: Model,
   issue: Issue,
@@ -526,6 +571,9 @@ const atAGlanceNodes = (
   const steps = timelineOf(issue, landing)
   const runs = runNodes(issue, model, context)
   const findings = findingNodesOf(model, context)
+  const decisions = decisionNodesOf(model, issue, context)
+  const questions = questionNodesOf(model, issue, context)
+  const reminders = reminderNodesOf(model, issue, context)
   return [
     ...section('App and feature', appAndFeatureNodes(model, issue)),
     ...section('Asked', askedNodes(issue, context)),
@@ -537,6 +585,9 @@ const atAGlanceNodes = (
     ...section('Timeline', timelineNodes(steps, context)),
     ...section(`Runs: ${runs.length.toString()}`, runs),
     ...section(`Findings: ${findings.length.toString()}`, findings),
+    ...section(`Decisions: ${decisions.length.toString()}`, decisions),
+    ...section(`Questions: ${questions.length.toString()}`, questions),
+    ...section(`Reminders: ${reminders.length.toString()}`, reminders),
   ]
 }
 

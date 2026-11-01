@@ -44,6 +44,23 @@ export const BuildEntity = S.TaggedStruct('BuildEntity', { number: S.String })
 export const ProductEntity = S.TaggedStruct('ProductEntity', {
   productId: S.String,
 })
+/** What he decided, by its row's id or the first 8 characters agents cite. */
+export const DecisionEntity = S.TaggedStruct('DecisionEntity', {
+  decisionId: S.String,
+})
+/** A question he asked, by its row's id or its first 8 characters. */
+export const QuestionEntity = S.TaggedStruct('QuestionEntity', {
+  questionId: S.String,
+})
+/** One of his reminders, by its row's id or its first 8 characters. */
+export const ReminderEntity = S.TaggedStruct('ReminderEntity', {
+  reminderId: S.String,
+})
+/**
+ * An id the text does not name the kind of, such as the `a208e30c` of
+ * `Seeded a3fe7871, a208e30c`. It has no page: a row with that id takes it.
+ */
+export const RawIdEntity = S.TaggedStruct('RawIdEntity', { id: S.String })
 
 /** Everything an Issue can point at, and everything that has a page. */
 export const Entity = S.Union([
@@ -58,6 +75,10 @@ export const Entity = S.Union([
   FeatureEntity,
   BuildEntity,
   ProductEntity,
+  DecisionEntity,
+  QuestionEntity,
+  ReminderEntity,
+  RawIdEntity,
 ])
 /** Everything an Issue can point at, and everything that has a page. */
 export type Entity = typeof Entity.Type
@@ -78,6 +99,9 @@ export const PageEntity = S.Union([
   FeatureEntity,
   BuildEntity,
   ProductEntity,
+  DecisionEntity,
+  QuestionEntity,
+  ReminderEntity,
 ])
 /** Every entity with a page of its own. */
 export type PageEntity = typeof PageEntity.Type
@@ -98,6 +122,9 @@ export const pageEntityKey = (entity: PageEntity): string =>
       FeatureEntity: ({ _tag, slug }) => `${_tag}:${slug}`,
       BuildEntity: ({ _tag, number }) => `${_tag}:${number}`,
       ProductEntity: ({ _tag, productId }) => `${_tag}:${productId}`,
+      DecisionEntity: ({ _tag, decisionId }) => `${_tag}:${decisionId}`,
+      QuestionEntity: ({ _tag, questionId }) => `${_tag}:${questionId}`,
+      ReminderEntity: ({ _tag, reminderId }) => `${_tag}:${reminderId}`,
     }),
   )
 
@@ -144,6 +171,7 @@ const excerptAround = (text: string, start: number, end: number): string => {
 }
 
 const SHORT_SHA = 7
+const SHORT_ROW_ID = 8
 
 const targetsOf = (reference: TextReference): ReadonlyArray<Entity> =>
   M.value(reference).pipe(
@@ -183,9 +211,12 @@ const targetsOf = (reference: TextReference): ReadonlyArray<Entity> =>
       FeatureName: ({ slug }) => [FeatureEntity.make({ slug })],
       FeatureLineNumber: () => [],
       FindingId: ({ findingId }) => [FindingEntity.make({ findingId })],
+      DecisionId: ({ decisionId }) => [DecisionEntity.make({ decisionId })],
+      QuestionId: ({ questionId }) => [QuestionEntity.make({ questionId })],
+      ReminderId: ({ reminderId }) => [ReminderEntity.make({ reminderId })],
       Timestamp: () => [],
       ChatSession: ({ sessionId }) => [SessionEntity.make({ sessionId })],
-      RawId: () => [],
+      RawId: ({ id }) => [RawIdEntity.make({ id })],
       FilePath: () => [],
       WebLink: () => [],
     }),
@@ -448,11 +479,33 @@ export const entityKey = (entity: Entity): string =>
       FeatureEntity: ({ slug }) => `feature:${slug}`,
       BuildEntity: ({ number }) => `build:${number}`,
       ProductEntity: ({ productId }) => `product:${productId}`,
+      DecisionEntity: ({ decisionId }) =>
+        `decision:${decisionId.slice(0, SHORT_ROW_ID)}`,
+      QuestionEntity: ({ questionId }) =>
+        `question:${questionId.slice(0, SHORT_ROW_ID)}`,
+      ReminderEntity: ({ reminderId }) =>
+        `reminder:${reminderId.slice(0, SHORT_ROW_ID)}`,
+      RawIdEntity: ({ id }) => `id:${id.slice(0, SHORT_ROW_ID)}`,
     }),
   )
 
 const isSameEntity = (left: Entity, right: Entity): boolean =>
   entityKey(left) === entityKey(right)
+
+const shortIdOfRow = (entity: Entity): Option.Option<string> => {
+  if (entity._tag === 'DecisionEntity') {
+    return Option.some(entity.decisionId.slice(0, SHORT_ROW_ID))
+  } else if (entity._tag === 'QuestionEntity') {
+    return Option.some(entity.questionId.slice(0, SHORT_ROW_ID))
+  } else if (entity._tag === 'ReminderEntity') {
+    return Option.some(entity.reminderId.slice(0, SHORT_ROW_ID))
+  }
+  return Option.none()
+}
+
+const isNamedAsRow = (linked: Entity, target: Entity): boolean =>
+  linked._tag === 'RawIdEntity' &&
+  Option.contains(shortIdOfRow(target), linked.id.slice(0, SHORT_ROW_ID))
 
 // BACKLINKS
 
@@ -518,6 +571,10 @@ const needlesOf = (
         `(${number})`,
       ],
       ProductEntity: () => [],
+      DecisionEntity: ({ decisionId }) => [decisionId.slice(0, SHORT_ROW_ID)],
+      QuestionEntity: ({ questionId }) => [questionId.slice(0, SHORT_ROW_ID)],
+      ReminderEntity: ({ reminderId }) => [reminderId.slice(0, SHORT_ROW_ID)],
+      RawIdEntity: ({ id }) => [id],
     }),
   )
 
@@ -562,6 +619,10 @@ const hasStructuredLink = (issue: Issue, entity: Entity): boolean =>
           Option.contains(work.targetBuild, number),
         ),
       ProductEntity: ({ productId }) => issue.product.id === productId,
+      DecisionEntity: () => false,
+      QuestionEntity: () => false,
+      ReminderEntity: () => false,
+      RawIdEntity: () => false,
     }),
   )
 
@@ -683,8 +744,10 @@ const backlinkOfIssue = (
   }
   const links = pipe(
     linksOfIssue(issue),
-    Array.filter(link =>
-      isSameEntity(canonicalEntity(link.target, numbers), target),
+    Array.filter(
+      link =>
+        isSameEntity(canonicalEntity(link.target, numbers), target) ||
+        isNamedAsRow(link.target, target),
     ),
     Array.sort(newestFirst),
   )

@@ -253,6 +253,43 @@ export const agentHandlesOfPage = (model: Model): ReadonlyArray<string> => {
     : uniqueStrings([...onPage, ...Array.flatMap(peeked, handlesOfIssue)])
 }
 
+const citedKindsMemo = new WeakMap<Issue, ReadonlySet<string>>()
+
+const citedKindsOf = (issue: Issue): ReadonlySet<string> =>
+  Option.getOrElse(Option.fromUndefinedOr(citedKindsMemo.get(issue)), () => {
+    const kinds = new Set(
+      Array.map(linksOfIssue(issue), link => link.target._tag),
+    )
+    citedKindsMemo.set(issue, kinds)
+    return kinds
+  })
+
+/**
+ * Whether the open or peeked Issue's words cite a row of a kind, such as
+ * `question 4e740f44`: a chip needs that table's rows, and only then is the
+ * table worth reading. Each Issue is read once.
+ */
+export const pageCites = (
+  model: Model,
+  kind: 'QuestionEntity' | 'ReminderEntity',
+): boolean =>
+  Array.some([...openIssueOf(model), ...peekedIssueOf(model)], issue =>
+    citedKindsOf(issue).has(kind),
+  )
+
+/**
+ * Whether the page open reads his decisions: its own list, a chip's sentence,
+ * or the palette's places. Once read they stay open, so the table costs one
+ * read and each change to it, however many pages open after.
+ */
+export const pageReadsDecisions = (model: Model): boolean =>
+  model.knownDecisions._tag === 'LoadedDecisions' ||
+  model.navigation._tag === 'Decisions' ||
+  model.navigation._tag === 'IssueDetail' ||
+  model.navigation._tag === 'EntityPage' ||
+  model.layer._tag === 'ChoiceLayer' ||
+  model.layer._tag === 'PeekLayer'
+
 /** The open Issue's number, when it has one, for the runs started for it. */
 export const issueNumberOfPage = (model: Model): Option.Option<number> =>
   model.navigation._tag === 'IssueDetail'

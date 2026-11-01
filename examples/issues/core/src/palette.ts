@@ -2,9 +2,11 @@ import { Array, Option, Order, pipe } from 'effect'
 
 import { type Issue } from '@foldkit/instant-tools/issues'
 
-import { FeatureEntity, ProductEntity } from './entityGraph.js'
-import { type FeatureChip } from './graphFacts.js'
+import { decisionsIn } from './chips.js'
 import { viewChoicesOf } from './choices.js'
+import { type DecisionRow } from './decisionFacts.js'
+import { DecisionEntity, FeatureEntity, ProductEntity } from './entityGraph.js'
+import { type FeatureChip } from './graphFacts.js'
 import { type Interaction, interaction, uniqueByToken } from './interaction.js'
 import { issuesNamedBy } from './issueView.js'
 import { keyInteractionsOf, placeInteractions } from './keys.js'
@@ -106,6 +108,25 @@ const goToProductOf = (productId: string, name: string): Interaction =>
     return going
   })
 
+const SHORT_ROW_ID = 8
+
+const goToDecisions = new WeakMap<DecisionRow, Interaction>()
+
+const goToDecisionOf = (decision: DecisionRow): Interaction =>
+  Option.getOrElse(Option.fromUndefinedOr(goToDecisions.get(decision)), () => {
+    const going = interaction(
+      `go-decision:${decision.decisionId}`,
+      `Go to decision ${decision.decisionId.slice(0, SHORT_ROW_ID)} ${decision.text}`,
+      OpenedNavigation.make({
+        navigation: EntityPage.make({
+          entity: DecisionEntity.make({ decisionId: decision.decisionId }),
+        }),
+      }),
+    )
+    goToDecisions.set(decision, going)
+    return going
+  })
+
 const entityPlacesOf = (model: Model): ReadonlyArray<Interaction> => [
   ...(model.products._tag === 'LoadedProducts'
     ? Array.map(model.products.products, ({ product }) =>
@@ -113,13 +134,14 @@ const entityPlacesOf = (model: Model): ReadonlyArray<Interaction> => [
       )
     : []),
   ...Array.map(model.knownFeatures, goToFeatureOf),
+  ...Array.map(decisionsIn(model), goToDecisionOf),
 ]
 
 /**
  * Every action and place the Program offers now, by the name a palette shows:
  * the places first, then what the keyboard and the page offer, each token
  * once, with no row for opening each Issue, which a typed word or number
- * brings up. Each product and feature is a place of its own.
+ * brings up. Each product, feature and decision is a place of its own.
  */
 export const paletteActionsOf = (model: Model): ReadonlyArray<Interaction> =>
   pipe(

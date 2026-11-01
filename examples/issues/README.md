@@ -204,7 +204,8 @@ build time, so a build from another branch names that branch. It paints the same
   words, where it landed, how to get that build (the TestFlight invite and the
   upload's page), the build he found it in, every commit, the ask's timeline with
   how long each step took, every run that worked on it with its account and
-  model, and the findings raised on it;
+  model, the findings raised on it, and the decisions, questions and reminders
+  around it;
 - `/asks`, how long asks take: each step's median, how many Issues reached it,
   and the slowest asks;
 - `/agents/<id>`, every run a handle names: how it ran, when and for how long, what
@@ -214,6 +215,18 @@ build time, so a build from another branch names that branch. It paints the same
 - `/findings`, what agents reported running into, every one, counted by kind,
   source and state, each count a link, `/findings?kind=mistake`; a finding files
   as an Issue through the same form as any other, and its row names that Issue;
+- `/decisions`, what he decided, every one, counted by state, and
+  `/decisions/<id>`, the sentence, its state, when and how long ago, his exact
+  words each linked at their time, what it superseded and what superseded it, the
+  Issues it names and the Issues that cite it. Agents cite the first 8 characters,
+  `decision dbdbf773`, and a chip draws the sentence and state; a bare `dbdbf773`
+  takes the same chip once a row holds that id;
+- `/questions`, what he asked, counted by state and what he wants to learn, and
+  `/questions/<id>`, with his words, each answer, who gave it, and how soon;
+- `/reminders`, and `/reminders/<id>`, with where he said it. Nothing in Scribe's
+  schema ties a reminder to an Issue: only its `url` can, when that is the Issue's
+  page, or the Issue's own words citing it. Its notes stay words, because a
+  `Receipt #1520` is not Issue 1520;
 - `/features`, each line of the feature contract in his words, and
   `/features/<slug>`, the Issues that implement or touch it and the builds those
   landed in; a line goes by the name in bold, because numbers change;
@@ -226,7 +239,14 @@ and its release tags. The site opens Scribe's Instant app the first time a page
 asks, signed in with the same Access login through a second mint on its origin
 (`hostedIdentity({ session })` in `react/vite.config.ts`), so the list pays nothing
 for it. Agents, findings, features and products come the same way, written by
-Scribe's `scripts/schema/graph-sync.sh`. Surfaces and modules are derived from code
+Scribe's `scripts/schema/graph-sync.sh`. Decisions are read once, 155 rows and
+45 KB, for chips, the palette, `/decisions` and an Issue's page. No query can look
+inside `issueNumbersJSON`, so an Issue's page reads the few questions that hold
+one, 5 of 964, and the reminders that hold a link, 2 of 140; `/questions` and
+`/reminders` read their tables only when open. Instant restates a query's whole
+answer on any change, so each read keeps the rows that did not change
+(`keptRowsOf` in `core/src/storedRows.ts`): one new question decodes one row, and a
+page builds one row. Surfaces and modules are derived from code
 and stored nowhere: `scripts/schema/products-map.mjs` prints them to
 `~/Scribe/products-map.json`, and the site's own server answers that file at
 `/__foldkit/products-map` (`react/productsMapRoute.ts`). A refused mint or unreadable row is a reason on the page, never rows that

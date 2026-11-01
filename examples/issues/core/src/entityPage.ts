@@ -16,10 +16,14 @@ import {
   type ChipContext,
   chipContextOf,
   chipFactsOf,
+  decisionsIn,
   issueChipOf,
   partsOfText,
 } from './chips.js'
 import { millisecondsLabel, whenLabel } from './clock.js'
+import { decisionFactNodes } from './decisionPage.js'
+import { questionFactNodes } from './questionPage.js'
+import { reminderFactNodes } from './reminderPage.js'
 import {
   AgentEntity,
   type Backlink,
@@ -36,6 +40,9 @@ import {
   buildChip,
   commitChip,
   commitChipOf,
+  lineWordsLink,
+  momentChip,
+  recordingWordsLink,
   spacedChips,
   testflightChips,
   whenWordsOn,
@@ -43,6 +50,8 @@ import {
 import {
   type BuildFacts,
   type CommitFacts,
+  type IssuesOfMoments,
+  type MomentsOfIssue,
   type RecordingFacts,
   type SegmentFacts,
   buildLabel,
@@ -89,6 +98,12 @@ export const entityTitle = (
       FindingEntity: ({ findingId }) =>
         `Finding ${findingId.slice(0, SHORT_ID_LENGTH)}`,
       FeatureEntity: ({ slug }) => `Feature ${slug}`,
+      DecisionEntity: ({ decisionId }) =>
+        `Decision ${decisionId.slice(0, SHORT_ID_LENGTH)}`,
+      QuestionEntity: ({ questionId }) =>
+        `Question ${questionId.slice(0, SHORT_ID_LENGTH)}`,
+      ReminderEntity: ({ reminderId }) =>
+        `Reminder ${reminderId.slice(0, SHORT_ID_LENGTH)}`,
       CommitEntity: ({ sha }) => `Commit ${sha.slice(0, SHORT_SHA_LENGTH)}`,
       BuildEntity: ({ number }) => `Build ${number}`,
       ProductEntity: ({ productId }) =>
@@ -316,12 +331,103 @@ const commitFactNodes = (
   ]
 }
 
-const WORDS_ORIGIN = 'https://words.pisspoursoftware.xyz'
 const MILLISECONDS_PER_SECOND = 1_000
+
+type RememberedMomentRow = Readonly<{
+  issue: Issue | undefined
+  nowMs: number
+  offsetMinutes: number
+  row: UiNode
+}>
+
+const rememberedMomentRows = new WeakMap<MomentsOfIssue, RememberedMomentRow>()
+
+/**
+ * One Issue's line on a Recording's or a line's page: its chip, then a chip
+ * for each of its moments. The moments never change between answers from the
+ * rows, so a row is kept until its Issue or the minute does.
+ */
+const momentRowOf = (ofIssue: MomentsOfIssue, context: ChipContext): UiNode => {
+  const issue = context.issuesById.get(ofIssue.issueId)
+  return Option.getOrElse(
+    Option.map(
+      Option.filter(
+        Option.fromUndefinedOr(rememberedMomentRows.get(ofIssue)),
+        remembered =>
+          remembered.issue === issue &&
+          remembered.nowMs === context.nowMs &&
+          remembered.offsetMinutes === context.offsetMinutes,
+      ),
+      remembered => remembered.row,
+    ),
+    () => {
+      const row = RichText([
+        issueChipOf(ofIssue.issueId, context),
+        ...spacedChips(Array.map(ofIssue.moments, momentChip)),
+      ])
+      rememberedMomentRows.set(ofIssue, {
+        issue,
+        nowMs: context.nowMs,
+        offsetMinutes: context.offsetMinutes,
+        row,
+      })
+      return row
+    },
+  )
+}
+
+const momentSection = (
+  heading: string,
+  issues: ReadonlyArray<MomentsOfIssue>,
+  context: ChipContext,
+): ReadonlyArray<UiNode> =>
+  Array.match(issues, {
+    onEmpty: () => [],
+    onNonEmpty: found => [
+      Column(
+        { gap: 0 },
+        Text(`${heading}: ${issueCountWords(found.length)}`, {
+          emphasis: 'Headline',
+        }),
+        ...Array.map(found, ofIssue => momentRowOf(ofIssue, context)),
+      ),
+    ],
+  })
+
+type MomentHeadings = Readonly<{
+  alsoCameUp: string
+  cameFrom: string
+  noIssue: string
+}>
+
+const RECORDING_HEADINGS: MomentHeadings = {
+  alsoCameUp: 'Also came up in this Recording',
+  cameFrom: 'Came from this Recording',
+  noIssue: 'No Issue came from this Recording yet.',
+}
+
+const LINE_HEADINGS: MomentHeadings = {
+  alsoCameUp: 'Also came up on this line',
+  cameFrom: 'Came from this line',
+  noIssue: 'No Issue came from this line yet.',
+}
+
+const issuesOfMomentsNodes = (
+  { alsoCameUp, cameFrom }: IssuesOfMoments,
+  headings: MomentHeadings,
+  context: ChipContext,
+): ReadonlyArray<UiNode> =>
+  Array.isReadonlyArrayEmpty(cameFrom) && Array.isReadonlyArrayEmpty(alsoCameUp)
+    ? [Text(headings.noIssue, { dim: true })]
+    : [
+        ...momentSection(headings.cameFrom, cameFrom, context),
+        ...momentSection(headings.alsoCameUp, alsoCameUp, context),
+      ]
 
 const recordingFactNodes = (
   facts: RecordingFacts,
   clock: ChipClock,
+  context: ChipContext,
 ): ReadonlyArray<UiNode> => [
   Text(facts.title, { emphasis: 'Headline' }),
   RichText([
@@ -331,46 +437,77 @@ const recordingFactNodes = (
     Reference({
       label: 'His words',
       kind: 'Recording',
-      href: `${WORDS_ORIGIN}/recording/${facts.recordingId}`,
+      href: recordingWordsLink(facts.recordingId),
       detail: ['Opens this Recording’s words'],
     }),
   ]),
+  ...issuesOfMomentsNodes(facts.issues, RECORDING_HEADINGS, context),
 ]
+
+const isOnlySeen = ({ alsoCameUp, cameFrom }: IssuesOfMoments): boolean => {
+  const moments = Array.flatMap(
+    [...cameFrom, ...alsoCameUp],
+    ofIssue => ofIssue.moments,
+  )
+  return (
+    Array.isReadonlyArrayNonEmpty(moments) &&
+    Array.every(moments, moment => moment.kind === 'Seen')
+  )
+}
 
 const segmentFactNodes = (
   facts: SegmentFacts,
   clock: ChipClock,
-): ReadonlyArray<UiNode> => [
-  Text(`Line ${facts.lineIndex.toString()}`, { emphasis: 'Headline' }),
-  facts.isSealed
-    ? Text('These words are sealed.', { dim: true })
-    : Text(facts.text),
-  RichText([
-    Plain(`Said ${whenWordsOn(facts.saidAtMs, clock)}  `),
-    Reference({
-      label: `Line ${facts.lineIndex.toString()}`,
-      kind: 'Segment',
-      href: `${WORDS_ORIGIN}/recording/${facts.recordingId}/section/${facts.segmentId}?t=${facts.startTimeSeconds.toFixed(2)}`,
-      detail: ['Opens his words at this line'],
-    }),
-    Plain('  '),
-    Reference({
-      label: 'The Recording',
-      kind: 'Recording',
-      href: `/recordings/${facts.recordingId}`,
-      detail: ['Every Issue from this Recording'],
-    }),
-  ]),
-]
+  context: ChipContext,
+): ReadonlyArray<UiNode> => {
+  const isNotHisWords = isOnlySeen(facts.issues)
+  return [
+    Text(`Line ${facts.lineIndex.toString()}`, { emphasis: 'Headline' }),
+    facts.isSealed
+      ? Text('These words are sealed.', { dim: true })
+      : Text(facts.text),
+    ...(isNotHisWords ? [Text('These words are not his.', { dim: true })] : []),
+    RichText([
+      Plain(
+        `${isNotHisWords ? 'Heard' : 'Said'} ${whenWordsOn(facts.saidAtMs, clock)}  `,
+      ),
+      Reference({
+        label: `Line ${facts.lineIndex.toString()}`,
+        kind: 'Segment',
+        href: lineWordsLink(
+          facts.recordingId,
+          facts.segmentId,
+          facts.startTimeSeconds,
+        ),
+        detail: [
+          isNotHisWords
+            ? 'Opens this line at its time'
+            : 'Opens his words at this line',
+        ],
+      }),
+      Plain('  '),
+      Reference({
+        label: 'The Recording',
+        kind: 'Recording',
+        href: `/recordings/${facts.recordingId}`,
+        detail: ['Every Issue from this Recording'],
+      }),
+    ]),
+    ...issuesOfMomentsNodes(facts.issues, LINE_HEADINGS, context),
+  ]
+}
 
 const NO_FACTS_WORDS: Readonly<Record<PageEntity['_tag'], string>> = {
   AgentEntity: 'Scribe’s rows hold no such agent.',
   BuildEntity: 'Scribe’s rows hold no such build.',
   CommitEntity: 'Scribe’s rows hold no such commit.',
+  DecisionEntity: 'Scribe’s rows hold no such decision.',
   FeatureEntity: 'Scribe’s rows hold no such feature.',
   FindingEntity: 'Scribe’s rows hold no such finding.',
   ProductEntity: 'Scribe’s rows hold no such product.',
+  QuestionEntity: 'Scribe’s rows hold no such question.',
   RecordingEntity: 'Scribe’s rows hold no such Recording.',
+  ReminderEntity: 'Scribe’s rows hold no such reminder.',
   RecordingNumberEntity: 'Scribe’s rows hold no such Recording.',
   SegmentEntity: 'Scribe’s rows hold no such line.',
   SessionEntity: 'Scribe’s rows hold no such session.',
@@ -408,8 +545,8 @@ const pageFactNodes = (
           M.tagsExhaustive({
             BuildFacts: found => buildFactNodes(found, clock, context),
             CommitFacts: found => commitFactNodes(found, clock, context),
-            RecordingFacts: found => recordingFactNodes(found, clock),
-            SegmentFacts: found => segmentFactNodes(found, clock),
+            RecordingFacts: found => recordingFactNodes(found, clock, context),
+            SegmentFacts: found => segmentFactNodes(found, clock, context),
             AgentFacts: found => [
               plainName,
               ...agentFactNodes(found, clock, context),
@@ -423,6 +560,10 @@ const pageFactNodes = (
               ...findingFactNodes(found, clock, context),
             ],
             FeatureFacts: found => featureFactNodes(found, clock, context),
+            DecisionFacts: found =>
+              decisionFactNodes(found, clock, context, decisionsIn(model)),
+            QuestionFacts: found => questionFactNodes(found, clock, context),
+            ReminderFacts: found => reminderFactNodes(found, clock, context),
             ProductFacts: () => [plainName],
             NoPageFacts: () => [
               plainName,
@@ -446,7 +587,13 @@ const productTitleOf = (
       )
     : entityTitle(entity, issues)
 
-const backlinkCountNodes = (
+const NAMES_IN_WORDS: Partial<Readonly<Record<PageEntity['_tag'], string>>> = {
+  RecordingEntity: 'this Recording',
+  RecordingNumberEntity: 'this Recording',
+  SegmentEntity: 'this line',
+}
+
+const pointingCountNodes = (
   entity: PageEntity,
   backlinks: ReadonlyArray<Backlink>,
 ): ReadonlyArray<UiNode> =>
@@ -463,6 +610,28 @@ const backlinkCountNodes = (
         { dim: true },
       ),
     ],
+  })
+
+const mentionCountNodes = (
+  name: string,
+  backlinks: ReadonlyArray<Backlink>,
+): ReadonlyArray<UiNode> =>
+  Array.match(backlinks, {
+    onEmpty: () => [Text(`No Issue mentions ${name} yet.`, { dim: true })],
+    onNonEmpty: found => [
+      Text(`Mentions ${name}: ${issueCountWords(found.length)}`, {
+        emphasis: 'Headline',
+      }),
+    ],
+  })
+
+const backlinkCountNodes = (
+  entity: PageEntity,
+  backlinks: ReadonlyArray<Backlink>,
+): ReadonlyArray<UiNode> =>
+  Option.match(Option.fromUndefinedOr(NAMES_IN_WORDS[entity._tag]), {
+    onNone: () => pointingCountNodes(entity, backlinks),
+    onSome: name => mentionCountNodes(name, backlinks),
   })
 
 /**
@@ -485,12 +654,13 @@ const backlinksOfPage = (
     : backlinksOf(issues, entity)
 
 /**
- * One entity's page: its name, what Scribe's rows say about it when it is a
- * build or commit, then every Issue that points at it, the newest first, each
- * with the words around the link and where it was written. Recording 208's
- * page lists the Issues its lines asked for. A product's page, such as
- * Scribe's, lists its Issues by status instead, the most recently changed
- * first.
+ * One entity's page: its name, what Scribe's rows say about it, then every
+ * Issue whose text points at it, the newest first, each with the words around
+ * the link and where it was written. Recording 208's page leads with the
+ * Issues its rows say came from it, in the order he said them, and keeps those
+ * that merely mention it under `Mentions this Recording`. A product's page,
+ * such as Scribe's, lists its Issues by status instead, the most recently
+ * changed first.
  */
 export const entityPageNodes = (
   model: Model,

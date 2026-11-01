@@ -70,7 +70,13 @@ import {
 } from './message.js'
 import {
   FailedIssues,
+  DecisionFilter,
+  DecisionsObservation,
   FeaturesObservation,
+  QuestionFilter,
+  QuestionsObservation,
+  ReminderFilter,
+  RemindersObservation,
   FindingFilter,
   FindingsObservation,
   IssueDetailState,
@@ -138,6 +144,21 @@ export const FindingsDestination = S.TaggedStruct('FindingsDestination', {
   filter: FindingFilter,
   state: FindingsObservation,
 })
+/** Presents what he decided: which ones show and every one read. */
+export const DecisionsDestination = S.TaggedStruct('DecisionsDestination', {
+  filter: DecisionFilter,
+  state: DecisionsObservation,
+})
+/** Presents what he asked: which ones show and every one read. */
+export const QuestionsDestination = S.TaggedStruct('QuestionsDestination', {
+  filter: QuestionFilter,
+  state: QuestionsObservation,
+})
+/** Presents his reminders: which ones show and every one read. */
+export const RemindersDestination = S.TaggedStruct('RemindersDestination', {
+  filter: ReminderFilter,
+  state: RemindersObservation,
+})
 /** Presents the products' feature contracts, every line read. */
 export const FeaturesDestination = S.TaggedStruct('FeaturesDestination', {
   state: FeaturesObservation,
@@ -162,6 +183,9 @@ export const Destination = S.Union([
   InboxDestination,
   EntityPageDestination,
   FindingsDestination,
+  DecisionsDestination,
+  QuestionsDestination,
+  RemindersDestination,
   FeaturesDestination,
   ProductsDestination,
 ])
@@ -226,6 +250,21 @@ export const destinationForModel = (model: Model): Destination =>
         _tag: 'FindingsDestination',
         filter,
         state: model.findingsList,
+      }),
+      Decisions: ({ filter }) => ({
+        _tag: 'DecisionsDestination',
+        filter,
+        state: model.knownDecisions,
+      }),
+      Questions: ({ filter }) => ({
+        _tag: 'QuestionsDestination',
+        filter,
+        state: model.questionsList,
+      }),
+      Reminders: ({ filter }) => ({
+        _tag: 'RemindersDestination',
+        filter,
+        state: model.remindersList,
       }),
       Features: () => ({
         _tag: 'FeaturesDestination',
@@ -432,6 +471,9 @@ export const interactionsForModel = (
           openInteraction,
         ),
       ],
+      Decisions: () => navigationInteractionsOf(model),
+      Questions: () => navigationInteractionsOf(model),
+      Reminders: () => navigationInteractionsOf(model),
       Features: () => navigationInteractionsOf(model),
       Products: () => navigationInteractionsOf(model),
       Findings: () => [

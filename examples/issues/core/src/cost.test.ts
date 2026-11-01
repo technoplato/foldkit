@@ -9,12 +9,14 @@ import {
   ProductCatalogEntry,
 } from '@foldkit/instant-tools/issues'
 
+import { decisionsOf } from './decisionFacts.js'
 import { featureChipsOf } from './graphFacts.js'
 import { modelForNavigation } from './init.js'
 import { tokenForKeyPress } from './keys.js'
 import {
   MovedCardAcross,
   MovedRowCursor,
+  ObservedDecisions,
   ObservedFeatureChips,
   ObservedIssues,
   ObservedProducts,
@@ -260,6 +262,40 @@ describe('what the palette costs with every product and feature in it', () => {
           update(
             places,
             UpdatedMenuQuery.make({ query: `line ${run.toString()}` }),
+          )[0],
+        )
+      }),
+    ).toBeLessThan(BUDGET_MS)
+  })
+})
+
+describe('what the palette costs with every decision in it', () => {
+  const DECISION_COUNT = 155
+
+  const places = update(
+    palette(),
+    ObservedDecisions.make({
+      decisions: decisionsOf({
+        decisions: Array.makeBy(DECISION_COUNT, index => ({
+          decidedAtMs: 1,
+          id: `decision-${index.toString()}`,
+          status: 'decided',
+          text: `Rule ${index.toString()}, as one plain sentence of what he decided.`,
+        })),
+      }),
+    }),
+  )[0]
+
+  it('takes a letter, matching every decision and Issue title, inside one key', () => {
+    issuesScreen(places)
+    let run = 0
+    expect(
+      fastestMsOf(() => {
+        run += 1
+        return issuesScreen(
+          update(
+            places,
+            UpdatedMenuQuery.make({ query: `rule ${run.toString()}` }),
           )[0],
         )
       }),

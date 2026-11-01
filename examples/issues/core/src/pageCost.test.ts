@@ -1,4 +1,5 @@
 import { Array, Option } from 'effect'
+import { textsOf } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -12,7 +13,12 @@ import {
   UriReference,
 } from '@foldkit/instant-tools/issues'
 
-import { AgentEntity, FeatureEntity, ProductEntity } from './entityGraph.js'
+import {
+  AgentEntity,
+  FeatureEntity,
+  ProductEntity,
+  RecordingEntity,
+} from './entityGraph.js'
 import {
   agentChipsOf,
   agentFactsOf,
@@ -24,6 +30,7 @@ import {
   productFactsOf,
 } from './graphFacts.js'
 import { modelForNavigation } from './init.js'
+import { recordingFactsOf } from './issueLandings.js'
 import {
   type Message,
   ObservedAgentChips,
@@ -368,6 +375,103 @@ const issuePage = opened(
     issueId: '0001',
   }),
 )
+
+const RECORDING_ISSUE_COUNT = 100
+const MOMENTS_PER_RECORDING_ISSUE = 3
+const FIRST_RECORDING_ISSUE = 1_100
+const CHANGED_ISSUE_ID = (FIRST_RECORDING_ISSUE + 3).toString()
+
+const storedRecordingMoment = (index: number) => {
+  const issueIndex = Math.floor(index / MOMENTS_PER_RECORDING_ISSUE)
+  return {
+    firstLineIndex: index * LINE_SPACING,
+    id: `moment-${index.toString()}`,
+    kind: index % 11 === 0 ? 'seen' : 'said',
+    lastLineIndex: index * LINE_SPACING + 2,
+    role: index % MOMENTS_PER_RECORDING_ISSUE === 0 ? 'introduced' : 'refined',
+    segmentID: sectionIdAt(index, 0, 0),
+    startSeconds: index * LINE_SPACING * 4.5,
+    startedAtMs: 1_780_000_000_000 + index,
+    trackedIssue: [
+      {
+        createdAtMs: 1_790_000_000_000,
+        id: `issue-row-${issueIndex.toString()}`,
+        number: FIRST_RECORDING_ISSUE + issueIndex + 1,
+      },
+    ],
+  }
+}
+
+const recordingEntity = RecordingEntity.make({ recordingId: recordingIdAt(28) })
+
+const recordingPage = opened(
+  `/recordings/${recordingEntity.recordingId}`,
+  ObservedPageFacts.make({
+    entity: recordingEntity,
+    facts: recordingFactsOf({
+      recordings: [
+        {
+          durationSeconds: 19_176,
+          id: recordingEntity.recordingId,
+          startedAtMs: 1_780_000_000_000,
+          title: 'Recording 208',
+        },
+      ],
+      sourceMoments: Array.makeBy(
+        RECORDING_ISSUE_COUNT * MOMENTS_PER_RECORDING_ISSUE,
+        storedRecordingMoment,
+      ),
+    }),
+  }),
+)
+
+const rowOfIssue = (model: Model, issueId: string) =>
+  Option.getOrThrow(
+    Array.findFirst(textsOf(issuesScreen(model)), text =>
+      text.content.startsWith(`#${issueId}`),
+    ),
+  )
+
+describe('what a Recording’s moments cost, with 1,500 Issues loaded', () => {
+  const afterLiveChange = (index: number): Model =>
+    update(
+      recordingPage,
+      observedIssuesOf(
+        Array.map(catalog, issue =>
+          issue.id === CHANGED_ISSUE_ID
+            ? Issue.make({
+                ...issue,
+                title: `${issue.title} ${index.toString()}`,
+              })
+            : issue,
+        ),
+      ),
+    )[0]
+
+  it('paints 100 Issues and 300 moments again', () => {
+    expect(fastestRepaintMs(recordingPage)).toBeLessThan(BUDGET_MS)
+  })
+
+  it('keeps the Facts it read across a live change elsewhere', () => {
+    expect(afterLiveChange(1).pageFacts).toBe(recordingPage.pageFacts)
+  })
+
+  it('derives no row again for an Issue that did not change', () => {
+    const before = afterLiveChange(1)
+    const after = afterLiveChange(2)
+    const unchangedId = (FIRST_RECORDING_ISSUE + 4).toString()
+    expect(rowOfIssue(before, unchangedId)).toBe(
+      rowOfIssue(before, unchangedId),
+    )
+    expect(rowOfIssue(after, unchangedId)).toBe(rowOfIssue(before, unchangedId))
+  })
+
+  it('shows the live change on the row of the Issue that changed', () => {
+    expect(rowOfIssue(afterLiveChange(2), CHANGED_ISSUE_ID).content).toContain(
+      `Issue ${(FIRST_RECORDING_ISSUE + 2).toString()} 2`,
+    )
+  })
+})
 
 describe('what a graph page costs to paint again after a live change, with 1,500 Issues loaded', () => {
   it('paints all 450 findings again without reading what did not change', () => {

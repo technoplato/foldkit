@@ -5,6 +5,7 @@ import {
   Equivalence,
   Match as M,
   Option,
+  Predicate,
   Schema as S,
 } from 'effect'
 import { Command } from 'foldkit'
@@ -117,8 +118,12 @@ import {
   DeletedIssueMutation,
   DraftMention,
   EditingIssueDraft,
+  Decisions,
+  FailedDecisions,
   FailedFeatures,
   FailedFindings,
+  FailedQuestions,
+  FailedReminders,
   FailedIssue,
   FailedIssueDraft,
   FailedIssueFiles,
@@ -170,9 +175,12 @@ import {
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
   NotObservingPageFacts,
+  type PageFactsObservation,
   PeekLayer,
   type ProductAdditionState,
   Products,
+  Questions,
+  Reminders,
   RefusedProductAddition,
   SavedIssueMutation,
   SavedProductAddition,
@@ -1708,6 +1716,46 @@ const leftoverRoomCommands = (
   return Array.appendAll(leave, join)
 }
 
+const LEFT_PAGES_KEPT = 24
+
+const isOfEntity =
+  (entity: PageEntity) =>
+  (left: typeof LoadedPageFacts.Type): boolean =>
+    pageEntityKey(left.entity) === pageEntityKey(entity)
+
+/**
+ * What the rows last said about the pages a person left, the newest first, so
+ * Back paints a page at its full height at once and lands on the rows it left.
+ * Recording 208's rows answer half a second after it opens, 100 Issues above
+ * the place Back restores. The next answer replaces what was kept.
+ */
+const leftPageFactsOf = (
+  model: Model,
+): ReadonlyArray<typeof LoadedPageFacts.Type> =>
+  model.pageFacts._tag === 'LoadedPageFacts'
+    ? Array.take(
+        [
+          model.pageFacts,
+          ...Array.filter(
+            model.leftPageFacts,
+            Predicate.not(isOfEntity(model.pageFacts.entity)),
+          ),
+        ],
+        LEFT_PAGES_KEPT,
+      )
+    : model.leftPageFacts
+
+const pageFactsOnOpening = (
+  navigation: Navigation,
+  leftPageFacts: ReadonlyArray<typeof LoadedPageFacts.Type>,
+): PageFactsObservation =>
+  navigation._tag === 'EntityPage'
+    ? Option.getOrElse<PageFactsObservation, PageFactsObservation>(
+        Array.findFirst(leftPageFacts, isOfEntity(navigation.entity)),
+        () => NotObservingPageFacts.make({}),
+      )
+    : NotObservingPageFacts.make({})
+
 const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
   const isSameIssueDetail =
     model.navigation._tag === 'IssueDetail' &&
@@ -1725,9 +1773,13 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
     navigation._tag === 'IssueDetail'
       ? Option.some(navigation.issueId)
       : Option.none()
+  const leftPageFacts = isSameEntityPage
+    ? model.leftPageFacts
+    : leftPageFactsOf(model)
   return [
     nextModel({
       ...model,
+      leftPageFacts,
       leftoverComment: isSameIssueDetail ? model.leftoverComment : '',
       leftoverLink: isSameIssueDetail ? model.leftoverLink : '',
       leftoverPresence: Option.match(nextLeftoverId, {
@@ -1750,7 +1802,7 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
         : NotObservingIssueLanding.make({}),
       pageFacts: isSameEntityPage
         ? model.pageFacts
-        : NotObservingPageFacts.make({}),
+        : pageFactsOnOpening(navigation, leftPageFacts),
       draft:
         Option.isSome(model.maybeDraftFindingId) &&
         navigation._tag !== 'FileIssue'
@@ -2731,6 +2783,51 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ),
       ClickedOpenAskFlow: () => withNavigation(model, AskFlow.make({})),
       ClickedOpenFindings: () => withNavigation(model, Findings.make({})),
+      ClickedOpenDecisions: () => withNavigation(model, Decisions.make({})),
+      ClickedOpenQuestions: () => withNavigation(model, Questions.make({})),
+      ObservedQuestions: ({ questions }) => [
+        nextModel({
+          ...model,
+          questionsList: { _tag: 'LoadedQuestions', questions },
+        }),
+        [],
+      ],
+      FailedObserveQuestions: ({ reason }) => [
+        nextModel({
+          ...model,
+          questionsList: FailedQuestions.make({ reason }),
+        }),
+        [],
+      ],
+      ClickedOpenReminders: () => withNavigation(model, Reminders.make({})),
+      ObservedReminders: ({ reminders }) => [
+        nextModel({
+          ...model,
+          remindersList: { _tag: 'LoadedReminders', reminders },
+        }),
+        [],
+      ],
+      FailedObserveReminders: ({ reason }) => [
+        nextModel({
+          ...model,
+          remindersList: FailedReminders.make({ reason }),
+        }),
+        [],
+      ],
+      ObservedDecisions: ({ decisions }) => [
+        nextModel({
+          ...model,
+          knownDecisions: { _tag: 'LoadedDecisions', decisions },
+        }),
+        [],
+      ],
+      FailedObserveDecisions: ({ reason }) => [
+        nextModel({
+          ...model,
+          knownDecisions: FailedDecisions.make({ reason }),
+        }),
+        [],
+      ],
       ClickedOpenFeatures: () => withNavigation(model, Features.make({})),
       ClickedOpenProducts: () => withNavigation(model, Products.make({})),
       ObservedFeatures: ({ features }) =>

@@ -377,6 +377,24 @@ a.fk-ref:focus-visible {
     white-space: nowrap;
   }
 }
+@media (min-width: 720px) {
+  /* NOTE: Back restores a pixel, so a row holds one height whatever the font, painted or skipped. */
+  .issues-screen .fk-list > .fk-item:has(> .fk-button) {
+    height: 2.0234375rem;
+    content-visibility: auto;
+  }
+  .issues-screen .fk-list > .fk-item:has(> .fk-button) > :focus-visible {
+    outline-offset: -2px;
+  }
+  .issues-screen .fk-board .fk-list > .fk-item:has(> .fk-button) {
+    height: auto;
+    contain-intrinsic-size: auto 6.1rem;
+  }
+  .issues-screen .fk-layer .fk-list > .fk-item:has(> .fk-button) {
+    height: auto;
+    content-visibility: visible;
+  }
+}
 .issues-screen .fk-item {
   scroll-margin-block: 3.5rem;
 }

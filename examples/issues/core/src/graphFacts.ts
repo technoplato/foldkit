@@ -1,6 +1,35 @@
-import { Array, Option, Order, Predicate, Schema as S, pipe } from 'effect'
+import { Array, Option, Order, Schema as S, pipe } from 'effect'
 
-import { normalizeIssueId } from '@foldkit/instant-tools/issues'
+import {
+  type decisionFactsQuery,
+  type decisionsQuery,
+} from './decisionFacts.js'
+import {
+  QUESTION_FIELDS,
+  QuestionRow,
+  type questionFactsQuery,
+  questionRowsOf,
+  type questionsQuery,
+} from './questionFacts.js'
+import {
+  REMINDER_FIELDS,
+  ReminderRow,
+  issueIdOfReminder,
+  type reminderFactsQuery,
+  reminderRowsOf,
+  type remindersQuery,
+} from './reminderFacts.js'
+import {
+  OptionalNumber,
+  OptionalText,
+  StoredRows,
+  issueIdOfNumber,
+  issueIdsOf,
+  listOf,
+  manyOf,
+} from './storedRows.js'
+
+export { issueIdOfNumber } from './storedRows.js'
 
 // AGENT
 
@@ -256,16 +285,26 @@ export const IssueFeature = S.Struct({
 /** One feature an Issue is tied to. */
 export type IssueFeature = typeof IssueFeature.Type
 
-/** What Scribe's rows say around an Issue: its features and its findings. */
+/**
+ * What Scribe's rows say around an Issue: its features, its findings, the
+ * questions that name it, and the reminders whose link is its page.
+ */
 export const IssueGraph = S.Struct({
   features: S.Array(IssueFeature),
   findings: S.Array(AgentFinding),
+  questions: S.Array(QuestionRow),
+  reminders: S.Array(ReminderRow),
 })
 /** What Scribe's rows say around an Issue. */
 export type IssueGraph = typeof IssueGraph.Type
 
-/** An Issue with no feature and no finding known. */
-export const noIssueGraph: IssueGraph = { features: [], findings: [] }
+/** An Issue with no feature, finding or question known. */
+export const noIssueGraph: IssueGraph = {
+  features: [],
+  findings: [],
+  questions: [],
+  reminders: [],
+}
 
 // PRODUCT
 
@@ -334,9 +373,6 @@ export const ProductFacts = S.TaggedStruct('ProductFacts', {
 export type ProductFacts = typeof ProductFacts.Type
 
 // STORED
-
-const OptionalText = S.optionalKey(S.NullOr(S.String))
-const OptionalNumber = S.optionalKey(S.NullOr(S.Number))
 
 const StoredRunChip = S.Struct({
   account: OptionalText,
@@ -414,9 +450,6 @@ const StoredFinding = S.Struct({
   status: S.String,
 })
 
-const manyOf = <Row extends S.Top>(row: Row) =>
-  S.optionalKey(S.NullOr(S.Union([row, S.Array(row)])))
-
 const StoredRunPage = S.Struct({
   ...StoredRun.fields,
   children: manyOf(StoredRunChip),
@@ -492,6 +525,8 @@ const StoredIssueGraph = S.Struct({
       predicate: S.String,
     }),
   ),
+  questions: S.optionalKey(StoredRows),
+  remindersItems: S.optionalKey(StoredRows),
 })
 
 const StoredShippedBuild = S.Struct({ number: S.Number })
@@ -544,50 +579,6 @@ const StoredMap = S.Struct({
     }),
   ),
 })
-
-const isList = <A>(value: A | ReadonlyArray<A>): value is ReadonlyArray<A> =>
-  globalThis.Array.isArray(value)
-
-const listOf = <A>(
-  value: A | ReadonlyArray<A> | null | undefined,
-): ReadonlyArray<A> => {
-  if (value === null || value === undefined) {
-    return []
-  } else if (isList(value)) {
-    return value
-  } else {
-    return [value]
-  }
-}
-
-/** An Issue's number as the tracker's id: `41` is `041`, `1538` is `1538`. */
-export const issueIdOfNumber = (issueNumber: number): string =>
-  Option.getOrElse(normalizeIssueId(issueNumber.toString()), () =>
-    issueNumber.toString(),
-  )
-
-const numbersOfJson = (
-  stored: string | null | undefined,
-): ReadonlyArray<number> =>
-  pipe(
-    Option.fromNullishOr(stored),
-    Option.flatMap(
-      Option.liftThrowable((text: string): unknown => JSON.parse(text)),
-    ),
-    Option.flatMap(S.decodeUnknownOption(S.Array(S.Number))),
-    Option.getOrElse((): ReadonlyArray<number> => []),
-  )
-
-const issueIdsOf = (
-  maybeFirst: number | null | undefined,
-  stored: string | null | undefined,
-): ReadonlyArray<string> =>
-  pipe(
-    [maybeFirst, ...numbersOfJson(stored)],
-    Array.filter(Predicate.isNumber),
-    Array.dedupe,
-    Array.map(issueIdOfNumber),
-  )
 
 const runChipOf = (stored: typeof StoredRunChip.Type): AgentRunChip =>
   AgentRunChip.make({
@@ -877,8 +868,12 @@ const implementsFirst: Order.Order<IssueFeature> = Order.mapInput(
  * `touches` note says `#702's details names FEATURES 3, Recording., as of
  * 521edbfdb`, so `3` on that Issue names Recording, whatever the file says now.
  */
-export const issueGraphOf = (data: unknown): IssueGraph => {
-  const { agentFindings, edges } = S.decodeUnknownSync(StoredIssueGraph)(data)
+export const issueGraphOf = (
+  data: unknown,
+  maybeIssueId: Option.Option<string> = Option.none(),
+): IssueGraph => {
+  const { agentFindings, edges, questions, remindersItems } =
+    S.decodeUnknownSync(StoredIssueGraph)(data)
   const ties = Array.flatMap(edges, edge =>
     Array.map(listOf(edge.feature), feature =>
       IssueFeature.make({
@@ -915,6 +910,16 @@ export const issueGraphOf = (data: unknown): IssueGraph => {
     findings: Array.sort(
       Array.map(agentFindings, findingOf),
       newestFindingFirst,
+    ),
+    questions: Array.filter(questionRowsOf(questions ?? []), question =>
+      Option.exists(maybeIssueId, issueId =>
+        question.issueIds.includes(issueId),
+      ),
+    ),
+    reminders: Array.filter(reminderRowsOf(remindersItems ?? []), reminder =>
+      Option.exists(maybeIssueId, issueId =>
+        Option.contains(issueIdOfReminder(reminder), issueId),
+      ),
     ),
   })
 }
@@ -1282,7 +1287,11 @@ export const productFactsQuery = (productId: string) => ({
 
 /**
  * What an Issue's page asks of the graph: the features its number is tied to,
- * and the findings raised on it or promoted into it, by indexed fields.
+ * and the findings raised on it or promoted into it, by indexed fields, and
+ * every question that names any Issue. `issueNumbersJSON` is a JSON string no
+ * query can look inside, so the page reads the few rows that hold one, 5 of
+ * the 964, 1.1 KB, and keeps those that name it. A reminder's one tie is a link
+ * to the Issue's page, and 2 of the 140 hold a link.
  */
 export const issueGraphQuery = (issueNumber: number) => ({
   agentFindings: {
@@ -1300,18 +1309,36 @@ export const issueGraphQuery = (issueNumber: number) => ({
     },
     feature: { $: { fields: FEATURE_CHIP_FIELDS } },
   },
+  questions: {
+    $: {
+      where: { issueNumbersJSON: { $isNull: false } },
+      fields: QUESTION_FIELDS,
+    },
+  },
+  remindersItems: {
+    $: {
+      where: { url: { $isNull: false } },
+      fields: REMINDER_FIELDS,
+    },
+  },
 })
 
 /** Every query the graph's pages ask Scribe's app. */
 export type GraphQuery =
   | ReturnType<typeof agentChipsQuery>
   | ReturnType<typeof agentFactsQuery>
+  | ReturnType<typeof decisionFactsQuery>
+  | ReturnType<typeof questionFactsQuery>
+  | ReturnType<typeof reminderFactsQuery>
   | ReturnType<typeof featureBuildsQuery>
   | ReturnType<typeof featureFactsQuery>
   | ReturnType<typeof findingFactsQuery>
   | ReturnType<typeof issueGraphQuery>
   | ReturnType<typeof productFactsQuery>
   | ReturnType<typeof sessionFactsQuery>
+  | typeof decisionsQuery
+  | typeof questionsQuery
+  | typeof remindersQuery
   | typeof featureChipsQuery
   | typeof featuresQuery
   | typeof findingsQuery

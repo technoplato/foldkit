@@ -14,6 +14,7 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { DecisionRow } from './decisionFacts.js'
 import { PageEntity } from './entityGraph.js'
 import {
   AgentFinding,
@@ -28,6 +29,8 @@ import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
 import { IssueView, defaultIssueView } from './issueView.js'
 import { SavedView } from './issueViews.js'
 import { AllProducts, LeftoverKind, ProductFilter } from './leftover.js'
+import { QuestionRow } from './questionFacts.js'
+import { ReminderRow } from './reminderFacts.js'
 import { FailedRowEdit, RowEdit } from './rowEdit.js'
 
 /** The live collection has not emitted its first snapshot. */
@@ -259,6 +262,63 @@ export const FindingsObservation = S.Union([
 /** Every state of reading what agents reported. */
 export type FindingsObservation = typeof FindingsObservation.Type
 
+/** No page has asked for the decisions, so none is read. */
+export const NotObservingDecisions = S.TaggedStruct('NotObservingDecisions', {})
+/** Every decision, from Scribe's rows, the newest first. */
+export const LoadedDecisions = S.TaggedStruct('LoadedDecisions', {
+  decisions: S.Array(DecisionRow),
+})
+/** Scribe's rows could not be read, and the page says why. */
+export const FailedDecisions = S.TaggedStruct('FailedDecisions', {
+  reason: S.String,
+})
+/** What `/decisions`, a chip and an Issue's page know of his decisions. */
+export const DecisionsObservation = S.Union([
+  NotObservingDecisions,
+  LoadedDecisions,
+  FailedDecisions,
+])
+/** What `/decisions`, a chip and an Issue's page know of his decisions. */
+export type DecisionsObservation = typeof DecisionsObservation.Type
+
+/** No page has asked for every question, so none is read. */
+export const NotObservingQuestions = S.TaggedStruct('NotObservingQuestions', {})
+/** Every question, from Scribe's rows, the newest first. */
+export const LoadedQuestions = S.TaggedStruct('LoadedQuestions', {
+  questions: S.Array(QuestionRow),
+})
+/** Scribe's rows could not be read, and the page says why. */
+export const FailedQuestions = S.TaggedStruct('FailedQuestions', {
+  reason: S.String,
+})
+/** What `/questions` knows. */
+export const QuestionsObservation = S.Union([
+  NotObservingQuestions,
+  LoadedQuestions,
+  FailedQuestions,
+])
+/** What `/questions` knows. */
+export type QuestionsObservation = typeof QuestionsObservation.Type
+
+/** No page has asked for every reminder, so none is read. */
+export const NotObservingReminders = S.TaggedStruct('NotObservingReminders', {})
+/** Every reminder, from Scribe's rows, the newest first. */
+export const LoadedReminders = S.TaggedStruct('LoadedReminders', {
+  reminders: S.Array(ReminderRow),
+})
+/** Scribe's rows could not be read, and the page says why. */
+export const FailedReminders = S.TaggedStruct('FailedReminders', {
+  reason: S.String,
+})
+/** What `/reminders` knows. */
+export const RemindersObservation = S.Union([
+  NotObservingReminders,
+  LoadedReminders,
+  FailedReminders,
+])
+/** What `/reminders` knows. */
+export type RemindersObservation = typeof RemindersObservation.Type
+
 /** No features page is open, so no line is read. */
 export const NotObservingFeatures = S.TaggedStruct('NotObservingFeatures', {})
 /** Every line of the feature contracts, from Scribe's rows, in his order. */
@@ -289,6 +349,43 @@ export const FindingFilter = S.Struct({
 })
 /** Which findings `/findings` shows. */
 export type FindingFilter = typeof FindingFilter.Type
+
+/**
+ * Which decisions `/decisions` shows:
+ * `{ maybeStatus: Option.some('unconfirmed') }` is
+ * `/decisions?status=unconfirmed`. Nothing chosen shows every one.
+ */
+export const DecisionFilter = S.Struct({ maybeStatus: S.Option(S.String) })
+/** Which decisions `/decisions` shows. */
+export type DecisionFilter = typeof DecisionFilter.Type
+
+const everyDecision: DecisionFilter = { maybeStatus: Option.none() }
+
+/**
+ * Which questions `/questions` shows: `isLearningOnly` keeps what he wants to
+ * learn about, `/questions?learning=yes`. Nothing chosen shows every one.
+ */
+export const QuestionFilter = S.Struct({
+  isLearningOnly: S.Boolean,
+  maybeStatus: S.Option(S.String),
+})
+/** Which questions `/questions` shows. */
+export type QuestionFilter = typeof QuestionFilter.Type
+
+/**
+ * Which reminders `/reminders` shows: `{ maybeStatus: Option.some('done') }` is
+ * `/reminders?status=done`. Nothing chosen shows every one.
+ */
+export const ReminderFilter = S.Struct({ maybeStatus: S.Option(S.String) })
+/** Which reminders `/reminders` shows. */
+export type ReminderFilter = typeof ReminderFilter.Type
+
+const everyReminder: ReminderFilter = { maybeStatus: Option.none() }
+
+const everyQuestion: QuestionFilter = {
+  isLearningOnly: false,
+  maybeStatus: Option.none(),
+}
 
 const everyFinding: FindingFilter = {
   maybeKind: Option.none(),
@@ -350,6 +447,36 @@ export const Findings = S.TaggedStruct('Findings', {
     S.withConstructorDefault(Effect.succeed(everyFinding)),
   ),
 })
+/**
+ * What he decided, counted by state, each one reachable:
+ * `Decisions.make({})` is every decision at `/decisions`.
+ */
+export const Decisions = S.TaggedStruct('Decisions', {
+  filter: DecisionFilter.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(everyDecision)),
+    S.withConstructorDefault(Effect.succeed(everyDecision)),
+  ),
+})
+/**
+ * What he asked, counted by state, each one reachable:
+ * `Questions.make({})` is every question at `/questions`.
+ */
+export const Questions = S.TaggedStruct('Questions', {
+  filter: QuestionFilter.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(everyQuestion)),
+    S.withConstructorDefault(Effect.succeed(everyQuestion)),
+  ),
+})
+/**
+ * His reminders, counted by state, each one reachable:
+ * `Reminders.make({})` is every reminder at `/reminders`.
+ */
+export const Reminders = S.TaggedStruct('Reminders', {
+  filter: ReminderFilter.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(everyReminder)),
+    S.withConstructorDefault(Effect.succeed(everyReminder)),
+  ),
+})
 /** Every line of the products' feature contracts, at `/features`. */
 export const Features = S.TaggedStruct('Features', {})
 /** Every product in the catalog, at `/products`. */
@@ -365,6 +492,9 @@ export const Navigation = S.Union([
   Inbox,
   EntityPage,
   Findings,
+  Decisions,
+  Questions,
+  Reminders,
   Features,
   Products,
 ])
@@ -714,11 +844,13 @@ export const Model = S.Struct({
   issues: IssuesState,
   knownAgents: S.Array(AgentRunChip),
   knownBuilds: S.Array(LandedBuild),
+  knownDecisions: DecisionsObservation,
   knownFeatures: S.Array(FeatureChip),
   layer: ScreenLayer,
   leftoverComment: S.String,
   leftoverLink: S.String,
   leftoverPresence: LeftoverPresenceState,
+  leftPageFacts: S.Array(LoadedPageFacts),
   maybeDraftFindingId: S.Option(S.String),
   maybeRowCursor: S.Option(S.String),
   maybeSelectionRun: S.Option(SelectionRun),
@@ -727,6 +859,8 @@ export const Model = S.Struct({
   pageFacts: PageFactsObservation,
   productAddition: ProductAdditionState,
   products: ProductsState,
+  questionsList: QuestionsObservation,
+  remindersList: RemindersObservation,
   returnListView: IssueView,
   rowEdits: S.Array(RowEdit),
   savedViews: SavedViewsState,

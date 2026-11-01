@@ -313,11 +313,15 @@ describe('Issue Tracker keys: going places', () => {
     const waiting = pressedAll(list(), ['g'])
     expect(
       Array.map(textsOf(issuesScreen(waiting)), text => text.content),
-    ).toContain('Go to: l list, b backlog, t triage, v views, i inbox, f findings, e features, p products')
-    const letGo = pressedAll(waiting, ['q'])
+    ).toContain(
+      'Go to: l list, b backlog, t triage, v views, i inbox, f findings, d decisions, q questions, r reminders, e features, p products',
+    )
+    const letGo = pressedAll(waiting, ['z'])
     expect(
       Array.map(textsOf(issuesScreen(letGo)), text => text.content),
-    ).not.toContain('Go to: l list, b backlog, t triage, v views, i inbox, f findings, e features, p products')
+    ).not.toContain(
+      'Go to: l list, b backlog, t triage, v views, i inbox, f findings, d decisions, q questions, r reminders, e features, p products',
+    )
     expect(letGo.navigation).toEqual(IssueList.make({}))
     expect(markedRowsOf(pressedAll(letGo, ['j']))).toEqual(['104'])
   })

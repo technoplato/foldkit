@@ -85,6 +85,18 @@ export const FeatureLineNumber = S.TaggedStruct('FeatureLineNumber', {
 /** A finding by its row's id: `finding 1adc23b2-…`, or its page on the site. */
 export const FindingId = S.TaggedStruct('FindingId', { findingId: S.String })
 
+/**
+ * What he decided, by its id or the first 8 characters agents cite:
+ * `decision dbdbf773`, `scribe decision show dbdbf773`.
+ */
+export const DecisionId = S.TaggedStruct('DecisionId', { decisionId: S.String })
+
+/** A question he asked, by its id or first 8 characters: `question 4e740f44`. */
+export const QuestionId = S.TaggedStruct('QuestionId', { questionId: S.String })
+
+/** One of his reminders, by its id or first 8 characters: `reminder 05047ef1`. */
+export const ReminderId = S.TaggedStruct('ReminderId', { reminderId: S.String })
+
 /** A moment written as an ISO time: `2026-10-11T10:41:09.240Z`. */
 export const Timestamp = S.TaggedStruct('Timestamp', { atMs: S.Number })
 
@@ -118,6 +130,9 @@ export const TextReference = S.Union([
   FeatureName,
   FeatureLineNumber,
   FindingId,
+  DecisionId,
+  QuestionId,
+  ReminderId,
   Timestamp,
   ChatSession,
   RawId,
@@ -152,7 +167,7 @@ const AT_SECONDS = /[?&]t=(\d+(?:\.\d+)?)/
 const ISSUE_PAGE =
   /^https?:\/\/(?:issues\.(?:pisspoursoftware\.xyz|knophy\.com)|og\.pisspoursoftware\.xyz)\/issues\/(\d{1,4})(?:[/?#]|$)/i
 const SITE_PAGE =
-  /^https?:\/\/issues\.(?:pisspoursoftware\.xyz|knophy\.com)\/(agents|features|findings|products|sessions)\/([^/?#]+)/i
+  /^https?:\/\/issues\.(?:pisspoursoftware\.xyz|knophy\.com)\/(agents|decisions|features|findings|products|questions|reminders|sessions)\/([^/?#]+)/i
 const CLAUDE_SESSION = /^https:\/\/claude\.ai\/code\/(session_\w+)/
 const GITHUB_COMMIT =
   /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/commit\/([0-9a-f]{7,40})\b/
@@ -174,9 +189,12 @@ const referenceOfSitePage = (kind: string, name: string): TextReference =>
   M.value(kind.toLowerCase()).pipe(
     M.withReturnType<TextReference>(),
     M.when('agents', () => AgentName.make({ agentId: decodedSegment(name) })),
+    M.when('decisions', () => DecisionId.make({ decisionId: name })),
     M.when('features', () => FeatureName.make({ slug: name })),
     M.when('findings', () => FindingId.make({ findingId: name })),
     M.when('products', () => ProductName.make({ productId: name })),
+    M.when('questions', () => QuestionId.make({ questionId: name })),
+    M.when('reminders', () => ReminderId.make({ reminderId: name })),
     M.orElse(() =>
       ChatSession.make({ sessionId: name, maybeUrl: Option.none() }),
     ),
@@ -262,6 +280,8 @@ const lineRangeOf = (
 const UUID_SOURCE =
   '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 
+const ROW_ID_SOURCE = `(?:${UUID_SOURCE}|[0-9a-f]{8})(?![\\w-])`
+
 const segmentOf = (
   segmentId: string,
   maybeLine: Option.Option<number>,
@@ -341,6 +361,21 @@ const rules: ReadonlyArray<Rule> = [
   {
     pattern: new RegExp(`(?<=\\bfinding\\s+)${UUID_SOURCE}`, 'gi'),
     read: match => found(FindingId.make({ findingId: match[0].toLowerCase() })),
+  },
+  {
+    pattern: new RegExp(
+      `\\b[Dd]ecisions?(?:\\s+log\\s+entry|\\s+show)?:?\\s+(${ROW_ID_SOURCE})`,
+      'g',
+    ),
+    read: match => found(DecisionId.make({ decisionId: match[1] ?? '' })),
+  },
+  {
+    pattern: new RegExp(`\\b[Qq]uestion\\s+(${ROW_ID_SOURCE})`, 'g'),
+    read: match => found(QuestionId.make({ questionId: match[1] ?? '' })),
+  },
+  {
+    pattern: new RegExp(`\\b[Rr]eminder\\s+(${ROW_ID_SOURCE})`, 'g'),
+    read: match => found(ReminderId.make({ reminderId: match[1] ?? '' })),
   },
   {
     pattern: new RegExp(`(?<![\\w#&/])#(\\d+)\\s+(${UUID_SOURCE})`, 'gi'),
