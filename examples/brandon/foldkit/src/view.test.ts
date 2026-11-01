@@ -1,5 +1,7 @@
 import {
+  FailedWalletWatch,
   FootballSection,
+  LoadedWalletActivity,
   MarkdownSection,
   OpenWallet,
   type Page,
@@ -9,6 +11,8 @@ import {
   SectionKey,
   SyncedBrandon,
   type SyncedBrandonModel,
+  UnavailableWalletActivity,
+  type WalletActivityEntry,
   WalletsSection,
   initialModel,
 } from 'brandon-core-example'
@@ -226,5 +230,145 @@ describe('the wallet section', () => {
       Scene.expect(Scene.text('Opening your wallet')).toBeAbsent(),
       Scene.expect(Scene.text('Devnet: test money')).toBeAbsent(),
     )
+  })
+
+  describe('its activity', () => {
+    const entry = (
+      fields: Partial<WalletActivityEntry> = {},
+    ): WalletActivityEntry => ({
+      transactionId: '5hSignature',
+      networkId: 'solana:devnet',
+      direction: 'Incoming',
+      status: 'Confirmed',
+      maybeFinality: Option.some('Included'),
+      assetId: 'solana:devnet:sol',
+      amountAtomic: '500000000',
+      maybeCounterpartyAddress: Option.some(
+        'Sender1111111111111111111111111111111111111',
+      ),
+      observedAtMs: 1_793_490_000_000,
+      ...fields,
+    })
+
+    const withActivity = (
+      networkMode: Wallet.WalletNetworkMode,
+      entries: ReadonlyArray<WalletActivityEntry>,
+    ) =>
+      ready({
+        page: { _tag: 'ReadyPage', page: walletPage },
+        wallet: OpenWallet({
+          model: { ...Wallet.init()[0], walletNetworkMode: networkMode },
+        }),
+        walletActivity: LoadedWalletActivity({ entries }),
+      })
+
+    test('shows a payment with its amount, network and status', () => {
+      Scene.scene(
+        { update, view },
+        Scene.with(withActivity('Devnet', [entry()])),
+        Scene.expect(Scene.text('Received 0.5 SOL')).toExist(),
+        Scene.expect(Scene.text('Confirmed')).toExist(),
+        Scene.expect(Scene.text('Solana Devnet')).toExist(),
+        Scene.expect(Scene.text('from Sender1111…111111')).toExist(),
+      )
+    })
+
+    test('names every state of a transaction', () => {
+      Scene.scene(
+        { update, view },
+        Scene.with(
+          withActivity('Devnet', [
+            entry({
+              transactionId: 'sent',
+              direction: 'Outgoing',
+              status: 'Pending',
+              maybeFinality: Option.none(),
+              amountAtomic: '250000000',
+            }),
+            entry({
+              transactionId: 'failed',
+              direction: 'Outgoing',
+              status: 'Failed',
+              amountAtomic: '750000000',
+            }),
+            entry({
+              transactionId: 'final',
+              maybeFinality: Option.some('Final'),
+              amountAtomic: '100000000',
+            }),
+          ]),
+        ),
+        Scene.expect(Scene.text('Sent 0.25 SOL')).toExist(),
+        Scene.expect(Scene.text('Pending')).toExist(),
+        Scene.expect(Scene.text('Sent 0.75 SOL')).toExist(),
+        Scene.expect(Scene.text('Failed')).toExist(),
+        Scene.expect(Scene.text('Received 0.1 SOL')).toExist(),
+        Scene.expect(Scene.text('Final')).toExist(),
+      )
+    })
+
+    test("never shows another mode's rows, so test money never reads as real", () => {
+      const mainnetEntry = entry({
+        transactionId: 'real',
+        networkId: 'solana:mainnet-beta',
+        assetId: 'solana:mainnet-beta:sol',
+        amountAtomic: '9000000000',
+      })
+      Scene.scene(
+        { update, view },
+        Scene.with(withActivity('Devnet', [entry(), mainnetEntry])),
+        Scene.expect(Scene.text('Received 0.5 SOL')).toExist(),
+        Scene.expect(Scene.text('Received 9 SOL')).toBeAbsent(),
+      )
+      Scene.scene(
+        { update, view },
+        Scene.with(withActivity('Live', [entry(), mainnetEntry])),
+        Scene.expect(Scene.text('Received 9 SOL')).toExist(),
+        Scene.expect(Scene.text('Received 0.5 SOL')).toBeAbsent(),
+      )
+    })
+
+    test('says a payment will show up by itself when there is none yet', () => {
+      Scene.scene(
+        { update, view },
+        Scene.with(withActivity('Live', [])),
+        Scene.expect(
+          Scene.text(
+            'No Mainnet activity yet. A payment to your wallet shows up here by itself.',
+          ),
+        ).toExist(),
+      )
+    })
+
+    test('keeps the last rows and says they may be old when a read fails', () => {
+      Scene.scene(
+        { update, view },
+        Scene.with({
+          ...withActivity('Devnet', []),
+          walletActivity: UnavailableWalletActivity({ entries: [entry()] }),
+        }),
+        Scene.expect(Scene.text('Received 0.5 SOL')).toExist(),
+        Scene.expect(
+          Scene.text(
+            'Your activity could not be read just now. These are the last rows this page got.',
+          ),
+        ).toExist(),
+      )
+    })
+
+    test('says so when this site could not follow the wallet', () => {
+      Scene.scene(
+        { update, view },
+        Scene.with({
+          ...withActivity('Devnet', []),
+          walletWatch: FailedWalletWatch(),
+        }),
+        Scene.expect(
+          Scene.text(
+            'This site could not start following this wallet, so a new payment may not show here until you reload. Your balance above still reads the chain.',
+          ),
+        ).toExist(),
+      )
+    })
   })
 })
