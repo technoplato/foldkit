@@ -8,6 +8,7 @@ import {
   Option,
   Order,
   Redacted,
+  Ref,
   Schema as S,
   Semaphore,
 } from 'effect'
@@ -1432,6 +1433,91 @@ export const makePersistentLocalWalletVault = (
     makeLocalWalletServices(randomBytes, storage).pipe(
       Effect.map(services => Layer.succeed(WalletVault, services.vault)),
     ),
+  )
+
+/**
+ * Wallet custody for a host that learns whose device this is only after
+ * sign-in. Nothing opens until the first vault or signer call. Then
+ * `loadOwnerKey` names this person's partition, `storageForOwner` opens
+ * it, and every later call reuses it. A failed `loadOwnerKey` opens
+ * nothing, so the next call asks again. There is no transfer port: the
+ * plaintext record never leaves the vault.
+ *
+ * @example
+ * ```typescript
+ * makeOwnerScopedLocalWalletResources(
+ *   randomBytes,
+ *   Effect.succeed('BrandonBrandonBrandonBrandonBrandonBrandon0'),
+ *   makeMemoryWalletVaultStorage,
+ * )
+ * ```
+ */
+export const makeOwnerScopedLocalWalletResources = (
+  randomBytes: WalletRandomBytes,
+  loadOwnerKey: Effect.Effect<WalletVaultOwnerKey, WalletVaultError>,
+  storageForOwner: (ownerKey: WalletVaultOwnerKey) => WalletVaultStorage,
+): Layer.Layer<WalletVault | WalletSigner | WalletCrypto> =>
+  Layer.effectContext(
+    Effect.gen(function* () {
+      const openedServices = yield* Ref.make(
+        Option.none<LocalWalletServices>(),
+      )
+      const openSemaphore = yield* Semaphore.make(1)
+
+      const openForOwner = loadOwnerKey.pipe(
+        Effect.flatMap(ownerKey =>
+          Effect.try({
+            try: () => storageForOwner(ownerKey),
+            catch: () => new WalletVaultError({ code: 'Unavailable' }),
+          }),
+        ),
+        Effect.flatMap(storage => makeLocalWalletServices(randomBytes, storage)),
+        Effect.tap(services => Ref.set(openedServices, Option.some(services))),
+      )
+
+      const services = openSemaphore.withPermits(1)(
+        Effect.flatMap(Ref.get(openedServices), maybeServices =>
+          Option.match(maybeServices, {
+            onNone: () => openForOwner,
+            onSome: Effect.succeed,
+          }),
+        ),
+      )
+      const signerServices = Effect.mapError(
+        services,
+        () => new WalletSignerError({ code: 'Unavailable' }),
+      )
+      const cryptoServices = Effect.mapError(
+        services,
+        () => new WalletCryptoError({ code: 'Unavailable' }),
+      )
+
+      const vault = WalletVault.of({
+        loadWallets: Effect.flatMap(services, ({ vault }) => vault.loadWallets),
+        createWallet: request =>
+          Effect.flatMap(services, ({ vault }) => vault.createWallet(request)),
+      })
+      const signer = WalletSigner.of({
+        signTransaction: payload =>
+          Effect.flatMap(signerServices, ({ signer }) =>
+            signer.signTransaction(payload),
+          ),
+        signChallenge: challenge =>
+          Effect.flatMap(signerServices, ({ signer }) =>
+            signer.signChallenge(challenge),
+          ),
+      })
+      const crypto = WalletCrypto.of({
+        verifySignatureProof: (challenge, proof) =>
+          Effect.flatMap(cryptoServices, ({ crypto }) =>
+            crypto.verifySignatureProof(challenge, proof),
+          ),
+      })
+      return Context.make(WalletVault, vault).pipe(
+        Context.add(WalletSigner, signer),
+        Context.add(WalletCrypto, crypto),
+      )
+    }),
   )
 
 /** Creates process-local record storage for tests and ephemeral hosts. */

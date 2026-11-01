@@ -34,8 +34,11 @@ const creationRequest = WalletCreationRequest.make({
   ),
 })
 
-const makeCountingRandomBytes = () => {
-  let nextByte = 1
+const michaelFirstByte = 1
+const brandonFirstByte = 101
+
+const makeCountingRandomBytes = (firstByte = michaelFirstByte) => {
+  let nextByte = firstByte
   return (byteCount: number): Uint8Array => {
     const bytes = new Uint8Array(byteCount)
     bytes.fill(nextByte)
@@ -99,7 +102,7 @@ describe('owner-scoped custody', () => {
       browser.storageForOwner,
     )
     const brandon = makeOwnerScopedLocalWalletResources(
-      makeCountingRandomBytes(),
+      makeCountingRandomBytes(brandonFirstByte),
       Effect.succeed(brandonOwnerKey),
       browser.storageForOwner,
     )
