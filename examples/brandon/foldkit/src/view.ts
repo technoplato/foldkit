@@ -189,13 +189,23 @@ const activityTimeFormat = new Intl.DateTimeFormat(undefined, {
   timeStyle: 'short',
 })
 
-const activityHeadline = (entry: WalletActivityEntry): string =>
-  M.value(entry.direction).pipe(
+const activityVerb = ({ direction, status }: WalletActivityEntry): string =>
+  M.value({ direction, status }).pipe(
     M.withReturnType<string>(),
-    M.when('Incoming', () => `Received ${walletActivityAmountLabel(entry)}`),
-    M.when('Outgoing', () => `Sent ${walletActivityAmountLabel(entry)}`),
+    M.when({ direction: 'Incoming', status: 'Pending' }, () => 'Receiving'),
+    M.when({ direction: 'Incoming', status: 'Confirmed' }, () => 'Received'),
+    M.when(
+      { direction: 'Incoming', status: 'Failed' },
+      () => 'Did not receive',
+    ),
+    M.when({ direction: 'Outgoing', status: 'Pending' }, () => 'Sending'),
+    M.when({ direction: 'Outgoing', status: 'Confirmed' }, () => 'Sent'),
+    M.when({ direction: 'Outgoing', status: 'Failed' }, () => 'Did not send'),
     M.exhaustive,
   )
+
+const activityHeadline = (entry: WalletActivityEntry): string =>
+  `${activityVerb(entry)} ${walletActivityAmountLabel(entry)}`
 
 const activityStatus = (entry: WalletActivityEntry): string =>
   M.value(entry.status).pipe(
