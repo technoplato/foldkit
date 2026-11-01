@@ -27,6 +27,8 @@ import {
   TransactionPreview,
   TransferRequest,
   UnfamiliarAddress,
+  ValidTransferAmount,
+  ValidTransferRecipient,
   ValidatedRecipient,
   ValidatedTransfer,
   initialModel,
@@ -264,5 +266,103 @@ describe('a restored Wallet Model never signs on its own', () => {
 
     expect(commandNames).not.toContain('SignChallenge')
     expect(hydratedModel.signature._tag).toBe('IdleSignature')
+  })
+})
+
+describe('Confirm signs only the send the screen shows', () => {
+  const enteredModel: Model = {
+    ...loadedModel,
+    transferAmount: ValidTransferAmount.make({
+      value: '0.999995',
+      atomicUnits: request.atomicUnits,
+    }),
+    transferRecipient: ValidTransferRecipient.make({
+      recipient: preview.transfer.recipient,
+    }),
+    transaction: PreviewedTransaction.make({ preview }),
+  }
+
+  it('signs the preview of the entered amount and recipient', () => {
+    const [sendingModel, commands] = update(
+      enteredModel,
+      RequestedSignedTransactionSubmission.make({
+        previewId: preview.previewId,
+      }),
+    )
+
+    expect(sendingModel.transaction._tag).toBe('SubmittingTransaction')
+    expect(commands.map(command => command.name)).toEqual([
+      'SignAndSubmitTransaction',
+    ])
+  })
+
+  it('refuses a preview whose amount is not the entered amount', () => {
+    const [refusedModel, commands] = update(
+      {
+        ...enteredModel,
+        transferAmount: ValidTransferAmount.make({
+          value: '0.001',
+          atomicUnits: '1000000',
+        }),
+      },
+      RequestedSignedTransactionSubmission.make({
+        previewId: preview.previewId,
+      }),
+    )
+
+    expect(commands).toHaveLength(0)
+    expect(refusedModel.transaction).toMatchObject({
+      _tag: 'FailedTransactionPreview',
+      failure: {
+        maybeGuidance: Option.some({
+          summary:
+            'This preview is not what you entered, so nothing was signed.',
+          details: ['Preview the send again.'],
+        }),
+      },
+    })
+  })
+
+  it('refuses a preview whose recipient is not the entered recipient', () => {
+    const [, commands] = update(
+      {
+        ...enteredModel,
+        transferRecipient: ValidTransferRecipient.make({
+          recipient: ValidatedRecipient.make({
+            networkId: network.networkId,
+            address: account.address,
+            normalizedAddress: account.address,
+            displayAddress: account.address,
+          }),
+        }),
+      },
+      RequestedSignedTransactionSubmission.make({
+        previewId: preview.previewId,
+      }),
+    )
+
+    expect(commands).toHaveLength(0)
+  })
+
+  it('refuses a preview from another network than the one selected', () => {
+    const [, commands] = update(
+      {
+        ...enteredModel,
+        maybeSendNetworkSelection: Option.some(
+          SendNetworkSelection.make({
+            networkMode: 'Devnet',
+            chainId: chain.chainId,
+            networkId: 'solana:devnet',
+            accountId: 'wallet-1:solana:devnet',
+            assetId: 'solana:devnet:sol',
+          }),
+        ),
+      },
+      RequestedSignedTransactionSubmission.make({
+        previewId: preview.previewId,
+      }),
+    )
+
+    expect(commands).toHaveLength(0)
   })
 })
