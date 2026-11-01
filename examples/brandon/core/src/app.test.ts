@@ -1,17 +1,18 @@
-import { Duration, Effect, Layer, Option } from 'effect'
+import { Duration, Effect, Layer, Option, Schema as S } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { startBrandonOn } from './live.js'
 import {
-  AnnotatedPlayer,
+  NotedPlayer,
   AwardedPoints,
   ChangedSections,
   GotPage,
   PointedAtSection,
 } from './message.js'
 import { initialModel, rankedPlayers } from './model.js'
-import { Page, SectionKey } from './page.js'
+import { Games, Page, SectionKey, WalletAddresses } from './page.js'
+import { MessageWire } from './wire.js'
 import { BrandonProgram } from './program.js'
 import { BrandonServer } from './server.js'
 import { update } from './update.js'
@@ -55,7 +56,7 @@ describe('the scoreboard', () => {
     const model = apply(
       initialModel,
       award('1', 'Tyler', 0),
-      AnnotatedPlayer({
+      NotedPlayer({
         name: 'Tyler',
         maybeNote: Option.some('guilty: it is an SVG'),
         isDunce: true,
@@ -70,6 +71,73 @@ describe('the scoreboard', () => {
         countedEventIds: ['1'],
       },
     ])
+  })
+})
+
+describe('what crosses JSON', () => {
+  const overJson = (value: unknown): unknown =>
+    JSON.parse(JSON.stringify(value))
+
+  it('reads a game back from the origin', () => {
+    const games = [
+      {
+        id: '1',
+        state: 'Live' as const,
+        detail: 'Q2',
+        teams: [
+          { name: 'Clemson', score: '7', maybeRank: Option.some(9) },
+          { name: 'Florida St', score: '3', maybeRank: Option.none() },
+        ],
+      },
+    ]
+    expect(
+      S.decodeUnknownSync(Games)(overJson(S.encodeSync(Games)(games))),
+    ).toEqual(games)
+  })
+
+  it('reads a wallet back from the origin', () => {
+    const wallets = [
+      {
+        label: 'Devnet',
+        chain: 'Solana' as const,
+        network: 'Devnet' as const,
+        address: 'a',
+        balanceAtomic: '1',
+        mirroredAtMs: 1,
+        transactions: [
+          {
+            signature: 's',
+            slot: 1,
+            maybeBlockTimeMs: Option.none(),
+            didSucceed: true,
+            maybeChangeAtomic: Option.some('-5'),
+          },
+        ],
+      },
+    ]
+    expect(
+      S.decodeUnknownSync(WalletAddresses)(
+        overJson(S.encodeSync(WalletAddresses)(wallets)),
+      ),
+    ).toEqual(wallets)
+  })
+
+  it('reads a note back from the log', () => {
+    const notes = [
+      NotedPlayer({
+        name: 'Tyler',
+        maybeNote: Option.some('guilty'),
+        isDunce: true,
+      }),
+      NotedPlayer({ name: 'Tyler', maybeNote: Option.none(), isDunce: false }),
+    ]
+    for (const note of notes) {
+      const row = { id: 'r', from: 'cli', createdAtMs: 1, tag: 'x' }
+      const encoded = S.encodeSync(MessageWire)(note)
+      expect(
+        S.decodeUnknownSync(MessageWire)(overJson({ ...row, tag: encoded.tag })),
+      ).toEqual(note)
+    }
   })
 })
 
