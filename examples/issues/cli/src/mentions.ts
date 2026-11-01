@@ -12,7 +12,12 @@ import {
 
 import { IssuesCommandFailure } from './host.js'
 
-const WORDS_BASE_URL = 'https://words.pisspoursoftware.xyz'
+/**
+ * Where a line's link goes: Scribe's public preview host at the words page's own path. It previews outside
+ * Cloudflare Access and leads to the same page, so a link pasted anywhere no longer unfurls as the sign-in page
+ * (Scribe #1530). It holds no word of the line.
+ */
+const LINE_LINK_ORIGIN = 'https://og.pisspoursoftware.xyz'
 const MILLISECONDS_PER_SECOND = 1_000
 const LINK_SECOND_DECIMALS = 2
 const USAGE_EXIT_CODE = 2
@@ -323,7 +328,7 @@ const secondsForLink = (seconds: number): string =>
 
 /** The words deep link to one line: `…/recording/<id>/section/<line id>?t=<s>`. */
 export const lineDeepLink = (line: TranscriptLine): string =>
-  `${WORDS_BASE_URL}/recording/${line.recording}/section/${line.id}?t=${secondsForLink(line.start)}`
+  `${LINE_LINK_ORIGIN}/recording/${line.recording}/section/${line.id}?t=${secondsForLink(line.start)}`
 
 const rangeLabel = (first: number, last: number): string =>
   first === last
