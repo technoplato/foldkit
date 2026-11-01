@@ -296,11 +296,10 @@ describe('linking a related Issue', () => {
     ])
   })
 
-  it('writes nothing and says why for words, itself, or a number no Issue has', () => {
+  it('writes nothing and says why for words or for itself', () => {
     for (const [target, reason] of [
       ['hello', '“hello” is not an Issue number.'],
       ['#100', 'An Issue does not link to itself.'],
-      ['#9999', 'No Issue #9999.'],
     ] as const) {
       const [after, commands] = linking(target)
       expect(commands).toEqual([])

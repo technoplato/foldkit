@@ -239,7 +239,13 @@ and its release tags. The site opens Scribe's Instant app the first time a page
 asks, signed in with the same Access login through a second mint on its origin
 (`hostedIdentity({ session })` in `react/vite.config.ts`), so the list pays nothing
 for it. Agents, findings, features and products come the same way, written by
-Scribe's `scripts/schema/graph-sync.sh`. Decisions are read once, 155 rows and
+Scribe's `scripts/schema/graph-sync.sh`, which starts when a file its syncs read
+changes (the agents registry, a live session file, a headless run, origin/main's
+ref); findings in work logs and the product catalog, which only Instant holds,
+wait for its 5-minute run. An Issue's page also reads its moments, with their
+kind, so a line that was another app's sound reads `Heard in`, never `Michael said
+it`. A Recording's page reads its own row and its moments in two live queries, so
+a live Recording's length, written once a minute, restates one row. Decisions are read once, 155 rows and
 45 KB, for chips, the palette, `/decisions` and an Issue's page. No query can look
 inside `issueNumbersJSON`, so an Issue's page reads the few questions that hold
 one, 5 of 964, and the reminders that hold a link, 2 of 140; `/questions` and
@@ -266,11 +272,59 @@ New Issues link to `https://issues.pisspoursoftware.xyz/issues/<number>`
 (`issueViewerUrl`). A comment made on the site is stored under the email
 Cloudflare Access signed in to Instant (`signedInAuthor`).
 
-The site writes through Instant's permission rules. On the live tracker those
-rules allow no create or update of `instantToolsIssues` today, so the site
-reads and the `issues` command writes: a File, Comment, Link, or status from
-the site shows Instant's reason, such as
-`Not filed: File: CreateIssue: Permission denied: not perms-pass?`.
+The list has views, each a URL: filters by status, priority, claimant, product
+and landing, a sort, a grouping, and a board (`/issues?view=board`, by status or
+by claimant) whose cards drag between columns. A view can be saved by name
+(`Save view`, kept as an `issueViews` row in Scribe's app) and opened again with
+`g v`. `/inbox` lists every status change, claim and mention, newest first, and
+`/inbox?kind=status` one kind of it. Space peeks at the Issue under the cursor in
+a panel beside the list, which shows its page, its landing and its graph.
+
+### Keys
+
+Like Linear, the keyboard reaches everything:
+
+| Keys | What they do |
+| --- | --- |
+| `j` `k`, arrows | the next or previous row, card, or inbox Issue |
+| `Enter` | open the Issue under the cursor |
+| `Space` | peek at it beside the list |
+| `x`, `Shift+j` `Shift+k` | select it, or extend the selection down or up |
+| `s` `p` `a` `m` | its status, priority, claim, or product, for the selection when the cursor is in it |
+| `h` `l`, `Shift+h` `Shift+l` | on the board, the column beside, or move the card there |
+| `Shift+b` | the board, and back to the list |
+| `/` | search; `Enter` opens an Issue the search names |
+| `c` | file an Issue, with Title holding the keyboard |
+| `Enter` in Title, `Cmd+Enter` in Details | file it |
+| `Cmd+Enter` in the comment box | comment |
+| `g` then `l` `b` `i` `t` `f` `d` `q` `r` `e` `p` `v` | the list, backlog, inbox, triage, findings, decisions, questions, reminders, features, products, saved views |
+| `Cmd+K`, `?` | the command palette: every action and place, and Issues by title |
+| `Esc` | close the layer, clear the selection or search, leave the row, or go back to the page an Issue was opened from |
+
+A layer (a menu, the palette, a peek) takes the keyboard when it opens and gives
+it back when it closes, and a key the page takes moves the keyboard off a button
+just clicked, so `Enter` after `j` opens the row and never presses that button
+again. A menu changes the Issues it named when it opened.
+
+### Writes
+
+The site writes through Instant's rules, signed in as his Access login; the
+`issues` command writes as the same owner (`asUser`) when
+`INSTANT_TOOLS_OWNER_EMAIL` names him in `~/.config/instant-tools/instant.env`,
+so the same rules run for both. Every Issue write names the `updatedAtMs` it read
+(`ruleParams`), and the tracker's rule refuses it once the row has moved; the
+writer then reads the row again from the server and applies its change to what it
+finds, up to 12 times. Instant judges a rule without a lock, so two transactions
+that overlap can both pass it: a write waits 300 ms, reads again, and applies its
+change again if an overlapping write took it away. `updatedAtMs` moves on every
+write, and a change that changes nothing writes nothing. A write only queued while
+offline fails, naming the Issue. On the throwaway app, 12 `issues log` at once on
+one Issue store 12 of 12, where they stored 3 before. A write keeps any key the
+schema does not model, inside each criterion, mention and entry too.
+
+A save that returns after the page moved never moves it: only the filing opens its
+new Issue, and only from the form. A comment or a link stays in its box until its
+write lands.
 
 ## Mac listener
 

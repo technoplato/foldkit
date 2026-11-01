@@ -2706,29 +2706,20 @@ const nextRowEdit = (model: Model): UpdateReturn => {
 
 /**
  * The Issue a link names, in its stored spelling, `101` for `#101`, or why it
- * names none: words, the Issue itself, or, once the catalog is read, a number
- * no Issue has.
+ * names none: words, or the Issue itself. A number the catalog does not hold
+ * yet is still linked: an Issue filed a moment ago may not have reached it.
  */
 const linkTargetOf = (
-  model: Model,
   sourceIssueId: string,
   targetIssueId: string,
 ): Result.Result<string, string> =>
   Option.match(normalizeIssueId(targetIssueId), {
     onNone: () =>
       Result.fail(`“${targetIssueId.trim()}” is not an Issue number.`),
-    onSome: target => {
-      if (target === storedIssueIdOf(sourceIssueId)) {
-        return Result.fail('An Issue does not link to itself.')
-      } else if (
-        model.issues._tag !== 'LoadedIssues' ||
-        issuesByIdIn(model).has(target)
-      ) {
-        return Result.succeed(target)
-      } else {
-        return Result.fail(`No Issue #${target}.`)
-      }
-    },
+    onSome: target =>
+      target === storedIssueIdOf(sourceIssueId)
+        ? Result.fail('An Issue does not link to itself.')
+        : Result.succeed(target),
   })
 
 /**
@@ -3863,7 +3854,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         if (targetIssueId.trim() === '' || isIssueMutationSaving(model)) {
           return [model, []]
         }
-        return Result.match(linkTargetOf(model, sourceIssueId, targetIssueId), {
+        return Result.match(linkTargetOf(sourceIssueId, targetIssueId), {
           onFailure: reason => [
             nextModel({
               ...model,
