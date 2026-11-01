@@ -21,7 +21,8 @@ export const RecordingLines = S.TaggedStruct('RecordingLines', {
 /**
  * A words deep link: one line of a Recording at its time, such as
  * `https://words.pisspoursoftware.xyz/recording/faa684c2-…/section/574c0938-…?t=16171.68`.
- * A link on the retired `words.knophy.com` reads as the same link on
+ * A link on the retired `words.knophy.com`, or on `og.pisspoursoftware.xyz`,
+ * Scribe's public preview host at the same path, reads as the same link on
  * `words.pisspoursoftware.xyz`.
  */
 export const WordsLink = S.TaggedStruct('WordsLink', {
@@ -122,10 +123,10 @@ export type TextPiece = typeof TextPiece.Type
 
 const WORDS_ORIGIN = 'https://words.pisspoursoftware.xyz'
 const WORDS_LINK =
-  /^https?:\/\/words\.(?:pisspoursoftware\.xyz|knophy\.com)(\/recording\/([0-9a-f-]{36})(?:\/section\/([0-9a-f-]{36}))?[^\s]*)$/i
+  /^https?:\/\/(?:words\.(?:pisspoursoftware\.xyz|knophy\.com)|og\.pisspoursoftware\.xyz)(\/recording\/([0-9a-f-]{36})(?:\/section\/([0-9a-f-]{36}))?[^\s]*)$/i
 const AT_SECONDS = /[?&]t=(\d+(?:\.\d+)?)/
 const ISSUE_PAGE =
-  /^https?:\/\/issues\.(?:pisspoursoftware\.xyz|knophy\.com)\/issues\/(\d{1,4})(?:[/?#]|$)/i
+  /^https?:\/\/(?:issues\.(?:pisspoursoftware\.xyz|knophy\.com)|og\.pisspoursoftware\.xyz)\/issues\/(\d{1,4})(?:[/?#]|$)/i
 const CLAUDE_SESSION = /^https:\/\/claude\.ai\/code\/(session_\w+)/
 const GITHUB_COMMIT =
   /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/commit\/([0-9a-f]{7,40})\b/

@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 12:52:50 p.m. EST — `21d9f1f0287a` fix(issues): green: an og link reads as its words or Issue link
+
+- **Implementation commit:** `21d9f1f0287a72d2e491506a29faeea892f710f3`
+- **Change:** An og link reads as its words or Issue link
+- **Details:**
+  - textReferences and mentionedIn read og.pisspoursoftware.xyz as the words or Issue link it stands for, as they read the retired words.knophy.com.
+- **Files:**
+  - `examples/issues/core/src/textReferences.ts` — og links are the same words or Issue link
+  - `examples/issues/core/src/mentionedIn.ts` — a mention's line link on og opens its words page
+- **User context (verbatim):**
+  > Michael, typed 2026-11-01: "Then make sure all deep links securely go through it so we can get rich previews outside our protected realm"
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (og-links-1530); no SpecStory capture exists for headless runs.
+
 ## November 1st, 2026 at 12:12:30 p.m. EST — `3a7e341dda0c` feat(issues): rich links, entity pages, landings, search, keys, palette
 
 - **Implementation commit:** `3a7e341dda0c1747fb6f950c21fc1f075ba93840`

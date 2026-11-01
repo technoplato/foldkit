@@ -3,9 +3,10 @@ import { Array, Option, Order, Record, Schema as S, pipe } from 'effect'
 import { type Issue, type IssueMention } from '@foldkit/instant-tools/issues'
 
 const WORDS_ORIGIN = 'https://words.pisspoursoftware.xyz'
-const RETIRED_WORDS_ORIGIN = /^https?:\/\/words\.knophy\.com/i
+/** The retired host, and Scribe's public preview host at the same path. */
+const OTHER_WORDS_ORIGIN = /^https?:\/\/(?:words\.knophy\.com|og\.pisspoursoftware\.xyz)/i
 const SECTION_LINK =
-  /^https?:\/\/words\.(?:pisspoursoftware\.xyz|knophy\.com)\/recording\/[0-9a-f-]{36}\/section\/[^\s?]+(?:\?\S*)?$/i
+  /^https?:\/\/(?:words\.(?:pisspoursoftware\.xyz|knophy\.com)|og\.pisspoursoftware\.xyz)\/recording\/[0-9a-f-]{36}\/section\/[^\s?]+(?:\?\S*)?$/i
 const RECORDING_PREFIX =
   /^Recording 0*(\d+)(?: \([0-9a-f-]{36}\))? #(\d+)(?:-(\d+))?:?\s*/i
 const LINE_NUMBER = /#(\d+)/g
@@ -75,7 +76,7 @@ const rangeOfNote = (note: string): Option.Option<LineRange> =>
 const deepLinkOf = (mention: IssueMention): Option.Option<string> =>
   Array.findFirst(mention.related, reference =>
     reference._tag === 'Uri' && SECTION_LINK.test(reference.value)
-      ? Option.some(reference.value.replace(RETIRED_WORDS_ORIGIN, WORDS_ORIGIN))
+      ? Option.some(reference.value.replace(OTHER_WORDS_ORIGIN, WORDS_ORIGIN))
       : Option.none(),
   )
 
