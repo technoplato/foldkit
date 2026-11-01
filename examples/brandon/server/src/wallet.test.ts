@@ -55,6 +55,7 @@ const activityOf = (
   amountAtomic: '500000000',
   maybeCounterpartyAddress: Option.none(),
   observedAtMs: 1,
+  maybeFailure: Option.none(),
 })
 
 const makeStore = () => {

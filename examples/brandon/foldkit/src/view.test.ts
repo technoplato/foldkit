@@ -247,6 +247,7 @@ describe('the wallet section', () => {
         'Sender1111111111111111111111111111111111111',
       ),
       observedAtMs: 1_793_490_000_000,
+      maybeFailure: Option.none(),
       ...fields,
     })
 
@@ -305,6 +306,26 @@ describe('the wallet section', () => {
         Scene.expect(Scene.text('Failed')).toExist(),
         Scene.expect(Scene.text('Received 0.1 SOL')).toExist(),
         Scene.expect(Scene.text('Final')).toExist(),
+      )
+    })
+
+    test('says why a transaction failed', () => {
+      Scene.scene(
+        { update, view },
+        Scene.with(
+          withActivity('Devnet', [
+            entry({
+              direction: 'Outgoing',
+              status: 'Failed',
+              maybeFailure: Option.some(
+                'It never landed, so nothing was sent.',
+              ),
+            }),
+          ]),
+        ),
+        Scene.expect(
+          Scene.text('It never landed, so nothing was sent.'),
+        ).toExist(),
       )
     })
 

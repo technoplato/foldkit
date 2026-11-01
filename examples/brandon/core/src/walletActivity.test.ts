@@ -40,6 +40,7 @@ const entry = (
   amountAtomic: '500000000',
   maybeCounterpartyAddress: Option.some('Sender1111'),
   observedAtMs: 1_793_490_000_000,
+  maybeFailure: Option.none(),
   ...fields,
 })
 

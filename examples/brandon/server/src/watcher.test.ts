@@ -8,6 +8,7 @@ import {
 } from 'wallet-core-example'
 import {
   type LiveNetworkAdapter,
+  type TransactionStanding,
   liveWalletNetworkForId,
 } from 'wallet-live-client-example'
 
@@ -78,6 +79,12 @@ const memoryStore = () => {
       Effect.sync(() => {
         notices += 1
       }),
+    unsettledTransactions: () =>
+      Effect.sync(() =>
+        [...rows.values()].filter(
+          row => !Option.contains(row.maybeFinality, 'Final'),
+        ),
+      ),
   }
   return {
     store,
@@ -91,9 +98,7 @@ const memoryStore = () => {
 const unavailable = () => new WalletClientError({ code: 'Unavailable' })
 
 const fakeAdapter = (
-  history: (
-    query: typeof TransactionHistoryQuery.Type,
-  ) => Effect.Effect<
+  history: (query: typeof TransactionHistoryQuery.Type) => Effect.Effect<
     Readonly<{
       records: ReadonlyArray<typeof TransactionRecord.Type>
       maybeNextCursor: Option.Option<string>
@@ -101,6 +106,10 @@ const fakeAdapter = (
     WalletClientError
   >,
   observed: Stream.Stream<typeof TransactionRecord.Type, WalletClientError>,
+  settlement: (
+    transactionId: string,
+  ) => Stream.Stream<TransactionStanding, WalletClientError> = () =>
+    Stream.empty,
 ): LiveNetworkAdapter => {
   const configuration = Option.getOrThrow(
     liveWalletNetworkForId('solana:devnet'),
@@ -119,6 +128,7 @@ const fakeAdapter = (
     loadTransactionHistory: (_account, query) =>
       Effect.map(history(query), page => ({ ...page, records: page.records })),
     observeTransactions: () => observed,
+    observeSettlement: (_account, transactionId) => settlement(transactionId),
     requestTestFunding: notUsed,
   }
 }
@@ -167,7 +177,11 @@ describe('watching one account', () => {
     await Effect.runPromiseExit(watchOnce(adapter, account, store))
     const afterFirst = writeCount()
     await Effect.runPromiseExit(
-      watchOnce(adapter, { ...account, maybeCursor: Option.some('newer') }, store),
+      watchOnce(
+        adapter,
+        { ...account, maybeCursor: Option.some('newer') },
+        store,
+      ),
     )
     expect(afterFirst).toBe(2)
     expect(writeCount()).toBe(afterFirst)
@@ -225,7 +239,10 @@ describe('watching one account', () => {
           records: [record('older', 1)],
           maybeNextCursor: Option.none(),
         }),
-      Stream.concat(Stream.make(record('older', 1)), Stream.fail(unavailable())),
+      Stream.concat(
+        Stream.make(record('older', 1)),
+        Stream.fail(unavailable()),
+      ),
     )
     await Effect.runPromiseExit(watchOnce(adapter, account, store))
     const afterFirst = noticeCount()
@@ -237,8 +254,7 @@ describe('watching one account', () => {
   it('ends a quiet watch at its lifetime, so a deaf socket cannot hide a payment', async () => {
     const { store } = memoryStore()
     const adapter = fakeAdapter(
-      () =>
-        Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      () => Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
       Stream.never,
     )
     const exit = await Effect.runPromiseExit(
@@ -358,6 +374,103 @@ describe('watching one account', () => {
     const exit = await Effect.runPromiseExit(watchOnce(adapter, account, store))
     expect(Exit.isFailure(exit)).toBe(true)
     expect([...rows.keys()]).toEqual([`${account.accountKey}|older`])
+  })
+})
+
+describe('following a transaction to the end', () => {
+  it('moves a row to Final when the chain says so, and tells open pages', async () => {
+    const { store, rows, noticeCount } = memoryStore()
+    const adapter = fakeAdapter(
+      () =>
+        Effect.succeed({
+          records: [record('recent', Date.now())],
+          maybeNextCursor: Option.none(),
+        }),
+      Stream.never,
+      () => Stream.make('Included', 'Final'),
+    )
+    await Effect.runPromiseExit(
+      watchOnce(adapter, account, store, {
+        answerWithin: '1 second',
+        maximumLifetime: '60 millis',
+        backfillEvery: '1 second',
+      }),
+    )
+    const row = rows.get(`${account.accountKey}|recent`)
+    expect(row?.status).toBe('Confirmed')
+    expect(Option.getOrNull(row?.maybeFinality ?? Option.none())).toBe('Final')
+    expect(noticeCount()).toBe(2)
+  })
+
+  it('never asks about a row already Final', async () => {
+    const { store } = memoryStore()
+    const asked: Array<string> = []
+    const adapter = fakeAdapter(
+      () =>
+        Effect.succeed({
+          records: [record('old', 1)],
+          maybeNextCursor: Option.none(),
+        }),
+      Stream.never,
+      transactionId => {
+        asked.push(transactionId)
+        return Stream.empty
+      },
+    )
+    await Effect.runPromiseExit(
+      watchOnce(adapter, account, store, {
+        answerWithin: '1 second',
+        maximumLifetime: '40 millis',
+        backfillEvery: '1 second',
+      }),
+    )
+    expect(asked).toEqual([])
+  })
+
+  it('follows a live transaction as soon as it is written', async () => {
+    const { store, rows } = memoryStore()
+    const adapter = fakeAdapter(
+      () => Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      Stream.concat(Stream.make(record('live', Date.now())), Stream.never),
+      () => Stream.make('Final'),
+    )
+    await Effect.runPromiseExit(
+      watchOnce(adapter, account, store, {
+        answerWithin: '1 second',
+        maximumLifetime: '60 millis',
+        backfillEvery: '1 second',
+      }),
+    )
+    expect(
+      Option.getOrNull(
+        rows.get(`${account.accountKey}|live`)?.maybeFinality ?? Option.none(),
+      ),
+    ).toBe('Final')
+  })
+
+  it('keeps listening when a settlement stream fails', async () => {
+    const { store, rows } = memoryStore()
+    const adapter = fakeAdapter(
+      () =>
+        Effect.succeed({
+          records: [record('recent', Date.now())],
+          maybeNextCursor: Option.none(),
+        }),
+      Stream.concat(Stream.make(record('live', Date.now())), Stream.never),
+      () => Stream.fail(unavailable()),
+    )
+    const started = Date.now()
+    await Effect.runPromiseExit(
+      watchOnce(adapter, account, store, {
+        answerWithin: '1 second',
+        maximumLifetime: '60 millis',
+        backfillEvery: '1 second',
+      }),
+    )
+    expect(Date.now() - started).toBeGreaterThanOrEqual(50)
+    expect([...rows.keys()].sort()).toEqual(
+      [`${account.accountKey}|live`, `${account.accountKey}|recent`].sort(),
+    )
   })
 })
 
