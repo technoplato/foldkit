@@ -9,7 +9,7 @@ import {
 import type { WatchedAccount } from './activity.js'
 import { makeActivityAdmin } from './activityStore.js'
 import { brandonEnv } from './env.js'
-import { watchAccount } from './watcher.js'
+import { stamped, watchAccount } from './watcher.js'
 
 // WATCH
 
@@ -34,7 +34,9 @@ const follow = (accounts: ReadonlyArray<WatchedAccount>): void => {
     if (!wanted.has(accountKey)) {
       running.delete(accountKey)
       Effect.runFork(Fiber.interrupt(fiber))
-      console.log(`watcher: stopped ${accountKey.split('|').slice(1).join(' ')}`)
+      console.log(
+        stamped(`watcher: stopped ${accountKey.split('|').slice(1).join(' ')}`),
+      )
     }
   }
   for (const account of accounts) {
@@ -44,7 +46,7 @@ const follow = (accounts: ReadonlyArray<WatchedAccount>): void => {
         account.accountKey,
         Effect.runFork(watchAccount(maybeAdapter.value, account, store)),
       )
-      console.log(`watcher: listening to ${named(account)}`)
+      console.log(stamped(`watcher: listening to ${named(account)}`))
     }
   }
 }
@@ -52,10 +54,14 @@ const follow = (accounts: ReadonlyArray<WatchedAccount>): void => {
 // NOTE: launchd keeps this process alive, and a fresh start is the one
 // sure way back from a subscription Instant ended.
 store.followAccounts(follow, error => {
-  console.error(`watcher: the account list failed: ${error.message}; exiting`)
+  console.error(
+    stamped(`watcher: the account list failed: ${error.message}; exiting`),
+  )
   process.exit(1)
 })
 
 console.log(
-  `wallet watcher: following walletAccounts on ${Array.join(WatchedNetworkId.literals, ', ')}`,
+  stamped(
+    `wallet watcher: following walletAccounts on ${Array.join(WatchedNetworkId.literals, ', ')}`,
+  ),
 )

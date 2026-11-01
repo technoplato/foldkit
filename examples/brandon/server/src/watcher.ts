@@ -1,12 +1,13 @@
 import {
   Array,
+  Clock,
   Data,
   Duration,
   Effect,
+  Fiber,
   Function,
   Option,
   Ref,
-  Schedule,
   Schema as S,
   Stream,
 } from 'effect'
@@ -61,21 +62,61 @@ export const answerWithin = '5 seconds'
  */
 export const maximumWatchLifetime = '10 minutes'
 
+/** How long a watch waits before it tries a failed backfill again. */
+export const backfillEvery = '30 seconds'
+
 /** How one watch is bounded. */
 export type WatchOptions = Readonly<{
   answerWithin: Duration.Input
   maximumLifetime: Duration.Input
+  backfillEvery: Duration.Input
 }>
+
+const defaultWatchOptions: WatchOptions = {
+  answerWithin,
+  maximumLifetime: maximumWatchLifetime,
+  backfillEvery,
+}
 
 const historyPageLimit = 25
 const maximumBackfillPages = 4
 const shownAddressCharacters = 6
 
-/** Reconnect after 1 s, doubling to at most 30 s, with jitter, forever. */
-export const reconnectSchedule = Schedule.min([
-  Schedule.exponential('1 second'),
-  Schedule.spaced('30 seconds'),
-]).pipe(Schedule.jittered)
+const firstReconnectDelayMs = 1_000
+const maximumReconnectDelayMs = 30_000
+const heldLongEnoughMs = 60_000
+const reconnectJitter = 0.2
+
+/**
+ * How long to wait before reconnect number `attempt`: 1 s, doubling to at
+ * most 30 s.
+ *
+ * @example
+ * ```typescript
+ * reconnectDelayMs(1) // 2000
+ * ```
+ */
+export const reconnectDelayMs = (attempt: number): number =>
+  Math.min(firstReconnectDelayMs * 2 ** attempt, maximumReconnectDelayMs)
+
+/**
+ * The next attempt, after a watch that held this long. Only a watch that
+ * held for a minute starts the count over: an RPC can accept a subscription
+ * and refuse it seconds later, and an answer alone proves nothing (#1545).
+ */
+export const nextReconnectAttempt = (attempt: number, heldMs: number): number =>
+  heldMs >= heldLongEnoughMs ? 0 : attempt + 1
+
+const jitteredReconnectDelayMs = (attempt: number): number =>
+  reconnectDelayMs(attempt) *
+  (1 - reconnectJitter + Math.random() * 2 * reconnectJitter)
+
+/**
+ * A line for the watcher's log, which launchd keeps with no times of its
+ * own: `2026-11-01T16:40:00.000Z watcher: …`.
+ */
+export const stamped = (line: string): string =>
+  `${new Date().toISOString()} ${line}`
 
 const liveAccountOf = (
   adapter: LiveNetworkAdapter,
@@ -189,78 +230,135 @@ const backfill = (
   return loadPages(Option.none(), 0, [])
 }
 
-/**
- * One watch of one account: backfill its history back to the cursor it
- * holds, write what is new, then listen to the chain and write each
- * transaction as it moves forward. It ends with WatchEnded when the
- * chain's stream ends or fails, or any answer takes longer than
- * `answerWithin`, or a quiet watch reaches `maximumLifetime`; the caller
- * reconnects, and the next watch backfills whatever the gap missed. Open
- * pages get one notice for a whole backfill and one for each live change.
- */
-export const watchOnce = (
+const recordHistory = (
   adapter: LiveNetworkAdapter,
   account: WatchedAccount,
   store: ActivityStore,
-  options: WatchOptions = {
-    answerWithin,
-    maximumLifetime: maximumWatchLifetime,
-  },
-): Effect.Effect<never, WatchEnded> =>
+  within: Duration.Input,
+  hasLiveCursor: Ref.Ref<boolean>,
+): Effect.Effect<void, WatchEnded> =>
   Effect.gen(function* () {
-    const within = options.answerWithin
     const history = yield* backfill(adapter, account, within)
-    const oldestFirst = Array.reverse(history)
-    const writes = yield* Effect.forEach(oldestFirst, record =>
+    const writes = yield* Effect.forEach(Array.reverse(history), record =>
       recordObservation(account, store, within, record),
     )
     if (Array.some(writes, Function.identity)) {
       yield* inTime(within)(store.announceChange(account))
     }
-    yield* Option.match(newestTransactionId(history, account.maybeCursor), {
-      onNone: () => Effect.void,
-      onSome: cursor => inTime(within)(store.writeCursor(account, cursor)),
-    })
-    yield* adapter.observeTransactions(liveAccountOf(adapter, account)).pipe(
-      Stream.mapError(error => ended(`the chain's stream failed: ${error.code}`)),
-      Stream.runForEach(record =>
-        Effect.gen(function* () {
-          const didWrite = yield* recordObservation(
-            account,
-            store,
-            within,
-            record,
-          )
-          if (didWrite) {
-            yield* inTime(within)(store.announceChange(account))
-          }
-          yield* inTime(within)(store.writeCursor(account, record.transactionId))
-        }),
-      ),
-      Effect.timeoutOrElse({
-        duration: options.maximumLifetime,
-        orElse: () => Effect.fail(ended('it reached its lifetime')),
-      }),
-    )
-    return yield* Effect.fail(ended("the chain's stream ended"))
+    if (!(yield* Ref.get(hasLiveCursor))) {
+      yield* Option.match(newestTransactionId(history, account.maybeCursor), {
+        onNone: () => Effect.void,
+        onSome: cursor => inTime(within)(store.writeCursor(account, cursor)),
+      })
+    }
   })
+
+const listen = (
+  adapter: LiveNetworkAdapter,
+  account: WatchedAccount,
+  store: ActivityStore,
+  options: WatchOptions,
+  hasLiveCursor: Ref.Ref<boolean>,
+): Effect.Effect<never, WatchEnded> =>
+  adapter.observeTransactions(liveAccountOf(adapter, account)).pipe(
+    Stream.mapError(error => ended(`the chain's stream failed: ${error.code}`)),
+    Stream.runForEach(record =>
+      Effect.gen(function* () {
+        const didWrite = yield* recordObservation(
+          account,
+          store,
+          options.answerWithin,
+          record,
+        )
+        if (didWrite) {
+          yield* inTime(options.answerWithin)(store.announceChange(account))
+        }
+        yield* Ref.set(hasLiveCursor, true)
+        yield* inTime(options.answerWithin)(
+          store.writeCursor(account, record.transactionId),
+        )
+      }),
+    ),
+    Effect.timeoutOrElse({
+      duration: options.maximumLifetime,
+      orElse: () => Effect.fail(ended('it reached its lifetime')),
+    }),
+    Effect.andThen(Effect.fail(ended("the chain's stream ended"))),
+  )
+
+/**
+ * One watch of one account: listen to the chain and write each transaction
+ * as it moves forward, and alongside that backfill its history back to the
+ * cursor it holds, so a slow or dead history provider never stops a payment
+ * from being heard. A failed backfill gets another try every
+ * `backfillEvery`; one in flight finishes even if the chain's stream drops.
+ * The watch ends with WatchEnded when the chain's stream ends or fails, any
+ * write takes longer than `answerWithin`, or a quiet watch reaches
+ * `maximumLifetime`; the caller reconnects, and the next watch backfills
+ * whatever the gap missed. Open pages get one notice for a whole backfill
+ * and one for each live change.
+ */
+export const watchOnce = (
+  adapter: LiveNetworkAdapter,
+  account: WatchedAccount,
+  store: ActivityStore,
+  options: WatchOptions = defaultWatchOptions,
+): Effect.Effect<never, WatchEnded> =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const hasLiveCursor = yield* Ref.make(false)
+      const listening = yield* Effect.forkScoped(
+        listen(adapter, account, store, options, hasLiveCursor),
+      )
+      const attemptBackfill: Effect.Effect<boolean> = recordHistory(
+        adapter,
+        account,
+        store,
+        options.answerWithin,
+        hasLiveCursor,
+      ).pipe(
+        Effect.as(true),
+        Effect.catch(({ reason }) =>
+          Effect.sync(() => {
+            console.error(
+              stamped(
+                `watcher: ${account.networkId} ${shortAddress(account.address)} history failed (${reason}); still listening`,
+              ),
+            )
+            return false
+          }),
+        ),
+      )
+      const backfillUntilDone: Effect.Effect<void> = Effect.gen(function* () {
+        yield* Effect.sleep(options.backfillEvery)
+        if (!(yield* attemptBackfill)) {
+          yield* Effect.suspend(() => backfillUntilDone)
+        }
+      })
+      if (!(yield* attemptBackfill)) {
+        yield* Effect.raceFirst(backfillUntilDone, Fiber.await(listening))
+      }
+      return yield* Fiber.join(listening)
+    }),
+  )
 
 /**
  * Watches one account for as long as it runs. Every drop is logged with
- * the network and the start of the address, then retried on `schedule`;
- * every retry backfills back to the newest cursor this watch wrote, so
- * nothing in the gap is missed and nothing is read twice.
+ * the network and the start of the address, then retried after
+ * `reconnectAfter`; every retry backfills back to the newest cursor this
+ * watch wrote, so nothing in the gap is missed and nothing is read twice.
  */
 export const watchAccount = (
   adapter: LiveNetworkAdapter,
   account: WatchedAccount,
   store: ActivityStore,
   options: Readonly<{
-    schedule: Schedule.Schedule<unknown, WatchEnded>
-  }> = { schedule: reconnectSchedule },
+    reconnectAfter: (attempt: number) => number
+  }> = { reconnectAfter: jitteredReconnectDelayMs },
 ): Effect.Effect<never> =>
   Effect.gen(function* () {
     const newestCursor = yield* Ref.make(account.maybeCursor)
+    const attempt = yield* Ref.make(0)
     const trackingStore: ActivityStore = {
       ...store,
       writeCursor: (watched, cursor) =>
@@ -269,16 +367,27 @@ export const watchAccount = (
           Ref.set(newestCursor, Option.some(cursor)),
         ),
     }
-    return yield* Effect.flatMap(Ref.get(newestCursor), maybeCursor =>
-      watchOnce(adapter, { ...account, maybeCursor }, trackingStore),
-    ).pipe(
-      Effect.tapError(({ reason }) =>
-        Effect.sync(() => {
-          console.error(
-            `watcher: ${account.networkId} ${shortAddress(account.address)} dropped (${reason}); backfilling and listening again`,
-          )
-        }),
-      ),
-      Effect.retry(options.schedule),
+    return yield* Effect.forever(
+      Effect.gen(function* () {
+        const startedAtMs = yield* Clock.currentTimeMillis
+        const maybeCursor = yield* Ref.get(newestCursor)
+        const { reason } = yield* Effect.flip(
+          watchOnce(adapter, { ...account, maybeCursor }, trackingStore),
+        )
+        console.error(
+          stamped(
+            `watcher: ${account.networkId} ${shortAddress(account.address)} dropped (${reason}); listening again`,
+          ),
+        )
+        const endedAtMs = yield* Clock.currentTimeMillis
+        const nextAttempt = nextReconnectAttempt(
+          yield* Ref.get(attempt),
+          endedAtMs - startedAtMs,
+        )
+        yield* Ref.set(attempt, nextAttempt)
+        yield* Effect.sleep(
+          Duration.millis(options.reconnectAfter(nextAttempt)),
+        )
+      }),
     )
-  }).pipe(Effect.orDie)
+  })
