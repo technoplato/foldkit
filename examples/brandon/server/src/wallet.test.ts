@@ -1,9 +1,15 @@
 import { Page, brandonWalletConnectOrigins } from 'brandon-core-example'
 import { Array, Effect, Option, Schema as S } from 'effect'
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 
 import { accountKeyOf, walletOwnerKeyOf } from './account.js'
-import { handle, originHeaders } from './handler.js'
+import {
+  handle,
+  inlineStyleHashesOf,
+  makeOriginHeaders,
+  originHeaders,
+} from './handler.js'
 import type { BrandonStore, SectionRow } from './store.js'
 import { signedLogin, testVerifier } from './testAccess.js'
 
@@ -170,5 +176,33 @@ describe('every answer', () => {
       await policyOf('/api/page', brandon),
     )
     expect(originHeaders(refusal)['x-content-type-options']).toBe('nosniff')
+  })
+})
+
+describe("the page's own inline style", () => {
+  const css = '[data-site-source]{display:block;margin:0}'
+  const page = `<body><header data-site-source data-repo="technoplato/foldkit"><style>${css}</style><a href="https://github.com/technoplato/foldkit">github.com/technoplato/foldkit</a></header><div id="root"></div></body>`
+  const answer = {
+    status: 200,
+    contentType: 'text/html; charset=utf-8',
+    body: Buffer.from(page),
+  }
+
+  it('is allowed by its hash, and no other inline style is', () => {
+    const hash = `'sha256-${createHash('sha256').update(css).digest('base64')}'`
+    const hashes = inlineStyleHashesOf(page)
+    expect(hashes).toEqual([hash])
+    const policy = makeOriginHeaders(hashes)(answer)['content-security-policy']
+    expect(policy).toContain(`style-src 'self' ${hash};`)
+    expect(policy).not.toContain('unsafe-inline')
+  })
+
+  it('allows no inline style for a page without one', () => {
+    expect(inlineStyleHashesOf('<body><div id="root"></div></body>')).toEqual(
+      [],
+    )
+    expect(
+      makeOriginHeaders([])(answer)['content-security-policy'],
+    ).toContain("style-src 'self';")
   })
 })
