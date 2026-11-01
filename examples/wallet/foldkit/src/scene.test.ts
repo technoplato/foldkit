@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest'
 import {
   LoadTransactionHistory,
   Model,
+  ObservingTransactions,
   PortfolioSnapshot,
   ReceivingInstruction,
   SucceededLoadTransactionHistory,
@@ -11,6 +12,7 @@ import {
   SucceededLoadWalletProfiles,
   TransactionHistoryPage,
   TransactionHistoryQuery,
+  WaitingForAccounts,
   WalletProfile,
   WalletProgram,
   initialModel,
@@ -353,6 +355,32 @@ describe('Wallet Foldkit client', () => {
 })
 
 describe('Wallet words a person reads', () => {
+  test('say whether the wallet is listening to the chain, in words', () => {
+    const listening = Model.make({
+      ...loadedModel([simulatedWallet]),
+      transactionObservation: ObservingTransactions.make({
+        accountIds: ['wallet-1:solana:devnet'],
+      }),
+    })
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(listening),
+      Scene.expect(Scene.text('Listening to the chain')).toExist(),
+      Scene.expect(Scene.text('ObservingTransactions')).toBeAbsent(),
+    )
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(
+        Model.make({
+          ...listening,
+          transactionObservation: WaitingForAccounts.make({}),
+        }),
+      ),
+      Scene.expect(Scene.text('Waiting for a wallet')).toExist(),
+      Scene.expect(Scene.text('WaitingForAccounts')).toBeAbsent(),
+    )
+  })
+
   test('say where the keys are, and name the mode the way the picker does', () => {
     const live = Model.make({
       ...loadedModel([simulatedWallet]),
