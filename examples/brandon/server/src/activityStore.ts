@@ -1,8 +1,12 @@
-import { Finality, WatchedNetworkId } from 'brandon-core-example'
-import { Array, Effect, Option, Schema as S } from 'effect'
+import {
+  ChangedWalletActivity,
+  Finality,
+  WatchedNetworkId,
+} from 'brandon-core-example'
+import { Array, Effect, Option, Result, Schema as S } from 'effect'
 import { AtomicUnits } from 'wallet-core-example'
 
-import { init } from '@instantdb/admin'
+import { id, init } from '@instantdb/admin'
 
 import {
   type ActivityRow,
@@ -10,11 +14,15 @@ import {
   ownerUserIdOfHolder,
 } from './activity.js'
 import type { BrandonEnv } from './env.js'
+import { logFieldsOf } from './facts.js'
 import type { ActivityStore } from './watcher.js'
 
 // ACTIVITY STORE
 
 const formatVersion = 1
+const watcherProcessor = 'watcher-brandon'
+const brandonDotHolderPrefix = 'brandon-dot:'
+const announceRetries = 2
 
 const AccountRow = S.Struct({
   id: S.String,
@@ -74,8 +82,16 @@ export const decodeActivityRows = (
 ): ReadonlyArray<ActivityRow> =>
   Array.map(S.decodeUnknownSync(S.Array(TransactionRow))(rows), activityRowOf)
 
-const decodeAccounts = (rows: unknown): ReadonlyArray<WatchedAccount> =>
-  Array.map(S.decodeUnknownSync(S.Array(AccountRow))(rows), watchedAccountOf)
+const accountsOf = (rows: ReadonlyArray<unknown>): ReadonlyArray<WatchedAccount> =>
+  Array.filterMap(rows, row =>
+    Option.match(S.decodeUnknownOption(AccountRow)(row), {
+      onNone: () => {
+        console.error('watcher: a walletAccounts row did not read; skipped it')
+        return Result.failVoid
+      },
+      onSome: account => Result.succeed(watchedAccountOf(account)),
+    }),
+  )
 
 /** The watcher's store, plus the live list of accounts to watch. */
 export type ActivityAdmin = ActivityStore &
@@ -195,13 +211,28 @@ export const makeActivityAdmin = (config: BrandonEnv): ActivityAdmin => {
           ).update({ cursor }),
         ),
       ),
+    announceChange: account =>
+      account.holder.startsWith(brandonDotHolderPrefix)
+        ? run(() => {
+            const atMs = Date.now()
+            return admin.transact(
+              admin.tx['programMessage']![id()]!.update(
+                logFieldsOf(ChangedWalletActivity({ atMs }), {
+                  ownerUserID: config.ownerUserID,
+                  from: watcherProcessor,
+                  atMs,
+                }),
+              ),
+            )
+          }).pipe(Effect.retry({ times: announceRetries }), Effect.asVoid)
+        : Effect.void,
     followAccounts: (onAccounts, onFailure) => {
       const subscription = admin.subscribeQuery(
         { walletAccounts: {} },
         payload => {
           if (payload.type === 'ok') {
             try {
-              onAccounts(decodeAccounts(payload.data['walletAccounts'] ?? []))
+              onAccounts(accountsOf(payload.data['walletAccounts'] ?? []))
             } catch (cause) {
               onFailure(failure(cause))
             }

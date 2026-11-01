@@ -3,7 +3,9 @@ import {
   Data,
   Duration,
   Effect,
+  Function,
   Option,
+  Ref,
   Schedule,
   Schema as S,
   Stream,
@@ -24,7 +26,11 @@ import {
 
 // WATCHER
 
-/** Where the watcher keeps what it saw: `walletTransactions` and each account's cursor. */
+/**
+ * Where the watcher keeps what it saw: `walletTransactions` and each
+ * account's cursor. `announceChange` tells open pages that this account's
+ * rows moved, naming nothing.
+ */
 export type ActivityStore = Readonly<{
   storedTransaction: (
     transactionKey: string,
@@ -37,6 +43,7 @@ export type ActivityStore = Readonly<{
     account: WatchedAccount,
     cursor: string,
   ) => Effect.Effect<void, Error>
+  announceChange: (account: WatchedAccount) => Effect.Effect<void, Error>
 }>
 
 /** Why one watch of one account ended: the chain, the store, or no answer in time. */
@@ -46,6 +53,19 @@ export class WatchEnded extends Data.TaggedError('WatchEnded')<{
 
 /** How long the watcher waits on any one answer from a chain or the store. */
 export const answerWithin = '5 seconds'
+
+/**
+ * How long one watch lasts before it backfills and listens again. The
+ * chain's stream is how anything arrives; this bounds what a socket that
+ * went deaf without closing can delay.
+ */
+export const maximumWatchLifetime = '10 minutes'
+
+/** How one watch is bounded. */
+export type WatchOptions = Readonly<{
+  answerWithin: Duration.Input
+  maximumLifetime: Duration.Input
+}>
 
 const historyPageLimit = 25
 const maximumBackfillPages = 4
@@ -113,15 +133,19 @@ const recordObservation = (
   store: ActivityStore,
   within: Duration.Input,
   record: typeof TransactionRecord.Type,
-): Effect.Effect<void, WatchEnded> => {
+): Effect.Effect<boolean, WatchEnded> => {
   const observed = observedActivityRow(account, record)
   return Effect.gen(function* () {
     const maybeStored = yield* inTime(within)(
       store.storedTransaction(observed.transactionKey),
     )
-    yield* Option.match(nextActivityRow(maybeStored, observed), {
-      onNone: () => Effect.void,
-      onSome: row => inTime(within)(store.writeTransaction(account, row)),
+    return yield* Option.match(nextActivityRow(maybeStored, observed), {
+      onNone: () => Effect.succeed(false),
+      onSome: row =>
+        Effect.as(
+          inTime(within)(store.writeTransaction(account, row)),
+          true,
+        ),
     })
   })
 }
@@ -170,24 +194,29 @@ const backfill = (
  * holds, write what is new, then listen to the chain and write each
  * transaction as it moves forward. It ends with WatchEnded when the
  * chain's stream ends or fails, or any answer takes longer than
- * `answerWithin`; the caller reconnects, and the next watch backfills
- * whatever the gap missed.
+ * `answerWithin`, or a quiet watch reaches `maximumLifetime`; the caller
+ * reconnects, and the next watch backfills whatever the gap missed. Open
+ * pages get one notice for a whole backfill and one for each live change.
  */
 export const watchOnce = (
   adapter: LiveNetworkAdapter,
   account: WatchedAccount,
   store: ActivityStore,
-  options: Readonly<{ answerWithin: Duration.Input }> = { answerWithin },
+  options: WatchOptions = {
+    answerWithin,
+    maximumLifetime: maximumWatchLifetime,
+  },
 ): Effect.Effect<never, WatchEnded> =>
   Effect.gen(function* () {
     const within = options.answerWithin
     const history = yield* backfill(adapter, account, within)
     const oldestFirst = Array.reverse(history)
-    yield* Effect.forEach(
-      oldestFirst,
-      record => recordObservation(account, store, within, record),
-      { discard: true },
+    const writes = yield* Effect.forEach(oldestFirst, record =>
+      recordObservation(account, store, within, record),
     )
+    if (Array.some(writes, Function.identity)) {
+      yield* inTime(within)(store.announceChange(account))
+    }
     yield* Option.match(newestTransactionId(history, account.maybeCursor), {
       onNone: () => Effect.void,
       onSome: cursor => inTime(within)(store.writeCursor(account, cursor)),
@@ -195,34 +224,61 @@ export const watchOnce = (
     yield* adapter.observeTransactions(liveAccountOf(adapter, account)).pipe(
       Stream.mapError(error => ended(`the chain's stream failed: ${error.code}`)),
       Stream.runForEach(record =>
-        Effect.andThen(
-          recordObservation(account, store, within, record),
-          inTime(within)(store.writeCursor(account, record.transactionId)),
-        ),
+        Effect.gen(function* () {
+          const didWrite = yield* recordObservation(
+            account,
+            store,
+            within,
+            record,
+          )
+          if (didWrite) {
+            yield* inTime(within)(store.announceChange(account))
+          }
+          yield* inTime(within)(store.writeCursor(account, record.transactionId))
+        }),
       ),
+      Effect.timeoutOrElse({
+        duration: options.maximumLifetime,
+        orElse: () => Effect.fail(ended('it reached its lifetime')),
+      }),
     )
     return yield* Effect.fail(ended("the chain's stream ended"))
   })
 
 /**
  * Watches one account for as long as it runs. Every drop is logged with
- * the network and the start of the address, then retried on
- * `reconnectSchedule`; every retry backfills first, so nothing in the gap
- * is missed.
+ * the network and the start of the address, then retried on `schedule`;
+ * every retry backfills back to the newest cursor this watch wrote, so
+ * nothing in the gap is missed and nothing is read twice.
  */
 export const watchAccount = (
   adapter: LiveNetworkAdapter,
   account: WatchedAccount,
   store: ActivityStore,
+  options: Readonly<{
+    schedule: Schedule.Schedule<unknown, WatchEnded>
+  }> = { schedule: reconnectSchedule },
 ): Effect.Effect<never> =>
-  watchOnce(adapter, account, store).pipe(
-    Effect.tapError(({ reason }) =>
-      Effect.sync(() => {
-        console.error(
-          `watcher: ${account.networkId} ${shortAddress(account.address)} dropped (${reason}); backfilling and listening again`,
-        )
-      }),
-    ),
-    Effect.retry(reconnectSchedule),
-    Effect.orDie,
-  )
+  Effect.gen(function* () {
+    const newestCursor = yield* Ref.make(account.maybeCursor)
+    const trackingStore: ActivityStore = {
+      ...store,
+      writeCursor: (watched, cursor) =>
+        Effect.andThen(
+          store.writeCursor(watched, cursor),
+          Ref.set(newestCursor, Option.some(cursor)),
+        ),
+    }
+    return yield* Effect.flatMap(Ref.get(newestCursor), maybeCursor =>
+      watchOnce(adapter, { ...account, maybeCursor }, trackingStore),
+    ).pipe(
+      Effect.tapError(({ reason }) =>
+        Effect.sync(() => {
+          console.error(
+            `watcher: ${account.networkId} ${shortAddress(account.address)} dropped (${reason}); backfilling and listening again`,
+          )
+        }),
+      ),
+      Effect.retry(options.schedule),
+    )
+  }).pipe(Effect.orDie)

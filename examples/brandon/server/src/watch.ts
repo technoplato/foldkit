@@ -49,8 +49,11 @@ const follow = (accounts: ReadonlyArray<WatchedAccount>): void => {
   }
 }
 
+// NOTE: launchd keeps this process alive, and a fresh start is the one
+// sure way back from a subscription Instant ended.
 store.followAccounts(follow, error => {
-  console.error(`watcher: the account list failed: ${error.message}`)
+  console.error(`watcher: the account list failed: ${error.message}; exiting`)
+  process.exit(1)
 })
 
 console.log(

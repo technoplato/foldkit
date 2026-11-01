@@ -276,43 +276,40 @@ describe('following one account for as long as it runs', () => {
   it('reconnects from the newest cursor it wrote, not the one it started with', async () => {
     const { store } = memoryStore()
     const asked: Array<Option.Option<string>> = []
-    let reconnected: () => void = () => {}
-    const secondHistory = new Promise<void>(resolve => {
-      reconnected = resolve
+    let reachedEnough: () => void = () => {}
+    const enoughWatches = new Promise<void>(resolve => {
+      reachedEnough = resolve
     })
-    const adapter = fakeAdapter(
-      () =>
-        Effect.sync(() => {
-          if (asked.length > 0) {
-            reconnected()
-          }
-          asked.push(Option.none())
-          return {
+    const adapter = fakeAdapter(query => {
+      asked.push(query.maybeCursor)
+      if (asked.length >= 4) {
+        reachedEnough()
+      }
+      return Option.match(query.maybeCursor, {
+        onNone: () =>
+          Effect.succeed({
             records: [record('newest', 2)],
+            maybeNextCursor: Option.some('page-2'),
+          }),
+        onSome: () =>
+          Effect.succeed({
+            records: [record('older', 1)],
             maybeNextCursor: Option.none(),
-          }
-        }),
-      Stream.fail(unavailable()),
-    )
-    const seen: Array<Option.Option<string>> = []
-    const trackedStore: ActivityStore = {
-      ...store,
-      storedTransaction: transactionKey =>
-        Effect.flatMap(store.storedTransaction(transactionKey), stored =>
-          Effect.succeed(stored),
-        ),
-    }
+          }),
+      })
+    }, Stream.fail(unavailable()))
     const fiber = Effect.runFork(
-      watchAccount(adapter, account, trackedStore, {
+      watchAccount(adapter, account, store, {
         schedule: Schedule.spaced('1 millis'),
-        onWatch: watched => {
-          seen.push(watched.maybeCursor)
-        },
       }),
     )
-    await secondHistory
+    await enoughWatches
     await Effect.runPromise(Fiber.interrupt(fiber))
-    expect(seen.at(0)).toEqual(Option.none())
-    expect(seen.at(1)).toEqual(Option.some('newest'))
+    expect(asked.slice(0, 4)).toEqual([
+      Option.none(),
+      Option.some('page-2'),
+      Option.none(),
+      Option.none(),
+    ])
   })
 })
