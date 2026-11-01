@@ -9,6 +9,7 @@ import {
   ScoreboardSection,
   type Section,
   SectionKey,
+  SentTransaction,
   WalletActivity,
   WalletAddresses,
   WalletsSection,
@@ -27,7 +28,10 @@ import {
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
-import { isPublicAddressOn } from 'wallet-live-client-example'
+import {
+  isPublicAddressOn,
+  isTransactionIdOn,
+} from 'wallet-live-client-example'
 
 import {
   type AccessVerifier,
@@ -49,8 +53,8 @@ import {
   walletsFlag,
 } from './account.js'
 import {
-  accountKeyOf as watchedAccountKeyOf,
   chainIdOfNetwork,
+  accountKeyOf as watchedAccountKeyOf,
 } from './activity.js'
 import { qrDrawingOf } from './qr.js'
 import type { BrandonStore, SectionRow } from './store.js'
@@ -106,12 +110,20 @@ const tooManyAddresses = text(
   429,
   'Refused: this login follows as many addresses as it may.',
 )
+const notASend = text(400, 'Refused: that is not a send on that network.')
+const notYourAddress = text(
+  403,
+  'Refused: this login does not follow that address.',
+)
 const followed = text(200, 'ok')
 
 /** The most public addresses one person is followed on: four wallets on each of the four networks. */
 export const maximumWatchedAccountsPerPerson = 16
 
 const watchedAccountPath = /^\/api\/wallet\/accounts\/([^/]+)\/([^/]+)$/
+
+const sentTransactionPath =
+  /^\/api\/wallet\/sent\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)$/
 
 const readMethods: ReadonlySet<string> = new Set(['GET', 'HEAD'])
 
@@ -312,6 +324,56 @@ const publicAccountRequestOf = (
   })
 }
 
+const reportedSendOf = (
+  method: string,
+  path: string,
+): Option.Option<Readonly<Record<keyof SentTransaction, string>>> => {
+  const maybeMatch = Option.fromNullishOr(path.match(sentTransactionPath))
+  if (method !== 'PUT' || Option.isNone(maybeMatch)) {
+    return Option.none()
+  }
+  const decode = Option.liftThrowable(decodeURIComponent)
+  return Option.all({
+    networkId: decode(maybeMatch.value[1] ?? ''),
+    senderAddress: decode(maybeMatch.value[2] ?? ''),
+    transactionId: decode(maybeMatch.value[3] ?? ''),
+    recipientAddress: decode(maybeMatch.value[4] ?? ''),
+    amountAtomic: decode(maybeMatch.value[5] ?? ''),
+  })
+}
+
+const isSendOnItsChain = (sent: SentTransaction): boolean => {
+  const chainId = chainIdOfNetwork(sent.networkId)
+  return (
+    isPublicAddressOn(chainId, sent.senderAddress) &&
+    isPublicAddressOn(chainId, sent.recipientAddress) &&
+    isTransactionIdOn(chainId, sent.transactionId)
+  )
+}
+
+const recordSend = (
+  reported: Readonly<Record<keyof SentTransaction, string>>,
+  email: string,
+  store: BrandonStore,
+): Effect.Effect<OriginResponse, Error> =>
+  Effect.gen(function* () {
+    if (!S.is(SentTransaction)(reported) || !isSendOnItsChain(reported)) {
+      return notASend
+    }
+    const holder = walletHolderOf(email)
+    const known = yield* store.watchedAccountKeys(holder)
+    const accountKey = watchedAccountKeyOf({
+      holder,
+      networkId: reported.networkId,
+      address: reported.senderAddress,
+    })
+    if (!Array.contains(known, accountKey)) {
+      return notYourAddress
+    }
+    yield* store.addSentTransaction(holder, reported)
+    return followed
+  })
+
 const follow = (
   { networkId, address }: PublicAccountRequest,
   email: string,
@@ -388,9 +450,12 @@ const staticFile = async (
  * verifies against the team's certs: the email header alone is never
  * read, and a flag that is off means those words stay here. No path reads
  * a request body, so nothing can hand this origin a key in one. Besides
- * reads, it answers one write: `PUT /api/wallet/accounts/solana:devnet/5xAm…`
- * follows that public address for the signed-in person, and the address
- * must parse as a public address on that network.
+ * reads, it answers two writes, each only for the signed-in person:
+ * `PUT /api/wallet/accounts/solana:devnet/5xAm…` follows that public address,
+ * which must parse as one on that network, and
+ * `PUT /api/wallet/sent/solana:devnet/5xAm…/5hSig…/9Pz…/250000000` files a
+ * send from an address they follow as Pending, every part of it something
+ * the chain shows to anyone.
  */
 export const handle = async (
   request: OriginRequest,
@@ -402,7 +467,12 @@ export const handle = async (
     () => request.path,
   )
   const maybeFollow = publicAccountRequestOf(request.method, path)
-  if (!readMethods.has(request.method) && Option.isNone(maybeFollow)) {
+  const maybeReportedSend = reportedSendOf(request.method, path)
+  if (
+    !readMethods.has(request.method) &&
+    Option.isNone(maybeFollow) &&
+    Option.isNone(maybeReportedSend)
+  ) {
     return notAllowed
   }
   if (path === '/health') {
@@ -421,6 +491,16 @@ export const handle = async (
           return refused
         }
         return yield* follow(maybeFollow.value, email, store)
+      }),
+    )
+  } else if (Option.isSome(maybeReportedSend)) {
+    return read(
+      Effect.gen(function* () {
+        const account = yield* accountOf(email, store)
+        if (!hasFlag(account, walletFlag)) {
+          return refused
+        }
+        return yield* recordSend(maybeReportedSend.value, email, store)
       }),
     )
   } else if (path === '/api/page') {

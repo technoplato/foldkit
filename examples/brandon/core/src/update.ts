@@ -1,9 +1,10 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Effect, Match as M, Option } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Wallet from 'wallet-core-example'
 
 import {
   type AwardedPoints as AwardedPointsMessage,
+  CompletedReportSentTransaction,
   GotWalletMessage,
   type Message,
   type NotedPlayer as NotedPlayerMessage,
@@ -22,12 +23,36 @@ import {
   type WalletActivityState,
   type WalletState,
 } from './model.js'
-import type { Page, WalletActivityEntry } from './page.js'
-import { hasNewActivity } from './walletActivity.js'
+import { type Page, SentTransaction, type WalletActivityEntry } from './page.js'
+import { BrandonServer } from './server.js'
+import { hasNewActivity, sentTransactionOf } from './walletActivity.js'
+
+// COMMAND
+
+/**
+ * Tells the origin of a send the moment its chain took it, so it shows as
+ * Pending everywhere before the chain reports it. If this fails, the chain's
+ * own report still brings the row.
+ */
+const ReportSentTransaction = Command.define(
+  'ReportSentTransaction',
+  { sent: SentTransaction },
+  CompletedReportSentTransaction,
+)(({ sent }) =>
+  Effect.gen(function* () {
+    const server = yield* BrandonServer
+    yield* Effect.ignore(server.reportSentTransaction(sent))
+    return CompletedReportSentTransaction()
+  }),
+)
 
 // UPDATE
 
-type BrandonCommand = Command.Command<Message, never, Wallet.WalletResources>
+type BrandonCommand = Command.Command<
+  Message,
+  never,
+  Wallet.WalletResources | BrandonServer
+>
 
 type UpdateReturn = readonly [Model, ReadonlyArray<BrandonCommand>]
 
@@ -114,6 +139,19 @@ const updatedWallet = (model: Model, message: Wallet.Message): UpdateReturn =>
           toBrandonCommands(commands),
         ]
       },
+    }),
+  )
+
+const reportedSends = (wallet: WalletState): ReadonlyArray<BrandonCommand> =>
+  M.value(wallet).pipe(
+    M.withReturnType<ReadonlyArray<BrandonCommand>>(),
+    M.tagsExhaustive({
+      ClosedWallet: () => [],
+      OpenWallet: ({ model }) =>
+        Option.match(sentTransactionOf(model), {
+          onNone: () => [],
+          onSome: sent => [ReportSentTransaction({ sent })],
+        }),
     }),
   )
 
@@ -210,12 +248,18 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         { ...model, walletWatch: FailedWalletWatch() },
         [],
       ],
+      CompletedReportSentTransaction: () => [model, []],
       CompletedScrollToSection: ({ sectionKey }) => [
         { ...model, maybeHighlighted: Option.some(sectionKey) },
         [],
       ],
       IgnoredStalePointer: () => [model, []],
       IgnoredStaleReload: () => [model, []],
-      GotWalletMessage: ({ message }) => updatedWallet(model, message),
+      GotWalletMessage: ({ message }) => {
+        const [nextModel, commands] = updatedWallet(model, message)
+        return message._tag === 'SucceededSubmitSignedTransaction'
+          ? [nextModel, [...commands, ...reportedSends(nextModel.wallet)]]
+          : [nextModel, commands]
+      },
     }),
   )

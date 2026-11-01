@@ -1,5 +1,6 @@
 import {
   Finality,
+  type SentTransaction,
   type WalletActivityEntry,
   WatchedNetworkId,
 } from 'brandon-core-example'
@@ -9,7 +10,10 @@ import {
   type TransactionRecord,
   type TransactionStatus,
 } from 'wallet-core-example'
-import type { TransactionStanding } from 'wallet-live-client-example'
+import {
+  type TransactionStanding,
+  liveWalletNetworkForId,
+} from 'wallet-live-client-example'
 
 // ACTIVITY
 
@@ -126,6 +130,29 @@ const finalAfterMs = (networkId: WatchedNetworkId): number =>
 const neverLandedAfterMs = (networkId: WatchedNetworkId): number =>
   isOnSolana(networkId) ? 3 * minuteMs : 60 * minuteMs
 
+/**
+ * How long until a Pending row counts as never landed, if it is Pending:
+ * zero once its time is up. The chain says nothing when a send expires, so
+ * the watcher asks one more time when this runs out.
+ *
+ * @example
+ * ```typescript
+ * msUntilNeverLanded(rowSeenAMinuteAgoOnSolana, nowMs) // Option.some(120_000)
+ * ```
+ */
+export const msUntilNeverLanded = (
+  row: ActivityRow,
+  nowMs: number,
+): Option.Option<number> =>
+  row.status === 'Pending'
+    ? Option.some(
+        Math.max(
+          0,
+          row.observedAtMs + neverLandedAfterMs(row.networkId) - nowMs,
+        ),
+      )
+    : Option.none()
+
 const finalityOfRecord = (
   networkId: WatchedNetworkId,
   status: TransactionStatus,
@@ -198,6 +225,35 @@ export const observedActivityRow = (
     maybeFailure: Option.none(),
   }
 }
+
+/**
+ * The row for a send the page reported: Pending, with no finality yet,
+ * under its own account and in its own network's asset.
+ *
+ * @example
+ * ```typescript
+ * sentActivityRow(account.accountKey, sent, Date.now())
+ * ```
+ */
+export const sentActivityRow = (
+  accountKey: string,
+  sent: SentTransaction,
+  nowMs: number,
+): ActivityRow => ({
+  transactionKey: transactionKeyOf(accountKey, sent.transactionId),
+  transactionId: sent.transactionId,
+  networkId: sent.networkId,
+  direction: 'Outgoing',
+  status: 'Pending',
+  maybeFinality: Option.none(),
+  assetId: Option.getOrThrow(liveWalletNetworkForId(sent.networkId)).asset
+    .assetId,
+  amountAtomic: sent.amountAtomic,
+  maybeCounterpartyAddress: Option.some(sent.recipientAddress),
+  observedAtMs: nowMs,
+  maybeConfirmedAtMs: Option.none(),
+  maybeFailure: Option.none(),
+})
 
 const whenUnknown = (
   row: ActivityRow,

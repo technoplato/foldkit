@@ -13,14 +13,17 @@ import {
   Stream,
 } from 'effect'
 import type { TransactionRecord } from 'wallet-core-example'
-import type {
-  LiveNetworkAccount,
-  LiveNetworkAdapter,
+import {
+  type LiveNetworkAccount,
+  type LiveNetworkAdapter,
+  type TransactionStanding,
+  isSettledStanding,
 } from 'wallet-live-client-example'
 
 import {
   type ActivityRow,
   type WatchedAccount,
+  msUntilNeverLanded,
   newestTransactionId,
   nextActivityRow,
   observedActivityRow,
@@ -70,17 +73,26 @@ export const maximumWatchLifetime = '10 minutes'
 /** How long a watch waits before it tries a failed backfill again. */
 export const backfillEvery = '30 seconds'
 
+/**
+ * How often a watch looks for rows no chain event will bring it: a send the
+ * page just reported. It reads Instant only; the chain is asked about a row
+ * once, then listened to.
+ */
+export const settleEvery = '30 seconds'
+
 /** How one watch is bounded. */
 export type WatchOptions = Readonly<{
   answerWithin: Duration.Input
   maximumLifetime: Duration.Input
   backfillEvery: Duration.Input
+  settleEvery: Duration.Input
 }>
 
 const defaultWatchOptions: WatchOptions = {
   answerWithin,
   maximumLifetime: maximumWatchLifetime,
   backfillEvery,
+  settleEvery,
 }
 
 const historyPageLimit = 25
@@ -262,9 +274,65 @@ const recordHistory = (
     }
   })
 
+const applyStanding = (
+  account: WatchedAccount,
+  store: ActivityStore,
+  within: Duration.Input,
+  transactionKey: string,
+  standing: TransactionStanding,
+): Effect.Effect<boolean, WatchEnded> =>
+  Effect.gen(function* () {
+    const maybeStored = yield* inTime(within)(
+      store.storedTransaction(transactionKey),
+    )
+    const nowMs = yield* Clock.currentTimeMillis
+    const maybeNext = Option.flatMap(maybeStored, stored =>
+      settledActivityRow(stored, standing, nowMs),
+    )
+    yield* Option.match(maybeNext, {
+      onNone: () => Effect.void,
+      onSome: next =>
+        Effect.andThen(
+          inTime(within)(store.writeTransaction(account, next)),
+          inTime(within)(store.announceChange(account)),
+        ),
+    })
+    return (
+      isSettledStanding(standing) ||
+      Option.exists(maybeNext, next => next.status === 'Failed')
+    )
+  })
+
+const standingsOf = (
+  adapter: LiveNetworkAdapter,
+  account: WatchedAccount,
+  row: ActivityRow,
+  nowMs: number,
+): Stream.Stream<TransactionStanding, WatchEnded> => {
+  const standings = adapter.observeSettlement(
+    liveAccountOf(adapter, account),
+    row.transactionId,
+  )
+  const whenItsTimeIsUp = Option.match(msUntilNeverLanded(row, nowMs), {
+    onNone: () => Stream.empty,
+    onSome: timeLeftMs =>
+      Stream.fromEffect(Effect.sleep(Duration.millis(timeLeftMs))).pipe(
+        Stream.flatMap(() => Stream.take(standings, 1)),
+      ),
+  })
+  return Stream.merge(standings, whenItsTimeIsUp).pipe(
+    Stream.mapError(error =>
+      ended(`the chain's settlement stream failed: ${error.code}`),
+    ),
+  )
+}
+
 /**
  * Follows every transaction of this account not yet Final, each on the chain
- * itself, and writes each move; the next watch picks up anything still open.
+ * itself, and writes each move until it is Final or has failed. The chain
+ * says nothing when a send expires, so it is asked once more when that send's
+ * time is up. A watch that ends takes these with it; the next one picks them
+ * up, as does the next look if a chain's stream failed.
  */
 const settleUnsettled = (
   adapter: LiveNetworkAdapter,
@@ -277,6 +345,7 @@ const settleUnsettled = (
     const unsettled = yield* inTime(within)(
       store.unsettledTransactions(account),
     )
+    const nowMs = yield* Clock.currentTimeMillis
     const unfollowed = Array.filter(
       unsettled,
       row => !settling.has(row.transactionKey),
@@ -288,51 +357,64 @@ const settleUnsettled = (
     for (const row of toFollow) {
       settling.add(row.transactionKey)
       yield* Effect.forkScoped(
-        adapter
-          .observeSettlement(liveAccountOf(adapter, account), row.transactionId)
-          .pipe(
-            Stream.mapError(error =>
-              ended(`the chain's settlement stream failed: ${error.code}`),
-            ),
-            Stream.runForEach(standing =>
-              Effect.gen(function* () {
-                const maybeStored = yield* inTime(within)(
-                  store.storedTransaction(row.transactionKey),
-                )
-                const nowMs = yield* Clock.currentTimeMillis
-                yield* Option.match(
-                  Option.flatMap(maybeStored, stored =>
-                    settledActivityRow(stored, standing, nowMs),
-                  ),
-                  {
-                    onNone: () => Effect.void,
-                    onSome: next =>
-                      Effect.andThen(
-                        inTime(within)(store.writeTransaction(account, next)),
-                        inTime(within)(store.announceChange(account)),
-                      ),
-                  },
-                )
-              }),
-            ),
-            Effect.catch(({ reason }) =>
-              Effect.sync(() => {
-                console.error(
-                  stamped(
-                    `watcher: ${account.networkId} ${shortAddress(account.address)} settlement stopped (${reason}); the next watch picks it up`,
-                  ),
-                )
-              }),
-            ),
-            Effect.ensuring(
-              Effect.sync(() => {
-                settling.delete(row.transactionKey)
-              }),
-            ),
+        standingsOf(adapter, account, row, nowMs).pipe(
+          Stream.mapEffect(standing =>
+            applyStanding(account, store, within, row.transactionKey, standing),
           ),
+          Stream.takeUntil(Function.identity),
+          Stream.runDrain,
+          Effect.catch(({ reason }) =>
+            Effect.sync(() => {
+              console.error(
+                stamped(
+                  `watcher: ${account.networkId} ${shortAddress(account.address)} settlement stopped (${reason}); the next look picks it up`,
+                ),
+              )
+            }),
+          ),
+          Effect.ensuring(
+            Effect.sync(() => {
+              settling.delete(row.transactionKey)
+            }),
+          ),
+        ),
       )
     }
   })
+
+/**
+ * Looks for rows no chain event will bring this watch. A look that fails
+ * costs nothing but its turn.
+ */
+const keepLooking = (
+  adapter: LiveNetworkAdapter,
+  account: WatchedAccount,
+  store: ActivityStore,
+  options: WatchOptions,
+  settling: Set<string>,
+): Effect.Effect<never, never, Scope.Scope> =>
+  Effect.sleep(options.settleEvery).pipe(
+    Effect.andThen(
+      settleUnsettled(
+        adapter,
+        account,
+        store,
+        options.answerWithin,
+        settling,
+      ).pipe(
+        Effect.catch(({ reason }) =>
+          Effect.sync(() => {
+            console.error(
+              stamped(
+                `watcher: ${account.networkId} ${shortAddress(account.address)} could not read its rows (${reason}); looking again`,
+              ),
+            )
+          }),
+        ),
+      ),
+    ),
+    Effect.forever,
+  )
 
 const listen = (
   adapter: LiveNetworkAdapter,
@@ -384,8 +466,9 @@ const listen = (
  * The watch ends with WatchEnded when the chain's stream ends or fails, any
  * write takes longer than `answerWithin`, or a quiet watch reaches
  * `maximumLifetime`; the caller reconnects, and the next watch backfills
- * whatever the gap missed. Open pages get one notice for a whole backfill
- * and one for each live change.
+ * whatever the gap missed. Every `settleEvery` it also looks for a row the
+ * page reported, which no chain event may ever bring. Open pages get one
+ * notice for a whole backfill and one for each live change.
  */
 export const watchOnce = (
   adapter: LiveNetworkAdapter,
@@ -399,6 +482,9 @@ export const watchOnce = (
       const settling = new Set<string>()
       const listening = yield* Effect.forkScoped(
         listen(adapter, account, store, options, hasLiveCursor, settling),
+      )
+      yield* Effect.forkScoped(
+        keepLooking(adapter, account, store, options, settling),
       )
       const attemptBackfill: Effect.Effect<boolean, never, Scope.Scope> =
         recordHistory(

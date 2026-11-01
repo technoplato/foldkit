@@ -79,6 +79,26 @@ const activityRowOf = (row: TransactionRow): ActivityRow => ({
   maybeFailure: Option.fromNullishOr(row.failure),
 })
 
+/**
+ * What `walletTransactions` holds for a row. A row belongs to the user its
+ * holder names, which is what the rules read.
+ */
+export const transactionFieldsOf = (row: ActivityRow, ownerUserID: string) => ({
+  ownerUserID,
+  formatVersion,
+  transactionId: row.transactionId,
+  networkId: row.networkId,
+  direction: row.direction,
+  status: row.status,
+  finality: Option.getOrNull(row.maybeFinality),
+  assetId: row.assetId,
+  amountAtomic: row.amountAtomic,
+  counterpartyAddress: Option.getOrNull(row.maybeCounterpartyAddress),
+  observedAtMs: row.observedAtMs,
+  confirmedAtMs: Option.getOrNull(row.maybeConfirmedAtMs),
+  failure: Option.getOrNull(row.maybeFailure),
+})
+
 /** `walletTransactions` rows as Instant answers them. */
 export const decodeActivityRows = (rows: unknown): ReadonlyArray<ActivityRow> =>
   Array.map(S.decodeUnknownSync(S.Array(TransactionRow))(rows), activityRowOf)
@@ -182,26 +202,12 @@ export const makeActivityAdmin = (config: BrandonEnv): ActivityAdmin => {
               'transactionKey',
               row.transactionKey,
             )
-              .update({
-                ownerUserID: ownerUserIdOfHolder(
-                  account.holder,
-                  config.ownerUserID,
+              .update(
+                transactionFieldsOf(
+                  row,
+                  ownerUserIdOfHolder(account.holder, config.ownerUserID),
                 ),
-                formatVersion,
-                transactionId: row.transactionId,
-                networkId: row.networkId,
-                direction: row.direction,
-                status: row.status,
-                finality: Option.getOrNull(row.maybeFinality),
-                assetId: row.assetId,
-                amountAtomic: row.amountAtomic,
-                counterpartyAddress: Option.getOrNull(
-                  row.maybeCounterpartyAddress,
-                ),
-                observedAtMs: row.observedAtMs,
-                confirmedAtMs: Option.getOrNull(row.maybeConfirmedAtMs),
-                failure: Option.getOrNull(row.maybeFailure),
-              })
+              )
               .link({ account: accountId }),
           ),
         ),

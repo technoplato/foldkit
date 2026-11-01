@@ -66,6 +66,10 @@ export const FailedWalletActivity = m('FailedWalletActivity')
 export const SucceededWatchWalletAccounts = m('SucceededWatchWalletAccounts')
 /** The origin did not take this wallet's public addresses. */
 export const FailedWatchWalletAccounts = m('FailedWatchWalletAccounts')
+/** The page told the origin of a send. If that failed, the chain still says so. */
+export const CompletedReportSentTransaction = m(
+  'CompletedReportSentTransaction',
+)
 /** A fresh pointer moved this page to its section. */
 export const CompletedScrollToSection = m('CompletedScrollToSection', {
   sectionKey: SectionKey,
@@ -98,6 +102,7 @@ export const Message = S.Union([
   FailedWalletActivity,
   SucceededWatchWalletAccounts,
   FailedWatchWalletAccounts,
+  CompletedReportSentTransaction,
   CompletedScrollToSection,
   IgnoredStalePointer,
   IgnoredStaleReload,

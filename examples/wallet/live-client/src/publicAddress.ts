@@ -1,6 +1,7 @@
-import { isAddress as isEthereumAddress } from 'viem'
+import { Option } from 'effect'
+import { isAddress as isEthereumAddress, isHash } from 'viem'
 
-import { isAddress as isSolanaAddress } from '@solana/kit'
+import { isSignature, isAddress as isSolanaAddress } from '@solana/kit'
 
 // PUBLIC ADDRESS
 
@@ -23,3 +24,26 @@ export const isPublicAddressOn = (
   chainId === 'solana'
     ? isSolanaAddress(address)
     : isEthereumAddress(address, { strict: true })
+
+// NOTE: @solana/kit's isSignature throws on text that is not base58, where
+// its isAddress answers false.
+const isSolanaSignature = (text: string): boolean =>
+  Option.getOrElse(Option.liftThrowable(isSignature)(text), () => false)
+
+/**
+ * True when this text is a transaction's public id on this chain: a 64-byte
+ * signature in base58 on Solana, a 32-byte hash in hex on Ethereum.
+ *
+ * @example
+ * ```typescript
+ * isTransactionIdOn('ethereum', `0x${'a'.repeat(64)}`) // true
+ * isTransactionIdOn('solana', 'not-a-signature') // false
+ * ```
+ */
+export const isTransactionIdOn = (
+  chainId: 'solana' | 'ethereum',
+  transactionId: string,
+): boolean =>
+  chainId === 'solana'
+    ? isSolanaSignature(transactionId)
+    : isHash(transactionId)

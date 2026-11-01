@@ -3,8 +3,8 @@ import {
   Effect,
   Match as M,
   Option,
-  Schedule,
   Schema as S,
+  Schedule,
   Stream,
 } from 'effect'
 import { Subscription } from 'foldkit'

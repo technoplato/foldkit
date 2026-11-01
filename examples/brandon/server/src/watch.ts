@@ -18,7 +18,9 @@ const shownAddressCharacters = 6
 const adapters = new Map<string, LiveNetworkAdapter>(
   Array.map(WatchedNetworkId.literals, networkId => [
     networkId,
-    makeLiveNetworkAdapter(Option.getOrThrow(liveWalletNetworkForId(networkId))),
+    makeLiveNetworkAdapter(
+      Option.getOrThrow(liveWalletNetworkForId(networkId)),
+    ),
   ]),
 )
 

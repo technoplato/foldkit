@@ -3,9 +3,11 @@ import {
   Games,
   Page,
   type SectionKey,
+  type SentTransaction,
   WalletActivity,
   WalletAddresses,
   type WalletPublicAccount,
+  sentTransactionPathOf,
 } from 'brandon-core-example'
 import { Effect, Layer, Schema as S } from 'effect'
 import { WalletVaultError } from 'wallet-core-example'
@@ -43,10 +45,10 @@ const readJson = <A>(
 const accountPathOf = ({ networkId, address }: WalletPublicAccount): string =>
   `/api/wallet/accounts/${encodeURIComponent(networkId)}/${encodeURIComponent(address)}`
 
-const followAccount = (account: WalletPublicAccount): Effect.Effect<void, string> =>
+const putNoBody = (path: string): Effect.Effect<void, string> =>
   Effect.tryPromise({
     try: async signal => {
-      const response = await fetch(accountPathOf(account), {
+      const response = await fetch(path, {
         method: 'PUT',
         cache: 'no-store',
         signal,
@@ -62,6 +64,14 @@ const followAccount = (account: WalletPublicAccount): Effect.Effect<void, string
       orElse: () => Effect.fail(unanswered),
     }),
   )
+
+const followAccount = (
+  account: WalletPublicAccount,
+): Effect.Effect<void, string> => putNoBody(accountPathOf(account))
+
+const reportSentTransaction = (
+  sent: SentTransaction,
+): Effect.Effect<void, string> => putNoBody(sentTransactionPathOf(sent))
 
 const OwnerAnswer = S.Struct({ ownerKey: S.String })
 
@@ -100,6 +110,7 @@ export const liveBrandonServer: Layer.Layer<BrandonServer> = Layer.succeed(
     ),
     watchWalletAccounts: accounts =>
       Effect.forEach(accounts, followAccount, { discard: true }),
+    reportSentTransaction,
     scrollToSection,
     reloadPage: Effect.sync(() => {
       window.location.reload()

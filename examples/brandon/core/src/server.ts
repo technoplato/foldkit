@@ -4,6 +4,7 @@ import type {
   Game,
   Page,
   SectionKey,
+  SentTransaction,
   WalletActivityEntry,
   WalletAddress,
   WalletPublicAccount,
@@ -23,9 +24,15 @@ export class BrandonServer extends Context.Service<
     loadPage: Effect.Effect<Page, string>
     loadFootball: Effect.Effect<ReadonlyArray<Game>, string>
     loadWallets: Effect.Effect<ReadonlyArray<WalletAddress>, string>
-    loadWalletActivity: Effect.Effect<ReadonlyArray<WalletActivityEntry>, string>
+    loadWalletActivity: Effect.Effect<
+      ReadonlyArray<WalletActivityEntry>,
+      string
+    >
     watchWalletAccounts: (
       accounts: ReadonlyArray<WalletPublicAccount>,
+    ) => Effect.Effect<void, string>
+    reportSentTransaction: (
+      sent: SentTransaction,
     ) => Effect.Effect<void, string>
     scrollToSection: (sectionKey: SectionKey) => Effect.Effect<void>
     reloadPage: Effect.Effect<void>

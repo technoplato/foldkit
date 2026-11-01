@@ -183,6 +183,21 @@ export const WalletActivityEntry = S.Struct({
 /** One transaction of this person's wallets, as the chain reported it. */
 export type WalletActivityEntry = typeof WalletActivityEntry.Type
 
+/**
+ * One send this wallet just broadcast, in the facts its chain now shows to
+ * anyone: where, from, to, how much, and its signature or hash. The origin
+ * files it as a Pending row until the chain says how it ended.
+ */
+export const SentTransaction = S.Struct({
+  networkId: WatchedNetworkId,
+  senderAddress: S.String,
+  transactionId: S.String,
+  recipientAddress: S.String,
+  amountAtomic: AtomicUnits,
+})
+/** One send this wallet just broadcast. */
+export type SentTransaction = typeof SentTransaction.Type
+
 /** This person's rows, newest first: `GET /api/wallet/activity`. */
 export const WalletActivity = S.Array(WalletActivityEntry)
 

@@ -1,5 +1,6 @@
 import type {
   SectionColumn,
+  SentTransaction,
   WalletActivityEntry,
   WalletAddress,
   WatchedNetworkId,
@@ -57,5 +58,9 @@ export type BrandonStore = Readonly<{
       networkId: WatchedNetworkId
       address: string
     }>,
+  ) => Effect.Effect<void, Error>
+  addSentTransaction: (
+    holder: string,
+    sent: SentTransaction,
   ) => Effect.Effect<void, Error>
 }>

@@ -2,6 +2,7 @@ import {
   AwardedPoints,
   BrandonProgram,
   ChangedSections,
+  ChangedWalletActivity,
   type LogMessage,
   MirroredWallets,
   SectionColumn,
@@ -10,15 +11,17 @@ import {
 import { Array, Effect, Option, Order, Schema as S } from 'effect'
 import { randomUUID } from 'node:crypto'
 
-import { id, init } from '@instantdb/admin'
+import { id, init, lookup } from '@instantdb/admin'
 
 import type { Account } from './account.js'
 import {
-  accountKeyOf as watchedAccountKeyOf,
   activityEntryOf,
   chainIdOfNetwork,
+  ownerUserIdOfHolder,
+  sentActivityRow,
+  accountKeyOf as watchedAccountKeyOf,
 } from './activity.js'
-import { decodeActivityRows } from './activityStore.js'
+import { decodeActivityRows, transactionFieldsOf } from './activityStore.js'
 import { type FactStamp, logFieldsOf } from './facts.js'
 import {
   type BrandonStore,
@@ -314,6 +317,45 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
       ),
     ).pipe(Effect.asVoid)
 
+  const addSentTransaction: BrandonStore['addSentTransaction'] = (
+    holder,
+    sent,
+  ) =>
+    Effect.gen(function* () {
+      const accountKey = watchedAccountKeyOf({
+        holder,
+        networkId: sent.networkId,
+        address: sent.senderAddress,
+      })
+      const atMs = Date.now()
+      const row = sentActivityRow(accountKey, sent, atMs)
+      const { walletTransactions } = yield* attempt(() =>
+        admin.query({
+          walletTransactions: {
+            $: { where: { transactionKey: row.transactionKey } },
+          },
+        }),
+      )
+      if (Array.isReadonlyArrayEmpty(walletTransactions ?? [])) {
+        yield* attempt(() =>
+          admin.transact([
+            admin.tx['walletTransactions']!.lookup(
+              'transactionKey',
+              row.transactionKey,
+            )
+              .update(
+                transactionFieldsOf(
+                  row,
+                  ownerUserIdOfHolder(holder, ownerUserID),
+                ),
+              )
+              .link({ account: lookup('accountKey', accountKey) }),
+            factStep(ChangedWalletActivity({ atMs })),
+          ]),
+        )
+      }
+    })
+
   const addressRows = attempt(() =>
     admin.query({ walletMirrorAddresses: { transactions: {} } }),
   ).pipe(
@@ -598,6 +640,7 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
     walletActivity,
     watchedAccountKeys,
     addWatchedAccount,
+    addSentTransaction,
     account,
     sections,
     wallets,
