@@ -28,3 +28,22 @@ export const interaction = (
   message: Message,
   keys: ReadonlyArray<string> = [],
 ): Interaction => ({ keys, label, message, token })
+
+/**
+ * Each token once, the first of each kept. Read through a Set: a list offers
+ * thousands of interactions, and comparing each with each costs more than a
+ * key.
+ */
+export const uniqueByToken = (
+  interactions: ReadonlyArray<Interaction>,
+): ReadonlyArray<Interaction> => {
+  const seen = new Set<string>()
+  return interactions.filter(candidate => {
+    if (seen.has(candidate.token)) {
+      return false
+    } else {
+      seen.add(candidate.token)
+      return true
+    }
+  })
+}

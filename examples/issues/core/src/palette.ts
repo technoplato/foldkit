@@ -2,7 +2,7 @@ import { Array, Option, Order, pipe } from 'effect'
 
 import { type Issue } from '@foldkit/instant-tools/issues'
 
-import { type Interaction, interaction } from './interaction.js'
+import { type Interaction, interaction, uniqueByToken } from './interaction.js'
 import { issuesNamedBy } from './issueView.js'
 import { keyInteractionsOf, placeInteractions } from './keys.js'
 import { loadedIssuesIn } from './listing.js'
@@ -31,20 +31,39 @@ const LEFT_OUT_TOKENS: ReadonlyArray<string> = [
 
 const isListed = (candidate: Interaction): boolean =>
   !Array.contains(LEFT_OUT_TOKENS, candidate.token) &&
-  !candidate.token.startsWith('open:')
+  !candidate.token.startsWith('open:') &&
+  !candidate.token.startsWith('menu:')
 
-const PRODUCT_TOKEN = 'product:'
-const LANDING_TOKEN = 'landing:'
+const NAME_PREFIX_OF_TOKEN: ReadonlyArray<readonly [string, string]> = [
+  ['product:', 'Product'],
+  ['landing:', 'Work'],
+  ['filter-status:', 'Filter status'],
+  ['filter-priority:', 'Filter priority'],
+  ['filter-claimant:', 'Filter claimant'],
+  ['sort:', 'Sort'],
+  ['group:', 'Group'],
+  ['view:', 'View'],
+]
 
-const paletteLabelOf = (candidate: Interaction): string => {
-  if (candidate.token.startsWith(PRODUCT_TOKEN)) {
-    return `Product: ${candidate.label}`
-  } else if (candidate.token.startsWith(LANDING_TOKEN)) {
-    return `Work: ${candidate.label}`
-  } else {
-    return candidate.label
-  }
-}
+const paletteLabelOf = (candidate: Interaction): string =>
+  Option.match(
+    Array.findFirst(NAME_PREFIX_OF_TOKEN, ([tokenPrefix]) =>
+      candidate.token.startsWith(tokenPrefix),
+    ),
+    {
+      onNone: () => candidate.label,
+      onSome: ([, namePrefix]) => `${namePrefix}: ${candidate.label}`,
+    },
+  )
+
+const namedActions = new WeakMap<Interaction, Interaction>()
+
+const namedAction = (candidate: Interaction): Interaction =>
+  Option.getOrElse(Option.fromUndefinedOr(namedActions.get(candidate)), () => {
+    const named = { ...candidate, label: paletteLabelOf(candidate) }
+    namedActions.set(candidate, named)
+    return named
+  })
 
 /**
  * Every action and place the Program offers now, by the name a palette shows:
@@ -60,11 +79,8 @@ export const paletteActionsOf = (model: Model): ReadonlyArray<Interaction> =>
       ...interactionsForModel(model),
     ],
     Array.filter(isListed),
-    Array.dedupeWith((left, right) => left.token === right.token),
-    Array.map(candidate => ({
-      ...candidate,
-      label: paletteLabelOf(candidate),
-    })),
+    uniqueByToken,
+    Array.map(namedAction),
   )
 
 // MATCH
@@ -125,7 +141,8 @@ const byRank = Order.mapInput(
   (ranked: RankedAction) => ranked.rank,
 )
 
-const matchedActions = (
+/** The actions whose names match what was typed, closest first. */
+export const matchedByName = (
   actions: ReadonlyArray<Interaction>,
   query: string,
 ): ReadonlyArray<Interaction> => {
@@ -171,7 +188,7 @@ export const paletteRowsOf = (
   if (query.trim() === '') {
     return paletteActionsOf(model)
   } else {
-    const actions = matchedActions(paletteActionsOf(model), query)
+    const actions = matchedByName(paletteActionsOf(model), query)
     const issues = Array.map(
       issuesNamedBy(loadedIssuesIn(model), query),
       goToIssueOf,

@@ -13,8 +13,9 @@ import {
   MovedRowCursor,
   ObservedIssues,
   OpenedCommandPalette,
+  PeekedRowUnderCursor,
   UpdatedLeftoverComment,
-  UpdatedPaletteQuery,
+  UpdatedMenuQuery,
   observedIssuesOf,
 } from './message.js'
 import { IssueDetail, IssueList, type Model } from './model.js'
@@ -197,10 +198,23 @@ describe('what the command palette costs with 1,500 Issues loaded', () => {
         return issuesScreen(
           update(
             palette,
-            UpdatedPaletteQuery.make({ query: `title ${run.toString()}` }),
+            UpdatedMenuQuery.make({ query: `title ${run.toString()}` }),
           )[0],
         )
       }),
+    ).toBeLessThan(BUDGET_MS)
+  })
+})
+
+describe('what a peek costs with 1,500 Issues loaded', () => {
+  const atRow = update(list, MovedRowCursor.make({ direction: 'Next' }))[0]
+
+  it('opens over the list inside one key', () => {
+    issuesScreen(update(atRow, PeekedRowUnderCursor.make({}))[0])
+    expect(
+      fastestMsOf(() =>
+        issuesScreen(update(atRow, PeekedRowUnderCursor.make({}))[0]),
+      ),
     ).toBeLessThan(BUDGET_MS)
   })
 })

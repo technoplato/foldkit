@@ -17,7 +17,7 @@ import {
 } from '@foldkit/react'
 
 import { IssueTrackerClient } from './client.js'
-import { useIssueHistory } from './issueHistory.js'
+import { useIssueHistory, useKeptScroll } from './issueHistory.js'
 import { useIssueKeys } from './issueKeys.js'
 import { inAppPath } from './links.js'
 import { recoverCurrentViewerAfterFailure } from './viewerFailureRecovery.js'
@@ -49,6 +49,7 @@ export const ScreenApp = () => {
   const actions = IssueTrackerClient.useActions()
   const screen = useScreen()
   useIssueHistory(model.navigation, actions.openedNavigation)
+  useKeptScroll(model.navigation)
   useIssueKeys(model)
   const reason =
     model.issues._tag === 'FailedIssues'

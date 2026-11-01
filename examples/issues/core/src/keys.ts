@@ -1,5 +1,6 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
 
+import { menuHasField } from './choices.js'
 import { type Interaction, interaction } from './interaction.js'
 import { issueUnderCursorOf, issueViewOf, rowsInOrderOf } from './listing.js'
 import {
@@ -13,16 +14,17 @@ import {
   DismissedIssueDetail,
   DismissedLayer,
   FocusedSearchField,
-  MovedPaletteMark,
+  MovedMenuMark,
   MovedRowCursor,
   OpenedCommandPalette,
   OpenedRowUnderCursor,
+  PeekedRowUnderCursor,
   PressedGoKey,
-  SubmittedPalette,
+  SubmittedMenu,
   SubmittedSearch,
   UpdatedSearchQuery,
 } from './message.js'
-import { type Model } from './model.js'
+import { type ChoiceMenu, type Model } from './model.js'
 
 // KEY
 
@@ -99,6 +101,12 @@ const openRow = interaction(
   OpenedRowUnderCursor.make({}),
   ['Enter'],
 )
+const peekRow = interaction(
+  'peek',
+  'Peek at the Issue under the cursor',
+  PeekedRowUnderCursor.make({}),
+  [' '],
+)
 const focusSearch = interaction(
   'search-focus',
   'Search Issues',
@@ -155,28 +163,34 @@ const dismissLayer = interaction(
   DismissedLayer.make({}),
   ['Escape', ...COMMAND_PALETTE_KEYS],
 )
-const paletteNext = interaction(
+const menuNext = interaction(
   'palette-down',
   'Next row',
-  MovedPaletteMark.make({ direction: 'Next' }),
+  MovedMenuMark.make({ direction: 'Next' }),
   ['ArrowDown'],
 )
-const palettePrevious = interaction(
+const menuPrevious = interaction(
   'palette-up',
   'Previous row',
-  MovedPaletteMark.make({ direction: 'Previous' }),
+  MovedMenuMark.make({ direction: 'Previous' }),
   ['ArrowUp'],
 )
-const paletteSubmit = interaction(
+const menuSubmit = interaction(
   'palette-submit',
-  'Run the marked row',
-  SubmittedPalette.make({}),
+  'Take the marked row',
+  SubmittedMenu.make({}),
   ['Enter'],
 )
-const paletteKeys: ReadonlyArray<Interaction> = [
-  paletteNext,
-  palettePrevious,
-  paletteSubmit,
+const layerKeysWithField: ReadonlyArray<Interaction> = [
+  menuNext,
+  menuPrevious,
+  menuSubmit,
+  dismissLayer,
+]
+const layerKeysWithoutField: ReadonlyArray<Interaction> = [
+  { ...menuNext, keys: ['ArrowDown', 'j'] },
+  { ...menuPrevious, keys: ['ArrowUp', 'k'] },
+  menuSubmit,
   dismissLayer,
 ]
 const fileIssue = interaction('file', 'File issue', ClickedFileIssue.make({}), [
@@ -232,8 +246,10 @@ const fileIssueUnlessFiling = (model: Model): ReadonlyArray<Interaction> =>
 const rowCursorInteractions = (model: Model): ReadonlyArray<Interaction> =>
   Array.isReadonlyArrayEmpty(rowsInOrderOf(model)) ? [] : [nextRow, previousRow]
 
-const openRowInteractions = (model: Model): ReadonlyArray<Interaction> =>
-  Option.isSome(issueUnderCursorOf(model)) ? [openRow] : []
+const rowUnderCursorInteractions = (
+  model: Model,
+): ReadonlyArray<Interaction> =>
+  Option.isSome(issueUnderCursorOf(model)) ? [openRow, peekRow] : []
 
 const clearSearchInteractions = (model: Model): ReadonlyArray<Interaction> =>
   issueViewOf(model).query === '' ? [] : [clearSearch]
@@ -261,7 +277,7 @@ const goChoices: ReadonlyArray<Interaction> = [
  */
 export const keyInteractionsOf = (model: Model): ReadonlyArray<Interaction> => [
   ...rowCursorInteractions(model),
-  ...openRowInteractions(model),
+  ...rowUnderCursorInteractions(model),
   focusSearch,
   blurSearch,
   ...fileIssueUnlessFiling(model),
@@ -271,7 +287,7 @@ export const keyInteractionsOf = (model: Model): ReadonlyArray<Interaction> => [
   go,
   ...(model.isGoKeyPending ? [cancelGo] : []),
   openPalette,
-  ...(model.layer._tag === 'NoLayer' ? [] : paletteKeys),
+  ...(model.layer._tag === 'NoLayer' ? [] : layerKeysWithField),
 ]
 
 const NATIVE_CONTROL_KEYS = ['Enter', ' ']
@@ -324,8 +340,24 @@ const withoutNativeControlKeys = (
     ),
   }))
 
-const layerKeysAt = (target: KeyTarget): ReadonlyArray<Interaction> =>
-  target === 'Control' ? withoutNativeControlKeys(paletteKeys) : paletteKeys
+const peekKeys: ReadonlyArray<Interaction> = [
+  nextRow,
+  previousRow,
+  openRow,
+  { ...dismissLayer, keys: ['Escape', ' '] },
+  { ...openPalette, keys: COMMAND_PALETTE_KEYS },
+]
+
+const peekKeysAt = (target: KeyTarget): ReadonlyArray<Interaction> =>
+  target === 'Control' ? withoutNativeControlKeys(peekKeys) : peekKeys
+
+const menuKeysAt = (
+  menu: ChoiceMenu,
+  target: KeyTarget,
+): ReadonlyArray<Interaction> => {
+  const keys = menuHasField(menu) ? layerKeysWithField : layerKeysWithoutField
+  return target === 'Control' ? withoutNativeControlKeys(keys) : keys
+}
 
 const pendingGoKeys = (press: KeyPress): Interaction =>
   Option.getOrElse(
@@ -350,10 +382,14 @@ export const tokenForKeyPress = (
     return Option.some(pendingGoKeys(press).token)
   } else {
     const name = keyNameOf(press)
-    const candidates =
-      model.layer._tag === 'PaletteLayer'
-        ? layerKeysAt(press.target)
-        : keysAt(model, press.target)
+    const candidates = M.value(model.layer).pipe(
+      M.withReturnType<ReadonlyArray<Interaction>>(),
+      M.tagsExhaustive({
+        NoLayer: () => keysAt(model, press.target),
+        ChoiceLayer: ({ menu }) => menuKeysAt(menu, press.target),
+        PeekLayer: () => peekKeysAt(press.target),
+      }),
+    )
     return Option.map(
       Array.findFirst(candidates, candidate =>
         Array.contains(candidate.keys, name),

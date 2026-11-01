@@ -18,8 +18,7 @@ import { PageEntity } from './entityGraph.js'
 import { IssueFileAddress } from './issueFiles.js'
 import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
 import { IssueView, defaultIssueView } from './issueView.js'
-import { LandingFilter } from './landing.js'
-import { LeftoverKind, ProductFilter } from './leftover.js'
+import { AllProducts, LeftoverKind, ProductFilter } from './leftover.js'
 
 /** The live collection has not emitted its first snapshot. */
 export const LoadingIssues = S.TaggedStruct('LoadingIssues', {})
@@ -225,8 +224,15 @@ export const IssueDetail = S.TaggedStruct('IssueDetail', {
 export const FileIssue = S.TaggedStruct('FileIssue', {})
 /** Transcript-derived draft triage candidates are visible. */
 export const TriageInbox = S.TaggedStruct('TriageInbox', {})
-/** The backlog: the next build's lane, then each priority in rank order. */
-export const Backlog = S.TaggedStruct('Backlog', {})
+/**
+ * The backlog: the next build's lane, then each priority in rank order, of
+ * one product: `/issues/backlog?product=foldkit`.
+ */
+export const Backlog = S.TaggedStruct('Backlog', {
+  product: ProductFilter.pipe(
+    S.withConstructorDefault(Effect.succeed(AllProducts.make({}))),
+  ),
+})
 /** How long asks take: each step's median and its slowest asks. */
 export const AskFlow = S.TaggedStruct('AskFlow', {})
 /**
@@ -251,15 +257,34 @@ export type Navigation = typeof Navigation.Type
 /** Nothing shows above the page. */
 export const NoLayer = S.TaggedStruct('NoLayer', {})
 /**
- * The command palette shows above the page: what is typed into it, and the
- * position of the row its mark is on.
+ * Which rows a layer of choices lists: `Everything` is the command palette,
+ * every action and place, and the rest are one filter's or order's choices.
  */
-export const PaletteLayer = S.TaggedStruct('PaletteLayer', {
+export const ChoiceMenu = S.Literals([
+  'Everything',
+  'ProductFilter',
+  'StatusFilter',
+  'PriorityFilter',
+  'ClaimantFilter',
+  'Sort',
+  'Group',
+])
+/** Which rows a layer of choices lists. */
+export type ChoiceMenu = typeof ChoiceMenu.Type
+
+/**
+ * Choices show above the page: which ones, what is typed into their field,
+ * and the position of the row the mark is on.
+ */
+export const ChoiceLayer = S.TaggedStruct('ChoiceLayer', {
+  menu: ChoiceMenu,
   position: S.Number,
   query: S.String,
 })
+/** One Issue shows in a side panel above the list, which keeps its place. */
+export const PeekLayer = S.TaggedStruct('PeekLayer', { issueId: S.String })
 /** What shows above the page. */
-export const ScreenLayer = S.Union([NoLayer, PaletteLayer])
+export const ScreenLayer = S.Union([NoLayer, ChoiceLayer, PeekLayer])
 /** What shows above the page. */
 export type ScreenLayer = typeof ScreenLayer.Type
 
@@ -509,7 +534,6 @@ export const Model = S.Struct({
   isSearchFocused: S.Boolean,
   issues: IssuesState,
   knownBuilds: S.Array(LandedBuild),
-  landingFilter: LandingFilter,
   layer: ScreenLayer,
   leftoverComment: S.String,
   leftoverLink: S.String,
@@ -518,7 +542,6 @@ export const Model = S.Struct({
   navigation: Navigation,
   pageFacts: PageFactsObservation,
   productAddition: ProductAdditionState,
-  productFilter: ProductFilter,
   products: ProductsState,
   returnListView: IssueView,
   triageCandidates: TriageCandidatesState,

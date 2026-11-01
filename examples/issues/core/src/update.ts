@@ -47,16 +47,18 @@ import {
 import { Logger } from '@foldkit/instant-tools/logging'
 
 import { type PageEntity, pageEntityKey } from './entityGraph.js'
+import { menuStaysOpen } from './choices.js'
 import { emptyIssueDraft } from './init.js'
-import { type Interaction } from './interaction.js'
 import { IssueIdentity } from './issueIdentity.js'
 import {
+  type IssueView,
   isIssueNumbered,
   issueNumberOfSearch,
   primedSearchText,
 } from './issueView.js'
 import {
   LeftoverStatus,
+  type ProductFilter,
   hasCatalogIssueLink,
   leftoverMayClose,
   storedStatusOf,
@@ -66,8 +68,10 @@ import {
   listedIssues,
   loadedIssuesIn,
   movedRowCursor,
+  productFilterOf,
   rowsInOrderOf,
 } from './listing.js'
+import { type MenuRow, openMenuRowsOf } from './menus.js'
 import {
   CompletedJoinLeftoverRoom,
   CompletedLeaveLeftoverRoom,
@@ -89,6 +93,7 @@ import {
 import {
   AskFlow,
   Backlog,
+  ChoiceLayer,
   DeletedIssueMutation,
   DraftMention,
   EditingIssueDraft,
@@ -130,7 +135,7 @@ import {
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
   NotObservingPageFacts,
-  PaletteLayer,
+  PeekLayer,
   type ProductAdditionState,
   RefusedProductAddition,
   SavedIssueMutation,
@@ -151,7 +156,6 @@ import {
   statusFollowingLanding,
   workingSyncAgent,
 } from './nowWorking.js'
-import { paletteRowsOf } from './palette.js'
 
 // COMMAND
 
@@ -1851,19 +1855,14 @@ const issueSearchOpens = (model: Model): Option.Option<string> => {
   }
 }
 
-const paletteRowsNow = (model: Model): ReadonlyArray<Interaction> =>
-  model.layer._tag === 'PaletteLayer'
-    ? paletteRowsOf(model, model.layer.query)
-    : []
-
-const movedPaletteMark = (
+const movedMenuMark = (
   model: Model,
   direction: 'Next' | 'Previous',
 ): UpdateReturn => {
-  if (model.layer._tag !== 'PaletteLayer') {
+  if (model.layer._tag !== 'ChoiceLayer') {
     return [model, []]
   }
-  const lastPosition = Math.max(paletteRowsNow(model).length - 1, 0)
+  const lastPosition = Math.max(openMenuRowsOf(model).length - 1, 0)
   const position =
     direction === 'Next'
       ? Math.min(model.layer.position + 1, lastPosition)
@@ -1871,14 +1870,67 @@ const movedPaletteMark = (
   return [
     nextModel({
       ...model,
-      layer: PaletteLayer.make({ ...model.layer, position }),
+      layer: ChoiceLayer.make({ ...model.layer, position }),
     }),
     [],
   ]
 }
 
+const pickedMenuRow = (
+  model: Model,
+  maybeRow: Option.Option<MenuRow>,
+): UpdateReturn =>
+  Option.match(maybeRow, {
+    onNone: () => [model, []],
+    onSome: row =>
+      model.layer._tag === 'ChoiceLayer' && menuStaysOpen(model.layer.menu)
+        ? update(model, row.action.message)
+        : update(
+            nextModel({ ...model, layer: NoLayer.make({}) }),
+            row.action.message,
+          ),
+  })
+
+const withListView = (
+  model: Model,
+  change: (view: IssueView) => IssueView,
+): UpdateReturn =>
+  model.navigation._tag === 'IssueList'
+    ? [
+        nextModel({
+          ...model,
+          navigation: IssueList.make({ view: change(model.navigation.view) }),
+        }),
+        [],
+      ]
+    : [model, []]
+
+const toggled = <Value>(
+  values: ReadonlyArray<Value>,
+  value: Value,
+): ReadonlyArray<Value> =>
+  Array.contains(values, value)
+    ? Array.filter(values, current => current !== value)
+    : Array.append(values, value)
+
+const withProductFilter = (
+  model: Model,
+  product: ProductFilter,
+): UpdateReturn =>
+  model.navigation._tag === 'Backlog'
+    ? [nextModel({ ...model, navigation: Backlog.make({ product }) }), []]
+    : withListView(model, view => ({ ...view, product }))
+
 const backToList = (model: Model): UpdateReturn =>
-  withNavigation(model, IssueList.make({ view: model.returnListView }))
+  withNavigation(
+    model,
+    IssueList.make({
+      view:
+        model.navigation._tag === 'Backlog'
+          ? { ...model.returnListView, product: model.navigation.product }
+          : model.returnListView,
+    }),
+  )
 
 const startLeftoverCommand = (
   model: Model,
@@ -2105,7 +2157,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ClickedOpenIssueList: () => backToList(model),
       ClickedFileIssue: () => withNavigation(model, FileIssue.make({})),
       ClickedOpenTriage: () => withNavigation(model, TriageInbox.make({})),
-      ClickedOpenBacklog: () => withNavigation(model, Backlog.make({})),
+      ClickedOpenBacklog: () =>
+        withNavigation(
+          model,
+          Backlog.make({ product: productFilterOf(model) }),
+        ),
       ClickedOpenAskFlow: () => withNavigation(model, AskFlow.make({})),
       UpdatedSearchQuery: ({ query }) =>
         model.navigation._tag === 'IssueList'
@@ -2138,18 +2194,43 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         nextModel({ ...model, isSearchFocused: false }),
         [],
       ],
-      MovedRowCursor: ({ direction }) => [
-        nextModel({
-          ...model,
-          isSearchFocused: false,
-          maybeRowCursor: movedRowCursor(
-            rowsInOrderOf(model),
-            model.maybeRowCursor,
-            direction,
-          ),
+      MovedRowCursor: ({ direction }) => {
+        const maybeRowCursor = movedRowCursor(
+          rowsInOrderOf(model),
+          model.maybeRowCursor,
+          direction,
+        )
+        return [
+          nextModel({
+            ...model,
+            isSearchFocused: false,
+            layer:
+              model.layer._tag === 'PeekLayer'
+                ? PeekLayer.make({
+                    issueId: Option.getOrElse(maybeRowCursor, () =>
+                      model.layer._tag === 'PeekLayer'
+                        ? model.layer.issueId
+                        : '',
+                    ),
+                  })
+                : model.layer,
+            maybeRowCursor,
+          }),
+          [],
+        ]
+      },
+      PeekedRowUnderCursor: () =>
+        Option.match(issueUnderCursorOf(model), {
+          onNone: () => [model, []],
+          onSome: issue => [
+            nextModel({
+              ...model,
+              isSearchFocused: false,
+              layer: PeekLayer.make({ issueId: issue.id }),
+            }),
+            [],
+          ],
         }),
-        [],
-      ],
       OpenedRowUnderCursor: () =>
         Option.match(issueUnderCursorOf(model), {
           onNone: () => [model, []],
@@ -2161,43 +2242,48 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ...model,
           isGoKeyPending: false,
           isSearchFocused: false,
-          layer: PaletteLayer.make({ position: 0, query: '' }),
+          layer: ChoiceLayer.make({
+            menu: 'Everything',
+            position: 0,
+            query: '',
+          }),
         }),
         [],
       ],
-      UpdatedPaletteQuery: ({ query }) => [
+      OpenedChoiceMenu: ({ menu }) => [
         nextModel({
           ...model,
-          layer: PaletteLayer.make({ position: 0, query }),
+          isGoKeyPending: false,
+          isSearchFocused: false,
+          layer: ChoiceLayer.make({ menu, position: 0, query: '' }),
         }),
         [],
       ],
-      MovedPaletteMark: ({ direction }) => movedPaletteMark(model, direction),
-      SubmittedPalette: () =>
-        model.layer._tag === 'PaletteLayer'
-          ? Option.match(
-              Array.get(paletteRowsNow(model), model.layer.position),
-              {
-                onNone: () => [model, []],
-                onSome: row =>
-                  update(
-                    nextModel({ ...model, layer: NoLayer.make({}) }),
-                    row.message,
-                  ),
-              },
+      UpdatedMenuQuery: ({ query }) =>
+        model.layer._tag === 'ChoiceLayer'
+          ? [
+              nextModel({
+                ...model,
+                layer: ChoiceLayer.make({ ...model.layer, position: 0, query }),
+              }),
+              [],
+            ]
+          : [model, []],
+      MovedMenuMark: ({ direction }) => movedMenuMark(model, direction),
+      SubmittedMenu: () =>
+        model.layer._tag === 'ChoiceLayer'
+          ? pickedMenuRow(
+              model,
+              Array.get(openMenuRowsOf(model), model.layer.position),
             )
           : [model, []],
-      PickedPaletteRow: ({ token }) =>
-        Option.match(
-          Array.findFirst(paletteRowsNow(model), row => row.token === token),
-          {
-            onNone: () => [model, []],
-            onSome: row =>
-              update(
-                nextModel({ ...model, layer: NoLayer.make({}) }),
-                row.message,
-              ),
-          },
+      PickedMenuRow: ({ token }) =>
+        pickedMenuRow(
+          model,
+          Array.findFirst(
+            openMenuRowsOf(model),
+            row => row.action.token === token,
+          ),
         ),
       DismissedLayer: () => [
         nextModel({ ...model, layer: NoLayer.make({}) }),
@@ -2496,10 +2582,30 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ),
       SubmittedIssueRank: ({ issueId, rank }) =>
         startLeftoverCommand(model, RankIssue({ issueId, rank })),
-      SelectedLandingFilter: ({ filter }) => [
-        nextModel({ ...model, landingFilter: filter }),
-        [],
-      ],
+      SelectedLandingFilter: ({ filter }) =>
+        withListView(model, view => ({ ...view, landing: filter })),
+      ToggledStatusFilter: ({ status }) =>
+        withListView(model, view => ({
+          ...view,
+          statuses: toggled(view.statuses, status),
+        })),
+      ClearedStatusFilter: () =>
+        withListView(model, view => ({ ...view, statuses: [] })),
+      ToggledPriorityFilter: ({ priority }) =>
+        withListView(model, view => ({
+          ...view,
+          priorities: toggled(view.priorities, priority),
+        })),
+      ClearedPriorityFilter: () =>
+        withListView(model, view => ({ ...view, priorities: [] })),
+      SelectedClaimantFilter: ({ filter }) =>
+        withListView(model, view => ({ ...view, claimant: filter })),
+      SelectedIssueSort: ({ sort }) =>
+        withListView(model, view => ({ ...view, sort })),
+      SelectedIssueGrouping: ({ grouping }) =>
+        withListView(model, view => ({ ...view, grouping })),
+      SelectedIssueLayout: ({ layout }) =>
+        withListView(model, view => ({ ...view, layout })),
       SubmittedIssueMention: ({ issueId, mention }) =>
         startLeftoverCommand(model, AddIssueMention({ issueId, mention })),
       SelectedIssueStatus: ({ issueId, status }) =>
@@ -2538,10 +2644,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model,
           SetLeftoverStatus({ issueId, leftover: status }),
         ),
-      SelectedProductFilter: ({ filter }) => [
-        nextModel({ ...model, productFilter: filter }),
-        [],
-      ],
+      SelectedProductFilter: ({ filter }) => withProductFilter(model, filter),
       RetargetedIssueProduct: ({ issueId, productId }) => {
         if (model.products._tag !== 'LoadedProducts') {
           return [model, []]

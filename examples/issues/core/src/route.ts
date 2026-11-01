@@ -1,4 +1,12 @@
-import { Effect, Match as M, Option, Schema as S, String, pipe } from 'effect'
+import {
+  Array,
+  Effect,
+  Match as M,
+  Option,
+  Schema as S,
+  String,
+  pipe,
+} from 'effect'
 import { Route } from 'foldkit'
 import {
   ParseError,
@@ -11,6 +19,8 @@ import {
 } from 'foldkit/route'
 import { type Url, fromString } from 'foldkit/url'
 
+import { IssuePriority, IssueStatus } from '@foldkit/instant-tools/issues'
+
 import {
   AgentEntity,
   BuildEntity,
@@ -21,7 +31,23 @@ import {
   RecordingNumberEntity,
   SegmentEntity,
 } from './entityGraph.js'
-import { type IssueView } from './issueView.js'
+import {
+  AnyClaimant,
+  type ClaimantFilter,
+  IssueGrouping,
+  IssueLayout,
+  IssueSort,
+  type IssueView,
+  OneClaimant,
+  Unclaimed,
+} from './issueView.js'
+import {
+  AllWork,
+  CloseToLanding,
+  type LandingFilter,
+  WorkingNow,
+} from './landing.js'
+import { AllProducts, OneProduct, type ProductFilter } from './leftover.js'
 import {
   AskFlow,
   Backlog,
@@ -34,16 +60,39 @@ import {
 } from './model.js'
 
 /**
- * The list's view as its URL's query: `q` is the search, `/issues?q=heart+rate`.
- * A parameter it does not know is left out.
+ * The list's view as its URL's query, so a view is a link:
+ * `/issues?q=heart+rate&product=foldkit&landing=close&status=Open%2CBlocked`.
+ * A parameter it does not know, or a value that names nothing, is left out.
  */
-const IssueViewQuery = S.Struct({ q: S.OptionFromOptional(S.String) })
+const IssueViewQuery = S.Struct({
+  q: S.OptionFromOptional(S.String),
+  product: S.OptionFromOptional(S.String),
+  landing: S.OptionFromOptional(S.String),
+  status: S.OptionFromOptional(S.String),
+  priority: S.OptionFromOptional(S.String),
+  claimant: S.OptionFromOptional(S.String),
+  sort: S.OptionFromOptional(S.String),
+  group: S.OptionFromOptional(S.String),
+  view: S.OptionFromOptional(S.String),
+})
 
-const IssueListRoute = r('IssueListRoute', { q: S.Option(S.String) })
+const BacklogQuery = S.Struct({ product: S.OptionFromOptional(S.String) })
+
+const IssueListRoute = r('IssueListRoute', {
+  q: S.Option(S.String),
+  product: S.Option(S.String),
+  landing: S.Option(S.String),
+  status: S.Option(S.String),
+  priority: S.Option(S.String),
+  claimant: S.Option(S.String),
+  sort: S.Option(S.String),
+  group: S.Option(S.String),
+  view: S.Option(S.String),
+})
 const IssueDetailRoute = r('IssueDetailRoute', { issueId: S.String })
 const FileIssueRoute = r('FileIssueRoute')
 const TriageInboxRoute = r('TriageInboxRoute')
-const BacklogRoute = r('BacklogRoute')
+const BacklogRoute = r('BacklogRoute', { product: S.Option(S.String) })
 const AskFlowRoute = r('AskFlowRoute')
 const RecordingRoute = r('RecordingRoute', { recording: S.String })
 const SegmentRoute = r('SegmentRoute', { segmentId: S.String })
@@ -82,13 +131,128 @@ const issueListRouter = pipe(
   Route.mapTo(IssueListRoute),
 )
 
-const viewOfQuery = ({ q }: typeof IssueViewQuery.Type): IssueView => ({
-  query: Option.getOrElse(q, () => ''),
+const LIST_SEPARATOR = ','
+const CLOSE_TO_LANDING_WORD = 'close'
+const WORKING_NOW_WORD = 'working'
+const UNCLAIMED_WORD = 'unclaimed'
+
+const productFilterOfWord = (maybeWord: Option.Option<string>): ProductFilter =>
+  Option.match(maybeWord, {
+    onNone: () => AllProducts.make({}),
+    onSome: productId => OneProduct.make({ productId }),
+  })
+
+const wordOfProductFilter = (filter: ProductFilter): Option.Option<string> =>
+  filter._tag === 'OneProduct' ? Option.some(filter.productId) : Option.none()
+
+const landingFilterOfWord = (maybeWord: Option.Option<string>): LandingFilter =>
+  M.value(Option.getOrElse(maybeWord, () => '')).pipe(
+    M.withReturnType<LandingFilter>(),
+    M.when(CLOSE_TO_LANDING_WORD, () => CloseToLanding.make({})),
+    M.when(WORKING_NOW_WORD, () => WorkingNow.make({})),
+    M.orElse(() => AllWork.make({})),
+  )
+
+const wordOfLandingFilter = (filter: LandingFilter): Option.Option<string> =>
+  M.value(filter).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tagsExhaustive({
+      AllWork: () => Option.none(),
+      CloseToLanding: () => Option.some(CLOSE_TO_LANDING_WORD),
+      WorkingNow: () => Option.some(WORKING_NOW_WORD),
+    }),
+  )
+
+const claimantFilterOfWord = (
+  maybeWord: Option.Option<string>,
+): ClaimantFilter =>
+  Option.match(maybeWord, {
+    onNone: () => AnyClaimant.make({}),
+    onSome: word =>
+      word === UNCLAIMED_WORD
+        ? Unclaimed.make({})
+        : OneClaimant.make({ claimantId: word }),
+  })
+
+const wordOfClaimantFilter = (filter: ClaimantFilter): Option.Option<string> =>
+  M.value(filter).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tagsExhaustive({
+      AnyClaimant: () => Option.none(),
+      Unclaimed: () => Option.some(UNCLAIMED_WORD),
+      OneClaimant: ({ claimantId }) => Option.some(claimantId),
+    }),
+  )
+
+const namedIn = <Literal extends string>(
+  literals: ReadonlyArray<Literal>,
+  maybeWords: Option.Option<string>,
+): ReadonlyArray<Literal> =>
+  Array.filter(literals, literal =>
+    Option.exists(maybeWords, words =>
+      Array.contains(words.split(LIST_SEPARATOR), literal),
+    ),
+  )
+
+const inOrderTyped = <Literal extends string>(
+  literals: ReadonlyArray<Literal>,
+  maybeWords: Option.Option<string>,
+): ReadonlyArray<Literal> => {
+  const named = namedIn(literals, maybeWords)
+  return Option.match(maybeWords, {
+    onNone: () => [],
+    onSome: words =>
+      Array.flatMap(words.split(LIST_SEPARATOR), word =>
+        Array.filter(named, literal => literal === word),
+      ),
+  })
+}
+
+const wordsOf = (words: ReadonlyArray<string>): Option.Option<string> =>
+  Option.liftPredicate(Array.join(words, LIST_SEPARATOR), String.isNonEmpty)
+
+const literalOfWord = <Literal extends string>(
+  literals: ReadonlyArray<Literal>,
+  fallback: Literal,
+  maybeWord: Option.Option<string>,
+): Literal =>
+  Option.getOrElse(
+    Option.flatMap(maybeWord, word =>
+      Array.findFirst(literals, literal => literal.toLowerCase() === word),
+    ),
+    () => fallback,
+  )
+
+const wordOfLiteral = <Literal extends string>(
+  literal: Literal,
+  fallback: Literal,
+): Option.Option<string> =>
+  literal === fallback ? Option.none() : Option.some(literal.toLowerCase())
+
+const viewOfQuery = (fields: typeof IssueViewQuery.Type): IssueView => ({
+  claimant: claimantFilterOfWord(fields.claimant),
+  grouping: literalOfWord(IssueGrouping.literals, 'None', fields.group),
+  landing: landingFilterOfWord(fields.landing),
+  layout: literalOfWord(IssueLayout.literals, 'List', fields.view),
+  priorities: inOrderTyped(IssuePriority.literals, fields.priority),
+  product: productFilterOfWord(fields.product),
+  query: Option.getOrElse(fields.q, () => ''),
+  sort: literalOfWord(IssueSort.literals, 'Created', fields.sort),
+  statuses: inOrderTyped(IssueStatus.literals, fields.status),
 })
 
 const queryOfView = (view: IssueView): typeof IssueViewQuery.Type => ({
   q: Option.liftPredicate(view.query, String.isNonEmpty),
+  product: wordOfProductFilter(view.product),
+  landing: wordOfLandingFilter(view.landing),
+  status: wordsOf(view.statuses),
+  priority: wordsOf(view.priorities),
+  claimant: wordOfClaimantFilter(view.claimant),
+  sort: wordOfLiteral(view.sort, 'Created'),
+  group: wordOfLiteral(view.grouping, 'None'),
+  view: wordOfLiteral(view.layout, 'List'),
 })
+
 const issueDetailRouter = pipe(
   literal('issues'),
   slash(string('issueId')),
@@ -109,6 +273,7 @@ const askFlowRouter = pipe(literal('asks'), Route.mapTo(AskFlowRoute))
 const backlogRouter = pipe(
   literal('issues'),
   slash(literal('backlog')),
+  query(BacklogQuery),
   Route.mapTo(BacklogRoute),
 )
 
@@ -168,7 +333,8 @@ export const urlToNavigation = (url: Url): Navigation =>
       IssueDetailRoute: ({ issueId }) => IssueDetail.make({ issueId }),
       FileIssueRoute: () => FileIssue.make({}),
       TriageInboxRoute: () => TriageInbox.make({}),
-      BacklogRoute: () => Backlog.make({}),
+      BacklogRoute: ({ product }) =>
+        Backlog.make({ product: productFilterOfWord(product) }),
       AskFlowRoute: () => AskFlow.make({}),
       RecordingRoute: ({ recording }) =>
         EntityPage.make({
@@ -230,7 +396,8 @@ export const navigationToPath = (navigation: Navigation): string =>
       IssueDetail: ({ issueId }) => issueDetailRouter({ issueId }),
       FileIssue: () => fileIssueRouter(),
       TriageInbox: () => triageInboxRouter(),
-      Backlog: () => backlogRouter(),
+      Backlog: ({ product }) =>
+        backlogRouter({ product: wordOfProductFilter(product) }),
       AskFlow: () => askFlowRouter(),
       EntityPage: ({ entity }) => entityPagePath(entity),
     }),

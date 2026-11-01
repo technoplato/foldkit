@@ -235,6 +235,7 @@ describe('Issue Tracker command palette', () => {
       Array.map(interactionsForModel(list()), action => action.token),
       token =>
         !token.startsWith('open:') &&
+        !token.startsWith('menu:') &&
         !Array.contains(['triage', 'backlog'], token),
     )
     expect(offered).toEqual(expect.arrayContaining(pageTokens))
@@ -244,9 +245,9 @@ describe('Issue Tracker command palette', () => {
   })
 
   it('matches names fuzzily, the closest first', () => {
-    expect(paletteTitlesOf(typed(opened(list()), 'bklg'))).toEqual([
-      'Go to backlog',
-    ])
+    expect(Array.head(paletteTitlesOf(typed(opened(list()), 'bklg')))).toEqual(
+      Option.some('Go to backlog'),
+    )
     expect(Array.head(paletteTitlesOf(typed(opened(list()), 'close')))).toEqual(
       Option.some('Work: Close to landing'),
     )
@@ -272,7 +273,7 @@ describe('Issue Tracker command palette', () => {
   })
 
   it('stops the mark at each end of the list', () => {
-    const palette = typed(opened(list()), 'bklg')
+    const palette = typed(opened(list()), 'gtb')
     expect(markedTitleOf(pressed(palette, on('ArrowDown', FIELD)))).toEqual(
       Option.some('Go to backlog'),
     )

@@ -36,6 +36,7 @@ import {
   millisecondsLabel,
   modelForNavigation,
   newestWorkLog,
+  productFilterOf,
   sectionHeading,
   timelineStepWords,
 } from 'issues-core-example'
@@ -567,10 +568,9 @@ export const formatModel = (model: Model): ReadonlyArray<string> => {
   ) {
     return formatDestination(destination)
   }
+  const productFilter = productFilterOf(model)
   const selected =
-    model.productFilter._tag === 'OneProduct'
-      ? model.productFilter.productId
-      : 'all'
+    productFilter._tag === 'OneProduct' ? productFilter.productId : 'all'
   const chips = Array.filter(interactionsForModel(model), interaction =>
     interaction.token.startsWith('product:'),
   )

@@ -16,20 +16,28 @@ import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
 import { askFlowNodes } from './askFlowPage.js'
 import { laneHeading, sectionHeading } from './backlog.js'
+import { menuHasField, productChoicesOf, sortNameOf } from './choices.js'
 import { entityPageNodes } from './entityPage.js'
 import { type Interaction } from './interaction.js'
 import { issuePageNodes } from './issuePage.js'
-import { type IssueView } from './issueView.js'
+import { type ClaimantFilter, type IssueView } from './issueView.js'
 import { navigationInteractionsOf } from './keys.js'
-import { leftoverQuorumRequired } from './leftover.js'
+import { type ProductFilter, leftoverQuorumRequired } from './leftover.js'
 import { issueCountWords, issueRowOf } from './listRows.js'
-import { listedBacklog, listedIssues } from './listing.js'
 import {
+  listedBacklog,
+  listedGroups,
+  listedIssues,
+  loadedIssuesIn,
+  productFilterOf,
+} from './listing.js'
+import { type MenuRow, menuRowsOf } from './menus.js'
+import {
+  type ChoiceMenu,
   type IssueDraftState,
   type IssueLogsState,
   type Model,
 } from './model.js'
-import { paletteRowsOf } from './palette.js'
 import { productForReference } from './update.js'
 
 const isoTimeOf = (timeMs: number): string => new Date(timeMs).toISOString()
@@ -81,57 +89,99 @@ const rowNodes = (
     ],
   })
 
-const productFilterNodes = (
-  model: Model,
-  issues: ReadonlyArray<Issue>,
-): ReadonlyArray<UiNode> => {
-  const catalog =
-    model.products._tag === 'LoadedProducts' ? model.products.products : []
-  const seen = new Set(Array.map(catalog, entry => entry.product.id))
-  const fromIssues = Array.reduce(issues, catalog, (entries, issue) => {
-    if (seen.has(issue.product.id)) {
-      return entries
-    }
-    seen.add(issue.product.id)
-    return Array.append(entries, {
-      product: issue.product,
-      updatedAtMs: issue.updatedAtMs,
-    })
+const menuButton = (
+  token: string,
+  label: string,
+  isFiltering: boolean,
+): UiNode =>
+  Button({
+    label,
+    token,
+    variant: isFiltering ? 'Primary' : 'Ghost',
   })
-  const preferred = [
-    'foldkit',
-    'scribe',
-    'instant-data-swift',
-    'casino',
-    'ayutia',
-  ]
-  const products = Array.appendAll(
-    Array.filter(fromIssues, entry => preferred.includes(entry.product.id)),
-    Array.filter(fromIssues, entry => !preferred.includes(entry.product.id)),
+
+const productNameOf = (model: Model, filter: ProductFilter): string =>
+  filter._tag === 'OneProduct'
+    ? Option.match(
+        Array.findFirst(
+          productChoicesOf(model),
+          product => product.id === filter.productId,
+        ),
+        {
+          onNone: () => filter.productId,
+          onSome: product => product.name,
+        },
+      )
+    : 'All'
+
+const productFilterButton = (model: Model, filter: ProductFilter): UiNode =>
+  menuButton(
+    'menu:product',
+    `Product: ${productNameOf(model, filter)}`,
+    filter._tag === 'OneProduct',
   )
-  const selected =
-    model.productFilter._tag === 'OneProduct'
-      ? model.productFilter.productId
-      : 'all'
-  return [
-    Text('Product filter'),
-    Row(
-      { gap: 1 },
-      Button({
-        token: 'product:all',
-        label: 'All',
-        variant: selected === 'all' ? 'Primary' : 'Ghost',
-      }),
-      ...Array.map(products, entry =>
-        Button({
-          token: `product:${entry.product.id}`,
-          label: entry.product.name,
-          variant: selected === entry.product.id ? 'Primary' : 'Ghost',
-        }),
-      ),
-    ),
-  ]
-}
+
+const chosenWords = (
+  chosen: ReadonlyArray<string>,
+  noneChosen: string,
+): string =>
+  Array.isReadonlyArrayEmpty(chosen) ? noneChosen : Array.join(chosen, ', ')
+
+const claimantWords = (filter: ClaimantFilter): string =>
+  M.value(filter).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      AnyClaimant: () => 'Anyone',
+      Unclaimed: () => 'Unclaimed',
+      OneClaimant: ({ claimantId }) => claimantId,
+    }),
+  )
+
+const filterButtons = (
+  model: Model,
+  view: IssueView,
+): ReadonlyArray<UiNode> => [
+  productFilterButton(model, view.product),
+  menuButton(
+    'menu:status',
+    `Status: ${chosenWords(view.statuses, 'Any')}`,
+    Array.isReadonlyArrayNonEmpty(view.statuses),
+  ),
+  menuButton(
+    'menu:priority',
+    `Priority: ${chosenWords(view.priorities, 'Any')}`,
+    Array.isReadonlyArrayNonEmpty(view.priorities),
+  ),
+  menuButton(
+    'menu:claimant',
+    `Claimant: ${claimantWords(view.claimant)}`,
+    view.claimant._tag !== 'AnyClaimant',
+  ),
+  menuButton(
+    'menu:sort',
+    `Sort: ${sortNameOf(view.sort)}`,
+    view.sort !== 'Created',
+  ),
+  menuButton('menu:group', `Group: ${view.grouping}`, view.grouping !== 'None'),
+]
+
+const landingButtons = (view: IssueView): ReadonlyArray<UiNode> => [
+  Button({
+    token: 'landing:all',
+    label: 'All work',
+    variant: view.landing._tag === 'AllWork' ? 'Primary' : 'Ghost',
+  }),
+  Button({
+    token: 'landing:close',
+    label: 'Close to landing',
+    variant: view.landing._tag === 'CloseToLanding' ? 'Primary' : 'Ghost',
+  }),
+  Button({
+    token: 'landing:working',
+    label: 'Working now',
+    variant: view.landing._tag === 'WorkingNow' ? 'Primary' : 'Ghost',
+  }),
+]
 
 const searchField = (model: Model, view: IssueView): UiNode =>
   TextInput({
@@ -158,42 +208,45 @@ const listedCountWords = (
   }
 }
 
+const groupedRowNodes = (
+  model: Model,
+  view: IssueView,
+  issues: ReadonlyArray<Issue>,
+  listed: ReadonlyArray<Issue>,
+): ReadonlyArray<UiNode> =>
+  view.grouping === 'None'
+    ? rowNodes(model, listed)
+    : Array.map(listedGroups(model, issues), group =>
+        groupNode(model, {
+          heading: `${group.name}: ${issueCountWords(group.issues.length)}`,
+          issues: group.issues,
+        }),
+      )
+
+const searchRow = (
+  model: Model,
+  view: IssueView,
+  words: ReadonlyArray<UiNode>,
+): UiNode => Row({ gap: 1 }, searchField(model, view), ...words)
+
 const listNodes = (model: Model, view: IssueView): ReadonlyArray<UiNode> =>
   M.value(model.issues).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      LoadingIssues: () => [searchField(model, view), Text('Observing…')],
-      FailedIssues: ({ reason }) => [searchField(model, view), Text(reason)],
+      LoadingIssues: () => [searchRow(model, view, [Text('Observing…')])],
+      FailedIssues: ({ reason }) => [searchRow(model, view, [Text(reason)])],
       LoadedIssues: ({ issues }) => {
         const visible = listedIssues(model, issues)
         return [
-          searchField(model, view),
-          ...productFilterNodes(model, issues),
+          searchRow(model, view, [
+            Text(listedCountWords(view, visible.length, issues.length)),
+          ]),
           Row(
             { gap: 1 },
-            Button({
-              token: 'landing:all',
-              label: 'All work',
-              variant:
-                model.landingFilter._tag === 'AllWork' ? 'Primary' : 'Ghost',
-            }),
-            Button({
-              token: 'landing:close',
-              label: 'Close to landing',
-              variant:
-                model.landingFilter._tag === 'CloseToLanding'
-                  ? 'Primary'
-                  : 'Ghost',
-            }),
-            Button({
-              token: 'landing:working',
-              label: 'Working now',
-              variant:
-                model.landingFilter._tag === 'WorkingNow' ? 'Primary' : 'Ghost',
-            }),
+            ...landingButtons(view),
+            ...filterButtons(model, view),
           ),
-          Text(listedCountWords(view, visible.length, issues.length)),
-          ...rowNodes(model, visible),
+          ...groupedRowNodes(model, view, issues, visible),
         ]
       },
     }),
@@ -209,7 +262,7 @@ const backlogNodes = (model: Model): ReadonlyArray<UiNode> =>
         const backlog = listedBacklog(model, issues)
         return [
           Text('Backlog'),
-          ...productFilterNodes(model, issues),
+          Row({ gap: 1 }, productFilterButton(model, productFilterOf(model))),
           ...Array.map(backlog.lanes, lane =>
             groupNode(model, {
               heading: laneHeading(lane),
@@ -456,20 +509,82 @@ const keyHintOf = (key: string): string =>
     .replace('Arrow', '')
     .replace('Escape', 'Esc')
 
-const paletteRowOf = (
-  row: Interaction,
-  position: number,
-  markedPosition: number,
-): ListItem => ({
-  action: `palette-run:${row.token}`,
-  ...(position === markedPosition ? { isCurrent: true } : {}),
-  key: row.token,
-  lines: Array.map(row.keys, keyHintOf),
-  title: row.label,
+const CHOSEN_MARK = '✓'
+
+const menuRowLines = (row: MenuRow): ReadonlyArray<string> => [
+  ...Array.map(row.action.keys, keyHintOf),
+  ...(row.isChosen ? [CHOSEN_MARK] : []),
+  ...Option.toArray(
+    Option.map(row.count, count => count.toLocaleString('en-US')),
+  ),
+]
+
+const plainMenuItems = new WeakMap<Interaction, ListItem>()
+
+const menuRowItemOf = (row: MenuRow): ListItem => ({
+  action: `palette-run:${row.action.token}`,
+  key: row.action.token,
+  lines: menuRowLines(row),
+  title: row.action.label,
 })
 
-const paletteNode = (
+const plainMenuRowItemOf = (row: MenuRow): ListItem =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(plainMenuItems.get(row.action)),
+    () => {
+      const item = menuRowItemOf(row)
+      plainMenuItems.set(row.action, item)
+      return item
+    },
+  )
+
+const menuRowItem = (
+  row: MenuRow,
+  position: number,
+  markedPosition: number,
+): ListItem => {
+  const item =
+    Option.isNone(row.count) && !row.isChosen
+      ? plainMenuRowItemOf(row)
+      : menuRowItemOf(row)
+  return position === markedPosition ? { ...item, isCurrent: true } : item
+}
+
+const menuLabelOf = (menu: ChoiceMenu): string =>
+  M.value(menu).pipe(
+    M.withReturnType<string>(),
+    M.when('Everything', () => 'Command palette'),
+    M.when('ProductFilter', () => 'Product'),
+    M.when('StatusFilter', () => 'Status'),
+    M.when('PriorityFilter', () => 'Priority'),
+    M.when('ClaimantFilter', () => 'Claimant'),
+    M.when('Sort', () => 'Sort by'),
+    M.when('Group', () => 'Group by'),
+    M.exhaustive,
+  )
+
+const menuFieldNodes = (
+  menu: ChoiceMenu,
+  query: string,
+): ReadonlyArray<UiNode> =>
+  menuHasField(menu)
+    ? [
+        TextInput({
+          focused: true,
+          label: menuLabelOf(menu),
+          placeholder:
+            menu === 'Everything'
+              ? 'Type an action, a place, or an Issue'
+              : `Type to narrow ${menuLabelOf(menu).toLowerCase()}`,
+          token: 'palette:',
+          value: query,
+        }),
+      ]
+    : [Text(menuLabelOf(menu), { emphasis: 'Headline' })]
+
+const choiceLayerNode = (
   model: Model,
+  menu: ChoiceMenu,
   query: string,
   markedPosition: number,
 ): UiNode =>
@@ -478,27 +593,39 @@ const paletteNode = (
       layer: {
         dismissToken: 'layer-dismiss',
         kind: 'Dialog',
-        label: 'Command palette',
+        label: menuLabelOf(menu),
       },
     },
-    TextInput({
-      focused: true,
-      label: 'Command palette',
-      placeholder: 'Type an action, a place, or an Issue',
-      token: 'palette:',
-      value: query,
-    }),
-    ...Array.match(paletteRowsOf(model, query), {
+    ...menuFieldNodes(menu, query),
+    ...Array.match(menuRowsOf(model, menu, query), {
       onEmpty: () => [Text(`Nothing matches "${query.trim()}".`)],
       onNonEmpty: rows => [
         List({
-          label: 'Actions and places',
+          label: menuLabelOf(menu),
           items: Array.map(rows, (row, position) =>
-            paletteRowOf(row, position, markedPosition),
+            menuRowItem(row, position, markedPosition),
           ),
         }),
       ],
     }),
+  )
+
+const peekNode = (model: Model, issueId: string): UiNode =>
+  Box(
+    {
+      layer: {
+        dismissToken: 'layer-dismiss',
+        kind: 'Panel',
+        label: `Peek at #${issueId}`,
+      },
+    },
+    ...Option.match(
+      Array.findFirst(loadedIssuesIn(model), issue => issue.id === issueId),
+      {
+        onNone: () => [Text(`#${issueId} is no longer stored.`)],
+        onSome: issue => issuePageNodes(model, issue),
+      },
+    ),
   )
 
 const layerNodes = (model: Model): ReadonlyArray<UiNode> =>
@@ -506,9 +633,10 @@ const layerNodes = (model: Model): ReadonlyArray<UiNode> =>
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
       NoLayer: () => [],
-      PaletteLayer: ({ position, query }) => [
-        paletteNode(model, query, position),
+      ChoiceLayer: ({ menu, position, query }) => [
+        choiceLayerNode(model, menu, query, position),
       ],
+      PeekLayer: ({ issueId }) => [peekNode(model, issueId)],
     }),
   )
 

@@ -4,13 +4,19 @@ import { type Issue } from '@foldkit/instant-tools/issues'
 
 import { type BacklogListing, backlogIssues, backlogOf } from './backlog.js'
 import {
+  type IssueGroup,
   type IssueView,
   defaultIssueView,
-  issuesFoundBy,
-  listingOf,
+  issueGroupsOf,
+  issuesInView,
+  listingKeyOf,
+  snapshotMemo,
 } from './issueView.js'
-import { issuesForLandingFilter } from './landing.js'
-import { type ProductFilter, issuesForProductFilter } from './leftover.js'
+import {
+  AllProducts,
+  type ProductFilter,
+  issuesForProductFilter,
+} from './leftover.js'
 import { type Model } from './model.js'
 
 /** The Issues loaded so far, none before the first snapshot. */
@@ -23,44 +29,56 @@ export const issueViewOf = (model: Model): IssueView =>
     ? model.navigation.view
     : defaultIssueView
 
-const productFilterKey = (filter: ProductFilter): string =>
-  filter._tag === 'OneProduct' ? `product:${filter.productId}` : 'product:all'
+const noProductFilter: ProductFilter = AllProducts.make({})
+
+/** The product the page on screen is filtered by: the list's or the backlog's. */
+export const productFilterOf = (model: Model): ProductFilter =>
+  M.value(model.navigation).pipe(
+    M.withReturnType<ProductFilter>(),
+    M.tagsExhaustive({
+      IssueList: ({ view }) => view.product,
+      Backlog: ({ product }) => product,
+      IssueDetail: () => noProductFilter,
+      FileIssue: () => noProductFilter,
+      TriageInbox: () => noProductFilter,
+      AskFlow: () => noProductFilter,
+      EntityPage: () => noProductFilter,
+    }),
+  )
+
+const listingMemo = snapshotMemo<ReadonlyArray<Issue>>()
 
 /**
- * The Issues the list shows: those of the chosen product, then only the work
- * close to landing when that filter is on, then those its search finds.
- * Read once per snapshot of the Issues and view.
+ * The Issues the list shows: everything its view filters by, in its order,
+ * those its search finds. Read once per snapshot of the Issues and view.
  */
 export const listedIssues = (
   model: Model,
   issues: ReadonlyArray<Issue>,
 ): ReadonlyArray<Issue> => {
   const view = issueViewOf(model)
-  return listingOf(
-    issues,
-    Array.join(
-      [
-        productFilterKey(model.productFilter),
-        model.landingFilter._tag,
-        view.query,
-      ],
-      '\u0000',
-    ),
-    () =>
-      issuesFoundBy(
-        issuesForLandingFilter(
-          issuesForProductFilter(issues, model.productFilter),
-          model.landingFilter,
-        ),
-        view.query,
-      ),
+  return listingMemo(issues, listingKeyOf(view), () =>
+    issuesInView(issues, view),
   )
 }
 
-const backlogsBySnapshot = new WeakMap<
-  ReadonlyArray<Issue>,
-  Map<string, BacklogListing>
->()
+const groupsMemo = snapshotMemo<ReadonlyArray<IssueGroup>>()
+
+/** The list's rows under the field its view groups by. */
+export const listedGroups = (
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<IssueGroup> => {
+  const view = issueViewOf(model)
+  return groupsMemo(issues, `${view.grouping}|${listingKeyOf(view)}`, () =>
+    issueGroupsOf(listedIssues(model, issues), view.grouping),
+  )
+}
+
+const backlogMemo = snapshotMemo<BacklogListing>()
+
+const productKeyOf = (filter: ProductFilter): string =>
+  filter._tag === 'OneProduct' ? filter.productId : ''
 
 /**
  * The backlog of the chosen product: the next build's lane, later builds'
@@ -71,22 +89,17 @@ export const listedBacklog = (
   model: Model,
   issues: ReadonlyArray<Issue>,
 ): BacklogListing => {
-  const key = productFilterKey(model.productFilter)
-  const backlogs = Option.getOrElse(
-    Option.fromUndefinedOr(backlogsBySnapshot.get(issues)),
-    () => {
-      const fresh = new Map<string, BacklogListing>()
-      backlogsBySnapshot.set(issues, fresh)
-      return fresh
-    },
+  const filter = productFilterOf(model)
+  return backlogMemo(issues, productKeyOf(filter), () =>
+    backlogOf(issuesForProductFilter(issues, filter)),
   )
-  return Option.getOrElse(Option.fromUndefinedOr(backlogs.get(key)), () => {
-    const backlog = backlogOf(
-      issuesForProductFilter(issues, model.productFilter),
-    )
-    backlogs.set(key, backlog)
-    return backlog
-  })
+}
+
+const listRowsInOrderOf = (model: Model): ReadonlyArray<Issue> => {
+  const issues = loadedIssuesIn(model)
+  return issueViewOf(model).grouping === 'None'
+    ? listedIssues(model, issues)
+    : Array.flatMap(listedGroups(model, issues), group => group.issues)
 }
 
 /**
@@ -97,7 +110,7 @@ export const rowsInOrderOf = (model: Model): ReadonlyArray<Issue> =>
   M.value(model.navigation).pipe(
     M.withReturnType<ReadonlyArray<Issue>>(),
     M.tagsExhaustive({
-      IssueList: () => listedIssues(model, loadedIssuesIn(model)),
+      IssueList: () => listRowsInOrderOf(model),
       Backlog: () => backlogIssues(listedBacklog(model, loadedIssuesIn(model))),
       IssueDetail: () => [],
       FileIssue: () => [],

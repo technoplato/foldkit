@@ -2,8 +2,6 @@ import { Option } from 'effect'
 import { type Command } from 'foldkit'
 
 import { defaultIssueView } from './issueView.js'
-import { AllWork } from './landing.js'
-import { AllProducts } from './leftover.js'
 import { type Message } from './message.js'
 import {
   EditingIssueDraft,
@@ -55,7 +53,6 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     isSearchFocused: false,
     issues: LoadingIssues.make({}),
     knownBuilds: [],
-    landingFilter: AllWork.make({}),
     layer: NoLayer.make({}),
     leftoverComment: '',
     leftoverLink: '',
@@ -67,7 +64,6 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     navigation,
     pageFacts: NotObservingPageFacts.make({}),
     productAddition: IdleProductAddition.make({}),
-    productFilter: AllProducts.make({}),
     products: LoadingProducts.make({}),
     returnListView:
       navigation._tag === 'IssueList' ? navigation.view : defaultIssueView,

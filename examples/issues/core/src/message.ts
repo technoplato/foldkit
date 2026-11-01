@@ -17,9 +17,16 @@ import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 import { PageEntity } from './entityGraph.js'
 import { IssueFileAddress } from './issueFiles.js'
 import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
+import {
+  ClaimantFilter,
+  IssueGrouping,
+  IssueLayout,
+  IssueSort,
+} from './issueView.js'
 import { LandingFilter } from './landing.js'
 import { LeftoverStatus, ProductFilter } from './leftover.js'
 import {
+  ChoiceMenu,
   DraftMention,
   IssueDraft,
   Navigation,
@@ -141,6 +148,8 @@ export const MovedRowCursor = S.TaggedStruct('MovedRowCursor', {
 })
 /** A person opened the row under the cursor: Enter on the list. */
 export const OpenedRowUnderCursor = S.TaggedStruct('OpenedRowUnderCursor', {})
+/** A person peeked at the row under the cursor: Space on the list. */
+export const PeekedRowUnderCursor = S.TaggedStruct('PeekedRowUnderCursor', {})
 /** A person pressed `g`, and the next key says where to go. */
 export const PressedGoKey = S.TaggedStruct('PressedGoKey', {})
 /** The key after `g` named no place. */
@@ -149,18 +158,22 @@ export const CancelledGoKey = S.TaggedStruct('CancelledGoKey', {})
 export const ClickedOpenIssueList = S.TaggedStruct('ClickedOpenIssueList', {})
 /** A person opened the command palette: Cmd+K. */
 export const OpenedCommandPalette = S.TaggedStruct('OpenedCommandPalette', {})
-/** A person typed into the command palette: `backlog`, `1358`. */
-export const UpdatedPaletteQuery = S.TaggedStruct('UpdatedPaletteQuery', {
+/** A person opened one filter's or order's choices: `Status: Any`. */
+export const OpenedChoiceMenu = S.TaggedStruct('OpenedChoiceMenu', {
+  menu: ChoiceMenu,
+})
+/** A person typed into the field of a layer of choices: `backlog`, `1358`. */
+export const UpdatedMenuQuery = S.TaggedStruct('UpdatedMenuQuery', {
   query: S.String,
 })
-/** The palette's mark moved a row: an arrow key. */
-export const MovedPaletteMark = S.TaggedStruct('MovedPaletteMark', {
+/** The mark in a layer of choices moved a row: an arrow key. */
+export const MovedMenuMark = S.TaggedStruct('MovedMenuMark', {
   direction: S.Literals(['Next', 'Previous']),
 })
-/** A person pressed Enter in the palette, running the marked row. */
-export const SubmittedPalette = S.TaggedStruct('SubmittedPalette', {})
-/** A person clicked one row of the palette: its interaction's token. */
-export const PickedPaletteRow = S.TaggedStruct('PickedPaletteRow', {
+/** A person pressed Enter in a layer of choices, taking the marked row. */
+export const SubmittedMenu = S.TaggedStruct('SubmittedMenu', {})
+/** A person clicked one row of a layer of choices: its interaction's token. */
+export const PickedMenuRow = S.TaggedStruct('PickedMenuRow', {
   token: S.String,
 })
 /** A person closed what showed above the page: Esc, or a press outside it. */
@@ -307,6 +320,34 @@ export const SubmittedIssueRank = S.TaggedStruct('SubmittedIssueRank', {
 export const SelectedLandingFilter = S.TaggedStruct('SelectedLandingFilter', {
   filter: LandingFilter,
 })
+/** A status was chosen or let go in the list's filter: `status=Open`. */
+export const ToggledStatusFilter = S.TaggedStruct('ToggledStatusFilter', {
+  status: IssueStatus,
+})
+/** The list's status filter was emptied: any status shows. */
+export const ClearedStatusFilter = S.TaggedStruct('ClearedStatusFilter', {})
+/** A priority was chosen or let go in the list's filter: `priority=P1`. */
+export const ToggledPriorityFilter = S.TaggedStruct('ToggledPriorityFilter', {
+  priority: IssuePriority,
+})
+/** The list's priority filter was emptied: any priority shows. */
+export const ClearedPriorityFilter = S.TaggedStruct('ClearedPriorityFilter', {})
+/** A claimant was chosen in the list's filter: `claimant=unclaimed`. */
+export const SelectedClaimantFilter = S.TaggedStruct('SelectedClaimantFilter', {
+  filter: ClaimantFilter,
+})
+/** An order was chosen for the list's rows: `sort=updated`. */
+export const SelectedIssueSort = S.TaggedStruct('SelectedIssueSort', {
+  sort: IssueSort,
+})
+/** A field was chosen to group the list's rows under: `group=status`. */
+export const SelectedIssueGrouping = S.TaggedStruct('SelectedIssueGrouping', {
+  grouping: IssueGrouping,
+})
+/** The list's rows or its board were chosen: `view=board`. */
+export const SelectedIssueLayout = S.TaggedStruct('SelectedIssueLayout', {
+  layout: IssueLayout,
+})
 export const SubmittedIssueMention = S.TaggedStruct('SubmittedIssueMention', {
   issueId: S.String,
   mention: DraftMention,
@@ -410,14 +451,16 @@ export const Message = S.Union([
   BlurredSearchField,
   MovedRowCursor,
   OpenedRowUnderCursor,
+  PeekedRowUnderCursor,
   PressedGoKey,
   CancelledGoKey,
   ClickedOpenIssueList,
   OpenedCommandPalette,
-  UpdatedPaletteQuery,
-  MovedPaletteMark,
-  SubmittedPalette,
-  PickedPaletteRow,
+  OpenedChoiceMenu,
+  UpdatedMenuQuery,
+  MovedMenuMark,
+  SubmittedMenu,
+  PickedMenuRow,
   DismissedLayer,
   ClickedPromoteTriageCandidate,
   ClickedDismissTriageCandidate,
@@ -452,6 +495,14 @@ export const Message = S.Union([
   ClearedIssueWorkInProgress,
   SubmittedIssueRank,
   SelectedLandingFilter,
+  ToggledStatusFilter,
+  ClearedStatusFilter,
+  ToggledPriorityFilter,
+  ClearedPriorityFilter,
+  SelectedClaimantFilter,
+  SelectedIssueSort,
+  SelectedIssueGrouping,
+  SelectedIssueLayout,
   SubmittedIssueMention,
   SelectedIssueStatus,
   ConfirmedIssueDeletion,

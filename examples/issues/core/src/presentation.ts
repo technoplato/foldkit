@@ -3,10 +3,20 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 import { Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 
 import { BacklogListing, backlogIssues } from './backlog.js'
+import {
+  claimantFilterChoicesOf,
+  groupingChoices,
+  landingChoices,
+  layoutChoices,
+  listMenuInteractions,
+  priorityFilterChoices,
+  productMenuInteraction,
+  sortChoices,
+  statusFilterChoices,
+} from './choices.js'
 import { PageEntity, issuesOfPage } from './entityGraph.js'
-import { type Interaction, interaction } from './interaction.js'
+import { type Interaction, interaction, uniqueByToken } from './interaction.js'
 import { keyInteractionsOf, navigationInteractionsOf } from './keys.js'
-import { AllWork, CloseToLanding, WorkingNow } from './landing.js'
 import {
   AllProducts,
   LeftoverStatus,
@@ -22,11 +32,10 @@ import {
   ClickedPromoteTriageCandidate,
   LinkedCatalogIssue,
   type Message,
-  PickedPaletteRow,
+  PickedMenuRow,
   RetargetedIssueProduct,
   SelectedIssuePriority,
   SelectedIssueProduct,
-  SelectedLandingFilter,
   SelectedProductFilter,
   SubmittedIssue,
   SubmittedIssueComment,
@@ -35,7 +44,7 @@ import {
   UpdatedIssueTitle,
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
-  UpdatedPaletteQuery,
+  UpdatedMenuQuery,
   UpdatedSearchQuery,
 } from './message.js'
 import {
@@ -188,6 +197,7 @@ const productFilterInteractions = (
 
 const OPEN_TOKEN_PREFIX = 'open:'
 const SEARCH_TOKEN_PREFIX = 'search:'
+const STATUS_TOKEN_PREFIX = 'status:'
 const PALETTE_TOKEN_PREFIX = 'palette:'
 const PALETTE_RUN_TOKEN_PREFIX = 'palette-run:'
 const SEARCH_SUBMIT_TOKEN = 'search-submit'
@@ -227,21 +237,14 @@ export const interactionsForModel = (
       IssueList: () => [
         ...navigationInteractionsOf(model),
         ...productFilterInteractions(model),
-        interaction(
-          'landing:all',
-          'All work',
-          SelectedLandingFilter.make({ filter: AllWork.make({}) }),
-        ),
-        interaction(
-          'landing:close',
-          'Close to landing',
-          SelectedLandingFilter.make({ filter: CloseToLanding.make({}) }),
-        ),
-        interaction(
-          'landing:working',
-          'Working now',
-          SelectedLandingFilter.make({ filter: WorkingNow.make({}) }),
-        ),
+        ...landingChoices,
+        ...statusFilterChoices,
+        ...priorityFilterChoices,
+        ...claimantFilterChoicesOf(model),
+        ...sortChoices,
+        ...groupingChoices,
+        ...layoutChoices,
+        ...listMenuInteractions,
         ...Array.map(
           listedIssues(model, loadedIssuesIn(model)),
           openInteraction,
@@ -310,6 +313,7 @@ export const interactionsForModel = (
       Backlog: () => [
         ...navigationInteractionsOf(model),
         ...productFilterInteractions(model),
+        productMenuInteraction,
         ...Array.map(
           backlogIssues(listedBacklog(model, loadedIssuesIn(model))),
           openInteraction,
@@ -356,10 +360,7 @@ export const interactionsForModel = (
  * `Program.valid` projects for every host, each action with its keys.
  */
 export const everyInteractionOf = (model: Model): ReadonlyArray<Interaction> =>
-  Array.dedupeWith(
-    [...keyInteractionsOf(model), ...interactionsForModel(model)],
-    (left, right) => left.token === right.token,
-  )
+  uniqueByToken([...keyInteractionsOf(model), ...interactionsForModel(model)])
 
 const messageOfTokenIn = (
   interactions: ReadonlyArray<Interaction>,
@@ -416,21 +417,33 @@ export const messageForScreenToken = (
   model: Model,
   token: string,
 ): Option.Option<Message> => {
-  if (model.layer._tag === 'PaletteLayer') {
+  if (model.layer._tag === 'ChoiceLayer') {
     if (token.startsWith(PALETTE_TOKEN_PREFIX)) {
       return Option.some(
-        UpdatedPaletteQuery.make({
+        UpdatedMenuQuery.make({
           query: token.slice(PALETTE_TOKEN_PREFIX.length),
         }),
       )
     }
     if (token.startsWith(PALETTE_RUN_TOKEN_PREFIX)) {
       return Option.some(
-        PickedPaletteRow.make({
+        PickedMenuRow.make({
           token: token.slice(PALETTE_RUN_TOKEN_PREFIX.length),
         }),
       )
     }
+  }
+  if (
+    model.layer._tag === 'PeekLayer' &&
+    token.startsWith(STATUS_TOKEN_PREFIX)
+  ) {
+    const { issueId } = model.layer
+    return Option.map(
+      S.decodeUnknownOption(LeftoverStatus)(
+        token.slice(STATUS_TOKEN_PREFIX.length),
+      ),
+      status => ClickedLeftoverStatus.make({ issueId, status }),
+    )
   }
   if (token === SEARCH_SUBMIT_TOKEN && model.navigation._tag === 'IssueList') {
     return Option.some(SubmittedSearch.make({}))
