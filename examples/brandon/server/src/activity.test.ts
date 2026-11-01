@@ -10,6 +10,7 @@ import {
   nextActivityRow,
   observedActivityRow,
   ownerUserIdOfHolder,
+  settledActivityRow,
   transactionKeyOf,
 } from './activity.js'
 
@@ -24,6 +25,8 @@ const account: WatchedAccount = {
   address,
   maybeCursor: Option.none(),
 }
+
+const recordAtMs = 1_793_490_000_000
 
 const record = (
   fields: Partial<typeof TransactionRecord.Type> = {},
@@ -56,7 +59,7 @@ describe('keys', () => {
 
 describe('a record from the chain', () => {
   it('becomes a row with finality from its status', () => {
-    const row = observedActivityRow(account, record())
+    const row = observedActivityRow(account, record(), { nowMs: recordAtMs })
     expect(row.transactionKey).toBe(`${account.accountKey}|5hSignature`)
     expect(row.status).toBe('Confirmed')
     expect(row.maybeFinality).toEqual(Option.some('Included'))
@@ -64,19 +67,69 @@ describe('a record from the chain', () => {
     expect(row.assetId).toBe('solana:devnet:sol')
     expect(row.maybeConfirmedAtMs).toEqual(Option.some(1_793_490_000_000))
     expect(
-      observedActivityRow(account, record({ status: 'Pending' })).maybeFinality,
+      observedActivityRow(account, record({ status: 'Pending' }), { nowMs: recordAtMs }).maybeFinality,
     ).toEqual(Option.some('Seen'))
+  })
+
+  it('reads as Final once it is older than its chain could undo', () => {
+    const observedAt = 1_793_490_000_000
+    const fiveMinutes = 5 * 60 * 1_000
+    expect(
+      observedActivityRow(account, record({ observedAt }), {
+        nowMs: observedAt + fiveMinutes,
+      }).maybeFinality,
+    ).toEqual(Option.some('Final'))
+    expect(
+      observedActivityRow(account, record({ observedAt }), {
+        nowMs: observedAt + fiveMinutes - 1,
+      }).maybeFinality,
+    ).toEqual(Option.some('Included'))
+    const onEthereum: WatchedAccount = {
+      ...account,
+      chainId: 'ethereum',
+      networkId: 'ethereum:mainnet',
+    }
+    const hour = 60 * 60 * 1_000
+    expect(
+      observedActivityRow(
+        onEthereum,
+        record({ observedAt, networkId: 'ethereum:mainnet' }),
+        { nowMs: observedAt + hour - 1 },
+      ).maybeFinality,
+    ).toEqual(Option.some('Included'))
+    expect(
+      observedActivityRow(
+        onEthereum,
+        record({ observedAt, networkId: 'ethereum:mainnet' }),
+        { nowMs: observedAt + hour },
+      ).maybeFinality,
+    ).toEqual(Option.some('Final'))
+  })
+
+  it('never reads a failed or pending one as Final, however old', () => {
+    const observedAt = 1_793_490_000_000
+    const muchLater = observedAt + 24 * 60 * 60 * 1_000
+    expect(
+      observedActivityRow(account, record({ observedAt, status: 'Pending' }), {
+        nowMs: muchLater,
+      }).maybeFinality,
+    ).toEqual(Option.some('Seen'))
+    expect(
+      observedActivityRow(account, record({ observedAt, status: 'Failed' }), {
+        nowMs: muchLater,
+      }).maybeFinality,
+    ).toEqual(Option.some('Included'))
   })
 
   it('is refused on a network other than its account', () => {
     expect(() =>
-      observedActivityRow(account, record({ networkId: 'solana:mainnet-beta' })),
+      observedActivityRow(account, record({ networkId: 'solana:mainnet-beta' }), { nowMs: recordAtMs }),
     ).toThrow()
   })
 })
 
 describe('the next row to write', () => {
-  const included = observedActivityRow(account, record())
+  const included = observedActivityRow(account, record(), { nowMs: recordAtMs })
 
   it('writes a transaction seen for the first time', () => {
     expect(nextActivityRow(Option.none(), included)).toEqual(
@@ -94,6 +147,7 @@ describe('the next row to write', () => {
     const pending = observedActivityRow(
       account,
       record({ status: 'Pending', observedAt: 1 }),
+      { nowMs: 1 },
     )
     const next = nextActivityRow(Option.some(pending), included)
     expect(Option.map(next, row => row.status)).toEqual(Option.some('Confirmed'))
@@ -102,13 +156,14 @@ describe('the next row to write', () => {
 
   it("keeps the address a sender recorded when the chain's record names none", () => {
     const sent: ActivityRow = {
-      ...observedActivityRow(account, record({ status: 'Pending' })),
+      ...observedActivityRow(account, record({ status: 'Pending' }), { nowMs: recordAtMs }),
       maybeFinality: Option.none(),
       maybeCounterpartyAddress: Option.some('Recipient111'),
     }
     const observed = observedActivityRow(
       account,
       record({ counterpartyAddress: '' }),
+      { nowMs: recordAtMs },
     )
     expect(
       Option.map(
@@ -119,7 +174,7 @@ describe('the next row to write', () => {
   })
 
   it('never moves a row back on a stale observation', () => {
-    const pending = observedActivityRow(account, record({ status: 'Pending' }))
+    const pending = observedActivityRow(account, record({ status: 'Pending' }), { nowMs: recordAtMs })
     expect(nextActivityRow(Option.some(included), pending)).toEqual(
       Option.none(),
     )
@@ -130,9 +185,99 @@ describe('the next row to write', () => {
       ...included,
       maybeFinality: Option.some('Final'),
     }
-    const failed = observedActivityRow(account, record({ status: 'Failed' }))
+    const failed = observedActivityRow(account, record({ status: 'Failed' }), { nowMs: recordAtMs })
     expect(nextActivityRow(Option.some(final), failed)).toEqual(Option.none())
     expect(nextActivityRow(Option.some(final), included)).toEqual(Option.none())
+  })
+})
+
+describe('where the chain says a transaction stands', () => {
+  const atMs = 1_793_490_000_000
+  const included = observedActivityRow(account, record({ observedAt: atMs }), {
+    nowMs: atMs,
+  })
+  const pending: ActivityRow = {
+    ...included,
+    status: 'Pending',
+    maybeFinality: Option.none(),
+    maybeConfirmedAtMs: Option.none(),
+  }
+  const final: ActivityRow = { ...included, maybeFinality: Option.some('Final') }
+
+  it('moves an included row to Final', () => {
+    expect(settledActivityRow(included, 'Final', atMs)).toEqual(Option.some(final))
+  })
+
+  it('confirms a pending row once it is in a block, or already final', () => {
+    const confirmed = settledActivityRow(pending, 'Included', atMs + 5)
+    expect(Option.map(confirmed, row => row.status)).toEqual(
+      Option.some('Confirmed'),
+    )
+    expect(Option.map(confirmed, row => row.maybeFinality)).toEqual(
+      Option.some(Option.some('Included')),
+    )
+    expect(Option.map(confirmed, row => row.maybeConfirmedAtMs)).toEqual(
+      Option.some(Option.some(atMs + 5)),
+    )
+    expect(
+      Option.map(settledActivityRow(pending, 'Final', atMs), row => row.status),
+    ).toEqual(Option.some('Confirmed'))
+  })
+
+  it('writes nothing when nothing moved', () => {
+    expect(settledActivityRow(included, 'Included', atMs)).toEqual(Option.none())
+    expect(settledActivityRow(pending, 'Unknown', atMs)).toEqual(Option.none())
+  })
+
+  it('never changes a Final row, even if a provider has lost it', () => {
+    for (const standing of ['Unknown', 'Seen', 'Included', 'FailedOnChain', 'Final'] as const) {
+      expect(settledActivityRow(final, standing, atMs)).toEqual(Option.none())
+    }
+  })
+
+  it('sends a row back to Pending, finality cleared, when a reorg drops it', () => {
+    const reorged = settledActivityRow(included, 'Unknown', atMs)
+    expect(Option.map(reorged, row => row.status)).toEqual(Option.some('Pending'))
+    expect(Option.map(reorged, row => row.maybeFinality)).toEqual(
+      Option.some(Option.none()),
+    )
+    expect(Option.map(reorged, row => row.maybeConfirmedAtMs)).toEqual(
+      Option.some(Option.none()),
+    )
+  })
+
+  it('fails a transaction that failed on the chain, and says so', () => {
+    const failed = settledActivityRow(included, 'FailedOnChain', atMs)
+    expect(Option.map(failed, row => row.status)).toEqual(Option.some('Failed'))
+    expect(Option.flatMap(failed, row => row.maybeFailure)).toEqual(
+      Option.some('It failed on the chain.'),
+    )
+  })
+
+  it('fails a pending send that never landed, once its chain has given up', () => {
+    const threeMinutes = 3 * 60 * 1_000
+    expect(
+      settledActivityRow(pending, 'Unknown', atMs + threeMinutes - 1),
+    ).toEqual(Option.none())
+    const expired = settledActivityRow(pending, 'Unknown', atMs + threeMinutes)
+    expect(Option.map(expired, row => row.status)).toEqual(Option.some('Failed'))
+    expect(Option.flatMap(expired, row => row.maybeFailure)).toEqual(
+      Option.some('It never landed, so nothing was sent.'),
+    )
+  })
+
+  it('gives an Ethereum send an hour, since it can wait in the mempool', () => {
+    const onEthereum: ActivityRow = { ...pending, networkId: 'ethereum:sepolia' }
+    const hour = 60 * 60 * 1_000
+    expect(settledActivityRow(onEthereum, 'Unknown', atMs + hour - 1)).toEqual(
+      Option.none(),
+    )
+    expect(
+      Option.map(
+        settledActivityRow(onEthereum, 'Unknown', atMs + hour),
+        row => row.status,
+      ),
+    ).toEqual(Option.some('Failed'))
   })
 })
 
