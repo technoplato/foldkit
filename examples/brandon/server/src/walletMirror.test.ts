@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest'
 import { Effect, Option } from 'effect'
+import { describe, expect, it } from 'vitest'
 
-import { mirrorAddress, readOnlyRpcMethods, walletRowsFor } from './walletMirror.js'
+import {
+  mirrorAddress,
+  readOnlyRpcMethods,
+  walletRowsFor,
+} from './walletMirror.js'
 
 const address = 'So11111111111111111111111111111111111111112'
 
@@ -16,8 +20,18 @@ const fakeChain = (calls: Array<Call>): typeof globalThis.fetch =>
         ? { value: 1_500_000_000 }
         : method === 'getSignaturesForAddress'
           ? [
-              { signature: 'sig-old', slot: 7, blockTime: 1_793_490_000, err: null },
-              { signature: 'sig-failed', slot: 8, blockTime: null, err: { InstructionError: [] } },
+              {
+                signature: 'sig-old',
+                slot: 7,
+                blockTime: 1_793_490_000,
+                err: null,
+              },
+              {
+                signature: 'sig-failed',
+                slot: 8,
+                blockTime: null,
+                err: { InstructionError: [] },
+              },
             ]
           : {
               meta: { preBalances: [10, 2_000], postBalances: [5, 1_500] },
@@ -30,7 +44,12 @@ describe('the wallet mirror', () => {
   it('asks a public chain API only to read', async () => {
     const calls: Array<Call> = []
     await Effect.runPromise(
-      mirrorAddress({ fetch: fakeChain(calls), address, network: 'Devnet', known: new Set() }),
+      mirrorAddress({
+        fetch: fakeChain(calls),
+        address,
+        network: 'Devnet',
+        known: new Set(),
+      }),
     )
     expect(calls.map(({ method }) => method)).toEqual([
       'getBalance',
@@ -38,16 +57,27 @@ describe('the wallet mirror', () => {
       'getTransaction',
       'getTransaction',
     ])
-    expect(calls.every(({ url }) => url === 'https://api.devnet.solana.com')).toBe(true)
+    expect(
+      calls.every(({ url }) => url === 'https://api.devnet.solana.com'),
+    ).toBe(true)
   })
 
   it('knows no method that signs or sends', () => {
-    expect(readOnlyRpcMethods).toEqual(['getBalance', 'getSignaturesForAddress', 'getTransaction'])
+    expect(readOnlyRpcMethods).toEqual([
+      'getBalance',
+      'getSignaturesForAddress',
+      'getTransaction',
+    ])
   })
 
   it('reads a balance and each transaction’s change for this address', async () => {
     const mirrored = await Effect.runPromise(
-      mirrorAddress({ fetch: fakeChain([]), address, network: 'Devnet', known: new Set() }),
+      mirrorAddress({
+        fetch: fakeChain([]),
+        address,
+        network: 'Devnet',
+        known: new Set(),
+      }),
     )
     expect(mirrored.balanceAtomic).toBe('1500000000')
     expect(mirrored.transactions).toEqual([
@@ -71,16 +101,32 @@ describe('the wallet mirror', () => {
   it('reads no transaction it already holds', async () => {
     const calls: Array<Call> = []
     await Effect.runPromise(
-      mirrorAddress({ fetch: fakeChain(calls), address, network: 'Devnet', known: new Set(['sig-old']) }),
+      mirrorAddress({
+        fetch: fakeChain(calls),
+        address,
+        network: 'Devnet',
+        known: new Set(['sig-old']),
+      }),
     )
-    expect(calls.filter(({ method }) => method === 'getTransaction')).toHaveLength(1)
+    expect(
+      calls.filter(({ method }) => method === 'getTransaction'),
+    ).toHaveLength(1)
   })
 
   it('writes no field that is not public chain data', async () => {
     const mirrored = await Effect.runPromise(
-      mirrorAddress({ fetch: fakeChain([]), address, network: 'Devnet', known: new Set() }),
+      mirrorAddress({
+        fetch: fakeChain([]),
+        address,
+        network: 'Devnet',
+        known: new Set(),
+      }),
     )
-    const rows = walletRowsFor({ network: 'Devnet', address, label: 'Devnet' }, mirrored, 1)
+    const rows = walletRowsFor(
+      { network: 'Devnet', address, label: 'Devnet' },
+      mirrored,
+      1,
+    )
     expect(JSON.stringify(rows)).not.toMatch(/secret|private|seed|mnemonic/i)
     expect(rows.address.addressKey).toBe(`Solana:Devnet:${address}`)
   })
