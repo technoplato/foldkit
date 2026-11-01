@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 6:13:25 p.m. EST — `847bd697d2c5` fix(issues): keys write where he is, small faults, the kept catalog, one row
+
+- **Implementation commit:** `847bd697d2c502d77a9c88ea34afa414d9706426`
+- **Change:** Keys write where he is, the review's small faults are fixed, the kept catalog cannot hide a change, and a live Recording's length restates one row.
+- **Details:**
+  - c opens the form with Title holding the keyboard; Enter and Cmd+Enter submit from the field written in.
+  - Links name Issues the catalog holds; Scribe sign-in is retried; a peek reads its landing and graph; Shift+L, inbox keys and shared FEATURES numbers behave.
+  - The kept catalog is read for two seconds at most, and a change it could not keep forces a full read.
+  - A Recording's row and its moments are two queries.
+- **Files:**
+  - `examples/issues/core/src/keys.ts` — Enter and Cmd+Enter submit from the writing field that holds the keyboard.
+  - `examples/issues/core/src/update.ts` — Link targets checked, cards moved with their selection, Esc back to the page an Issue was opened from.
+  - `examples/issues/react/src/scribeDatabase.ts` — A failed sign-in is forgotten and tried again.
+  - `examples/issues/react/src/issueCatalogCache.ts` — A failed write forgets the full-read mark.
+  - `examples/issues/core/src/issueLandings.ts` — A Recording's row and moments as two live queries.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
 ## November 1st, 2026 at 5:42:56 p.m. EST — `d8139f4437ed` fix(issues): live changes cost what changed; times, links and asks say true
 
 - **Implementation commit:** `d8139f4437edb473424541b7786b49060cbc68e4`
