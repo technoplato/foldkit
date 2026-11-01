@@ -268,7 +268,7 @@ describe('where the chain says a transaction stands', () => {
   })
 
   it('sends a row back to Pending, finality cleared, when a reorg drops it', () => {
-    const reorged = settledActivityRow(included, 'Unknown', atMs)
+    const reorged = settledActivityRow(included, 'Unknown', atMs + 30_000)
     expect(Option.map(reorged, row => row.status)).toEqual(
       Option.some('Pending'),
     )
@@ -278,6 +278,20 @@ describe('where the chain says a transaction stands', () => {
     expect(Option.map(reorged, row => row.maybeConfirmedAtMs)).toEqual(
       Option.some(Option.none()),
     )
+  })
+
+  it('gives a lagging provider 30 seconds before it calls a row dropped', () => {
+    for (const standing of ['Unknown', 'Seen'] as const) {
+      expect(settledActivityRow(included, standing, atMs + 29_999)).toEqual(
+        Option.none(),
+      )
+      expect(
+        Option.map(
+          settledActivityRow(included, standing, atMs + 30_000),
+          row => row.status,
+        ),
+      ).toEqual(Option.some('Pending'))
+    }
   })
 
   it('fails a transaction that failed on the chain, and says so', () => {
