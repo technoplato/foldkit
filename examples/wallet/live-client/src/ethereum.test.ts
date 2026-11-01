@@ -223,3 +223,26 @@ describe('Ethereum live adapter transfer failures', () => {
     expect(ethereumTransport.estimateGasCalls).toBe(1)
   })
 })
+
+describe('Ethereum recipient checksum', () => {
+  const validationOf = (destinationAddress: string) =>
+    Effect.runPromise(
+      makeEthereumLiveAdapter(ethereumSepoliaConfiguration).validateTransfer(
+        account,
+        TransferRequest.make({ ...request, destinationAddress }),
+      ),
+    )
+
+  it('refuses a mixed-case address whose checksum does not match, such as one mistyped letter', async () => {
+    const checksummed = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed'
+    const mistyped = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD'
+    expect((await validationOf(checksummed))._tag).not.toBe('RejectedTransfer')
+    expect((await validationOf(mistyped))._tag).toBe('RejectedTransfer')
+  })
+
+  it('takes an all-lowercase address, which carries no checksum', async () => {
+    expect(
+      (await validationOf('0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed'))._tag,
+    ).not.toBe('RejectedTransfer')
+  })
+})
