@@ -607,9 +607,7 @@ const walletHero = (model: Model): Html => {
         ? [
             h.p(
               [h.Class('wallet-validation'), h.Role('alert')],
-              [
-                `Portfolio failed: ${model.portfolio.failure.operation} · ${model.portfolio.failure.code}`,
-              ],
+              walletFailureLines(model.portfolio.failure),
             ),
           ]
         : []),
@@ -1066,9 +1064,7 @@ const sendMoney = (model: Model): Html => {
       ? [
           h.p(
             [h.Class('wallet-validation'), h.Role('alert')],
-            [
-              `Test funding failed: ${model.testFunding.failure.operation} · ${model.testFunding.failure.code}`,
-            ],
+            walletFailureLines(model.testFunding.failure),
           ),
         ]
       : []
@@ -1190,19 +1186,14 @@ const activity = (model: Model): Html => {
           h.div(
             [h.Class('wallet-validation'), h.Role('alert')],
             [
-              h.p(
-                [],
-                [
-                  `Live observation failed: ${model.transactionObservation.failure.code}`,
-                ],
-              ),
+              h.p([], walletFailureLines(model.transactionObservation.failure)),
               h.button(
                 [
                   h.Type('button'),
                   h.Class('cardboard-button'),
                   h.OnClick(ResumedTransactionObservation.make({})),
                 ],
-                ['Retry live observation'],
+                ['Listen again now'],
               ),
             ],
           ),
@@ -1213,9 +1204,7 @@ const activity = (model: Model): Html => {
       ? [
           h.p(
             [h.Class('wallet-validation'), h.Role('alert')],
-            [
-              `History failed: ${model.transactionHistory.failure.operation} · ${model.transactionHistory.failure.code}`,
-            ],
+            walletFailureLines(model.transactionHistory.failure),
           ),
         ]
       : []

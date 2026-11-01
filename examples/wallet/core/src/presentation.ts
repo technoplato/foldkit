@@ -659,6 +659,21 @@ const walletFailureWords = (failure: WalletFailure): string => {
         ? 'The network refused this send. Nothing was sent.'
         : 'The network did not answer, so this send may still land. Check your activity before you send it again.',
     ),
+    M.whenOr(
+      'LoadPortfolio',
+      'RefreshBalances',
+      () => 'Balances could not be read just now. Try again in a moment.',
+    ),
+    M.when(
+      'LoadTransactionHistory',
+      () => 'Recent activity could not be read just now.',
+    ),
+    M.when(
+      'ObserveTransactions',
+      () =>
+        'The wallet stopped listening to the chain, and is trying again by itself.',
+    ),
+    M.when('RequestTestFunding', () => 'Test funds could not be requested.'),
     M.orElse(() => walletFailureCode(failure)),
   )
 }
