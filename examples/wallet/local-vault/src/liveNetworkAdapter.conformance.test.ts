@@ -446,6 +446,12 @@ const fakeFetch = vi.fn(
       if (request.method === 'getFeeForMessage') {
         return jsonResponse({ result: { value: 5_000 } })
       }
+      if (request.method === 'getAccountInfo') {
+        return jsonResponse({ result: { value: null } })
+      }
+      if (request.method === 'getMinimumBalanceForRentExemption') {
+        return jsonResponse({ result: 890_880 })
+      }
       if (request.method === 'sendTransaction') {
         fakeTransport.submittedTransactionId = solanaTransactionId
         return jsonResponse({ result: solanaTransactionId })
