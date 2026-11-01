@@ -2,8 +2,10 @@ import { Array, Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 import {
+  FailedTransactionHistory,
   LoadTransactionHistory,
   Model,
+  NetworkFailure,
   ObservingTransactions,
   PortfolioSnapshot,
   ReceivingInstruction,
@@ -362,6 +364,34 @@ describe('Wallet words a person reads', () => {
       Scene.expect(Scene.selector('.wallet-small-amount-label')).toContainText(
         'Small test amount: ',
       ),
+    )
+  })
+
+  test('say what failed, never an internal code', () => {
+    const failure = NetworkFailure.make({
+      operation: 'LoadTransactionHistory',
+      code: 'Unavailable',
+    })
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(
+        Model.make({
+          ...loadedModel([simulatedWallet]),
+          transactionHistory: FailedTransactionHistory.make({
+            query: TransactionHistoryQuery.make({
+              accountId: 'wallet-1:solana:devnet',
+              networkId: 'solana:devnet',
+              maybeCursor: Option.none(),
+              limit: 10,
+            }),
+            failure,
+          }),
+        }),
+      ),
+      Scene.expect(
+        Scene.text('Recent activity could not be read just now.'),
+      ).toExist(),
+      Scene.expect(Scene.text('LoadTransactionHistory')).toBeAbsent(),
     )
   })
 

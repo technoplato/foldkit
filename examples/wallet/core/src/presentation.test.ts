@@ -142,6 +142,27 @@ describe('wallet presentation', () => {
       ).toEqual([
         'This recipient could not be checked. Nothing was sent. Try again.',
       ])
+      expect(
+        walletFailureLines(networkFailure('RefreshBalances', 'Unavailable')),
+      ).toEqual(['Balances could not be read just now. Try again in a moment.'])
+      expect(
+        walletFailureLines(networkFailure('LoadPortfolio', 'InvalidResponse')),
+      ).toEqual(['Balances could not be read just now. Try again in a moment.'])
+      expect(
+        walletFailureLines(
+          networkFailure('LoadTransactionHistory', 'Unavailable'),
+        ),
+      ).toEqual(['Recent activity could not be read just now.'])
+      expect(
+        walletFailureLines(
+          networkFailure('ObserveTransactions', 'Unavailable'),
+        ),
+      ).toEqual([
+        'The wallet stopped listening to the chain, and is trying again by itself.',
+      ])
+      expect(
+        walletFailureLines(networkFailure('RequestTestFunding', 'Rejected')),
+      ).toEqual(['Test funds could not be requested.'])
     })
   })
 
