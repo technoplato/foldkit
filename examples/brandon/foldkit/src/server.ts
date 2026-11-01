@@ -3,7 +3,9 @@ import {
   Games,
   Page,
   type SectionKey,
+  WalletActivity,
   WalletAddresses,
+  type WalletPublicAccount,
 } from 'brandon-core-example'
 import { Effect, Layer, Schema as S } from 'effect'
 import { WalletVaultError } from 'wallet-core-example'
@@ -29,6 +31,29 @@ const readJson = <A>(
         throw new Error(notAllowed)
       }
       return decode(await response.json())
+    },
+    catch: cause => (cause instanceof Error ? cause.message : String(cause)),
+  }).pipe(
+    Effect.timeoutOrElse({
+      duration: answerWithin,
+      orElse: () => Effect.fail(unanswered),
+    }),
+  )
+
+const accountPathOf = ({ networkId, address }: WalletPublicAccount): string =>
+  `/api/wallet/accounts/${encodeURIComponent(networkId)}/${encodeURIComponent(address)}`
+
+const followAccount = (account: WalletPublicAccount): Effect.Effect<void, string> =>
+  Effect.tryPromise({
+    try: async signal => {
+      const response = await fetch(accountPathOf(account), {
+        method: 'PUT',
+        cache: 'no-store',
+        signal,
+      })
+      if (!response.ok) {
+        throw new Error(notAllowed)
+      }
     },
     catch: cause => (cause instanceof Error ? cause.message : String(cause)),
   }).pipe(
@@ -69,6 +94,12 @@ export const liveBrandonServer: Layer.Layer<BrandonServer> = Layer.succeed(
     loadPage: readJson('/api/page', S.decodeUnknownSync(Page)),
     loadFootball: readJson('/api/football', S.decodeUnknownSync(Games)),
     loadWallets: readJson('/api/wallets', S.decodeUnknownSync(WalletAddresses)),
+    loadWalletActivity: readJson(
+      '/api/wallet/activity',
+      S.decodeUnknownSync(WalletActivity),
+    ),
+    watchWalletAccounts: accounts =>
+      Effect.forEach(accounts, followAccount, { discard: true }),
     scrollToSection,
     reloadPage: Effect.sync(() => {
       window.location.reload()

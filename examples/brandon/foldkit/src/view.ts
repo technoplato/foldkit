@@ -6,13 +6,22 @@ import {
   type Player,
   type Section,
   type SyncedBrandonModel,
+  type WalletActivityEntry,
   type WalletAddress,
   type WalletTransaction,
+  activityInMode,
   rankedPlayers,
   solOfLamports,
+  walletActivityAmountLabel,
+  walletActivityNetworkLabel,
 } from 'brandon-core-example'
 import { Array, Match as M, Option, String as Str } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
+import {
+  type Model as WalletModel,
+  shortenedAddress,
+  walletNetworkModeLabel,
+} from 'wallet-core-example'
 import { makeWalletView } from 'wallet-foldkit-example/view'
 import { freshWalletHostOrigin } from 'wallet-qr-example'
 
@@ -175,18 +184,151 @@ const walletView = makeWalletView({
   isAdvancedShown: false,
 })
 
+const activityTimeFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+})
+
+const activityHeadline = (entry: WalletActivityEntry): string =>
+  M.value(entry.direction).pipe(
+    M.withReturnType<string>(),
+    M.when('Incoming', () => `Received ${walletActivityAmountLabel(entry)}`),
+    M.when('Outgoing', () => `Sent ${walletActivityAmountLabel(entry)}`),
+    M.exhaustive,
+  )
+
+const activityStatus = (entry: WalletActivityEntry): string =>
+  M.value(entry.status).pipe(
+    M.withReturnType<string>(),
+    M.when('Pending', () => 'Pending'),
+    M.when('Failed', () => 'Failed'),
+    M.when('Confirmed', () =>
+      Option.contains(entry.maybeFinality, 'Final') ? 'Final' : 'Confirmed',
+    ),
+    M.exhaustive,
+  )
+
+const activityCounterparty = (entry: WalletActivityEntry): ReadonlyArray<Html> =>
+  Option.match(entry.maybeCounterpartyAddress, {
+    onNone: () => [],
+    onSome: address => [
+      h.code(
+        [],
+        [
+          `${entry.direction === 'Incoming' ? 'from' : 'to'} ${shortenedAddress(address)}`,
+        ],
+      ),
+    ],
+  })
+
+const activityRow = (entry: WalletActivityEntry): Html =>
+  h.keyed('li')(
+    `${entry.networkId}|${entry.transactionId}`,
+    [h.Class(`wallet-activity-row is-${entry.status.toLowerCase()}`)],
+    [
+      h.div(
+        [h.Class('wallet-activity-headline')],
+        [
+          h.strong([], [activityHeadline(entry)]),
+          h.span([h.Class('wallet-activity-status')], [activityStatus(entry)]),
+        ],
+      ),
+      h.div(
+        [h.Class('wallet-activity-detail')],
+        [
+          h.span([], [walletActivityNetworkLabel(entry)]),
+          h.span([], [activityTimeFormat.format(entry.observedAtMs)]),
+          ...activityCounterparty(entry),
+        ],
+      ),
+    ],
+  )
+
+const activityRows = (
+  entries: ReadonlyArray<WalletActivityEntry>,
+  walletModel: WalletModel,
+): Html => {
+  const shown = activityInMode(entries, walletModel.walletNetworkMode)
+  return Array.isReadonlyArrayEmpty(shown)
+    ? h.p(
+        [h.Class('note')],
+        [
+          `No ${walletNetworkModeLabel(walletModel.walletNetworkMode)} activity yet. A payment to your wallet shows up here by itself.`,
+        ],
+      )
+    : h.ul([h.Class('wallet-activity-rows')], Array.map(shown, activityRow))
+}
+
+const walletWatchNote = (model: Model): ReadonlyArray<Html> =>
+  M.value(model.walletWatch).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tagsExhaustive({
+      PendingWalletWatch: () => [],
+      ConfirmedWalletWatch: () => [],
+      FailedWalletWatch: () => [
+        h.p(
+          [h.Class('note')],
+          [
+            'This site could not start following this wallet, so a new payment may not show here until you reload. Your balance above still reads the chain.',
+          ],
+        ),
+      ],
+    }),
+  )
+
+const walletActivity = (model: Model, walletModel: WalletModel): Html =>
+  h.div(
+    [
+      h.Class(
+        walletModel.walletNetworkMode === 'Live'
+          ? 'wallet-activity is-mainnet'
+          : 'wallet-activity',
+      ),
+    ],
+    [
+      h.h3([], ['Activity']),
+      ...walletWatchNote(model),
+      ...M.value(model.walletActivity).pipe(
+        M.withReturnType<ReadonlyArray<Html>>(),
+        M.tagsExhaustive({
+          LoadingWalletActivity: () => [
+            h.p([h.Class('note')], ['Reading your activity']),
+          ],
+          LoadedWalletActivity: ({ entries }) => [
+            activityRows(entries, walletModel),
+          ],
+          UnavailableWalletActivity: ({ entries }) => [
+            h.p(
+              [h.Class('note')],
+              [
+                'Your activity could not be read just now. These are the last rows this page got.',
+              ],
+            ),
+            activityRows(entries, walletModel),
+          ],
+        }),
+      ),
+    ],
+  )
+
 const personalWallet = (model: Model): Html =>
   M.value(model.wallet).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
       ClosedWallet: () => h.p([h.Class('note')], ['Opening your wallet']),
       OpenWallet: ({ model: walletModel }) =>
-        h.submodel({
-          slotId: 'wallet',
-          model: walletModel,
-          view: walletView,
-          toParentMessage: message => GotWalletMessage({ message }),
-        }),
+        h.div(
+          [],
+          [
+            h.submodel({
+              slotId: 'wallet',
+              model: walletModel,
+              view: walletView,
+              toParentMessage: message => GotWalletMessage({ message }),
+            }),
+            walletActivity(model, walletModel),
+          ],
+        ),
     }),
   )
 

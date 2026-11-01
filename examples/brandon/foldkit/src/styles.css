@@ -233,6 +233,64 @@ aside {
   color: var(--muted);
 }
 
+.wallet-activity {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+}
+
+.wallet-activity.is-mainnet {
+  border-color: #ff5a52;
+}
+
+.wallet-activity h3 {
+  margin: 0 0 8px;
+}
+
+.wallet-activity .note {
+  margin-bottom: 8px;
+}
+
+.wallet-activity-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wallet-activity-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.wallet-activity-headline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.wallet-activity-status {
+  color: var(--muted);
+}
+
+.wallet-activity-row.is-pending .wallet-activity-status {
+  color: var(--accent);
+}
+
+.wallet-activity-row.is-failed .wallet-activity-status {
+  color: #ff5a52;
+}
+
+.wallet-activity-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 @media (min-width: 720px) {
   .top {
     grid-template-columns: repeat(2, minmax(0, 1fr));
