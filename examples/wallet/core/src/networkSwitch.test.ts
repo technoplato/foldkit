@@ -33,7 +33,12 @@ import {
   ValidatedTransfer,
   initialModel,
 } from './model.js'
-import { primaryWalletBalanceLabel } from './presentation.js'
+import {
+  primaryWalletBalanceLabel,
+  primaryWalletSuggestedTestTransferAmount,
+  primaryWalletSuggestedTestTransferLabel,
+  transferPreviewReadinessLabel,
+} from './presentation.js'
 import { SendNetworkSelection } from './sendNetworkSelection.js'
 import { update } from './update.js'
 import { LoadedWalletProfiles, WalletProfile } from './walletProfile.js'
@@ -201,6 +206,46 @@ describe('a host that heard of a new transaction', () => {
 
     expect(commands).toEqual([])
     expect(waitingModel).toEqual(initialModel)
+  })
+})
+
+describe('the small test amount', () => {
+  it('is offered on a test network', () => {
+    expect(
+      Option.isSome(primaryWalletSuggestedTestTransferAmount(devnetModel)),
+    ).toBe(true)
+    expect(
+      Option.isSome(primaryWalletSuggestedTestTransferLabel(devnetModel)),
+    ).toBe(true)
+    expect(transferPreviewReadinessLabel(devnetModel)).toBe(
+      'Enter an amount or use the small test amount.',
+    )
+  })
+
+  it('is never offered on Mainnet, where nothing is a test', () => {
+    const [mainnetModel] = switchedToMainnet()
+    const [refreshedModel] = update(
+      mainnetModel,
+      SucceededRefreshWalletBalances.make({
+        walletIds: [wallet.walletId],
+        balanceSnapshot: BalanceSnapshot.make({
+          observedAt: 2,
+          balances: [
+            balanceOf(devnet, '2000000000', 2),
+            balanceOf(mainnet, '7000000000', 2),
+          ],
+        }),
+      }),
+    )
+    expect(primaryWalletSuggestedTestTransferAmount(refreshedModel)).toEqual(
+      Option.none(),
+    )
+    expect(primaryWalletSuggestedTestTransferLabel(refreshedModel)).toEqual(
+      Option.none(),
+    )
+    expect(transferPreviewReadinessLabel(refreshedModel)).toBe(
+      'Enter an amount.',
+    )
   })
 })
 

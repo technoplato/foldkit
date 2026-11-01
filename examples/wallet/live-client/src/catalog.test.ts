@@ -1,6 +1,7 @@
 import { Array, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
+  ExternalTestFundingMethod,
   TransactionHistoryQuery,
   maximumTransactionHistoryPageSize,
 } from 'wallet-core-example'
@@ -71,8 +72,6 @@ describe('live Wallet catalog', () => {
 
     expect(adapterNetworkIds).toEqual([
       'ethereum:anvil',
-      'solana:devnet',
-      'solana:testnet',
       'sui:devnet',
       'sui:testnet',
     ])
@@ -80,7 +79,21 @@ describe('live Wallet catalog', () => {
       'bitcoin:signet',
       'bitcoin:testnet4',
       'ethereum:sepolia',
+      'solana:devnet',
+      'solana:testnet',
     ])
+  })
+
+  it("sends a Solana test network to the Foundation's faucet, since its RPC faucet answers 410", () => {
+    const solanaDevnet = liveWalletNetworkDescriptors.find(
+      network => network.networkId === 'solana:devnet',
+    )
+    expect(solanaDevnet?.testFundingMethod).toEqual(
+      ExternalTestFundingMethod.make({
+        providerName: 'Solana Faucet',
+        providerUrl: 'https://faucet.solana.com',
+      }),
+    )
   })
 
   it('keeps each funding method aligned with its advertised capability', () => {

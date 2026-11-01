@@ -355,6 +355,16 @@ describe('Wallet Foldkit client', () => {
 })
 
 describe('Wallet words a person reads', () => {
+  test('name the small test amount, so it never reads as the amount typed', () => {
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(loadedModel([simulatedWallet])),
+      Scene.expect(Scene.selector('.wallet-small-amount-label')).toContainText(
+        'Small test amount: ',
+      ),
+    )
+  })
+
   test('say whether the wallet is listening to the chain, in words', () => {
     const listening = Model.make({
       ...loadedModel([simulatedWallet]),
