@@ -7,6 +7,7 @@ import {
   Finality,
   type WatchedAccount,
   WatchedNetworkId,
+  ownerUserIdOfHolder,
 } from './activity.js'
 import type { BrandonEnv } from './env.js'
 import type { ActivityStore } from './watcher.js'
@@ -91,7 +92,6 @@ export type ActivityAdmin = ActivityStore &
  */
 export const makeActivityAdmin = (config: BrandonEnv): ActivityAdmin => {
   const admin = init({ appId: config.appId, adminToken: config.adminToken })
-  const owned = { ownerUserID: config.ownerUserID, formatVersion }
   const accountIds = new Map<string, string>()
 
   const run = <A>(work: () => Promise<A>): Effect.Effect<A, Error> =>
@@ -158,7 +158,11 @@ export const makeActivityAdmin = (config: BrandonEnv): ActivityAdmin => {
               row.transactionKey,
             )
               .update({
-                ...owned,
+                ownerUserID: ownerUserIdOfHolder(
+                  account.holder,
+                  config.ownerUserID,
+                ),
+                formatVersion,
                 transactionId: row.transactionId,
                 networkId: row.networkId,
                 direction: row.direction,

@@ -71,6 +71,27 @@ export const transactionKeyOf = (
   transactionId: string,
 ): string => `${accountKey}|${transactionId}`
 
+const scribeHolderPrefix = 'scribe:'
+
+/**
+ * Who owns an account's rows. A Scribe holder names its signed-in user,
+ * and the rules let a client read a row only when the row's owner is that
+ * user, so `scribe:2fd17171-…` owns as `2fd17171-…`. A Brandon dot
+ * person's rows stay under the origin's owner, where no client reads them.
+ *
+ * @example
+ * ```typescript
+ * ownerUserIdOfHolder(`scribe:${userId}`, originOwnerUserId) // userId
+ * ```
+ */
+export const ownerUserIdOfHolder = (
+  holder: string,
+  originOwnerUserId: string,
+): string =>
+  holder.startsWith(scribeHolderPrefix)
+    ? holder.slice(scribeHolderPrefix.length)
+    : originOwnerUserId
+
 const finalityOfStatus = (status: TransactionStatus): Finality =>
   M.value(status).pipe(
     M.withReturnType<Finality>(),
