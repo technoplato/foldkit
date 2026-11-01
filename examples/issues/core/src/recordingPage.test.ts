@@ -221,7 +221,7 @@ const catalog = [
 const pageOf = (entity: PageEntity, facts: PageFacts): Model =>
   [
     ObservedIssues.make({ issues: catalog }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ObservedPageFacts.make({ entity, facts }),
   ].reduce(
     (model, message) => update(model, message)[0],

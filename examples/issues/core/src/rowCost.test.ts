@@ -181,7 +181,7 @@ const reminders = remindersOf({
 
 const opened = (path: string, ...messages: ReadonlyArray<Message>): Model =>
   [
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ...messages,
   ].reduce((model, message) => update(model, message)[0], loadedAt(path))
 

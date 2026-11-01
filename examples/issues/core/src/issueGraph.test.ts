@@ -165,7 +165,7 @@ const graph = issueGraphOf(storedGraph)
 
 const page = (): Model =>
   [
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ObservedIssues.make({ issues: [issue] }),
     ObservedIssue.make({ issue: Option.some(issue), issueId: '1538' }),
     ObservedIssueGraph.make({ graph, issueId: '1538' }),

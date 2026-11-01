@@ -22,6 +22,7 @@ import {
   entityKey,
   issuesOfPage,
   linksOfIssue,
+  recordingNumbersOf,
 } from './entityGraph.js'
 
 const RECORDING_ID = 'faa684c2-34e4-47e5-8f9b-3b2196da9463'
@@ -205,3 +206,38 @@ describe('the entity graph', () => {
     expect(entityKey(IssueEntity.make({ issueId: '1358' }))).toBe('issue:1358')
   })
 })
+
+const issueQuoting = (id: string, quote: string): Issue =>
+  Issue.make({
+    ...base,
+    id,
+    mentions: [
+      IssueMention.make({
+        capturedAtMs: Option.none(),
+        directQuote: Option.some(quote),
+        id: `mention-${id}`,
+        issueId: id,
+        reporter: Option.none(),
+        source: UriReference.make({ value: `https://example.com/${id}` }),
+      }),
+    ],
+  })
+
+describe('Recording numbers that name more than one Recording', () => {
+  it('turns a number into an id only when one Recording has it, and says which share it', () => {
+    const first = '11111111-1111-4111-8111-111111111111'
+    const second = '22222222-2222-4222-8222-222222222222'
+    const only = '33333333-3333-4333-8333-333333333333'
+    const numbers = recordingNumbersOf([
+      issueQuoting('100', `Recording 020 (${first}) #4`),
+      issueQuoting('101', `Recording 20 (${second}) #9`),
+      issueQuoting('102', `Recording 208 (${only}) #2735`),
+    ])
+
+    expect(numbers.idOfNumber.get(20)).toBeUndefined()
+    expect(numbers.idOfNumber.get(208)).toBe(only)
+    expect(numbers.idsOfNumber.get(20)).toEqual([first, second])
+    expect(numbers.numberOfId.get(second)).toBe(20)
+  })
+})
+

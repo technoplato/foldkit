@@ -13,6 +13,7 @@ import { describe, it } from '@effect/vitest'
 
 import { m } from '../message/index.js'
 import { make } from '../program/program.js'
+import { computeDiff } from './diff.js'
 import {
   fromCommand,
   fromHost,
@@ -53,6 +54,41 @@ const Program = make({
 })
 
 describe('Program journal', () => {
+  it('works out what a transition changed only when something reads it, once', () => {
+    let modelReads = 0
+    const counted = (model: Model): Model =>
+      new Proxy(model, {
+        get: (target, key, receiver) => {
+          modelReads += 1
+          return Reflect.get(target, key, receiver)
+        },
+      })
+    const journal = makeProgramJournal({
+      program: Program,
+      initialModel: counted(Model.make({ count: 0 })),
+      now: () => 10,
+    })
+
+    journal.record({
+      message: IncrementedDirectly(),
+      source: fromHost('increment-directly'),
+      isOperationSettled: true,
+      commands: [],
+      model: counted(Model.make({ count: 1 })),
+    })
+
+    expect(modelReads).toBe(0)
+    const [transition] = journal.read().transitions
+    const diff = transition?.diff
+    expect(modelReads).toBeGreaterThan(0)
+    expect(diff).toStrictEqual(
+      computeDiff(Model.make({ count: 0 }), Model.make({ count: 1 })),
+    )
+    const readsAfterFirst = modelReads
+    expect(transition?.diff).toBe(diff)
+    expect(modelReads).toBe(readsAfterFirst)
+  })
+
   it('publishes every transition while pruning retained history only at a settled boundary', () => {
     const journal = makeProgramJournal({
       program: Program,

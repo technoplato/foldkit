@@ -24,7 +24,7 @@ const SHORT_SHA_LENGTH = 9
 const WORDS_ORIGIN = 'https://words.pisspoursoftware.xyz'
 
 /** The reader's clock, read once a minute. */
-export type ChipClock = Readonly<{ nowMs: number; offsetMinutes: number }>
+export type ChipClock = Readonly<{ nowMs: number; timeZone: string }>
 
 /**
  * A time as a person reads it: `2026-10-30 09:00 (2 days ago)`, or just the
@@ -32,8 +32,8 @@ export type ChipClock = Readonly<{ nowMs: number; offsetMinutes: number }>
  */
 export const whenWordsOn = (atMs: number, clock: ChipClock): string =>
   clock.nowMs === 0
-    ? localTimeLabel(atMs, clock.offsetMinutes)
-    : `${localTimeLabel(atMs, clock.offsetMinutes)} (${howLongAgo(atMs, clock.nowMs)})`
+    ? localTimeLabel(atMs, clock.timeZone)
+    : `${localTimeLabel(atMs, clock.timeZone)} (${howLongAgo(atMs, clock.nowMs)})`
 
 /** A build's chip: `Scribe 0.1 (217)`, its state, and a hover with when and its tag. */
 export const buildChip = (build: LandedBuild, clock: ChipClock): TextPart =>

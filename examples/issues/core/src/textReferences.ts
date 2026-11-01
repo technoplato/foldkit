@@ -247,7 +247,16 @@ type Found = Readonly<{
   maybeLabel: Option.Option<string>
 }>
 
-type Reading = Readonly<{ lastRecording: Option.Option<RecordingContext> }>
+/**
+ * What the text read so far says about what comes next: the Recording named
+ * last, and, right after one of its lines, where that line ended, so
+ * `Recording 039 #17, #823, #880` reads #823 and #880 as more of its lines.
+ */
+type Reading = Readonly<{
+  lastRecording: Option.Option<RecordingContext>
+  maybeLineListEnd: Option.Option<number>
+  text: string
+}>
 
 type RecordingContext = Readonly<{
   maybeRecordingNumber: Option.Option<number>
@@ -265,6 +274,26 @@ type Rule = Readonly<{
 
 const found = (reference: TextReference): Option.Option<Found> =>
   Option.some({ reference, maybeLabel: Option.none() })
+
+/** Words that carry a list of line numbers on: `, `, ` and `, `, and `, ` & `. */
+const LINE_LIST_SEPARATOR = /^\s*(?:,\s*(?:and\s+)?|and\s+|&\s*)$/
+
+/** One more line of the Recording named last, `#823` read as its line 823. */
+const lineOfLastRecording = (
+  reading: Reading,
+  first: string | undefined,
+  last: string | undefined,
+): Option.Option<Found> =>
+  Option.flatMap(reading.lastRecording, recording =>
+    Option.map(recording.maybeRecordingNumber, recordingNumber => ({
+      reference: RecordingLines.make({
+        recordingNumber,
+        maybeRecordingId: recording.maybeRecordingId,
+        maybeLineRange: lineRangeOf(first, last),
+      }),
+      maybeLabel: Option.none(),
+    })),
+  )
 
 const lineRangeOf = (
   first: string | undefined,
@@ -498,7 +527,22 @@ const rules: ReadonlyArray<Rule> = [
     },
   },
   {
-    pattern: /(?<![\w#&/])#(\d{3,4})\b(?!\s*[-–]\s*#?\d)/g,
+    pattern: /(?<![\w#&/])#(\d+)\b(?!\s*[-–]\s*#?\d)/g,
+    read: (match, _matchedText, reading) =>
+      Option.flatMap(
+        Option.filter(reading.maybeLineListEnd, listEnd =>
+          LINE_LIST_SEPARATOR.test(reading.text.slice(listEnd, match.index)),
+        ),
+        () => lineOfLastRecording(reading, match[1], undefined),
+      ),
+  },
+  {
+    pattern: /\blines?\s+#(\d+)(?:\s*[-–]\s*#?(\d+))?\b/g,
+    read: (match, _matchedText, reading) =>
+      lineOfLastRecording(reading, match[1], match[2]),
+  },
+  {
+    pattern: /(?<![\w#&/])(?<!\blines?\s+)#(\d{3,4})\b(?!\s*[-–]\s*#?\d)/g,
     read: match =>
       Option.map(normalizeIssueId(match[1] ?? ''), issueId => ({
         reference: IssueNumber.make({ issueId }),
@@ -561,23 +605,31 @@ type Scan = Readonly<{
   reading: Reading
 }>
 
-const readingAfter = (reading: Reading, reference: TextReference): Reading => {
+const readingAfter = (
+  reading: Reading,
+  reference: TextReference,
+  end: number,
+): Reading => {
   if (reference._tag === 'RecordingLines') {
     return {
+      ...reading,
       lastRecording: Option.some({
         maybeRecordingNumber: Option.some(reference.recordingNumber),
         maybeRecordingId: reference.maybeRecordingId,
       }),
+      maybeLineListEnd: Option.map(reference.maybeLineRange, () => end),
     }
   } else if (reference._tag === 'RecordingId') {
     return {
+      ...reading,
       lastRecording: Option.some({
         maybeRecordingNumber: Option.none(),
         maybeRecordingId: Option.some(reference.recordingId),
       }),
+      maybeLineListEnd: Option.none(),
     }
   }
-  return reading
+  return { ...reading, maybeLineListEnd: Option.none() }
 }
 
 const scanCandidate =
@@ -600,7 +652,7 @@ const scanCandidate =
             Referenced.make({ text: matchedText, maybeLabel, reference }),
           ],
           cursor: candidate.end,
-          reading: readingAfter(scan.reading, reference),
+          reading: readingAfter(scan.reading, reference, candidate.end),
         }),
       },
     )
@@ -609,7 +661,15 @@ const scanCandidate =
 const readUncached = (text: string): ReadonlyArray<TextPiece> => {
   const scanned = Array.reduce(
     candidatesIn(text),
-    { pieces: [], cursor: 0, reading: { lastRecording: Option.none() } },
+    {
+      pieces: [],
+      cursor: 0,
+      reading: {
+        lastRecording: Option.none(),
+        maybeLineListEnd: Option.none(),
+        text,
+      },
+    },
     scanCandidate(text),
   )
   return scanned.cursor < text.length

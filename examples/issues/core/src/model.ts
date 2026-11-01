@@ -821,12 +821,12 @@ export const SelectionRun = S.Struct({
 export type SelectionRun = typeof SelectionRun.Type
 
 /**
- * The reader's clock, read once a minute: the time and the offset of their
- * time zone from UTC in minutes, -300 on Eastern Standard Time. `nowMs` is 0
- * until the first reading, and pages show dates until then instead of how
- * long ago things were.
+ * The reader's clock, read once a minute: the time and their time zone,
+ * `America/New_York`, so each date reads in the offset its own day had.
+ * `nowMs` is 0 until the first reading, and pages show dates until then
+ * instead of how long ago things were.
  */
-export const Clock = S.Struct({ nowMs: S.Number, offsetMinutes: S.Number })
+export const Clock = S.Struct({ nowMs: S.Number, timeZone: S.String })
 /** The reader's clock, read once a minute. */
 export type Clock = typeof Clock.Type
 

@@ -63,7 +63,7 @@ const featureListNodes = (
   const context = chipContextOf(
     loadedIssuesIn(model),
     model.clock.nowMs,
-    model.clock.offsetMinutes,
+    model.clock.timeZone,
     chipFactsOf(model),
   )
   const removed = Array.filter(

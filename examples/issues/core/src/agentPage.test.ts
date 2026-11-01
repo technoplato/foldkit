@@ -194,7 +194,7 @@ const catalog: ReadonlyArray<Issue> = [
 const pageOf = (entity: AgentEntity, pageFacts: PageFacts): Model =>
   [
     ObservedIssues.make({ issues: catalog }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ObservedPageFacts.make({ entity, facts: pageFacts }),
   ].reduce(
     (model, message) => update(model, message)[0],
@@ -421,7 +421,7 @@ describe('a session’s page, from Scribe’s rows', () => {
       agentSessions: [{ ...storedSession, run: [storedChild] }],
     })
     const model = [
-      TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+      TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
       ObservedIssues.make({ issues: catalog }),
       ObservedPageFacts.make({
         entity,
@@ -451,7 +451,7 @@ describe('a session’s page, from Scribe’s rows', () => {
 describe('an agent’s chip anywhere', () => {
   const issuePage = (runs: ReadonlyArray<unknown>): Model =>
     [
-      TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+      TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
       ObservedIssues.make({ issues: catalog }),
       ObservedIssue.make({
         issue: Array.head(catalog),

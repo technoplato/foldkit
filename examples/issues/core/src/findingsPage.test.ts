@@ -135,7 +135,7 @@ const listAt = (
   [
     ObservedIssues.make({ issues: catalog }),
     ObservedProducts.make({ products: [scribe, foldkit] }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ObservedFindings.make({ findings: rows }),
   ].reduce(
     (model, message) => update(model, message)[0],
@@ -341,7 +341,7 @@ describe('a finding’s own page', () => {
   it('shows its words, its run with state, and its date', () => {
     const model = [
       ObservedIssues.make({ issues: catalog }),
-      TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+      TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
       ObservedPageFacts.make({ entity, facts: Option.getOrThrow(facts) }),
     ].reduce(
       (current, message) => update(current, message)[0],

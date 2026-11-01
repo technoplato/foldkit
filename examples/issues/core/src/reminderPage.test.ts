@@ -158,7 +158,7 @@ const opened = (
 ): Model =>
   [
     ObservedIssues.make({ issues: catalog }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ...messages,
   ].reduce(
     (model, message) => update(model, message)[0],
@@ -181,7 +181,7 @@ const chipsOfText = (
   facts: ChipFacts = noChipFacts,
 ): ReadonlyArray<ReferencePart> =>
   Array.filter(
-    partsOfText(text, chipContextOf(catalog, NOW_MS, -300, facts)),
+    partsOfText(text, chipContextOf(catalog, NOW_MS, 'America/New_York', facts)),
     (part): part is ReferencePart => part._tag === 'Reference',
   )
 

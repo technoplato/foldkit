@@ -162,7 +162,7 @@ const shell = (): ReadonlyArray<
   | typeof ObservedBuilds.Type
 > => [
   ObservedIssues.make({ issues: catalog }),
-  TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+  TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
   ObservedBuilds.make({ builds }),
 ]
 
@@ -321,7 +321,7 @@ describe('one feature’s page', () => {
       expect.stringContaining('From the live tail you can scroll'),
     )
     expect(contents).toContainEqual(
-      expect.stringContaining('2026-10-31 12:00 (1 day ago)'),
+      expect.stringContaining('2026-10-31 13:00 (1 day ago)'),
     )
     expect(contents).toContainEqual(expect.stringContaining('FEATURES 3'))
     expect(

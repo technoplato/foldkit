@@ -389,9 +389,14 @@ export const linksOfIssue = (issue: Issue): ReadonlyArray<IssueLink> =>
 const RECORDING_NUMBER_AND_ID =
   /\bRecording\s+0*(\d{1,4})\s*(?:\(|=)\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi
 
-/** Which Recording number is which id, as the catalog's mentions say. */
+/**
+ * Which Recording number is which id, as the catalog's mentions say. A number
+ * is an id only when one Recording has it: his numbering starts again, so
+ * Recording 20 can be two Recordings, and `idsOfNumber` says which.
+ */
 export type RecordingNumbers = Readonly<{
   idOfNumber: ReadonlyMap<number, string>
+  idsOfNumber: ReadonlyMap<number, ReadonlyArray<string>>
   numberOfId: ReadonlyMap<string, number>
 }>
 
@@ -423,23 +428,42 @@ const numbersMemo = new WeakMap<ReadonlyArray<Issue>, RecordingNumbers>()
 /**
  * Which Recording number is which id, read from the mentions' words, such as
  * `Recording 208 (faa684c2-34e4-47e5-8f9b-3b2196da9463) #2735`: a reader
- * labels a words link `Recording 208` and finds Recording 208's page. Each
- * Issue's pairs are read once, so a live change reads only the Issue it
- * changed.
+ * labels a words link `Recording 208` and finds Recording 208's page. A
+ * number two Recordings share turns into neither. Each Issue's pairs are read
+ * once, so a live change reads only the Issue it changed.
  */
 export const recordingNumbersOf = (
   issues: ReadonlyArray<Issue>,
 ): RecordingNumbers =>
   Option.getOrElse(Option.fromUndefinedOr(numbersMemo.get(issues)), () => {
-    const idOfNumber = new Map<number, string>()
+    const idsOfNumber = new Map<number, Array<string>>()
     const numberOfId = new Map<string, number>()
     for (const issue of issues) {
       for (const { recordingNumber, recordingId } of recordingPairsOf(issue)) {
-        idOfNumber.set(recordingNumber, recordingId)
+        const ids = Option.getOrElse(
+          Option.fromUndefinedOr(idsOfNumber.get(recordingNumber)),
+          () => {
+            const fresh: Array<string> = []
+            idsOfNumber.set(recordingNumber, fresh)
+            return fresh
+          },
+        )
+        if (!ids.includes(recordingId)) {
+          ids.push(recordingId)
+        }
         numberOfId.set(recordingId, recordingNumber)
       }
     }
-    const numbers = { idOfNumber, numberOfId }
+    const idOfNumber = new Map(
+      Array.getSomes(
+        Array.map(Array.fromIterable(idsOfNumber), ([recordingNumber, ids]) =>
+          ids.length === 1
+            ? Option.map(Array.head(ids), id => [recordingNumber, id] as const)
+            : Option.none(),
+        ),
+      ),
+    )
+    const numbers = { idOfNumber, idsOfNumber, numberOfId }
     numbersMemo.set(issues, numbers)
     return numbers
   })

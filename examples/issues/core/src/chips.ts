@@ -87,7 +87,7 @@ export type ChipContext = Readonly<{
   numbers: RecordingNumbers
   lines: LineIndex
   nowMs: number
-  offsetMinutes: number
+  timeZone: string
 }>
 
 /** A line number as the open Issue's words meant it, from Scribe's edges. */
@@ -436,7 +436,7 @@ const remindersByShortIdOf = (
 export const chipContextOf = (
   issues: ReadonlyArray<Issue>,
   nowMs: number,
-  offsetMinutes: number,
+  timeZone: string,
   facts: ChipFacts = noChipFacts,
 ): ChipContext => {
   const features = featureIndexOf(facts.features)
@@ -458,7 +458,7 @@ export const chipContextOf = (
     lines: lineIndexOf(issues),
     nowMs,
     numbers: recordingNumbersOf(issues),
-    offsetMinutes,
+    timeZone,
     productsById: productsByIdOf(issues),
   }
 }
@@ -487,7 +487,7 @@ const saidDetail = (
       shortened(said.quote, QUOTE_LIMIT),
       ...Option.toArray(
         Option.map(said.maybeAtMs, atMs =>
-          localTimeLabel(atMs, context.offsetMinutes),
+          localTimeLabel(atMs, context.timeZone),
         ),
       ),
     ],
@@ -514,7 +514,7 @@ const issueChip = (
           })} in ${issue.product.name}, updated ${whenLabel(
             issue.updatedAtMs,
             context.nowMs,
-            context.offsetMinutes,
+            context.timeZone,
           )}`,
           shortened(issue.title, QUOTE_LIMIT),
         ],
@@ -553,7 +553,7 @@ const buildDetail = (
   build: LandedBuild,
   context: ChipContext,
 ): ReadonlyArray<string> => [
-  `Built ${localTimeLabel(build.builtAtMs, context.offsetMinutes)}`,
+  `Built ${localTimeLabel(build.builtAtMs, context.timeZone)}`,
   ...Option.toArray(Option.map(build.maybeTag, tag => `Tag ${tag}`)),
   ...(isOnTestflight(build)
     ? [
@@ -588,7 +588,7 @@ const reminderOfId = (
 
 const clockOf = (context: ChipContext): ChipClock => ({
   nowMs: context.nowMs,
-  offsetMinutes: context.offsetMinutes,
+  timeZone: context.timeZone,
 })
 
 const rawIdChip = (id: string): TextPart =>
@@ -784,7 +784,7 @@ const referenceChip = (
             context.agentsByHandle.get(agentId) ??
               context.agentsByHandle.get(agentNameOfHandle(agentId)),
           ),
-          { nowMs: context.nowMs, offsetMinutes: context.offsetMinutes },
+          { nowMs: context.nowMs, timeZone: context.timeZone },
         ),
       BuildNumber: ({ maybeApp, maybeVersion, number }) => {
         const label = Option.match(Option.all([maybeApp, maybeVersion]), {
@@ -818,9 +818,9 @@ const referenceChip = (
       },
       Timestamp: ({ atMs }) =>
         Reference({
-          label: whenLabel(atMs, context.nowMs, context.offsetMinutes),
+          label: whenLabel(atMs, context.nowMs, context.timeZone),
           kind: 'Time',
-          detail: [localTimeLabel(atMs, context.offsetMinutes)],
+          detail: [localTimeLabel(atMs, context.timeZone)],
         }),
       ChatSession: ({ sessionId, maybeUrl }) =>
         Reference({

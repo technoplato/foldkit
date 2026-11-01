@@ -146,7 +146,7 @@ const storedCommit = {
 const pageOf = (entity: PageEntity, facts: PageFacts): Model =>
   [
     ObservedIssues.make({ issues: catalog }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ObservedPageFacts.make({ entity, facts }),
   ].reduce(
     (model, message) => update(model, message)[0],
@@ -172,7 +172,7 @@ describe('a build’s page, from Scribe’s rows', () => {
     const model = pageOf(entity, facts)
     const contents = contentsOf(model)
     expect(contents).toContain('Scribe 0.1 (217)')
-    expect(contents).toContainEqual(expect.stringContaining('2026-10-30 09:00'))
+    expect(contents).toContainEqual(expect.stringContaining('2026-10-30 10:00'))
     expect(contents).toContainEqual(
       expect.stringContaining('app/vakyume/0.1+217'),
     )
@@ -313,7 +313,7 @@ describe('a Recording’s and a line’s page, from Scribe’s rows', () => {
     const contents = contentsOf(model)
     expect(contents).toContain('Recording 322')
     expect(contents).toContainEqual(
-      expect.stringContaining('Started 2026-10-30 09:00'),
+      expect.stringContaining('Started 2026-10-30 10:00'),
     )
     expect(contents).toContainEqual(expect.stringContaining('8 h 57 min'))
     expect(
@@ -348,7 +348,7 @@ describe('a Recording’s and a line’s page, from Scribe’s rows', () => {
       expect.stringContaining('the issues project itself is a project'),
     )
     expect(contents).toContainEqual(
-      expect.stringContaining('Said 2026-10-30 09:00'),
+      expect.stringContaining('Said 2026-10-30 10:00'),
     )
     expect(
       chipsOf(model).some(

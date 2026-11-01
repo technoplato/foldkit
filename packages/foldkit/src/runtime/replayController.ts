@@ -188,13 +188,13 @@ export const makeReplayController = <
           runtimeEvents: state.session.readTape().runtimeEvents,
         }
       }
-      const tape = state.runtime.replay.readTape()
+      const frame = state.runtime.journal.read().transitions.length
       return {
         mode: 'Live',
         model: state.runtime.readModel(),
-        frame: tape.transitions.length,
-        finalFrame: tape.transitions.length,
-        runtimeEvents: tape.runtimeEvents,
+        frame,
+        finalFrame: frame,
+        runtimeEvents: state.runtime.timeline.read(),
       }
     }
 

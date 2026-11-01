@@ -49,6 +49,7 @@ import {
 import { type AgentRunChip, noIssueGraph } from './graphFacts.js'
 import { findingNodes } from './graphPageParts.js'
 import {
+  type IssueMoment,
   type IssueLanding,
   firstLandedBuild,
   firstTestflightBuild,
@@ -106,8 +107,9 @@ const PICTURE_HEIGHT = 520
 type PageContext = Readonly<{
   catalog: ReadonlyArray<Issue>
   chips: ChipContext
+  maybeMoments: Option.Option<ReadonlyArray<IssueMoment>>
   nowMs: number
-  offsetMinutes: number
+  timeZone: string
 }>
 
 const pageContextOf = (model: Model, issue: Issue): PageContext => {
@@ -118,17 +120,66 @@ const pageContextOf = (model: Model, issue: Issue): PageContext => {
     chips: chipContextOf(
       catalog,
       model.clock.nowMs,
-      model.clock.offsetMinutes,
+      model.clock.timeZone,
       chipFactsOf(model),
     ),
+    maybeMoments:
+      model.issueLanding._tag === 'LoadedIssueLanding'
+        ? Option.some(model.issueLanding.landing.moments)
+        : Option.none(),
     nowMs: model.clock.nowMs,
-    offsetMinutes: model.clock.offsetMinutes,
+    timeZone: model.clock.timeZone,
   }
+}
+
+/** Whose words an asked line is, as the rows say, when they have been read. */
+type AskedVoice = 'His' | 'Heard' | 'Unknown'
+
+/**
+ * Whether the lines a Recording mention quotes are his: any moment the rows
+ * hold over them that is another app's sound makes them heard, not said, as
+ * #625's Recording 222 #0-1, the video he had on. Before the rows are read, or
+ * when no moment covers the lines, the page says neither.
+ */
+const askedVoiceOf = (
+  recordingId: string,
+  line: MentionedLine,
+  context: PageContext,
+): AskedVoice =>
+  Option.match(
+    Option.flatMap(context.maybeMoments, moments =>
+      Option.map(line.lineRange, range =>
+        Array.filter(
+          moments,
+          moment =>
+            moment.recordingId === recordingId.toLowerCase() &&
+            moment.firstLineIndex <= range.last &&
+            range.first <= moment.lastLineIndex,
+        ),
+      ),
+    ),
+    {
+      onNone: () => 'Unknown',
+      onSome: covering =>
+        Array.match(covering, {
+          onEmpty: () => 'Unknown',
+          onNonEmpty: found =>
+            Array.some(found, moment => moment.kind === 'Seen')
+              ? 'Heard'
+              : 'His',
+        }),
+    },
+  )
+
+const askedLeadWords: Readonly<Record<AskedVoice, string>> = {
+  His: 'Michael said it in ',
+  Heard: 'Heard in ',
+  Unknown: 'In ',
 }
 
 const clockOf = (context: PageContext): ChipClock => ({
   nowMs: context.nowMs,
-  offsetMinutes: context.offsetMinutes,
+  timeZone: context.timeZone,
 })
 
 const chipped = (
@@ -139,8 +190,8 @@ const chipped = (
 
 const whenWords = (atMs: number, context: PageContext): string =>
   context.nowMs === 0
-    ? localTimeLabel(atMs, context.offsetMinutes)
-    : `${localTimeLabel(atMs, context.offsetMinutes)} (${howLongAgo(atMs, context.nowMs)})`
+    ? localTimeLabel(atMs, context.timeZone)
+    : `${localTimeLabel(atMs, context.timeZone)} (${howLongAgo(atMs, context.nowMs)})`
 
 const section = (
   heading: string,
@@ -202,8 +253,8 @@ const headerNodes = (
   Text(
     Array.join(
       [
-        `Filed ${whenLabel(issue.createdAtMs, context.nowMs, context.offsetMinutes)}`,
-        `updated ${whenLabel(issue.updatedAtMs, context.nowMs, context.offsetMinutes)}`,
+        `Filed ${whenLabel(issue.createdAtMs, context.nowMs, context.timeZone)}`,
+        `updated ${whenLabel(issue.updatedAtMs, context.nowMs, context.timeZone)}`,
         ...Option.toArray(
           Option.map(issue.reportedDate, reported => `reported ${reported}`),
         ),
@@ -279,7 +330,9 @@ const whoAskedNodes = (
   const said = M.value(mention.source).pipe(
     M.withReturnType<ReadonlyArray<TextPart>>(),
     M.tag('Recording', ({ recording }) => [
-      Plain('Michael said it in '),
+      Plain(
+        askedLeadWords[askedVoiceOf(recording.recordingId, line, context)],
+      ),
       segmentChip(mention, line, recording.recordingId, context),
       Plain(atWords),
     ]),
@@ -610,7 +663,7 @@ const workLogEntryNode = (
 ): UiNode =>
   RichText([
     Plain(
-      `${whenLabel(entry.occurredAtMs, context.nowMs, context.offsetMinutes)}  `,
+      `${whenLabel(entry.occurredAtMs, context.nowMs, context.timeZone)}  `,
     ),
     ...Option.match(entry.state, {
       onNone: () => [],
@@ -669,7 +722,7 @@ const recordingGroupNodes = (
       onNone: () => [],
       onSome: atMs => [
         Plain(
-          `  ${localTimeLabel(atMs, context.offsetMinutes).slice(0, ISO_DATE_LENGTH)}`,
+          `  ${localTimeLabel(atMs, context.timeZone).slice(0, ISO_DATE_LENGTH)}`,
         ),
       ],
     }),
@@ -728,7 +781,7 @@ const otherMentionNode = (
     ...Option.match(mention.capturedAtMs, {
       onNone: () => [],
       onSome: atMs => [
-        Plain(`  ${whenLabel(atMs, context.nowMs, context.offsetMinutes)}`),
+        Plain(`  ${whenLabel(atMs, context.nowMs, context.timeZone)}`),
       ],
     }),
   ])

@@ -137,7 +137,7 @@ const opened = (
 ): Model =>
   [
     ObservedIssues.make({ issues: [issue, plain] }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ObservedIssue.make({ issue: Option.some(open), issueId: open.id }),
     ...messages,
   ].reduce(

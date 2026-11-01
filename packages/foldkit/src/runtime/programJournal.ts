@@ -90,7 +90,9 @@ export type CommandRecord = Readonly<{
  * `updateDurationMs` is how long update took for this Message on the live
  * runtime, in milliseconds from a monotonic clock, such as `0.04`. A
  * transition restored from a replay tape has none, because update did not
- * run live for it.
+ * run live for it. `diff` is worked out from the Model before and after the
+ * first time something reads it, such as DevTools, and kept from then on:
+ * a Model of 1,500 Issues costs tens of milliseconds to compare.
  */
 export type Transition<Model, Message> = Readonly<{
   sequence: number
@@ -390,6 +392,8 @@ export const makeProgramJournal = <
     if (isShutdown) {
       return
     }
+    const previousModel = latestModel
+    let maybeDiff = Option.none<DiffResult>()
     const transition: Transition<Model, Message> = {
       sequence: nextSequence,
       message: input.message,
@@ -404,8 +408,14 @@ export const makeProgramJournal = <
       ...(input.updateDurationMs === undefined
         ? {}
         : { updateDurationMs: input.updateDurationMs }),
-      isModelChanged: latestModel !== input.model,
-      diff: computeDiff(latestModel, input.model),
+      isModelChanged: previousModel !== input.model,
+      get diff(): DiffResult {
+        return Option.getOrElse(maybeDiff, () => {
+          const diff = computeDiff(previousModel, input.model)
+          maybeDiff = Option.some(diff)
+          return diff
+        })
+      },
       model: input.model,
     }
     nextSequence += 1

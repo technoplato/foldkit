@@ -199,7 +199,7 @@ type RememberedRow = Readonly<{
   builds: ChipContext['buildsByNumber']
   issues: ReadonlyArray<Issue | undefined>
   nowMs: number
-  offsetMinutes: number
+  timeZone: string
   row: UiNode
 }>
 
@@ -227,7 +227,7 @@ const findingRow = (
   if (
     remembered !== undefined &&
     remembered.nowMs === clock.nowMs &&
-    remembered.offsetMinutes === clock.offsetMinutes &&
+    remembered.timeZone === clock.timeZone &&
     remembered.agents === context.agentsByHandle &&
     remembered.builds === context.buildsByNumber &&
     sameIssues(remembered.issues, issues)
@@ -240,7 +240,7 @@ const findingRow = (
     builds: context.buildsByNumber,
     issues,
     nowMs: clock.nowMs,
-    offsetMinutes: clock.offsetMinutes,
+    timeZone: clock.timeZone,
     row,
   })
   return row
@@ -254,7 +254,7 @@ const loadedNodes = (
   const context = chipContextOf(
     loadedIssuesIn(model),
     model.clock.nowMs,
-    model.clock.offsetMinutes,
+    model.clock.timeZone,
     chipFactsOf(model),
   )
   const shown = Array.filter(findings, finding => matches(filter, finding))

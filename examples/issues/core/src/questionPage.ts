@@ -155,7 +155,7 @@ const loadedNodes = (
   const context = chipContextOf(
     loadedIssuesIn(model),
     model.clock.nowMs,
-    model.clock.offsetMinutes,
+    model.clock.timeZone,
     chipFactsOf(model),
   )
   const shown = Array.filter(questions, question => matches(filter, question))

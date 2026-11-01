@@ -64,6 +64,30 @@ export const LandedCommit = S.Struct({
 /** One commit that implements an Issue, and the builds it shipped in. */
 export type LandedCommit = typeof LandedCommit.Type
 
+/** Whose words a moment's lines are: his, or what he had on. */
+export const MomentKind = S.Literals(['Said', 'Seen'])
+/** Whose words a moment's lines are. */
+export type MomentKind = typeof MomentKind.Type
+
+/**
+ * One stretch of a Recording an Issue cites: lines 76 to 78, 22:39 into
+ * Recording 208, starting at their first line's row. A `Seen` moment is
+ * another app's sound or a voice named for someone else, never his words.
+ * `isOrigin` says the Issue came from it: the rows call it `introduced` and
+ * he said it before the Issue was filed.
+ */
+export const IssueMoment = S.Struct({
+  firstLineIndex: S.Number,
+  isOrigin: S.Boolean,
+  kind: MomentKind,
+  lastLineIndex: S.Number,
+  recordingId: S.String,
+  segmentId: S.String,
+  startSeconds: S.Number,
+})
+/** One stretch of a Recording an Issue cites. */
+export type IssueMoment = typeof IssueMoment.Type
+
 /**
  * Where an Issue landed, derived from git and read from Scribe's rows: the
  * commits that implement it, oldest first, and the builds he found it in.
@@ -71,12 +95,15 @@ export type LandedCommit = typeof LandedCommit.Type
 export const IssueLanding = S.Struct({
   commits: S.Array(LandedCommit),
   foundIn: S.Array(LandedBuild),
+  moments: S.Array(IssueMoment).pipe(
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
 })
 /** Where an Issue landed. */
 export type IssueLanding = typeof IssueLanding.Type
 
 /** An Issue with no commit and no build known: nothing landed yet. */
-export const noLanding: IssueLanding = { commits: [], foundIn: [] }
+export const noLanding: IssueLanding = { commits: [], foundIn: [], moments: [] }
 
 /** A build as a person says it: `Scribe 0.1 (217)`. */
 export const buildLabel = (build: LandedBuild): string =>
@@ -154,30 +181,6 @@ export const CommitFacts = S.TaggedStruct('CommitFacts', {
 })
 /** What Scribe's rows say about one commit. */
 export type CommitFacts = typeof CommitFacts.Type
-
-/** Whose words a moment's lines are: his, or what he had on. */
-export const MomentKind = S.Literals(['Said', 'Seen'])
-/** Whose words a moment's lines are. */
-export type MomentKind = typeof MomentKind.Type
-
-/**
- * One stretch of a Recording an Issue cites: lines 76 to 78, 22:39 into
- * Recording 208, starting at their first line's row. A `Seen` moment is
- * another app's sound or a voice named for someone else, never his words.
- * `isOrigin` says the Issue came from it: the rows call it `introduced` and
- * he said it before the Issue was filed.
- */
-export const IssueMoment = S.Struct({
-  firstLineIndex: S.Number,
-  isOrigin: S.Boolean,
-  kind: MomentKind,
-  lastLineIndex: S.Number,
-  recordingId: S.String,
-  segmentId: S.String,
-  startSeconds: S.Number,
-})
-/** One stretch of a Recording an Issue cites. */
-export type IssueMoment = typeof IssueMoment.Type
 
 /** One Issue and its moments on a page, in the order he said them. */
 export const MomentsOfIssue = S.Struct({
@@ -853,6 +856,42 @@ export const issueLandingQuery = (issueNumber: number) => ({
 })
 
 /**
+ * What the Issue page asks Scribe's app for: where it landed, and its moments
+ * with their kind, so the page says whether the line he is quoted from is his
+ * or another app's sound. #625's moments are `sourceMoments` whose
+ * `trackedIssue.number` is 625. The `issues` command reads the landing alone.
+ */
+export const issuePageLandingQuery = (issueNumber: number) => ({
+  ...issueLandingQuery(issueNumber),
+  sourceMoments: {
+    $: {
+      where: { 'trackedIssue.number': issueNumber, subjectKind: ISSUE_SUBJECT },
+      fields: [...MOMENT_FIELDS, 'recordingID'],
+    },
+    trackedIssue: MOMENT_ISSUE,
+  },
+})
+
+const StoredIssueMoments = S.Struct({
+  sourceMoments: S.optionalKey(
+    S.Array(S.Struct({ ...StoredMoment.fields, recordingID: S.String })),
+  ),
+})
+
+/** What the Issue page reads: where it landed, and its moments. */
+export const issuePageLandingOf = (data: unknown): IssueLanding => {
+  const { sourceMoments } = S.decodeUnknownSync(StoredIssueMoments)(data)
+  return IssueLanding.make({
+    ...issueLandingOf(data),
+    moments: Array.flatMap(listOf(sourceMoments), stored =>
+      Array.flatMap(listOf(stored.trackedIssue), issue =>
+        Option.toArray(momentOf(stored, issue, stored.recordingID)),
+      ),
+    ),
+  })
+}
+
+/**
  * What a build's page asks for: the row by its key, `scribe|217`, its cut
  * commit and devices, and its edges with each commit's Issue ends.
  */
@@ -969,6 +1008,7 @@ export type LandingsQuery =
   | ReturnType<typeof recordingFactsQuery>
   | ReturnType<typeof segmentFactsQuery>
   | ReturnType<typeof issueLandingQuery>
+  | ReturnType<typeof issuePageLandingQuery>
   | ReturnType<typeof buildFactsQuery>
   | ReturnType<typeof commitFactsQuery>
   | GraphQuery
@@ -1065,8 +1105,8 @@ export const instantIssueLandings = (
     ISSUE_NUMBER.test(issueId)
       ? observed(
           openDatabase,
-          issueLandingQuery(Number(issueId)),
-          issueLandingOf,
+          issuePageLandingQuery(Number(issueId)),
+          issuePageLandingOf,
         )
       : Stream.succeed(noLanding),
 })

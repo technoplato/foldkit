@@ -64,7 +64,7 @@ const catalog = [
 const pageOf = (issues: ReadonlyArray<Issue>): Model =>
   [
     ObservedIssues.make({ issues }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
   ].reduce(
     (model, message) => update(model, message)[0],
     modelForNavigation(AskFlow.make({})),

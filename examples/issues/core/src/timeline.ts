@@ -54,8 +54,13 @@ const RED = new RegExp(
 const GREEN = new RegExp(`^green\\b|\\bgreen:? ${COMMIT}\\b`, 'i')
 const PLANNED =
   /^plan landed|\bplan(?:\(#\d+\))? (?:landed|merged|committed)\b/i
-const ON_MAIN = /\b(?:landed|merged)\b[^.\n]*\bmain\b/i
-const MENTIONS_MAIN = /\bmain\b/i
+/**
+ * Words that put the work on main: `Landed on main 8fc12c548`, `merged into
+ * Scribe main`. Never `not merged to main`, and never `merged with main`,
+ * which brings main into a branch.
+ */
+const ON_MAIN =
+  /(?<!\bnot\s)\b(?:landed|merged)\s+(?:on|onto|into|to)\s+(?:[\w-]+\s+)?main\b/i
 const BUILT =
   /\b(?:shipped|installed|built) in build \d+|\bin build \d+,? (?:installed|shipped)\b/i
 
@@ -84,7 +89,7 @@ const stepsByState: ReadonlyArray<StepRule> = [
     'Merged',
     entry =>
       stateOf(entry) === 'merged' ||
-      (stateOf(entry) === 'landed' && MENTIONS_MAIN.test(entry.summary)),
+      (stateOf(entry) === 'landed' && ON_MAIN.test(entry.summary)),
   ],
   ['Verified', entry => stateOf(entry) === 'verified'],
 ]
@@ -131,6 +136,13 @@ export const askedAtOf = (mention: IssueMention): Option.Option<number> => {
   }
 }
 
+/**
+ * How far after filing a mention may still be the ask: the phone's clock and
+ * the server's can disagree by a few minutes. A mention a day later is him
+ * saying it again, listed with the mentions, not the ask.
+ */
+const ASK_CLOCK_SKEW_MS = 5 * 60_000
+
 const oldestFirst: Order.Order<IssueWorkLogEntry> = Order.mapInput(
   Order.Number,
   (entry: IssueWorkLogEntry) => entry.occurredAtMs,
@@ -157,7 +169,11 @@ const foundStep = (
       atMs => ({ atMs, maybeEvidence: Option.none() }),
     )
   } else if (name === 'Asked') {
-    return Array.match(Array.getSomes(Array.map(issue.mentions, askedAtOf)), {
+    const askedTimes = Array.filter(
+      Array.getSomes(Array.map(issue.mentions, askedAtOf)),
+      atMs => atMs <= issue.createdAtMs + ASK_CLOCK_SKEW_MS,
+    )
+    return Array.match(askedTimes, {
       onEmpty: () => Option.none(),
       onNonEmpty: times =>
         Option.some({

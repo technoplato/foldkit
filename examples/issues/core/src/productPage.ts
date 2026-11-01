@@ -253,7 +253,7 @@ export const productFactNodes = (
   const context = chipContextOf(
     issues,
     model.clock.nowMs,
-    model.clock.offsetMinutes,
+    model.clock.timeZone,
     chipFactsOf(model),
   )
   const maybeFacts: Option.Option<ProductFacts> =

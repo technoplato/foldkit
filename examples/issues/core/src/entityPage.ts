@@ -138,7 +138,7 @@ const backlinkNodes = (
   const context = chipContextOf(
     issues,
     model.clock.nowMs,
-    model.clock.offsetMinutes,
+    model.clock.timeZone,
     chipFactsOf(model),
   )
   return Column(
@@ -152,7 +152,7 @@ const backlinkNodes = (
             `  ${placeLabel(link)}${Option.match(link.maybeAtMs, {
               onNone: () => '',
               onSome: atMs =>
-                `, ${whenLabel(atMs, model.clock.nowMs, model.clock.offsetMinutes)}`,
+                `, ${whenLabel(atMs, model.clock.nowMs, model.clock.timeZone)}`,
             })}`,
           ),
         ],
@@ -164,7 +164,7 @@ const backlinkNodes = (
 
 const productRowMemo = new WeakMap<
   Issue,
-  Readonly<{ nowMs: number; offsetMinutes: number; row: UiNode }>
+  Readonly<{ nowMs: number; timeZone: string; row: UiNode }>
 >()
 
 const productRowOf = (
@@ -178,7 +178,7 @@ const productRowOf = (
         Option.fromUndefinedOr(productRowMemo.get(issue)),
         remembered =>
           remembered.nowMs === model.clock.nowMs &&
-          remembered.offsetMinutes === model.clock.offsetMinutes,
+          remembered.timeZone === model.clock.timeZone,
       ),
       remembered => remembered.row,
     ),
@@ -186,12 +186,12 @@ const productRowOf = (
       const row = RichText([
         issueChipOf(issue.id, context),
         Plain(
-          `  ${whenLabel(issue.updatedAtMs, model.clock.nowMs, model.clock.offsetMinutes)}`,
+          `  ${whenLabel(issue.updatedAtMs, model.clock.nowMs, model.clock.timeZone)}`,
         ),
       ])
       productRowMemo.set(issue, {
         nowMs: model.clock.nowMs,
-        offsetMinutes: model.clock.offsetMinutes,
+        timeZone: model.clock.timeZone,
         row,
       })
       return row
@@ -206,7 +206,7 @@ const productPageNodes = (
   const context = chipContextOf(
     issues,
     model.clock.nowMs,
-    model.clock.offsetMinutes,
+    model.clock.timeZone,
   )
   return Array.map(
     productStatusGroups(issues, productId),
@@ -336,7 +336,7 @@ const MILLISECONDS_PER_SECOND = 1_000
 type RememberedMomentRow = Readonly<{
   issue: Issue | undefined
   nowMs: number
-  offsetMinutes: number
+  timeZone: string
   row: UiNode
 }>
 
@@ -356,7 +356,7 @@ const momentRowOf = (ofIssue: MomentsOfIssue, context: ChipContext): UiNode => {
         remembered =>
           remembered.issue === issue &&
           remembered.nowMs === context.nowMs &&
-          remembered.offsetMinutes === context.offsetMinutes,
+          remembered.timeZone === context.timeZone,
       ),
       remembered => remembered.row,
     ),
@@ -368,7 +368,7 @@ const momentRowOf = (ofIssue: MomentsOfIssue, context: ChipContext): UiNode => {
       rememberedMomentRows.set(ofIssue, {
         issue,
         nowMs: context.nowMs,
-        offsetMinutes: context.offsetMinutes,
+        timeZone: context.timeZone,
         row,
       })
       return row
@@ -497,6 +497,45 @@ const segmentFactNodes = (
   ]
 }
 
+/**
+ * Which Recordings a number names when more than one has it, each a link, so
+ * the page says which instead of guessing: his numbering starts again, and
+ * `Recording 20` can be two Recordings.
+ */
+const sharedNumberNodes = (
+  entity: PageEntity,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<UiNode> =>
+  entity._tag === 'RecordingNumberEntity'
+    ? Option.match(
+        Option.filter(
+          Option.fromUndefinedOr(
+            recordingNumbersOf(issues).idsOfNumber.get(entity.recordingNumber),
+          ),
+          ids => ids.length > 1,
+        ),
+        {
+          onNone: () => [],
+          onSome: ids => [
+            RichText([
+              Plain(
+                `Recording ${entity.recordingNumber.toString()} is the number of ${ids.length.toString()} Recordings: `,
+              ),
+              ...Array.flatMap(ids, (recordingId, index) => [
+                ...(index === 0 ? [] : [Plain(', ')]),
+                Reference({
+                  label: `Recording ${recordingId.slice(0, SHORT_ID_LENGTH)}`,
+                  kind: 'Recording',
+                  href: `/recordings/${recordingId}`,
+                  detail: [recordingId],
+                }),
+              ]),
+            ]),
+          ],
+        },
+      )
+    : []
+
 const NO_FACTS_WORDS: Readonly<Record<PageEntity['_tag'], string>> = {
   AgentEntity: 'Scribe’s rows hold no such agent.',
   BuildEntity: 'Scribe’s rows hold no such build.',
@@ -527,14 +566,17 @@ const pageFactNodes = (
   const context = chipContextOf(
     issues,
     clock.nowMs,
-    clock.offsetMinutes,
+    clock.timeZone,
     chipFactsOf(model),
   )
   const plainName = Text(entityTitle(entity, issues), { emphasis: 'Headline' })
   return M.value(model.pageFacts).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      NotObservingPageFacts: () => [plainName],
+      NotObservingPageFacts: () => [
+        plainName,
+        ...sharedNumberNodes(entity, issues),
+      ],
       FailedPageFacts: ({ reason }) => [
         plainName,
         Text(`Scribe’s rows could not be read: ${reason}`, { dim: true }),

@@ -151,7 +151,7 @@ const opened = (
 ): Model =>
   [
     ObservedIssues.make({ issues: catalog }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ...messages,
   ].reduce(
     (model, message) => update(model, message)[0],
@@ -174,7 +174,7 @@ const chipsOfText = (
   facts: ChipFacts = noChipFacts,
 ): ReadonlyArray<ReferencePart> =>
   Array.filter(
-    partsOfText(text, chipContextOf(catalog, NOW_MS, -300, facts)),
+    partsOfText(text, chipContextOf(catalog, NOW_MS, 'America/New_York', facts)),
     (part): part is ReferencePart => part._tag === 'Reference',
   )
 
@@ -398,7 +398,7 @@ describe('a question’s own page', () => {
     expect(contents).toContain('Which Scribe build is running on his phone?')
     expect(contents).toContainEqual(expect.stringContaining('Asked by him'))
     expect(contents).toContainEqual(
-      expect.stringContaining('2026-10-29 09:15 (3 days ago)'),
+      expect.stringContaining('2026-10-29 10:15 (3 days ago)'),
     )
   })
 

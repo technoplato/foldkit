@@ -2756,8 +2756,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
-      TickedClock: ({ nowMs, offsetMinutes }) => [
-        nextModel({ ...model, clock: { nowMs, offsetMinutes } }),
+      TickedClock: ({ nowMs, timeZone }) => [
+        nextModel({ ...model, clock: { nowMs, timeZone } }),
         [],
       ],
       ObservedIssues: ({ issues }) => {

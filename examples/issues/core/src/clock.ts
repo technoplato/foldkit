@@ -1,3 +1,5 @@
+import { Array, Option } from 'effect'
+
 const SECOND_MS = 1_000
 const MINUTE_MS = 60 * SECOND_MS
 const HOUR_MS = 60 * MINUTE_MS
@@ -6,8 +8,6 @@ const DAYS_PER_MONTH = 30
 const DAYS_PER_YEAR = 365
 const SECONDS_PER_MINUTE = 60
 const MINUTES_PER_HOUR = 60
-const ISO_DATE_LENGTH = 10
-const ISO_MINUTE_END = 16
 
 const plural = (count: number, unit: string): string =>
   `${count.toString()} ${unit}${count === 1 ? '' : 's'}`
@@ -37,12 +37,90 @@ export const howLongAgo = (atMs: number, nowMs: number): string => {
   return say(plural(Math.floor(elapsedMs / (DAYS_PER_YEAR * DAY_MS)), 'year'))
 }
 
+const UTC = 'UTC'
+const ISO_DATE_LENGTH = 10
+const ISO_MINUTE_END = 16
+
 /**
- * A time on the reader's clock, `2026-11-01 09:00`, from its offset from UTC
- * in minutes: -300 on Eastern Standard Time.
+ * Offsets move only on whole quarter hours, so one reading of a zone's offset
+ * holds for its whole quarter hour.
  */
-export const localTimeLabel = (atMs: number, offsetMinutes: number): string => {
-  const iso = new Date(atMs + offsetMinutes * MINUTE_MS).toISOString()
+const QUARTER_HOUR_MS = 15 * MINUTE_MS
+
+const formats = new Map<string, Intl.DateTimeFormat>()
+
+const formatIn = (timeZone: string): Intl.DateTimeFormat =>
+  Option.getOrElse(Option.fromUndefinedOr(formats.get(timeZone)), () => {
+    const format = Option.getOrElse(
+      Option.liftThrowable(
+        () =>
+          new Intl.DateTimeFormat('en-US', {
+            day: 'numeric',
+            hour: 'numeric',
+            hourCycle: 'h23',
+            minute: 'numeric',
+            month: 'numeric',
+            timeZone,
+            year: 'numeric',
+          }),
+      )(),
+      () => formatIn(UTC),
+    )
+    formats.set(timeZone, format)
+    return format
+  })
+
+const offsetsByZone = new Map<string, Map<number, number>>()
+
+/**
+ * The offset from UTC in minutes that `timeZone` had at `atMs`: -240 on
+ * 2026-10-11 in `America/New_York`, -300 on 2026-11-02. Read once per quarter
+ * hour of a zone, and kept.
+ */
+const offsetMinutesAt = (atMs: number, timeZone: string): number => {
+  const quarterHour = Math.floor(atMs / QUARTER_HOUR_MS)
+  const offsets = Option.getOrElse(
+    Option.fromUndefinedOr(offsetsByZone.get(timeZone)),
+    () => {
+      const fresh = new Map<number, number>()
+      offsetsByZone.set(timeZone, fresh)
+      return fresh
+    },
+  )
+  return Option.getOrElse(
+    Option.fromUndefinedOr(offsets.get(quarterHour)),
+    () => {
+      const startMs = quarterHour * QUARTER_HOUR_MS
+      const parts = formatIn(timeZone).formatToParts(startMs)
+      const numberOf = (type: Intl.DateTimeFormatPartTypes): number =>
+        Option.match(
+          Array.findFirst(parts, part => part.type === type),
+          { onNone: () => 0, onSome: part => Number(part.value) },
+        )
+      const asUtcMs = Date.UTC(
+        numberOf('year'),
+        numberOf('month') - 1,
+        numberOf('day'),
+        numberOf('hour'),
+        numberOf('minute'),
+      )
+      const offset = Math.round((asUtcMs - startMs) / MINUTE_MS)
+      offsets.set(quarterHour, offset)
+      return offset
+    },
+  )
+}
+
+/**
+ * A time on the reader's clock, `2026-10-11 10:10`, in the offset its own day
+ * had in `timeZone`, such as `America/New_York`: the clocks move in March and
+ * November, so a date before the change reads an hour apart from today's
+ * offset. A zone the platform does not know reads UTC.
+ */
+export const localTimeLabel = (atMs: number, timeZone: string): string => {
+  const iso = new Date(
+    atMs + offsetMinutesAt(atMs, timeZone) * MINUTE_MS,
+  ).toISOString()
   return `${iso.slice(0, ISO_DATE_LENGTH)} ${iso.slice(ISO_DATE_LENGTH + 1, ISO_MINUTE_END)}`
 }
 
@@ -50,9 +128,9 @@ export const localTimeLabel = (atMs: number, offsetMinutes: number): string => {
 export const whenLabel = (
   atMs: number,
   nowMs: number,
-  offsetMinutes: number,
+  timeZone: string,
 ): string =>
-  nowMs === 0 ? localTimeLabel(atMs, offsetMinutes) : howLongAgo(atMs, nowMs)
+  nowMs === 0 ? localTimeLabel(atMs, timeZone) : howLongAgo(atMs, nowMs)
 
 /**
  * How long something took, `1 h 27 min`, `3 days 2 h`, `40 s`: the two

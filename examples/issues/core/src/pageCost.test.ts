@@ -237,7 +237,7 @@ const storedRun = (index: number) => ({
 
 const opened = (path: string, ...messages: ReadonlyArray<Message>): Model =>
   [
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ...messages,
   ].reduce((model, message) => update(model, message)[0], loadedAt(path))
 
@@ -531,5 +531,70 @@ describe('what a page costs to paint again after a live change, with 1,500 Issue
 
   it('paints the inbox again, reading only the Issue that changed', () => {
     expect(fastestLiveChangeMs('/inbox')).toBeLessThan(BUDGET_MS)
+  })
+
+})
+
+const ASK_STEP_STATES = [
+  'claimed',
+  'planned',
+  'red',
+  'pushed',
+  'merged',
+  'verified',
+]
+
+const askedIssueAt = (index: number): Issue => {
+  const issue = issueAt(index)
+  return Issue.make({
+    ...issue,
+    workLog: [
+      ...Array.map(ASK_STEP_STATES, (state, step) =>
+        IssueWorkLogEntry.make({
+          agentId: Option.some('claude-code/agent@ld'),
+          commitSha: Option.none(),
+          durationSeconds: Option.none(),
+          id: `work-${index.toString()}-${state}`,
+          occurredAtMs:
+            issue.createdAtMs + (step + 1) * 60_000 * ((index % 97) + 1),
+          state: Option.some(state),
+          summary: `${state} for #${(index + 1).toString()}.`,
+        }),
+      ),
+      IssueWorkLogEntry.make({
+        agentId: Option.some('claude-code/agent@ld'),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: `work-${index.toString()}-green`,
+        occurredAtMs: issue.createdAtMs + 7 * 60_000 * ((index % 89) + 1),
+        state: Option.some('progress'),
+        summary: `Green 9be70b4a8 for #${(index + 1).toString()}.`,
+      }),
+    ],
+  })
+}
+
+const askedCatalog = Array.makeBy(CATALOG_SIZE, askedIssueAt)
+
+describe('what how long asks take costs, with 1,500 Issues each at every step', () => {
+  it('paints /asks again after a live change, working out only the Issue that changed', () => {
+    const loaded = update(
+      opened('/asks'),
+      observedIssuesOf(askedCatalog),
+    )[0]
+    issuesScreen(loaded)
+    const fastestMs = Math.min(
+      ...Array.makeBy(RUNS, run => {
+        const changed = Array.map(askedCatalog, (issue, index) =>
+          index === 7 + run
+            ? Issue.make({ ...issue, updatedAtMs: issue.updatedAtMs + 1 })
+            : issue,
+        )
+        const startedAt = performance.now()
+        issuesScreen(update(loaded, observedIssuesOf(changed))[0])
+        return performance.now() - startedAt
+      }),
+    )
+    expect(fastestMs).toBeLessThan(BUDGET_MS)
   })
 })

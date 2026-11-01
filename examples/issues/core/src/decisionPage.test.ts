@@ -156,7 +156,7 @@ const opened = (
 ): Model =>
   [
     ObservedIssues.make({ issues: catalog }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ...messages,
   ].reduce(
     (model, message) => update(model, message)[0],
@@ -179,7 +179,7 @@ const chipsOfText = (
   facts: ChipFacts = noChipFacts,
 ): ReadonlyArray<ReferencePart> =>
   Array.filter(
-    partsOfText(text, chipContextOf(catalog, NOW_MS, -300, facts)),
+    partsOfText(text, chipContextOf(catalog, NOW_MS, 'America/New_York', facts)),
     (part): part is ReferencePart => part._tag === 'Reference',
   )
 
@@ -388,7 +388,7 @@ describe('a decision’s own page', () => {
     expect(contents).toContain('One Opus agent takes every UI task at once.')
     expect(contents).toContainEqual(expect.stringContaining('superseded'))
     expect(contents).toContainEqual(
-      expect.stringContaining('2026-10-29 09:15 (3 days ago)'),
+      expect.stringContaining('2026-10-29 10:15 (3 days ago)'),
     )
   })
 
@@ -486,7 +486,7 @@ describe('how a decision reads in words', () => {
       Array.map(
         partsOfText(
           `Per decision ${SHORT_ID}, done.`,
-          chipContextOf(catalog, NOW_MS, -300, withRows),
+          chipContextOf(catalog, NOW_MS, 'America/New_York', withRows),
         ),
         part => (part._tag === 'Reference' ? part.label : part.text),
       ),

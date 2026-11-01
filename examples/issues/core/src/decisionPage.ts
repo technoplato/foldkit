@@ -132,7 +132,7 @@ const loadedNodes = (
   const context = chipContextOf(
     loadedIssuesIn(model),
     model.clock.nowMs,
-    model.clock.offsetMinutes,
+    model.clock.timeZone,
     chipFactsOf(model),
   )
   const shown = Option.match(filter.maybeStatus, {

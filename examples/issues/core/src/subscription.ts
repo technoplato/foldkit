@@ -105,7 +105,7 @@ const clockStream: Stream.Stream<Message> = Stream.tick(clockReadEvery).pipe(
     Effect.map(Clock.currentTimeMillis, nowMs =>
       TickedClock.make({
         nowMs,
-        offsetMinutes: -new Date(nowMs).getTimezoneOffset(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
     ),
   ),

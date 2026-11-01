@@ -123,7 +123,7 @@ export const issueChipsOf = (
 type RememberedRow = Readonly<{
   issues: ReadonlyArray<Issue | undefined>
   nowMs: number
-  offsetMinutes: number
+  timeZone: string
   row: UiNode
 }>
 
@@ -155,7 +155,7 @@ export const rememberedRowsOf = <Row extends object>() => {
     if (
       held !== undefined &&
       held.nowMs === clock.nowMs &&
-      held.offsetMinutes === clock.offsetMinutes &&
+      held.timeZone === clock.timeZone &&
       sameIssues(held.issues, issues)
     ) {
       return held.row
@@ -164,7 +164,7 @@ export const rememberedRowsOf = <Row extends object>() => {
     remembered.set(row, {
       issues,
       nowMs: clock.nowMs,
-      offsetMinutes: clock.offsetMinutes,
+      timeZone: clock.timeZone,
       row: built,
     })
     return built

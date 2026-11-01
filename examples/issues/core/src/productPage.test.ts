@@ -171,7 +171,7 @@ const chipsOf = (model: Model): ReadonlyArray<ReferencePart> =>
 const page = (map: unknown): Model =>
   [
     ObservedIssues.make({ issues: catalog }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ObservedBuilds.make({ builds: [buildOf(216), buildOf(217)] }),
     ObservedPageFacts.make({
       entity,
@@ -251,7 +251,7 @@ describe('/products', () => {
     const model = [
       ObservedIssues.make({ issues: catalog }),
       ObservedProducts.make({ products: [scribe] }),
-      TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+      TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
     ].reduce(
       (current, message) => update(current, message)[0],
       modelForNavigation(Products.make({})),

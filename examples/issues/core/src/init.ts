@@ -48,7 +48,7 @@ export const emptyIssueDraft = (productId: string): IssueDraft =>
 /** Creates the stable initial Model for one navigation destination. */
 export const modelForNavigation = (navigation: Navigation): Model =>
   Model.make({
-    clock: { nowMs: 0, offsetMinutes: 0 },
+    clock: { nowMs: 0, timeZone: 'UTC' },
     draft: emptyIssueDraft(''),
     draftState: EditingIssueDraft.make({}),
     failedRowEdits: [],

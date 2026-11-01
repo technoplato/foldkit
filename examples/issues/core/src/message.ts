@@ -49,12 +49,12 @@ import { ReminderRow } from './reminderFacts.js'
 import { RowChange } from './rowEdit.js'
 
 /**
- * The reader's clock was read: the time and the offset of their time zone
- * from UTC in minutes, once when the tracker opens and then each minute.
+ * The reader's clock was read: the time and their time zone,
+ * `America/New_York`, once when the tracker opens and then each minute.
  */
 export const TickedClock = S.TaggedStruct('TickedClock', {
   nowMs: S.Number,
-  offsetMinutes: S.Number,
+  timeZone: S.String,
 })
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
   issues: S.Array(Issue),

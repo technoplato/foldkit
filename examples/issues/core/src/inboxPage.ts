@@ -97,7 +97,7 @@ export const inboxNodes = (
                   whenLabel(
                     item.atMs,
                     model.clock.nowMs,
-                    model.clock.offsetMinutes,
+                    model.clock.timeZone,
                   ),
                 ),
               ),
