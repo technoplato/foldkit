@@ -27,9 +27,7 @@ const update = (
   [],
 ]
 
-const ready = (
-  fields: Partial<typeof initialModel> = {},
-): SyncedBrandonModel =>
+const ready = (fields: Partial<typeof initialModel> = {}): SyncedBrandonModel =>
   SyncedBrandon.update(SyncedBrandon.init()[0], {
     _tag: 'SnapshotReceived',
     model: { ...initialModel, ...fields },
