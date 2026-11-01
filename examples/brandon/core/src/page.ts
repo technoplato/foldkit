@@ -1,0 +1,153 @@
+import { Schema as S } from 'effect'
+import { ts } from 'foldkit/schema'
+
+import { MarkdownDocument } from '@foldkit/markdown'
+
+// PAGE
+
+/** A section's stable name, and its anchor: `the-riddle`. */
+export const SectionKey = S.String.check(
+  S.isPattern(/^[a-z0-9][a-z0-9-]{0,63}$/),
+).pipe(S.brand('SectionKey'))
+/** A section's stable name, and its anchor. */
+export type SectionKey = typeof SectionKey.Type
+
+/** Where a wide screen puts a section. A phone stacks Top, Side, then Main. */
+export const SectionColumn = S.Literals(['Top', 'Main', 'Side'])
+/** Where a wide screen puts a section. */
+export type SectionColumn = typeof SectionColumn.Type
+
+/** A link with its QR code as one SVG path, drawn on a `qrSize` square. */
+export const QrLink = S.Struct({
+  label: S.String,
+  url: S.String,
+  qrPath: S.String,
+  qrSize: S.Number,
+})
+/** A link with its QR code. */
+export type QrLink = typeof QrLink.Type
+
+const sectionFields = {
+  key: SectionKey,
+  title: S.String,
+  column: SectionColumn,
+}
+
+/** Words the origin parsed from Markdown. */
+export const MarkdownSection = ts('MarkdownSection', {
+  ...sectionFields,
+  document: MarkdownDocument,
+})
+/** Words with QR codes under them. */
+export const QrLinksSection = ts('QrLinksSection', {
+  ...sectionFields,
+  document: MarkdownDocument,
+  links: S.Array(QrLink),
+})
+/** The live scoreboard, painted from the log. */
+export const ScoreboardSection = ts('ScoreboardSection', sectionFields)
+/** College football, painted from the origin's shared cache. */
+export const FootballSection = ts('FootballSection', sectionFields)
+/** The read-only wallet mirror. */
+export const WalletsSection = ts('WalletsSection', sectionFields)
+
+/** One section the origin decided this person may see. */
+export const Section = S.Union([
+  MarkdownSection,
+  QrLinksSection,
+  ScoreboardSection,
+  FootballSection,
+  WalletsSection,
+])
+/** One section the origin decided this person may see. */
+export type Section = typeof Section.Type
+
+/** Only what this signed-in person's flags allow: `GET /api/page`. */
+export const Page = S.Struct({
+  displayName: S.String,
+  sections: S.Array(Section),
+})
+/** Only what this signed-in person's flags allow. */
+export type Page = typeof Page.Type
+
+// FOOTBALL
+
+/** Where a game stands. */
+export const GameState = S.Literals(['Scheduled', 'Live', 'Final'])
+/** Where a game stands. */
+export type GameState = typeof GameState.Type
+
+/** One side of a game. */
+export const GameTeam = S.Struct({
+  name: S.String,
+  score: S.String,
+  maybeRank: S.Option(S.Int),
+})
+/** One side of a game. */
+export type GameTeam = typeof GameTeam.Type
+
+/** One game: `GET /api/football`. */
+export const Game = S.Struct({
+  id: S.String,
+  state: GameState,
+  detail: S.String,
+  teams: S.Array(GameTeam),
+})
+/** One game. */
+export type Game = typeof Game.Type
+
+/** The games, most interesting first. */
+export const Games = S.Array(Game)
+
+// WALLETS
+
+/** One public transaction of a mirrored address. */
+export const WalletTransaction = S.Struct({
+  signature: S.String,
+  slot: S.Int,
+  maybeBlockTimeMs: S.Option(S.Number),
+  didSucceed: S.Boolean,
+  maybeChangeAtomic: S.Option(S.String),
+})
+/** One public transaction of a mirrored address. */
+export type WalletTransaction = typeof WalletTransaction.Type
+
+/** One mirrored public address: `GET /api/wallets`. */
+export const WalletAddress = S.Struct({
+  label: S.String,
+  chain: S.Literals(['Solana']),
+  network: S.Literals(['Devnet', 'Mainnet']),
+  address: S.String,
+  balanceAtomic: S.String,
+  mirroredAtMs: S.Number,
+  transactions: S.Array(WalletTransaction),
+})
+/** One mirrored public address. */
+export type WalletAddress = typeof WalletAddress.Type
+
+/** Every mirrored address this person may see. */
+export const WalletAddresses = S.Array(WalletAddress)
+
+const lamportsPerSol = 1_000_000_000n
+const solDecimals = 9
+
+/**
+ * A Solana amount in SOL, from whole lamports kept as text.
+ *
+ * @example
+ * ```typescript
+ * solOfLamports('1500000000') // '1.5'
+ * solOfLamports('-5000') // '-0.000005'
+ * ```
+ */
+export const solOfLamports = (lamports: string): string => {
+  const isNegative = lamports.startsWith('-')
+  const magnitude = BigInt(isNegative ? lamports.slice(1) : lamports)
+  const fraction = (magnitude % lamportsPerSol)
+    .toString()
+    .padStart(solDecimals, '0')
+    .replace(/0+$/, '')
+  const whole = (magnitude / lamportsPerSol).toString()
+  const unsigned = fraction === '' ? whole : `${whole}.${fraction}`
+  return isNegative ? `-${unsigned}` : unsigned
+}
