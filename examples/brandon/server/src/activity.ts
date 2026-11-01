@@ -173,6 +173,10 @@ export const nextActivityRow = (
       } else {
         return Option.some({
           ...observed,
+          maybeCounterpartyAddress: Option.orElse(
+            observed.maybeCounterpartyAddress,
+            () => stored.maybeCounterpartyAddress,
+          ),
           observedAtMs: stored.observedAtMs,
           maybeConfirmedAtMs: Option.orElse(
             stored.maybeConfirmedAtMs,
