@@ -81,7 +81,7 @@ export type GameState = typeof GameState.Type
 export const GameTeam = S.Struct({
   name: S.String,
   score: S.String,
-  maybeRank: S.Option(S.Int),
+  maybeRank: S.OptionFromOptionalKey(S.Int),
 })
 /** One side of a game. */
 export type GameTeam = typeof GameTeam.Type
@@ -105,9 +105,9 @@ export const Games = S.Array(Game)
 export const WalletTransaction = S.Struct({
   signature: S.String,
   slot: S.Int,
-  maybeBlockTimeMs: S.Option(S.Number),
+  maybeBlockTimeMs: S.OptionFromOptionalKey(S.Number),
   didSucceed: S.Boolean,
-  maybeChangeAtomic: S.Option(S.String),
+  maybeChangeAtomic: S.OptionFromOptionalKey(S.String),
 })
 /** One public transaction of a mirrored address. */
 export type WalletTransaction = typeof WalletTransaction.Type

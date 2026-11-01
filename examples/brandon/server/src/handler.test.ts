@@ -188,6 +188,30 @@ describe('what each person gets', () => {
   })
 })
 
+describe('a section whose words cannot be parsed', () => {
+  it('answers that the page is unavailable, and the origin stays up', async () => {
+    const response = await handle(
+      {
+        method: 'GET',
+        path: '/api/page',
+        headers: {
+          host: 'brandon.example.com',
+          ...assertion(signedLogin(brandon)),
+        },
+        remoteAddress: '127.0.0.1',
+      },
+      {
+        ...dependencies,
+        store: {
+          ...store,
+          sections: Effect.succeed([section('broken', 'party', '<b>raw</b>')]),
+        },
+      },
+    )
+    expect(response.status).toBe(503)
+  })
+})
+
 describe('files', () => {
   const headers = assertion(signedLogin(brandon))
 

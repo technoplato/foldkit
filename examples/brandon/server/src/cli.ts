@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {
-  AnnotatedPlayer,
+  NotedPlayer,
   PointedAtSection,
   RequestedReload,
   SectionColumn,
@@ -9,6 +9,8 @@ import {
 } from 'brandon-core-example'
 import { Effect, Option, Schema as S } from 'effect'
 import { readFileSync } from 'node:fs'
+
+import { parseMarkdown } from '@foldkit/markdown/vite'
 
 import { accountKeyOf, defaultAccountKey } from './account.js'
 import { makeBrandonAdmin } from './adminStore.js'
@@ -136,7 +138,7 @@ const run = (args: ReadonlyArray<string>): Effect.Effect<void, Error> => {
     })
   } else if (area === 'note' && verb !== undefined) {
     return admin.appendFact(
-      AnnotatedPlayer({
+      NotedPlayer({
         name: verb,
         maybeNote: Option.fromNullishOr(first),
         isDunce: parsed.options.has('--dunce'),
@@ -156,6 +158,9 @@ const run = (args: ReadonlyArray<string>): Effect.Effect<void, Error> => {
   } else if (area === 'section' && verb === 'put' && first !== undefined) {
     const file = parsed.options.get('--file')
     const links = parsed.options.get('--links')
+    if (file !== undefined) {
+      parseMarkdown(readFileSync(file, 'utf8'))
+    }
     return admin.putSection({
       sectionKey: first,
       title: need(parsed, '--title'),

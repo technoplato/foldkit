@@ -2,9 +2,9 @@ import { Array, Match as M, Option } from 'effect'
 import type * as Command from 'foldkit/command'
 
 import type {
-  AnnotatedPlayer as AnnotatedPlayerMessage,
   AwardedPoints as AwardedPointsMessage,
   Message,
+  NotedPlayer as NotedPlayerMessage,
 } from './message.js'
 import {
   FailedToLoadPage,
@@ -54,7 +54,7 @@ const awarded = (
 
 const annotated = (
   players: ReadonlyArray<Player>,
-  { name, maybeNote, isDunce }: typeof AnnotatedPlayerMessage.Type,
+  { name, maybeNote, isDunce }: typeof NotedPlayerMessage.Type,
 ): ReadonlyArray<Player> =>
   withPlayer(players, name, player => ({ ...player, maybeNote, isDunce }))
 
@@ -71,7 +71,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         { ...model, players: awarded(model.players, award) },
         [],
       ],
-      AnnotatedPlayer: note => [
+      NotedPlayer: note => [
         { ...model, players: annotated(model.players, note) },
         [],
       ],

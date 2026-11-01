@@ -425,22 +425,32 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
       const logged = new Set(
         Array.map(awards, ({ payload }) => payload.eventId),
       )
-      const missing = Array.flatMap(rows, player =>
-        Array.filterMap(player.scoreEvents ?? [], event =>
-          logged.has(event.id)
-            ? Result.failVoid
-            : Result.succeed(
-                factStep(
-                  AwardedPoints({
-                    eventId: event.id,
-                    name: player.displayName,
-                    points: event.points,
-                    reason: event.reason ?? '',
-                    awardedBy: event.awardedBy,
-                  }),
-                ),
-              ),
+      const awardsOf = (player: PlayerRow) => {
+        const events = player.scoreEvents ?? []
+        return Array.isReadonlyArrayEmpty(events)
+          ? [
+              {
+                eventId: `joined-${player.id}`,
+                name: player.displayName,
+                points: 0,
+                reason: 'joined the game',
+                awardedBy: 'the seed',
+              },
+            ]
+          : Array.map(events, event => ({
+              eventId: event.id,
+              name: player.displayName,
+              points: event.points,
+              reason: event.reason ?? '',
+              awardedBy: event.awardedBy,
+            }))
+      }
+      const missing = Array.map(
+        Array.filter(
+          Array.flatMap(rows, awardsOf),
+          ({ eventId }) => !logged.has(eventId),
         ),
+        award => factStep(AwardedPoints(award)),
       )
       if (Array.isArrayNonEmpty([...missing])) {
         yield* attempt(() => admin.transact(missing))

@@ -4,18 +4,18 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { startBrandonOn } from './live.js'
 import {
-  NotedPlayer,
   AwardedPoints,
   ChangedSections,
   GotPage,
+  NotedPlayer,
   PointedAtSection,
 } from './message.js'
 import { initialModel, rankedPlayers } from './model.js'
 import { Games, Page, SectionKey, WalletAddresses } from './page.js'
-import { MessageWire } from './wire.js'
 import { BrandonProgram } from './program.js'
 import { BrandonServer } from './server.js'
 import { update } from './update.js'
+import { MessageWire } from './wire.js'
 
 const apply = (
   model: typeof initialModel,
@@ -135,7 +135,9 @@ describe('what crosses JSON', () => {
       const row = { id: 'r', from: 'cli', createdAtMs: 1, tag: 'x' }
       const encoded = S.encodeSync(MessageWire)(note)
       expect(
-        S.decodeUnknownSync(MessageWire)(overJson({ ...row, tag: encoded.tag })),
+        S.decodeUnknownSync(MessageWire)(
+          overJson({ ...row, tag: encoded.tag }),
+        ),
       ).toEqual(note)
     }
   })

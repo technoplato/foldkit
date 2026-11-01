@@ -11,7 +11,15 @@ import {
   WalletAddresses,
   WalletsSection,
 } from 'brandon-core-example'
-import { Array, Effect, Match as M, Option, Order, Schema as S } from 'effect'
+import {
+  Array,
+  Cause,
+  Effect,
+  Match as M,
+  Option,
+  Order,
+  Schema as S,
+} from 'effect'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
 
@@ -180,9 +188,9 @@ const read = (
   effect: Effect.Effect<OriginResponse, Error>,
 ): Promise<OriginResponse> =>
   Effect.runPromise(
-    Effect.catch(effect, error =>
+    Effect.catchCause(effect, cause =>
       Effect.sync(() => {
-        console.error('origin read failed:', error.message)
+        console.error('origin read failed:', Cause.pretty(cause))
         return unavailable
       }),
     ),

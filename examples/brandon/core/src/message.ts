@@ -1,4 +1,4 @@
-import { Option, Schema as S } from 'effect'
+import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
 
 import { Game, Page, SectionKey, WalletAddress } from './page.js'
@@ -14,9 +14,9 @@ export const AwardedPoints = m('AwardedPoints', {
   awardedBy: S.String,
 })
 /** A note beside a player's name, and whether they wear the dunce hat. */
-export const AnnotatedPlayer = m('AnnotatedPlayer', {
+export const NotedPlayer = m('NotedPlayer', {
   name: S.String,
-  maybeNote: S.Option(S.String),
+  maybeNote: S.OptionFromOptionalKey(S.String),
   isDunce: S.Boolean,
 })
 /** The listener pointed every open page at a section. */
@@ -55,7 +55,7 @@ export const IgnoredStaleReload = m('IgnoredStaleReload')
 /** Every Brandon dot Message. */
 export const Message = S.Union([
   AwardedPoints,
-  AnnotatedPlayer,
+  NotedPlayer,
   PointedAtSection,
   ChangedSections,
   MirroredWallets,
@@ -76,12 +76,9 @@ export type Message = typeof Message.Type
 /** The tags that travel on the log: facts any guest may read. */
 export const logMessageTags: ReadonlyArray<Message['_tag']> = [
   'AwardedPoints',
-  'AnnotatedPlayer',
+  'NotedPlayer',
   'PointedAtSection',
   'ChangedSections',
   'MirroredWallets',
   'RequestedReload',
 ]
-
-/** No note beside a player. */
-export const noNote: Option.Option<string> = Option.none()

@@ -55,14 +55,21 @@ const server = createServer((request, response) => {
       remoteAddress: request.socket.remoteAddress,
     },
     dependencies,
-  ).then(answer => {
-    response.writeHead(answer.status, {
-      'content-type': answer.contentType,
-      'content-length': answer.body.length,
-      'cache-control': 'private, no-store',
-    })
-    response.end(answer.body)
-  })
+  ).then(
+    answer => {
+      response.writeHead(answer.status, {
+        'content-type': answer.contentType,
+        'content-length': answer.body.length,
+        'cache-control': 'private, no-store',
+      })
+      response.end(answer.body)
+    },
+    (error: unknown) => {
+      console.error('origin failed:', error)
+      response.writeHead(500)
+      response.end()
+    },
+  )
 })
 
 const port = Number(process.env['PORT'] ?? defaultPort)
