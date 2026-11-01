@@ -22,6 +22,25 @@ import {
 
 import { LiveWalletNetwork } from './catalog.js'
 
+/**
+ * Where one transaction stands on its chain right now. `Unknown` means the
+ * chain does not know it: it has not landed yet, it never will, or a reorg
+ * dropped it. `Final` and `FailedOnChain` never change.
+ */
+export const TransactionStanding = S.Literals([
+  'Unknown',
+  'Seen',
+  'Included',
+  'Final',
+  'FailedOnChain',
+])
+/** Where one transaction stands on its chain right now. */
+export type TransactionStanding = typeof TransactionStanding.Type
+
+/** True for a standing that never changes. */
+export const isSettledStanding = (standing: TransactionStanding): boolean =>
+  standing === 'Final' || standing === 'FailedOnChain'
+
 /** One persisted account resolved against its exact live network adapter. */
 export const LiveNetworkAccount = S.Struct({
   profile: WalletProfileAccount,
@@ -61,6 +80,10 @@ export type LiveNetworkAdapter = Readonly<{
   observeTransactions: (
     account: LiveNetworkAccount,
   ) => Stream.Stream<TransactionRecord, WalletClientError>
+  observeSettlement: (
+    account: LiveNetworkAccount,
+    transactionId: string,
+  ) => Stream.Stream<TransactionStanding, WalletClientError>
   requestTestFunding: (
     account: LiveNetworkAccount,
     request: TestFundingRequest,

@@ -525,6 +525,7 @@ export const makeBitcoinLiveAdapter = (
       catch: unavailable,
     })
   },
+  observeSettlement: () => Stream.fail(unsupported()),
   observeTransactions: account =>
     Stream.callback<typeof TransactionRecord.Type, WalletClientError>(queue =>
       Effect.acquireRelease(

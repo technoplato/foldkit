@@ -689,6 +689,7 @@ export const makeSuiLiveAdapter = (
         catch: clientError,
       })
     },
+    observeSettlement: () => Stream.fail(unsupported()),
     observeTransactions: account => {
       if (!isExactAccount(configuration, account)) {
         return Stream.fail(invalidResponse())

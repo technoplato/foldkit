@@ -12,6 +12,8 @@ import {
   BaseError,
   type Transaction as EthereumRpcTransaction,
   InsufficientFundsError,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
   createPublicClient,
   defineChain,
   getAddress,
@@ -43,7 +45,12 @@ import {
   maximumTransactionHistoryPageSize,
 } from 'wallet-core-example'
 
-import type { LiveNetworkAccount, LiveNetworkAdapter } from './adapter.js'
+import {
+  type LiveNetworkAccount,
+  type LiveNetworkAdapter,
+  type TransactionStanding,
+  isSettledStanding,
+} from './adapter.js'
 import type { EthereumLiveNetwork } from './catalog.js'
 
 /** Protected EIP-1559 transaction facts passed from networking to custody. */
@@ -163,6 +170,21 @@ const chainForConfiguration = (configuration: EthereumLiveNetwork) =>
       },
     },
   })
+
+const TransactionHash = S.TemplateLiteral(['0x', S.String])
+
+const transactionHash = (transactionId: string): `0x${string}` =>
+  S.decodeUnknownSync(TransactionHash)(transactionId)
+
+const unlessNotFound = (error: unknown): undefined => {
+  if (
+    error instanceof TransactionReceiptNotFoundError ||
+    error instanceof TransactionNotFoundError
+  ) {
+    return undefined
+  }
+  throw error
+}
 
 const clientsForConfiguration = (configuration: EthereumLiveNetwork) => {
   const chain = chainForConfiguration(configuration)
@@ -753,6 +775,51 @@ export const makeEthereumLiveAdapter = (
           unwatch => Effect.sync(unwatch),
         ).pipe(Effect.flatMap(() => Effect.never)),
       ),
+    observeSettlement: (_account, transactionId) => {
+      const hash = transactionHash(transactionId)
+      const standing = async (): Promise<TransactionStanding> => {
+        const receipt = await publicClient
+          .getTransactionReceipt({ hash })
+          .catch(unlessNotFound)
+        if (receipt === undefined) {
+          const transaction = await publicClient
+            .getTransaction({ hash })
+            .catch(unlessNotFound)
+          return transaction === undefined ? 'Unknown' : 'Seen'
+        }
+        if (receipt.status !== 'success') {
+          return 'FailedOnChain'
+        }
+        const finalized = await publicClient.getBlock({ blockTag: 'finalized' })
+        return receipt.blockNumber <= finalized.number ? 'Final' : 'Included'
+      }
+      return Stream.merge(
+        Stream.callback<TransactionStanding, WalletClientError>(queue =>
+          Effect.acquireRelease(
+            Effect.sync(() =>
+              subscriptionClient.watchBlockNumber({
+                onBlockNumber: () => {
+                  void standing()
+                    .then(current => {
+                      Queue.offerUnsafe(queue, current)
+                    })
+                    .catch(() => {
+                      Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+                    })
+                },
+                onError: () => {
+                  Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+                },
+              }),
+            ),
+            unwatch => Effect.sync(unwatch),
+          ).pipe(Effect.flatMap(() => Effect.never)),
+        ),
+        Stream.fromEffect(
+          Effect.tryPromise({ try: standing, catch: unavailable }),
+        ),
+      ).pipe(Stream.takeUntil(isSettledStanding))
+    },
     requestTestFunding: (account, request) => {
       if (
         configuration.network.networkId !== 'ethereum:anvil' ||
