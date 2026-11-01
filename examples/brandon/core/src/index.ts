@@ -1,3 +1,4 @@
+export * from './instantConfig.js'
 export * from './live.js'
 export * from './message.js'
 export * from './model.js'

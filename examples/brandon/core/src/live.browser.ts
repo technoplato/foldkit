@@ -4,6 +4,7 @@ import type { Processor } from 'foldkit'
 import { Instant } from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
+import { brandonInstantConfig } from './instantConfig.js'
 import {
   type BrandonHandle,
   type BrandonResources,
@@ -38,7 +39,7 @@ export const startBrandon = (config: StartBrandonConfig): BrandonHandle =>
       app: { id: config.appId },
       processor: config.host,
       instance: config.instance,
-      database: init({ appId: config.appId }),
+      database: init(brandonInstantConfig(config.appId)),
       programLog: BrandonProgram.id,
     }),
     config.resources,
