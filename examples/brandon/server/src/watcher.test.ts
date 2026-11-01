@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Option, Stream } from 'effect'
+import { Cause, Effect, Exit, Fiber, Option, Schedule, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   AssetAmount,
@@ -16,7 +16,7 @@ import {
   type WatchedAccount,
   accountKeyOf,
 } from './activity.js'
-import { type ActivityStore, watchOnce } from './watcher.js'
+import { type ActivityStore, watchAccount, watchOnce } from './watcher.js'
 
 const holder = `brandon-dot:${'b'.repeat(64)}`
 const address = 'Watched11111111111111111111111111111111111'
@@ -55,6 +55,7 @@ const memoryStore = () => {
   const rows = new Map<string, ActivityRow>()
   const cursors: Array<string> = []
   let writes = 0
+  let notices = 0
   const store: ActivityStore = {
     storedTransaction: transactionKey =>
       Effect.sync(() => Option.fromNullishOr(rows.get(transactionKey))),
@@ -67,8 +68,18 @@ const memoryStore = () => {
       Effect.sync(() => {
         cursors.push(cursor)
       }),
+    announceChange: () =>
+      Effect.sync(() => {
+        notices += 1
+      }),
   }
-  return { store, rows, cursors, writeCount: () => writes }
+  return {
+    store,
+    rows,
+    cursors,
+    writeCount: () => writes,
+    noticeCount: () => notices,
+  }
 }
 
 const unavailable = () => new WalletClientError({ code: 'Unavailable' })
@@ -183,6 +194,56 @@ describe('watching one account', () => {
     expect(asked).toEqual([Option.none()])
   })
 
+  it('gives open pages one notice for a whole backfill, and one per live change', async () => {
+    const { store, noticeCount } = memoryStore()
+    const adapter = fakeAdapter(
+      () =>
+        Effect.succeed({
+          records: [record('newer', 2), record('older', 1)],
+          maybeNextCursor: Option.none(),
+        }),
+      Stream.concat(
+        Stream.make(record('live', 3, 'Pending'), record('live', 4)),
+        Stream.fail(unavailable()),
+      ),
+    )
+    await Effect.runPromiseExit(watchOnce(adapter, account, store))
+    expect(noticeCount()).toBe(3)
+  })
+
+  it('gives no notice when nothing changed', async () => {
+    const { store, noticeCount } = memoryStore()
+    const adapter = fakeAdapter(
+      () =>
+        Effect.succeed({
+          records: [record('older', 1)],
+          maybeNextCursor: Option.none(),
+        }),
+      Stream.concat(Stream.make(record('older', 1)), Stream.fail(unavailable())),
+    )
+    await Effect.runPromiseExit(watchOnce(adapter, account, store))
+    const afterFirst = noticeCount()
+    await Effect.runPromiseExit(watchOnce(adapter, account, store))
+    expect(afterFirst).toBe(1)
+    expect(noticeCount()).toBe(afterFirst)
+  })
+
+  it('ends a quiet watch at its lifetime, so a deaf socket cannot hide a payment', async () => {
+    const { store } = memoryStore()
+    const adapter = fakeAdapter(
+      () =>
+        Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      Stream.never,
+    )
+    const exit = await Effect.runPromiseExit(
+      watchOnce(adapter, account, store, {
+        answerWithin: '1 second',
+        maximumLifetime: '20 millis',
+      }),
+    )
+    expect(Exit.isFailure(exit)).toBe(true)
+  })
+
   it('says which error ended the watch, never an empty reason', async () => {
     const { store } = memoryStore()
     const adapter = fakeAdapter(() => Effect.fail(unavailable()), Stream.never)
@@ -201,9 +262,57 @@ describe('watching one account', () => {
     const adapter = fakeAdapter(() => Effect.never, Stream.never)
     const started = Date.now()
     const exit = await Effect.runPromiseExit(
-      watchOnce(adapter, account, store, { answerWithin: '50 millis' }),
+      watchOnce(adapter, account, store, {
+        answerWithin: '50 millis',
+        maximumLifetime: '10 seconds',
+      }),
     )
     expect(Exit.isFailure(exit)).toBe(true)
     expect(Date.now() - started).toBeLessThan(2_000)
+  })
+})
+
+describe('following one account for as long as it runs', () => {
+  it('reconnects from the newest cursor it wrote, not the one it started with', async () => {
+    const { store } = memoryStore()
+    const asked: Array<Option.Option<string>> = []
+    let reconnected: () => void = () => {}
+    const secondHistory = new Promise<void>(resolve => {
+      reconnected = resolve
+    })
+    const adapter = fakeAdapter(
+      () =>
+        Effect.sync(() => {
+          if (asked.length > 0) {
+            reconnected()
+          }
+          asked.push(Option.none())
+          return {
+            records: [record('newest', 2)],
+            maybeNextCursor: Option.none(),
+          }
+        }),
+      Stream.fail(unavailable()),
+    )
+    const seen: Array<Option.Option<string>> = []
+    const trackedStore: ActivityStore = {
+      ...store,
+      storedTransaction: transactionKey =>
+        Effect.flatMap(store.storedTransaction(transactionKey), stored =>
+          Effect.succeed(stored),
+        ),
+    }
+    const fiber = Effect.runFork(
+      watchAccount(adapter, account, trackedStore, {
+        schedule: Schedule.spaced('1 millis'),
+        onWatch: watched => {
+          seen.push(watched.maybeCursor)
+        },
+      }),
+    )
+    await secondHistory
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    expect(seen.at(0)).toEqual(Option.none())
+    expect(seen.at(1)).toEqual(Option.some('newest'))
   })
 })
