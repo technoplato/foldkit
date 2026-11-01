@@ -1,13 +1,19 @@
-import { Page, brandonWalletConnectOrigins } from 'brandon-core-example'
+import {
+  Page,
+  WalletActivity,
+  type WalletActivityEntry,
+  brandonWalletConnectOrigins,
+} from 'brandon-core-example'
 import { Array, Effect, Option, Schema as S } from 'effect'
 import { createHash } from 'node:crypto'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { accountKeyOf, walletOwnerKeyOf } from './account.js'
 import {
   handle,
   inlineStyleHashesOf,
   makeOriginHeaders,
+  maximumWatchedAccountsPerPerson,
   originHeaders,
 } from './handler.js'
 import type { BrandonStore, SectionRow } from './store.js'
@@ -34,17 +40,61 @@ const flagsFor: Readonly<Record<string, ReadonlyArray<string>>> = {
   [accountKeyOf(tyler)]: ['party'],
 }
 
-const store: BrandonStore = {
-  account: key =>
-    Effect.succeed(
-      Option.map(Option.fromNullishOr(flagsFor[key]), flags => ({
-        displayName: 'Someone',
-        flags,
-      })),
-    ),
-  sections: Effect.succeed([walletRow]),
-  wallets: Effect.succeed([]),
+const holderOf = (email: string): string =>
+  `brandon-dot:${accountKeyOf(email)}`
+
+const activityOf = (
+  transactionId: string,
+): typeof WalletActivityEntry.Type => ({
+  transactionId,
+  networkId: 'solana:devnet',
+  direction: 'Incoming',
+  status: 'Confirmed',
+  maybeFinality: Option.some('Included'),
+  assetId: 'solana:devnet:sol',
+  amountAtomic: '500000000',
+  maybeCounterpartyAddress: Option.none(),
+  observedAtMs: 1,
+})
+
+const makeStore = () => {
+  const watched: Array<string> = []
+  const store: BrandonStore = {
+    account: key =>
+      Effect.succeed(
+        Option.map(Option.fromNullishOr(flagsFor[key]), flags => ({
+          displayName: 'Someone',
+          flags,
+        })),
+      ),
+    sections: Effect.succeed([walletRow]),
+    wallets: Effect.succeed([]),
+    walletActivity: holder =>
+      Effect.succeed(
+        holder === holderOf(michael)
+          ? [activityOf('michael-transaction')]
+          : holder === holderOf(brandon)
+            ? [activityOf('brandon-transaction')]
+            : [],
+      ),
+    watchedAccountKeys: holder =>
+      Effect.succeed(
+        Array.filter(watched, accountKey =>
+          accountKey.startsWith(`${holder}|`),
+        ),
+      ),
+    addWatchedAccount: ({ holder, networkId, address }) =>
+      Effect.sync(() => {
+        watched.push(`${holder}|${networkId}|${address}`)
+      }),
+  }
+  return { store, watched }
 }
+
+const { store, watched } = makeStore()
+
+const solanaAddress = 'So11111111111111111111111111111111111111112'
+const ethereumAddress = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
 
 const request = (
   method: string,
@@ -127,6 +177,124 @@ describe("a wallet's owner key", () => {
     expect(walletOwnerKeyOf('brandon@example.com')).toBe(
       'FV0RdRT4MDm1X3ijUItny8ib4StGguUcUwIzhLjkSM8',
     )
+  })
+})
+
+describe('following a public address', () => {
+  const put = (path: string, email: string) =>
+    request('PUT', path, Option.some(email))
+  const pathOf = (networkId: string, address: string) =>
+    `/api/wallet/accounts/${encodeURIComponent(networkId)}/${encodeURIComponent(address)}`
+
+  beforeEach(() => {
+    watched.length = 0
+  })
+
+  it('files it under the signed-in person, whoever the path names', async () => {
+    const answer = await put(pathOf('solana:devnet', solanaAddress), brandon)
+    expect(answer.status).toBe(200)
+    expect(watched).toEqual([
+      `${holderOf(brandon)}|solana:devnet|${solanaAddress}`,
+    ])
+    const answerWithQuery = await put(
+      `${pathOf('ethereum:mainnet', ethereumAddress)}?holder=${holderOf(michael)}`,
+      brandon,
+    )
+    expect(answerWithQuery.status).toBe(200)
+    expect(watched).toEqual([
+      `${holderOf(brandon)}|solana:devnet|${solanaAddress}`,
+      `${holderOf(brandon)}|ethereum:mainnet|${ethereumAddress}`,
+    ])
+  })
+
+  it('adds nothing for an address it already follows', async () => {
+    await put(pathOf('solana:devnet', solanaAddress), brandon)
+    const again = await put(pathOf('solana:devnet', solanaAddress), brandon)
+    expect(again.status).toBe(200)
+    expect(watched.length).toBe(1)
+  })
+
+  it('is refused without the wallet flag or a login', async () => {
+    const path = pathOf('solana:devnet', solanaAddress)
+    expect((await put(path, tyler)).status).toBe(403)
+    expect((await request('PUT', path, Option.none())).status).toBe(403)
+    expect(watched).toEqual([])
+  })
+
+  it('takes only a public address on one of the four networks', async () => {
+    const refused = [
+      pathOf('solana:testnet', solanaAddress),
+      pathOf('bitcoin:mainnet', solanaAddress),
+      pathOf('solana:devnet', ethereumAddress),
+      pathOf('ethereum:sepolia', solanaAddress),
+      pathOf('solana:devnet', 'not-an-address'),
+      pathOf('solana:devnet', `${solanaAddress}|holder`),
+      pathOf('ethereum:mainnet', ethereumAddress.toLowerCase().replace('a', 'A')),
+      pathOf('ethereum:mainnet', 'a'.repeat(64)),
+      pathOf('ethereum:mainnet', `0x${'a'.repeat(64)}`),
+      pathOf('solana:devnet', 'a'.repeat(88)),
+    ]
+    for (const path of refused) {
+      expect((await put(path, brandon)).status).toBe(400)
+    }
+    expect(watched).toEqual([])
+  })
+
+  it('stops at the limit for one person, and that limit is theirs alone', async () => {
+    for (let index = 0; index < maximumWatchedAccountsPerPerson; index += 1) {
+      watched.push(`${holderOf(brandon)}|solana:devnet|address${index.toString()}`)
+    }
+    const path = pathOf('solana:devnet', solanaAddress)
+    expect((await put(path, brandon)).status).toBe(429)
+    expect((await put(path, michael)).status).toBe(200)
+  })
+
+  it('answers no other PUT and reads no body', async () => {
+    for (const path of [
+      '/api/wallet/accounts',
+      '/api/wallet/accounts/solana:devnet',
+      `/api/wallet/accounts/solana:devnet/${solanaAddress}/more`,
+      '/api/wallet/activity',
+      '/api/wallet/owner',
+    ]) {
+      expect((await put(path, brandon)).status).toBe(405)
+    }
+    for (const method of ['POST', 'PATCH', 'DELETE']) {
+      expect(
+        (
+          await request(
+            method,
+            pathOf('solana:devnet', solanaAddress),
+            Option.some(brandon),
+          )
+        ).status,
+      ).toBe(405)
+    }
+  })
+})
+
+describe("a person's activity", () => {
+  const idsFor = async (email: string, path = '/api/wallet/activity') =>
+    Array.map(
+      S.decodeUnknownSync(WalletActivity)(
+        JSON.parse((await get(path, email)).body.toString()),
+      ),
+      ({ transactionId }) => transactionId,
+    )
+
+  it('reaches only that person, whatever the request asks for', async () => {
+    expect(await idsFor(brandon)).toEqual(['brandon-transaction'])
+    expect(await idsFor(michael)).toEqual(['michael-transaction'])
+    expect(
+      await idsFor(brandon, `/api/wallet/activity?holder=${holderOf(michael)}`),
+    ).toEqual(['brandon-transaction'])
+  })
+
+  it('is refused without the wallet flag or a login', async () => {
+    expect((await get('/api/wallet/activity', tyler)).status).toBe(403)
+    expect(
+      (await request('GET', '/api/wallet/activity', Option.none())).status,
+    ).toBe(403)
   })
 })
 
