@@ -101,4 +101,46 @@ describe('Ethereum history from Blockscout', () => {
     expect(sent.get('inserted_at')).toBe(nextPageParams.inserted_at)
     expect(sent.get('fee')).toBe(nextPageParams.fee)
   })
+
+  it('reads a transaction still pending, which has no time or status yet', async () => {
+    const pendingHash = `0x${'27'.repeat(32)}`
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                timestamp: null,
+                status: null,
+                result: 'pending',
+                block_number: null,
+                hash: pendingHash,
+                from: { hash: senderAddress },
+                to: { hash: accountAddress },
+                value: '1789000000002',
+              },
+              ...blockscoutPage.items,
+            ],
+            next_page_params: null,
+          }),
+          { status: 200 },
+        ),
+    )
+    const before = Date.now()
+    const page = await Effect.runPromise(
+      makeEthereumLiveAdapter(configuration).loadTransactionHistory(account, {
+        accountId: account.account.accountId,
+        networkId: account.account.networkId,
+        maybeCursor: Option.none(),
+        limit: 25,
+      }),
+    )
+    expect(page.records.map(({ status }) => status)).toEqual([
+      'Pending',
+      'Confirmed',
+    ])
+    expect(page.records.at(0)?.transactionId).toBe(pendingHash)
+    expect(page.records.at(0)?.observedAt).toBeGreaterThanOrEqual(before)
+  })
 })
