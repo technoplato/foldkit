@@ -19,11 +19,112 @@ import type {
   AccountBalance,
   Model,
   ReceivingInstruction,
+  TransactionPreview,
   WalletAccount,
   WalletDataSource,
   WalletFailure,
 } from './model.js'
 import { sendNetworkSelectionLabel } from './sendNetworkSelection.js'
+import {
+  WalletNetworkMode,
+  isNetworkEnvironmentInWalletMode,
+} from './walletProfile.js'
+
+/**
+ * A network mode as people say it: Live is Mainnet.
+ *
+ * @example
+ * ```typescript
+ * walletNetworkModeLabel('Live') // 'Mainnet'
+ * ```
+ */
+export const walletNetworkModeLabel = (
+  networkMode: WalletNetworkMode,
+): string =>
+  M.value(networkMode).pipe(
+    M.withReturnType<string>(),
+    M.when('Devnet', () => 'Devnet'),
+    M.when('Testnet', () => 'Testnet'),
+    M.when('Live', () => 'Mainnet'),
+    M.exhaustive,
+  )
+
+/**
+ * The modes this host has at least one network for, in the order Devnet,
+ * Testnet, Mainnet. Before the portfolio loads, only the current mode.
+ *
+ * @example
+ * ```typescript
+ * availableWalletNetworkModes(model) // ['Devnet', 'Live'] for Solana Devnet and Mainnet only
+ * ```
+ */
+export const availableWalletNetworkModes = (
+  model: Model,
+): ReadonlyArray<WalletNetworkMode> => {
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return [model.walletNetworkMode]
+  }
+  const networks = model.portfolio.snapshot.networks
+  return Array.filter(WalletNetworkMode.literals, networkMode =>
+    Array.some(networks, network =>
+      isNetworkEnvironmentInWalletMode(network.environment, networkMode),
+    ),
+  )
+}
+
+/** What the confirm step shows: exactly what will be signed. */
+export const TransferConfirmation = S.Struct({
+  amountLabel: S.String,
+  recipientAddress: S.String,
+  networkName: S.String,
+  feeLabel: S.String,
+  balanceAfterLabel: S.String,
+  isRealMoney: S.Boolean,
+})
+/** What the confirm step shows: exactly what will be signed. */
+export type TransferConfirmation = typeof TransferConfirmation.Type
+
+/**
+ * The confirm step of one preview, read from the preview itself, so the
+ * words are what the signer receives: the amount, the full recipient
+ * address, the network, the fee and the balance after. `isRealMoney` is
+ * true on a Mainnet network.
+ *
+ * @example
+ * ```typescript
+ * transferConfirmation(model, preview)
+ * // Option.some({ amountLabel: '0.5 SOL', networkName: 'Solana Mainnet Beta', isRealMoney: true, ... })
+ * ```
+ */
+export const transferConfirmation = (
+  model: Model,
+  preview: TransactionPreview,
+): Option.Option<TransferConfirmation> => {
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return Option.none()
+  }
+  const { request, recipient } = preview.transfer
+  const portfolio = model.portfolio.snapshot
+  return Option.map(
+    networkForId(portfolio.networks, recipient.networkId),
+    network =>
+      TransferConfirmation.make({
+        amountLabel: assetAmountLabelForModel(model, {
+          assetId: request.assetId,
+          atomicUnits: request.atomicUnits,
+          observedAt: preview.estimatedFee.observedAt,
+        }),
+        recipientAddress: recipient.address,
+        networkName: network.displayName,
+        feeLabel: assetAmountLabelForModel(model, preview.estimatedFee),
+        balanceAfterLabel: assetAmountLabelForModel(
+          model,
+          preview.resultingBalance,
+        ),
+        isRealMoney: network.environment === 'Mainnet',
+      }),
+  )
+}
 
 /** Labels the single source behind every account and amount on the screen. */
 export const walletDataSourceLabel = (dataSource: WalletDataSource): string =>
