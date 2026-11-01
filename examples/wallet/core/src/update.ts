@@ -153,7 +153,9 @@ import {
   LoadingWalletProfiles,
   ReadyToCreateWallet,
   WalletCreationRequest,
+  WalletNetworkMode,
   WalletProfile,
+  isNetworkEnvironmentInWalletMode,
   nextWalletCreationRequest,
   upsertWalletProfile,
 } from './walletProfile.js'
@@ -1059,6 +1061,27 @@ const hasExactTransactionRecord = (
       candidate.amount.atomicUnits === transaction.amount.atomicUnits,
   )
 
+const hasNetworksInMode = (
+  portfolio: PortfolioSnapshot,
+  networkMode: WalletNetworkMode,
+): boolean =>
+  Array_.some(portfolio.networks, network =>
+    isNetworkEnvironmentInWalletMode(network.environment, networkMode),
+  )
+
+const walletNetworkModeForPortfolio = (
+  portfolio: PortfolioSnapshot,
+  networkMode: WalletNetworkMode,
+): WalletNetworkMode =>
+  hasNetworksInMode(portfolio, networkMode)
+    ? networkMode
+    : Option.getOrElse(
+        Array_.findFirst(WalletNetworkMode.literals, mode =>
+          hasNetworksInMode(portfolio, mode),
+        ),
+        () => networkMode,
+      )
+
 /** Applies one Wallet Message and returns its finite Commands. */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -1294,15 +1317,20 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ) {
           return [model, []]
         }
+        const walletNetworkMode = walletNetworkModeForPortfolio(
+          portfolio,
+          model.walletNetworkMode,
+        )
         const maybeDefaultSelection = selectSendNetworkForMode(
           portfolio,
           model.wallets,
           model.maybeSendNetworkSelection,
-          model.walletNetworkMode,
+          walletNetworkMode,
         )
         if (model.walletIntent._tag !== 'PendingWalletIntent') {
           const hydratedModel = {
             ...model,
+            walletNetworkMode,
             portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
             balanceFreshness: CurrentBalances.make({}),
             maybeSendNetworkSelection: maybeDefaultSelection,
@@ -1363,6 +1391,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [
             {
               ...model,
+              walletNetworkMode,
               portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
               balanceFreshness: CurrentBalances.make({}),
               maybeSendNetworkSelection: maybeDefaultSelection,
