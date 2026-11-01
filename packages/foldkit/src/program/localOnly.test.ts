@@ -17,7 +17,7 @@ import { Memory, makeMemoryStore } from '../runtime/syncEngine.js'
 import { ts } from '../schema/index.js'
 import * as Session from '../session/session.js'
 import { compose as composeProgram } from './compose.js'
-import { make } from './program.js'
+import { type ProgramSynchronization, make } from './program.js'
 
 const NotesModel = S.Struct({ pasted: S.Number, saved: S.Number })
 type NotesModel = typeof NotesModel.Type
@@ -41,6 +41,16 @@ type NotesMessage = typeof NotesMessage.Type
 
 const Notes = ts('Notes')
 
+const notesSynchronization: ProgramSynchronization<NotesModel, NotesMessage> = {
+  messageCategory: () => 'Domain',
+  projectDomain: model => model,
+  isLocalOnly: message => message._tag === 'Paste',
+  keepOnRefold: (current, refolded) => ({
+    ...refolded,
+    pasted: current.pasted,
+  }),
+}
+
 const NotesProgram = make({
   id: 'local-only-notes',
   version: 1,
@@ -60,18 +70,20 @@ const NotesProgram = make({
     slug: 'notes',
     root: Declaration.rootScreen(Notes, Route.here),
   }),
-  synchronization: {
-    messageCategory: () => 'Domain',
-    projectDomain: model => model,
-    isLocalOnly: message => message._tag === 'Paste',
-    keepOnRefold: (current, refolded) => ({
-      ...refolded,
-      pasted: current.pasted,
-    }),
-  },
+  synchronization: notesSynchronization,
 })
 
 const App = ActionMenu.compose({ of: Session.compose({ of: NotesProgram }) })
+
+/** The same Program built by a writer that ignores isLocalOnly. */
+const LeakyApp = ActionMenu.compose({
+  of: Session.compose({
+    of: {
+      ...NotesProgram,
+      synchronization: { ...notesSynchronization, isLocalOnly: () => false },
+    },
+  }),
+})
 
 const AppDestination = S.Union([
   Notes,
@@ -87,32 +99,36 @@ const AppModel = S.Struct({
   navigation: NavigationStack(AppDestination),
 })
 
-const Synced = composeProgram.sync({
-  of: App,
-  snapshot: S.Struct({ id: S.String }).pipe(
-    S.decodeTo(
-      AppModel,
-      SchemaTransformation.transform({
-        decode: (): typeof AppModel.Encoded => ({
-          pasted: 0,
-          saved: 0,
-          session: { mode: 'Mirror', generation: 0 },
-          navigation: stackAtRoot(Notes()),
+const syncedOf = <Child extends typeof App | typeof LeakyApp>(of: Child) =>
+  composeProgram.sync({
+    of,
+    snapshot: S.Struct({ id: S.String }).pipe(
+      S.decodeTo(
+        AppModel,
+        SchemaTransformation.transform({
+          decode: (): typeof AppModel.Encoded => ({
+            pasted: 0,
+            saved: 0,
+            session: { mode: 'Mirror', generation: 0 },
+            navigation: stackAtRoot(Notes()),
+          }),
+          encode: () => ({ id: 'notes' }),
         }),
-        encode: () => ({ id: 'notes' }),
-      }),
+      ),
     ),
-  ),
-  message: S.Struct({ body: S.String }).pipe(
-    S.decodeTo(
-      S.fromJsonString(App.Message),
-      SchemaTransformation.transform({
-        decode: row => row.body,
-        encode: body => ({ body }),
-      }),
+    message: S.Struct({ body: S.String }).pipe(
+      S.decodeTo(
+        S.fromJsonString(App.Message),
+        SchemaTransformation.transform({
+          decode: row => row.body,
+          encode: body => ({ body }),
+        }),
+      ),
     ),
-  ),
-})
+  })
+
+const Synced = syncedOf(App)
+const SyncedLeaky = syncedOf(LeakyApp)
 
 const pollMs = 10
 const pollAttempts = 100
@@ -188,6 +204,55 @@ describe('synchronization.isLocalOnly', () => {
         JSON.stringify(row).includes('made-up-code'),
       ),
     ).toBe(false)
+  })
+
+  it('never applies a local-only Message that another writer put on the log', async () => {
+    const store = makeMemoryStore()
+    const here = startHandle({
+      program: Synced,
+      sync: Memory({ processor: 'notes-here', store }),
+    })
+    const leaky = startHandle({
+      program: SyncedLeaky,
+      sync: Memory({ processor: 'notes-leaky', store }),
+    })
+    handles.push(here, leaky)
+    await eventually(
+      () =>
+        Option.isSome(readyModelOf(here)) && Option.isSome(readyModelOf(leaky)),
+    )
+    leaky.send(Paste({ text: pastedAddress }))
+    leaky.send(Save())
+    await eventually(() =>
+      Option.exists(readyModelOf(here), model => model.saved === 1),
+    )
+    expect(
+      Option.map(readyModelOf(here), model => [model.pasted, model.saved]),
+    ).toEqual(Option.some([0, 1]))
+  })
+
+  it('never folds a local-only Message from the log when it starts', async () => {
+    const store = makeMemoryStore()
+    const leaky = startHandle({
+      program: SyncedLeaky,
+      sync: Memory({ processor: 'notes-leaky', store }),
+    })
+    handles.push(leaky)
+    await eventually(() => Option.isSome(readyModelOf(leaky)))
+    leaky.send(Paste({ text: pastedAddress }))
+    leaky.send(Save())
+    await eventually(() => store.messages.length === 2)
+    const late = startHandle({
+      program: Synced,
+      sync: Memory({ processor: 'notes-late', store }),
+    })
+    handles.push(late)
+    await eventually(() =>
+      Option.exists(readyModelOf(late), model => model.saved === 1),
+    )
+    expect(
+      Option.map(readyModelOf(late), model => [model.pasted, model.saved]),
+    ).toEqual(Option.some([0, 1]))
   })
 
   it('keeps what a local-only Message changed when sync refolds the log', () => {
