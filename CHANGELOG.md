@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 1:30 a.m. EDT — feat(brandon): Brandon dot on Foldkit's Instant sync
+
+- **Change:** `examples/brandon`, the page at brandon.pisspoursoftware.xyz, for Scribe issues #1531, #1525, and #1530
+- **Details:**
+  - The log carries points, pointers, and change notices; each section's words stay on an origin that verifies the Cloudflare Access JWT and sends only what an account's flags allow.
+  - `Instant()` takes `owner` beside `programLog`, so Books and Reminders no longer build a transport by hand.
+  - `FoldkitCounterV01` is now `SharedInstantProject`, the name for the one project every example shares.
+  - `@foldkit/markdown` keeps a time of day in prose as text instead of refusing it as a directive.
+- **Files:**
+  - `examples/brandon/core`, `examples/brandon/foldkit`, `examples/brandon/server` — the Program, the page, and the origin with the `brandon` command
+  - `packages/instant/src/sync` — the `owner` option and the union of `InstantOptions`
+  - `packages/markdown/src/vite/normalize.ts` — colons in prose
+
 ## October 30th, 2026 at 12:58:40 p.m. EDT — `7105e39ba422` feat(issues): green: issues show lists the Issue's build jobs
 
 - **Implementation commit:** `7105e39ba4227c6f4a4242d5d99a4aea873de5fe`
