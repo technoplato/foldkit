@@ -9,6 +9,7 @@ import {
   newestTransactionId,
   nextActivityRow,
   observedActivityRow,
+  ownerUserIdOfHolder,
   transactionKeyOf,
 } from './activity.js'
 
@@ -130,5 +131,22 @@ describe('the cursor', () => {
     expect(newestTransactionId([], Option.some('kept'))).toEqual(
       Option.some('kept'),
     )
+  })
+})
+
+describe("an account's rows", () => {
+  const originOwner = '155454dd-e60a-4a4d-82d7-4ead5f8df4fa'
+
+  it('belong to the Scribe user their holder names, so that user can read them', () => {
+    const phoneUser = '2fd17171-0000-4000-8000-000000000000'
+    expect(ownerUserIdOfHolder(`scribe:${phoneUser}`, originOwner)).toBe(
+      phoneUser,
+    )
+  })
+
+  it("stay the origin's for a Brandon dot person, so no client reads them", () => {
+    expect(
+      ownerUserIdOfHolder(`brandon-dot:${'a'.repeat(64)}`, originOwner),
+    ).toBe(originOwner)
   })
 })
