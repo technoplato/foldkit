@@ -161,7 +161,7 @@ describe('every answer', () => {
     expect(policy).not.toContain('unsafe-eval')
     for (const origin of [
       'https://api.devnet.solana.com',
-      'wss://api.mainnet-beta.solana.com',
+      'wss://solana-rpc.publicnode.com',
       'https://ethereum-sepolia-rpc.publicnode.com',
       'https://eth.blockscout.com',
       ...brandonWalletConnectOrigins,
