@@ -160,8 +160,13 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
 
 ## The site: issues.pisspoursoftware.xyz
 
-`react` is the site behind Cloudflare Access at issues.pisspoursoftware.xyz
-(page loads on issues.knophy.com redirect there). It paints the same
+`react` is the site behind Cloudflare Access at
+[issues.pisspoursoftware.xyz](https://issues.pisspoursoftware.xyz/) (page loads
+on issues.knophy.com redirect there). Every page shows where its code lives as
+its first line,
+[github.com/technoplato/foldkit/tree/main/examples/issues/react/src](https://github.com/technoplato/foldkit/tree/main/examples/issues/react/src).
+`siteSourceHeader()` in `../site-source-header.ts` writes that line from git at
+build time, so a build from another branch names that branch. It paints the same
 `issuesScreen` as `issues run`:
 
 - the list, newest first, each Issue with its stored status, such as
@@ -184,7 +189,41 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   `issues list --backlog`: each upcoming build's lane, the next build first,
   then P0 to P4 in rank order, with the product filter;
 - a File form with Title and Details fields, product and priority choices, and
-  the reason when an Issue is not filed.
+  the reason when an Issue is not filed;
+- every Issue, Recording, line, commit, build, agent and link in any text as a
+  chip with its title and state, read from the text at read time, so stored text
+  is never rewritten. `build 217` shows `Scribe 0.1`, `installed`, its tag and
+  TestFlight number; a bare `f9ac958b0` is a commit;
+- a page for each thing a chip names, with what points at it: `/recordings/<id>`
+  names when it started and how long it ran and links his words, `/segments/<id>`
+  shows the line's words, linked at their exact time, `/builds/217` names how to
+  get the build, its cut commit, devices, What's New, and every Issue that shipped
+  in it or was found in it, `/commits/<sha>` the Issues it implements and the
+  builds it shipped in;
+- on an Issue's page, at a glance: who asked and in which words, where it landed,
+  how to get that build (the TestFlight invite and the upload's page), the build
+  he found it in, every commit, and the ask's timeline with how long each step
+  took;
+- `/asks`, how long asks take: each step's median, how many Issues reached it,
+  and the slowest asks.
+
+Where an Issue landed comes from Scribe's rows (`edges` by `issueNumber`, their
+commits and builds), which Scribe's `scripts/schema/landings.ts` derives from git
+and its release tags. The site opens Scribe's Instant app the first time a page
+asks, signed in with the same Access login through a second mint on its origin
+(`hostedIdentity({ session })` in `react/vite.config.ts`), so the list pays nothing
+for it. A refused mint or unreadable row is a reason on the page, never rows that
+look empty. `issues show` prints the same landing, from the same query, within 5
+seconds or with one line saying why not.
+
+The catalog is read once. After that a live query holds only the rows changed
+since the newest one seen, and a second holds the row ids, so a write costs a
+reader the Issues it changed, not the whole catalog: on a throwaway app with 300
+Issues and the real server, one write cost 4,730 KB before and 32 to 48 KB now,
+and reached the reader in 70 to 230 ms instead of 250 to 490 ms. Every save marks
+its row as changed now, so a change dated in the past still lands in the window.
+The site also keeps the rows in IndexedDB: a reload shows them at once and reads
+only what changed, with a full read when nothing was kept and once a day.
 
 New Issues link to `https://issues.pisspoursoftware.xyz/issues/<number>`
 (`issueViewerUrl`). A comment made on the site is stored under the email

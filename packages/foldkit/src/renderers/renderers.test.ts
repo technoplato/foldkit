@@ -3,9 +3,13 @@ import { describe, expect, it } from 'vitest'
 
 import { wrapDevice } from './devices/devices.js'
 import {
+  Box,
   Button,
   Column,
   List,
+  Plain,
+  Reference,
+  RichText,
   Row,
   Seek,
   Text,
@@ -367,5 +371,59 @@ describe('a seek bar and a transcript in a terminal', () => {
         }),
       ),
     ).toBe('No transcript yet')
+  })
+})
+
+describe('a Text made of parts and a Box shown as a layer', () => {
+  const fixedBy = RichText([
+    Plain('Fixed by '),
+    Reference({
+      label: '#1358',
+      title: 'issues CLI burns CPU',
+      state: 'PartiallyDone',
+      kind: 'Issue',
+      href: '/issues/1358',
+      detail: ['Filed 2026-10-29', 'Area: Issues CLI / performance'],
+    }),
+    Plain(' in build 218.'),
+  ])
+
+  it('keeps the parts and makes their words the content every painter can draw', () => {
+    expect(fixedBy.content).toBe(
+      'Fixed by #1358 issues CLI burns CPU [PartiallyDone] in build 218.',
+    )
+    expect(fixedBy.parts?.length).toBe(3)
+  })
+
+  it('draws a reference in a terminal as its label, title and state', () => {
+    expect(renderScreen(fixedBy, 80)).toContain(
+      'Fixed by #1358 issues CLI burns CPU [PartiallyDone] in build 218.',
+    )
+  })
+
+  it('paints a reference in HTML as a link with its kind, state and hover', () => {
+    const painted = JSON.stringify(paintHtml(fixedBy, token => token))
+    expect(painted).toContain('/issues/1358')
+    expect(painted).toContain('fk-ref')
+    expect(painted).toContain('"data-kind":"Issue"')
+    expect(painted).toContain('"data-state":"PartiallyDone"')
+    expect(painted).toContain(
+      'Filed 2026-10-29\\nArea: Issues CLI / performance',
+    )
+  })
+
+  it('keeps a layer on a Box and draws it in place in a terminal', () => {
+    const palette = Box(
+      {
+        layer: {
+          kind: 'Dialog',
+          label: 'Command palette',
+          dismissToken: 'palette-close',
+        },
+      },
+      Text('Go to backlog'),
+    )
+    expect(palette.layer?.kind).toBe('Dialog')
+    expect(renderScreen(palette, 40)).toContain('Go to backlog')
   })
 })

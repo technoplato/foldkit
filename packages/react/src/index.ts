@@ -26,6 +26,7 @@ export {
 export type { ProgramHooks } from './hooks/index.js'
 export {
   EmbedPaintersProvider,
+  ScreenStyles,
   paintReact,
   paintTree,
 } from './paintReact/index.js'

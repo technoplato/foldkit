@@ -2,7 +2,9 @@ import { Array, Effect, Layer, Option, Ref, Stream } from 'effect'
 
 import {
   type InstantToolsDatabaseWithFiles,
+  type IssueCatalogCache,
   makeInstantToolsLayer,
+  noIssueCatalogCache,
 } from '@foldkit/instant-tools/instant'
 import {
   ApplicationProduct,
@@ -37,6 +39,11 @@ import {
 
 import { IssueFiles, NoIssueFiles, instantIssueFiles } from './issueFiles.js'
 import { IssueIdentity, liveIssueIdentity } from './issueIdentity.js'
+import {
+  IssueLandings,
+  type IssueLandingsService,
+  NoIssueLandings,
+} from './issueLandings.js'
 
 const scribe = ProductCatalogEntry.make({
   product: ApplicationProduct.make({ id: 'scribe', name: 'Scribe' }),
@@ -317,6 +324,7 @@ export const StaticIssueTrackerResources = Layer.mergeAll(
   Layer.succeed(TriageInbox, StaticTriageInbox),
   MemoryLeftoverPresenceLive,
   Layer.succeed(IssueFiles, NoIssueFiles),
+  Layer.succeed(IssueLandings, NoIssueLandings),
   Layer.succeed(IssueIdentity, {
     author: Effect.succeed('issues-preview'),
     next: Effect.succeed({ id: 'issue-preview', nowMs: 1_753_800_100_000 }),
@@ -363,14 +371,21 @@ export const signedInAuthor = (
 /**
  * Live Instant resources for browser, native, and CLI Clients, writing as
  * `author`: `signedInAuthor(database)` on the site, an agent's name on the CLI.
+ * `landings` is where an Issue landed: `instantIssueLandings(scribeDatabase)`
+ * on the site, nothing where no host reads Scribe's rows. `catalogCache` is
+ * where the host keeps the catalog between visits: the browser's IndexedDB on
+ * the site, nowhere by default.
  */
 export const makeLiveIssueTrackerResources = (
   database: InstantToolsDatabaseWithFiles,
   author: Effect.Effect<string>,
+  landings: IssueLandingsService = NoIssueLandings,
+  catalogCache: IssueCatalogCache = noIssueCatalogCache,
 ) =>
   Layer.mergeAll(
-    makeInstantToolsLayer(database),
+    makeInstantToolsLayer(database, catalogCache),
     makeInstantLeftoverPresenceLayer(database),
     Layer.succeed(IssueFiles, instantIssueFiles(database)),
+    Layer.succeed(IssueLandings, landings),
     Layer.succeed(IssueIdentity, liveIssueIdentity(author)),
   )

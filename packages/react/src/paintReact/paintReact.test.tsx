@@ -1,6 +1,17 @@
-import { Button, Column, List, Row, Text, TextInput } from 'foldkit/renderers'
+import {
+  Box,
+  Button,
+  Column,
+  List,
+  Plain,
+  Reference,
+  RichText,
+  Row,
+  Text,
+  TextInput,
+} from 'foldkit/renderers'
 import { useEffect } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
@@ -280,5 +291,153 @@ describe('fields and checks that press', () => {
     expect(done).toHaveProperty('disabled', true)
     fireEvent.click(screen.getByRole('button', { name: 'Oat milk' }))
     expect(pressedTags(onPress)).toEqual(['Complete:r1', 'OpenReminder:r1'])
+  })
+})
+
+describe('a Text made of parts and a Box shown as a layer', () => {
+  const fixedBy = RichText([
+    Plain('Fixed by '),
+    Reference({
+      label: '#1358',
+      title: 'issues CLI burns CPU',
+      state: 'PartiallyDone',
+      kind: 'Issue',
+      href: '/issues/1358',
+      detail: ['Filed 2026-10-29', 'Area: Issues CLI / performance'],
+    }),
+  ])
+
+  it('paints a reference as a link with its label, title, state and hover', () => {
+    render(paintTree(fixedBy, { onPress: vi.fn() }))
+    const link = screen.getByRole('link', { name: /#1358/ })
+    expect(link.getAttribute('href')).toBe('/issues/1358')
+    expect(link.getAttribute('data-kind')).toBe('Issue')
+    expect(link.getAttribute('data-state')).toBe('PartiallyDone')
+    expect(link.getAttribute('title')).toBe(
+      'Filed 2026-10-29\nArea: Issues CLI / performance',
+    )
+    expect(link.textContent).toContain('issues CLI burns CPU')
+    expect(screen.getByText(/Fixed by/)).toBeDefined()
+  })
+
+  it('follows a reference inside the app on a plain click', () => {
+    const onLink = vi.fn(() => true)
+    render(paintTree(fixedBy, { onPress: vi.fn(), onLink }))
+    fireEvent.click(screen.getByRole('link', { name: /#1358/ }))
+    expect(onLink).toHaveBeenCalledWith('/issues/1358')
+  })
+
+  it('paints a Dialog layer above the page and dismisses it on a click outside', () => {
+    const sendToken = vi.fn()
+    const palette = Box(
+      {
+        layer: {
+          kind: 'Dialog',
+          label: 'Command palette',
+          dismissToken: 'palette-close',
+        },
+      },
+      TextInput({ value: '', placeholder: 'Type a command or an Issue' }),
+    )
+    render(paintReact(palette, sendToken))
+    const dialog = screen.getByRole('dialog', { name: 'Command palette' })
+    expect(dialog).toBeDefined()
+    const backdrop = document.querySelector('.fk-layer-backdrop')
+    if (backdrop === null) {
+      throw new Error('Expected the layer backdrop')
+    }
+    fireEvent.click(backdrop)
+    expect(sendToken).toHaveBeenCalledWith('palette-close')
+  })
+
+  it('paints a Panel layer at the side of the page', () => {
+    render(
+      paintReact(
+        Box(
+          { layer: { kind: 'Panel', label: 'Peek at #1358' } },
+          Text('issues CLI burns CPU'),
+        ),
+        vi.fn(),
+      ),
+    )
+    const panel = screen.getByRole('dialog', { name: 'Peek at #1358' })
+    expect(panel.getAttribute('data-layer')).toBe('Panel')
+  })
+})
+
+describe('paintTree: a long list', () => {
+  const handlers = { onPress: () => {} }
+
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+  })
+
+  it('paints a row object that did not change only once', () => {
+    let titleReads = 0
+    const unchanged = {
+      key: 'unchanged',
+      get title() {
+        titleReads += 1
+        return 'Unchanged'
+      },
+    }
+    const moved = { key: 'moved', title: 'Moved' }
+    const { rerender } = render(
+      paintTree(List({ label: 'Rows', items: [unchanged, moved] }), handlers),
+    )
+    const readsAtFirstPaint = titleReads
+    rerender(
+      paintTree(
+        List({
+          label: 'Rows',
+          items: [unchanged, { ...moved, isCurrent: true }],
+        }),
+        handlers,
+      ),
+    )
+    expect(titleReads).toBe(readsAtFirstPaint)
+    expect(
+      screen.getByText('Moved').closest('li')?.getAttribute('data-current'),
+    ).toBe('true')
+  })
+})
+
+describe('paintTree: a field the Model focuses', () => {
+  const fieldWith = (focused: boolean) =>
+    TextInput({
+      blurToken: 'search-blur',
+      focusToken: 'search-focus',
+      focused,
+      label: 'Search',
+      token: 'search:',
+      value: '',
+    })
+
+  it('takes the focus when the Model says so, and lets go when it stops', () => {
+    const onPress = vi.fn()
+    const { rerender } = render(paintTree(fieldWith(false), { onPress }))
+    const field = screen.getByLabelText('Search')
+    expect(document.activeElement).not.toBe(field)
+
+    rerender(paintTree(fieldWith(true), { onPress }))
+    expect(document.activeElement).toBe(field)
+    expect(onPress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ token: 'search-focus' }),
+    )
+
+    rerender(paintTree(fieldWith(false), { onPress }))
+    expect(document.activeElement).not.toBe(field)
+    expect(onPress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ token: 'search-blur' }),
+    )
+  })
+
+  it('tells the Model when a person clicks into it', () => {
+    const onPress = vi.fn()
+    render(paintTree(fieldWith(false), { onPress }))
+    fireEvent.focus(screen.getByLabelText('Search'))
+    expect(onPress).toHaveBeenCalledWith(
+      expect.objectContaining({ token: 'search-focus' }),
+    )
   })
 })

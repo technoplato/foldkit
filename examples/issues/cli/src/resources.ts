@@ -40,6 +40,11 @@ import {
   readBuildJobs,
 } from './builds.js'
 import { type IssueFilesService } from './commands.js'
+import {
+  type LandingReader,
+  UnavailableLanding,
+  readLanding,
+} from './landing.js'
 
 /** Instant Tools env documented by the issues example and listener. */
 export const documentedInstantEnvPath = join(
@@ -321,6 +326,7 @@ export type IssueRecordsService = Readonly<{
 /** Every live resource the one-shot command needs. */
 export type LiveIssueHostServices = Readonly<{
   buildJobs: BuildJobsReader
+  landing: LandingReader
   credentials: ReadonlyArray<string>
   files: IssueFilesService
   records: IssueRecordsService
@@ -442,6 +448,28 @@ export const scribeBuildJobsReader = (
     },
   })
 
+/**
+ * Reads where an Issue landed from Scribe's main Instant app with `queryFor`'s
+ * client. Without credentials every read answers `UnavailableLanding` naming
+ * what is missing, and nothing is sent.
+ */
+export const scribeLandingReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): LandingReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableLanding.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readLanding(send, issueNumber)
+    },
+  })
+
 const scribeMainEnvText = (): Result.Result<string, string> => {
   if (!existsSync(scribeMainEnvPath)) {
     return Result.fail('no such file')
@@ -553,6 +581,7 @@ export const liveIssueHostServices = ():
   )
   return {
     buildJobs: scribeBuildJobsReader(scribeCredentials),
+    landing: scribeLandingReader(scribeCredentials),
     credentials: [
       adminToken,
       ...Result.match(scribeCredentials, {

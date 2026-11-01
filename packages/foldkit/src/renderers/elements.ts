@@ -3,13 +3,16 @@ import { Array, Match as M } from 'effect'
 import type { Entry } from '../catalog/catalog.js'
 import type { IconName } from './icons.js'
 import type {
+  BoxLayer,
   BoxNode,
   ButtonNode,
   ButtonVariant,
   ColumnNode,
   ListItem,
   ListNode,
+  PlainPart,
   ProgressNode,
+  ReferencePart,
   RowNode,
   SeekNode,
   SpacerNode,
@@ -18,6 +21,7 @@ import type {
   TextImage,
   TextInputNode,
   TextNode,
+  TextPart,
   TranscriptNode,
   TranscriptPassage,
   UiNode,
@@ -58,6 +62,95 @@ export const Text = (
 ): TextNode => ({
   _tag: 'Text',
   content,
+  ...props,
+})
+
+/**
+ * Plain words inside a Text made of parts.
+ *
+ * @example
+ * ```typescript
+ * RichText([Plain('Fixed by '), Reference({ label: '#1358', href: '/issues/1358' })])
+ * ```
+ */
+export const Plain = (text: string): PlainPart => ({ _tag: 'Plain', text })
+
+/**
+ * A reference to another thing inside a Text: an Issue, a recording's line,
+ * a commit. Graphical painters show it as a chip that links to `href`, with
+ * `detail` on hover.
+ *
+ * @example
+ * ```typescript
+ * Reference({
+ *   label: '#1358',
+ *   title: 'issues CLI burns CPU',
+ *   state: 'PartiallyDone',
+ *   kind: 'Issue',
+ *   href: '/issues/1358',
+ *   detail: ['Filed 2026-10-29'],
+ * })
+ * ```
+ */
+export const Reference = (
+  props: Readonly<{
+    label: string
+    title?: string
+    state?: string
+    kind?: string
+    href?: string
+    detail?: ReadonlyArray<string>
+  }>,
+): ReferencePart => ({ _tag: 'Reference', ...props })
+
+/**
+ * The words a painter without chips draws for a part: plain words as they
+ * are, a reference as its label, title and state, such as
+ * `#1358 issues CLI burns CPU [PartiallyDone]`.
+ */
+export const partWords = (part: TextPart): string =>
+  M.value(part).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      Plain: ({ text }) => text,
+      Reference: reference =>
+        Array.join(
+          [
+            reference.label,
+            ...(reference.title === undefined ? [] : [reference.title]),
+            ...(reference.state === undefined ? [] : [`[${reference.state}]`]),
+          ],
+          ' ',
+        ),
+    }),
+  )
+
+/**
+ * A Text made of parts: plain words and references. Its content is the parts'
+ * words, so a terminal or a screen reader reads the same sentence a chip
+ * painter shows.
+ *
+ * @example
+ * ```typescript
+ * RichText([
+ *   Plain('Fixed by '),
+ *   Reference({ label: '#1358', title: 'issues CLI burns CPU', state: 'PartiallyDone', href: '/issues/1358' }),
+ * ])
+ * // content: 'Fixed by #1358 issues CLI burns CPU [PartiallyDone]'
+ * ```
+ */
+export const RichText = (
+  parts: ReadonlyArray<TextPart>,
+  props: Readonly<{
+    label?: string
+    dim?: boolean
+    emphasis?: TextEmphasis
+    width?: number
+  }> = {},
+): TextNode => ({
+  _tag: 'Text',
+  content: Array.join(Array.map(parts, partWords), ''),
+  parts,
   ...props,
 })
 
@@ -141,6 +234,8 @@ export const TextInput = (props: {
   readonly action?: string
   readonly clearAction?: string
   readonly label?: string
+  readonly focusToken?: string
+  readonly blurToken?: string
 }): TextInputNode => ({
   _tag: 'TextInput',
   value: props.value,
@@ -155,6 +250,8 @@ export const TextInput = (props: {
     ? {}
     : { clearAction: props.clearAction }),
   ...(props.label === undefined ? {} : { label: props.label }),
+  ...(props.focusToken === undefined ? {} : { focusToken: props.focusToken }),
+  ...(props.blurToken === undefined ? {} : { blurToken: props.blurToken }),
 })
 
 /** Fixed blank rows. */
@@ -183,14 +280,30 @@ export const Column = (
   children,
 })
 
-/** A padded box. */
+/**
+ * A padded box. With `layer` it shows above the page: a Dialog, such as a
+ * command palette, or a Panel at the side, such as a peek.
+ *
+ * @example
+ * ```typescript
+ * Box(
+ *   { layer: { kind: 'Dialog', label: 'Command palette', dismissToken: 'palette-close' } },
+ *   TextInput({ value: '', placeholder: 'Type a command or an Issue', focused: true }),
+ * )
+ * ```
+ */
 export const Box = (
-  props: Readonly<{ padding?: number; isDock?: boolean }> = {},
+  props: Readonly<{
+    padding?: number
+    isDock?: boolean
+    layer?: BoxLayer
+  }> = {},
   ...children: ReadonlyArray<UiNode>
 ): BoxNode => ({
   _tag: 'Box',
   padding: props.padding ?? 0,
   ...(props.isDock === undefined ? {} : { isDock: props.isDock }),
+  ...(props.layer === undefined ? {} : { layer: props.layer }),
   children,
 })
 

@@ -75,6 +75,7 @@ const liveHost = (services: LiveIssueHostServices): IssuesHost => ({
   mirrorRoot: environmentPath('SCRIBE_ROOT', join(homedir(), 'Scribe')),
   nowMs: () => Date.now(),
   readBuildJobs: services.buildJobs,
+  readLanding: services.landing,
   readStandardInput: Effect.promise(readStandardInput),
   readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
   records: services.records,
@@ -203,7 +204,7 @@ const show = Command.make(
   input => withLiveHost(host => showIssueCommand(host, input)),
 ).pipe(
   Command.withDescription(
-    "Print one Issue in full, with its newest build jobs from Scribe's buildJobs",
+    "Print one Issue in full, with where it landed and its newest build jobs from Scribe's rows",
   ),
 )
 

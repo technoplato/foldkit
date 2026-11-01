@@ -47,6 +47,7 @@ import {
   FoundBuildJobs,
   UnavailableBuildJobs,
 } from './builds.js'
+import { noLandingReader } from './landing.js'
 import {
   type AddProductInput,
   type FileInput,
@@ -206,6 +207,7 @@ const makeHost = (
       nowMs: () => 1_792_000_000_000,
       readBuildJobs: () =>
         Effect.succeed(FoundBuildJobs.make({ jobs: [], unreadable: [] })),
+      readLanding: noLandingReader,
       readStandardInput: Effect.succeed(''),
       readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
       records: memoryIssueRecords(memory),

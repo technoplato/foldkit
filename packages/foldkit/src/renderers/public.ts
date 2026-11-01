@@ -4,7 +4,10 @@ export {
   Column,
   Dock,
   List,
+  Plain,
   Progress,
+  Reference,
+  RichText,
   Row,
   Seek,
   Spacer,
@@ -12,6 +15,7 @@ export {
   TextInput,
   Transcript,
   actionButtons,
+  partWords,
 } from './elements.js'
 export { Host } from './host.js'
 export { IconName, iconDrawings, iconGlyphs } from './icons.js'
@@ -34,6 +38,7 @@ export { renderAscii, renderScreen } from './render.js'
 export type {
   AsciiFrame,
   AsciiHotspot,
+  BoxLayer,
   BoxNode,
   ButtonNode,
   ButtonVariant,
@@ -45,7 +50,9 @@ export type {
   LayoutBox,
   ListItem,
   ListNode,
+  PlainPart,
   ProgressNode,
+  ReferencePart,
   RowNode,
   SeekNode,
   SpacerNode,
@@ -54,6 +61,7 @@ export type {
   TextImage,
   TextInputNode,
   TextNode,
+  TextPart,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWord,

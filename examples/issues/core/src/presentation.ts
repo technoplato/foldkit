@@ -2,44 +2,41 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 
 import { Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 
-import { BacklogListing, backlogIssues, backlogOf } from './backlog.js'
-import {
-  AllWork,
-  CloseToLanding,
-  WorkingNow,
-  issuesForLandingFilter,
-} from './landing.js'
+import { BacklogListing, backlogIssues } from './backlog.js'
+import { PageEntity, issuesOfPage } from './entityGraph.js'
+import { type Interaction, interaction } from './interaction.js'
+import { keyInteractionsOf, navigationInteractionsOf } from './keys.js'
+import { AllWork, CloseToLanding, WorkingNow } from './landing.js'
 import {
   AllProducts,
   LeftoverStatus,
   OneProduct,
   catalogIssueRefsOf,
-  issuesForProductFilter,
   leftoverStatusesForIssue,
 } from './leftover.js'
+import { listedBacklog, listedIssues, loadedIssuesIn } from './listing.js'
 import {
   AppendedIssueWorkLog,
   ClickedDismissTriageCandidate,
-  ClickedFileIssue,
   ClickedLeftoverStatus,
-  ClickedOpenBacklog,
-  ClickedOpenTriage,
   ClickedPromoteTriageCandidate,
-  DismissedIssueDetail,
   LinkedCatalogIssue,
-  Message,
+  type Message,
+  PickedPaletteRow,
   RetargetedIssueProduct,
-  SelectedIssue,
   SelectedIssuePriority,
   SelectedIssueProduct,
   SelectedLandingFilter,
   SelectedProductFilter,
   SubmittedIssue,
   SubmittedIssueComment,
+  SubmittedSearch,
   UpdatedIssueDetails,
   UpdatedIssueTitle,
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
+  UpdatedPaletteQuery,
+  UpdatedSearchQuery,
 } from './message.js'
 import {
   FailedIssues,
@@ -47,12 +44,13 @@ import {
   IssueDraft,
   IssueDraftState,
   IssuesState,
-  LoadedIssues,
   LoadingIssues,
   type Model,
   ProductsState,
   TriageCandidatesState,
+  loadedIssuesOf,
 } from './model.js'
+import { selectIssueMessageOf } from './selection.js'
 
 /** Presents the live Issue collection to a host. */
 export const IssueListDestination = S.TaggedStruct('IssueListDestination', {
@@ -89,6 +87,18 @@ export type BacklogState = typeof BacklogState.Type
 export const BacklogDestination = S.TaggedStruct('BacklogDestination', {
   state: BacklogState,
 })
+/**
+ * Presents one entity's page: the entity, such as Recording 208, and the
+ * loaded Issues, from which a host reads the Issues that point at it.
+ */
+export const EntityPageDestination = S.TaggedStruct('EntityPageDestination', {
+  entity: PageEntity,
+  state: IssuesState,
+})
+/** Presents how long asks take, read from the loaded Issues. */
+export const AskFlowDestination = S.TaggedStruct('AskFlowDestination', {
+  state: IssuesState,
+})
 /** Every host-neutral Issue Tracker destination. */
 export const Destination = S.Union([
   IssueListDestination,
@@ -96,59 +106,26 @@ export const Destination = S.Union([
   FileIssueDestination,
   TriageInboxDestination,
   BacklogDestination,
+  AskFlowDestination,
+  EntityPageDestination,
 ])
 /** Every host-neutral Issue Tracker destination. */
 export type Destination = typeof Destination.Type
 
-/** One currently valid interaction and its canonical Message. */
-export const Interaction = S.Struct({
-  label: S.String,
-  message: Message,
-  token: S.String,
-})
-/** One currently valid interaction. */
-export type Interaction = typeof Interaction.Type
-
-const loadedIssues = (state: IssuesState): ReadonlyArray<Issue> =>
-  state._tag === 'LoadedIssues' ? state.issues : []
-
-/**
- * The Issues the list shows: those of the chosen product, then only the work
- * close to landing when that filter is on.
- */
-export const listedIssues = (
-  model: Model,
-  issues: ReadonlyArray<Issue>,
-): ReadonlyArray<Issue> =>
-  issuesForLandingFilter(
-    issuesForProductFilter(issues, model.productFilter),
-    model.landingFilter,
-  )
-
-/**
- * The backlog of the chosen product: the next build's lane, later builds'
- * lanes, then each priority in rank order, oldest first.
- */
-export const listedBacklog = (
-  model: Model,
-  issues: ReadonlyArray<Issue>,
-): BacklogListing =>
-  backlogOf(issuesForProductFilter(issues, model.productFilter))
-
+// NOTE: Destinations that carry the loaded Issues are typed literals, not
+// `.make`, which would re-validate all 1,535 Issues (about 105 ms) per call.
 /** Exhaustively projects the Model into one host-neutral destination. */
 export const destinationForModel = (model: Model): Destination =>
   M.value(model.navigation).pipe(
     M.withReturnType<Destination>(),
     M.tagsExhaustive({
-      IssueList: () =>
-        IssueListDestination.make({
-          state:
-            model.issues._tag === 'LoadedIssues'
-              ? LoadedIssues.make({
-                  issues: listedIssues(model, model.issues.issues),
-                })
-              : model.issues,
-        }),
+      IssueList: () => ({
+        _tag: 'IssueListDestination',
+        state:
+          model.issues._tag === 'LoadedIssues'
+            ? loadedIssuesOf(listedIssues(model, model.issues.issues))
+            : model.issues,
+      }),
       IssueDetail: ({ issueId }) =>
         IssueDetailDestination.make({
           issueId,
@@ -162,28 +139,31 @@ export const destinationForModel = (model: Model): Destination =>
         }),
       TriageInbox: () =>
         TriageInboxDestination.make({ state: model.triageCandidates }),
-      Backlog: () =>
-        BacklogDestination.make({
-          state: M.value(model.issues).pipe(
-            M.withReturnType<BacklogState>(),
-            M.tagsExhaustive({
-              LoadingIssues: state => state,
-              FailedIssues: state => state,
-              LoadedIssues: ({ issues }) =>
-                LoadedBacklog.make({
-                  backlog: listedBacklog(model, issues),
-                }),
+      Backlog: () => ({
+        _tag: 'BacklogDestination',
+        state: M.value(model.issues).pipe(
+          M.withReturnType<BacklogState>(),
+          M.tagsExhaustive({
+            LoadingIssues: state => state,
+            FailedIssues: state => state,
+            LoadedIssues: ({ issues }) => ({
+              _tag: 'LoadedBacklog',
+              backlog: listedBacklog(model, issues),
             }),
-          ),
-        }),
+          }),
+        ),
+      }),
+      AskFlow: () => ({
+        _tag: 'AskFlowDestination',
+        state: model.issues,
+      }),
+      EntityPage: ({ entity }) => ({
+        _tag: 'EntityPageDestination',
+        entity,
+        state: model.issues,
+      }),
     }),
   )
-
-const interaction = (
-  token: string,
-  label: string,
-  message: Message,
-): Interaction => Interaction.make({ label, message, token })
 
 const productFilterInteractions = (
   model: Model,
@@ -206,6 +186,37 @@ const productFilterInteractions = (
     : []),
 ]
 
+const OPEN_TOKEN_PREFIX = 'open:'
+const SEARCH_TOKEN_PREFIX = 'search:'
+const PALETTE_TOKEN_PREFIX = 'palette:'
+const PALETTE_RUN_TOKEN_PREFIX = 'palette-run:'
+const SEARCH_SUBMIT_TOKEN = 'search-submit'
+
+const openInteractions = new Map<string, Interaction>()
+
+/**
+ * The interaction that opens one Issue, `open:1538`, made once per Issue
+ * number: a list offers one for each of its 1,535 Issues, and building
+ * them again, each with a Schema parse, on every press would cost more
+ * than the press.
+ */
+const openInteractionOf = (issueId: string): Interaction =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(openInteractions.get(issueId)),
+    () => {
+      const opening = interaction(
+        `${OPEN_TOKEN_PREFIX}${issueId}`,
+        `Open ${issueId}`,
+        selectIssueMessageOf(issueId),
+      )
+      openInteractions.set(issueId, opening)
+      return opening
+    },
+  )
+
+const openInteraction = (issue: Issue): Interaction =>
+  openInteractionOf(issue.id)
+
 /** Returns every currently valid high-level host interaction. */
 export const interactionsForModel = (
   model: Model,
@@ -214,9 +225,7 @@ export const interactionsForModel = (
     M.withReturnType<ReadonlyArray<Interaction>>(),
     M.tagsExhaustive({
       IssueList: () => [
-        interaction('file', 'File issue', ClickedFileIssue.make({})),
-        interaction('triage', 'Open triage', ClickedOpenTriage.make({})),
-        interaction('backlog', 'Backlog', ClickedOpenBacklog.make({})),
+        ...navigationInteractionsOf(model),
         ...productFilterInteractions(model),
         interaction(
           'landing:all',
@@ -233,12 +242,9 @@ export const interactionsForModel = (
           'Working now',
           SelectedLandingFilter.make({ filter: WorkingNow.make({}) }),
         ),
-        ...Array.map(listedIssues(model, loadedIssues(model.issues)), issue =>
-          interaction(
-            `open:${issue.id}`,
-            `Open ${issue.id}`,
-            SelectedIssue.make({ issueId: issue.id }),
-          ),
+        ...Array.map(
+          listedIssues(model, loadedIssuesIn(model)),
+          openInteraction,
         ),
       ],
       IssueDetail: ({ issueId }) => {
@@ -275,22 +281,15 @@ export const interactionsForModel = (
               ),
             ),
             ...Array.map(catalogIssueRefsOf(issue), ref =>
-              interaction(
-                `open:${ref.id}`,
-                `Open ${ref.id}`,
-                SelectedIssue.make({ issueId: ref.id }),
-              ),
+              openInteractionOf(ref.id),
             ),
           )
         }
-        return [
-          interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
-          ...leftover,
-        ]
+        return [...navigationInteractionsOf(model), ...leftover]
       },
       FileIssue: () => [
         interaction('submit', 'Submit issue', SubmittedIssue.make({})),
-        interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
+        ...navigationInteractionsOf(model),
         ...(model.products._tag === 'LoadedProducts'
           ? Array.map(model.products.products, entry =>
               interaction(
@@ -309,21 +308,23 @@ export const interactionsForModel = (
         ),
       ],
       Backlog: () => [
-        interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
-        interaction('file', 'File issue', ClickedFileIssue.make({})),
+        ...navigationInteractionsOf(model),
         ...productFilterInteractions(model),
         ...Array.map(
-          backlogIssues(listedBacklog(model, loadedIssues(model.issues))),
-          issue =>
-            interaction(
-              `open:${issue.id}`,
-              `Open ${issue.id}`,
-              SelectedIssue.make({ issueId: issue.id }),
-            ),
+          backlogIssues(listedBacklog(model, loadedIssuesIn(model))),
+          openInteraction,
+        ),
+      ],
+      AskFlow: () => navigationInteractionsOf(model),
+      EntityPage: ({ entity }) => [
+        ...navigationInteractionsOf(model),
+        ...Array.map(
+          issuesOfPage(loadedIssuesIn(model), entity),
+          openInteraction,
         ),
       ],
       TriageInbox: () => [
-        interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
+        ...navigationInteractionsOf(model),
         ...(model.triageCandidates._tag === 'LoadedTriageCandidates'
           ? Array.flatMap(model.triageCandidates.candidates, candidate =>
               candidate.status === 'Draft'
@@ -350,17 +351,32 @@ export const interactionsForModel = (
     }),
   )
 
+/**
+ * What the page offers and what the keyboard offers, each token once: what
+ * `Program.valid` projects for every host, each action with its keys.
+ */
+export const everyInteractionOf = (model: Model): ReadonlyArray<Interaction> =>
+  Array.dedupeWith(
+    [...keyInteractionsOf(model), ...interactionsForModel(model)],
+    (left, right) => left.token === right.token,
+  )
+
+const messageOfTokenIn = (
+  interactions: ReadonlyArray<Interaction>,
+  token: string,
+): Option.Option<Message> =>
+  Option.map(
+    Array.findFirst(interactions, candidate => candidate.token === token),
+    candidate => candidate.message,
+  )
+
 /** Resolves one CLI or host token only when valid in the current state. */
 export const messageForInteractionToken = (
   model: Model,
   token: string,
 ): Option.Option<Message> =>
-  Option.map(
-    Array.findFirst(
-      interactionsForModel(model),
-      candidate => candidate.token === token,
-    ),
-    candidate => candidate.message,
+  Option.orElse(messageOfTokenIn(keyInteractionsOf(model), token), () =>
+    messageOfTokenIn(interactionsForModel(model), token),
   )
 
 const draftMessageForToken = (token: string): Option.Option<Message> => {
@@ -392,12 +408,52 @@ const draftMessageForToken = (token: string): Option.Option<Message> => {
  * Resolves a screen or CLI token, including the prefixes that carry text: on
  * the filing form `title:Audio stops`, `details:<text>`, `product:scribe` (an
  * id or a name), and `priority:P1`; on an Issue `comment:`, `link:`, `log:`,
- * and `status:`.
+ * and `status:`. On the list `search:heart rate` is what the search field
+ * holds, and on the list and the backlog `open:1250` opens Issue 1250, both
+ * without building the list's interactions.
  */
 export const messageForScreenToken = (
   model: Model,
   token: string,
 ): Option.Option<Message> => {
+  if (model.layer._tag === 'PaletteLayer') {
+    if (token.startsWith(PALETTE_TOKEN_PREFIX)) {
+      return Option.some(
+        UpdatedPaletteQuery.make({
+          query: token.slice(PALETTE_TOKEN_PREFIX.length),
+        }),
+      )
+    }
+    if (token.startsWith(PALETTE_RUN_TOKEN_PREFIX)) {
+      return Option.some(
+        PickedPaletteRow.make({
+          token: token.slice(PALETTE_RUN_TOKEN_PREFIX.length),
+        }),
+      )
+    }
+  }
+  if (token === SEARCH_SUBMIT_TOKEN && model.navigation._tag === 'IssueList') {
+    return Option.some(SubmittedSearch.make({}))
+  }
+  if (
+    token.startsWith(SEARCH_TOKEN_PREFIX) &&
+    model.navigation._tag === 'IssueList'
+  ) {
+    return Option.some(
+      UpdatedSearchQuery.make({
+        query: token.slice(SEARCH_TOKEN_PREFIX.length),
+      }),
+    )
+  }
+  if (
+    token.startsWith(OPEN_TOKEN_PREFIX) &&
+    (model.navigation._tag === 'IssueList' ||
+      model.navigation._tag === 'Backlog')
+  ) {
+    return Option.some(
+      selectIssueMessageOf(token.slice(OPEN_TOKEN_PREFIX.length)),
+    )
+  }
   const known = messageForInteractionToken(model, token)
   if (Option.isSome(known)) {
     return known

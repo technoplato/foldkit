@@ -1,0 +1,458 @@
+import { Array, Match as M, Option } from 'effect'
+import {
+  Column,
+  Plain,
+  Reference,
+  RichText,
+  Text,
+  type TextPart,
+  type UiNode,
+} from 'foldkit/renderers'
+
+import { type Issue } from '@foldkit/instant-tools/issues'
+
+import {
+  type ChipContext,
+  chipContextOf,
+  chipFactsOf,
+  issueChipOf,
+  partsOfText,
+} from './chips.js'
+import { millisecondsLabel, whenLabel } from './clock.js'
+import {
+  type Backlink,
+  type IssueLink,
+  type PageEntity,
+  backlinksOf,
+  productStatusGroups,
+  recordingNumbersOf,
+} from './entityGraph.js'
+import {
+  type ChipClock,
+  buildChip,
+  commitChip,
+  commitChipOf,
+  spacedChips,
+  testflightChips,
+  whenWordsOn,
+} from './graphChips.js'
+import {
+  type BuildFacts,
+  type CommitFacts,
+  type RecordingFacts,
+  type SegmentFacts,
+  buildLabel,
+  isOnTestflight,
+} from './issueLandings.js'
+import { type Model } from './model.js'
+
+const SHORT_ID_LENGTH = 8
+const SHORT_SHA_LENGTH = 9
+const LINKS_SHOWN_PER_ISSUE = 3
+
+/**
+ * What an entity's page is called: `Recording 208`, `Build 218`,
+ * `Commit 6ff20758d`, the agent `claude-code/issues-linear-1538@ld`, or a
+ * product by its name, `Scribe`, when an Issue under it says so.
+ */
+export const entityTitle = (
+  entity: PageEntity,
+  issues: ReadonlyArray<Issue>,
+): string =>
+  M.value(entity).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      RecordingEntity: ({ recordingId }) =>
+        Option.match(
+          Option.fromUndefinedOr(
+            recordingNumbersOf(issues).numberOfId.get(recordingId),
+          ),
+          {
+            onNone: () => `Recording ${recordingId.slice(0, SHORT_ID_LENGTH)}`,
+            onSome: recordingNumber =>
+              `Recording ${recordingNumber.toString()}`,
+          },
+        ),
+      RecordingNumberEntity: ({ recordingNumber }) =>
+        `Recording ${recordingNumber.toString()}`,
+      SegmentEntity: ({ segmentId }) =>
+        `Line ${segmentId.slice(0, SHORT_ID_LENGTH)}`,
+      AgentEntity: ({ agentId }) => `Agent ${agentId}`,
+      CommitEntity: ({ sha }) => `Commit ${sha.slice(0, SHORT_SHA_LENGTH)}`,
+      BuildEntity: ({ number }) => `Build ${number}`,
+      ProductEntity: ({ productId }) =>
+        Option.match(
+          Array.findFirst(issues, issue => issue.product.id === productId),
+          {
+            onNone: () => productId,
+            onSome: issue => issue.product.name,
+          },
+        ),
+    }),
+  )
+
+const placeLabel = (link: IssueLink): string =>
+  M.value(link.place).pipe(
+    M.withReturnType<string>(),
+    M.when('Details', () => 'in its details'),
+    M.when('WorkLog', () => 'in its work log'),
+    M.when('Mention', () => 'where he said it'),
+    M.when('Related', () => 'as a related Issue'),
+    M.when('Claim', () => 'as its claimant'),
+    M.when('Work', () => 'in its work in progress'),
+    M.when('Product', () => 'as its product'),
+    M.exhaustive,
+  )
+
+const backlinkNodes = (
+  backlink: Backlink,
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+): UiNode => {
+  const context = chipContextOf(
+    issues,
+    model.clock.nowMs,
+    model.clock.offsetMinutes,
+    chipFactsOf(model),
+  )
+  return Column(
+    { gap: 0 },
+    RichText(partsOfText(`#${backlink.issue.id}`, context)),
+    ...Array.map(Array.take(backlink.links, LINKS_SHOWN_PER_ISSUE), link =>
+      RichText(
+        [
+          ...partsOfText(link.excerpt, context),
+          Plain(
+            `  ${placeLabel(link)}${Option.match(link.maybeAtMs, {
+              onNone: () => '',
+              onSome: atMs =>
+                `, ${whenLabel(atMs, model.clock.nowMs, model.clock.offsetMinutes)}`,
+            })}`,
+          ),
+        ],
+        { dim: true },
+      ),
+    ),
+  )
+}
+
+const productRowMemo = new WeakMap<
+  Issue,
+  Readonly<{ nowMs: number; offsetMinutes: number; row: UiNode }>
+>()
+
+const productRowOf = (
+  issue: Issue,
+  model: Model,
+  context: ChipContext,
+): UiNode =>
+  Option.getOrElse(
+    Option.map(
+      Option.filter(
+        Option.fromUndefinedOr(productRowMemo.get(issue)),
+        remembered =>
+          remembered.nowMs === model.clock.nowMs &&
+          remembered.offsetMinutes === model.clock.offsetMinutes,
+      ),
+      remembered => remembered.row,
+    ),
+    () => {
+      const row = RichText([
+        issueChipOf(issue.id, context),
+        Plain(
+          `  ${whenLabel(issue.updatedAtMs, model.clock.nowMs, model.clock.offsetMinutes)}`,
+        ),
+      ])
+      productRowMemo.set(issue, {
+        nowMs: model.clock.nowMs,
+        offsetMinutes: model.clock.offsetMinutes,
+        row,
+      })
+      return row
+    },
+  )
+
+const productPageNodes = (
+  model: Model,
+  productId: string,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<UiNode> => {
+  const context = chipContextOf(
+    issues,
+    model.clock.nowMs,
+    model.clock.offsetMinutes,
+  )
+  return Array.map(
+    productStatusGroups(issues, productId),
+    ({ status, issues: inStatus }) =>
+      Column(
+        { gap: 0 },
+        Text(`${status}  ${inStatus.length.toString()}`, {
+          emphasis: 'Headline',
+        }),
+        ...Array.map(inStatus, issue => productRowOf(issue, model, context)),
+      ),
+  )
+}
+
+const issueCountWords = (count: number): string =>
+  count === 1 ? '1 Issue' : `${count.toString()} Issues`
+
+const issueChipLines = (
+  issueIds: ReadonlyArray<string>,
+  context: ChipContext,
+): ReadonlyArray<UiNode> =>
+  Array.map(issueIds, issueId => RichText([issueChipOf(issueId, context)]))
+
+const issuesSection = (
+  heading: string,
+  issueIds: ReadonlyArray<string>,
+  context: ChipContext,
+): ReadonlyArray<UiNode> =>
+  Array.match(issueIds, {
+    onEmpty: () => [],
+    onNonEmpty: found => [
+      Column(
+        { gap: 0 },
+        Text(`${heading}: ${issueCountWords(found.length)}`, {
+          emphasis: 'Headline',
+        }),
+        ...issueChipLines(found, context),
+      ),
+    ],
+  })
+
+const buildFactNodes = (
+  facts: BuildFacts,
+  clock: ChipClock,
+  context: ChipContext,
+): ReadonlyArray<UiNode> => {
+  const { build } = facts
+  const getIt: ReadonlyArray<TextPart> = isOnTestflight(build)
+    ? [Plain('Get it:'), ...spacedChips(testflightChips(build, clock))]
+    : []
+  return [
+    Text(buildLabel(build), { emphasis: 'Headline' }),
+    Text(
+      Array.join(
+        [
+          `Built ${whenWordsOn(build.builtAtMs, clock)}`,
+          build.status,
+          ...Option.toArray(build.maybeTag),
+        ],
+        '  ·  ',
+      ),
+      { dim: true },
+    ),
+    ...(Array.isReadonlyArrayEmpty(getIt) ? [] : [RichText(getIt)]),
+    RichText([
+      Plain('Cut from '),
+      commitChipOf(facts.cutSha, facts.maybeCutSubject),
+    ]),
+    ...Option.toArray(
+      Option.map(facts.maybeNotes, notes => Text(notes, { dim: true })),
+    ),
+    ...Array.map(facts.installs, install =>
+      Text(
+        `On ${install.deviceName} (${install.platform}) ${whenWordsOn(install.installedAtMs, clock)}`,
+        { dim: true },
+      ),
+    ),
+    ...Array.match(facts.whatsNew, {
+      onEmpty: () => [],
+      onNonEmpty: stories => [
+        Column(
+          { gap: 0 },
+          Text('What’s New', { emphasis: 'Headline' }),
+          ...Array.map(stories, story =>
+            RichText([
+              ...partsOfText(story.text, context),
+              ...spacedChips(
+                Array.map(story.issueIds, issueId =>
+                  issueChipOf(issueId, context),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ],
+    }),
+    ...issuesSection('Shipped in this build', facts.shippedIssueIds, context),
+    ...issuesSection('Found in this build', facts.foundIssueIds, context),
+  ]
+}
+
+const commitFactNodes = (
+  facts: CommitFacts,
+  clock: ChipClock,
+  context: ChipContext,
+): ReadonlyArray<UiNode> => {
+  const { commit } = facts
+  return [
+    Text(commit.subject, { emphasis: 'Headline' }),
+    RichText([
+      commitChip(commit),
+      Plain(`  ${commit.repo}  ${whenWordsOn(commit.authoredAtMs, clock)}`),
+    ]),
+    ...Array.map(commit.builds, build =>
+      RichText([
+        Plain('Shipped in '),
+        buildChip(build, clock),
+        ...spacedChips(testflightChips(build, clock)),
+      ]),
+    ),
+    ...issuesSection('Implements', facts.issueIds, context),
+  ]
+}
+
+const WORDS_ORIGIN = 'https://words.pisspoursoftware.xyz'
+const MILLISECONDS_PER_SECOND = 1_000
+
+const recordingFactNodes = (
+  facts: RecordingFacts,
+  clock: ChipClock,
+): ReadonlyArray<UiNode> => [
+  Text(facts.title, { emphasis: 'Headline' }),
+  RichText([
+    Plain(
+      `Started ${whenWordsOn(facts.startedAtMs, clock)}, ran ${millisecondsLabel(facts.durationSeconds * MILLISECONDS_PER_SECOND)}  `,
+    ),
+    Reference({
+      label: 'His words',
+      kind: 'Recording',
+      href: `${WORDS_ORIGIN}/recording/${facts.recordingId}`,
+      detail: ['Opens this Recording’s words'],
+    }),
+  ]),
+]
+
+const segmentFactNodes = (
+  facts: SegmentFacts,
+  clock: ChipClock,
+): ReadonlyArray<UiNode> => [
+  Text(`Line ${facts.lineIndex.toString()}`, { emphasis: 'Headline' }),
+  facts.isSealed
+    ? Text('These words are sealed.', { dim: true })
+    : Text(facts.text),
+  RichText([
+    Plain(`Said ${whenWordsOn(facts.saidAtMs, clock)}  `),
+    Reference({
+      label: `Line ${facts.lineIndex.toString()}`,
+      kind: 'Segment',
+      href: `${WORDS_ORIGIN}/recording/${facts.recordingId}/section/${facts.segmentId}?t=${facts.startTimeSeconds.toFixed(2)}`,
+      detail: ['Opens his words at this line'],
+    }),
+    Plain('  '),
+    Reference({
+      label: 'The Recording',
+      kind: 'Recording',
+      href: `/recordings/${facts.recordingId}`,
+      detail: ['Every Issue from this Recording'],
+    }),
+  ]),
+]
+
+const NO_FACTS_WORDS: Readonly<Record<PageEntity['_tag'], string>> = {
+  AgentEntity: 'Scribe’s rows hold no such agent.',
+  BuildEntity: 'Scribe’s rows hold no such build.',
+  CommitEntity: 'Scribe’s rows hold no such commit.',
+  ProductEntity: 'Scribe’s rows hold no such product.',
+  RecordingEntity: 'Scribe’s rows hold no such Recording.',
+  RecordingNumberEntity: 'Scribe’s rows hold no such Recording.',
+  SegmentEntity: 'Scribe’s rows hold no such line.',
+}
+
+/**
+ * What Scribe's rows say about the entity on the page, and whether it has
+ * replaced the page's plain name: a build's or commit's facts name it, while
+ * rows that cannot be read or hold nothing say so under the plain name.
+ */
+const pageFactNodes = (
+  model: Model,
+  entity: PageEntity,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<UiNode> => {
+  const clock = model.clock
+  const context = chipContextOf(
+    issues,
+    clock.nowMs,
+    clock.offsetMinutes,
+    chipFactsOf(model),
+  )
+  const plainName = Text(entityTitle(entity, issues), { emphasis: 'Headline' })
+  return M.value(model.pageFacts).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      NotObservingPageFacts: () => [plainName],
+      FailedPageFacts: ({ reason }) => [
+        plainName,
+        Text(`Scribe’s rows could not be read: ${reason}`, { dim: true }),
+      ],
+      LoadedPageFacts: ({ facts }) =>
+        M.value(facts).pipe(
+          M.withReturnType<ReadonlyArray<UiNode>>(),
+          M.tagsExhaustive({
+            BuildFacts: found => buildFactNodes(found, clock, context),
+            CommitFacts: found => commitFactNodes(found, clock, context),
+            RecordingFacts: found => recordingFactNodes(found, clock),
+            SegmentFacts: found => segmentFactNodes(found, clock),
+            NoPageFacts: () => [
+              plainName,
+              Text(NO_FACTS_WORDS[entity._tag], { dim: true }),
+            ],
+          }),
+        ),
+    }),
+  )
+}
+
+/**
+ * One entity's page: its name, what Scribe's rows say about it when it is a
+ * build or commit, then every Issue that points at it, the newest first, each
+ * with the words around the link and where it was written. Recording 208's
+ * page lists the Issues its lines asked for. A product's page, such as
+ * Scribe's, lists its Issues by status instead, the most recently changed
+ * first.
+ */
+export const entityPageNodes = (
+  model: Model,
+  entity: PageEntity,
+): ReadonlyArray<UiNode> =>
+  M.value(model.issues).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      LoadingIssues: () => [
+        Text(entityTitle(entity, []), { emphasis: 'Headline' }),
+        Text('Observing…'),
+      ],
+      FailedIssues: ({ reason }) => [
+        Text(entityTitle(entity, []), { emphasis: 'Headline' }),
+        Text(reason),
+      ],
+      LoadedIssues: ({ issues }) => {
+        if (entity._tag === 'ProductEntity') {
+          return [
+            Text(entityTitle(entity, issues), { emphasis: 'Headline' }),
+            ...productPageNodes(model, entity.productId, issues),
+          ]
+        }
+        const backlinks = backlinksOf(issues, entity)
+        return [
+          ...pageFactNodes(model, entity, issues),
+          Text(
+            Array.match(backlinks, {
+              onEmpty: () => 'No Issue points here yet.',
+              onNonEmpty: found =>
+                found.length === 1
+                  ? '1 Issue points here'
+                  : `${found.length.toString()} Issues point here`,
+            }),
+            { dim: true },
+          ),
+          ...Array.map(backlinks, backlink =>
+            backlinkNodes(backlink, model, issues),
+          ),
+        ]
+      },
+    }),
+  )

@@ -47,9 +47,41 @@ export type TextEmbed = Readonly<{
   readonly height: number
 }>
 
+/** Plain words inside a Text made of parts, such as `Fixed by `. */
+export type PlainPart = Readonly<{
+  readonly _tag: 'Plain'
+  readonly text: string
+}>
+
+/**
+ * A reference to another thing inside a Text, shown as a chip: its `label`,
+ * such as `#1358`, its `title` and `state`, such as `issues CLI burns CPU`
+ * and `PartiallyDone`, and its `kind`, such as `Issue`, for the look and for
+ * screen readers. `href` is where it goes. `detail` is what a hover shows,
+ * one line each, such as when it was filed. A terminal draws
+ * `#1358 issues CLI burns CPU [PartiallyDone]`.
+ */
+export type ReferencePart = Readonly<{
+  readonly _tag: 'Reference'
+  readonly label: string
+  readonly title?: string
+  readonly state?: string
+  readonly kind?: string
+  readonly href?: string
+  readonly detail?: ReadonlyArray<string>
+}>
+
+/** One part of a Text's words: plain words or a reference. */
+export type TextPart = PlainPart | ReferencePart
+
+/**
+ * A text run. With `parts`, painters that draw rich text draw each part, and
+ * every other painter draws `content`, which holds the parts' words.
+ */
 export type TextNode = Readonly<{
   readonly _tag: 'Text'
   readonly content: string
+  readonly parts?: ReadonlyArray<TextPart>
   readonly image?: TextImage
   readonly embed?: TextEmbed
   readonly href?: string
@@ -100,7 +132,11 @@ export type ButtonNode = Readonly<{
  * `clearAction` such as `ClearNotes`, also submits when a person leaves it
  * after a change, and submitting it empty presses `clearAction`. `label`
  * names the field for a screen reader, `New reminder in Groceries`.
- * `token` is the older binding that sends every keystroke.
+ * `token` is the older binding that sends every keystroke. `focused` says
+ * the Model wants the field to hold the focus, as a search does after `/`.
+ * `focusToken` and `blurToken` are pressed when it gains and loses the focus,
+ * so the Model keeps knowing, and a field with a `blurToken` lets go of the
+ * focus when `focused` turns false.
  */
 export type TextInputNode = Readonly<{
   readonly _tag: 'TextInput'
@@ -112,6 +148,8 @@ export type TextInputNode = Readonly<{
   readonly action?: string
   readonly clearAction?: string
   readonly label?: string
+  readonly focusToken?: string
+  readonly blurToken?: string
 }>
 
 /** Fixed blank rows. */
@@ -135,14 +173,28 @@ export type ColumnNode = Readonly<{
 }>
 
 /**
+ * A layer above the page: a `Dialog`, such as a command palette, or a
+ * `Panel` at the side, such as a peek at one Issue. `label` names it for a
+ * screen reader. A press outside it presses `dismissToken`. A painter
+ * without layers, such as a terminal, draws the box in place.
+ */
+export type BoxLayer = Readonly<{
+  readonly kind: 'Dialog' | 'Panel'
+  readonly label: string
+  readonly dismissToken?: string
+}>
+
+/**
  * A padded box. `isDock` pins it to the bottom of the screen, such as a
  * now-playing bar above the tabs: graphical painters keep it in view over
- * the page and leave room for it, and a terminal draws it last.
+ * the page and leave room for it, and a terminal draws it last. `layer`
+ * shows it above the page instead.
  */
 export type BoxNode = Readonly<{
   readonly _tag: 'Box'
   readonly padding: number
   readonly isDock?: boolean
+  readonly layer?: BoxLayer
   readonly children: ReadonlyArray<UiNode>
 }>
 

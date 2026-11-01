@@ -571,6 +571,55 @@ describe('Instant adapter', () => {
   )
 
   it.effect(
+    'decodes only the Issues whose stored payload changed since the last catalog snapshot',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeStore
+        const unchanged = Issue.make({
+          ...issue,
+          createdAtMs: 1_000,
+          id: '001',
+        })
+        const edited = Issue.make({ ...issue, createdAtMs: 2_000, id: '002' })
+        const editedAgain = Issue.make({
+          ...edited,
+          title: 'Show the full recording timestamp',
+          updatedAtMs: edited.updatedAtMs + 1,
+        })
+        const changingStore: InstantEntityStoreService = {
+          ...store,
+          observeIssues: () =>
+            Stream.fromIterable([
+              Array.map([unchanged, edited], makeInstantIssueRecord),
+              Array.map([unchanged, editedAgain], makeInstantIssueRecord),
+            ]),
+        }
+        const query = IssueQuery.make({
+          limit: 100,
+          productId: Option.none(),
+          projectId: Option.none(),
+          statuses: [],
+        })
+
+        const snapshots = yield* Stream.runCollect(
+          makeIssueTracker(changingStore).observe(query),
+        )
+        const issueIn = (snapshotIndex: number, issueId: string) =>
+          Option.flatMap(Array.get(snapshots, snapshotIndex), snapshot =>
+            Array.findFirst(snapshot, observed => observed.id === issueId),
+          )
+
+        expect(
+          Option.getOrThrow(issueIn(1, '001')) ===
+            Option.getOrThrow(issueIn(0, '001')),
+        ).toBe(true)
+        expect(Option.getOrThrow(issueIn(1, '002')).title).toBe(
+          'Show the full recording timestamp',
+        )
+      }),
+  )
+
+  it.effect(
     'keeps readable Issues when one catalog payload cannot decode',
     () =>
       Effect.gen(function* () {

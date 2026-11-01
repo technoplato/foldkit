@@ -22,17 +22,22 @@ import {
   ObservedProducts,
   type IssueTrackerResources as ProgramResources,
   StaticIssueTrackerResources,
+  askFlowOf,
   catalogIssueRefsOf,
   destinationForModel,
+  entityTitle,
   interactionsForModel,
+  issuesOfPage,
   issuesScreen,
   laneHeading,
   leftoverKindOf,
   leftoverStatusOf,
   messageForScreenToken,
+  millisecondsLabel,
   modelForNavigation,
   newestWorkLog,
   sectionHeading,
+  timelineStepWords,
 } from 'issues-core-example'
 
 import {
@@ -361,6 +366,8 @@ const runTokens = (
             IssueList: () => '',
             TriageInbox: () => '',
             Backlog: () => '',
+            AskFlow: () => '',
+            EntityPage: () => '',
           }),
         )
         return yield* Effect.fail(
@@ -506,6 +513,27 @@ export const formatDestination = (
             ],
           }),
         ),
+      AskFlowDestination: ({ state }) =>
+        state._tag === 'LoadedIssues'
+          ? [
+              'How long asks take',
+              ...Array.map(
+                askFlowOf(state.issues),
+                step =>
+                  `${timelineStepWords(step.name)}  median ${millisecondsLabel(step.medianMs)}  ${step.count.toString()} Issues`,
+              ),
+            ]
+          : ['How long asks take', state._tag],
+      EntityPageDestination: ({ entity, state }) =>
+        state._tag === 'LoadedIssues'
+          ? [
+              entityTitle(entity, state.issues),
+              ...Array.map(
+                issuesOfPage(state.issues, entity),
+                destinationIssueLine,
+              ),
+            ]
+          : [entityTitle(entity, []), state._tag],
       TriageInboxDestination: ({ state }) =>
         state._tag === 'LoadedTriageCandidates'
           ? [

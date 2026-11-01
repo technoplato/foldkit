@@ -170,6 +170,35 @@ describe('mintHostedInstantSession', () => {
     })
   })
 
+  it('mints on the session path it is given, and only there', async () => {
+    const scribeSessionPath = '/__foldkit/hosted-identity/scribe/session'
+    const minted = await mintHostedInstantSession({
+      createToken: () => Promise.resolve(refreshToken),
+      verifyAccessToken: verifiedAs(memberEmail, signedToken),
+      headers: { 'cf-access-jwt-assertion': signedToken },
+      method: 'GET',
+      sessionPath: scribeSessionPath,
+      url: scribeSessionPath,
+    })
+    expect(minted).toEqual({
+      body: HostedInstantSession.make({
+        email: memberEmail,
+        token: refreshToken,
+      }),
+      status: 200,
+    })
+    expect(
+      await mintHostedInstantSession({
+        createToken: () => Promise.resolve(refreshToken),
+        verifyAccessToken: verifiedAs(memberEmail, signedToken),
+        headers: { 'cf-access-jwt-assertion': signedToken },
+        method: 'GET',
+        sessionPath: scribeSessionPath,
+        url: hostedIdentitySessionPath,
+      }),
+    ).toBeUndefined()
+  })
+
   it('refuses a forged login and a bare email header', async () => {
     const forged = jwtFor({ email: 'owner@example.invalid', exp: 9e9 })
     const refuse = (headers: Readonly<Record<string, string>>) =>

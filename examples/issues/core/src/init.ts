@@ -1,6 +1,7 @@
 import { Option } from 'effect'
 import { type Command } from 'foldkit'
 
+import { defaultIssueView } from './issueView.js'
 import { AllWork } from './landing.js'
 import { AllProducts } from './leftover.js'
 import { type Message } from './message.js'
@@ -16,10 +17,13 @@ import {
   LoadingTriageCandidates,
   Model,
   type Navigation,
+  NoLayer,
   NotObservingIssue,
   NotObservingIssueFiles,
+  NotObservingIssueLanding,
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
+  NotObservingPageFacts,
 } from './model.js'
 
 /**
@@ -39,24 +43,34 @@ export const emptyIssueDraft = (productId: string): IssueDraft =>
 /** Creates the stable initial Model for one navigation destination. */
 export const modelForNavigation = (navigation: Navigation): Model =>
   Model.make({
+    clock: { nowMs: 0, offsetMinutes: 0 },
     draft: emptyIssueDraft(''),
     draftState: EditingIssueDraft.make({}),
     issueDetail: NotObservingIssue.make({}),
     issueFiles: NotObservingIssueFiles.make({}),
+    issueLanding: NotObservingIssueLanding.make({}),
     issueLogs: NotObservingIssueLogs.make({}),
     issueMutation: IdleIssueMutation.make({}),
+    isGoKeyPending: false,
+    isSearchFocused: false,
     issues: LoadingIssues.make({}),
+    knownBuilds: [],
     landingFilter: AllWork.make({}),
+    layer: NoLayer.make({}),
     leftoverComment: '',
     leftoverLink: '',
     leftoverPresence:
       navigation._tag === 'IssueDetail'
         ? LoadingLeftoverPresence.make({ leftoverId: navigation.issueId })
         : NotObservingLeftoverPresence.make({}),
+    maybeRowCursor: Option.none(),
     navigation,
+    pageFacts: NotObservingPageFacts.make({}),
     productAddition: IdleProductAddition.make({}),
     productFilter: AllProducts.make({}),
     products: LoadingProducts.make({}),
+    returnListView:
+      navigation._tag === 'IssueList' ? navigation.view : defaultIssueView,
     triageCandidates: LoadingTriageCandidates.make({}),
   })
 

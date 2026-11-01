@@ -1,5 +1,11 @@
-import { Array, Effect, Option, Stream } from 'effect'
-import { buttonsOf, inputsOf, textsOf } from 'foldkit/renderers'
+import { Array, Effect, Match as M, Option, Stream } from 'effect'
+import {
+  type ListItem,
+  type UiNode,
+  buttonsOf,
+  inputsOf,
+  textsOf,
+} from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
 import { InstantEntityStoreError } from '@foldkit/instant-tools/instant'
@@ -46,6 +52,7 @@ import {
   ConfirmedIssueDeletion,
   DismissedIssueDetail,
   LinkedCatalogIssue,
+  ObservedAgentSurvey,
   ObservedIssue,
   ObservedIssueLogs,
   ObservedIssues,
@@ -62,7 +69,6 @@ import {
   SubmittedIssueMention,
   SubmittedIssueSubtasks,
   SubmittedIssueSuccessCriterion,
-  ObservedAgentSurvey,
   SubmittedIssueWorkInProgress,
   SubmittedIssueWorkLogEntry,
   SubmittedProduct,
@@ -94,6 +100,7 @@ import {
   UnchangedProductAddition,
   WorkInProgressEdit,
 } from './model.js'
+import { AgentSurvey, LiveAgent, observedIssue } from './nowWorking.js'
 import {
   destinationForModel,
   interactionsForModel,
@@ -106,7 +113,6 @@ import {
   makeMemoryProductCatalog,
   signedInAuthor,
 } from './resources.js'
-import { AgentSurvey, LiveAgent, observedIssue } from './nowWorking.js'
 import { navigationToPath, pathToNavigation } from './route.js'
 import { subscriptions } from './subscription.js'
 import {
@@ -165,6 +171,28 @@ const candidate = TriageCandidate.make({
 })
 
 const runNow = <A, E>(effect: Effect.Effect<A, E>): A => Effect.runSync(effect)
+
+const rowsOfScreen = (node: UiNode): ReadonlyArray<ListItem> =>
+  M.value(node).pipe(
+    M.withReturnType<ReadonlyArray<ListItem>>(),
+    M.tagsExhaustive({
+      List: list => list.items,
+      Row: row => Array.flatMap(row.children, rowsOfScreen),
+      Column: column => Array.flatMap(column.children, rowsOfScreen),
+      Box: box =>
+        box.layer === undefined
+          ? Array.flatMap(box.children, rowsOfScreen)
+          : [],
+      DeviceShell: shell => Array.flatMap(shell.children, rowsOfScreen),
+      Text: () => [],
+      Button: () => [],
+      TextInput: () => [],
+      Spacer: () => [],
+      Progress: () => [],
+      Seek: () => [],
+      Transcript: () => [],
+    }),
+  )
 
 const authoredBy = (author: string): IssueIdentityService => ({
   author: Effect.succeed(author),
@@ -528,10 +556,12 @@ describe('Issue Tracker Program', () => {
       .map(action => action.token)
       .filter(token => token.startsWith('open:'))
     expect(openTokens).toContain('open:240')
-    const screenButtons = buttonsOf(issuesScreen(withLink)).map(
-      button => button.token ?? '',
+    const chipLinks = Array.flatMap(textsOf(issuesScreen(withLink)), text =>
+      Array.flatMap(text.parts ?? [], part =>
+        part._tag === 'Reference' && part.href !== undefined ? [part.href] : [],
+      ),
     )
-    expect(screenButtons).toContain('open:240')
+    expect(chipLinks).toContain('/issues/240')
   })
 
   it('paints leftover comment and link TextInputs from Model drafts', () => {
@@ -680,11 +710,12 @@ describe('Issue Tracker Program', () => {
         'issue-041',
       ])
     }
-    const labels = buttonsOf(issuesScreen(filtered)).map(button => button.label)
-    expect(labels.some(label => label.includes('Scribe transcript card'))).toBe(
-      false,
+    const titles = Array.map(
+      rowsOfScreen(issuesScreen(filtered)),
+      row => row.title,
     )
-    expect(labels.some(label => label.includes('Foldkit leftover'))).toBe(true)
+    expect(titles).not.toContain('Scribe transcript card')
+    expect(titles).toContain('Foldkit leftover')
   })
 
   it('emits SaveIssueWorkLog from AppendedIssueWorkLog on a loaded IssueDetail', () => {
@@ -2031,7 +2062,9 @@ describe('Issue Tracker Program', () => {
     const reread = Option.getOrThrow(
       await Effect.runPromise(tracker.fetchIssue('1374')),
     )
-    expect(reread.agentPresence).toEqual(observedIssue(claimed, survey, Option.none()).agentPresence)
+    expect(reread.agentPresence).toEqual(
+      observedIssue(claimed, survey, Option.none()).agentPresence,
+    )
   })
 
   it('clears the work in progress of an Issue', async () => {

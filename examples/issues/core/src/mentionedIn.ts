@@ -79,7 +79,11 @@ const deepLinkOf = (mention: IssueMention): Option.Option<string> =>
       : Option.none(),
   )
 
-const lineOf = (mention: IssueMention): MentionedLine => {
+/**
+ * One Mention's line: its range, his words without the `Recording 326 (…)
+ * #102:` prefix, when, and the words page it opens.
+ */
+export const mentionedLineOf = (mention: IssueMention): MentionedLine => {
   const words = Option.getOrElse(
     Option.orElse(mention.directQuote, () => mention.note),
     () => '',
@@ -97,6 +101,14 @@ const lineOf = (mention: IssueMention): MentionedLine => {
     }),
   }
 }
+
+/** The Recording number a Mention's words name: 326 for `Recording 326 (…) #102: …`. */
+export const recordingNumberOfMention = (
+  mention: IssueMention,
+): Option.Option<number> =>
+  Option.map(Option.flatMap(mention.directQuote, prefixOf), prefix =>
+    Number(prefix[1]),
+  )
 
 const recordingLabelOf = (
   recordingId: string,
@@ -132,7 +144,7 @@ const groupOf = (
   saids: ReadonlyArray<RecordingSaid>,
 ): RecordingMentionGroup => {
   const lines = Array.sort(
-    Array.map(saids, ({ mention }) => lineOf(mention)),
+    Array.map(saids, ({ mention }) => mentionedLineOf(mention)),
     newestLineFirst,
   )
   return {

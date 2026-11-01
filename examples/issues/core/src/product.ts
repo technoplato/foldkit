@@ -1,372 +1,85 @@
 import { Array, Match as M, Option } from 'effect'
 import {
+  Box,
   Button,
   Column,
+  List,
+  type ListItem,
   Row,
   Text,
   TextInput,
   type UiNode,
 } from 'foldkit/renderers'
 
-import {
-  type Issue,
-  type IssueAttachment,
-  type IssueMention,
-  IssuePriority,
-  type IssueReference,
-  isWorkingNow,
-  issueViewerUrl,
-} from '@foldkit/instant-tools/issues'
+import { type Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
+import { askFlowNodes } from './askFlowPage.js'
 import { laneHeading, sectionHeading } from './backlog.js'
-import {
-  landingHeadline,
-  subtaskProgress,
-  workInProgressLines,
-} from './landing.js'
-import {
-  catalogIssueRefsOf,
-  leftoverKindOf,
-  leftoverQuorumRequired,
-  leftoverStatusesForIssue,
-  newestWorkLog,
-} from './leftover.js'
-import {
-  type MentionedLine,
-  type RecordingMentionGroup,
-  lineRangeLabel,
-  mentionedIn,
-} from './mentionedIn.js'
+import { entityPageNodes } from './entityPage.js'
+import { type Interaction } from './interaction.js'
+import { issuePageNodes } from './issuePage.js'
+import { type IssueView } from './issueView.js'
+import { navigationInteractionsOf } from './keys.js'
+import { leftoverQuorumRequired } from './leftover.js'
+import { issueCountWords, issueRowOf } from './listRows.js'
+import { listedBacklog, listedIssues } from './listing.js'
 import {
   type IssueDraftState,
-  type IssueFilesState,
   type IssueLogsState,
   type Model,
 } from './model.js'
-import { nowWorkingLines } from './nowWorking.js'
-import {
-  interactionsForModel,
-  listedBacklog,
-  listedIssues,
-} from './presentation.js'
-import {
-  describeIssueReference,
-  issueAttachmentWebLink,
-  issueReferenceWebLink,
-} from './reference.js'
+import { paletteRowsOf } from './palette.js'
 import { productForReference } from './update.js'
-
-const kindLabel = (issue: Issue): string =>
-  Option.getOrElse(leftoverKindOf(issue), () => '')
-
-const listIssueLabel = (issue: Issue): string => {
-  const kind = kindLabel(issue)
-  return kind === ''
-    ? `${issue.id}  ${issue.priority}  ${issue.status}  ${issue.title}`
-    : `${issue.id}  ${issue.priority}  ${issue.status}  ${kind}  ${issue.title}`
-}
-
-const runningAgentLabel = (issue: Issue): ReadonlyArray<string> =>
-  isWorkingNow(issue)
-    ? Option.toArray(
-        Option.map(
-          issue.agentPresence,
-          presence => `running ${presence.agentId}`,
-        ),
-      )
-    : []
-
-const listButtonLabel = (issue: Issue): string =>
-  Array.join(
-    [
-      `${listIssueLabel(issue)}  [${issue.product.name}]`,
-      ...Option.toArray(Option.map(issue.workInProgress, landingHeadline)),
-      ...runningAgentLabel(issue),
-    ],
-    '  ',
-  )
 
 const isoTimeOf = (timeMs: number): string => new Date(timeMs).toISOString()
 
-const workLogLine = (entry: Issue['workLog'][number]): string => {
-  const when = isoTimeOf(entry.occurredAtMs)
-  const agent = Option.getOrElse(entry.agentId, () => '')
-  return agent === ''
-    ? `${when}  ${entry.summary}`
-    : `${when}  ${entry.summary}  [${agent}]`
-}
-
-const labeledNodes = (
-  label: string,
-  value: Option.Option<string>,
-): ReadonlyArray<UiNode> =>
-  Option.toArray(Option.map(value, text => Text(`${label}: ${text}`)))
-
-const referenceNode = (prefix: string, reference: IssueReference): UiNode => {
-  const content = `${prefix}${describeIssueReference(reference)}`
-  return Option.match(issueReferenceWebLink(reference), {
-    onNone: () => Text(content),
-    onSome: href => Text(content, { href }),
-  })
-}
-
-const mentionNodes = (mention: IssueMention): ReadonlyArray<UiNode> => [
-  Text(
-    Array.join(
-      [
-        ...Option.toArray(Option.map(mention.capturedAtMs, isoTimeOf)),
-        Option.getOrElse(
-          Option.orElse(mention.directQuote, () => mention.note),
-          () => '(no quote)',
-        ),
-      ],
-      '  ',
-    ),
-  ),
-  referenceNode('from ', mention.source),
-  ...Option.toArray(
-    Option.map(mention.reporter, reporter =>
-      referenceNode('reported by ', reporter),
-    ),
-  ),
-  ...Array.map(mention.related, related => referenceNode('', related)),
-]
-
-const mentionSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
-  Array.match(issue.mentions, {
-    onEmpty: () => [],
-    onNonEmpty: mentions => [
-      Column(
-        { gap: 1 },
-        Text('Mentions'),
-        ...Array.flatMap(mentions, mentionNodes),
-      ),
-    ],
-  })
-
-const mentionedLineNode = (line: MentionedLine): UiNode => {
-  const content = `${lineRangeLabel(line)}  ${line.quote}`
-  return Option.match(line.deepLink, {
-    onNone: () => Text(content),
-    onSome: href => Text(content, { href }),
-  })
-}
-
-const recordingGroupHeader = (group: RecordingMentionGroup): string =>
-  Option.match(group.newestAtMs, {
-    onNone: () => group.recordingLabel,
-    onSome: atMs => `${group.recordingLabel}  ${isoTimeOf(atMs).slice(0, 10)}`,
-  })
-
-const mentionedInSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
-  Array.match(mentionedIn(issue), {
-    onEmpty: () => [],
-    onNonEmpty: groups => [
-      Column(
-        { gap: 1 },
-        Text('Mentioned in'),
-        ...Array.flatMap(groups, group => [
-          Text(recordingGroupHeader(group), { dim: true }),
-          ...Array.map(group.lines, mentionedLineNode),
-        ]),
-      ),
-    ],
-  })
-
-const nowWorkingSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
-  Array.match(nowWorkingLines(issue), {
-    onEmpty: () => [],
-    onNonEmpty: lines => [
-      Column(
-        { gap: 1 },
-        Text('Now working'),
-        ...Array.map(lines, line => Text(line)),
-      ),
-    ],
-  })
-
-const workInProgressSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
-  Option.match(issue.workInProgress, {
-    onNone: () => [],
-    onSome: work => [
-      Column(
-        { gap: 1 },
-        Text('Work in progress'),
-        ...Array.map(workInProgressLines(work), line => Text(line)),
-      ),
-    ],
-  })
-
-const subtaskSectionNodes = (issue: Issue): ReadonlyArray<UiNode> =>
-  Array.match(issue.subtasks, {
-    onEmpty: () => [],
-    onNonEmpty: subtasks => [
-      Column(
-        { gap: 1 },
-        Text(`Subtasks: ${subtaskProgress(issue)}`),
-        ...Array.map(subtasks, subtask =>
-          Text(
-            `${subtask.state._tag === 'Checked' ? 'done' : 'todo'}  ${subtask.title}`,
-          ),
-        ),
-      ),
-    ],
-  })
-
-/** How large a stored picture draws: a phone screen's shape, as wide as the page allows. */
-const PICTURE_WIDTH = 240
-const PICTURE_HEIGHT = 520
-
-/**
- * Where a stored file opens: its web link, or for a file in Instant storage the
- * signed address the open Issue's files carry (Scribe #1345).
- */
-const attachmentAddress = (
-  attachment: IssueAttachment,
-  issueFiles: IssueFilesState,
-): Option.Option<string> =>
-  Option.orElse(issueAttachmentWebLink(attachment.source), () =>
-    attachment.source._tag === 'InstantStorage' &&
-    issueFiles._tag === 'LoadedIssueFiles'
-      ? Option.map(
-          Array.findFirst(
-            issueFiles.files,
-            file =>
-              attachment.source._tag === 'InstantStorage' &&
-              file.fileId === attachment.source.fileId,
-          ),
-          file => file.url,
-        )
-      : Option.none(),
-  )
-
-const isPicture = (attachment: IssueAttachment): boolean =>
-  attachment.contentType.startsWith('image/')
-
-const attachmentSectionNodes = (
-  issue: Issue,
-  issueFiles: IssueFilesState,
-): ReadonlyArray<UiNode> =>
-  Array.match(issue.attachments, {
-    onEmpty: () => [],
-    onNonEmpty: attachments => [
-      Column(
-        { gap: 1 },
-        Text('Attachments'),
-        ...(issueFiles._tag === 'FailedIssueFiles'
-          ? [
-              Text(
-                `This Issue's pictures could not be read: ${issueFiles.reason}`,
-              ),
-            ]
-          : []),
-        ...Array.map(attachments, attachment => {
-          const content = `${attachment.fileName} (${attachment.kind})`
-          return Option.match(attachmentAddress(attachment, issueFiles), {
-            onNone: () => Text(content),
-            onSome: href =>
-              isPicture(attachment)
-                ? Text(content, {
-                    href,
-                    image: {
-                      height: PICTURE_HEIGHT,
-                      src: href,
-                      width: PICTURE_WIDTH,
-                    },
-                  })
-                : Text(content, { href }),
-          })
-        }),
-      ),
-    ],
-  })
-
-const issueDetailNodes = (
-  issue: Issue,
-  issueFiles: IssueFilesState,
-): ReadonlyArray<UiNode> => {
-  const progress = newestWorkLog(issue.workLog)
-  const links = catalogIssueRefsOf(issue)
-  const pageUrl = issueViewerUrl(issue.id)
-  return [
-    Text(`${issue.id}  ${issue.priority}  ${issue.status}`),
-    Text(issue.title),
-    ...labeledNodes('Type', issue.issueType),
-    ...labeledNodes('Area', issue.area),
-    ...labeledNodes('Claimed by', issue.claimantId),
-    ...labeledNodes('Reported', issue.reportedDate),
-    Text(
-      `Created ${isoTimeOf(issue.createdAtMs)}  Updated ${isoTimeOf(issue.updatedAtMs)}`,
-      { dim: true },
-    ),
-    Text(issue.details),
-    ...nowWorkingSectionNodes(issue),
-    ...workInProgressSectionNodes(issue),
-    ...subtaskSectionNodes(issue),
-    ...mentionedInSectionNodes(issue),
-    ...mentionSectionNodes(issue),
-    Column(
-      { gap: 1 },
-      Text('Work log'),
-      ...(Array.isReadonlyArrayEmpty(progress)
-        ? [Text('No work log yet.')]
-        : Array.map(progress, entry => Text(workLogLine(entry)))),
-    ),
-    Column(
-      { gap: 1 },
-      Text('Linked issues'),
-      ...(Array.isReadonlyArrayEmpty(links)
-        ? [Text('No linked issues.')]
-        : Array.map(links, ref =>
-            Button({
-              token: `open:${ref.id}`,
-              label: ref.id,
-            }),
-          )),
-    ),
-    Row(
-      { gap: 1 },
-      ...Array.map(leftoverStatusesForIssue(issue.id), status =>
-        Button({
-          token: `status:${status}`,
-          label: status,
-          variant: status === issue.status ? 'Primary' : 'Ghost',
-        }),
-      ),
-    ),
-    ...(Array.isReadonlyArrayEmpty(issue.successCriteria)
-      ? []
-      : [
-          Column(
-            { gap: 1 },
-            Text('Success criteria'),
-            ...Array.map(issue.successCriteria, criterion =>
-              Text(
-                `${criterion.isSatisfied ? 'done' : 'look'}  ${criterion.outcome}`,
-              ),
-            ),
-          ),
-        ]),
-    ...attachmentSectionNodes(issue, issueFiles),
-    Text(`${issue.product._tag}: ${issue.product.name}`),
-    Text(pageUrl, { href: pageUrl }),
-  ]
-}
-
 const navigationButtons = (model: Model): ReadonlyArray<UiNode> =>
-  Array.map(
-    Array.filter(
-      interactionsForModel(model),
-      interaction =>
-        interaction.token === 'file' ||
-        interaction.token === 'triage' ||
-        interaction.token === 'backlog' ||
-        interaction.token === 'back',
-    ),
-    interaction =>
-      Button({ token: interaction.token, label: interaction.label }),
+  Array.map(navigationInteractionsOf(model), interaction =>
+    Button({ token: interaction.token, label: interaction.label }),
   )
+
+type RowGroup = Readonly<{
+  heading: string
+  issues: ReadonlyArray<Issue>
+}>
+
+const placedRowsOf = (
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<ListItem> =>
+  Option.match(model.maybeRowCursor, {
+    onNone: () => Array.map(issues, issueRowOf),
+    onSome: cursorId =>
+      Array.map(issues, issue =>
+        issue.id === cursorId
+          ? { ...issueRowOf(issue), isCurrent: true }
+          : issueRowOf(issue),
+      ),
+  })
+
+const groupNode = (model: Model, group: RowGroup): UiNode =>
+  Column(
+    { gap: 1 },
+    Text(group.heading),
+    ...Array.match(group.issues, {
+      onEmpty: () => [],
+      onNonEmpty: issues => [
+        List({ label: group.heading, items: placedRowsOf(model, issues) }),
+      ],
+    }),
+  )
+
+const rowNodes = (
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<UiNode> =>
+  Array.match(issues, {
+    onEmpty: () => [],
+    onNonEmpty: listed => [
+      List({ label: 'Issues', items: placedRowsOf(model, listed) }),
+    ],
+  })
 
 const productFilterNodes = (
   model: Model,
@@ -420,15 +133,41 @@ const productFilterNodes = (
   ]
 }
 
-const listNodes = (model: Model): ReadonlyArray<UiNode> =>
+const searchField = (model: Model, view: IssueView): UiNode =>
+  TextInput({
+    blurToken: 'search-blur',
+    focusToken: 'search-focus',
+    focused: model.isSearchFocused,
+    label: 'Search Issues',
+    placeholder: 'Search by number or any word an Issue says  /',
+    token: 'search:',
+    value: view.query,
+  })
+
+const listedCountWords = (
+  view: IssueView,
+  listedCount: number,
+  loadedCount: number,
+): string => {
+  if (listedCount === loadedCount) {
+    return issueCountWords(loadedCount)
+  } else if (listedCount === 0 && view.query.trim() !== '') {
+    return `No Issues match "${view.query.trim()}".`
+  } else {
+    return `${listedCount.toLocaleString('en-US')} of ${issueCountWords(loadedCount)}`
+  }
+}
+
+const listNodes = (model: Model, view: IssueView): ReadonlyArray<UiNode> =>
   M.value(model.issues).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      LoadingIssues: () => [Text('Observing…')],
-      FailedIssues: ({ reason }) => [Text(reason)],
+      LoadingIssues: () => [searchField(model, view), Text('Observing…')],
+      FailedIssues: ({ reason }) => [searchField(model, view), Text(reason)],
       LoadedIssues: ({ issues }) => {
         const visible = listedIssues(model, issues)
         return [
+          searchField(model, view),
           ...productFilterNodes(model, issues),
           Row(
             { gap: 1 },
@@ -453,23 +192,10 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
                 model.landingFilter._tag === 'WorkingNow' ? 'Primary' : 'Ghost',
             }),
           ),
-          Text('Current issues'),
-          ...Array.map(visible, issue =>
-            Button({
-              token: `open:${issue.id}`,
-              label: listButtonLabel(issue),
-            }),
-          ),
+          Text(listedCountWords(view, visible.length, issues.length)),
+          ...rowNodes(model, visible),
         ]
       },
-    }),
-  )
-
-const issueButtons = (issues: ReadonlyArray<Issue>): ReadonlyArray<UiNode> =>
-  Array.map(issues, issue =>
-    Button({
-      token: `open:${issue.id}`,
-      label: listButtonLabel(issue),
     }),
   )
 
@@ -484,20 +210,18 @@ const backlogNodes = (model: Model): ReadonlyArray<UiNode> =>
         return [
           Text('Backlog'),
           ...productFilterNodes(model, issues),
-          ...Array.flatMap(backlog.lanes, lane => [
-            Column(
-              { gap: 1 },
-              Text(laneHeading(lane)),
-              ...issueButtons(lane.issues),
-            ),
-          ]),
-          ...Array.flatMap(backlog.sections, section => [
-            Column(
-              { gap: 1 },
-              Text(sectionHeading(section)),
-              ...issueButtons(section.issues),
-            ),
-          ]),
+          ...Array.map(backlog.lanes, lane =>
+            groupNode(model, {
+              heading: laneHeading(lane),
+              issues: lane.issues,
+            }),
+          ),
+          ...Array.map(backlog.sections, section =>
+            groupNode(model, {
+              heading: sectionHeading(section),
+              issues: section.issues,
+            }),
+          ),
         ]
       },
     }),
@@ -571,7 +295,7 @@ const detailNodes = (model: Model): ReadonlyArray<UiNode> =>
       LoadedIssue: ({ issue, issueId }) =>
         Option.match(issue, {
           onNone: () => [Text(issueId), Text('Issue not found')],
-          onSome: observed => issueDetailNodes(observed, model.issueFiles),
+          onSome: observed => issuePageNodes(model, observed),
         }),
     }),
   )
@@ -685,7 +409,7 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
   M.value(model.navigation).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      IssueList: () => listNodes(model),
+      IssueList: ({ view }) => listNodes(model, view),
       IssueDetail: () => [
         ...detailNodes(model),
         ...issueLogNodes(model.issueLogs),
@@ -714,6 +438,77 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
       FileIssue: () => fileNodes(model),
       TriageInbox: () => triageNodes(model),
       Backlog: () => backlogNodes(model),
+      AskFlow: () => askFlowNodes(model),
+      EntityPage: ({ entity }) => entityPageNodes(model, entity),
+    }),
+  )
+
+const GO_KEY_CHOICES = 'Go to: l list, b backlog, t triage'
+
+const dockNodes = (model: Model): ReadonlyArray<UiNode> =>
+  model.isGoKeyPending ? [Box({ isDock: true }, Text(GO_KEY_CHOICES))] : []
+
+const keyHintOf = (key: string): string =>
+  key
+    .replace('Meta+', '⌘')
+    .replace('Control+', 'Ctrl ')
+    .replace('Shift+', '⇧')
+    .replace('Arrow', '')
+    .replace('Escape', 'Esc')
+
+const paletteRowOf = (
+  row: Interaction,
+  position: number,
+  markedPosition: number,
+): ListItem => ({
+  action: `palette-run:${row.token}`,
+  ...(position === markedPosition ? { isCurrent: true } : {}),
+  key: row.token,
+  lines: Array.map(row.keys, keyHintOf),
+  title: row.label,
+})
+
+const paletteNode = (
+  model: Model,
+  query: string,
+  markedPosition: number,
+): UiNode =>
+  Box(
+    {
+      layer: {
+        dismissToken: 'layer-dismiss',
+        kind: 'Dialog',
+        label: 'Command palette',
+      },
+    },
+    TextInput({
+      focused: true,
+      label: 'Command palette',
+      placeholder: 'Type an action, a place, or an Issue',
+      token: 'palette:',
+      value: query,
+    }),
+    ...Array.match(paletteRowsOf(model, query), {
+      onEmpty: () => [Text(`Nothing matches "${query.trim()}".`)],
+      onNonEmpty: rows => [
+        List({
+          label: 'Actions and places',
+          items: Array.map(rows, (row, position) =>
+            paletteRowOf(row, position, markedPosition),
+          ),
+        }),
+      ],
+    }),
+  )
+
+const layerNodes = (model: Model): ReadonlyArray<UiNode> =>
+  M.value(model.layer).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      NoLayer: () => [],
+      PaletteLayer: ({ position, query }) => [
+        paletteNode(model, query, position),
+      ],
     }),
   )
 
@@ -723,5 +518,7 @@ export const productView = (model: Model): UiNode =>
     { gap: 1 },
     Text('Issues'),
     Row({ gap: 1 }, ...navigationButtons(model)),
-    ...destinationNodes(model),
+    Column({ gap: 1 }, ...destinationNodes(model)),
+    Column({ gap: 0 }, ...dockNodes(model)),
+    Column({ gap: 0 }, ...layerNodes(model)),
   )

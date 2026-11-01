@@ -153,8 +153,9 @@ export const backlogOf = (issues: ReadonlyArray<Issue>): BacklogListing => {
     Option.filter(upcomingBuildOf(issue), build =>
       Array.contains(builds, build),
     )
-  const lanes = Array.map(builds, (build, position) =>
-    BuildLane.make({
+  const lanes = Array.map(
+    builds,
+    (build, position): BuildLane => ({
       build: String(build),
       isNext: position === 0,
       issues: Array.filter(sorted, issue =>
@@ -167,15 +168,16 @@ export const backlogOf = (issues: ReadonlyArray<Issue>): BacklogListing => {
     issue => isQueuedWork(issue) && Option.isNone(laneBuildOf(issue)),
   )
   const sections = Array.filter(
-    Array.map(IssuePriority.literals, priority =>
-      PrioritySection.make({
+    Array.map(
+      IssuePriority.literals,
+      (priority): PrioritySection => ({
         issues: Array.filter(queued, issue => issue.priority === priority),
         priority,
       }),
     ),
     section => Array.isReadonlyArrayNonEmpty(section.issues),
   )
-  return BacklogListing.make({ lanes, sections })
+  return { lanes, sections }
 }
 
 /** Every Issue of the backlog in the order it shows them. */

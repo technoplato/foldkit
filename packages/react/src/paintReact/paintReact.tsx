@@ -1,15 +1,18 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import {
+  type BoxLayer,
   type BoxNode,
   type ButtonNode,
   type IconName,
   type ItemCheck,
   type ListItem,
+  type ReferencePart,
   type SeekNode,
   type TextEmbed,
   type TextInputNode,
   type TextNode,
+  type TextPart,
   type TranscriptNode,
   type TranscriptPassage,
   type UiNode,
@@ -318,6 +321,79 @@ const TextField = ({
   )
 }
 
+const pressOfToken = (token: string, label: string): ButtonNode => ({
+  _tag: 'Button',
+  label,
+  token,
+})
+
+/**
+ * A text field that sends every keystroke. It takes the focus when the Model
+ * says `focused`, and with a `blurToken` lets go of it when the Model stops
+ * saying so, and it tells the Model when it gains and loses the focus.
+ */
+const TokenField = ({
+  input,
+  className,
+  onPress,
+  onInput,
+}: Readonly<{
+  input: TextInputNode
+  className: string
+  onPress: (button: ButtonNode) => void
+  onInput: ((token: string, value: string) => void) | undefined
+}>): ReactElement => {
+  const ref = useRef<HTMLInputElement>(null)
+  const isFocused = input.focused === true
+  const token = input.token
+  const focusToken = input.focusToken
+  const blurToken = input.blurToken
+  const label = input.label ?? input.placeholder ?? ''
+  const isBlurredByModel = blurToken !== undefined
+  useEffect(() => {
+    const field = ref.current
+    if (field === null) {
+      return
+    }
+    const isActive = document.activeElement === field
+    if (isFocused && !isActive) {
+      field.focus()
+    } else if (!isFocused && isActive && isBlurredByModel) {
+      field.blur()
+    }
+  }, [isFocused, isBlurredByModel])
+  return (
+    <input
+      ref={ref}
+      type="text"
+      className={className}
+      value={input.value}
+      placeholder={input.placeholder}
+      aria-label={input.label}
+      autoFocus={isFocused}
+      onChange={event => {
+        if (token !== undefined && onInput !== undefined) {
+          onInput(token, event.currentTarget.value)
+        }
+      }}
+      onFocus={
+        focusToken === undefined
+          ? undefined
+          : () => {
+              onPress(pressOfToken(focusToken, label))
+            }
+      }
+      onBlur={
+        blurToken === undefined
+          ? undefined
+          : () => {
+              onPress(pressOfToken(blurToken, label))
+            }
+      }
+    />
+  )
+}
+
 /**
  * The round box at the start of a list row a person ticks, such as a
  * reminder's completion circle: a checkbox that presses its Action.
@@ -612,6 +688,65 @@ const ItemPress = ({
 }
 
 /**
+ * One whole list row. A row object that did not change paints nothing, when
+ * the host's handlers stay the same across paints: moving a cursor through
+ * 1,500 rows repaints two, and a live change to one Issue repaints one.
+ */
+const ListRowView = memo(
+  ({
+    item,
+    onPress,
+    onLink,
+    paintChildren,
+  }: Readonly<{
+    item: ListItem
+    onPress: (button: ButtonNode) => void
+    onLink: ((href: string) => boolean) | undefined
+    paintChildren: (
+      children: ReadonlyArray<UiNode>,
+    ) => ReadonlyArray<ReactElement>
+  }>): ReactElement => (
+    <ListRow item={item}>
+      {item.check === undefined ? null : (
+        <CheckButton check={item.check} onPress={onPress} />
+      )}
+      <ItemPress item={item} onPress={onPress} onLink={onLink}>
+        {item.image === undefined ? null : (
+          <img
+            className="fk-item-image"
+            src={item.image.src}
+            alt={item.image.alt}
+            width={item.image.width}
+            height={item.image.height}
+            loading="lazy"
+          />
+        )}
+        <span className="fk-item-body">
+          <span className="fk-item-title">{item.title}</span>
+          {Array.map(item.lines ?? [], (line, index) => (
+            <span key={index} className="fk-item-line">
+              {line}
+            </span>
+          ))}
+          {item.progress === undefined ? null : (
+            <progress
+              className="fk-progress"
+              max={item.progress.max}
+              value={item.progress.value}
+            />
+          )}
+        </span>
+      </ItemPress>
+      {paintChildren(item.trailing ?? [])}
+    </ListRow>
+  ),
+  (before, after) =>
+    before.item === after.item &&
+    before.onPress === after.onPress &&
+    before.onLink === after.onLink,
+)
+
+/**
  * How a painted tree reports presses, text input, and link follows.
  * `onLink` sees only plain primary clicks and returns true when it handled
  * the link, such as opening an in-app URI, so the browser does not load
@@ -658,8 +793,41 @@ export const paintTree = (
     Array.map(children, (child, index) => (
       <Fragment key={keyFor(child, index)}>{paint(child)}</Fragment>
     ))
+  const paintLayer = (box: BoxNode, layer: BoxLayer): ReactElement => {
+    const dismissToken = layer.dismissToken
+    return (
+      <div className="fk-layer" data-layer={layer.kind}>
+        <div
+          className="fk-layer-backdrop"
+          aria-hidden
+          onClick={
+            dismissToken === undefined
+              ? undefined
+              : () => {
+                  handlers.onPress({
+                    _tag: 'Button',
+                    label: layer.label,
+                    token: dismissToken,
+                  })
+                }
+          }
+        />
+        <div
+          className={classFor('Box', 'fk-layer-surface')}
+          role="dialog"
+          aria-modal={layer.kind === 'Dialog'}
+          aria-label={layer.label}
+          data-layer={layer.kind}
+        >
+          {paintChildren(box.children)}
+        </div>
+      </div>
+    )
+  }
   const paintBox = (box: BoxNode): ReactElement =>
-    box.isDock === true ? (
+    box.layer !== undefined ? (
+      paintLayer(box, box.layer)
+    ) : box.isDock === true ? (
       <DockBox className={classFor('Box', 'fk-dock')}>
         {paintChildren(box.children)}
       </DockBox>
@@ -667,6 +835,58 @@ export const paintTree = (
       <div className={classFor('Box', 'fk-box')}>
         {paintChildren(box.children)}
       </div>
+    )
+  const paintReference = (reference: ReferencePart): ReactElement => {
+    const href = reference.href
+    const attributes = {
+      className: 'fk-ref',
+      ...(reference.kind === undefined ? {} : { 'data-kind': reference.kind }),
+      ...(reference.state === undefined
+        ? {}
+        : { 'data-state': reference.state }),
+      ...(reference.detail === undefined
+        ? {}
+        : { title: Array.join(reference.detail, '\n') }),
+    }
+    const inner = (
+      <>
+        <span className="fk-ref-label">{reference.label}</span>
+        {reference.title === undefined ? null : (
+          <span className="fk-ref-title">{reference.title}</span>
+        )}
+        {reference.state === undefined ? null : (
+          <span className="fk-ref-state">{reference.state}</span>
+        )}
+      </>
+    )
+    if (href === undefined) {
+      return <span {...attributes}>{inner}</span>
+    }
+    return (
+      <a
+        {...attributes}
+        href={href}
+        onClick={event => {
+          if (
+            Navigation.isPlainClick(event) &&
+            handlers.onLink !== undefined &&
+            handlers.onLink(href)
+          ) {
+            event.preventDefault()
+          }
+        }}
+      >
+        {inner}
+      </a>
+    )
+  }
+  const paintPart = (part: TextPart): ReactNode =>
+    M.value(part).pipe(
+      M.withReturnType<ReactNode>(),
+      M.tagsExhaustive({
+        Plain: ({ text }) => text,
+        Reference: paintReference,
+      }),
     )
   const paintText = (text: TextNode): ReactElement => {
     const href = text.href
@@ -697,6 +917,14 @@ export const paintTree = (
         <div {...attributes} data-copyable>
           <span className="fk-copyable-text">{text.content}</span>
           <CopyButton text={text.content} />
+        </div>
+      )
+    } else if (text.parts !== undefined && text.image === undefined) {
+      return (
+        <div {...attributes}>
+          {Array.map(text.parts, (part, index) => (
+            <Fragment key={index}>{paintPart(part)}</Fragment>
+          ))}
         </div>
       )
     } else if (href === undefined) {
@@ -761,7 +989,6 @@ export const paintTree = (
           </button>
         ),
         TextInput: input => {
-          const token = input.token
           if (input.action !== undefined || input.clearAction !== undefined) {
             return (
               <TextField
@@ -772,18 +999,11 @@ export const paintTree = (
             )
           } else {
             return (
-              <input
-                type="text"
+              <TokenField
+                input={input}
                 className={classFor('TextInput', 'fk-text-input')}
-                value={input.value}
-                placeholder={input.placeholder}
-                aria-label={input.label}
-                autoFocus={input.focused === true}
-                onChange={event => {
-                  if (token !== undefined && handlers.onInput !== undefined) {
-                    handlers.onInput(token, event.currentTarget.value)
-                  }
-                }}
+                onPress={handlers.onPress}
+                onInput={handlers.onInput}
               />
             )
           }
@@ -810,50 +1030,15 @@ export const paintTree = (
         ),
         List: list => (
           <ul className={classFor('List', 'fk-list')} aria-label={list.label}>
-            {Array.map(list.items, item => {
-              return (
-                <ListRow key={item.key} item={item}>
-                  {item.check === undefined ? null : (
-                    <CheckButton
-                      check={item.check}
-                      onPress={handlers.onPress}
-                    />
-                  )}
-                  <ItemPress
-                    item={item}
-                    onPress={handlers.onPress}
-                    onLink={handlers.onLink}
-                  >
-                    {item.image === undefined ? null : (
-                      <img
-                        className="fk-item-image"
-                        src={item.image.src}
-                        alt={item.image.alt}
-                        width={item.image.width}
-                        height={item.image.height}
-                        loading="lazy"
-                      />
-                    )}
-                    <span className="fk-item-body">
-                      <span className="fk-item-title">{item.title}</span>
-                      {Array.map(item.lines ?? [], (line, index) => (
-                        <span key={index} className="fk-item-line">
-                          {line}
-                        </span>
-                      ))}
-                      {item.progress === undefined ? null : (
-                        <progress
-                          className="fk-progress"
-                          max={item.progress.max}
-                          value={item.progress.value}
-                        />
-                      )}
-                    </span>
-                  </ItemPress>
-                  {paintChildren(item.trailing ?? [])}
-                </ListRow>
-              )
-            })}
+            {Array.map(list.items, item => (
+              <ListRowView
+                key={item.key}
+                item={item}
+                onPress={handlers.onPress}
+                onLink={handlers.onLink}
+                paintChildren={paintChildren}
+              />
+            ))}
           </ul>
         ),
         Seek: seek => (

@@ -14,7 +14,10 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { PageEntity } from './entityGraph.js'
 import { IssueFileAddress } from './issueFiles.js'
+import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
+import { IssueView, defaultIssueView } from './issueView.js'
 import { LandingFilter } from './landing.js'
 import { LeftoverKind, ProductFilter } from './leftover.js'
 
@@ -24,6 +27,15 @@ export const LoadingIssues = S.TaggedStruct('LoadingIssues', {})
 export const LoadedIssues = S.TaggedStruct('LoadedIssues', {
   issues: S.Array(Issue),
 })
+
+/**
+ * The loaded Issues, built without walking them again: the store decoded
+ * them when they arrived, and `LoadedIssues.make` re-validates every one,
+ * about 105 ms for the 1,535 stored Issues.
+ */
+export const loadedIssuesOf = (
+  issues: ReadonlyArray<Issue>,
+): typeof LoadedIssues.Type => ({ _tag: 'LoadedIssues', issues })
 /** Live collection observation failed. */
 export const FailedIssues = S.TaggedStruct('FailedIssues', {
   reason: S.String,
@@ -150,8 +162,61 @@ export const IssueFilesState = S.Union([
 /** Every state of the open Issue's stored files (Scribe #1345). */
 export type IssueFilesState = typeof IssueFilesState.Type
 
-/** The live Issue collection is visible. */
-export const IssueList = S.TaggedStruct('IssueList', {})
+/** No Issue is open, so no landing is read. */
+export const NotObservingIssueLanding = S.TaggedStruct(
+  'NotObservingIssueLanding',
+  {},
+)
+/** Where the open Issue landed, from Scribe's rows. */
+export const LoadedIssueLanding = S.TaggedStruct('LoadedIssueLanding', {
+  issueId: S.String,
+  landing: IssueLanding,
+})
+/** Scribe's rows could not be read, and the Issue page says why. */
+export const FailedIssueLanding = S.TaggedStruct('FailedIssueLanding', {
+  issueId: S.String,
+  reason: S.String,
+})
+/** Every state of reading where the open Issue landed. */
+export const IssueLandingObservation = S.Union([
+  NotObservingIssueLanding,
+  LoadedIssueLanding,
+  FailedIssueLanding,
+])
+/** Every state of reading where the open Issue landed. */
+export type IssueLandingObservation = typeof IssueLandingObservation.Type
+
+/** No build or commit page is open, or the host has no graph. */
+export const NotObservingPageFacts = S.TaggedStruct('NotObservingPageFacts', {})
+/** What Scribe's rows say about the entity on the page. */
+export const LoadedPageFacts = S.TaggedStruct('LoadedPageFacts', {
+  entity: PageEntity,
+  facts: PageFacts,
+})
+/** Scribe's rows could not be read for the entity on the page. */
+export const FailedPageFacts = S.TaggedStruct('FailedPageFacts', {
+  entity: PageEntity,
+  reason: S.String,
+})
+/** Every state of reading what Scribe's rows say about the entity on the page. */
+export const PageFactsObservation = S.Union([
+  NotObservingPageFacts,
+  LoadedPageFacts,
+  FailedPageFacts,
+])
+/** Every state of reading what Scribe's rows say about the entity on the page. */
+export type PageFactsObservation = typeof PageFactsObservation.Type
+
+const ListedView = IssueView.pipe(
+  S.withDecodingDefaultKey(Effect.succeed(defaultIssueView)),
+  S.withConstructorDefault(Effect.succeed(defaultIssueView)),
+)
+
+/**
+ * The live Issue collection is visible, as its view shows it:
+ * `IssueList.make({})` is every Issue, newest first, at `/issues`.
+ */
+export const IssueList = S.TaggedStruct('IssueList', { view: ListedView })
 /** One Issue detail is visible. */
 export const IssueDetail = S.TaggedStruct('IssueDetail', {
   issueId: S.String,
@@ -162,6 +227,14 @@ export const FileIssue = S.TaggedStruct('FileIssue', {})
 export const TriageInbox = S.TaggedStruct('TriageInbox', {})
 /** The backlog: the next build's lane, then each priority in rank order. */
 export const Backlog = S.TaggedStruct('Backlog', {})
+/** How long asks take: each step's median and its slowest asks. */
+export const AskFlow = S.TaggedStruct('AskFlow', {})
+/**
+ * One entity's page, listing every Issue that points at it: Recording 208,
+ * the agent `claude-code/issues-linear-1538@ld`, commit `6ff20758d`, build
+ * 218, or the product Scribe.
+ */
+export const EntityPage = S.TaggedStruct('EntityPage', { entity: PageEntity })
 /** Every representable navigation destination. */
 export const Navigation = S.Union([
   IssueList,
@@ -169,9 +242,26 @@ export const Navigation = S.Union([
   FileIssue,
   TriageInbox,
   Backlog,
+  AskFlow,
+  EntityPage,
 ])
 /** Every representable navigation destination. */
 export type Navigation = typeof Navigation.Type
+
+/** Nothing shows above the page. */
+export const NoLayer = S.TaggedStruct('NoLayer', {})
+/**
+ * The command palette shows above the page: what is typed into it, and the
+ * position of the row its mark is on.
+ */
+export const PaletteLayer = S.TaggedStruct('PaletteLayer', {
+  position: S.Number,
+  query: S.String,
+})
+/** What shows above the page. */
+export const ScreenLayer = S.Union([NoLayer, PaletteLayer])
+/** What shows above the page. */
+export type ScreenLayer = typeof ScreenLayer.Type
 
 const defaultDraftStatus: IssueStatus = 'Open'
 
@@ -395,24 +485,51 @@ export const LeftoverPresenceState = S.Union([
 /** Every leftover presence observation state. */
 export type LeftoverPresenceState = typeof LeftoverPresenceState.Type
 
+/**
+ * The reader's clock, read once a minute: the time and the offset of their
+ * time zone from UTC in minutes, -300 on Eastern Standard Time. `nowMs` is 0
+ * until the first reading, and pages show dates until then instead of how
+ * long ago things were.
+ */
+export const Clock = S.Struct({ nowMs: S.Number, offsetMinutes: S.Number })
+/** The reader's clock, read once a minute. */
+export type Clock = typeof Clock.Type
+
 /** The shared renderer-independent Issue Tracker Model. */
 export const Model = S.Struct({
+  clock: Clock,
   draft: IssueDraft,
   draftState: IssueDraftState,
   issueDetail: IssueDetailState,
   issueFiles: IssueFilesState,
+  issueLanding: IssueLandingObservation,
   issueLogs: IssueLogsState,
   issueMutation: IssueMutationState,
+  isGoKeyPending: S.Boolean,
+  isSearchFocused: S.Boolean,
   issues: IssuesState,
+  knownBuilds: S.Array(LandedBuild),
   landingFilter: LandingFilter,
+  layer: ScreenLayer,
   leftoverComment: S.String,
   leftoverLink: S.String,
   leftoverPresence: LeftoverPresenceState,
+  maybeRowCursor: S.Option(S.String),
   navigation: Navigation,
+  pageFacts: PageFactsObservation,
   productAddition: ProductAdditionState,
   productFilter: ProductFilter,
   products: ProductsState,
+  returnListView: IssueView,
   triageCandidates: TriageCandidatesState,
 })
 /** The shared renderer-independent Issue Tracker Model. */
 export type Model = typeof Model.Type
+
+/**
+ * The next Model, from fields already typed as a Model, without walking them
+ * again: `nextModel({ ...model, leftoverComment: 'w' })`. `Model.make`
+ * re-validates every loaded Issue, about 105 ms with the 1,535 stored Issues,
+ * which no keystroke or live change can afford.
+ */
+export const nextModel = (fields: Model): Model => fields

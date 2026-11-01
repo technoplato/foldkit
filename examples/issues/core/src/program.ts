@@ -1,4 +1,5 @@
 import { Array } from 'effect'
+import { Subscription } from 'foldkit'
 import { type ActionContext } from 'foldkit/message'
 import * as Program from 'foldkit/program'
 import { type UiNode } from 'foldkit/renderers'
@@ -15,16 +16,18 @@ import { Logger } from '@foldkit/instant-tools/logging'
 import { init } from './init.js'
 import { type IssueFiles } from './issueFiles.js'
 import { IssueIdentity } from './issueIdentity.js'
+import { type IssueLandings } from './issueLandings.js'
 import { Message } from './message.js'
 import { Model } from './model.js'
-import { interactionsForModel } from './presentation.js'
+import { everyInteractionOf } from './presentation.js'
 import { productView } from './product.js'
-import { subscriptions } from './subscription.js'
+import { graphSubscriptions, subscriptions } from './subscription.js'
 import { restore, update } from './update.js'
 
 /** Every dependency required by the renderer-independent Issue Tracker. */
 export type IssueTrackerResources =
   | IssueFiles
+  | IssueLandings
   | IssueTracker
   | LeftoverPresence
   | Logger
@@ -34,9 +37,9 @@ export type IssueTrackerResources =
 
 /** Projects leftover and navigation Actions through Program.valid. */
 export const issuesValid: Program.ProgramValid<Model> = model =>
-  Array.map(interactionsForModel(model), interaction => ({
+  Array.map(everyInteractionOf(model), interaction => ({
     token: interaction.token,
-    keys: [],
+    keys: interaction.keys,
     spoken: [],
     valid: true,
   }))
@@ -60,13 +63,17 @@ export const IssueTrackerProgram: Program.Program<
   IssueTrackerResources
 > = Program.make<Model, Message, IssueTrackerResources>({
   id: 'issues',
-  version: 11,
+  version: 12,
   Model,
   Message,
   init,
   restore,
   update,
-  subscriptions,
+  subscriptions: Subscription.aggregate<
+    Model,
+    Message,
+    IssueTrackerResources
+  >()(subscriptions, graphSubscriptions),
   valid: issuesValid,
   screen: issuesScreen,
 })

@@ -503,8 +503,8 @@ const isMemberUser = (user: InstantAuthUser): boolean => {
  * only after `verifyAccessToken` checks the login's signature, issuer,
  * expiry, and audience. A request without a verified login gets 401,
  * unless the caller found it local and passes `localDevelopmentEmail`.
- * Returns undefined when the request is not the hosted-identity session
- * route.
+ * Returns undefined when the request is not the session route:
+ * `sessionPath`, else {@link hostedIdentitySessionPath}.
  *
  * @example
  * ```typescript
@@ -519,10 +519,13 @@ export const mintHostedInstantSession = async (
     localDevelopmentEmail?: string
     headers: Readonly<Record<string, string>>
     method: string
+    sessionPath?: string
     url: string
   }>,
 ): Promise<HostedIdentityHttpResult | undefined> => {
-  if (pathnameOf(input.url) !== hostedIdentitySessionPath) {
+  if (
+    pathnameOf(input.url) !== (input.sessionPath ?? hostedIdentitySessionPath)
+  ) {
     return undefined
   }
   const method = input.method.toUpperCase()

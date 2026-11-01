@@ -3,17 +3,23 @@ import { Program } from 'foldkit'
 import {
   type IssueLogsState,
   modelForNavigation,
-  navigationToPath,
   pathToNavigation,
 } from 'issues-core-example'
 import { sendScreenToken, useScreen } from 'issues-react-bindings-example'
-import { type ReactNode, useEffect } from 'react'
-import { useProgramNavigationHistory } from 'shared-react-bindings-example'
+import { type ReactNode, useCallback, useEffect } from 'react'
 
 import { type IssueLogEvidence } from '@foldkit/instant-tools/logging'
-import { type PaintClassNames, paintReact } from '@foldkit/react'
+import {
+  type PaintClassNames,
+  type PaintHandlers,
+  ScreenStyles,
+  paintTree,
+} from '@foldkit/react'
 
 import { IssueTrackerClient } from './client.js'
+import { useIssueHistory } from './issueHistory.js'
+import { useIssueKeys } from './issueKeys.js'
+import { inAppPath } from './links.js'
 import { recoverCurrentViewerAfterFailure } from './viewerFailureRecovery.js'
 
 const classNames: PaintClassNames = {
@@ -26,17 +32,24 @@ const classNames: PaintClassNames = {
     'rounded-md border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm w-full max-w-md',
 }
 
+const pressedButton: PaintHandlers['onPress'] = button => {
+  const token = button.token ?? button.action
+  if (token !== undefined) {
+    sendScreenToken(token)
+  }
+}
+
+const typedInField: PaintHandlers['onInput'] = (token, value) => {
+  sendScreenToken(`${token}${value}`)
+}
+
 /** Paints the shared issuesScreen. The window makes zero leftover decisions. */
 export const ScreenApp = () => {
   const model = IssueTrackerClient.useModel()
   const actions = IssueTrackerClient.useActions()
   const screen = useScreen()
-  useProgramNavigationHistory({
-    navigation: model.navigation,
-    openedNavigation: actions.openedNavigation,
-    parseNavigation: pathToNavigation,
-    printNavigation: navigationToPath,
-  })
+  useIssueHistory(model.navigation, actions.openedNavigation)
+  useIssueKeys(model)
   const reason =
     model.issues._tag === 'FailedIssues'
       ? model.issues.reason
@@ -48,9 +61,26 @@ export const ScreenApp = () => {
       Effect.runSync(recoverCurrentViewerAfterFailure)
     }
   }, [reason])
+  const openedLink = useCallback(
+    (href: string): boolean =>
+      Option.match(inAppPath(href, window.location.origin), {
+        onNone: () => false,
+        onSome: path => {
+          actions.openedNavigation(pathToNavigation(path))
+          return true
+        },
+      }),
+    [actions],
+  )
   return (
     <main className="issues-screen min-h-screen bg-zinc-950 text-zinc-50 p-6">
-      {paintReact(screen, sendScreenToken, classNames)}
+      <ScreenStyles />
+      {paintTree(screen, {
+        classNames,
+        onPress: pressedButton,
+        onInput: typedInField,
+        onLink: openedLink,
+      })}
     </main>
   )
 }

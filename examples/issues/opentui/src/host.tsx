@@ -1,4 +1,4 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Option } from 'effect'
 import { Program } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 import {
@@ -8,7 +8,6 @@ import {
   modelForNavigation,
 } from 'issues-core-example'
 import { StaticIssueTrackerClient } from 'issues-react-bindings-example'
-import { type ReactNode } from 'react'
 
 import { type CliRenderer, type SelectOption } from '@opentui/core'
 import { useKeyboard } from '@opentui/react'

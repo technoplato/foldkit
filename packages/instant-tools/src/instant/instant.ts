@@ -1,6 +1,7 @@
 import {
   Array,
   Cause,
+  Clock,
   Data,
   Effect,
   Layer,
@@ -444,27 +445,62 @@ const reportIssueDecodeFailure = (issueID: string, cause: unknown): void => {
   }
 }
 
-/** Decodes a catalog snapshot, keeping readable Issues when one payload is stale. */
-export const decodeIssueRecords = (
+/** One decoded Issue and the stored payload it was decoded from. */
+type DecodedIssueRecord = Readonly<{ payloadJson: string; issue: Issue }>
+
+/**
+ * The Issues one catalog snapshot decoded, by stored record id. The next
+ * snapshot reuses each Issue whose payload text is unchanged, so a change to
+ * Issue 1358 decodes Issue 1358 and keeps the other Issues as they were.
+ */
+export type DecodedIssueCatalog = ReadonlyMap<string, DecodedIssueRecord>
+
+/** The catalog before any snapshot was decoded. */
+export const emptyDecodedIssueCatalog: DecodedIssueCatalog = new Map()
+
+/**
+ * Decodes a catalog snapshot over the previous one, keeping readable Issues
+ * when one payload is stale. An unchanged payload keeps its earlier Issue
+ * value, so readers can tell an unchanged Issue by identity.
+ */
+export const decodeIssueRecordsOver = (
+  previous: DecodedIssueCatalog,
   records: ReadonlyArray<InstantIssueRecord>,
-): ReadonlyArray<Issue> => {
-  const noIssues: ReadonlyArray<Issue> = []
-  const issues = Array.reduce(records, noIssues, (decoded, record) => {
+): readonly [DecodedIssueCatalog, ReadonlyArray<Issue>] => {
+  const next = new Map<string, DecodedIssueRecord>()
+  const decodeOne = (record: InstantIssueRecord): Option.Option<Issue> => {
+    const maybePrevious = Option.fromUndefinedOr(previous.get(record.id))
+    if (
+      Option.isSome(maybePrevious) &&
+      maybePrevious.value.payloadJson === record.payloadJson
+    ) {
+      next.set(record.id, maybePrevious.value)
+      return Option.some(maybePrevious.value.issue)
+    }
     try {
-      return Array.append(decoded, decodeIssueRecord(record))
+      const issue = decodeIssueRecord(record)
+      next.set(record.id, { payloadJson: record.payloadJson, issue })
+      return Option.some(issue)
     } catch (cause) {
       reportIssueDecodeFailure(record.issueID, cause)
-      return decoded
+      return Option.none()
     }
-  })
+  }
+  const issues = Array.getSomes(Array.map(records, decodeOne))
   if (
     Array.isReadonlyArrayEmpty(issues) &&
     Array.isReadonlyArrayNonEmpty(records)
   ) {
-    return Array.map(records, decodeIssueRecord)
+    return [next, Array.map(records, decodeIssueRecord)]
   }
-  return issues
+  return [next, issues]
 }
+
+/** Decodes a catalog snapshot, keeping readable Issues when one payload is stale. */
+export const decodeIssueRecords = (
+  records: ReadonlyArray<InstantIssueRecord>,
+): ReadonlyArray<Issue> =>
+  decodeIssueRecordsOver(emptyDecodedIssueCatalog, records)[1]
 
 /**
  * Derives the one Instant row UUID for a product id: `acaga` is always
@@ -875,15 +911,24 @@ export const makeIssueTracker = (
     ),
   observe: query =>
     store.observeIssues(query.statuses).pipe(
-      Stream.mapEffect(records =>
-        Effect.try({
-          try: () => decodeIssueRecords(records),
-          catch: cause =>
-            new IssueTrackerError({
-              cause,
-              operation: 'Observe',
-            }),
-        }),
+      Stream.mapAccumEffect(
+        () => emptyDecodedIssueCatalog,
+        (previous, records) =>
+          Effect.try({
+            try: () => {
+              const [next, issues] = decodeIssueRecordsOver(previous, records)
+              const snapshot: readonly [
+                DecodedIssueCatalog,
+                ReadonlyArray<ReadonlyArray<Issue>>,
+              ] = [next, [issues]]
+              return snapshot
+            },
+            catch: cause =>
+              new IssueTrackerError({
+                cause,
+                operation: 'Observe',
+              }),
+          }),
       ),
       Stream.map(issues =>
         Array.take(
@@ -1049,9 +1094,229 @@ const issueIdsInStatuses = (statuses: IssueQuery['statuses']) => ({
   instantToolsIssues: { $: { fields: issueIdField, ...inStatuses(statuses) } },
 })
 
-/** Creates the low-level entity capability from a host-initialized database. */
+/**
+ * The catalog's rows a host kept from an earlier visit, and when they were last
+ * read in full.
+ */
+export type KeptIssueCatalog = Readonly<{
+  fullReadAtMs: number
+  records: ReadonlyArray<InstantIssueRecord>
+}>
+
+/**
+ * Where a host keeps the catalog's rows between visits, such as the browser's
+ * IndexedDB, so a reload shows them at once and reads only what changed. Writes
+ * are best effort and never hold up a reader; a store that cannot be read
+ * answers with nothing kept.
+ */
+export type IssueCatalogCache = Readonly<{
+  read: () => Promise<Option.Option<KeptIssueCatalog>>
+  rememberAll: (
+    records: ReadonlyArray<InstantIssueRecord>,
+    fullReadAtMs: number,
+  ) => void
+  rememberChanged: (records: ReadonlyArray<InstantIssueRecord>) => void
+  forget: (rowIds: ReadonlyArray<string>) => void
+}>
+
+/** A host that keeps nothing between visits. */
+export const noIssueCatalogCache: IssueCatalogCache = {
+  read: () => Promise.resolve(Option.none()),
+  rememberAll: () => undefined,
+  rememberChanged: () => undefined,
+  forget: () => undefined,
+}
+
+/**
+ * How old a kept catalog may be before a reload reads everything again: a day,
+ * so a change that somehow fell outside every window heals by itself.
+ */
+const FULL_READ_EVERY_MS = 24 * 60 * 60 * 1_000
+
+/**
+ * How far before the newest change a live window starts, so a writer whose
+ * clock runs behind another's still lands inside it: 1 minute.
+ */
+export const CHANGED_ISSUES_OVERLAP_MS = 60_000
+
+/** How many rows a live window holds before it moves forward. */
+const CHANGED_ISSUES_WINDOW_ROWS = 3
+
+const issuesChangedSince = (atMs: number) => ({
+  instantToolsIssues: { $: { where: { updatedAtMs: { $gte: atMs } } } },
+})
+
+const windowStartOf = (
+  records: ReadonlyArray<InstantIssueRecord>,
+  nowMs: number,
+): number =>
+  Array.match(records, {
+    onEmpty: () => nowMs,
+    onNonEmpty: found =>
+      Array.reduce(found, 0, (newest, record) =>
+        Math.max(newest, record.updatedAtMs),
+      ),
+  }) - CHANGED_ISSUES_OVERLAP_MS
+
+const IssueRowId = S.Struct({ id: S.String })
+
+/**
+ * The catalog as it changes, after `initial`, without reading it again. A live
+ * query holds only the rows changed since the newest one seen, so a write costs
+ * the Issues it changed, never the 21.8 MB catalog, and reaches every observer
+ * at once. A second live query of the row ids alone says which Issues left. The
+ * window moves forward once it holds more than 3 rows, so what one change sends
+ * stays small however long a page stays open; a burst inside the overlap stays in
+ * one window. Every save marks its row as changed now (`saveIssue`), so
+ * no change falls outside the window.
+ */
+const changedIssueRecords = (
+  database: InstantToolsDatabase,
+  statuses: IssueQuery['statuses'],
+  initial: ReadonlyArray<InstantIssueRecord>,
+  cache: IssueCatalogCache,
+): Stream.Stream<ReadonlyArray<InstantIssueRecord>, InstantEntityStoreError> =>
+  Stream.callback<ReadonlyArray<InstantIssueRecord>, InstantEntityStoreError>(
+    queue =>
+      Effect.acquireRelease(
+        Effect.map(Clock.currentTimeMillis, nowMs => {
+          const held = new Map(
+            Array.map(initial, record => [record.id, record]),
+          )
+          const isListed = (record: InstantIssueRecord): boolean =>
+            Array.isReadonlyArrayEmpty(statuses) ||
+            Array.contains(statuses, record.status)
+          let maybeRowIds = Option.none<ReadonlySet<string>>()
+          let windowRowIds: ReadonlySet<string> = new Set<string>()
+          let openWindowCount = 0
+          let closeWindow: () => void = () => undefined
+          const failed = (cause: unknown): void => {
+            Queue.failCauseUnsafe(
+              queue,
+              Cause.fail(
+                new InstantEntityStoreError({
+                  cause,
+                  operation: 'ObserveIssues',
+                }),
+              ),
+            )
+          }
+          const offerHeld = (): void => {
+            Queue.offerUnsafe(
+              queue,
+              Array.filter(
+                Array.fromIterable(held.values()),
+                record =>
+                  isListed(record) &&
+                  (windowRowIds.has(record.id) ||
+                    Option.match(maybeRowIds, {
+                      onNone: () => true,
+                      onSome: rowIds => rowIds.has(record.id),
+                    })),
+              ),
+            )
+          }
+          const openWindow = (startAtMs: number): void => {
+            closeWindow()
+            openWindowCount += 1
+            const thisWindow = openWindowCount
+            const closeThisWindow = database.subscribeQuery(
+              issuesChangedSince(startAtMs),
+              response => {
+                if (thisWindow !== openWindowCount) {
+                  return
+                }
+                if (response.error !== undefined) {
+                  failed(response.error)
+                  return
+                }
+                try {
+                  const changed = Array.map(
+                    response.data.instantToolsIssues,
+                    record => S.decodeUnknownSync(InstantIssueRecord)(record),
+                  )
+                  windowRowIds = new Set(
+                    Array.map(changed, record => record.id),
+                  )
+                  const updated = Array.filter(
+                    changed,
+                    record =>
+                      held.get(record.id)?.payloadJson !== record.payloadJson,
+                  )
+                  for (const record of updated) {
+                    held.set(record.id, record)
+                  }
+                  if (Array.isReadonlyArrayNonEmpty(updated)) {
+                    cache.rememberChanged(updated)
+                  }
+                  offerHeld()
+                  const nextStartAtMs = windowStartOf(changed, nowMs)
+                  if (
+                    changed.length > CHANGED_ISSUES_WINDOW_ROWS &&
+                    nextStartAtMs > startAtMs
+                  ) {
+                    openWindow(nextStartAtMs)
+                  }
+                } catch (cause) {
+                  failed(cause)
+                }
+              },
+            )
+            if (thisWindow === openWindowCount) {
+              closeWindow = closeThisWindow
+            } else {
+              closeThisWindow()
+            }
+          }
+          const closeRowIds = database.subscribeQuery(
+            issueIdsInStatuses([]),
+            response => {
+              if (response.error !== undefined) {
+                failed(response.error)
+                return
+              }
+              try {
+                const rowIds = new Set(
+                  Array.map(
+                    response.data.instantToolsIssues,
+                    row => S.decodeUnknownSync(IssueRowId)(row).id,
+                  ),
+                )
+                maybeRowIds = Option.some(rowIds)
+                const leftRowIds = Array.filter(
+                  Array.fromIterable(held.keys()),
+                  id => !rowIds.has(id) && !windowRowIds.has(id),
+                )
+                for (const id of leftRowIds) {
+                  held.delete(id)
+                }
+                if (Array.isReadonlyArrayNonEmpty(leftRowIds)) {
+                  cache.forget(leftRowIds)
+                }
+                offerHeld()
+              } catch (cause) {
+                failed(cause)
+              }
+            },
+          )
+          openWindow(windowStartOf(initial, nowMs))
+          return () => {
+            closeWindow()
+            closeRowIds()
+          }
+        }),
+        close => Effect.sync(close),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+  )
+
+/**
+ * Creates the low-level entity capability from a host-initialized database.
+ * `cache` is where the host keeps the catalog between visits; by default,
+ * nowhere.
+ */
 export const makeInstantEntityStore = (
   database: InstantToolsDatabase,
+  cache: IssueCatalogCache = noIssueCatalogCache,
 ): InstantEntityStoreService => ({
   appendLog: (record, issueLinks) =>
     Effect.tryPromise({
@@ -1133,66 +1398,51 @@ export const makeInstantEntityStore = (
       }),
   }),
   observeIssues: statuses =>
-    Stream.concat(
-      Stream.fromEffect(
-        Effect.tryPromise({
-          try: async () => {
-            const response = await database.queryOnce(
-              issuesInStatuses(statuses),
+    Stream.unwrap(
+      Effect.gen(function* () {
+        const nowMs = yield* Clock.currentTimeMillis
+        const maybeKept = Array.isReadonlyArrayEmpty(statuses)
+          ? yield* Effect.promise(() =>
+              cache.read().catch(() => Option.none<KeptIssueCatalog>()),
+            ).pipe(
+              Effect.map(
+                Option.filter(
+                  ({ fullReadAtMs, records }) =>
+                    nowMs - fullReadAtMs < FULL_READ_EVERY_MS &&
+                    Array.isReadonlyArrayNonEmpty(records),
+                ),
+              ),
             )
-            return Array.map(response.data.instantToolsIssues, record =>
-              S.decodeUnknownSync(InstantIssueRecord)(record),
-            )
-          },
-          catch: cause =>
-            new InstantEntityStoreError({
-              cause,
-              operation: 'ObserveIssues',
-            }),
-        }),
-      ),
-      Stream.callback<
-        ReadonlyArray<InstantIssueRecord>,
-        InstantEntityStoreError
-      >(queue =>
-        Effect.acquireRelease(
-          Effect.sync(() =>
-            database.subscribeQuery(issuesInStatuses(statuses), response => {
-              if (response.error !== undefined) {
-                Queue.failCauseUnsafe(
-                  queue,
-                  Cause.fail(
-                    new InstantEntityStoreError({
-                      cause: response.error,
-                      operation: 'ObserveIssues',
-                    }),
-                  ),
+          : Option.none<KeptIssueCatalog>()
+        const records = yield* Option.match(maybeKept, {
+          onSome: kept => Effect.succeed(kept.records),
+          onNone: () =>
+            Effect.tryPromise({
+              try: async () => {
+                const response = await database.queryOnce(
+                  issuesInStatuses(statuses),
                 )
-              } else {
-                try {
-                  Queue.offerUnsafe(
-                    queue,
-                    Array.map(response.data.instantToolsIssues, record =>
-                      S.decodeUnknownSync(InstantIssueRecord)(record),
-                    ),
-                  )
-                } catch (cause) {
-                  Queue.failCauseUnsafe(
-                    queue,
-                    Cause.fail(
-                      new InstantEntityStoreError({
-                        cause,
-                        operation: 'ObserveIssues',
-                      }),
-                    ),
-                  )
+                const read = Array.map(
+                  response.data.instantToolsIssues,
+                  record => S.decodeUnknownSync(InstantIssueRecord)(record),
+                )
+                if (Array.isReadonlyArrayEmpty(statuses)) {
+                  cache.rememberAll(read, nowMs)
                 }
-              }
+                return read
+              },
+              catch: cause =>
+                new InstantEntityStoreError({
+                  cause,
+                  operation: 'ObserveIssues',
+                }),
             }),
-          ),
-          unsubscribe => Effect.sync(unsubscribe),
-        ).pipe(Effect.flatMap(() => Effect.never)),
-      ),
+        })
+        return Stream.concat(
+          Stream.succeed(records),
+          changedIssueRecords(database, statuses, records, cache),
+        )
+      }),
     ),
   observeIssue: issueId =>
     Stream.callback<Option.Option<InstantIssueRecord>, InstantEntityStoreError>(
@@ -1517,39 +1767,41 @@ export const makeInstantEntityStore = (
         }),
     }),
   saveIssue: record =>
-    Effect.tryPromise({
-      try: () => {
-        const entity = database.tx.instantToolsIssues.lookup(
-          'issueID',
-          record.issueID,
-        )
-        if (entity === undefined) {
-          return Promise.reject(
-            new Error('Instant Issue transaction entity was unavailable.'),
+    Effect.flatMap(Clock.currentTimeMillis, nowMs =>
+      Effect.tryPromise({
+        try: () => {
+          const entity = database.tx.instantToolsIssues.lookup(
+            'issueID',
+            record.issueID,
           )
-        }
-        return database
-          .transact(
-            entity.update({
-              attachmentCount: record.attachmentCount,
-              attachmentIdsJson: record.attachmentIdsJson,
-              issueID: record.issueID,
-              payloadJson: record.payloadJson,
-              priority: record.priority,
-              productId: record.productId,
-              projectId: record.projectId,
-              status: record.status,
-              updatedAtMs: record.updatedAtMs,
-            }),
-          )
-          .then(() => undefined)
-      },
-      catch: cause =>
-        new InstantEntityStoreError({
-          cause,
-          operation: 'SaveIssue',
-        }),
-    }),
+          if (entity === undefined) {
+            return Promise.reject(
+              new Error('Instant Issue transaction entity was unavailable.'),
+            )
+          }
+          return database
+            .transact(
+              entity.update({
+                attachmentCount: record.attachmentCount,
+                attachmentIdsJson: record.attachmentIdsJson,
+                issueID: record.issueID,
+                payloadJson: record.payloadJson,
+                priority: record.priority,
+                productId: record.productId,
+                projectId: record.projectId,
+                status: record.status,
+                updatedAtMs: Math.max(record.updatedAtMs, nowMs),
+              }),
+            )
+            .then(() => undefined)
+        },
+        catch: cause =>
+          new InstantEntityStoreError({
+            cause,
+            operation: 'SaveIssue',
+          }),
+      }),
+    ),
   saveProduct: record =>
     Effect.tryPromise({
       try: () => {
@@ -1638,8 +1890,9 @@ export const makeInstantEntityStore = (
 /** Provides all portable services from one host-initialized InstantDB client. */
 export const makeInstantToolsLayer = (
   database: InstantToolsDatabase,
+  cache: IssueCatalogCache = noIssueCatalogCache,
 ): Layer.Layer<IssueTracker | Logger | ProductCatalog | TriageInbox> => {
-  const store = makeInstantEntityStore(database)
+  const store = makeInstantEntityStore(database, cache)
   return Layer.mergeAll(
     Layer.succeed(IssueTracker, makeIssueTracker(store)),
     Layer.succeed(Logger, makeLogger(store)),

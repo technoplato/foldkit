@@ -14,7 +14,9 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { PageEntity } from './entityGraph.js'
 import { IssueFileAddress } from './issueFiles.js'
+import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
 import { LandingFilter } from './landing.js'
 import { LeftoverStatus, ProductFilter } from './leftover.js'
 import {
@@ -26,9 +28,25 @@ import {
 } from './model.js'
 import { AgentSurvey } from './nowWorking.js'
 
+/**
+ * The reader's clock was read: the time and the offset of their time zone
+ * from UTC in minutes, once when the tracker opens and then each minute.
+ */
+export const TickedClock = S.TaggedStruct('TickedClock', {
+  nowMs: S.Number,
+  offsetMinutes: S.Number,
+})
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
   issues: S.Array(Issue),
 })
+/**
+ * A live snapshot's Issues as a Message, without walking them again: the
+ * store decoded them, and `ObservedIssues.make` re-validates all of them,
+ * about 110 ms for the 1,535 stored Issues on every live change.
+ */
+export const observedIssuesOf = (
+  issues: ReadonlyArray<typeof Issue.Type>,
+): typeof ObservedIssues.Type => ({ _tag: 'ObservedIssues', issues })
 export const FailedObserveIssues = S.TaggedStruct('FailedObserveIssues', {
   reason: S.String,
 })
@@ -74,9 +92,79 @@ export const SelectedIssue = S.TaggedStruct('SelectedIssue', {
   issueId: S.String,
 })
 export const DismissedIssueDetail = S.TaggedStruct('DismissedIssueDetail', {})
+/** Scribe's rows said where the open Issue landed. */
+export const ObservedIssueLanding = S.TaggedStruct('ObservedIssueLanding', {
+  issueId: S.String,
+  landing: IssueLanding,
+})
+/** Scribe's rows could not be read for the open Issue. */
+export const FailedObserveIssueLanding = S.TaggedStruct(
+  'FailedObserveIssueLanding',
+  { issueId: S.String, reason: S.String },
+)
+/** Scribe's rows said which builds there are, so chips can name them. */
+export const ObservedBuilds = S.TaggedStruct('ObservedBuilds', {
+  builds: S.Array(LandedBuild),
+})
+/** Scribe's builds could not be read; chips show the number alone. */
+export const FailedObserveBuilds = S.TaggedStruct('FailedObserveBuilds', {
+  reason: S.String,
+})
+/** Scribe's rows said what the build or commit on the page is. */
+export const ObservedPageFacts = S.TaggedStruct('ObservedPageFacts', {
+  entity: PageEntity,
+  facts: PageFacts,
+})
+/** Scribe's rows could not be read for the build or commit on the page. */
+export const FailedObservePageFacts = S.TaggedStruct('FailedObservePageFacts', {
+  entity: PageEntity,
+  reason: S.String,
+})
 export const ClickedFileIssue = S.TaggedStruct('ClickedFileIssue', {})
 export const ClickedOpenTriage = S.TaggedStruct('ClickedOpenTriage', {})
 export const ClickedOpenBacklog = S.TaggedStruct('ClickedOpenBacklog', {})
+/** A person opened the page of how long asks take. */
+export const ClickedOpenAskFlow = S.TaggedStruct('ClickedOpenAskFlow', {})
+/** A person typed into the list's search field: `heart rate`, `#1538`. */
+export const UpdatedSearchQuery = S.TaggedStruct('UpdatedSearchQuery', {
+  query: S.String,
+})
+/** A person pressed Enter in the list's search field. */
+export const SubmittedSearch = S.TaggedStruct('SubmittedSearch', {})
+/** The search field holds the focus now: `/` was pressed or it was clicked. */
+export const FocusedSearchField = S.TaggedStruct('FocusedSearchField', {})
+/** The search field let go of the focus. */
+export const BlurredSearchField = S.TaggedStruct('BlurredSearchField', {})
+/** The row cursor moved a row: `j` or `k` on the list. */
+export const MovedRowCursor = S.TaggedStruct('MovedRowCursor', {
+  direction: S.Literals(['Next', 'Previous']),
+})
+/** A person opened the row under the cursor: Enter on the list. */
+export const OpenedRowUnderCursor = S.TaggedStruct('OpenedRowUnderCursor', {})
+/** A person pressed `g`, and the next key says where to go. */
+export const PressedGoKey = S.TaggedStruct('PressedGoKey', {})
+/** The key after `g` named no place. */
+export const CancelledGoKey = S.TaggedStruct('CancelledGoKey', {})
+/** A person went to the list: `g` then `l`. */
+export const ClickedOpenIssueList = S.TaggedStruct('ClickedOpenIssueList', {})
+/** A person opened the command palette: Cmd+K. */
+export const OpenedCommandPalette = S.TaggedStruct('OpenedCommandPalette', {})
+/** A person typed into the command palette: `backlog`, `1358`. */
+export const UpdatedPaletteQuery = S.TaggedStruct('UpdatedPaletteQuery', {
+  query: S.String,
+})
+/** The palette's mark moved a row: an arrow key. */
+export const MovedPaletteMark = S.TaggedStruct('MovedPaletteMark', {
+  direction: S.Literals(['Next', 'Previous']),
+})
+/** A person pressed Enter in the palette, running the marked row. */
+export const SubmittedPalette = S.TaggedStruct('SubmittedPalette', {})
+/** A person clicked one row of the palette: its interaction's token. */
+export const PickedPaletteRow = S.TaggedStruct('PickedPaletteRow', {
+  token: S.String,
+})
+/** A person closed what showed above the page: Esc, or a press outside it. */
+export const DismissedLayer = S.TaggedStruct('DismissedLayer', {})
 export const ClickedPromoteTriageCandidate = S.TaggedStruct(
   'ClickedPromoteTriageCandidate',
   { candidateId: S.String },
@@ -291,6 +379,7 @@ export const FailedLeaveLeftoverRoom = S.TaggedStruct(
 
 /** Every fact accepted by the Issue Tracker Program. */
 export const Message = S.Union([
+  TickedClock,
   ObservedIssues,
   FailedObserveIssues,
   ObservedProducts,
@@ -301,6 +390,12 @@ export const Message = S.Union([
   FailedObserveIssue,
   ObservedIssueFiles,
   FailedObserveIssueFiles,
+  ObservedIssueLanding,
+  FailedObserveIssueLanding,
+  ObservedBuilds,
+  FailedObserveBuilds,
+  ObservedPageFacts,
+  FailedObservePageFacts,
   ObservedIssueLogs,
   FailedObserveIssueLogs,
   SelectedIssue,
@@ -308,6 +403,22 @@ export const Message = S.Union([
   ClickedFileIssue,
   ClickedOpenTriage,
   ClickedOpenBacklog,
+  ClickedOpenAskFlow,
+  UpdatedSearchQuery,
+  SubmittedSearch,
+  FocusedSearchField,
+  BlurredSearchField,
+  MovedRowCursor,
+  OpenedRowUnderCursor,
+  PressedGoKey,
+  CancelledGoKey,
+  ClickedOpenIssueList,
+  OpenedCommandPalette,
+  UpdatedPaletteQuery,
+  MovedPaletteMark,
+  SubmittedPalette,
+  PickedPaletteRow,
+  DismissedLayer,
   ClickedPromoteTriageCandidate,
   ClickedDismissTriageCandidate,
   UpdatedIssueTitle,

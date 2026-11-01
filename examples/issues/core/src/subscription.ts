@@ -1,4 +1,4 @@
-import { Effect, Option, Schema as S, Stream } from 'effect'
+import { Clock, Effect, Option, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
 
 import {
@@ -14,29 +14,45 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
+import { PageEntity } from './entityGraph.js'
 import { IssueFiles, describeIssueFilesError } from './issueFiles.js'
+import {
+  type IssueLandingError,
+  IssueLandings,
+  type IssueLandingsService,
+  type PageFacts,
+  describeIssueLandingError,
+} from './issueLandings.js'
 import { catalogIssueQuery } from './issueQuery.js'
 import {
+  FailedObserveBuilds,
   FailedObserveIssue,
   FailedObserveIssueFiles,
+  FailedObserveIssueLanding,
   FailedObserveIssueLogs,
   FailedObserveIssues,
   FailedObserveLeftoverPeers,
+  FailedObservePageFacts,
   FailedObserveProducts,
   FailedObserveTriageCandidates,
   type Message,
+  ObservedBuilds,
   ObservedIssue,
   ObservedIssueFiles,
+  ObservedIssueLanding,
   ObservedIssueLogs,
-  ObservedIssues,
   ObservedLeftoverPeers,
+  ObservedPageFacts,
   ObservedProducts,
   ObservedTriageCandidates,
+  TickedClock,
+  observedIssuesOf,
 } from './message.js'
 import { type Model } from './model.js'
 
 type Resources =
   | IssueFiles
+  | IssueLandings
   | IssueTracker
   | LeftoverPresence
   | Logger
@@ -51,15 +67,33 @@ const leftoverPresenceFailureReason = (
   return `${error.operation}: ${cause}`
 }
 
+const clockReadEvery = '1 minute'
+
+/**
+ * The reader's clock: once when the tracker opens, then each minute, so
+ * `3 h ago` stays true while a page is open.
+ */
+const clockStream: Stream.Stream<Message> = Stream.tick(clockReadEvery).pipe(
+  Stream.mapEffect(() =>
+    Effect.map(Clock.currentTimeMillis, nowMs =>
+      TickedClock.make({
+        nowMs,
+        offsetMinutes: -new Date(nowMs).getTimezoneOffset(),
+      }),
+    ),
+  ),
+)
+
 /** Observes the Issue collection, filing catalog, and selected Issue. */
 export const subscriptions = Subscription.make<Model, Message, Resources>()(
   entry => ({
+    clock: Subscription.persistent(clockStream),
     issues: Subscription.persistent(
       Stream.unwrap(
         IssueTracker.pipe(
           Effect.map(tracker =>
             tracker.observe(catalogIssueQuery).pipe(
-              Stream.map(issues => ObservedIssues.make({ issues })),
+              Stream.map(observedIssuesOf),
               Stream.catch(error =>
                 Stream.make(
                   FailedObserveIssues.make({
@@ -256,3 +290,130 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
     ),
   }),
 )
+
+const factsStream = (
+  landings: IssueLandingsService,
+  entity: PageEntity,
+): Stream.Stream<PageFacts, IssueLandingError> => {
+  if (entity._tag === 'BuildEntity') {
+    return landings.observeBuildFacts(entity.number)
+  } else if (entity._tag === 'CommitEntity') {
+    return landings.observeCommitFacts(entity.sha)
+  } else if (entity._tag === 'RecordingEntity') {
+    return landings.observeRecordingFacts(entity.recordingId)
+  } else if (entity._tag === 'SegmentEntity') {
+    return landings.observeSegmentFacts(entity.segmentId)
+  } else {
+    return Stream.empty
+  }
+}
+
+/**
+ * Observes what Scribe's rows say about the page open: where its Issue landed,
+ * or what its build or commit is.
+ */
+export const graphSubscriptions = Subscription.make<
+  Model,
+  Message,
+  IssueLandings
+>()(entry => ({
+  selectedIssueLanding: entry(
+    { maybeIssueId: S.Option(S.String) },
+    {
+      modelToDependencies: model => ({
+        maybeIssueId:
+          model.navigation._tag === 'IssueDetail'
+            ? Option.some(model.navigation.issueId)
+            : Option.none(),
+      }),
+      dependenciesToStream: ({ maybeIssueId }) => {
+        if (Option.isNone(maybeIssueId)) {
+          return Stream.empty
+        }
+        const issueId = maybeIssueId.value
+        return Stream.unwrap(
+          IssueLandings.pipe(
+            Effect.map(landings =>
+              landings.observeIssueLanding(issueId).pipe(
+                Stream.map(landing =>
+                  ObservedIssueLanding.make({ issueId, landing }),
+                ),
+                Stream.catch(error =>
+                  Stream.make(
+                    FailedObserveIssueLanding.make({
+                      issueId,
+                      reason: describeIssueLandingError(error),
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+      },
+    },
+  ),
+  selectedEntityFacts: entry(
+    { maybeEntity: S.Option(PageEntity) },
+    {
+      modelToDependencies: model => ({
+        maybeEntity:
+          model.navigation._tag === 'EntityPage'
+            ? Option.some(model.navigation.entity)
+            : Option.none(),
+      }),
+      dependenciesToStream: ({ maybeEntity }) => {
+        if (Option.isNone(maybeEntity)) {
+          return Stream.empty
+        }
+        const entity = maybeEntity.value
+        return Stream.unwrap(
+          IssueLandings.pipe(
+            Effect.map(landings =>
+              factsStream(landings, entity).pipe(
+                Stream.map(facts => ObservedPageFacts.make({ entity, facts })),
+                Stream.catch(error =>
+                  Stream.make(
+                    FailedObservePageFacts.make({
+                      entity,
+                      reason: describeIssueLandingError(error),
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+      },
+    },
+  ),
+  knownBuilds: entry(
+    { isPageWithChips: S.Boolean },
+    {
+      modelToDependencies: model => ({
+        isPageWithChips:
+          model.navigation._tag === 'IssueDetail' ||
+          model.navigation._tag === 'EntityPage',
+      }),
+      dependenciesToStream: ({ isPageWithChips }) =>
+        isPageWithChips
+          ? Stream.unwrap(
+              IssueLandings.pipe(
+                Effect.map(landings =>
+                  landings.observeBuilds.pipe(
+                    Stream.map(builds => ObservedBuilds.make({ builds })),
+                    Stream.catch(error =>
+                      Stream.make(
+                        FailedObserveBuilds.make({
+                          reason: describeIssueLandingError(error),
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : Stream.empty,
+    },
+  ),
+}))

@@ -16,7 +16,7 @@ import type { Device } from './device.js'
 import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
-import type { UiNode } from './types.js'
+import type { BoxNode, TextPart, UiNode } from './types.js'
 
 /**
  * Paints a Program screen tree as Foldkit HTML. A Button's Catalog `action`,
@@ -27,6 +27,73 @@ export const paintHtml = <Message>(
   toMessage: (token: string) => Message | undefined,
 ): Html => {
   const h = html<Message>()
+  const paintPart = (part: TextPart): Html | string =>
+    M.value(part).pipe(
+      M.withReturnType<Html | string>(),
+      M.tagsExhaustive({
+        Plain: ({ text }) => text,
+        Reference: reference => {
+          const attributes = [
+            h.Class('fk-ref'),
+            ...(reference.kind === undefined
+              ? []
+              : [h.DataAttribute('kind', reference.kind)]),
+            ...(reference.state === undefined
+              ? []
+              : [h.DataAttribute('state', reference.state)]),
+            ...(reference.detail === undefined
+              ? []
+              : [h.Title(Array.join(reference.detail, '\n'))]),
+          ]
+          const children = [
+            h.span([h.Class('fk-ref-label')], [reference.label]),
+            ...(reference.title === undefined
+              ? []
+              : [h.span([h.Class('fk-ref-title')], [reference.title])]),
+            ...(reference.state === undefined
+              ? []
+              : [h.span([h.Class('fk-ref-state')], [reference.state])]),
+          ]
+          return reference.href === undefined
+            ? h.span(attributes, children)
+            : h.a([h.Href(reference.href), ...attributes], children)
+        },
+      }),
+    )
+  const paintLayer = (
+    box: BoxNode,
+    layer: NonNullable<BoxNode['layer']>,
+  ): Html => {
+    const maybeDismiss = Option.fromUndefinedOr(
+      layer.dismissToken === undefined
+        ? undefined
+        : toMessage(layer.dismissToken),
+    )
+    return h.div(
+      [h.Class('fk-layer'), h.DataAttribute('layer', layer.kind)],
+      [
+        h.div(
+          [
+            h.Class('fk-layer-backdrop'),
+            ...Option.match(maybeDismiss, {
+              onNone: () => [],
+              onSome: message => [h.OnClick(message)],
+            }),
+          ],
+          [],
+        ),
+        h.div(
+          [
+            h.Class('fk-layer-surface'),
+            h.Role('dialog'),
+            h.AriaModal(layer.kind === 'Dialog'),
+            h.AriaLabel(layer.label),
+          ],
+          Array.map(box.children, paint),
+        ),
+      ],
+    )
+  }
   const paint = (current: UiNode): Html =>
     M.value(current).pipe(
       M.withReturnType<Html>(),
@@ -58,6 +125,8 @@ export const paintHtml = <Message>(
             return h.div(attributes, [
               h.span([h.Class('fk-copyable-text')], [text.content]),
             ])
+          } else if (text.parts !== undefined && text.image === undefined) {
+            return h.div(attributes, Array.map(text.parts, paintPart))
           } else if (text.href === undefined) {
             return h.div(attributes, [inner])
           }
@@ -157,10 +226,12 @@ export const paintHtml = <Message>(
         Column: column =>
           h.div([h.Class('fk-column')], Array.map(column.children, paint)),
         Box: box =>
-          h.div(
-            [h.Class(box.isDock === true ? 'fk-dock' : 'fk-box')],
-            Array.map(box.children, paint),
-          ),
+          box.layer === undefined
+            ? h.div(
+                [h.Class(box.isDock === true ? 'fk-dock' : 'fk-box')],
+                Array.map(box.children, paint),
+              )
+            : paintLayer(box, box.layer),
         Progress: progress =>
           h.progress(
             [

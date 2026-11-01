@@ -118,6 +118,12 @@ import {
   withCatalogStatuses,
 } from './host.js'
 import {
+  type LandingRead,
+  type LandingReader,
+  landingJson,
+  landingSection,
+} from './landing.js'
+import {
   type ResolvedSaid,
   type SaidImageKind,
   findRecordingFolder,
@@ -192,6 +198,11 @@ export type IssuesHost = Readonly<{
    * number, such as 1412. It never fails and answers within 5 seconds.
    */
   readBuildJobs: BuildJobsReader
+  /**
+   * Where an Issue landed, from Scribe's rows, by the Issue's number. It never
+   * fails and answers within 5 seconds.
+   */
+  readLanding: LandingReader
   readStandardInput: Effect.Effect<string>
   readTextFile: (path: string) => Effect.Effect<string, unknown>
   records: IssueRecordsService
@@ -846,8 +857,20 @@ const encodeIssue = S.encodeSync(Issue)
 const issueJson = (issue: Issue): string =>
   JSON.stringify(encodeIssue(issue), null, 2)
 
-const issueWithBuildJobsJson = (issue: Issue, builds: BuildJobsRead): string =>
-  JSON.stringify({ ...encodeIssue(issue), ...buildJobsJson(builds) }, null, 2)
+const issueWithScribeRowsJson = (
+  issue: Issue,
+  builds: BuildJobsRead,
+  landing: LandingRead,
+): string =>
+  JSON.stringify(
+    {
+      ...encodeIssue(issue),
+      ...buildJobsJson(builds),
+      ...landingJson(landing),
+    },
+    null,
+    2,
+  )
 
 // RUN
 
@@ -1024,7 +1047,7 @@ export const showIssueCommand = (
   finish(
     Effect.gen(function* () {
       const issueId = yield* parseIssueNumber(input.issue)
-      const [model, builds] = yield* Effect.all(
+      const [model, builds, landing] = yield* Effect.all(
         [
           executeMessages(
             IssueDetail.make({ issueId }),
@@ -1032,17 +1055,18 @@ export const showIssueCommand = (
             host.resources,
           ),
           host.readBuildJobs(Number(issueId)),
+          host.readLanding(Number(issueId)),
         ],
         { concurrency: 'unbounded' },
       )
       const issue = yield* loadedIssueOf('show', model, issueId)
       return succeeded(
         input.isJson
-          ? [issueWithBuildJobsJson(issue, builds)]
-          : issueDetailLines(
-              issue,
-              buildJobsSection(builds, host.nowMs(), host.timeZone),
-            ),
+          ? [issueWithScribeRowsJson(issue, builds, landing)]
+          : issueDetailLines(issue, [
+              ...landingSection(landing, host.timeZone),
+              ...buildJobsSection(builds, host.nowMs(), host.timeZone),
+            ]),
       )
     }),
   )

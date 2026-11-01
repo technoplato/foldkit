@@ -226,6 +226,77 @@ export const screenStylesheet = `
   color: ${screenLook.linkColor};
 }
 
+:where(.fk-ref) {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: ${screenLook.codeColor};
+  color: ${screenLook.textColor};
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+:where(a.fk-ref:hover, a.fk-ref:focus-visible) {
+  background: ${screenLook.trackColor};
+}
+
+:where(.fk-ref-label) {
+  color: ${screenLook.linkColor};
+  font-family: ${screenLook.monoFamily};
+  font-size: 0.9em;
+}
+
+:where(.fk-ref-title) {
+  max-width: 36ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:where(.fk-ref-state) {
+  color: ${screenLook.dimColor};
+  font-size: 0.8em;
+}
+
+:where(.fk-layer) {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+}
+
+:where(.fk-layer-backdrop) {
+  position: absolute;
+  inset: 0;
+  background: ${screenLook.backdropColor};
+}
+
+:where(.fk-layer-surface) {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 16px;
+  background: ${screenLook.panelColor};
+  box-shadow: 0 24px 64px rgb(15 23 42 / 0.28);
+}
+
+:where(.fk-layer[data-layer='Dialog'] > .fk-layer-surface) {
+  top: 12vh;
+  left: 50%;
+  width: min(92vw, ${px(screenLook.listWidth)});
+  max-height: 70vh;
+  border-radius: ${px(screenLook.panelRadius)};
+  transform: translateX(-50%);
+}
+
+:where(.fk-layer[data-layer='Panel'] > .fk-layer-surface) {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(100vw, ${px(screenLook.panelWidth + 112)});
+}
+
 :where(.fk-button) {
   box-sizing: border-box;
   height: ${px(screenLook.buttonHeight)};

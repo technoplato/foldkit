@@ -46,14 +46,28 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
+import { type PageEntity, pageEntityKey } from './entityGraph.js'
 import { emptyIssueDraft } from './init.js'
+import { type Interaction } from './interaction.js'
 import { IssueIdentity } from './issueIdentity.js'
+import {
+  isIssueNumbered,
+  issueNumberOfSearch,
+  primedSearchText,
+} from './issueView.js'
 import {
   LeftoverStatus,
   hasCatalogIssueLink,
   leftoverMayClose,
   storedStatusOf,
 } from './leftover.js'
+import {
+  issueUnderCursorOf,
+  listedIssues,
+  loadedIssuesIn,
+  movedRowCursor,
+  rowsInOrderOf,
+} from './listing.js'
 import {
   CompletedJoinLeftoverRoom,
   CompletedLeaveLeftoverRoom,
@@ -73,6 +87,7 @@ import {
   SucceededSaveProduct,
 } from './message.js'
 import {
+  AskFlow,
   Backlog,
   DeletedIssueMutation,
   DraftMention,
@@ -80,10 +95,12 @@ import {
   FailedIssue,
   FailedIssueDraft,
   FailedIssueFiles,
+  FailedIssueLanding,
   FailedIssueLogs,
   FailedIssueMutation,
   FailedIssues,
   FailedLeftoverPresence,
+  FailedPageFacts,
   FailedProductAddition,
   FailedProducts,
   FailedTriageCandidates,
@@ -94,20 +111,26 @@ import {
   IssueList,
   LoadedIssue,
   LoadedIssueFiles,
+  LoadedIssueLanding,
   LoadedIssueLogs,
   LoadedIssues,
   LoadedLeftoverPresence,
+  LoadedPageFacts,
   LoadedProducts,
   LoadedTriageCandidates,
   LoadingIssue,
   LoadingIssueLogs,
   LoadingLeftoverPresence,
-  Model,
+  type Model,
   type Navigation,
+  NoLayer,
   NotObservingIssue,
   NotObservingIssueFiles,
+  NotObservingIssueLanding,
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
+  NotObservingPageFacts,
+  PaletteLayer,
   type ProductAdditionState,
   RefusedProductAddition,
   SavedIssueMutation,
@@ -119,6 +142,8 @@ import {
   TriageInbox,
   UnchangedProductAddition,
   WorkInProgressEdit,
+  loadedIssuesOf,
+  nextModel,
 } from './model.js'
 import {
   AgentSurvey,
@@ -126,6 +151,7 @@ import {
   statusFollowingLanding,
   workingSyncAgent,
 } from './nowWorking.js'
+import { paletteRowsOf } from './palette.js'
 
 // COMMAND
 
@@ -1441,6 +1467,10 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
     model.navigation._tag === 'IssueDetail' &&
     navigation._tag === 'IssueDetail' &&
     model.navigation.issueId === navigation.issueId
+  const isSameEntityPage =
+    model.navigation._tag === 'EntityPage' &&
+    navigation._tag === 'EntityPage' &&
+    pageEntityKey(model.navigation.entity) === pageEntityKey(navigation.entity)
   const previousLeftoverId =
     model.navigation._tag === 'IssueDetail'
       ? Option.some(model.navigation.issueId)
@@ -1450,7 +1480,7 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
       ? Option.some(navigation.issueId)
       : Option.none()
   return [
-    Model.make({
+    nextModel({
       ...model,
       leftoverComment: isSameIssueDetail ? model.leftoverComment : '',
       leftoverLink: isSameIssueDetail ? model.leftoverLink : '',
@@ -1466,15 +1496,32 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
       issueFiles: isSameIssueDetail
         ? model.issueFiles
         : NotObservingIssueFiles.make({}),
+      issueLanding: isSameIssueDetail
+        ? model.issueLanding
+        : NotObservingIssueLanding.make({}),
+      pageFacts: isSameEntityPage
+        ? model.pageFacts
+        : NotObservingPageFacts.make({}),
       issueLogs:
         navigation._tag === 'IssueDetail'
           ? LoadingIssueLogs.make({ issueId: navigation.issueId })
           : NotObservingIssueLogs.make({}),
+      isGoKeyPending: false,
+      isSearchFocused: false,
+      layer: NoLayer.make({}),
       navigation,
+      returnListView:
+        model.navigation._tag === 'IssueList'
+          ? model.navigation.view
+          : model.returnListView,
     }),
     leftoverRoomCommands(previousLeftoverId, nextLeftoverId),
   ]
 }
+
+const isPageOf = (model: Model, entity: PageEntity): boolean =>
+  model.navigation._tag === 'EntityPage' &&
+  pageEntityKey(model.navigation.entity) === pageEntityKey(entity)
 
 const catalogProducts = (
   model: Model,
@@ -1533,7 +1580,7 @@ const saveDraft = (model: Model): UpdateReturn => {
   }
   if (model.draft.title.trim() === '') {
     return [
-      Model.make({
+      nextModel({
         ...model,
         draftState: FailedIssueDraft.make({ reason: 'A title is required.' }),
       }),
@@ -1546,7 +1593,7 @@ const saveDraft = (model: Model): UpdateReturn => {
   )
   if (Option.isNone(maybeProduct)) {
     return [
-      Model.make({
+      nextModel({
         ...model,
         draftState: FailedIssueDraft.make({
           reason: unknownProductReason(model),
@@ -1556,7 +1603,7 @@ const saveDraft = (model: Model): UpdateReturn => {
     ]
   }
   return [
-    Model.make({ ...model, draftState: SavingIssueDraft.make({}) }),
+    nextModel({ ...model, draftState: SavingIssueDraft.make({}) }),
     [SaveIssue({ draft: model.draft, product: maybeProduct.value })],
   ]
 }
@@ -1565,7 +1612,7 @@ const updateDraft = (
   model: Model,
   transform: (draft: IssueDraft) => IssueDraft,
 ): UpdateReturn => [
-  Model.make({
+  nextModel({
     ...model,
     draft: transform(model.draft),
     draftState: EditingIssueDraft.make({}),
@@ -1636,7 +1683,7 @@ const PRODUCT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const withProductAddition = (
   model: Model,
   productAddition: ProductAdditionState,
-): UpdateReturn => [Model.make({ ...model, productAddition }), []]
+): UpdateReturn => [nextModel({ ...model, productAddition }), []]
 
 const refuseProduct = (model: Model, reason: string): UpdateReturn =>
   withProductAddition(model, RefusedProductAddition.make({ reason }))
@@ -1674,7 +1721,7 @@ const addToCatalog = (
                 `Product ${holder.id} is already named ${holder.name}; nothing was added.`,
               ),
             onNone: () => [
-              Model.make({
+              nextModel({
                 ...model,
                 productAddition: SavingProductAddition.make({ product }),
               }),
@@ -1744,13 +1791,13 @@ const patchIssues = (
     return state
   }
   const exists = Array.some(state.issues, current => current.id === issue.id)
-  return LoadedIssues.make({
-    issues: exists
+  return loadedIssuesOf(
+    exists
       ? Array.map(state.issues, current =>
           current.id === issue.id ? issue : current,
         )
       : Array.append(state.issues, issue),
-  })
+  )
 }
 
 const removeIssue = (
@@ -1760,9 +1807,9 @@ const removeIssue = (
   if (state._tag !== 'LoadedIssues') {
     return state
   }
-  return LoadedIssues.make({
-    issues: Array.filter(state.issues, current => current.id !== issueId),
-  })
+  return loadedIssuesOf(
+    Array.filter(state.issues, current => current.id !== issueId),
+  )
 }
 
 const loadedDetailIssue = (
@@ -1779,11 +1826,65 @@ const loadedDetailIssue = (
   return model.issueDetail.issue
 }
 
+const issueSearchOpens = (model: Model): Option.Option<string> => {
+  if (model.navigation._tag !== 'IssueList') {
+    return Option.none()
+  }
+  const { query } = model.navigation.view
+  const maybeDigits = issueNumberOfSearch(query)
+  const issues = loadedIssuesIn(model)
+  const maybeNumbered = Option.flatMap(maybeDigits, digits =>
+    Array.findFirst(issues, issue => isIssueNumbered(issue, digits)),
+  )
+  const maybeUnderCursor = issueUnderCursorOf(model)
+  if (Option.isSome(maybeNumbered)) {
+    return Option.some(maybeNumbered.value.id)
+  } else if (model.issues._tag !== 'LoadedIssues') {
+    return Option.flatMap(maybeDigits, () => normalizeIssueId(query))
+  } else if (Option.isSome(maybeUnderCursor)) {
+    return Option.some(maybeUnderCursor.value.id)
+  } else {
+    return Option.map(
+      Array.head(listedIssues(model, issues)),
+      issue => issue.id,
+    )
+  }
+}
+
+const paletteRowsNow = (model: Model): ReadonlyArray<Interaction> =>
+  model.layer._tag === 'PaletteLayer'
+    ? paletteRowsOf(model, model.layer.query)
+    : []
+
+const movedPaletteMark = (
+  model: Model,
+  direction: 'Next' | 'Previous',
+): UpdateReturn => {
+  if (model.layer._tag !== 'PaletteLayer') {
+    return [model, []]
+  }
+  const lastPosition = Math.max(paletteRowsNow(model).length - 1, 0)
+  const position =
+    direction === 'Next'
+      ? Math.min(model.layer.position + 1, lastPosition)
+      : Math.max(model.layer.position - 1, 0)
+  return [
+    nextModel({
+      ...model,
+      layer: PaletteLayer.make({ ...model.layer, position }),
+    }),
+    [],
+  ]
+}
+
+const backToList = (model: Model): UpdateReturn =>
+  withNavigation(model, IssueList.make({ view: model.returnListView }))
+
 const startLeftoverCommand = (
   model: Model,
   command: Command.Command<Message, never, Resources>,
 ): UpdateReturn => [
-  Model.make({ ...model, issueMutation: SavingIssueMutation.make({}) }),
+  nextModel({ ...model, issueMutation: SavingIssueMutation.make({}) }),
   [command],
 ]
 
@@ -1798,6 +1899,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
+      TickedClock: ({ nowMs, offsetMinutes }) => [
+        nextModel({ ...model, clock: { nowMs, offsetMinutes } }),
+        [],
+      ],
       ObservedIssues: ({ issues }) => {
         const nextProducts =
           model.products._tag === 'LoadedProducts'
@@ -1809,16 +1914,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               })
             : model.products
         return [
-          Model.make({
+          nextModel({
             ...model,
-            issues: LoadedIssues.make({ issues }),
+            issues: loadedIssuesOf(issues),
             products: nextProducts,
           }),
           [],
         ]
       },
       FailedObserveIssues: ({ reason }) => [
-        Model.make({ ...model, issues: FailedIssues.make({ reason }) }),
+        nextModel({ ...model, issues: FailedIssues.make({ reason }) }),
         [],
       ],
       ObservedProducts: ({ products }) => {
@@ -1836,7 +1941,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               })
             : model.draft.productId
         return [
-          Model.make({
+          nextModel({
             ...model,
             draft: IssueDraft.make({
               ...model.draft,
@@ -1848,18 +1953,18 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       FailedObserveProducts: ({ reason }) => [
-        Model.make({ ...model, products: FailedProducts.make({ reason }) }),
+        nextModel({ ...model, products: FailedProducts.make({ reason }) }),
         [],
       ],
       ObservedTriageCandidates: ({ candidates }) => [
-        Model.make({
+        nextModel({
           ...model,
           triageCandidates: LoadedTriageCandidates.make({ candidates }),
         }),
         [],
       ],
       FailedObserveTriageCandidates: ({ reason }) => [
-        Model.make({
+        nextModel({
           ...model,
           triageCandidates: FailedTriageCandidates.make({ reason }),
         }),
@@ -1873,7 +1978,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return [
-          Model.make({
+          nextModel({
             ...model,
             issueDetail: LoadedIssue.make({ issue, issueId }),
           }),
@@ -1881,7 +1986,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       FailedObserveIssue: ({ issueId, reason }) => [
-        Model.make({
+        nextModel({
           ...model,
           issueDetail: FailedIssue.make({ issueId, reason }),
         }),
@@ -1895,7 +2000,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return [
-          Model.make({
+          nextModel({
             ...model,
             issueFiles: LoadedIssueFiles.make({ files, issueId }),
           }),
@@ -1910,13 +2015,68 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return [
-          Model.make({
+          nextModel({
             ...model,
             issueFiles: FailedIssueFiles.make({ issueId, reason }),
           }),
           [],
         ]
       },
+      ObservedIssueLanding: ({ issueId, landing }) => {
+        if (
+          model.navigation._tag !== 'IssueDetail' ||
+          model.navigation.issueId !== issueId
+        ) {
+          return [model, []]
+        }
+        return [
+          nextModel({
+            ...model,
+            issueLanding: LoadedIssueLanding.make({ issueId, landing }),
+          }),
+          [],
+        ]
+      },
+      FailedObserveIssueLanding: ({ issueId, reason }) => {
+        if (
+          model.navigation._tag !== 'IssueDetail' ||
+          model.navigation.issueId !== issueId
+        ) {
+          return [model, []]
+        }
+        return [
+          nextModel({
+            ...model,
+            issueLanding: FailedIssueLanding.make({ issueId, reason }),
+          }),
+          [],
+        ]
+      },
+      ObservedBuilds: ({ builds }) => [
+        nextModel({ ...model, knownBuilds: builds }),
+        [],
+      ],
+      FailedObserveBuilds: () => [model, []],
+      ObservedPageFacts: ({ entity, facts }) =>
+        isPageOf(model, entity)
+          ? [
+              nextModel({
+                ...model,
+                pageFacts: LoadedPageFacts.make({ entity, facts }),
+              }),
+              [],
+            ]
+          : [model, []],
+      FailedObservePageFacts: ({ entity, reason }) =>
+        isPageOf(model, entity)
+          ? [
+              nextModel({
+                ...model,
+                pageFacts: FailedPageFacts.make({ entity, reason }),
+              }),
+              [],
+            ]
+          : [model, []],
       ObservedIssueLogs: ({ issueId, logs }) => {
         if (
           model.navigation._tag !== 'IssueDetail' ||
@@ -1925,7 +2085,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return [
-          Model.make({
+          nextModel({
             ...model,
             issueLogs: LoadedIssueLogs.make({ issueId, logs }),
           }),
@@ -1933,7 +2093,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       FailedObserveIssueLogs: ({ issueId, reason }) => [
-        Model.make({
+        nextModel({
           ...model,
           issueLogs: FailedIssueLogs.make({ issueId, reason }),
         }),
@@ -1941,10 +2101,113 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
       SelectedIssue: ({ issueId }) =>
         withNavigation(model, IssueDetail.make({ issueId })),
-      DismissedIssueDetail: () => withNavigation(model, IssueList.make({})),
+      DismissedIssueDetail: () => backToList(model),
+      ClickedOpenIssueList: () => backToList(model),
       ClickedFileIssue: () => withNavigation(model, FileIssue.make({})),
       ClickedOpenTriage: () => withNavigation(model, TriageInbox.make({})),
       ClickedOpenBacklog: () => withNavigation(model, Backlog.make({})),
+      ClickedOpenAskFlow: () => withNavigation(model, AskFlow.make({})),
+      UpdatedSearchQuery: ({ query }) =>
+        model.navigation._tag === 'IssueList'
+          ? [
+              nextModel({
+                ...model,
+                navigation: IssueList.make({
+                  view: { ...model.navigation.view, query },
+                }),
+              }),
+              [],
+            ]
+          : [model, []],
+      SubmittedSearch: () =>
+        Option.match(issueSearchOpens(model), {
+          onNone: () => [model, []],
+          onSome: issueId =>
+            withNavigation(model, IssueDetail.make({ issueId })),
+        }),
+      FocusedSearchField: () => {
+        primedSearchText(loadedIssuesIn(model))
+        if (model.navigation._tag === 'IssueList') {
+          return [nextModel({ ...model, isSearchFocused: true }), []]
+        } else {
+          const [listing, commands] = backToList(model)
+          return [nextModel({ ...listing, isSearchFocused: true }), commands]
+        }
+      },
+      BlurredSearchField: () => [
+        nextModel({ ...model, isSearchFocused: false }),
+        [],
+      ],
+      MovedRowCursor: ({ direction }) => [
+        nextModel({
+          ...model,
+          isSearchFocused: false,
+          maybeRowCursor: movedRowCursor(
+            rowsInOrderOf(model),
+            model.maybeRowCursor,
+            direction,
+          ),
+        }),
+        [],
+      ],
+      OpenedRowUnderCursor: () =>
+        Option.match(issueUnderCursorOf(model), {
+          onNone: () => [model, []],
+          onSome: issue =>
+            withNavigation(model, IssueDetail.make({ issueId: issue.id })),
+        }),
+      OpenedCommandPalette: () => [
+        nextModel({
+          ...model,
+          isGoKeyPending: false,
+          isSearchFocused: false,
+          layer: PaletteLayer.make({ position: 0, query: '' }),
+        }),
+        [],
+      ],
+      UpdatedPaletteQuery: ({ query }) => [
+        nextModel({
+          ...model,
+          layer: PaletteLayer.make({ position: 0, query }),
+        }),
+        [],
+      ],
+      MovedPaletteMark: ({ direction }) => movedPaletteMark(model, direction),
+      SubmittedPalette: () =>
+        model.layer._tag === 'PaletteLayer'
+          ? Option.match(
+              Array.get(paletteRowsNow(model), model.layer.position),
+              {
+                onNone: () => [model, []],
+                onSome: row =>
+                  update(
+                    nextModel({ ...model, layer: NoLayer.make({}) }),
+                    row.message,
+                  ),
+              },
+            )
+          : [model, []],
+      PickedPaletteRow: ({ token }) =>
+        Option.match(
+          Array.findFirst(paletteRowsNow(model), row => row.token === token),
+          {
+            onNone: () => [model, []],
+            onSome: row =>
+              update(
+                nextModel({ ...model, layer: NoLayer.make({}) }),
+                row.message,
+              ),
+          },
+        ),
+      DismissedLayer: () => [
+        nextModel({ ...model, layer: NoLayer.make({}) }),
+        [],
+      ],
+      PressedGoKey: () => [nextModel({ ...model, isGoKeyPending: true }), []],
+      CancelledGoKey: () => [
+        nextModel({ ...model, isGoKeyPending: false }),
+        [],
+      ],
       ClickedPromoteTriageCandidate: ({ candidateId }) =>
         reviewTriageCandidate(model, candidateId, 'Promote'),
       ClickedDismissTriageCandidate: ({ candidateId }) =>
@@ -1969,7 +2232,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model.navigation.issueId === issue.id
         ) {
           return [
-            Model.make({
+            nextModel({
               ...model,
               issueDetail: LoadedIssue.make({
                 issue: Option.some(issue),
@@ -1985,7 +2248,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ]
         }
         return withNavigation(
-          Model.make({
+          nextModel({
             ...model,
             draft:
               model.draftState._tag === 'SavingIssueDraft'
@@ -2001,7 +2264,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       FailedSaveIssue: ({ reason }) =>
         model.navigation._tag === 'FileIssue'
           ? [
-              Model.make({
+              nextModel({
                 ...model,
                 draftState: FailedIssueDraft.make({ reason }),
                 issueMutation: IdleIssueMutation.make({}),
@@ -2009,7 +2272,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               [],
             ]
           : [
-              Model.make({
+              nextModel({
                 ...model,
                 issueMutation: FailedIssueMutation.make({ reason }),
               }),
@@ -2022,34 +2285,34 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 current.id === candidate.id ? candidate : current,
               )
             : []
-        const nextModel = Model.make({
+        const reviewed = nextModel({
           ...model,
           triageCandidates: LoadedTriageCandidates.make({
             candidates: nextCandidates,
           }),
         })
         return Option.match(issue, {
-          onNone: () => [nextModel, []],
+          onNone: () => [reviewed, []],
           onSome: promoted =>
             withNavigation(
-              nextModel,
+              reviewed,
               IssueDetail.make({ issueId: promoted.id }),
             ),
         })
       },
       FailedReviewTriageCandidate: ({ reason }) => [
-        Model.make({
+        nextModel({
           ...model,
           triageCandidates: FailedTriageCandidates.make({ reason }),
         }),
         [],
       ],
       UpdatedLeftoverComment: ({ value }) => [
-        Model.make({ ...model, leftoverComment: value }),
+        nextModel({ ...model, leftoverComment: value }),
         [],
       ],
       UpdatedLeftoverLink: ({ value }) => [
-        Model.make({ ...model, leftoverLink: value }),
+        nextModel({ ...model, leftoverLink: value }),
         [],
       ],
       SubmittedIssueComment: ({ issueId, summary }) => {
@@ -2057,7 +2320,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return startLeftoverCommand(
-          Model.make({ ...model, leftoverComment: '' }),
+          nextModel({ ...model, leftoverComment: '' }),
           CommentOnIssue({ issueId, summary }),
         )
       },
@@ -2078,7 +2341,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         )
       },
       SucceededSaveIssueWorkLog: ({ issue }) => [
-        Model.make({
+        nextModel({
           ...model,
           issueDetail:
             model.navigation._tag === 'IssueDetail' &&
@@ -2094,7 +2357,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       FailedSaveIssueWorkLog: ({ reason }) => [
-        Model.make({
+        nextModel({
           ...model,
           issueMutation: FailedIssueMutation.make({ reason }),
         }),
@@ -2103,7 +2366,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       SubmittedIssueWorkLogEntry: entry => {
         if (entry.summary.trim() === '') {
           return [
-            Model.make({
+            nextModel({
               ...model,
               issueMutation: FailedIssueMutation.make({
                 reason: 'A work-log summary is required.',
@@ -2126,7 +2389,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         )
       },
       SucceededAppendIssueWorkLogEntry: ({ entryId, issue }) => [
-        Model.make({
+        nextModel({
           ...model,
           issueDetail:
             model.navigation._tag === 'IssueDetail' &&
@@ -2155,7 +2418,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         )
         if (Option.isSome(maybeProduct) && Option.isNone(maybeProduct.value)) {
           return [
-            Model.make({
+            nextModel({
               ...model,
               issueMutation: FailedIssueMutation.make({
                 reason: `Choose an Application or Library: "${Option.getOrElse(edit.productId, () => '')}" names none. Valid: ${productChoices(catalogProducts(model))}.`,
@@ -2200,7 +2463,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         )
         if (Array.isReadonlyArrayEmpty(nextTitles)) {
           return [
-            Model.make({
+            nextModel({
               ...model,
               issueMutation: FailedIssueMutation.make({
                 reason: 'A subtask title is required.',
@@ -2234,7 +2497,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       SubmittedIssueRank: ({ issueId, rank }) =>
         startLeftoverCommand(model, RankIssue({ issueId, rank })),
       SelectedLandingFilter: ({ filter }) => [
-        Model.make({ ...model, landingFilter: filter }),
+        nextModel({ ...model, landingFilter: filter }),
         [],
       ],
       SubmittedIssueMention: ({ issueId, mention }) =>
@@ -2246,7 +2509,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       SucceededDeleteIssue: ({ issue }) => {
         const [navigated, commands] = withNavigation(model, IssueList.make({}))
         return [
-          Model.make({
+          nextModel({
             ...navigated,
             issueMutation: DeletedIssueMutation.make({ issue }),
             issues: removeIssue(navigated.issues, issue.id),
@@ -2255,7 +2518,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       FailedDeleteIssue: ({ reason }) => [
-        Model.make({
+        nextModel({
           ...model,
           issueMutation: FailedIssueMutation.make({ reason }),
         }),
@@ -2266,7 +2529,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return startLeftoverCommand(
-          Model.make({ ...model, leftoverLink: '' }),
+          nextModel({ ...model, leftoverLink: '' }),
           LinkCatalogIssue({ sourceIssueId, targetIssueId }),
         )
       },
@@ -2276,7 +2539,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           SetLeftoverStatus({ issueId, leftover: status }),
         ),
       SelectedProductFilter: ({ filter }) => [
-        Model.make({ ...model, productFilter: filter }),
+        nextModel({ ...model, productFilter: filter }),
         [],
       ],
       RetargetedIssueProduct: ({ issueId, productId }) => {
@@ -2304,7 +2567,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       },
       SubmittedProduct: ({ product }) => addProduct(model, product),
       SucceededSaveProduct: ({ entry }) => [
-        Model.make({
+        nextModel({
           ...model,
           productAddition: SavedProductAddition.make({
             product: entry.product,
@@ -2329,7 +2592,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return [
-          Model.make({
+          nextModel({
             ...model,
             leftoverPresence: LoadedLeftoverPresence.make({
               leftoverId,
@@ -2347,7 +2610,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return [
-          Model.make({
+          nextModel({
             ...model,
             leftoverPresence: FailedLeftoverPresence.make({
               leftoverId,
@@ -2366,7 +2629,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return [
-          Model.make({
+          nextModel({
             ...model,
             leftoverPresence: FailedLeftoverPresence.make({
               leftoverId,
@@ -2385,7 +2648,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return [
-          Model.make({
+          nextModel({
             ...model,
             leftoverPresence: FailedLeftoverPresence.make({
               leftoverId,

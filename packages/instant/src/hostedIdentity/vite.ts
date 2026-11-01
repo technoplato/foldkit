@@ -88,16 +88,30 @@ const writeAnswer = (
 }
 
 /**
+ * A second Instant app an origin mints for, on its own path, with its own
+ * credentials from the origin's environment: the issues site reads the tracker
+ * on the default path and Scribe's graph on
+ * `{ path: '/__foldkit/hosted-identity/scribe/session', appIdEnv: 'SCRIBE_MAIN_INSTANT_APP_ID', adminTokenEnv: 'SCRIBE_MAIN_INSTANT_ADMIN_TOKEN' }`.
+ */
+export type HostedIdentitySession = Readonly<{
+  path: string
+  appIdEnv: string
+  adminTokenEnv: string
+}>
+
+/**
  * Which Access team signs the logins an origin accepts, and for which
  * apps, and the routes it answers for anyone. With `publicRoutes`, a
  * visitor with no verified login gets only those routes and 404 for
  * everything else, so a Cloudflare Access bypass on a path can never show
- * the app or its data.
+ * the app or its data. With `session`, this mint answers for that app on
+ * that path instead of for `INSTANT_APP_ID` on the default path.
  */
 export type HostedIdentityOptions = Readonly<{
   teamDomain?: string
   audiences?: ReadonlyArray<string>
   publicRoutes?: PublicRoutes
+  session?: HostedIdentitySession
 }>
 
 const accessVerifierFor = (
@@ -127,7 +141,8 @@ const accessVerifierFor = (
  * separated), limits it to those Access applications. A request made on
  * this machine to `localhost`, with no proxy in between, gets the local
  * development email instead. With `publicRoutes`, it also guards every
- * other path: see {@link guardHostedRequest}.
+ * other path: see {@link guardHostedRequest}. With `session`, it mints for a
+ * second app: see {@link HostedIdentitySession}.
  *
  * @example
  * ```typescript
@@ -140,10 +155,15 @@ export const hostedIdentity = (options: HostedIdentityOptions = {}): Plugin => {
   const verifier = accessVerifierFor(options)
 
   const createToken = async (email: string): Promise<string> => {
-    const adminToken = envValue('INSTANT_APP_ADMIN_TOKEN')
-    const appIdFromEnv = envValue('INSTANT_APP_ID')
+    const session = options.session
+    const adminToken = envValue(
+      session?.adminTokenEnv ?? 'INSTANT_APP_ADMIN_TOKEN',
+    )
+    const appIdFromEnv = envValue(session?.appIdEnv ?? 'INSTANT_APP_ID')
     const appId =
-      appIdFromEnv === '' ? envValue('VITE_INSTANT_APP_ID') : appIdFromEnv
+      appIdFromEnv === '' && session === undefined
+        ? envValue('VITE_INSTANT_APP_ID')
+        : appIdFromEnv
     if (adminToken === '' || appId === '') {
       throw new Error('MintUnavailable')
     }
@@ -172,6 +192,9 @@ export const hostedIdentity = (options: HostedIdentityOptions = {}): Plugin => {
       ...(isLocal ? { localDevelopmentEmail: loopbackMintEmail() } : {}),
       headers,
       method: request.method ?? 'GET',
+      ...(options.session === undefined
+        ? {}
+        : { sessionPath: options.session.path }),
       url: request.url,
     }).then(async result => {
       if (result !== undefined) {
