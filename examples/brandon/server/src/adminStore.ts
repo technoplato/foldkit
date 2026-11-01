@@ -7,7 +7,7 @@ import {
   SectionColumn,
   WalletAddress,
 } from 'brandon-core-example'
-import { Array, Effect, Option, Order, Result, Schema as S } from 'effect'
+import { Array, Effect, Option, Order, Schema as S } from 'effect'
 import { randomUUID } from 'node:crypto'
 
 import { id, init } from '@instantdb/admin'
