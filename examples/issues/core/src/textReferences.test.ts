@@ -103,7 +103,9 @@ describe('readTextReferences', () => {
   })
 
   it('reads an Issue link on og as that Issue', () => {
-    const [piece] = referencesIn('Filed as https://og.pisspoursoftware.xyz/issues/689 now.')
+    const [piece] = referencesIn(
+      'Filed as https://og.pisspoursoftware.xyz/issues/689 now.',
+    )
     expect(piece?.reference).toEqual({ _tag: 'IssueNumber', issueId: '689' })
   })
 
