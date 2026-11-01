@@ -10,6 +10,7 @@ import {
 } from './currency.js'
 import {
   FailedRefreshWalletBalances,
+  RequestedBalanceRefresh,
   SelectedSendNetwork,
   SelectedWalletNetworkMode,
   SucceededLoadWallet,
@@ -173,6 +174,33 @@ describe('switching network', () => {
     expect(primaryWalletBalanceLabel(failedModel)).toBe(
       'The Solana Mainnet Beta balance could not be read. Refresh to try again.',
     )
+  })
+})
+
+describe('a host that heard of a new transaction', () => {
+  it('asks for fresh balances and leaves the rest of the wallet alone', () => {
+    const [refreshingModel, commands] = update(
+      devnetModel,
+      RequestedBalanceRefresh.make({}),
+    )
+
+    expect(commands.map(command => command.name)).toEqual([
+      'RefreshWalletBalances',
+    ])
+    expect(refreshingModel.portfolio).toEqual(devnetModel.portfolio)
+    expect(refreshingModel.transaction).toEqual(devnetModel.transaction)
+    expect(refreshingModel.transferAmount).toEqual(devnetModel.transferAmount)
+    expect(refreshingModel.balanceFreshness._tag).toBe('RefreshingBalances')
+  })
+
+  it('asks for nothing before there is a portfolio to refresh', () => {
+    const [waitingModel, commands] = update(
+      initialModel,
+      RequestedBalanceRefresh.make({}),
+    )
+
+    expect(commands).toEqual([])
+    expect(waitingModel).toEqual(initialModel)
   })
 })
 
