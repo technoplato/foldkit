@@ -23,6 +23,7 @@ const formatVersion = 1
 const watcherProcessor = 'watcher-brandon'
 const brandonDotHolderPrefix = 'brandon-dot:'
 const announceRetries = 2
+const unsettledReadLimit = 25
 
 const AccountRow = S.Struct({
   id: S.String,
@@ -47,6 +48,7 @@ const TransactionRow = S.Struct({
   counterpartyAddress: S.optionalKey(S.NullOr(S.String)),
   observedAtMs: S.Number,
   confirmedAtMs: S.optionalKey(S.NullOr(S.Number)),
+  failure: S.optionalKey(S.NullOr(S.String)),
 })
 type TransactionRow = typeof TransactionRow.Type
 
@@ -74,15 +76,16 @@ const activityRowOf = (row: TransactionRow): ActivityRow => ({
   maybeCounterpartyAddress: Option.fromNullishOr(row.counterpartyAddress),
   observedAtMs: row.observedAtMs,
   maybeConfirmedAtMs: Option.fromNullishOr(row.confirmedAtMs),
+  maybeFailure: Option.fromNullishOr(row.failure),
 })
 
 /** `walletTransactions` rows as Instant answers them. */
-export const decodeActivityRows = (
-  rows: unknown,
-): ReadonlyArray<ActivityRow> =>
+export const decodeActivityRows = (rows: unknown): ReadonlyArray<ActivityRow> =>
   Array.map(S.decodeUnknownSync(S.Array(TransactionRow))(rows), activityRowOf)
 
-const accountsOf = (rows: ReadonlyArray<unknown>): ReadonlyArray<WatchedAccount> =>
+const accountsOf = (
+  rows: ReadonlyArray<unknown>,
+): ReadonlyArray<WatchedAccount> =>
   Array.filterMap(rows, row =>
     Option.match(S.decodeUnknownOption(AccountRow)(row), {
       onNone: () => {
@@ -197,10 +200,33 @@ export const makeActivityAdmin = (config: BrandonEnv): ActivityAdmin => {
                 ),
                 observedAtMs: row.observedAtMs,
                 confirmedAtMs: Option.getOrNull(row.maybeConfirmedAtMs),
+                failure: Option.getOrNull(row.maybeFailure),
               })
               .link({ account: accountId }),
           ),
         ),
+      ),
+    unsettledTransactions: account =>
+      Effect.map(
+        run(() =>
+          admin.query({
+            walletTransactions: {
+              $: {
+                where: {
+                  transactionKey: { $like: `${account.accountKey}|%` },
+                  status: { $in: ['Pending', 'Confirmed'] },
+                },
+                order: { observedAtMs: 'desc' },
+                limit: unsettledReadLimit,
+              },
+            },
+          }),
+        ),
+        result =>
+          Array.filter(
+            decodeActivityRows(result['walletTransactions'] ?? []),
+            row => !Option.contains(row.maybeFinality, 'Final'),
+          ),
       ),
     writeCursor: (account, cursor) =>
       run(() =>
@@ -237,7 +263,11 @@ export const makeActivityAdmin = (config: BrandonEnv): ActivityAdmin => {
               onFailure(failure(cause))
             }
           } else {
-            onFailure(new Error(`walletAccounts subscription: ${payload.error.message}`))
+            onFailure(
+              new Error(
+                `walletAccounts subscription: ${payload.error.message}`,
+              ),
+            )
           }
         },
       )

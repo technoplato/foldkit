@@ -9,6 +9,7 @@ import {
   Option,
   Ref,
   Schema as S,
+  type Scope,
   Stream,
 } from 'effect'
 import type { TransactionRecord } from 'wallet-core-example'
@@ -23,6 +24,7 @@ import {
   newestTransactionId,
   nextActivityRow,
   observedActivityRow,
+  settledActivityRow,
 } from './activity.js'
 
 // WATCHER
@@ -45,6 +47,9 @@ export type ActivityStore = Readonly<{
     cursor: string,
   ) => Effect.Effect<void, Error>
   announceChange: (account: WatchedAccount) => Effect.Effect<void, Error>
+  unsettledTransactions: (
+    account: WatchedAccount,
+  ) => Effect.Effect<ReadonlyArray<ActivityRow>, Error>
 }>
 
 /** Why one watch of one account ended: the chain, the store, or no answer in time. */
@@ -82,6 +87,9 @@ const historyPageLimit = 25
 const maximumBackfillPages = 4
 const shownAddressCharacters = 6
 
+/** At most this many transactions of one account are followed to Final at a time. */
+const maximumSettling = 8
+
 const firstReconnectDelayMs = 1_000
 const maximumReconnectDelayMs = 30_000
 const heldLongEnoughMs = 60_000
@@ -104,8 +112,10 @@ export const reconnectDelayMs = (attempt: number): number =>
  * held for a minute starts the count over: an RPC can accept a subscription
  * and refuse it seconds later, and an answer alone proves nothing (#1545).
  */
-export const nextReconnectAttempt = (attempt: number, heldMs: number): number =>
-  heldMs >= heldLongEnoughMs ? 0 : attempt + 1
+export const nextReconnectAttempt = (
+  attempt: number,
+  heldMs: number,
+): number => (heldMs >= heldLongEnoughMs ? 0 : attempt + 1)
 
 const jitteredReconnectDelayMs = (attempt: number): number =>
   reconnectDelayMs(attempt) *
@@ -175,18 +185,17 @@ const recordObservation = (
   within: Duration.Input,
   record: typeof TransactionRecord.Type,
 ): Effect.Effect<boolean, WatchEnded> => {
-  const observed = observedActivityRow(account, record)
   return Effect.gen(function* () {
+    const observed = observedActivityRow(account, record, {
+      nowMs: yield* Clock.currentTimeMillis,
+    })
     const maybeStored = yield* inTime(within)(
       store.storedTransaction(observed.transactionKey),
     )
     return yield* Option.match(nextActivityRow(maybeStored, observed), {
       onNone: () => Effect.succeed(false),
       onSome: row =>
-        Effect.as(
-          inTime(within)(store.writeTransaction(account, row)),
-          true,
-        ),
+        Effect.as(inTime(within)(store.writeTransaction(account, row)), true),
     })
   })
 }
@@ -253,13 +262,86 @@ const recordHistory = (
     }
   })
 
+/**
+ * Follows every transaction of this account not yet Final, each on the chain
+ * itself, and writes each move; the next watch picks up anything still open.
+ */
+const settleUnsettled = (
+  adapter: LiveNetworkAdapter,
+  account: WatchedAccount,
+  store: ActivityStore,
+  within: Duration.Input,
+  settling: Set<string>,
+): Effect.Effect<void, WatchEnded, Scope.Scope> =>
+  Effect.gen(function* () {
+    const unsettled = yield* inTime(within)(
+      store.unsettledTransactions(account),
+    )
+    const unfollowed = Array.filter(
+      unsettled,
+      row => !settling.has(row.transactionKey),
+    )
+    const toFollow = Array.take(
+      unfollowed,
+      Math.max(0, maximumSettling - settling.size),
+    )
+    for (const row of toFollow) {
+      settling.add(row.transactionKey)
+      yield* Effect.forkScoped(
+        adapter
+          .observeSettlement(liveAccountOf(adapter, account), row.transactionId)
+          .pipe(
+            Stream.mapError(error =>
+              ended(`the chain's settlement stream failed: ${error.code}`),
+            ),
+            Stream.runForEach(standing =>
+              Effect.gen(function* () {
+                const maybeStored = yield* inTime(within)(
+                  store.storedTransaction(row.transactionKey),
+                )
+                const nowMs = yield* Clock.currentTimeMillis
+                yield* Option.match(
+                  Option.flatMap(maybeStored, stored =>
+                    settledActivityRow(stored, standing, nowMs),
+                  ),
+                  {
+                    onNone: () => Effect.void,
+                    onSome: next =>
+                      Effect.andThen(
+                        inTime(within)(store.writeTransaction(account, next)),
+                        inTime(within)(store.announceChange(account)),
+                      ),
+                  },
+                )
+              }),
+            ),
+            Effect.catch(({ reason }) =>
+              Effect.sync(() => {
+                console.error(
+                  stamped(
+                    `watcher: ${account.networkId} ${shortAddress(account.address)} settlement stopped (${reason}); the next watch picks it up`,
+                  ),
+                )
+              }),
+            ),
+            Effect.ensuring(
+              Effect.sync(() => {
+                settling.delete(row.transactionKey)
+              }),
+            ),
+          ),
+      )
+    }
+  })
+
 const listen = (
   adapter: LiveNetworkAdapter,
   account: WatchedAccount,
   store: ActivityStore,
   options: WatchOptions,
   hasLiveCursor: Ref.Ref<boolean>,
-): Effect.Effect<never, WatchEnded> =>
+  settling: Set<string>,
+): Effect.Effect<never, WatchEnded, Scope.Scope> =>
   adapter.observeTransactions(liveAccountOf(adapter, account)).pipe(
     Stream.mapError(error => ended(`the chain's stream failed: ${error.code}`)),
     Stream.runForEach(record =>
@@ -272,6 +354,13 @@ const listen = (
         )
         if (didWrite) {
           yield* inTime(options.answerWithin)(store.announceChange(account))
+          yield* settleUnsettled(
+            adapter,
+            account,
+            store,
+            options.answerWithin,
+            settling,
+          )
         }
         yield* Ref.set(hasLiveCursor, true)
         yield* inTime(options.answerWithin)(
@@ -307,34 +396,46 @@ export const watchOnce = (
   Effect.scoped(
     Effect.gen(function* () {
       const hasLiveCursor = yield* Ref.make(false)
+      const settling = new Set<string>()
       const listening = yield* Effect.forkScoped(
-        listen(adapter, account, store, options, hasLiveCursor),
+        listen(adapter, account, store, options, hasLiveCursor, settling),
       )
-      const attemptBackfill: Effect.Effect<boolean> = recordHistory(
-        adapter,
-        account,
-        store,
-        options.answerWithin,
-        hasLiveCursor,
-      ).pipe(
-        Effect.as(true),
-        Effect.catch(({ reason }) =>
-          Effect.sync(() => {
-            console.error(
-              stamped(
-                `watcher: ${account.networkId} ${shortAddress(account.address)} history failed (${reason}); still listening`,
-              ),
-            )
-            return false
-          }),
-        ),
-      )
-      const backfillUntilDone: Effect.Effect<void> = Effect.gen(function* () {
-        yield* Effect.sleep(options.backfillEvery)
-        if (!(yield* attemptBackfill)) {
-          yield* Effect.suspend(() => backfillUntilDone)
-        }
-      })
+      const attemptBackfill: Effect.Effect<boolean, never, Scope.Scope> =
+        recordHistory(
+          adapter,
+          account,
+          store,
+          options.answerWithin,
+          hasLiveCursor,
+        ).pipe(
+          Effect.andThen(
+            settleUnsettled(
+              adapter,
+              account,
+              store,
+              options.answerWithin,
+              settling,
+            ),
+          ),
+          Effect.as(true),
+          Effect.catch(({ reason }) =>
+            Effect.sync(() => {
+              console.error(
+                stamped(
+                  `watcher: ${account.networkId} ${shortAddress(account.address)} history failed (${reason}); still listening`,
+                ),
+              )
+              return false
+            }),
+          ),
+        )
+      const backfillUntilDone: Effect.Effect<void, never, Scope.Scope> =
+        Effect.gen(function* () {
+          yield* Effect.sleep(options.backfillEvery)
+          if (!(yield* attemptBackfill)) {
+            yield* Effect.suspend(() => backfillUntilDone)
+          }
+        })
       if (!(yield* attemptBackfill)) {
         yield* Effect.raceFirst(backfillUntilDone, Fiber.await(listening))
       }

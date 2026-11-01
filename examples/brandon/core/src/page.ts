@@ -178,6 +178,7 @@ export const WalletActivityEntry = S.Struct({
   amountAtomic: AtomicUnits,
   maybeCounterpartyAddress: S.OptionFromOptionalKey(S.String),
   observedAtMs: S.Number,
+  maybeFailure: S.OptionFromOptionalKey(S.String),
 })
 /** One transaction of this person's wallets, as the chain reported it. */
 export type WalletActivityEntry = typeof WalletActivityEntry.Type

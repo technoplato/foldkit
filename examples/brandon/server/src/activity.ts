@@ -9,6 +9,7 @@ import {
   type TransactionRecord,
   type TransactionStatus,
 } from 'wallet-core-example'
+import type { TransactionStanding } from 'wallet-live-client-example'
 
 // ACTIVITY
 
@@ -37,6 +38,7 @@ export const ActivityRow = S.Struct({
   maybeCounterpartyAddress: S.Option(S.String),
   observedAtMs: S.Number,
   maybeConfirmedAtMs: S.Option(S.Number),
+  maybeFailure: S.Option(S.String),
 })
 /** One `walletTransactions` row, as the watcher writes it. */
 export type ActivityRow = typeof ActivityRow.Type
@@ -87,6 +89,7 @@ export const activityEntryOf = (row: ActivityRow): WalletActivityEntry => ({
   amountAtomic: row.amountAtomic,
   maybeCounterpartyAddress: row.maybeCounterpartyAddress,
   observedAtMs: row.observedAtMs,
+  maybeFailure: row.maybeFailure,
 })
 
 const scribeHolderPrefix = 'scribe:'
@@ -110,11 +113,32 @@ export const ownerUserIdOfHolder = (
     ? holder.slice(scribeHolderPrefix.length)
     : originOwnerUserId
 
-const finalityOfStatus = (status: TransactionStatus): Finality =>
+const minuteMs = 60 * 1_000
+
+const isOnSolana = (networkId: WatchedNetworkId): boolean =>
+  chainIdOfNetwork(networkId) === 'solana'
+
+/** A confirmed record this old is past anything its chain could undo. */
+const finalAfterMs = (networkId: WatchedNetworkId): number =>
+  isOnSolana(networkId) ? 5 * minuteMs : 60 * minuteMs
+
+/** A send unknown this long has given up: a Solana blockhash has expired; an Ethereum one has left the mempool. */
+const neverLandedAfterMs = (networkId: WatchedNetworkId): number =>
+  isOnSolana(networkId) ? 3 * minuteMs : 60 * minuteMs
+
+const finalityOfRecord = (
+  networkId: WatchedNetworkId,
+  status: TransactionStatus,
+  ageMs: number,
+): Finality =>
   M.value(status).pipe(
     M.withReturnType<Finality>(),
     M.when('Pending', () => 'Seen'),
-    M.orElse(() => 'Included'),
+    M.when('Failed', () => 'Included'),
+    M.when('Confirmed', () =>
+      ageMs >= finalAfterMs(networkId) ? 'Final' : 'Included',
+    ),
+    M.exhaustive,
   )
 
 const finalityRank = (maybeFinality: Option.Option<Finality>): number =>
@@ -133,11 +157,14 @@ const finalityRank = (maybeFinality: Option.Option<Finality>): number =>
 /**
  * The row a record from the chain makes for one account. A record on any
  * other network than the account's is a bug in the caller, so it throws
- * rather than file a test send under a real account.
+ * rather than file a test send under a real account. A confirmed record
+ * older than its chain could undo is Final already, which spares a read
+ * for every row of an old history: 5 minutes on Solana, an hour on Ethereum.
  */
 export const observedActivityRow = (
   account: WatchedAccount,
   record: typeof TransactionRecord.Type,
+  { nowMs }: Readonly<{ nowMs: number }>,
 ): ActivityRow => {
   if (record.networkId !== account.networkId) {
     throw new Error(
@@ -150,7 +177,13 @@ export const observedActivityRow = (
     networkId: account.networkId,
     direction: record.direction,
     status: record.status,
-    maybeFinality: Option.some(finalityOfStatus(record.status)),
+    maybeFinality: Option.some(
+      finalityOfRecord(
+        account.networkId,
+        record.status,
+        nowMs - record.observedAt,
+      ),
+    ),
     assetId: record.amount.assetId,
     amountAtomic: record.amount.atomicUnits,
     maybeCounterpartyAddress: Option.liftPredicate(
@@ -162,7 +195,98 @@ export const observedActivityRow = (
       record.status === 'Confirmed'
         ? Option.some(record.observedAt)
         : Option.none(),
+    maybeFailure: Option.none(),
   }
+}
+
+const whenUnknown = (
+  row: ActivityRow,
+  nowMs: number,
+): Option.Option<ActivityRow> =>
+  M.value(row.status).pipe(
+    M.withReturnType<Option.Option<ActivityRow>>(),
+    M.when('Confirmed', () =>
+      Option.some({
+        ...row,
+        status: 'Pending' as const,
+        maybeFinality: Option.none(),
+        maybeConfirmedAtMs: Option.none(),
+      }),
+    ),
+    M.when('Pending', () =>
+      nowMs - row.observedAtMs >= neverLandedAfterMs(row.networkId)
+        ? Option.some({
+            ...row,
+            status: 'Failed' as const,
+            maybeFailure: Option.some('It never landed, so nothing was sent.'),
+          })
+        : Option.none(),
+    ),
+    M.when('Failed', () => Option.none()),
+    M.exhaustive,
+  )
+
+/**
+ * What to write when the chain says where a transaction stands, given the
+ * row held. A Final row never changes. A row in a block that the chain no
+ * longer knows went back in a reorg: Pending, finality cleared. A send it
+ * never knew, past what its chain allows, never landed: Failed.
+ */
+export const settledActivityRow = (
+  row: ActivityRow,
+  standing: TransactionStanding,
+  nowMs: number,
+): Option.Option<ActivityRow> => {
+  if (Option.contains(row.maybeFinality, 'Final')) {
+    return Option.none()
+  }
+  const confirmedAt = Option.orElse(row.maybeConfirmedAtMs, () =>
+    Option.some(nowMs),
+  )
+  return M.value(standing).pipe(
+    M.withReturnType<Option.Option<ActivityRow>>(),
+    M.when('Final', () =>
+      Option.some({
+        ...row,
+        status: 'Confirmed' as const,
+        maybeFinality: Option.some('Final' as const),
+        maybeConfirmedAtMs: confirmedAt,
+        maybeFailure: Option.none(),
+      }),
+    ),
+    M.when('Included', () =>
+      row.status === 'Confirmed'
+        ? Option.none()
+        : Option.some({
+            ...row,
+            status: 'Confirmed' as const,
+            maybeFinality: Option.some('Included' as const),
+            maybeConfirmedAtMs: confirmedAt,
+            maybeFailure: Option.none(),
+          }),
+    ),
+    M.when('Seen', () =>
+      row.status === 'Pending' && Option.contains(row.maybeFinality, 'Seen')
+        ? Option.none()
+        : Option.some({
+            ...row,
+            status: 'Pending' as const,
+            maybeFinality: Option.some('Seen' as const),
+            maybeConfirmedAtMs: Option.none(),
+          }),
+    ),
+    M.when('FailedOnChain', () =>
+      row.status === 'Failed'
+        ? Option.none()
+        : Option.some({
+            ...row,
+            status: 'Failed' as const,
+            maybeFailure: Option.some('It failed on the chain.'),
+          }),
+    ),
+    M.when('Unknown', () => whenUnknown(row, nowMs)),
+    M.exhaustive,
+  )
 }
 
 /**

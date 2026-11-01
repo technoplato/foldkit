@@ -208,7 +208,9 @@ const activityStatus = (entry: WalletActivityEntry): string =>
     M.exhaustive,
   )
 
-const activityCounterparty = (entry: WalletActivityEntry): ReadonlyArray<Html> =>
+const activityCounterparty = (
+  entry: WalletActivityEntry,
+): ReadonlyArray<Html> =>
   Option.match(entry.maybeCounterpartyAddress, {
     onNone: () => [],
     onSome: address => [
@@ -241,6 +243,10 @@ const activityRow = (entry: WalletActivityEntry): Html =>
           ...activityCounterparty(entry),
         ],
       ),
+      ...Option.match(entry.maybeFailure, {
+        onNone: () => [],
+        onSome: failure => [h.p([h.Class('note')], [failure])],
+      }),
     ],
   )
 
