@@ -22,6 +22,7 @@ import {
   Order,
   Schema as S,
 } from 'effect'
+import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
 
@@ -94,22 +95,44 @@ const readMethods: ReadonlySet<string> = new Set(['GET', 'HEAD'])
 
 const instantOrigins = ['https://api.instantdb.com', 'wss://api.instantdb.com']
 
-const contentSecurityPolicy = [
-  "default-src 'none'",
-  "script-src 'self'",
-  "style-src 'self'",
-  "img-src 'self' data:",
-  "font-src 'self'",
-  `connect-src 'self' ${[...instantOrigins, ...brandonWalletConnectOrigins].join(' ')}`,
-  "manifest-src 'self'",
-  "object-src 'none'",
-  "base-uri 'none'",
-  "form-action 'none'",
-  "frame-ancestors 'none'",
-].join('; ')
+const inlineStyle = /<style\b[^>]*>([\s\S]*?)<\/style>/g
+
+/**
+ * The `'sha256-…'` source of each inline `<style>` in a page, so the
+ * policy allows exactly those blocks. The site-source header,
+ * `<header data-site-source>`, carries one; an injected one matches no
+ * hash and stays inert.
+ *
+ * @example
+ * ```typescript
+ * inlineStyleHashesOf('<style>a{color:red}</style>') // ["'sha256-…'"]
+ * ```
+ */
+export const inlineStyleHashesOf = (html: string): ReadonlyArray<string> =>
+  Array.map(
+    Array.fromIterable(html.matchAll(inlineStyle)),
+    ([, css = '']) =>
+      `'sha256-${createHash('sha256').update(css).digest('base64')}'`,
+  )
+
+const contentSecurityPolicyWith = (
+  inlineStyleHashes: ReadonlyArray<string>,
+): string =>
+  [
+    "default-src 'none'",
+    "script-src 'self'",
+    `style-src ${["'self'", ...inlineStyleHashes].join(' ')}`,
+    "img-src 'self' data:",
+    "font-src 'self'",
+    `connect-src 'self' ${[...instantOrigins, ...brandonWalletConnectOrigins].join(' ')}`,
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ')
 
 const securityHeaders: Readonly<Record<string, string>> = {
-  'content-security-policy': contentSecurityPolicy,
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
   'cross-origin-opener-policy': 'same-origin',
@@ -120,19 +143,32 @@ const securityHeaders: Readonly<Record<string, string>> = {
 }
 
 /**
- * The headers every answer carries. The content security policy lets the
- * page run only its own scripts, never inside another site's frame, and
- * talk only to Instant and the wallet's own chains, so an injected script
- * or a tag from elsewhere cannot run beside the wallet's keys.
+ * The headers every answer carries, given the hashes of the served page's
+ * own inline styles. The content security policy lets the page run only
+ * its own scripts, never inside another site's frame, and talk only to
+ * Instant and the wallet's own chains, so an injected script or a tag
+ * from elsewhere cannot run beside the wallet's keys.
+ *
+ * @example
+ * ```typescript
+ * makeOriginHeaders(inlineStyleHashesOf(indexHtml))(answer)
+ * ```
  */
-export const originHeaders = (
-  response: OriginResponse,
-): Readonly<Record<string, string>> => ({
-  'content-type': response.contentType,
-  'content-length': response.body.length.toString(),
-  'cache-control': 'private, no-store',
-  ...securityHeaders,
-})
+export const makeOriginHeaders = (
+  inlineStyleHashes: ReadonlyArray<string>,
+): ((response: OriginResponse) => Readonly<Record<string, string>>) => {
+  const contentSecurityPolicy = contentSecurityPolicyWith(inlineStyleHashes)
+  return response => ({
+    'content-type': response.contentType,
+    'content-length': response.body.length.toString(),
+    'cache-control': 'private, no-store',
+    'content-security-policy': contentSecurityPolicy,
+    ...securityHeaders,
+  })
+}
+
+/** The headers for a page with no inline style. */
+export const originHeaders = makeOriginHeaders([])
 
 const json = (value: unknown): OriginResponse => ({
   status: 200,

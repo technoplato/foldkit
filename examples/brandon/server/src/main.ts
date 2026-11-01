@@ -1,4 +1,5 @@
 import { Effect, Option } from 'effect'
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,7 +9,7 @@ import { knophyAccessTeamDomain, makeAccessVerifier } from '@foldkit/instant'
 import { makeBrandonAdmin } from './adminStore.js'
 import { brandonEnv, listOf, maybeEnv } from './env.js'
 import { makeFootball } from './football.js'
-import { handle, originHeaders } from './handler.js'
+import { handle, inlineStyleHashesOf, makeOriginHeaders } from './handler.js'
 
 // ORIGIN
 
@@ -36,6 +37,15 @@ const dependencies = {
     join(here, '../../foldkit/dist'),
   ),
 }
+
+const servedPageHtml = Option.getOrElse(
+  Option.liftThrowable(() =>
+    readFileSync(join(dependencies.staticRoot, 'index.html'), 'utf8'),
+  )(),
+  () => '',
+)
+
+const originHeaders = makeOriginHeaders(inlineStyleHashesOf(servedPageHtml))
 
 const lowercaseHeaders = (
   headers: NodeJS.Dict<string | ReadonlyArray<string>>,
