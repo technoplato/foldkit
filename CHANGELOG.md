@@ -4,6 +4,29 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 5:42:56 p.m. EST — `d8139f4437ed` fix(issues): live changes cost what changed; times, links and asks say true
+
+- **Implementation commit:** `d8139f4437edb473424541b7786b49060cbc68e4`
+- **Change:** Live changes cost what changed, and times, links and asks say what is true: lazy journal diffs, an incremental /asks, dates in their own day's offset, line lists that stay lines, and asks from the moment rows.
+- **Details:**
+  - foldkit: a transition's diff is worked out only when read, and a live replay snapshot no longer copies the journal; a filed Issue keeps 0.03 MB, was 20.8.
+  - /asks after a live change works out only the changed Issue.
+  - Times read in the offset their own day had; October no longer reads an hour early.
+  - Recording line lists and 'line #N' are never Issues; a shared Recording number is no id.
+  - Merged needs words that put work on main; Asked is the earliest mention up to filing; a seen line reads 'Heard in'.
+- **Files:**
+  - `packages/foldkit/src/runtime/programJournal.ts` — A transition's diff is worked out the first time something reads it.
+  - `packages/foldkit/src/runtime/replayController.ts` — A live snapshot reads the journal's length and the timeline, not a rebuilt tape.
+  - `examples/issues/core/src/askFlow.ts` — Each step's asks kept sorted across snapshots, changed one Issue at a time.
+  - `examples/issues/core/src/clock.ts` — A time in the offset its own day had in the reader's zone.
+  - `examples/issues/core/src/textReferences.ts` — Line lists after a Recording and 'line #N' read as lines.
+  - `examples/issues/core/src/timeline.ts` — Merged and Asked read only what the entries say.
+  - `examples/issues/core/src/issuePage.ts` — The Asked line follows the moment rows' kind.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Realtime means realtime I'm not batching or delaying. We fix issues at source
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
 ## November 1st, 2026 at 5:00:19 p.m. EST — `12daec739749` fix(issues): writes keep what they hold and land only on their own Issue
 
 - **Implementation commit:** `12daec7397496e697c45f010fff9ad4ddac616bf`
