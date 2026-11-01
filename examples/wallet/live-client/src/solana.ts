@@ -153,6 +153,13 @@ const SolanaLogsNotification = S.Struct({
   }),
 })
 
+const SolanaSocketError = S.Struct({ code: S.Number })
+
+const SolanaSubscriptionFailure = S.Union([
+  S.Struct({ error: SolanaSocketError }),
+  S.Struct({ params: S.Struct({ error: SolanaSocketError }) }),
+])
+
 const quoteLifetimeMilliseconds = 60_000
 const maximumObservedSignatures = 1_024
 const maximumConcurrentHistoryLoads = 8
@@ -764,9 +771,14 @@ export const makeSolanaLiveAdapter = (
           })
           socket.addEventListener('message', event => {
             try {
+              const message: unknown = JSON.parse(String(event.data))
+              if (S.is(SolanaSubscriptionFailure)(message)) {
+                Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+                return
+              }
               const maybeNotification = S.decodeUnknownOption(
                 SolanaLogsNotification,
-              )(JSON.parse(String(event.data)))
+              )(message)
               if (Option.isNone(maybeNotification)) {
                 return
               }
