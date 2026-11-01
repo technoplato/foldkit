@@ -1,7 +1,9 @@
 import { Effect, Option, Schema as S } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  AdapterTestFundingMethod,
   AtomicUnits,
+  NetworkDescriptor,
   TestFundingRequest,
   TransactionHistoryQuery,
   TransferRequest,
@@ -13,7 +15,7 @@ import {
 } from 'wallet-core-example'
 
 import { LiveNetworkAccount } from './adapter.js'
-import { liveWalletNetworkForId } from './catalog.js'
+import { SolanaLiveNetwork, liveWalletNetworkForId } from './catalog.js'
 import {
   SolanaSignedPayload,
   SolanaSignedPayloadJson,
@@ -86,10 +88,44 @@ describe('Solana live adapter numeric boundaries', () => {
     expect(failure.code).toBe('InvalidResponse')
   })
 
-  it('rejects invalid history limits and unsafe faucet amounts before I/O', async () => {
+  it("never asks Devnet's closed RPC faucet for funds", async () => {
     const fetchRequest = vi.fn()
     vi.stubGlobal('fetch', fetchRequest)
     const adapter = makeSolanaLiveAdapter(solanaDevnetConfiguration)
+    const fundingFailure = await Effect.runPromise(
+      adapter
+        .requestTestFunding(
+          account,
+          TestFundingRequest.make({
+            requestId: 'funding-closed',
+            accountId: account.account.accountId,
+            chainId: account.account.chainId,
+            networkId: account.account.networkId,
+            environment: 'Development',
+            assetId: solanaDevnetConfiguration.asset.assetId,
+            atomicUnits: '1',
+          }),
+        )
+        .pipe(Effect.flip),
+    )
+
+    expect(fundingFailure.code).toBe('UnsupportedCapability')
+    expect(fetchRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid history limits and unsafe faucet amounts before I/O', async () => {
+    const fetchRequest = vi.fn()
+    vi.stubGlobal('fetch', fetchRequest)
+    const adapter = makeSolanaLiveAdapter(
+      SolanaLiveNetwork.make({
+        ...solanaDevnetConfiguration,
+        network: NetworkDescriptor.make({
+          ...solanaDevnetConfiguration.network,
+          capabilities: ['Transfer', 'TestFunding'],
+          testFundingMethod: AdapterTestFundingMethod.make({}),
+        }),
+      }),
+    )
     expect(() =>
       TransactionHistoryQuery.make({
         accountId: account.account.accountId,
