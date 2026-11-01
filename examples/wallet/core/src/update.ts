@@ -1310,6 +1310,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model.wallets,
         )
       },
+      RequestedBalanceRefresh: () => withBalanceRefresh(model, []),
       SucceededLoadWallet: ({ requestId, portfolio }) => {
         if (
           model.portfolio._tag !== 'LoadingPortfolio' ||
