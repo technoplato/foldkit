@@ -47,7 +47,6 @@ import {
   FoundBuildJobs,
   UnavailableBuildJobs,
 } from './builds.js'
-import { noLandingReader } from './landing.js'
 import {
   type AddProductInput,
   type FileInput,
@@ -84,6 +83,7 @@ import {
   workInProgressCommand,
   workingSyncCommand,
 } from './commands.js'
+import { noLandingReader } from './landing.js'
 import { memoryIssueRecords } from './resources.js'
 
 const product = ApplicationProduct.make({ id: 'scribe', name: 'Scribe' })
