@@ -5,6 +5,7 @@ import {
   Effect,
   Option,
   Schedule,
+  Schema as S,
   Stream,
 } from 'effect'
 import type { TransactionRecord } from 'wallet-core-example'
@@ -79,13 +80,23 @@ const shortAddress = (address: string): string =>
 
 const ended = (reason: string) => new WatchEnded({ reason })
 
+const CodedError = S.Struct({ _tag: S.String, code: S.String })
+
+const reasonOf = (error: unknown): string => {
+  if (S.is(CodedError)(error)) {
+    return `${error._tag} ${error.code}`
+  } else if (error instanceof Error && error.message !== '') {
+    return error.message
+  } else {
+    return String(error)
+  }
+}
+
 const inTime =
   (duration: Duration.Input) =>
   <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, WatchEnded> =>
     effect.pipe(
-      Effect.mapError(error =>
-        ended(error instanceof Error ? error.message : String(error)),
-      ),
+      Effect.mapError(error => ended(reasonOf(error))),
       Effect.timeoutOrElse({
         duration,
         orElse: () =>
