@@ -36,6 +36,7 @@ const store: BrandonStore = {
   walletActivity: () => Effect.succeed([]),
   watchedAccountKeys: () => Effect.succeed([]),
   addWatchedAccount: () => Effect.void,
+  addSentTransaction: () => Effect.void,
   account: key => {
     if (key === accountKeyOf(michael)) {
       return Effect.succeed(

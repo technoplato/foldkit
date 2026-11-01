@@ -198,6 +198,7 @@ describe('a wallet made on this page', () => {
         Effect.sync(() => {
           watched.push(...accounts)
         }),
+      reportSentTransaction: () => Effect.void,
       scrollToSection: () => Effect.void,
       reloadPage: Effect.void,
       nowMs: Effect.succeed(0),

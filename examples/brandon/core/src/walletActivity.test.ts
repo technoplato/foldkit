@@ -6,7 +6,9 @@ import { snapshotLogMessageWire } from '@foldkit/instant/snapshot-log'
 
 import {
   ChangedWalletActivity,
+  CompletedReportSentTransaction,
   FailedWalletActivity,
+  GotWalletMessage,
   Message,
   ReceivedWalletActivity,
 } from './message.js'
@@ -23,6 +25,8 @@ import { update } from './update.js'
 import {
   activityInMode,
   publicAccountsOf,
+  sentTransactionOf,
+  sentTransactionPathOf,
   walletActivityAmountLabel,
   walletActivityNetworkLabel,
 } from './walletActivity.js'
@@ -84,8 +88,7 @@ const testnetSolana = {
 
 const openWallet = (
   wallets: ReadonlyArray<ReturnType<typeof profile>>,
-): Model['wallet'] =>
-  OpenWallet({ model: { ...Wallet.initialModel, wallets } })
+): Model['wallet'] => OpenWallet({ model: { ...Wallet.initialModel, wallets } })
 
 describe('the public accounts a wallet tells the origin', () => {
   it('are none while the wallet is closed', () => {
@@ -251,12 +254,140 @@ describe('an activity row', () => {
       ),
     ).toBe('1.5 ETH')
     expect(
-      walletActivityAmountLabel(entry({ assetId: 'solana:devnet:UnknownMint' })),
+      walletActivityAmountLabel(
+        entry({ assetId: 'solana:devnet:UnknownMint' }),
+      ),
     ).toBe('500000000 solana:devnet:UnknownMint')
     expect(walletActivityNetworkLabel(entry())).toBe('Solana Devnet')
     expect(
       walletActivityNetworkLabel(entry({ networkId: 'ethereum:mainnet' })),
     ).toBe('Ethereum Mainnet')
+  })
+})
+
+describe('a send the wallet just broadcast', () => {
+  const recipient = 'Recipient1111'
+  const preview = Wallet.TransactionPreview.make({
+    previewId: 'preview-1',
+    transfer: Wallet.ValidatedTransfer.make({
+      request: Wallet.TransferRequest.make({
+        transferId: 'transfer-1',
+        accountId: 'wallet-1:solana:devnet',
+        assetId: 'solana:devnet:sol',
+        destinationAddress: recipient,
+        atomicUnits: '250000000',
+        maybeMessage: Option.none(),
+      }),
+      recipient: Wallet.ValidatedRecipient.make({
+        networkId: 'solana:devnet',
+        address: recipient,
+        normalizedAddress: recipient,
+        displayAddress: recipient,
+      }),
+    }),
+    estimatedFee: Wallet.AssetAmount.make({
+      assetId: 'solana:devnet:sol',
+      atomicUnits: '5000',
+      observedAt: 1,
+    }),
+    resultingBalance: Wallet.AssetAmount.make({
+      assetId: 'solana:devnet:sol',
+      atomicUnits: '1',
+      observedAt: 1,
+    }),
+    expiresAt: 2,
+    recipientFamiliarity: Wallet.UnfamiliarAddress.make({}),
+    recipientHistory: Wallet.FirstTransactionWithRecipient.make({}),
+  })
+  const submission = Wallet.TransactionSubmission.make({
+    previewId: 'preview-1',
+    transactionId: '5hSent',
+    submittedAt: 3,
+    maybeExplorerConfirmation: Option.none(),
+  })
+  const walletModel = (
+    transaction: Wallet.Model['transaction'],
+    accounts: ReadonlyArray<typeof devnetSolana> = [devnetSolana],
+  ): Wallet.Model => ({
+    ...Wallet.initialModel,
+    wallets: [profile('wallet-1', accounts)],
+    transaction,
+  })
+  const submitted = Wallet.SubmittedTransaction.make({ preview, submission })
+
+  it('names only what its chain shows to anyone', () => {
+    expect(sentTransactionOf(walletModel(submitted))).toEqual(
+      Option.some({
+        networkId: 'solana:devnet',
+        senderAddress: 'DevnetAddress',
+        transactionId: '5hSent',
+        recipientAddress: recipient,
+        amountAtomic: '250000000',
+      }),
+    )
+  })
+
+  it('is nothing until the chain has taken it', () => {
+    expect(
+      sentTransactionOf(
+        walletModel(Wallet.SubmittingTransaction.make({ preview })),
+      ),
+    ).toEqual(Option.none())
+  })
+
+  it('is nothing on a network Brandon dot does not follow', () => {
+    expect(
+      sentTransactionOf(
+        walletModel(submitted, [
+          { ...testnetSolana, address: 'TestnetAddress' },
+        ]),
+      ),
+    ).toEqual(Option.none())
+  })
+
+  it('reaches the origin as a path, so nothing goes in a body', () => {
+    expect(
+      sentTransactionPathOf({
+        networkId: 'solana:devnet',
+        senderAddress: 'Sender',
+        transactionId: '5hSent',
+        recipientAddress: recipient,
+        amountAtomic: '250000000',
+      }),
+    ).toBe(
+      `/api/wallet/sent/solana%3Adevnet/Sender/5hSent/${recipient}/250000000`,
+    )
+  })
+
+  it('is reported the moment the chain takes it, and once', () => {
+    const before = {
+      ...initialModel,
+      wallet: OpenWallet({
+        model: walletModel(Wallet.SubmittingTransaction.make({ preview })),
+      }),
+    }
+    const [reported, commands] = update(
+      before,
+      GotWalletMessage({
+        message: Wallet.SucceededSubmitSignedTransaction.make({ submission }),
+      }),
+    )
+    expect(Array.map(commands, command => command.name)).toContain(
+      'ReportSentTransaction',
+    )
+    const [again, moreCommands] = update(
+      reported,
+      CompletedReportSentTransaction(),
+    )
+    expect(again).toEqual(reported)
+    expect(moreCommands).toEqual([])
+  })
+
+  it('stays off the log, as every word of the wallet does', () => {
+    const forged = S.encodeSync(snapshotLogMessageWire(Message))(
+      CompletedReportSentTransaction(),
+    )
+    expect(() => S.decodeUnknownSync(MessageWire)(forged)).toThrow()
   })
 })
 

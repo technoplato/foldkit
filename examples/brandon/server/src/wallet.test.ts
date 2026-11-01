@@ -1,8 +1,10 @@
 import {
   Page,
+  type SentTransaction,
   WalletActivity,
   type WalletActivityEntry,
   brandonWalletConnectOrigins,
+  sentTransactionPathOf,
 } from 'brandon-core-example'
 import { Array, Effect, Option, Schema as S } from 'effect'
 import { createHash } from 'node:crypto'
@@ -40,8 +42,7 @@ const flagsFor: Readonly<Record<string, ReadonlyArray<string>>> = {
   [accountKeyOf(tyler)]: ['party'],
 }
 
-const holderOf = (email: string): string =>
-  `brandon-dot:${accountKeyOf(email)}`
+const holderOf = (email: string): string => `brandon-dot:${accountKeyOf(email)}`
 
 const activityOf = (
   transactionId: string,
@@ -60,6 +61,7 @@ const activityOf = (
 
 const makeStore = () => {
   const watched: Array<string> = []
+  const sent: Array<Readonly<{ holder: string; sent: SentTransaction }>> = []
   const store: BrandonStore = {
     account: key =>
       Effect.succeed(
@@ -88,11 +90,15 @@ const makeStore = () => {
       Effect.sync(() => {
         watched.push(`${holder}|${networkId}|${address}`)
       }),
+    addSentTransaction: (holder, transaction) =>
+      Effect.sync(() => {
+        sent.push({ holder, sent: transaction })
+      }),
   }
-  return { store, watched }
+  return { store, watched, sent }
 }
 
-const { store, watched } = makeStore()
+const { store, watched, sent } = makeStore()
 
 const solanaAddress = 'So11111111111111111111111111111111111111112'
 const ethereumAddress = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
@@ -230,7 +236,10 @@ describe('following a public address', () => {
       pathOf('ethereum:sepolia', solanaAddress),
       pathOf('solana:devnet', 'not-an-address'),
       pathOf('solana:devnet', `${solanaAddress}|holder`),
-      pathOf('ethereum:mainnet', ethereumAddress.toLowerCase().replace('a', 'A')),
+      pathOf(
+        'ethereum:mainnet',
+        ethereumAddress.toLowerCase().replace('a', 'A'),
+      ),
       pathOf('ethereum:mainnet', 'a'.repeat(64)),
       pathOf('ethereum:mainnet', `0x${'a'.repeat(64)}`),
       pathOf('solana:devnet', 'a'.repeat(88)),
@@ -243,7 +252,9 @@ describe('following a public address', () => {
 
   it('stops at the limit for one person, and that limit is theirs alone', async () => {
     for (let index = 0; index < maximumWatchedAccountsPerPerson; index += 1) {
-      watched.push(`${holderOf(brandon)}|solana:devnet|address${index.toString()}`)
+      watched.push(
+        `${holderOf(brandon)}|solana:devnet|address${index.toString()}`,
+      )
     }
     const path = pathOf('solana:devnet', solanaAddress)
     expect((await put(path, brandon)).status).toBe(429)
@@ -271,6 +282,116 @@ describe('following a public address', () => {
         ).status,
       ).toBe(405)
     }
+  })
+})
+
+describe('a send the page reports', () => {
+  const solanaSignature = '5'.repeat(88)
+  const ethereumHash = `0x${'a'.repeat(64)}`
+  const otherSolanaAddress = '11111111111111111111111111111111'
+  const send: SentTransaction = {
+    networkId: 'solana:devnet',
+    senderAddress: solanaAddress,
+    transactionId: solanaSignature,
+    recipientAddress: otherSolanaAddress,
+    amountAtomic: '250000000',
+  }
+  const put = (path: string, email: string) =>
+    request('PUT', path, Option.some(email))
+
+  beforeEach(() => {
+    watched.length = 0
+    sent.length = 0
+    watched.push(`${holderOf(brandon)}|solana:devnet|${solanaAddress}`)
+    watched.push(`${holderOf(brandon)}|ethereum:sepolia|${ethereumAddress}`)
+  })
+
+  it("goes under the signed-in person's own account", async () => {
+    const answer = await put(sentTransactionPathOf(send), brandon)
+    expect(answer.status).toBe(200)
+    expect(sent).toEqual([{ holder: holderOf(brandon), sent: send }])
+  })
+
+  it('takes an Ethereum send too', async () => {
+    const onSepolia: SentTransaction = {
+      networkId: 'ethereum:sepolia',
+      senderAddress: ethereumAddress,
+      transactionId: ethereumHash,
+      recipientAddress: ethereumAddress,
+      amountAtomic: '1000000000000000',
+    }
+    const answer = await put(sentTransactionPathOf(onSepolia), brandon)
+    expect(answer.status).toBe(200)
+    expect(sent).toEqual([{ holder: holderOf(brandon), sent: onSepolia }])
+  })
+
+  it("is refused for an address that is not this person's", async () => {
+    const answer = await put(sentTransactionPathOf(send), michael)
+    expect(answer.status).toBe(403)
+    expect(sent).toEqual([])
+  })
+
+  it('is refused without the wallet flag or a login', async () => {
+    const path = sentTransactionPathOf(send)
+    expect((await put(path, tyler)).status).toBe(403)
+    expect((await request('PUT', path, Option.none())).status).toBe(403)
+    expect(sent).toEqual([])
+  })
+
+  it('takes only what a chain could show: never a key or free text', async () => {
+    const pathOf = (
+      parts: Readonly<Record<keyof SentTransaction, string>>,
+    ): string =>
+      `/api/wallet/sent/${Array.join(
+        Array.map(
+          [
+            parts.networkId,
+            parts.senderAddress,
+            parts.transactionId,
+            parts.recipientAddress,
+            parts.amountAtomic,
+          ],
+          encodeURIComponent,
+        ),
+        '/',
+      )}`
+    const refused: ReadonlyArray<Readonly<Record<keyof SentTransaction, string>>> =
+      [
+        { ...send, recipientAddress: 'not-an-address' },
+        { ...send, recipientAddress: ethereumAddress },
+        { ...send, senderAddress: 'a'.repeat(88) },
+        { ...send, transactionId: 'not-a-signature' },
+        { ...send, transactionId: ethereumHash },
+        { ...send, amountAtomic: '1.5' },
+        { ...send, amountAtomic: 'seed words' },
+        {
+          ...send,
+          networkId: 'ethereum:sepolia',
+          senderAddress: ethereumAddress,
+          recipientAddress: ethereumAddress,
+          transactionId: `0x${'a'.repeat(128)}`,
+        },
+        { ...send, networkId: 'solana:testnet' },
+      ]
+    for (const transaction of refused) {
+      expect((await put(pathOf(transaction), brandon)).status).toBe(400)
+    }
+    expect(sent).toEqual([])
+  })
+
+  it('answers only PUT, and no shorter or longer path', async () => {
+    expect(
+      (await request('POST', sentTransactionPathOf(send), Option.some(brandon)))
+        .status,
+    ).toBe(405)
+    for (const path of [
+      '/api/wallet/sent',
+      `/api/wallet/sent/solana:devnet/${solanaAddress}`,
+      `${sentTransactionPathOf(send)}/more`,
+    ]) {
+      expect((await put(path, brandon)).status).toBe(405)
+    }
+    expect(sent).toEqual([])
   })
 })
 
@@ -370,8 +491,8 @@ describe("the page's own inline style", () => {
     expect(inlineStyleHashesOf('<body><div id="root"></div></body>')).toEqual(
       [],
     )
-    expect(
-      makeOriginHeaders([])(answer)['content-security-policy'],
-    ).toContain("style-src 'self';")
+    expect(makeOriginHeaders([])(answer)['content-security-policy']).toContain(
+      "style-src 'self';",
+    )
   })
 })

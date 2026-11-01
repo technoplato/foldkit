@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Fiber, Option, Stream } from 'effect'
+import { Cause, Duration, Effect, Exit, Fiber, Option, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   AssetAmount,
@@ -16,6 +16,7 @@ import {
   type ActivityRow,
   type WatchedAccount,
   accountKeyOf,
+  sentActivityRow,
 } from './activity.js'
 import {
   type ActivityStore,
@@ -82,7 +83,9 @@ const memoryStore = () => {
     unsettledTransactions: () =>
       Effect.sync(() =>
         [...rows.values()].filter(
-          row => !Option.contains(row.maybeFinality, 'Final'),
+          row =>
+            row.status !== 'Failed' &&
+            !Option.contains(row.maybeFinality, 'Final'),
         ),
       ),
   }
@@ -262,6 +265,7 @@ describe('watching one account', () => {
         answerWithin: '1 second',
         maximumLifetime: '20 millis',
         backfillEvery: '1 second',
+        settleEvery: '10 seconds',
       }),
     )
     expect(Exit.isFailure(exit)).toBe(true)
@@ -299,6 +303,7 @@ describe('watching one account', () => {
           answerWithin: '50 millis',
           maximumLifetime: '10 seconds',
           backfillEvery: '10 seconds',
+          settleEvery: '10 seconds',
         },
       ),
     )
@@ -317,6 +322,7 @@ describe('watching one account', () => {
         answerWithin: '1 second',
         maximumLifetime: '60 millis',
         backfillEvery: '1 second',
+        settleEvery: '10 seconds',
       }),
     )
     expect([...rows.keys()]).toEqual([`${account.accountKey}|live`])
@@ -333,6 +339,7 @@ describe('watching one account', () => {
         answerWithin: '30 millis',
         maximumLifetime: '80 millis',
         backfillEvery: '1 second',
+        settleEvery: '10 seconds',
       }),
     )
     expect([...rows.keys()]).toEqual([`${account.accountKey}|live`])
@@ -355,6 +362,7 @@ describe('watching one account', () => {
         answerWithin: '1 second',
         maximumLifetime: '200 millis',
         backfillEvery: '10 millis',
+        settleEvery: '10 seconds',
       }),
     )
     expect(historyCalls).toBe(2)
@@ -394,6 +402,7 @@ describe('following a transaction to the end', () => {
         answerWithin: '1 second',
         maximumLifetime: '60 millis',
         backfillEvery: '1 second',
+        settleEvery: '10 seconds',
       }),
     )
     const row = rows.get(`${account.accountKey}|recent`)
@@ -422,6 +431,7 @@ describe('following a transaction to the end', () => {
         answerWithin: '1 second',
         maximumLifetime: '40 millis',
         backfillEvery: '1 second',
+        settleEvery: '10 seconds',
       }),
     )
     expect(asked).toEqual([])
@@ -439,6 +449,7 @@ describe('following a transaction to the end', () => {
         answerWithin: '1 second',
         maximumLifetime: '60 millis',
         backfillEvery: '1 second',
+        settleEvery: '10 seconds',
       }),
     )
     expect(
@@ -465,12 +476,125 @@ describe('following a transaction to the end', () => {
         answerWithin: '1 second',
         maximumLifetime: '60 millis',
         backfillEvery: '1 second',
+        settleEvery: '10 seconds',
       }),
     )
     expect(Date.now() - started).toBeGreaterThanOrEqual(50)
     expect([...rows.keys()].sort()).toEqual(
       [`${account.accountKey}|live`, `${account.accountKey}|recent`].sort(),
     )
+  })
+})
+
+describe('a send the page reported', () => {
+  const sentRow = (transactionId: string, observedAtMs: number): ActivityRow =>
+    sentActivityRow(
+      account.accountKey,
+      {
+        networkId: 'solana:devnet',
+        senderAddress: account.address,
+        transactionId,
+        recipientAddress: 'Recipient1111',
+        amountAtomic: '250000000',
+      },
+      observedAtMs,
+    )
+  const options = {
+    answerWithin: '1 second',
+    maximumLifetime: '150 millis',
+    backfillEvery: '1 second',
+    settleEvery: '10 millis',
+  } as const
+
+  it('is followed with no event from the chain, as soon as the watch looks', async () => {
+    const { store, rows } = memoryStore()
+    const asked: Array<string> = []
+    const adapter = fakeAdapter(
+      () => Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      Stream.never,
+      transactionId => {
+        asked.push(transactionId)
+        return Stream.make('Included', 'Final')
+      },
+    )
+    const late = sentRow('late', Date.now())
+    await Effect.runPromiseExit(
+      Effect.all(
+        [
+          watchOnce(adapter, account, store, options),
+          Effect.delay(
+            store.writeTransaction(account, late),
+            Duration.millis(30),
+          ),
+        ],
+        { concurrency: 'unbounded' },
+      ),
+    )
+    expect(asked).toEqual(['late'])
+    expect(
+      Option.getOrNull(
+        rows.get(late.transactionKey)?.maybeFinality ?? Option.none(),
+      ),
+    ).toBe('Final')
+  })
+
+  it('fails in words once its time is up, though the chain never spoke', async () => {
+    const { store, rows, noticeCount } = memoryStore()
+    const nearlyOutOfTime = sentRow('lost', Date.now() - 180_000 + 40)
+    rows.set(nearlyOutOfTime.transactionKey, nearlyOutOfTime)
+    const adapter = fakeAdapter(
+      () => Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      Stream.never,
+      () => Stream.concat(Stream.make('Unknown'), Stream.never),
+    )
+    await Effect.runPromiseExit(watchOnce(adapter, account, store, options))
+    const row = rows.get(nearlyOutOfTime.transactionKey)
+    expect(row?.status).toBe('Failed')
+    expect(Option.getOrNull(row?.maybeFailure ?? Option.none())).toBe(
+      'It never landed, so nothing was sent.',
+    )
+    expect(noticeCount()).toBe(1)
+  })
+
+  it('stops following a send once it has failed', async () => {
+    const { store, rows } = memoryStore()
+    const lost = sentRow('lost', 1)
+    rows.set(lost.transactionKey, lost)
+    const asked: Array<string> = []
+    const adapter = fakeAdapter(
+      () => Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      Stream.never,
+      transactionId => {
+        asked.push(transactionId)
+        return Stream.concat(Stream.make('Unknown'), Stream.never)
+      },
+    )
+    await Effect.runPromiseExit(watchOnce(adapter, account, store, options))
+    expect(rows.get(lost.transactionKey)?.status).toBe('Failed')
+    expect(asked.filter(id => id === 'lost').length).toBeLessThanOrEqual(2)
+  })
+
+  it('keeps watching when a look at the rows fails', async () => {
+    const { store } = memoryStore()
+    let looks = 0
+    const flaky: ActivityStore = {
+      ...store,
+      unsettledTransactions: () =>
+        Effect.suspend(() => {
+          looks += 1
+          return looks === 1
+            ? Effect.fail(new Error('Instant did not answer'))
+            : Effect.succeed([])
+        }),
+    }
+    const adapter = fakeAdapter(
+      () => Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      Stream.never,
+    )
+    const started = Date.now()
+    await Effect.runPromiseExit(watchOnce(adapter, account, flaky, options))
+    expect(Date.now() - started).toBeGreaterThanOrEqual(100)
+    expect(looks).toBeGreaterThan(2)
   })
 })
 
