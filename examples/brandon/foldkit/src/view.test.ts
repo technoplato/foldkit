@@ -1,7 +1,9 @@
 import {
   FootballSection,
   MarkdownSection,
+  OpenWallet,
   type Page,
+  PersonalWalletSection,
   QrLinksSection,
   ScoreboardSection,
   SectionKey,
@@ -13,6 +15,7 @@ import {
 import { Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
+import * as Wallet from 'wallet-core-example'
 
 import { parseMarkdown } from '@foldkit/markdown/vite'
 
@@ -165,6 +168,63 @@ describe('the Brandon dot view', () => {
       ),
       Scene.expect(Scene.text('Scoreboard')).toBeAbsent(),
       Scene.expect(Scene.text('Wallets')).toBeAbsent(),
+    )
+  })
+})
+
+describe('the wallet section', () => {
+  const walletPage: Page = {
+    displayName: 'Brandon',
+    sections: [
+      PersonalWalletSection({
+        key: key('wallet'),
+        title: 'Your wallet',
+        column: 'Main',
+      }),
+    ],
+  }
+
+  const withWallet = (networkMode: Wallet.WalletNetworkMode) =>
+    ready({
+      page: { _tag: 'ReadyPage', page: walletPage },
+      wallet: OpenWallet({
+        model: { ...Wallet.init()[0], walletNetworkMode: networkMode },
+      }),
+    })
+
+  test('says the wallet is opening until it opens', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(ready({ page: { _tag: 'ReadyPage', page: walletPage } })),
+      Scene.expect(Scene.text('Your wallet')).toExist(),
+      Scene.expect(Scene.text('Opening your wallet')).toExist(),
+    )
+  })
+
+  test('names a test network as test money', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(withWallet('Devnet')),
+      Scene.expect(Scene.text('Devnet: test money')).toExist(),
+      Scene.expect(Scene.text('Mainnet: real money')).toBeAbsent(),
+    )
+  })
+
+  test('names Mainnet as real money', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(withWallet('Live')),
+      Scene.expect(Scene.text('Mainnet: real money')).toExist(),
+      Scene.expect(Scene.text('Devnet: test money')).toBeAbsent(),
+    )
+  })
+
+  test('paints no wallet for a page without the section', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(everything),
+      Scene.expect(Scene.text('Opening your wallet')).toBeAbsent(),
+      Scene.expect(Scene.text('Devnet: test money')).toBeAbsent(),
     )
   })
 })
