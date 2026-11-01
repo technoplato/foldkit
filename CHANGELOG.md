@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 2:15:49 p.m. EST — `bc1bb195633e` fix(wallet): green: every failure on screen is in words
+
+- **Implementation commit:** `bc1bb195633ef05c47376194efda9d80ccafb0a2`
+- **Change:** Foldkit's example wallet composed into Brandon dot, audited for Mainnet, with chain listeners on the mini
+- **Details:**
+  - The wallet is a Submodel of Brandon dot: its update inside GotWalletMessage, its Subscriptions lifted, its view through h.submodel, and no wallet code of its own there. The wallet flag turns it on, and the origin enforces that.
+  - Keys stay in IndexedDB on each person's device, in a partition the origin names from the verified login. A Mainnet key is never a test network's key. The origin reads no request body on any path.
+  - Audit fixes, red then green: restore and refresh never sign, Confirm signs only what it shows, the signed Ethereum fee cannot pass the previewed one, a strict content security policy, a log that decodes only its own facts, and every failure on screen in words.
+  - Two modes, Devnet (Solana Devnet and Sepolia) and Mainnet, with a banner on every screen, a red Mainnet send, and balances read fresh on every switch.
+  - watch.ts listens to each public address over WebSockets, backfills on reconnect, and follows each row to Final. A reorg sends a row back to Pending, and a send that never landed fails in words: 3 minutes on Solana, an hour on Ethereum.
+  - A send shows Pending at broadcast through a bodyless PUT, then moves by itself. The full record of findings and proofs is Scribe's audits/2026-11-01-brandon-wallet-1534.md.
+- **Files:**
+  - `examples/wallet/core/src/presentation.ts` — every failure in words, and whether anything was sent
+  - `examples/wallet/foldkit/src/view.ts` — the screen reads those words, never an operation and a code
+- **User context (verbatim):**
+  > Give Brandon the wallet too and I want to be clear I want the foldkit example wallet added composed to Brandon dot
+  > Main net and deb net on both
+  > We also want the realtime syncing functionality for transactions sent pending received etc
+  > For realtime sync I also meant at the blockchain level through websocket listeners
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (brandon-wallet-1534); no SpecStory capture exists for headless runs.
+
 ## November 1st, 2026 at 12:52:50 p.m. EST — `21d9f1f0287a` fix(issues): green: an og link reads as its words or Issue link
 
 - **Implementation commit:** `21d9f1f0287a72d2e491506a29faeea892f710f3`
