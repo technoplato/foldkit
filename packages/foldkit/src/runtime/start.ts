@@ -317,6 +317,9 @@ export function start<
         ? 'Domain'
         : childSynchronization.messageCategory(message)
 
+    const isLocalOnlyFromLog = (message: unknown): boolean =>
+      childSynchronization?.isLocalOnly?.(message) ?? false
+
     const keepsOwnNavigation =
       childSynchronization?.keepsOwnNavigation ?? ((): boolean => false)
 
@@ -483,6 +486,7 @@ export function start<
         const decoded = decodeUnknown(program.message, entry.row)
         if (
           Option.isNone(decoded) ||
+          isLocalOnlyFromLog(decoded.value) ||
           !appliesTo(
             policyOf(folded),
             decoded.value,
@@ -889,6 +893,9 @@ export function start<
         return
       }
       Option.map(rowOrderOf(row), bumpLastApplied)
+      if (isLocalOnlyFromLog(decoded.value)) {
+        return
+      }
       if (appliesHere(currentPolicy(), decoded.value, row)) {
         sendFromSync(
           asMessage<Message>({

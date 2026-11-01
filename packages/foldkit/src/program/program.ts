@@ -92,9 +92,10 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
   /**
    * True for a Message only the Processor that sends it applies. Sync
    * never writes it to the log, so no other Processor receives it and no
-   * refold replays it. Use it for what must not leave the device, such as
-   * a sign-in address pasted into a field, and keep what it changed with
-   * `keepOnRefold`.
+   * refold replays it, and a row with that Message from another writer is
+   * never applied, live or in a fold. Use it for what must not leave the
+   * device, such as a sign-in address pasted into a field, and keep what
+   * it changed with `keepOnRefold`.
    *
    * @example
    * ```typescript
