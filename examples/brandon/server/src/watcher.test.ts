@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Fiber, Option, Schedule, Stream } from 'effect'
+import { Cause, Effect, Exit, Fiber, Option, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   AssetAmount,
@@ -16,7 +16,13 @@ import {
   type WatchedAccount,
   accountKeyOf,
 } from './activity.js'
-import { type ActivityStore, watchAccount, watchOnce } from './watcher.js'
+import {
+  type ActivityStore,
+  nextReconnectAttempt,
+  reconnectDelayMs,
+  watchAccount,
+  watchOnce,
+} from './watcher.js'
 
 const holder = `brandon-dot:${'b'.repeat(64)}`
 const address = 'Watched11111111111111111111111111111111111'
@@ -239,6 +245,7 @@ describe('watching one account', () => {
       watchOnce(adapter, account, store, {
         answerWithin: '1 second',
         maximumLifetime: '20 millis',
+        backfillEvery: '1 second',
       }),
     )
     expect(Exit.isFailure(exit)).toBe(true)
@@ -246,7 +253,10 @@ describe('watching one account', () => {
 
   it('says which error ended the watch, never an empty reason', async () => {
     const { store } = memoryStore()
-    const adapter = fakeAdapter(() => Effect.fail(unavailable()), Stream.never)
+    const adapter = fakeAdapter(
+      () => Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      Stream.fail(unavailable()),
+    )
     const exit = await Effect.runPromiseExit(watchOnce(adapter, account, store))
     const reason = Exit.isFailure(exit)
       ? Option.match(Cause.findErrorOption(exit.cause), {
@@ -257,18 +267,112 @@ describe('watching one account', () => {
     expect(reason).toContain('Unavailable')
   })
 
-  it('fails loudly when the chain does not answer in time', async () => {
+  it('fails loudly when the store does not answer in time', async () => {
     const { store } = memoryStore()
-    const adapter = fakeAdapter(() => Effect.never, Stream.never)
+    const adapter = fakeAdapter(
+      () => Effect.succeed({ records: [], maybeNextCursor: Option.none() }),
+      Stream.concat(Stream.make(record('live', 1)), Stream.never),
+    )
     const started = Date.now()
     const exit = await Effect.runPromiseExit(
-      watchOnce(adapter, account, store, {
-        answerWithin: '50 millis',
-        maximumLifetime: '10 seconds',
-      }),
+      watchOnce(
+        adapter,
+        account,
+        { ...store, storedTransaction: () => Effect.never },
+        {
+          answerWithin: '50 millis',
+          maximumLifetime: '10 seconds',
+          backfillEvery: '10 seconds',
+        },
+      ),
     )
     expect(Exit.isFailure(exit)).toBe(true)
     expect(Date.now() - started).toBeLessThan(2_000)
+  })
+
+  it('hears a payment while the history provider is down', async () => {
+    const { store, rows } = memoryStore()
+    const adapter = fakeAdapter(
+      () => Effect.fail(unavailable()),
+      Stream.concat(Stream.make(record('live', 1)), Stream.never),
+    )
+    await Effect.runPromiseExit(
+      watchOnce(adapter, account, store, {
+        answerWithin: '1 second',
+        maximumLifetime: '60 millis',
+        backfillEvery: '1 second',
+      }),
+    )
+    expect([...rows.keys()]).toEqual([`${account.accountKey}|live`])
+  })
+
+  it('hears a payment while the history provider hangs', async () => {
+    const { store, rows } = memoryStore()
+    const adapter = fakeAdapter(
+      () => Effect.never,
+      Stream.concat(Stream.make(record('live', 1)), Stream.never),
+    )
+    await Effect.runPromiseExit(
+      watchOnce(adapter, account, store, {
+        answerWithin: '30 millis',
+        maximumLifetime: '80 millis',
+        backfillEvery: '1 second',
+      }),
+    )
+    expect([...rows.keys()]).toEqual([`${account.accountKey}|live`])
+  })
+
+  it('tries the backfill again within the same watch', async () => {
+    const { store, rows } = memoryStore()
+    let historyCalls = 0
+    const adapter = fakeAdapter(() => {
+      historyCalls += 1
+      return historyCalls === 1
+        ? Effect.fail(unavailable())
+        : Effect.succeed({
+            records: [record('missed', 1)],
+            maybeNextCursor: Option.none(),
+          })
+    }, Stream.never)
+    await Effect.runPromiseExit(
+      watchOnce(adapter, account, store, {
+        answerWithin: '1 second',
+        maximumLifetime: '200 millis',
+        backfillEvery: '10 millis',
+      }),
+    )
+    expect(historyCalls).toBe(2)
+    expect([...rows.keys()]).toEqual([`${account.accountKey}|missed`])
+  })
+
+  it("finishes a backfill in flight when the chain's stream drops", async () => {
+    const { store, rows } = memoryStore()
+    const adapter = fakeAdapter(
+      () =>
+        Effect.as(Effect.sleep('30 millis'), {
+          records: [record('older', 1)],
+          maybeNextCursor: Option.none(),
+        }),
+      Stream.fail(unavailable()),
+    )
+    const exit = await Effect.runPromiseExit(watchOnce(adapter, account, store))
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect([...rows.keys()]).toEqual([`${account.accountKey}|older`])
+  })
+})
+
+describe('reconnecting', () => {
+  it('waits longer after each quick drop, up to 30 seconds', () => {
+    expect(reconnectDelayMs(0)).toBe(1_000)
+    expect(reconnectDelayMs(1)).toBe(2_000)
+    expect(reconnectDelayMs(4)).toBe(16_000)
+    expect(reconnectDelayMs(5)).toBe(30_000)
+    expect(reconnectDelayMs(50)).toBe(30_000)
+  })
+
+  it('starts over only after a watch held for a minute', () => {
+    expect(nextReconnectAttempt(3, 59_000)).toBe(4)
+    expect(nextReconnectAttempt(3, 60_000)).toBe(0)
   })
 })
 
@@ -299,9 +403,7 @@ describe('following one account for as long as it runs', () => {
       })
     }, Stream.fail(unavailable()))
     const fiber = Effect.runFork(
-      watchAccount(adapter, account, store, {
-        schedule: Schedule.spaced('1 millis'),
-      }),
+      watchAccount(adapter, account, store, { reconnectAfter: () => 1 }),
     )
     await enoughWatches
     await Effect.runPromise(Fiber.interrupt(fiber))
