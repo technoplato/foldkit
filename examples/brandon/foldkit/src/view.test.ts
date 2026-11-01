@@ -266,6 +266,7 @@ describe('the wallet section', () => {
       Scene.scene(
         { update, view },
         Scene.with(withActivity('Devnet', [entry()])),
+        Scene.expect(Scene.text('All your wallets')).toExist(),
         Scene.expect(Scene.text('Received 0.5 SOL')).toExist(),
         Scene.expect(Scene.text('Confirmed')).toExist(),
         Scene.expect(Scene.text('Solana Devnet')).toExist(),

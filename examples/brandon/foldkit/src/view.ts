@@ -224,17 +224,17 @@ const activityCounterparty = (entry: WalletActivityEntry): ReadonlyArray<Html> =
 const activityRow = (entry: WalletActivityEntry): Html =>
   h.keyed('li')(
     `${entry.networkId}|${entry.transactionId}`,
-    [h.Class(`wallet-activity-row is-${entry.status.toLowerCase()}`)],
+    [h.Class(`person-activity-row is-${entry.status.toLowerCase()}`)],
     [
       h.div(
-        [h.Class('wallet-activity-headline')],
+        [h.Class('person-activity-headline')],
         [
           h.strong([], [activityHeadline(entry)]),
-          h.span([h.Class('wallet-activity-status')], [activityStatus(entry)]),
+          h.span([h.Class('person-activity-status')], [activityStatus(entry)]),
         ],
       ),
       h.div(
-        [h.Class('wallet-activity-detail')],
+        [h.Class('person-activity-detail')],
         [
           h.span([], [walletActivityNetworkLabel(entry)]),
           h.span([], [activityTimeFormat.format(entry.observedAtMs)]),
@@ -256,7 +256,7 @@ const activityRows = (
           `No ${walletNetworkModeLabel(walletModel.walletNetworkMode)} activity yet. A payment to your wallet shows up here by itself.`,
         ],
       )
-    : h.ul([h.Class('wallet-activity-rows')], Array.map(shown, activityRow))
+    : h.ul([h.Class('person-activity-rows')], Array.map(shown, activityRow))
 }
 
 const walletWatchNote = (model: Model): ReadonlyArray<Html> =>
@@ -281,12 +281,16 @@ const walletActivity = (model: Model, walletModel: WalletModel): Html =>
     [
       h.Class(
         walletModel.walletNetworkMode === 'Live'
-          ? 'wallet-activity is-mainnet'
-          : 'wallet-activity',
+          ? 'person-activity is-mainnet'
+          : 'person-activity',
       ),
     ],
     [
-      h.h3([], ['Activity']),
+      h.h3([], ['All your wallets']),
+      h.p(
+        [h.Class('note')],
+        ['Every wallet you made here, on any device, as the chain reports it.'],
+      ),
       ...walletWatchNote(model),
       ...M.value(model.walletActivity).pipe(
         M.withReturnType<ReadonlyArray<Html>>(),

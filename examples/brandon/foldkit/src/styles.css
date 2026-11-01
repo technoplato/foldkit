@@ -233,56 +233,56 @@ aside {
   color: var(--muted);
 }
 
-.wallet-activity {
+.person-activity {
   margin-top: 16px;
   padding: 16px;
   border: 1px solid var(--rule);
   border-radius: 12px;
 }
 
-.wallet-activity.is-mainnet {
+.person-activity.is-mainnet {
   border-color: #ff5a52;
 }
 
-.wallet-activity h3 {
+.person-activity h3 {
   margin: 0 0 8px;
 }
 
-.wallet-activity .note {
+.person-activity .note {
   margin-bottom: 8px;
 }
 
-.wallet-activity-rows {
+.person-activity-rows {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.wallet-activity-row {
+.person-activity-row {
   padding: 10px 0;
   border-top: 1px solid var(--rule);
 }
 
-.wallet-activity-headline {
+.person-activity-headline {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 4px 12px;
 }
 
-.wallet-activity-status {
+.person-activity-status {
   color: var(--muted);
 }
 
-.wallet-activity-row.is-pending .wallet-activity-status {
+.person-activity-row.is-pending .person-activity-status {
   color: var(--accent);
 }
 
-.wallet-activity-row.is-failed .wallet-activity-status {
+.person-activity-row.is-failed .person-activity-status {
   color: #ff5a52;
 }
 
-.wallet-activity-detail {
+.person-activity-detail {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 12px;
