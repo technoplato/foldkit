@@ -75,6 +75,18 @@ export const Message = S.Union([
 /** Every Brandon dot Message. */
 export type Message = typeof Message.Type
 
+/** The facts that travel on the log, which any guest may read. */
+export const LogMessage = S.Union([
+  AwardedPoints,
+  NotedPlayer,
+  PointedAtSection,
+  ChangedSections,
+  MirroredWallets,
+  RequestedReload,
+])
+/** The facts that travel on the log, which any guest may read. */
+export type LogMessage = typeof LogMessage.Type
+
 /** The tags that travel on the log: facts any guest may read. */
 export const logMessageTags: ReadonlyArray<Message['_tag']> = [
   'AwardedPoints',

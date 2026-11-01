@@ -5,7 +5,7 @@ import {
   snapshotLogMessageWire,
 } from '@foldkit/instant/snapshot-log'
 
-import { Message } from './message.js'
+import { LogMessage } from './message.js'
 import { Model, initialModel } from './model.js'
 
 /**
@@ -51,6 +51,8 @@ export const Projection = SnapshotRow.pipe(
 
 /**
  * Door from a log row to a Message. A fact travels with its fields as
- * JSON, and an unknown tag fails to decode instead of becoming a guess.
+ * JSON. Only the log's own facts decode: a row carrying anything the
+ * origin sends one person, or any other tag, fails instead of becoming a
+ * guess.
  */
-export const MessageWire = snapshotLogMessageWire(Message)
+export const MessageWire = snapshotLogMessageWire(LogMessage)
