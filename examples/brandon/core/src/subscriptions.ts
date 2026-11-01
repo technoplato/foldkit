@@ -6,12 +6,12 @@ import {
   FailedFootball,
   FailedPage,
   FailedWallets,
-  GotFootball,
-  GotPage,
-  GotWallets,
   IgnoredStalePointer,
   IgnoredStaleReload,
   type Message,
+  ReceivedFootball,
+  ReceivedPage,
+  ReceivedWallets,
 } from './message.js'
 import { type Model, Pointer, hasSection } from './model.js'
 import { BrandonServer } from './server.js'
@@ -44,7 +44,7 @@ export const subscriptions = Subscription.make<Model, Message, BrandonServer>()(
               return yield* server.loadPage.pipe(
                 Effect.match({
                   onFailure: reason => FailedPage({ reason }),
-                  onSuccess: page => GotPage({ page }),
+                  onSuccess: page => ReceivedPage({ page }),
                 }),
               )
             }),
@@ -66,7 +66,7 @@ export const subscriptions = Subscription.make<Model, Message, BrandonServer>()(
                     return yield* server.loadFootball.pipe(
                       Effect.match({
                         onFailure: () => FailedFootball(),
-                        onSuccess: games => GotFootball({ games }),
+                        onSuccess: games => ReceivedFootball({ games }),
                       }),
                     )
                   }),
@@ -90,7 +90,7 @@ export const subscriptions = Subscription.make<Model, Message, BrandonServer>()(
                   return yield* server.loadWallets.pipe(
                     Effect.match({
                       onFailure: () => FailedWallets(),
-                      onSuccess: wallets => GotWallets({ wallets }),
+                      onSuccess: wallets => ReceivedWallets({ wallets }),
                     }),
                   )
                 }),

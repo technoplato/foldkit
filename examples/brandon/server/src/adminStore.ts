@@ -14,7 +14,12 @@ import { id, init } from '@instantdb/admin'
 
 import type { Account } from './account.js'
 import { type FactStamp, logFieldsOf } from './facts.js'
-import type { BrandonStore, LinkRow, SectionKind, SectionRow } from './store.js'
+import {
+  type BrandonStore,
+  type LinkRow,
+  SectionKind,
+  type SectionRow,
+} from './store.js'
 import {
   type MirroredWallet,
   mirrorAddress,
@@ -42,13 +47,7 @@ const SectionRowSchema = S.Struct({
   id: S.String,
   sectionKey: S.String,
   title: S.String,
-  kind: S.Literals([
-    'Markdown',
-    'QrLinks',
-    'Scoreboard',
-    'Football',
-    'Wallets',
-  ]),
+  kind: SectionKind,
   column: SectionColumn,
   flag: S.String,
   position: S.Number,
@@ -280,7 +279,7 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
         ).update({
           ...owned,
           title: row.title,
-          kind: row.kind as SectionKind,
+          kind: row.kind,
           column: row.column,
           flag: row.flag,
           position: row.position,

@@ -16,8 +16,8 @@ import { accountKeyOf, defaultAccountKey } from './account.js'
 import { makeBrandonAdmin } from './adminStore.js'
 import { brandonEnv, listOf } from './env.js'
 import { sameTotals } from './facts.js'
-import type { SectionKind } from './store.js'
-import type { WalletNetwork } from './walletMirror.js'
+import { SectionKind } from './store.js'
+import { WalletNetwork } from './walletMirror.js'
 
 // COMMAND
 
@@ -164,7 +164,7 @@ const run = (args: ReadonlyArray<string>): Effect.Effect<void, Error> => {
     return admin.putSection({
       sectionKey: first,
       title: need(parsed, '--title'),
-      kind: need(parsed, '--kind') as SectionKind,
+      kind: S.decodeUnknownSync(SectionKind)(need(parsed, '--kind')),
       column: S.decodeUnknownSync(SectionColumn)(need(parsed, '--column')),
       flag: need(parsed, '--flag'),
       position: Number(need(parsed, '--position')),
@@ -194,8 +194,9 @@ const run = (args: ReadonlyArray<string>): Effect.Effect<void, Error> => {
       ),
     )
   } else if (area === 'wallet' && verb === 'add' && first !== undefined) {
-    const network = (parsed.options.get('--network') ??
-      'Devnet') as WalletNetwork
+    const network = S.decodeUnknownSync(WalletNetwork)(
+      parsed.options.get('--network') ?? 'Devnet',
+    )
     if (network === 'Mainnet' && process.env[mainnetApproved] !== 'yes') {
       return Effect.fail(
         new Error(

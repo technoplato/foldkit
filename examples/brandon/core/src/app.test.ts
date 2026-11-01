@@ -6,9 +6,9 @@ import { startBrandonOn } from './live.js'
 import {
   AwardedPoints,
   ChangedSections,
-  GotPage,
   NotedPlayer,
   PointedAtSection,
+  ReceivedPage,
 } from './message.js'
 import { initialModel, rankedPlayers } from './model.js'
 import { Games, Page, SectionKey, WalletAddresses } from './page.js'
@@ -243,13 +243,13 @@ describe('Brandon dot on the log', () => {
 describe('BrandonProgram', () => {
   it('never writes what a server sent this person to the log', () => {
     const isLocalOnly = BrandonProgram.synchronization?.isLocalOnly
-    expect(isLocalOnly?.(GotPage({ page: emptyPage }))).toBe(true)
+    expect(isLocalOnly?.(ReceivedPage({ page: emptyPage }))).toBe(true)
     expect(isLocalOnly?.(award('1', 'Claude', 1))).toBe(false)
   })
 
   it('keeps the page when the log refolds', () => {
     const keepOnRefold = BrandonProgram.synchronization?.keepOnRefold
-    const current = apply(initialModel, GotPage({ page: emptyPage }))
+    const current = apply(initialModel, ReceivedPage({ page: emptyPage }))
     expect(keepOnRefold?.(current, initialModel).page).toEqual(current.page)
   })
 })

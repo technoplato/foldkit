@@ -32,15 +32,17 @@ export const MirroredWallets = m('MirroredWallets', { atMs: S.Number })
 export const RequestedReload = m('RequestedReload', { atMs: S.Number })
 
 /** The origin sent this person's sections. */
-export const GotPage = m('GotPage', { page: Page })
+export const ReceivedPage = m('ReceivedPage', { page: Page })
 /** The origin refused or could not be reached. */
 export const FailedPage = m('FailedPage', { reason: S.String })
 /** The origin sent this minute's games. */
-export const GotFootball = m('GotFootball', { games: S.Array(Game) })
+export const ReceivedFootball = m('ReceivedFootball', { games: S.Array(Game) })
 /** The games could not be read; the last ones stay on screen. */
 export const FailedFootball = m('FailedFootball')
 /** The origin sent the mirrored addresses this person may see. */
-export const GotWallets = m('GotWallets', { wallets: S.Array(WalletAddress) })
+export const ReceivedWallets = m('ReceivedWallets', {
+  wallets: S.Array(WalletAddress),
+})
 /** The mirror could not be read; the last rows stay on screen. */
 export const FailedWallets = m('FailedWallets')
 /** A fresh pointer moved this page to its section. */
@@ -60,11 +62,11 @@ export const Message = S.Union([
   ChangedSections,
   MirroredWallets,
   RequestedReload,
-  GotPage,
+  ReceivedPage,
   FailedPage,
-  GotFootball,
+  ReceivedFootball,
   FailedFootball,
-  GotWallets,
+  ReceivedWallets,
   FailedWallets,
   CompletedScrollToSection,
   IgnoredStalePointer,

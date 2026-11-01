@@ -1,17 +1,20 @@
 import type { SectionColumn, WalletAddress } from 'brandon-core-example'
-import type { Effect, Option } from 'effect'
+import { type Effect, type Option, Schema as S } from 'effect'
 
 import type { Account } from './account.js'
 
 // STORE
 
 /** What a section paints. */
-export type SectionKind =
-  | 'Markdown'
-  | 'QrLinks'
-  | 'Scoreboard'
-  | 'Football'
-  | 'Wallets'
+export const SectionKind = S.Literals([
+  'Markdown',
+  'QrLinks',
+  'Scoreboard',
+  'Football',
+  'Wallets',
+])
+/** What a section paints. */
+export type SectionKind = typeof SectionKind.Type
 
 /** One link of a QrLinks section, as the row keeps it. */
 export type LinkRow = Readonly<{ label: string; url: string }>

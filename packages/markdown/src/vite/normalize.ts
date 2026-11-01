@@ -145,14 +145,11 @@ const DIRECTIVE_NAME_IN_PROSE_PATTERN = /^[0-9]/
 // NOTE: remark-directive reads the `:34` in `19:34` as an inline directive
 // named `34`. Island names start with a letter, so a name that starts with a
 // digit is a time or a ratio in prose, and it stays text.
-const isColonInProse = (node: PhrasingContent): boolean =>
+const toInline = (node: PhrasingContent): Inline =>
   node.type === 'textDirective' &&
   DIRECTIVE_NAME_IN_PROSE_PATTERN.test(node.name) &&
   Array.isArrayEmpty(node.children)
-
-const toInline = (node: PhrasingContent): Inline =>
-  isColonInProse(node)
-    ? Text({ value: `:${(node as Readonly<{ name: string }>).name}` })
+    ? Text({ value: `:${node.name}` })
     : toSupportedInline(node)
 
 const toSupportedInline = (node: PhrasingContent): Inline =>

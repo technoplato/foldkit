@@ -16,7 +16,9 @@ export const readOnlyRpcMethods = [
 type ReadOnlyRpcMethod = (typeof readOnlyRpcMethods)[number]
 
 /** A network the mirror reads. */
-export type WalletNetwork = 'Devnet' | 'Mainnet'
+export const WalletNetwork = S.Literals(['Devnet', 'Mainnet'])
+/** A network the mirror reads. */
+export type WalletNetwork = typeof WalletNetwork.Type
 
 const rpcUrls: Readonly<Record<WalletNetwork, string>> = {
   Devnet: 'https://api.devnet.solana.com',

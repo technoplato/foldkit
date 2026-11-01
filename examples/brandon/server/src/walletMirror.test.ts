@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect'
+import { Effect, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -11,34 +11,38 @@ const address = 'So11111111111111111111111111111111111111112'
 
 type Call = Readonly<{ url: string; method: string }>
 
-const fakeChain = (calls: Array<Call>): typeof globalThis.fetch =>
-  (async (url: string, init: RequestInit) => {
-    const { method, id } = JSON.parse(init.body as string)
-    calls.push({ url, method })
-    const result =
-      method === 'getBalance'
-        ? { value: 1_500_000_000 }
-        : method === 'getSignaturesForAddress'
-          ? [
-              {
-                signature: 'sig-old',
-                slot: 7,
-                blockTime: 1_793_490_000,
-                err: null,
-              },
-              {
-                signature: 'sig-failed',
-                slot: 8,
-                blockTime: null,
-                err: { InstructionError: [] },
-              },
-            ]
-          : {
-              meta: { preBalances: [10, 2_000], postBalances: [5, 1_500] },
-              transaction: { message: { accountKeys: ['someone', address] } },
-            }
-    return new Response(JSON.stringify({ jsonrpc: '2.0', id, result }))
-  }) as typeof globalThis.fetch
+const replyTo = (method: string): unknown => {
+  if (method === 'getBalance') {
+    return { value: 1_500_000_000 }
+  } else if (method === 'getSignaturesForAddress') {
+    return [
+      { signature: 'sig-old', slot: 7, blockTime: 1_793_490_000, err: null },
+      {
+        signature: 'sig-failed',
+        slot: 8,
+        blockTime: null,
+        err: { InstructionError: [] },
+      },
+    ]
+  } else {
+    return {
+      meta: { preBalances: [10, 2_000], postBalances: [5, 1_500] },
+      transaction: { message: { accountKeys: ['someone', address] } },
+    }
+  }
+}
+
+const RpcCall = S.fromJsonString(S.Struct({ method: S.String, id: S.Number }))
+
+const fakeChain =
+  (calls: Array<Call>): typeof globalThis.fetch =>
+  async (url, init) => {
+    const { method, id } = S.decodeUnknownSync(RpcCall)(init?.body)
+    calls.push({ url: String(url), method })
+    return new Response(
+      JSON.stringify({ jsonrpc: '2.0', id, result: replyTo(method) }),
+    )
+  }
 
 describe('the wallet mirror', () => {
   it('asks a public chain API only to read', async () => {

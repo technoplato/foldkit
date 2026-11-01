@@ -1,7 +1,6 @@
 import {
   FootballSection,
   MarkdownSection,
-  type Message,
   type Page,
   QrLinksSection,
   ScoreboardSection,
@@ -21,17 +20,13 @@ import { view } from './view.js'
 
 const update = (
   model: SyncedBrandonModel,
-  message: Message,
-): readonly [SyncedBrandonModel, ReadonlyArray<never>] => [
-  SyncedBrandon.update(model, message as never)[0],
-  [],
-]
+): readonly [SyncedBrandonModel, ReadonlyArray<never>] => [model, []]
 
 const ready = (fields: Partial<typeof initialModel> = {}): SyncedBrandonModel =>
   SyncedBrandon.update(SyncedBrandon.init()[0], {
     _tag: 'SnapshotReceived',
     model: { ...initialModel, ...fields },
-  } as never)[0]
+  })[0]
 
 const key = (value: string) => SectionKey.make(value)
 

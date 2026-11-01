@@ -91,14 +91,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         { ...model, maybeReloadAtMs: Option.some(atMs) },
         [],
       ],
-      GotPage: ({ page }) => [{ ...model, page: ReadyPage({ page }) }, []],
+      ReceivedPage: ({ page }) => [{ ...model, page: ReadyPage({ page }) }, []],
       FailedPage: ({ reason }) => [
         { ...model, page: FailedToLoadPage({ reason }) },
         [],
       ],
-      GotFootball: ({ games }) => [{ ...model, games }, []],
+      ReceivedFootball: ({ games }) => [{ ...model, games }, []],
       FailedFootball: () => [model, []],
-      GotWallets: ({ wallets }) => [{ ...model, wallets }, []],
+      ReceivedWallets: ({ wallets }) => [{ ...model, wallets }, []],
       FailedWallets: () => [model, []],
       CompletedScrollToSection: ({ sectionKey }) => [
         { ...model, maybeHighlighted: Option.some(sectionKey) },
