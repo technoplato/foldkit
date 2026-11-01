@@ -340,7 +340,7 @@ const walletProfileCard = (
               h.h3([], [wallet.displayName]),
             ],
           ),
-          h.span([], [model.walletNetworkMode]),
+          h.span([], [walletNetworkModeLabel(model.walletNetworkMode)]),
         ],
       ),
       h.ul(
@@ -501,7 +501,7 @@ const walletHome = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
           h.div(
             [],
             [
-              h.p([h.Class('cardboard-eyebrow')], ['Secure local custody']),
+              h.p([h.Class('cardboard-eyebrow')], ['Keys on this device only']),
               h.h2([], ['Your wallets']),
             ],
           ),
