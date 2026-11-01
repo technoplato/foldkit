@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 3:52:22 p.m. EST — `d30b22201f5a` feat(issues): Recordings list their Issues; decisions, questions, reminders
+
+- **Implementation commit:** `d30b22201f5acae2c929842bca25bb012afca8f9`
+- **Change:** A Recording lists the Issues that came from it; decisions, questions and reminders are entities on the issues site.
+- **Details:**
+  - Recording and line pages read sourceMoments rows and tell came-from, also-came-up and mentions apart; a seen moment is never called his words.
+  - Decisions, questions and reminders have pages, chips and Issue page sections from Scribe's rows.
+  - Issue rows and board cards use content-visibility at 720 px and wider.
+- **Files:**
+  - `examples/issues/core/src/reminderPage.ts` — A reminder's page from Scribe's rows.
+  - `examples/issues/core/src/rowChips.ts` — Chips for decisions, questions and reminders in text.
+- **User context (verbatim):**
+  > I want the recordings to list the issues created from them
+- **SpecStory:** unavailable — Headless Claude Code run issues-linear-1538 for #1538; SpecStory does not capture headless runs.
+
 ## November 1st, 2026 at 2:23:15 p.m. EST — `c6b36e818306` feat(issues): a board, saved views, inbox, fields and graph pages
 
 - **Implementation commit:** `c6b36e8183066021d3f35474841bf1f08a53416f`
