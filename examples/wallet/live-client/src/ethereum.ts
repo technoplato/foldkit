@@ -16,6 +16,7 @@ import {
   defineChain,
   getAddress,
   http,
+  isAddress,
   serializeTransaction,
   webSocket,
 } from 'viem'
@@ -206,6 +207,22 @@ const validateRequest = (
     request.assetId !== configuration.asset.assetId
   ) {
     return Effect.fail(invalidResponse())
+  }
+  if (
+    isAddress(request.destinationAddress, { strict: false }) &&
+    !isAddress(request.destinationAddress, { strict: true })
+  ) {
+    return Effect.succeed(
+      RejectedTransfer.make({
+        request,
+        guidance: TransferGuidance.make({
+          summary: "This address's capital letters do not match its checksum.",
+          details: [
+            'One character may be mistyped. Copy the address again from where it came from.',
+          ],
+        }),
+      }),
+    )
   }
   try {
     const destination = getAddress(request.destinationAddress)
