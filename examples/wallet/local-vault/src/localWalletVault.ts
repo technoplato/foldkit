@@ -177,9 +177,19 @@ type LocalWalletServices = Readonly<{
 
 /** Sensitive record definitions reserved for host-owned transfer adapters. */
 export namespace LocalWalletTransferInternal {
-  /** One encoded private key scoped to its blockchain family. */
+  /**
+   * Which money a key holds: real money on its chain's Mainnet, or test
+   * money on every other network of that chain. A key saved without a
+   * scope holds both, as every key did before scopes.
+   */
+  export const StoredWalletKeyScope = S.Literals(['Mainnet', 'Test'])
+  /** Which money a key holds. */
+  export type StoredWalletKeyScope = typeof StoredWalletKeyScope.Type
+
+  /** One encoded private key scoped to its blockchain family and its money. */
   export const StoredWalletChainKey = S.Struct({
     chainId: S.String,
+    scope: S.optionalKey(StoredWalletKeyScope),
     privateKeyHex: S.String,
   })
   /** One encoded private key scoped to its blockchain family. */
@@ -200,6 +210,11 @@ export namespace LocalWalletTransferInternal {
 }
 
 const StoredWalletChainKey = LocalWalletTransferInternal.StoredWalletChainKey
+type StoredWalletKeyScope = LocalWalletTransferInternal.StoredWalletKeyScope
+const storedWalletKeyScopes: ReadonlyArray<StoredWalletKeyScope> = [
+  'Test',
+  'Mainnet',
+]
 type StoredWalletRecord = LocalWalletTransferInternal.StoredWalletRecord
 const StoredWalletRecord = LocalWalletTransferInternal.StoredWalletRecord
 
@@ -460,6 +475,27 @@ export const walletIdForStoredWalletRecord = (encoded: string): string =>
 const encodeStoredRecord = (record: StoredWalletRecord): string =>
   S.encodeSync(StoredWalletRecordJson)(record)
 
+const keyScopeOfConfiguration = (
+  configuration: LiveWalletNetwork,
+): StoredWalletKeyScope =>
+  configuration.network.environment === 'Mainnet' ? 'Mainnet' : 'Test'
+
+const keyScopesForChain = (
+  request: WalletCreationRequest,
+  chainId: string,
+): ReadonlyArray<StoredWalletKeyScope> => {
+  const requestedScopes = Array_.map(
+    Array_.filter(request.networks, network => network.chainId === chainId),
+    network =>
+      keyScopeOfConfiguration(
+        configurationForNetwork(network.networkId, network.chainId),
+      ),
+  )
+  return Array_.filter(storedWalletKeyScopes, scope =>
+    Array_.contains(requestedScopes, scope),
+  )
+}
+
 const createStoredRecord = (
   request: WalletCreationRequest,
   randomBytes: WalletRandomBytes,
@@ -474,16 +510,26 @@ const createStoredRecord = (
     version: storedWalletRecordVersion,
     request,
     createdAt: Date.now(),
-    keys: Array_.map(requestedChainIds, chainId =>
-      StoredWalletChainKey.make({
-        chainId,
-        privateKeyHex: hex.encode(
-          randomPrivateKeyForChain(chainId, randomBytes),
-        ),
-      }),
+    keys: Array_.flatMap(requestedChainIds, chainId =>
+      Array_.map(keyScopesForChain(request, chainId), scope =>
+        StoredWalletChainKey.make({
+          chainId,
+          scope,
+          privateKeyHex: hex.encode(
+            randomPrivateKeyForChain(chainId, randomBytes),
+          ),
+        }),
+      ),
     ),
   })
 }
+
+const sharedKeyScope = 'Shared'
+
+const storedKeyId = (
+  chainId: string,
+  scope: StoredWalletKeyScope | typeof sharedKeyScope,
+): string => `${chainId}|${scope}`
 
 const preparedRecordForRequest = (
   encoded: string,
@@ -503,15 +549,24 @@ const preparedRecordForRequest = (
 const loadedWalletForRecord = (
   record: StoredWalletRecord,
 ): LoadedLocalWallet => {
-  const privateKeysByChainId = new Map<string, Redacted.Redacted<Uint8Array>>()
+  const privateKeysByKeyId = new Map<string, Redacted.Redacted<Uint8Array>>()
   for (const key of record.keys) {
-    if (privateKeysByChainId.has(key.chainId)) {
+    const keyId = storedKeyId(key.chainId, key.scope ?? sharedKeyScope)
+    if (privateKeysByKeyId.has(keyId)) {
       throw invalidKeyMaterial()
     }
-    privateKeysByChainId.set(
-      key.chainId,
+    privateKeysByKeyId.set(
+      keyId,
       Redacted.make(decodePrivateKeyForChain(key.chainId, key.privateKeyHex)),
     )
+  }
+  for (const key of record.keys) {
+    if (
+      key.scope !== undefined &&
+      privateKeysByKeyId.has(storedKeyId(key.chainId, sharedKeyScope))
+    ) {
+      throw invalidKeyMaterial()
+    }
   }
   const networkIds = Array_.map(
     record.request.networks,
@@ -521,14 +576,17 @@ const loadedWalletForRecord = (
     throw invalidKeyMaterial()
   }
   const accounts = Array_.map(record.request.networks, network => {
-    const privateKey = privateKeysByChainId.get(network.chainId)
-    if (privateKey === undefined) {
-      throw invalidKeyMaterial()
-    }
     const configuration = configurationForNetwork(
       network.networkId,
       network.chainId,
     )
+    const privateKey =
+      privateKeysByKeyId.get(
+        storedKeyId(network.chainId, keyScopeOfConfiguration(configuration)),
+      ) ?? privateKeysByKeyId.get(storedKeyId(network.chainId, sharedKeyScope))
+    if (privateKey === undefined) {
+      throw invalidKeyMaterial()
+    }
     const profile = WalletProfileAccount.make({
       accountId: `${record.request.requestId}:${network.networkId}`,
       chainId: network.chainId,
@@ -552,16 +610,17 @@ const loadedWalletForRecord = (
 const canonicalTransferRecord = (
   record: StoredWalletRecord,
 ): StoredWalletRecord => {
-  const privateKeyHexByChainId = new Map<string, string>()
+  const privateKeyHexByKeyId = new Map<string, string>()
   for (const key of record.keys) {
+    const keyId = storedKeyId(key.chainId, key.scope ?? sharedKeyScope)
     if (
       !Array_.contains(requiredTransferChainIds, key.chainId) ||
-      privateKeyHexByChainId.has(key.chainId)
+      privateKeyHexByKeyId.has(keyId)
     ) {
       throw invalidKeyMaterial()
     }
-    privateKeyHexByChainId.set(
-      key.chainId,
+    privateKeyHexByKeyId.set(
+      keyId,
       hex.encode(decodePrivateKeyForChain(key.chainId, key.privateKeyHex)),
     )
   }
@@ -599,20 +658,39 @@ const canonicalTransferRecord = (
   const canonicalChainIds = Array_.filter(requiredTransferChainIds, chainId =>
     Array_.some(canonicalNetworks, network => network.chainId === chainId),
   )
-  const canonicalKeys = Array_.map(canonicalChainIds, chainId => {
-    const privateKeyHex = privateKeyHexByChainId.get(chainId)
+  const canonicalRequest = WalletCreationRequest.make({
+    requestId: record.request.requestId,
+    displayName: record.request.displayName,
+    networks: canonicalNetworks,
+  })
+  const requiredKeyHex = (keyId: string): string => {
+    const privateKeyHex = privateKeyHexByKeyId.get(keyId)
     if (privateKeyHex === undefined) {
       throw invalidKeyMaterial()
     }
-    return StoredWalletChainKey.make({ chainId, privateKeyHex })
-  })
+    return privateKeyHex
+  }
+  const canonicalKeys = Array_.flatMap(canonicalChainIds, chainId =>
+    privateKeyHexByKeyId.has(storedKeyId(chainId, sharedKeyScope))
+      ? [
+          StoredWalletChainKey.make({
+            chainId,
+            privateKeyHex: requiredKeyHex(
+              storedKeyId(chainId, sharedKeyScope),
+            ),
+          }),
+        ]
+      : Array_.map(keyScopesForChain(canonicalRequest, chainId), scope =>
+          StoredWalletChainKey.make({
+            chainId,
+            scope,
+            privateKeyHex: requiredKeyHex(storedKeyId(chainId, scope)),
+          }),
+        ),
+  )
   const canonicalRecord = StoredWalletRecord.make({
     version: storedWalletRecordVersion,
-    request: WalletCreationRequest.make({
-      requestId: record.request.requestId,
-      displayName: record.request.displayName,
-      networks: canonicalNetworks,
-    }),
+    request: canonicalRequest,
     createdAt: record.createdAt,
     keys: canonicalKeys,
   })
