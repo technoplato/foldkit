@@ -981,6 +981,37 @@ export const initialModel: Model = {
   transactions: [],
 }
 
+/**
+ * True when a preview is exactly the send the screen shows: the selected
+ * account, asset and network, the entered amount, and the entered
+ * recipient. Confirm signs nothing else.
+ *
+ * @example
+ * ```typescript
+ * isPreviewOfEnteredTransfer(model, preview) // false once the amount is edited
+ * ```
+ */
+export const isPreviewOfEnteredTransfer = (
+  model: Model,
+  preview: TransactionPreview,
+): boolean => {
+  const { request, recipient } = preview.transfer
+  return (
+    Option.exists(
+      model.maybeSendNetworkSelection,
+      selection =>
+        selection.accountId === request.accountId &&
+        selection.assetId === request.assetId &&
+        selection.networkId === recipient.networkId,
+    ) &&
+    model.transferAmount._tag === 'ValidTransferAmount' &&
+    model.transferAmount.atomicUnits === request.atomicUnits &&
+    model.transferRecipient._tag === 'ValidTransferRecipient' &&
+    model.transferRecipient.recipient.networkId === recipient.networkId &&
+    model.transferRecipient.recipient.address === recipient.address
+  )
+}
+
 /** Derives address-book familiarity from one adapter-normalized recipient. */
 export const familiarityForRecipient = (
   entries: ReadonlyArray<AddressBookEntry>,

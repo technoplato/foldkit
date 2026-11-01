@@ -117,6 +117,7 @@ import {
   doesPortfolioIncludeWalletProfiles,
   familiarityForRecipient,
   isPortfolioSnapshotConsistent,
+  isPreviewOfEnteredTransfer,
   isTransactionSubmissionConsistent,
   maximumTransactionHistoryPageSize,
   mergeTransactionRecords,
@@ -620,6 +621,15 @@ const commandsAfterPortfolioHydration = (
   ...transactionCommandsForRestore(model),
   ...historyCommandsForRestore(model),
 ]
+
+const unenteredPreviewFailure = NetworkFailure.make({
+  operation: 'PreviewTransfer',
+  code: 'InvalidResponse',
+  maybeGuidance: Option.some({
+    summary: 'This preview is not what you entered, so nothing was signed.',
+    details: ['Preview the send again.'],
+  }),
+})
 
 const interruptedSubmissionFailure = NetworkFailure.make({
   operation: 'SubmitTransaction',
@@ -1627,10 +1637,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           : [model, []],
       RequestedSignedTransactionSubmission: ({ previewId }) => {
         if (
-          model.transaction._tag === 'PreviewedTransaction' &&
-          model.transaction.preview.previewId === previewId
+          model.transaction._tag !== 'PreviewedTransaction' ||
+          model.transaction.preview.previewId !== previewId
         ) {
-          const preview: TransactionPreview = model.transaction.preview
+          return [model, []]
+        }
+        const preview: TransactionPreview = model.transaction.preview
+        if (isPreviewOfEnteredTransfer(model, preview)) {
           return [
             {
               ...model,
@@ -1639,7 +1652,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             [SignAndSubmitTransaction({ preview })],
           ]
         } else {
-          return [model, []]
+          return [
+            {
+              ...model,
+              transaction: FailedTransactionPreview.make({
+                transfer: preview.transfer,
+                failure: unenteredPreviewFailure,
+              }),
+            },
+            [],
+          ]
         }
       },
       SucceededSubmitSignedTransaction: ({ submission }) => {
