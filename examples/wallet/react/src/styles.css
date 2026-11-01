@@ -593,3 +593,64 @@ select {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.wallet-network-banner {
+  display: grid;
+  gap: 0.3rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--cardboard-radius);
+  border: 0.2rem solid;
+  line-height: 1.35;
+}
+
+.wallet-network-banner strong {
+  font-size: clamp(1.35rem, 5vw, 1.8rem);
+  letter-spacing: 0.02em;
+}
+
+.wallet-network-banner.is-test-money {
+  color: #d9f2ff;
+  background: #10324a;
+  border-color: #4fb3e8;
+}
+
+.wallet-network-banner.is-real-money {
+  color: #fff4f2;
+  background: #6b1410;
+  border-color: #ff6a5c;
+}
+
+.wallet-stack.is-real-money .wallet-send,
+.wallet-send.is-real-money {
+  border: 0.2rem solid #ff6a5c;
+}
+
+.wallet-preview.is-real-money {
+  border: 0.15rem dashed #ff6a5c;
+  border-radius: 1rem;
+  padding: 0.75rem;
+}
+
+.wallet-real-money-warning {
+  margin: 0 0 0.5rem;
+  color: #ffb3aa;
+  font-weight: 900;
+}
+
+.wallet-real-money-button {
+  color: #fff4f2;
+  background: #b3261e;
+}
+
+.wallet-full-address {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  font-size: 0.95rem;
+}
+
+.wallet-loss-warning {
+  margin: 0.75rem 0 0;
+  color: var(--cardboard-amber);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}

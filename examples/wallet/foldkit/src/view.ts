@@ -1,4 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
+import { Submodel } from 'foldkit'
 import { type Document, type Html, html } from 'foldkit/html'
 import {
   ChangedTransferAmount,
@@ -29,17 +30,17 @@ import {
   activeWalletAccounts,
   assetAmountLabelForModel,
   availableSendNetworkSelections,
+  availableWalletNetworkModes,
   clipboardCopyFailureMessage,
   clipboardCopyLabel,
   clipboardCopyRequestForAddress,
-  isPrimaryWalletBalanceUnavailable,
   isSameClipboardCopyRequest,
   isTransferPreviewActionEnabled,
   makeWalletTestChallenge,
   primaryReceivingInstruction,
   primaryWalletAccount,
   primaryWalletAsset,
-  primaryWalletBalance,
+  primaryWalletBalanceLabel,
   primaryWalletNetwork,
   primaryWalletSuggestedTestTransferAmount,
   primaryWalletSuggestedTestTransferLabel,
@@ -49,12 +50,14 @@ import {
   sendNetworkSelectionLabel,
   shortenedAddress,
   transferAmountInput,
+  transferConfirmation,
   transferPreviewReadinessLabel,
   transferRecipientInput,
   walletAccountBalanceLabel,
   walletDataSourceDetail,
   walletDataSourceLabel,
   walletFailureLines,
+  walletNetworkModeLabel,
 } from 'wallet-core-example'
 import {
   type ReceivingQrHostOrigin,
@@ -189,6 +192,9 @@ const copyAddressControl = (
   )
 }
 
+const isSending = (model: Model): boolean =>
+  model.transaction._tag === 'SubmittingTransaction'
+
 const networkModePicker = (model: Model): Html => {
   const h = html<Message>()
   return h.select(
@@ -196,6 +202,7 @@ const networkModePicker = (model: Model): Html => {
       h.Class('wallet-select'),
       h.AriaLabel('Wallet network mode'),
       h.Value(model.walletNetworkMode),
+      h.Disabled(isSending(model)),
       h.OnChange(value =>
         SelectedWalletNetworkMode.make({
           networkMode: walletNetworkModeFromValue(
@@ -205,11 +212,50 @@ const networkModePicker = (model: Model): Html => {
         }),
       ),
     ],
+    Array.map(availableWalletNetworkModes(model), networkMode =>
+      h.option([h.Value(networkMode)], [walletNetworkModeLabel(networkMode)]),
+    ),
+  )
+}
+
+const isRealMoneyMode = (networkMode: WalletNetworkMode): boolean =>
+  networkMode === 'Live'
+
+const networkBannerWords = (
+  networkMode: WalletNetworkMode,
+): Readonly<{ headline: string; detail: string }> =>
+  M.value(networkMode).pipe(
+    M.withReturnType<Readonly<{ headline: string; detail: string }>>(),
+    M.when('Devnet', () => ({
+      headline: 'Devnet: test money',
+      detail: 'Nothing here is worth anything. Sends cannot move real money.',
+    })),
+    M.when('Testnet', () => ({
+      headline: 'Testnet: test money',
+      detail: 'Nothing here is worth anything. Sends cannot move real money.',
+    })),
+    M.when('Live', () => ({
+      headline: 'Mainnet: real money',
+      detail: 'A send here moves real money and cannot be undone.',
+    })),
+    M.exhaustive,
+  )
+
+const networkBanner = (model: Model): Html => {
+  const h = html<Message>()
+  const words = networkBannerWords(model.walletNetworkMode)
+  return h.div(
     [
-      h.option([h.Value('Devnet')], ['Devnet']),
-      h.option([h.Value('Testnet')], ['Testnet']),
-      h.option([h.Value('Live')], ['Live']),
+      h.Class(
+        isRealMoneyMode(model.walletNetworkMode)
+          ? 'wallet-network-banner is-real-money'
+          : 'wallet-network-banner is-test-money',
+      ),
+      h.Role('status'),
+      h.AriaLive('polite'),
+      h.DataAttribute('wallet-network-mode', model.walletNetworkMode),
     ],
+    [h.strong([], [words.headline]), h.span([], [words.detail])],
   )
 }
 
@@ -431,7 +477,7 @@ const walletHome = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
               h.p(
                 [],
                 [
-                  'Create one wallet with Bitcoin, Ethereum, Solana, and Sui accounts.',
+                  'Create a wallet with an account on every network this page offers. Its keys are made on this device and never leave it.',
                 ],
               ),
             ],
@@ -479,6 +525,12 @@ const walletHome = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
       ),
       ...creationFailure,
       profiles,
+      h.p(
+        [h.Class('wallet-loss-warning'), h.Role('note')],
+        [
+          'The only copy of these keys is in this browser on this device. There is no backup: clearing website data, closing a private tab, or leaving the page unopened in Safari for a week can erase them, and the money with them. Keep amounts small.',
+        ],
+      ),
     ],
   )
 }
@@ -486,20 +538,7 @@ const walletHome = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
 const walletHero = (model: Model): Html => {
   const h = html<Message>()
   const maybeAccount = primaryWalletAccount(model)
-  const maybeBalance = primaryWalletBalance(model)
-  const isBalanceUnavailable = isPrimaryWalletBalanceUnavailable(model)
-  const balanceLabel = Option.match(maybeBalance, {
-    onNone: () => {
-      if (model.portfolio._tag === 'LoadingPortfolio') {
-        return 'Loading…'
-      } else if (isBalanceUnavailable) {
-        return 'Unavailable. Refresh to retry.'
-      } else {
-        return '—'
-      }
-    },
-    onSome: balance => assetAmountLabelForModel(model, balance.amount),
-  })
+  const balanceLabel = primaryWalletBalanceLabel(model)
   const accountLabel = Option.match(maybeAccount, {
     onNone: () =>
       model.portfolio._tag === 'LoadingPortfolio'
@@ -615,6 +654,7 @@ const sendNetworkButtons = (model: Model): Html => {
                       ? 'wallet-rail-button selected'
                       : 'wallet-rail-button',
                   ),
+                  h.Disabled(isSending(model)),
                   h.AriaPressed(
                     (
                       sendNetworkSelectionIdentity(selection) ===
@@ -639,22 +679,45 @@ const sendNetworkButtons = (model: Model): Html => {
   })
 }
 
+const confirmButtonLabel = (model: Model, preview: TransactionPreview) =>
+  Option.match(transferConfirmation(model, preview), {
+    onNone: () => 'Confirm send',
+    onSome: confirmation =>
+      confirmation.isRealMoney
+        ? `Send ${confirmation.amountLabel} of real money on ${confirmation.networkName}`
+        : `Send ${confirmation.amountLabel} on ${confirmation.networkName}`,
+  })
+
+const isRealMoneyPreview = (
+  model: Model,
+  preview: TransactionPreview,
+): boolean =>
+  Option.exists(
+    transferConfirmation(model, preview),
+    confirmation => confirmation.isRealMoney,
+  )
+
 const sendButton = (model: Model): Html => {
   const h = html<Message>()
   if (model.transaction._tag === 'PreviewedTransaction') {
+    const preview = model.transaction.preview
     return h.button(
       [
         h.Type('button'),
-        h.Class('cardboard-button primary'),
+        h.Class(
+          isRealMoneyPreview(model, preview)
+            ? 'cardboard-button primary wallet-real-money-button'
+            : 'cardboard-button primary',
+        ),
         h.AriaDescribedBy('wallet-send-readiness'),
         h.Disabled(!isTransferPreviewActionEnabled(model)),
         h.OnClick(
           RequestedSignedTransactionSubmission.make({
-            previewId: model.transaction.preview.previewId,
+            previewId: preview.previewId,
           }),
         ),
       ],
-      ['Confirm send'],
+      [confirmButtonLabel(model, preview)],
     )
   }
   if (!isTransferPreviewActionEnabled(model)) {
@@ -775,6 +838,7 @@ const sendMoney = (model: Model): Html => {
       h.input([
         h.Id('wallet-amount'),
         h.Type('text'),
+        h.InputMode('decimal'),
         h.Placeholder('0.00'),
         h.Value(transferAmountInput(model.transferAmount)),
         h.Disabled(model.transaction._tag === 'SubmittingTransaction'),
@@ -838,65 +902,81 @@ const sendMoney = (model: Model): Html => {
         ],
       ),
     onSome: transactionPreview =>
-      h.div(
-        [h.Class('wallet-preview')],
-        [
+      Option.match(transferConfirmation(model, transactionPreview), {
+        onNone: () =>
+          h.p(
+            [h.Class('wallet-validation'), h.Role('alert')],
+            ['This preview names a network this page does not have.'],
+          ),
+        onSome: confirmation =>
           h.div(
-            [],
             [
-              h.span([], ['To']),
+              h.Class(
+                confirmation.isRealMoney
+                  ? 'wallet-preview is-real-money'
+                  : 'wallet-preview',
+              ),
+              h.AriaLabel('What this send signs'),
+            ],
+            [
+              ...(confirmation.isRealMoney
+                ? [
+                    h.p(
+                      [h.Class('wallet-real-money-warning'), h.Role('alert')],
+                      [
+                        'Real money. A sent transaction cannot be undone. Check every character of the address.',
+                      ],
+                    ),
+                  ]
+                : []),
               h.div(
-                [h.Class('wallet-preview-value')],
+                [],
                 [
-                  h.strong(
-                    [],
+                  h.span([], ['Send']),
+                  h.strong([], [confirmation.amountLabel]),
+                ],
+              ),
+              h.div(
+                [],
+                [h.span([], ['On']), h.strong([], [confirmation.networkName])],
+              ),
+              h.div(
+                [h.Class('wallet-preview-recipient')],
+                [
+                  h.span([], ['To']),
+                  h.div(
+                    [h.Class('wallet-preview-value')],
                     [
-                      shortenedAddress(
-                        transactionPreview.transfer.recipient.displayAddress,
+                      h.code(
+                        [h.Class('wallet-full-address')],
+                        [confirmation.recipientAddress],
+                      ),
+                      copyAddressControl(
+                        model,
+                        confirmation.recipientAddress,
+                        'transfer-preview-recipient',
                       ),
                     ],
                   ),
-                  copyAddressControl(
-                    model,
-                    transactionPreview.transfer.recipient.displayAddress,
-                    'transfer-preview-recipient',
-                  ),
                 ],
               ),
-            ],
-          ),
-          h.div(
-            [],
-            [
-              h.span([], ['Network fee']),
-              h.strong(
+              h.div(
                 [],
                 [
-                  assetAmountLabelForModel(
-                    model,
-                    transactionPreview.estimatedFee,
-                  ),
+                  h.span([], ['Network fee']),
+                  h.strong([], [confirmation.feeLabel]),
                 ],
               ),
-            ],
-          ),
-          h.div(
-            [],
-            [
-              h.span([], ['Balance after']),
-              h.strong(
+              h.div(
                 [],
                 [
-                  assetAmountLabelForModel(
-                    model,
-                    transactionPreview.resultingBalance,
-                  ),
+                  h.span([], ['Balance after']),
+                  h.strong([], [confirmation.balanceAfterLabel]),
                 ],
               ),
             ],
           ),
-        ],
-      ),
+      }),
   })
   const confirmation = submittedTransactionConfirmation(model)
   const maybeExternalTestFunding = Option.flatMap(
@@ -1006,7 +1086,13 @@ const sendMoney = (model: Model): Html => {
         ]
       : []
   return h.section(
-    [h.Class('wallet-send cardboard-panel')],
+    [
+      h.Class(
+        isRealMoneyMode(model.walletNetworkMode)
+          ? 'wallet-send cardboard-panel is-real-money'
+          : 'wallet-send cardboard-panel',
+      ),
+    ],
     [
       h.div(
         [h.Class('wallet-section-heading')],
@@ -1014,7 +1100,14 @@ const sendMoney = (model: Model): Html => {
           h.div(
             [],
             [
-              h.p([h.Class('cardboard-eyebrow')], ['Send']),
+              h.p(
+                [h.Class('cardboard-eyebrow')],
+                [
+                  isRealMoneyMode(model.walletNetworkMode)
+                    ? `Send real money on ${networkName}`
+                    : `Send test money on ${networkName}`,
+                ],
+              ),
               h.h2(
                 [],
                 [
@@ -1277,30 +1370,59 @@ const advancedDetails = (model: Model): Html => {
   )
 }
 
+/** How a host embeds the Wallet: its QR trust context and which panels show. */
+export type WalletViewOptions = Readonly<{
+  hostOrigin: ReceivingQrHostOrigin
+  isAdvancedShown: boolean
+}>
+
+/**
+ * The Wallet as a Submodel view, for a host that embeds it with
+ * `h.submodel`: the network banner first, then wallets, balance, send and
+ * activity.
+ *
+ * @example
+ * ```typescript
+ * const walletView = makeWalletView({ hostOrigin, isAdvancedShown: false })
+ * h.submodel({ slotId: 'wallet', model, view: walletView, toParentMessage })
+ * ```
+ */
+export const makeWalletView = (options: WalletViewOptions) =>
+  Submodel.defineView<Model, Message>(model => {
+    const h = html<Message>()
+    return h.div(
+      [
+        h.Class(
+          isRealMoneyMode(model.walletNetworkMode)
+            ? 'wallet-stack is-real-money'
+            : 'wallet-stack',
+        ),
+      ],
+      [
+        networkBanner(model),
+        walletHome(model, options.hostOrigin),
+        walletHero(model),
+        sendMoney(model),
+        activity(model),
+        ...(options.isAdvancedShown ? [advancedDetails(model)] : []),
+      ],
+    )
+  })
+
 /** Creates a Foldkit Wallet view closed over host-owned QR trust context. */
-export const makeView =
-  (hostOrigin: ReceivingQrHostOrigin) =>
-  (model: Model): Document => {
+export const makeView = (hostOrigin: ReceivingQrHostOrigin) => {
+  const walletView = makeWalletView({ hostOrigin, isAdvancedShown: true })
+  return (model: Model): Document => {
     const h = html<Message>()
     return {
       title: 'Wallet | Foldkit',
       body: h.main(
         [h.Class('wallet-shell cardboard-surface')],
-        [
-          h.div(
-            [h.Class('wallet-stack')],
-            [
-              walletHome(model, hostOrigin),
-              walletHero(model),
-              sendMoney(model),
-              activity(model),
-              advancedDetails(model),
-            ],
-          ),
-        ],
+        [walletView(model)],
       ),
     }
   }
+}
 
 /** Renders a fresh-host Wallet Model with ordinary Foldkit HTML. */
 export const view = makeView(freshWalletHostOrigin)
