@@ -224,7 +224,9 @@ const solanaRpcGuidance = (
   }
   return TransferGuidance.make({
     summary: 'Solana rejected this transfer.',
-    details: [message],
+    details: [
+      'Check the amount and the address, then preview it again.',
+    ],
   })
 }
 
