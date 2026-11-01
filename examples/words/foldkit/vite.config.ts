@@ -5,6 +5,7 @@ import { defineConfig } from 'vite'
 import { foldkit } from '@foldkit/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
+import { siteSourceHeader } from '../../site-source-header'
 import { foldkitAliases, instantBrowserAlias } from '../../vite.aliases'
 import {
   appleAppSiteAssociation,
@@ -49,6 +50,7 @@ export default defineConfig({
     appleAppSiteAssociation(),
     devImpersonation(),
     wordsHostedIdentity(),
+    siteSourceHeader(),
   ],
   resolve: {
     alias: {
