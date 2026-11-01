@@ -1905,15 +1905,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         const accountIds = accountIdsFromModel(model)
         return Array_.match(accountIds, {
           onEmpty: () => [model, []],
-          onNonEmpty: observedAccountIds => [
-            {
-              ...model,
-              transactionObservation: ObservingTransactions.make({
-                accountIds: observedAccountIds,
-              }),
-            },
-            [],
-          ],
+          onNonEmpty: observedAccountIds =>
+            withBalanceRefresh(
+              {
+                ...model,
+                transactionObservation: ObservingTransactions.make({
+                  accountIds: observedAccountIds,
+                }),
+              },
+              [],
+            ),
         })
       },
     }),
