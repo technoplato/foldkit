@@ -1,12 +1,13 @@
 import {
   AwardedPoints,
+  BrandonProgram,
   ChangedSections,
   type Message,
   MirroredWallets,
   SectionColumn,
   WalletAddress,
 } from 'brandon-core-example'
-import { Array, Effect, Option, Order, Schema as S } from 'effect'
+import { Array, Effect, Option, Order, Result, Schema as S } from 'effect'
 import { randomUUID } from 'node:crypto'
 
 import { id, init } from '@instantdb/admin'
@@ -78,7 +79,20 @@ const AddressRow = S.Struct({
 })
 type AddressRow = typeof AddressRow.Type
 
-const ScoreEvent = S.Struct({ points: S.Number })
+const ScoreEvent = S.Struct({
+  id: S.String,
+  points: S.Number,
+  reason: S.optionalKey(S.NullOr(S.String)),
+  awardedBy: S.String,
+})
+
+const LoggedAward = S.Struct({
+  payload: S.Struct({
+    eventId: S.String,
+    name: S.String,
+    points: S.Number,
+  }),
+})
 
 const PlayerRow = S.Struct({
   id: S.String,
@@ -157,6 +171,8 @@ export type BrandonAdmin = BrandonStore &
     scoreTotals: (
       gameKey: string,
     ) => Effect.Effect<ReadonlyMap<string, number>, Error>
+    logTotals: Effect.Effect<ReadonlyMap<string, number>, Error>
+    syncScoresToLog: (gameKey: string) => Effect.Effect<number, Error>
     awardPoints: (
       award: Readonly<{
         gameKey: string
@@ -376,6 +392,62 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
         ),
     )
 
+  const loggedAwards = attempt(() =>
+    admin.query({
+      programMessage: {
+        $: { where: { app: BrandonProgram.id, tag: 'AwardedPoints' } },
+      },
+    }),
+  ).pipe(
+    Effect.map(result =>
+      S.decodeUnknownSync(S.Array(LoggedAward))(result['programMessage']),
+    ),
+  )
+
+  const logTotals: BrandonAdmin['logTotals'] = Effect.map(
+    loggedAwards,
+    awards => {
+      const counted = new Map(
+        Array.map(awards, ({ payload }) => [payload.eventId, payload] as const),
+      )
+      const totals = new Map<string, number>()
+      counted.forEach(({ name, points }) => {
+        totals.set(name, (totals.get(name) ?? 0) + points)
+      })
+      return totals
+    },
+  )
+
+  const syncScoresToLog: BrandonAdmin['syncScoresToLog'] = gameKey =>
+    Effect.gen(function* () {
+      const rows = yield* players(gameKey)
+      const awards = yield* loggedAwards
+      const logged = new Set(
+        Array.map(awards, ({ payload }) => payload.eventId),
+      )
+      const missing = Array.flatMap(rows, player =>
+        Array.filterMap(player.scoreEvents ?? [], event =>
+          logged.has(event.id)
+            ? Result.failVoid
+            : Result.succeed(
+                factStep(
+                  AwardedPoints({
+                    eventId: event.id,
+                    name: player.displayName,
+                    points: event.points,
+                    reason: event.reason ?? '',
+                    awardedBy: event.awardedBy,
+                  }),
+                ),
+              ),
+        ),
+      )
+      if (Array.isArrayNonEmpty([...missing])) {
+        yield* attempt(() => admin.transact(missing))
+      }
+      return missing.length
+    })
+
   const awardPoints: BrandonAdmin['awardPoints'] = award =>
     Effect.gen(function* () {
       const known = yield* players(award.gameKey)
@@ -434,6 +506,8 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
     addWallet,
     mirrorWallets,
     scoreTotals,
+    logTotals,
+    syncScoresToLog,
     awardPoints,
   }
 }

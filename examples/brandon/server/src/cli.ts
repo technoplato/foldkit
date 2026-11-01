@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import { accountKeyOf, defaultAccountKey } from './account.js'
 import { makeBrandonAdmin } from './adminStore.js'
 import { brandonEnv, listOf } from './env.js'
+import { sameTotals } from './facts.js'
 import type { SectionKind } from './store.js'
 import type { WalletNetwork } from './walletMirror.js'
 
@@ -23,6 +24,8 @@ const usage = `brandon: drive Brandon dot (the page follows within a second).
   brandon go <section-key>                     point every open page at a section
   brandon reload                               reload every open page
   brandon score list [--game KEY]              each player's total
+  brandon score sync [--game KEY]              copy Scribe's score rows missing from the log
+  brandon score check [--game KEY]             the log's totals against Scribe's rows
   brandon score add <name> <points> "<reason>" [--by NAME] [--segment N] [--recording ID] [--game KEY]
                                                a correction is negative points
   brandon note <name> "<note>" [--dunce]       a note beside a player
@@ -100,6 +103,19 @@ const run = (args: ReadonlyArray<string>): Effect.Effect<void, Error> => {
           .join('\n'),
       ),
     )
+  } else if (area === 'score' && verb === 'sync') {
+    return Effect.flatMap(admin.syncScoresToLog(game), written =>
+      print(`${written.toString()} score row(s) copied to the log.`),
+    )
+  } else if (area === 'score' && verb === 'check') {
+    return Effect.gen(function* () {
+      const fromLog = yield* admin.logTotals
+      const fromScribe = yield* admin.scoreTotals(game)
+      yield* Option.match(sameTotals(fromLog, fromScribe), {
+        onNone: () => print('The log and Scribe agree.'),
+        onSome: difference => Effect.fail(new Error(difference)),
+      })
+    })
   } else if (
     area === 'score' &&
     verb === 'add' &&
