@@ -351,3 +351,19 @@ describe('Wallet Foldkit client', () => {
     )
   })
 })
+
+describe('Wallet words a person reads', () => {
+  test('say where the keys are, and name the mode the way the picker does', () => {
+    const live = Model.make({
+      ...loadedModel([simulatedWallet]),
+      walletNetworkMode: 'Live',
+    })
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(live),
+      Scene.expect(Scene.text('Keys on this device only')).toExist(),
+      Scene.expect(Scene.text('Secure local custody')).toBeAbsent(),
+      Scene.expect(Scene.text('Live')).toBeAbsent(),
+    )
+  })
+})
