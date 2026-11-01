@@ -1,6 +1,13 @@
 import { Context, Effect } from 'effect'
 
-import type { Game, Page, SectionKey, WalletAddress } from './page.js'
+import type {
+  Game,
+  Page,
+  SectionKey,
+  WalletActivityEntry,
+  WalletAddress,
+  WalletPublicAccount,
+} from './page.js'
 
 // SERVICE
 
@@ -16,6 +23,10 @@ export class BrandonServer extends Context.Service<
     loadPage: Effect.Effect<Page, string>
     loadFootball: Effect.Effect<ReadonlyArray<Game>, string>
     loadWallets: Effect.Effect<ReadonlyArray<WalletAddress>, string>
+    loadWalletActivity: Effect.Effect<ReadonlyArray<WalletActivityEntry>, string>
+    watchWalletAccounts: (
+      accounts: ReadonlyArray<WalletPublicAccount>,
+    ) => Effect.Effect<void, string>
     scrollToSection: (sectionKey: SectionKey) => Effect.Effect<void>
     reloadPage: Effect.Effect<void>
     nowMs: Effect.Effect<number>

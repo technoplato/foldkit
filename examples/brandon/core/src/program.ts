@@ -50,6 +50,8 @@ export const BrandonProgram: Program.Program<
       wallets: current.wallets,
       maybeHighlighted: current.maybeHighlighted,
       wallet: current.wallet,
+      walletActivity: current.walletActivity,
+      walletWatch: current.walletWatch,
     }),
   },
 })

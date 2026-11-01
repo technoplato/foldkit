@@ -7,6 +7,8 @@ import {
   liveWalletNetworkForId,
 } from 'wallet-live-client-example'
 
+import { WatchedNetworkId } from './page.js'
+
 // WALLET
 
 /**
@@ -14,12 +16,8 @@ import {
  * list them. Devnet holds Solana Devnet and Ethereum Sepolia; Mainnet
  * holds both mainnets.
  */
-export const brandonWalletNetworkIds: ReadonlyArray<NetworkId> = [
-  'solana:devnet',
-  'ethereum:sepolia',
-  'solana:mainnet-beta',
-  'ethereum:mainnet',
-]
+export const brandonWalletNetworkIds: ReadonlyArray<NetworkId> =
+  WatchedNetworkId.literals
 
 const inDevnetMode = (configuration: LiveWalletNetwork): LiveWalletNetwork =>
   M.value(configuration).pipe(

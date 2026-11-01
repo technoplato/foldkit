@@ -10,14 +10,20 @@ import {
 } from './message.js'
 import {
   ClosedWallet,
+  ConfirmedWalletWatch,
   FailedToLoadPage,
+  FailedWalletWatch,
+  LoadedWalletActivity,
   type Model,
   OpenWallet,
   type Player,
   ReadyPage,
+  UnavailableWalletActivity,
+  type WalletActivityState,
   type WalletState,
 } from './model.js'
-import type { Page } from './page.js'
+import type { Page, WalletActivityEntry } from './page.js'
+import { hasNewActivity } from './walletActivity.js'
 
 // UPDATE
 
@@ -96,12 +102,40 @@ const walletForPage = (wallet: WalletState, page: Page): WalletReturn =>
     }),
   )
 
+const updatedWallet = (model: Model, message: Wallet.Message): UpdateReturn =>
+  M.value(model.wallet).pipe(
+    withUpdateReturn,
+    M.tagsExhaustive({
+      ClosedWallet: () => [model, []],
+      OpenWallet: ({ model: walletModel }) => {
+        const [nextWalletModel, commands] = Wallet.update(walletModel, message)
+        return [
+          { ...model, wallet: OpenWallet({ model: nextWalletModel }) },
+          toBrandonCommands(commands),
+        ]
+      },
+    }),
+  )
+
+const knownActivity = (
+  walletActivity: WalletActivityState,
+): ReadonlyArray<WalletActivityEntry> =>
+  M.value(walletActivity).pipe(
+    M.withReturnType<ReadonlyArray<WalletActivityEntry>>(),
+    M.tagsExhaustive({
+      LoadingWalletActivity: () => [],
+      LoadedWalletActivity: ({ entries }) => entries,
+      UnavailableWalletActivity: ({ entries }) => entries,
+    }),
+  )
+
 /**
  * The log's facts fold the scoreboard and the revisions; everything the
  * origin sends only lands in the Model. Subscriptions do the reading, so a
  * replay of the log repeats no work. The wallet opens when the origin
  * sends its section and shuts when the origin stops; a failed read leaves
- * it as it is, so a send in flight keeps its result.
+ * it as it is, so a send in flight keeps its result. A transaction the
+ * page did not know moves the wallet's balance at once.
  */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -127,6 +161,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         { ...model, walletsRevision: model.walletsRevision + 1 },
         [],
       ],
+      ChangedWalletActivity: () => [
+        {
+          ...model,
+          walletActivityRevision: model.walletActivityRevision + 1,
+        },
+        [],
+      ],
       RequestedReload: ({ atMs }) => [
         { ...model, maybeReloadAtMs: Option.some(atMs) },
         [],
@@ -143,31 +184,38 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       FailedFootball: () => [model, []],
       ReceivedWallets: ({ wallets }) => [{ ...model, wallets }, []],
       FailedWallets: () => [model, []],
+      ReceivedWalletActivity: ({ entries }) => {
+        const nextModel = {
+          ...model,
+          walletActivity: LoadedWalletActivity({ entries }),
+        }
+        return hasNewActivity(model.walletActivity, entries)
+          ? updatedWallet(nextModel, Wallet.RequestedBalanceRefresh.make({}))
+          : [nextModel, []]
+      },
+      FailedWalletActivity: () => [
+        {
+          ...model,
+          walletActivity: UnavailableWalletActivity({
+            entries: knownActivity(model.walletActivity),
+          }),
+        },
+        [],
+      ],
+      SucceededWatchWalletAccounts: () => [
+        { ...model, walletWatch: ConfirmedWalletWatch() },
+        [],
+      ],
+      FailedWatchWalletAccounts: () => [
+        { ...model, walletWatch: FailedWalletWatch() },
+        [],
+      ],
       CompletedScrollToSection: ({ sectionKey }) => [
         { ...model, maybeHighlighted: Option.some(sectionKey) },
         [],
       ],
       IgnoredStalePointer: () => [model, []],
       IgnoredStaleReload: () => [model, []],
-      GotWalletMessage: ({ message }) =>
-        M.value(model.wallet).pipe(
-          withUpdateReturn,
-          M.tagsExhaustive({
-            ClosedWallet: () => [model, []],
-            OpenWallet: ({ model: walletModel }) => {
-              const [nextWalletModel, commands] = Wallet.update(
-                walletModel,
-                message,
-              )
-              return [
-                {
-                  ...model,
-                  wallet: OpenWallet({ model: nextWalletModel }),
-                },
-                toBrandonCommands(commands),
-              ]
-            },
-          }),
-        ),
+      GotWalletMessage: ({ message }) => updatedWallet(model, message),
     }),
   )

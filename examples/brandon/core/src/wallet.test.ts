@@ -12,7 +12,13 @@ import { snapshotLogMessageWire } from '@foldkit/instant/snapshot-log'
 import { startBrandonOn } from './live.js'
 import { GotWalletMessage, Message, ReceivedPage } from './message.js'
 import { type WalletState, initialModel } from './model.js'
-import { Page, PersonalWalletSection, SectionKey } from './page.js'
+import {
+  Page,
+  PersonalWalletSection,
+  SectionKey,
+  type WalletPublicAccount,
+  WatchedNetworkId,
+} from './page.js'
 import { BrandonProgram } from './program.js'
 import { BrandonServer } from './server.js'
 import type { SyncedBrandonModel } from './synced.js'
@@ -159,9 +165,23 @@ afterEach(async () => {
   await Promise.all(stopped.splice(0).map(stop => stop()))
 })
 
+const base58Alphabet =
+  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+
+const base58Of = (hex: string): string => {
+  let value = BigInt(`0x${hex}`)
+  let encoded = ''
+  while (value > 0n) {
+    encoded = `${base58Alphabet.charAt(Number(value % 58n))}${encoded}`
+    value /= 58n
+  }
+  return encoded
+}
+
 describe('a wallet made on this page', () => {
   it('keeps its keys out of the log and off the network', async () => {
     const sent: Array<string> = []
+    const watched: Array<typeof WalletPublicAccount.Type> = []
     globalThis.fetch = async (input, init) => {
       sent.push(`${String(input)} ${String(init?.body ?? '')}`)
       throw new TypeError('offline in this test')
@@ -173,6 +193,11 @@ describe('a wallet made on this page', () => {
       loadPage: Effect.succeed(pageWith([walletSection])),
       loadFootball: Effect.succeed([]),
       loadWallets: Effect.succeed([]),
+      loadWalletActivity: Effect.succeed([]),
+      watchWalletAccounts: accounts =>
+        Effect.sync(() => {
+          watched.push(...accounts)
+        }),
       scrollToSection: () => Effect.void,
       reloadPage: Effect.void,
       nowMs: Effect.succeed(0),
@@ -193,17 +218,30 @@ describe('a wallet made on this page', () => {
       model => walletCount(model) === 1,
     )
     expect(walletCount(created)).toBe(1)
+    await eventually(
+      () => watched.length,
+      count => count > 0,
+    )
 
     const vaultText = JSON.stringify(
       await Effect.runPromise(vaultStorage.loadRecords),
     )
     const logText = JSON.stringify(store.messages)
     const networkText = sent.join('\n')
+    const watchedText = JSON.stringify(watched)
     for (const secret of everyKeyHex) {
       expect(vaultText).toContain(secret)
       expect(logText).not.toContain(secret)
       expect(networkText).not.toContain(secret)
+      expect(watchedText).not.toContain(secret)
+      expect(watchedText).not.toContain(base58Of(secret))
     }
     expect(logText).not.toContain('GotWalletMessage')
+    expect(Array.map(watched, ({ networkId }) => networkId)).toEqual(
+      expect.arrayContaining([...WatchedNetworkId.literals]),
+    )
+    for (const account of watched) {
+      expect(Object.keys(account).sort()).toEqual(['address', 'networkId'])
+    }
   })
 })

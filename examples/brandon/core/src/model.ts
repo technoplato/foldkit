@@ -2,7 +2,13 @@ import { Array, Option, Order, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 import * as Wallet from 'wallet-core-example'
 
-import { Game, Page, SectionKey, WalletAddress } from './page.js'
+import {
+  Game,
+  Page,
+  SectionKey,
+  WalletActivityEntry,
+  WalletAddress,
+} from './page.js'
 
 // MODEL
 
@@ -42,11 +48,46 @@ export const WalletState = S.Union([ClosedWallet, OpenWallet])
 /** Whether this page holds the wallet. */
 export type WalletState = typeof WalletState.Type
 
-/** Every Brandon dot Model field. The log folds the first four. */
+/** This person's wallet activity is on its way. */
+export const LoadingWalletActivity = ts('LoadingWalletActivity')
+/** This person's rows, as the origin last sent them. */
+export const LoadedWalletActivity = ts('LoadedWalletActivity', {
+  entries: S.Array(WalletActivityEntry),
+})
+/** The origin could not say; the last rows stay on screen. */
+export const UnavailableWalletActivity = ts('UnavailableWalletActivity', {
+  entries: S.Array(WalletActivityEntry),
+})
+/** Where this person's wallet activity stands. */
+export const WalletActivityState = S.Union([
+  LoadingWalletActivity,
+  LoadedWalletActivity,
+  UnavailableWalletActivity,
+])
+/** Where this person's wallet activity stands. */
+export type WalletActivityState = typeof WalletActivityState.Type
+
+/** This wallet's public addresses are on their way to the origin, or there are none. */
+export const PendingWalletWatch = ts('PendingWalletWatch')
+/** The origin follows this wallet's public addresses. */
+export const ConfirmedWalletWatch = ts('ConfirmedWalletWatch')
+/** The origin did not take them, so a new payment may not show here. */
+export const FailedWalletWatch = ts('FailedWalletWatch')
+/** Whether the origin follows this wallet on the chain. */
+export const WalletWatchState = S.Union([
+  PendingWalletWatch,
+  ConfirmedWalletWatch,
+  FailedWalletWatch,
+])
+/** Whether the origin follows this wallet on the chain. */
+export type WalletWatchState = typeof WalletWatchState.Type
+
+/** Every Brandon dot Model field. The log folds the first five. */
 export const Model = S.Struct({
   players: S.Array(Player),
   pageRevision: S.Int,
   walletsRevision: S.Int,
+  walletActivityRevision: S.Int,
   maybePointer: S.Option(Pointer),
   maybeReloadAtMs: S.Option(S.Number),
   page: PageState,
@@ -54,6 +95,8 @@ export const Model = S.Struct({
   wallets: S.Array(WalletAddress),
   maybeHighlighted: S.Option(SectionKey),
   wallet: WalletState,
+  walletActivity: WalletActivityState,
+  walletWatch: WalletWatchState,
 })
 /** Every Brandon dot Model field. */
 export type Model = typeof Model.Type
@@ -63,6 +106,7 @@ export const initialModel: Model = {
   players: [],
   pageRevision: 0,
   walletsRevision: 0,
+  walletActivityRevision: 0,
   maybePointer: Option.none(),
   maybeReloadAtMs: Option.none(),
   page: LoadingPage(),
@@ -70,6 +114,8 @@ export const initialModel: Model = {
   wallets: [],
   maybeHighlighted: Option.none(),
   wallet: ClosedWallet(),
+  walletActivity: LoadingWalletActivity(),
+  walletWatch: PendingWalletWatch(),
 }
 
 const byPointsDescending = Order.mapInput(

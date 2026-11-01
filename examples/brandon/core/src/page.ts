@@ -1,5 +1,6 @@
 import { Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
+import { AtomicUnits } from 'wallet-core-example'
 
 import { MarkdownDocument } from '@foldkit/markdown'
 
@@ -133,6 +134,56 @@ export type WalletAddress = typeof WalletAddress.Type
 
 /** Every mirrored address this person may see. */
 export const WalletAddresses = S.Array(WalletAddress)
+
+// WALLET ACTIVITY
+
+/**
+ * The four networks a person's wallet is followed on, in the order its
+ * pickers list them, kept apart so a test send is never filed under a
+ * real account.
+ */
+export const WatchedNetworkId = S.Literals([
+  'solana:devnet',
+  'ethereum:sepolia',
+  'solana:mainnet-beta',
+  'ethereum:mainnet',
+])
+/** The four networks a person's wallet is followed on. */
+export type WatchedNetworkId = typeof WatchedNetworkId.Type
+
+/** How settled a transaction is: Solana processed, confirmed, finalized; Ethereum seen, in a block, finalized. */
+export const Finality = S.Literals(['Seen', 'Included', 'Final'])
+/** How settled a transaction is. */
+export type Finality = typeof Finality.Type
+
+/**
+ * One public address a person's wallet holds on one network. It is the
+ * only thing about a wallet that leaves the page: never a key.
+ */
+export const WalletPublicAccount = S.Struct({
+  networkId: WatchedNetworkId,
+  address: S.String,
+})
+/** One public address a person's wallet holds on one network. */
+export type WalletPublicAccount = typeof WalletPublicAccount.Type
+
+/** One transaction of this person's wallets, as the chain reported it. */
+export const WalletActivityEntry = S.Struct({
+  transactionId: S.String,
+  networkId: WatchedNetworkId,
+  direction: S.Literals(['Incoming', 'Outgoing']),
+  status: S.Literals(['Pending', 'Confirmed', 'Failed']),
+  maybeFinality: S.OptionFromOptionalKey(Finality),
+  assetId: S.String,
+  amountAtomic: AtomicUnits,
+  maybeCounterpartyAddress: S.OptionFromOptionalKey(S.String),
+  observedAtMs: S.Number,
+})
+/** One transaction of this person's wallets, as the chain reported it. */
+export type WalletActivityEntry = typeof WalletActivityEntry.Type
+
+/** This person's rows, newest first: `GET /api/wallet/activity`. */
+export const WalletActivity = S.Array(WalletActivityEntry)
 
 const lamportsPerSol = 1_000_000_000n
 const solDecimals = 9

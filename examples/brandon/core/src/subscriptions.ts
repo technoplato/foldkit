@@ -1,4 +1,12 @@
-import { Effect, Match as M, Option, Schema as S, Stream } from 'effect'
+import {
+  Array,
+  Effect,
+  Match as M,
+  Option,
+  Schedule,
+  Schema as S,
+  Stream,
+} from 'effect'
 import { Subscription } from 'foldkit'
 import * as Wallet from 'wallet-core-example'
 
@@ -6,17 +14,23 @@ import {
   CompletedScrollToSection,
   FailedFootball,
   FailedPage,
+  FailedWalletActivity,
   FailedWallets,
+  FailedWatchWalletAccounts,
   GotWalletMessage,
   IgnoredStalePointer,
   IgnoredStaleReload,
   type Message,
   ReceivedFootball,
   ReceivedPage,
+  ReceivedWalletActivity,
   ReceivedWallets,
+  SucceededWatchWalletAccounts,
 } from './message.js'
 import { type Model, Pointer, hasSection } from './model.js'
+import { WalletPublicAccount } from './page.js'
 import { BrandonServer } from './server.js'
+import { publicAccountsOf } from './walletActivity.js'
 
 // SUBSCRIPTION
 
@@ -24,6 +38,9 @@ const footballEvery = '5 seconds'
 
 /** A pointer or reload this old happened before this page was open. */
 const freshForMs = 30_000
+
+/** A read of the origin gets two more tries, 5 seconds apart. */
+const originRetry = { times: 2, schedule: Schedule.spaced('5 seconds') }
 
 const isFresh = (atMs: number, nowMs: number): boolean =>
   nowMs - atMs < freshForMs
@@ -93,6 +110,53 @@ const pageSubscriptions = Subscription.make<Model, Message, BrandonServer>()(
                 }),
               )
             : Stream.empty,
+      },
+    ),
+    walletActivity: entry(
+      { isShown: S.Boolean, revision: S.Int },
+      {
+        modelToDependencies: model => ({
+          isShown: hasSection(model, 'PersonalWalletSection'),
+          revision: model.walletActivityRevision,
+        }),
+        dependenciesToStream: ({ isShown }) =>
+          isShown
+            ? Stream.fromEffect(
+                Effect.gen(function* () {
+                  const server = yield* BrandonServer
+                  return yield* server.loadWalletActivity.pipe(
+                    Effect.retry(originRetry),
+                    Effect.match({
+                      onFailure: () => FailedWalletActivity(),
+                      onSuccess: entries => ReceivedWalletActivity({ entries }),
+                    }),
+                  )
+                }),
+              )
+            : Stream.empty,
+      },
+    ),
+    walletWatch: entry(
+      { accounts: S.Array(WalletPublicAccount) },
+      {
+        modelToDependencies: model => ({
+          accounts: publicAccountsOf(model.wallet),
+        }),
+        dependenciesToStream: ({ accounts }) =>
+          Array.isReadonlyArrayEmpty(accounts)
+            ? Stream.empty
+            : Stream.fromEffect(
+                Effect.gen(function* () {
+                  const server = yield* BrandonServer
+                  return yield* server.watchWalletAccounts(accounts).pipe(
+                    Effect.retry(originRetry),
+                    Effect.match({
+                      onFailure: () => FailedWatchWalletAccounts(),
+                      onSuccess: () => SucceededWatchWalletAccounts(),
+                    }),
+                  )
+                }),
+              ),
       },
     ),
     pointer: entry(

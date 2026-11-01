@@ -2,7 +2,13 @@ import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
 import * as Wallet from 'wallet-core-example'
 
-import { Game, Page, SectionKey, WalletAddress } from './page.js'
+import {
+  Game,
+  Page,
+  SectionKey,
+  WalletActivityEntry,
+  WalletAddress,
+} from './page.js'
 
 // MESSAGE
 
@@ -29,6 +35,10 @@ export const PointedAtSection = m('PointedAtSection', {
 export const ChangedSections = m('ChangedSections', { atMs: S.Number })
 /** The wallet mirror wrote fresh public data. It carries no data. */
 export const MirroredWallets = m('MirroredWallets', { atMs: S.Number })
+/** The chain watcher wrote wallet activity. It carries no data and names no one. */
+export const ChangedWalletActivity = m('ChangedWalletActivity', {
+  atMs: S.Number,
+})
 /** The listener asked every open page to reload. */
 export const RequestedReload = m('RequestedReload', { atMs: S.Number })
 
@@ -46,6 +56,16 @@ export const ReceivedWallets = m('ReceivedWallets', {
 })
 /** The mirror could not be read; the last rows stay on screen. */
 export const FailedWallets = m('FailedWallets')
+/** The origin sent this person's wallet activity. */
+export const ReceivedWalletActivity = m('ReceivedWalletActivity', {
+  entries: S.Array(WalletActivityEntry),
+})
+/** The activity could not be read; the last rows stay on screen. */
+export const FailedWalletActivity = m('FailedWalletActivity')
+/** The origin follows this wallet's public addresses on the chain. */
+export const SucceededWatchWalletAccounts = m('SucceededWatchWalletAccounts')
+/** The origin did not take this wallet's public addresses. */
+export const FailedWatchWalletAccounts = m('FailedWatchWalletAccounts')
 /** A fresh pointer moved this page to its section. */
 export const CompletedScrollToSection = m('CompletedScrollToSection', {
   sectionKey: SectionKey,
@@ -66,6 +86,7 @@ export const Message = S.Union([
   PointedAtSection,
   ChangedSections,
   MirroredWallets,
+  ChangedWalletActivity,
   RequestedReload,
   ReceivedPage,
   FailedPage,
@@ -73,6 +94,10 @@ export const Message = S.Union([
   FailedFootball,
   ReceivedWallets,
   FailedWallets,
+  ReceivedWalletActivity,
+  FailedWalletActivity,
+  SucceededWatchWalletAccounts,
+  FailedWatchWalletAccounts,
   CompletedScrollToSection,
   IgnoredStalePointer,
   IgnoredStaleReload,
@@ -88,6 +113,7 @@ export const LogMessage = S.Union([
   PointedAtSection,
   ChangedSections,
   MirroredWallets,
+  ChangedWalletActivity,
   RequestedReload,
 ])
 /** The facts that travel on the log, which any guest may read. */
@@ -100,5 +126,6 @@ export const logMessageTags: ReadonlyArray<Message['_tag']> = [
   'PointedAtSection',
   'ChangedSections',
   'MirroredWallets',
+  'ChangedWalletActivity',
   'RequestedReload',
 ]

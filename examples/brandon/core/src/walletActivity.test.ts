@@ -264,10 +264,7 @@ describe('the log', () => {
     const fact = ChangedWalletActivity({ atMs: 1 })
     const encoded = S.encodeSync(MessageWire)(fact)
     expect(S.decodeUnknownSync(MessageWire)(encoded)).toEqual(fact)
-    expect(JSON.parse(encoded.tag)).toEqual({
-      _tag: 'ChangedWalletActivity',
-      atMs: 1,
-    })
+    expect(encoded.tag).toBe('ChangedWalletActivity:{"atMs":1}')
   })
 
   it("refuses a person's rows someone wrote to the log", () => {
