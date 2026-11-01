@@ -1,12 +1,12 @@
+import { Finality, WatchedNetworkId } from 'brandon-core-example'
 import { Array, Effect, Option, Schema as S } from 'effect'
+import { AtomicUnits } from 'wallet-core-example'
 
 import { init } from '@instantdb/admin'
 
 import {
   type ActivityRow,
-  Finality,
   type WatchedAccount,
-  WatchedNetworkId,
   ownerUserIdOfHolder,
 } from './activity.js'
 import type { BrandonEnv } from './env.js'
@@ -35,7 +35,7 @@ const TransactionRow = S.Struct({
   status: S.Literals(['Pending', 'Confirmed', 'Failed']),
   finality: S.optionalKey(S.NullOr(Finality)),
   assetId: S.String,
-  amountAtomic: S.String,
+  amountAtomic: AtomicUnits,
   counterpartyAddress: S.optionalKey(S.NullOr(S.String)),
   observedAtMs: S.Number,
   confirmedAtMs: S.optionalKey(S.NullOr(S.Number)),
@@ -67,6 +67,12 @@ const activityRowOf = (row: TransactionRow): ActivityRow => ({
   observedAtMs: row.observedAtMs,
   maybeConfirmedAtMs: Option.fromNullishOr(row.confirmedAtMs),
 })
+
+/** `walletTransactions` rows as Instant answers them. */
+export const decodeActivityRows = (
+  rows: unknown,
+): ReadonlyArray<ActivityRow> =>
+  Array.map(S.decodeUnknownSync(S.Array(TransactionRow))(rows), activityRowOf)
 
 const decodeAccounts = (rows: unknown): ReadonlyArray<WatchedAccount> =>
   Array.map(S.decodeUnknownSync(S.Array(AccountRow))(rows), watchedAccountOf)

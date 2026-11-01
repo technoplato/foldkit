@@ -13,6 +13,12 @@ import { randomUUID } from 'node:crypto'
 import { id, init } from '@instantdb/admin'
 
 import type { Account } from './account.js'
+import {
+  accountKeyOf as watchedAccountKeyOf,
+  activityEntryOf,
+  chainIdOfNetwork,
+} from './activity.js'
+import { decodeActivityRows } from './activityStore.js'
 import { type FactStamp, logFieldsOf } from './facts.js'
 import {
   type BrandonStore,
@@ -30,6 +36,11 @@ import {
 
 const formatVersion = 1
 const cliProcessor = 'cli-brandon'
+
+/** The newest rows a page gets of one person's activity. */
+const activityRowLimit = 50
+
+const WatchedAccountRow = S.Struct({ accountKey: S.String })
 
 const JsonFlags = S.fromJsonString(S.Array(S.String))
 const JsonLinks = S.fromJsonString(
@@ -248,6 +259,60 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
       ),
     ),
   )
+
+  const walletActivity: BrandonStore['walletActivity'] = holder =>
+    attempt(() =>
+      admin.query({
+        walletTransactions: {
+          $: {
+            where: { 'account.holder': holder },
+            order: { observedAtMs: 'desc' },
+            limit: activityRowLimit,
+          },
+        },
+      }),
+    ).pipe(
+      Effect.map(result =>
+        Array.map(
+          decodeActivityRows(result['walletTransactions']),
+          activityEntryOf,
+        ),
+      ),
+    )
+
+  const watchedAccountKeys: BrandonStore['watchedAccountKeys'] = holder =>
+    attempt(() =>
+      admin.query({ walletAccounts: { $: { where: { holder } } } }),
+    ).pipe(
+      Effect.map(result =>
+        Array.map(
+          S.decodeUnknownSync(S.Array(WatchedAccountRow))(
+            result['walletAccounts'],
+          ),
+          ({ accountKey }) => accountKey,
+        ),
+      ),
+    )
+
+  const addWatchedAccount: BrandonStore['addWatchedAccount'] = ({
+    holder,
+    networkId,
+    address,
+  }) =>
+    attempt(() =>
+      admin.transact(
+        admin.tx['walletAccounts']!.lookup(
+          'accountKey',
+          watchedAccountKeyOf({ holder, networkId, address }),
+        ).update({
+          ...owned,
+          holder,
+          chainId: chainIdOfNetwork(networkId),
+          networkId,
+          address,
+        }),
+      ),
+    ).pipe(Effect.asVoid)
 
   const addressRows = attempt(() =>
     admin.query({ walletMirrorAddresses: { transactions: {} } }),
@@ -530,6 +595,9 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
     })
 
   return {
+    walletActivity,
+    watchedAccountKeys,
+    addWatchedAccount,
     account,
     sections,
     wallets,

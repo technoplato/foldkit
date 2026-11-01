@@ -1,4 +1,9 @@
-import type { SectionColumn, WalletAddress } from 'brandon-core-example'
+import type {
+  SectionColumn,
+  WalletActivityEntry,
+  WalletAddress,
+  WatchedNetworkId,
+} from 'brandon-core-example'
 import { type Effect, type Option, Schema as S } from 'effect'
 
 import type { Account } from './account.js'
@@ -40,4 +45,17 @@ export type BrandonStore = Readonly<{
   account: (accountKey: string) => Effect.Effect<Option.Option<Account>, Error>
   sections: Effect.Effect<ReadonlyArray<SectionRow>, Error>
   wallets: Effect.Effect<ReadonlyArray<WalletAddress>, Error>
+  walletActivity: (
+    holder: string,
+  ) => Effect.Effect<ReadonlyArray<WalletActivityEntry>, Error>
+  watchedAccountKeys: (
+    holder: string,
+  ) => Effect.Effect<ReadonlyArray<string>, Error>
+  addWatchedAccount: (
+    account: Readonly<{
+      holder: string
+      networkId: WatchedNetworkId
+      address: string
+    }>,
+  ) => Effect.Effect<void, Error>
 }>

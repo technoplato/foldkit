@@ -16,6 +16,7 @@ export const walletsFlag = 'wallets'
 export const walletFlag = 'wallet'
 
 const walletOwnerLabel = 'brandon-dot wallet owner\n'
+const walletHolderPrefix = 'brandon-dot:'
 
 /** One person's name and the flags turned on for them. */
 export type Account = Readonly<{
@@ -51,6 +52,18 @@ export const walletOwnerKeyOf = (email: string): string =>
   createHash('sha256')
     .update(`${walletOwnerLabel}${email.trim().toLowerCase()}`)
     .digest('base64url')
+
+/**
+ * Whose wallet activity this is, in the shape `walletAccounts.holder` keeps
+ * (ADR 0120): no row holds an email.
+ *
+ * @example
+ * ```typescript
+ * walletHolderOf('brandon@example.com') // 'brandon-dot:<64 hex characters>'
+ * ```
+ */
+export const walletHolderOf = (email: string): string =>
+  `${walletHolderPrefix}${accountKeyOf(email)}`
 
 /** The account with no flags at all, for a store with no default row. */
 export const noAccess: Account = { displayName: 'Guest', flags: [] }

@@ -9,8 +9,10 @@ import {
   ScoreboardSection,
   type Section,
   SectionKey,
+  WalletActivity,
   WalletAddresses,
   WalletsSection,
+  WatchedNetworkId,
   brandonWalletConnectOrigins,
 } from 'brandon-core-example'
 import {
@@ -25,6 +27,7 @@ import {
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
+import { isPublicAddressOn } from 'wallet-live-client-example'
 
 import {
   type AccessVerifier,
@@ -41,9 +44,14 @@ import {
   footballFlag,
   hasFlag,
   walletFlag,
+  walletHolderOf,
   walletOwnerKeyOf,
   walletsFlag,
 } from './account.js'
+import {
+  accountKeyOf as watchedAccountKeyOf,
+  chainIdOfNetwork,
+} from './activity.js'
 import { qrDrawingOf } from './qr.js'
 import type { BrandonStore, SectionRow } from './store.js'
 
@@ -90,6 +98,20 @@ const refused = text(403, 'Refused: no verified login.')
 const notFound = text(404, 'Not found.')
 const notAllowed = text(405, 'Refused: this origin only answers reads.')
 const unavailable = text(503, 'Not available right now.')
+const notAnAddress = text(
+  400,
+  'Refused: that is not a public address on that network.',
+)
+const tooManyAddresses = text(
+  429,
+  'Refused: this login follows as many addresses as it may.',
+)
+const followed = text(200, 'ok')
+
+/** The most public addresses one person is followed on: four wallets on each of the four networks. */
+export const maximumWatchedAccountsPerPerson = 16
+
+const watchedAccountPath = /^\/api\/wallet\/accounts\/([^/]+)\/([^/]+)$/
 
 const readMethods: ReadonlySet<string> = new Set(['GET', 'HEAD'])
 
@@ -270,6 +292,52 @@ const pageFor = (
   ),
 })
 
+type PublicAccountRequest = Readonly<{
+  networkId: string
+  address: string
+}>
+
+const publicAccountRequestOf = (
+  method: string,
+  path: string,
+): Option.Option<PublicAccountRequest> => {
+  const maybeMatch = Option.fromNullishOr(path.match(watchedAccountPath))
+  if (method !== 'PUT' || Option.isNone(maybeMatch)) {
+    return Option.none()
+  }
+  const decode = Option.liftThrowable(decodeURIComponent)
+  return Option.all({
+    networkId: decode(maybeMatch.value[1] ?? ''),
+    address: decode(maybeMatch.value[2] ?? ''),
+  })
+}
+
+const follow = (
+  { networkId, address }: PublicAccountRequest,
+  email: string,
+  store: BrandonStore,
+): Effect.Effect<OriginResponse, Error> =>
+  Effect.gen(function* () {
+    if (!S.is(WatchedNetworkId)(networkId)) {
+      return notAnAddress
+    }
+    if (!isPublicAddressOn(chainIdOfNetwork(networkId), address)) {
+      return notAnAddress
+    }
+    const holder = walletHolderOf(email)
+    const known = yield* store.watchedAccountKeys(holder)
+    if (
+      Array.contains(known, watchedAccountKeyOf({ holder, networkId, address }))
+    ) {
+      return followed
+    }
+    if (known.length >= maximumWatchedAccountsPerPerson) {
+      return tooManyAddresses
+    }
+    yield* store.addWatchedAccount({ holder, networkId, address })
+    return followed
+  })
+
 const read = (
   effect: Effect.Effect<OriginResponse, Error>,
 ): Promise<OriginResponse> =>
@@ -318,9 +386,11 @@ const staticFile = async (
 /**
  * Answers one request. Everything but `/health` needs a login whose JWT
  * verifies against the team's certs: the email header alone is never
- * read, and a flag that is off means those words stay here. Only reads
- * are answered: no path takes a request body, so nothing can hand this
- * origin a key.
+ * read, and a flag that is off means those words stay here. No path reads
+ * a request body, so nothing can hand this origin a key in one. Besides
+ * reads, it answers one write: `PUT /api/wallet/accounts/solana:devnet/5xAm…`
+ * follows that public address for the signed-in person, and the address
+ * must parse as a public address on that network.
  */
 export const handle = async (
   request: OriginRequest,
@@ -331,7 +401,8 @@ export const handle = async (
     Array.head(request.path.split('?')),
     () => request.path,
   )
-  if (!readMethods.has(request.method)) {
+  const maybeFollow = publicAccountRequestOf(request.method, path)
+  if (!readMethods.has(request.method) && Option.isNone(maybeFollow)) {
     return notAllowed
   }
   if (path === '/health') {
@@ -342,7 +413,17 @@ export const handle = async (
     return refused
   }
   const email = maybeEmail.value
-  if (path === '/api/page') {
+  if (Option.isSome(maybeFollow)) {
+    return read(
+      Effect.gen(function* () {
+        const account = yield* accountOf(email, store)
+        if (!hasFlag(account, walletFlag)) {
+          return refused
+        }
+        return yield* follow(maybeFollow.value, email, store)
+      }),
+    )
+  } else if (path === '/api/page') {
     return read(
       Effect.gen(function* () {
         const account = yield* accountOf(email, store)
@@ -378,6 +459,20 @@ export const handle = async (
           return refused
         }
         return json({ ownerKey: walletOwnerKeyOf(email) })
+      }),
+    )
+  } else if (path === '/api/wallet/activity') {
+    return read(
+      Effect.gen(function* () {
+        const account = yield* accountOf(email, store)
+        if (!hasFlag(account, walletFlag)) {
+          return refused
+        }
+        return json(
+          S.encodeSync(WalletActivity)(
+            yield* store.walletActivity(walletHolderOf(email)),
+          ),
+        )
       }),
     )
   } else if (staticRoot === undefined) {

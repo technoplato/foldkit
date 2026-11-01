@@ -33,6 +33,9 @@ const brandon = 'brandon@example.com'
 const tyler = 'tyler@example.com'
 
 const store: BrandonStore = {
+  walletActivity: () => Effect.succeed([]),
+  watchedAccountKeys: () => Effect.succeed([]),
+  addWatchedAccount: () => Effect.void,
   account: key => {
     if (key === accountKeyOf(michael)) {
       return Effect.succeed(

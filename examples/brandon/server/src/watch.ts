@@ -1,3 +1,4 @@
+import { WatchedNetworkId } from 'brandon-core-example'
 import { Array, Effect, Fiber, Option } from 'effect'
 import {
   type LiveNetworkAdapter,
@@ -5,7 +6,7 @@ import {
   makeLiveNetworkAdapter,
 } from 'wallet-live-client-example'
 
-import { type WatchedAccount, WatchedNetworkId } from './activity.js'
+import type { WatchedAccount } from './activity.js'
 import { makeActivityAdmin } from './activityStore.js'
 import { brandonEnv } from './env.js'
 import { watchAccount } from './watcher.js'

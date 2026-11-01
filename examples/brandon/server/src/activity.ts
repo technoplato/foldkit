@@ -1,22 +1,16 @@
+import {
+  Finality,
+  type WalletActivityEntry,
+  WatchedNetworkId,
+} from 'brandon-core-example'
 import { Array, Match as M, Option, Order, Schema as S } from 'effect'
-import type { TransactionRecord, TransactionStatus } from 'wallet-core-example'
+import {
+  AtomicUnits,
+  type TransactionRecord,
+  type TransactionStatus,
+} from 'wallet-core-example'
 
 // ACTIVITY
-
-/** The four networks the watcher keeps apart. */
-export const WatchedNetworkId = S.Literals([
-  'solana:devnet',
-  'solana:mainnet-beta',
-  'ethereum:sepolia',
-  'ethereum:mainnet',
-])
-/** The four networks the watcher keeps apart. */
-export type WatchedNetworkId = typeof WatchedNetworkId.Type
-
-/** How settled a transaction is: Solana processed, confirmed, finalized; Ethereum seen, in a block, finalized. */
-export const Finality = S.Literals(['Seen', 'Included', 'Final'])
-/** How settled a transaction is. */
-export type Finality = typeof Finality.Type
 
 /** One `walletAccounts` row: a public address the watcher listens to. */
 export const WatchedAccount = S.Struct({
@@ -39,7 +33,7 @@ export const ActivityRow = S.Struct({
   status: S.Literals(['Pending', 'Confirmed', 'Failed']),
   maybeFinality: S.Option(Finality),
   assetId: S.String,
-  amountAtomic: S.String,
+  amountAtomic: AtomicUnits,
   maybeCounterpartyAddress: S.Option(S.String),
   observedAtMs: S.Number,
   maybeConfirmedAtMs: S.Option(S.Number),
@@ -70,6 +64,30 @@ export const transactionKeyOf = (
   accountKey: string,
   transactionId: string,
 ): string => `${accountKey}|${transactionId}`
+
+/** The chain a network belongs to: `solana:devnet` is on `solana`. */
+export const chainIdOfNetwork = (
+  networkId: WatchedNetworkId,
+): WatchedAccount['chainId'] =>
+  M.value(networkId).pipe(
+    M.withReturnType<WatchedAccount['chainId']>(),
+    M.whenOr('solana:devnet', 'solana:mainnet-beta', () => 'solana'),
+    M.whenOr('ethereum:sepolia', 'ethereum:mainnet', () => 'ethereum'),
+    M.exhaustive,
+  )
+
+/** What the origin sends the page for one row: the row without its key. */
+export const activityEntryOf = (row: ActivityRow): WalletActivityEntry => ({
+  transactionId: row.transactionId,
+  networkId: row.networkId,
+  direction: row.direction,
+  status: row.status,
+  maybeFinality: row.maybeFinality,
+  assetId: row.assetId,
+  amountAtomic: row.amountAtomic,
+  maybeCounterpartyAddress: row.maybeCounterpartyAddress,
+  observedAtMs: row.observedAtMs,
+})
 
 const scribeHolderPrefix = 'scribe:'
 
