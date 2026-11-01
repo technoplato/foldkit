@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 12:12:30 p.m. EST — `3a7e341dda0c` feat(issues): rich links, entity pages, landings, search, keys, palette
+
+- **Implementation commit:** `3a7e341dda0c1747fb6f950c21fc1f075ba93840`
+- **Change:** feat(issues): rich links, entity pages, landings, search, keys, palette
+- **Details:**
+  - Every entity in Issue text is a chip with its title and state, read at read time, with a page listing what points at it.
+  - An Issue's page and issues show say where it landed and how to get that build, from Scribe's rows; /asks has each step's median and slowest asks.
+  - A live change costs the Issues it changed (300 Issues, real server: 4,730 KB to 32-48 KB per write); a reload reads only what changed (4,751 KB to 139 KB).
+- **Files:**
+  - `examples/issues/core/src/chips.ts` — chips for every entity in text
+  - `examples/issues/core/src/issueLandings.ts` — where an Issue landed, and build, commit, Recording and line pages, from Scribe's rows
+  - `examples/issues/cli/src/landing.ts` — issues show prints the landing
+  - `examples/issues/react/src/issueCatalogCache.ts` — the catalog kept between visits
+  - `packages/instant-tools/src/instant/instant.ts` — the live window of changed rows; each save marks its row now
+  - `packages/instant/src/hostedIdentity/vite.ts` — a mint for a second Instant app on its own path
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Entities should also be rich links to each other not just dumped on text
+- **SpecStory:** unavailable — This task ran headless under tools/agent-run, for which SpecStory does not capture sessions.
+
 ## November 1st, 2026 at 1:30 a.m. EDT — feat(brandon): Brandon dot on Foldkit's Instant sync
 
 - **Change:** `examples/brandon`, the page at brandon.pisspoursoftware.xyz, for Scribe issues #1531, #1525, and #1530
