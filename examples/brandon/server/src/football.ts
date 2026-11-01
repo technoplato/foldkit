@@ -10,6 +10,9 @@ const unrankedFrom = 26
 
 const cacheForMs = 5_000
 
+/** How many games the page shows. */
+export const shownGames = 12
+
 const EspnTeam = S.Struct({
   score: S.optionalKey(S.String),
   homeAway: S.optionalKey(S.String),
@@ -120,7 +123,10 @@ export const gamesInOrder = (
     Order.mapInput(Order.flip(Order.Boolean), isRanked),
     Order.mapInput(Order.String, ({ date }) => date),
   ])
-  return Array.map(Array.sort(dated, order), ({ game }) => game)
+  return Array.map(
+    Array.take(Array.sort(dated, order), shownGames),
+    ({ game }) => game,
+  )
 }
 
 /**

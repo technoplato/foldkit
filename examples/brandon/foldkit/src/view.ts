@@ -188,7 +188,12 @@ const sectionBody = (model: Model, section: Section): ReadonlyArray<Html> =>
         ),
       ],
       WalletsSection: () => [
-        h.div([h.Class('wallets')], Array.map(model.wallets, walletRow)),
+        h.div(
+          [h.Class('wallets')],
+          Array.isReadonlyArrayEmpty(model.wallets)
+            ? [h.p([h.Class('note')], ['No addresses mirrored yet.'])]
+            : Array.map(model.wallets, walletRow),
+        ),
       ],
     }),
   )
