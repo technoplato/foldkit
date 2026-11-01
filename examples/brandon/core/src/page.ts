@@ -50,6 +50,11 @@ export const ScoreboardSection = ts('ScoreboardSection', sectionFields)
 export const FootballSection = ts('FootballSection', sectionFields)
 /** The read-only wallet mirror. */
 export const WalletsSection = ts('WalletsSection', sectionFields)
+/**
+ * This person's own wallet: Foldkit's example wallet, with its keys made
+ * and kept on this device.
+ */
+export const PersonalWalletSection = ts('PersonalWalletSection', sectionFields)
 
 /** One section the origin decided this person may see. */
 export const Section = S.Union([
@@ -58,6 +63,7 @@ export const Section = S.Union([
   ScoreboardSection,
   FootballSection,
   WalletsSection,
+  PersonalWalletSection,
 ])
 /** One section the origin decided this person may see. */
 export type Section = typeof Section.Type

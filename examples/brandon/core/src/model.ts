@@ -1,5 +1,6 @@
 import { Array, Option, Order, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
+import * as Wallet from 'wallet-core-example'
 
 import { Game, Page, SectionKey, WalletAddress } from './page.js'
 
@@ -32,6 +33,15 @@ export const PageState = S.Union([LoadingPage, ReadyPage, FailedToLoadPage])
 /** Where this person's page stands. */
 export type PageState = typeof PageState.Type
 
+/** The origin has not sent this person the wallet section. */
+export const ClosedWallet = ts('ClosedWallet')
+/** The wallet section is on this page, with the wallet's own Model. */
+export const OpenWallet = ts('OpenWallet', { model: Wallet.Model })
+/** Whether this page holds the wallet. */
+export const WalletState = S.Union([ClosedWallet, OpenWallet])
+/** Whether this page holds the wallet. */
+export type WalletState = typeof WalletState.Type
+
 /** Every Brandon dot Model field. The log folds the first four. */
 export const Model = S.Struct({
   players: S.Array(Player),
@@ -43,6 +53,7 @@ export const Model = S.Struct({
   games: S.Array(Game),
   wallets: S.Array(WalletAddress),
   maybeHighlighted: S.Option(SectionKey),
+  wallet: WalletState,
 })
 /** Every Brandon dot Model field. */
 export type Model = typeof Model.Type
@@ -58,6 +69,7 @@ export const initialModel: Model = {
   games: [],
   wallets: [],
   maybeHighlighted: Option.none(),
+  wallet: ClosedWallet(),
 }
 
 const byPointsDescending = Order.mapInput(

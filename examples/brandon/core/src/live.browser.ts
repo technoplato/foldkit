@@ -4,20 +4,24 @@ import type { Processor } from 'foldkit'
 import { Instant } from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
-import { type BrandonHandle, startBrandonOn } from './live.js'
+import {
+  type BrandonHandle,
+  type BrandonResources,
+  startBrandonOn,
+} from './live.js'
 import { BrandonProgram } from './program.js'
-import type { BrandonServer } from './server.js'
 
 /**
  * How a browser starts Brandon dot. `appId` is Scribe's Instant app.
  * Guests never sign into Instant, so the log is read signed out, and
- * `instance` tells two tabs apart: `foldkit-4f2a9c1e`.
+ * `instance` tells two tabs apart: `foldkit-4f2a9c1e`. `resources` is
+ * the origin and the wallet's chains and vault.
  */
 export type StartBrandonConfig = Readonly<{
   appId: string
   host: Processor.Host.Host
   instance: string
-  server: Layer.Layer<BrandonServer>
+  resources: Layer.Layer<BrandonResources>
 }>
 
 /**
@@ -25,7 +29,7 @@ export type StartBrandonConfig = Readonly<{
  *
  * @example
  * ```typescript
- * startBrandon({ appId, host: Processor.Host.Foldkit(), instance, server })
+ * startBrandon({ appId, host: Processor.Host.Foldkit(), instance, resources })
  * ```
  */
 export const startBrandon = (config: StartBrandonConfig): BrandonHandle =>
@@ -37,6 +41,6 @@ export const startBrandon = (config: StartBrandonConfig): BrandonHandle =>
       database: init({ appId: config.appId }),
       programLog: BrandonProgram.id,
     }),
-    config.server,
+    config.resources,
     config.host,
   )

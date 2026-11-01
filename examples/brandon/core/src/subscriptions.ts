@@ -1,11 +1,13 @@
-import { Effect, Option, Schema as S, Stream } from 'effect'
+import { Effect, Match as M, Option, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
+import * as Wallet from 'wallet-core-example'
 
 import {
   CompletedScrollToSection,
   FailedFootball,
   FailedPage,
   FailedWallets,
+  GotWalletMessage,
   IgnoredStalePointer,
   IgnoredStaleReload,
   type Message,
@@ -26,12 +28,7 @@ const freshForMs = 30_000
 const isFresh = (atMs: number, nowMs: number): boolean =>
   nowMs - atMs < freshForMs
 
-/**
- * What Brandon dot listens to while it runs. The log's facts move a
- * revision or a pointer; each change here reads the origin again, so the
- * words themselves never travel on the log.
- */
-export const subscriptions = Subscription.make<Model, Message, BrandonServer>()(
+const pageSubscriptions = Subscription.make<Model, Message, BrandonServer>()(
   entry => ({
     page: entry(
       { revision: S.Int },
@@ -146,3 +143,29 @@ export const subscriptions = Subscription.make<Model, Message, BrandonServer>()(
     ),
   }),
 )
+
+const walletSubscriptions = Subscription.lift(Wallet.subscriptions)<
+  Model,
+  Message
+>({
+  toChildModel: model =>
+    M.value(model.wallet).pipe(
+      M.tagsExhaustive({
+        ClosedWallet: () => Wallet.initialModel,
+        OpenWallet: ({ model: walletModel }) => walletModel,
+      }),
+    ),
+  toParentMessage: message => GotWalletMessage({ message }),
+})
+
+/**
+ * What Brandon dot listens to while it runs. The log's facts move a
+ * revision or a pointer; each change here reads the origin again, so the
+ * words themselves never travel on the log. The wallet's own
+ * Subscriptions run only while its section is open.
+ */
+export const subscriptions = Subscription.aggregate<
+  Model,
+  Message,
+  BrandonServer | Wallet.WalletClient
+>()(pageSubscriptions, walletSubscriptions)

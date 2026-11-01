@@ -1,5 +1,6 @@
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+import * as Wallet from 'wallet-core-example'
 
 import { Game, Page, SectionKey, WalletAddress } from './page.js'
 
@@ -53,6 +54,10 @@ export const CompletedScrollToSection = m('CompletedScrollToSection', {
 export const IgnoredStalePointer = m('IgnoredStalePointer')
 /** A reload request older than this page was left alone. */
 export const IgnoredStaleReload = m('IgnoredStaleReload')
+/** The wallet section's own Message. It never leaves this device. */
+export const GotWalletMessage = m('GotWalletMessage', {
+  message: Wallet.Message,
+})
 
 /** Every Brandon dot Message. */
 export const Message = S.Union([
@@ -71,6 +76,7 @@ export const Message = S.Union([
   CompletedScrollToSection,
   IgnoredStalePointer,
   IgnoredStaleReload,
+  GotWalletMessage,
 ])
 /** Every Brandon dot Message. */
 export type Message = typeof Message.Type

@@ -1,23 +1,35 @@
 import { Array, Match as M, Option } from 'effect'
-import type * as Command from 'foldkit/command'
+import * as Command from 'foldkit/command'
+import * as Wallet from 'wallet-core-example'
 
-import type {
-  AwardedPoints as AwardedPointsMessage,
-  Message,
-  NotedPlayer as NotedPlayerMessage,
+import {
+  type AwardedPoints as AwardedPointsMessage,
+  GotWalletMessage,
+  type Message,
+  type NotedPlayer as NotedPlayerMessage,
 } from './message.js'
 import {
+  ClosedWallet,
   FailedToLoadPage,
   type Model,
+  OpenWallet,
   type Player,
   ReadyPage,
+  type WalletState,
 } from './model.js'
+import type { Page } from './page.js'
 
 // UPDATE
 
-type UpdateReturn = readonly [Model, ReadonlyArray<Command.Command<Message>>]
+type BrandonCommand = Command.Command<Message, never, Wallet.WalletResources>
+
+type UpdateReturn = readonly [Model, ReadonlyArray<BrandonCommand>]
+
+type WalletReturn = readonly [WalletState, ReadonlyArray<BrandonCommand>]
 
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
+
+const withWalletReturn = M.withReturnType<WalletReturn>()
 
 const newPlayer = (name: string): Player => ({
   name,
@@ -58,10 +70,38 @@ const annotated = (
 ): ReadonlyArray<Player> =>
   withPlayer(players, name, player => ({ ...player, maybeNote, isDunce }))
 
+const toBrandonCommands = (
+  commands: ReadonlyArray<
+    Command.Command<Wallet.Message, never, Wallet.WalletResources>
+  >,
+): ReadonlyArray<BrandonCommand> =>
+  Command.mapMessages(commands, message => GotWalletMessage({ message }))
+
+const hasWalletSection = (page: Page): boolean =>
+  Array.some(page.sections, section => section._tag === 'PersonalWalletSection')
+
+const openedWallet = (): WalletReturn => {
+  const [walletModel, commands] = Wallet.init()
+  return [OpenWallet({ model: walletModel }), toBrandonCommands(commands)]
+}
+
+const walletForPage = (wallet: WalletState, page: Page): WalletReturn =>
+  M.value(wallet).pipe(
+    withWalletReturn,
+    M.tagsExhaustive({
+      ClosedWallet: () =>
+        hasWalletSection(page) ? openedWallet() : [wallet, []],
+      OpenWallet: () =>
+        hasWalletSection(page) ? [wallet, []] : [ClosedWallet(), []],
+    }),
+  )
+
 /**
  * The log's facts fold the scoreboard and the revisions; everything the
  * origin sends only lands in the Model. Subscriptions do the reading, so a
- * replay of the log repeats no work.
+ * replay of the log repeats no work. The wallet opens when the origin
+ * sends its section and shuts when the origin stops; a failed read leaves
+ * it as it is, so a send in flight keeps its result.
  */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -91,7 +131,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         { ...model, maybeReloadAtMs: Option.some(atMs) },
         [],
       ],
-      ReceivedPage: ({ page }) => [{ ...model, page: ReadyPage({ page }) }, []],
+      ReceivedPage: ({ page }) => {
+        const [wallet, walletCommands] = walletForPage(model.wallet, page)
+        return [{ ...model, page: ReadyPage({ page }), wallet }, walletCommands]
+      },
       FailedPage: ({ reason }) => [
         { ...model, page: FailedToLoadPage({ reason }) },
         [],
@@ -106,5 +149,25 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
       IgnoredStalePointer: () => [model, []],
       IgnoredStaleReload: () => [model, []],
+      GotWalletMessage: ({ message }) =>
+        M.value(model.wallet).pipe(
+          withUpdateReturn,
+          M.tagsExhaustive({
+            ClosedWallet: () => [model, []],
+            OpenWallet: ({ model: walletModel }) => {
+              const [nextWalletModel, commands] = Wallet.update(
+                walletModel,
+                message,
+              )
+              return [
+                {
+                  ...model,
+                  wallet: OpenWallet({ model: nextWalletModel }),
+                },
+                toBrandonCommands(commands),
+              ]
+            },
+          }),
+        ),
     }),
   )
