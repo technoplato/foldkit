@@ -1,6 +1,6 @@
 import {
   type BoundCounter,
-  FoldkitCounterV01,
+  SharedInstantProject,
   InstantSnapshotLogSchema,
   bindCounter,
   counterLocalSnapshotKey,
@@ -37,7 +37,7 @@ const nativeDatabase = (): NativeDatabase => {
     return existing
   }
   const created = init({
-    appId: FoldkitCounterV01.id,
+    appId: SharedInstantProject.id,
     schema: InstantSnapshotLogSchema,
   })
   globals[nativeDatabaseKey] = created

@@ -4,7 +4,7 @@
  */
 export * from './hostedIdentity/index.js'
 export {
-  FoldkitCounterV01,
+  SharedInstantProject,
   Instant,
   fromTransport,
   instantCauseString,

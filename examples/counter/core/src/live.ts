@@ -1,7 +1,7 @@
 import { type Processor, Runtime } from 'foldkit'
 import { localSnapshotFile, localSnapshotPath } from 'foldkit/cli'
 
-import { FoldkitCounterV01, resolveInstantSyncEngine } from '@foldkit/instant'
+import { SharedInstantProject, resolveInstantSyncEngine } from '@foldkit/instant'
 
 import {
   type CounterHandle,
@@ -10,7 +10,7 @@ import {
 } from './startConfig.js'
 import { SyncedCounter } from './synced.js'
 
-export { FoldkitCounterV01, InstantSnapshotLogSchema } from '@foldkit/instant'
+export { SharedInstantProject, InstantSnapshotLogSchema } from '@foldkit/instant'
 
 /**
  * The sync engine a Node Counter runs on, chosen as `startCounter`
@@ -29,7 +29,7 @@ const engineFor = (config: StartCounterConfig): Runtime.SyncEngine =>
   config.tape === 'Memory'
     ? Runtime.Memory({ processor: `memory-${config.instance}` })
     : resolveInstantSyncEngine({
-        app: FoldkitCounterV01,
+        app: SharedInstantProject,
         processor: config.host,
         instance: config.instance,
       })

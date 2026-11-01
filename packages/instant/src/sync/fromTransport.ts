@@ -1,6 +1,10 @@
 import { Deferred, Effect, Option, Schema as S, Stream } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 
+import type {
+  ProgramLogDatabase,
+  ProgramLogOwner,
+} from '../programLog/core.js'
 import {
   type CountIdSelector,
   InstantCountSnapshotRecord,
@@ -23,7 +27,7 @@ export type InstantApp = Readonly<{
  * app, so one project carries them all. Do not push onto the Foldkit demo
  * app.
  */
-export const FoldkitCounterV01: InstantApp = {
+export const SharedInstantProject: InstantApp = {
   id: '5417c2e3-c6b9-476d-a962-2e11c83492aa',
 }
 
@@ -31,18 +35,35 @@ export const FoldkitCounterV01: InstantApp = {
  * Instant() arguments. Engine is a Host argument. Instant has no Model.
  * `programLog` names the app whose rows this engine reads and writes on
  * the shared `programMessage` log, such as `multiple-counters`; without it
- * the engine uses the Counter's own tables.
+ * the engine uses the Counter's own tables. `owner: 'SignedInUser'` stamps
+ * each row with the signed-in member, for a schema whose rules let each
+ * person read and write only their own rows.
+ *
+ * @example
+ * ```typescript
+ * Instant({ app, processor, instance, database, programLog: 'books', owner: 'SignedInUser' })
+ * ```
  */
 export type InstantOptions = Readonly<{
   app: InstantApp
   processor: Processor.Host.Host
   instance?: string
-  programLog?: string
   countId?: string
   selectCountId?: CountIdSelector
-  database?: InstantSnapshotLogDatabase
   transport?: SnapshotLogTransport
-}>
+}> &
+  (
+    | Readonly<{
+        programLog: string
+        owner?: ProgramLogOwner
+        database?: ProgramLogDatabase
+      }>
+    | Readonly<{
+        programLog?: undefined
+        owner?: undefined
+        database?: InstantSnapshotLogDatabase
+      }>
+  )
 
 /** Owned Instant rooms stamp `-mine-` into Processor `from`. */
 export const isOwnedInstantFrom = (from: string): boolean =>

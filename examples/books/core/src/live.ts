@@ -15,7 +15,6 @@ import {
   accessRequestHeaders,
   accessTokenFromEnv,
   ensureHostedInstantSession,
-  makeInstantCoreProgramLogTransport,
   makeNodeInstantDatabase,
 } from '@foldkit/instant'
 
@@ -134,11 +133,9 @@ export const booksEngine = (
     app: { id: signedIn.appId },
     processor: config.host,
     instance: config.instance,
-    transport: makeInstantCoreProgramLogTransport(
-      signedIn.database,
-      BooksProgram.id,
-      { owner: 'SignedInUser' },
-    ),
+    database: signedIn.database,
+    programLog: BooksProgram.id,
+    owner: 'SignedInUser',
   })
 
 /** The library store's reads and writes, as a host may wrap them. */

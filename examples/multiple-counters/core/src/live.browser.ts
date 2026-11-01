@@ -1,6 +1,6 @@
 import { type Processor, Runtime } from 'foldkit'
 
-import { FoldkitCounterV01, Instant } from '@foldkit/instant/browser'
+import { SharedInstantProject, Instant } from '@foldkit/instant/browser'
 
 import { CountersProgram } from './program.js'
 import {
@@ -18,7 +18,7 @@ export const countersEngine = (
   config: StartCountersConfig,
 ): Runtime.SyncEngine =>
   Instant({
-    app: FoldkitCounterV01,
+    app: SharedInstantProject,
     processor: config.host,
     instance: config.instance,
     programLog: CountersProgram.id,

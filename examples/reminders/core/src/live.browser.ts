@@ -3,7 +3,6 @@ import { type Processor, Runtime } from 'foldkit'
 
 import {
   Instant,
-  makeInstantCoreProgramLogTransport,
   withHostedIdentity,
 } from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
@@ -42,11 +41,9 @@ export const startReminders = (
     app: { id: config.appId },
     processor: config.host,
     instance: config.instance,
-    transport: makeInstantCoreProgramLogTransport(
-      database,
-      RemindersProgram.id,
-      { owner: 'SignedInUser' },
-    ),
+    database,
+    programLog: RemindersProgram.id,
+    owner: 'SignedInUser',
   })
   const resources = withHostedIdentity(
     Layer.mergeAll(

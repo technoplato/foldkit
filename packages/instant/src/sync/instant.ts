@@ -15,7 +15,7 @@ import {
 } from './fromTransport.js'
 
 export {
-  FoldkitCounterV01,
+  SharedInstantProject,
   engineProcessorId,
   fromTransport,
   instantCauseString,
@@ -40,12 +40,7 @@ const coreDatabases = (): CoreDatabaseCache => {
   return created
 }
 
-const resolveDatabase = (
-  options: InstantOptions,
-): InstantSnapshotLogDatabase => {
-  if (options.database !== undefined) {
-    return options.database
-  }
+const openDatabase = (options: InstantOptions): InstantSnapshotLogDatabase => {
   const cache = coreDatabases()
   const existing = cache.get(options.app.id)
   if (existing !== undefined) {
@@ -75,15 +70,16 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
   if (options.programLog !== undefined) {
     return fromTransport(
       makeInstantCoreProgramLogTransport(
-        resolveDatabase(options),
+        options.database ?? openDatabase(options),
         options.programLog,
+        options.owner === undefined ? {} : { owner: options.owner },
       ),
       processor,
     )
   }
   return fromTransport(
     makeInstantCoreSnapshotLogTransport(
-      resolveDatabase(options),
+      options.database ?? openDatabase(options),
       options.selectCountId ?? options.countId,
     ),
     processor,

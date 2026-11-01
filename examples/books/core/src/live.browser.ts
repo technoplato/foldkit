@@ -8,7 +8,6 @@ import { htmlAudioOutput } from 'transcript-player-core-example/browser'
 
 import {
   Instant,
-  makeInstantCoreProgramLogTransport,
   withHostedIdentity,
 } from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
@@ -55,9 +54,9 @@ export const startBooks = (config: StartBooksConfig): BooksHandleOnHost => {
     app: { id: config.appId },
     processor: config.host,
     instance: config.instance,
-    transport: makeInstantCoreProgramLogTransport(database, BooksProgram.id, {
-      owner: 'SignedInUser',
-    }),
+    database,
+    programLog: BooksProgram.id,
+    owner: 'SignedInUser',
   })
   const resources = withHostedIdentity(
     Layer.mergeAll(

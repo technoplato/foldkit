@@ -1,6 +1,6 @@
 export * from './adminStore/index.js'
 export {
-  FoldkitCounterV01,
+  SharedInstantProject,
   Instant,
   fromTransport,
   instantCauseString,

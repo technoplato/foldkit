@@ -1,10 +1,7 @@
 import type { Layer } from 'effect'
 import type { Processor } from 'foldkit'
 
-import {
-  Instant,
-  makeInstantCoreProgramLogTransport,
-} from '@foldkit/instant/browser'
+import { Instant } from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
 import { type BrandonHandle, startBrandonOn } from './live.js'
@@ -37,10 +34,8 @@ export const startBrandon = (config: StartBrandonConfig): BrandonHandle =>
       app: { id: config.appId },
       processor: config.host,
       instance: config.instance,
-      transport: makeInstantCoreProgramLogTransport(
-        init({ appId: config.appId }),
-        BrandonProgram.id,
-      ),
+      database: init({ appId: config.appId }),
+      programLog: BrandonProgram.id,
     }),
     config.server,
     config.host,

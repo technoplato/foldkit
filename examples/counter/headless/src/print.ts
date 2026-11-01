@@ -27,7 +27,7 @@ import { Processor, Program } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 
 import {
-  FoldkitCounterV01,
+  SharedInstantProject,
   Instant,
   InstantLogMessageRecord,
   type SnapshotLogTransport,
@@ -322,7 +322,7 @@ const tailTransport = (
 const tailLiveInstant = (onRow: (row: unknown) => void): (() => void) => {
   const scope = Effect.runSync(Scope.make())
   const engine = Instant({
-    app: FoldkitCounterV01,
+    app: SharedInstantProject,
     processor: Processor.Host.Headless(),
     instance: 'tail',
   })
@@ -353,7 +353,7 @@ const startPrinterCounter = (
       onSome: transport =>
         startCounterOn(
           Instant({
-            app: FoldkitCounterV01,
+            app: SharedInstantProject,
             processor: Processor.Host.Headless(),
             instance: 'printer',
             transport,

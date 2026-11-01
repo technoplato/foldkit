@@ -7,7 +7,6 @@ import {
   Instant,
   type ProgramLogDatabase,
   ensureHostedInstantSession,
-  makeInstantCoreProgramLogTransport,
   makeNodeInstantDatabase,
 } from '@foldkit/instant'
 
@@ -119,11 +118,9 @@ export const remindersEngine = (
     app: { id: signedIn.appId },
     processor: config.host,
     instance: config.instance,
-    transport: makeInstantCoreProgramLogTransport(
-      signedIn.database,
-      RemindersProgram.id,
-      { owner: 'SignedInUser' },
-    ),
+    database: signedIn.database,
+    programLog: RemindersProgram.id,
+    owner: 'SignedInUser',
   })
 
 /**
