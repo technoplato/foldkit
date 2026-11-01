@@ -3,6 +3,7 @@ import { NetworkDescriptor, type NetworkId } from 'wallet-core-example'
 import {
   EthereumLiveNetwork,
   type LiveWalletNetwork,
+  SolanaLiveNetwork,
   liveWalletNetworkForId,
 } from 'wallet-live-client-example'
 
@@ -35,18 +36,51 @@ const inDevnetMode = (configuration: LiveWalletNetwork): LiveWalletNetwork =>
     M.orElse(() => configuration),
   )
 
+const browserSolanaMainnetRpc = 'solana-rpc.publicnode.com'
+
+// NOTE: api.mainnet-beta.solana.com answers 403 to any request with an
+// Origin header, and a browser always sends one, so the page reads Solana
+// Mainnet through publicnode, which answers it. The mini's watcher has no
+// Origin and keeps the Foundation's endpoint from the catalog.
+const throughBrowserRpc = (
+  configuration: LiveWalletNetwork,
+): LiveWalletNetwork =>
+  M.value(configuration).pipe(
+    M.withReturnType<LiveWalletNetwork>(),
+    M.tag('SolanaLiveNetwork', solana =>
+      SolanaLiveNetwork.make({
+        ...solana,
+        httpRpcUrl: `https://${browserSolanaMainnetRpc}`,
+        webSocketRpcUrl: `wss://${browserSolanaMainnetRpc}`,
+      }),
+    ),
+    M.orElse(() => configuration),
+  )
+
+const forBrandonDot = (
+  networkId: NetworkId,
+  configuration: LiveWalletNetwork,
+): LiveWalletNetwork =>
+  M.value(networkId).pipe(
+    M.withReturnType<LiveWalletNetwork>(),
+    M.when('ethereum:sepolia', () => inDevnetMode(configuration)),
+    M.when('solana:mainnet-beta', () => throughBrowserRpc(configuration)),
+    M.orElse(() => configuration),
+  )
+
 /**
  * Brandon dot's networks from the wallet's own catalog. The catalog files
  * Sepolia under Testnet; here it sits in Devnet beside Solana Devnet, so
- * the page has exactly two modes, test money and real money.
+ * the page has exactly two modes, test money and real money. Solana
+ * Mainnet is read through an RPC that answers a browser.
  */
 export const brandonWalletNetworks: ReadonlyArray<LiveWalletNetwork> =
-  Array.map(brandonWalletNetworkIds, networkId => {
-    const configuration = Option.getOrThrow(liveWalletNetworkForId(networkId))
-    return networkId === 'ethereum:sepolia'
-      ? inDevnetMode(configuration)
-      : configuration
-  })
+  Array.map(brandonWalletNetworkIds, networkId =>
+    forBrandonDot(
+      networkId,
+      Option.getOrThrow(liveWalletNetworkForId(networkId)),
+    ),
+  )
 
 const urlsOf = (configuration: LiveWalletNetwork): ReadonlyArray<string> =>
   M.value(configuration).pipe(
