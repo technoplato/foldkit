@@ -397,7 +397,10 @@ describe('saving an Issue', () => {
         // oxlint-disable-next-line typescript/consistent-type-assertions
         database as unknown as InstantToolsDatabase,
       )
-      yield* store.saveIssue(makeInstantIssueRecord(issueAt('001', 5)))
+      yield* store.saveIssue(
+        makeInstantIssueRecord(issueAt('001', 5)),
+        Option.none(),
+      )
       expect(writes[0]?.['updatedAtMs']).toBeGreaterThan(5)
     }),
   )

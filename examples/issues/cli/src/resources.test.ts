@@ -11,6 +11,7 @@ import {
   scribeBuildJobsReader,
   scribeCredentialsOf,
   scribeMainEnvPath,
+  writerOf,
 } from './resources.js'
 
 const rateLimited = () =>
@@ -104,6 +105,58 @@ describe('the Instant admin adapter', () => {
       database.queryOnce({ instantToolsIssues: {} }),
     ).rejects.toMatchObject({ status: 400 })
     expect(read.attempts()).toBe(1)
+  })
+
+  it('writes as the owner through the rules when the environment names the owner, and reads as admin', async () => {
+    const scopedTo: Array<unknown> = []
+    const writes: Array<string> = []
+    const admin: InstantAdminClient = {
+      asUser: options => {
+        scopedTo.push(options)
+        return {
+          transact: () => {
+            writes.push('as owner')
+            return Promise.resolve({ 'tx-id': 8 })
+          },
+        }
+      },
+      query: () => Promise.resolve({ instantToolsIssues: [] }),
+      transact: () => {
+        writes.push('as admin')
+        return Promise.resolve({ 'tx-id': 9 })
+      },
+      tx: {},
+    }
+    const database = adminAsInstantToolsDatabase(
+      admin,
+      noWait,
+      writerOf({ INSTANT_TOOLS_OWNER_EMAIL: 'owner@example.com' }),
+    )
+
+    await database.queryOnce({ instantToolsIssues: {} })
+    await expect(database.transact([])).resolves.toEqual({ 'tx-id': 8 })
+
+    expect(scopedTo).toEqual([{ email: 'owner@example.com' }])
+    expect(writes).toEqual(['as owner'])
+  })
+
+  it('writes as admin when the environment names no owner', async () => {
+    const writes: Array<string> = []
+    const database = adminAsInstantToolsDatabase(
+      adminOf(
+        () => Promise.resolve({}),
+        () => {
+          writes.push('as admin')
+          return Promise.resolve({ 'tx-id': 9 })
+        },
+      ),
+      noWait,
+      writerOf({}),
+    )
+
+    await database.transact([])
+
+    expect(writes).toEqual(['as admin'])
   })
 
   it('gives up with the rate limit once its tries run out', async () => {

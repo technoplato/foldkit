@@ -249,16 +249,66 @@ export const workLogEntryId = (
 ): string =>
   `work-${issueId}-${Option.getOrElse(state, () => 'note')}-${occurredAtMs.toString()}`
 
-const hasWorkLogEntry = (issue: Issue, entryId: string): boolean =>
-  Array.some(issue.workLog, entry => entry.id === entryId)
+const isSameText = Option.makeEquivalence(Equivalence.String)
+
+const isSameNumber = Option.makeEquivalence(Equivalence.Number)
+
+/** Whether two work-log entries say the same thing, whatever their ids. */
+const isSameEntry = (
+  stored: IssueWorkLogEntry,
+  entry: IssueWorkLogEntry,
+): boolean =>
+  stored.summary === entry.summary &&
+  stored.occurredAtMs === entry.occurredAtMs &&
+  isSameText(stored.agentId, entry.agentId) &&
+  isSameText(stored.state, entry.state) &&
+  isSameText(stored.commitSha, entry.commitSha) &&
+  isSameNumber(stored.durationSeconds, entry.durationSeconds)
+
+/** The entry as `issue` holds it, by whatever id it was stored under. */
+const storedEntryOf = (
+  issue: Issue,
+  entry: IssueWorkLogEntry,
+): Option.Option<IssueWorkLogEntry> =>
+  Array.findFirst(issue.workLog, stored => isSameEntry(stored, entry))
+
+const hasWorkLogEntry = (issue: Issue, entry: IssueWorkLogEntry): boolean =>
+  Option.isSome(storedEntryOf(issue, entry))
+
+/**
+ * The first of `entryId`, `entryId-2`, `entryId-3`, ... no entry of `issue`
+ * holds: two writers logging one state on one Issue in one millisecond both
+ * build `work-692-progress-1792017248455`, and the second keeps its entry as
+ * `work-692-progress-1792017248455-2`.
+ */
+const freeEntryId = (issue: Issue, entryId: string): string => {
+  const taken = new Set(Array.map(issue.workLog, stored => stored.id))
+  const candidateAt = (suffix: number): string =>
+    suffix === 1 ? entryId : `${entryId}-${suffix.toString()}`
+  let suffix = 1
+  while (taken.has(candidateAt(suffix))) {
+    suffix += 1
+  }
+  return candidateAt(suffix)
+}
 
 const appendWorkLogEntry = (
   issue: Issue,
   entry: IssueWorkLogEntry,
 ): ReadonlyArray<IssueWorkLogEntry> =>
-  hasWorkLogEntry(issue, entry.id)
+  hasWorkLogEntry(issue, entry)
     ? issue.workLog
-    : Array.append(issue.workLog, entry)
+    : Array.append(
+        issue.workLog,
+        IssueWorkLogEntry.make({ ...entry, id: freeEntryId(issue, entry.id) }),
+      )
+
+/** The id `entry` was stored under on `issue`, or the id it was built with. */
+const storedEntryIdOf = (issue: Issue, entry: IssueWorkLogEntry): string =>
+  Option.match(storedEntryOf(issue, entry), {
+    onNone: () => entry.id,
+    onSome: stored => stored.id,
+  })
 
 const nextUpdatedAtMs = (issue: Issue, nowMs: number): number =>
   Math.max(nowMs, issue.updatedAtMs + 1)
@@ -498,7 +548,7 @@ const appendSummary = (
         updatedAtMs: nextUpdatedAtMs(issue, nowMs),
         workLog: appendWorkLogEntry(issue, entry),
       }),
-    hasLanded: (issue: Issue) => hasWorkLogEntry(issue, entry.id),
+    hasLanded: (issue: Issue) => hasWorkLogEntry(issue, entry),
   }
 }
 
@@ -598,7 +648,7 @@ export const AppendIssueWorkLogEntry = Command.define(
           workLog: appendWorkLogEntry(current, entry),
         }),
       hasLanded: stored =>
-        hasWorkLogEntry(stored, entryId) &&
+        hasWorkLogEntry(stored, entry) &&
         Option.match(status, {
           onNone: () => true,
           onSome: wanted => stored.status === wanted,
@@ -608,7 +658,10 @@ export const AppendIssueWorkLogEntry = Command.define(
           onSome: wanted => Option.contains(stored.claimantId, wanted),
         }),
     })
-    return SucceededAppendIssueWorkLogEntry.make({ entryId, issue })
+    return SucceededAppendIssueWorkLogEntry.make({
+      entryId: storedEntryIdOf(issue, entry),
+      issue,
+    })
   }).pipe(
     Effect.catch(error =>
       Effect.succeed(

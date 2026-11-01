@@ -40,6 +40,7 @@ import {
   type InstantLogIssueLinkRecord,
   type InstantToolsDatabase,
   InstantToolsEntities,
+  type IssueWriteTiming,
   InstantToolsSchema,
   decodeIssueRecord,
   makeInstantEntityStore,
@@ -366,6 +367,8 @@ const makeNumberedStore = (options: NumberedStoreOptions) =>
     return { createdEntityIds, records, store }
   })
 
+const noWaiting: IssueWriteTiming = { retryMs: 0, settleMs: 0 }
+
 const titledIssue = (issueId: string) =>
   Issue.make({
     ...issue,
@@ -406,7 +409,9 @@ describe('Instant adapter', () => {
           }),
         )
         expect(Option.map(maybeRecord, decodeIssueRecord)).toEqual(
-          Option.some(issue),
+          Option.some(
+            Issue.make({ ...issue, updatedAtMs: issue.updatedAtMs + 1 }),
+          ),
         )
       }),
   )
@@ -1039,7 +1044,7 @@ describe('Instant adapter', () => {
           summary: 'Claimed: red tests next.',
         })
 
-        const updated = yield* makeIssueTracker(store).update('005', {
+        const updated = yield* makeIssueTracker(store, noWaiting).update('005', {
           apply: current =>
             Issue.make({
               ...current,
@@ -1078,7 +1083,7 @@ describe('Instant adapter', () => {
         })
 
         const error = yield* Effect.flip(
-          makeIssueTracker(store).update('005', {
+          makeIssueTracker(store, noWaiting).update('005', {
             apply: current => Issue.make({ ...current, status: 'Blocked' }),
             hasLanded: stored => stored.status === 'Blocked',
           }),

@@ -20,6 +20,7 @@ import {
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
+  IssueWorkLogEntry,
   LibraryProduct,
   ProductCatalog,
   ProductCatalogEntry,
@@ -1252,6 +1253,69 @@ describe('Issue Tracker Program', () => {
       entryId: Option.some(result.entryId),
       issueId: '692',
     })
+  })
+
+  it('keeps both entries when another writer logged the same state on the Issue in the same millisecond', async () => {
+    const memory = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('692', 'Bare IssueTrackerError')]),
+    )
+    const otherWriter = 'claude-code/other-writer'
+    const colliding: IssueTrackerService = {
+      ...memory,
+      update: (issueId, change) =>
+        Effect.gen(function* () {
+          const before = Option.getOrThrow(yield* memory.fetchIssue(issueId))
+          const ours = Option.getOrThrow(
+            Array.last(change.apply(before).workLog),
+          )
+          yield* memory.save(
+            Issue.make({
+              ...before,
+              workLog: [
+                ...before.workLog,
+                IssueWorkLogEntry.make({
+                  ...ours,
+                  agentId: Option.some(otherWriter),
+                  summary: 'The other writer logged this.',
+                }),
+              ],
+            }),
+          )
+          return yield* memory.update(issueId, change)
+        }),
+    }
+    const detail = modelForNavigation(IssueDetail.make({ issueId: '692' }))
+    const [, commands] = update(
+      detail,
+      SubmittedIssueWorkLogEntry.make({
+        agentId: Option.some('claude-code/issues-one-way'),
+        claimantId: Option.none(),
+        commitSha: Option.none(),
+        issueId: '692',
+        state: 'progress',
+        status: Option.none(),
+        summary: 'Ours, logged in the same millisecond.',
+      }),
+    )
+
+    const result = await runWith(
+      colliding,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    if (result._tag !== 'SucceededAppendIssueWorkLogEntry') {
+      throw new Error(`expected a landed entry, got ${result._tag}`)
+    }
+    const kept = Array.map(result.issue.workLog, entry => [
+      entry.id,
+      entry.summary,
+    ])
+    const [otherId] = Option.getOrThrow(Array.head(kept))
+    expect(kept).toEqual([
+      [otherId, 'The other writer logged this.'],
+      [`${otherId}-2`, 'Ours, logged in the same millisecond.'],
+    ])
+    expect(result.entryId).toBe(`${otherId}-2`)
   })
 
   it('reports a work-log write that did not land, with its reason', async () => {
