@@ -76,8 +76,8 @@ export const EthereumSignedPayloadJson = S.fromJsonString(EthereumSignedPayload)
 
 const BlockscoutAddress = S.Struct({ hash: S.String })
 const BlockscoutTransaction = S.Struct({
-  timestamp: S.String,
-  status: S.String,
+  timestamp: S.NullOr(S.String),
+  status: S.NullOr(S.String),
   hash: S.String,
   from: BlockscoutAddress,
   to: S.NullOr(BlockscoutAddress),
@@ -292,7 +292,10 @@ const historyRecord = (
         onSome: to => getAddress(to.hash),
       })
     : from
-  const observedAt = Date.parse(transaction.timestamp)
+  const observedAt = Option.match(Option.fromNullishOr(transaction.timestamp), {
+    onNone: () => Date.now(),
+    onSome: Date.parse,
+  })
   return Option.some(
     TransactionRecord.make({
       recordId: `${transaction.hash}:${account.account.accountId}:eth`,
@@ -300,7 +303,10 @@ const historyRecord = (
       accountId: account.account.accountId,
       networkId: configuration.network.networkId,
       direction: isOutgoing ? 'Outgoing' : 'Incoming',
-      status: transaction.status === 'ok' ? 'Confirmed' : 'Failed',
+      status: Option.match(Option.fromNullishOr(transaction.status), {
+        onNone: () => 'Pending',
+        onSome: status => (status === 'ok' ? 'Confirmed' : 'Failed'),
+      }),
       amount: assetAmount(configuration, value, observedAt),
       counterpartyAddress,
       normalizedCounterpartyAddress: counterpartyAddress.toLowerCase(),
