@@ -575,7 +575,14 @@ const fileNodes = (model: Model): ReadonlyArray<UiNode> => [
       }),
     ),
   ),
-  Button({ token: 'submit', label: 'Submit issue', variant: 'Primary' }),
+  Button({
+    token: 'submit',
+    label: 'Submit issue',
+    variant: 'Primary',
+    ...(model.draftState._tag === 'SavingIssueDraft'
+      ? { disabled: true, because: 'Filing…' }
+      : {}),
+  }),
   ...draftStateNodes(model.draftState),
 ]
 

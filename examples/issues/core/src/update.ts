@@ -90,6 +90,7 @@ import {
   CompletedLeaveLeftoverRoom,
   FailedDeleteIssue,
   FailedDeleteIssueView,
+  FailedFileIssueDraft,
   FailedJoinLeftoverRoom,
   FailedLeaveLeftoverRoom,
   FailedMarkFindingPromoted,
@@ -101,8 +102,11 @@ import {
   FailedSaveProduct,
   type Message,
   SucceededAppendIssueWorkLogEntry,
+  SucceededCommentOnIssue,
   SucceededDeleteIssue,
   SucceededDeleteIssueView,
+  SucceededFileIssueDraft,
+  SucceededLinkCatalogIssue,
   SucceededMarkFindingPromoted,
   SucceededReviewTriageCandidate,
   SucceededRowEdit,
@@ -115,6 +119,7 @@ import {
   AskFlow,
   Backlog,
   ChoiceLayer,
+  type ChoiceMenu,
   DeletedIssueMutation,
   DraftMention,
   EditingIssueDraft,
@@ -202,7 +207,7 @@ import {
   workingSyncAgent,
 } from './nowWorking.js'
 import { searchOfView } from './route.js'
-import { type RowChange, type RowEdit } from './rowEdit.js'
+import { type RowChange, type RowEdit, isChangeTo } from './rowEdit.js'
 import {
   selectionExtendedBy,
   selectionExtendedTo,
@@ -373,12 +378,16 @@ export const issueFromDraft = (
   })
 
 /** Files one draft under the next free Issue number. */
-export const SaveIssue = Command.define(
-  'SaveIssue',
-  { draft: IssueDraft, product: TrackedProduct },
-  SucceededSaveIssue,
-  FailedSaveIssue,
-)(({ draft, product }) =>
+export const FileIssueDraft = Command.define(
+  'FileIssueDraft',
+  {
+    draft: IssueDraft,
+    maybeFindingId: S.Option(S.String),
+    product: TrackedProduct,
+  },
+  SucceededFileIssueDraft,
+  FailedFileIssueDraft,
+)(({ draft, maybeFindingId, product }) =>
   Effect.gen(function* () {
     const identity = yield* IssueIdentity
     const tracker = yield* IssueTracker
@@ -386,10 +395,12 @@ export const SaveIssue = Command.define(
     const issue = yield* tracker.file(issueId =>
       issueFromDraft(draft, product, issueId, nowMs),
     )
-    return SucceededSaveIssue.make({ issue })
+    return SucceededFileIssueDraft.make({ issue, maybeFindingId })
   }).pipe(
     Effect.catch(error =>
-      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+      Effect.succeed(
+        FailedFileIssueDraft.make({ reason: failureReason(error) }),
+      ),
     ),
   ),
 )
@@ -556,7 +567,7 @@ const appendSummary = (
 export const CommentOnIssue = Command.define(
   'CommentOnIssue',
   { issueId: S.String, summary: S.String },
-  SucceededSaveIssue,
+  SucceededCommentOnIssue,
   FailedSaveIssue,
 )(({ issueId, summary }) =>
   Effect.gen(function* () {
@@ -568,7 +579,7 @@ export const CommentOnIssue = Command.define(
       issueId,
       appendSummary(issueId, author, summary, nowMs),
     )
-    return SucceededSaveIssue.make({ issue })
+    return SucceededCommentOnIssue.make({ issue, summary })
   }).pipe(
     Effect.catch(error =>
       Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
@@ -1378,6 +1389,52 @@ export const SetIssueStatus = Command.define(
   ),
 )
 
+const CLAIMED_STATUS: IssueStatus = 'InProgress'
+
+const claimedSummary = (claimantId: string, author: string): string =>
+  claimantId === author
+    ? `Claimed by ${author}.`
+    : `Claimed for ${claimantId} by ${author}.`
+
+/**
+ * Writes one claim: the claimant, InProgress with its status line when the
+ * status moves, and a `claimed` line in the name of whoever claimed it. A claim
+ * the claimant already holds writes nothing.
+ */
+const claimIssue = (issueId: string, claimantId: string) =>
+  Effect.gen(function* () {
+    const identity = yield* IssueIdentity
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const author = yield* identity.author
+    const claim = IssueWorkLogEntry.make({
+      agentId: Option.some(author),
+      commitSha: Option.none(),
+      durationSeconds: Option.none(),
+      id: workLogEntryId(storedIssueIdOf(issueId), Option.some('claimed'), nowMs),
+      occurredAtMs: nowMs,
+      state: Option.some('claimed'),
+      summary: claimedSummary(claimantId, author),
+    })
+    const issue = yield* tracker.update(issueId, {
+      apply: current => {
+        if (Option.contains(current.claimantId, claimantId)) {
+          return current
+        } else {
+          const moved = withStatusMove(current, CLAIMED_STATUS, author, nowMs)
+          return Issue.make({
+            ...moved,
+            claimantId: Option.some(claimantId),
+            updatedAtMs: nextUpdatedAtMs(current, nowMs),
+            workLog: appendWorkLogEntry(moved, claim),
+          })
+        }
+      },
+      hasLanded: stored => Option.contains(stored.claimantId, claimantId),
+    })
+    return SucceededSaveIssue.make({ issue })
+  })
+
 /**
  * The person signed in claims one Issue, as `issues claim` does: a `claimed`
  * work-log entry, the claimant, and InProgress, read back.
@@ -1385,22 +1442,38 @@ export const SetIssueStatus = Command.define(
 export const ClaimIssueAsAuthor = Command.define(
   'ClaimIssueAsAuthor',
   { issueId: S.String },
-  SucceededAppendIssueWorkLogEntry,
-  FailedSaveIssueWorkLog,
+  SucceededSaveIssue,
+  FailedSaveIssue,
 )(({ issueId }) =>
   Effect.gen(function* () {
     const identity = yield* IssueIdentity
     const author = yield* identity.author
-    return yield* AppendIssueWorkLogEntry({
-      agentId: Option.some(author),
-      claimantId: Option.some(author),
-      commitSha: Option.none(),
-      issueId,
-      state: 'claimed',
-      status: Option.some('InProgress'),
-      summary: `Claimed by ${author}.`,
-    }).effect
-  }),
+    return yield* claimIssue(issueId, author)
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+/**
+ * Claims one Issue for `claimantId`, an agent such as `claude-code/one@ld`, in
+ * the name of the person signed in, as a drop on that agent's column on the
+ * board does: `Claimed for claude-code/one@ld by owner@example.com.`
+ */
+export const ClaimIssueFor = Command.define(
+  'ClaimIssueFor',
+  { claimantId: S.String, issueId: S.String },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ claimantId, issueId }) =>
+  Effect.gen(function* () {
+    return yield* claimIssue(issueId, claimantId)
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
 )
 
 /** Keeps a new view of the list. */
@@ -1491,22 +1564,26 @@ export const ReleaseIssueClaim = Command.define(
     )
     const issue = yield* tracker.update(issueId, {
       apply: current =>
-        Issue.make({
-          ...current,
-          claimantId: Option.none(),
-          updatedAtMs: nextUpdatedAtMs(current, nowMs),
-          workLog: appendWorkLogEntry(
-            current,
-            IssueWorkLogEntry.make({
-              agentId: Option.some(author),
-              commitSha: Option.none(),
-              durationSeconds: Option.none(),
-              id: entryId,
-              occurredAtMs: nowMs,
-              state: Option.some('released'),
-              summary: `Claim released by ${author}.`,
+        Option.match(current.claimantId, {
+          onNone: () => current,
+          onSome: claimantId =>
+            Issue.make({
+              ...current,
+              claimantId: Option.none(),
+              updatedAtMs: nextUpdatedAtMs(current, nowMs),
+              workLog: appendWorkLogEntry(
+                current,
+                IssueWorkLogEntry.make({
+                  agentId: Option.some(author),
+                  commitSha: Option.none(),
+                  durationSeconds: Option.none(),
+                  id: entryId,
+                  occurredAtMs: nowMs,
+                  state: Option.some('released'),
+                  summary: `Claim of ${claimantId} released by ${author}.`,
+                }),
+              ),
             }),
-          ),
         }),
       hasLanded: stored => Option.isNone(stored.claimantId),
     })
@@ -1542,7 +1619,7 @@ export const DeleteIssue = Command.define(
 export const LinkCatalogIssue = Command.define(
   'LinkCatalogIssue',
   { sourceIssueId: S.String, targetIssueId: S.String },
-  SucceededSaveIssue,
+  SucceededLinkCatalogIssue,
   FailedSaveIssue,
 )(({ sourceIssueId, targetIssueId }) =>
   Effect.gen(function* () {
@@ -1560,7 +1637,7 @@ export const LinkCatalogIssue = Command.define(
             }),
       hasLanded: stored => hasCatalogIssueLink(stored, target),
     })
-    return SucceededSaveIssue.make({ issue })
+    return SucceededLinkCatalogIssue.make({ issue, targetIssueId })
   }).pipe(
     Effect.catch(error =>
       Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
@@ -1976,7 +2053,10 @@ const unknownProductReason = (model: Model): string => {
 }
 
 const saveDraft = (model: Model): UpdateReturn => {
-  if (model.navigation._tag !== 'FileIssue') {
+  if (
+    model.navigation._tag !== 'FileIssue' ||
+    model.draftState._tag === 'SavingIssueDraft'
+  ) {
     return [model, []]
   }
   if (model.draft.title.trim() === '') {
@@ -2005,7 +2085,13 @@ const saveDraft = (model: Model): UpdateReturn => {
   }
   return [
     nextModel({ ...model, draftState: SavingIssueDraft.make({}) }),
-    [SaveIssue({ draft: model.draft, product: maybeProduct.value })],
+    [
+      FileIssueDraft({
+        draft: model.draft,
+        maybeFindingId: model.maybeDraftFindingId,
+        product: maybeProduct.value,
+      }),
+    ],
   ]
 }
 
@@ -2279,6 +2365,37 @@ const layerBelow = (model: Model): ScreenLayer =>
     ? PeekLayer.make({ issueId: model.layer.maybePeekedIssueId.value })
     : NoLayer.make({})
 
+/**
+ * Whether a layer that holds the keyboard is open: choices, or naming a view.
+ * While one is, a press on a row's field is a stray one, such as Enter on the
+ * chip that had the keyboard before the layer opened, and changes nothing.
+ */
+const isDialogOpen = (model: Model): boolean =>
+  model.layer._tag === 'ChoiceLayer' || model.layer._tag === 'NamingViewLayer'
+
+const openedRowField = (
+  model: Model,
+  issueId: string,
+  menu: ChoiceMenu,
+): UpdateReturn => [
+  nextModel({
+    ...model,
+    isGoKeyPending: false,
+    isSearchFocused: false,
+    layer: ChoiceLayer.make({
+      maybeRowIssueId: selectedSetOf(model).has(issueId)
+        ? Option.none()
+        : Option.some(issueId),
+      menu,
+      position: 0,
+      query: '',
+    }),
+    maybeRowCursor: Option.some(issueId),
+    maybeSelectionRun: Option.none(),
+  }),
+  [],
+]
+
 const pickedMenuRow = (
   model: Model,
   maybeRow: Option.Option<MenuRow>,
@@ -2352,20 +2469,6 @@ const savedAsRowEdit = (
     }),
   )
 
-const loggedAsRowEdit = (
-  logged:
-    | typeof SucceededAppendIssueWorkLogEntry.Type
-    | typeof FailedSaveIssueWorkLog.Type,
-): Message =>
-  M.value(logged).pipe(
-    M.withReturnType<Message>(),
-    M.tagsExhaustive({
-      SucceededAppendIssueWorkLogEntry: ({ issue }) =>
-        SucceededRowEdit.make({ issue }),
-      FailedSaveIssueWorkLog: ({ reason }) =>
-        FailedRowEditWrite.make({ reason }),
-    }),
-  )
 
 const rowEditCommand = ({
   change,
@@ -2403,19 +2506,11 @@ const rowEditCommand = ({
           savedAsRowEdit,
         ),
       ClaimedByAuthor: () =>
-        Command.mapMessage(ClaimIssueAsAuthor({ issueId }), loggedAsRowEdit),
+        Command.mapMessage(ClaimIssueAsAuthor({ issueId }), savedAsRowEdit),
       ClaimedFor: ({ claimantId }) =>
         Command.mapMessage(
-          AppendIssueWorkLogEntry({
-            agentId: Option.some(claimantId),
-            claimantId: Option.some(claimantId),
-            commitSha: Option.none(),
-            issueId,
-            state: 'claimed',
-            status: Option.some('InProgress'),
-            summary: `Claimed by ${claimantId}.`,
-          }),
-          loggedAsRowEdit,
+          ClaimIssueFor({ claimantId, issueId }),
+          savedAsRowEdit,
         ),
       ReleasedClaim: () =>
         Command.mapMessage(ReleaseIssueClaim({ issueId }), savedAsRowEdit),
@@ -2537,7 +2632,16 @@ const appliedRowChange = (
       issueId,
     }),
   )
-  const edits = Array.filter(asked, edit => !isCloseRefused(edit))
+  const issuesById = issuesByIdIn(model)
+  const isChange = (edit: RowEdit): boolean =>
+    Option.match(Option.fromUndefinedOr(issuesById.get(edit.issueId)), {
+      onNone: () => true,
+      onSome: issue => isChangeTo(issue, edit.change),
+    })
+  const edits = Array.filter(
+    asked,
+    edit => !isCloseRefused(edit) && isChange(edit),
+  )
   const refused = Array.filter(asked, isCloseRefused)
   const noted = nextModel({
     ...model,
@@ -2575,6 +2679,62 @@ const nextRowEdit = (model: Model): UpdateReturn => {
       onSome: edit => [rowEditCommand(edit)],
     }),
   ]
+}
+
+const isIssueMutationSaving = (model: Model): boolean =>
+  model.issueMutation._tag === 'SavingIssueMutation'
+
+/**
+ * The Model once a write to `issue` landed: the Issue shown and listed as
+ * stored. A write never moves the page, whichever page it returns to.
+ */
+const savedIssue = (model: Model, issue: Issue): Model => {
+  const isShown =
+    model.navigation._tag === 'IssueDetail' &&
+    model.navigation.issueId === issue.id
+  return nextModel({
+    ...model,
+    issueDetail: isShown
+      ? LoadedIssue.make({ issue: Option.some(issue), issueId: issue.id })
+      : model.issueDetail,
+    issueMutation: isShown
+      ? SavedIssueMutation.make({ entryId: Option.none(), issueId: issue.id })
+      : IdleIssueMutation.make({}),
+    issues: patchIssues(model.issues, issue),
+  })
+}
+
+/**
+ * The Model once a submitted draft was filed as `issue`: the draft is clear,
+ * the new Issue opens if the filing form is still the page, and the finding it
+ * was promoted from names it, whatever the page.
+ */
+const filedIssueDraft = (
+  model: Model,
+  issue: Issue,
+  maybeFindingId: Option.Option<string>,
+): UpdateReturn => {
+  const marks = Option.toArray(
+    Option.map(maybeFindingId, findingId =>
+      MarkFindingPromoted({ findingId, issueId: issue.id }),
+    ),
+  )
+  const isDraftFiled = model.draftState._tag === 'SavingIssueDraft'
+  const filed = nextModel({
+    ...model,
+    draft: isDraftFiled ? emptyIssueDraft(model.draft.productId) : model.draft,
+    draftState: isDraftFiled ? EditingIssueDraft.make({}) : model.draftState,
+    issues: patchIssues(model.issues, issue),
+  })
+  if (model.navigation._tag === 'FileIssue') {
+    const [opened, commands] = withNavigation(
+      filed,
+      IssueDetail.make({ issueId: issue.id }),
+    )
+    return [opened, [...commands, ...marks]]
+  } else {
+    return [filed, marks]
+  }
 }
 
 const startLeftoverCommand = (
@@ -3223,6 +3383,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           isGoKeyPending: false,
           isSearchFocused: false,
           layer: ChoiceLayer.make({
+            heldIssueIds: issuesInHandOf(model),
             maybePeekedIssueId:
               model.layer._tag === 'PeekLayer'
                 ? Option.some(model.layer.issueId)
@@ -3234,24 +3395,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
-      OpenedRowField: ({ issueId, menu }) => [
-        nextModel({
-          ...model,
-          isGoKeyPending: false,
-          isSearchFocused: false,
-          layer: ChoiceLayer.make({
-            maybeRowIssueId: selectedSetOf(model).has(issueId)
-              ? Option.none()
-              : Option.some(issueId),
-            menu,
-            position: 0,
-            query: '',
-          }),
-          maybeRowCursor: Option.some(issueId),
-          maybeSelectionRun: Option.none(),
-        }),
-        [],
-      ],
+      OpenedRowField: ({ issueId, menu }) =>
+        isDialogOpen(model)
+          ? [model, []]
+          : openedRowField(model, issueId, menu),
       AppliedRowChange: ({ change }) =>
         appliedRowChange(model, issuesInHandOf(model), change),
       SucceededRowEdit: ({ issue }) =>
@@ -3337,69 +3484,45 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         updateDraft(model, draft => IssueDraft.make({ ...draft, priority })),
       ComposedIssueDraft: ({ draft }) => updateDraft(model, () => draft),
       SubmittedIssue: () => saveDraft(model),
-      SucceededSaveIssue: ({ issue }) => {
-        if (
-          model.navigation._tag === 'IssueDetail' &&
-          model.navigation.issueId === issue.id
-        ) {
-          return [
-            nextModel({
-              ...model,
-              issueDetail: LoadedIssue.make({
-                issue: Option.some(issue),
-                issueId: issue.id,
-              }),
-              issueMutation: SavedIssueMutation.make({
-                entryId: Option.none(),
-                issueId: issue.id,
-              }),
-              issues: patchIssues(model.issues, issue),
-            }),
-            [],
-          ]
-        }
-        const [opened, commands] = withNavigation(
-          nextModel({
-            ...model,
-            draft:
-              model.draftState._tag === 'SavingIssueDraft'
-                ? emptyIssueDraft(model.draft.productId)
-                : model.draft,
-            draftState: EditingIssueDraft.make({}),
-            issueMutation: IdleIssueMutation.make({}),
-            issues: patchIssues(model.issues, issue),
-          }),
-          IssueDetail.make({ issueId: issue.id }),
-        )
+      SucceededSaveIssue: ({ issue }) => [savedIssue(model, issue), []],
+      FailedSaveIssue: ({ reason }) => [
+        nextModel({
+          ...model,
+          issueMutation: FailedIssueMutation.make({ reason }),
+        }),
+        [],
+      ],
+      SucceededFileIssueDraft: ({ issue, maybeFindingId }) =>
+        filedIssueDraft(model, issue, maybeFindingId),
+      FailedFileIssueDraft: ({ reason }) => [
+        nextModel({
+          ...model,
+          draftState: FailedIssueDraft.make({ reason }),
+        }),
+        [],
+      ],
+      SucceededCommentOnIssue: ({ issue, summary }) => {
+        const saved = savedIssue(model, issue)
         return [
-          opened,
-          [
-            ...commands,
-            ...Option.toArray(
-              Option.map(model.maybeDraftFindingId, findingId =>
-                MarkFindingPromoted({ findingId, issueId: issue.id }),
-              ),
-            ),
-          ],
+          nextModel({
+            ...saved,
+            leftoverComment:
+              saved.leftoverComment === summary ? '' : saved.leftoverComment,
+          }),
+          [],
         ]
       },
-      FailedSaveIssue: ({ reason }) =>
-        model.navigation._tag === 'FileIssue'
-          ? [
-              nextModel({
-                ...model,
-                draftState: FailedIssueDraft.make({ reason }),
-                issueMutation: IdleIssueMutation.make({}),
-              }),
-              [],
-            ]
-          : [
-              nextModel({
-                ...model,
-                issueMutation: FailedIssueMutation.make({ reason }),
-              }),
-              [],
-            ],
+      SucceededLinkCatalogIssue: ({ issue, targetIssueId }) => {
+        const saved = savedIssue(model, issue)
+        return [
+          nextModel({
+            ...saved,
+            leftoverLink:
+              saved.leftoverLink === targetIssueId ? '' : saved.leftoverLink,
+          }),
+          [],
+        ]
+      },
       SucceededReviewTriageCandidate: ({ candidate, issue }) => {
         const nextCandidates =
           model.triageCandidates._tag === 'LoadedTriageCandidates'
@@ -3438,13 +3561,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       SubmittedIssueComment: ({ issueId, summary }) => {
-        if (summary.trim() === '') {
+        if (summary.trim() === '' || isIssueMutationSaving(model)) {
           return [model, []]
         }
-        return startLeftoverCommand(
-          nextModel({ ...model, leftoverComment: '' }),
-          CommentOnIssue({ issueId, summary }),
-        )
+        return startLeftoverCommand(model, CommentOnIssue({ issueId, summary }))
       },
       AppendedIssueWorkLog: ({ summary }) => {
         if (summary.trim() === '') {
@@ -3667,11 +3787,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       LinkedCatalogIssue: ({ sourceIssueId, targetIssueId }) => {
-        if (targetIssueId.trim() === '' || targetIssueId === sourceIssueId) {
+        if (
+          targetIssueId.trim() === '' ||
+          targetIssueId === sourceIssueId ||
+          isIssueMutationSaving(model)
+        ) {
           return [model, []]
         }
         return startLeftoverCommand(
-          nextModel({ ...model, leftoverLink: '' }),
+          model,
           LinkCatalogIssue({ sourceIssueId, targetIssueId }),
         )
       },

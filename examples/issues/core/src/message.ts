@@ -448,6 +448,29 @@ export const SucceededSaveIssue = S.TaggedStruct('SucceededSaveIssue', {
 export const FailedSaveIssue = S.TaggedStruct('FailedSaveIssue', {
   reason: S.String,
 })
+/**
+ * The draft a person submitted was filed as `issue`. `maybeFindingId` is the
+ * finding it was promoted from, as it was when they submitted it, so the
+ * finding's row names this Issue whatever page they are on when it returns.
+ */
+export const SucceededFileIssueDraft = S.TaggedStruct(
+  'SucceededFileIssueDraft',
+  { issue: Issue, maybeFindingId: S.Option(S.String) },
+)
+/** The draft a person submitted was not filed, and why. */
+export const FailedFileIssueDraft = S.TaggedStruct('FailedFileIssueDraft', {
+  reason: S.String,
+})
+/** A comment's work-log entry landed on `issue`; `summary` is what it said. */
+export const SucceededCommentOnIssue = S.TaggedStruct(
+  'SucceededCommentOnIssue',
+  { issue: Issue, summary: S.String },
+)
+/** `issue` now lists `targetIssueId` among its related Issues. */
+export const SucceededLinkCatalogIssue = S.TaggedStruct(
+  'SucceededLinkCatalogIssue',
+  { issue: Issue, targetIssueId: S.String },
+)
 export const SucceededReviewTriageCandidate = S.TaggedStruct(
   'SucceededReviewTriageCandidate',
   { candidate: TriageCandidate, issue: S.Option(Issue) },
@@ -767,6 +790,10 @@ export const Message = S.Union([
   SubmittedIssue,
   SucceededSaveIssue,
   FailedSaveIssue,
+  SucceededFileIssueDraft,
+  FailedFileIssueDraft,
+  SucceededCommentOnIssue,
+  SucceededLinkCatalogIssue,
   SucceededReviewTriageCandidate,
   FailedReviewTriageCandidate,
   OpenedNavigation,

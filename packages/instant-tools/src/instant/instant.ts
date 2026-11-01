@@ -431,12 +431,42 @@ export const makeInstantIssueRecord = (issue: Issue): InstantIssueRecord =>
 
 const StoredIssuePayload = S.fromJsonString(S.Record(S.String, S.Unknown))
 
+const ListItem = S.Record(S.String, S.Unknown).check(
+  S.makeFilter(item => typeof item['id'] === 'string'),
+)
+type ListItem = typeof ListItem.Type
+
+const listItemsOf = (value: unknown): Option.Option<ReadonlyArray<ListItem>> =>
+  S.decodeUnknownOption(S.Array(ListItem))(value)
+
+/**
+ * The items of one list the change wrote, each over the stored item with its
+ * id: the change decides which items there are and every key it writes, and a
+ * key only the stored item holds stays, such as a criterion's `evidence`.
+ */
+const listOver = (
+  written: ReadonlyArray<ListItem>,
+  stored: ReadonlyArray<ListItem>,
+): ReadonlyArray<ListItem> => {
+  const storedById = new Map(Array.map(stored, item => [item['id'], item]))
+  return Array.map(written, item => {
+    const maybeStored = Option.fromUndefinedOr(storedById.get(item['id']))
+    return Option.match(maybeStored, {
+      onNone: () => item,
+      onSome: storedItem => ({ ...storedItem, ...item }),
+    })
+  })
+}
+
 /**
  * Encodes one Issue over the payload already stored for it, so keys the Issue
  * schema does not model survive a save. A stored payload that holds
  * `relatedIssueIds: ['147']` keeps it when a Client changes the Issue's status.
  * Stored payloads carry `relatedIssueIds` and `files` that a plain re-encode
- * would drop (#591).
+ * would drop (#591). The same holds one level down, inside each item of a
+ * list keyed by `id`: a criterion that holds `evidence: ['runs/check.json']`
+ * keeps it when a Client marks it satisfied, and an item the change removes
+ * goes with all it held.
  */
 export const makeInstantIssueRecordOver = (
   issue: Issue,
@@ -447,11 +477,26 @@ export const makeInstantIssueRecordOver = (
     S.decodeUnknownOption(StoredIssuePayload)(storedRecord.payloadJson),
   )
   if (Option.isSome(maybeStoredPayload)) {
+    const storedPayload = maybeStoredPayload.value
+    const written: Record<string, unknown> = S.encodeSync(Issue)(issue)
+    const lists = Object.fromEntries(
+      Array.getSomes(
+        Array.map(Object.entries(written), ([key, value]) =>
+          Option.flatMap(listItemsOf(value), writtenItems =>
+            Option.map(listItemsOf(storedPayload[key]), storedItems => [
+              key,
+              listOver(writtenItems, storedItems),
+            ]),
+          ),
+        ),
+      ),
+    )
     return InstantIssueRecord.make({
       ...record,
       payloadJson: JSON.stringify({
-        ...maybeStoredPayload.value,
-        ...S.encodeSync(Issue)(issue),
+        ...storedPayload,
+        ...written,
+        ...lists,
       }),
     })
   } else {
@@ -726,6 +771,16 @@ const backOff = (
   )
 
 /**
+ * Whether a change leaves an Issue as it was, whatever it did to `updatedAtMs`:
+ * setting a status it already has, or releasing a claim no one holds, writes
+ * nothing.
+ */
+const isSameIssueBut = (changed: Issue, current: Issue): boolean =>
+  S.encodeSync(IssueJson)(
+    Issue.make({ ...changed, updatedAtMs: current.updatedAtMs }),
+  ) === S.encodeSync(IssueJson)(current)
+
+/**
  * The `updatedAtMs` a write gives its Issue: past the stored row's, past now,
  * and never behind what the change set, so every write moves it and a read
  * from before the write can never match the row again.
@@ -914,6 +969,14 @@ const updateIssue = (
       const current = yield* decodeStoredIssue('Update', record)
       const nowMs = yield* Clock.currentTimeMillis
       const changed = change.apply(current)
+      if (isSameIssueBut(changed, current)) {
+        return change.hasLanded(current)
+          ? current
+          : yield* failIssueTracker(
+              'Update',
+              `Issue ${issueId}: the change changes nothing, and the stored Issue still reads without it.`,
+            )
+      }
       const next = Issue.make({
         ...changed,
         updatedAtMs: writeStampOf(record, changed, nowMs),

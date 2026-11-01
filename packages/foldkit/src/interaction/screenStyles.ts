@@ -293,6 +293,10 @@ export const screenStylesheet = `
   box-shadow: 0 24px 64px rgb(15 23 42 / 0.28);
 }
 
+:where(.fk-layer-surface:focus) {
+  outline: none;
+}
+
 :where(.fk-layer[data-layer='Dialog'] > .fk-layer-surface) {
   top: 12vh;
   left: 50%;

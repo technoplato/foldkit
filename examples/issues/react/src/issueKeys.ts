@@ -8,6 +8,8 @@ import {
 import { sendScreenToken } from 'issues-react-bindings-example'
 import { useEffect, useRef } from 'react'
 
+import { moveKeyboardOffControl } from '@foldkit/react'
+
 const FIELD_TAGS = ['INPUT', 'TEXTAREA', 'SELECT']
 const CONTROL_TAGS = ['A', 'BUTTON', 'SUMMARY']
 
@@ -41,6 +43,8 @@ const ESCAPE = 'Escape'
  * Binds the page's keys: it reports each key to the Program and sends the
  * token the Program names. What a key means lives in `tokenForKeyPress`. Esc
  * in a field the Program does not bind lets go of the field, as a field does.
+ * A key the Program takes from a button or link moves the keyboard off it,
+ * so Enter after `j` opens the row, never the button clicked before.
  */
 export const useIssueKeys = (model: Model): void => {
   const latestModel = useRef(model)
@@ -54,6 +58,9 @@ export const useIssueKeys = (model: Model): void => {
       const maybeToken = tokenForKeyPress(latestModel.current, press)
       if (Option.isSome(maybeToken)) {
         event.preventDefault()
+        if (press.target === 'Control' && event.target instanceof HTMLElement) {
+          moveKeyboardOffControl(event.target)
+        }
         sendScreenToken(maybeToken.value)
       } else if (
         press.key === ESCAPE &&

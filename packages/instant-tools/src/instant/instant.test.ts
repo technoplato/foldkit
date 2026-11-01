@@ -14,6 +14,7 @@ import {
   ApplicationProduct,
   Issue,
   IssueAttachment,
+  IssueMention,
   IssueQuery,
   IssueSuccessCriterion,
   IssueTrackerError,
@@ -26,6 +27,7 @@ import {
   RepositoryAttachmentSource,
   TriageCandidate,
   type TriageInboxService,
+  UriReference,
   describeIssueTrackerError,
 } from '../issues/index.js'
 import {
@@ -45,6 +47,7 @@ import {
   decodeIssueRecord,
   makeInstantEntityStore,
   makeInstantIssueRecord,
+  makeInstantIssueRecordOver,
   makeInstantLogIssueLinkRecords,
   makeInstantProductRecord,
   makeInstantRecordingSegmentRecord,
@@ -467,6 +470,113 @@ describe('Instant adapter', () => {
       expect(issues).toEqual([issue])
     }),
   )
+
+  it('keeps the keys a criterion, a mention or an entry holds that the schema does not model when it saves', () => {
+    const mention = IssueMention.make({
+      capturedAtMs: Option.none(),
+      directQuote: Option.some('Pause it from the phone.'),
+      id: 'mention-1',
+      issueId: issue.id,
+      reporter: Option.none(),
+      source: UriReference.make({ value: 'scribe://recording/208/segment/2735' }),
+    })
+    const entry = IssueWorkLogEntry.make({
+      agentId: Option.some('claude-code/one'),
+      commitSha: Option.none(),
+      durationSeconds: Option.none(),
+      id: 'work-021-progress-1',
+      occurredAtMs: 1_753_825_160_000,
+      state: Option.some('progress'),
+      summary: 'Measured.',
+    })
+    const withLists = Issue.make({
+      ...issue,
+      mentions: [mention],
+      workLog: [entry],
+    })
+    const encoded = JSON.parse(makeInstantIssueRecord(withLists).payloadJson)
+    const [criterion] = encoded.successCriteria
+    const [storedMention] = encoded.mentions
+    const [storedEntry] = encoded.workLog
+    const stored = {
+      ...makeInstantIssueRecord(withLists),
+      payloadJson: JSON.stringify({
+        ...encoded,
+        mentions: [
+          { ...storedMention, relayContext: 'Relayed by the listener.' },
+        ],
+        successCriteria: [
+          { ...criterion, evidence: ['runs/orphan-recordings.json'] },
+        ],
+        workLog: [{ ...storedEntry, verifiedBy: 'nightly check' }],
+      }),
+    }
+
+    const written = JSON.parse(
+      makeInstantIssueRecordOver(
+        Issue.make({
+          ...withLists,
+          successCriteria: [
+            IssueSuccessCriterion.make({
+              ...withLists.successCriteria[0]!,
+              isSatisfied: true,
+            }),
+          ],
+        }),
+        Option.some(stored),
+      ).payloadJson,
+    )
+
+    expect(written.successCriteria).toMatchObject([
+      { evidence: ['runs/orphan-recordings.json'], isSatisfied: true },
+    ])
+    expect(written.mentions).toMatchObject([
+      { id: 'mention-1', relayContext: 'Relayed by the listener.' },
+    ])
+    expect(written.workLog).toMatchObject([
+      { id: 'work-021-progress-1', verifiedBy: 'nightly check' },
+    ])
+  })
+
+  it('drops what a removed list item held, and lets a modeled key the change set win', () => {
+    const encoded = JSON.parse(makeInstantIssueRecord(issue).payloadJson)
+    const [criterion] = encoded.successCriteria
+    const stored = {
+      ...makeInstantIssueRecord(issue),
+      payloadJson: JSON.stringify({
+        ...encoded,
+        successCriteria: [
+          { ...criterion, evidence: ['kept only while the criterion is'] },
+          { id: 'gone', outcome: 'Removed.', requiredEvidence: [], evidence: ['x'] },
+        ],
+      }),
+    }
+
+    const written = JSON.parse(
+      makeInstantIssueRecordOver(
+        Issue.make({
+          ...issue,
+          successCriteria: [
+            IssueSuccessCriterion.make({
+              ...issue.successCriteria[0]!,
+              outcome: 'The changed outcome.',
+            }),
+          ],
+        }),
+        Option.some(stored),
+      ).payloadJson,
+    )
+
+    expect(written.successCriteria).toEqual([
+      {
+        evidence: ['kept only while the criterion is'],
+        id: 'compact-initial-placement',
+        isSatisfied: false,
+        outcome: 'The changed outcome.',
+        requiredEvidence: ['FocusedTest', 'PhysicalDeviceInteraction'],
+      },
+    ])
+  })
 
   it.effect(
     'observes filtered Issue collections and one Issue by identity',

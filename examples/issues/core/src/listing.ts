@@ -235,7 +235,12 @@ export const selectedRowsOf = (model: Model): ReadonlyArray<Issue> => {
  * the row under the cursor.
  */
 export const issuesInHandOf = (model: Model): ReadonlyArray<string> => {
-  if (model.layer._tag === 'PeekLayer') {
+  if (
+    model.layer._tag === 'ChoiceLayer' &&
+    Array.isReadonlyArrayNonEmpty(model.layer.heldIssueIds)
+  ) {
+    return model.layer.heldIssueIds
+  } else if (model.layer._tag === 'PeekLayer') {
     return [model.layer.issueId]
   } else if (
     model.layer._tag === 'ChoiceLayer' &&

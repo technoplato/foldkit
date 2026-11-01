@@ -79,6 +79,26 @@ export const issueWithChange = (issue: Issue, change: RowChange): Issue =>
     }),
   )
 
+/**
+ * Whether a change would change the Issue: a status it already has, a claim
+ * by the agent who holds it, or a release of a claim no one holds would not,
+ * so nothing is written for them. A claim by the person signed in is always a
+ * change here, because who that is is known only when it is written.
+ */
+export const isChangeTo = (issue: Issue, change: RowChange): boolean =>
+  M.value(change).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      ChangedStatus: ({ status }) => issue.status !== status,
+      ChangedPriority: ({ priority }) => issue.priority !== priority,
+      ChangedProduct: ({ product }) => issue.product.id !== product.id,
+      ClaimedByAuthor: () => true,
+      ClaimedFor: ({ claimantId }) =>
+        !Option.contains(issue.claimantId, claimantId),
+      ReleasedClaim: () => Option.isSome(issue.claimantId),
+    }),
+  )
+
 const SHOWN_CHANGE_SEPARATOR = '\n'
 
 const editedIssues = new WeakMap<Issue, Map<string, Issue>>()

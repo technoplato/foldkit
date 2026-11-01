@@ -94,6 +94,7 @@ const makeServer = (options: ServerOptions = ownerServer) => {
   const reads: Array<Read> = []
   const sentRuleParams: Array<unknown> = []
   const afterNextRead: Array<() => void> = []
+  const afterNextCommit: Array<() => void> = []
   const database = {
     tx: txInit<typeof InstantToolsSchema>(),
     queryOnce: (query: unknown, queryOptions?: unknown) => {
@@ -132,6 +133,9 @@ const makeServer = (options: ServerOptions = ownerServer) => {
       Option.map(update, op => {
         row = { ...row, ...(op[3] as Partial<InstantIssueRecord>) }
       })
+      for (const hook of afterNextCommit.splice(0)) {
+        hook()
+      }
       return { status: 'synced', clientId: 'server' }
     },
   }
@@ -153,6 +157,10 @@ const makeServer = (options: ServerOptions = ownerServer) => {
     },
     afterNextRead: (hook: () => void) => {
       afterNextRead.push(hook)
+    },
+    /** Runs `hook` as the next write commits, before its writer hears back. */
+    afterNextCommit: (hook: () => void) => {
+      afterNextCommit.push(hook)
     },
   }
 }
@@ -222,22 +230,23 @@ describe('two writers on one Issue', () => {
           { retryMs: 1, settleMs: 120 },
         )
         const before = server.stored()
-        const write = tracker.update('005', appending(entryNamed('overwritten')))
-        const overlapping = Effect.promise(async () => {
-          while (!Array.some(server.stored().workLog, entry => entry.id === 'overwritten')) {
-            await sleep(1)
-          }
-          await sleep(15)
-          server.overwrite(() =>
-            Issue.make({
-              ...before,
-              updatedAtMs: server.storedRecord().updatedAtMs + 1,
-              workLog: [...before.workLog, entryNamed('overlapping')],
-            }),
-          )
+        const overwritten = new Promise<void>(resolve => {
+          server.afterNextCommit(() => {
+            setTimeout(() => {
+              server.overwrite(() =>
+                Issue.make({
+                  ...before,
+                  updatedAtMs: server.storedRecord().updatedAtMs + 1,
+                  workLog: [...before.workLog, entryNamed('overlapping')],
+                }),
+              )
+              resolve()
+            }, 15)
+          })
         })
 
-        yield* Effect.all([write, overlapping], { concurrency: 2 })
+        yield* tracker.update('005', appending(entryNamed('overwritten')))
+        yield* Effect.promise(() => overwritten)
 
         expect(loggedIds(server.stored())).toEqual([
           'overlapping',
@@ -400,5 +409,26 @@ describe('a write that is refused', () => {
         )
         expect(server.sentRuleParams).toHaveLength(1)
       }),
+  )
+})
+
+describe('a change that changes nothing', () => {
+  it.live('writes nothing and answers the Issue as stored', () =>
+    Effect.gen(function* () {
+      const server = makeServer()
+      const tracker = makeIssueTracker(
+        makeInstantEntityStore(server.database),
+        quick,
+      )
+
+      const stored = yield* tracker.update('005', {
+        apply: current =>
+          Issue.make({ ...current, updatedAtMs: current.updatedAtMs + 1 }),
+        hasLanded: () => true,
+      })
+
+      expect(server.sentRuleParams).toEqual([])
+      expect(stored.updatedAtMs).toBe(5_000)
+    }),
   )
 })

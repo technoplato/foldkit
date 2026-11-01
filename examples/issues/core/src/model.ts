@@ -529,9 +529,14 @@ export type ChoiceMenu = typeof ChoiceMenu.Type
  * Choices show above the page: which ones, what is typed into their field,
  * and the position of the row the mark is on. Opened over a peek, they name
  * the Issue it shows and return to it. Opened from a field on a row, they
- * name that row's Issue, which is what they change.
+ * name that row's Issue, which is what they change. Opened by a key, they
+ * hold the Issues in hand as they opened, `['1571']`, and change those for
+ * as long as they stay open, wherever the cursor or the list goes meanwhile.
  */
 export const ChoiceLayer = S.TaggedStruct('ChoiceLayer', {
+  heldIssueIds: S.Array(S.String).pipe(
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
   maybePeekedIssueId: S.Option(S.String).pipe(
     S.withConstructorDefault(Effect.succeed(Option.none())),
   ),

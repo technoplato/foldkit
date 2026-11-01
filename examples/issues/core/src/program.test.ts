@@ -72,6 +72,7 @@ import {
   SubmittedIssueSuccessCriterion,
   SubmittedIssueWorkInProgress,
   SubmittedIssueWorkLogEntry,
+  SucceededCommentOnIssue,
   SubmittedProduct,
   SubmittedSubtaskMarks,
   SubmittedSuccessCriteriaMarks,
@@ -419,7 +420,7 @@ describe('Issue Tracker Program', () => {
     const [saving, commands] = update(titled, SubmittedIssue.make({}))
     expect(saving.draftState._tag).toBe('SavingIssueDraft')
     expect(commands).toHaveLength(1)
-    expect(commands[0]?.name).toBe('SaveIssue')
+    expect(commands[0]?.name).toBe('FileIssueDraft')
   })
 
   it('keeps transcript candidates as drafts until a review Message', () => {
@@ -628,8 +629,16 @@ describe('Issue Tracker Program', () => {
         summary: linking.leftoverComment,
       }),
     )
-    expect(submitting.leftoverComment).toBe('')
+    expect(submitting.leftoverComment).toBe('Painted leftover progress.')
     expect(commentCommands[0]?.name).toBe('CommentOnIssue')
+    const [commented] = update(
+      submitting,
+      SucceededCommentOnIssue.make({
+        issue,
+        summary: 'Painted leftover progress.',
+      }),
+    )
+    expect(commented.leftoverComment).toBe('')
     const [away] = update(linking, SelectedIssue.make({ issueId: '240' }))
     expect(away.leftoverComment).toBe('')
     expect(away.leftoverLink).toBe('')
@@ -930,7 +939,7 @@ describe('Issue Tracker Program', () => {
     )
 
     expect(result).toMatchObject({
-      _tag: 'SucceededSaveIssue',
+      _tag: 'SucceededFileIssueDraft',
       issue: {
         area: Option.some('Issue tracker / CLI'),
         claimantId: Option.some('claude-code/issues-one-way'),
@@ -1003,7 +1012,7 @@ describe('Issue Tracker Program', () => {
     )
 
     expect(result).toEqual({
-      _tag: 'FailedSaveIssue',
+      _tag: 'FailedFileIssueDraft',
       reason: 'File: CreateIssue: Permission denied: instantToolsIssues',
     })
     const [failed] = update(saving, result)
@@ -1020,7 +1029,7 @@ describe('Issue Tracker Program', () => {
     )
     const [saving, commands] = update(byName, SubmittedIssue.make({}))
     expect(saving.draftState._tag).toBe('SavingIssueDraft')
-    expect(commands[0]?.name).toBe('SaveIssue')
+    expect(commands[0]?.name).toBe('FileIssueDraft')
 
     const [unknown] = update(
       filingModel(),
@@ -1417,7 +1426,7 @@ describe('Issue Tracker Program', () => {
     )
 
     expect(result).toMatchObject({
-      _tag: 'SucceededSaveIssue',
+      _tag: 'SucceededLinkCatalogIssue',
       issue: { relatedIssueIds: ['502'] },
     })
     if (result._tag !== 'SucceededSaveIssue') {
@@ -1447,7 +1456,7 @@ describe('Issue Tracker Program', () => {
       ),
     )
 
-    expect(result._tag).toBe('SucceededSaveIssue')
+    expect(result._tag).toBe('SucceededCommentOnIssue')
     expect(
       Option.map(runNow(tracker.fetchIssue('692')), found =>
         found.workLog.map(entry => [entry.agentId, entry.summary]),
@@ -1491,7 +1500,7 @@ describe('Issue Tracker Program', () => {
       CommentOnIssue({ issueId: '692', summary: 'Written.' }).effect,
     )
 
-    expect(result._tag).toBe('SucceededSaveIssue')
+    expect(result._tag).toBe('SucceededCommentOnIssue')
     expect(
       Option.map(runNow(tracker.fetchIssue('692')), found =>
         found.workLog.map(entry => entry.summary),

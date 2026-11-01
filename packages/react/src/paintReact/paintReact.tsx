@@ -201,6 +201,88 @@ const DockBox = ({
   )
 }
 
+const layerSurfaceClass = 'fk-layer-surface'
+
+const focusedElement = (): Option.Option<HTMLElement> =>
+  typeof document !== 'undefined' &&
+  document.activeElement instanceof HTMLElement
+    ? Option.some(document.activeElement)
+    : Option.none()
+
+const isKeyboardOnPage = (): boolean =>
+  document.activeElement === null || document.activeElement === document.body
+
+/**
+ * A layer's surface. It takes the keyboard when it opens, unless a field in it
+ * already did, so Enter and the arrows act on the layer and never press a
+ * control behind it, such as the chip that opened it. When its contents
+ * change and the keyboard falls to the page, it takes it back. When it closes
+ * it gives the keyboard back to what had it before, unless something else took
+ * the keyboard meanwhile.
+ */
+const LayerSurface = ({
+  children,
+  className,
+  kind,
+  label,
+}: Readonly<{
+  children: ReactNode
+  className: string
+  kind: BoxLayer['kind']
+  label: string
+}>): ReactElement => {
+  const ref = useRef<HTMLDivElement>(null)
+  const [maybeOpener] = useState(focusedElement)
+  useEffect(() => {
+    const surface = ref.current
+    if (surface !== null && !surface.contains(document.activeElement)) {
+      surface.focus({ preventScroll: true })
+    }
+    return () => {
+      Option.map(maybeOpener, opener => {
+        if (opener.isConnected && isKeyboardOnPage()) {
+          opener.focus({ preventScroll: true })
+        }
+      })
+    }
+  }, [maybeOpener])
+  useEffect(() => {
+    const surface = ref.current
+    if (surface !== null && isKeyboardOnPage()) {
+      surface.focus({ preventScroll: true })
+    }
+  })
+  return (
+    <div
+      ref={ref}
+      tabIndex={-1}
+      className={className}
+      role="dialog"
+      aria-modal={kind === 'Dialog'}
+      aria-label={label}
+      data-layer={kind}
+    >
+      {children}
+    </div>
+  )
+}
+
+/**
+ * Moves the keyboard off a control, such as a button a person clicked, when
+ * the page takes a key from it: to the open layer's surface when the control
+ * is inside one, so Enter picks the marked row, else to the page, so Enter
+ * after `j` opens the row under the cursor and does not press the control
+ * again. A host binding keys calls it before it sends the key's token.
+ */
+export const moveKeyboardOffControl = (control: HTMLElement): void => {
+  const surface = control.closest(`.${layerSurfaceClass}`)
+  if (surface instanceof HTMLElement) {
+    surface.focus({ preventScroll: true })
+  } else {
+    control.blur()
+  }
+}
+
 const pressOf = (action: string, label: string): ButtonNode => ({
   _tag: 'Button',
   label,
@@ -835,15 +917,13 @@ export const paintTree = (
                 }
           }
         />
-        <div
-          className={classFor('Box', 'fk-layer-surface')}
-          role="dialog"
-          aria-modal={layer.kind === 'Dialog'}
-          aria-label={layer.label}
-          data-layer={layer.kind}
+        <LayerSurface
+          className={classFor('Box', layerSurfaceClass)}
+          kind={layer.kind}
+          label={layer.label}
         >
           {paintChildren(box.children)}
-        </div>
+        </LayerSurface>
       </div>
     )
   }
