@@ -117,6 +117,7 @@ describe('Solana live observation', () => {
       Readonly<{ socket: FakeSocket; settled: () => boolean }>
     > => {
       vi.stubGlobal('WebSocket', FakeSocket)
+      vi.useFakeTimers()
       let isSettled = false
       const adapter = makeSolanaLiveAdapter(configuration)
       void Effect.runPromiseExit(
@@ -124,8 +125,9 @@ describe('Solana live observation', () => {
       ).then(() => {
         isSettled = true
       })
-      const socket = await subscribedSocket()
-      vi.useFakeTimers()
+      const subscribed = subscribedSocket()
+      await vi.advanceTimersByTimeAsync(settleAttempts)
+      const socket = await subscribed
       socket.receive({ jsonrpc: '2.0', id: 1, result: 7 })
       return { socket, settled: () => isSettled }
     }
