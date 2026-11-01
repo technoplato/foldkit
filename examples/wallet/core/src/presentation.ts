@@ -629,11 +629,49 @@ export const transferPreviewReadinessLabel = (model: Model): string =>
     }),
   )
 
-/** Public lines for one sanitized Wallet failure, including adapter guidance. */
+const walletFailureCode = (failure: WalletFailure): string =>
+  `${failure.operation}/${failure.code}`
+
+const walletFailureWords = (failure: WalletFailure): string => {
+  const isRefused = failure.code === 'Rejected'
+  return M.value(failure.operation).pipe(
+    M.withReturnType<string>(),
+    M.when(
+      'ValidateTransfer',
+      () => 'This recipient could not be checked. Nothing was sent. Try again.',
+    ),
+    M.when('PreviewTransfer', () =>
+      isRefused
+        ? 'This send cannot go through: check the amount against your balance and the fee. Nothing was sent.'
+        : 'The network did not answer with a fee. Nothing was sent. Try the preview again.',
+    ),
+    M.when(
+      'BuildTransferPayload',
+      () =>
+        'This preview can no longer be sent. Nothing was sent. Preview the send again.',
+    ),
+    M.when(
+      'SignTransaction',
+      () => 'This wallet could not sign. Nothing was sent.',
+    ),
+    M.when('SubmitTransaction', () =>
+      isRefused
+        ? 'The network refused this send. Nothing was sent.'
+        : 'The network did not answer, so this send may still land. Check your activity before you send it again.',
+    ),
+    M.orElse(() => walletFailureCode(failure)),
+  )
+}
+
+/**
+ * Public lines for one sanitized Wallet failure, including adapter guidance.
+ * A failed send says in words whether anything was sent, since that is what
+ * a person needs before they try again.
+ */
 export const walletFailureLines = (
   failure: WalletFailure,
 ): ReadonlyArray<string> => {
-  const headline = `${failure.operation}/${failure.code}`
+  const headline = walletFailureWords(failure)
   if (
     failure._tag !== 'NetworkFailure' ||
     Option.isNone(failure.maybeGuidance)
@@ -650,7 +688,7 @@ export const walletFailureLines = (
 
 /** Formats one sanitized Wallet failure for a CLI or alert string. */
 export const walletFailureMessage = (failure: WalletFailure): string =>
-  Array.join(walletFailureLines(failure), '\n')
+  Array.join([walletFailureCode(failure), ...walletFailureLines(failure)], '\n')
 
 /** Selects the primary account and asset's receiving instruction. */
 export const primaryReceivingInstruction = (
