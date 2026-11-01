@@ -1,4 +1,4 @@
-import { Effect, Exit, Option, Stream } from 'effect'
+import { Cause, Effect, Exit, Option, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   AssetAmount,
@@ -181,6 +181,19 @@ describe('watching one account', () => {
       watchOnce(adapter, { ...account, maybeCursor: Option.some('c') }, store),
     )
     expect(asked).toEqual([Option.none()])
+  })
+
+  it('says which error ended the watch, never an empty reason', async () => {
+    const { store } = memoryStore()
+    const adapter = fakeAdapter(() => Effect.fail(unavailable()), Stream.never)
+    const exit = await Effect.runPromiseExit(watchOnce(adapter, account, store))
+    const reason = Exit.isFailure(exit)
+      ? Option.match(Cause.findErrorOption(exit.cause), {
+          onNone: () => '',
+          onSome: error => error.reason,
+        })
+      : ''
+    expect(reason).toContain('Unavailable')
   })
 
   it('fails loudly when the chain does not answer in time', async () => {
