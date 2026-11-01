@@ -1,4 +1,8 @@
-import { BrandonProgram, type Message, MessageWire } from 'brandon-core-example'
+import {
+  BrandonProgram,
+  type LogMessage,
+  MessageWire,
+} from 'brandon-core-example'
 import { Array, Option, Result, Schema as S } from 'effect'
 
 import { programMessageFieldsOf } from '@foldkit/instant'
@@ -13,7 +17,7 @@ export type FactStamp = Readonly<{
 }>
 
 /** The `programMessage` fields of one fact, as Foldkit's reader folds them. */
-export const logFieldsOf = (message: Message, stamp: FactStamp) => ({
+export const logFieldsOf = (message: LogMessage, stamp: FactStamp) => ({
   ...programMessageFieldsOf(BrandonProgram.id, {
     id: '',
     from: stamp.from,

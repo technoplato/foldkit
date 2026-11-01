@@ -8,7 +8,7 @@ import { knophyAccessTeamDomain, makeAccessVerifier } from '@foldkit/instant'
 import { makeBrandonAdmin } from './adminStore.js'
 import { brandonEnv, listOf, maybeEnv } from './env.js'
 import { makeFootball } from './football.js'
-import { handle } from './handler.js'
+import { handle, originHeaders } from './handler.js'
 
 // ORIGIN
 
@@ -57,11 +57,7 @@ const server = createServer((request, response) => {
     dependencies,
   ).then(
     answer => {
-      response.writeHead(answer.status, {
-        'content-type': answer.contentType,
-        'content-length': answer.body.length,
-        'cache-control': 'private, no-store',
-      })
+      response.writeHead(answer.status, originHeaders(answer))
       response.end(answer.body)
     },
     (error: unknown) => {

@@ -27,11 +27,11 @@ const isLogMessage = (message: Message): boolean =>
  * wallet's Messages are local too: its keys, balances and sends stay on
  * this device.
  */
-export const BrandonProgram = Program.make<
+export const BrandonProgram: Program.Program<
   Model,
   Message,
   BrandonServer | WalletResources
->({
+> = Program.make<Model, Message, BrandonServer | WalletResources>({
   id: 'brandon-dot',
   version: 1,
   Model,

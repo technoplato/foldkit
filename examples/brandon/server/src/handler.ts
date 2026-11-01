@@ -4,12 +4,14 @@ import {
   Games,
   MarkdownSection,
   Page,
+  PersonalWalletSection,
   QrLinksSection,
   ScoreboardSection,
   type Section,
   SectionKey,
   WalletAddresses,
   WalletsSection,
+  brandonWalletConnectOrigins,
 } from 'brandon-core-example'
 import {
   Array,
@@ -37,6 +39,8 @@ import {
   firstAccount,
   footballFlag,
   hasFlag,
+  walletFlag,
+  walletOwnerKeyOf,
   walletsFlag,
 } from './account.js'
 import { qrDrawingOf } from './qr.js'
@@ -83,7 +87,52 @@ const text = (status: number, body: string): OriginResponse => ({
 
 const refused = text(403, 'Refused: no verified login.')
 const notFound = text(404, 'Not found.')
+const notAllowed = text(405, 'Refused: this origin only answers reads.')
 const unavailable = text(503, 'Not available right now.')
+
+const readMethods: ReadonlySet<string> = new Set(['GET', 'HEAD'])
+
+const instantOrigins = ['https://api.instantdb.com', 'wss://api.instantdb.com']
+
+const contentSecurityPolicy = [
+  "default-src 'none'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  `connect-src 'self' ${[...instantOrigins, ...brandonWalletConnectOrigins].join(' ')}`,
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ')
+
+const securityHeaders: Readonly<Record<string, string>> = {
+  'content-security-policy': contentSecurityPolicy,
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-resource-policy': 'same-origin',
+  'permissions-policy':
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()',
+  'strict-transport-security': 'max-age=31536000',
+}
+
+/**
+ * The headers every answer carries. The content security policy lets the
+ * page run only its own scripts, never inside another site's frame, and
+ * talk only to Instant and the wallet's own chains, so an injected script
+ * or a tag from elsewhere cannot run beside the wallet's keys.
+ */
+export const originHeaders = (
+  response: OriginResponse,
+): Readonly<Record<string, string>> => ({
+  'content-type': response.contentType,
+  'content-length': response.body.length.toString(),
+  'cache-control': 'private, no-store',
+  ...securityHeaders,
+})
 
 const json = (value: unknown): OriginResponse => ({
   status: 200,
@@ -161,6 +210,7 @@ const sectionOf = (row: SectionRow): Section => {
     M.when('Scoreboard', () => ScoreboardSection(fields)),
     M.when('Football', () => FootballSection(fields)),
     M.when('Wallets', () => WalletsSection(fields)),
+    M.when('Wallet', () => PersonalWalletSection(fields)),
     M.exhaustive,
   )
 }
@@ -232,7 +282,9 @@ const staticFile = async (
 /**
  * Answers one request. Everything but `/health` needs a login whose JWT
  * verifies against the team's certs: the email header alone is never
- * read, and a flag that is off means those words stay here.
+ * read, and a flag that is off means those words stay here. Only reads
+ * are answered: no path takes a request body, so nothing can hand this
+ * origin a key.
  */
 export const handle = async (
   request: OriginRequest,
@@ -243,6 +295,9 @@ export const handle = async (
     Array.head(request.path.split('?')),
     () => request.path,
   )
+  if (!readMethods.has(request.method)) {
+    return notAllowed
+  }
   if (path === '/health') {
     return text(200, 'ok')
   }
@@ -277,6 +332,16 @@ export const handle = async (
           return refused
         }
         return json(S.encodeSync(WalletAddresses)(yield* store.wallets))
+      }),
+    )
+  } else if (path === '/api/wallet/owner') {
+    return read(
+      Effect.gen(function* () {
+        const account = yield* accountOf(email, store)
+        if (!hasFlag(account, walletFlag)) {
+          return refused
+        }
+        return json({ ownerKey: walletOwnerKeyOf(email) })
       }),
     )
   } else if (staticRoot === undefined) {

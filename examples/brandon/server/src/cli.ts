@@ -7,7 +7,7 @@ import {
   SectionKey,
   solOfLamports,
 } from 'brandon-core-example'
-import { Effect, Option, Schema as S } from 'effect'
+import { Array as Array_, Effect, Option, Schema as S } from 'effect'
 import { readFileSync } from 'node:fs'
 
 import { parseMarkdown } from '@foldkit/markdown/vite'
@@ -32,9 +32,11 @@ const usage = `brandon: drive Brandon dot (the page follows within a second).
                                                a correction is negative points
   brandon note <name> "<note>" [--dunce]       a note beside a player
   brandon section list
-  brandon section put <key> --title T --kind Markdown|QrLinks|Scoreboard|Football|Wallets
+  brandon section put <key> --title T --kind Markdown|QrLinks|Scoreboard|Football|Wallets|Wallet
       --column Top|Main|Side --flag F --position N [--file F.md] [--links '[{"label":"…","url":"…"}]']
   brandon account set <email|default> --name NAME --flags a,b,c
+  brandon account flags <name> [--add a,b] [--remove c]
+                                               change one person's flags by name, never an address
   brandon account list                         names and flags, never an address
   brandon wallet add <address> --label L [--network Devnet|Mainnet]
   brandon wallet list
@@ -182,6 +184,20 @@ const run = (args: ReadonlyArray<string>): Effect.Effect<void, Error> => {
         displayName: need(parsed, '--name'),
         flags: listOf(need(parsed, '--flags')),
       },
+    )
+  } else if (area === 'account' && verb === 'flags' && first !== undefined) {
+    const added = listOf(parsed.options.get('--add'))
+    const removed = listOf(parsed.options.get('--remove'))
+    return Effect.flatMap(
+      admin.changeFlags(first, flags =>
+        Array_.dedupe(
+          Array_.appendAll(
+            Array_.filter(flags, flag => !Array_.contains(removed, flag)),
+            added,
+          ),
+        ),
+      ),
+      ({ displayName, flags }) => print(`${displayName}: ${flags.join(', ')}`),
     )
   } else if (area === 'account' && verb === 'list') {
     return Effect.flatMap(admin.accounts, rows =>

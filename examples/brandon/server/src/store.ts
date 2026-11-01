@@ -12,6 +12,7 @@ export const SectionKind = S.Literals([
   'Scoreboard',
   'Football',
   'Wallets',
+  'Wallet',
 ])
 /** What a section paints. */
 export type SectionKind = typeof SectionKind.Type

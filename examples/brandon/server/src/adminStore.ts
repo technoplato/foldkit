@@ -2,7 +2,7 @@ import {
   AwardedPoints,
   BrandonProgram,
   ChangedSections,
-  type Message,
+  type LogMessage,
   MirroredWallets,
   SectionColumn,
   WalletAddress,
@@ -156,12 +156,16 @@ export type AdminConfig = Readonly<{
 /** What the `brandon` command and the origin's mirror timer write. */
 export type BrandonAdmin = BrandonStore &
   Readonly<{
-    appendFact: (message: Message) => Effect.Effect<void, Error>
+    appendFact: (message: LogMessage) => Effect.Effect<void, Error>
     setAccount: (
       accountKey: string,
       account: Account,
     ) => Effect.Effect<void, Error>
     accounts: Effect.Effect<ReadonlyArray<Account>, Error>
+    changeFlags: (
+      displayName: string,
+      change: (flags: ReadonlyArray<string>) => ReadonlyArray<string>,
+    ) => Effect.Effect<Account, Error>
     putSection: (row: SectionRow) => Effect.Effect<void, Error>
     addWallet: (wallet: MirroredWallet) => Effect.Effect<void, Error>
     mirrorWallets: (
@@ -203,10 +207,10 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
     atMs: Date.now(),
   })
 
-  const factStep = (message: Message) =>
+  const factStep = (message: LogMessage) =>
     admin.tx['programMessage']![id()]!.update(logFieldsOf(message, stamp()))
 
-  const appendFact = (message: Message): Effect.Effect<void, Error> =>
+  const appendFact = (message: LogMessage): Effect.Effect<void, Error> =>
     attempt(() => admin.transact([factStep(message)])).pipe(Effect.asVoid)
 
   const accountRows = attempt(() => admin.query({ brandonAccounts: {} })).pipe(
@@ -269,6 +273,32 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
         factStep(ChangedSections({ atMs: Date.now() })),
       ]),
     ).pipe(Effect.asVoid)
+
+  const changeFlags: BrandonAdmin['changeFlags'] = (displayName, change) =>
+    Effect.gen(function* () {
+      const named = Array.filter(
+        yield* accountRows,
+        row => row.displayName === displayName,
+      )
+      const row = yield* Array.match(named, {
+        onEmpty: () =>
+          Effect.fail(new Error(`No account is named ${displayName}.`)),
+        onNonEmpty: ([only, ...others]) =>
+          Array.isArrayNonEmpty(others)
+            ? Effect.fail(
+                new Error(
+                  `${named.length.toString()} accounts are named ${displayName}; change them with account set.`,
+                ),
+              )
+            : Effect.succeed(only),
+      })
+      const next: Account = {
+        displayName,
+        flags: change(S.decodeUnknownSync(JsonFlags)(row.flags)),
+      }
+      yield* setAccount(row.accountKey, next)
+      return next
+    })
 
   const putSection: BrandonAdmin['putSection'] = row =>
     attempt(() =>
@@ -511,6 +541,7 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
         flags: S.decodeUnknownSync(JsonFlags)(row.flags),
       })),
     ),
+    changeFlags,
     putSection,
     addWallet,
     mirrorWallets,
