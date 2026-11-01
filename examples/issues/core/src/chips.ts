@@ -290,6 +290,10 @@ const buildsByNumberOf = (
     },
   )
 
+/**
+ * The FEATURES lines by number and by slug. A number two lines hold, such as
+ * 36, names neither, unless an Issue's own edges say which it means.
+ */
 type FeatureIndex = Readonly<{
   byNumber: ReadonlyMap<number, FeatureChip>
   bySlug: ReadonlyMap<string, FeatureChip>
@@ -301,14 +305,19 @@ const featureIndexOf = (features: ReadonlyArray<FeatureChip>): FeatureIndex =>
   Option.getOrElse(
     Option.fromUndefinedOr(featureIndexMemo.get(features)),
     () => {
+      const numbered = Array.flatMap(features, feature =>
+        Array.map(
+          Option.toArray(feature.maybeNumber),
+          (number): NumberedFeature => [number, feature],
+        ),
+      )
+      const linesPerNumber = new Map<number, number>()
+      for (const [number] of numbered) {
+        linesPerNumber.set(number, (linesPerNumber.get(number) ?? 0) + 1)
+      }
       const index = {
         byNumber: new Map(
-          Array.flatMap(features, feature =>
-            Array.map(
-              Option.toArray(feature.maybeNumber),
-              (number): NumberedFeature => [number, feature],
-            ),
-          ),
+          Array.filter(numbered, ([number]) => linesPerNumber.get(number) === 1),
         ),
         bySlug: new Map(
           Array.map(features, feature => [feature.slug, feature]),

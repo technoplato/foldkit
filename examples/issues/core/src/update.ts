@@ -6,6 +6,7 @@ import {
   Match as M,
   Option,
   Predicate,
+  Result,
   Schema as S,
 } from 'effect'
 import { Command } from 'foldkit'
@@ -83,6 +84,7 @@ import {
   savedViewsOf,
   selectedRowsOf,
   selectedSetOf,
+  shownIssueIdOf,
 } from './listing.js'
 import { type MenuRow, openMenuRowsOf } from './menus.js'
 import {
@@ -1957,6 +1959,8 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
       isGoKeyPending: false,
       isSearchFocused: false,
       layer: NoLayer.make({}),
+      maybeOpenedFrom: openedFromOf(model.navigation, navigation, model),
+      maybeWritingField: Option.none(),
       navigation,
       returnListView:
         model.navigation._tag === 'IssueList'
@@ -2447,6 +2451,25 @@ const withProductFilter = (
     ? [nextModel({ ...model, navigation: Backlog.make({ product }) }), []]
     : withListView(model, view => ({ ...view, product }))
 
+/**
+ * The page an Issue's page was opened from, where Esc goes back to: the
+ * inbox, a Recording's page, any page but the list, whose own view comes back
+ * by itself. Going from one Issue to another keeps the first one's page.
+ */
+const openedFromOf = (
+  from: Navigation,
+  to: Navigation,
+  model: Model,
+): Option.Option<Navigation> => {
+  if (to._tag !== 'IssueDetail' || from._tag === 'IssueList') {
+    return Option.none()
+  } else if (from._tag === 'IssueDetail') {
+    return model.maybeOpenedFrom
+  } else {
+    return Option.some(from)
+  }
+}
+
 const backToList = (model: Model): UpdateReturn =>
   withNavigation(
     model,
@@ -2681,6 +2704,45 @@ const nextRowEdit = (model: Model): UpdateReturn => {
   ]
 }
 
+/**
+ * The Issue a link names, in its stored spelling, `101` for `#101`, or why it
+ * names none: words, the Issue itself, or, once the catalog is read, a number
+ * no Issue has.
+ */
+const linkTargetOf = (
+  model: Model,
+  sourceIssueId: string,
+  targetIssueId: string,
+): Result.Result<string, string> =>
+  Option.match(normalizeIssueId(targetIssueId), {
+    onNone: () =>
+      Result.fail(`“${targetIssueId.trim()}” is not an Issue number.`),
+    onSome: target => {
+      if (target === storedIssueIdOf(sourceIssueId)) {
+        return Result.fail('An Issue does not link to itself.')
+      } else if (
+        model.issues._tag !== 'LoadedIssues' ||
+        issuesByIdIn(model).has(target)
+      ) {
+        return Result.succeed(target)
+      } else {
+        return Result.fail(`No Issue #${target}.`)
+      }
+    },
+  })
+
+/**
+ * The cards that move with one card on the board, by a drag or Shift+L: the
+ * whole selection when it holds that card, else that card alone.
+ */
+const cardsMovedWith = (
+  model: Model,
+  issueId: string,
+): ReadonlyArray<string> =>
+  selectedSetOf(model).has(issueId)
+    ? Array.map(selectedRowsOf(model), issue => issue.id)
+    : [issueId]
+
 const isIssueMutationSaving = (model: Model): boolean =>
   model.issueMutation._tag === 'SavingIssueMutation'
 
@@ -2880,10 +2942,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       ObservedIssueLanding: ({ issueId, landing }) => {
-        if (
-          model.navigation._tag !== 'IssueDetail' ||
-          model.navigation.issueId !== issueId
-        ) {
+        if (!Option.contains(shownIssueIdOf(model), issueId)) {
           return [model, []]
         }
         return [
@@ -2895,10 +2954,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       FailedObserveIssueLanding: ({ issueId, reason }) => {
-        if (
-          model.navigation._tag !== 'IssueDetail' ||
-          model.navigation.issueId !== issueId
-        ) {
+        if (!Option.contains(shownIssueIdOf(model), issueId)) {
           return [model, []]
         }
         return [
@@ -2910,8 +2966,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       ObservedIssueGraph: ({ graph, issueId }) =>
-        model.navigation._tag === 'IssueDetail' &&
-        model.navigation.issueId === issueId
+        Option.contains(shownIssueIdOf(model), issueId)
           ? [
               nextModel({
                 ...model,
@@ -2921,8 +2976,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             ]
           : [model, []],
       FailedObserveIssueGraph: ({ issueId, reason }) =>
-        model.navigation._tag === 'IssueDetail' &&
-        model.navigation.issueId === issueId
+        Option.contains(shownIssueIdOf(model), issueId)
           ? [
               nextModel({
                 ...model,
@@ -2985,7 +3039,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
       SelectedIssue: ({ issueId }) =>
         withNavigation(model, IssueDetail.make({ issueId })),
-      DismissedIssueDetail: () => backToList(model),
+      DismissedIssueDetail: () =>
+        Option.match(model.maybeOpenedFrom, {
+          onNone: () => backToList(model),
+          onSome: openedFrom => withNavigation(model, openedFrom),
+        }),
       ClickedOpenIssueList: () => backToList(model),
       ClickedFileIssue: () => withNavigation(model, FileIssue.make({})),
       ClickedOpenTriage: () => withNavigation(model, TriageInbox.make({})),
@@ -3154,6 +3212,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [nextModel({ ...listing, isSearchFocused: true }), commands]
         }
       },
+      FocusedWritingField: ({ field }) => [
+        nextModel({ ...model, maybeWritingField: Option.some(field) }),
+        [],
+      ],
+      BlurredWritingField: ({ field }) => [
+        Option.contains(model.maybeWritingField, field)
+          ? nextModel({ ...model, maybeWritingField: Option.none() })
+          : model,
+        [],
+      ],
       BlurredSearchField: () => [
         nextModel({ ...model, isSearchFocused: false }),
         [],
@@ -3200,7 +3268,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(changeAcross(model, direction), {
           onNone: () => [model, []],
           onSome: change =>
-            appliedRowChange(model, issuesInHandOf(model), change),
+            appliedRowChange(
+              model,
+              Option.match(model.maybeRowCursor, {
+                onNone: () => issuesInHandOf(model),
+                onSome: issueId => cardsMovedWith(model, issueId),
+              }),
+              change,
+            ),
         }),
       DroppedCard: ({ column, issueId }) =>
         Option.match(columnChangeOf(model, column), {
@@ -3208,9 +3283,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           onSome: change =>
             appliedRowChange(
               nextModel({ ...model, maybeRowCursor: Option.some(issueId) }),
-              selectedSetOf(model).has(issueId)
-                ? Array.map(selectedRowsOf(model), issue => issue.id)
-                : [issueId],
+              cardsMovedWith(model, issueId),
               change,
             ),
         }),
@@ -3787,17 +3860,23 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       LinkedCatalogIssue: ({ sourceIssueId, targetIssueId }) => {
-        if (
-          targetIssueId.trim() === '' ||
-          targetIssueId === sourceIssueId ||
-          isIssueMutationSaving(model)
-        ) {
+        if (targetIssueId.trim() === '' || isIssueMutationSaving(model)) {
           return [model, []]
         }
-        return startLeftoverCommand(
-          model,
-          LinkCatalogIssue({ sourceIssueId, targetIssueId }),
-        )
+        return Result.match(linkTargetOf(model, sourceIssueId, targetIssueId), {
+          onFailure: reason => [
+            nextModel({
+              ...model,
+              issueMutation: FailedIssueMutation.make({ reason }),
+            }),
+            [],
+          ],
+          onSuccess: target =>
+            startLeftoverCommand(
+              model,
+              LinkCatalogIssue({ sourceIssueId, targetIssueId: target }),
+            ),
+        })
       },
       ClickedLeftoverStatus: ({ issueId, status }) =>
         startLeftoverCommand(

@@ -26,7 +26,7 @@ import {
 } from './issueLandings.js'
 import { catalogIssueQuery } from './issueQuery.js'
 import { IssueViews, describeIssueViewError } from './issueViews.js'
-import { loadedIssuesIn } from './listing.js'
+import { loadedIssuesIn, shownIssueIdOf } from './listing.js'
 import {
   FailedObserveAgentChips,
   FailedObserveBuilds,
@@ -418,10 +418,7 @@ export const graphSubscriptions: Readonly<
     { maybeIssueId: S.Option(S.String) },
     {
       modelToDependencies: model => ({
-        maybeIssueId:
-          model.navigation._tag === 'IssueDetail'
-            ? Option.some(model.navigation.issueId)
-            : Option.none(),
+        maybeIssueId: shownIssueIdOf(model),
       }),
       dependenciesToStream: ({ maybeIssueId }) => {
         if (Option.isNone(maybeIssueId)) {
@@ -663,10 +660,7 @@ export const graphSubscriptions: Readonly<
     { maybeIssueId: S.Option(S.String) },
     {
       modelToDependencies: model => ({
-        maybeIssueId:
-          model.navigation._tag === 'IssueDetail'
-            ? Option.some(model.navigation.issueId)
-            : Option.none(),
+        maybeIssueId: shownIssueIdOf(model),
       }),
       dependenciesToStream: ({ maybeIssueId }) => {
         if (Option.isNone(maybeIssueId)) {

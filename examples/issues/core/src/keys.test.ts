@@ -359,3 +359,60 @@ describe('Issue Tracker keys: going places', () => {
     expect(keysOf('go')).toEqual(['g'])
   })
 })
+
+describe('writing in a field with the keyboard', () => {
+  const titleInputOf = (model: Model) =>
+    Array.findFirst(inputsOf(issuesScreen(model)), input => input.label === 'Title')
+
+  const focusedOn = (model: Model, field: string): Model =>
+    update(
+      model,
+      Option.getOrThrow(messageForScreenToken(model, `writing-focus:${field}`)),
+    )[0]
+
+  it('opens the form on c with Title holding the keyboard', () => {
+    const form = pressed(list(), on('c'))
+    expect(form.navigation._tag).toBe('FileIssue')
+    expect(Option.map(titleInputOf(form), input => input.focused)).toEqual(
+      Option.some(true),
+    )
+  })
+
+  it('files on Enter in Title, and on Cmd+Enter in Details', () => {
+    const form = pressed(list(), on('c'))
+    expect(
+      tokenForKeyPress(focusedOn(form, 'Title'), on('Enter', { target: 'Field' })),
+    ).toEqual(Option.some('submit'))
+    expect(
+      tokenForKeyPress(
+        focusedOn(form, 'Details'),
+        on('Enter', { isMeta: true, target: 'Field' }),
+      ),
+    ).toEqual(Option.some('submit'))
+    expect(
+      tokenForKeyPress(focusedOn(form, 'Details'), on('Enter', { target: 'Field' })),
+    ).toEqual(Option.none())
+  })
+
+  it('comments on Cmd+Enter in the comment box', () => {
+    const detail = onPage(IssueDetail.make({ issueId: '101' }))
+    expect(
+      tokenForKeyPress(
+        focusedOn(detail, 'Comment'),
+        on('Enter', { isControl: true, target: 'Field' }),
+      ),
+    ).toEqual(Option.some('comment-submit'))
+  })
+
+  it('forgets the field when it lets go of the keyboard', () => {
+    const form = focusedOn(pressed(list(), on('c')), 'Title')
+    const left = update(
+      form,
+      Option.getOrThrow(messageForScreenToken(form, 'writing-blur:Title')),
+    )[0]
+    expect(tokenForKeyPress(left, on('Enter', { target: 'Field' }))).toEqual(
+      Option.none(),
+    )
+  })
+})
+

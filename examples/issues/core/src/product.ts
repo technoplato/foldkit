@@ -447,6 +447,8 @@ const issueActionNodes = (model: Model): ReadonlyArray<UiNode> => [
   Row(
     { gap: 1 },
     TextInput({
+      blurToken: 'writing-blur:Comment',
+      focusToken: 'writing-focus:Comment',
       label: 'Comment',
       placeholder: 'Comment',
       token: 'comment-draft:',
@@ -551,12 +553,17 @@ const fileNodes = (model: Model): ReadonlyArray<UiNode> => [
   Text('File issue'),
   ...findingDraftNodes(model),
   TextInput({
+    blurToken: 'writing-blur:Title',
+    focused: true,
+    focusToken: 'writing-focus:Title',
     label: 'Title',
     placeholder: 'Title',
     token: 'title:',
     value: model.draft.title,
   }),
   TextInput({
+    blurToken: 'writing-blur:Details',
+    focusToken: 'writing-focus:Details',
     label: 'Details',
     placeholder: 'What is wrong or wanted',
     token: 'details:',

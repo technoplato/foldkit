@@ -470,6 +470,40 @@ describe('a catalog kept between visits', () => {
       }),
   )
 
+  it.live(
+    'reads everything when what it kept does not answer within two seconds',
+    () =>
+      Effect.gen(function* () {
+        const { cache } = memoryCache(Option.none())
+        const silent = { ...cache, read: () => new Promise<never>(() => {}) }
+        const { database, once } = makeDatabase([
+          rowOf(issueAt('001', FILED_AT_MS)),
+        ])
+        const tracker = makeIssueTracker(
+          makeInstantEntityStore(database, silent),
+        )
+        const seen: Array<ReadonlyArray<Issue>> = []
+        const fiber = yield* tracker.observe(every).pipe(
+          Stream.runForEach(issues =>
+            Effect.sync(() => {
+              seen.push(issues)
+            }),
+          ),
+          Effect.forkChild,
+        )
+        for (let waited = 0; waited < 100 && seen.length === 0; waited += 1) {
+          yield* Effect.sleep('50 millis')
+        }
+
+        expect(once).toHaveLength(1)
+        expect(titlesOf(Option.getOrThrow(Array.head(seen)))).toEqual([
+          '001:Issue 001',
+        ])
+        yield* Fiber.interrupt(fiber)
+      }),
+    10_000,
+  )
+
   it.live('reads everything when nothing was kept, and keeps it', () =>
     Effect.gen(function* () {
       const { allAt, cache, changed } = memoryCache(Option.none())

@@ -42,6 +42,7 @@ import {
   Navigation,
   SubtaskMark,
   WorkInProgressEdit,
+  WritingField,
 } from './model.js'
 import { AgentSurvey } from './nowWorking.js'
 import { QuestionRow } from './questionFacts.js'
@@ -270,6 +271,14 @@ export const SubmittedSearch = S.TaggedStruct('SubmittedSearch', {})
 export const FocusedSearchField = S.TaggedStruct('FocusedSearchField', {})
 /** The search field let go of the focus. */
 export const BlurredSearchField = S.TaggedStruct('BlurredSearchField', {})
+/** A writing field took the keyboard: Title after `c`, or a click. */
+export const FocusedWritingField = S.TaggedStruct('FocusedWritingField', {
+  field: WritingField,
+})
+/** A writing field let go of the keyboard. */
+export const BlurredWritingField = S.TaggedStruct('BlurredWritingField', {
+  field: WritingField,
+})
 /** The row cursor moved a row: `j` or `k` on the list. */
 export const MovedRowCursor = S.TaggedStruct('MovedRowCursor', {
   direction: S.Literals(['Next', 'Previous']),
@@ -739,6 +748,8 @@ export const Message = S.Union([
   SubmittedSearch,
   FocusedSearchField,
   BlurredSearchField,
+  FocusedWritingField,
+  BlurredWritingField,
   MovedRowCursor,
   OpenedRowUnderCursor,
   PeekedRowUnderCursor,

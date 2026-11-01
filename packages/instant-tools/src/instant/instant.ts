@@ -1382,6 +1382,13 @@ export const noIssueCatalogCache: IssueCatalogCache = {
 const FULL_READ_EVERY_MS = 24 * 60 * 60 * 1_000
 
 /**
+ * How long a reload waits for the catalog kept in the browser before it reads
+ * everything instead: 2 seconds, so a store that never answers costs one full
+ * read, never an empty list.
+ */
+const KEPT_CATALOG_READ_TIMEOUT = '2 seconds'
+
+/**
  * How far before the newest change a live window starts, so a writer whose
  * clock runs behind another's still lands inside it: 1 minute.
  */
@@ -1670,6 +1677,8 @@ export const makeInstantEntityStore = (
           ? yield* Effect.promise(() =>
               cache.read().catch(() => Option.none<KeptIssueCatalog>()),
             ).pipe(
+              Effect.timeoutOption(KEPT_CATALOG_READ_TIMEOUT),
+              Effect.map(Option.flatten),
               Effect.map(
                 Option.filter(
                   ({ fullReadAtMs, records }) =>

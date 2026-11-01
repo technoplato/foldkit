@@ -128,6 +128,16 @@ describe('a feature named in text', () => {
     expect(chip?.detail).toContainEqual(expect.stringContaining('FEATURES 3'))
   })
 
+  it('guesses no line when two FEATURES lines hold the number', () => {
+    const shared = featureChipsOf({
+      features: [
+        line('Scroll back, always.', 'scroll-back-always', 36),
+        line('Words stay as said.', 'words-stay-as-said', 36),
+      ],
+    })
+    expect(chipsIn('Keeps FEATURES 36 whole.', shared)).toEqual([])
+  })
+
   it('keeps its words when no line is known', () => {
     expect(chipsIn('Keeps FEATURES 3 whole.', [])).toEqual([])
     expect(

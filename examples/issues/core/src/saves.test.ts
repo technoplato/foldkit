@@ -26,7 +26,13 @@ import {
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
 } from './message.js'
-import { FileIssue, IssueDetail, IssueList, type Model } from './model.js'
+import {
+  FailedIssueMutation,
+  FileIssue,
+  IssueDetail,
+  IssueList,
+  type Model,
+} from './model.js'
 import { makeMemoryIssueTracker } from './resources.js'
 import { pathToNavigation } from './route.js'
 import { update } from './update.js'
@@ -273,3 +279,35 @@ describe('the comment and link boxes', () => {
     expect(failed.leftoverLink).toBe('101')
   })
 })
+
+describe('linking a related Issue', () => {
+  const linking = (target: string) =>
+    update(
+      at('/issues/100'),
+      LinkedCatalogIssue.make({ sourceIssueId: '100', targetIssueId: target }),
+    )
+
+  it('links a number the catalog holds, in any spelling', () => {
+    const [, commands] = linking('#101')
+    expect(
+      Array.map(commands, command => [command.name, command.args]),
+    ).toEqual([
+      ['LinkCatalogIssue', { sourceIssueId: '100', targetIssueId: '101' }],
+    ])
+  })
+
+  it('writes nothing and says why for words, itself, or a number no Issue has', () => {
+    for (const [target, reason] of [
+      ['hello', '“hello” is not an Issue number.'],
+      ['#100', 'An Issue does not link to itself.'],
+      ['#9999', 'No Issue #9999.'],
+    ] as const) {
+      const [after, commands] = linking(target)
+      expect(commands).toEqual([])
+      expect(after.issueMutation).toEqual(
+        FailedIssueMutation.make({ reason }),
+      )
+    }
+  })
+})
+

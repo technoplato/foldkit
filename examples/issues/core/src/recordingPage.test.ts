@@ -27,7 +27,8 @@ import {
   type PageFacts,
   instantIssueLandings,
   recordingFactsOf,
-  recordingFactsQuery,
+  recordingMomentsQuery,
+  recordingRowQuery,
   segmentFactsOf,
   segmentFactsQuery,
 } from './issueLandings.js'
@@ -269,38 +270,47 @@ const issueIdsOf = (
     : { alsoCameUp: [], cameFrom: [] }
 
 describe('what a Recording’s page asks of Scribe’s rows', () => {
-  const query = recordingFactsQuery(RECORDING_ID.toUpperCase())
+  const row = recordingRowQuery(RECORDING_ID.toUpperCase())
+  const moments = recordingMomentsQuery(RECORDING_ID.toUpperCase())
 
-  it('reads the Recording and its Issue moments in one query, by the lowercase id the rows hold', () => {
-    expect(query.recordings.$.where.id).toBe(RECORDING_ID)
-    expect(query.sourceMoments.$.where).toEqual({
+  it('reads the Recording’s own row and its Issue moments by the lowercase id the rows hold', () => {
+    expect(row.recordings.$.where.id).toBe(RECORDING_ID)
+    expect(moments.sourceMoments.$.where).toEqual({
       recordingID: RECORDING_ID,
       subjectKind: 'issue',
     })
   })
 
   it('leaves out the moment’s words, which the page does not paint', () => {
-    expect(query.sourceMoments.$.fields).not.toContain('quote')
-    expect(query.sourceMoments.$.fields).not.toContain('why')
-    expect(query.sourceMoments.trackedIssue.$.fields).toContain('number')
+    expect(moments.sourceMoments.$.fields).not.toContain('quote')
+    expect(moments.sourceMoments.$.fields).not.toContain('why')
+    expect(moments.sourceMoments.trackedIssue.$.fields).toContain('number')
   })
 
-  it('asks for the Recording and its moments, whatever the casing it was named in', () => {
+  it('asks for the row and the moments apart, so a live Recording’s length restates one row, not its moments', async () => {
     const queries: Array<LandingsQuery> = []
     const database: LandingsDatabase = {
       subscribeQuery: (asked, onResponse) => {
         queries.push(asked)
-        onResponse({ data: recordingAnswer })
+        onResponse({
+          data:
+            'recordings' in asked
+              ? { recordings: recordingAnswer.recordings }
+              : { sourceMoments: recordingAnswer.sourceMoments },
+        })
         return () => undefined
       },
     }
     const landings = instantIssueLandings(Effect.succeed(database))
-    const facts = Effect.runSync(
+    const facts = await Effect.runPromise(
       Stream.runHead(
         landings.observeRecordingFacts(RECORDING_ID.toUpperCase()),
       ),
     )
-    expect(queries).toEqual([recordingFactsQuery(RECORDING_ID)])
+    expect(queries).toEqual([
+      recordingRowQuery(RECORDING_ID),
+      recordingMomentsQuery(RECORDING_ID),
+    ])
     expect(Option.map(facts, ({ _tag }) => _tag)).toEqual(
       Option.some('RecordingFacts'),
     )

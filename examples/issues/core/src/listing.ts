@@ -19,6 +19,7 @@ import {
   type ProductFilter,
   issuesForProductFilter,
 } from './leftover.js'
+import { type InboxFilter, inboxItemsOf, itemsOfKind } from './inbox.js'
 import { type Model } from './model.js'
 import { issuesWithEdits } from './rowEdit.js'
 
@@ -140,8 +141,24 @@ const listRowsInOrderOf = (model: Model): ReadonlyArray<Issue> => {
 }
 
 /**
- * The rows the cursor walks, in the order the page shows them: the list's or
- * the backlog's. A page without rows has none.
+ * The Issues the inbox shows, each once, in the order of its newest change:
+ * the rows its cursor walks.
+ */
+const inboxIssuesInOrderOf = (
+  model: Model,
+  kind: InboxFilter,
+): ReadonlyArray<Issue> =>
+  Array.dedupeWith(
+    Array.map(
+      itemsOfKind(inboxItemsOf(loadedIssuesIn(model)), kind),
+      item => item.issue,
+    ),
+    (left, right) => left.id === right.id,
+  )
+
+/**
+ * The rows the cursor walks, in the order the page shows them: the list's,
+ * the backlog's or the inbox's. A page without rows has none.
  */
 export const rowsInOrderOf = (model: Model): ReadonlyArray<Issue> =>
   M.value(model.navigation).pipe(
@@ -153,7 +170,7 @@ export const rowsInOrderOf = (model: Model): ReadonlyArray<Issue> =>
       FileIssue: () => [],
       TriageInbox: () => [],
       AskFlow: () => [],
-      Inbox: () => [],
+      Inbox: ({ kind }) => inboxIssuesInOrderOf(model, kind),
       EntityPage: () => [],
       Findings: () => [],
       Decisions: () => [],
@@ -234,6 +251,22 @@ export const selectedRowsOf = (model: Model): ReadonlyArray<Issue> => {
  * field was pressed, the one a page shows, the selected rows on screen, or
  * the row under the cursor.
  */
+/**
+ * The Issue whose page facts the screen shows: the open Issue's page, or the
+ * Issue a peek shows over the list, while choices opened over it stay open.
+ */
+export const shownIssueIdOf = (model: Model): Option.Option<string> => {
+  if (model.navigation._tag === 'IssueDetail') {
+    return Option.some(model.navigation.issueId)
+  } else if (model.layer._tag === 'PeekLayer') {
+    return Option.some(model.layer.issueId)
+  } else if (model.layer._tag === 'ChoiceLayer') {
+    return model.layer.maybePeekedIssueId
+  } else {
+    return Option.none()
+  }
+}
+
 export const issuesInHandOf = (model: Model): ReadonlyArray<string> => {
   if (
     model.layer._tag === 'ChoiceLayer' &&

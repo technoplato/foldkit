@@ -420,8 +420,9 @@ const landedBuildNodes = (
   ),
 ]
 
-const landingOfPage = (model: Model): IssueLanding =>
-  model.issueLanding._tag === 'LoadedIssueLanding'
+const landingOfPage = (model: Model, issueId: string): IssueLanding =>
+  model.issueLanding._tag === 'LoadedIssueLanding' &&
+  model.issueLanding.issueId === issueId
     ? model.issueLanding.landing
     : noLanding
 
@@ -505,8 +506,9 @@ const timelineNodes = (
     ],
   })
 
-const graphOfPage = (model: Model) =>
-  model.issueGraph._tag === 'LoadedIssueGraph'
+const graphOfPage = (model: Model, issueId: string) =>
+  model.issueGraph._tag === 'LoadedIssueGraph' &&
+  model.issueGraph.issueId === issueId
     ? model.issueGraph.graph
     : noIssueGraph
 
@@ -521,7 +523,7 @@ const appAndFeatureNodes = (
       Option.some(issue.product._tag),
     ),
     ...spacedChips(
-      Array.map(graphOfPage(model).features, ({ feature }) =>
+      Array.map(graphOfPage(model, issue.id).features, ({ feature }) =>
         featureChip(feature),
       ),
     ),
@@ -570,9 +572,10 @@ const runNodes = (
 
 const findingNodesOf = (
   model: Model,
+  issue: Issue,
   context: PageContext,
 ): ReadonlyArray<UiNode> =>
-  Array.map(graphOfPage(model).findings, finding =>
+  Array.map(graphOfPage(model, issue.id).findings, finding =>
     Column(
       { gap: 0 },
       ...findingNodes(finding, context.chips, clockOf(context)),
@@ -620,10 +623,10 @@ const atAGlanceNodes = (
   issue: Issue,
   context: PageContext,
 ): ReadonlyArray<UiNode> => {
-  const landing = landingOfPage(model)
+  const landing = landingOfPage(model, issue.id)
   const steps = timelineOf(issue, landing)
   const runs = runNodes(issue, model, context)
-  const findings = findingNodesOf(model, context)
+  const findings = findingNodesOf(model, issue, context)
   const decisions = decisionNodesOf(model, issue, context)
   const questions = questionNodesOf(model, issue, context)
   const reminders = reminderNodesOf(model, issue, context)

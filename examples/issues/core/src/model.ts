@@ -501,6 +501,11 @@ export const Navigation = S.Union([
 /** Every representable navigation destination. */
 export type Navigation = typeof Navigation.Type
 
+/** A field a person writes in: the filing's Title and Details, a comment. */
+export const WritingField = S.Literals(['Title', 'Details', 'Comment'])
+/** A field a person writes in. */
+export type WritingField = typeof WritingField.Type
+
 /** Nothing shows above the page. */
 export const NoLayer = S.TaggedStruct('NoLayer', {})
 /**
@@ -846,6 +851,7 @@ export const Model = S.Struct({
   issueMutation: IssueMutationState,
   isGoKeyPending: S.Boolean,
   isSearchFocused: S.Boolean,
+  maybeWritingField: S.Option(WritingField),
   issues: IssuesState,
   knownAgents: S.Array(AgentRunChip),
   knownBuilds: S.Array(LandedBuild),
@@ -860,6 +866,7 @@ export const Model = S.Struct({
   maybeRowCursor: S.Option(S.String),
   maybeSelectionRun: S.Option(SelectionRun),
   maybeViewFailure: S.Option(S.String),
+  maybeOpenedFrom: S.Option(Navigation),
   navigation: Navigation,
   pageFacts: PageFactsObservation,
   productAddition: ProductAdditionState,

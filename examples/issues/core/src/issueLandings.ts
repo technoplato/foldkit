@@ -686,7 +686,7 @@ const issuesOfMomentsOf = (
   }
 }
 
-const StoredRecordingPages = S.Struct({
+const StoredRecordingRows = S.Struct({
   recordings: S.Array(
     S.Struct({
       durationSeconds: S.Number,
@@ -695,7 +695,13 @@ const StoredRecordingPages = S.Struct({
       title: S.String,
     }),
   ),
-  sourceMoments: StoredMoments,
+})
+
+const StoredRecordingMoments = S.Struct({ sourceMoments: StoredMoments })
+
+const StoredRecordingPages = S.Struct({
+  ...StoredRecordingRows.fields,
+  ...StoredRecordingMoments.fields,
 })
 
 /**
@@ -954,28 +960,38 @@ const ISSUE_SUBJECT = 'issue'
 const MOMENT_ISSUE = { $: { fields: ['createdAtMs', 'number'] } }
 
 /**
- * What a Recording's page asks for, in one query: its name, start and length,
- * and every Issue moment in it. Recording 208 answers 100 Issues and 297
- * moments. Its rows hold ids in lowercase, so any spelling of the id reads.
+ * What a Recording's page asks for about the Recording itself: its name,
+ * start and length. Kept apart from its moments: a live Recording's length
+ * changes once a minute, and a change restates its query's whole answer, so
+ * this one answers with one row.
  */
-export const recordingFactsQuery = (recordingId: string) => {
-  const id = recordingId.toLowerCase()
-  return {
-    recordings: {
-      $: {
-        where: { id },
-        fields: ['durationSeconds', 'startedAtMs', 'title'],
-      },
+export const recordingRowQuery = (recordingId: string) => ({
+  recordings: {
+    $: {
+      where: { id: recordingId.toLowerCase() },
+      fields: ['durationSeconds', 'startedAtMs', 'title'],
     },
-    sourceMoments: {
-      $: {
-        where: { recordingID: id, subjectKind: ISSUE_SUBJECT },
-        fields: MOMENT_FIELDS,
+  },
+})
+
+/**
+ * What a Recording's page asks for about its Issues: every Issue moment in
+ * it, with the Issue each names. Recording 208 answers 100 Issues and 297
+ * moments, about 407 KB, so it changes only when a moment does. Its rows hold
+ * ids in lowercase, so any spelling of the id reads.
+ */
+export const recordingMomentsQuery = (recordingId: string) => ({
+  sourceMoments: {
+    $: {
+      where: {
+        recordingID: recordingId.toLowerCase(),
+        subjectKind: ISSUE_SUBJECT,
       },
-      trackedIssue: MOMENT_ISSUE,
+      fields: MOMENT_FIELDS,
     },
-  }
-}
+    trackedIssue: MOMENT_ISSUE,
+  },
+})
 
 /**
  * What a line's page asks for: its words, time and sealing, and through its
@@ -1005,7 +1021,8 @@ export const segmentFactsQuery = (segmentId: string) => ({
 /** Every query a page asks Scribe's app. */
 export type LandingsQuery =
   | typeof buildsQuery
-  | ReturnType<typeof recordingFactsQuery>
+  | ReturnType<typeof recordingRowQuery>
+  | ReturnType<typeof recordingMomentsQuery>
   | ReturnType<typeof segmentFactsQuery>
   | ReturnType<typeof issueLandingQuery>
   | ReturnType<typeof issuePageLandingQuery>
@@ -1072,10 +1089,14 @@ export const instantIssueLandings = (
 ): IssueLandingsService => ({
   observeRecordingFacts: recordingId =>
     UUID_LIKE.test(recordingId)
-      ? observed(
-          openDatabase,
-          recordingFactsQuery(recordingId),
-          recordingFactsOf,
+      ? Stream.zipLatestWith(
+          observed(openDatabase, recordingRowQuery(recordingId), data =>
+            S.decodeUnknownSync(StoredRecordingRows)(data),
+          ),
+          observed(openDatabase, recordingMomentsQuery(recordingId), data =>
+            S.decodeUnknownSync(StoredRecordingMoments)(data),
+          ),
+          (row, moments) => recordingFactsOf({ ...row, ...moments }),
         )
       : Stream.succeed(NoPageFacts.make({})),
   observeSegmentFacts: segmentId =>

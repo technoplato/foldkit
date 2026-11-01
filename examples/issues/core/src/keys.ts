@@ -55,8 +55,12 @@ import {
   SubmittedViewName,
   ToggledRowUnderCursor,
   UpdatedSearchQuery,
+  BlurredWritingField,
+  FocusedWritingField,
+  SubmittedIssue,
+  SubmittedIssueComment,
 } from './message.js'
-import { type ChoiceMenu, type Model } from './model.js'
+import { type ChoiceMenu, type Model, WritingField } from './model.js'
 import { searchOfView } from './route.js'
 
 // KEY
@@ -205,6 +209,60 @@ const blurSearch = interaction(
   'Leave the search',
   BlurredSearchField.make({}),
 )
+const writingFieldInteractions: ReadonlyArray<Interaction> = Array.flatMap(
+  WritingField.literals,
+  field => [
+    interaction(
+      `writing-focus:${field}`,
+      `Write in ${field}`,
+      FocusedWritingField.make({ field }),
+    ),
+    interaction(
+      `writing-blur:${field}`,
+      `Leave ${field}`,
+      BlurredWritingField.make({ field }),
+    ),
+  ],
+)
+
+const SUBMIT_FROM_LINE_KEYS = ['Enter']
+const SUBMIT_FROM_TEXT_KEYS = ['Meta+Enter', 'Control+Enter']
+
+const submitIssue = (keys: ReadonlyArray<string>): Interaction =>
+  interaction('submit', 'Submit issue', SubmittedIssue.make({}), keys)
+
+/**
+ * What submits from the field a person writes in: Enter in Title files the
+ * Issue, Cmd+Enter or Ctrl+Enter in Details files it, and in the comment box
+ * comments. Enter alone in Details and Comment stays a key for the field.
+ */
+const writingSubmitKeys = (model: Model): ReadonlyArray<Interaction> =>
+  Option.match(model.maybeWritingField, {
+    onNone: () => [],
+    onSome: field =>
+      M.value(field).pipe(
+        M.withReturnType<ReadonlyArray<Interaction>>(),
+        M.when('Title', () => [submitIssue(SUBMIT_FROM_LINE_KEYS)]),
+        M.when('Details', () => [submitIssue(SUBMIT_FROM_TEXT_KEYS)]),
+        M.when('Comment', () =>
+          model.navigation._tag === 'IssueDetail'
+            ? [
+                interaction(
+                  'comment-submit',
+                  'Comment',
+                  SubmittedIssueComment.make({
+                    issueId: model.navigation.issueId,
+                    summary: model.leftoverComment,
+                  }),
+                  SUBMIT_FROM_TEXT_KEYS,
+                ),
+              ]
+            : [],
+        ),
+        M.exhaustive,
+      ),
+  })
+
 const clearSearch = interaction(
   'search:',
   'Clear the search',
@@ -639,6 +697,7 @@ export const keyInteractionsOf = (model: Model): ReadonlyArray<Interaction> => [
   ...saveViewInteractions(model),
   ...(model.layer._tag === 'NamingViewLayer' ? [submitViewName] : []),
   openPalette,
+  ...writingFieldInteractions,
   ...(model.layer._tag === 'NoLayer' ? [] : layerKeysWithField),
 ]
 
@@ -660,18 +719,25 @@ const anyFieldKeys: ReadonlyArray<Interaction> = [
   { ...openPalette, keys: COMMAND_PALETTE_KEYS },
 ]
 
-const fieldKeys = (model: Model): ReadonlyArray<Interaction> =>
-  model.isSearchFocused
-    ? [
-        leaveOrClearSearch(model),
-        submitSearch,
-        ...rowCursorInteractions(model).map(row => ({
-          ...row,
-          keys: Array.filter(row.keys, key => key.startsWith('Arrow')),
-        })),
-        ...anyFieldKeys,
-      ]
-    : anyFieldKeys
+const searchFieldKeys = (model: Model): ReadonlyArray<Interaction> => [
+  leaveOrClearSearch(model),
+  submitSearch,
+  ...rowCursorInteractions(model).map(row => ({
+    ...row,
+    keys: Array.filter(row.keys, key => key.startsWith('Arrow')),
+  })),
+  ...anyFieldKeys,
+]
+
+const fieldKeys = (model: Model): ReadonlyArray<Interaction> => {
+  if (Option.isSome(model.maybeWritingField)) {
+    return [...writingSubmitKeys(model), ...anyFieldKeys]
+  } else if (model.isSearchFocused) {
+    return searchFieldKeys(model)
+  } else {
+    return anyFieldKeys
+  }
+}
 
 const keysAt = (model: Model, target: KeyTarget): ReadonlyArray<Interaction> =>
   M.value(target).pipe(

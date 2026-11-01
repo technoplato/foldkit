@@ -16,6 +16,7 @@ import {
   inboxItemsOf,
   itemsOfKind,
 } from './inbox.js'
+import { currentRowOf } from './listRows.js'
 import { IssueDetail, type Model } from './model.js'
 import { navigationToPath } from './route.js'
 
@@ -66,6 +67,25 @@ const filterButtons = (chosen: InboxFilter): ReadonlyArray<UiNode> =>
     }),
   )
 
+/** The rows with the cursor on the newest change of the Issue under it. */
+const cursorMarked = (
+  items: ReadonlyArray<InboxItem>,
+  rows: ReadonlyArray<ListItem>,
+  maybeCursor: Option.Option<string>,
+): ReadonlyArray<ListItem> =>
+  Option.match(
+    Option.flatMap(maybeCursor, issueId =>
+      Array.findFirstIndex(items, item => item.issue.id === issueId),
+    ),
+    {
+      onNone: () => rows,
+      onSome: position =>
+        Array.map(rows, (row, index) =>
+          index === position ? currentRowOf(row) : row,
+        ),
+    },
+  )
+
 const changeCountWords = (count: number): string =>
   count === 1 ? '1 change' : `${count.toLocaleString('en-US')} changes`
 
@@ -91,15 +111,19 @@ export const inboxNodes = (
             Row({ gap: 1 }, ...filterButtons(filter)),
             Text(changeCountWords(items.length)),
             List({
-              items: Array.map(items, item =>
-                inboxRowOf(
-                  item,
-                  whenLabel(
-                    item.atMs,
-                    model.clock.nowMs,
-                    model.clock.timeZone,
+              items: cursorMarked(
+                items,
+                Array.map(items, item =>
+                  inboxRowOf(
+                    item,
+                    whenLabel(
+                      item.atMs,
+                      model.clock.nowMs,
+                      model.clock.timeZone,
+                    ),
                   ),
                 ),
+                model.maybeRowCursor,
               ),
               label: 'Inbox',
             }),

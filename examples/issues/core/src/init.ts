@@ -62,6 +62,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     issueMutation: IdleIssueMutation.make({}),
     isGoKeyPending: false,
     isSearchFocused: false,
+    maybeWritingField: Option.none(),
     issues: LoadingIssues.make({}),
     knownAgents: [],
     knownBuilds: [],
@@ -85,6 +86,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     pageFacts: NotObservingPageFacts.make({}),
     productAddition: IdleProductAddition.make({}),
     products: LoadingProducts.make({}),
+    maybeOpenedFrom: Option.none(),
     returnListView:
       navigation._tag === 'IssueList' ? navigation.view : defaultIssueView,
     rowEdits: [],

@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect'
+import { Duration, Effect, Option } from 'effect'
 import {
   type FindingPromotion,
   type GraphDatabase,
@@ -30,33 +30,38 @@ export type ScribeDatabase = Readonly<{
 }>
 
 /**
- * Scribe's Instant client, opened and signed in once, the first time a page
- * asks for it: the same Access login, minted on this site's origin. Refusing
- * the mint or no sign-in is a failure a page can say, never rows that look
- * empty.
+ * Scribe's Instant client, opened once, the first time a page asks for it,
+ * and signed in with the same Access login, minted on this site's origin. A
+ * sign-in that worked is kept; one that failed is tried again the next time a
+ * page asks, so one refused mint never leaves the tab without Scribe's rows.
+ * Refusing the mint or no sign-in is a failure a page can say, never rows that
+ * look empty.
  */
 export const openedScribeDatabase = (
   appId: string,
 ): Effect.Effect<ScribeDatabase, IssueLandingError> => {
-  const opening = Effect.runSync(
-    Effect.cached(
-      Effect.tryPromise({
-        try: async () => {
-          const database = scribeClient(appId)
-          const member = await ensureHostedInstantSession(database, {
-            fetch: boundedFetch,
-            sessionUrl: SCRIBE_SESSION_PATH,
-          })
-          if (member === null) {
-            throw new Error('This page is not signed in to Scribe.')
-          }
-          return { database, ownerUserId: member.id }
-        },
-        catch: cause => new IssueLandingError({ cause }),
-      }),
-    ),
+  const opened = Effect.runSync(
+    Effect.cached(Effect.sync(() => scribeClient(appId))),
   )
-  return opening
+  const signedIn = Effect.flatMap(opened, database =>
+    Effect.tryPromise({
+      try: async () => {
+        const member = await ensureHostedInstantSession(database, {
+          fetch: boundedFetch,
+          sessionUrl: SCRIBE_SESSION_PATH,
+        })
+        if (member === null) {
+          throw new Error('This page is not signed in to Scribe.')
+        }
+        return { database, ownerUserId: member.id }
+      },
+      catch: cause => new IssueLandingError({ cause }),
+    }),
+  )
+  const [opening, forget] = Effect.runSync(
+    Effect.cachedInvalidateWithTTL(signedIn, Duration.infinity),
+  )
+  return opening.pipe(Effect.tapError(() => forget))
 }
 
 const findingRowOf = (
