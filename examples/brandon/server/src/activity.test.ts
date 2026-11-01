@@ -100,6 +100,24 @@ describe('the next row to write', () => {
     expect(Option.map(next, row => row.observedAtMs)).toEqual(Option.some(1))
   })
 
+  it("keeps the address a sender recorded when the chain's record names none", () => {
+    const sent: ActivityRow = {
+      ...observedActivityRow(account, record({ status: 'Pending' })),
+      maybeFinality: Option.none(),
+      maybeCounterpartyAddress: Option.some('Recipient111'),
+    }
+    const observed = observedActivityRow(
+      account,
+      record({ counterpartyAddress: '' }),
+    )
+    expect(
+      Option.map(
+        nextActivityRow(Option.some(sent), observed),
+        row => row.maybeCounterpartyAddress,
+      ),
+    ).toEqual(Option.some(Option.some('Recipient111')))
+  })
+
   it('never moves a row back on a stale observation', () => {
     const pending = observedActivityRow(account, record({ status: 'Pending' }))
     expect(nextActivityRow(Option.some(included), pending)).toEqual(
