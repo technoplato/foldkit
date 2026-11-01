@@ -18,7 +18,13 @@
     "@foldkit/markdown": "workspace:*",
     "brandon-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
-    "foldkit": "workspace:*"
+    "foldkit": "workspace:*",
+    "wallet-core-example": "workspace:*",
+    "wallet-foldkit-example": "workspace:*",
+    "wallet-live-client-example": "workspace:*",
+    "wallet-local-vault-example": "workspace:*",
+    "wallet-qr-example": "workspace:*",
+    "wallet-web-client-example": "workspace:*"
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "workspace:*",

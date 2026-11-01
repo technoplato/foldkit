@@ -826,6 +826,12 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../../wallet/core
+      wallet-live-client-example:
+        specifier: workspace:*
+        version: link:../../wallet/live-client
     devDependencies:
       '@types/node':
         specifier: ^25.9.3
@@ -842,6 +848,9 @@ importers:
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      wallet-local-vault-example:
+        specifier: workspace:*
+        version: link:../../wallet/local-vault
 
   examples/brandon/foldkit:
     dependencies:
@@ -860,6 +869,24 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../../wallet/core
+      wallet-foldkit-example:
+        specifier: workspace:*
+        version: link:../../wallet/foldkit
+      wallet-live-client-example:
+        specifier: workspace:*
+        version: link:../../wallet/live-client
+      wallet-local-vault-example:
+        specifier: workspace:*
+        version: link:../../wallet/local-vault
+      wallet-qr-example:
+        specifier: workspace:*
+        version: link:../../wallet/qr
+      wallet-web-client-example:
+        specifier: workspace:*
+        version: link:../../wallet/web-client
     devDependencies:
       '@foldkit/vite-plugin':
         specifier: workspace:*
@@ -903,6 +930,12 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../../wallet/core
+      wallet-live-client-example:
+        specifier: workspace:*
+        version: link:../../wallet/live-client
     devDependencies:
       '@types/node':
         specifier: ^25.9.3

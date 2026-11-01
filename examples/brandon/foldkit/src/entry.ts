@@ -1,9 +1,19 @@
-import { SyncedBrandon } from 'brandon-core-example'
+import {
+  GotWalletMessage,
+  SyncedBrandon,
+  brandonWalletNetworks,
+} from 'brandon-core-example'
 import { startBrandon } from 'brandon-core-example/live'
-import { Effect, Schema as S, Scope } from 'effect'
+import { Effect, Layer, Scope } from 'effect'
 import { Processor, Runtime } from 'foldkit'
+import 'wallet-foldkit-example/styles.css'
+import { makeLiveWalletClientLayer } from 'wallet-live-client-example'
+import {
+  WalletWebClipboard,
+  makeOwnerScopedBrowserWalletResources,
+} from 'wallet-web-client-example'
 
-import { liveBrandonServer } from './server.js'
+import { liveBrandonServer, loadWalletOwnerKey } from './server.js'
 import './styles.css'
 import { view } from './view.js'
 
@@ -16,15 +26,22 @@ const handle = startBrandon({
     .randomUUID()
     .replaceAll('-', '')
     .slice(0, instanceLength),
-  server: liveBrandonServer,
+  resources: Layer.mergeAll(
+    liveBrandonServer,
+    makeLiveWalletClientLayer(brandonWalletNetworks),
+    makeOwnerScopedBrowserWalletResources(loadWalletOwnerKey),
+    WalletWebClipboard,
+  ),
 })
 
 Effect.runFork(
   Runtime.makeAttachedFoldkitApplication({
-    ClientInput: S.Never,
+    ClientInput: GotWalletMessage,
     container: document.getElementById('root'),
     program: SyncedBrandon,
-    sendClientInput: () => {},
+    sendClientInput: message => {
+      handle.send(message)
+    },
     source: {
       readModel: handle.readModel,
       subscribe: listener =>

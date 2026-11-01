@@ -1,6 +1,7 @@
 import {
   type Game,
   type GameTeam,
+  GotWalletMessage,
   type Model,
   type Player,
   type Section,
@@ -12,6 +13,8 @@ import {
 } from 'brandon-core-example'
 import { Array, Match as M, Option, String as Str } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
+import { makeWalletView } from 'wallet-foldkit-example/view'
+import { freshWalletHostOrigin } from 'wallet-qr-example'
 
 import { view as markdownView } from '@foldkit/markdown'
 
@@ -167,6 +170,26 @@ const walletRow = (wallet: WalletAddress): Html =>
     ],
   )
 
+const walletView = makeWalletView({
+  hostOrigin: freshWalletHostOrigin,
+  isAdvancedShown: false,
+})
+
+const personalWallet = (model: Model): Html =>
+  M.value(model.wallet).pipe(
+    M.withReturnType<Html>(),
+    M.tagsExhaustive({
+      ClosedWallet: () => h.p([h.Class('note')], ['Opening your wallet']),
+      OpenWallet: ({ model: walletModel }) =>
+        h.submodel({
+          slotId: 'wallet',
+          model: walletModel,
+          view: walletView,
+          toParentMessage: message => GotWalletMessage({ message }),
+        }),
+    }),
+  )
+
 const sectionBody = (model: Model, section: Section): ReadonlyArray<Html> =>
   M.value(section).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
@@ -195,6 +218,7 @@ const sectionBody = (model: Model, section: Section): ReadonlyArray<Html> =>
             : Array.map(model.wallets, walletRow),
         ),
       ],
+      PersonalWalletSection: () => [personalWallet(model)],
     }),
   )
 
