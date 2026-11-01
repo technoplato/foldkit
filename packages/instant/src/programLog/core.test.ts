@@ -1,10 +1,12 @@
 import { Effect, Exit } from 'effect'
+import { Processor } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import {
   type ProgramLogDatabase,
   makeInstantCoreProgramLogTransport,
 } from './core.js'
+import { Instant } from '../sync/instant.js'
 
 type Written = Readonly<Record<string, unknown>>
 
@@ -79,5 +81,21 @@ describe('makeInstantCoreProgramLogTransport', () => {
     )
     expect(Exit.isFailure(exit)).toBe(true)
     expect(owned.written).toEqual([])
+  })
+
+  it('reaches an owned log through Instant options, with no transport to build', async () => {
+    const { database, written } = fakeDatabase('member-7')
+    const engine = Instant({
+      app: { id: 'app' },
+      processor: Processor.Host.Foldkit(),
+      instance: 'one',
+      database,
+      programLog: 'books',
+      owner: 'SignedInUser',
+    })
+    await Effect.runPromise(engine.write(write))
+    expect(written).toEqual([
+      expect.objectContaining({ app: 'books', ownerUserID: 'member-7' }),
+    ])
   })
 })
