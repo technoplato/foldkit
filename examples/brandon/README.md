@@ -2,6 +2,10 @@
 
 The page at `brandon.pisspoursoftware.xyz`, built on Foldkit's Instant sync, with one rule: a section a person may not see never leaves the server.
 
+Every page of the site shows where its code lives, as its first line:
+[github.com/technoplato/foldkit/tree/main/examples/brandon/foldkit/src](https://github.com/technoplato/foldkit/tree/main/examples/brandon/foldkit/src).
+`siteSourceHeader()` in `../site-source-header.ts` writes that line from git at build time, and the origin allows the header's one inline style by its hash.
+
 ```
 core/      the Program: the log's facts, update, Subscriptions, the sync wiring
 foldkit/   the browser page, phone first
