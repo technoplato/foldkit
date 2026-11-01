@@ -255,6 +255,20 @@ export const sentActivityRow = (
   maybeFailure: Option.none(),
 })
 
+/**
+ * A row confirmed this recently that a provider cannot find is the provider
+ * lagging, not a reorg: public RPCs answer from a pool of nodes. A real drop
+ * still reads as one on the next answer after this.
+ */
+const providerLagMs = 30_000
+
+const isFreshlyConfirmed = (row: ActivityRow, nowMs: number): boolean =>
+  row.status === 'Confirmed' &&
+  Option.exists(
+    row.maybeConfirmedAtMs,
+    confirmedAtMs => nowMs - confirmedAtMs < providerLagMs,
+  )
+
 const whenUnknown = (
   row: ActivityRow,
   nowMs: number,
@@ -262,12 +276,14 @@ const whenUnknown = (
   M.value(row.status).pipe(
     M.withReturnType<Option.Option<ActivityRow>>(),
     M.when('Confirmed', () =>
-      Option.some({
-        ...row,
-        status: 'Pending' as const,
-        maybeFinality: Option.none(),
-        maybeConfirmedAtMs: Option.none(),
-      }),
+      isFreshlyConfirmed(row, nowMs)
+        ? Option.none()
+        : Option.some({
+            ...row,
+            status: 'Pending' as const,
+            maybeFinality: Option.none(),
+            maybeConfirmedAtMs: Option.none(),
+          }),
     ),
     M.when('Pending', () =>
       nowMs - row.observedAtMs >= neverLandedAfterMs(row.networkId)
@@ -322,7 +338,8 @@ export const settledActivityRow = (
           }),
     ),
     M.when('Seen', () =>
-      row.status === 'Pending' && Option.contains(row.maybeFinality, 'Seen')
+      isFreshlyConfirmed(row, nowMs) ||
+      (row.status === 'Pending' && Option.contains(row.maybeFinality, 'Seen'))
         ? Option.none()
         : Option.some({
             ...row,
