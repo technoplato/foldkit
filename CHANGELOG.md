@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 5:00:19 p.m. EST — `12daec739749` fix(issues): writes keep what they hold and land only on their own Issue
+
+- **Implementation commit:** `12daec7397496e697c45f010fff9ad4ddac616bf`
+- **Change:** Writes keep what they hold and land only on their own Issue: list items keep unmodeled keys, the list reads every Issue, a dialog holds the keyboard and its subject, a filing answers to its own save, and claims say who.
+- **Details:**
+  - Each criterion, mention and entry is written over the stored item with its id; all 1,572 stored Issues round-trip unchanged.
+  - A layer takes the keyboard and gives it back; a key the page takes moves the keyboard off a clicked button; a menu holds the Issues it named.
+  - The filing has its own results; Submit is disabled while filing; comment and link boxes keep their text until the write lands.
+  - A claim names who claimed it for whom and writes its status line; a change that changes nothing writes nothing.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — List items keep unmodeled keys; a change that changes nothing writes nothing.
+  - `examples/issues/core/src/issueQuery.ts` — The catalog query reads every Issue.
+  - `packages/react/src/paintReact/paintReact.tsx` — A layer takes the keyboard and gives it back; moveKeyboardOffControl.
+  - `examples/issues/react/src/issueKeys.ts` — A key the page takes moves the keyboard off a control.
+  - `examples/issues/core/src/update.ts` — The filing's own results, the Submit guard, boxes kept until success, claims and releases that say who.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Never lose a work log, quote or link.
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
 ## November 1st, 2026 at 4:26:48 p.m. EST — `534a238ac9c2` fix(issues): two writers on one Issue keep both entries
 
 - **Implementation commit:** `534a238ac9c2851edbbabf08e42738194a5ac9db`
