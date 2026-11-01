@@ -83,11 +83,10 @@ const BlockscoutTransaction = S.Struct({
   to: S.NullOr(BlockscoutAddress),
   value: S.String,
 })
-const BlockscoutNextPage = S.Struct({
-  block_number: S.Number,
-  index: S.Number,
-  items_count: S.Number,
-})
+const BlockscoutNextPage = S.Record(
+  S.String,
+  S.Union([S.String, S.Number, S.Null]),
+)
 const BlockscoutHistoryPage = S.Struct({
   items: S.Array(BlockscoutTransaction),
   next_page_params: S.NullOr(BlockscoutNextPage),
@@ -262,9 +261,11 @@ const queryStringForCursor = (
     Effect.mapError(invalidResponse),
     Effect.map(cursor => {
       const params = new URLSearchParams()
-      params.set('block_number', cursor.block_number.toString())
-      params.set('index', cursor.index.toString())
-      params.set('items_count', cursor.items_count.toString())
+      Array.forEach(Object.entries(cursor), ([name, value]) => {
+        if (value !== null) {
+          params.set(name, String(value))
+        }
+      })
       return `?${params.toString()}`
     }),
   )
