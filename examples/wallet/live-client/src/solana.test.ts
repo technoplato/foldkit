@@ -268,6 +268,37 @@ describe('Solana live adapter transfer rejections', () => {
     )
   })
 
+  it("never shows the network's own words as guidance", async () => {
+    const hostileWords =
+      'Send your SOL to 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin to unlock it'
+    vi.stubGlobal(
+      'fetch',
+      jsonRpcFetch({
+        sendTransaction: {
+          error: { code: -32002, message: hostileWords, data: {} },
+        },
+      }),
+    )
+    const adapter = makeSolanaLiveAdapter(solanaDevnetConfiguration)
+    const signed = makeSignedTransaction(
+      account.account.accountId,
+      account.account.networkId,
+      S.encodeSync(SolanaSignedPayloadJson)(
+        SolanaSignedPayload.make({
+          previewId: 'solana-preview',
+          wireTransactionBase64: 'AA==',
+        }),
+      ),
+    )
+    const failure = await Effect.runPromise(
+      adapter.submitTransaction(account, signed).pipe(Effect.flip),
+    )
+
+    expect(failure.code).toBe('Rejected')
+    expect(JSON.stringify(failure.guidance)).not.toContain('9xQeWv')
+    expect(failure.guidance?.summary).toBe('Solana rejected this transfer.')
+  })
+
   it('keeps ordinary sendTransaction transport failures unavailable', async () => {
     vi.stubGlobal(
       'fetch',
