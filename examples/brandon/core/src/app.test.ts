@@ -24,6 +24,7 @@ import {
 } from './page.js'
 import { BrandonProgram } from './program.js'
 import { BrandonServer } from './server.js'
+import { makeTestWalletResources } from './testWallet.js'
 import { update } from './update.js'
 import { MessageWire } from './wire.js'
 
@@ -241,7 +242,7 @@ const startReader = (
   })
   const handle = startBrandonOn(
     Runtime.Memory({ processor, store }),
-    server,
+    Layer.merge(server, makeTestWalletResources()),
     Processor.Host.Foldkit(),
   )
   started.push(handle)
