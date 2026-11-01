@@ -108,6 +108,14 @@ const quoteLifetimeMilliseconds = 60_000
 const unavailable = () => new WalletClientError({ code: 'Unavailable' })
 const invalidResponse = () => new WalletClientError({ code: 'InvalidResponse' })
 const rejected = () => new WalletClientError({ code: 'Rejected' })
+const feeRose = () =>
+  new WalletClientError({
+    code: 'Rejected',
+    guidance: {
+      summary: 'The network fee rose since the preview, so nothing was signed.',
+      details: ['Preview the send again to see the new fee.'],
+    },
+  })
 const unsupported = () =>
   new WalletClientError({ code: 'UnsupportedCapability' })
 
@@ -551,13 +559,23 @@ export const makeEthereumLiveAdapter = (
               value,
             }),
           ])
+          if (
+            gas * fees.maxFeePerGas >
+            BigInt(preview.estimatedFee.atomicUnits)
+          ) {
+            throw feeRose()
+          }
+          const maxPriorityFeePerGas =
+            fees.maxPriorityFeePerGas < fees.maxFeePerGas
+              ? fees.maxPriorityFeePerGas
+              : fees.maxFeePerGas
           const payload = EthereumPreparedPayload.make({
             previewId: preview.previewId,
             chainId: configuration.numericChainId,
             nonce,
             gas: gas.toString(),
             maxFeePerGas: fees.maxFeePerGas.toString(),
-            maxPriorityFeePerGas: fees.maxPriorityFeePerGas.toString(),
+            maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
             to: destination,
             value: value.toString(),
           })

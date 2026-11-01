@@ -1,8 +1,9 @@
-import { Effect, Option, Redacted } from 'effect'
+import { Effect, Option, Redacted, Schema as S } from 'effect'
 import { getAddress } from 'viem'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AssetAmount,
+  AtomicUnits,
   FirstTransactionWithRecipient,
   TransactionPreview,
   TransferRequest,
@@ -130,7 +131,7 @@ const previewAtTenPerGas = TransactionPreview.make({
   },
   estimatedFee: AssetAmount.make({
     assetId: ethereumSepoliaConfiguration.asset.assetId,
-    atomicUnits: `${previewedFee.toString()}`,
+    atomicUnits: S.decodeUnknownSync(AtomicUnits)(previewedFee.toString()),
     observedAt: 1,
   }),
   resultingBalance: AssetAmount.make({
