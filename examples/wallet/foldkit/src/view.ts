@@ -1257,7 +1257,7 @@ const activity = (model: Model): Html => {
     [h.Class('wallet-activity cardboard-panel')],
     [
       h.p([h.Class('cardboard-eyebrow')], ['Recent activity']),
-      h.small([], [model.transactionObservation._tag]),
+      h.small([], [observationWords(model)]),
       ...observationFailure,
       ...historyFailure,
       ...entries,
@@ -1265,6 +1265,16 @@ const activity = (model: Model): Html => {
     ],
   )
 }
+
+const observationWords = (model: Model): string =>
+  M.value(model.transactionObservation).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      WaitingForAccounts: () => 'Waiting for a wallet',
+      ObservingTransactions: () => 'Listening to the chain',
+      FailedTransactionObservation: () => 'Not listening to the chain',
+    }),
+  )
 
 const accountDetails = (model: Model): Html => {
   const h = html<Message>()
