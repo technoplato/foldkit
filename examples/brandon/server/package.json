@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
-    "bundle": "pnpm run build && esbuild dist/main.js dist/cli.js --bundle --platform=node --format=esm --packages=bundle --out-extension:.js=.mjs --outdir=bundle --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "bundle": "pnpm run build && esbuild dist/main.js dist/cli.js dist/watch.js --bundle --platform=node --format=esm --packages=bundle --out-extension:.js=.mjs --outdir=bundle --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "clean": "rimraf dist",
     "prebuild": "pnpm --filter brandon-core-example build",
     "pretest": "pnpm --filter brandon-core-example build",
