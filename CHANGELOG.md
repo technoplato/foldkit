@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 2:23:15 p.m. EST — `c6b36e818306` feat(issues): a board, saved views, inbox, fields and graph pages
+
+- **Implementation commit:** `c6b36e8183066021d3f35474841bf1f08a53416f`
+- **Change:** The issues site gains a board, saved views, an inbox, field menus and pages for agents, findings, features and products.
+- **Details:**
+  - Bulk selection writes one row at a time and a failed write names its row.
+  - Status, priority, claim and product change from the Issue header and each row; a status move from any client keeps a work-log entry.
+  - Agent runs, sessions, findings, features and products read Scribe's rows; products' surfaces and modules read the products map from the site's server.
+- **Files:**
+  - `examples/issues/core/src/rowEdit.ts` — One change to one Issue, shown at once and written in its turn.
+  - `examples/issues/core/src/rowSelection.ts` — Selection across rows, with Shift extending a run.
+  - `examples/issues/core/src/board.ts` — The board view by status or the set grouping.
+  - `examples/issues/core/src/inbox.ts` — Every status change, claim and mention, newest first, derived at read time.
+  - `examples/issues/core/src/graphRows.ts` — The service that reads Scribe's agent, finding, feature and product rows.
+  - `examples/issues/react/productsMapRoute.ts` — Serves the products map from git to the site's own page.
+  - `packages/foldkit/src/renderers/types.ts` — Board rows, draggable items and a list's drop action.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Entities should also be rich links to each other not just dumped on text
+- **SpecStory:** unavailable — Headless Claude Code run issues-linear-1538 for #1538; SpecStory does not capture headless runs.
+
 ## November 1st, 2026 at 2:15:49 p.m. EST — `bc1bb195633e` fix(wallet): green: every failure on screen is in words
 
 - **Implementation commit:** `bc1bb195633ef05c47376194efda9d80ccafb0a2`
