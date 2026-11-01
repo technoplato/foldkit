@@ -849,7 +849,7 @@ const sendMoney = (model: Model): Html => {
         onSome: suggestedTestTransfer => [
           h.small(
             [h.Class('wallet-small-amount-label')],
-            [suggestedTestTransfer.label],
+            [`Small test amount: ${suggestedTestTransfer.label}`],
           ),
         ],
       }),

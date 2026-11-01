@@ -827,7 +827,8 @@ export const makeSolanaLiveAdapter = (
     ),
   requestTestFunding: (account, request) => {
     if (
-      configuration.network.environment === 'Mainnet' ||
+      configuration.network.testFundingMethod._tag !==
+        'AdapterTestFundingMethod' ||
       request.accountId !== account.account.accountId ||
       request.chainId !== configuration.chain.chainId ||
       request.networkId !== configuration.network.networkId ||

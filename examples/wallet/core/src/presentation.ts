@@ -429,11 +429,28 @@ export const primaryWalletAsset = (
       )
     : Option.none()
 
-/** Selects the adapter-suggested display amount for a small test transfer. */
+const isSelectedNetworkMainnet = (model: Model): boolean =>
+  model.portfolio._tag === 'LoadedPortfolio' &&
+  Option.isSome(model.maybeSendNetworkSelection) &&
+  Option.exists(
+    networkForId(
+      model.portfolio.snapshot.networks,
+      model.maybeSendNetworkSelection.value.networkId,
+    ),
+    network => network.environment === 'Mainnet',
+  )
+
+const primaryWalletTestAsset = (model: Model) =>
+  isSelectedNetworkMainnet(model) ? Option.none() : primaryWalletAsset(model)
+
+/**
+ * Selects the adapter-suggested display amount for a small test transfer.
+ * Mainnet has none: nothing sent there is a test.
+ */
 export const primaryWalletSuggestedTestTransferAmount = (
   model: Model,
 ): Option.Option<string> =>
-  Option.map(primaryWalletAsset(model), asset =>
+  Option.map(primaryWalletTestAsset(model), asset =>
     displayAmountFromAtomicUnits(
       asset.suggestedTestTransferAtomicUnits,
       asset.decimalPlaces,
@@ -444,7 +461,7 @@ export const primaryWalletSuggestedTestTransferAmount = (
 export const primaryWalletSuggestedTestTransferLabel = (
   model: Model,
 ): Option.Option<string> =>
-  Option.map(primaryWalletAsset(model), asset => {
+  Option.map(primaryWalletTestAsset(model), asset => {
     const amount = displayAmountFromAtomicUnits(
       asset.suggestedTestTransferAtomicUnits,
       asset.decimalPlaces,
@@ -596,7 +613,9 @@ export const transferPreviewReadinessLabel = (model: Model): string =>
       WaitingForTransferBalance: () =>
         'Waiting for the selected account balance.',
       MissingTransferAmount: () =>
-        'Enter an amount or use the small test amount.',
+        Option.isSome(primaryWalletSuggestedTestTransferAmount(model))
+          ? 'Enter an amount or use the small test amount.'
+          : 'Enter an amount.',
       InvalidPreviewTransferAmount: () => 'Enter a valid positive amount.',
       MissingTransferRecipient: () => 'Enter a recipient address.',
       InvalidPreviewTransferRecipient: () =>

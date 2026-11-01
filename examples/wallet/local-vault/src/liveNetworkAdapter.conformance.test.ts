@@ -243,13 +243,13 @@ const conformanceRows: ReadonlyArray<typeof ConformanceRow.Type> = [
     chainId: 'solana',
     mode: 'Devnet',
     networkId: 'solana:devnet',
-    fundingMethod: 'AdapterTestFundingMethod',
+    fundingMethod: 'ExternalTestFundingMethod',
   }),
   ConformanceRow.make({
     chainId: 'solana',
     mode: 'Testnet',
     networkId: 'solana:testnet',
-    fundingMethod: 'AdapterTestFundingMethod',
+    fundingMethod: 'ExternalTestFundingMethod',
   }),
   ConformanceRow.make({
     chainId: 'solana',

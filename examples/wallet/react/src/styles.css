@@ -496,6 +496,10 @@ select {
   border-radius: 1rem;
 }
 
+.wallet-preview > .wallet-preview-recipient {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .wallet-preview span,
 .wallet-activity span,
 .wallet-activity small {
