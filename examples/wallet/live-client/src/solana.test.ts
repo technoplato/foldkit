@@ -170,6 +170,8 @@ const previewAccount = LiveNetworkAccount.make({
   configuration: solanaDevnetConfiguration,
 })
 
+const systemProgram = '11111111111111111111111111111111'
+
 const JsonRpcMethodRequest = S.Struct({ method: S.String })
 
 const jsonRpcFetch = (
@@ -265,6 +267,71 @@ describe('Solana live adapter transfer rejections', () => {
     )
 
     expect(quote.resultingBalance.atomicUnits).toBe('499994999')
+  })
+
+  it('refuses a send that would leave the sender below the rent minimum', async () => {
+    vi.stubGlobal(
+      'fetch',
+      jsonRpcFetch(
+        previewRpcHandlers({
+          getBalance: { result: { value: 1_000_000_000 } },
+          getAccountInfo: {
+            result: { value: { owner: systemProgram, executable: false } },
+          },
+        }),
+      ),
+    )
+    const leavingALittle = await Effect.runPromise(
+      previewTransfer(missingDestinationAddress, '999990000').pipe(Effect.flip),
+    )
+    expect(leavingALittle.code).toBe('Rejected')
+    expect(leavingALittle.guidance?.summary).toBe(
+      'This send would leave too little SOL in the sending account.',
+    )
+  })
+
+  it('lets a send empty the account to exactly nothing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      jsonRpcFetch(
+        previewRpcHandlers({
+          getBalance: { result: { value: 1_000_000_000 } },
+          getAccountInfo: {
+            result: { value: { owner: systemProgram, executable: false } },
+          },
+        }),
+      ),
+    )
+    const quote = await Effect.runPromise(
+      previewTransfer(missingDestinationAddress, '999995000'),
+    )
+    expect(quote.resultingBalance.atomicUnits).toBe('0')
+  })
+
+  it.each([
+    [
+      'a program',
+      { owner: 'BPFLoaderUpgradeab1e11111111111111111111111', executable: true },
+    ],
+    [
+      'a token account',
+      {
+        owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+        executable: false,
+      },
+    ],
+  ])('refuses a recipient that is %s, where SOL can be lost for good', async (_kind, value) => {
+    vi.stubGlobal(
+      'fetch',
+      jsonRpcFetch(previewRpcHandlers({ getAccountInfo: { result: { value } } })),
+    )
+    const refused = await Effect.runPromise(
+      previewTransfer(missingDestinationAddress, '1000000').pipe(Effect.flip),
+    )
+    expect(refused.code).toBe('Rejected')
+    expect(refused.guidance?.summary).toBe(
+      'That address is not a wallet, so SOL sent there can be lost for good.',
+    )
   })
 
   it('surfaces sendTransaction rent simulation failures as rejected transfers', async () => {

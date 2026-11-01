@@ -9,6 +9,7 @@ import {
   NetworkDescriptor,
 } from './currency.js'
 import {
+  ChangedTransferRecipient,
   FailedRefreshWalletBalances,
   RequestedBalanceRefresh,
   SelectedSendNetwork,
@@ -245,6 +246,48 @@ describe('the small test amount', () => {
     )
     expect(transferPreviewReadinessLabel(refreshedModel)).toBe(
       'Enter an amount.',
+    )
+  })
+})
+
+describe('a pasted payment link', () => {
+  const recipient = 'C5DLCjAX2UGrVDvoz8M4TYBCWSyUL9451GzG62SfQuih'
+  const mainnetModel: Model = {
+    ...devnetModel,
+    walletNetworkMode: 'Live',
+    maybeSendNetworkSelection: Option.some(selectionOf('Live', mainnet)),
+  }
+  const paste = (model: Model, query: string) =>
+    update(
+      model,
+      ChangedTransferRecipient.make({ value: `solana:${recipient}${query}` }),
+    )[0]
+
+  it('is refused when it names another network, and changes no amount', () => {
+    const pasted = paste(mainnetModel, '?amount=1&cluster=devnet')
+    expect(pasted.transferRecipient._tag).toBe('InvalidTransferRecipient')
+    expect(pasted.transferAmount).toEqual(mainnetModel.transferAmount)
+  })
+
+  it('is refused when its network is one this wallet does not know', () => {
+    expect(
+      paste(devnetModel, '?cluster=somewhere').transferRecipient._tag,
+    ).toBe('InvalidTransferRecipient')
+  })
+
+  it('fills the send when it names the selected network', () => {
+    const onDevnet = paste(devnetModel, '?amount=1&cluster=devnet')
+    expect(onDevnet.transferRecipient._tag).not.toBe('InvalidTransferRecipient')
+    expect(onDevnet.transferAmount._tag).toBe('ValidTransferAmount')
+    const onMainnet = paste(mainnetModel, '?amount=1&cluster=mainnet-beta')
+    expect(onMainnet.transferRecipient._tag).not.toBe(
+      'InvalidTransferRecipient',
+    )
+  })
+
+  it('fills the send when it names no network', () => {
+    expect(paste(mainnetModel, '?amount=1').transferRecipient._tag).not.toBe(
+      'InvalidTransferRecipient',
     )
   })
 })
