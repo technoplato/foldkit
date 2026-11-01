@@ -111,6 +111,15 @@ const topicTree = said('mention-721-2', {
     'https://words.knophy.com/recording/faa684c2-34e4-47e5-8f9b-3b2196da9463/section/01fb400f-0802-4fb8-9479-c7b31bbbb8a0?t=15585.52',
   ],
 })
+const onOg = said('mention-721-7', {
+  recordingId: recording208,
+  startMilliseconds: 15_000_000,
+  capturedAtMs: 1_791_660_000_000,
+  quote: 'Recording 208 #3100: "through the preview host"',
+  related: [
+    'https://og.pisspoursoftware.xyz/recording/faa684c2-34e4-47e5-8f9b-3b2196da9463/section/01fb400f-0802-4fb8-9479-c7b31bbbb8a0?t=15000',
+  ],
+})
 const byTheClock = said('mention-721-5', {
   recordingId: recording208,
   startMilliseconds: 14_240_980,
@@ -162,6 +171,14 @@ describe('Mentioned in: every recording and line that mentioned an Issue', () =>
     ])
     expect(older?.lines.map(line => Option.getOrNull(line.deepLink))).toEqual([
       words(recording208, '01fb400f-0802-4fb8-9479-c7b31bbbb8a0', 15585.52),
+    ])
+  })
+
+  it('reads a line link on og as its words page', () => {
+    const [group] = mentionedIn(issueWith([onOg]))
+
+    expect(group?.lines.map(line => Option.getOrNull(line.deepLink))).toEqual([
+      words(recording208, '01fb400f-0802-4fb8-9479-c7b31bbbb8a0', 15000),
     ])
   })
 

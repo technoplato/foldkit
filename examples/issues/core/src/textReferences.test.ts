@@ -89,6 +89,24 @@ describe('readTextReferences', () => {
     })
   })
 
+  it('reads a link on og as the same words page: og only previews it', () => {
+    const [piece] = referencesIn(
+      'Deep link: https://og.pisspoursoftware.xyz/recording/faa684c2-34e4-47e5-8f9b-3b2196da9463/section/574c0938-6063-4eba-a718-ee56bfcf9c46?t=16171.68.',
+    )
+    expect(piece?.reference).toEqual({
+      _tag: 'WordsLink',
+      url: 'https://words.pisspoursoftware.xyz/recording/faa684c2-34e4-47e5-8f9b-3b2196da9463/section/574c0938-6063-4eba-a718-ee56bfcf9c46?t=16171.68',
+      recordingId: 'faa684c2-34e4-47e5-8f9b-3b2196da9463',
+      maybeSectionId: Option.some('574c0938-6063-4eba-a718-ee56bfcf9c46'),
+      maybeAtSeconds: Option.some(16171.68),
+    })
+  })
+
+  it('reads an Issue link on og as that Issue', () => {
+    const [piece] = referencesIn('Filed as https://og.pisspoursoftware.xyz/issues/689 now.')
+    expect(piece?.reference).toEqual({ _tag: 'IssueNumber', issueId: '689' })
+  })
+
   it('reads a Markdown link by its label and its address', () => {
     const [piece] = referencesIn(
       'He said [#2735](https://words.pisspoursoftware.xyz/recording/faa684c2-34e4-47e5-8f9b-3b2196da9463/section/8d70b597-a775-41d8-b688-a08f722a87b2?t=14287.00) twice.',
