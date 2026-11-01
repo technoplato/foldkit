@@ -12,6 +12,7 @@ import {
   FailedRefreshWalletBalances,
   SelectedSendNetwork,
   SelectedWalletNetworkMode,
+  SucceededLoadWallet,
   SucceededRefreshWalletBalances,
 } from './message.js'
 import {
@@ -19,6 +20,7 @@ import {
   BalanceSnapshot,
   FirstTransactionWithRecipient,
   LoadedPortfolio,
+  LoadingPortfolio,
   type Model,
   NetworkFailure,
   PortfolioSnapshot,
@@ -226,5 +228,46 @@ describe('a send in flight', () => {
     expect(modeCommands).toHaveLength(0)
     expect(railModel).toBe(sendingModel)
     expect(railCommands).toHaveLength(0)
+  })
+})
+
+describe('a host without the current mode', () => {
+  it('opens in the first mode it has networks for, so the screen is never an empty Testnet', () => {
+    const requestId = 'portfolio-1'
+    const loading: Model = {
+      ...initialModel,
+      walletProfileLoading: LoadedWalletProfiles.make({}),
+      wallets: [wallet],
+      walletNetworkMode: 'Testnet',
+      portfolio: LoadingPortfolio.make({ requestId }),
+    }
+
+    const [loaded] = update(
+      loading,
+      SucceededLoadWallet.make({ requestId, portfolio }),
+    )
+
+    expect(loaded.walletNetworkMode).toBe('Devnet')
+    expect(
+      Option.map(loaded.maybeSendNetworkSelection, ({ networkId }) => networkId),
+    ).toEqual(Option.some('solana:devnet'))
+  })
+
+  it('keeps the current mode when the host has networks for it', () => {
+    const requestId = 'portfolio-2'
+    const loading: Model = {
+      ...initialModel,
+      walletProfileLoading: LoadedWalletProfiles.make({}),
+      wallets: [wallet],
+      walletNetworkMode: 'Live',
+      portfolio: LoadingPortfolio.make({ requestId }),
+    }
+
+    const [loaded] = update(
+      loading,
+      SucceededLoadWallet.make({ requestId, portfolio }),
+    )
+
+    expect(loaded.walletNetworkMode).toBe('Live')
   })
 })
