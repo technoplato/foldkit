@@ -1,4 +1,4 @@
-import { generateKeyPairSync, createSign } from 'node:crypto'
+import { createSign, generateKeyPairSync } from 'node:crypto'
 
 import { type AccessVerifier, makeAccessVerifier } from '@foldkit/instant'
 

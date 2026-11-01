@@ -1,7 +1,6 @@
+import { Page } from 'brandon-core-example'
 import { Effect, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
-
-import { Page } from 'brandon-core-example'
 
 import { accountKeyOf } from './account.js'
 import { handle } from './handler.js'
@@ -151,10 +150,7 @@ describe('what each person gets', () => {
   })
 
   it('leaves the words of a flag that is off out of the response', async () => {
-    const response = await get(
-      '/api/page',
-      assertion(signedLogin(brandon)),
-    )
+    const response = await get('/api/page', assertion(signedLogin(brandon)))
     expect(response.body.toString()).toContain('eggplant')
     expect(response.body.toString()).not.toContain('Michael-only')
   })
@@ -199,6 +195,8 @@ describe('files', () => {
     expect((await get('/.git/config', headers)).status).toBe(404)
     expect((await get('/../package.json', headers)).status).toBe(404)
     expect((await get('/%2e%2e/package.json', headers)).status).toBe(404)
-    expect((await get('/assets/..%2f..%2fpackage.json', headers)).status).toBe(404)
+    expect((await get('/assets/..%2f..%2fpackage.json', headers)).status).toBe(
+      404,
+    )
   })
 })

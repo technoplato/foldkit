@@ -1,0 +1,39 @@
+import type { SectionColumn, WalletAddress } from 'brandon-core-example'
+import type { Effect, Option } from 'effect'
+
+import type { Account } from './account.js'
+
+// STORE
+
+/** What a section paints. */
+export type SectionKind =
+  | 'Markdown'
+  | 'QrLinks'
+  | 'Scoreboard'
+  | 'Football'
+  | 'Wallets'
+
+/** One link of a QrLinks section, as the row keeps it. */
+export type LinkRow = Readonly<{ label: string; url: string }>
+
+/** One `brandonSections` row. */
+export type SectionRow = Readonly<{
+  sectionKey: string
+  title: string
+  kind: SectionKind
+  column: SectionColumn
+  flag: string
+  position: number
+  maybeMarkdown: Option.Option<string>
+  maybeLinks: Option.Option<ReadonlyArray<LinkRow>>
+}>
+
+/**
+ * What the origin reads. Every row is the owner's alone in Instant, so the
+ * live store holds the admin token and only this process reads them.
+ */
+export type BrandonStore = Readonly<{
+  account: (accountKey: string) => Effect.Effect<Option.Option<Account>, Error>
+  sections: Effect.Effect<ReadonlyArray<SectionRow>, Error>
+  wallets: Effect.Effect<ReadonlyArray<WalletAddress>, Error>
+}>
