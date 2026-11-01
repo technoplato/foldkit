@@ -93,8 +93,17 @@ const SolanaFeeResponse = S.Struct({
 const SolanaSignatureResponse = S.Struct({ result: S.String })
 
 const SolanaAccountInfoResponse = S.Struct({
-  result: S.Struct({ value: S.NullOr(S.Unknown) }),
+  result: S.Struct({
+    value: S.NullOr(
+      S.Struct({
+        owner: S.String,
+        executable: S.optionalKey(S.Boolean),
+      }),
+    ),
+  }),
 })
+
+const systemProgramAddress = '11111111111111111111111111111111'
 
 const SolanaRentExemptionResponse = S.Struct({
   result: S.Number,
@@ -604,6 +613,20 @@ export const makeSolanaLiveAdapter = (
         ) {
           throw rejected(destinationCreationRentGuidance(rentLamports))
         }
+        if (
+          destinationAccount.result.value !== null &&
+          destinationAccount.result.value.owner !== systemProgramAddress
+        ) {
+          throw rejected(
+            TransferGuidance.make({
+              summary:
+                'That address is not a wallet, so SOL sent there can be lost for good.',
+              details: [
+                'It belongs to a program, such as a token account. Ask for a wallet address.',
+              ],
+            }),
+          )
+        }
         const resultingBalance =
           exactUnsignedInteger(balanceResponse.result.value) -
           BigInt(transfer.request.atomicUnits) -
@@ -614,6 +637,17 @@ export const makeSolanaLiveAdapter = (
               summary:
                 'The sender does not have enough SOL for this transfer and fee.',
               details: ['Reduce the amount or add SOL to the sending account.'],
+            }),
+          )
+        }
+        if (resultingBalance > 0n && resultingBalance < rentLamports) {
+          throw rejected(
+            TransferGuidance.make({
+              summary:
+                'This send would leave too little SOL in the sending account.',
+              details: [
+                `An account must keep at least ${rentLamports.toString()} lamports, or send everything so it holds none.`,
+              ],
             }),
           )
         }

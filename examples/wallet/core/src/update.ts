@@ -108,6 +108,7 @@ import {
   TransactionRecord,
   type TransactionState,
   type TransactionSubmission,
+  TransferGuidance,
   TransferRequest,
   UnavailableTestFunding,
   ValidTransferRecipient,
@@ -135,7 +136,10 @@ import {
   resolveSendNetworkSelection,
   selectSendNetworkForMode,
 } from './sendNetworkSelection.js'
-import { parseSolanaPayTransferUri } from './solanaPayUri.js'
+import {
+  isSolanaPayTransferForNetwork,
+  parseSolanaPayTransferUri,
+} from './solanaPayUri.js'
 import {
   WalletClient,
   WalletClientError,
@@ -1515,6 +1519,33 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         const maybePay = parseSolanaPayTransferUri(value)
         if (Option.isSome(maybePay)) {
           const pay = maybePay.value
+          const isForSelectedNetwork = Option.match(
+            model.maybeSendNetworkSelection,
+            {
+              onNone: () => true,
+              onSome: ({ networkId }) =>
+                isSolanaPayTransferForNetwork(pay, networkId),
+            },
+          )
+          if (!isForSelectedNetwork) {
+            return [
+              {
+                ...model,
+                walletIntent: NoWalletIntent.make({}),
+                transferRecipient: InvalidTransferRecipient.make({
+                  value,
+                  guidance: TransferGuidance.make({
+                    summary: 'This payment link is for another network.',
+                    details: [
+                      'Switch to its network, or ask for a link on this one.',
+                    ],
+                  }),
+                }),
+                transaction: IdleTransaction.make({}),
+              },
+              [],
+            ]
+          }
           return [
             {
               ...model,
