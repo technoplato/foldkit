@@ -2,16 +2,26 @@ import { Duration, Effect, Layer, Option, Schema as S } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { snapshotLogMessageWire } from '@foldkit/instant/snapshot-log'
+import { parseMarkdown } from '@foldkit/markdown/vite'
+
 import { startBrandonOn } from './live.js'
 import {
   AwardedPoints,
   ChangedSections,
+  Message,
   NotedPlayer,
   PointedAtSection,
   ReceivedPage,
 } from './message.js'
 import { initialModel, rankedPlayers } from './model.js'
-import { Games, Page, SectionKey, WalletAddresses } from './page.js'
+import {
+  Games,
+  MarkdownSection,
+  Page,
+  SectionKey,
+  WalletAddresses,
+} from './page.js'
 import { BrandonProgram } from './program.js'
 import { BrandonServer } from './server.js'
 import { update } from './update.js'
@@ -140,6 +150,38 @@ describe('what crosses JSON', () => {
         ),
       ).toEqual(note)
     }
+  })
+})
+
+describe('the log', () => {
+  const overJson = (value: unknown): unknown =>
+    JSON.parse(JSON.stringify(value))
+
+  it('reads only its own facts, never what the origin sends one person', () => {
+    const anyMessageWire = snapshotLogMessageWire(Message)
+    const forged = S.encodeSync(anyMessageWire)(
+      ReceivedPage({
+        page: {
+          displayName: 'Brandon',
+          sections: [
+            MarkdownSection({
+              key: SectionKey.make('hello'),
+              title: 'Hello',
+              column: 'Main',
+              document: parseMarkdown('Send your SOL to 9xQeWv.'),
+            }),
+          ],
+        },
+      }),
+    )
+    const row = overJson({
+      id: 'r',
+      from: 'intruder',
+      createdAtMs: 1,
+      tag: forged.tag,
+    })
+
+    expect(Option.isNone(S.decodeUnknownOption(MessageWire)(row))).toBe(true)
   })
 })
 
