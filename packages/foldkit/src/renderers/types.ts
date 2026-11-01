@@ -158,10 +158,16 @@ export type SpacerNode = Readonly<{
   readonly rows: number
 }>
 
-/** A horizontal stack. */
+/**
+ * A horizontal stack. `isBoard` makes it columns side by side that a person
+ * scrolls sideways, such as a board with a column per status: a graphical
+ * painter keeps each child its own width and a terminal stacks them, so no
+ * column is ever cut off.
+ */
 export type RowNode = Readonly<{
   readonly _tag: 'Row'
   readonly gap: number
+  readonly isBoard?: boolean
   readonly children: ReadonlyArray<UiNode>
 }>
 
@@ -279,13 +285,16 @@ export type ItemImage = TextImage & Readonly<{ readonly alt: string }>
  * A box at the start of a list row a person ticks, such as a reminder's
  * completion circle. Pressing it presses `action`, `Complete:7e1f04c2-…`;
  * `isChecked` shows it ticked; `label` is what a screen reader announces,
- * `Complete Buy milk`. Without `action` it only shows. `focused` marks it
- * highlighted in a terminal.
+ * `Complete Buy milk`. Without `action` it only shows. `extendAction` is what
+ * a press with Shift held presses, where a painter has a Shift key, such as
+ * selecting every row up to this one. `focused` marks it highlighted in a
+ * terminal.
  */
 export type ItemCheck = Readonly<{
   readonly isChecked: boolean
   readonly label: string
   readonly action?: string
+  readonly extendAction?: string
   readonly focused?: boolean
 }>
 
@@ -295,7 +304,8 @@ export type ItemCheck = Readonly<{
  * its end. `key` is the row's stable identity, such as the book's slug.
  * `href` makes the row a link instead, such as a bookmark's moment, so a
  * person can open it, copy it, or share it the way a platform shares any
- * link.
+ * link. `isDraggable` lets a person drag the row onto a list with a
+ * `dropAction`, where a painter has a pointer.
  */
 export type ListItem = Readonly<{
   readonly key: string
@@ -307,6 +317,7 @@ export type ListItem = Readonly<{
   readonly progress?: Readonly<{ readonly value: number; readonly max: number }>
   readonly action?: string
   readonly isCurrent?: boolean
+  readonly isDraggable?: boolean
   readonly focused?: boolean
   readonly trailing?: ReadonlyArray<ButtonNode>
 }>
@@ -315,11 +326,16 @@ export type ListItem = Readonly<{
  * Rows a person picks from, such as the books in a library or a book's
  * chapters: full width, one under another, each row pressable as a whole.
  * `label` names the list for a screen reader and heads it in a terminal.
+ * `dropAction` takes a draggable row dropped on the list: dropping row `804`
+ * on a list whose `dropAction` is `Move:Blocked` presses `Move:Blocked:804`.
+ * A painter without a pointer has no drop, so every move a drop makes needs
+ * another way in, such as a key.
  */
 export type ListNode = Readonly<{
   readonly _tag: 'List'
   readonly label: string
   readonly items: ReadonlyArray<ListItem>
+  readonly dropAction?: string
 }>
 
 /** Device chrome around a product tree. The shell does not own product buttons. */

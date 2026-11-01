@@ -1,8 +1,8 @@
 import { Array, Match as M, Option, Order, String, pipe } from 'effect'
 import {
-  Button,
   Column,
   Plain,
+  Progress,
   Reference,
   RichText,
   Row,
@@ -26,15 +26,25 @@ import {
   issueChipOf,
   partsOfText,
 } from './chips.js'
-import { howLongAgo, localTimeLabel, whenLabel } from './clock.js'
+import {
+  durationLabel,
+  howLongAgo,
+  localTimeLabel,
+  whenLabel,
+} from './clock.js'
 import { IssueEntity, backlinksOf } from './entityGraph.js'
 import {
   type ChipClock,
+  agentChip,
   buildChip,
   commitChip,
+  featureChip,
+  productChip,
   spacedChips,
   testflightChips,
 } from './graphChips.js'
+import { type AgentRunChip, noIssueGraph } from './graphFacts.js'
+import { findingNodes } from './graphPageParts.js'
 import {
   type IssueLanding,
   firstLandedBuild,
@@ -47,10 +57,11 @@ import {
   workInProgressLines,
 } from './landing.js'
 import {
-  catalogIssueRefsOf,
-  leftoverStatusesForIssue,
+  catalogIssueIds,
+  issuesLinkingTo,
   workLogNewestFirst,
 } from './leftover.js'
+import { pageFieldsOf } from './listRows.js'
 import {
   type MentionedLine,
   type RecordingMentionGroup,
@@ -61,6 +72,7 @@ import {
 } from './mentionedIn.js'
 import { type IssueFilesState, type Model } from './model.js'
 import { nowWorkingLines } from './nowWorking.js'
+import { runsOfIssue } from './pageAgents.js'
 import { describeIssueReference, issueAttachmentWebLink } from './reference.js'
 import {
   type TimelineStep,
@@ -140,8 +152,6 @@ const propertyParts = (
 ): ReadonlyArray<TextPart> =>
   Array.intersperse(
     [
-      Reference({ label: issue.status, kind: 'Status' }),
-      Reference({ label: issue.priority, kind: 'Priority' }),
       ...Option.toArray(
         Option.map(issue.issueType, issueType =>
           Reference({ label: issueType, kind: 'Type' }),
@@ -173,9 +183,12 @@ const propertyParts = (
 const headerNodes = (
   issue: Issue,
   context: PageContext,
+  actions: ReadonlyArray<UiNode>,
 ): ReadonlyArray<UiNode> => [
   Text(`#${issue.id}`, { mono: true, dim: true }),
   Text(issue.title, { emphasis: 'Headline' }),
+  Row({ gap: 1 }, ...pageFieldsOf(issue)),
+  ...actions,
   RichText(propertyParts(issue, context)),
   Text(
     Array.join(
@@ -430,6 +443,80 @@ const timelineNodes = (
     ],
   })
 
+const graphOfPage = (model: Model) =>
+  model.issueGraph._tag === 'LoadedIssueGraph'
+    ? model.issueGraph.graph
+    : noIssueGraph
+
+const appAndFeatureNodes = (
+  model: Model,
+  issue: Issue,
+): ReadonlyArray<UiNode> => [
+  RichText([
+    productChip(
+      issue.product.id,
+      issue.product.name,
+      Option.some(issue.product._tag),
+    ),
+    ...spacedChips(
+      Array.map(graphOfPage(model).features, ({ feature }) =>
+        featureChip(feature),
+      ),
+    ),
+  ]),
+  ...(model.issueGraph._tag === 'FailedIssueGraph'
+    ? [
+        Text(
+          `Its features and findings could not be read: ${model.issueGraph.reason}`,
+          { dim: true },
+        ),
+      ]
+    : []),
+]
+
+const runWords = (run: AgentRunChip): string =>
+  Array.join(
+    [
+      ...Option.toArray(run.maybeAccount),
+      ...Option.toArray(run.maybeModel),
+      ...Option.toArray(run.maybeEffort),
+    ],
+    '  ·  ',
+  )
+
+const runTimeWords = (run: AgentRunChip, context: PageContext): string =>
+  Option.match(run.maybeStartedAtMs, {
+    onNone: () => '',
+    onSome: startedAtMs =>
+      `  ${whenWords(startedAtMs, context)}${Option.match(run.maybeEndedAtMs, {
+        onNone: () => '',
+        onSome: endedAtMs => `, ran ${durationLabel(startedAtMs, endedAtMs)}`,
+      })}`,
+  })
+
+const runNodes = (
+  issue: Issue,
+  model: Model,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  Array.map(runsOfIssue(issue, model.knownAgents), run =>
+    RichText([
+      agentChip(run, clockOf(context)),
+      Plain(`  ${runWords(run)}${runTimeWords(run, context)}`),
+    ]),
+  )
+
+const findingNodesOf = (
+  model: Model,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  Array.map(graphOfPage(model).findings, finding =>
+    Column(
+      { gap: 0 },
+      ...findingNodes(finding, context.chips, clockOf(context)),
+    ),
+  )
+
 const atAGlanceNodes = (
   model: Model,
   issue: Issue,
@@ -437,7 +524,10 @@ const atAGlanceNodes = (
 ): ReadonlyArray<UiNode> => {
   const landing = landingOfPage(model)
   const steps = timelineOf(issue, landing)
+  const runs = runNodes(issue, model, context)
+  const findings = findingNodesOf(model, context)
   return [
+    ...section('App and feature', appAndFeatureNodes(model, issue)),
     ...section('Asked', askedNodes(issue, context)),
     ...section('Landing', [
       ...landedBuildNodes(landing, context),
@@ -445,6 +535,8 @@ const atAGlanceNodes = (
       ...landingNodes(issue, steps, context),
     ]),
     ...section('Timeline', timelineNodes(steps, context)),
+    ...section(`Runs: ${runs.length.toString()}`, runs),
+    ...section(`Findings: ${findings.length.toString()}`, findings),
   ]
 }
 
@@ -613,10 +705,24 @@ const otherMentionNodes = (
 const linkedIssueNodes = (
   issue: Issue,
   context: PageContext,
-): ReadonlyArray<UiNode> =>
-  Array.map(catalogIssueRefsOf(issue), ref =>
-    RichText([issueChipOf(ref.id, context.chips)]),
-  )
+): ReadonlyArray<UiNode> => {
+  const stored = catalogIssueIds(issue)
+  return [
+    ...Array.map(stored, issueId =>
+      RichText([issueChipOf(issueId, context.chips)]),
+    ),
+    ...Array.flatMap(issuesLinkingTo(context.catalog, issue.id), linkerId =>
+      Array.contains(stored, linkerId)
+        ? []
+        : [
+            RichText([
+              issueChipOf(linkerId, context.chips),
+              Plain('  links here'),
+            ]),
+          ],
+    ),
+  ]
+}
 
 const pointedAtByNodes = (
   issue: Issue,
@@ -640,14 +746,30 @@ const linesNodes = (
   context: PageContext,
 ): ReadonlyArray<UiNode> => Array.map(lines, line => chipped(line, context))
 
-const subtaskNodes = (issue: Issue): ReadonlyArray<UiNode> =>
+const subtaskNodes = (
+  issue: Issue,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
   Array.match(issue.subtasks, {
     onEmpty: () => [],
     onNonEmpty: subtasks => [
+      Progress({
+        label: subtaskProgress(issue),
+        max: subtasks.length,
+        value: Array.filter(
+          subtasks,
+          subtask => subtask.state._tag === 'Checked',
+        ).length,
+      }),
       ...Array.map(subtasks, subtask =>
-        Text(
-          `${subtask.state._tag === 'Checked' ? 'done' : 'todo'}  ${subtask.title}`,
-        ),
+        RichText([
+          Reference({
+            kind: 'Subtask',
+            label: subtask.state._tag === 'Checked' ? 'done' : 'todo',
+          }),
+          Plain('  '),
+          ...partsOfText(subtask.title, context.chips),
+        ]),
       ),
     ],
   })
@@ -717,34 +839,23 @@ const attachmentNodes = (
     ],
   })
 
-const statusNodes = (issue: Issue): ReadonlyArray<UiNode> => [
-  Row(
-    { gap: 1 },
-    ...Array.map(leftoverStatusesForIssue(issue.id), status =>
-      Button({
-        token: `status:${status}`,
-        label: status,
-        variant: status === issue.status ? 'Primary' : 'Ghost',
-      }),
-    ),
-  ),
-]
-
 /**
- * One Issue's page, at a glance first: who asked and in which words, linked
- * at the moment he said it; the app; where the work landed and the build;
- * and the ask's timeline with how long each step took. Then its details,
- * work, criteria, work log and mentions, every Issue, Recording, commit,
- * agent and build in them a chip, and the Issues that point at it.
+ * One Issue's page: its fields and `actions` first, then at a glance who
+ * asked and in which words, linked at the moment he said it; the app; where
+ * the work landed and the build; and the ask's timeline with how long each
+ * step took. Then its details, work, criteria, work log and mentions, every
+ * Issue, Recording, commit, agent and build in them a chip, and the Issues
+ * that point at it.
  */
 export const issuePageNodes = (
   model: Model,
   issue: Issue,
+  actions: ReadonlyArray<UiNode> = [],
 ): ReadonlyArray<UiNode> => {
   const context = pageContextOf(model, issue)
   const pageUrl = issueViewerUrl(issue.id)
   return [
-    ...headerNodes(issue, context),
+    ...headerNodes(issue, context, actions),
     ...atAGlanceNodes(model, issue, context),
     ...section('Details', detailsNodes(issue, context)),
     ...section('Now working', linesNodes(nowWorkingLines(issue), context)),
@@ -755,7 +866,10 @@ export const issuePageNodes = (
         onSome: work => linesNodes(workInProgressLines(work), context),
       }),
     ),
-    ...section(`Subtasks: ${subtaskProgress(issue)}`, subtaskNodes(issue)),
+    ...section(
+      `Subtasks: ${subtaskProgress(issue)}`,
+      subtaskNodes(issue, context),
+    ),
     ...section('Success criteria', criteriaNodes(issue)),
     ...section('Linked issues', linkedIssueNodes(issue, context)),
     ...section('Pointed at by', pointedAtByNodes(issue, context)),
@@ -763,7 +877,6 @@ export const issuePageNodes = (
     ...section('Mentioned in', mentionedInNodes(issue, context)),
     ...section('Mentions', otherMentionNodes(issue, context)),
     ...section('Attachments', attachmentNodes(issue, model.issueFiles)),
-    ...statusNodes(issue),
     Text('Link to this Issue', { href: pageUrl, copyable: true, dim: true }),
   ]
 }

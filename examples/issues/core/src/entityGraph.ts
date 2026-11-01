@@ -28,6 +28,16 @@ export const SegmentEntity = S.TaggedStruct('SegmentEntity', {
 export const CommitEntity = S.TaggedStruct('CommitEntity', { sha: S.String })
 /** An agent by its id: `claude-code/issues-linear-1538@ld`. */
 export const AgentEntity = S.TaggedStruct('AgentEntity', { agentId: S.String })
+/** A harness's session by its own id: `2914b977-312b-4d93-a41c-4681d1255fe1`. */
+export const SessionEntity = S.TaggedStruct('SessionEntity', {
+  sessionId: S.String,
+})
+/** One thing an agent reported running into, by its row's id. */
+export const FindingEntity = S.TaggedStruct('FindingEntity', {
+  findingId: S.String,
+})
+/** A line of a product's feature contract by its slug: `scroll-back-always`. */
+export const FeatureEntity = S.TaggedStruct('FeatureEntity', { slug: S.String })
 /** A build by its number: `218`, `217.1`. */
 export const BuildEntity = S.TaggedStruct('BuildEntity', { number: S.String })
 /** An application or library by its tracker id: `scribe`, `foldkit`. */
@@ -43,6 +53,9 @@ export const Entity = S.Union([
   SegmentEntity,
   CommitEntity,
   AgentEntity,
+  SessionEntity,
+  FindingEntity,
+  FeatureEntity,
   BuildEntity,
   ProductEntity,
 ])
@@ -60,6 +73,9 @@ export const PageEntity = S.Union([
   SegmentEntity,
   CommitEntity,
   AgentEntity,
+  SessionEntity,
+  FindingEntity,
+  FeatureEntity,
   BuildEntity,
   ProductEntity,
 ])
@@ -77,6 +93,9 @@ export const pageEntityKey = (entity: PageEntity): string =>
       SegmentEntity: ({ _tag, segmentId }) => `${_tag}:${segmentId}`,
       CommitEntity: ({ _tag, sha }) => `${_tag}:${sha}`,
       AgentEntity: ({ _tag, agentId }) => `${_tag}:${agentId}`,
+      SessionEntity: ({ _tag, sessionId }) => `${_tag}:${sessionId}`,
+      FindingEntity: ({ _tag, findingId }) => `${_tag}:${findingId}`,
+      FeatureEntity: ({ _tag, slug }) => `${_tag}:${slug}`,
       BuildEntity: ({ _tag, number }) => `${_tag}:${number}`,
       ProductEntity: ({ _tag, productId }) => `${_tag}:${productId}`,
     }),
@@ -160,8 +179,12 @@ const targetsOf = (reference: TextReference): ReadonlyArray<Entity> =>
       CommitSha: ({ sha }) => [CommitEntity.make({ sha })],
       AgentName: ({ agentId }) => [AgentEntity.make({ agentId })],
       BuildNumber: ({ number }) => [BuildEntity.make({ number })],
+      ProductName: ({ productId }) => [ProductEntity.make({ productId })],
+      FeatureName: ({ slug }) => [FeatureEntity.make({ slug })],
+      FeatureLineNumber: () => [],
+      FindingId: ({ findingId }) => [FindingEntity.make({ findingId })],
       Timestamp: () => [],
-      ChatSession: () => [],
+      ChatSession: ({ sessionId }) => [SessionEntity.make({ sessionId })],
       RawId: () => [],
       FilePath: () => [],
       WebLink: () => [],
@@ -420,6 +443,9 @@ export const entityKey = (entity: Entity): string =>
       SegmentEntity: ({ segmentId }) => `segment:${segmentId}`,
       CommitEntity: ({ sha }) => `commit:${sha.slice(0, SHORT_SHA)}`,
       AgentEntity: ({ agentId }) => `agent:${agentId}`,
+      SessionEntity: ({ sessionId }) => `session:${sessionId}`,
+      FindingEntity: ({ findingId }) => `finding:${findingId}`,
+      FeatureEntity: ({ slug }) => `feature:${slug}`,
       BuildEntity: ({ number }) => `build:${number}`,
       ProductEntity: ({ productId }) => `product:${productId}`,
     }),
@@ -482,6 +508,9 @@ const needlesOf = (
       SegmentEntity: ({ segmentId }) => [segmentId],
       CommitEntity: ({ sha }) => [sha.slice(0, SHORT_SHA)],
       AgentEntity: ({ agentId }) => [agentId],
+      SessionEntity: ({ sessionId }) => [sessionId],
+      FindingEntity: ({ findingId }) => [findingId],
+      FeatureEntity: ({ slug }) => [`/features/${slug}`],
       BuildEntity: ({ number }) => [
         `build ${number}`,
         `builds ${number}`,
@@ -525,6 +554,9 @@ const hasStructuredLink = (issue: Issue, entity: Entity): boolean =>
         Array.some(issue.workLog, entry =>
           Option.contains(entry.agentId, agentId),
         ),
+      SessionEntity: () => false,
+      FindingEntity: () => false,
+      FeatureEntity: () => false,
       BuildEntity: ({ number }) =>
         Option.exists(issue.workInProgress, work =>
           Option.contains(work.targetBuild, number),

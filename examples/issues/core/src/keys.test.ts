@@ -10,7 +10,11 @@ import { describe, expect, it } from 'vitest'
 import { ApplicationProduct, Issue } from '@foldkit/instant-tools/issues'
 
 import { modelForNavigation } from './init.js'
-import { type KeyPress, tokenForKeyPress } from './keys.js'
+import {
+  type KeyPress,
+  navigationInteractionsOf,
+  tokenForKeyPress,
+} from './keys.js'
 import { ObservedIssues } from './message.js'
 import {
   Backlog,
@@ -150,7 +154,6 @@ describe('Issue Tracker keys: the row cursor', () => {
     expect(tokenForKeyPress(atRow, on(' ', { target: 'Control' }))).toEqual(
       Option.none(),
     )
-    expect(tokenForKeyPress(list(), on('Enter'))).toEqual(Option.none())
   })
 
   it('keeps the cursor on its Issue through a live change that moves the Issue', () => {
@@ -288,6 +291,14 @@ describe('Issue Tracker keys: the search field', () => {
 })
 
 describe('Issue Tracker keys: going places', () => {
+  it('names each place once in the navigation', () => {
+    const labels = Array.map(
+      navigationInteractionsOf(modelForNavigation(IssueList.make({}))),
+      interaction => interaction.label,
+    )
+    expect(labels).toEqual(Array.dedupe(labels))
+  })
+
   it('goes to the backlog, triage and the list with g then b, t or l', () => {
     expect(pressedAll(list(), ['g', 'b']).navigation).toEqual(Backlog.make({}))
     expect(pressedAll(list(), ['g', 't']).navigation).toEqual(
@@ -302,11 +313,11 @@ describe('Issue Tracker keys: going places', () => {
     const waiting = pressedAll(list(), ['g'])
     expect(
       Array.map(textsOf(issuesScreen(waiting)), text => text.content),
-    ).toContain('Go to: l list, b backlog, t triage')
+    ).toContain('Go to: l list, b backlog, t triage, v views, i inbox, f findings, e features, p products')
     const letGo = pressedAll(waiting, ['q'])
     expect(
       Array.map(textsOf(issuesScreen(letGo)), text => text.content),
-    ).not.toContain('Go to: l list, b backlog, t triage')
+    ).not.toContain('Go to: l list, b backlog, t triage, v views, i inbox, f findings, e features, p products')
     expect(letGo.navigation).toEqual(IssueList.make({}))
     expect(markedRowsOf(pressedAll(letGo, ['j']))).toEqual(['104'])
   })

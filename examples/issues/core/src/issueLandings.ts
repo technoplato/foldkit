@@ -15,6 +15,15 @@ import {
 
 import { normalizeIssueId } from '@foldkit/instant-tools/issues'
 
+import {
+  AgentFacts,
+  FeatureFacts,
+  FindingFacts,
+  type GraphQuery,
+  ProductFacts,
+  SessionFacts,
+} from './graphFacts.js'
+
 // MODEL
 
 /**
@@ -174,6 +183,11 @@ export const PageFacts = S.Union([
   CommitFacts,
   RecordingFacts,
   SegmentFacts,
+  AgentFacts,
+  SessionFacts,
+  FindingFacts,
+  FeatureFacts,
+  ProductFacts,
   NoPageFacts,
 ])
 /** What Scribe's rows say about the entity a page shows. */
@@ -744,8 +758,14 @@ export type LandingsQuery =
   | ReturnType<typeof issueLandingQuery>
   | ReturnType<typeof buildFactsQuery>
   | ReturnType<typeof commitFactsQuery>
+  | GraphQuery
 
-const observed = <A>(
+/**
+ * One live query of Scribe's app as a Stream of what `read` makes of each
+ * answer: opened when asked for, closed with the Stream, and failing with the
+ * reason a person reads when the rules refuse it or the rows cannot be read.
+ */
+export const observed = <A>(
   openDatabase: Effect.Effect<LandingsDatabase, IssueLandingError>,
   query: LandingsQuery,
   read: (data: unknown) => A,

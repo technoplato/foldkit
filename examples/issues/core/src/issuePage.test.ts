@@ -399,3 +399,32 @@ describe('the Issue page at a glance', () => {
     )
   })
 })
+
+describe('an unchanged Issue keeps its timeline', () => {
+  it('reads the work log once while the Issue and its landing stay the same', () => {
+    const issue = Issue.make({
+      area: Option.none(),
+      attachments: [],
+      claimantId: Option.none(),
+      complexity: Option.none(),
+      createdAtMs: 1_000,
+      details: '',
+      id: '700',
+      issueType: Option.none(),
+      mentions: [],
+      priority: 'P2',
+      product: ApplicationProduct.make({ id: 'scribe', name: 'Scribe' }),
+      projectId: Option.none(),
+      reportedDate: Option.none(),
+      sourceDocument: Option.none(),
+      status: 'Open',
+      successCriteria: [],
+      title: 'A timeline',
+      updatedAtMs: 1_000,
+      viewerURL: Option.none(),
+      workLog: [],
+    })
+    expect(timelineOf(issue)).toBe(timelineOf(issue))
+  })
+})
+

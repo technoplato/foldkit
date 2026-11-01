@@ -2,7 +2,6 @@ import { Array, Effect, Match as M, Option, Stream } from 'effect'
 import {
   type ListItem,
   type UiNode,
-  buttonsOf,
   inputsOf,
   textsOf,
 } from 'foldkit/renderers'
@@ -41,6 +40,7 @@ import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 import { modelForNavigation } from './init.js'
 import { IssueIdentity, type IssueIdentityService } from './issueIdentity.js'
 import { OneProduct, leftoverStatusOf, newestWorkLog } from './leftover.js'
+import { menuRowsOf } from './menus.js'
 import {
   AppendedIssueWorkLog,
   ClearedIssueWorkInProgress,
@@ -347,7 +347,7 @@ describe('Issue Tracker Program', () => {
         }
 
         const maybeCollectionFailure = yield* subscriptions.issues
-          .dependenciesToStream({})
+          .dependenciesToStream({}, () => ({}))
           .pipe(
             Stream.runHead,
             Effect.provideService(IssueTracker, failingIssueTracker),
@@ -368,7 +368,12 @@ describe('Issue Tracker Program', () => {
         })
 
         const maybeDetailFailure = yield* subscriptions.selectedIssue
-          .dependenciesToStream({ maybeIssueId: Option.some(issue.id) })
+          .dependenciesToStream(
+            { maybeIssueId: Option.some(issue.id) },
+            () => ({
+              maybeIssueId: Option.some(issue.id),
+            }),
+          )
           .pipe(
             Stream.runHead,
             Effect.provideService(IssueTracker, failingIssueTracker),
@@ -660,13 +665,11 @@ describe('Issue Tracker Program', () => {
     ).toEqual(['status:Open', 'status:Blocked'])
     expect(unclosableTokens).not.toContain('status:Closed')
     expect(unclosableTokens).not.toContain('status:Verify')
-    const screenButtons = buttonsOf(issuesScreen(observedUnclosable)).map(
-      button => button.token ?? '',
+    const statusChoices = menuRowsOf(observedUnclosable, 'SetStatus', '').map(
+      row => row.action.label,
     )
-    expect(screenButtons).toContain('status:Open')
-    expect(screenButtons).toContain('status:Blocked')
-    expect(screenButtons).not.toContain('status:Closed')
-    expect(screenButtons).not.toContain('status:Verify')
+    expect(statusChoices).toContain('Blocked')
+    expect(statusChoices).not.toContain('Closed')
   })
 
   it('filters leftover cards by live catalog product', () => {

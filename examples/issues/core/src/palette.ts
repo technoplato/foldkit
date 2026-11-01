@@ -2,11 +2,15 @@ import { Array, Option, Order, pipe } from 'effect'
 
 import { type Issue } from '@foldkit/instant-tools/issues'
 
+import { FeatureEntity, ProductEntity } from './entityGraph.js'
+import { type FeatureChip } from './graphFacts.js'
+import { viewChoicesOf } from './choices.js'
 import { type Interaction, interaction, uniqueByToken } from './interaction.js'
 import { issuesNamedBy } from './issueView.js'
 import { keyInteractionsOf, placeInteractions } from './keys.js'
 import { loadedIssuesIn } from './listing.js'
-import { type Model } from './model.js'
+import { OpenedNavigation } from './message.js'
+import { EntityPage, type Model } from './model.js'
 import { interactionsForModel } from './presentation.js'
 import { selectIssueMessageOf } from './selection.js'
 
@@ -17,8 +21,10 @@ const LEFT_OUT_TOKENS: ReadonlyArray<string> = [
   'comment-submit',
   'cursor:next',
   'cursor:previous',
+  'edits-dismiss',
   'go',
   'go:cancel',
+  'inbox',
   'layer-dismiss',
   'link-submit',
   'palette',
@@ -43,6 +49,7 @@ const NAME_PREFIX_OF_TOKEN: ReadonlyArray<readonly [string, string]> = [
   ['sort:', 'Sort'],
   ['group:', 'Group'],
   ['view:', 'View'],
+  ['view-open:', 'View'],
 ]
 
 const paletteLabelOf = (candidate: Interaction): string =>
@@ -65,18 +72,63 @@ const namedAction = (candidate: Interaction): Interaction =>
     return named
   })
 
+const goToFeatures = new WeakMap<FeatureChip, Interaction>()
+
+const goToFeatureOf = (feature: FeatureChip): Interaction =>
+  Option.getOrElse(Option.fromUndefinedOr(goToFeatures.get(feature)), () => {
+    const going = interaction(
+      `go-feature:${feature.slug}`,
+      `Go to feature ${feature.name}`,
+      OpenedNavigation.make({
+        navigation: EntityPage.make({
+          entity: FeatureEntity.make({ slug: feature.slug }),
+        }),
+      }),
+    )
+    goToFeatures.set(feature, going)
+    return going
+  })
+
+const goToProducts = new Map<string, Interaction>()
+
+const goToProductOf = (productId: string, name: string): Interaction =>
+  Option.getOrElse(Option.fromUndefinedOr(goToProducts.get(productId)), () => {
+    const going = interaction(
+      `go-product:${productId}`,
+      `Go to product ${name}`,
+      OpenedNavigation.make({
+        navigation: EntityPage.make({
+          entity: ProductEntity.make({ productId }),
+        }),
+      }),
+    )
+    goToProducts.set(productId, going)
+    return going
+  })
+
+const entityPlacesOf = (model: Model): ReadonlyArray<Interaction> => [
+  ...(model.products._tag === 'LoadedProducts'
+    ? Array.map(model.products.products, ({ product }) =>
+        goToProductOf(product.id, product.name),
+      )
+    : []),
+  ...Array.map(model.knownFeatures, goToFeatureOf),
+]
+
 /**
  * Every action and place the Program offers now, by the name a palette shows:
  * the places first, then what the keyboard and the page offer, each token
  * once, with no row for opening each Issue, which a typed word or number
- * brings up.
+ * brings up. Each product and feature is a place of its own.
  */
 export const paletteActionsOf = (model: Model): ReadonlyArray<Interaction> =>
   pipe(
     [
       ...placeInteractions,
+      ...viewChoicesOf(model),
       ...keyInteractionsOf(model),
       ...interactionsForModel(model),
+      ...entityPlacesOf(model),
     ],
     Array.filter(isListed),
     uniqueByToken,

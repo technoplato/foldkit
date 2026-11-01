@@ -7,21 +7,33 @@ import {
   type IssueGroup,
   type IssueView,
   defaultIssueView,
+  issueColumnsOf,
   issueGroupsOf,
   issuesInView,
   listingKeyOf,
   snapshotMemo,
 } from './issueView.js'
+import { type SavedView } from './issueViews.js'
 import {
   AllProducts,
   type ProductFilter,
   issuesForProductFilter,
 } from './leftover.js'
 import { type Model } from './model.js'
+import { issuesWithEdits } from './rowEdit.js'
 
-/** The Issues loaded so far, none before the first snapshot. */
+/**
+ * The Issues loaded so far as a person reads them, none before the first
+ * snapshot: a change that waits for its write already shows.
+ */
 export const loadedIssuesIn = (model: Model): ReadonlyArray<Issue> =>
-  model.issues._tag === 'LoadedIssues' ? model.issues.issues : []
+  model.issues._tag === 'LoadedIssues'
+    ? issuesWithEdits(model.issues.issues, model.rowEdits)
+    : []
+
+/** A person's saved views, none before the first snapshot. */
+export const savedViewsOf = (model: Model): ReadonlyArray<SavedView> =>
+  model.savedViews._tag === 'LoadedSavedViews' ? model.savedViews.views : []
 
 /** The view of the list on screen, or the whole list elsewhere. */
 export const issueViewOf = (model: Model): IssueView =>
@@ -42,7 +54,11 @@ export const productFilterOf = (model: Model): ProductFilter =>
       FileIssue: () => noProductFilter,
       TriageInbox: () => noProductFilter,
       AskFlow: () => noProductFilter,
+      Inbox: () => noProductFilter,
       EntityPage: () => noProductFilter,
+      Findings: () => noProductFilter,
+      Features: () => noProductFilter,
+      Products: () => noProductFilter,
     }),
   )
 
@@ -75,6 +91,19 @@ export const listedGroups = (
   )
 }
 
+const columnsMemo = snapshotMemo<ReadonlyArray<IssueGroup>>()
+
+/** The columns of the board its view shows. */
+export const listedColumns = (
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+): ReadonlyArray<IssueGroup> => {
+  const view = issueViewOf(model)
+  return columnsMemo(issues, `${view.grouping}|${listingKeyOf(view)}`, () =>
+    issueColumnsOf(listedIssues(model, issues), view.grouping),
+  )
+}
+
 const backlogMemo = snapshotMemo<BacklogListing>()
 
 const productKeyOf = (filter: ProductFilter): string =>
@@ -97,9 +126,14 @@ export const listedBacklog = (
 
 const listRowsInOrderOf = (model: Model): ReadonlyArray<Issue> => {
   const issues = loadedIssuesIn(model)
-  return issueViewOf(model).grouping === 'None'
-    ? listedIssues(model, issues)
-    : Array.flatMap(listedGroups(model, issues), group => group.issues)
+  const view = issueViewOf(model)
+  if (view.layout === 'Board') {
+    return Array.flatMap(listedColumns(model, issues), column => column.issues)
+  } else if (view.grouping === 'None') {
+    return listedIssues(model, issues)
+  } else {
+    return Array.flatMap(listedGroups(model, issues), group => group.issues)
+  }
 }
 
 /**
@@ -116,7 +150,11 @@ export const rowsInOrderOf = (model: Model): ReadonlyArray<Issue> =>
       FileIssue: () => [],
       TriageInbox: () => [],
       AskFlow: () => [],
+      Inbox: () => [],
       EntityPage: () => [],
+      Findings: () => [],
+      Features: () => [],
+      Products: () => [],
     }),
   )
 
@@ -149,4 +187,70 @@ export const movedRowCursor = (
         : Math.max(position - 1, 0),
   })
   return Option.map(Array.get(rows, nextPosition), issue => issue.id)
+}
+
+/** Whether the page on screen has rows a person selects: the list or the backlog. */
+export const isPageOfRows = (model: Model): boolean =>
+  model.navigation._tag === 'IssueList' || model.navigation._tag === 'Backlog'
+
+const selectedSets = new WeakMap<ReadonlyArray<string>, ReadonlySet<string>>()
+
+/**
+ * The selected Issue ids as a set, read once per selection: every row asks
+ * whether it is selected on every paint.
+ */
+export const selectedSetOf = (model: Model): ReadonlySet<string> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(selectedSets.get(model.selectedIssueIds)),
+    () => {
+      const selected = new Set(model.selectedIssueIds)
+      selectedSets.set(model.selectedIssueIds, selected)
+      return selected
+    },
+  )
+
+/**
+ * The selected rows a person can see, in the order the page shows them. A row
+ * a filter hides stays selected and comes back with the filter, but no change
+ * reaches it while it is out of sight.
+ */
+export const selectedRowsOf = (model: Model): ReadonlyArray<Issue> => {
+  if (Array.isReadonlyArrayEmpty(model.selectedIssueIds)) {
+    return []
+  } else {
+    const selected = selectedSetOf(model)
+    return Array.filter(rowsInOrderOf(model), issue => selected.has(issue.id))
+  }
+}
+
+/**
+ * The Issues a change applies to now: the one a peek shows, the row whose
+ * field was pressed, the one a page shows, the selected rows on screen, or
+ * the row under the cursor.
+ */
+export const issuesInHandOf = (model: Model): ReadonlyArray<string> => {
+  if (model.layer._tag === 'PeekLayer') {
+    return [model.layer.issueId]
+  } else if (
+    model.layer._tag === 'ChoiceLayer' &&
+    Option.isSome(model.layer.maybePeekedIssueId)
+  ) {
+    return [model.layer.maybePeekedIssueId.value]
+  } else if (
+    model.layer._tag === 'ChoiceLayer' &&
+    Option.isSome(model.layer.maybeRowIssueId)
+  ) {
+    return [model.layer.maybeRowIssueId.value]
+  } else if (model.navigation._tag === 'IssueDetail') {
+    return [model.navigation.issueId]
+  } else {
+    return Array.match(selectedRowsOf(model), {
+      onEmpty: () =>
+        Option.match(issueUnderCursorOf(model), {
+          onNone: () => [],
+          onSome: issue => [issue.id],
+        }),
+      onNonEmpty: rows => Array.map(rows, issue => issue.id),
+    })
+  }
 }

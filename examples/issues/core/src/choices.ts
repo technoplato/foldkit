@@ -1,7 +1,13 @@
 import { Array, Match as M, Option, Order } from 'effect'
 
-import { type Issue, IssuePriority } from '@foldkit/instant-tools/issues'
+import {
+  type Issue,
+  IssuePriority,
+  type IssueStatus,
+  type TrackedProduct,
+} from '@foldkit/instant-tools/issues'
 
+import { type InboxFilter } from './inbox.js'
 import { type Interaction, interaction } from './interaction.js'
 import {
   AnyClaimant,
@@ -13,14 +19,18 @@ import {
   Unclaimed,
   snapshotMemo,
 } from './issueView.js'
+import { type SavedView } from './issueViews.js'
 import { AllWork, CloseToLanding, WorkingNow } from './landing.js'
 import { AllProducts, OneProduct } from './leftover.js'
-import { loadedIssuesIn } from './listing.js'
+import { loadedIssuesIn, savedViewsOf } from './listing.js'
 import {
+  AppliedRowChange,
   ClearedPriorityFilter,
   ClearedStatusFilter,
   OpenedChoiceMenu,
+  OpenedNavigation,
   SelectedClaimantFilter,
+  SelectedInboxKind,
   SelectedIssueGrouping,
   SelectedIssueLayout,
   SelectedIssueSort,
@@ -30,11 +40,17 @@ import {
   ToggledStatusFilter,
 } from './message.js'
 import { type ChoiceMenu, type Model } from './model.js'
+import { listPathOfSearch, pathToNavigation } from './route.js'
+import {
+  ChangedPriority,
+  ChangedProduct,
+  ChangedStatus,
+  ClaimedByAuthor,
+  ClaimedFor,
+  ReleasedClaim,
+} from './rowEdit.js'
 
 // PRODUCT
-
-/** The product named by a list filter, with its id for the token. */
-export type ProductChoice = Readonly<{ id: string; name: string }>
 
 const PREFERRED_PRODUCTS: ReadonlyArray<string> = [
   'foldkit',
@@ -44,20 +60,20 @@ const PREFERRED_PRODUCTS: ReadonlyArray<string> = [
   'ayutia',
 ]
 
-const productsOfIssuesMemo = snapshotMemo<ReadonlyArray<ProductChoice>>()
+const productsOfIssuesMemo = snapshotMemo<ReadonlyArray<TrackedProduct>>()
 
 const productsOfIssues = (
   issues: ReadonlyArray<Issue>,
-): ReadonlyArray<ProductChoice> =>
-  productsOfIssuesMemo(issues, 'products', () =>
-    Array.dedupeWith(
-      Array.map(issues, issue => ({
-        id: issue.product.id,
-        name: issue.product.name,
-      })),
-      (left, right) => left.id === right.id,
-    ),
-  )
+): ReadonlyArray<TrackedProduct> =>
+  productsOfIssuesMemo(issues, 'products', () => {
+    const byId = new Map<string, TrackedProduct>()
+    Array.forEach(issues, ({ product }) => {
+      if (!byId.has(product.id)) {
+        byId.set(product.id, product)
+      }
+    })
+    return Array.fromIterable(byId.values())
+  })
 
 /**
  * Every product a list can be filtered by: the catalog's and any an Issue
@@ -65,13 +81,10 @@ const productsOfIssues = (
  */
 export const productChoicesOf = (
   model: Model,
-): ReadonlyArray<ProductChoice> => {
+): ReadonlyArray<TrackedProduct> => {
   const catalog =
     model.products._tag === 'LoadedProducts'
-      ? Array.map(model.products.products, entry => ({
-          id: entry.product.id,
-          name: entry.product.name,
-        }))
+      ? Array.map(model.products.products, entry => entry.product)
       : []
   const every = Array.dedupeWith(
     [...catalog, ...productsOfIssues(loadedIssuesIn(model))],
@@ -282,6 +295,146 @@ export const layoutChoices: ReadonlyArray<Interaction> = [
   layoutChoice('Board'),
 ]
 
+// TRIAGE
+
+const STATUS_KEYS: ReadonlyArray<readonly [IssueStatus, string]> = [
+  ['Backlog', 'b'],
+  ['Planned', 'n'],
+  ['Open', 'o'],
+  ['InProgress', 'i'],
+  ['Addressing', 'd'],
+  ['Blocked', 'l'],
+  ['FeedbackRequested', 'f'],
+  ['PartiallyDone', 'h'],
+  ['Regressed', 'r'],
+  ['VerificationNeeded', 'v'],
+  ['Verified', 'y'],
+  ['Fixed', 'x'],
+  ['Resolved', 'e'],
+  ['Closed', 'c'],
+]
+
+/** Every status an Issue can be set to, in the order work moves, each with a key. */
+export const statusChangeChoices: ReadonlyArray<Interaction> = Array.map(
+  STATUS_KEYS,
+  ([status, key]) =>
+    interaction(
+      `set-status:${status}`,
+      status,
+      AppliedRowChange.make({ change: ChangedStatus.make({ status }) }),
+      [key],
+    ),
+)
+
+/** Every priority an Issue can be set to, P0 first, each with its digit. */
+export const priorityChangeChoices: ReadonlyArray<Interaction> = Array.map(
+  IssuePriority.literals,
+  priority =>
+    interaction(
+      `set-priority:${priority}`,
+      priority,
+      AppliedRowChange.make({ change: ChangedPriority.make({ priority }) }),
+      [priority.slice(1)],
+    ),
+)
+
+/** The person signed in claims the Issues in hand. */
+export const claimAsMe: Interaction = interaction(
+  'claim:me',
+  'Claim as me',
+  AppliedRowChange.make({ change: ClaimedByAuthor.make({}) }),
+)
+
+/** The claim on the Issues in hand is let go. */
+export const releaseClaim: Interaction = interaction(
+  'claim:release',
+  'Release the claim',
+  AppliedRowChange.make({ change: ReleasedClaim.make({}) }),
+)
+
+const claimForChoices = new Map<string, Interaction>()
+
+const claimForChoiceOf = (claimantId: string): Interaction =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(claimForChoices.get(claimantId)),
+    () => {
+      const choice = interaction(
+        `claim:${claimantId}`,
+        `Claim for ${claimantId}`,
+        AppliedRowChange.make({ change: ClaimedFor.make({ claimantId }) }),
+      )
+      claimForChoices.set(claimantId, choice)
+      return choice
+    },
+  )
+
+/** Claiming the Issues in hand: as me, letting go, or for anyone who holds a claim. */
+export const claimChoicesOf = (model: Model): ReadonlyArray<Interaction> => [
+  claimAsMe,
+  releaseClaim,
+  ...Array.map(claimantsOf(loadedIssuesIn(model)), claimForChoiceOf),
+]
+
+const productChanges = new Map<string, Interaction>()
+
+const productChangeOf = (product: TrackedProduct): Interaction =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(productChanges.get(product.id)),
+    () => {
+      const choice = interaction(
+        `set-product:${product.id}`,
+        product.name,
+        AppliedRowChange.make({ change: ChangedProduct.make({ product }) }),
+      )
+      productChanges.set(product.id, choice)
+      return choice
+    },
+  )
+
+/** Every product an Issue can move to, the ones most worked on first. */
+export const productChangeChoicesOf = (
+  model: Model,
+): ReadonlyArray<Interaction> =>
+  Array.map(productChoicesOf(model), productChangeOf)
+
+// INBOX
+
+const inboxChoice = (
+  kind: InboxFilter,
+  token: string,
+  label: string,
+): Interaction => interaction(token, label, SelectedInboxKind.make({ kind }))
+
+/** The kinds the inbox narrows to. */
+export const inboxChoices: ReadonlyArray<Interaction> = [
+  inboxChoice('All', 'inbox:all', 'All'),
+  inboxChoice('Status', 'inbox:status', 'Status'),
+  inboxChoice('Claim', 'inbox:claim', 'Claims'),
+  inboxChoice('Mention', 'inbox:mention', 'Mentions'),
+]
+
+// VIEWS
+
+const viewChoices = new WeakMap<SavedView, Interaction>()
+
+/** Opening one saved view, made once per stored row. */
+export const viewChoiceOf = (view: SavedView): Interaction =>
+  Option.getOrElse(Option.fromUndefinedOr(viewChoices.get(view)), () => {
+    const choice = interaction(
+      `view-open:${view.id}`,
+      view.name,
+      OpenedNavigation.make({
+        navigation: pathToNavigation(listPathOfSearch(view.query)),
+      }),
+    )
+    viewChoices.set(view, choice)
+    return choice
+  })
+
+/** Opening each of a person's saved views. */
+export const viewChoicesOf = (model: Model): ReadonlyArray<Interaction> =>
+  Array.map(savedViewsOf(model), viewChoiceOf)
+
 // MENU
 
 const openMenu = (
@@ -298,6 +451,7 @@ export const listMenuInteractions: ReadonlyArray<Interaction> = [
   openMenu('menu:claimant', 'Claimant filter', 'ClaimantFilter'),
   openMenu('menu:sort', 'Sort', 'Sort'),
   openMenu('menu:group', 'Group', 'Group'),
+  openMenu('menu:views', 'Saved views', 'SavedViews'),
 ]
 
 /** Opening the product filter's choices, on the backlog as well as the list. */
@@ -312,7 +466,12 @@ export const productMenuInteraction: Interaction = openMenu(
  * do. Keys in a menu without a field pick from it directly.
  */
 export const menuHasField = (menu: ChoiceMenu): boolean =>
-  menu === 'Everything' || menu === 'ProductFilter' || menu === 'ClaimantFilter'
+  menu === 'Everything' ||
+  menu === 'ProductFilter' ||
+  menu === 'ClaimantFilter' ||
+  menu === 'SetClaim' ||
+  menu === 'SetProduct' ||
+  menu === 'SavedViews'
 
 /** Whether a menu stays open after a pick, so more than one can be chosen. */
 export const menuStaysOpen = (menu: ChoiceMenu): boolean =>

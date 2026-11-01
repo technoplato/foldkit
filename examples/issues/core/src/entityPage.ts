@@ -11,6 +11,7 @@ import {
 
 import { type Issue } from '@foldkit/instant-tools/issues'
 
+import { agentFactNodes, sessionFactNodes } from './agentPage.js'
 import {
   type ChipContext,
   chipContextOf,
@@ -20,6 +21,7 @@ import {
 } from './chips.js'
 import { millisecondsLabel, whenLabel } from './clock.js'
 import {
+  AgentEntity,
   type Backlink,
   type IssueLink,
   type PageEntity,
@@ -27,6 +29,8 @@ import {
   productStatusGroups,
   recordingNumbersOf,
 } from './entityGraph.js'
+import { featureFactNodes } from './featurePage.js'
+import { findingFactNodes } from './findingsPage.js'
 import {
   type ChipClock,
   buildChip,
@@ -45,6 +49,8 @@ import {
   isOnTestflight,
 } from './issueLandings.js'
 import { type Model } from './model.js'
+import { agentHandlesOfFacts, mergedBacklinks } from './pageAgents.js'
+import { productFactNodes } from './productPage.js'
 
 const SHORT_ID_LENGTH = 8
 const SHORT_SHA_LENGTH = 9
@@ -78,6 +84,11 @@ export const entityTitle = (
       SegmentEntity: ({ segmentId }) =>
         `Line ${segmentId.slice(0, SHORT_ID_LENGTH)}`,
       AgentEntity: ({ agentId }) => `Agent ${agentId}`,
+      SessionEntity: ({ sessionId }) =>
+        `Session ${sessionId.slice(0, SHORT_ID_LENGTH)}`,
+      FindingEntity: ({ findingId }) =>
+        `Finding ${findingId.slice(0, SHORT_ID_LENGTH)}`,
+      FeatureEntity: ({ slug }) => `Feature ${slug}`,
       CommitEntity: ({ sha }) => `Commit ${sha.slice(0, SHORT_SHA_LENGTH)}`,
       BuildEntity: ({ number }) => `Build ${number}`,
       ProductEntity: ({ productId }) =>
@@ -356,10 +367,13 @@ const NO_FACTS_WORDS: Readonly<Record<PageEntity['_tag'], string>> = {
   AgentEntity: 'Scribe’s rows hold no such agent.',
   BuildEntity: 'Scribe’s rows hold no such build.',
   CommitEntity: 'Scribe’s rows hold no such commit.',
+  FeatureEntity: 'Scribe’s rows hold no such feature.',
+  FindingEntity: 'Scribe’s rows hold no such finding.',
   ProductEntity: 'Scribe’s rows hold no such product.',
   RecordingEntity: 'Scribe’s rows hold no such Recording.',
   RecordingNumberEntity: 'Scribe’s rows hold no such Recording.',
   SegmentEntity: 'Scribe’s rows hold no such line.',
+  SessionEntity: 'Scribe’s rows hold no such session.',
 }
 
 /**
@@ -396,6 +410,20 @@ const pageFactNodes = (
             CommitFacts: found => commitFactNodes(found, clock, context),
             RecordingFacts: found => recordingFactNodes(found, clock),
             SegmentFacts: found => segmentFactNodes(found, clock),
+            AgentFacts: found => [
+              plainName,
+              ...agentFactNodes(found, clock, context),
+            ],
+            SessionFacts: found => [
+              plainName,
+              ...sessionFactNodes(found, clock, context),
+            ],
+            FindingFacts: found => [
+              plainName,
+              ...findingFactNodes(found, clock, context),
+            ],
+            FeatureFacts: found => featureFactNodes(found, clock, context),
+            ProductFacts: () => [plainName],
             NoPageFacts: () => [
               plainName,
               Text(NO_FACTS_WORDS[entity._tag], { dim: true }),
@@ -405,6 +433,56 @@ const pageFactNodes = (
     }),
   )
 }
+
+const productTitleOf = (
+  model: Model,
+  entity: PageEntity,
+  issues: ReadonlyArray<Issue>,
+): string =>
+  model.pageFacts._tag === 'LoadedPageFacts' &&
+  model.pageFacts.facts._tag === 'ProductFacts'
+    ? Option.getOrElse(model.pageFacts.facts.maybeName, () =>
+        entityTitle(entity, issues),
+      )
+    : entityTitle(entity, issues)
+
+const backlinkCountNodes = (
+  entity: PageEntity,
+  backlinks: ReadonlyArray<Backlink>,
+): ReadonlyArray<UiNode> =>
+  Array.match(backlinks, {
+    onEmpty: () =>
+      entity._tag === 'FeatureEntity'
+        ? []
+        : [Text('No Issue points here yet.', { dim: true })],
+    onNonEmpty: found => [
+      Text(
+        found.length === 1
+          ? '1 Issue points here'
+          : `${found.length.toString()} Issues point here`,
+        { dim: true },
+      ),
+    ],
+  })
+
+/**
+ * The Issues that point at a page: at an agent's page, at any handle its runs
+ * logged from, because a run moves accounts, so
+ * `claude-code/issues-linear-1538@max` also lists what `@al` wrote.
+ */
+const backlinksOfPage = (
+  model: Model,
+  issues: ReadonlyArray<Issue>,
+  entity: PageEntity,
+): ReadonlyArray<Backlink> =>
+  entity._tag === 'AgentEntity'
+    ? mergedBacklinks(
+        Array.map(
+          Array.dedupe([entity.agentId, ...agentHandlesOfFacts(model)]),
+          agentId => backlinksOf(issues, AgentEntity.make({ agentId })),
+        ),
+      )
+    : backlinksOf(issues, entity)
 
 /**
  * One entity's page: its name, what Scribe's rows say about it when it is a
@@ -432,23 +510,17 @@ export const entityPageNodes = (
       LoadedIssues: ({ issues }) => {
         if (entity._tag === 'ProductEntity') {
           return [
-            Text(entityTitle(entity, issues), { emphasis: 'Headline' }),
+            Text(productTitleOf(model, entity, issues), {
+              emphasis: 'Headline',
+            }),
+            ...productFactNodes(model, entity.productId, issues),
             ...productPageNodes(model, entity.productId, issues),
           ]
         }
-        const backlinks = backlinksOf(issues, entity)
+        const backlinks = backlinksOfPage(model, issues, entity)
         return [
           ...pageFactNodes(model, entity, issues),
-          Text(
-            Array.match(backlinks, {
-              onEmpty: () => 'No Issue points here yet.',
-              onNonEmpty: found =>
-                found.length === 1
-                  ? '1 Issue points here'
-                  : `${found.length.toString()} Issues point here`,
-            }),
-            { dim: true },
-          ),
+          ...backlinkCountNodes(entity, backlinks),
           ...Array.map(backlinks, backlink =>
             backlinkNodes(backlink, model, issues),
           ),

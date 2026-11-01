@@ -200,19 +200,36 @@ build time, so a build from another branch names that branch. It paints the same
   get the build, its cut commit, devices, What's New, and every Issue that shipped
   in it or was found in it, `/commits/<sha>` the Issues it implements and the
   builds it shipped in;
-- on an Issue's page, at a glance: who asked and in which words, where it landed,
-  how to get that build (the TestFlight invite and the upload's page), the build
-  he found it in, every commit, and the ask's timeline with how long each step
-  took;
+- on an Issue's page, at a glance: its app and features, who asked and in which
+  words, where it landed, how to get that build (the TestFlight invite and the
+  upload's page), the build he found it in, every commit, the ask's timeline with
+  how long each step took, every run that worked on it with its account and
+  model, and the findings raised on it;
 - `/asks`, how long asks take: each step's median, how many Issues reached it,
-  and the slowest asks.
+  and the slowest asks;
+- `/agents/<id>`, every run a handle names: how it ran, when and for how long, what
+  it was asked, how it ended, what it resumes, its worktree, branch, brief and log,
+  its sessions, sub-agents, Issues, commits and findings; `/sessions/<id>`, one
+  session with its transcript's path and its claude.ai link when it has one;
+- `/findings`, what agents reported running into, every one, counted by kind,
+  source and state, each count a link, `/findings?kind=mistake`; a finding files
+  as an Issue through the same form as any other, and its row names that Issue;
+- `/features`, each line of the feature contract in his words, and
+  `/features/<slug>`, the Issues that implement or touch it and the builds those
+  landed in; a line goes by the name in bold, because numbers change;
+- `/products`, the catalog, and `/products/<id>`, its kind, features, surfaces,
+  modules, Issues by status, builds, and the agents that worked on it this week.
 
 Where an Issue landed comes from Scribe's rows (`edges` by `issueNumber`, their
 commits and builds), which Scribe's `scripts/schema/landings.ts` derives from git
 and its release tags. The site opens Scribe's Instant app the first time a page
 asks, signed in with the same Access login through a second mint on its origin
 (`hostedIdentity({ session })` in `react/vite.config.ts`), so the list pays nothing
-for it. A refused mint or unreadable row is a reason on the page, never rows that
+for it. Agents, findings, features and products come the same way, written by
+Scribe's `scripts/schema/graph-sync.sh`. Surfaces and modules are derived from code
+and stored nowhere: `scripts/schema/products-map.mjs` prints them to
+`~/Scribe/products-map.json`, and the site's own server answers that file at
+`/__foldkit/products-map` (`react/productsMapRoute.ts`). A refused mint or unreadable row is a reason on the page, never rows that
 look empty. `issues show` prints the same landing, from the same query, within 5
 seconds or with one line saying why not.
 

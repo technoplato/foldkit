@@ -181,6 +181,71 @@ describe('paintReact', () => {
   })
 })
 
+describe('selecting and dragging rows', () => {
+  const row = {
+    check: {
+      action: 'select:804',
+      extendAction: 'select-to:804',
+      isChecked: false,
+      label: 'Select #804',
+    },
+    isDraggable: true,
+    key: '804',
+    title: 'A row',
+  }
+
+  it('presses extendAction when a box is pressed with Shift held', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(List({ items: [row], label: 'Rows' }), {
+        onPress,
+      }),
+    )
+    const box = screen.getByRole('checkbox', { name: 'Select #804' })
+    fireEvent.click(box)
+    fireEvent.click(box, { shiftKey: true })
+    expect(onPress.mock.calls.map(([button]) => button.action)).toEqual([
+      'select:804',
+      'select-to:804',
+    ])
+  })
+
+  it('presses a list dropAction with the key of the row dropped on it', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(
+        Column(
+          {},
+          List({ items: [row], label: 'Open' }),
+          List({
+            dropAction: 'card-drop:Blocked',
+            items: [],
+            label: 'Blocked',
+          }),
+        ),
+        { onPress },
+      ),
+    )
+    const held = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: '',
+      getData: (type: string) => held.get(type) ?? '',
+      setData: (type: string, value: string) => held.set(type, value),
+      get types() {
+        return [...held.keys()]
+      },
+    }
+    const card = screen.getByRole('list', { name: 'Open' }).querySelector('li')
+    fireEvent.dragStart(card ?? document.body, { dataTransfer })
+    fireEvent.drop(screen.getByRole('list', { name: 'Blocked' }), {
+      dataTransfer,
+    })
+    expect(onPress.mock.calls.map(([button]) => button.action)).toEqual([
+      'card-drop:Blocked:804',
+    ])
+  })
+})
+
 describe('fields and checks that press', () => {
   const pressedTags = (onPress: ReturnType<typeof vi.fn>) =>
     onPress.mock.calls.map(([button]) => button.action)

@@ -26,6 +26,7 @@ import {
   catalogIssueRefsOf,
   destinationForModel,
   entityTitle,
+  inboxItemsOf,
   interactionsForModel,
   issuesOfPage,
   issuesScreen,
@@ -368,7 +369,11 @@ const runTokens = (
             TriageInbox: () => '',
             Backlog: () => '',
             AskFlow: () => '',
+            Inbox: () => '',
             EntityPage: () => '',
+            Findings: () => '',
+            Features: () => '',
+            Products: () => '',
           }),
         )
         return yield* Effect.fail(
@@ -514,6 +519,22 @@ export const formatDestination = (
             ],
           }),
         ),
+      InboxDestination: ({ state }) =>
+        M.value(state).pipe(
+          M.withReturnType<ReadonlyArray<string>>(),
+          M.tagsExhaustive({
+            LoadingIssues: () => ['Inbox', 'Observing…'],
+            FailedIssues: ({ reason }) => ['Inbox unavailable', reason],
+            LoadedIssues: ({ issues }) => [
+              'Inbox',
+              ...Array.map(
+                inboxItemsOf(issues),
+                item =>
+                  `${new Date(item.atMs).toISOString()}  #${item.issue.id}  ${item.kind}  ${item.words}`,
+              ),
+            ],
+          }),
+        ),
       AskFlowDestination: ({ state }) =>
         state._tag === 'LoadedIssues'
           ? [
@@ -535,6 +556,38 @@ export const formatDestination = (
               ),
             ]
           : [entityTitle(entity, []), state._tag],
+      FindingsDestination: ({ state }) =>
+        state._tag === 'LoadedFindings'
+          ? [
+              'Findings',
+              ...Array.map(
+                state.findings,
+                finding =>
+                  `${finding.kind}  ${finding.status}  ${finding.quote}`,
+              ),
+            ]
+          : ['Findings', state._tag],
+      FeaturesDestination: ({ state }) =>
+        state._tag === 'LoadedFeatures'
+          ? [
+              'Features',
+              ...Array.map(
+                state.features,
+                feature => `${feature.name}  ${feature.status}`,
+              ),
+            ]
+          : ['Features', state._tag],
+      ProductsDestination: ({ products }) =>
+        products._tag === 'LoadedProducts'
+          ? [
+              'Products',
+              ...Array.map(
+                products.products,
+                ({ product }) =>
+                  `${product.id}  ${product.name}  ${product._tag}`,
+              ),
+            ]
+          : ['Products', products._tag],
       TriageInboxDestination: ({ state }) =>
         state._tag === 'LoadedTriageCandidates'
           ? [

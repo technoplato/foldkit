@@ -1,24 +1,46 @@
 import { Array, Match as M, Option, pipe } from 'effect'
+import { Button, type ButtonNode } from 'foldkit/renderers'
+
+import { type Issue } from '@foldkit/instant-tools/issues'
 
 import {
+  claimChoicesOf,
   claimantFilterChoicesOf,
   groupingChoices,
+  priorityChangeChoices,
   priorityFilterChoices,
+  productChangeChoicesOf,
   productFilterChoicesOf,
   sortChoices,
+  statusChangeChoices,
   statusFilterChoices,
+  viewChoiceOf,
 } from './choices.js'
 import { type Interaction } from './interaction.js'
 import { type IssueView, issuesInView, snapshotMemo } from './issueView.js'
-import { issueViewOf, loadedIssuesIn } from './listing.js'
+import { type SavedView } from './issueViews.js'
+import { leftoverMayClose } from './leftover.js'
+import {
+  issueViewOf,
+  issuesInHandOf,
+  loadedIssuesIn,
+  savedViewsOf,
+} from './listing.js'
 import { type ChoiceMenu, type Model } from './model.js'
 import { matchedByName, paletteRowsOf } from './palette.js'
+import { listPathOfSearch, searchOfView } from './route.js'
 
-/** One row of a layer of choices: its interaction, and the words beside it. */
+/**
+ * One row of a layer of choices: its interaction, and the words beside it. A
+ * row with `maybeHref` is a link to where it goes, and `trailing` is what a
+ * person can do to it from there.
+ */
 export type MenuRow = Readonly<{
   action: Interaction
   isChosen: boolean
   count: Option.Option<number>
+  maybeHref?: Option.Option<string>
+  trailing?: ReadonlyArray<ButtonNode>
 }>
 
 const tallyMemo = snapshotMemo<ReadonlyMap<string, number>>()
@@ -27,7 +49,7 @@ const tallyOf = (
   model: Model,
   key: string,
   view: IssueView,
-  nameOf: (issue: ReturnType<typeof loadedIssuesIn>[number]) => string,
+  nameOf: (issue: Issue) => string,
 ): ReadonlyMap<string, number> => {
   const issues = loadedIssuesIn(model)
   return tallyMemo(issues, key, () => {
@@ -192,6 +214,121 @@ const groupRows = (model: Model): ReadonlyArray<MenuRow> =>
       action.message.grouping === issueViewOf(model).grouping,
   }))
 
+const issuesChangedNow = (model: Model): ReadonlyArray<Issue> => {
+  const inHand = new Set(issuesInHandOf(model))
+  return Array.filter(loadedIssuesIn(model), issue => inHand.has(issue.id))
+}
+
+const statusesOffered = (
+  inHand: ReadonlyArray<string>,
+): ReadonlyArray<Interaction> =>
+  Array.every(inHand, leftoverMayClose)
+    ? statusChangeChoices
+    : Array.filter(statusChangeChoices, ({ message }) =>
+        message._tag === 'AppliedRowChange' &&
+        message.change._tag === 'ChangedStatus'
+          ? message.change.status !== 'Closed'
+          : true,
+      )
+
+const statusChangeRows = (model: Model): ReadonlyArray<MenuRow> => {
+  const changed = issuesChangedNow(model)
+  return Array.map(statusesOffered(issuesInHandOf(model)), action => ({
+    action,
+    count: Option.none(),
+    isChosen:
+      action.message._tag === 'AppliedRowChange' &&
+      action.message.change._tag === 'ChangedStatus' &&
+      Array.isReadonlyArrayNonEmpty(changed) &&
+      Array.every(
+        changed,
+        issue =>
+          action.message._tag === 'AppliedRowChange' &&
+          action.message.change._tag === 'ChangedStatus' &&
+          issue.status === action.message.change.status,
+      ),
+  }))
+}
+
+const priorityChangeRows = (model: Model): ReadonlyArray<MenuRow> => {
+  const changed = issuesChangedNow(model)
+  return Array.map(priorityChangeChoices, action => ({
+    action,
+    count: Option.none(),
+    isChosen:
+      action.message._tag === 'AppliedRowChange' &&
+      action.message.change._tag === 'ChangedPriority' &&
+      Array.isReadonlyArrayNonEmpty(changed) &&
+      Array.every(
+        changed,
+        issue =>
+          action.message._tag === 'AppliedRowChange' &&
+          action.message.change._tag === 'ChangedPriority' &&
+          issue.priority === action.message.change.priority,
+      ),
+  }))
+}
+
+const claimRows = (model: Model): ReadonlyArray<MenuRow> =>
+  Array.map(claimChoicesOf(model), plainRow)
+
+const productChangeRows = (model: Model): ReadonlyArray<MenuRow> => {
+  const changed = issuesChangedNow(model)
+  return Array.map(productChangeChoicesOf(model), action => ({
+    action,
+    count: Option.none(),
+    isChosen:
+      action.message._tag === 'AppliedRowChange' &&
+      action.message.change._tag === 'ChangedProduct' &&
+      Array.isReadonlyArrayNonEmpty(changed) &&
+      Array.every(
+        changed,
+        issue =>
+          action.message._tag === 'AppliedRowChange' &&
+          action.message.change._tag === 'ChangedProduct' &&
+          issue.product.id === action.message.change.product.id,
+      ),
+  }))
+}
+
+const viewButtons = (
+  model: Model,
+  view: SavedView,
+): ReadonlyArray<ButtonNode> => [
+  ...(model.navigation._tag === 'IssueList'
+    ? [
+        Button({
+          label: 'Update',
+          token: `view-update:${view.id}`,
+          variant: 'Ghost',
+        }),
+      ]
+    : []),
+  Button({
+    label: 'Rename',
+    token: `view-rename:${view.id}`,
+    variant: 'Ghost',
+  }),
+  Button({ label: 'Up', token: `view-up:${view.id}`, variant: 'Ghost' }),
+  Button({ label: 'Down', token: `view-down:${view.id}`, variant: 'Ghost' }),
+  Button({
+    label: 'Delete',
+    token: `view-delete:${view.id}`,
+    variant: 'Ghost',
+  }),
+]
+
+const savedViewRows = (model: Model): ReadonlyArray<MenuRow> => {
+  const shown = searchOfView(issueViewOf(model))
+  return Array.map(savedViewsOf(model), view => ({
+    action: viewChoiceOf(view),
+    count: Option.none(),
+    isChosen: model.navigation._tag === 'IssueList' && view.query === shown,
+    maybeHref: Option.some(listPathOfSearch(view.query)),
+    trailing: viewButtons(model, view),
+  }))
+}
+
 const narrowedByField = (
   rows: ReadonlyArray<MenuRow>,
   query: string,
@@ -230,6 +367,13 @@ export const menuRowsOf = (
     M.when('ClaimantFilter', () => narrowedByField(claimantRows(model), query)),
     M.when('Sort', () => sortRows(model)),
     M.when('Group', () => groupRows(model)),
+    M.when('SetStatus', () => statusChangeRows(model)),
+    M.when('SetPriority', () => priorityChangeRows(model)),
+    M.when('SetClaim', () => narrowedByField(claimRows(model), query)),
+    M.when('SetProduct', () =>
+      narrowedByField(productChangeRows(model), query),
+    ),
+    M.when('SavedViews', () => narrowedByField(savedViewRows(model), query)),
     M.exhaustive,
   )
 

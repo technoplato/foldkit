@@ -6,7 +6,7 @@ import { ApplicationProduct, Issue } from '@foldkit/instant-tools/issues'
 
 import { modelForNavigation } from './init.js'
 import { type KeyPress, tokenForKeyPress } from './keys.js'
-import { ClickedLeftoverStatus, ObservedIssues } from './message.js'
+import { ObservedIssues } from './message.js'
 import { IssueDetail, IssueList, type Model } from './model.js'
 import { messageForScreenToken } from './presentation.js'
 import { issuesScreen } from './program.js'
@@ -200,13 +200,16 @@ describe('Issue Tracker peek', () => {
     )
   })
 
-  it('makes the status buttons of the page it shows work on the Issue it shows', () => {
+  it('makes the status buttons of the page it shows work on the Issue it shows, staying in the peek', () => {
     const peeking = pressedAll(list(), ['j', ' '])
-    expect(messageForScreenToken(peeking, 'status:Blocked')).toEqual(
-      Option.some(
-        ClickedLeftoverStatus.make({ issueId: '103', status: 'Blocked' }),
-      ),
+    const [next, commands] = update(
+      peeking,
+      Option.getOrThrow(messageForScreenToken(peeking, 'status:Blocked')),
     )
+    expect(next.layer._tag).toBe('PeekLayer')
+    expect(Array.map(commands, command => command.name)).toEqual([
+      'SetIssueStatus',
+    ])
   })
 
   it('says so when the Issue it shows is gone', () => {

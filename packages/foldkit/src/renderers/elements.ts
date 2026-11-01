@@ -260,13 +260,21 @@ export const Spacer = (rows = 1): SpacerNode => ({
   rows,
 })
 
-/** A horizontal stack. */
+/**
+ * A horizontal stack. With `isBoard` it is columns a person scrolls sideways.
+ *
+ * @example
+ * ```typescript
+ * Row({ isBoard: true }, Column({}, Text('Open'), openIssues), Column({}, Text('Blocked'), blockedIssues))
+ * ```
+ */
 export const Row = (
-  props: Readonly<{ gap?: number }> = {},
+  props: Readonly<{ gap?: number; isBoard?: boolean }> = {},
   ...children: ReadonlyArray<UiNode>
 ): RowNode => ({
   _tag: 'Row',
   gap: props.gap ?? 1,
+  ...(props.isBoard === undefined ? {} : { isBoard: props.isBoard }),
   children,
 })
 
@@ -407,9 +415,14 @@ export const Progress = (
  * ```
  */
 export const List = (
-  props: Readonly<{ label: string; items: ReadonlyArray<ListItem> }>,
+  props: Readonly<{
+    label: string
+    items: ReadonlyArray<ListItem>
+    dropAction?: string
+  }>,
 ): ListNode => ({
   _tag: 'List',
   label: props.label,
   items: props.items,
+  ...(props.dropAction === undefined ? {} : { dropAction: props.dropAction }),
 })

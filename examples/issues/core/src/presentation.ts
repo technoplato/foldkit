@@ -3,9 +3,11 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 import { Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 
 import { BacklogListing, backlogIssues } from './backlog.js'
+import { droppedCardOfToken } from './board.js'
 import {
   claimantFilterChoicesOf,
   groupingChoices,
+  inboxChoices,
   landingChoices,
   layoutChoices,
   listMenuInteractions,
@@ -15,6 +17,8 @@ import {
   statusFilterChoices,
 } from './choices.js'
 import { PageEntity, issuesOfPage } from './entityGraph.js'
+import { type AgentFinding } from './graphFacts.js'
+import { PROMOTE_FINDING_TOKEN_PREFIX } from './graphPageParts.js'
 import { type Interaction, interaction, uniqueByToken } from './interaction.js'
 import { keyInteractionsOf, navigationInteractionsOf } from './keys.js'
 import {
@@ -24,14 +28,29 @@ import {
   catalogIssueRefsOf,
   leftoverStatusesForIssue,
 } from './leftover.js'
+import {
+  SELECT_TOKEN_PREFIX,
+  SELECT_TO_TOKEN_PREFIX,
+  rowFieldOfToken,
+} from './listRows.js'
 import { listedBacklog, listedIssues, loadedIssuesIn } from './listing.js'
 import {
   AppendedIssueWorkLog,
+  AppliedRowChange,
+  ClickedDeleteView,
   ClickedDismissTriageCandidate,
   ClickedLeftoverStatus,
+  ClickedMoveView,
+  ClickedPromoteFinding,
   ClickedPromoteTriageCandidate,
+  ClickedRenameView,
+  ClickedUpdateView,
+  DismissedViewFailure,
+  DroppedCard,
+  ExtendedRowSelectionTo,
   LinkedCatalogIssue,
   type Message,
+  OpenedRowField,
   PickedMenuRow,
   RetargetedIssueProduct,
   SelectedIssuePriority,
@@ -40,15 +59,20 @@ import {
   SubmittedIssue,
   SubmittedIssueComment,
   SubmittedSearch,
+  ToggledRowSelection,
   UpdatedIssueDetails,
   UpdatedIssueTitle,
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
   UpdatedMenuQuery,
   UpdatedSearchQuery,
+  UpdatedViewName,
 } from './message.js'
 import {
   FailedIssues,
+  FeaturesObservation,
+  FindingFilter,
+  FindingsObservation,
   IssueDetailState,
   IssueDraft,
   IssueDraftState,
@@ -59,6 +83,7 @@ import {
   TriageCandidatesState,
   loadedIssuesOf,
 } from './model.js'
+import { ChangedStatus } from './rowEdit.js'
 import { selectIssueMessageOf } from './selection.js'
 
 /** Presents the live Issue collection to a host. */
@@ -108,6 +133,24 @@ export const EntityPageDestination = S.TaggedStruct('EntityPageDestination', {
 export const AskFlowDestination = S.TaggedStruct('AskFlowDestination', {
   state: IssuesState,
 })
+/** Presents what agents reported: which ones show and every one read. */
+export const FindingsDestination = S.TaggedStruct('FindingsDestination', {
+  filter: FindingFilter,
+  state: FindingsObservation,
+})
+/** Presents the products' feature contracts, every line read. */
+export const FeaturesDestination = S.TaggedStruct('FeaturesDestination', {
+  state: FeaturesObservation,
+})
+/** Presents the catalog of products with the loaded Issues. */
+export const ProductsDestination = S.TaggedStruct('ProductsDestination', {
+  products: ProductsState,
+  state: IssuesState,
+})
+/** Presents what happened to the Issues, read from the loaded Issues. */
+export const InboxDestination = S.TaggedStruct('InboxDestination', {
+  state: IssuesState,
+})
 /** Every host-neutral Issue Tracker destination. */
 export const Destination = S.Union([
   IssueListDestination,
@@ -116,7 +159,11 @@ export const Destination = S.Union([
   TriageInboxDestination,
   BacklogDestination,
   AskFlowDestination,
+  InboxDestination,
   EntityPageDestination,
+  FindingsDestination,
+  FeaturesDestination,
+  ProductsDestination,
 ])
 /** Every host-neutral Issue Tracker destination. */
 export type Destination = typeof Destination.Type
@@ -166,9 +213,27 @@ export const destinationForModel = (model: Model): Destination =>
         _tag: 'AskFlowDestination',
         state: model.issues,
       }),
+      Inbox: () => ({
+        _tag: 'InboxDestination',
+        state: model.issues,
+      }),
       EntityPage: ({ entity }) => ({
         _tag: 'EntityPageDestination',
         entity,
+        state: model.issues,
+      }),
+      Findings: ({ filter }) => ({
+        _tag: 'FindingsDestination',
+        filter,
+        state: model.findingsList,
+      }),
+      Features: () => ({
+        _tag: 'FeaturesDestination',
+        state: model.featuresList,
+      }),
+      Products: () => ({
+        _tag: 'ProductsDestination',
+        products: model.products,
         state: model.issues,
       }),
     }),
@@ -202,6 +267,29 @@ const PALETTE_TOKEN_PREFIX = 'palette:'
 const PALETTE_RUN_TOKEN_PREFIX = 'palette-run:'
 const SEARCH_SUBMIT_TOKEN = 'search-submit'
 
+const VIEW_NAME_TOKEN_PREFIX = 'view-name:'
+
+const VIEW_TOKEN_MESSAGES: ReadonlyArray<
+  readonly [string, (viewId: string) => Message]
+> = [
+  ['view-rename:', viewId => ClickedRenameView.make({ viewId })],
+  ['view-update:', viewId => ClickedUpdateView.make({ viewId })],
+  [
+    'view-up:',
+    viewId => ClickedMoveView.make({ direction: 'Previous', viewId }),
+  ],
+  ['view-down:', viewId => ClickedMoveView.make({ direction: 'Next', viewId })],
+  ['view-delete:', viewId => ClickedDeleteView.make({ viewId })],
+]
+
+const viewMessageOfToken = (token: string): Option.Option<Message> =>
+  Option.map(
+    Array.findFirst(VIEW_TOKEN_MESSAGES, ([prefix]) =>
+      token.startsWith(prefix),
+    ),
+    ([prefix, messageOf]) => messageOf(token.slice(prefix.length)),
+  )
+
 const openInteractions = new Map<string, Interaction>()
 
 /**
@@ -226,6 +314,22 @@ const openInteractionOf = (issueId: string): Interaction =>
 
 const openInteraction = (issue: Issue): Interaction =>
   openInteractionOf(issue.id)
+
+const promoteInteractions = new WeakMap<AgentFinding, Interaction>()
+
+const promoteInteractionOf = (finding: AgentFinding): Interaction =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(promoteInteractions.get(finding)),
+    () => {
+      const promoting = interaction(
+        `${PROMOTE_FINDING_TOKEN_PREFIX}${finding.findingId}`,
+        `Turn finding ${finding.findingId} into an Issue`,
+        ClickedPromoteFinding.make({ findingId: finding.findingId }),
+      )
+      promoteInteractions.set(finding, promoting)
+      return promoting
+    },
+  )
 
 /** Returns every currently valid high-level host interaction. */
 export const interactionsForModel = (
@@ -320,12 +424,23 @@ export const interactionsForModel = (
         ),
       ],
       AskFlow: () => navigationInteractionsOf(model),
+      Inbox: () => [...navigationInteractionsOf(model), ...inboxChoices],
       EntityPage: ({ entity }) => [
         ...navigationInteractionsOf(model),
         ...Array.map(
           issuesOfPage(loadedIssuesIn(model), entity),
           openInteraction,
         ),
+      ],
+      Features: () => navigationInteractionsOf(model),
+      Products: () => navigationInteractionsOf(model),
+      Findings: () => [
+        ...navigationInteractionsOf(model),
+        ...(model.findingsList._tag === 'LoadedFindings'
+          ? Array.flatMap(model.findingsList.findings, finding =>
+              finding.status === 'open' ? [promoteInteractionOf(finding)] : [],
+            )
+          : []),
       ],
       TriageInbox: () => [
         ...navigationInteractionsOf(model),
@@ -437,12 +552,12 @@ export const messageForScreenToken = (
     model.layer._tag === 'PeekLayer' &&
     token.startsWith(STATUS_TOKEN_PREFIX)
   ) {
-    const { issueId } = model.layer
     return Option.map(
       S.decodeUnknownOption(LeftoverStatus)(
         token.slice(STATUS_TOKEN_PREFIX.length),
       ),
-      status => ClickedLeftoverStatus.make({ issueId, status }),
+      status =>
+        AppliedRowChange.make({ change: ChangedStatus.make({ status }) }),
     )
   }
   if (token === SEARCH_SUBMIT_TOKEN && model.navigation._tag === 'IssueList') {
@@ -458,6 +573,13 @@ export const messageForScreenToken = (
       }),
     )
   }
+  if (token.startsWith(PROMOTE_FINDING_TOKEN_PREFIX)) {
+    return Option.some(
+      ClickedPromoteFinding.make({
+        findingId: token.slice(PROMOTE_FINDING_TOKEN_PREFIX.length),
+      }),
+    )
+  }
   if (
     token.startsWith(OPEN_TOKEN_PREFIX) &&
     (model.navigation._tag === 'IssueList' ||
@@ -466,6 +588,53 @@ export const messageForScreenToken = (
     return Option.some(
       selectIssueMessageOf(token.slice(OPEN_TOKEN_PREFIX.length)),
     )
+  }
+  if (
+    model.layer._tag === 'NamingViewLayer' &&
+    token.startsWith(VIEW_NAME_TOKEN_PREFIX)
+  ) {
+    return Option.some(
+      UpdatedViewName.make({
+        name: token.slice(VIEW_NAME_TOKEN_PREFIX.length),
+      }),
+    )
+  }
+  const maybeViewMessage = viewMessageOfToken(token)
+  if (Option.isSome(maybeViewMessage)) {
+    return maybeViewMessage
+  }
+  const maybeDroppedCard = droppedCardOfToken(token)
+  if (
+    Option.isSome(maybeDroppedCard) &&
+    model.navigation._tag === 'IssueList'
+  ) {
+    return Option.some(DroppedCard.make(maybeDroppedCard.value))
+  }
+  if (token === 'view-failure-dismiss') {
+    return Option.some(DismissedViewFailure.make({}))
+  }
+  const maybeRowField = rowFieldOfToken(token)
+  if (Option.isSome(maybeRowField)) {
+    return Option.some(OpenedRowField.make(maybeRowField.value))
+  }
+  if (
+    model.navigation._tag === 'IssueList' ||
+    model.navigation._tag === 'Backlog'
+  ) {
+    if (token.startsWith(SELECT_TO_TOKEN_PREFIX)) {
+      return Option.some(
+        ExtendedRowSelectionTo.make({
+          issueId: token.slice(SELECT_TO_TOKEN_PREFIX.length),
+        }),
+      )
+    }
+    if (token.startsWith(SELECT_TOKEN_PREFIX)) {
+      return Option.some(
+        ToggledRowSelection.make({
+          issueId: token.slice(SELECT_TOKEN_PREFIX.length),
+        }),
+      )
+    }
   }
   const known = messageForInteractionToken(model, token)
   if (Option.isSome(known)) {

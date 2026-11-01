@@ -5,6 +5,12 @@ import { type Issue } from '@foldkit/instant-tools/issues'
 
 import { localTimeLabel, recordingClockLabel, whenLabel } from './clock.js'
 import { type RecordingNumbers, recordingNumbersOf } from './entityGraph.js'
+import { agentChipOfHandle, featureChip, productChip } from './graphChips.js'
+import {
+  type AgentRunChip,
+  type FeatureChip,
+  agentNameOfHandle,
+} from './graphFacts.js'
 import {
   type LandedBuild,
   type LandedCommit,
@@ -28,7 +34,6 @@ const SHORT_SHA_LENGTH = 9
 const TITLE_LIMIT = 80
 const QUOTE_LIMIT = 240
 const LINK_LABEL_LIMIT = 48
-const AGENT_HARNESS = /^(?:claude-code|codex|cursor|grok|agy|gemini|opencode)\//
 
 /** One line he said, as a mention kept it: his words, when, and its Recording. */
 type SaidLine = Readonly<{
@@ -50,33 +55,62 @@ type LineIndex = Readonly<{
  * the reader's clock.
  */
 export type ChipContext = Readonly<{
+  agentsByHandle: ReadonlyMap<string, AgentRunChip>
   buildsByNumber: ReadonlyMap<number, LandedBuild>
   commits: ReadonlyArray<LandedCommit>
+  featuresByNumber: ReadonlyMap<number, FeatureChip>
+  featuresBySlug: ReadonlyMap<string, FeatureChip>
   issuesById: ReadonlyMap<string, Issue>
+  productsById: ReadonlyMap<string, Issue['product']>
   numbers: RecordingNumbers
   lines: LineIndex
   nowMs: number
   offsetMinutes: number
 }>
 
+/** A line number as the open Issue's words meant it, from Scribe's edges. */
+export type NumberedFeature = readonly [number, FeatureChip]
+
 /**
- * What Scribe's rows add to a chip: every build the page knows, and the commits
- * of the open Issue.
+ * What Scribe's rows add to a chip: the runs the page names, every build the
+ * page knows, the commits of the open Issue, every feature line, and what the
+ * open Issue's own words meant by a line's number.
  */
 export type ChipFacts = Readonly<{
+  agents: ReadonlyArray<AgentRunChip>
   builds: ReadonlyArray<LandedBuild>
   commits: ReadonlyArray<LandedCommit>
+  features: ReadonlyArray<FeatureChip>
+  numberedOnPage?: ReadonlyArray<NumberedFeature>
 }>
 
 /** A host with no graph: chips show what the text says. */
-export const noChipFacts: ChipFacts = { builds: [], commits: [] }
+export const noChipFacts: ChipFacts = {
+  agents: [],
+  builds: [],
+  commits: [],
+  features: [],
+}
 
 /** What Scribe's rows add to the chips of the page open. */
 export const chipFactsOf = (model: Model): ChipFacts => ({
+  agents: model.knownAgents,
   builds: model.knownBuilds,
   commits:
     model.issueLanding._tag === 'LoadedIssueLanding'
       ? model.issueLanding.landing.commits
+      : [],
+  features: model.knownFeatures,
+  numberedOnPage:
+    model.issueGraph._tag === 'LoadedIssueGraph'
+      ? Array.flatMap(
+          model.issueGraph.graph.features,
+          ({ feature, namedNumbers }) =>
+            Array.map(
+              namedNumbers,
+              (number): NumberedFeature => [number, feature],
+            ),
+        )
       : [],
 })
 
@@ -186,6 +220,79 @@ const buildsByNumberOf = (
     },
   )
 
+type FeatureIndex = Readonly<{
+  byNumber: ReadonlyMap<number, FeatureChip>
+  bySlug: ReadonlyMap<string, FeatureChip>
+}>
+
+const featureIndexMemo = new WeakMap<ReadonlyArray<FeatureChip>, FeatureIndex>()
+
+const featureIndexOf = (features: ReadonlyArray<FeatureChip>): FeatureIndex =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(featureIndexMemo.get(features)),
+    () => {
+      const index = {
+        byNumber: new Map(
+          Array.flatMap(features, feature =>
+            Array.map(
+              Option.toArray(feature.maybeNumber),
+              (number): NumberedFeature => [number, feature],
+            ),
+          ),
+        ),
+        bySlug: new Map(
+          Array.map(features, feature => [feature.slug, feature]),
+        ),
+      }
+      featureIndexMemo.set(features, index)
+      return index
+    },
+  )
+
+const productsByIdMemo = new WeakMap<
+  ReadonlyArray<Issue>,
+  ReadonlyMap<string, Issue['product']>
+>()
+
+const productsByIdOf = (
+  issues: ReadonlyArray<Issue>,
+): ReadonlyMap<string, Issue['product']> =>
+  Option.getOrElse(Option.fromUndefinedOr(productsByIdMemo.get(issues)), () => {
+    const byId = new Map<string, Issue['product']>()
+    for (const issue of issues) {
+      if (!byId.has(issue.product.id)) {
+        byId.set(issue.product.id, issue.product)
+      }
+    }
+    productsByIdMemo.set(issues, byId)
+    return byId
+  })
+
+const agentsByHandleMemo = new WeakMap<
+  ReadonlyArray<AgentRunChip>,
+  ReadonlyMap<string, AgentRunChip>
+>()
+
+const startedAtOf = (run: AgentRunChip): number =>
+  Option.getOrElse(run.maybeStartedAtMs, () => 0)
+
+const agentsByHandleOf = (
+  runs: ReadonlyArray<AgentRunChip>,
+): ReadonlyMap<string, AgentRunChip> =>
+  Option.getOrElse(Option.fromUndefinedOr(agentsByHandleMemo.get(runs)), () => {
+    const byHandle = new Map<string, AgentRunChip>()
+    for (const run of runs) {
+      for (const key of [run.agentId, run.name]) {
+        const held = byHandle.get(key)
+        if (held === undefined || startedAtOf(held) <= startedAtOf(run)) {
+          byHandle.set(key, run)
+        }
+      }
+    }
+    agentsByHandleMemo.set(runs, byHandle)
+    return byHandle
+  })
+
 /**
  * The context chips read from: the loaded catalog's indexes, built once per
  * snapshot, the reader's clock, and what Scribe's rows add.
@@ -195,15 +302,25 @@ export const chipContextOf = (
   nowMs: number,
   offsetMinutes: number,
   facts: ChipFacts = noChipFacts,
-): ChipContext => ({
-  buildsByNumber: buildsByNumberOf(facts.builds),
-  commits: facts.commits,
-  issuesById: issuesByIdOf(issues),
-  numbers: recordingNumbersOf(issues),
-  lines: lineIndexOf(issues),
-  nowMs,
-  offsetMinutes,
-})
+): ChipContext => {
+  const features = featureIndexOf(facts.features)
+  const numberedOnPage = facts.numberedOnPage ?? []
+  return {
+    agentsByHandle: agentsByHandleOf(facts.agents),
+    buildsByNumber: buildsByNumberOf(facts.builds),
+    commits: facts.commits,
+    featuresByNumber: Array.isReadonlyArrayEmpty(numberedOnPage)
+      ? features.byNumber
+      : new Map([...features.byNumber, ...numberedOnPage]),
+    featuresBySlug: features.bySlug,
+    issuesById: issuesByIdOf(issues),
+    lines: lineIndexOf(issues),
+    nowMs,
+    numbers: recordingNumbersOf(issues),
+    offsetMinutes,
+    productsById: productsByIdOf(issues),
+  }
+}
 
 const shortened = (text: string, limit: number): string =>
   text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`
@@ -281,9 +398,6 @@ export const issueChipOf = (issueId: string, context: ChipContext): TextPart =>
     onSome: () =>
       issueChip(Words.make({ text: `#${issueId}` }), issueId, context),
   })
-
-const agentLabel = (agentId: string): string =>
-  agentId.replace(AGENT_HARNESS, '')
 
 const linkLabel = (url: string): string =>
   shortened(
@@ -470,12 +584,14 @@ const referenceChip = (
         )
       },
       AgentName: ({ agentId }) =>
-        Reference({
-          label: agentLabel(agentId),
-          kind: 'Agent',
-          href: `/agents/${encodeURIComponent(agentId)}`,
-          detail: [agentId],
-        }),
+        agentChipOfHandle(
+          agentId,
+          Option.fromUndefinedOr(
+            context.agentsByHandle.get(agentId) ??
+              context.agentsByHandle.get(agentNameOfHandle(agentId)),
+          ),
+          { nowMs: context.nowMs, offsetMinutes: context.offsetMinutes },
+        ),
       BuildNumber: ({ maybeApp, maybeVersion, number }) => {
         const label = Option.match(Option.all([maybeApp, maybeVersion]), {
           onNone: () => `Build ${number}`,
@@ -518,11 +634,53 @@ const referenceChip = (
             ? 'Claude session'
             : sessionId.slice(0, SHORT_ID_LENGTH),
           kind: 'Session',
-          ...Option.match(maybeUrl, {
-            onNone: () => ({}),
-            onSome: href => ({ href }),
-          }),
+          href: Option.getOrElse(maybeUrl, () => `/sessions/${sessionId}`),
           detail: [`Session ${sessionId}`],
+        }),
+      ProductName: ({ productId }) =>
+        Option.match(
+          Option.fromUndefinedOr(context.productsById.get(productId)),
+          {
+            onNone: () => productChip(productId, productId, Option.none()),
+            onSome: product =>
+              productChip(productId, product.name, Option.some(product._tag)),
+          },
+        ),
+      FeatureName: ({ slug }) =>
+        Option.match(Option.fromUndefinedOr(context.featuresBySlug.get(slug)), {
+          onNone: () =>
+            Reference({
+              label: slug,
+              kind: 'Feature',
+              href: `/features/${slug}`,
+              detail: [`Feature ${slug}`],
+            }),
+          onSome: featureChip,
+        }),
+      FeatureLineNumber: ({ number }) =>
+        Option.match(
+          Option.fromUndefinedOr(context.featuresByNumber.get(number)),
+          {
+            onNone: () => Plain(piece.text),
+            onSome: feature =>
+              Reference({
+                label: piece.text,
+                title: feature.name,
+                state: feature.isDraft ? 'draft' : feature.status,
+                kind: 'Feature',
+                href: `/features/${feature.slug}`,
+                detail: [
+                  `FEATURES ${number.toString()} of ${feature.productId}`,
+                ],
+              }),
+          },
+        ),
+      FindingId: ({ findingId }) =>
+        Reference({
+          label: `Finding ${findingId.slice(0, SHORT_ID_LENGTH)}`,
+          kind: 'Finding',
+          href: `/findings/${findingId}`,
+          detail: [`Finding ${findingId}`],
         }),
       RawId: ({ id }) =>
         Reference({

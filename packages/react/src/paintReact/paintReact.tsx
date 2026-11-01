@@ -7,6 +7,7 @@ import {
   type IconName,
   type ItemCheck,
   type ListItem,
+  type ListNode,
   type ReferencePart,
   type SeekNode,
   type TextEmbed,
@@ -22,6 +23,7 @@ import {
   submittedTagOf,
 } from 'foldkit/renderers'
 import {
+  type DragEvent,
   Fragment,
   type ReactElement,
   type ReactNode,
@@ -162,6 +164,8 @@ const Icon = ({ name }: Readonly<{ name: IconName }>): ReactElement => {
 }
 
 const dockHeightProperty = '--fk-dock-height'
+
+const draggedRowType = 'application/x-fk-row'
 
 /**
  * A box pinned to the bottom of the screen. It keeps the page's bottom
@@ -396,7 +400,8 @@ const TokenField = ({
 
 /**
  * The round box at the start of a list row a person ticks, such as a
- * reminder's completion circle: a checkbox that presses its Action.
+ * reminder's completion circle: a checkbox that presses its Action, or its
+ * extend Action with Shift held.
  */
 const CheckButton = ({
   check,
@@ -406,6 +411,7 @@ const CheckButton = ({
   onPress: (button: ButtonNode) => void
 }>): ReactElement => {
   const action = check.action
+  const extendAction = check.extendAction
   return (
     <button
       type="button"
@@ -418,8 +424,15 @@ const CheckButton = ({
       onClick={
         action === undefined
           ? undefined
-          : () => {
-              onPress(pressOf(action, check.label))
+          : event => {
+              onPress(
+                pressOf(
+                  event.shiftKey && extendAction !== undefined
+                    ? extendAction
+                    : action,
+                  check.label,
+                ),
+              )
             }
       }
     />
@@ -612,6 +625,7 @@ const ListRow = ({
   const ref = useRef<HTMLLIElement>(null)
   const hasPainted = useRef(false)
   const isCurrent = item.isCurrent === true
+  const isDraggable = item.isDraggable === true
   useEffect(() => {
     if (isCurrent) {
       ref.current?.scrollIntoView({
@@ -625,6 +639,15 @@ const ListRow = ({
       ref={ref}
       className="fk-item"
       data-current={isCurrent ? true : undefined}
+      draggable={isDraggable ? true : undefined}
+      onDragStart={
+        isDraggable
+          ? event => {
+              event.dataTransfer.setData(draggedRowType, item.key)
+              event.dataTransfer.effectAllowed = 'move'
+            }
+          : undefined
+      }
     >
       {children}
     </li>
@@ -836,6 +859,25 @@ export const paintTree = (
         {paintChildren(box.children)}
       </div>
     )
+  const dropAttributes = (list: ListNode) => {
+    const dropAction = list.dropAction
+    return dropAction === undefined
+      ? {}
+      : {
+          onDragOver: (event: DragEvent<HTMLUListElement>) => {
+            if (event.dataTransfer.types.includes(draggedRowType)) {
+              event.preventDefault()
+            }
+          },
+          onDrop: (event: DragEvent<HTMLUListElement>) => {
+            const rowKey = event.dataTransfer.getData(draggedRowType)
+            if (rowKey !== '') {
+              event.preventDefault()
+              handlers.onPress(pressOf(`${dropAction}:${rowKey}`, list.label))
+            }
+          },
+        }
+  }
   const paintReference = (reference: ReferencePart): ReactElement => {
     const href = reference.href
     const attributes = {
@@ -1010,7 +1052,12 @@ export const paintTree = (
         },
         Spacer: () => <div className={classFor('Spacer', 'fk-spacer')} />,
         Row: row => (
-          <div className={classFor('Row', 'fk-row')}>
+          <div
+            className={classFor(
+              'Row',
+              row.isBoard === true ? 'fk-row fk-board' : 'fk-row',
+            )}
+          >
             {paintChildren(row.children)}
           </div>
         ),
@@ -1029,7 +1076,11 @@ export const paintTree = (
           />
         ),
         List: list => (
-          <ul className={classFor('List', 'fk-list')} aria-label={list.label}>
+          <ul
+            className={classFor('List', 'fk-list')}
+            aria-label={list.label}
+            {...dropAttributes(list)}
+          >
             {Array.map(list.items, item => (
               <ListRowView
                 key={item.key}

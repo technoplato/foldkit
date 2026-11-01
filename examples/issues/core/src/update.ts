@@ -46,16 +46,22 @@ import {
 } from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
-import { type PageEntity, pageEntityKey } from './entityGraph.js'
+import { cardAcross, changeAcross, columnChangeOf } from './board.js'
 import { menuStaysOpen } from './choices.js'
+import { type PageEntity, pageEntityKey } from './entityGraph.js'
+import { draftOfFinding } from './findingDraft.js'
+import { type AgentFinding } from './graphFacts.js'
+import { GraphRows } from './graphRows.js'
 import { emptyIssueDraft } from './init.js'
 import { IssueIdentity } from './issueIdentity.js'
+import { describeIssueLandingError } from './issueLandings.js'
 import {
   type IssueView,
   isIssueNumbered,
   issueNumberOfSearch,
   primedSearchText,
 } from './issueView.js'
+import { IssueViews, SavedView, describeIssueViewError } from './issueViews.js'
 import {
   LeftoverStatus,
   type ProductFilter,
@@ -64,29 +70,43 @@ import {
   storedStatusOf,
 } from './leftover.js'
 import {
+  type RowDirection,
   issueUnderCursorOf,
+  issueViewOf,
+  issuesInHandOf,
   listedIssues,
   loadedIssuesIn,
   movedRowCursor,
   productFilterOf,
   rowsInOrderOf,
+  savedViewsOf,
+  selectedRowsOf,
+  selectedSetOf,
 } from './listing.js'
 import { type MenuRow, openMenuRowsOf } from './menus.js'
 import {
   CompletedJoinLeftoverRoom,
   CompletedLeaveLeftoverRoom,
   FailedDeleteIssue,
+  FailedDeleteIssueView,
   FailedJoinLeftoverRoom,
   FailedLeaveLeftoverRoom,
+  FailedMarkFindingPromoted,
   FailedReviewTriageCandidate,
+  FailedRowEditWrite,
   FailedSaveIssue,
+  FailedSaveIssueView,
   FailedSaveIssueWorkLog,
   FailedSaveProduct,
   type Message,
   SucceededAppendIssueWorkLogEntry,
   SucceededDeleteIssue,
+  SucceededDeleteIssueView,
+  SucceededMarkFindingPromoted,
   SucceededReviewTriageCandidate,
+  SucceededRowEdit,
   SucceededSaveIssue,
+  SucceededSaveIssueView,
   SucceededSaveIssueWorkLog,
   SucceededSaveProduct,
 } from './message.js'
@@ -97,9 +117,12 @@ import {
   DeletedIssueMutation,
   DraftMention,
   EditingIssueDraft,
+  FailedFeatures,
+  FailedFindings,
   FailedIssue,
   FailedIssueDraft,
   FailedIssueFiles,
+  FailedIssueGraph,
   FailedIssueLanding,
   FailedIssueLogs,
   FailedIssueMutation,
@@ -108,41 +131,55 @@ import {
   FailedPageFacts,
   FailedProductAddition,
   FailedProducts,
+  FailedSavedViews,
   FailedTriageCandidates,
+  Features,
   FileIssue,
+  Findings,
   IdleIssueMutation,
+  Inbox,
   IssueDetail,
   IssueDraft,
   IssueList,
+  LoadedFeatures,
+  LoadedFindings,
   LoadedIssue,
   LoadedIssueFiles,
+  LoadedIssueGraph,
   LoadedIssueLanding,
   LoadedIssueLogs,
   LoadedIssues,
   LoadedLeftoverPresence,
   LoadedPageFacts,
   LoadedProducts,
+  LoadedSavedViews,
   LoadedTriageCandidates,
   LoadingIssue,
   LoadingIssueLogs,
   LoadingLeftoverPresence,
   type Model,
+  NamingViewLayer,
   type Navigation,
   NoLayer,
+  NotObservingFeatures,
+  NotObservingFindings,
   NotObservingIssue,
   NotObservingIssueFiles,
+  NotObservingIssueGraph,
   NotObservingIssueLanding,
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
   NotObservingPageFacts,
   PeekLayer,
   type ProductAdditionState,
+  Products,
   RefusedProductAddition,
   SavedIssueMutation,
   SavedProductAddition,
   SavingIssueDraft,
   SavingIssueMutation,
   SavingProductAddition,
+  type ScreenLayer,
   SubtaskMark,
   TriageInbox,
   UnchangedProductAddition,
@@ -156,6 +193,13 @@ import {
   statusFollowingLanding,
   workingSyncAgent,
 } from './nowWorking.js'
+import { searchOfView } from './route.js'
+import { type RowChange, type RowEdit } from './rowEdit.js'
+import {
+  selectionExtendedBy,
+  selectionExtendedTo,
+  selectionToggled,
+} from './rowSelection.js'
 
 // COMMAND
 
@@ -288,6 +332,30 @@ export const SaveIssue = Command.define(
   }).pipe(
     Effect.catch(error =>
       Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+/** Marks a finding's row with the Issue it became. */
+export const MarkFindingPromoted = Command.define(
+  'MarkFindingPromoted',
+  { findingId: S.String, issueId: S.String },
+  SucceededMarkFindingPromoted,
+  FailedMarkFindingPromoted,
+)(({ findingId, issueId }) =>
+  Effect.gen(function* () {
+    const graph = yield* GraphRows
+    yield* graph.markFindingPromoted(findingId, Number(issueId))
+    return SucceededMarkFindingPromoted.make({ findingId, issueId })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedMarkFindingPromoted.make({
+          findingId,
+          issueId,
+          reason: describeIssueLandingError(error),
+        }),
+      ),
     ),
   ),
 )
@@ -1186,7 +1254,46 @@ export const AddIssueMention = Command.define(
   ),
 )
 
-/** Sets any stored IssueStatus and reads it back. */
+const STATUS_ENTRY_STATE = 'status'
+
+/**
+ * The Issue at a new status, with the work-log entry that keeps the move:
+ * `Status Open → Blocked.` A status that stays the same writes nothing.
+ */
+const withStatusMove = (
+  current: Issue,
+  status: IssueStatus,
+  author: string,
+  nowMs: number,
+): Issue =>
+  current.status === status
+    ? current
+    : Issue.make({
+        ...current,
+        status,
+        updatedAtMs: nextUpdatedAtMs(current, nowMs),
+        workLog: appendWorkLogEntry(
+          current,
+          IssueWorkLogEntry.make({
+            agentId: Option.some(author),
+            commitSha: Option.none(),
+            durationSeconds: Option.none(),
+            id: workLogEntryId(
+              current.id,
+              Option.some(STATUS_ENTRY_STATE),
+              nowMs,
+            ),
+            occurredAtMs: nowMs,
+            state: Option.some(STATUS_ENTRY_STATE),
+            summary: `Status ${current.status} → ${status}.`,
+          }),
+        ),
+      })
+
+/**
+ * Sets any stored IssueStatus and reads it back. The move stays in the work
+ * log, so the inbox and the Issue's history can name it.
+ */
 export const SetIssueStatus = Command.define(
   'SetIssueStatus',
   { issueId: S.String, status: IssueStatus },
@@ -1194,16 +1301,153 @@ export const SetIssueStatus = Command.define(
   FailedSaveIssue,
 )(({ issueId, status }) =>
   Effect.gen(function* () {
+    const identity = yield* IssueIdentity
     const tracker = yield* IssueTracker
     const nowMs = yield* Clock.currentTimeMillis
+    const author = yield* identity.author
+    const issue = yield* tracker.update(issueId, {
+      apply: current => withStatusMove(current, status, author, nowMs),
+      hasLanded: stored => stored.status === status,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+/**
+ * The person signed in claims one Issue, as `issues claim` does: a `claimed`
+ * work-log entry, the claimant, and InProgress, read back.
+ */
+export const ClaimIssueAsAuthor = Command.define(
+  'ClaimIssueAsAuthor',
+  { issueId: S.String },
+  SucceededAppendIssueWorkLogEntry,
+  FailedSaveIssueWorkLog,
+)(({ issueId }) =>
+  Effect.gen(function* () {
+    const identity = yield* IssueIdentity
+    const author = yield* identity.author
+    return yield* AppendIssueWorkLogEntry({
+      agentId: Option.some(author),
+      claimantId: Option.some(author),
+      commitSha: Option.none(),
+      issueId,
+      state: 'claimed',
+      status: Option.some('InProgress'),
+      summary: `Claimed by ${author}.`,
+    }).effect
+  }),
+)
+
+/** Keeps a new view of the list. */
+export const CreateIssueView = Command.define(
+  'CreateIssueView',
+  { name: S.String, position: S.Number, query: S.String },
+  SucceededSaveIssueView,
+  FailedSaveIssueView,
+)(({ name, position, query }) =>
+  Effect.gen(function* () {
+    const views = yield* IssueViews
+    const view = yield* views.createView({ name, position, query })
+    return SucceededSaveIssueView.make({ view })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedSaveIssueView.make({
+          name,
+          reason: describeIssueViewError(error),
+        }),
+      ),
+    ),
+  ),
+)
+
+/** Writes a saved view's new name, place or what it shows. */
+export const UpdateIssueView = Command.define(
+  'UpdateIssueView',
+  { view: SavedView },
+  SucceededSaveIssueView,
+  FailedSaveIssueView,
+)(({ view }) =>
+  Effect.gen(function* () {
+    const views = yield* IssueViews
+    const updated = yield* views.updateView(view)
+    return SucceededSaveIssueView.make({ view: updated })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedSaveIssueView.make({
+          name: view.name,
+          reason: describeIssueViewError(error),
+        }),
+      ),
+    ),
+  ),
+)
+
+/** Deletes a saved view. */
+export const DeleteIssueView = Command.define(
+  'DeleteIssueView',
+  { viewId: S.String },
+  SucceededDeleteIssueView,
+  FailedDeleteIssueView,
+)(({ viewId }) =>
+  Effect.gen(function* () {
+    const views = yield* IssueViews
+    yield* views.deleteView(viewId)
+    return SucceededDeleteIssueView.make({ viewId })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedDeleteIssueView.make({
+          reason: describeIssueViewError(error),
+          viewId,
+        }),
+      ),
+    ),
+  ),
+)
+
+/** Lets go of one Issue's claim and reads it back, with a work-log entry. */
+export const ReleaseIssueClaim = Command.define(
+  'ReleaseIssueClaim',
+  { issueId: S.String },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId }) =>
+  Effect.gen(function* () {
+    const identity = yield* IssueIdentity
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const author = yield* identity.author
+    const entryId = workLogEntryId(
+      storedIssueIdOf(issueId),
+      Option.some('released'),
+      nowMs,
+    )
     const issue = yield* tracker.update(issueId, {
       apply: current =>
         Issue.make({
           ...current,
-          status,
+          claimantId: Option.none(),
           updatedAtMs: nextUpdatedAtMs(current, nowMs),
+          workLog: appendWorkLogEntry(
+            current,
+            IssueWorkLogEntry.make({
+              agentId: Option.some(author),
+              commitSha: Option.none(),
+              durationSeconds: Option.none(),
+              id: entryId,
+              occurredAtMs: nowMs,
+              state: Option.some('released'),
+              summary: `Claim released by ${author}.`,
+            }),
+          ),
         }),
-      hasLanded: stored => stored.status === status,
+      hasLanded: stored => Option.isNone(stored.claimantId),
     })
     return SucceededSaveIssue.make({ issue })
   }).pipe(
@@ -1282,14 +1526,10 @@ export const SetLeftoverStatus = Command.define(
     const identity = yield* IssueIdentity
     const tracker = yield* IssueTracker
     const { nowMs } = yield* identity.next
+    const author = yield* identity.author
     const status = storedStatusOf(leftover)
     const issue = yield* tracker.update(issueId, {
-      apply: current =>
-        Issue.make({
-          ...current,
-          status,
-          updatedAtMs: nextUpdatedAtMs(current, nowMs),
-        }),
+      apply: current => withStatusMove(current, status, author, nowMs),
       hasLanded: stored => stored.status === status,
     })
     return SucceededSaveIssue.make({ issue })
@@ -1421,12 +1661,14 @@ export const LeaveLeftoverRoom = Command.define(
 )
 
 type Resources =
+  | GraphRows
   | IssueTracker
   | Logger
   | ProductCatalog
   | TriageInboxServiceTag
   | IssueIdentity
   | LeftoverPresence
+  | IssueViews
 type UpdateReturn = readonly [
   Model,
   ReadonlyArray<Command.Command<Message, never, Resources>>,
@@ -1500,12 +1742,32 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
       issueFiles: isSameIssueDetail
         ? model.issueFiles
         : NotObservingIssueFiles.make({}),
+      issueGraph: isSameIssueDetail
+        ? model.issueGraph
+        : NotObservingIssueGraph.make({}),
       issueLanding: isSameIssueDetail
         ? model.issueLanding
         : NotObservingIssueLanding.make({}),
       pageFacts: isSameEntityPage
         ? model.pageFacts
         : NotObservingPageFacts.make({}),
+      draft:
+        Option.isSome(model.maybeDraftFindingId) &&
+        navigation._tag !== 'FileIssue'
+          ? emptyIssueDraft(model.draft.productId)
+          : model.draft,
+      featuresList:
+        navigation._tag === 'Features'
+          ? model.featuresList
+          : NotObservingFeatures.make({}),
+      findingsList:
+        navigation._tag === 'Findings'
+          ? model.findingsList
+          : NotObservingFindings.make({}),
+      maybeDraftFindingId:
+        navigation._tag === 'FileIssue'
+          ? model.maybeDraftFindingId
+          : Option.none(),
       issueLogs:
         navigation._tag === 'IssueDetail'
           ? LoadingIssueLogs.make({ issueId: navigation.issueId })
@@ -1522,6 +1784,36 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
     leftoverRoomCommands(previousLeftoverId, nextLeftoverId),
   ]
 }
+
+const findingsOnPage = (model: Model): ReadonlyArray<AgentFinding> => {
+  const listed =
+    model.findingsList._tag === 'LoadedFindings'
+      ? model.findingsList.findings
+      : []
+  const facts =
+    model.pageFacts._tag === 'LoadedPageFacts' ? [model.pageFacts.facts] : []
+  const onIssue =
+    model.issueGraph._tag === 'LoadedIssueGraph'
+      ? model.issueGraph.graph.findings
+      : []
+  return [
+    ...listed,
+    ...onIssue,
+    ...Array.flatMap(facts, found =>
+      M.value(found).pipe(
+        M.withReturnType<ReadonlyArray<AgentFinding>>(),
+        M.tag('FindingFacts', ({ finding }) => [finding]),
+        M.tag('AgentFacts', ({ runs }) =>
+          Array.flatMap(runs, page => page.findings),
+        ),
+        M.orElse(() => []),
+      ),
+    ),
+  ]
+}
+
+const issuesByIdIn = (model: Model): ReadonlyMap<string, Issue> =>
+  new Map(Array.map(loadedIssuesIn(model), issue => [issue.id, issue]))
 
 const isPageOf = (model: Model, entity: PageEntity): boolean =>
   model.navigation._tag === 'EntityPage' &&
@@ -1876,19 +2168,31 @@ const movedMenuMark = (
   ]
 }
 
+const layerBelow = (model: Model): ScreenLayer =>
+  model.layer._tag === 'ChoiceLayer' &&
+  Option.isSome(model.layer.maybePeekedIssueId)
+    ? PeekLayer.make({ issueId: model.layer.maybePeekedIssueId.value })
+    : NoLayer.make({})
+
 const pickedMenuRow = (
   model: Model,
   maybeRow: Option.Option<MenuRow>,
 ): UpdateReturn =>
   Option.match(maybeRow, {
     onNone: () => [model, []],
-    onSome: row =>
-      model.layer._tag === 'ChoiceLayer' && menuStaysOpen(model.layer.menu)
-        ? update(model, row.action.message)
-        : update(
-            nextModel({ ...model, layer: NoLayer.make({}) }),
-            row.action.message,
-          ),
+    onSome: ({ action: { message } }) => {
+      if (
+        model.layer._tag === 'ChoiceLayer' &&
+        menuStaysOpen(model.layer.menu)
+      ) {
+        return update(model, message)
+      } else {
+        const closed = nextModel({ ...model, layer: layerBelow(model) })
+        return message._tag === 'AppliedRowChange'
+          ? appliedRowChange(closed, issuesInHandOf(model), message.change)
+          : update(closed, message)
+      }
+    },
   })
 
 const withListView = (
@@ -1931,6 +2235,242 @@ const backToList = (model: Model): UpdateReturn =>
           : model.returnListView,
     }),
   )
+
+const savedAsRowEdit = (
+  saved: typeof SucceededSaveIssue.Type | typeof FailedSaveIssue.Type,
+): Message =>
+  M.value(saved).pipe(
+    M.withReturnType<Message>(),
+    M.tagsExhaustive({
+      SucceededSaveIssue: ({ issue }) => SucceededRowEdit.make({ issue }),
+      FailedSaveIssue: ({ reason }) => FailedRowEditWrite.make({ reason }),
+    }),
+  )
+
+const loggedAsRowEdit = (
+  logged:
+    | typeof SucceededAppendIssueWorkLogEntry.Type
+    | typeof FailedSaveIssueWorkLog.Type,
+): Message =>
+  M.value(logged).pipe(
+    M.withReturnType<Message>(),
+    M.tagsExhaustive({
+      SucceededAppendIssueWorkLogEntry: ({ issue }) =>
+        SucceededRowEdit.make({ issue }),
+      FailedSaveIssueWorkLog: ({ reason }) =>
+        FailedRowEditWrite.make({ reason }),
+    }),
+  )
+
+const rowEditCommand = ({
+  change,
+  issueId,
+}: RowEdit): Command.Command<Message, never, Resources> =>
+  M.value(change).pipe(
+    M.withReturnType<Command.Command<Message, never, Resources>>(),
+    M.tagsExhaustive({
+      ChangedStatus: ({ status }) =>
+        Command.mapMessage(SetIssueStatus({ issueId, status }), savedAsRowEdit),
+      ChangedPriority: ({ priority }) =>
+        Command.mapMessage(
+          EditIssue({
+            area: Option.none(),
+            details: Option.none(),
+            issueId,
+            issueType: Option.none(),
+            priority: Option.some(priority),
+            product: Option.none(),
+            title: Option.none(),
+          }),
+          savedAsRowEdit,
+        ),
+      ChangedProduct: ({ product }) =>
+        Command.mapMessage(
+          EditIssue({
+            area: Option.none(),
+            details: Option.none(),
+            issueId,
+            issueType: Option.none(),
+            priority: Option.none(),
+            product: Option.some(product),
+            title: Option.none(),
+          }),
+          savedAsRowEdit,
+        ),
+      ClaimedByAuthor: () =>
+        Command.mapMessage(ClaimIssueAsAuthor({ issueId }), loggedAsRowEdit),
+      ClaimedFor: ({ claimantId }) =>
+        Command.mapMessage(
+          AppendIssueWorkLogEntry({
+            agentId: Option.some(claimantId),
+            claimantId: Option.some(claimantId),
+            commitSha: Option.none(),
+            issueId,
+            state: 'claimed',
+            status: Option.some('InProgress'),
+            summary: `Claimed by ${claimantId}.`,
+          }),
+          loggedAsRowEdit,
+        ),
+      ReleasedClaim: () =>
+        Command.mapMessage(ReleaseIssueClaim({ issueId }), savedAsRowEdit),
+    }),
+  )
+
+const cursorKeptOn = (before: Model, after: Model): Option.Option<string> => {
+  const rowsAfter = rowsInOrderOf(after)
+  const isStillListed = (issueId: string): boolean =>
+    Array.some(rowsAfter, issue => issue.id === issueId)
+  if (Option.exists(before.maybeRowCursor, isStillListed)) {
+    return before.maybeRowCursor
+  } else {
+    const rowsBefore = rowsInOrderOf(before)
+    const maybePosition = Option.flatMap(before.maybeRowCursor, issueId =>
+      Array.findFirstIndex(rowsBefore, issue => issue.id === issueId),
+    )
+    return Option.flatMap(maybePosition, position =>
+      Option.orElse(
+        Option.map(
+          Array.findFirst(Array.drop(rowsBefore, position), issue =>
+            isStillListed(issue.id),
+          ),
+          issue => issue.id,
+        ),
+        () => Option.map(Array.last(rowsAfter), issue => issue.id),
+      ),
+    )
+  }
+}
+
+const savedViewById = (
+  model: Model,
+  viewId: string,
+): Option.Option<SavedView> =>
+  Array.findFirst(savedViewsOf(model), view => view.id === viewId)
+
+const positionAfterLast = (views: ReadonlyArray<SavedView>): number =>
+  Option.match(Array.last(views), {
+    onNone: () => 1,
+    onSome: last => last.position + 1,
+  })
+
+const positionMovedTo = (
+  views: ReadonlyArray<SavedView>,
+  viewId: string,
+  direction: RowDirection,
+): Option.Option<number> => {
+  const others = Array.filter(views, view => view.id !== viewId)
+  return Option.flatMap(
+    Array.findFirstIndex(views, view => view.id === viewId),
+    from => {
+      const gap = direction === 'Next' ? from + 1 : from - 1
+      const before = Array.get(others, gap - 1)
+      const after = Array.get(others, gap)
+      if (gap < 0 || gap >= views.length) {
+        return Option.none()
+      } else if (Option.isSome(before) && Option.isSome(after)) {
+        return Option.some((before.value.position + after.value.position) / 2)
+      } else {
+        return Option.map(
+          Option.orElse(before, () => after),
+          neighbor =>
+            Option.isSome(before)
+              ? neighbor.position + 1
+              : neighbor.position / 2,
+        )
+      }
+    },
+  )
+}
+
+const submittedViewName = (model: Model): UpdateReturn => {
+  if (model.layer._tag !== 'NamingViewLayer') {
+    return [model, []]
+  }
+  const name = model.layer.name.trim()
+  const closed = nextModel({ ...model, layer: NoLayer.make({}) })
+  if (name === '') {
+    return [model, []]
+  } else {
+    return Option.match(model.layer.maybeViewId, {
+      onNone: () => [
+        closed,
+        [
+          CreateIssueView({
+            name,
+            position: positionAfterLast(savedViewsOf(model)),
+            query: searchOfView(issueViewOf(model)),
+          }),
+        ],
+      ],
+      onSome: viewId =>
+        Option.match(savedViewById(model, viewId), {
+          onNone: () => [closed, []],
+          onSome: view => [
+            closed,
+            [UpdateIssueView({ view: SavedView.make({ ...view, name }) })],
+          ],
+        }),
+    })
+  }
+}
+
+const isCloseRefused = ({ change, issueId }: RowEdit): boolean =>
+  change._tag === 'ChangedStatus' &&
+  change.status === 'Closed' &&
+  !leftoverMayClose(issueId)
+
+const appliedRowChange = (
+  model: Model,
+  issueIds: ReadonlyArray<string>,
+  change: RowChange,
+): UpdateReturn => {
+  const asked = Array.map(
+    issueIds,
+    (issueId): RowEdit => ({
+      change,
+      issueId,
+    }),
+  )
+  const edits = Array.filter(asked, edit => !isCloseRefused(edit))
+  const refused = Array.filter(asked, isCloseRefused)
+  const noted = nextModel({
+    ...model,
+    failedRowEdits: Array.appendAll(
+      model.failedRowEdits,
+      Array.map(refused, edit => ({
+        edit,
+        reason: `Issue ${edit.issueId} cannot be Closed.`,
+      })),
+    ),
+  })
+  const maybeFirstEdit = Array.head(edits)
+  if (Option.isNone(maybeFirstEdit)) {
+    return [noted, []]
+  } else {
+    const changed = nextModel({
+      ...noted,
+      rowEdits: Array.appendAll(noted.rowEdits, edits),
+    })
+    return [
+      nextModel({ ...changed, maybeRowCursor: cursorKeptOn(model, changed) }),
+      Array.isReadonlyArrayEmpty(model.rowEdits)
+        ? [rowEditCommand(maybeFirstEdit.value)]
+        : [],
+    ]
+  }
+}
+
+const nextRowEdit = (model: Model): UpdateReturn => {
+  const rest = Array.drop(model.rowEdits, 1)
+  return [
+    nextModel({ ...model, rowEdits: rest }),
+    Option.match(Array.head(rest), {
+      onNone: () => [],
+      onSome: edit => [rowEditCommand(edit)],
+    }),
+  ]
+}
 
 const startLeftoverCommand = (
   model: Model,
@@ -2104,11 +2644,38 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           [],
         ]
       },
+      ObservedIssueGraph: ({ graph, issueId }) =>
+        model.navigation._tag === 'IssueDetail' &&
+        model.navigation.issueId === issueId
+          ? [
+              nextModel({
+                ...model,
+                issueGraph: LoadedIssueGraph.make({ graph, issueId }),
+              }),
+              [],
+            ]
+          : [model, []],
+      FailedObserveIssueGraph: ({ issueId, reason }) =>
+        model.navigation._tag === 'IssueDetail' &&
+        model.navigation.issueId === issueId
+          ? [
+              nextModel({
+                ...model,
+                issueGraph: FailedIssueGraph.make({ issueId, reason }),
+              }),
+              [],
+            ]
+          : [model, []],
       ObservedBuilds: ({ builds }) => [
         nextModel({ ...model, knownBuilds: builds }),
         [],
       ],
       FailedObserveBuilds: () => [model, []],
+      ObservedAgentChips: ({ runs }) => [
+        nextModel({ ...model, knownAgents: runs }),
+        [],
+      ],
+      FailedObserveAgentChips: () => [model, []],
       ObservedPageFacts: ({ entity, facts }) =>
         isPageOf(model, entity)
           ? [
@@ -2163,6 +2730,93 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           Backlog.make({ product: productFilterOf(model) }),
         ),
       ClickedOpenAskFlow: () => withNavigation(model, AskFlow.make({})),
+      ClickedOpenFindings: () => withNavigation(model, Findings.make({})),
+      ClickedOpenFeatures: () => withNavigation(model, Features.make({})),
+      ClickedOpenProducts: () => withNavigation(model, Products.make({})),
+      ObservedFeatures: ({ features }) =>
+        model.navigation._tag === 'Features'
+          ? [
+              nextModel({
+                ...model,
+                featuresList: LoadedFeatures.make({ features }),
+              }),
+              [],
+            ]
+          : [model, []],
+      FailedObserveFeatures: ({ reason }) =>
+        model.navigation._tag === 'Features'
+          ? [
+              nextModel({
+                ...model,
+                featuresList: FailedFeatures.make({ reason }),
+              }),
+              [],
+            ]
+          : [model, []],
+      ObservedFeatureChips: ({ features }) => [
+        nextModel({ ...model, knownFeatures: features }),
+        [],
+      ],
+      FailedObserveFeatureChips: () => [model, []],
+      ObservedFindings: ({ findings }) =>
+        model.navigation._tag === 'Findings'
+          ? [
+              nextModel({
+                ...model,
+                findingsList: LoadedFindings.make({ findings }),
+              }),
+              [],
+            ]
+          : [model, []],
+      FailedObserveFindings: ({ reason }) =>
+        model.navigation._tag === 'Findings'
+          ? [
+              nextModel({
+                ...model,
+                findingsList: FailedFindings.make({ reason }),
+              }),
+              [],
+            ]
+          : [model, []],
+      ClickedPromoteFinding: ({ findingId }) =>
+        Option.match(
+          Array.findFirst(
+            findingsOnPage(model),
+            finding => finding.findingId === findingId,
+          ),
+          {
+            onNone: () => [model, []],
+            onSome: finding =>
+              withNavigation(
+                nextModel({
+                  ...model,
+                  draft: draftOfFinding(
+                    finding,
+                    issuesByIdIn(model),
+                    model.draft,
+                  ),
+                  draftState: EditingIssueDraft.make({}),
+                  maybeDraftFindingId: Option.some(findingId),
+                }),
+                FileIssue.make({}),
+              ),
+          },
+        ),
+      SucceededMarkFindingPromoted: () => [model, []],
+      FailedMarkFindingPromoted: ({ findingId, issueId, reason }) => [
+        nextModel({
+          ...model,
+          issueMutation: FailedIssueMutation.make({
+            reason: `#${issueId} is filed, and finding ${findingId} still says open: ${reason}`,
+          }),
+        }),
+        [],
+      ],
+      ClickedOpenInbox: () => withNavigation(model, Inbox.make({})),
+      SelectedInboxKind: ({ kind }) => [
+        nextModel({ ...model, navigation: Inbox.make({ kind }) }),
+        [],
+      ],
       UpdatedSearchQuery: ({ query }) =>
         model.navigation._tag === 'IssueList'
           ? [
@@ -2215,10 +2869,173 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                   })
                 : model.layer,
             maybeRowCursor,
+            maybeSelectionRun: Option.none(),
           }),
           [],
         ]
       },
+      MovedCursorAcross: ({ direction }) =>
+        Option.match(cardAcross(model, direction), {
+          onNone: () => [model, []],
+          onSome: issueId => [
+            nextModel({
+              ...model,
+              maybeRowCursor: Option.some(issueId),
+              maybeSelectionRun: Option.none(),
+            }),
+            [],
+          ],
+        }),
+      MovedCardAcross: ({ direction }) =>
+        Option.match(changeAcross(model, direction), {
+          onNone: () => [model, []],
+          onSome: change =>
+            appliedRowChange(model, issuesInHandOf(model), change),
+        }),
+      DroppedCard: ({ column, issueId }) =>
+        Option.match(columnChangeOf(model, column), {
+          onNone: () => [model, []],
+          onSome: change =>
+            appliedRowChange(
+              nextModel({ ...model, maybeRowCursor: Option.some(issueId) }),
+              selectedSetOf(model).has(issueId)
+                ? Array.map(selectedRowsOf(model), issue => issue.id)
+                : [issueId],
+              change,
+            ),
+        }),
+      ObservedSavedViews: ({ views }) => [
+        nextModel({ ...model, savedViews: LoadedSavedViews.make({ views }) }),
+        [],
+      ],
+      FailedObserveSavedViews: ({ reason }) => [
+        nextModel({ ...model, savedViews: FailedSavedViews.make({ reason }) }),
+        [],
+      ],
+      ClickedSaveView: () => [
+        nextModel({
+          ...model,
+          isGoKeyPending: false,
+          isSearchFocused: false,
+          layer: NamingViewLayer.make({ maybeViewId: Option.none(), name: '' }),
+        }),
+        [],
+      ],
+      ClickedRenameView: ({ viewId }) =>
+        Option.match(savedViewById(model, viewId), {
+          onNone: () => [model, []],
+          onSome: view => [
+            nextModel({
+              ...model,
+              layer: NamingViewLayer.make({
+                maybeViewId: Option.some(viewId),
+                name: view.name,
+              }),
+            }),
+            [],
+          ],
+        }),
+      UpdatedViewName: ({ name }) =>
+        model.layer._tag === 'NamingViewLayer'
+          ? [
+              nextModel({
+                ...model,
+                layer: NamingViewLayer.make({ ...model.layer, name }),
+              }),
+              [],
+            ]
+          : [model, []],
+      SubmittedViewName: () => submittedViewName(model),
+      ClickedUpdateView: ({ viewId }) =>
+        Option.match(savedViewById(model, viewId), {
+          onNone: () => [model, []],
+          onSome: view =>
+            model.navigation._tag === 'IssueList'
+              ? [
+                  nextModel({ ...model, layer: NoLayer.make({}) }),
+                  [
+                    UpdateIssueView({
+                      view: SavedView.make({
+                        ...view,
+                        query: searchOfView(model.navigation.view),
+                      }),
+                    }),
+                  ],
+                ]
+              : [model, []],
+        }),
+      ClickedMoveView: ({ direction, viewId }) =>
+        Option.match(
+          Option.zipWith(
+            savedViewById(model, viewId),
+            positionMovedTo(savedViewsOf(model), viewId, direction),
+            (view, position) => SavedView.make({ ...view, position }),
+          ),
+          {
+            onNone: () => [model, []],
+            onSome: view => [model, [UpdateIssueView({ view })]],
+          },
+        ),
+      ClickedDeleteView: ({ viewId }) => [model, [DeleteIssueView({ viewId })]],
+      SucceededSaveIssueView: () => [
+        nextModel({ ...model, maybeViewFailure: Option.none() }),
+        [],
+      ],
+      FailedSaveIssueView: ({ name, reason }) => [
+        nextModel({
+          ...model,
+          maybeViewFailure: Option.some(`Not saved: view ${name}: ${reason}`),
+        }),
+        [],
+      ],
+      SucceededDeleteIssueView: () => [
+        nextModel({ ...model, maybeViewFailure: Option.none() }),
+        [],
+      ],
+      FailedDeleteIssueView: ({ reason }) => [
+        nextModel({
+          ...model,
+          maybeViewFailure: Option.some(`Not deleted: ${reason}`),
+        }),
+        [],
+      ],
+      DismissedViewFailure: () => [
+        nextModel({ ...model, maybeViewFailure: Option.none() }),
+        [],
+      ],
+      ClearedRowCursor: () => [
+        nextModel({
+          ...model,
+          maybeRowCursor: Option.none(),
+          maybeSelectionRun: Option.none(),
+        }),
+        [],
+      ],
+      ToggledRowUnderCursor: () =>
+        Option.match(issueUnderCursorOf(model), {
+          onNone: () => [model, []],
+          onSome: issue => [selectionToggled(model, issue.id), []],
+        }),
+      ToggledRowSelection: ({ issueId }) => [
+        selectionToggled(model, issueId),
+        [],
+      ],
+      ExtendedRowSelection: ({ direction }) => [
+        selectionExtendedBy(model, direction),
+        [],
+      ],
+      ExtendedRowSelectionTo: ({ issueId }) => [
+        selectionExtendedTo(model, issueId),
+        [],
+      ],
+      ClearedRowSelection: () => [
+        nextModel({
+          ...model,
+          maybeSelectionRun: Option.none(),
+          selectedIssueIds: [],
+        }),
+        [],
+      ],
       PeekedRowUnderCursor: () =>
         Option.match(issueUnderCursorOf(model), {
           onNone: () => [model, []],
@@ -2255,8 +3072,66 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ...model,
           isGoKeyPending: false,
           isSearchFocused: false,
-          layer: ChoiceLayer.make({ menu, position: 0, query: '' }),
+          layer: ChoiceLayer.make({
+            maybePeekedIssueId:
+              model.layer._tag === 'PeekLayer'
+                ? Option.some(model.layer.issueId)
+                : Option.none(),
+            menu,
+            position: 0,
+            query: '',
+          }),
         }),
+        [],
+      ],
+      OpenedRowField: ({ issueId, menu }) => [
+        nextModel({
+          ...model,
+          isGoKeyPending: false,
+          isSearchFocused: false,
+          layer: ChoiceLayer.make({
+            maybeRowIssueId: selectedSetOf(model).has(issueId)
+              ? Option.none()
+              : Option.some(issueId),
+            menu,
+            position: 0,
+            query: '',
+          }),
+          maybeRowCursor: Option.some(issueId),
+          maybeSelectionRun: Option.none(),
+        }),
+        [],
+      ],
+      AppliedRowChange: ({ change }) =>
+        appliedRowChange(model, issuesInHandOf(model), change),
+      SucceededRowEdit: ({ issue }) =>
+        nextRowEdit(
+          nextModel({
+            ...model,
+            issueDetail:
+              model.navigation._tag === 'IssueDetail' &&
+              model.navigation.issueId === issue.id
+                ? LoadedIssue.make({
+                    issue: Option.some(issue),
+                    issueId: issue.id,
+                  })
+                : model.issueDetail,
+            issues: patchIssues(model.issues, issue),
+          }),
+        ),
+      FailedRowEditWrite: ({ reason }) =>
+        nextRowEdit(
+          nextModel({
+            ...model,
+            failedRowEdits: Option.match(Array.head(model.rowEdits), {
+              onNone: () => model.failedRowEdits,
+              onSome: edit =>
+                Array.append(model.failedRowEdits, { edit, reason }),
+            }),
+          }),
+        ),
+      DismissedFailedRowEdits: () => [
+        nextModel({ ...model, failedRowEdits: [] }),
         [],
       ],
       UpdatedMenuQuery: ({ query }) =>
@@ -2286,7 +3161,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ),
         ),
       DismissedLayer: () => [
-        nextModel({ ...model, layer: NoLayer.make({}) }),
+        nextModel({ ...model, layer: layerBelow(model) }),
         [],
       ],
       PressedGoKey: () => [nextModel({ ...model, isGoKeyPending: true }), []],
@@ -2333,7 +3208,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             [],
           ]
         }
-        return withNavigation(
+        const [opened, commands] = withNavigation(
           nextModel({
             ...model,
             draft:
@@ -2346,6 +3221,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           }),
           IssueDetail.make({ issueId: issue.id }),
         )
+        return [
+          opened,
+          [
+            ...commands,
+            ...Option.toArray(
+              Option.map(model.maybeDraftFindingId, findingId =>
+                MarkFindingPromoted({ findingId, issueId: issue.id }),
+              ),
+            ),
+          ],
+        ]
       },
       FailedSaveIssue: ({ reason }) =>
         model.navigation._tag === 'FileIssue'

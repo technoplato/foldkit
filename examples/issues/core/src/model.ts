@@ -15,10 +15,20 @@ import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { PageEntity } from './entityGraph.js'
+import {
+  AgentFinding,
+  AgentRunChip,
+  FeatureChip,
+  FeatureLine,
+  IssueGraph,
+} from './graphFacts.js'
+import { InboxFilter } from './inbox.js'
 import { IssueFileAddress } from './issueFiles.js'
 import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
 import { IssueView, defaultIssueView } from './issueView.js'
+import { SavedView } from './issueViews.js'
 import { AllProducts, LeftoverKind, ProductFilter } from './leftover.js'
+import { FailedRowEdit, RowEdit } from './rowEdit.js'
 
 /** The live collection has not emitted its first snapshot. */
 export const LoadingIssues = S.TaggedStruct('LoadingIssues', {})
@@ -185,6 +195,30 @@ export const IssueLandingObservation = S.Union([
 /** Every state of reading where the open Issue landed. */
 export type IssueLandingObservation = typeof IssueLandingObservation.Type
 
+/** No Issue is open, so nothing around one is read. */
+export const NotObservingIssueGraph = S.TaggedStruct(
+  'NotObservingIssueGraph',
+  {},
+)
+/** The features and findings around the open Issue, from Scribe's rows. */
+export const LoadedIssueGraph = S.TaggedStruct('LoadedIssueGraph', {
+  graph: IssueGraph,
+  issueId: S.String,
+})
+/** Scribe's rows could not be read, and the Issue page says why. */
+export const FailedIssueGraph = S.TaggedStruct('FailedIssueGraph', {
+  issueId: S.String,
+  reason: S.String,
+})
+/** Every state of reading what stands around the open Issue. */
+export const IssueGraphObservation = S.Union([
+  NotObservingIssueGraph,
+  LoadedIssueGraph,
+  FailedIssueGraph,
+])
+/** Every state of reading what stands around the open Issue. */
+export type IssueGraphObservation = typeof IssueGraphObservation.Type
+
 /** No build or commit page is open, or the host has no graph. */
 export const NotObservingPageFacts = S.TaggedStruct('NotObservingPageFacts', {})
 /** What Scribe's rows say about the entity on the page. */
@@ -205,6 +239,62 @@ export const PageFactsObservation = S.Union([
 ])
 /** Every state of reading what Scribe's rows say about the entity on the page. */
 export type PageFactsObservation = typeof PageFactsObservation.Type
+
+/** No findings page is open, so no finding is read. */
+export const NotObservingFindings = S.TaggedStruct('NotObservingFindings', {})
+/** Every finding, from Scribe's rows, the newest first. */
+export const LoadedFindings = S.TaggedStruct('LoadedFindings', {
+  findings: S.Array(AgentFinding),
+})
+/** Scribe's rows could not be read, and the page says why. */
+export const FailedFindings = S.TaggedStruct('FailedFindings', {
+  reason: S.String,
+})
+/** Every state of reading what agents reported. */
+export const FindingsObservation = S.Union([
+  NotObservingFindings,
+  LoadedFindings,
+  FailedFindings,
+])
+/** Every state of reading what agents reported. */
+export type FindingsObservation = typeof FindingsObservation.Type
+
+/** No features page is open, so no line is read. */
+export const NotObservingFeatures = S.TaggedStruct('NotObservingFeatures', {})
+/** Every line of the feature contracts, from Scribe's rows, in his order. */
+export const LoadedFeatures = S.TaggedStruct('LoadedFeatures', {
+  features: S.Array(FeatureLine),
+})
+/** Scribe's rows could not be read, and the page says why. */
+export const FailedFeatures = S.TaggedStruct('FailedFeatures', {
+  reason: S.String,
+})
+/** Every state of reading the feature contracts. */
+export const FeaturesObservation = S.Union([
+  NotObservingFeatures,
+  LoadedFeatures,
+  FailedFeatures,
+])
+/** Every state of reading the feature contracts. */
+export type FeaturesObservation = typeof FeaturesObservation.Type
+
+/**
+ * Which findings `/findings` shows: `{ maybeKind: Option.some('mistake') }` is
+ * `/findings?kind=mistake`. Nothing chosen shows every one.
+ */
+export const FindingFilter = S.Struct({
+  maybeKind: S.Option(S.String),
+  maybeSource: S.Option(S.String),
+  maybeStatus: S.Option(S.String),
+})
+/** Which findings `/findings` shows. */
+export type FindingFilter = typeof FindingFilter.Type
+
+const everyFinding: FindingFilter = {
+  maybeKind: Option.none(),
+  maybeSource: Option.none(),
+  maybeStatus: Option.none(),
+}
 
 const ListedView = IssueView.pipe(
   S.withDecodingDefaultKey(Effect.succeed(defaultIssueView)),
@@ -236,11 +326,34 @@ export const Backlog = S.TaggedStruct('Backlog', {
 /** How long asks take: each step's median and its slowest asks. */
 export const AskFlow = S.TaggedStruct('AskFlow', {})
 /**
+ * What happened to the Issues, newest first: `/inbox`, or one kind of it,
+ * `/inbox?kind=status`.
+ */
+export const Inbox = S.TaggedStruct('Inbox', {
+  kind: InboxFilter.pipe(
+    S.withConstructorDefault(Effect.succeed('All' as const)),
+  ),
+})
+/**
  * One entity's page, listing every Issue that points at it: Recording 208,
  * the agent `claude-code/issues-linear-1538@ld`, commit `6ff20758d`, build
  * 218, or the product Scribe.
  */
 export const EntityPage = S.TaggedStruct('EntityPage', { entity: PageEntity })
+/**
+ * What agents reported running into, counted, each one reachable:
+ * `Findings.make({})` is every finding at `/findings`.
+ */
+export const Findings = S.TaggedStruct('Findings', {
+  filter: FindingFilter.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(everyFinding)),
+    S.withConstructorDefault(Effect.succeed(everyFinding)),
+  ),
+})
+/** Every line of the products' feature contracts, at `/features`. */
+export const Features = S.TaggedStruct('Features', {})
+/** Every product in the catalog, at `/products`. */
+export const Products = S.TaggedStruct('Products', {})
 /** Every representable navigation destination. */
 export const Navigation = S.Union([
   IssueList,
@@ -249,7 +362,11 @@ export const Navigation = S.Union([
   TriageInbox,
   Backlog,
   AskFlow,
+  Inbox,
   EntityPage,
+  Findings,
+  Features,
+  Products,
 ])
 /** Every representable navigation destination. */
 export type Navigation = typeof Navigation.Type
@@ -258,7 +375,8 @@ export type Navigation = typeof Navigation.Type
 export const NoLayer = S.TaggedStruct('NoLayer', {})
 /**
  * Which rows a layer of choices lists: `Everything` is the command palette,
- * every action and place, and the rest are one filter's or order's choices.
+ * every action and place, the filter and order ones hold one filter's or
+ * order's choices, and the `Set` ones change the Issues in hand.
  */
 export const ChoiceMenu = S.Literals([
   'Everything',
@@ -268,23 +386,49 @@ export const ChoiceMenu = S.Literals([
   'ClaimantFilter',
   'Sort',
   'Group',
+  'SetStatus',
+  'SetPriority',
+  'SetClaim',
+  'SetProduct',
+  'SavedViews',
 ])
 /** Which rows a layer of choices lists. */
 export type ChoiceMenu = typeof ChoiceMenu.Type
 
 /**
  * Choices show above the page: which ones, what is typed into their field,
- * and the position of the row the mark is on.
+ * and the position of the row the mark is on. Opened over a peek, they name
+ * the Issue it shows and return to it. Opened from a field on a row, they
+ * name that row's Issue, which is what they change.
  */
 export const ChoiceLayer = S.TaggedStruct('ChoiceLayer', {
+  maybePeekedIssueId: S.Option(S.String).pipe(
+    S.withConstructorDefault(Effect.succeed(Option.none())),
+  ),
+  maybeRowIssueId: S.Option(S.String).pipe(
+    S.withConstructorDefault(Effect.succeed(Option.none())),
+  ),
   menu: ChoiceMenu,
   position: S.Number,
   query: S.String,
 })
 /** One Issue shows in a side panel above the list, which keeps its place. */
 export const PeekLayer = S.TaggedStruct('PeekLayer', { issueId: S.String })
+/**
+ * A person names a view: a new one of what the list shows, or the saved one
+ * `maybeViewId` names. `name` is what they typed so far.
+ */
+export const NamingViewLayer = S.TaggedStruct('NamingViewLayer', {
+  maybeViewId: S.Option(S.String),
+  name: S.String,
+})
 /** What shows above the page. */
-export const ScreenLayer = S.Union([NoLayer, ChoiceLayer, PeekLayer])
+export const ScreenLayer = S.Union([
+  NoLayer,
+  ChoiceLayer,
+  PeekLayer,
+  NamingViewLayer,
+])
 /** What shows above the page. */
 export type ScreenLayer = typeof ScreenLayer.Type
 
@@ -510,6 +654,37 @@ export const LeftoverPresenceState = S.Union([
 /** Every leftover presence observation state. */
 export type LeftoverPresenceState = typeof LeftoverPresenceState.Type
 
+/** Saved views have not emitted their first snapshot. */
+export const LoadingSavedViews = S.TaggedStruct('LoadingSavedViews', {})
+/** A person's saved views, in their order. */
+export const LoadedSavedViews = S.TaggedStruct('LoadedSavedViews', {
+  views: S.Array(SavedView),
+})
+/** Saved views could not be read, and the list says why. */
+export const FailedSavedViews = S.TaggedStruct('FailedSavedViews', {
+  reason: S.String,
+})
+/** Every state of reading a person's saved views. */
+export const SavedViewsState = S.Union([
+  LoadingSavedViews,
+  LoadedSavedViews,
+  FailedSavedViews,
+])
+/** Every state of reading a person's saved views. */
+export type SavedViewsState = typeof SavedViewsState.Type
+
+/**
+ * A run of rows Shift is extending: the row it started from, and what was
+ * selected before it. `{ anchorId: '103', chosenBefore: ['101'] }` with the
+ * cursor on 105 selects 101, 103, 104 and 105.
+ */
+export const SelectionRun = S.Struct({
+  anchorId: S.String,
+  chosenBefore: S.Array(S.String),
+})
+/** A run of rows Shift is extending. */
+export type SelectionRun = typeof SelectionRun.Type
+
 /**
  * The reader's clock, read once a minute: the time and the offset of their
  * time zone from UTC in minutes, -300 on Eastern Standard Time. `nowMs` is 0
@@ -525,25 +700,37 @@ export const Model = S.Struct({
   clock: Clock,
   draft: IssueDraft,
   draftState: IssueDraftState,
+  failedRowEdits: S.Array(FailedRowEdit),
+  featuresList: FeaturesObservation,
+  findingsList: FindingsObservation,
   issueDetail: IssueDetailState,
   issueFiles: IssueFilesState,
+  issueGraph: IssueGraphObservation,
   issueLanding: IssueLandingObservation,
   issueLogs: IssueLogsState,
   issueMutation: IssueMutationState,
   isGoKeyPending: S.Boolean,
   isSearchFocused: S.Boolean,
   issues: IssuesState,
+  knownAgents: S.Array(AgentRunChip),
   knownBuilds: S.Array(LandedBuild),
+  knownFeatures: S.Array(FeatureChip),
   layer: ScreenLayer,
   leftoverComment: S.String,
   leftoverLink: S.String,
   leftoverPresence: LeftoverPresenceState,
+  maybeDraftFindingId: S.Option(S.String),
   maybeRowCursor: S.Option(S.String),
+  maybeSelectionRun: S.Option(SelectionRun),
+  maybeViewFailure: S.Option(S.String),
   navigation: Navigation,
   pageFacts: PageFactsObservation,
   productAddition: ProductAdditionState,
   products: ProductsState,
   returnListView: IssueView,
+  rowEdits: S.Array(RowEdit),
+  savedViews: SavedViewsState,
+  selectedIssueIds: S.Array(S.String),
   triageCandidates: TriageCandidatesState,
 })
 /** The shared renderer-independent Issue Tracker Model. */

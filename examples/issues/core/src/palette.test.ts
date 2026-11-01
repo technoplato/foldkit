@@ -236,7 +236,7 @@ describe('Issue Tracker command palette', () => {
       token =>
         !token.startsWith('open:') &&
         !token.startsWith('menu:') &&
-        !Array.contains(['triage', 'backlog'], token),
+        !Array.contains(['triage', 'backlog', 'inbox'], token),
     )
     expect(offered).toEqual(expect.arrayContaining(pageTokens))
     expect(Array.filter(offered, token => token.startsWith('open:'))).toEqual(
@@ -273,7 +273,7 @@ describe('Issue Tracker command palette', () => {
   })
 
   it('stops the mark at each end of the list', () => {
-    const palette = typed(opened(list()), 'gtb')
+    const palette = typed(opened(list()), 'gtbac')
     expect(markedTitleOf(pressed(palette, on('ArrowDown', FIELD)))).toEqual(
       Option.some('Go to backlog'),
     )

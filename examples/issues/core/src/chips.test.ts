@@ -184,8 +184,10 @@ describe('a build or commit chip, from Scribe’s rows', () => {
     subject: 'Merge mic-bleed into main (#625)',
   })
   const context = chipContextOf([], NOW_MS, EASTERN_OFFSET_MINUTES, {
+    agents: [],
     builds: [build217],
     commits: [commit],
+    features: [],
   })
   const chipsOf = (text: string): ReadonlyArray<ReferencePart> =>
     Array.filter(

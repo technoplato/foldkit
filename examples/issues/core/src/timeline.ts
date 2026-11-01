@@ -183,18 +183,9 @@ const foundStep = (
   }
 }
 
-/**
- * The steps an Issue went through, read from his mentions and its work log
- * at read time, each with how long it took after the step before it: asked
- * in Recording 326, filed 3 min later, claimed 1 min later, red 1 h later,
- * green, merged on main, built, on TestFlight, verified. The build and
- * TestFlight steps read `landing`, Scribe's rows, when it has them. A step
- * nothing records is left out; a step recorded before the one before it
- * shows no time.
- */
-export const timelineOf = (
+const stepsOfIssue = (
   issue: Issue,
-  landing: IssueLanding = noLanding,
+  landing: IssueLanding,
 ): ReadonlyArray<TimelineStep> => {
   const entries = Array.sort(issue.workLog, oldestFirst)
   const found = Array.getSomes(
@@ -221,6 +212,36 @@ export const timelineOf = (
       ),
     }
   })
+}
+
+type KeptTimeline = Readonly<{
+  landing: IssueLanding
+  steps: ReadonlyArray<TimelineStep>
+}>
+
+const keptTimelines = new WeakMap<Issue, KeptTimeline>()
+
+/**
+ * The steps an Issue went through, read from his mentions and its work log
+ * at read time, each with how long it took after the step before it: asked
+ * in Recording 326, filed 3 min later, claimed 1 min later, red 1 h later,
+ * green, merged on main, built, on TestFlight, verified. The build and
+ * TestFlight steps read `landing`, Scribe's rows, when it has them. A step
+ * nothing records is left out; a step recorded before the one before it
+ * shows no time.
+ */
+export const timelineOf = (
+  issue: Issue,
+  landing: IssueLanding = noLanding,
+): ReadonlyArray<TimelineStep> => {
+  const kept = keptTimelines.get(issue)
+  if (kept !== undefined && kept.landing === landing) {
+    return kept.steps
+  } else {
+    const steps = stepsOfIssue(issue, landing)
+    keptTimelines.set(issue, { landing, steps })
+    return steps
+  }
 }
 
 /** A step as a person reads it: `OnTestFlight` is `On TestFlight`. */

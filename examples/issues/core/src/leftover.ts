@@ -103,11 +103,9 @@ const catalogIssueId = (reference: {
     ? Option.some(reference.id)
     : Option.none()
 
-/**
- * Issue numbers linked from this Issue: its `relatedIssueIds` first, then
- * CatalogIssueReference values in its Mentions.
- */
-export const catalogIssueIds = (issue: Issue): ReadonlyArray<string> => {
+const linkedIdsByIssue = new WeakMap<Issue, ReadonlyArray<string>>()
+
+const linkedIdsOf = (issue: Issue): ReadonlyArray<string> => {
   const ids: Array<string> = []
   const seen = new Set<string>()
   const remember = (id: string) => {
@@ -133,6 +131,58 @@ export const catalogIssueIds = (issue: Issue): ReadonlyArray<string> => {
   }
   return ids
 }
+
+/**
+ * Issue numbers linked from this Issue: its `relatedIssueIds` first, then
+ * CatalogIssueReference values in its Mentions. Read once per Issue object, so
+ * a live change reads only the Issue that changed.
+ */
+export const catalogIssueIds = (issue: Issue): ReadonlyArray<string> =>
+  Option.getOrElse(Option.fromUndefinedOr(linkedIdsByIssue.get(issue)), () => {
+    const ids = linkedIdsOf(issue)
+    linkedIdsByIssue.set(issue, ids)
+    return ids
+  })
+
+const linkersBySnapshot = new WeakMap<
+  ReadonlyArray<Issue>,
+  ReadonlyMap<string, ReadonlyArray<string>>
+>()
+
+const linkersOf = (
+  issues: ReadonlyArray<Issue>,
+): ReadonlyMap<string, ReadonlyArray<string>> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(linkersBySnapshot.get(issues)),
+    () => {
+      const linkers = new Map<string, Array<string>>()
+      Array.forEach(issues, issue => {
+        Array.forEach(catalogIssueIds(issue), linkedId => {
+          const known = linkers.get(linkedId)
+          if (known === undefined) {
+            linkers.set(linkedId, [issue.id])
+          } else {
+            known.push(issue.id)
+          }
+        })
+      })
+      linkersBySnapshot.set(issues, linkers)
+      return linkers
+    },
+  )
+
+/**
+ * The Issues that link to this one, though it stores no link back: #174's
+ * page lists #1538 because #1538 names #174. Read once per snapshot.
+ */
+export const issuesLinkingTo = (
+  issues: ReadonlyArray<Issue>,
+  issueId: string,
+): ReadonlyArray<string> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(linkersOf(issues).get(issueId)),
+    () => [],
+  )
 
 /** True when a CatalogIssueReference for targetId is already present. */
 export const hasCatalogIssueLink = (issue: Issue, targetId: string): boolean =>
