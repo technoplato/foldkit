@@ -160,6 +160,20 @@ const SolanaSubscriptionFailure = S.Union([
   S.Struct({ params: S.Struct({ error: SolanaSocketError }) }),
 ])
 
+// NOTE: Solana's public endpoints close a socket after exactly 60 quiet
+// seconds, and publicnode ends a subscription on an open socket. A message
+// every 20 seconds keeps the first open, and any answer to it, even "Method
+// not found", proves the socket still hears; no answer means reconnect.
+const keepAliveEveryMilliseconds = 20_000
+const keepAliveAnswerMilliseconds = 5_000
+const keepAliveRequestId = 2
+const keepAliveMessage = JSON.stringify({
+  jsonrpc: '2.0',
+  id: keepAliveRequestId,
+  method: 'ping',
+})
+const SolanaKeepAliveAnswer = S.Struct({ id: S.Literal(keepAliveRequestId) })
+
 const quoteLifetimeMilliseconds = 60_000
 const maximumObservedSignatures = 1_024
 const maximumConcurrentHistoryLoads = 8
@@ -756,6 +770,8 @@ export const makeSolanaLiveAdapter = (
         Effect.sync(() => {
           const socket = new WebSocket(configuration.webSocketRpcUrl)
           const observedSignatures = new Set<string>()
+          let keepAliveTimer: ReturnType<typeof setInterval> | undefined
+          let answerDeadline: ReturnType<typeof setTimeout> | undefined
           socket.addEventListener('open', () => {
             socket.send(
               JSON.stringify({
@@ -768,10 +784,20 @@ export const makeSolanaLiveAdapter = (
                 ],
               }),
             )
+            keepAliveTimer = setInterval(() => {
+              socket.send(keepAliveMessage)
+              answerDeadline = setTimeout(() => {
+                Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+              }, keepAliveAnswerMilliseconds)
+            }, keepAliveEveryMilliseconds)
           })
           socket.addEventListener('message', event => {
             try {
               const message: unknown = JSON.parse(String(event.data))
+              if (S.is(SolanaKeepAliveAnswer)(message)) {
+                clearTimeout(answerDeadline)
+                return
+              }
               if (S.is(SolanaSubscriptionFailure)(message)) {
                 Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
                 return
@@ -820,9 +846,13 @@ export const makeSolanaLiveAdapter = (
           socket.addEventListener('close', () => {
             Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
           })
-          return socket
+          return () => {
+            clearInterval(keepAliveTimer)
+            clearTimeout(answerDeadline)
+            socket.close()
+          }
         }),
-        socket => Effect.sync(() => socket.close()),
+        closeSocket => Effect.sync(closeSocket),
       ).pipe(Effect.flatMap(() => Effect.never)),
     ),
   requestTestFunding: (account, request) => {
