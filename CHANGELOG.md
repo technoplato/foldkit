@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 4:26:48 p.m. EST — `534a238ac9c2` fix(issues): two writers on one Issue keep both entries
+
+- **Implementation commit:** `534a238ac9c2851edbbabf08e42738194a5ac9db`
+- **Change:** Two writers on one Issue keep both entries: an Issue write names the read it was based on, and a stale or overwritten write is applied again.
+- **Details:**
+  - The tracker's rule refuses an Issue write whose read went stale; the writer reads again from the server and reapplies, up to 12 times with jitter.
+  - A write waits 300 ms and reads again, because Instant judges rules without a lock and two overlapping transactions both pass.
+  - updatedAtMs moves past the stored value on every write; a refused current read or a write only queued offline fails naming the Issue.
+  - Two entries logged in one millisecond no longer share an id.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — The compare-and-set write, its settle read, and the server read before it.
+  - `packages/instant-tools/src/instant/perms.ts` — The isCurrent rule on Issue updates.
+  - `examples/issues/cli/src/resources.ts` — The CLI writes as the owner the environment names, so the rule runs.
+  - `examples/issues/core/src/update.ts` — An entry is found by what it says and takes the next free id.
+- **User context (verbatim):**
+  > Never lose a work log, quote or link.
+  > Think about how to clean up issues data model
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
 ## November 1st, 2026 at 3:52:22 p.m. EST — `d30b22201f5a` feat(issues): Recordings list their Issues; decisions, questions, reminders
 
 - **Implementation commit:** `d30b22201f5acae2c929842bca25bb012afca8f9`
