@@ -27,6 +27,14 @@
           {
             "/": "/account",
             "comment": "The Account screen, where the iPhone signs in so web Scribe can use the same account"
+          },
+          {
+            "/": "/playground",
+            "comment": "The Playground's sessions"
+          },
+          {
+            "/": "/playground/*",
+            "comment": "A Playground session, design, variant or attempt"
           }
         ]
       }
