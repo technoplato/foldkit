@@ -47,7 +47,6 @@ import {
   FoundBuildJobs,
   UnavailableBuildJobs,
 } from './builds.js'
-import { noLandingReader } from './landing.js'
 import {
   type AddProductInput,
   type FileInput,
@@ -84,6 +83,7 @@ import {
   workInProgressCommand,
   workingSyncCommand,
 } from './commands.js'
+import { noLandingReader } from './landing.js'
 import { memoryIssueRecords } from './resources.js'
 
 const product = ApplicationProduct.make({ id: 'scribe', name: 'Scribe' })
@@ -327,7 +327,7 @@ describe('issues command', () => {
           issueId: '692',
           related: [
             UriReference.make({
-              value: `https://words.pisspoursoftware.xyz/recording/${recordingId}/section/segment-1884?t=10130.35`,
+              value: `https://og.pisspoursoftware.xyz/recording/${recordingId}/section/segment-1884?t=10130.35`,
             }),
           ],
           reporter: Option.none(),
@@ -546,11 +546,11 @@ describe('issues command', () => {
       related: [
         {
           _tag: 'Uri',
-          value: `https://words.pisspoursoftware.xyz/recording/${recordingId}/section/segment-1884?t=10130.35`,
+          value: `https://og.pisspoursoftware.xyz/recording/${recordingId}/section/segment-1884?t=10130.35`,
         },
         {
           _tag: 'Uri',
-          value: `https://words.pisspoursoftware.xyz/recording/${recordingId}/section/segment-1885?t=10139.11`,
+          value: `https://og.pisspoursoftware.xyz/recording/${recordingId}/section/segment-1885?t=10139.11`,
         },
       ],
       source: {

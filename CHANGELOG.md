@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 2nd, 2026 at 5:37:15 a.m. EST — `f1d09d48c7da` fix(issues): green: a quoted line's link goes out on og
+
+- **Implementation commit:** `f1d09d48c7dae650768e110d990ac5eb1c3fbff5`
+- **Change:** A quoted line's link goes out on og
+- **Details:**
+  - lineDeepLink builds a line's link on og.pisspoursoftware.xyz at the words page's own path, so a line quoted into an Issue previews outside Cloudflare Access with no word of the line and leads to the same page, where Access still decides. It waited for the Scribe build that opens og links inside the app (224), which is now installed.
+- **Files:**
+  - `examples/issues/cli/src/mentions.ts` — a quoted line's link is built on og
+- **User context (verbatim):**
+  > Michael, typed 2026-11-01: "Then make sure all deep links securely go through it so we can get rich previews outside our protected realm"
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (og-flip-1530); no SpecStory capture exists for headless runs.
+
 ## November 1st, 2026 at 6:19:19 p.m. EST — `e493ad7b92a7` fix(issues): a link to a number the catalog lacks is still written; README
 
 - **Implementation commit:** `e493ad7b92a704822a36b8a3a125177f7207df3d`
