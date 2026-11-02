@@ -324,6 +324,15 @@ const layoutNode = (
         children: [],
       }),
       Row: row => {
+        if (row.isBoard === true) {
+          return layoutNode(
+            Column({ gap: row.gap }, ...row.children),
+            x,
+            y,
+            availableW,
+            ids,
+          )
+        }
         const laid = Array.reduce(
           row.children,
           {

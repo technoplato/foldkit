@@ -585,6 +585,46 @@ export const issueGroupsOf = (
     M.exhaustive,
   )
 
+const everyColumnIn = (
+  groups: Map<string, ReadonlyArray<Issue>>,
+  names: ReadonlyArray<string>,
+): ReadonlyArray<IssueGroup> =>
+  Array.map(names, name => ({
+    issues: Option.getOrElse(
+      Option.fromUndefinedOr(groups.get(name)),
+      () => [],
+    ),
+    name,
+  }))
+
+/**
+ * The columns of a board, one for each name of the field a view groups by:
+ * every status in the order work moves when it groups by status or by
+ * nothing, every priority, or each product and claimant that holds an Issue.
+ * A status or priority without Issues keeps its column, so a card can move
+ * there.
+ */
+export const issueColumnsOf = (
+  issues: ReadonlyArray<Issue>,
+  grouping: IssueGrouping,
+): ReadonlyArray<IssueGroup> =>
+  M.value(grouping).pipe(
+    M.withReturnType<ReadonlyArray<IssueGroup>>(),
+    M.whenOr('None', 'Status', () =>
+      everyColumnIn(
+        groupsByName(issues, issue => issue.status),
+        STATUS_WORKFLOW,
+      ),
+    ),
+    M.when('Priority', () =>
+      everyColumnIn(
+        groupsByName(issues, issue => issue.priority),
+        IssuePriority.literals,
+      ),
+    ),
+    M.orElse(() => issueGroupsOf(issues, grouping)),
+  )
+
 // LISTING
 
 const LISTINGS_KEPT_PER_SNAPSHOT = 8

@@ -4,6 +4,7 @@ import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'
 import react from '@vitejs/plugin-react'
 
 import { siteSourceHeader } from '../../site-source-header'
+import { productsMapRoute } from './productsMapRoute'
 
 export default defineConfig({
   plugins: [
@@ -16,6 +17,7 @@ export default defineConfig({
         adminTokenEnv: 'SCRIBE_MAIN_INSTANT_ADMIN_TOKEN',
       },
     }),
+    productsMapRoute(),
     siteSourceHeader(),
   ],
 })

@@ -4,6 +4,158 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 1st, 2026 at 6:19:19 p.m. EST — `e493ad7b92a7` fix(issues): a link to a number the catalog lacks is still written; README
+
+- **Implementation commit:** `e493ad7b92a704822a36b8a3a125177f7207df3d`
+- **Change:** A link to a number the catalog lacks is still written, and the issues README says what the site does now.
+- **Details:**
+  - The link check refuses only words and the Issue itself.
+  - The README lists the site's views, every key, how writes name the read they were based on, and what it reads of Scribe's rows.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — The link check refuses words and the Issue itself, nothing more.
+  - `examples/issues/README.md` — Views, keys, writes and Scribe's rows on the issues site.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 6:13:25 p.m. EST — `847bd697d2c5` fix(issues): keys write where he is, small faults, the kept catalog, one row
+
+- **Implementation commit:** `847bd697d2c502d77a9c88ea34afa414d9706426`
+- **Change:** Keys write where he is, the review's small faults are fixed, the kept catalog cannot hide a change, and a live Recording's length restates one row.
+- **Details:**
+  - c opens the form with Title holding the keyboard; Enter and Cmd+Enter submit from the field written in.
+  - Links name Issues the catalog holds; Scribe sign-in is retried; a peek reads its landing and graph; Shift+L, inbox keys and shared FEATURES numbers behave.
+  - The kept catalog is read for two seconds at most, and a change it could not keep forces a full read.
+  - A Recording's row and its moments are two queries.
+- **Files:**
+  - `examples/issues/core/src/keys.ts` — Enter and Cmd+Enter submit from the writing field that holds the keyboard.
+  - `examples/issues/core/src/update.ts` — Link targets checked, cards moved with their selection, Esc back to the page an Issue was opened from.
+  - `examples/issues/react/src/scribeDatabase.ts` — A failed sign-in is forgotten and tried again.
+  - `examples/issues/react/src/issueCatalogCache.ts` — A failed write forgets the full-read mark.
+  - `examples/issues/core/src/issueLandings.ts` — A Recording's row and moments as two live queries.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 5:42:56 p.m. EST — `d8139f4437ed` fix(issues): live changes cost what changed; times, links and asks say true
+
+- **Implementation commit:** `d8139f4437edb473424541b7786b49060cbc68e4`
+- **Change:** Live changes cost what changed, and times, links and asks say what is true: lazy journal diffs, an incremental /asks, dates in their own day's offset, line lists that stay lines, and asks from the moment rows.
+- **Details:**
+  - foldkit: a transition's diff is worked out only when read, and a live replay snapshot no longer copies the journal; a filed Issue keeps 0.03 MB, was 20.8.
+  - /asks after a live change works out only the changed Issue.
+  - Times read in the offset their own day had; October no longer reads an hour early.
+  - Recording line lists and 'line #N' are never Issues; a shared Recording number is no id.
+  - Merged needs words that put work on main; Asked is the earliest mention up to filing; a seen line reads 'Heard in'.
+- **Files:**
+  - `packages/foldkit/src/runtime/programJournal.ts` — A transition's diff is worked out the first time something reads it.
+  - `packages/foldkit/src/runtime/replayController.ts` — A live snapshot reads the journal's length and the timeline, not a rebuilt tape.
+  - `examples/issues/core/src/askFlow.ts` — Each step's asks kept sorted across snapshots, changed one Issue at a time.
+  - `examples/issues/core/src/clock.ts` — A time in the offset its own day had in the reader's zone.
+  - `examples/issues/core/src/textReferences.ts` — Line lists after a Recording and 'line #N' read as lines.
+  - `examples/issues/core/src/timeline.ts` — Merged and Asked read only what the entries say.
+  - `examples/issues/core/src/issuePage.ts` — The Asked line follows the moment rows' kind.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Realtime means realtime I'm not batching or delaying. We fix issues at source
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 5:00:19 p.m. EST — `12daec739749` fix(issues): writes keep what they hold and land only on their own Issue
+
+- **Implementation commit:** `12daec7397496e697c45f010fff9ad4ddac616bf`
+- **Change:** Writes keep what they hold and land only on their own Issue: list items keep unmodeled keys, the list reads every Issue, a dialog holds the keyboard and its subject, a filing answers to its own save, and claims say who.
+- **Details:**
+  - Each criterion, mention and entry is written over the stored item with its id; all 1,572 stored Issues round-trip unchanged.
+  - A layer takes the keyboard and gives it back; a key the page takes moves the keyboard off a clicked button; a menu holds the Issues it named.
+  - The filing has its own results; Submit is disabled while filing; comment and link boxes keep their text until the write lands.
+  - A claim names who claimed it for whom and writes its status line; a change that changes nothing writes nothing.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — List items keep unmodeled keys; a change that changes nothing writes nothing.
+  - `examples/issues/core/src/issueQuery.ts` — The catalog query reads every Issue.
+  - `packages/react/src/paintReact/paintReact.tsx` — A layer takes the keyboard and gives it back; moveKeyboardOffControl.
+  - `examples/issues/react/src/issueKeys.ts` — A key the page takes moves the keyboard off a control.
+  - `examples/issues/core/src/update.ts` — The filing's own results, the Submit guard, boxes kept until success, claims and releases that say who.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Never lose a work log, quote or link.
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 4:26:48 p.m. EST — `534a238ac9c2` fix(issues): two writers on one Issue keep both entries
+
+- **Implementation commit:** `534a238ac9c2851edbbabf08e42738194a5ac9db`
+- **Change:** Two writers on one Issue keep both entries: an Issue write names the read it was based on, and a stale or overwritten write is applied again.
+- **Details:**
+  - The tracker's rule refuses an Issue write whose read went stale; the writer reads again from the server and reapplies, up to 12 times with jitter.
+  - A write waits 300 ms and reads again, because Instant judges rules without a lock and two overlapping transactions both pass.
+  - updatedAtMs moves past the stored value on every write; a refused current read or a write only queued offline fails naming the Issue.
+  - Two entries logged in one millisecond no longer share an id.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — The compare-and-set write, its settle read, and the server read before it.
+  - `packages/instant-tools/src/instant/perms.ts` — The isCurrent rule on Issue updates.
+  - `examples/issues/cli/src/resources.ts` — The CLI writes as the owner the environment names, so the rule runs.
+  - `examples/issues/core/src/update.ts` — An entry is found by what it says and takes the next free id.
+- **User context (verbatim):**
+  > Never lose a work log, quote or link.
+  > Think about how to clean up issues data model
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 3:52:22 p.m. EST — `d30b22201f5a` feat(issues): Recordings list their Issues; decisions, questions, reminders
+
+- **Implementation commit:** `d30b22201f5acae2c929842bca25bb012afca8f9`
+- **Change:** A Recording lists the Issues that came from it; decisions, questions and reminders are entities on the issues site.
+- **Details:**
+  - Recording and line pages read sourceMoments rows and tell came-from, also-came-up and mentions apart; a seen moment is never called his words.
+  - Decisions, questions and reminders have pages, chips and Issue page sections from Scribe's rows.
+  - Issue rows and board cards use content-visibility at 720 px and wider.
+- **Files:**
+  - `examples/issues/core/src/reminderPage.ts` — A reminder's page from Scribe's rows.
+  - `examples/issues/core/src/rowChips.ts` — Chips for decisions, questions and reminders in text.
+- **User context (verbatim):**
+  > I want the recordings to list the issues created from them
+- **SpecStory:** unavailable — Headless Claude Code run issues-linear-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 2:23:15 p.m. EST — `c6b36e818306` feat(issues): a board, saved views, inbox, fields and graph pages
+
+- **Implementation commit:** `c6b36e8183066021d3f35474841bf1f08a53416f`
+- **Change:** The issues site gains a board, saved views, an inbox, field menus and pages for agents, findings, features and products.
+- **Details:**
+  - Bulk selection writes one row at a time and a failed write names its row.
+  - Status, priority, claim and product change from the Issue header and each row; a status move from any client keeps a work-log entry.
+  - Agent runs, sessions, findings, features and products read Scribe's rows; products' surfaces and modules read the products map from the site's server.
+- **Files:**
+  - `examples/issues/core/src/rowEdit.ts` — One change to one Issue, shown at once and written in its turn.
+  - `examples/issues/core/src/rowSelection.ts` — Selection across rows, with Shift extending a run.
+  - `examples/issues/core/src/board.ts` — The board view by status or the set grouping.
+  - `examples/issues/core/src/inbox.ts` — Every status change, claim and mention, newest first, derived at read time.
+  - `examples/issues/core/src/graphRows.ts` — The service that reads Scribe's agent, finding, feature and product rows.
+  - `examples/issues/react/productsMapRoute.ts` — Serves the products map from git to the site's own page.
+  - `packages/foldkit/src/renderers/types.ts` — Board rows, draggable items and a list's drop action.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Entities should also be rich links to each other not just dumped on text
+- **SpecStory:** unavailable — Headless Claude Code run issues-linear-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 2:15:49 p.m. EST — `bc1bb195633e` fix(wallet): green: every failure on screen is in words
+
+- **Implementation commit:** `bc1bb195633ef05c47376194efda9d80ccafb0a2`
+- **Change:** Foldkit's example wallet composed into Brandon dot, audited for Mainnet, with chain listeners on the mini
+- **Details:**
+  - The wallet is a Submodel of Brandon dot: its update inside GotWalletMessage, its Subscriptions lifted, its view through h.submodel, and no wallet code of its own there. The wallet flag turns it on, and the origin enforces that.
+  - Keys stay in IndexedDB on each person's device, in a partition the origin names from the verified login. A Mainnet key is never a test network's key. The origin reads no request body on any path.
+  - Audit fixes, red then green: restore and refresh never sign, Confirm signs only what it shows, the signed Ethereum fee cannot pass the previewed one, a strict content security policy, a log that decodes only its own facts, and every failure on screen in words.
+  - Two modes, Devnet (Solana Devnet and Sepolia) and Mainnet, with a banner on every screen, a red Mainnet send, and balances read fresh on every switch.
+  - watch.ts listens to each public address over WebSockets, backfills on reconnect, and follows each row to Final. A reorg sends a row back to Pending, and a send that never landed fails in words: 3 minutes on Solana, an hour on Ethereum.
+  - A send shows Pending at broadcast through a bodyless PUT, then moves by itself. The full record of findings and proofs is Scribe's audits/2026-11-01-brandon-wallet-1534.md.
+- **Files:**
+  - `examples/wallet/core/src/presentation.ts` — every failure in words, and whether anything was sent
+  - `examples/wallet/foldkit/src/view.ts` — the screen reads those words, never an operation and a code
+- **User context (verbatim):**
+  > Give Brandon the wallet too and I want to be clear I want the foldkit example wallet added composed to Brandon dot
+  > Main net and deb net on both
+  > We also want the realtime syncing functionality for transactions sent pending received etc
+  > For realtime sync I also meant at the blockchain level through websocket listeners
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (brandon-wallet-1534); no SpecStory capture exists for headless runs.
+
 ## November 1st, 2026 at 12:52:50 p.m. EST — `21d9f1f0287a` fix(issues): green: an og link reads as its words or Issue link
 
 - **Implementation commit:** `21d9f1f0287a72d2e491506a29faeea892f710f3`

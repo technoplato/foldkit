@@ -7,6 +7,7 @@ import {
   type IconName,
   type ItemCheck,
   type ListItem,
+  type ListNode,
   type ReferencePart,
   type SeekNode,
   type TextEmbed,
@@ -22,6 +23,7 @@ import {
   submittedTagOf,
 } from 'foldkit/renderers'
 import {
+  type DragEvent,
   Fragment,
   type ReactElement,
   type ReactNode,
@@ -163,6 +165,8 @@ const Icon = ({ name }: Readonly<{ name: IconName }>): ReactElement => {
 
 const dockHeightProperty = '--fk-dock-height'
 
+const draggedRowType = 'application/x-fk-row'
+
 /**
  * A box pinned to the bottom of the screen. It keeps the page's bottom
  * padding at its own height, so nothing on the page is hidden under it.
@@ -195,6 +199,88 @@ const DockBox = ({
       {children}
     </div>
   )
+}
+
+const layerSurfaceClass = 'fk-layer-surface'
+
+const focusedElement = (): Option.Option<HTMLElement> =>
+  typeof document !== 'undefined' &&
+  document.activeElement instanceof HTMLElement
+    ? Option.some(document.activeElement)
+    : Option.none()
+
+const isKeyboardOnPage = (): boolean =>
+  document.activeElement === null || document.activeElement === document.body
+
+/**
+ * A layer's surface. It takes the keyboard when it opens, unless a field in it
+ * already did, so Enter and the arrows act on the layer and never press a
+ * control behind it, such as the chip that opened it. When its contents
+ * change and the keyboard falls to the page, it takes it back. When it closes
+ * it gives the keyboard back to what had it before, unless something else took
+ * the keyboard meanwhile.
+ */
+const LayerSurface = ({
+  children,
+  className,
+  kind,
+  label,
+}: Readonly<{
+  children: ReactNode
+  className: string
+  kind: BoxLayer['kind']
+  label: string
+}>): ReactElement => {
+  const ref = useRef<HTMLDivElement>(null)
+  const [maybeOpener] = useState(focusedElement)
+  useEffect(() => {
+    const surface = ref.current
+    if (surface !== null && !surface.contains(document.activeElement)) {
+      surface.focus({ preventScroll: true })
+    }
+    return () => {
+      Option.map(maybeOpener, opener => {
+        if (opener.isConnected && isKeyboardOnPage()) {
+          opener.focus({ preventScroll: true })
+        }
+      })
+    }
+  }, [maybeOpener])
+  useEffect(() => {
+    const surface = ref.current
+    if (surface !== null && isKeyboardOnPage()) {
+      surface.focus({ preventScroll: true })
+    }
+  })
+  return (
+    <div
+      ref={ref}
+      tabIndex={-1}
+      className={className}
+      role="dialog"
+      aria-modal={kind === 'Dialog'}
+      aria-label={label}
+      data-layer={kind}
+    >
+      {children}
+    </div>
+  )
+}
+
+/**
+ * Moves the keyboard off a control, such as a button a person clicked, when
+ * the page takes a key from it: to the open layer's surface when the control
+ * is inside one, so Enter picks the marked row, else to the page, so Enter
+ * after `j` opens the row under the cursor and does not press the control
+ * again. A host binding keys calls it before it sends the key's token.
+ */
+export const moveKeyboardOffControl = (control: HTMLElement): void => {
+  const surface = control.closest(`.${layerSurfaceClass}`)
+  if (surface instanceof HTMLElement) {
+    surface.focus({ preventScroll: true })
+  } else {
+    control.blur()
+  }
 }
 
 const pressOf = (action: string, label: string): ButtonNode => ({
@@ -396,7 +482,8 @@ const TokenField = ({
 
 /**
  * The round box at the start of a list row a person ticks, such as a
- * reminder's completion circle: a checkbox that presses its Action.
+ * reminder's completion circle: a checkbox that presses its Action, or its
+ * extend Action with Shift held.
  */
 const CheckButton = ({
   check,
@@ -406,6 +493,7 @@ const CheckButton = ({
   onPress: (button: ButtonNode) => void
 }>): ReactElement => {
   const action = check.action
+  const extendAction = check.extendAction
   return (
     <button
       type="button"
@@ -418,8 +506,15 @@ const CheckButton = ({
       onClick={
         action === undefined
           ? undefined
-          : () => {
-              onPress(pressOf(action, check.label))
+          : event => {
+              onPress(
+                pressOf(
+                  event.shiftKey && extendAction !== undefined
+                    ? extendAction
+                    : action,
+                  check.label,
+                ),
+              )
             }
       }
     />
@@ -612,6 +707,7 @@ const ListRow = ({
   const ref = useRef<HTMLLIElement>(null)
   const hasPainted = useRef(false)
   const isCurrent = item.isCurrent === true
+  const isDraggable = item.isDraggable === true
   useEffect(() => {
     if (isCurrent) {
       ref.current?.scrollIntoView({
@@ -625,6 +721,15 @@ const ListRow = ({
       ref={ref}
       className="fk-item"
       data-current={isCurrent ? true : undefined}
+      draggable={isDraggable ? true : undefined}
+      onDragStart={
+        isDraggable
+          ? event => {
+              event.dataTransfer.setData(draggedRowType, item.key)
+              event.dataTransfer.effectAllowed = 'move'
+            }
+          : undefined
+      }
     >
       {children}
     </li>
@@ -812,15 +917,13 @@ export const paintTree = (
                 }
           }
         />
-        <div
-          className={classFor('Box', 'fk-layer-surface')}
-          role="dialog"
-          aria-modal={layer.kind === 'Dialog'}
-          aria-label={layer.label}
-          data-layer={layer.kind}
+        <LayerSurface
+          className={classFor('Box', layerSurfaceClass)}
+          kind={layer.kind}
+          label={layer.label}
         >
           {paintChildren(box.children)}
-        </div>
+        </LayerSurface>
       </div>
     )
   }
@@ -836,6 +939,25 @@ export const paintTree = (
         {paintChildren(box.children)}
       </div>
     )
+  const dropAttributes = (list: ListNode) => {
+    const dropAction = list.dropAction
+    return dropAction === undefined
+      ? {}
+      : {
+          onDragOver: (event: DragEvent<HTMLUListElement>) => {
+            if (event.dataTransfer.types.includes(draggedRowType)) {
+              event.preventDefault()
+            }
+          },
+          onDrop: (event: DragEvent<HTMLUListElement>) => {
+            const rowKey = event.dataTransfer.getData(draggedRowType)
+            if (rowKey !== '') {
+              event.preventDefault()
+              handlers.onPress(pressOf(`${dropAction}:${rowKey}`, list.label))
+            }
+          },
+        }
+  }
   const paintReference = (reference: ReferencePart): ReactElement => {
     const href = reference.href
     const attributes = {
@@ -1010,7 +1132,12 @@ export const paintTree = (
         },
         Spacer: () => <div className={classFor('Spacer', 'fk-spacer')} />,
         Row: row => (
-          <div className={classFor('Row', 'fk-row')}>
+          <div
+            className={classFor(
+              'Row',
+              row.isBoard === true ? 'fk-row fk-board' : 'fk-row',
+            )}
+          >
             {paintChildren(row.children)}
           </div>
         ),
@@ -1029,7 +1156,11 @@ export const paintTree = (
           />
         ),
         List: list => (
-          <ul className={classFor('List', 'fk-list')} aria-label={list.label}>
+          <ul
+            className={classFor('List', 'fk-list')}
+            aria-label={list.label}
+            {...dropAttributes(list)}
+          >
             {Array.map(list.items, item => (
               <ListRowView
                 key={item.key}

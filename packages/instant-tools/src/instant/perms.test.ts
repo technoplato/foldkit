@@ -10,7 +10,12 @@ describe('instantToolsOwnerRules', () => {
   it('lets only a signed-in owner view, create, update, and delete every Instant Tools entity', () => {
     const rules = instantToolsOwnerRules([ownerEmail])
 
-    Array.forEach(Record.keys(InstantToolsEntities), entity => {
+    Array.forEach(
+      Array.filter(
+        Record.keys(InstantToolsEntities),
+        entity => entity !== 'instantToolsIssues',
+      ),
+      entity => {
       expect(rules[entity]).toEqual({
         allow: {
           view: 'isOwner',
@@ -23,6 +28,24 @@ describe('instantToolsOwnerRules', () => {
           "auth.id != null && auth.email in ['owner@example.com']",
         ],
       })
+      },
+    )
+  })
+
+  it('refuses an Issue write based on a stale read, and lets a writer that names no read through', () => {
+    expect(instantToolsOwnerRules([ownerEmail]).instantToolsIssues).toEqual({
+      allow: {
+        view: 'isOwner',
+        create: 'isOwner',
+        update: 'isOwner && isCurrent',
+        delete: 'isOwner',
+      },
+      bind: [
+        'isOwner',
+        "auth.id != null && auth.email in ['owner@example.com']",
+        'isCurrent',
+        'ruleParams.expectedUpdatedAtMs == null || data.updatedAtMs == ruleParams.expectedUpdatedAtMs',
+      ],
     })
   })
 
@@ -46,7 +69,7 @@ describe('instantToolsOwnerRules', () => {
       OwnerEmail.make('second@example.com'),
     ])
 
-    expect(rules.instantToolsIssues?.bind).toEqual([
+    expect(rules.instantToolsLogs?.bind).toEqual([
       'isOwner',
       "auth.id != null && auth.email in ['owner@example.com', 'second@example.com']",
     ])

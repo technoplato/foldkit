@@ -14,7 +14,16 @@ import {
 import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { DecisionRow } from './decisionFacts.js'
 import { PageEntity } from './entityGraph.js'
+import {
+  AgentFinding,
+  AgentRunChip,
+  FeatureChip,
+  FeatureLine,
+  IssueGraph,
+} from './graphFacts.js'
+import { InboxFilter } from './inbox.js'
 import { IssueFileAddress } from './issueFiles.js'
 import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
 import {
@@ -23,6 +32,7 @@ import {
   IssueLayout,
   IssueSort,
 } from './issueView.js'
+import { SavedView } from './issueViews.js'
 import { LandingFilter } from './landing.js'
 import { LeftoverStatus, ProductFilter } from './leftover.js'
 import {
@@ -32,16 +42,20 @@ import {
   Navigation,
   SubtaskMark,
   WorkInProgressEdit,
+  WritingField,
 } from './model.js'
 import { AgentSurvey } from './nowWorking.js'
+import { QuestionRow } from './questionFacts.js'
+import { ReminderRow } from './reminderFacts.js'
+import { RowChange } from './rowEdit.js'
 
 /**
- * The reader's clock was read: the time and the offset of their time zone
- * from UTC in minutes, once when the tracker opens and then each minute.
+ * The reader's clock was read: the time and their time zone,
+ * `America/New_York`, once when the tracker opens and then each minute.
  */
 export const TickedClock = S.TaggedStruct('TickedClock', {
   nowMs: S.Number,
-  offsetMinutes: S.Number,
+  timeZone: S.String,
 })
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
   issues: S.Array(Issue),
@@ -117,6 +131,115 @@ export const ObservedBuilds = S.TaggedStruct('ObservedBuilds', {
 export const FailedObserveBuilds = S.TaggedStruct('FailedObserveBuilds', {
   reason: S.String,
 })
+/** Scribe's rows said what he decided. */
+export const ObservedDecisions = S.TaggedStruct('ObservedDecisions', {
+  decisions: S.Array(DecisionRow),
+})
+/** The Message of every decision, as a typed literal, like every question's. */
+export const observedDecisionsOf = (
+  decisions: ReadonlyArray<DecisionRow>,
+): typeof ObservedDecisions.Type => ({ _tag: 'ObservedDecisions', decisions })
+/** Scribe's rows on his decisions could not be read. */
+export const FailedObserveDecisions = S.TaggedStruct('FailedObserveDecisions', {
+  reason: S.String,
+})
+/** A person asked to see what he decided. */
+export const ClickedOpenDecisions = S.TaggedStruct('ClickedOpenDecisions', {})
+/** Scribe's rows said what he asked. */
+export const ObservedQuestions = S.TaggedStruct('ObservedQuestions', {
+  questions: S.Array(QuestionRow),
+})
+/**
+ * The Message of every question, as a typed literal: `.make` would validate all
+ * 964 rows on each live change.
+ */
+export const observedQuestionsOf = (
+  questions: ReadonlyArray<QuestionRow>,
+): typeof ObservedQuestions.Type => ({ _tag: 'ObservedQuestions', questions })
+/** Scribe's rows on his questions could not be read. */
+export const FailedObserveQuestions = S.TaggedStruct('FailedObserveQuestions', {
+  reason: S.String,
+})
+/** A person asked to see what he asked. */
+export const ClickedOpenQuestions = S.TaggedStruct('ClickedOpenQuestions', {})
+/** Scribe's rows said what his reminders are. */
+export const ObservedReminders = S.TaggedStruct('ObservedReminders', {
+  reminders: S.Array(ReminderRow),
+})
+/** The Message of every reminder, as a typed literal, like every question's. */
+export const observedRemindersOf = (
+  reminders: ReadonlyArray<ReminderRow>,
+): typeof ObservedReminders.Type => ({ _tag: 'ObservedReminders', reminders })
+/** Scribe's rows on his reminders could not be read. */
+export const FailedObserveReminders = S.TaggedStruct('FailedObserveReminders', {
+  reason: S.String,
+})
+/** A person asked to see his reminders. */
+export const ClickedOpenReminders = S.TaggedStruct('ClickedOpenReminders', {})
+/** Scribe's rows said which features and findings stand around an Issue. */
+export const ObservedIssueGraph = S.TaggedStruct('ObservedIssueGraph', {
+  graph: IssueGraph,
+  issueId: S.String,
+})
+/** What stands around an Issue could not be read. */
+export const FailedObserveIssueGraph = S.TaggedStruct(
+  'FailedObserveIssueGraph',
+  { issueId: S.String, reason: S.String },
+)
+/** Scribe's rows said what the feature contracts hold, in his order. */
+export const ObservedFeatures = S.TaggedStruct('ObservedFeatures', {
+  features: S.Array(FeatureLine),
+})
+/** The feature contracts could not be read. */
+export const FailedObserveFeatures = S.TaggedStruct('FailedObserveFeatures', {
+  reason: S.String,
+})
+/** Scribe's rows said which lines exist, for chips and the palette. */
+export const ObservedFeatureChips = S.TaggedStruct('ObservedFeatureChips', {
+  features: S.Array(FeatureChip),
+})
+/** The lines' chips could not be read, so chips say what their text says. */
+export const FailedObserveFeatureChips = S.TaggedStruct(
+  'FailedObserveFeatureChips',
+  { reason: S.String },
+)
+/** A person opened the feature contracts: `g` then `e`. */
+export const ClickedOpenFeatures = S.TaggedStruct('ClickedOpenFeatures', {})
+/** A person opened the catalog of products: `g` then `p`. */
+export const ClickedOpenProducts = S.TaggedStruct('ClickedOpenProducts', {})
+/** Scribe's rows said what agents reported, the newest first. */
+export const ObservedFindings = S.TaggedStruct('ObservedFindings', {
+  findings: S.Array(AgentFinding),
+})
+/** What agents reported could not be read. */
+export const FailedObserveFindings = S.TaggedStruct('FailedObserveFindings', {
+  reason: S.String,
+})
+/** A person opened what agents reported: `g` then `f`. */
+export const ClickedOpenFindings = S.TaggedStruct('ClickedOpenFindings', {})
+/** A person asked to turn one finding into an Issue. */
+export const ClickedPromoteFinding = S.TaggedStruct('ClickedPromoteFinding', {
+  findingId: S.String,
+})
+/** The finding's row names the Issue it became. */
+export const SucceededMarkFindingPromoted = S.TaggedStruct(
+  'SucceededMarkFindingPromoted',
+  { findingId: S.String, issueId: S.String },
+)
+/** The Issue is filed, and the finding's row could not be marked. */
+export const FailedMarkFindingPromoted = S.TaggedStruct(
+  'FailedMarkFindingPromoted',
+  { findingId: S.String, issueId: S.String, reason: S.String },
+)
+/** Scribe's rows said how the runs the page names stand, for their chips. */
+export const ObservedAgentChips = S.TaggedStruct('ObservedAgentChips', {
+  runs: S.Array(AgentRunChip),
+})
+/** The chips' runs could not be read, so chips say what their text says. */
+export const FailedObserveAgentChips = S.TaggedStruct(
+  'FailedObserveAgentChips',
+  { reason: S.String },
+)
 /** Scribe's rows said what the build or commit on the page is. */
 export const ObservedPageFacts = S.TaggedStruct('ObservedPageFacts', {
   entity: PageEntity,
@@ -132,6 +255,12 @@ export const ClickedOpenTriage = S.TaggedStruct('ClickedOpenTriage', {})
 export const ClickedOpenBacklog = S.TaggedStruct('ClickedOpenBacklog', {})
 /** A person opened the page of how long asks take. */
 export const ClickedOpenAskFlow = S.TaggedStruct('ClickedOpenAskFlow', {})
+/** A person opened the inbox. */
+export const ClickedOpenInbox = S.TaggedStruct('ClickedOpenInbox', {})
+/** A person narrowed the inbox to one kind: `kind=status`. */
+export const SelectedInboxKind = S.TaggedStruct('SelectedInboxKind', {
+  kind: InboxFilter,
+})
 /** A person typed into the list's search field: `heart rate`, `#1538`. */
 export const UpdatedSearchQuery = S.TaggedStruct('UpdatedSearchQuery', {
   query: S.String,
@@ -142,6 +271,14 @@ export const SubmittedSearch = S.TaggedStruct('SubmittedSearch', {})
 export const FocusedSearchField = S.TaggedStruct('FocusedSearchField', {})
 /** The search field let go of the focus. */
 export const BlurredSearchField = S.TaggedStruct('BlurredSearchField', {})
+/** A writing field took the keyboard: Title after `c`, or a click. */
+export const FocusedWritingField = S.TaggedStruct('FocusedWritingField', {
+  field: WritingField,
+})
+/** A writing field let go of the keyboard. */
+export const BlurredWritingField = S.TaggedStruct('BlurredWritingField', {
+  field: WritingField,
+})
 /** The row cursor moved a row: `j` or `k` on the list. */
 export const MovedRowCursor = S.TaggedStruct('MovedRowCursor', {
   direction: S.Literals(['Next', 'Previous']),
@@ -150,6 +287,92 @@ export const MovedRowCursor = S.TaggedStruct('MovedRowCursor', {
 export const OpenedRowUnderCursor = S.TaggedStruct('OpenedRowUnderCursor', {})
 /** A person peeked at the row under the cursor: Space on the list. */
 export const PeekedRowUnderCursor = S.TaggedStruct('PeekedRowUnderCursor', {})
+/** A person left the row: Esc on the list, with nothing else to let go of. */
+export const ClearedRowCursor = S.TaggedStruct('ClearedRowCursor', {})
+/** A person selected or let go of the row under the cursor: `x`. */
+export const ToggledRowUnderCursor = S.TaggedStruct('ToggledRowUnderCursor', {})
+/** A person ticked or unticked one row's box. */
+export const ToggledRowSelection = S.TaggedStruct('ToggledRowSelection', {
+  issueId: S.String,
+})
+/** The selection grew or shrank by a row: Shift+j or Shift+k. */
+export const ExtendedRowSelection = S.TaggedStruct('ExtendedRowSelection', {
+  direction: S.Literals(['Next', 'Previous']),
+})
+/** The selection reached a row a person Shift-clicked. */
+export const ExtendedRowSelectionTo = S.TaggedStruct('ExtendedRowSelectionTo', {
+  issueId: S.String,
+})
+/** A person let go of every selected row: Esc, or the dock's Clear. */
+export const ClearedRowSelection = S.TaggedStruct('ClearedRowSelection', {})
+/** The cursor went to the next column of a board: `h` or `l`. */
+export const MovedCursorAcross = S.TaggedStruct('MovedCursorAcross', {
+  direction: S.Literals(['Next', 'Previous']),
+})
+/** The card under the cursor goes to the next column: Shift+h or Shift+l. */
+export const MovedCardAcross = S.TaggedStruct('MovedCardAcross', {
+  direction: S.Literals(['Next', 'Previous']),
+})
+/** A person dragged a card onto a column of a board. */
+export const DroppedCard = S.TaggedStruct('DroppedCard', {
+  column: S.String,
+  issueId: S.String,
+})
+/** The saved views as they are stored now, in their order. */
+export const ObservedSavedViews = S.TaggedStruct('ObservedSavedViews', {
+  views: S.Array(SavedView),
+})
+/** The saved views could not be read. */
+export const FailedObserveSavedViews = S.TaggedStruct(
+  'FailedObserveSavedViews',
+  { reason: S.String },
+)
+/** A person asked to keep what the list shows as a view. */
+export const ClickedSaveView = S.TaggedStruct('ClickedSaveView', {})
+/** A person asked to rename a saved view. */
+export const ClickedRenameView = S.TaggedStruct('ClickedRenameView', {
+  viewId: S.String,
+})
+/** A person typed into a view's name: `Close to landing`. */
+export const UpdatedViewName = S.TaggedStruct('UpdatedViewName', {
+  name: S.String,
+})
+/** A person pressed Enter or Save on a view's name. */
+export const SubmittedViewName = S.TaggedStruct('SubmittedViewName', {})
+/** A person put what the list shows now into a saved view. */
+export const ClickedUpdateView = S.TaggedStruct('ClickedUpdateView', {
+  viewId: S.String,
+})
+/** A person moved a saved view up or down among their views. */
+export const ClickedMoveView = S.TaggedStruct('ClickedMoveView', {
+  direction: S.Literals(['Next', 'Previous']),
+  viewId: S.String,
+})
+/** A person deleted a saved view. */
+export const ClickedDeleteView = S.TaggedStruct('ClickedDeleteView', {
+  viewId: S.String,
+})
+/** A saved view was written. */
+export const SucceededSaveIssueView = S.TaggedStruct('SucceededSaveIssueView', {
+  view: SavedView,
+})
+/** A saved view was not written, and why. */
+export const FailedSaveIssueView = S.TaggedStruct('FailedSaveIssueView', {
+  name: S.String,
+  reason: S.String,
+})
+/** A saved view was deleted. */
+export const SucceededDeleteIssueView = S.TaggedStruct(
+  'SucceededDeleteIssueView',
+  { viewId: S.String },
+)
+/** A saved view was not deleted, and why. */
+export const FailedDeleteIssueView = S.TaggedStruct('FailedDeleteIssueView', {
+  reason: S.String,
+  viewId: S.String,
+})
+/** A person let go of the words about a view that did not save. */
+export const DismissedViewFailure = S.TaggedStruct('DismissedViewFailure', {})
 /** A person pressed `g`, and the next key says where to go. */
 export const PressedGoKey = S.TaggedStruct('PressedGoKey', {})
 /** The key after `g` named no place. */
@@ -160,6 +383,11 @@ export const ClickedOpenIssueList = S.TaggedStruct('ClickedOpenIssueList', {})
 export const OpenedCommandPalette = S.TaggedStruct('OpenedCommandPalette', {})
 /** A person opened one filter's or order's choices: `Status: Any`. */
 export const OpenedChoiceMenu = S.TaggedStruct('OpenedChoiceMenu', {
+  menu: ChoiceMenu,
+})
+/** A person pressed a field on a row, such as its status, to change it. */
+export const OpenedRowField = S.TaggedStruct('OpenedRowField', {
+  issueId: S.String,
   menu: ChoiceMenu,
 })
 /** A person typed into the field of a layer of choices: `backlog`, `1358`. */
@@ -176,6 +404,27 @@ export const SubmittedMenu = S.TaggedStruct('SubmittedMenu', {})
 export const PickedMenuRow = S.TaggedStruct('PickedMenuRow', {
   token: S.String,
 })
+/**
+ * A person changed the Issues in hand, the row under the cursor or what they
+ * selected: its status, priority or claim. Each shows at once and is written
+ * in its turn.
+ */
+export const AppliedRowChange = S.TaggedStruct('AppliedRowChange', {
+  change: RowChange,
+})
+/** The change written first in line was read back. */
+export const SucceededRowEdit = S.TaggedStruct('SucceededRowEdit', {
+  issue: Issue,
+})
+/** The change written first in line did not save, and why. */
+export const FailedRowEditWrite = S.TaggedStruct('FailedRowEditWrite', {
+  reason: S.String,
+})
+/** A person let go of the words about changes that did not save. */
+export const DismissedFailedRowEdits = S.TaggedStruct(
+  'DismissedFailedRowEdits',
+  {},
+)
 /** A person closed what showed above the page: Esc, or a press outside it. */
 export const DismissedLayer = S.TaggedStruct('DismissedLayer', {})
 export const ClickedPromoteTriageCandidate = S.TaggedStruct(
@@ -208,6 +457,29 @@ export const SucceededSaveIssue = S.TaggedStruct('SucceededSaveIssue', {
 export const FailedSaveIssue = S.TaggedStruct('FailedSaveIssue', {
   reason: S.String,
 })
+/**
+ * The draft a person submitted was filed as `issue`. `maybeFindingId` is the
+ * finding it was promoted from, as it was when they submitted it, so the
+ * finding's row names this Issue whatever page they are on when it returns.
+ */
+export const SucceededFileIssueDraft = S.TaggedStruct(
+  'SucceededFileIssueDraft',
+  { issue: Issue, maybeFindingId: S.Option(S.String) },
+)
+/** The draft a person submitted was not filed, and why. */
+export const FailedFileIssueDraft = S.TaggedStruct('FailedFileIssueDraft', {
+  reason: S.String,
+})
+/** A comment's work-log entry landed on `issue`; `summary` is what it said. */
+export const SucceededCommentOnIssue = S.TaggedStruct(
+  'SucceededCommentOnIssue',
+  { issue: Issue, summary: S.String },
+)
+/** `issue` now lists `targetIssueId` among its related Issues. */
+export const SucceededLinkCatalogIssue = S.TaggedStruct(
+  'SucceededLinkCatalogIssue',
+  { issue: Issue, targetIssueId: S.String },
+)
 export const SucceededReviewTriageCandidate = S.TaggedStruct(
   'SucceededReviewTriageCandidate',
   { candidate: TriageCandidate, issue: S.Option(Issue) },
@@ -435,6 +707,31 @@ export const Message = S.Union([
   FailedObserveIssueLanding,
   ObservedBuilds,
   FailedObserveBuilds,
+  ObservedIssueGraph,
+  FailedObserveIssueGraph,
+  ObservedFeatures,
+  FailedObserveFeatures,
+  ObservedFeatureChips,
+  FailedObserveFeatureChips,
+  ClickedOpenFeatures,
+  ClickedOpenProducts,
+  ObservedFindings,
+  FailedObserveFindings,
+  ClickedOpenFindings,
+  ObservedDecisions,
+  FailedObserveDecisions,
+  ClickedOpenDecisions,
+  ObservedQuestions,
+  FailedObserveQuestions,
+  ClickedOpenQuestions,
+  ObservedReminders,
+  FailedObserveReminders,
+  ClickedOpenReminders,
+  ClickedPromoteFinding,
+  SucceededMarkFindingPromoted,
+  FailedMarkFindingPromoted,
+  ObservedAgentChips,
+  FailedObserveAgentChips,
   ObservedPageFacts,
   FailedObservePageFacts,
   ObservedIssueLogs,
@@ -445,22 +742,54 @@ export const Message = S.Union([
   ClickedOpenTriage,
   ClickedOpenBacklog,
   ClickedOpenAskFlow,
+  ClickedOpenInbox,
+  SelectedInboxKind,
   UpdatedSearchQuery,
   SubmittedSearch,
   FocusedSearchField,
   BlurredSearchField,
+  FocusedWritingField,
+  BlurredWritingField,
   MovedRowCursor,
   OpenedRowUnderCursor,
   PeekedRowUnderCursor,
+  ClearedRowCursor,
+  ToggledRowUnderCursor,
+  ToggledRowSelection,
+  ExtendedRowSelection,
+  ExtendedRowSelectionTo,
+  ClearedRowSelection,
+  MovedCursorAcross,
+  MovedCardAcross,
+  DroppedCard,
+  ObservedSavedViews,
+  FailedObserveSavedViews,
+  ClickedSaveView,
+  ClickedRenameView,
+  UpdatedViewName,
+  SubmittedViewName,
+  ClickedUpdateView,
+  ClickedMoveView,
+  ClickedDeleteView,
+  SucceededSaveIssueView,
+  FailedSaveIssueView,
+  SucceededDeleteIssueView,
+  FailedDeleteIssueView,
+  DismissedViewFailure,
   PressedGoKey,
   CancelledGoKey,
   ClickedOpenIssueList,
   OpenedCommandPalette,
   OpenedChoiceMenu,
+  OpenedRowField,
   UpdatedMenuQuery,
   MovedMenuMark,
   SubmittedMenu,
   PickedMenuRow,
+  AppliedRowChange,
+  SucceededRowEdit,
+  FailedRowEditWrite,
+  DismissedFailedRowEdits,
   DismissedLayer,
   ClickedPromoteTriageCandidate,
   ClickedDismissTriageCandidate,
@@ -472,6 +801,10 @@ export const Message = S.Union([
   SubmittedIssue,
   SucceededSaveIssue,
   FailedSaveIssue,
+  SucceededFileIssueDraft,
+  FailedFileIssueDraft,
+  SucceededCommentOnIssue,
+  SucceededLinkCatalogIssue,
   SucceededReviewTriageCandidate,
   FailedReviewTriageCandidate,
   OpenedNavigation,

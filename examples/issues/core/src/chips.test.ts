@@ -20,7 +20,7 @@ const SECTION_ID = '8d70b597-a775-41d8-b688-a08f722a87b2'
 const WORDS_URL = `https://words.pisspoursoftware.xyz/recording/${RECORDING_ID}/section/${SECTION_ID}?t=14287.00`
 const NOW_MS = Date.parse('2026-11-01T14:00:00Z')
 const HOUR_MS = 3_600_000
-const EASTERN_OFFSET_MINUTES = -300
+const EASTERN_TIME_ZONE = 'America/New_York'
 
 const issue = (id: string, title: string, status: Issue['status']): Issue =>
   Issue.make({
@@ -72,7 +72,7 @@ const asked = Issue.make({
 })
 
 const catalog = [issue('1358', 'issues CLI burns CPU', 'PartiallyDone'), asked]
-const context = chipContextOf(catalog, NOW_MS, EASTERN_OFFSET_MINUTES)
+const context = chipContextOf(catalog, NOW_MS, EASTERN_TIME_ZONE)
 
 const referencesOf = (text: string): ReadonlyArray<ReferencePart> =>
   Array.flatMap(partsOfText(text, context), part =>
@@ -87,7 +87,7 @@ describe('how long ago', () => {
     expect(howLongAgo(NOW_MS - 50 * HOUR_MS, NOW_MS)).toBe('2 days ago')
     expect(howLongAgo(NOW_MS - 24 * HOUR_MS, NOW_MS)).toBe('1 day ago')
     expect(howLongAgo(NOW_MS - 90 * 24 * HOUR_MS, NOW_MS)).toBe('3 months ago')
-    expect(localTimeLabel(NOW_MS, EASTERN_OFFSET_MINUTES)).toBe(
+    expect(localTimeLabel(NOW_MS, EASTERN_TIME_ZONE)).toBe(
       '2026-11-01 09:00',
     )
   })
@@ -183,9 +183,11 @@ describe('a build or commit chip, from Scribe’s rows', () => {
     sha: '852f55fe95ec2790e5728c3391743b79bacecb7e',
     subject: 'Merge mic-bleed into main (#625)',
   })
-  const context = chipContextOf([], NOW_MS, EASTERN_OFFSET_MINUTES, {
+  const context = chipContextOf([], NOW_MS, EASTERN_TIME_ZONE, {
+    agents: [],
     builds: [build217],
     commits: [commit],
+    features: [],
   })
   const chipsOf = (text: string): ReadonlyArray<ReferencePart> =>
     Array.filter(

@@ -2,7 +2,6 @@ import { Array, Effect, Match as M, Option, Stream } from 'effect'
 import {
   type ListItem,
   type UiNode,
-  buttonsOf,
   inputsOf,
   textsOf,
 } from 'foldkit/renderers'
@@ -21,6 +20,7 @@ import {
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
+  IssueWorkLogEntry,
   LibraryProduct,
   ProductCatalog,
   ProductCatalogEntry,
@@ -41,6 +41,7 @@ import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 import { modelForNavigation } from './init.js'
 import { IssueIdentity, type IssueIdentityService } from './issueIdentity.js'
 import { OneProduct, leftoverStatusOf, newestWorkLog } from './leftover.js'
+import { menuRowsOf } from './menus.js'
 import {
   AppendedIssueWorkLog,
   ClearedIssueWorkInProgress,
@@ -71,6 +72,7 @@ import {
   SubmittedIssueSuccessCriterion,
   SubmittedIssueWorkInProgress,
   SubmittedIssueWorkLogEntry,
+  SucceededCommentOnIssue,
   SubmittedProduct,
   SubmittedSubtaskMarks,
   SubmittedSuccessCriteriaMarks,
@@ -347,7 +349,7 @@ describe('Issue Tracker Program', () => {
         }
 
         const maybeCollectionFailure = yield* subscriptions.issues
-          .dependenciesToStream({})
+          .dependenciesToStream({}, () => ({}))
           .pipe(
             Stream.runHead,
             Effect.provideService(IssueTracker, failingIssueTracker),
@@ -368,7 +370,12 @@ describe('Issue Tracker Program', () => {
         })
 
         const maybeDetailFailure = yield* subscriptions.selectedIssue
-          .dependenciesToStream({ maybeIssueId: Option.some(issue.id) })
+          .dependenciesToStream(
+            { maybeIssueId: Option.some(issue.id) },
+            () => ({
+              maybeIssueId: Option.some(issue.id),
+            }),
+          )
           .pipe(
             Stream.runHead,
             Effect.provideService(IssueTracker, failingIssueTracker),
@@ -413,7 +420,7 @@ describe('Issue Tracker Program', () => {
     const [saving, commands] = update(titled, SubmittedIssue.make({}))
     expect(saving.draftState._tag).toBe('SavingIssueDraft')
     expect(commands).toHaveLength(1)
-    expect(commands[0]?.name).toBe('SaveIssue')
+    expect(commands[0]?.name).toBe('FileIssueDraft')
   })
 
   it('keeps transcript candidates as drafts until a review Message', () => {
@@ -622,8 +629,16 @@ describe('Issue Tracker Program', () => {
         summary: linking.leftoverComment,
       }),
     )
-    expect(submitting.leftoverComment).toBe('')
+    expect(submitting.leftoverComment).toBe('Painted leftover progress.')
     expect(commentCommands[0]?.name).toBe('CommentOnIssue')
+    const [commented] = update(
+      submitting,
+      SucceededCommentOnIssue.make({
+        issue,
+        summary: 'Painted leftover progress.',
+      }),
+    )
+    expect(commented.leftoverComment).toBe('')
     const [away] = update(linking, SelectedIssue.make({ issueId: '240' }))
     expect(away.leftoverComment).toBe('')
     expect(away.leftoverLink).toBe('')
@@ -660,13 +675,11 @@ describe('Issue Tracker Program', () => {
     ).toEqual(['status:Open', 'status:Blocked'])
     expect(unclosableTokens).not.toContain('status:Closed')
     expect(unclosableTokens).not.toContain('status:Verify')
-    const screenButtons = buttonsOf(issuesScreen(observedUnclosable)).map(
-      button => button.token ?? '',
+    const statusChoices = menuRowsOf(observedUnclosable, 'SetStatus', '').map(
+      row => row.action.label,
     )
-    expect(screenButtons).toContain('status:Open')
-    expect(screenButtons).toContain('status:Blocked')
-    expect(screenButtons).not.toContain('status:Closed')
-    expect(screenButtons).not.toContain('status:Verify')
+    expect(statusChoices).toContain('Blocked')
+    expect(statusChoices).not.toContain('Closed')
   })
 
   it('filters leftover cards by live catalog product', () => {
@@ -926,7 +939,7 @@ describe('Issue Tracker Program', () => {
     )
 
     expect(result).toMatchObject({
-      _tag: 'SucceededSaveIssue',
+      _tag: 'SucceededFileIssueDraft',
       issue: {
         area: Option.some('Issue tracker / CLI'),
         claimantId: Option.some('claude-code/issues-one-way'),
@@ -999,7 +1012,7 @@ describe('Issue Tracker Program', () => {
     )
 
     expect(result).toEqual({
-      _tag: 'FailedSaveIssue',
+      _tag: 'FailedFileIssueDraft',
       reason: 'File: CreateIssue: Permission denied: instantToolsIssues',
     })
     const [failed] = update(saving, result)
@@ -1016,7 +1029,7 @@ describe('Issue Tracker Program', () => {
     )
     const [saving, commands] = update(byName, SubmittedIssue.make({}))
     expect(saving.draftState._tag).toBe('SavingIssueDraft')
-    expect(commands[0]?.name).toBe('SaveIssue')
+    expect(commands[0]?.name).toBe('FileIssueDraft')
 
     const [unknown] = update(
       filingModel(),
@@ -1251,6 +1264,69 @@ describe('Issue Tracker Program', () => {
     })
   })
 
+  it('keeps both entries when another writer logged the same state on the Issue in the same millisecond', async () => {
+    const memory = await Effect.runPromise(
+      makeMemoryIssueTracker([stored('692', 'Bare IssueTrackerError')]),
+    )
+    const otherWriter = 'claude-code/other-writer'
+    const colliding: IssueTrackerService = {
+      ...memory,
+      update: (issueId, change) =>
+        Effect.gen(function* () {
+          const before = Option.getOrThrow(yield* memory.fetchIssue(issueId))
+          const ours = Option.getOrThrow(
+            Array.last(change.apply(before).workLog),
+          )
+          yield* memory.save(
+            Issue.make({
+              ...before,
+              workLog: [
+                ...before.workLog,
+                IssueWorkLogEntry.make({
+                  ...ours,
+                  agentId: Option.some(otherWriter),
+                  summary: 'The other writer logged this.',
+                }),
+              ],
+            }),
+          )
+          return yield* memory.update(issueId, change)
+        }),
+    }
+    const detail = modelForNavigation(IssueDetail.make({ issueId: '692' }))
+    const [, commands] = update(
+      detail,
+      SubmittedIssueWorkLogEntry.make({
+        agentId: Option.some('claude-code/issues-one-way'),
+        claimantId: Option.none(),
+        commitSha: Option.none(),
+        issueId: '692',
+        state: 'progress',
+        status: Option.none(),
+        summary: 'Ours, logged in the same millisecond.',
+      }),
+    )
+
+    const result = await runWith(
+      colliding,
+      Option.getOrThrow(Array.head(commands)).effect,
+    )
+
+    if (result._tag !== 'SucceededAppendIssueWorkLogEntry') {
+      throw new Error(`expected a landed entry, got ${result._tag}`)
+    }
+    const kept = Array.map(result.issue.workLog, entry => [
+      entry.id,
+      entry.summary,
+    ])
+    const [otherId] = Option.getOrThrow(Array.head(kept))
+    expect(kept).toEqual([
+      [otherId, 'The other writer logged this.'],
+      [`${otherId}-2`, 'Ours, logged in the same millisecond.'],
+    ])
+    expect(result.entryId).toBe(`${otherId}-2`)
+  })
+
   it('reports a work-log write that did not land, with its reason', async () => {
     const working = await Effect.runPromise(makeMemoryIssueTracker([]))
     const dropping: IssueTrackerService = {
@@ -1350,7 +1426,7 @@ describe('Issue Tracker Program', () => {
     )
 
     expect(result).toMatchObject({
-      _tag: 'SucceededSaveIssue',
+      _tag: 'SucceededLinkCatalogIssue',
       issue: { relatedIssueIds: ['502'] },
     })
     if (result._tag !== 'SucceededSaveIssue') {
@@ -1380,7 +1456,7 @@ describe('Issue Tracker Program', () => {
       ),
     )
 
-    expect(result._tag).toBe('SucceededSaveIssue')
+    expect(result._tag).toBe('SucceededCommentOnIssue')
     expect(
       Option.map(runNow(tracker.fetchIssue('692')), found =>
         found.workLog.map(entry => [entry.agentId, entry.summary]),
@@ -1424,7 +1500,7 @@ describe('Issue Tracker Program', () => {
       CommentOnIssue({ issueId: '692', summary: 'Written.' }).effect,
     )
 
-    expect(result._tag).toBe('SucceededSaveIssue')
+    expect(result._tag).toBe('SucceededCommentOnIssue')
     expect(
       Option.map(runNow(tracker.fetchIssue('692')), found =>
         found.workLog.map(entry => entry.summary),

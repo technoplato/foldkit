@@ -157,7 +157,7 @@ const pageOf = (issue: Issue): Model =>
   [
     ObservedIssues.make({ issues: catalog }),
     ObservedIssue.make({ issue: Option.some(issue), issueId: issue.id }),
-    TickedClock.make({ nowMs: NOW_MS, offsetMinutes: -300 }),
+    TickedClock.make({ nowMs: NOW_MS, timeZone: 'America/New_York' }),
   ].reduce(
     (model, message) => update(model, message)[0],
     modelForNavigation(IssueDetail.make({ issueId: issue.id })),
@@ -364,14 +364,63 @@ describe('where an Issue landed, on its page', () => {
   })
 })
 
+const momentOfLine = (kind: 'Said' | 'Seen') => ({
+  firstLineIndex: 102,
+  isOrigin: true,
+  kind,
+  lastLineIndex: 102,
+  recordingId: RECORDING_ID,
+  segmentId: '7d427719-8267-4ff8-a5f1-fdbb2d6242df',
+  startSeconds: 459,
+})
+
+const pageWithMoments = (kind: 'Said' | 'Seen'): Model => {
+  const [withMoments] = update(
+    pageOf(asked),
+    ObservedIssueLanding.make({
+      issueId: '1395',
+      landing: IssueLanding.make({ ...landing, moments: [momentOfLine(kind)] }),
+    }),
+  )
+  return withMoments
+}
+
+describe('who the Issue page says asked', () => {
+  it('says he said it when the rows say the asked line is his', () => {
+    expect(contentsOf(pageWithMoments('Said'))).toContainEqual(
+      expect.stringContaining('Michael said it in Recording 326 #102'),
+    )
+  })
+
+  it('says it was heard, never said, when a line of the ask is another app’s sound', () => {
+    const contents = contentsOf(pageWithMoments('Seen'))
+    expect(contents).toContainEqual(
+      expect.stringContaining('Heard in Recording 326 #102'),
+    )
+    expect(contents).not.toContainEqual(
+      expect.stringContaining('Michael said it'),
+    )
+  })
+
+  it('says neither before the rows are read', () => {
+    const contents = contentsOf(pageOf(asked))
+    expect(contents).toContainEqual(
+      expect.stringContaining('In Recording 326 #102'),
+    )
+    expect(contents).not.toContainEqual(
+      expect.stringContaining('Michael said it'),
+    )
+  })
+})
+
 describe('the Issue page at a glance', () => {
   it('says who asked, in which words, when, and links the line at its time', () => {
-    const contents = contentsOf(pageOf(asked))
+    const contents = contentsOf(pageWithMoments('Said'))
     expect(contents).toContain('my phone is getting hot again while it records')
     expect(contents).toContainEqual(
       expect.stringContaining('Michael said it in Recording 326 #102'),
     )
-    expect(contents).toContainEqual(expect.stringContaining('2026-10-30 07:57'))
+    expect(contents).toContainEqual(expect.stringContaining('2026-10-30 08:57'))
     expect(contents).toContainEqual(expect.stringContaining('and 1 more time'))
   })
 
@@ -399,3 +448,32 @@ describe('the Issue page at a glance', () => {
     )
   })
 })
+
+describe('an unchanged Issue keeps its timeline', () => {
+  it('reads the work log once while the Issue and its landing stay the same', () => {
+    const issue = Issue.make({
+      area: Option.none(),
+      attachments: [],
+      claimantId: Option.none(),
+      complexity: Option.none(),
+      createdAtMs: 1_000,
+      details: '',
+      id: '700',
+      issueType: Option.none(),
+      mentions: [],
+      priority: 'P2',
+      product: ApplicationProduct.make({ id: 'scribe', name: 'Scribe' }),
+      projectId: Option.none(),
+      reportedDate: Option.none(),
+      sourceDocument: Option.none(),
+      status: 'Open',
+      successCriteria: [],
+      title: 'A timeline',
+      updatedAtMs: 1_000,
+      viewerURL: Option.none(),
+      workLog: [],
+    })
+    expect(timelineOf(issue)).toBe(timelineOf(issue))
+  })
+})
+

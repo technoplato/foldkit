@@ -1,4 +1,4 @@
-import { Array, Option, Order, Schema as S, pipe } from 'effect'
+import { Array, Match as M, Option, Order, Schema as S, pipe } from 'effect'
 
 import { normalizeIssueId } from '@foldkit/instant-tools/issues'
 
@@ -65,6 +65,38 @@ export const BuildNumber = S.TaggedStruct('BuildNumber', {
   number: S.String,
 })
 
+/** A product by its page on the site: `/products/foldkit`. */
+export const ProductName = S.TaggedStruct('ProductName', {
+  productId: S.String,
+})
+
+/** A feature by its page on the site: `/features/scroll-back-always`. */
+export const FeatureName = S.TaggedStruct('FeatureName', { slug: S.String })
+
+/**
+ * A line of the feature contract by its number, which is what agents write:
+ * the `3` of `FEATURES 3`. A number changes as the file does, so what it names
+ * is read when it is shown.
+ */
+export const FeatureLineNumber = S.TaggedStruct('FeatureLineNumber', {
+  number: S.Int,
+})
+
+/** A finding by its row's id: `finding 1adc23b2-…`, or its page on the site. */
+export const FindingId = S.TaggedStruct('FindingId', { findingId: S.String })
+
+/**
+ * What he decided, by its id or the first 8 characters agents cite:
+ * `decision dbdbf773`, `scribe decision show dbdbf773`.
+ */
+export const DecisionId = S.TaggedStruct('DecisionId', { decisionId: S.String })
+
+/** A question he asked, by its id or first 8 characters: `question 4e740f44`. */
+export const QuestionId = S.TaggedStruct('QuestionId', { questionId: S.String })
+
+/** One of his reminders, by its id or first 8 characters: `reminder 05047ef1`. */
+export const ReminderId = S.TaggedStruct('ReminderId', { reminderId: S.String })
+
 /** A moment written as an ISO time: `2026-10-11T10:41:09.240Z`. */
 export const Timestamp = S.TaggedStruct('Timestamp', { atMs: S.Number })
 
@@ -94,6 +126,13 @@ export const TextReference = S.Union([
   CommitSha,
   AgentName,
   BuildNumber,
+  ProductName,
+  FeatureName,
+  FeatureLineNumber,
+  FindingId,
+  DecisionId,
+  QuestionId,
+  ReminderId,
   Timestamp,
   ChatSession,
   RawId,
@@ -127,6 +166,8 @@ const WORDS_LINK =
 const AT_SECONDS = /[?&]t=(\d+(?:\.\d+)?)/
 const ISSUE_PAGE =
   /^https?:\/\/(?:issues\.(?:pisspoursoftware\.xyz|knophy\.com)|og\.pisspoursoftware\.xyz)\/issues\/(\d{1,4})(?:[/?#]|$)/i
+const SITE_PAGE =
+  /^https?:\/\/issues\.(?:pisspoursoftware\.xyz|knophy\.com)\/(agents|decisions|features|findings|products|questions|reminders|sessions)\/([^/?#]+)/i
 const CLAUDE_SESSION = /^https:\/\/claude\.ai\/code\/(session_\w+)/
 const GITHUB_COMMIT =
   /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/commit\/([0-9a-f]{7,40})\b/
@@ -137,6 +178,27 @@ const FULL_UUID =
 const HAS_DIGIT = /\d/
 const HAS_HEX_LETTER = /[a-f]/
 const ZONE_WITHOUT_COLON = /([+-]\d{2})(\d{2})$/
+
+const decodedSegment = (segment: string): string =>
+  Option.getOrElse(
+    Option.liftThrowable(decodeURIComponent)(segment),
+    () => segment,
+  )
+
+const referenceOfSitePage = (kind: string, name: string): TextReference =>
+  M.value(kind.toLowerCase()).pipe(
+    M.withReturnType<TextReference>(),
+    M.when('agents', () => AgentName.make({ agentId: decodedSegment(name) })),
+    M.when('decisions', () => DecisionId.make({ decisionId: name })),
+    M.when('features', () => FeatureName.make({ slug: name })),
+    M.when('findings', () => FindingId.make({ findingId: name })),
+    M.when('products', () => ProductName.make({ productId: name })),
+    M.when('questions', () => QuestionId.make({ questionId: name })),
+    M.when('reminders', () => ReminderId.make({ reminderId: name })),
+    M.orElse(() =>
+      ChatSession.make({ sessionId: name, maybeUrl: Option.none() }),
+    ),
+  )
 
 /** What a web address points at: a words line, an Issue page, a chat session, a commit, or a page. */
 const referenceOfUrl = (url: string): TextReference => {
@@ -162,6 +224,10 @@ const referenceOfUrl = (url: string): TextReference => {
       ),
     })
   }
+  const sitePage = SITE_PAGE.exec(url)
+  if (sitePage !== null) {
+    return referenceOfSitePage(sitePage[1] ?? '', sitePage[2] ?? '')
+  }
   const session = CLAUDE_SESSION.exec(url)
   if (session !== null) {
     return ChatSession.make({
@@ -181,7 +247,16 @@ type Found = Readonly<{
   maybeLabel: Option.Option<string>
 }>
 
-type Reading = Readonly<{ lastRecording: Option.Option<RecordingContext> }>
+/**
+ * What the text read so far says about what comes next: the Recording named
+ * last, and, right after one of its lines, where that line ended, so
+ * `Recording 039 #17, #823, #880` reads #823 and #880 as more of its lines.
+ */
+type Reading = Readonly<{
+  lastRecording: Option.Option<RecordingContext>
+  maybeLineListEnd: Option.Option<number>
+  text: string
+}>
 
 type RecordingContext = Readonly<{
   maybeRecordingNumber: Option.Option<number>
@@ -200,6 +275,26 @@ type Rule = Readonly<{
 const found = (reference: TextReference): Option.Option<Found> =>
   Option.some({ reference, maybeLabel: Option.none() })
 
+/** Words that carry a list of line numbers on: `, `, ` and `, `, and `, ` & `. */
+const LINE_LIST_SEPARATOR = /^\s*(?:,\s*(?:and\s+)?|and\s+|&\s*)$/
+
+/** One more line of the Recording named last, `#823` read as its line 823. */
+const lineOfLastRecording = (
+  reading: Reading,
+  first: string | undefined,
+  last: string | undefined,
+): Option.Option<Found> =>
+  Option.flatMap(reading.lastRecording, recording =>
+    Option.map(recording.maybeRecordingNumber, recordingNumber => ({
+      reference: RecordingLines.make({
+        recordingNumber,
+        maybeRecordingId: recording.maybeRecordingId,
+        maybeLineRange: lineRangeOf(first, last),
+      }),
+      maybeLabel: Option.none(),
+    })),
+  )
+
 const lineRangeOf = (
   first: string | undefined,
   last: string | undefined,
@@ -213,6 +308,8 @@ const lineRangeOf = (
 
 const UUID_SOURCE =
   '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+
+const ROW_ID_SOURCE = `(?:${UUID_SOURCE}|[0-9a-f]{8})(?![\\w-])`
 
 const segmentOf = (
   segmentId: string,
@@ -291,6 +388,25 @@ const rules: ReadonlyArray<Rule> = [
       segmentOf(match[0], Option.none(), reading),
   },
   {
+    pattern: new RegExp(`(?<=\\bfinding\\s+)${UUID_SOURCE}`, 'gi'),
+    read: match => found(FindingId.make({ findingId: match[0].toLowerCase() })),
+  },
+  {
+    pattern: new RegExp(
+      `\\b[Dd]ecisions?(?:\\s+log\\s+entry|\\s+show)?:?\\s+(${ROW_ID_SOURCE})`,
+      'g',
+    ),
+    read: match => found(DecisionId.make({ decisionId: match[1] ?? '' })),
+  },
+  {
+    pattern: new RegExp(`\\b[Qq]uestion\\s+(${ROW_ID_SOURCE})`, 'g'),
+    read: match => found(QuestionId.make({ questionId: match[1] ?? '' })),
+  },
+  {
+    pattern: new RegExp(`\\b[Rr]eminder\\s+(${ROW_ID_SOURCE})`, 'g'),
+    read: match => found(ReminderId.make({ reminderId: match[1] ?? '' })),
+  },
+  {
     pattern: new RegExp(`(?<![\\w#&/])#(\\d+)\\s+(${UUID_SOURCE})`, 'gi'),
     read: (match, _matchedText, reading) =>
       segmentOf(match[2] ?? '', Option.some(Number(match[1])), reading),
@@ -348,8 +464,13 @@ const rules: ReadonlyArray<Rule> = [
   },
   {
     pattern:
-      /(?<![\w/.~-])(?:(?:claude-code|codex|cursor|grok|agy|gemini|opencode)\/[\w.@/-]*[\w@]|tools\/[a-z][\w-]*[a-z0-9]|issues\/[a-z][a-z-]*[a-z])/g,
+      /(?<![\w/.~-])(?:(?:claude-code|codex|cursor-grok|cursor|grok|agy|gemini|opencode)\/[\w.@/-]*[\w@]|pi\/[a-z][\w.@/-]*[\w@]|tools\/[a-z][\w-]*[a-z0-9]|issues\/[a-z][a-z-]*[a-z])/g,
     read: match => found(AgentName.make({ agentId: match[0] })),
+  },
+  {
+    pattern:
+      /(?<=\bFEATURES(?:\.md)?(?:'s)?(?:\s+(?:items?|lines?|line items?))?\s*[:#]?\s*(?:\d{1,2}\s*(?:,|and|&|\/)\s*)*)\d{1,2}(?!\d)(?![.:]\d)/g,
+    read: match => found(FeatureLineNumber.make({ number: Number(match[0]) })),
   },
   {
     pattern: /\b(Scribe|Vakyume)\s+(\d+\.\d+(?:\.\d+)?)\s*\((\d+(?:\.\d+)?)\)/g,
@@ -406,7 +527,22 @@ const rules: ReadonlyArray<Rule> = [
     },
   },
   {
-    pattern: /(?<![\w#&/])#(\d{3,4})\b(?!\s*[-–]\s*#?\d)/g,
+    pattern: /(?<![\w#&/])#(\d+)\b(?!\s*[-–]\s*#?\d)/g,
+    read: (match, _matchedText, reading) =>
+      Option.flatMap(
+        Option.filter(reading.maybeLineListEnd, listEnd =>
+          LINE_LIST_SEPARATOR.test(reading.text.slice(listEnd, match.index)),
+        ),
+        () => lineOfLastRecording(reading, match[1], undefined),
+      ),
+  },
+  {
+    pattern: /\blines?\s+#(\d+)(?:\s*[-–]\s*#?(\d+))?\b/g,
+    read: (match, _matchedText, reading) =>
+      lineOfLastRecording(reading, match[1], match[2]),
+  },
+  {
+    pattern: /(?<![\w#&/])(?<!\blines?\s+)#(\d{3,4})\b(?!\s*[-–]\s*#?\d)/g,
     read: match =>
       Option.map(normalizeIssueId(match[1] ?? ''), issueId => ({
         reference: IssueNumber.make({ issueId }),
@@ -469,23 +605,31 @@ type Scan = Readonly<{
   reading: Reading
 }>
 
-const readingAfter = (reading: Reading, reference: TextReference): Reading => {
+const readingAfter = (
+  reading: Reading,
+  reference: TextReference,
+  end: number,
+): Reading => {
   if (reference._tag === 'RecordingLines') {
     return {
+      ...reading,
       lastRecording: Option.some({
         maybeRecordingNumber: Option.some(reference.recordingNumber),
         maybeRecordingId: reference.maybeRecordingId,
       }),
+      maybeLineListEnd: Option.map(reference.maybeLineRange, () => end),
     }
   } else if (reference._tag === 'RecordingId') {
     return {
+      ...reading,
       lastRecording: Option.some({
         maybeRecordingNumber: Option.none(),
         maybeRecordingId: Option.some(reference.recordingId),
       }),
+      maybeLineListEnd: Option.none(),
     }
   }
-  return reading
+  return { ...reading, maybeLineListEnd: Option.none() }
 }
 
 const scanCandidate =
@@ -508,7 +652,7 @@ const scanCandidate =
             Referenced.make({ text: matchedText, maybeLabel, reference }),
           ],
           cursor: candidate.end,
-          reading: readingAfter(scan.reading, reference),
+          reading: readingAfter(scan.reading, reference, candidate.end),
         }),
       },
     )
@@ -517,7 +661,15 @@ const scanCandidate =
 const readUncached = (text: string): ReadonlyArray<TextPiece> => {
   const scanned = Array.reduce(
     candidatesIn(text),
-    { pieces: [], cursor: 0, reading: { lastRecording: Option.none() } },
+    {
+      pieces: [],
+      cursor: 0,
+      reading: {
+        lastRecording: Option.none(),
+        maybeLineListEnd: Option.none(),
+        text,
+      },
+    },
     scanCandidate(text),
   )
   return scanned.cursor < text.length
@@ -528,7 +680,8 @@ const readUncached = (text: string): ReadonlyArray<TextPiece> => {
 /**
  * Reads the references inside one stretch of Issue text: Issue numbers,
  * Recordings and their lines, words deep links, commits, agents, builds,
- * times, chat sessions, raw ids and links. Every character stays, in order:
+ * products, features, findings, times, chat sessions, raw ids and links. Every
+ * character stays, in order:
  * `Fixed by #1358 in build 218` reads as the words `Fixed by `, the Issue
  * `1358`, the words ` in `, and build `218`. Stored text is never changed;
  * readers derive the links from it each time they show it.

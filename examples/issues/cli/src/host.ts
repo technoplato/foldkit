@@ -26,6 +26,7 @@ import {
   catalogIssueRefsOf,
   destinationForModel,
   entityTitle,
+  inboxItemsOf,
   interactionsForModel,
   issuesOfPage,
   issuesScreen,
@@ -368,7 +369,14 @@ const runTokens = (
             TriageInbox: () => '',
             Backlog: () => '',
             AskFlow: () => '',
+            Inbox: () => '',
             EntityPage: () => '',
+            Findings: () => '',
+            Decisions: () => '',
+            Questions: () => '',
+            Reminders: () => '',
+            Features: () => '',
+            Products: () => '',
           }),
         )
         return yield* Effect.fail(
@@ -514,6 +522,22 @@ export const formatDestination = (
             ],
           }),
         ),
+      InboxDestination: ({ state }) =>
+        M.value(state).pipe(
+          M.withReturnType<ReadonlyArray<string>>(),
+          M.tagsExhaustive({
+            LoadingIssues: () => ['Inbox', 'Observing…'],
+            FailedIssues: ({ reason }) => ['Inbox unavailable', reason],
+            LoadedIssues: ({ issues }) => [
+              'Inbox',
+              ...Array.map(
+                inboxItemsOf(issues),
+                item =>
+                  `${new Date(item.atMs).toISOString()}  #${item.issue.id}  ${item.kind}  ${item.words}`,
+              ),
+            ],
+          }),
+        ),
       AskFlowDestination: ({ state }) =>
         state._tag === 'LoadedIssues'
           ? [
@@ -535,6 +559,68 @@ export const formatDestination = (
               ),
             ]
           : [entityTitle(entity, []), state._tag],
+      FindingsDestination: ({ state }) =>
+        state._tag === 'LoadedFindings'
+          ? [
+              'Findings',
+              ...Array.map(
+                state.findings,
+                finding =>
+                  `${finding.kind}  ${finding.status}  ${finding.quote}`,
+              ),
+            ]
+          : ['Findings', state._tag],
+      DecisionsDestination: ({ state }) =>
+        state._tag === 'LoadedDecisions'
+          ? [
+              'Decisions',
+              ...Array.map(
+                state.decisions,
+                decision => `${decision.status}  ${decision.text}`,
+              ),
+            ]
+          : ['Decisions', state._tag],
+      QuestionsDestination: ({ state }) =>
+        state._tag === 'LoadedQuestions'
+          ? [
+              'Questions',
+              ...Array.map(
+                state.questions,
+                question => `${question.status}  ${question.text}`,
+              ),
+            ]
+          : ['Questions', state._tag],
+      RemindersDestination: ({ state }) =>
+        state._tag === 'LoadedReminders'
+          ? [
+              'Reminders',
+              ...Array.map(
+                state.reminders,
+                reminder => `${reminder.state}  ${reminder.title}`,
+              ),
+            ]
+          : ['Reminders', state._tag],
+      FeaturesDestination: ({ state }) =>
+        state._tag === 'LoadedFeatures'
+          ? [
+              'Features',
+              ...Array.map(
+                state.features,
+                feature => `${feature.name}  ${feature.status}`,
+              ),
+            ]
+          : ['Features', state._tag],
+      ProductsDestination: ({ products }) =>
+        products._tag === 'LoadedProducts'
+          ? [
+              'Products',
+              ...Array.map(
+                products.products,
+                ({ product }) =>
+                  `${product.id}  ${product.name}  ${product._tag}`,
+              ),
+            ]
+          : ['Products', products._tag],
       TriageInboxDestination: ({ state }) =>
         state._tag === 'LoadedTriageCandidates'
           ? [

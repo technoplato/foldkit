@@ -222,7 +222,11 @@ export const paintHtml = <Message>(
           return h.input(attrs)
         },
         Spacer: () => h.div([h.Class('fk-spacer')], []),
-        Row: row => h.div([h.Class('fk-row')], Array.map(row.children, paint)),
+        Row: row =>
+          h.div(
+            [h.Class(row.isBoard === true ? 'fk-row fk-board' : 'fk-row')],
+            Array.map(row.children, paint),
+          ),
         Column: column =>
           h.div([h.Class('fk-column')], Array.map(column.children, paint)),
         Box: box =>

@@ -184,12 +184,31 @@ const sendRetryingRateLimits = <A>(
   )
 
 /** The admin client surface the adapter uses. */
-
 export type InstantAdminClient = Readonly<{
+  asUser?: (
+    options: Readonly<{ email: string }>,
+  ) => Readonly<{ transact: (ops: never) => Promise<unknown> }>
   query: (query: never) => Promise<unknown>
   transact: (ops: never) => Promise<unknown>
   tx: object
 }>
+
+const ownerEmailName = 'INSTANT_TOOLS_OWNER_EMAIL'
+
+/**
+ * Whom the CLI writes the tracker as: the owner's email in
+ * `INSTANT_TOOLS_OWNER_EMAIL`, from the environment or the Instant Tools env
+ * file, never from the repository. Writing as the owner (`asUser`) runs the
+ * tracker's rules, so an Issue write based on a stale read is refused; an
+ * admin token bypasses them.
+ */
+export const writerOf = (
+  environment: Readonly<Record<string, string | undefined>>,
+): Option.Option<string> =>
+  Option.filter(
+    Option.map(Option.fromNullishOr(environment[ownerEmailName]), String.trim),
+    String.isNonEmpty,
+  )
 
 /**
  * The read-once adapter behind `adminAsInstantToolsDatabase`: one command
@@ -270,11 +289,14 @@ const adminDatabase = (
  * Model from each Command's result, so it never needs a second snapshot, and
  * no timer is left to hold the process open. Every read and write that meets
  * Instant's rate limit is sent again on `retry`, so a command never fails
- * for having come too fast.
+ * for having come too fast. With `maybeOwnerEmail`, writes go through the
+ * app's rules as that owner (`asUser`), so a stale Issue write is refused;
+ * reads stay the admin's.
  */
 export const adminAsInstantToolsDatabase = (
   admin: InstantAdminClient,
   retry: Schedule.Schedule<unknown, unknown> = rateLimitRetry,
+  maybeOwnerEmail: Option.Option<string> = Option.none(),
 ): InstantToolsDatabaseWithFiles => {
   const answers = new Map<string, Promise<unknown>>()
   const readOnce = (query: unknown): Promise<unknown> => {
@@ -290,13 +312,21 @@ export const adminAsInstantToolsDatabase = (
     answer.catch(() => answers.delete(key))
     return answer
   }
+  const writer = Option.match(
+    Option.flatMap(maybeOwnerEmail, email =>
+      Option.map(Option.fromNullishOr(admin.asUser), asUser =>
+        asUser({ email }),
+      ),
+    ),
+    { onNone: () => admin, onSome: owner => owner },
+  )
   return adminDatabase(
     admin,
     readOnce,
     ops =>
       sendRetryingRateLimits(
         // oxlint-disable-next-line typescript/consistent-type-assertions
-        () => admin.transact(ops as never),
+        () => writer.transact(ops as never),
         retry,
       ),
     () => answers.clear(),
@@ -573,7 +603,11 @@ export const liveIssueHostServices = ():
     schema: InstantToolsSchemaWithFiles,
     ...(apiURI === undefined ? {} : { apiURI }),
   })
-  const database = adminAsInstantToolsDatabase(admin)
+  const database = adminAsInstantToolsDatabase(
+    admin,
+    rateLimitRetry,
+    writerOf(process.env),
+  )
   const store = makeInstantEntityStore(database)
   const scribeCredentials = scribeCredentialsOf(
     process.env,

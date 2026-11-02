@@ -8,12 +8,25 @@ import {
   Order,
   Predicate,
   Queue,
+  Record,
   Schema as S,
   Stream,
   pipe,
 } from 'effect'
 
 import { normalizeIssueId } from '@foldkit/instant-tools/issues'
+
+import { DecisionFacts } from './decisionFacts.js'
+import { QuestionFacts } from './questionFacts.js'
+import { ReminderFacts } from './reminderFacts.js'
+import {
+  AgentFacts,
+  FeatureFacts,
+  FindingFacts,
+  type GraphQuery,
+  ProductFacts,
+  SessionFacts,
+} from './graphFacts.js'
 
 // MODEL
 
@@ -51,6 +64,30 @@ export const LandedCommit = S.Struct({
 /** One commit that implements an Issue, and the builds it shipped in. */
 export type LandedCommit = typeof LandedCommit.Type
 
+/** Whose words a moment's lines are: his, or what he had on. */
+export const MomentKind = S.Literals(['Said', 'Seen'])
+/** Whose words a moment's lines are. */
+export type MomentKind = typeof MomentKind.Type
+
+/**
+ * One stretch of a Recording an Issue cites: lines 76 to 78, 22:39 into
+ * Recording 208, starting at their first line's row. A `Seen` moment is
+ * another app's sound or a voice named for someone else, never his words.
+ * `isOrigin` says the Issue came from it: the rows call it `introduced` and
+ * he said it before the Issue was filed.
+ */
+export const IssueMoment = S.Struct({
+  firstLineIndex: S.Number,
+  isOrigin: S.Boolean,
+  kind: MomentKind,
+  lastLineIndex: S.Number,
+  recordingId: S.String,
+  segmentId: S.String,
+  startSeconds: S.Number,
+})
+/** One stretch of a Recording an Issue cites. */
+export type IssueMoment = typeof IssueMoment.Type
+
 /**
  * Where an Issue landed, derived from git and read from Scribe's rows: the
  * commits that implement it, oldest first, and the builds he found it in.
@@ -58,12 +95,15 @@ export type LandedCommit = typeof LandedCommit.Type
 export const IssueLanding = S.Struct({
   commits: S.Array(LandedCommit),
   foundIn: S.Array(LandedBuild),
+  moments: S.Array(IssueMoment).pipe(
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
 })
 /** Where an Issue landed. */
 export type IssueLanding = typeof IssueLanding.Type
 
 /** An Issue with no commit and no build known: nothing landed yet. */
-export const noLanding: IssueLanding = { commits: [], foundIn: [] }
+export const noLanding: IssueLanding = { commits: [], foundIn: [], moments: [] }
 
 /** A build as a person says it: `Scribe 0.1 (217)`. */
 export const buildLabel = (build: LandedBuild): string =>
@@ -142,9 +182,33 @@ export const CommitFacts = S.TaggedStruct('CommitFacts', {
 /** What Scribe's rows say about one commit. */
 export type CommitFacts = typeof CommitFacts.Type
 
-/** What Scribe's rows say about one Recording: its name, start and length. */
+/** One Issue and its moments on a page, in the order he said them. */
+export const MomentsOfIssue = S.Struct({
+  issueId: S.String,
+  moments: S.Array(IssueMoment),
+})
+/** One Issue and its moments on a page. */
+export type MomentsOfIssue = typeof MomentsOfIssue.Type
+
+/**
+ * The Issues a Recording's or a line's moments name, each once, in the order
+ * he said them. `cameFrom` holds those with their origin here, `alsoCameUp`
+ * those filed from somewhere else or before he said these lines.
+ */
+export const IssuesOfMoments = S.Struct({
+  alsoCameUp: S.Array(MomentsOfIssue),
+  cameFrom: S.Array(MomentsOfIssue),
+})
+/** The Issues a Recording's or a line's moments name. */
+export type IssuesOfMoments = typeof IssuesOfMoments.Type
+
+/**
+ * What Scribe's rows say about one Recording: its name, start and length, and
+ * the Issues its moments name.
+ */
 export const RecordingFacts = S.TaggedStruct('RecordingFacts', {
   durationSeconds: S.Number,
+  issues: IssuesOfMoments,
   recordingId: S.String,
   startedAtMs: S.Number,
   title: S.String,
@@ -152,9 +216,13 @@ export const RecordingFacts = S.TaggedStruct('RecordingFacts', {
 /** What Scribe's rows say about one Recording. */
 export type RecordingFacts = typeof RecordingFacts.Type
 
-/** What Scribe's rows say about one line: its words and where it was said. */
+/**
+ * What Scribe's rows say about one line: its words, where it was said, and the
+ * Issues whose moments cover it.
+ */
 export const SegmentFacts = S.TaggedStruct('SegmentFacts', {
   isSealed: S.Boolean,
+  issues: IssuesOfMoments,
   lineIndex: S.Number,
   recordingId: S.String,
   saidAtMs: S.Number,
@@ -174,6 +242,14 @@ export const PageFacts = S.Union([
   CommitFacts,
   RecordingFacts,
   SegmentFacts,
+  AgentFacts,
+  SessionFacts,
+  FindingFacts,
+  FeatureFacts,
+  ProductFacts,
+  DecisionFacts,
+  QuestionFacts,
+  ReminderFacts,
   NoPageFacts,
 ])
 /** What Scribe's rows say about the entity a page shows. */
@@ -510,7 +586,107 @@ export const commitFactsOf = (data: unknown): PageFacts =>
     },
   )
 
-const StoredRecordingPages = S.Struct({
+const StoredMomentIssue = S.Struct({
+  createdAtMs: S.Number,
+  number: S.Number,
+})
+
+const StoredMoment = S.Struct({
+  firstLineIndex: OptionalNumber,
+  kind: OptionalText,
+  lastLineIndex: OptionalNumber,
+  role: S.String,
+  segmentID: OptionalText,
+  startSeconds: OptionalNumber,
+  startedAtMs: S.Number,
+  trackedIssue: S.optionalKey(
+    S.NullOr(S.Union([StoredMomentIssue, S.Array(StoredMomentIssue)])),
+  ),
+})
+
+const StoredMoments = S.optionalKey(S.Array(StoredMoment))
+
+const INTRODUCED = 'introduced'
+const SEEN = 'seen'
+
+const momentOf = (
+  stored: typeof StoredMoment.Type,
+  issue: typeof StoredMomentIssue.Type,
+  recordingId: string,
+): Option.Option<IssueMoment> =>
+  Option.all({
+    firstLineIndex: Option.fromNullishOr(stored.firstLineIndex),
+    lastLineIndex: Option.fromNullishOr(stored.lastLineIndex),
+    segmentId: Option.fromNullishOr(stored.segmentID),
+    startSeconds: Option.fromNullishOr(stored.startSeconds),
+  }).pipe(
+    Option.map(line => ({
+      ...line,
+      isOrigin:
+        stored.role === INTRODUCED && stored.startedAtMs <= issue.createdAtMs,
+      kind: stored.kind === SEEN ? 'Seen' : 'Said',
+      recordingId,
+    })),
+  )
+
+const inOrderSaid: Order.Order<IssueMoment> = Order.combine(
+  Order.mapInput(Order.Number, (moment: IssueMoment) => moment.firstLineIndex),
+  Order.mapInput(Order.Number, (moment: IssueMoment) => moment.lastLineIndex),
+)
+
+const firstSaid = ({ moments }: MomentsOfIssue): number =>
+  Option.getOrElse(
+    Option.map(Array.head(moments), moment => moment.firstLineIndex),
+    () => 0,
+  )
+
+const issuesInOrderSaid: Order.Order<MomentsOfIssue> = Order.combine(
+  Order.mapInput(Order.Number, firstSaid),
+  Order.mapInput(Order.Number, ({ issueId }: MomentsOfIssue) =>
+    Number(issueId),
+  ),
+)
+
+const hasOrigin = ({ moments }: MomentsOfIssue): boolean =>
+  Array.some(moments, moment => moment.isOrigin)
+
+/**
+ * The Issues the rows of a Recording or a line name, each once, in the order
+ * he said them, by first line and then by Issue number. One Issue can have
+ * many moments. A moment whose row names no Issue, or no line, is skipped: four
+ * came from an old bridge, and their Issues have moments of their own.
+ */
+const issuesOfMomentsOf = (
+  stored: ReadonlyArray<typeof StoredMoment.Type>,
+  recordingId: string,
+): IssuesOfMoments => {
+  const moments = Array.flatMap(stored, row =>
+    Array.flatMap(Array.take(listOf(row.trackedIssue), 1), issue =>
+      Array.map(Option.toArray(momentOf(row, issue, recordingId)), moment => ({
+        issueId: issueIdOf(issue.number),
+        moment,
+      })),
+    ),
+  )
+  const issues = pipe(
+    Array.groupBy(moments, ({ issueId }) => issueId),
+    Record.toEntries,
+    Array.map(([issueId, ofIssue]) => ({
+      issueId,
+      moments: Array.sort(
+        Array.map(ofIssue, ({ moment }) => moment),
+        inOrderSaid,
+      ),
+    })),
+    Array.sort(issuesInOrderSaid),
+  )
+  return {
+    alsoCameUp: Array.filter(issues, ofIssue => !hasOrigin(ofIssue)),
+    cameFrom: Array.filter(issues, hasOrigin),
+  }
+}
+
+const StoredRecordingRows = S.Struct({
   recordings: S.Array(
     S.Struct({
       durationSeconds: S.Number,
@@ -521,21 +697,32 @@ const StoredRecordingPages = S.Struct({
   ),
 })
 
-/** A Recording's page from the row Instant answers with. */
-export const recordingFactsOf = (data: unknown): PageFacts =>
-  Option.match(
-    Array.head(S.decodeUnknownSync(StoredRecordingPages)(data).recordings),
-    {
-      onNone: () => NoPageFacts.make({}),
-      onSome: stored =>
-        RecordingFacts.make({
-          durationSeconds: stored.durationSeconds,
-          recordingId: stored.id,
-          startedAtMs: stored.startedAtMs,
-          title: stored.title,
-        }),
-    },
-  )
+const StoredRecordingMoments = S.Struct({ sourceMoments: StoredMoments })
+
+const StoredRecordingPages = S.Struct({
+  ...StoredRecordingRows.fields,
+  ...StoredRecordingMoments.fields,
+})
+
+/**
+ * A Recording's page from the rows Instant answers with: its own row, and its
+ * moments with their Issues.
+ */
+export const recordingFactsOf = (data: unknown): PageFacts => {
+  const { recordings, sourceMoments } =
+    S.decodeUnknownSync(StoredRecordingPages)(data)
+  return Option.match(Array.head(recordings), {
+    onNone: () => NoPageFacts.make({}),
+    onSome: stored =>
+      RecordingFacts.make({
+        durationSeconds: stored.durationSeconds,
+        issues: issuesOfMomentsOf(listOf(sourceMoments), stored.id),
+        recordingId: stored.id,
+        startedAtMs: stored.startedAtMs,
+        title: stored.title,
+      }),
+  })
+}
 
 const StoredSegmentPages = S.Struct({
   transcriptionSegments: S.Array(
@@ -543,6 +730,7 @@ const StoredSegmentPages = S.Struct({
       id: S.String,
       recordingID: S.String,
       segmentIndex: S.Number,
+      sourceMoments: StoredMoments,
       startTimeSeconds: S.Number,
       text: S.String,
       wallClockStartedAtMs: S.Number,
@@ -551,7 +739,10 @@ const StoredSegmentPages = S.Struct({
   ),
 })
 
-/** A line's page from the row Instant answers with. */
+/**
+ * A line's page from the rows Instant answers with: its own row, and through
+ * its link every moment that covers it.
+ */
 export const segmentFactsOf = (data: unknown): PageFacts =>
   Option.match(
     Array.head(
@@ -562,6 +753,10 @@ export const segmentFactsOf = (data: unknown): PageFacts =>
       onSome: stored =>
         SegmentFacts.make({
           isSealed: Option.isSome(Option.fromNullishOr(stored.wordsSeal)),
+          issues: issuesOfMomentsOf(
+            listOf(stored.sourceMoments),
+            stored.recordingID,
+          ),
           lineIndex: stored.segmentIndex,
           recordingId: stored.recordingID,
           saidAtMs: stored.wallClockStartedAtMs,
@@ -667,6 +862,42 @@ export const issueLandingQuery = (issueNumber: number) => ({
 })
 
 /**
+ * What the Issue page asks Scribe's app for: where it landed, and its moments
+ * with their kind, so the page says whether the line he is quoted from is his
+ * or another app's sound. #625's moments are `sourceMoments` whose
+ * `trackedIssue.number` is 625. The `issues` command reads the landing alone.
+ */
+export const issuePageLandingQuery = (issueNumber: number) => ({
+  ...issueLandingQuery(issueNumber),
+  sourceMoments: {
+    $: {
+      where: { 'trackedIssue.number': issueNumber, subjectKind: ISSUE_SUBJECT },
+      fields: [...MOMENT_FIELDS, 'recordingID'],
+    },
+    trackedIssue: MOMENT_ISSUE,
+  },
+})
+
+const StoredIssueMoments = S.Struct({
+  sourceMoments: S.optionalKey(
+    S.Array(S.Struct({ ...StoredMoment.fields, recordingID: S.String })),
+  ),
+})
+
+/** What the Issue page reads: where it landed, and its moments. */
+export const issuePageLandingOf = (data: unknown): IssueLanding => {
+  const { sourceMoments } = S.decodeUnknownSync(StoredIssueMoments)(data)
+  return IssueLanding.make({
+    ...issueLandingOf(data),
+    moments: Array.flatMap(listOf(sourceMoments), stored =>
+      Array.flatMap(listOf(stored.trackedIssue), issue =>
+        Option.toArray(momentOf(stored, issue, stored.recordingID)),
+      ),
+    ),
+  })
+}
+
+/**
  * What a build's page asks for: the row by its key, `scribe|217`, its cut
  * commit and devices, and its edges with each commit's Issue ends.
  */
@@ -709,8 +940,32 @@ export const buildsQuery = { builds: { $: { fields: BUILD_FIELDS } } }
 
 const UUID_LIKE = /^[0-9a-f-]{36}$/i
 
-/** What a Recording's page asks for: its name, start and length. */
-export const recordingFactsQuery = (recordingId: string) => ({
+/** The fields a page draws of a moment; its quoted words stay behind. */
+const MOMENT_FIELDS = [
+  'firstLineIndex',
+  'kind',
+  'lastLineIndex',
+  'role',
+  'segmentID',
+  'startSeconds',
+  'startedAtMs',
+]
+
+const ISSUE_SUBJECT = 'issue'
+
+/**
+ * What a page reads of a moment's Issue: which Issue, and when it was filed.
+ * Its title and state come from the catalog, which keeps them live.
+ */
+const MOMENT_ISSUE = { $: { fields: ['createdAtMs', 'number'] } }
+
+/**
+ * What a Recording's page asks for about the Recording itself: its name,
+ * start and length. Kept apart from its moments: a live Recording's length
+ * changes once a minute, and a change restates its query's whole answer, so
+ * this one answers with one row.
+ */
+export const recordingRowQuery = (recordingId: string) => ({
   recordings: {
     $: {
       where: { id: recordingId.toLowerCase() },
@@ -719,7 +974,30 @@ export const recordingFactsQuery = (recordingId: string) => ({
   },
 })
 
-/** What a line's page asks for: its words, time and sealing. */
+/**
+ * What a Recording's page asks for about its Issues: every Issue moment in
+ * it, with the Issue each names. Recording 208 answers 100 Issues and 297
+ * moments, about 407 KB, so it changes only when a moment does. Its rows hold
+ * ids in lowercase, so any spelling of the id reads.
+ */
+export const recordingMomentsQuery = (recordingId: string) => ({
+  sourceMoments: {
+    $: {
+      where: {
+        recordingID: recordingId.toLowerCase(),
+        subjectKind: ISSUE_SUBJECT,
+      },
+      fields: MOMENT_FIELDS,
+    },
+    trackedIssue: MOMENT_ISSUE,
+  },
+})
+
+/**
+ * What a line's page asks for: its words, time and sealing, and through its
+ * `sourceMoments` link the Issue moments that cover it, the line among the
+ * lines of a stretch such as `#76-115` too.
+ */
 export const segmentFactsQuery = (segmentId: string) => ({
   transcriptionSegments: {
     $: {
@@ -733,19 +1011,31 @@ export const segmentFactsQuery = (segmentId: string) => ({
         'wordsSeal',
       ],
     },
+    sourceMoments: {
+      $: { where: { subjectKind: ISSUE_SUBJECT }, fields: MOMENT_FIELDS },
+      trackedIssue: MOMENT_ISSUE,
+    },
   },
 })
 
 /** Every query a page asks Scribe's app. */
 export type LandingsQuery =
   | typeof buildsQuery
-  | ReturnType<typeof recordingFactsQuery>
+  | ReturnType<typeof recordingRowQuery>
+  | ReturnType<typeof recordingMomentsQuery>
   | ReturnType<typeof segmentFactsQuery>
   | ReturnType<typeof issueLandingQuery>
+  | ReturnType<typeof issuePageLandingQuery>
   | ReturnType<typeof buildFactsQuery>
   | ReturnType<typeof commitFactsQuery>
+  | GraphQuery
 
-const observed = <A>(
+/**
+ * One live query of Scribe's app as a Stream of what `read` makes of each
+ * answer: opened when asked for, closed with the Stream, and failing with the
+ * reason a person reads when the rules refuse it or the rows cannot be read.
+ */
+export const observed = <A>(
   openDatabase: Effect.Effect<LandingsDatabase, IssueLandingError>,
   query: LandingsQuery,
   read: (data: unknown) => A,
@@ -799,10 +1089,14 @@ export const instantIssueLandings = (
 ): IssueLandingsService => ({
   observeRecordingFacts: recordingId =>
     UUID_LIKE.test(recordingId)
-      ? observed(
-          openDatabase,
-          recordingFactsQuery(recordingId),
-          recordingFactsOf,
+      ? Stream.zipLatestWith(
+          observed(openDatabase, recordingRowQuery(recordingId), data =>
+            S.decodeUnknownSync(StoredRecordingRows)(data),
+          ),
+          observed(openDatabase, recordingMomentsQuery(recordingId), data =>
+            S.decodeUnknownSync(StoredRecordingMoments)(data),
+          ),
+          (row, moments) => recordingFactsOf({ ...row, ...moments }),
         )
       : Stream.succeed(NoPageFacts.make({})),
   observeSegmentFacts: segmentId =>
@@ -832,8 +1126,8 @@ export const instantIssueLandings = (
     ISSUE_NUMBER.test(issueId)
       ? observed(
           openDatabase,
-          issueLandingQuery(Number(issueId)),
-          issueLandingOf,
+          issuePageLandingQuery(Number(issueId)),
+          issuePageLandingOf,
         )
       : Stream.succeed(noLanding),
 })

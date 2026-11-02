@@ -76,6 +76,36 @@ describe('readTextReferences', () => {
     ])
   })
 
+  it('reads a list of lines after a Recording as lines of it, never as Issues', () => {
+    const lines = referencesIn('Recording 039 #17, #823, #880 and #902.')
+    expect(
+      Array.map(lines, piece =>
+        piece.reference._tag === 'RecordingLines'
+          ? `${piece.reference.recordingNumber.toString()} ${Option.match(
+              piece.reference.maybeLineRange,
+              { onNone: () => '', onSome: range => range.first.toString() },
+            )}`
+          : piece.reference._tag,
+      ),
+    ).toEqual(['39 17', '39 823', '39 880', '39 902'])
+    expect(
+      Array.map(referencesIn('Recording 039 #17; fixed by #823.'), piece =>
+        piece.reference._tag,
+      ),
+    ).toEqual(['RecordingLines', 'IssueNumber'])
+  })
+
+  it('reads line #443 as a line, never as an Issue', () => {
+    expect(
+      Array.map(referencesIn('Recording 208 then line #443.'), piece =>
+        piece.reference._tag === 'RecordingLines'
+          ? Option.map(piece.reference.maybeLineRange, range => range.first)
+          : piece.reference._tag,
+      ),
+    ).toEqual([Option.none(), Option.some(443)])
+    expect(referencesIn('See line #443 of the transcript.')).toEqual([])
+  })
+
   it('reads a words deep link with its recording, line and time', () => {
     const [piece] = referencesIn(
       'Deep link: https://words.knophy.com/recording/faa684c2-34e4-47e5-8f9b-3b2196da9463/section/574c0938-6063-4eba-a718-ee56bfcf9c46?t=16171.68.',

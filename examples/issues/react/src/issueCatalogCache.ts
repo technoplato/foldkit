@@ -40,9 +40,11 @@ const decodeRows = S.decodeUnknownOption(S.Array(InstantIssueRecord))
 
 /**
  * Keeps the catalog's rows in this browser's IndexedDB between visits, so a
- * reload shows them at once and reads only what changed. Each write is best
- * effort: one that fails only costs the next reload a full read. Rows that no
- * longer read answer with nothing kept.
+ * reload shows them at once and reads only what changed. A write that fails
+ * takes away the mark of the last full read, so the next reload reads every
+ * row again rather than trusting rows that missed a change. Only when that
+ * too fails does a kept row stay stale, until the day's full read. Rows that
+ * no longer read answer with nothing kept.
  *
  * @param database opens the store; a test can hand its own.
  */
@@ -58,20 +60,27 @@ export const indexedDbIssueCatalogCache = (
         return next
       })
   })()
+  const written = (
+    stores: ReadonlyArray<string>,
+    change: (transaction: IDBTransaction) => void,
+  ): Promise<void> =>
+    opening().then(openedDatabase => {
+      const transaction = openedDatabase.transaction(
+        Array.fromIterable(stores),
+        'readwrite',
+      )
+      change(transaction)
+      return finished(transaction)
+    })
+  const forgetFullRead = (): Promise<void> =>
+    written([FACTS_STORE], transaction => {
+      transaction.objectStore(FACTS_STORE).delete(FULL_READ_FACT)
+    }).catch(() => undefined)
   const write = (
     stores: ReadonlyArray<string>,
     change: (transaction: IDBTransaction) => void,
   ): void => {
-    void opening()
-      .then(openedDatabase => {
-        const transaction = openedDatabase.transaction(
-          Array.fromIterable(stores),
-          'readwrite',
-        )
-        change(transaction)
-        return finished(transaction)
-      })
-      .catch(() => undefined)
+    void written(stores, change).catch(forgetFullRead)
   }
   return {
     read: () =>

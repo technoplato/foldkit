@@ -13,10 +13,13 @@ export const OwnerEmail = S.String.check(
 /** An email the tracker's Instant rules let read and write. */
 export type OwnerEmail = typeof OwnerEmail.Type
 
-/** One entity's rules: every action allowed only when `isOwner` holds. */
+/**
+ * One entity's rules: each action allowed only when its bound names hold.
+ * `bind` pairs a name with its rule, `['isOwner', 'auth.id != null && ...']`.
+ */
 export type OwnerRule = Readonly<{
   allow: Readonly<Record<string, string>>
-  bind: readonly [string, string]
+  bind: ReadonlyArray<string>
 }>
 
 /** Instant rules for every Instant Tools entity and `$files`. */
@@ -25,6 +28,17 @@ export type InstantToolsOwnerRules = Readonly<
 >
 
 const ownerBinding = 'isOwner'
+
+const currentBinding = 'isCurrent'
+
+/**
+ * An Issue write that names the `updatedAtMs` it read is refused when the row
+ * moved since: `tx.instantToolsIssues[id].ruleParams({ expectedUpdatedAtMs:
+ * 1793566585490 }).update(...)`. A writer that names none, such as a tab open
+ * from before this rule, passes as before.
+ */
+const isCurrentIssueWrite =
+  'ruleParams.expectedUpdatedAtMs == null || data.updatedAtMs == ruleParams.expectedUpdatedAtMs'
 
 const entityActions = ['view', 'create', 'update', 'delete'] as const
 
@@ -44,13 +58,17 @@ const ownerRule =
  * `ownerEmails` view, create, update, or delete any Instant Tools entity,
  * and view, upload, or delete the Issue attachments in `$files`. A guest,
  * or anyone signed in with another email, reads nothing and writes
- * nothing. Admin tokens bypass rules, so the `issues` CLI keeps working.
+ * nothing. An Issue update that names the `updatedAtMs` it read is refused
+ * once the row has moved past it. Admin tokens bypass rules, so the `issues`
+ * CLI writes as an owner (`asUser`) for the Issue rule to run.
  *
  * @example
  * ```typescript
- * instantToolsOwnerRules([OwnerEmail.make('owner@example.com')]).instantToolsIssues
+ * instantToolsOwnerRules([OwnerEmail.make('owner@example.com')]).instantToolsLogs
  * // { allow: { view: 'isOwner', create: 'isOwner', update: 'isOwner', delete: 'isOwner' },
  * //   bind: ['isOwner', "auth.id != null && auth.email in ['owner@example.com']"] }
+ * instantToolsOwnerRules([OwnerEmail.make('owner@example.com')]).instantToolsIssues.allow.update
+ * // 'isOwner && isCurrent'
  * ```
  */
 export const instantToolsOwnerRules = (
@@ -60,11 +78,19 @@ export const instantToolsOwnerRules = (
     ownerEmails,
     email => `'${String.toLowerCase(email)}'`,
   ).join(', ')
-  const ruleFor = ownerRule(
-    `auth.id != null && auth.email in [${quotedEmails}]`,
-  )
+  const isOwner = `auth.id != null && auth.email in [${quotedEmails}]`
+  const ruleFor = ownerRule(isOwner)
   return {
     ...Record.map(InstantToolsEntities, () => ruleFor(entityActions)),
+    instantToolsIssues: {
+      allow: {
+        view: ownerBinding,
+        create: ownerBinding,
+        update: `${ownerBinding} && ${currentBinding}`,
+        delete: ownerBinding,
+      },
+      bind: [ownerBinding, isOwner, currentBinding, isCurrentIssueWrite],
+    },
     $files: ruleFor(fileActions),
   }
 }

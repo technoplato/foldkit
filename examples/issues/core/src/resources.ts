@@ -37,6 +37,7 @@ import {
   type LoggerService,
 } from '@foldkit/instant-tools/logging'
 
+import { GraphRows, type GraphRowsService, NoGraphRows } from './graphRows.js'
 import { IssueFiles, NoIssueFiles, instantIssueFiles } from './issueFiles.js'
 import { IssueIdentity, liveIssueIdentity } from './issueIdentity.js'
 import {
@@ -44,6 +45,12 @@ import {
   type IssueLandingsService,
   NoIssueLandings,
 } from './issueLandings.js'
+import {
+  IssueViews,
+  type IssueViewsService,
+  NoIssueViews,
+  makeMemoryIssueViews,
+} from './issueViews.js'
 
 const scribe = ProductCatalogEntry.make({
   product: ApplicationProduct.make({ id: 'scribe', name: 'Scribe' }),
@@ -325,6 +332,8 @@ export const StaticIssueTrackerResources = Layer.mergeAll(
   MemoryLeftoverPresenceLive,
   Layer.succeed(IssueFiles, NoIssueFiles),
   Layer.succeed(IssueLandings, NoIssueLandings),
+  Layer.succeed(GraphRows, NoGraphRows),
+  Layer.effect(IssueViews, makeMemoryIssueViews([])),
   Layer.succeed(IssueIdentity, {
     author: Effect.succeed('issues-preview'),
     next: Effect.succeed({ id: 'issue-preview', nowMs: 1_753_800_100_000 }),
@@ -374,18 +383,26 @@ export const signedInAuthor = (
  * `landings` is where an Issue landed: `instantIssueLandings(scribeDatabase)`
  * on the site, nothing where no host reads Scribe's rows. `catalogCache` is
  * where the host keeps the catalog between visits: the browser's IndexedDB on
- * the site, nowhere by default.
+ * the site, nowhere by default. `graph` is what Scribe's rows say about agents,
+ * findings, features and products: `instantGraphRows(scribeDatabase)` on the
+ * site.
+ * the site, nowhere by default. `views` is where saved views live:
+ * `instantIssueViews(scribeViews)` on the site, nowhere by default.
  */
 export const makeLiveIssueTrackerResources = (
   database: InstantToolsDatabaseWithFiles,
   author: Effect.Effect<string>,
   landings: IssueLandingsService = NoIssueLandings,
   catalogCache: IssueCatalogCache = noIssueCatalogCache,
+  graph: GraphRowsService = NoGraphRows,
+  views: IssueViewsService = NoIssueViews,
 ) =>
   Layer.mergeAll(
     makeInstantToolsLayer(database, catalogCache),
     makeInstantLeftoverPresenceLayer(database),
     Layer.succeed(IssueFiles, instantIssueFiles(database)),
     Layer.succeed(IssueLandings, landings),
+    Layer.succeed(GraphRows, graph),
+    Layer.succeed(IssueViews, views),
     Layer.succeed(IssueIdentity, liveIssueIdentity(author)),
   )

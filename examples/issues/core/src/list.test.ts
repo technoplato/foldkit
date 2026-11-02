@@ -108,17 +108,42 @@ describe('Issue Tracker screen: the list', () => {
 
     expect(rowsOf(model)).toEqual([
       {
+        check: {
+          action: 'select:021',
+          extendAction: 'select-to:021',
+          isChecked: false,
+          label: 'Select #021',
+        },
         href: '/issues/021',
         key: '021',
-        lines: [
-          '#021',
-          'P1',
-          'Open',
-          'Scribe',
-          'Recording / images',
-          'claude-code/issues-linear-1538@ld',
-        ],
+        lines: ['#021', 'Recording / images'],
         title: 'Keep transcript aligned',
+        trailing: [
+          {
+            _tag: 'Button',
+            label: 'Open',
+            token: 'field:status:021',
+            variant: 'Ghost',
+          },
+          {
+            _tag: 'Button',
+            label: 'P1',
+            token: 'field:priority:021',
+            variant: 'Ghost',
+          },
+          {
+            _tag: 'Button',
+            label: 'claude-code/issues-linear-1538@ld',
+            token: 'field:claim:021',
+            variant: 'Ghost',
+          },
+          {
+            _tag: 'Button',
+            label: 'Scribe',
+            token: 'field:product:021',
+            variant: 'Ghost',
+          },
+        ],
       },
     ])
   })
@@ -162,9 +187,11 @@ describe('Issue Tracker screen: the list', () => {
     expect(rowsAfter).toHaveLength(250)
     expect(
       Array.findFirst(rowsAfter, row => row.key === '1007').pipe(
-        Option.map(row => row.lines),
+        Option.map(row =>
+          Array.map(row.trailing ?? [], button => button.label),
+        ),
       ),
-    ).toEqual(Option.some(['#1007', 'P1', 'Fixed', 'Scribe']))
+    ).toEqual(Option.some(['Fixed', 'P1', 'Unclaimed', 'Scribe']))
     expect(
       Array.map(
         Array.filter(

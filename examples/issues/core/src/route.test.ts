@@ -48,11 +48,11 @@ describe('the reader clock', () => {
   it('keeps the time and offset a tick gave, for how long ago things were', () => {
     const [next] = update(
       modelForNavigation(IssueList.make({})),
-      TickedClock.make({ nowMs: 1_793_541_600_000, offsetMinutes: -300 }),
+      TickedClock.make({ nowMs: 1_793_541_600_000, timeZone: 'America/New_York' }),
     )
     expect(next.clock).toEqual({
       nowMs: 1_793_541_600_000,
-      offsetMinutes: -300,
+      timeZone: 'America/New_York',
     })
   })
 

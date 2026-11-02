@@ -5,9 +5,13 @@ import {
   Column,
   List,
   type ListItem,
+  Plain,
+  Reference,
+  RichText,
   Row,
   Text,
   TextInput,
+  type TextPart,
   type UiNode,
 } from 'foldkit/renderers'
 
@@ -16,20 +20,43 @@ import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
 import { askFlowNodes } from './askFlowPage.js'
 import { laneHeading, sectionHeading } from './backlog.js'
+import { CARD_DROP_TOKEN_PREFIX } from './board.js'
 import { menuHasField, productChoicesOf, sortNameOf } from './choices.js'
 import { entityPageNodes } from './entityPage.js'
+import { decisionsPageNodes } from './decisionPage.js'
+import { featuresPageNodes } from './featurePage.js'
+import { findingsPageNodes } from './findingsPage.js'
+import { questionsPageNodes } from './questionPage.js'
+import { remindersPageNodes } from './reminderPage.js'
+import { inboxNodes } from './inboxPage.js'
 import { type Interaction } from './interaction.js'
 import { issuePageNodes } from './issuePage.js'
-import { type ClaimantFilter, type IssueView } from './issueView.js'
+import {
+  type ClaimantFilter,
+  type IssueGroup,
+  type IssueView,
+} from './issueView.js'
+import { type SavedView } from './issueViews.js'
 import { navigationInteractionsOf } from './keys.js'
 import { type ProductFilter, leftoverQuorumRequired } from './leftover.js'
-import { issueCountWords, issueRowOf } from './listRows.js'
 import {
+  cardOf,
+  currentRowOf,
+  issueCountWords,
+  selectableRowOf,
+} from './listRows.js'
+import {
+  isPageOfRows,
+  issuesInHandOf,
   listedBacklog,
+  listedColumns,
   listedGroups,
   listedIssues,
   loadedIssuesIn,
   productFilterOf,
+  savedViewsOf,
+  selectedRowsOf,
+  selectedSetOf,
 } from './listing.js'
 import { type MenuRow, menuRowsOf } from './menus.js'
 import {
@@ -38,6 +65,13 @@ import {
   type IssueLogsState,
   type Model,
 } from './model.js'
+import { productsPageNodes } from './productPage.js'
+import { listPathOfSearch, searchOfView } from './route.js'
+import {
+  type FailedRowEdit,
+  issueWithEdits,
+  rowChangeWords,
+} from './rowEdit.js'
 import { productForReference } from './update.js'
 
 const isoTimeOf = (timeMs: number): string => new Date(timeMs).toISOString()
@@ -55,16 +89,15 @@ type RowGroup = Readonly<{
 const placedRowsOf = (
   model: Model,
   issues: ReadonlyArray<Issue>,
-): ReadonlyArray<ListItem> =>
-  Option.match(model.maybeRowCursor, {
-    onNone: () => Array.map(issues, issueRowOf),
-    onSome: cursorId =>
-      Array.map(issues, issue =>
-        issue.id === cursorId
-          ? { ...issueRowOf(issue), isCurrent: true }
-          : issueRowOf(issue),
-      ),
+  shapedAs: (row: ListItem) => ListItem = row => row,
+): ReadonlyArray<ListItem> => {
+  const selected = selectedSetOf(model)
+  const maybeCursorId = Option.getOrUndefined(model.maybeRowCursor)
+  return Array.map(issues, issue => {
+    const row = shapedAs(selectableRowOf(issue, selected.has(issue.id)))
+    return issue.id === maybeCursorId ? currentRowOf(row) : row
   })
+}
 
 const groupNode = (model: Model, group: RowGroup): UiNode =>
   Column(
@@ -163,7 +196,22 @@ const filterButtons = (
     view.sort !== 'Created',
   ),
   menuButton('menu:group', `Group: ${view.grouping}`, view.grouping !== 'None'),
+  menuButton(
+    view.layout === 'Board' ? 'view:list' : 'view:board',
+    'Board',
+    view.layout === 'Board',
+  ),
 ]
+
+const saveViewButtons = (
+  model: Model,
+  view: IssueView,
+): ReadonlyArray<UiNode> => {
+  const shown = searchOfView(view)
+  return Array.some(savedViewsOf(model), saved => saved.query === shown)
+    ? []
+    : [menuButton('view-save', 'Save view', false)]
+}
 
 const landingButtons = (view: IssueView): ReadonlyArray<UiNode> => [
   Button({
@@ -223,6 +271,57 @@ const groupedRowNodes = (
         }),
       )
 
+const boardColumnNode = (model: Model, column: IssueGroup): UiNode =>
+  Column(
+    { gap: 1 },
+    Text(`${column.name}: ${issueCountWords(column.issues.length)}`),
+    List({
+      dropAction: `${CARD_DROP_TOKEN_PREFIX}${column.name}`,
+      items: placedRowsOf(model, column.issues, cardOf),
+      label: column.name,
+    }),
+  )
+
+const boardNode = (model: Model, issues: ReadonlyArray<Issue>): UiNode =>
+  Row(
+    { gap: 1, isBoard: true },
+    ...Array.map(listedColumns(model, issues), column =>
+      boardColumnNode(model, column),
+    ),
+  )
+
+const savedViewChip = (saved: SavedView, shown: string): TextPart =>
+  Reference({
+    href: listPathOfSearch(saved.query),
+    kind: saved.query === shown ? 'CurrentView' : 'View',
+    label: saved.name,
+  })
+
+const savedViewNodes = (
+  model: Model,
+  view: IssueView,
+): ReadonlyArray<UiNode> => {
+  const shown = searchOfView(view)
+  return Array.match(savedViewsOf(model), {
+    onEmpty: () =>
+      model.savedViews._tag === 'FailedSavedViews'
+        ? [
+            Text(`Saved views could not be read: ${model.savedViews.reason}`, {
+              dim: true,
+            }),
+          ]
+        : [],
+    onNonEmpty: views => [
+      RichText(
+        Array.intersperse(
+          Array.map(views, saved => savedViewChip(saved, shown)),
+          Plain(' '),
+        ),
+      ),
+    ],
+  })
+}
+
 const searchRow = (
   model: Model,
   view: IssueView,
@@ -235,18 +334,24 @@ const listNodes = (model: Model, view: IssueView): ReadonlyArray<UiNode> =>
     M.tagsExhaustive({
       LoadingIssues: () => [searchRow(model, view, [Text('Observing…')])],
       FailedIssues: ({ reason }) => [searchRow(model, view, [Text(reason)])],
-      LoadedIssues: ({ issues }) => {
+      LoadedIssues: () => {
+        const issues = loadedIssuesIn(model)
         const visible = listedIssues(model, issues)
         return [
           searchRow(model, view, [
             Text(listedCountWords(view, visible.length, issues.length)),
           ]),
+          ...savedViewNodes(model, view),
           Row(
             { gap: 1 },
             ...landingButtons(view),
             ...filterButtons(model, view),
+            menuButton('menu:views', 'Views', false),
+            ...saveViewButtons(model, view),
           ),
-          ...groupedRowNodes(model, view, issues, visible),
+          ...(view.layout === 'Board'
+            ? [boardNode(model, issues)]
+            : groupedRowNodes(model, view, issues, visible)),
         ]
       },
     }),
@@ -258,8 +363,8 @@ const backlogNodes = (model: Model): ReadonlyArray<UiNode> =>
     M.tagsExhaustive({
       LoadingIssues: () => [Text('Backlog'), Text('Observing…')],
       FailedIssues: ({ reason }) => [Text('Backlog'), Text(reason)],
-      LoadedIssues: ({ issues }) => {
-        const backlog = listedBacklog(model, issues)
+      LoadedIssues: () => {
+        const backlog = listedBacklog(model, loadedIssuesIn(model))
         return [
           Text('Backlog'),
           Row({ gap: 1 }, productFilterButton(model, productFilterOf(model))),
@@ -338,6 +443,37 @@ const leftoverPresenceNodes = (model: Model): ReadonlyArray<UiNode> =>
     }),
   )
 
+const issueActionNodes = (model: Model): ReadonlyArray<UiNode> => [
+  Row(
+    { gap: 1 },
+    TextInput({
+      blurToken: 'writing-blur:Comment',
+      focusToken: 'writing-focus:Comment',
+      label: 'Comment',
+      placeholder: 'Comment',
+      token: 'comment-draft:',
+      value: model.leftoverComment,
+    }),
+    Button({ label: 'Comment', token: 'comment-submit' }),
+  ),
+  Row(
+    { gap: 1 },
+    TextInput({
+      label: 'Link issue',
+      placeholder: 'Issue id',
+      token: 'link-draft:',
+      value: model.leftoverLink,
+    }),
+    Button({ label: 'Link', token: 'link-submit' }),
+  ),
+  ...(model.issueMutation._tag === 'FailedIssueMutation'
+    ? [Text(model.issueMutation.reason)]
+    : []),
+  ...(model.issueMutation._tag === 'SavingIssueMutation'
+    ? [Text('Saving leftover…')]
+    : []),
+]
+
 const detailNodes = (model: Model): ReadonlyArray<UiNode> =>
   M.value(model.issueDetail).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
@@ -348,7 +484,12 @@ const detailNodes = (model: Model): ReadonlyArray<UiNode> =>
       LoadedIssue: ({ issue, issueId }) =>
         Option.match(issue, {
           onNone: () => [Text(issueId), Text('Issue not found')],
-          onSome: observed => issuePageNodes(model, observed),
+          onSome: observed =>
+            issuePageNodes(
+              model,
+              issueWithEdits(observed, model.rowEdits),
+              issueActionNodes(model),
+            ),
         }),
     }),
   )
@@ -392,15 +533,37 @@ const draftStateNodes = (state: IssueDraftState): ReadonlyArray<UiNode> =>
     }),
   )
 
+const findingDraftNodes = (model: Model): ReadonlyArray<UiNode> =>
+  Option.toArray(
+    Option.map(model.maybeDraftFindingId, findingId =>
+      RichText([
+        Plain('This files '),
+        Reference({
+          label: 'a finding',
+          kind: 'Finding',
+          href: `/findings/${findingId}`,
+          detail: [`Finding ${findingId}`],
+        }),
+        Plain('; its row will name the Issue.'),
+      ]),
+    ),
+  )
+
 const fileNodes = (model: Model): ReadonlyArray<UiNode> => [
   Text('File issue'),
+  ...findingDraftNodes(model),
   TextInput({
+    blurToken: 'writing-blur:Title',
+    focused: true,
+    focusToken: 'writing-focus:Title',
     label: 'Title',
     placeholder: 'Title',
     token: 'title:',
     value: model.draft.title,
   }),
   TextInput({
+    blurToken: 'writing-blur:Details',
+    focusToken: 'writing-focus:Details',
     label: 'Details',
     placeholder: 'What is wrong or wanted',
     token: 'details:',
@@ -419,7 +582,14 @@ const fileNodes = (model: Model): ReadonlyArray<UiNode> => [
       }),
     ),
   ),
-  Button({ token: 'submit', label: 'Submit issue', variant: 'Primary' }),
+  Button({
+    token: 'submit',
+    label: 'Submit issue',
+    variant: 'Primary',
+    ...(model.draftState._tag === 'SavingIssueDraft'
+      ? { disabled: true, because: 'Filing…' }
+      : {}),
+  }),
   ...draftStateNodes(model.draftState),
 ]
 
@@ -467,39 +637,89 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
         ...detailNodes(model),
         ...issueLogNodes(model.issueLogs),
         ...leftoverPresenceNodes(model),
-        Text('Comment'),
-        TextInput({
-          placeholder: 'Comment',
-          token: 'comment-draft:',
-          value: model.leftoverComment,
-        }),
-        Button({ label: 'Comment', token: 'comment-submit' }),
-        Text('Link issue'),
-        TextInput({
-          placeholder: 'Issue id',
-          token: 'link-draft:',
-          value: model.leftoverLink,
-        }),
-        Button({ label: 'Link', token: 'link-submit' }),
-        ...(model.issueMutation._tag === 'FailedIssueMutation'
-          ? [Text(model.issueMutation.reason)]
-          : []),
-        ...(model.issueMutation._tag === 'SavingIssueMutation'
-          ? [Text('Saving leftover…')]
-          : []),
       ],
       FileIssue: () => fileNodes(model),
       TriageInbox: () => triageNodes(model),
       Backlog: () => backlogNodes(model),
       AskFlow: () => askFlowNodes(model),
+      Inbox: ({ kind }) => inboxNodes(model, kind),
       EntityPage: ({ entity }) => entityPageNodes(model, entity),
+      Findings: ({ filter }) => findingsPageNodes(model, filter),
+      Decisions: ({ filter }) => decisionsPageNodes(model, filter),
+      Questions: ({ filter }) => questionsPageNodes(model, filter),
+      Reminders: ({ filter }) => remindersPageNodes(model, filter),
+      Features: () => featuresPageNodes(model),
+      Products: () => productsPageNodes(model),
     }),
   )
 
-const GO_KEY_CHOICES = 'Go to: l list, b backlog, t triage'
+const GO_KEY_CHOICES =
+  'Go to: l list, b backlog, t triage, v views, i inbox, f findings, d decisions, q questions, r reminders, e features, p products'
+
+const savingWords = (count: number): string =>
+  count === 1 ? 'Saving 1 change…' : `Saving ${count.toString()} changes…`
+
+const failedEditWords = ({ edit, reason }: FailedRowEdit): string =>
+  `Not saved: #${edit.issueId} ${rowChangeWords(edit.change)}: ${reason}`
+
+const SELECTION_KEYS = 's status, p priority, a claim, x let go, Esc clear'
+
+const hiddenWords = (hiddenCount: number): string =>
+  hiddenCount === 0
+    ? ''
+    : `, ${hiddenCount.toLocaleString('en-US')} hidden by this view`
+
+const selectionNodes = (model: Model): ReadonlyArray<UiNode> => {
+  const shownCount = selectedRowsOf(model).length
+  const hiddenCount = model.selectedIssueIds.length - shownCount
+  return Array.isReadonlyArrayEmpty(model.selectedIssueIds) ||
+    !isPageOfRows(model)
+    ? []
+    : [
+        Text(
+          `${shownCount.toLocaleString('en-US')} selected${hiddenWords(hiddenCount)}: ${SELECTION_KEYS}`,
+        ),
+        Row(
+          { gap: 1 },
+          ...(shownCount === 0
+            ? []
+            : [
+                Button({ label: 'Status', token: 'menu:set-status' }),
+                Button({ label: 'Priority', token: 'menu:set-priority' }),
+                Button({ label: 'Claim', token: 'menu:claim' }),
+              ]),
+          Button({ label: 'Clear', token: 'selection-clear' }),
+        ),
+      ]
+}
+
+const viewFailureNodes = (model: Model): ReadonlyArray<UiNode> =>
+  Option.match(model.maybeViewFailure, {
+    onNone: () => [],
+    onSome: reason => [
+      Text(reason),
+      Button({ label: 'Dismiss', token: 'view-failure-dismiss' }),
+    ],
+  })
+
+const dockChildren = (model: Model): ReadonlyArray<UiNode> => [
+  ...(model.isGoKeyPending ? [Text(GO_KEY_CHOICES)] : []),
+  ...selectionNodes(model),
+  ...viewFailureNodes(model),
+  ...(Array.isReadonlyArrayNonEmpty(model.rowEdits)
+    ? [Text(savingWords(model.rowEdits.length))]
+    : []),
+  ...Array.map(model.failedRowEdits, failed => Text(failedEditWords(failed))),
+  ...(Array.isReadonlyArrayNonEmpty(model.failedRowEdits)
+    ? [Button({ label: 'Dismiss', token: 'edits-dismiss' })]
+    : []),
+]
 
 const dockNodes = (model: Model): ReadonlyArray<UiNode> =>
-  model.isGoKeyPending ? [Box({ isDock: true }, Text(GO_KEY_CHOICES))] : []
+  Array.match(dockChildren(model), {
+    onEmpty: () => [],
+    onNonEmpty: children => [Box({ isDock: true }, ...children)],
+  })
 
 const keyHintOf = (key: string): string =>
   key
@@ -522,10 +742,14 @@ const menuRowLines = (row: MenuRow): ReadonlyArray<string> => [
 const plainMenuItems = new WeakMap<Interaction, ListItem>()
 
 const menuRowItemOf = (row: MenuRow): ListItem => ({
-  action: `palette-run:${row.action.token}`,
+  ...Option.match(row.maybeHref ?? Option.none(), {
+    onNone: () => ({ action: `palette-run:${row.action.token}` }),
+    onSome: href => ({ href }),
+  }),
   key: row.action.token,
   lines: menuRowLines(row),
   title: row.action.label,
+  ...(row.trailing === undefined ? {} : { trailing: row.trailing }),
 })
 
 const plainMenuRowItemOf = (row: MenuRow): ListItem =>
@@ -544,13 +768,22 @@ const menuRowItem = (
   markedPosition: number,
 ): ListItem => {
   const item =
-    Option.isNone(row.count) && !row.isChosen
+    Option.isNone(row.count) && !row.isChosen && row.trailing === undefined
       ? plainMenuRowItemOf(row)
       : menuRowItemOf(row)
   return position === markedPosition ? { ...item, isCurrent: true } : item
 }
 
-const menuLabelOf = (menu: ChoiceMenu): string =>
+const issuesInHandWords = (model: Model): string =>
+  Array.match(issuesInHandOf(model), {
+    onEmpty: () => 'no Issue',
+    onNonEmpty: ([first, ...rest]) =>
+      Array.isReadonlyArrayEmpty(rest)
+        ? `#${first}`
+        : `${(rest.length + 1).toString()} selected Issues`,
+  })
+
+const menuLabelOf = (model: Model, menu: ChoiceMenu): string =>
   M.value(menu).pipe(
     M.withReturnType<string>(),
     M.when('Everything', () => 'Command palette'),
@@ -560,10 +793,16 @@ const menuLabelOf = (menu: ChoiceMenu): string =>
     M.when('ClaimantFilter', () => 'Claimant'),
     M.when('Sort', () => 'Sort by'),
     M.when('Group', () => 'Group by'),
+    M.when('SetStatus', () => `Status of ${issuesInHandWords(model)}`),
+    M.when('SetPriority', () => `Priority of ${issuesInHandWords(model)}`),
+    M.when('SetClaim', () => `Claim ${issuesInHandWords(model)}`),
+    M.when('SetProduct', () => `Product of ${issuesInHandWords(model)}`),
+    M.when('SavedViews', () => 'Saved views'),
     M.exhaustive,
   )
 
 const menuFieldNodes = (
+  model: Model,
   menu: ChoiceMenu,
   query: string,
 ): ReadonlyArray<UiNode> =>
@@ -571,16 +810,16 @@ const menuFieldNodes = (
     ? [
         TextInput({
           focused: true,
-          label: menuLabelOf(menu),
+          label: menuLabelOf(model, menu),
           placeholder:
             menu === 'Everything'
               ? 'Type an action, a place, or an Issue'
-              : `Type to narrow ${menuLabelOf(menu).toLowerCase()}`,
+              : `${menuLabelOf(model, menu)}: type to narrow`,
           token: 'palette:',
           value: query,
         }),
       ]
-    : [Text(menuLabelOf(menu), { emphasis: 'Headline' })]
+    : [Text(menuLabelOf(model, menu), { emphasis: 'Headline' })]
 
 const choiceLayerNode = (
   model: Model,
@@ -593,15 +832,15 @@ const choiceLayerNode = (
       layer: {
         dismissToken: 'layer-dismiss',
         kind: 'Dialog',
-        label: menuLabelOf(menu),
+        label: menuLabelOf(model, menu),
       },
     },
-    ...menuFieldNodes(menu, query),
+    ...menuFieldNodes(model, menu, query),
     ...Array.match(menuRowsOf(model, menu, query), {
       onEmpty: () => [Text(`Nothing matches "${query.trim()}".`)],
       onNonEmpty: rows => [
         List({
-          label: menuLabelOf(menu),
+          label: menuLabelOf(model, menu),
           items: Array.map(rows, (row, position) =>
             menuRowItem(row, position, markedPosition),
           ),
@@ -628,6 +867,31 @@ const peekNode = (model: Model, issueId: string): UiNode =>
     ),
   )
 
+const namingViewNode = (
+  maybeViewId: Option.Option<string>,
+  name: string,
+): UiNode => {
+  const label = Option.isSome(maybeViewId) ? 'Rename view' : 'Save this view'
+  return Box(
+    {
+      layer: {
+        dismissToken: 'layer-dismiss',
+        kind: 'Dialog',
+        label,
+      },
+    },
+    Text(label, { emphasis: 'Headline' }),
+    TextInput({
+      focused: true,
+      label: 'Name',
+      placeholder: 'What to call this view',
+      token: 'view-name:',
+      value: name,
+    }),
+    Button({ label: 'Save', token: 'view-name-submit', variant: 'Primary' }),
+  )
+}
+
 const layerNodes = (model: Model): ReadonlyArray<UiNode> =>
   M.value(model.layer).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
@@ -637,6 +901,9 @@ const layerNodes = (model: Model): ReadonlyArray<UiNode> =>
         choiceLayerNode(model, menu, query, position),
       ],
       PeekLayer: ({ issueId }) => [peekNode(model, issueId)],
+      NamingViewLayer: ({ maybeViewId, name }) => [
+        namingViewNode(maybeViewId, name),
+      ],
     }),
   )
 

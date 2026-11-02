@@ -137,6 +137,18 @@ export const screenStylesheet = `
   gap: ${px(screenLook.columnGap)};
 }
 
+:where(.fk-board) {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow-x: auto;
+}
+
+:where(.fk-board > *) {
+  flex: none;
+}
+
 :where(.fk-column > .fk-column) {
   align-self: stretch;
 }
@@ -279,6 +291,10 @@ export const screenStylesheet = `
   padding: 16px;
   background: ${screenLook.panelColor};
   box-shadow: 0 24px 64px rgb(15 23 42 / 0.28);
+}
+
+:where(.fk-layer-surface:focus) {
+  outline: none;
 }
 
 :where(.fk-layer[data-layer='Dialog'] > .fk-layer-surface) {

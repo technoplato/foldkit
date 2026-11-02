@@ -22,6 +22,25 @@ import { padOf } from './pad.js'
 import { buttonsOf, inputsOf, textsOf } from './query.js'
 import { renderAscii, renderScreen } from './render.js'
 
+describe('a board', () => {
+  const columns = Array.makeBy(14, index =>
+    Column({}, Text(`Column ${index.toString()}`)),
+  )
+
+  it('stacks its columns in a terminal, so none is cut off', () => {
+    const { lines } = renderAscii(Row({ isBoard: true }, ...columns))
+    Array.forEach(columns, (_, index) => {
+      expect(lines.join('\n')).toContain(`Column ${index.toString()}`)
+    })
+  })
+
+  it('paints as a board in HTML', () => {
+    expect(
+      JSON.stringify(paintHtml(Row({ isBoard: true }, ...columns), tag => tag)),
+    ).toContain('fk-board')
+  })
+})
+
 describe('atoms', () => {
   it('builds a Column of Text and a Row of Buttons', () => {
     const tree = Column(

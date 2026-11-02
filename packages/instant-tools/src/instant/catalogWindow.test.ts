@@ -397,7 +397,10 @@ describe('saving an Issue', () => {
         // oxlint-disable-next-line typescript/consistent-type-assertions
         database as unknown as InstantToolsDatabase,
       )
-      yield* store.saveIssue(makeInstantIssueRecord(issueAt('001', 5)))
+      yield* store.saveIssue(
+        makeInstantIssueRecord(issueAt('001', 5)),
+        Option.none(),
+      )
       expect(writes[0]?.['updatedAtMs']).toBeGreaterThan(5)
     }),
   )
@@ -465,6 +468,40 @@ describe('a catalog kept between visits', () => {
         expect(changed).toEqual([['002']])
         yield* Fiber.interrupt(fiber)
       }),
+  )
+
+  it.live(
+    'reads everything when what it kept does not answer within two seconds',
+    () =>
+      Effect.gen(function* () {
+        const { cache } = memoryCache(Option.none())
+        const silent = { ...cache, read: () => new Promise<never>(() => {}) }
+        const { database, once } = makeDatabase([
+          rowOf(issueAt('001', FILED_AT_MS)),
+        ])
+        const tracker = makeIssueTracker(
+          makeInstantEntityStore(database, silent),
+        )
+        const seen: Array<ReadonlyArray<Issue>> = []
+        const fiber = yield* tracker.observe(every).pipe(
+          Stream.runForEach(issues =>
+            Effect.sync(() => {
+              seen.push(issues)
+            }),
+          ),
+          Effect.forkChild,
+        )
+        for (let waited = 0; waited < 100 && seen.length === 0; waited += 1) {
+          yield* Effect.sleep('50 millis')
+        }
+
+        expect(once).toHaveLength(1)
+        expect(titlesOf(Option.getOrThrow(Array.head(seen)))).toEqual([
+          '001:Issue 001',
+        ])
+        yield* Fiber.interrupt(fiber)
+      }),
+    10_000,
   )
 
   it.live('reads everything when nothing was kept, and keeps it', () =>

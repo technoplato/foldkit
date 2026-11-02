@@ -47,7 +47,7 @@ export const askFlowNodes = (model: Model): ReadonlyArray<UiNode> =>
         const context = chipContextOf(
           issues,
           model.clock.nowMs,
-          model.clock.offsetMinutes,
+          model.clock.timeZone,
         )
         return [
           Text(HEADING, { emphasis: 'Headline' }),

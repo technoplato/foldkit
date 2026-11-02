@@ -118,7 +118,14 @@ const pageRowsOf = (node: UiNode): ReadonlyArray<ListItem> =>
 
 const rowWordsOf = (model: Model): ReadonlyArray<string> =>
   Array.map(pageRowsOf(issuesScreen(model)), row =>
-    Array.join([row.title, ...(row.lines ?? [])], '  '),
+    Array.join(
+      [
+        row.title,
+        ...(row.lines ?? []),
+        ...Array.map(row.trailing ?? [], button => button.label),
+      ],
+      '  ',
+    ),
   )
 
 const primaryTokensOf = (model: Model): ReadonlyArray<string> =>
@@ -304,22 +311,17 @@ describe('Issue Tracker screen: an Issue as it is stored', () => {
     )
 
     expect(rowWordsOf(listed)).toContain(
-      'Keep transcript aligned  #692  P1  VerificationNeeded  Scribe',
+      'Keep transcript aligned  #692  VerificationNeeded  P1  Unclaimed  Scribe',
     )
     expect(contentsOf(opened(verifying))).toEqual(
-      expect.arrayContaining(['#692', 'VerificationNeeded  P1  Scribe']),
+      expect.arrayContaining(['#692', 'Scribe']),
     )
     expect(
-      Array.filter(primaryTokensOf(opened(verifying)), token =>
-        token.startsWith('status:'),
-      ),
-    ).toEqual([])
-    expect(
       Array.filter(
-        primaryTokensOf(opened(Issue.make({ ...stored, status: 'Blocked' }))),
-        token => token.startsWith('status:'),
-      ),
-    ).toEqual(['status:Blocked'])
+        buttonsOf(issuesScreen(opened(verifying))),
+        button => button.token === 'menu:set-status',
+      ).map(button => button.label),
+    ).toEqual(['VerificationNeeded'])
   })
 
   it('shows on the page of an Issue who said what, where it came from, and its links', () => {
@@ -388,7 +390,7 @@ describe('Issue Tracker screen: an Issue as it is stored', () => {
 
     expect(contentsOf(opened(quoted))).toEqual(
       expect.arrayContaining([
-        'Open  P1  defect  Scribe  Issue tracker web  claude-opus-5.5/issues-site',
+        'defect  Scribe  Issue tracker web  claude-opus-5.5/issues-site claude-code',
         'Filed 1970-01-01 00:00  ·  updated 1970-01-01 00:00  ·  reported 2026-10-14',
         'Mentioned in',
         'Recording b24165ca  2026-10-05',
@@ -651,10 +653,10 @@ describe('Issue Tracker screen: work in progress', () => {
         'Worktree: worktrees/scribe-804',
         'Commit: 5e1f00d',
         'Last step: Green: 37 focused tests pass',
-        'Recorded 2026-10-17 18:00 by wip-835',
+        'Recorded 2026-10-17 18:00 by wip-835 claude-code',
         'Subtasks: 1 of 2 done',
         'done  Red: the window census',
-        'todo  Merge for build 106',
+        'todo  Merge for Build 106',
       ]),
     )
     expect(contentsOf(opened(stored))).not.toContain('Work in progress')
@@ -684,12 +686,12 @@ describe('Issue Tracker screen: work in progress', () => {
     )
 
     expect(rowWordsOf(listed)).toEqual([
-      'Keep transcript aligned  #804  P1  InProgress  Scribe  Green for build 106',
-      'Keep transcript aligned  #805  P1  InProgress  Scribe  Pushed for build 106, stuck',
-      'Keep transcript aligned  #806  P1  InProgress  Scribe  Red for build 106',
-      'Keep transcript aligned  #807  P1  InProgress  Scribe  Green for build 106, abandoned',
-      'Keep transcript aligned  #808  P1  InProgress  Scribe  Merged for build 106',
-      'Keep transcript aligned  #021  P1  Open  Scribe',
+      'Keep transcript aligned  #804  Green for build 106  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #805  Pushed for build 106, stuck  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #806  Red for build 106  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #807  Green for build 106, abandoned  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #808  Merged for build 106  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #021  Open  P1  Unclaimed  Scribe',
     ])
 
     const [landing] = update(
@@ -697,8 +699,8 @@ describe('Issue Tracker screen: work in progress', () => {
       Option.getOrThrow(messageForScreenToken(listed, 'landing:close')),
     )
     expect(rowWordsOf(landing)).toEqual([
-      'Keep transcript aligned  #804  P1  InProgress  Scribe  Green for build 106',
-      'Keep transcript aligned  #805  P1  InProgress  Scribe  Pushed for build 106, stuck',
+      'Keep transcript aligned  #804  Green for build 106  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #805  Pushed for build 106, stuck  InProgress  P1  Unclaimed  Scribe',
     ])
     expect(primaryTokensOf(landing)).toContain('landing:close')
 
@@ -742,7 +744,7 @@ describe('Issue Tracker screen: now working', () => {
     expect(contents).toEqual(
       expect.arrayContaining([
         'Now working',
-        'Agent: issue-1374@max (account max)',
+        'Agent: issue-1374@max claude-code (account max)',
         'Running: yes, seen since 2026-10-29 22:20 (started 2026-10-29 22:13)',
         'Branch: agent/claude/issue-1374 in realtime-voice',
         'Worktree: worktrees/scribe-1374',
@@ -774,9 +776,9 @@ describe('Issue Tracker screen: now working', () => {
     )
 
     expect(rowWordsOf(listed)).toEqual([
-      'Keep transcript aligned  #1374  P1  InProgress  Scribe  Red for build 106  running claude-code/issue-1374@max',
-      'Keep transcript aligned  #1201  P1  InProgress  Scribe  Green for build 106',
-      'Keep transcript aligned  #021  P1  Open  Scribe',
+      'Keep transcript aligned  #1374  Red for build 106  running claude-code/issue-1374@max  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #1201  Green for build 106  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #021  Open  P1  Unclaimed  Scribe',
     ])
 
     const [working] = update(
@@ -784,7 +786,7 @@ describe('Issue Tracker screen: now working', () => {
       Option.getOrThrow(messageForScreenToken(listed, 'landing:working')),
     )
     expect(rowWordsOf(working)).toEqual([
-      'Keep transcript aligned  #1374  P1  InProgress  Scribe  Red for build 106  running claude-code/issue-1374@max',
+      'Keep transcript aligned  #1374  Red for build 106  running claude-code/issue-1374@max  InProgress  P1  Unclaimed  Scribe',
     ])
     expect(primaryTokensOf(working)).toContain('landing:working')
     expect(
@@ -851,13 +853,13 @@ describe('Issue Tracker screen: backlog', () => {
       ]),
     )
     expect(rowWordsOf(backlog)).toEqual([
-      'Keep transcript aligned  #903  P0  InProgress  Scribe  Red for build 111',
-      'Keep transcript aligned  #902  P2  InProgress  Scribe  Green for build 111',
-      'Keep transcript aligned  #904  P1  InProgress  Scribe  Exploring for build 112',
-      'Keep transcript aligned  #906  P0  Open  Scribe',
-      'Keep transcript aligned  #905  P0  Open  Scribe',
-      'Keep transcript aligned  #901  P1  InProgress  Scribe  Shipped for build 110',
-      'Keep transcript aligned  #907  P3  Open  Scribe',
+      'Keep transcript aligned  #903  Red for build 111  InProgress  P0  Unclaimed  Scribe',
+      'Keep transcript aligned  #902  Green for build 111  InProgress  P2  Unclaimed  Scribe',
+      'Keep transcript aligned  #904  Exploring for build 112  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #906  Open  P0  Unclaimed  Scribe',
+      'Keep transcript aligned  #905  Open  P0  Unclaimed  Scribe',
+      'Keep transcript aligned  #901  Shipped for build 110  InProgress  P1  Unclaimed  Scribe',
+      'Keep transcript aligned  #907  Open  P3  Unclaimed  Scribe',
     ])
     expect(Option.isSome(messageForScreenToken(backlog, 'open:906'))).toBe(true)
   })
@@ -878,7 +880,7 @@ describe('Issue Tracker screen: backlog', () => {
     )
 
     expect(rowWordsOf(onlyFoldkit)).toEqual([
-      'Keep transcript aligned  #909  P0  Open  Foldkit',
+      'Keep transcript aligned  #909  Open  P0  Unclaimed  Foldkit',
     ])
   })
 })

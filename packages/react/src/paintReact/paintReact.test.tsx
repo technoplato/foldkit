@@ -18,6 +18,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import {
   EmbedPaintersProvider,
   type EmbedProps,
+  moveKeyboardOffControl,
   paintReact,
   paintTree,
 } from './paintReact.js'
@@ -178,6 +179,71 @@ describe('paintReact', () => {
     expect(input).toBeDefined()
     fireEvent.change(input, { target: { value: 'Painted leftover.' } })
     expect(sendToken).toHaveBeenCalledWith('comment-draft:Painted leftover.')
+  })
+})
+
+describe('selecting and dragging rows', () => {
+  const row = {
+    check: {
+      action: 'select:804',
+      extendAction: 'select-to:804',
+      isChecked: false,
+      label: 'Select #804',
+    },
+    isDraggable: true,
+    key: '804',
+    title: 'A row',
+  }
+
+  it('presses extendAction when a box is pressed with Shift held', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(List({ items: [row], label: 'Rows' }), {
+        onPress,
+      }),
+    )
+    const box = screen.getByRole('checkbox', { name: 'Select #804' })
+    fireEvent.click(box)
+    fireEvent.click(box, { shiftKey: true })
+    expect(onPress.mock.calls.map(([button]) => button.action)).toEqual([
+      'select:804',
+      'select-to:804',
+    ])
+  })
+
+  it('presses a list dropAction with the key of the row dropped on it', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(
+        Column(
+          {},
+          List({ items: [row], label: 'Open' }),
+          List({
+            dropAction: 'card-drop:Blocked',
+            items: [],
+            label: 'Blocked',
+          }),
+        ),
+        { onPress },
+      ),
+    )
+    const held = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: '',
+      getData: (type: string) => held.get(type) ?? '',
+      setData: (type: string, value: string) => held.set(type, value),
+      get types() {
+        return [...held.keys()]
+      },
+    }
+    const card = screen.getByRole('list', { name: 'Open' }).querySelector('li')
+    fireEvent.dragStart(card ?? document.body, { dataTransfer })
+    fireEvent.drop(screen.getByRole('list', { name: 'Blocked' }), {
+      dataTransfer,
+    })
+    expect(onPress.mock.calls.map(([button]) => button.action)).toEqual([
+      'card-drop:Blocked:804',
+    ])
   })
 })
 
@@ -348,6 +414,74 @@ describe('a Text made of parts and a Box shown as a layer', () => {
     }
     fireEvent.click(backdrop)
     expect(sendToken).toHaveBeenCalledWith('palette-close')
+  })
+
+  it('takes the keyboard when a layer opens and gives it back to what had it when it closes', () => {
+    const opener = Button({ token: 'status-menu', label: 'Status of #1571' })
+    const statusMenu = Box(
+      { layer: { kind: 'Dialog', label: 'Status of #1571' } },
+      Button({ token: 'set-status:Backlog', label: 'Backlog' }),
+    )
+    const { rerender } = render(paintReact(Column({}, opener), vi.fn()))
+    const openerButton = screen.getByRole('button', { name: 'Status of #1571' })
+    openerButton.focus()
+
+    rerender(paintReact(Column({}, opener, statusMenu), vi.fn()))
+    const dialog = screen.getByRole('dialog', { name: 'Status of #1571' })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+
+    rerender(paintReact(Column({}, opener), vi.fn()))
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Status of #1571' }),
+    )
+  })
+
+  it('leaves the keyboard on the field a layer opens with', () => {
+    const palette = Box(
+      { layer: { kind: 'Dialog', label: 'Command palette' } },
+      TextInput({
+        value: '',
+        placeholder: 'Type a command or an Issue',
+        focused: true,
+      }),
+    )
+    render(paintReact(Column({}, palette), vi.fn()))
+    expect(document.activeElement).toBe(
+      screen.getByPlaceholderText('Type a command or an Issue'),
+    )
+  })
+
+  it('moves the keyboard off a control on the page when the page takes a key, so Enter does not press it again', () => {
+    render(paintReact(Column({}, Button({ token: 'filter', label: 'Status: Any' })), vi.fn()))
+    const filter = screen.getByRole('button', { name: 'Status: Any' })
+    filter.focus()
+
+    moveKeyboardOffControl(filter)
+
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('moves the keyboard from a control inside a layer to the layer, so Enter picks the marked row', () => {
+    render(
+      paintReact(
+        Column(
+          {},
+          Box(
+            { layer: { kind: 'Dialog', label: 'Status of #1571' } },
+            Button({ token: 'set-status:Backlog', label: 'Backlog' }),
+          ),
+        ),
+        vi.fn(),
+      ),
+    )
+    const backlog = screen.getByRole('button', { name: 'Backlog' })
+    backlog.focus()
+
+    moveKeyboardOffControl(backlog)
+
+    expect(document.activeElement).toBe(
+      screen.getByRole('dialog', { name: 'Status of #1571' }),
+    )
   })
 
   it('paints a Panel layer at the side of the page', () => {

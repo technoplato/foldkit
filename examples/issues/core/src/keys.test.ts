@@ -10,7 +10,11 @@ import { describe, expect, it } from 'vitest'
 import { ApplicationProduct, Issue } from '@foldkit/instant-tools/issues'
 
 import { modelForNavigation } from './init.js'
-import { type KeyPress, tokenForKeyPress } from './keys.js'
+import {
+  type KeyPress,
+  navigationInteractionsOf,
+  tokenForKeyPress,
+} from './keys.js'
 import { ObservedIssues } from './message.js'
 import {
   Backlog,
@@ -150,7 +154,6 @@ describe('Issue Tracker keys: the row cursor', () => {
     expect(tokenForKeyPress(atRow, on(' ', { target: 'Control' }))).toEqual(
       Option.none(),
     )
-    expect(tokenForKeyPress(list(), on('Enter'))).toEqual(Option.none())
   })
 
   it('keeps the cursor on its Issue through a live change that moves the Issue', () => {
@@ -288,6 +291,14 @@ describe('Issue Tracker keys: the search field', () => {
 })
 
 describe('Issue Tracker keys: going places', () => {
+  it('names each place once in the navigation', () => {
+    const labels = Array.map(
+      navigationInteractionsOf(modelForNavigation(IssueList.make({}))),
+      interaction => interaction.label,
+    )
+    expect(labels).toEqual(Array.dedupe(labels))
+  })
+
   it('goes to the backlog, triage and the list with g then b, t or l', () => {
     expect(pressedAll(list(), ['g', 'b']).navigation).toEqual(Backlog.make({}))
     expect(pressedAll(list(), ['g', 't']).navigation).toEqual(
@@ -302,11 +313,15 @@ describe('Issue Tracker keys: going places', () => {
     const waiting = pressedAll(list(), ['g'])
     expect(
       Array.map(textsOf(issuesScreen(waiting)), text => text.content),
-    ).toContain('Go to: l list, b backlog, t triage')
-    const letGo = pressedAll(waiting, ['q'])
+    ).toContain(
+      'Go to: l list, b backlog, t triage, v views, i inbox, f findings, d decisions, q questions, r reminders, e features, p products',
+    )
+    const letGo = pressedAll(waiting, ['z'])
     expect(
       Array.map(textsOf(issuesScreen(letGo)), text => text.content),
-    ).not.toContain('Go to: l list, b backlog, t triage')
+    ).not.toContain(
+      'Go to: l list, b backlog, t triage, v views, i inbox, f findings, d decisions, q questions, r reminders, e features, p products',
+    )
     expect(letGo.navigation).toEqual(IssueList.make({}))
     expect(markedRowsOf(pressedAll(letGo, ['j']))).toEqual(['104'])
   })
@@ -344,3 +359,60 @@ describe('Issue Tracker keys: going places', () => {
     expect(keysOf('go')).toEqual(['g'])
   })
 })
+
+describe('writing in a field with the keyboard', () => {
+  const titleInputOf = (model: Model) =>
+    Array.findFirst(inputsOf(issuesScreen(model)), input => input.label === 'Title')
+
+  const focusedOn = (model: Model, field: string): Model =>
+    update(
+      model,
+      Option.getOrThrow(messageForScreenToken(model, `writing-focus:${field}`)),
+    )[0]
+
+  it('opens the form on c with Title holding the keyboard', () => {
+    const form = pressed(list(), on('c'))
+    expect(form.navigation._tag).toBe('FileIssue')
+    expect(Option.map(titleInputOf(form), input => input.focused)).toEqual(
+      Option.some(true),
+    )
+  })
+
+  it('files on Enter in Title, and on Cmd+Enter in Details', () => {
+    const form = pressed(list(), on('c'))
+    expect(
+      tokenForKeyPress(focusedOn(form, 'Title'), on('Enter', { target: 'Field' })),
+    ).toEqual(Option.some('submit'))
+    expect(
+      tokenForKeyPress(
+        focusedOn(form, 'Details'),
+        on('Enter', { isMeta: true, target: 'Field' }),
+      ),
+    ).toEqual(Option.some('submit'))
+    expect(
+      tokenForKeyPress(focusedOn(form, 'Details'), on('Enter', { target: 'Field' })),
+    ).toEqual(Option.none())
+  })
+
+  it('comments on Cmd+Enter in the comment box', () => {
+    const detail = onPage(IssueDetail.make({ issueId: '101' }))
+    expect(
+      tokenForKeyPress(
+        focusedOn(detail, 'Comment'),
+        on('Enter', { isControl: true, target: 'Field' }),
+      ),
+    ).toEqual(Option.some('comment-submit'))
+  })
+
+  it('forgets the field when it lets go of the keyboard', () => {
+    const form = focusedOn(pressed(list(), on('c')), 'Title')
+    const left = update(
+      form,
+      Option.getOrThrow(messageForScreenToken(form, 'writing-blur:Title')),
+    )[0]
+    expect(tokenForKeyPress(left, on('Enter', { target: 'Field' }))).toEqual(
+      Option.none(),
+    )
+  })
+})
+

@@ -28,12 +28,39 @@ export const SegmentEntity = S.TaggedStruct('SegmentEntity', {
 export const CommitEntity = S.TaggedStruct('CommitEntity', { sha: S.String })
 /** An agent by its id: `claude-code/issues-linear-1538@ld`. */
 export const AgentEntity = S.TaggedStruct('AgentEntity', { agentId: S.String })
+/** A harness's session by its own id: `2914b977-312b-4d93-a41c-4681d1255fe1`. */
+export const SessionEntity = S.TaggedStruct('SessionEntity', {
+  sessionId: S.String,
+})
+/** One thing an agent reported running into, by its row's id. */
+export const FindingEntity = S.TaggedStruct('FindingEntity', {
+  findingId: S.String,
+})
+/** A line of a product's feature contract by its slug: `scroll-back-always`. */
+export const FeatureEntity = S.TaggedStruct('FeatureEntity', { slug: S.String })
 /** A build by its number: `218`, `217.1`. */
 export const BuildEntity = S.TaggedStruct('BuildEntity', { number: S.String })
 /** An application or library by its tracker id: `scribe`, `foldkit`. */
 export const ProductEntity = S.TaggedStruct('ProductEntity', {
   productId: S.String,
 })
+/** What he decided, by its row's id or the first 8 characters agents cite. */
+export const DecisionEntity = S.TaggedStruct('DecisionEntity', {
+  decisionId: S.String,
+})
+/** A question he asked, by its row's id or its first 8 characters. */
+export const QuestionEntity = S.TaggedStruct('QuestionEntity', {
+  questionId: S.String,
+})
+/** One of his reminders, by its row's id or its first 8 characters. */
+export const ReminderEntity = S.TaggedStruct('ReminderEntity', {
+  reminderId: S.String,
+})
+/**
+ * An id the text does not name the kind of, such as the `a208e30c` of
+ * `Seeded a3fe7871, a208e30c`. It has no page: a row with that id takes it.
+ */
+export const RawIdEntity = S.TaggedStruct('RawIdEntity', { id: S.String })
 
 /** Everything an Issue can point at, and everything that has a page. */
 export const Entity = S.Union([
@@ -43,8 +70,15 @@ export const Entity = S.Union([
   SegmentEntity,
   CommitEntity,
   AgentEntity,
+  SessionEntity,
+  FindingEntity,
+  FeatureEntity,
   BuildEntity,
   ProductEntity,
+  DecisionEntity,
+  QuestionEntity,
+  ReminderEntity,
+  RawIdEntity,
 ])
 /** Everything an Issue can point at, and everything that has a page. */
 export type Entity = typeof Entity.Type
@@ -60,8 +94,14 @@ export const PageEntity = S.Union([
   SegmentEntity,
   CommitEntity,
   AgentEntity,
+  SessionEntity,
+  FindingEntity,
+  FeatureEntity,
   BuildEntity,
   ProductEntity,
+  DecisionEntity,
+  QuestionEntity,
+  ReminderEntity,
 ])
 /** Every entity with a page of its own. */
 export type PageEntity = typeof PageEntity.Type
@@ -77,8 +117,14 @@ export const pageEntityKey = (entity: PageEntity): string =>
       SegmentEntity: ({ _tag, segmentId }) => `${_tag}:${segmentId}`,
       CommitEntity: ({ _tag, sha }) => `${_tag}:${sha}`,
       AgentEntity: ({ _tag, agentId }) => `${_tag}:${agentId}`,
+      SessionEntity: ({ _tag, sessionId }) => `${_tag}:${sessionId}`,
+      FindingEntity: ({ _tag, findingId }) => `${_tag}:${findingId}`,
+      FeatureEntity: ({ _tag, slug }) => `${_tag}:${slug}`,
       BuildEntity: ({ _tag, number }) => `${_tag}:${number}`,
       ProductEntity: ({ _tag, productId }) => `${_tag}:${productId}`,
+      DecisionEntity: ({ _tag, decisionId }) => `${_tag}:${decisionId}`,
+      QuestionEntity: ({ _tag, questionId }) => `${_tag}:${questionId}`,
+      ReminderEntity: ({ _tag, reminderId }) => `${_tag}:${reminderId}`,
     }),
   )
 
@@ -125,6 +171,7 @@ const excerptAround = (text: string, start: number, end: number): string => {
 }
 
 const SHORT_SHA = 7
+const SHORT_ROW_ID = 8
 
 const targetsOf = (reference: TextReference): ReadonlyArray<Entity> =>
   M.value(reference).pipe(
@@ -160,9 +207,16 @@ const targetsOf = (reference: TextReference): ReadonlyArray<Entity> =>
       CommitSha: ({ sha }) => [CommitEntity.make({ sha })],
       AgentName: ({ agentId }) => [AgentEntity.make({ agentId })],
       BuildNumber: ({ number }) => [BuildEntity.make({ number })],
+      ProductName: ({ productId }) => [ProductEntity.make({ productId })],
+      FeatureName: ({ slug }) => [FeatureEntity.make({ slug })],
+      FeatureLineNumber: () => [],
+      FindingId: ({ findingId }) => [FindingEntity.make({ findingId })],
+      DecisionId: ({ decisionId }) => [DecisionEntity.make({ decisionId })],
+      QuestionId: ({ questionId }) => [QuestionEntity.make({ questionId })],
+      ReminderId: ({ reminderId }) => [ReminderEntity.make({ reminderId })],
       Timestamp: () => [],
-      ChatSession: () => [],
-      RawId: () => [],
+      ChatSession: ({ sessionId }) => [SessionEntity.make({ sessionId })],
+      RawId: ({ id }) => [RawIdEntity.make({ id })],
       FilePath: () => [],
       WebLink: () => [],
     }),
@@ -335,9 +389,14 @@ export const linksOfIssue = (issue: Issue): ReadonlyArray<IssueLink> =>
 const RECORDING_NUMBER_AND_ID =
   /\bRecording\s+0*(\d{1,4})\s*(?:\(|=)\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi
 
-/** Which Recording number is which id, as the catalog's mentions say. */
+/**
+ * Which Recording number is which id, as the catalog's mentions say. A number
+ * is an id only when one Recording has it: his numbering starts again, so
+ * Recording 20 can be two Recordings, and `idsOfNumber` says which.
+ */
 export type RecordingNumbers = Readonly<{
   idOfNumber: ReadonlyMap<number, string>
+  idsOfNumber: ReadonlyMap<number, ReadonlyArray<string>>
   numberOfId: ReadonlyMap<string, number>
 }>
 
@@ -369,23 +428,42 @@ const numbersMemo = new WeakMap<ReadonlyArray<Issue>, RecordingNumbers>()
 /**
  * Which Recording number is which id, read from the mentions' words, such as
  * `Recording 208 (faa684c2-34e4-47e5-8f9b-3b2196da9463) #2735`: a reader
- * labels a words link `Recording 208` and finds Recording 208's page. Each
- * Issue's pairs are read once, so a live change reads only the Issue it
- * changed.
+ * labels a words link `Recording 208` and finds Recording 208's page. A
+ * number two Recordings share turns into neither. Each Issue's pairs are read
+ * once, so a live change reads only the Issue it changed.
  */
 export const recordingNumbersOf = (
   issues: ReadonlyArray<Issue>,
 ): RecordingNumbers =>
   Option.getOrElse(Option.fromUndefinedOr(numbersMemo.get(issues)), () => {
-    const idOfNumber = new Map<number, string>()
+    const idsOfNumber = new Map<number, Array<string>>()
     const numberOfId = new Map<string, number>()
     for (const issue of issues) {
       for (const { recordingNumber, recordingId } of recordingPairsOf(issue)) {
-        idOfNumber.set(recordingNumber, recordingId)
+        const ids = Option.getOrElse(
+          Option.fromUndefinedOr(idsOfNumber.get(recordingNumber)),
+          () => {
+            const fresh: Array<string> = []
+            idsOfNumber.set(recordingNumber, fresh)
+            return fresh
+          },
+        )
+        if (!ids.includes(recordingId)) {
+          ids.push(recordingId)
+        }
         numberOfId.set(recordingId, recordingNumber)
       }
     }
-    const numbers = { idOfNumber, numberOfId }
+    const idOfNumber = new Map(
+      Array.getSomes(
+        Array.map(Array.fromIterable(idsOfNumber), ([recordingNumber, ids]) =>
+          ids.length === 1
+            ? Option.map(Array.head(ids), id => [recordingNumber, id] as const)
+            : Option.none(),
+        ),
+      ),
+    )
+    const numbers = { idOfNumber, idsOfNumber, numberOfId }
     numbersMemo.set(issues, numbers)
     return numbers
   })
@@ -420,13 +498,38 @@ export const entityKey = (entity: Entity): string =>
       SegmentEntity: ({ segmentId }) => `segment:${segmentId}`,
       CommitEntity: ({ sha }) => `commit:${sha.slice(0, SHORT_SHA)}`,
       AgentEntity: ({ agentId }) => `agent:${agentId}`,
+      SessionEntity: ({ sessionId }) => `session:${sessionId}`,
+      FindingEntity: ({ findingId }) => `finding:${findingId}`,
+      FeatureEntity: ({ slug }) => `feature:${slug}`,
       BuildEntity: ({ number }) => `build:${number}`,
       ProductEntity: ({ productId }) => `product:${productId}`,
+      DecisionEntity: ({ decisionId }) =>
+        `decision:${decisionId.slice(0, SHORT_ROW_ID)}`,
+      QuestionEntity: ({ questionId }) =>
+        `question:${questionId.slice(0, SHORT_ROW_ID)}`,
+      ReminderEntity: ({ reminderId }) =>
+        `reminder:${reminderId.slice(0, SHORT_ROW_ID)}`,
+      RawIdEntity: ({ id }) => `id:${id.slice(0, SHORT_ROW_ID)}`,
     }),
   )
 
 const isSameEntity = (left: Entity, right: Entity): boolean =>
   entityKey(left) === entityKey(right)
+
+const shortIdOfRow = (entity: Entity): Option.Option<string> => {
+  if (entity._tag === 'DecisionEntity') {
+    return Option.some(entity.decisionId.slice(0, SHORT_ROW_ID))
+  } else if (entity._tag === 'QuestionEntity') {
+    return Option.some(entity.questionId.slice(0, SHORT_ROW_ID))
+  } else if (entity._tag === 'ReminderEntity') {
+    return Option.some(entity.reminderId.slice(0, SHORT_ROW_ID))
+  }
+  return Option.none()
+}
+
+const isNamedAsRow = (linked: Entity, target: Entity): boolean =>
+  linked._tag === 'RawIdEntity' &&
+  Option.contains(shortIdOfRow(target), linked.id.slice(0, SHORT_ROW_ID))
 
 // BACKLINKS
 
@@ -482,6 +585,9 @@ const needlesOf = (
       SegmentEntity: ({ segmentId }) => [segmentId],
       CommitEntity: ({ sha }) => [sha.slice(0, SHORT_SHA)],
       AgentEntity: ({ agentId }) => [agentId],
+      SessionEntity: ({ sessionId }) => [sessionId],
+      FindingEntity: ({ findingId }) => [findingId],
+      FeatureEntity: ({ slug }) => [`/features/${slug}`],
       BuildEntity: ({ number }) => [
         `build ${number}`,
         `builds ${number}`,
@@ -489,6 +595,10 @@ const needlesOf = (
         `(${number})`,
       ],
       ProductEntity: () => [],
+      DecisionEntity: ({ decisionId }) => [decisionId.slice(0, SHORT_ROW_ID)],
+      QuestionEntity: ({ questionId }) => [questionId.slice(0, SHORT_ROW_ID)],
+      ReminderEntity: ({ reminderId }) => [reminderId.slice(0, SHORT_ROW_ID)],
+      RawIdEntity: ({ id }) => [id],
     }),
   )
 
@@ -525,11 +635,18 @@ const hasStructuredLink = (issue: Issue, entity: Entity): boolean =>
         Array.some(issue.workLog, entry =>
           Option.contains(entry.agentId, agentId),
         ),
+      SessionEntity: () => false,
+      FindingEntity: () => false,
+      FeatureEntity: () => false,
       BuildEntity: ({ number }) =>
         Option.exists(issue.workInProgress, work =>
           Option.contains(work.targetBuild, number),
         ),
       ProductEntity: ({ productId }) => issue.product.id === productId,
+      DecisionEntity: () => false,
+      QuestionEntity: () => false,
+      ReminderEntity: () => false,
+      RawIdEntity: () => false,
     }),
   )
 
@@ -651,8 +768,10 @@ const backlinkOfIssue = (
   }
   const links = pipe(
     linksOfIssue(issue),
-    Array.filter(link =>
-      isSameEntity(canonicalEntity(link.target, numbers), target),
+    Array.filter(
+      link =>
+        isSameEntity(canonicalEntity(link.target, numbers), target) ||
+        isNamedAsRow(link.target, target),
     ),
     Array.sort(newestFirst),
   )
