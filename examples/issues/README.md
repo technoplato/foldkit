@@ -97,10 +97,11 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   minutes, never in a worktree several running agents share); an agent no
   longer running as ended; the claim of a run that ended, released with a
   work-log entry, and the claim on a finished Issue (Closed, Fixed, Resolved,
-  Verified) once no agent of that name runs, released the same way; any
-  other claim nothing shows running that stayed quiet twelve hours, as stale
-  (kept); and Merged or Shipped work, as VerificationNeeded, unless the Issue
-  was claimed after the work was recorded (new work started).
+  Verified) once no agent of that name runs, released the same way, as is the
+  claim of an agent nothing shows running that wrote nothing on the Issue for
+  seven days; any other claim nothing shows running that stayed quiet twelve
+  hours, as stale (kept); and Merged or Shipped work, as VerificationNeeded,
+  unless the Issue was claimed after the work was recorded (new work started).
   It prints one line per change and a summary, such as
   `Checked 34 Issues against 19 running agents: 3 changed.`
   `--dry-run` saves nothing. The LaunchAgent
