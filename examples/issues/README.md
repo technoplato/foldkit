@@ -88,14 +88,19 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   `tools/agent-progress-check --json --no-ledger` (`--agents`) for the agents
   running and `~/Scribe/agents-registry.json` (`--registry`) for the runs
   that ended. It reads the Issues of running agents and of runs that ended in
-  the last six hours; `--sweep` adds every InProgress and Addressing Issue.
+  the last six hours; `--sweep` adds every Issue, whatever its status (an
+  agent claims Issues besides its run's, and one that left InProgress kept
+  "running" for good while the sweep read only InProgress and Addressing).
   On each it saves the running agent (the claimant first) with its account,
   branch, worktree, and the files its branch touches against its nearest
   main line (`git diff --numstat` plus new files, counted at most every ten
   minutes, never in a worktree several running agents share); an agent no
   longer running as ended; the claim of a run that ended, released with a
-  work-log entry; a claim nothing shows running that stayed quiet twelve
-  hours, as stale (kept); and Merged or Shipped work, as VerificationNeeded.
+  work-log entry, and the claim on a finished Issue (Closed, Fixed, Resolved,
+  Verified) once no agent of that name runs, released the same way; any
+  other claim nothing shows running that stayed quiet twelve hours, as stale
+  (kept); and Merged or Shipped work, as VerificationNeeded, unless the Issue
+  was claimed after the work was recorded (new work started).
   It prints one line per change and a summary, such as
   `Checked 34 Issues against 19 running agents: 3 changed.`
   `--dry-run` saves nothing. The LaunchAgent
