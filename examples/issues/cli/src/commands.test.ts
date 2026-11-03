@@ -21,6 +21,7 @@ import {
   ApplicationProduct,
   ChangedFile,
   Issue,
+  IssueAgentPresence,
   type IssueLandingState,
   IssueMention,
   IssueSuccessCriterion,
@@ -37,6 +38,7 @@ import {
   type ProductCatalogService,
   RecordingMention,
   RecordingReference,
+  RunningAgent,
   StuckWork,
   UriReference,
 } from '@foldkit/instant-tools/issues'
@@ -2319,7 +2321,7 @@ describe('issues working', () => {
     expect(synced.exitCode).toBe(0)
     expect(synced.stdout).toEqual([
       '#1374 running claude-code/issue-wip-1374@max, 1 file touched',
-      '#1201 claim of claude-code/sweep-1201@ld released: its run ended (done)',
+      '#1201 Released the claim of claude-code/sweep-1201@ld: its run ended (done) and no agent is running on #1201.',
       'Checked 2 Issues against 1 running agent: 2 changed.',
     ])
     expect(Option.getOrThrow(fetched(memory, '1201')).claimantId).toEqual(
@@ -2335,7 +2337,7 @@ describe('issues working', () => {
     ])
   })
 
-  it('sweeps every Issue in progress, moving merged work to verification', async () => {
+  it('sweeps every Issue, moving merged work to verification', async () => {
     const { host, memory } = await run(makeHost(seed()))
     const { agents, registry } = writeSurvey()
 
@@ -2348,13 +2350,71 @@ describe('issues working', () => {
 
     expect(swept.stdout).toEqual([
       '#1374 running claude-code/issue-wip-1374@max, 1 file touched',
-      '#1201 claim of claude-code/sweep-1201@ld released: its run ended (done)',
+      '#1201 Released the claim of claude-code/sweep-1201@ld: its run ended (done) and no agent is running on #1201.',
       '#880 InProgress → VerificationNeeded: the work is Merged',
-      'Checked 3 Issues against 1 running agent: 3 changed.',
+      'Checked 4 Issues against 1 running agent: 3 changed.',
     ])
     expect(Option.getOrThrow(fetched(memory, '880')).status).toBe(
       'VerificationNeeded',
     )
+  })
+
+  it('sweeps every Issue, whatever its status: an agent shown running on an Issue that moved on reads as ended, and a finished Issue loses its claim', async () => {
+    const shownRunning = IssueAgentPresence.make({
+      account: Option.some('max'),
+      agentId: 'claude-code/perf-waste-fixes@max',
+      branch: Option.some('agent/claude/perf-waste-fixes'),
+      harness: Option.some('claude-code'),
+      run: RunningAgent.make({ sinceMs: 1_791_000_000_000 }),
+      startedAtMs: Option.none(),
+      touchedFiles: Option.none(),
+      worktree: Option.none(),
+    })
+    const { host, memory } = await run(
+      makeHost([
+        ...seed(),
+        stored('1507', 'Energy ledger gaps', {
+          agentPresence: Option.some(shownRunning),
+          claimantId: Option.some('claude-code/perf-waste-fixes@max'),
+          status: 'VerificationNeeded',
+          updatedAtMs: 1_791_999_500_000,
+        }),
+        stored('265', 'Landscape layout', {
+          claimantId: Option.some('claude-code/landscape-265@max'),
+          status: 'Verified',
+          updatedAtMs: 1_791_999_500_000,
+        }),
+      ]),
+    )
+    const { agents, registry } = writeSurvey()
+
+    const unswept = await run(
+      workingSyncCommand(host, syncInput(agents, registry)),
+    )
+    expect(linesOf(unswept)).not.toMatch(/#1507|#265/)
+
+    const swept = await run(
+      workingSyncCommand(host, {
+        ...syncInput(agents, registry),
+        isSweep: true,
+      }),
+    )
+
+    expect(swept.stdout).toEqual(
+      expect.arrayContaining([
+        '#1507 claude-code/perf-waste-fixes@max ended (no longer running)',
+        '#265 Released the claim of claude-code/landscape-265@max: #265 is Verified and no agent named landscape-265 is running.',
+      ]),
+    )
+    const sweptGhost = Option.getOrThrow(fetched(memory, '1507'))
+    expect(
+      Option.map(sweptGhost.agentPresence, presence => presence.run._tag),
+    ).toEqual(Option.some('Ended'))
+    expect(sweptGhost.status).toBe('VerificationNeeded')
+    expect(Option.getOrThrow(fetched(memory, '265')).claimantId).toEqual(
+      Option.none(),
+    )
+    expect(Option.getOrThrow(fetched(memory, '806')).workLog).toEqual([])
   })
 
   it('counts no files in a worktree several running agents share, and says so', async () => {

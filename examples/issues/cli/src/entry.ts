@@ -546,7 +546,7 @@ const workingSync = Command.make(
     ),
     isSweep: Flag.boolean('sweep').pipe(
       Flag.withDescription(
-        'Also read every Issue InProgress or Addressing: stale claims and merged work',
+        'Also read every Issue, whatever its status: ended agents, stale claims and merged work',
       ),
     ),
     registry: optionalText(

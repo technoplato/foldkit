@@ -6,7 +6,8 @@ import {
   type IssueStatus,
 } from '@foldkit/instant-tools/issues'
 
-const FINISHED_STATUSES: ReadonlyArray<IssueStatus> = [
+/** The statuses that end an Issue's work: the backlog leaves them out. */
+export const FINISHED_STATUSES: ReadonlyArray<IssueStatus> = [
   'Closed',
   'Fixed',
   'Resolved',

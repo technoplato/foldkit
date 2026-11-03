@@ -14,6 +14,8 @@ import {
   StaleAgent,
 } from '@foldkit/instant-tools/issues'
 
+import { FINISHED_STATUSES } from './backlog.js'
+
 /** The agent id `issues working sync` writes its work-log entries under. */
 export const workingSyncAgent = 'issues/working-sync'
 
@@ -250,7 +252,7 @@ const lastActivityMs = (issue: Issue): number =>
 const releasedClaim = (
   issue: Issue,
   claimant: string,
-  run: EndedRun,
+  release: Readonly<{ how: string; why: string }>,
   survey: AgentSurvey,
 ): Issue =>
   Issue.make({
@@ -265,7 +267,7 @@ const releasedClaim = (
             current => current._tag === 'Ended',
           ),
           (): IssueAgentRun =>
-            EndedAgent.make({ how: run.how, sinceMs: survey.observedAtMs }),
+            EndedAgent.make({ how: release.how, sinceMs: survey.observedAtMs }),
         ),
       ),
     ),
@@ -280,7 +282,7 @@ const releasedClaim = (
         id: `work-${issue.id}-released-${survey.observedAtMs.toString()}`,
         occurredAtMs: survey.observedAtMs,
         state: Option.some('released'),
-        summary: `Released the claim of ${claimant}: its run ended (${run.how}) and no agent is running on #${issue.id}.`,
+        summary: `Released the claim of ${claimant}: ${release.why}.`,
       }),
     ],
   })
@@ -321,11 +323,32 @@ const withClaimObserved = (issue: Issue, survey: AgentSurvey): Issue =>
         return issue
       }
       return Option.match(latestEndedRunOf(survey, name), {
-        onSome: run => releasedClaim(issue, claimant, run, survey),
-        onNone: () =>
-          survey.observedAtMs - lastActivityMs(issue) > staleAfterMs
+        onSome: run =>
+          releasedClaim(
+            issue,
+            claimant,
+            {
+              how: run.how,
+              why: `its run ended (${run.how}) and no agent is running on #${issue.id}`,
+            },
+            survey,
+          ),
+        onNone: () => {
+          if (Array.contains(FINISHED_STATUSES, issue.status)) {
+            return releasedClaim(
+              issue,
+              claimant,
+              {
+                how: 'no longer running',
+                why: `#${issue.id} is ${issue.status} and no agent named ${name} is running`,
+              },
+              survey,
+            )
+          }
+          return survey.observedAtMs - lastActivityMs(issue) > staleAfterMs
             ? staleClaim(issue, claimant, survey)
-            : issue,
+            : issue
+        },
       })
     },
   })
@@ -356,11 +379,23 @@ const whereItLanded = (work: IssueWorkInProgress): string =>
 
 const statusEntryPrefix = (issue: Issue): string => `work-${issue.id}-status-`
 
+const claimStates: ReadonlyArray<string> = ['claimed', 'claim-start']
+
+const isClaimedSince = (issue: Issue, sinceMs: number): boolean =>
+  Array.some(
+    issue.workLog,
+    entry =>
+      Option.exists(entry.state, state => Array.contains(claimStates, state)) &&
+      entry.occurredAtMs > sinceMs,
+  )
+
 /**
  * The Issue with its status following its work: InProgress or Addressing
  * work recorded Merged or Shipped moves to VerificationNeeded once per
  * recording of the work, with a work-log entry that says so. A person who
- * sets the status back keeps it until the work is recorded again.
+ * sets the status back keeps it until the work is recorded again, and so does
+ * a claim made after the record: new work started, and the record is the last
+ * run's (Scribe #1618: the sync moved #1057 a minute after its new claim).
  */
 export const statusFollowingLanding = (
   issue: Issue,
@@ -379,7 +414,8 @@ export const statusFollowingLanding = (
       if (
         !Array.contains(landedStates, work.landingState) ||
         !Array.contains(statusesThatFollowLanding, issue.status) ||
-        isMovedSinceRecorded
+        isMovedSinceRecorded ||
+        isClaimedSince(issue, work.updatedAtMs)
       ) {
         return issue
       }
@@ -407,10 +443,12 @@ export const statusFollowingLanding = (
  * The Issue after one look at the Mac's agents. A running agent on it (its
  * claimant first) is named with its account, branch, worktree, and touched
  * files; an agent no longer running reads as ended; the claim of a run that
- * ended is released with a work-log entry; a claim nothing shows running and
- * that stayed quiet for twelve hours reads as stale but is kept; and work
- * recorded Merged or Shipped moves the Issue to VerificationNeeded. Observing
- * the same survey again changes nothing.
+ * ended is released with a work-log entry, and so is the claim on a finished
+ * Issue (Closed, Fixed, Resolved, Verified) once no agent of that name runs;
+ * any other claim nothing shows running that stayed quiet for twelve hours
+ * reads as stale but is kept; and work recorded Merged or Shipped moves the
+ * Issue to VerificationNeeded. Observing the same survey again changes
+ * nothing.
  */
 export const observedIssue = (
   issue: Issue,

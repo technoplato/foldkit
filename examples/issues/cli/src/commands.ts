@@ -3021,8 +3021,6 @@ export type WorkingSyncInput = Readonly<{
   registry: Option.Option<string>
 }>
 
-const sweptStatuses: ReadonlyArray<IssueStatus> = ['InProgress', 'Addressing']
-
 const MINUTE_MS = 60_000
 const RECOUNT_AFTER_MINUTES = 10
 
@@ -3163,23 +3161,21 @@ const presenceChangeLines = (
     },
   })
 
-const claimChangeLines = (before: Issue, after: Issue): ReadonlyArray<string> =>
-  Option.match(before.claimantId, {
-    onNone: () => [],
-    onSome: claimant =>
-      Option.isNone(after.claimantId)
-        ? [
-            `#${after.id} claim of ${claimant} released: its run ended (${Option.match(
-              Option.flatMap(after.agentPresence, presence =>
-                presence.run._tag === 'Ended'
-                  ? Option.some(presence.run.how)
-                  : Option.none(),
-              ),
-              { onNone: () => 'ended', onSome: how => how },
-            )})`,
-          ]
-        : [],
-  })
+const claimChangeLines = (
+  before: Issue,
+  after: Issue,
+): ReadonlyArray<string> =>
+  Option.isSome(before.claimantId) && Option.isNone(after.claimantId)
+    ? Array.map(
+        Array.filter(
+          after.workLog,
+          entry =>
+            Option.contains(entry.state, 'released') &&
+            !Array.some(before.workLog, earlier => earlier.id === entry.id),
+        ),
+        entry => `#${after.id} ${entry.summary}`,
+      )
+    : []
 
 const statusChangeLines = (
   before: Issue,
@@ -3200,7 +3196,7 @@ const statusChangeLines = (
 /**
  * What one look at the agents changes on an Issue, one line each:
  * `#1374 running claude-code/issue-wip-1374@max, 3 files touched`,
- * `#1201 claim of claude-code/sweep-1201@ld released: its run ended (done)`,
+ * `#1201 Released the claim of claude-code/sweep-1201@ld: its run ended (done) and no agent is running on #1201.`,
  * `#880 InProgress → VerificationNeeded: the work is Merged`.
  */
 export const workingChangeLines = (
@@ -3220,10 +3216,13 @@ const pluralOf = (count: number, one: string, many: string): string =>
  * reads `tools/agent-progress-check --json` (`--agents`) and
  * `agents-registry.json` (`--registry`), reads the Issues of running agents
  * and of runs that ended in the last six hours (and with `--sweep` every
- * Issue InProgress or Addressing), counts the files each running agent's
- * worktree touches (not in a worktree several running agents share, such as
- * one main checkout, whose changes no one agent owns), and saves each Issue
- * the survey changes. A dry run prints the changes and saves nothing.
+ * Issue, whatever its status: an agent claims Issues besides its run's, and
+ * an Issue that left InProgress kept "running" for good while the sweep read
+ * only InProgress and Addressing, Scribe #1618), counts the files each
+ * running agent's worktree touches (not in a worktree several running agents
+ * share, such as one main checkout, whose changes no one agent owns), and
+ * saves each Issue the survey changes. A dry run prints the changes and saves
+ * nothing.
  */
 export const workingSyncCommand = (
   host: IssuesHost,
@@ -3236,7 +3235,7 @@ export const workingSyncCommand = (
         readIssueById(host, issueId),
       )
       const swept = input.isSweep
-        ? yield* loadIssues(host, 'working sync', sweptStatuses)
+        ? yield* loadIssues(host, 'working sync', [])
         : []
       const issues = Array.dedupeWith(
         [...Array.getSomes(byNumber), ...swept],
