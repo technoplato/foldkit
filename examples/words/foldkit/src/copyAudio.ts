@@ -1,5 +1,6 @@
 import {
   Array,
+  Cause,
   Deferred,
   Duration,
   Effect,
@@ -173,11 +174,21 @@ const changeBuffer = (
     ),
   )
 
+// NOTE: Effect's Array.makeBy makes at least one element, and an empty
+// TimeRanges throws on start(0), so an empty buffer is answered first.
+/** The stretches a browser's TimeRanges hold, in order; none for an empty one. */
+export const bufferedRangesOf = (
+  ranges: Pick<TimeRanges, 'length' | 'start' | 'end'>,
+): ReadonlyArray<BufferedRange> =>
+  ranges.length === 0
+    ? Array.empty()
+    : Array.makeBy(ranges.length, index => ({
+        startSeconds: ranges.start(index),
+        endSeconds: ranges.end(index),
+      }))
+
 const bufferedOf = (sourceBuffer: SourceBuffer): ReadonlyArray<BufferedRange> =>
-  Array.makeBy(sourceBuffer.buffered.length, index => ({
-    startSeconds: sourceBuffer.buffered.start(index),
-    endSeconds: sourceBuffer.buffered.end(index),
-  }))
+  bufferedRangesOf(sourceBuffer.buffered)
 
 /**
  * A plain GET, so the browser sends no preflight: Instant's file host answers
@@ -394,6 +405,17 @@ const endAudio = (feeder: Feeder): Effect.Effect<void, Error> =>
 const stepKeyOf = (step: CopyStep): string => JSON.stringify(step)
 
 /**
+ * Why the feeder stopped, in words: its own failure's message, or what the
+ * browser threw, so a stop is never silent.
+ */
+const stoppedReasonOf = (cause: Cause.Cause<Error>): string => {
+  const error = errorOf(Cause.squash(cause))
+  return Cause.hasFails(cause)
+    ? error.message
+    : `The live audio stopped: ${error.message}`
+}
+
+/**
  * A step that comes back unchanged means the browser did not do what the
  * last one asked (it dropped the segment again, or kept what it was told to
  * free): after a few, wait a second between tries; after ten, stop loudly.
@@ -589,15 +611,17 @@ export const openCopyAudio = (
     yield* listenTo(sourceBuffer, ['bufferedchange'], () => wakeFeeder(feeder))
     yield* Effect.forkScoped(
       Effect.forever(feedOnce(feeder)).pipe(
-        Effect.catch(error =>
-          Effect.sync(() => {
-            Queue.offerUnsafe(
-              failures,
-              HeardAudioError({
-                reason: `${error.message} Retry to load it again.`,
+        Effect.catchCause(cause =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.void
+            : Effect.sync(() => {
+                Queue.offerUnsafe(
+                  failures,
+                  HeardAudioError({
+                    reason: `${stoppedReasonOf(cause)} Retry to load it again.`,
+                  }),
+                )
               }),
-            )
-          }),
         ),
       ),
     )
