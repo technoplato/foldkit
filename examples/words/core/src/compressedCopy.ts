@@ -453,3 +453,102 @@ export const nextCopyStep = (feed: CopyFeed): CopyStep => {
     )
   }
 }
+
+/** How long a playing element may sit still over audio it holds before it is nudged. */
+export const STALL_CHECKS_BEFORE_NUDGE = 2
+/** How far each nudge moves the playhead past a stall, times the nudges so far. */
+export const NUDGE_SECONDS = 0.1
+/** How many nudges in a row before the stall is reported. */
+export const MAXIMUM_NUDGES = 3
+
+const HELD_AHEAD_SECONDS = 0.5
+const MOVED_SECONDS = 0.01
+
+/** What the stall watch remembers between its checks, one a second. */
+export const StallWatch = S.Struct({
+  lastPositionSeconds: S.Number,
+  stuckChecks: S.Number,
+  nudges: S.Number,
+})
+/** What the stall watch remembers between its checks. */
+export type StallWatch = typeof StallWatch.Type
+
+/** Nothing to do: the playhead moves, waits for audio, or is paused. */
+export const KeepWatching = ts('KeepWatching')
+/** Move the playhead a little past a stall, so the browser starts again. */
+export const NudgePlayhead = ts('NudgePlayhead', { toSeconds: S.Number })
+/** The playhead did not move after every nudge: say so. */
+export const ReportStall = ts('ReportStall', { atSeconds: S.Number })
+/** What the stall watch does after a check. */
+export const StallAction = S.Union([KeepWatching, NudgePlayhead, ReportStall])
+/** What the stall watch does after a check. */
+export type StallAction = typeof StallAction.Type
+
+/** A watch that has seen nothing yet. */
+export const freshStallWatch = (positionSeconds: number): StallWatch => ({
+  lastPositionSeconds: positionSeconds,
+  stuckChecks: 0,
+  nudges: 0,
+})
+
+const holdsAhead = (
+  buffered: ReadonlyArray<BufferedRange>,
+  positionSeconds: number,
+): boolean =>
+  Array.some(
+    buffered,
+    range =>
+      range.startSeconds <= positionSeconds + BUFFERED_TOLERANCE_SECONDS &&
+      range.endSeconds >= positionSeconds + HELD_AHEAD_SECONDS,
+  )
+
+/**
+ * One check of the stall watch (pure): a browser can sit still while it
+ * plays and holds the audio ahead (WebKit's Media Source did so at a live
+ * join), so after {@link STALL_CHECKS_BEFORE_NUDGE} still checks the
+ * playhead is nudged {@link NUDGE_SECONDS} further each time, and after
+ * {@link MAXIMUM_NUDGES} the stall is reported. Waiting at the end of what is
+ * stored, or paused, is no stall.
+ *
+ * @example
+ * ```ts
+ * watchStall({ lastPositionSeconds: 18.04, stuckChecks: 1, nudges: 0 }, 18.04, true, [{ startSeconds: 18.01, endSeconds: 30.04 }])
+ * // [{ lastPositionSeconds: 18.14, stuckChecks: 0, nudges: 1 }, NudgePlayhead({ toSeconds: 18.14 })]
+ * ```
+ */
+export const watchStall = (
+  watch: StallWatch,
+  positionSeconds: number,
+  isPlaying: boolean,
+  buffered: ReadonlyArray<BufferedRange>,
+): readonly [StallWatch, StallAction] => {
+  const isStill =
+    Math.abs(positionSeconds - watch.lastPositionSeconds) < MOVED_SECONDS
+  if (!isPlaying || !isStill || !holdsAhead(buffered, positionSeconds)) {
+    return [freshStallWatch(positionSeconds), KeepWatching()]
+  } else if (watch.stuckChecks + 1 < STALL_CHECKS_BEFORE_NUDGE) {
+    return [
+      {
+        ...watch,
+        lastPositionSeconds: positionSeconds,
+        stuckChecks: watch.stuckChecks + 1,
+      },
+      KeepWatching(),
+    ]
+  } else if (watch.nudges >= MAXIMUM_NUDGES) {
+    return [
+      freshStallWatch(positionSeconds),
+      ReportStall({ atSeconds: positionSeconds }),
+    ]
+  } else {
+    const toSeconds = positionSeconds + NUDGE_SECONDS * (watch.nudges + 1)
+    return [
+      {
+        lastPositionSeconds: toSeconds,
+        stuckChecks: 0,
+        nudges: watch.nudges + 1,
+      },
+      NudgePlayhead({ toSeconds }),
+    ]
+  }
+}

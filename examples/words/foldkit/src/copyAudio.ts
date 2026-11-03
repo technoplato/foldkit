@@ -25,7 +25,12 @@ import {
   type CopySegment,
   type CopyStep,
   HeardAudioError,
+  type StallAction,
+  type StallWatch,
+  formatClock,
+  freshStallWatch,
   nextCopyStep,
+  watchStall,
 } from 'words-core-example'
 
 import { handleOf } from './audio.js'
@@ -40,6 +45,8 @@ const STEP_RETRY_SPACING = Duration.seconds(1)
 const REPEAT_PAUSE = Duration.seconds(1)
 const REPEATS_BEFORE_PAUSE = 3
 const REPEATS_BEFORE_FAILURE = 10
+/** How often the stall watch looks at the playhead. */
+const STALL_CHECK_INTERVAL = Duration.seconds(1)
 const WAKE_EVENTS: ReadonlyArray<string> = [
   'timeupdate',
   'seeking',
@@ -400,6 +407,61 @@ const endAudio = (feeder: Feeder): Effect.Effect<void, Error> =>
 
 const stepKeyOf = (step: CopyStep): string => JSON.stringify(step)
 
+const applyStallAction = (
+  element: HTMLAudioElement,
+  failures: Queue.Queue<AudioPlayerEvent>,
+  action: StallAction,
+): Effect.Effect<void> =>
+  Effect.sync(() =>
+    M.value(action).pipe(
+      M.tagsExhaustive({
+        KeepWatching: () => undefined,
+        NudgePlayhead: ({ toSeconds }) => {
+          console.info(
+            `words: the live audio sat still at ${element.currentTime.toFixed(2)} s over audio it holds; nudged to ${toSeconds.toFixed(2)} s (#1299)`,
+          )
+          element.currentTime = toSeconds
+        },
+        ReportStall: ({ atSeconds }) => {
+          console.warn(
+            `words: the live audio stayed still at ${atSeconds.toFixed(2)} s after every nudge (#1299)`,
+          )
+          Queue.offerUnsafe(
+            failures,
+            HeardAudioError({
+              reason: `The live audio stopped at ${formatClock(atSeconds)} and did not start again. Retry to load it again.`,
+            }),
+          )
+        },
+      }),
+    ),
+  )
+
+/**
+ * Once a second, core's pure `watchStall` on the playhead: a browser that
+ * sits still while it plays over audio it holds is nudged on, and reported
+ * when nudges do not move it.
+ */
+const watchForStalls = (
+  element: HTMLAudioElement,
+  sourceBuffer: SourceBuffer,
+  failures: Queue.Queue<AudioPlayerEvent>,
+  watch: Ref.Ref<StallWatch>,
+): Effect.Effect<never> =>
+  Effect.forever(
+    Effect.gen(function* () {
+      yield* Effect.sleep(STALL_CHECK_INTERVAL)
+      const [next, action] = watchStall(
+        yield* Ref.get(watch),
+        element.currentTime,
+        !element.paused,
+        bufferedOf(sourceBuffer),
+      )
+      yield* Ref.set(watch, next)
+      yield* applyStallAction(element, failures, action)
+    }),
+  )
+
 /**
  * Why the feeder stopped, in words: its own failure's message, or what the
  * browser threw, so a stop is never silent.
@@ -605,6 +667,23 @@ export const openCopyAudio = (
     yield* listenTo(element, WAKE_EVENTS, () => wakeFeeder(feeder))
     yield* listenTo(mediaSource, STREAMING_EVENTS, () => wakeFeeder(feeder))
     yield* listenTo(sourceBuffer, ['bufferedchange'], () => wakeFeeder(feeder))
+    const stallWatch = yield* Ref.make(freshStallWatch(element.currentTime))
+    yield* Effect.forkScoped(
+      watchForStalls(element, sourceBuffer, failures, stallWatch).pipe(
+        Effect.catchCause(cause =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.void
+            : Effect.sync(() => {
+                Queue.offerUnsafe(
+                  failures,
+                  HeardAudioError({
+                    reason: `${stoppedReasonOf(cause)} Retry to load it again.`,
+                  }),
+                )
+              }),
+        ),
+      ),
+    )
     yield* Effect.forkScoped(
       Effect.forever(feedOnce(feeder)).pipe(
         Effect.catchCause(cause =>

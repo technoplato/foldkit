@@ -8,14 +8,18 @@ import {
   type CopyFeed,
   type CopySegment,
   EndCopyAudio,
+  KeepWatching,
   ReadCopySegments,
   RemoveCopyAudio,
+  ReportStall,
   copyLifecycleIDOf,
   copyStreamIDOf,
   decodeCompressedCopy,
   decodeCopySegments,
+  freshStallWatch,
   liveJoinSecondsOf,
   nextCopyStep,
+  watchStall,
 } from './compressedCopy.js'
 
 const folder = 'scribe/7e0f1b2c/generation-1/compressed-audio'
@@ -239,5 +243,46 @@ describe('feeding the copy to the browser', () => {
         feed({ copy: copy({ segmentCount: 0, durationSeconds: 0 }) }),
       ),
     ).toEqual(AwaitCopyChange())
+  })
+})
+
+describe('a playhead that sits still over audio it holds', () => {
+  const held = [range(18.01, 30.04)]
+
+  it('is nudged after two still checks, a little further each time, then reported', () => {
+    const [first, firstAction] = watchStall(
+      freshStallWatch(18.04),
+      18.04,
+      true,
+      held,
+    )
+    expect(firstAction).toEqual(KeepWatching())
+    const [second, secondAction] = watchStall(first, 18.04, true, held)
+    expect(secondAction._tag).toBe('NudgePlayhead')
+    expect(second.nudges).toBe(1)
+    const [third] = watchStall(second, second.lastPositionSeconds, true, held)
+    const [fourth, fourthAction] = watchStall(
+      third,
+      second.lastPositionSeconds,
+      true,
+      held,
+    )
+    expect(fourthAction._tag).toBe('NudgePlayhead')
+    expect(fourth.lastPositionSeconds - second.lastPositionSeconds).toBeCloseTo(
+      0.2,
+    )
+    const stuck = { lastPositionSeconds: 18.5, stuckChecks: 1, nudges: 3 }
+    expect(watchStall(stuck, 18.5, true, held)[1]).toEqual(
+      ReportStall({ atSeconds: 18.5 }),
+    )
+  })
+
+  it('is left alone while it moves, is paused, or waits at the end of what is stored', () => {
+    const watch = { lastPositionSeconds: 18.04, stuckChecks: 1, nudges: 0 }
+    expect(watchStall(watch, 19.04, true, held)[1]).toEqual(KeepWatching())
+    expect(watchStall(watch, 18.04, false, held)[1]).toEqual(KeepWatching())
+    expect(
+      watchStall({ ...watch, lastPositionSeconds: 30 }, 30, true, held)[1],
+    ).toEqual(KeepWatching())
   })
 })
