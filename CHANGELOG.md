@@ -4,6 +4,56 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 2nd, 2026 at 10:05:57 p.m. EST — `da9b75fc5e82` fix(words): a live copy that sits still over held audio is nudged on
+
+- **Implementation commit:** `da9b75fc5e82e5d9d46393293a1a167492b70aa9`
+- **Change:** A live copy that sits still over audio it holds is nudged on, and reported if nudges do not move it (#1299).
+- **Details:**
+  - Once in about ten headless WebKit runs the player sat at its live join for 45 s while playing with readyState 4 over 36 s of held audio. The pure watchStall checks once a second; after two still checks it nudges the playhead 0.1 s on (more each time) and after three nudges reports the stall with Retry.
+  - After: WebKit played in 10 of 10 runs (24.5 to 29.2 s behind) and Chrome in 1 of 1 (31 to 33 s); no run stalled, so the rescue is proven only by the unit tests.
+- **Files:**
+  - `examples/words/core/src/compressedCopy.ts` — the pure stall watch
+  - `examples/words/core/src/compressedCopy.test.ts` — the stall watch's tests
+  - `examples/words/foldkit/src/copyAudio.ts` — checks the playhead once a second and nudges a stall
+- **User context (verbatim):**
+  > Is the audio available for uh the words.pisspour software.xyz?" "Now or is the audio available before the thing finishes? Right" "now it's saying it isn't, but I think it is. (Recording 315 #34-36, 2026-10-28 08:50, https://words.pisspoursoftware.xyz/recording/7fe98540-5ed4-4971-a506-1a8bb0faf8f4/section/d4bedfb8-dfc0-437e-a292-32b687895829?t=1808.86)
+- **SpecStory:** unavailable — unavailable: headless Claude Code session (claude -p, started by tools/agent-run); no SpecStory URI was captured
+
+## November 2nd, 2026 at 10:05:57 p.m. EST — `092d21284d03` fix(words): the live copy plays from an empty buffer; a stop is said
+
+- **Implementation commit:** `092d21284d038ba0bba431d6a8e42f38b86a806d`
+- **Change:** The live copy plays in a real browser: an empty buffer no longer kills the feeder, and any stop is reported (#1299).
+- **Details:**
+  - Effect's Array.makeBy makes at least one element, so reading an empty TimeRanges asked for stretch 0 of 0 and threw IndexSizeError, a defect Effect.catch does not see; the feeder died with nothing on screen. bufferedRangesOf answers an empty buffer first (a test fakes the browser's throw), and the feeder reports every cause but its own interruption.
+  - Measured on the throwaway Instant app bd40c50a with a fake phone storing a 6 s segment every 6 s, 10 s behind its end: Chrome joined 29.5 s behind the recording's clock and was 29.9 s behind 120 s later; WebKit's ManagedMediaSource joined 24.2 s behind and stayed there; Back 15 and a drag to 0:10 played in both (evidence ~/Sync/audit/live-copy-1299).
+- **Files:**
+  - `examples/words/foldkit/src/copyAudio.ts` — an empty buffer is no stretch; every stop is said
+  - `examples/words/foldkit/src/copyAudio.test.ts` — regression test with a TimeRanges that throws as the browser does
+- **User context (verbatim):**
+  > Is the audio available for uh the words.pisspour software.xyz?" "Now or is the audio available before the thing finishes? Right" "now it's saying it isn't, but I think it is. (Recording 315 #34-36, 2026-10-28 08:50, https://words.pisspoursoftware.xyz/recording/7fe98540-5ed4-4971-a506-1a8bb0faf8f4/section/d4bedfb8-dfc0-437e-a292-32b687895829?t=1808.86)
+- **SpecStory:** unavailable — unavailable: headless Claude Code session (claude -p, started by tools/agent-run); no SpecStory URI was captured
+
+## November 2nd, 2026 at 10:05:56 p.m. EST — `d713c9d286c5` feat(words): green: a recording in progress plays its live copy
+
+- **Implementation commit:** `d713c9d286c5137de57edfe5f449eb0a7ecb357b`
+- **Change:** A recording in progress plays on the words page from its live compressed copy (Scribe ADR 0091), for its owner, about 25 to 33 s behind the recording, instead of saying the audio arrives when the recording stops (#1299, red 7acf2925c).
+- **Details:**
+  - Core finds the copy by the stream id the phone derives from the recording's generation, observes its one stream row, and a pure planner (nextCopyStep) reads segment rows a run at a time, appends the 6 s segments around the listener, frees what lies 2 minutes behind, and ends a finished copy.
+  - The host plays it through Media Source Extensions, ManagedMediaSource on an iPhone, behind the same AudioPlayer handle; every read, download and append is bounded at 5 s and retried twice, then the player fails with its reason and Retry.
+  - Play joins 12 s behind the copy's end until the listener plays or picks a moment; then the page follows the line being heard. The source is chosen once, the file first, so the file arriving after Stop never cuts the listener off; a stopped recording waiting for its file plays its finished copy. A share page never asks for a copy, and the rules show one to its owners only.
+  - Verified: words core 295/295 then 297/297, host 37 then 39, both typechecks, oxlint on the changed files; real browsers below.
+- **Files:**
+  - `examples/words/core/src/compressedCopy.ts` — the copy's types, its stream id, row decoding and the pure feed planner
+  - `examples/words/core/src/update.ts` — the copy as an audio source, the live join, and following the line being heard
+  - `examples/words/core/src/store.ts` — the copy's Instant reads: stream row, segment runs, file URLs by path
+  - `examples/words/core/src/subscription.ts` — observes the loaded recording's copy
+  - `examples/words/foldkit/src/copyAudio.ts` — the Media Source player for the copy
+  - `examples/words/foldkit/src/view/playback.ts` — the bar plays the copy with a Live audio caption; no stop message
+- **User context (verbatim):**
+  > Is the audio available for uh the words.pisspour software.xyz?" "Now or is the audio available before the thing finishes? Right" "now it's saying it isn't, but I think it is. (Recording 315 #34-36, 2026-10-28 08:50, https://words.pisspoursoftware.xyz/recording/7fe98540-5ed4-4971-a506-1a8bb0faf8f4/section/d4bedfb8-dfc0-437e-a292-32b687895829?t=1808.86)
+  > Yeah, so file that as a P0 for when we get" "Uh quotaback." "And then we also want that audio." "if that's shared publicly to be completely scrubbed. (Recording 315 #40-43, https://words.pisspoursoftware.xyz/recording/7fe98540-5ed4-4971-a506-1a8bb0faf8f4/section/4cb73877-216c-41aa-9042-e703f6822192?t=1846.5)
+- **SpecStory:** unavailable — unavailable: headless Claude Code session (claude -p, started by tools/agent-run); no SpecStory URI was captured
+
 ## October 29th, 2026 at 1:50:03 a.m. EDT — `932bf226b983` fix(words): green: a sealed line is drawn as soft bars
 
 - **Implementation commit:** `932bf226b983430434ea56cddc946f417218f638`
@@ -168,7 +218,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **User context (verbatim):**
   > Still being checked. the share I made. And it says shared with you, but it was shared publicly.
   (Michael, Scribe Recording 242 #31-33, https://words.pisspoursoftware.xyz/recording/1dd708ee-edef-4e8a-9483-5ac3a16cf3d7/section/1d4def79-5c28-42fb-940d-502d5ffb4e43?t=469.72)
-- **SpecStory:** unavailable — headless Claude Code agent scribe-B-share-linked (account halfjew22).
+- **SpecStory:** unavailable — headless Claude Code agent scribe-B-share-linked (account withheld).
 
 ## October 17th, 2026 at 1:33 a.m. EDT — `5cdfb8f36` feat(words): a share link opens for a reader with no login
 
