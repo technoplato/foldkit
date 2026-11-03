@@ -57,27 +57,26 @@ type MediaSourceConstructor = {
   readonly isTypeSupported: (type: string) => boolean
 }
 
-type LiveSeekable = Readonly<{
-  setLiveSeekableRange?: (start: number, end: number) => void
-}>
-
 /**
  * The page's Media Source: Safari's ManagedMediaSource where it exists (the
  * only one an iPhone has, from iOS 17.1), else the standard MediaSource.
  */
+const isMediaSourceConstructor = (
+  value: unknown,
+): value is MediaSourceConstructor =>
+  typeof value === 'function' && 'isTypeSupported' in value
+
+const globalConstructorOf = (
+  name: string,
+): Option.Option<MediaSourceConstructor> =>
+  Option.filter(
+    Option.fromNullishOr<unknown>(Reflect.get(globalThis, name)),
+    isMediaSourceConstructor,
+  )
+
 const mediaSourceConstructorOf = (): Option.Option<MediaSourceConstructor> =>
-  Option.orElse(
-    Option.fromNullishOr(
-      Reflect.get(globalThis, 'ManagedMediaSource') as
-        | MediaSourceConstructor
-        | undefined,
-    ),
-    () =>
-      Option.fromNullishOr(
-        Reflect.get(globalThis, 'MediaSource') as
-          | MediaSourceConstructor
-          | undefined,
-      ),
+  Option.orElse(globalConstructorOf('ManagedMediaSource'), () =>
+    globalConstructorOf('MediaSource'),
   )
 
 const errorOf = (cause: unknown): Error =>
@@ -281,12 +280,9 @@ const syncLength = (
       if (mediaSource.duration !== Number.POSITIVE_INFINITY) {
         mediaSource.duration = Number.POSITIVE_INFINITY
       }
-      Option.map(
-        Option.fromNullishOr(
-          (mediaSource as MediaSource & LiveSeekable).setLiveSeekableRange,
-        ),
-        setRange => setRange.call(mediaSource, 0, copy.durationSeconds),
-      )
+      if ('setLiveSeekableRange' in mediaSource) {
+        mediaSource.setLiveSeekableRange(0, copy.durationSeconds)
+      }
     }
   })
 
