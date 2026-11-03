@@ -307,6 +307,126 @@ describe('Now working', () => {
     )
   })
 
+  it('releases the claim on a finished Issue once no agent of that name runs, though no run of it is on record', () => {
+    const finishedStatuses = [
+      'Closed',
+      'Fixed',
+      'Resolved',
+      'Verified',
+    ] as const
+    for (const status of finishedStatuses) {
+      const finished = Issue.make({
+        ...issue,
+        claimantId: Option.some('claude-code/landscape-265@max'),
+        id: '265',
+        status,
+      })
+
+      const released = observedIssue(finished, surveyOf([]), Option.none())
+
+      expect(released.claimantId).toEqual(Option.none())
+      expect(released.status).toBe(status)
+      expect(
+        Option.map(released.agentPresence, presence => presence.run),
+      ).toEqual(
+        Option.some(
+          EndedAgent.make({ how: 'no longer running', sinceMs: observedAtMs }),
+        ),
+      )
+      expect(released.workLog).toEqual([
+        IssueWorkLogEntry.make({
+          agentId: Option.some(workingSyncAgent),
+          commitSha: Option.none(),
+          durationSeconds: Option.none(),
+          id: `work-265-released-${String(observedAtMs)}`,
+          occurredAtMs: observedAtMs,
+          state: Option.some('released'),
+          summary: `Released the claim of claude-code/landscape-265@max: #265 is ${status} and no agent named landscape-265 is running.`,
+        }),
+      ])
+      expect(
+        encoded(
+          observedIssue(
+            released,
+            surveyOf([], [], observedAtMs + 120_000),
+            Option.none(),
+          ),
+        ),
+      ).toEqual(encoded(released))
+    }
+
+    const stillRunning = Issue.make({
+      ...issue,
+      status: 'Verified',
+    })
+    expect(
+      observedIssue(stillRunning, surveyOf([liveAgent]), Option.none())
+        .claimantId,
+    ).toEqual(stillRunning.claimantId)
+
+    const awaitingVerification = Issue.make({
+      ...issue,
+      claimantId: Option.some('claude-code/landscape-265@max'),
+      status: 'VerificationNeeded',
+    })
+    expect(
+      observedIssue(awaitingVerification, surveyOf([]), Option.none())
+        .claimantId,
+    ).toEqual(awaitingVerification.claimantId)
+  })
+
+  it('keeps a newly claimed Issue InProgress though an earlier run recorded its work Merged', () => {
+    const earlierWork = workAt('Merged')
+    const claimedAtMs = earlierWork.updatedAtMs + 3_600_000
+    const newAgent = LiveAgent.make({
+      ...liveAgent,
+      agentId: 'claude-code/p-1057-hj@max',
+      name: 'p-1057-hj',
+    })
+    const reclaimed = Issue.make({
+      ...issue,
+      claimantId: Option.some('claude-code/p-1057-hj@max'),
+      workInProgress: Option.some(earlierWork),
+      workLog: [
+        IssueWorkLogEntry.make({
+          agentId: Option.some('claude-code/p-1057-hj@max'),
+          commitSha: Option.none(),
+          durationSeconds: Option.none(),
+          id: `work-1374-claimed-${String(claimedAtMs)}`,
+          occurredAtMs: claimedAtMs,
+          state: Option.some('claimed'),
+          summary: 'Claimed by claude-code/p-1057-hj@max.',
+        }),
+      ],
+    })
+
+    const observed = observedIssue(
+      reclaimed,
+      surveyOf([newAgent], [], claimedAtMs + 60_000),
+      Option.none(),
+    )
+
+    expect(observed.status).toBe('InProgress')
+    expect(observed.workLog).toEqual(reclaimed.workLog)
+
+    const landedAgain = Issue.make({
+      ...observed,
+      workInProgress: Option.some(
+        IssueWorkInProgress.make({
+          ...earlierWork,
+          updatedAtMs: claimedAtMs + 120_000,
+        }),
+      ),
+    })
+    expect(
+      observedIssue(
+        landedAgain,
+        surveyOf([newAgent], [], claimedAtMs + 180_000),
+        Option.none(),
+      ).status,
+    ).toBe('VerificationNeeded')
+  })
+
   it('moves an Issue whose work merged or shipped to VerificationNeeded, and leaves a closed one', () => {
     const merged = Issue.make({
       ...issue,
