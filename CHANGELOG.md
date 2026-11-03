@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 2nd, 2026 at 8:49:10 p.m. EST — `a8f4fd0ed40c` fix(issues): the working sync stops saying agents run when none do
+
+- **Implementation commit:** `a8f4fd0ed40c371292f5dfd49784276664a3b023`
+- **Change:** The working sync stops saying agents run when none do
+- **Details:**
+  - The hourly sweep reads every Issue, whatever its status: 22 Issues read running for runs that had ended, because an agent claims Issues besides its run's and the sweep read only InProgress and Addressing.
+  - A claim on a finished Issue (Closed, Fixed, Resolved, Verified) is released once no agent of that name runs, with a work-log entry saying why.
+  - A claim made after the landing record keeps the Issue InProgress: the sync had moved 5 freshly claimed Issues back to VerificationNeeded from the previous run's record.
+  - Measured: a dry run of the new sweep on the live catalog checks 1,620 Issues (9.3 s, 3.4 s CPU, 347 MB peak; was 108 Issues, 2.0 s, 0.7 s CPU, 189 MB) and would correct all 22 stale running agents, release 300 claims and mark 312 stale.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.ts` — finished claims are released; a fresh claim keeps the Issue InProgress
+  - `examples/issues/cli/src/commands.ts` — the sweep reads every Issue; a release prints its own reason
+  - `examples/issues/core/src/backlog.ts` — FINISHED_STATUSES is shared
+  - `examples/issues/cli/src/entry.ts` — --sweep says what it reads
+  - `examples/issues/README.md` — what the working sync does now
+- **User context (verbatim):**
+  > Michael, Recording 349 #60-63 (2026-11-02 20:22): "a lot of these have been already done, so something's wrong with our issue tracking."
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (p-1618-hj); no SpecStory capture exists for headless runs.
+
 ## November 2nd, 2026 at 5:37:15 a.m. EST — `f1d09d48c7da` fix(issues): green: a quoted line's link goes out on og
 
 - **Implementation commit:** `f1d09d48c7dae650768e110d990ac5eb1c3fbff5`
