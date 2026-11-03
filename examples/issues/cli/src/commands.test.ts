@@ -2378,6 +2378,17 @@ describe('issues working', () => {
           claimantId: Option.some('claude-code/perf-waste-fixes@max'),
           status: 'VerificationNeeded',
           updatedAtMs: 1_791_999_500_000,
+          workLog: [
+            IssueWorkLogEntry.make({
+              agentId: Option.some('claude-code/perf-waste-fixes@max'),
+              commitSha: Option.none(),
+              durationSeconds: Option.none(),
+              id: 'work-1507-progress-1',
+              occurredAtMs: 1_791_999_500_000,
+              state: Option.some('progress'),
+              summary: 'Landed on main; verify after the install.',
+            }),
+          ],
         }),
         stored('265', 'Landscape layout', {
           claimantId: Option.some('claude-code/landscape-265@max'),

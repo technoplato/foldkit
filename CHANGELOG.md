@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 2nd, 2026 at 9:17:51 p.m. EST — `c159c8057bec` fix(issues): release a claim whose agent is gone and silent for a week
+
+- **Implementation commit:** `c159c8057bec62d8d5c8d96f3ec9d76507679c4a`
+- **Change:** A claim whose agent is gone and silent for a week is released
+- **Details:**
+  - After the first full sweep, 439 of the 453 claims on unfinished Issues belonged to agents that were not running and had written nothing on their Issue for over a week; they read as an agent still on the work. They are released with a line naming the claimant's last entry; status and work in progress stay (red test e326f7154).
+  - Measured as a dry run on the live catalog: 439 releases, 3.2 s CPU for the hourly sweep.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.ts` — the week-silent release and its reason
+  - `examples/issues/cli/src/commands.test.ts` — the sweep test's claimant writes within the week
+- **User context (verbatim):**
+  > Michael, Recording 349 #60-63 (2026-11-02 20:22): "a lot of these have been already done, so something's wrong with our issue tracking."
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (p-1618-hj); no SpecStory capture exists for headless runs.
+
 ## November 2nd, 2026 at 8:49:10 p.m. EST — `a8f4fd0ed40c` fix(issues): the working sync stops saying agents run when none do
 
 - **Implementation commit:** `a8f4fd0ed40c371292f5dfd49784276664a3b023`

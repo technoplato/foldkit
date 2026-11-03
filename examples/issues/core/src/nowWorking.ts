@@ -28,6 +28,16 @@ const STALE_AFTER_HOURS = 12
  */
 export const staleAfterMs = STALE_AFTER_HOURS * HOUR_MS
 
+const ABANDONED_AFTER_DAYS = 7
+
+/**
+ * How long the claimant of unfinished work may write nothing on its Issue,
+ * with no agent of its name running, before its claim is released: seven
+ * days. Scribe #1618 found 439 such claims, some from August, that read as
+ * an agent still on the work.
+ */
+export const abandonedAfterMs = ABANDONED_AFTER_DAYS * 24 * HOUR_MS
+
 /**
  * One agent `tools/agent-progress-check` saw running:
  * `claude-code/issue-wip-1374@max` on Issue 1374, its branch and
@@ -345,6 +355,18 @@ const withClaimObserved = (issue: Issue, survey: AgentSurvey): Issue =>
               survey,
             )
           }
+          const lastWroteMs = claimantLastWroteMs(issue, claimant)
+          if (survey.observedAtMs - lastWroteMs > abandonedAfterMs) {
+            return releasedClaim(
+              issue,
+              claimant,
+              {
+                how: 'no longer running',
+                why: `no agent named ${name} is running, and it wrote nothing on #${issue.id} since ${isoTimeOf(lastWroteMs)}`,
+              },
+              survey,
+            )
+          }
           return survey.observedAtMs - lastActivityMs(issue) > staleAfterMs
             ? staleClaim(issue, claimant, survey)
             : issue
@@ -380,6 +402,31 @@ const whereItLanded = (work: IssueWorkInProgress): string =>
 const statusEntryPrefix = (issue: Issue): string => `work-${issue.id}-status-`
 
 const claimStates: ReadonlyArray<string> = ['claimed', 'claim-start']
+
+/**
+ * When the claimant last wrote on the Issue: its newest work-log entry, or a
+ * claim made on its behalf that names it, else the Issue's creation.
+ */
+const claimantLastWroteMs = (issue: Issue, claimant: string): number => {
+  const written = Array.map(
+    Array.filter(
+      issue.workLog,
+      entry =>
+        Option.exists(
+          entry.agentId,
+          agentId => agentNameOf(agentId) === agentNameOf(claimant),
+        ) ||
+        (Option.exists(entry.state, state =>
+          Array.contains(claimStates, state),
+        ) &&
+          entry.summary.includes(claimant)),
+    ),
+    entry => entry.occurredAtMs,
+  )
+  return Array.isReadonlyArrayNonEmpty(written)
+    ? Math.max(...written)
+    : issue.createdAtMs
+}
 
 const isClaimedSince = (issue: Issue, sinceMs: number): boolean =>
   Array.some(
@@ -444,11 +491,12 @@ export const statusFollowingLanding = (
  * claimant first) is named with its account, branch, worktree, and touched
  * files; an agent no longer running reads as ended; the claim of a run that
  * ended is released with a work-log entry, and so is the claim on a finished
- * Issue (Closed, Fixed, Resolved, Verified) once no agent of that name runs;
- * any other claim nothing shows running that stayed quiet for twelve hours
- * reads as stale but is kept; and work recorded Merged or Shipped moves the
- * Issue to VerificationNeeded. Observing the same survey again changes
- * nothing.
+ * Issue (Closed, Fixed, Resolved, Verified) once no agent of that name runs,
+ * and the claim of an agent nothing shows running that wrote nothing on the
+ * Issue for seven days; any other claim nothing shows running that stayed
+ * quiet for twelve hours reads as stale but is kept; and work recorded Merged
+ * or Shipped moves the Issue to VerificationNeeded. Observing the same survey
+ * again changes nothing.
  */
 export const observedIssue = (
   issue: Issue,
