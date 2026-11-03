@@ -16,6 +16,8 @@ import {
   displayedPositionOf,
   followedSectionOf,
   formatClock,
+  isAudioPlayableOf,
+  isFollowingLiveEdgeOf,
   isLiveRecording,
   sealedLineTextOf,
   sectionAt,
@@ -381,9 +383,6 @@ const sectionIDOf = (
 ): string | undefined =>
   Option.getOrUndefined(Option.map(maybeSection, section => section.id))
 
-const hasPlayableAudio = (ready: ReadyPlayback): boolean =>
-  ready.detail.audio._tag === 'StoredAudio' && !isLiveRecording(ready)
-
 const waitingForWords = (isTranscribing: boolean): Html => {
   const h = html<Message>()
   return h.div(
@@ -418,7 +417,7 @@ export const transcript = (
 ): Html => {
   const h = html<Message>()
   const position = displayedPositionOf(ready)
-  const maybeCurrent = isLiveRecording(ready)
+  const maybeCurrent = isFollowingLiveEdgeOf(ready)
     ? Option.none<Section>()
     : sectionAt(ready.detail.sections, position)
   const activeWordID = pipe(
@@ -451,7 +450,7 @@ export const transcript = (
             activeWordID,
             Option.getOrUndefined(ready.maybeFocusedSectionID),
             sectionIDOf(followedSectionOf(ready)),
-            hasPlayableAudio(ready),
+            isAudioPlayableOf(ready),
           ]),
       }),
     ],

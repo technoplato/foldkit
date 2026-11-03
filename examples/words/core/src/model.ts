@@ -2,7 +2,9 @@ import { Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
 import * as Account from './account/model.js'
+import { AudioSource } from './audioPlayer.js'
 import * as Capture from './capture/model.js'
+import { CompressedCopy } from './compressedCopy.js'
 import { ScribeRoute } from './link.js'
 import { OlderEdge, RecordingWindow } from './listWindow.js'
 import { Connectivity } from './network.js'
@@ -139,6 +141,39 @@ export const AudioPlayerState = S.Union([
 /** Where the audio player stands. */
 export type AudioPlayerState = typeof AudioPlayerState.Type
 
+/**
+ * No compressed copy of the recording is known (Scribe ADR 0091): it was not
+ * looked up, no segment of it is stored yet, it has none (a Watch, a build
+ * before the copy), or the rules do not show it to this account.
+ */
+export const NoCompressedCopy = ts('NoCompressedCopy')
+/** The recording's compressed copy, as its stream row says now. */
+export const FoundCompressedCopy = ts('FoundCompressedCopy', {
+  copy: CompressedCopy,
+})
+/** The copy could not be looked up; Retry asks again. */
+export const FailedCompressedCopy = ts('FailedCompressedCopy', {
+  reason: S.String,
+})
+/** What the page knows of the recording's compressed copy. */
+export const CompressedCopyState = S.Union([
+  NoCompressedCopy,
+  FoundCompressedCopy,
+  FailedCompressedCopy,
+])
+/** What the page knows of the recording's compressed copy. */
+export type CompressedCopyState = typeof CompressedCopyState.Type
+
+/**
+ * Where Play starts a recording in progress that plays from its copy:
+ * `AtLiveEdge` until the listener plays or picks a moment, so Play joins
+ * the newest audio as it is then; `Chosen` after, so Play goes on from
+ * where they are.
+ */
+export const LivePlacement = S.Literals(['AtLiveEdge', 'Chosen'])
+/** Where Play starts a recording in progress that plays from its copy. */
+export type LivePlacement = typeof LivePlacement.Type
+
 /** What the opened link asked for: a start time, a section to focus, the route. */
 export const PlaybackRequest = S.Struct({
   maybeStartSeconds: S.Option(S.Number),
@@ -194,8 +229,10 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   screenMode: ScreenMode,
   scrub: Scrub,
   audioPlayer: AudioPlayerState,
-  maybeAudioUrl: S.Option(S.String),
+  maybeAudioSource: S.Option(AudioSource),
   audioAttempt: S.Number,
+  compressedCopy: CompressedCopyState,
+  livePlacement: LivePlacement,
   maybePendingSeekSeconds: S.Option(S.Number),
   maybeFocusedSectionID: S.Option(S.String),
   focusRevision: S.Number,

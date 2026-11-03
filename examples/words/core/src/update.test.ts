@@ -4,6 +4,7 @@ import { fromString } from 'foldkit/url'
 import { describe, expect, it } from 'vitest'
 
 import {
+  FileAudioSource,
   MediaSessionPlay,
   MediaSessionSeek,
   MediaSessionSkip,
@@ -301,17 +302,26 @@ describe('playing', () => {
 
   it('loads the first audio URL and keeps it when the signed URL changes', () => {
     expect(audioSourceOf(ready)).toEqual(
-      Option.some({ url: 'https://files/audio-1', attempt: 0 }),
+      Option.some({
+        source: FileAudioSource({ url: 'https://files/audio-1' }),
+        attempt: 0,
+      }),
     )
     const refreshed = run(ready, [
       ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio-2' } }),
     ]).model
     expect(audioSourceOf(refreshed)).toEqual(
-      Option.some({ url: 'https://files/audio-1', attempt: 0 }),
+      Option.some({
+        source: FileAudioSource({ url: 'https://files/audio-1' }),
+        attempt: 0,
+      }),
     )
     const retried = run(refreshed, [ClickedRetryAudio()]).model
     expect(audioSourceOf(retried)).toEqual(
-      Option.some({ url: 'https://files/audio-2', attempt: 1 }),
+      Option.some({
+        source: FileAudioSource({ url: 'https://files/audio-2' }),
+        attempt: 1,
+      }),
     )
   })
 

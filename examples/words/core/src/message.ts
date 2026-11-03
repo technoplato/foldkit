@@ -6,6 +6,7 @@ import { Url } from 'foldkit/url'
 import * as Account from './account/message.js'
 import { MediaSessionAction } from './audioPlayer.js'
 import * as Capture from './capture/message.js'
+import { CompressedCopy } from './compressedCopy.js'
 import { Shortcut } from './keyboard.js'
 import { ScribeAppScheme } from './link.js'
 import { ListEdge, RecordingWindow } from './listWindow.js'
@@ -121,6 +122,20 @@ export const ObservedFileUrls = m('ObservedFileUrls', {
 })
 /** The file URLs could not be observed. */
 export const FailedObserveFileUrls = m('FailedObserveFileUrls', {
+  reason: S.String,
+})
+
+/**
+ * The open (or background) recording's compressed copy, as its stream row
+ * says now; none while no segment is stored or the rules hide it.
+ */
+export const ObservedCompressedCopy = m('ObservedCompressedCopy', {
+  recordingID: S.String,
+  maybeCopy: S.Option(CompressedCopy),
+})
+/** The compressed copy could not be observed. */
+export const FailedObserveCompressedCopy = m('FailedObserveCompressedCopy', {
+  recordingID: S.String,
   reason: S.String,
 })
 
@@ -322,6 +337,8 @@ export const Message = S.Union([
   ConfirmedMissingRecording,
   ConfirmedRecordingExists,
   ObservedFileUrls,
+  ObservedCompressedCopy,
+  FailedObserveCompressedCopy,
   FailedObserveFileUrls,
   AcquiredAudioPlayer,
   ReleasedAudioPlayer,

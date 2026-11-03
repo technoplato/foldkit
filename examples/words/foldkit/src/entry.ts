@@ -20,6 +20,7 @@ import {
   type WordsOrigin,
   WordsProgram,
   type WordsStore,
+  makeLiveCopyReader,
   makeLiveWordsResources,
   modelForRoute,
   urlToScribeRoute,
@@ -83,7 +84,10 @@ const program: Program.Program<
   AudioPlayerService | Capture.CaptureSessionService
 > = Program.make({
   ...WordsProgram,
-  managedResources: makeManagedResources(browserOrigin),
+  managedResources: makeManagedResources(
+    browserOrigin,
+    makeLiveCopyReader(database),
+  ),
 })
 
 const application = Runtime.makeFoldkitApplication({

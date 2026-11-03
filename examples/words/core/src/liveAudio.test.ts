@@ -108,7 +108,10 @@ const copySource = CopyAudioSource({
 const run = (model: Model, messages: ReadonlyArray<Message>) =>
   Array.reduce(
     messages,
-    { model, commands: Array.empty<Readonly<{ name: string; args: unknown }>>() },
+    {
+      model,
+      commands: Array.empty<Readonly<{ name: string; args: unknown }>>(),
+    },
     (state, message) => {
       const [next, commands] = update(state.model, message)
       return {
@@ -147,7 +150,10 @@ const observed = (recordingDetail: RecordingDetail) =>
   })
 
 const found = (compressedCopy: CompressedCopy) =>
-  ObservedCompressedCopy({ recordingID, maybeCopy: Option.some(compressedCopy) })
+  ObservedCompressedCopy({
+    recordingID,
+    maybeCopy: Option.some(compressedCopy),
+  })
 
 const live = () =>
   run(modelForRoute(RecordingRoute({ recordingID })), [observed(detail())])
@@ -208,7 +214,10 @@ describe('a recording in progress plays from its live copy (#1299)', () => {
       audioCommandsOf(played.commands).map(command => command.name),
     ).toEqual(['SeekAudio', 'PlayAudio'])
     expect(
-      Option.map(Array.head(audioCommandsOf(played.commands)), command => command.args),
+      Option.map(
+        Array.head(audioCommandsOf(played.commands)),
+        command => command.args,
+      ),
     ).toEqual(Option.some({ seconds: 648 }))
     expect(readyOf(played.model).transport).toBe('Playing')
 
@@ -230,7 +239,10 @@ describe('a recording in progress plays from its live copy (#1299)', () => {
       audioCommandsOf(tapped.commands).map(command => command.name),
     ).toEqual(['SeekAudio', 'PlayAudio'])
     expect(
-      Option.map(Array.head(audioCommandsOf(tapped.commands)), command => command.args),
+      Option.map(
+        Array.head(audioCommandsOf(tapped.commands)),
+        command => command.args,
+      ),
     ).toEqual(Option.some({ seconds: 100 }))
     const resumed = run(tapped.model, [
       ClickedPause(),
@@ -279,7 +291,9 @@ describe('a recording in progress plays from its live copy (#1299)', () => {
     ]).model
     const { model } = run(playing, [
       observed(stopped(StoredAudio({ fileID: 'audio-file', byteCount: 10 }))),
-      found(copy({ isFinished: true, durationSeconds: 650, segmentCount: 109 })),
+      found(
+        copy({ isFinished: true, durationSeconds: 650, segmentCount: 109 }),
+      ),
       ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio' } }),
     ])
     expect(audioSourceOf(model)).toEqual(
@@ -291,7 +305,9 @@ describe('a recording in progress plays from its live copy (#1299)', () => {
   it('a stopped recording still waiting for its file plays its finished copy from the start', () => {
     const { model } = run(modelForRoute(RecordingRoute({ recordingID })), [
       observed(stopped(UploadingAudio({ byteCount: 0 }))),
-      found(copy({ isFinished: true, durationSeconds: 650, segmentCount: 109 })),
+      found(
+        copy({ isFinished: true, durationSeconds: 650, segmentCount: 109 }),
+      ),
     ])
     expect(audioSourceOf(model)).toEqual(
       Option.some({ source: copySource, attempt: 0 }),

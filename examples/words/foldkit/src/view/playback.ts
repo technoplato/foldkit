@@ -32,8 +32,10 @@ import {
   displayedPositionOf,
   durationOf,
   formatClock,
+  isFollowingLiveEdgeOf,
   isLiveRecording,
   isReturnShownOf,
+  liveAudioCaptionOf,
   playbackPhaseOf,
   scribeRouteToPath,
   shortcutKeyOf,
@@ -612,6 +614,34 @@ const clockLabel = (seconds: number): Html => {
   )
 }
 
+/**
+ * The line above the scrubber while a recording in progress plays from its
+ * live copy: where the audio comes from, so the listener knows it trails the
+ * recording.
+ */
+const liveAudioCaption = (ready: ReadyPlayback): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return Option.match(liveAudioCaptionOf(ready), {
+    onNone: () => [],
+    onSome: caption => [
+      h.span(
+        [
+          h.Class(
+            'flex items-center gap-1.5 pt-1.5 text-footnote font-semibold text-secondary',
+          ),
+        ],
+        [
+          h.span(
+            [h.AriaHidden(true), h.Class('size-2 rounded-full bg-red-500')],
+            [],
+          ),
+          caption,
+        ],
+      ),
+    ],
+  })
+}
+
 const transportBar = (ready: ReadyPlayback): Html => {
   const h = html<Message>()
   const position = displayedPositionOf(ready)
@@ -625,6 +655,7 @@ const transportBar = (ready: ReadyPlayback): Html => {
       ),
     ],
     [
+      ...liveAudioCaption(ready),
       scrubberInput(ready, 'w-full'),
       h.div(
         [
@@ -788,7 +819,7 @@ const newestLineOf = (ready: ReadyPlayback): Option.Option<string> =>
  */
 export const returnPill = (ready: ReadyPlayback): ReadonlyArray<Html> => {
   const h = html<Message>()
-  const isLive = isLiveRecording(ready)
+  const isLive = isFollowingLiveEdgeOf(ready)
   const label = isLive ? 'Back to Live' : 'Back to Playhead'
   const key = shortcutKeyOf('ReturnToFollowed')
   return isReturnShownOf(ready)
@@ -909,11 +940,105 @@ const liveLengthClock = (seconds: number): Html => {
   )
 }
 
+const retryButton = (): Html =>
+  button('Retry', ClickedRetryAudio(), 'Tinted', Option.some('Refresh'))
+
+/**
+ * The player once there is audio to play: the file, or the live copy of a
+ * recording in progress (Scribe ADR 0091), loading, failed with Retry, or
+ * its transport.
+ */
+const playerBars = (
+  ready: ReadyPlayback,
+  isBesideRecorder: boolean,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return M.value(ready.audioPlayer).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tagsExhaustive({
+      NoAudioPlayer: () => [
+        statusBar('Clock', 'Loading the audio', 'One moment.'),
+      ],
+      AudioPlayerFailed: ({ reason }) => [
+        statusBar('Alert', 'The audio did not play', reason, [retryButton()]),
+      ],
+      AudioPlayerReady: () => {
+        if (ready.screenMode === 'FullScreen') {
+          return [
+            compactTransportBar(ready),
+            h.div([h.Class('hidden w-full sm:block')], [transportBar(ready)]),
+          ]
+        } else if (isBesideRecorder) {
+          return [
+            besideTransportBar(ready),
+            h.div([h.Class('beside-full w-full')], [transportBar(ready)]),
+          ]
+        } else {
+          return [transportBar(ready)]
+        }
+      },
+    }),
+  )
+}
+
+/**
+ * A recording in progress on another device with nothing to play yet: no
+ * segment of its live copy is stored, it has none (a Watch, an older build),
+ * or this account may not read it; or the copy could not be looked up.
+ */
+const liveStatusBars = (
+  model: Model,
+  ready: ReadyPlayback,
+): ReadonlyArray<Html> =>
+  M.value(ready.compressedCopy).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tag('FailedCompressedCopy', ({ reason }) => [
+      statusBar('Alert', 'The live audio did not load', reason, [
+        retryButton(),
+      ]),
+    ]),
+    M.orElse(() => [
+      statusBar(
+        'Microphone',
+        'Recording on another device',
+        'Following along live. The audio plays here once it reaches Scribe.',
+        [liveLengthClock(displayedLengthOf(model, ready.detail.summary))],
+      ),
+    ]),
+  )
+
+/** A finished recording with nothing to play yet: why. */
+const audioStatusBars = (ready: ReadyPlayback): ReadonlyArray<Html> =>
+  M.value(ready.detail.audio).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tagsExhaustive({
+      NoAudio: () => [
+        statusBar(
+          'Waveform',
+          'No audio',
+          'This recording has a transcript only.',
+        ),
+      ],
+      UploadingAudio: () => [
+        statusBar(
+          'Clock',
+          'The audio is still uploading',
+          'It plays here once the device that recorded it finishes uploading.',
+        ),
+      ],
+      StoredAudio: () => [
+        statusBar('Clock', 'Loading the audio', 'One moment.'),
+      ],
+    }),
+  )
+
 /**
  * The floating controls for the open recording, when this browser is not
- * recording it. A recording in progress on another device shows its length
- * counting up (`displayedLengthOf`). Beside this browser's own live
- * recording (`isBesideRecorder`), a phone gets the one-row player.
+ * recording it. A recording in progress on another device plays from its
+ * live copy once a segment is stored (Scribe ADR 0091, #1299); until then
+ * it shows its length counting up (`displayedLengthOf`). Beside this
+ * browser's own live recording (`isBesideRecorder`), a phone gets the
+ * one-row player.
  */
 export const playbackBar = (
   model: Model,
@@ -921,74 +1046,13 @@ export const playbackBar = (
   isBesideRecorder: boolean,
 ): ReadonlyArray<Html> => {
   const h = html<Message>()
-  const main = isLiveRecording(ready)
-    ? [
-        statusBar(
-          'Microphone',
-          'Recording on another device',
-          'Following along live. The audio arrives when the recording stops.',
-          [liveLengthClock(displayedLengthOf(model, ready.detail.summary))],
-        ),
-      ]
-    : M.value(ready.detail.audio).pipe(
-        M.withReturnType<ReadonlyArray<Html>>(),
-        M.tagsExhaustive({
-          NoAudio: () => [
-            statusBar(
-              'Waveform',
-              'No audio',
-              'This recording has a transcript only.',
-            ),
-          ],
-          UploadingAudio: () => [
-            statusBar(
-              'Clock',
-              'The audio is still uploading',
-              'It plays here once the device that recorded it finishes uploading.',
-            ),
-          ],
-          StoredAudio: () =>
-            M.value(ready.audioPlayer).pipe(
-              M.withReturnType<ReadonlyArray<Html>>(),
-              M.tagsExhaustive({
-                NoAudioPlayer: () => [
-                  statusBar('Clock', 'Loading the audio', 'One moment.'),
-                ],
-                AudioPlayerFailed: ({ reason }) => [
-                  statusBar('Alert', 'The audio did not play', reason, [
-                    button(
-                      'Retry',
-                      ClickedRetryAudio(),
-                      'Tinted',
-                      Option.some('Refresh'),
-                    ),
-                  ]),
-                ],
-                AudioPlayerReady: () => {
-                  if (ready.screenMode === 'FullScreen') {
-                    return [
-                      compactTransportBar(ready),
-                      h.div(
-                        [h.Class('hidden w-full sm:block')],
-                        [transportBar(ready)],
-                      ),
-                    ]
-                  } else if (isBesideRecorder) {
-                    return [
-                      besideTransportBar(ready),
-                      h.div(
-                        [h.Class('beside-full w-full')],
-                        [transportBar(ready)],
-                      ),
-                    ]
-                  } else {
-                    return [transportBar(ready)]
-                  }
-                },
-              }),
-            ),
-        }),
-      )
+  const main = Option.match(ready.maybeAudioSource, {
+    onSome: () => playerBars(ready, isBesideRecorder),
+    onNone: () =>
+      isLiveRecording(ready)
+        ? liveStatusBars(model, ready)
+        : audioStatusBars(ready),
+  })
   return [...returnPill(ready), h.div([h.Class('w-full')], main)]
 }
 

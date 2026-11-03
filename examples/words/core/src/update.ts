@@ -21,10 +21,14 @@ import * as Account from './account/index.js'
 import {
   AudioPlayer,
   type AudioPlayerService,
+  type AudioSource,
+  CopyAudioSource,
+  FileAudioSource,
   NowPlaying,
 } from './audioPlayer.js'
 import * as Capture from './capture/index.js'
 import { ClipboardWriter } from './clipboard.js'
+import { type CompressedCopy, liveJoinSecondsOf } from './compressedCopy.js'
 import { retiredLineNamed } from './decode.js'
 import type { ShortcutContext } from './keyboard.js'
 import {
@@ -95,15 +99,19 @@ import {
   AudioPlayerFailed,
   AudioPlayerReady,
   CheckingIdentity,
+  type CompressedCopyState,
   CopyNotice,
+  FailedCompressedCopy,
   FailedPlayback,
   FailedRecordings,
+  FoundCompressedCopy,
   type LiveLengthSave,
   LoadedRecordings,
   LoadingRecordings,
   MissingRecording,
   type Model,
   NoAudioPlayer,
+  NoCompressedCopy,
   NoPlayback,
   NotScrubbing,
   OpeningPlayback,
@@ -448,6 +456,81 @@ export const ClearFocusHighlightLater = Command.define(
 export const isLiveRecording = (ready: ReadyPlayback): boolean =>
   ready.detail.summary.activity === 'Recording'
 
+const copyOf = (ready: ReadyPlayback): Option.Option<CompressedCopy> =>
+  M.value(ready.compressedCopy).pipe(
+    M.withReturnType<Option.Option<CompressedCopy>>(),
+    M.tag('FoundCompressedCopy', ({ copy }) => Option.some(copy)),
+    M.orElse(() => Option.none()),
+  )
+
+const isCopySourceOf = (ready: ReadyPlayback): boolean =>
+  Option.exists(
+    ready.maybeAudioSource,
+    source => source._tag === 'CopyAudioSource',
+  )
+
+/**
+ * Whether the page follows the newest line of a recording in progress: until
+ * the listener plays its compressed copy or picks a moment in it. From then
+ * on it follows the line being heard, as a finished recording's playback does.
+ */
+export const isFollowingLiveEdgeOf = (ready: ReadyPlayback): boolean =>
+  isLiveRecording(ready) &&
+  !(
+    isCopySourceOf(ready) &&
+    (ready.transport === 'Playing' || ready.livePlacement === 'Chosen')
+  )
+
+/**
+ * Where Play joins a recording in progress that plays from its live copy:
+ * {@link liveJoinSecondsOf} its copy as it is now, until the listener plays
+ * or picks a moment.
+ */
+const liveJoinOf = (ready: ReadyPlayback): Option.Option<number> =>
+  isLiveRecording(ready) &&
+  isCopySourceOf(ready) &&
+  ready.livePlacement === 'AtLiveEdge'
+    ? Option.map(
+        Option.filter(copyOf(ready), copy => !copy.isFinished),
+        liveJoinSecondsOf,
+      )
+    : Option.none()
+
+const liveDeviceNameOf = (summary: RecordingSummary): string =>
+  Option.match(summary.maybeDeviceIcon, {
+    onNone: () => 'the recording device',
+    onSome: device =>
+      M.value(device).pipe(
+        M.withReturnType<string>(),
+        M.when('phone', () => 'iPhone'),
+        M.when('tablet', () => 'iPad'),
+        M.when('laptop', () => 'Mac'),
+        M.when('desktop', () => 'Mac'),
+        M.orElse(() => 'the recording device'),
+      ),
+  })
+
+/**
+ * What the player says while a recording in progress plays from its live
+ * copy, about 30 seconds behind the device that records it.
+ */
+export const liveAudioCaptionOf = (
+  ready: ReadyPlayback,
+): Option.Option<string> =>
+  isLiveRecording(ready) &&
+  isCopySourceOf(ready) &&
+  Option.exists(copyOf(ready), copy => !copy.isFinished)
+    ? Option.some(`Live audio from ${liveDeviceNameOf(ready.detail.summary)}`)
+    : Option.none()
+
+/**
+ * Whether a tapped word plays from there: a finished recording with stored
+ * audio, or any recording with audio to play, its live copy included.
+ */
+export const isAudioPlayableOf = (ready: ReadyPlayback): boolean =>
+  Option.isSome(ready.maybeAudioSource) ||
+  (ready.detail.audio._tag === 'StoredAudio' && !isLiveRecording(ready))
+
 type Stretch = Readonly<{ startMs: number; endMs: number }>
 
 const byStretchStart = Order.mapInput(
@@ -765,13 +848,13 @@ const liveLengthFloorsAt = (
 export const followedSectionOf = (
   ready: ReadyPlayback,
 ): Option.Option<Section> =>
-  isLiveRecording(ready)
+  isFollowingLiveEdgeOf(ready)
     ? Array.last(ready.detail.sections)
     : sectionAt(ready.detail.sections, ready.positionSeconds)
 
 /** Where the followed section lands when the transcript scrolls to it. */
 export const placementOf = (ready: ReadyPlayback): SectionPlacement =>
-  isLiveRecording(ready) ? 'LiveEdge' : 'Center'
+  isFollowingLiveEdgeOf(ready) ? 'LiveEdge' : 'Center'
 
 /**
  * Whether Back to Playhead (or, while recording, Back to Live) shows: the
@@ -812,7 +895,7 @@ export const playbackPhaseOf = (
   ready: ReadyPlayback,
 ): Option.Option<PlaybackPhase> => {
   const position = displayedPositionOf(ready)
-  if (isLiveRecording(ready)) {
+  if (isFollowingLiveEdgeOf(ready)) {
     return Option.none()
   } else if (ready.transport === 'Playing') {
     return Option.some('Playing')
@@ -827,8 +910,19 @@ export const playbackPhaseOf = (
   }
 }
 
-/** The recording's length: the audio's once it is known, else the transcript's. */
+/**
+ * The recording's length: its live copy's reach while it plays from the
+ * copy, else the audio's once it is known, else the transcript's.
+ */
 export const durationOf = (ready: ReadyPlayback): number =>
+  isCopySourceOf(ready)
+    ? Option.match(copyOf(ready), {
+        onNone: () => playerDurationOf(ready),
+        onSome: copy => copy.durationSeconds,
+      })
+    : playerDurationOf(ready)
+
+const playerDurationOf = (ready: ReadyPlayback): number =>
   M.value(ready.audioPlayer).pipe(
     M.withReturnType<number>(),
     M.tagsExhaustive({
@@ -844,10 +938,37 @@ export const durationOf = (ready: ReadyPlayback): number =>
 /** The audio the host's player should load, and the attempt it belongs to. */
 export const audioSourceOf = (
   model: Model,
-): Option.Option<Readonly<{ url: string; attempt: number }>> =>
+): Option.Option<Readonly<{ source: AudioSource; attempt: number }>> =>
   Option.flatMap(audioOwnerOf(model), ready =>
-    Option.map(ready.maybeAudioUrl, url => ({
-      url,
+    Option.map(ready.maybeAudioSource, source => ({
+      source,
+      attempt: ready.audioAttempt,
+    })),
+  )
+
+const isCopyWantedOf = (ready: ReadyPlayback): boolean =>
+  Option.match(ready.maybeAudioSource, {
+    onNone: () =>
+      isLiveRecording(ready) || ready.detail.audio._tag !== 'StoredAudio',
+    onSome: source => source._tag === 'CopyAudioSource',
+  })
+
+/**
+ * The compressed copy the page observes (Scribe ADR 0091): the loaded
+ * recording's, while it records, while its file is not stored, and while it
+ * plays from the copy. A share page loads no recording, so it never asks.
+ */
+export const compressedCopyRequestOf = (
+  model: Model,
+): Option.Option<
+  Readonly<{ recordingID: string; startedAtMs: number; attempt: number }>
+> =>
+  pipe(
+    audioOwnerOf(model),
+    Option.filter(isCopyWantedOf),
+    Option.map(ready => ({
+      recordingID: ready.recordingID,
+      startedAtMs: ready.detail.summary.startedAtMs,
       attempt: ready.audioAttempt,
     })),
   )
@@ -1007,6 +1128,7 @@ const seekTo = (ready: ReadyPlayback, seconds: number): ReadyReturn =>
         evo(ready, {
           positionSeconds: () => seconds,
           maybePendingSeekSeconds: () => Option.none(),
+          livePlacement: () => 'Chosen',
         }),
         [SeekAudio({ seconds })],
       ]
@@ -1014,6 +1136,7 @@ const seekTo = (ready: ReadyPlayback, seconds: number): ReadyReturn =>
         evo(ready, {
           positionSeconds: () => seconds,
           maybePendingSeekSeconds: () => Option.some(seconds),
+          livePlacement: () => 'Chosen',
         }),
         [],
       ]
@@ -1062,7 +1185,7 @@ const followCommands = (
   after: ReadyPlayback,
 ): Commands =>
   after.follow === 'Following' &&
-  isLiveRecording(before) === isLiveRecording(after) &&
+  isFollowingLiveEdgeOf(before) === isFollowingLiveEdgeOf(after) &&
   !isSameExtent(followedExtentOf(before), followedExtentOf(after))
     ? scrollToFollowed(after)
     : []
@@ -1136,15 +1259,79 @@ const applyRequest = (
   ]
 }
 
-const withAudioUrl = (ready: ReadyPlayback): ReadyPlayback =>
-  Option.isSome(ready.maybeAudioUrl)
+const fileSourceOf = (ready: ReadyPlayback): Option.Option<AudioSource> =>
+  Option.map(
+    Option.flatMap(audioFileIDOf(ready.detail), fileID =>
+      Record.get(ready.fileUrls, fileID),
+    ),
+    url => FileAudioSource({ url }),
+  )
+
+const copySourceOf = (ready: ReadyPlayback): Option.Option<AudioSource> =>
+  Option.map(copyOf(ready), copy =>
+    CopyAudioSource({
+      streamID: copy.streamID,
+      initializationPath: copy.initializationPath,
+      codecs: copy.codecs,
+      segmentSeconds: copy.segmentSeconds,
+    }),
+  )
+
+const withLiveJoin = (ready: ReadyPlayback): ReadyPlayback =>
+  Option.match(liveJoinOf(ready), {
+    onNone: () => ready,
+    onSome: seconds =>
+      evo(ready, {
+        positionSeconds: () => seconds,
+        maybePendingSeekSeconds: () => Option.some(seconds),
+      }),
+  })
+
+/**
+ * The audio the open recording plays, chosen once: its stored file, else its
+ * compressed copy (Scribe ADR 0091). The source in use is kept, so a newly
+ * signed URL, or the file arriving while the copy plays, never cuts the
+ * listener off; Retry chooses again. A recording in progress that starts on
+ * its copy is placed at its live edge unless the link named a moment.
+ */
+const withAudioSource = (ready: ReadyPlayback): ReadyPlayback =>
+  Option.isSome(ready.maybeAudioSource)
     ? ready
-    : evo(ready, {
-        maybeAudioUrl: () =>
-          Option.flatMap(audioFileIDOf(ready.detail), fileID =>
-            Record.get(ready.fileUrls, fileID),
-          ),
-      })
+    : withLiveJoin(
+        evo(ready, {
+          maybeAudioSource: () =>
+            Option.orElse(fileSourceOf(ready), () => copySourceOf(ready)),
+        }),
+      )
+
+/** A copy that failed to load is looked up again on Retry; a found one is kept. */
+const retriedCopyOf = (state: CompressedCopyState): CompressedCopyState =>
+  M.value(state).pipe(
+    M.withReturnType<CompressedCopyState>(),
+    M.tag('FailedCompressedCopy', () => NoCompressedCopy()),
+    M.orElse(() => state),
+  )
+
+/** The loaded recording's copy state, and its source if the copy is what it can play. */
+const withCompressedCopy = (
+  model: Model,
+  recordingID: string,
+  compressedCopy: CompressedCopyState,
+): Model => {
+  const withState = (ready: ReadyPlayback): ReadyPlayback =>
+    ready.recordingID === recordingID
+      ? withAudioSource(evo(ready, { compressedCopy: () => compressedCopy }))
+      : ready
+  return evo(model, {
+    playback: playback =>
+      M.value(playback).pipe(
+        M.withReturnType<PlaybackState>(),
+        M.tag('ReadyPlayback', withState),
+        M.orElse(() => playback),
+      ),
+    maybeBackgroundPlayback: Option.map(withState),
+  })
+}
 
 const readyFor = (
   recordingID: string,
@@ -1165,8 +1352,10 @@ const readyFor = (
     screenMode: 'Standard',
     scrub: NotScrubbing(),
     audioPlayer: NoAudioPlayer(),
-    maybeAudioUrl: Option.none(),
+    maybeAudioSource: Option.none(),
     audioAttempt: 0,
+    compressedCopy: NoCompressedCopy(),
+    livePlacement: 'AtLiveEdge',
     maybePendingSeekSeconds: Option.none(),
     maybeFocusedSectionID: Option.none(),
     focusRevision: 0,
@@ -1801,11 +1990,19 @@ const scrollToOffScreenFollowed = (ready: ReadyPlayback): Commands =>
     ? scrollToFollowed(ready)
     : []
 
+const placedForPlay = (ready: ReadyPlayback): ReadyReturn =>
+  Option.match(liveJoinOf(ready), {
+    onNone: () => [evo(ready, { livePlacement: () => 'Chosen' }), []],
+    onSome: seconds => seekTo(ready, seconds),
+  })
+
 const play = (ready: ReadyPlayback): ReadyReturn => {
   if (isAudioPlayerReady(ready)) {
+    const [placed, seekCommands] = placedForPlay(ready)
+    const playing = evo(placed, { transport: () => 'Playing' })
     return [
-      evo(ready, { transport: () => 'Playing' }),
-      [PlayAudio(), ...scrollToOffScreenFollowed(ready)],
+      playing,
+      [...seekCommands, PlayAudio(), ...scrollToOffScreenFollowed(playing)],
     ]
   } else {
     return [ready, []]
@@ -1932,7 +2129,7 @@ const observedRecording = (
               [],
             ],
             onSome: detail => {
-              const refreshed = withAudioUrl(
+              const refreshed = withAudioSource(
                 evo(ready, {
                   detail: () => detail,
                   skippedCount: () => skippedCount,
@@ -2764,9 +2961,28 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ClickedTryOpeningAgain: () => tryOpeningAgain(model),
       ObservedFileUrls: ({ fileUrls }) =>
         evolveReady(model, ready =>
-          withAudioUrl(evo(ready, { fileUrls: () => fileUrls })),
+          withAudioSource(evo(ready, { fileUrls: () => fileUrls })),
         ),
       FailedObserveFileUrls: () => [model, []],
+      ObservedCompressedCopy: ({ recordingID, maybeCopy }) => [
+        withCompressedCopy(
+          model,
+          recordingID,
+          Option.match(maybeCopy, {
+            onNone: () => NoCompressedCopy(),
+            onSome: copy => FoundCompressedCopy({ copy }),
+          }),
+        ),
+        [],
+      ],
+      FailedObserveCompressedCopy: ({ recordingID, reason }) => [
+        withCompressedCopy(
+          model,
+          recordingID,
+          FailedCompressedCopy({ reason }),
+        ),
+        [],
+      ],
 
       AcquiredAudioPlayer: () =>
         updateAudio(model, ready => {
@@ -2856,14 +3072,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ),
       ClickedRetryAudio: () =>
         evolveAudio(model, ready =>
-          evo(ready, {
-            audioAttempt: attempt => attempt + 1,
-            audioPlayer: () => NoAudioPlayer(),
-            maybeAudioUrl: () =>
-              Option.flatMap(audioFileIDOf(ready.detail), fileID =>
-                Record.get(ready.fileUrls, fileID),
-              ),
-          }),
+          withAudioSource(
+            evo(ready, {
+              audioAttempt: attempt => attempt + 1,
+              audioPlayer: () => NoAudioPlayer(),
+              maybeAudioSource: () => Option.none(),
+              compressedCopy: retriedCopyOf,
+            }),
+          ),
         ),
       CompletedPlayAudio: () => [model, []],
       FailedPlayAudio: () =>

@@ -18,6 +18,7 @@ import { RecordingWindow } from './listWindow.js'
 import {
   ChangedConnectivity,
   ElapsedOpeningPatience,
+  FailedObserveCompressedCopy,
   FailedObserveFileUrls,
   FailedObserveIdentity,
   FailedObserveRecording,
@@ -27,6 +28,7 @@ import {
   GotQuestionsMessage,
   GotShareMessage,
   type Message,
+  ObservedCompressedCopy,
   ObservedFileUrls,
   ObservedIdentity,
   ObservedLiveBeat,
@@ -47,6 +49,7 @@ import {
 } from './store.js'
 import {
   audioOwnerOf,
+  compressedCopyRequestOf,
   fileIDsOf,
   guestReaderShareIDOf,
   isCountingLiveOf,
@@ -121,8 +124,8 @@ const captureSubscriptions = Subscription.lift(Capture.subscriptions)<
 
 /**
  * Live Instant observations: who is signed in, the recording list's window,
- * the open recording, and its file URLs, plus the audio player's events while
- * it is open. Each restarts when the Model value it depends on changes,
+ * the open recording, its file URLs and its compressed copy (Scribe ADR
+ * 0091), plus the audio player's events while it is open. Each restarts when the Model value it depends on changes,
  * including the signed-in user, so signing in reloads what the account can
  * read, and a moved list window asks for its pages.
  */
@@ -217,6 +220,48 @@ const instantSubscriptions = Subscription.make<
             ),
           ),
         ),
+    },
+  ),
+  compressedCopy: entry(
+    {
+      maybeRequest: S.Option(
+        S.Struct({
+          recordingID: S.String,
+          startedAtMs: S.Number,
+          attempt: S.Number,
+        }),
+      ),
+      maybeUserID: S.Option(S.String),
+    },
+    {
+      modelToDependencies: model => ({
+        maybeRequest: compressedCopyRequestOf(model),
+        maybeUserID: signedInUserIDOf(model),
+      }),
+      dependenciesToStream: ({ maybeRequest }) =>
+        Option.match(maybeRequest, {
+          onNone: () => Stream.empty,
+          onSome: ({ recordingID, startedAtMs }) =>
+            Stream.unwrap(
+              WordsStore.pipe(
+                Effect.map(store =>
+                  store.observeCompressedCopy(recordingID, startedAtMs).pipe(
+                    Stream.map(maybeCopy =>
+                      ObservedCompressedCopy({ recordingID, maybeCopy }),
+                    ),
+                    Stream.catch(error =>
+                      Stream.make(
+                        FailedObserveCompressedCopy({
+                          recordingID,
+                          reason: reasonOf(error),
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        }),
     },
   ),
   audioEvents: entry(

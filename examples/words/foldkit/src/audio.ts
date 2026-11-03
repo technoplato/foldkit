@@ -229,7 +229,14 @@ const albumOf = (startedAtMs: number): string =>
     timeStyle: 'short',
   })
 
-const handleOf = (element: HTMLAudioElement): AudioPlayerHandle => ({
+/**
+ * The handle for an audio element, whatever feeds it: its events, plus
+ * `extraEvents` from what feeds it (a stream that stopped, for one).
+ */
+export const handleOf = (
+  element: HTMLAudioElement,
+  extraEvents: Stream.Stream<AudioPlayerEvent> = Stream.empty,
+): AudioPlayerHandle => ({
   play: Effect.tryPromise({
     try: () => element.play(),
     catch: cause =>
@@ -258,11 +265,11 @@ const handleOf = (element: HTMLAudioElement): AudioPlayerHandle => ({
     element.removeAttribute('src')
     element.load()
   }),
-  events: eventsOf(element),
+  events: Stream.merge(eventsOf(element), extraEvents),
 })
 
-/** Opens a recording's audio in a browser audio element once its metadata loads. */
-export const openAudio = (
+/** Opens a recording's audio file in a browser audio element once its metadata loads. */
+export const openFileAudio = (
   url: string,
 ): Effect.Effect<AudioPlayerHandle, Error> =>
   Effect.callback<AudioPlayerHandle, Error>(resume => {

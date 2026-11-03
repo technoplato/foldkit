@@ -40,6 +40,24 @@ export const MediaSessionAction = S.Union([
 /** What the system's media controls asked for. */
 export type MediaSessionAction = typeof MediaSessionAction.Type
 
+/** The recording's audio file, by its download URL. */
+export const FileAudioSource = ts('FileAudioSource', { url: S.String })
+/**
+ * The recording's compressed copy (Scribe ADR 0091), streamed a segment at a
+ * time while it grows: the stream's id and what stays the same while it
+ * grows. The player follows the stream row for the rest.
+ */
+export const CopyAudioSource = ts('CopyAudioSource', {
+  streamID: S.String,
+  initializationPath: S.String,
+  codecs: S.String,
+  segmentSeconds: S.Number,
+})
+/** What the host's audio player opens. */
+export const AudioSource = S.Union([FileAudioSource, CopyAudioSource])
+/** What the host's audio player opens. */
+export type AudioSource = typeof AudioSource.Type
+
 /** What the system's Now Playing shows for the open recording: its title and when it was recorded. */
 export const NowPlaying = S.Struct({
   title: S.String,

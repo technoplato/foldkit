@@ -46,7 +46,7 @@ const feed = (overrides: Partial<CopyFeed> = {}): CopyFeed => ({
   positionSeconds: 0,
   isPlaying: false,
   buffered: [],
-  segments: [],
+  knownSegments: [],
   copy: copy(),
   isEnded: false,
   ...overrides,
@@ -138,13 +138,13 @@ describe('feeding the copy to the browser', () => {
   it('while paused, appends only the segment at the position', () => {
     const known = segments(0, 10)
     expect(
-      nextCopyStep(feed({ positionSeconds: 50, segments: known })),
+      nextCopyStep(feed({ positionSeconds: 50, knownSegments: known })),
     ).toEqual(AppendCopySegment({ segment: segment(8) }))
     expect(
       nextCopyStep(
         feed({
           positionSeconds: 50,
-          segments: known,
+          knownSegments: known,
           buffered: [range(48, 54)],
         }),
       ),
@@ -158,7 +158,7 @@ describe('feeding the copy to the browser', () => {
         feed({
           positionSeconds: 50,
           isPlaying: true,
-          segments: known,
+          knownSegments: known,
           buffered: [range(48, 54)],
         }),
       ),
@@ -168,7 +168,7 @@ describe('feeding the copy to the browser', () => {
         feed({
           positionSeconds: 50,
           isPlaying: true,
-          segments: known,
+          knownSegments: known,
           buffered: [range(48, 60)],
         }),
       ),
@@ -181,7 +181,7 @@ describe('feeding the copy to the browser', () => {
         feed({
           positionSeconds: 50,
           isPlaying: true,
-          segments: segments(0, 9),
+          knownSegments: segments(0, 9),
           buffered: [range(48, 54)],
         }),
       ),
@@ -194,7 +194,7 @@ describe('feeding the copy to the browser', () => {
         feed({
           positionSeconds: 50,
           isPlaying: true,
-          segments: segments(0, 10),
+          knownSegments: segments(0, 10),
           buffered: [range(54, 60)],
         }),
       ),
@@ -207,7 +207,7 @@ describe('feeding the copy to the browser', () => {
         feed({
           positionSeconds: 300,
           isPlaying: true,
-          segments: segments(0, 60),
+          knownSegments: segments(0, 60),
           copy: copy({ segmentCount: 60, durationSeconds: 360 }),
           buffered: [range(0, 336)],
         }),
@@ -220,7 +220,7 @@ describe('feeding the copy to the browser', () => {
     const atTheEnd = feed({
       positionSeconds: 50,
       isPlaying: true,
-      segments: segments(0, 10),
+      knownSegments: segments(0, 10),
       copy: finished,
       buffered: [range(48, 60)],
     })

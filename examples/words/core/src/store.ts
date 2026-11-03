@@ -13,8 +13,16 @@ import {
   Stream,
 } from 'effect'
 
-import type { InstantCoreDatabase, User } from '@instantdb/core'
+import type { InstaQLFields, InstantCoreDatabase, User } from '@instantdb/core'
 
+import {
+  type CompressedCopy,
+  type CopySegment,
+  copyLifecycleIDOf,
+  copyStreamIDOf,
+  decodeCompressedCopy,
+  decodeCopySegments,
+} from './compressedCopy.js'
 import {
   type DecodedRecordingDetail,
   type DecodedRecordingList,
@@ -58,6 +66,8 @@ export type WordsStoreOperation =
   | 'ObserveReceivedShares'
   | 'ObserveSharedRange'
   | 'ObserveQuestions'
+  | 'ObserveCompressedCopy'
+  | 'ReadCompressedCopy'
 
 /** An Instant query, observation, or sign-in check failed. */
 export class WordsStoreError extends Data.TaggedError('WordsStoreError')<{
@@ -89,6 +99,11 @@ const storeFailureOf = (operation: WordsStoreOperation): string =>
     ),
     M.when('ObserveSharedRange', () => 'The shared sections did not load.'),
     M.when('ObserveQuestions', () => 'Your questions did not load.'),
+    M.when(
+      'ObserveCompressedCopy',
+      () => 'Scribe could not look up the live audio.',
+    ),
+    M.when('ReadCompressedCopy', () => 'Scribe could not read the live audio.'),
     M.exhaustive,
   )
 
@@ -177,6 +192,16 @@ export type WordsStoreService = Readonly<{
   observeFileUrls: (
     fileIDs: ReadonlyArray<string>,
   ) => Stream.Stream<FileUrls, WordsStoreError>
+  /**
+   * A recording's compressed copy (Scribe ADR 0091), found by the stream id
+   * the phone gives the generation that started at `startedAtMs`. None until
+   * a segment is stored, and for every account the rules do not show it to:
+   * only the recording's owners read a copy.
+   */
+  observeCompressedCopy: (
+    recordingID: string,
+    startedAtMs: number,
+  ) => Stream.Stream<Option.Option<CompressedCopy>, WordsStoreError>
   hasRecording: (recordingID: string) => Effect.Effect<boolean, WordsStoreError>
   currentMember: Effect.Effect<Option.Option<InstantMember>, WordsStoreError>
   signInWithToken: (token: string) => Effect.Effect<void, WordsStoreError>
@@ -228,6 +253,26 @@ export class WordsStore extends Context.Service<
 
 /** The Instant client for Scribe's app, typed by Scribe's own schema. */
 export type WordsDatabase = InstantCoreDatabase<AppSchema, false>
+
+/**
+ * The Instant reads the host's player makes while it streams a compressed
+ * copy: the stream row as it grows, a run of segment rows, and download URLs
+ * by storage path. Built from the database, outside the Program, because a
+ * player is opened by a ManagedResource, which reaches no service.
+ */
+export type CompressedCopyReader = Readonly<{
+  observeCopy: (
+    streamID: string,
+  ) => Stream.Stream<Option.Option<CompressedCopy>, WordsStoreError>
+  readSegments: (
+    streamID: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => Effect.Effect<ReadonlyArray<CopySegment>, WordsStoreError>
+  readFileUrls: (
+    paths: ReadonlyArray<string>,
+  ) => Effect.Effect<Readonly<Record<string, string>>, WordsStoreError>
+}>
 
 type Emit<A> = Readonly<{
   value: (value: A) => void
@@ -326,13 +371,127 @@ const emitResponse = <Data, A>(
   }
 }
 
+const COPY_STREAM_FIELDS: InstaQLFields<AppSchema, 'progressiveMediaStreams'> =
+  [
+    'id',
+    'codecs',
+    'segmentSeconds',
+    'initializationPath',
+    'state',
+    'segmentCount',
+    'durationSeconds',
+  ]
+
+const COPY_SEGMENT_FIELDS: InstaQLFields<
+  AppSchema,
+  'progressiveMediaSegments'
+> = [
+  'id',
+  'streamID',
+  'index',
+  'startSeconds',
+  'durationSeconds',
+  'byteCount',
+  'path',
+]
+
+const readOnce = <A>(
+  operation: WordsStoreOperation,
+  run: () => Promise<A>,
+): Effect.Effect<A, WordsStoreError> =>
+  Effect.tryPromise({
+    try: run,
+    catch: cause => new WordsStoreError({ operation, cause }),
+  })
+
+/**
+ * The live reads of a compressed copy. The stream row is one row, observed
+ * by its id; segment rows are read a run at a time by index, never all at
+ * once (a 7 hour copy has 4,200), and file URLs by path for the run about to
+ * play.
+ */
+export const makeLiveCopyReader = (
+  database: WordsDatabase,
+): CompressedCopyReader => ({
+  observeCopy: streamID =>
+    observe<Option.Option<CompressedCopy>>('ObserveCompressedCopy', emit =>
+      database.subscribeQuery(
+        {
+          progressiveMediaStreams: {
+            $: { where: { id: streamID }, fields: COPY_STREAM_FIELDS },
+          },
+        },
+        response =>
+          emitResponse(emit, response, data =>
+            decodeCompressedCopy(data.progressiveMediaStreams),
+          ),
+      ),
+    ),
+  readSegments: (streamID, fromIndex, toIndex) =>
+    readOnce('ReadCompressedCopy', () =>
+      database.queryOnce({
+        progressiveMediaSegments: {
+          $: {
+            where: { streamID, index: { $gte: fromIndex } },
+            order: { index: 'asc' },
+            limit: Math.max(1, toIndex - fromIndex),
+            fields: COPY_SEGMENT_FIELDS,
+          },
+        },
+      }),
+    ).pipe(
+      Effect.map(result =>
+        decodeCopySegments(result.data.progressiveMediaSegments, streamID),
+      ),
+    ),
+  readFileUrls: paths =>
+    Array.match(paths, {
+      onEmpty: () => Effect.succeed({}),
+      onNonEmpty: nonEmptyPaths =>
+        readOnce('ReadCompressedCopy', () =>
+          database.queryOnce({
+            $files: {
+              $: { where: { path: { $in: [...nonEmptyPaths] } } },
+            },
+          }),
+        ).pipe(
+          Effect.map(result =>
+            Record.fromEntries(
+              Array.map(result.data.$files, file => [file.path, file.url]),
+            ),
+          ),
+        ),
+    }),
+})
+
+/** A recording's copy, by the id its phone gives the stream (Scribe ADR 0091). */
+const observeCompressedCopyWith =
+  (reader: CompressedCopyReader) =>
+  (
+    recordingID: string,
+    startedAtMs: number,
+  ): Stream.Stream<Option.Option<CompressedCopy>, WordsStoreError> =>
+    Stream.unwrap(
+      copyStreamIDOf(copyLifecycleIDOf(recordingID, startedAtMs)).pipe(
+        Effect.mapError(
+          cause =>
+            new WordsStoreError({ operation: 'ObserveCompressedCopy', cause }),
+        ),
+        Effect.map(reader.observeCopy),
+      ),
+    )
+
 /**
  * Live Instant resources: the recording list, one recording with its segments
- * and attachments, and file download URLs, all observed live, so a recording
- * in progress on the iPhone streams in as it is transcribed.
+ * and attachments, file download URLs, and a recording's compressed copy, all
+ * observed live, so a recording in progress on the iPhone streams in as it is
+ * transcribed, and its audio as it is stored.
  */
 export const makeLiveWordsResources = (database: WordsDatabase) =>
   Layer.succeed(WordsStore, {
+    observeCompressedCopy: observeCompressedCopyWith(
+      makeLiveCopyReader(database),
+    ),
     observeIdentity: observe<IdentityState>('ObserveIdentity', emit =>
       database.subscribeAuth(auth => {
         if (auth.error !== undefined) {
@@ -572,6 +731,7 @@ export const makeStaticWordsResources = (
           Array.contains(fileIDs, fileID),
         ),
       ),
+    observeCompressedCopy: () => Stream.succeed(Option.none()),
     hasRecording: recordingID =>
       Effect.succeed(Record.has(recordings, recordingID)),
     currentMember: Effect.succeed(
