@@ -22,6 +22,7 @@ import {
   AgentSurvey,
   EndedRun,
   LiveAgent,
+  abandonedAfterMs,
   agentNameOf,
   nowWorkingLines,
   observedIssue,
@@ -373,6 +374,91 @@ describe('Now working', () => {
       observedIssue(awaitingVerification, surveyOf([]), Option.none())
         .claimantId,
     ).toEqual(awaitingVerification.claimantId)
+  })
+
+  it('releases a claim on unfinished work once its agent is gone and wrote nothing on the Issue for a week', () => {
+    const lastWroteAtMs = observedAtMs - abandonedAfterMs - 1
+    const entry = (
+      agentId: string,
+      occurredAtMs: number,
+      summary: string,
+    ): IssueWorkLogEntry =>
+      IssueWorkLogEntry.make({
+        agentId: Option.some(agentId),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: `work-645-progress-${String(occurredAtMs)}`,
+        occurredAtMs,
+        state: Option.some('progress'),
+        summary,
+      })
+    const abandoned = Issue.make({
+      ...issue,
+      claimantId: Option.some('claude-code/capture-timing@max'),
+      id: '645',
+      status: 'Open',
+      updatedAtMs: observedAtMs - 60_000,
+      workLog: [
+        entry(
+          'claude-code/capture-timing@max',
+          lastWroteAtMs,
+          'Red on agent/claude/capture-timing',
+        ),
+        entry(
+          'claude-code/p-1618-hj@max',
+          observedAtMs - 60_000,
+          'Audit: not done; stays Open.',
+        ),
+      ],
+    })
+
+    const released = observedIssue(abandoned, surveyOf([]), Option.none())
+
+    expect(released.claimantId).toEqual(Option.none())
+    expect(released.status).toBe('Open')
+    expect(released.workLog.at(-1)).toEqual(
+      IssueWorkLogEntry.make({
+        agentId: Option.some(workingSyncAgent),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: `work-645-released-${String(observedAtMs)}`,
+        occurredAtMs: observedAtMs,
+        state: Option.some('released'),
+        summary: `Released the claim of claude-code/capture-timing@max: no agent named capture-timing is running, and it wrote nothing on #645 since ${new Date(lastWroteAtMs).toISOString()}.`,
+      }),
+    )
+    expect(
+      encoded(
+        observedIssue(
+          released,
+          surveyOf([], [], observedAtMs + 120_000),
+          Option.none(),
+        ),
+      ),
+    ).toEqual(encoded(released))
+
+    const wroteThisWeek = Issue.make({
+      ...abandoned,
+      workLog: [
+        entry(
+          'claude-code/capture-timing@max',
+          observedAtMs - abandonedAfterMs + 3_600_000,
+          'Green on agent/claude/capture-timing',
+        ),
+      ],
+    })
+    expect(
+      observedIssue(wroteThisWeek, surveyOf([]), Option.none()).claimantId,
+    ).toEqual(wroteThisWeek.claimantId)
+
+    const stillRunning = Issue.make({
+      ...abandoned,
+      claimantId: Option.some('claude-code/issue-wip-1374@max'),
+    })
+    expect(
+      observedIssue(stillRunning, surveyOf([liveAgent]), Option.none())
+        .claimantId,
+    ).toEqual(stillRunning.claimantId)
   })
 
   it('keeps a newly claimed Issue InProgress though an earlier run recorded its work Merged', () => {
