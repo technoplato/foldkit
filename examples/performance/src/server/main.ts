@@ -10,6 +10,18 @@ import { makeOriginHandler } from './origin'
 const DEFAULT_PORT = 5262
 const HOST = '127.0.0.1'
 
+/**
+ * The build's provenance (scripts/change-log/build_provenance.py), which the
+ * deploy embeds with esbuild's `--define`: the commit, branch, whether the
+ * tree was clean, when and where it was built.
+ */
+declare const PERFORMANCE_BUILD_PROVENANCE: string | undefined
+
+const provenance =
+  typeof PERFORMANCE_BUILD_PROVENANCE === 'string'
+    ? PERFORMANCE_BUILD_PROVENANCE
+    : 'none embedded (a development run)'
+
 // MAIN
 
 const env = (name: string): string => process.env[name] ?? ''
@@ -59,6 +71,6 @@ createServer(
   }),
 ).listen(port, HOST, () => {
   console.log(
-    `${new Date().toISOString()} performance origin on ${HOST}:${port}: site ${siteDirectory}, data ${dataDirectory}, ${allowedEmails.length} allowed login(s)`,
+    `${new Date().toISOString()} performance origin on ${HOST}:${port}: site ${siteDirectory}, data ${dataDirectory}, ${allowedEmails.length} allowed login(s); build ${provenance}`,
   )
 })
