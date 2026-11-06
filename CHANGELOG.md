@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 6th, 2026 at 12:40:44 p.m. EST — `9c9d6d61df85` feat(performance): green: Scribe #1932's page, charts per build, evidence
+
+- **Implementation commit:** `9c9d6d61df850159cf80b901c778f66c40041e4d`
+- **Change:** feat(performance): green: Scribe #1932's page, charts per build, evidence (merged to main as c6e56156e)
+- **Details:**
+  - examples/performance: a Foldkit page with one entry per app, Scribe first; a small multiple per metric across builds with the budget's target and fail lines drawn in and named, a baseline tick for a build nobody measured and a hollow point under 5 minutes; the builds with what each changed, its GitHub commit, release and pinned instant-data-swift; each issue the performance work names as proven on a device, disproved, landed but not proven, or in progress.
+  - Data: the Scribe exporter's files (scripts/perf/performance_export.py in the Scribe repository), decoded with Effect Schema against schemaVersion 1; a contract test decodes a real export when PERFORMANCE_DATA_DIR names one. Tests came first in 36621d3b2.
+  - The origin (src/server): serves the built page and the data from separate folders, verifies the Cloudflare Access login (signature, issuer, expiry, audience) and then checks its email against PERFORMANCE_ALLOWED_EMAILS; anyone else gets Not found for every path. Deployed on the owner's laptop on 127.0.0.1:5262 behind the Mac mini router.
+- **Files:**
+  - `examples/performance/src/data.ts` — the schema of the exporter's files
+  - `examples/performance/src/route.ts` — destinations and URLs as one parse and print pair
+  - `examples/performance/src/chart.ts` — small-multiple geometry: gaps, budget lines, round axes
+  - `examples/performance/src/view/view.ts` — the page shell and its pages
+  - `examples/performance/src/server/origin.ts` — the origin that admits only the allowed Access login
+- **User context (verbatim):**
+  > If you could put up dashboard.pisspoorsoftware.xyz and then link performance-based builds and metrics and charts and things of our improvements, and as well as the issues we've linked to and we're allegedly fixing in there, I would appreciate it.
+- **SpecStory:** unavailable — headless Claude Code run started by tools/agent-run for Scribe #1932; its transcript path is logged on that issue
+
 ## November 2nd, 2026 at 9:17:51 p.m. EST — `c159c8057bec` fix(issues): release a claim whose agent is gone and silent for a week
 
 - **Implementation commit:** `c159c8057bec62d8d5c8d96f3ec9d76507679c4a`
