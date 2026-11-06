@@ -1,0 +1,29 @@
+{
+  "name": "performance-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "bundle:server": "esbuild src/server/main.ts --bundle --platform=node --format=esm --packages=bundle --outfile=bundle/server.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@tailwindcss/vite": "^4.3.1",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "@types/node": "^25.9.3",
+    "esbuild": "^0.28.1",
+    "happy-dom": "^20.10.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}
