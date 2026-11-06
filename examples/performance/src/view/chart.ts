@@ -235,7 +235,8 @@ const buildLabels = (
   return Array.getSomes(
     Array.map(geometry.columns, (column, index) => {
       const isEnd = index === 0 || index === lastIndex
-      if (!isEnd && index % every !== 0) {
+      const isNearAnEnd = index < every / 2 || lastIndex - index < every / 2
+      if (!isEnd && (index % every !== 0 || isNearAnEnd)) {
         return Option.none()
       }
       const anchor = M.value(index).pipe(
