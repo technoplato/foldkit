@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import { UNDERSTANDING_MOVED_TO } from '../moved'
 import { type OriginConfig, type OriginRequest, answerRequest } from './origin'
 
 const ALLOWED = 'owner@example.com'
@@ -167,5 +168,42 @@ describe('what a signed-in request can read', () => {
     const answer = await answerRequest(config(), throughTheTunnel('/'))
     expect(answer.headers['x-robots-tag']).toContain('noindex')
     expect(answer.headers['referrer-policy']).toBe('no-referrer')
+  })
+})
+
+describe("the understanding page moved to each user's own page (Scribe #2002)", () => {
+  test('its old address sends his login there, and says nothing of the page itself', async () => {
+    for (const url of ['/understanding', '/understanding/']) {
+      const answer = await answerRequest(
+        config(),
+        throughTheTunnel(url, signedIn('token-owner')),
+      )
+      expect(answer.status).toBe(302)
+      expect(answer.headers['location']).toBe(UNDERSTANDING_MOVED_TO)
+      expect(answer.headers['cache-control']).toBe('no-store')
+      expect(String(answer.body)).toBe('')
+    }
+  })
+
+  test('a request on this Mac to localhost is sent there too', async () => {
+    const answer = await answerRequest(config(), {
+      method: 'GET',
+      url: '/understanding',
+      remoteAddress: '127.0.0.1',
+      headers: { host: '127.0.0.1:5262' },
+    })
+    expect(answer.status).toBe(302)
+    expect(answer.headers['location']).toBe(UNDERSTANDING_MOVED_TO)
+  })
+
+  test('anyone the page does not admit gets the same Not found there as on every other path', async () => {
+    for (const headers of [{}, signedIn('token-friend'), signedIn('forged')]) {
+      const answer = await answerRequest(
+        config(),
+        throughTheTunnel('/understanding', headers),
+      )
+      expect(answer.status).toBe(404)
+      expect(answer.headers['location']).toBeUndefined()
+    }
   })
 })

@@ -1,54 +1,36 @@
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
 
-import { FetchIndex, FetchUnderstanding } from './command'
-import {
-  loadingModel,
-  openBuildModel,
-  readyModelAt,
-  unmeasuredUnderstanding,
-} from './main.fixtures'
-import { FailedFetchIndex, FailedFetchUnderstanding } from './message'
-import { IndexData, UnderstandingData } from './model'
+import { FetchIndex } from './command'
+import { loadingModel, openBuildModel, readyModelAt } from './main.fixtures'
+import { FailedFetchIndex } from './message'
+import { IndexData } from './model'
+import { UNDERSTANDING_MOVED_TO } from './moved'
 import { update } from './update'
 import { view } from './view/index'
 
 describe('the page', () => {
-  test('the understanding page leads with the areas at proficient, then each area by its newest rating', () => {
-    Scene.scene(
-      { update, view },
-      Scene.with(readyModelAt('/understanding')),
-      Scene.expect(Scene.role('heading', { name: 'Understanding' })).toExist(),
-      Scene.expect(Scene.text('2 of 3')).toExist(),
-      Scene.expect(Scene.text('Area three')).toExist(),
-      Scene.expect(Scene.text('2 of 10')).toExist(),
-      Scene.expect(Scene.text('Not proficient')).toExist(),
-      Scene.expect(Scene.text('1 of 2')).toExist(),
-    )
-  })
-
-  test('home says how many areas are at proficient and links to them', () => {
+  test("home and the page links send the understanding profile to each user's own page", () => {
     Scene.scene(
       { update, view },
       Scene.with(readyModelAt('/')),
       Scene.expect(
-        Scene.role('link', { name: '2 of 3 areas at proficient' }),
-      ).toExist(),
+        Scene.role('link', { name: 'Understanding, on your own page' }),
+      ).toHaveAttr('href', UNDERSTANDING_MOVED_TO),
+      Scene.expect(Scene.role('link', { name: 'Understanding' })).toHaveAttr(
+        'href',
+        UNDERSTANDING_MOVED_TO,
+      ),
     )
   })
 
-  test('an understanding count nobody measured says why', () => {
+  test('the old understanding address says where the page went while it goes there', () => {
     Scene.scene(
       { update, view },
-      Scene.with({
-        ...readyModelAt('/understanding'),
-        understanding: UnderstandingData.Success({
-          data: unmeasuredUnderstanding,
-        }),
-      }),
+      Scene.with(readyModelAt('/understanding')),
       Scene.expect(
-        Scene.text('Not measured: no profile on the laptop'),
-      ).toExist(),
+        Scene.role('link', { name: 'me.pisspoursoftware.xyz/understanding' }),
+      ).toHaveAttr('href', UNDERSTANDING_MOVED_TO),
     )
   })
 
@@ -74,10 +56,6 @@ describe('the page', () => {
       Scene.Command.resolve(
         FetchIndex,
         FailedFetchIndex({ error: 'still 404' }),
-      ),
-      Scene.Command.resolve(
-        FetchUnderstanding,
-        FailedFetchUnderstanding({ error: 'still 404' }),
       ),
     )
   })

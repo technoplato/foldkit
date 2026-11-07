@@ -6,30 +6,30 @@ import { expect, test } from 'vitest'
 import {
   FetchBuild,
   FetchIndex,
-  FetchUnderstanding,
+  LoadExternal,
   NavigateInternal,
 } from './command'
+import { init } from './init'
 import {
   loadingModel,
   readyModelAt,
   sampleBuildDetail,
   sampleIndex,
-  sampleUnderstanding,
 } from './main.fixtures'
 import {
   ChangedUrl,
   ClickedChartColumn,
   ClickedReload,
+  CompletedLoadExternal,
   CompletedNavigateInternal,
   FailedFetchBuild,
   FailedFetchIndex,
-  FailedFetchUnderstanding,
   HoveredChartColumn,
   LeftChart,
   SucceededFetchBuild,
   SucceededFetchIndex,
-  SucceededFetchUnderstanding,
 } from './message'
+import { UNDERSTANDING_MOVED_TO } from './moved'
 import { update } from './update'
 
 const urlOf = (path: string) =>
@@ -67,10 +67,6 @@ test('a failed first load says why, and a failed reload keeps the numbers', () =
     }),
     Story.Command.expectHas(FetchIndex),
     Story.Command.resolve(FetchIndex, FailedFetchIndex({ error: 'offline' })),
-    Story.Command.resolve(
-      FetchUnderstanding,
-      FailedFetchUnderstanding({ error: 'offline' }),
-    ),
     Story.model(model => {
       expect(model.index._tag).toBe('Stale')
     }),
@@ -142,52 +138,19 @@ test('clicking a build in a chart opens its page', () => {
   )
 })
 
-test('the understanding profile loads into the page, and a failed first load says why', () => {
+test("the understanding page moved to each user's own page: opening its old address goes there", () => {
+  const [, commands] = init(urlOf('/understanding'))
+  expect(commands.map(command => command.name)).toContain(LoadExternal.name)
   Story.story(
     update,
-    Story.with(loadingModel),
-    Story.message(
-      SucceededFetchUnderstanding({ understanding: sampleUnderstanding }),
-    ),
-    Story.model(model => {
-      expect(model.understanding._tag).toBe('Success')
-    }),
-    Story.Command.expectNone(),
-  )
-  Story.story(
-    update,
-    Story.with(loadingModel),
-    Story.message(
-      FailedFetchUnderstanding({
-        error: '/data/understanding.json answered HTTP 404',
-      }),
-    ),
-    Story.model(model => {
-      expect(model.understanding._tag).toBe('Failure')
-    }),
+    Story.with(readyModelAt('/')),
+    Story.message(ChangedUrl({ url: urlOf('/understanding') })),
+    Story.Command.expectExact(LoadExternal({ href: UNDERSTANDING_MOVED_TO })),
+    Story.Command.resolve(LoadExternal, CompletedLoadExternal()),
   )
 })
 
-test('reload fetches the understanding profile again with the index, and a failed reload keeps it', () => {
-  Story.story(
-    update,
-    Story.with(readyModelAt('/understanding')),
-    Story.message(ClickedReload()),
-    Story.model(model => {
-      expect(model.understanding._tag).toBe('Refreshing')
-    }),
-    Story.Command.expectHas(FetchIndex),
-    Story.Command.expectHas(FetchUnderstanding),
-    Story.Command.resolve(
-      FetchIndex,
-      SucceededFetchIndex({ index: sampleIndex }),
-    ),
-    Story.Command.resolve(
-      FetchUnderstanding,
-      FailedFetchUnderstanding({ error: 'offline' }),
-    ),
-    Story.model(model => {
-      expect(model.understanding._tag).toBe('Stale')
-    }),
-  )
+test('the page no longer fetches an understanding file of its own', () => {
+  const [, commands] = init(urlOf('/'))
+  expect(commands.map(command => command.name)).toStrictEqual([FetchIndex.name])
 })

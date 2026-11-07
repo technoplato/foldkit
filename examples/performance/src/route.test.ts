@@ -11,7 +11,7 @@ import {
   MethodPage,
   MetricPage,
   NotFound,
-  UnderstandingPage,
+  UnderstandingMoved,
   destinationPath,
   urlToDestination,
 } from './route'
@@ -47,7 +47,7 @@ const destinations: ReadonlyArray<readonly [Destination, string]> = [
   ],
   [IssuesPage(), '/issues'],
   [MethodPage(), '/method'],
-  [UnderstandingPage(), '/understanding'],
+  [UnderstandingMoved(), '/understanding'],
 ]
 
 describe('a destination and its URL are one pair', () => {
