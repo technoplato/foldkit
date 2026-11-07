@@ -48,6 +48,24 @@ export const Stretch = S.Struct({
 /** One stretch of a recording's lines. */
 export type Stretch = typeof Stretch.Type
 
+/**
+ * A passage of a message Michael typed in a chat, his words exactly, as a question keeps it (Scribe #1990): the chat
+ * it was typed in (`claude-code`), its session and message, the address of that message
+ * (`claude-code://session/<session>/message/<message>`, or a Scribe thread comment's https link), when he sent it,
+ * and whether he asked it there or came back to it.
+ */
+export const TypedPassage = S.Struct({
+  harness: S.String,
+  sessionID: S.String,
+  messageID: S.String,
+  link: S.String,
+  sentAtMs: S.Number,
+  quote: S.String,
+  role: StretchRole,
+})
+/** A passage of a message he typed. */
+export type TypedPassage = typeof TypedPassage.Type
+
 /** One answer to a question: who gave it, its words, and where it was given (a thread, or its own lines). */
 export const Answer = S.Struct({
   id: S.String,
@@ -69,8 +87,8 @@ export type QuestionTopic = typeof QuestionTopic.Type
 
 /**
  * A question he asked, kept to learn from (Scribe ADR 0095): the question in one plain sentence, who asked, whether
- * he wants to learn about it, every stretch of his words (disjoint, and in other recordings), its answers, its topics,
- * and the tracker issues it led to.
+ * he wants to learn about it, every stretch of his words (disjoint, and in other recordings), every passage he typed
+ * (Scribe #1990), its answers, its topics, and the tracker issues it led to.
  */
 export const Question = S.Struct({
   id: S.String,
@@ -84,6 +102,7 @@ export const Question = S.Struct({
   maybeNote: S.Option(S.String),
   issueNumbers: S.Array(S.Number),
   stretches: S.Array(Stretch),
+  typedPassages: S.Array(TypedPassage),
   answers: S.Array(Answer),
   topics: S.Array(QuestionTopic),
 })
@@ -134,13 +153,14 @@ export const init = (): Model => ({
 
 // SELECTOR
 
-/** Every word of a question a search looks in: the question, his words, the answers, the topics, the note. */
+/** Every word of a question a search looks in: the question, his words said and typed, the answers, the topics, the note. */
 export const searchTextOf = (question: Question): string =>
   pipe(
     [
       question.text,
       Option.getOrElse(question.maybeNote, () => ''),
       ...Array.map(question.stretches, stretch => stretch.quote),
+      ...Array.map(question.typedPassages, passage => passage.quote),
       ...Array.flatMap(question.answers, answer => [
         answer.text,
         answer.answererName,

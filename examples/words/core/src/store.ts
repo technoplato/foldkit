@@ -587,7 +587,8 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
           questions: {
             $: { order: { askedAtMs: 'desc' }, limit: QUESTION_LIMIT },
             answers: { moments: {} },
-            moments: {},
+            // A typed moment's chat message gives its address (Scribe #1990).
+            moments: { chatMessage: {} },
             topics: {},
           },
         },

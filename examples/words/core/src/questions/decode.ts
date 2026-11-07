@@ -8,6 +8,7 @@ import type {
   QuestionStatus,
   Stretch,
   StretchRole,
+  TypedPassage,
 } from './model.js'
 
 const OptionalString = S.optionalKey(S.NullOr(S.String))
@@ -16,6 +17,7 @@ const OptionalNumber = S.optionalKey(S.NullOr(S.Number))
 const MomentRow = S.Struct({
   id: S.String,
   role: S.String,
+  kind: OptionalString,
   recordingID: OptionalString,
   segmentID: OptionalString,
   firstLineIndex: OptionalNumber,
@@ -23,8 +25,17 @@ const MomentRow = S.Struct({
   startSeconds: OptionalNumber,
   startedAtMs: S.Number,
   quote: S.String,
+  chatMessage: S.optionalKey(S.Unknown),
 })
 type MomentRow = typeof MomentRow.Type
+
+/** The chat message a typed moment quotes (Scribe ADR 0064 section 1.3): a has-one link, one row or a list of one. */
+const ChatMessageRow = S.Struct({
+  harness: S.String,
+  sessionID: S.String,
+  messageID: S.String,
+  url: OptionalString,
+})
 
 const TopicRow = S.Struct({ path: S.String, title: S.String })
 
@@ -100,14 +111,61 @@ const byFirstSpoken = Order.mapInput(
   (stretch: Stretch) => stretch.startedAtMs,
 )
 
-const stretchesOf = (rows: ReadonlyArray<unknown>): ReadonlyArray<Stretch> =>
+const momentsOf = (rows: ReadonlyArray<unknown>): ReadonlyArray<MomentRow> =>
   pipe(
     rows,
     Array.map(row => S.decodeUnknownOption(MomentRow)(row)),
     Array.getSomes,
+  )
+
+const stretchesOf = (rows: ReadonlyArray<unknown>): ReadonlyArray<Stretch> =>
+  pipe(
+    momentsOf(rows),
     Array.map(stretchOf),
     Array.getSomes,
     Array.sort(byFirstSpoken),
+  )
+
+/** The address of a message he typed: a thread comment's own link, else `<harness>://session/<s>/message/<m>`. */
+const chatLinkOf = (chat: typeof ChatMessageRow.Type): string =>
+  Option.getOrElse(
+    Option.filter(Option.fromNullishOr(chat.url), url => url.trim() !== ''),
+    () =>
+      `${chat.harness}://session/${chat.sessionID}/message/${chat.messageID}`,
+  )
+
+/** A typed moment and its chat message, or none: a passage needs the message it quotes, as a stretch needs its line. */
+const typedPassageOf = (row: MomentRow): Option.Option<TypedPassage> =>
+  Option.gen(function* () {
+    if (row.kind !== 'typed') return yield* Option.none()
+    const role = yield* roleOf(row.role)
+    const chat = yield* S.decodeUnknownOption(ChatMessageRow)(
+      Array.isArray(row.chatMessage) ? row.chatMessage[0] : row.chatMessage,
+    )
+    return {
+      harness: chat.harness,
+      sessionID: chat.sessionID,
+      messageID: chat.messageID,
+      link: chatLinkOf(chat),
+      sentAtMs: row.startedAtMs,
+      quote: row.quote,
+      role,
+    }
+  })
+
+const byFirstTyped = Order.mapInput(
+  Order.Number,
+  (passage: TypedPassage) => passage.sentAtMs,
+)
+
+const typedPassagesOf = (
+  rows: ReadonlyArray<unknown>,
+): ReadonlyArray<TypedPassage> =>
+  pipe(
+    momentsOf(rows),
+    Array.map(typedPassageOf),
+    Array.getSomes,
+    Array.sort(byFirstTyped),
   )
 
 const answererOf = (answeredBy: AnswerRow['answeredBy']): Answerer =>
@@ -164,6 +222,7 @@ const questionOf = (row: QuestionRow): Question => ({
     Option.getOrElse(() => []),
   ),
   stretches: stretchesOf(row.moments ?? []),
+  typedPassages: typedPassagesOf(row.moments ?? []),
   answers: pipe(
     row.answers ?? [],
     Array.map(answer => S.decodeUnknownOption(AnswerRow)(answer)),

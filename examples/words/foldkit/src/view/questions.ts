@@ -19,6 +19,7 @@ import { badge, spinner } from './ui.js'
 type Question = Questions.Model.Question
 type Answer = Questions.Model.Answer
 type Stretch = Questions.Model.Stretch
+type TypedPassage = Questions.Model.TypedPassage
 type QuestionFilter = Questions.Model.QuestionFilter
 
 const ISSUES_ORIGIN = 'https://issues.pisspoursoftware.xyz'
@@ -157,6 +158,54 @@ const stretchView = (stretch: Stretch): Html => {
           icon('ChevronRight', 'size-3.5'),
         ],
       ),
+    ],
+  )
+}
+
+const HARNESS_NAMES: Readonly<Record<string, string>> = {
+  'claude-code': 'Claude Code',
+  scribe: 'a Scribe thread',
+}
+
+/**
+ * A passage he typed in a chat (Scribe #1990), shown where a stretch of his lines is: his words, where and when he
+ * typed them, and the address of his message. No app opens a `claude-code://` address, so it is text he can copy,
+ * never a link that does nothing; a Scribe thread comment's https link opens.
+ */
+const typedPassageView = (passage: TypedPassage): Html => {
+  const h = html<Message>()
+  const isLink = passage.link.startsWith('https://')
+  return h.blockquote(
+    [
+      h.Key(`${passage.messageID}-${passage.role}-${passage.quote}`),
+      h.Class('border-l-2 border-separator pl-3'),
+    ],
+    [
+      h.p([h.Class('text-body text-label')], [passage.quote]),
+      h.p(
+        [h.Class('mt-1 text-footnote text-secondary')],
+        [
+          `${passage.role === 'Refined' ? 'Came back to it' : 'Asked'}, typed in ${HARNESS_NAMES[passage.harness] ?? passage.harness} · ${whenLabel(passage.sentAtMs)}`,
+        ],
+      ),
+      isLink
+        ? h.a(
+            [
+              h.Href(passage.link),
+              h.Class(
+                'inline-flex min-h-11 items-center gap-1 text-footnote font-medium text-tint hover:underline',
+              ),
+            ],
+            ['Open the message', icon('ChevronRight', 'size-3.5')],
+          )
+        : h.p(
+            [
+              h.Class(
+                'select-all break-all font-mono text-caption text-secondary',
+              ),
+            ],
+            [passage.link],
+          ),
     ],
   )
 }
@@ -310,6 +359,7 @@ const questionCard = (question: Question): Html => {
         ),
         stretchView,
       ),
+      ...Array.map(question.typedPassages, typedPassageView),
       ...(Array.isReadonlyArrayNonEmpty(tags)
         ? [h.div([h.Class('flex flex-wrap gap-2')], tags)]
         : []),
