@@ -56,6 +56,37 @@ const proximity: Questions.Model.Question = {
     },
   ],
   topics: [{ path: 'scribe/recording/live', title: 'Live capture' }],
+  typedPassages: [],
+}
+
+// Scribe #1990: a question he typed in a chat. Made-up words and ids.
+const sessionID = '00000000-0000-4000-8000-0000000000a1'
+const messageID = '00000000-0000-4000-8000-0000000000b2'
+const chatLink = `claude-code://session/${sessionID}/message/${messageID}`
+const coreText = 'Is a core the same as a CPU?'
+
+const core: Questions.Model.Question = {
+  ...proximity,
+  id: '00000000-0000-4000-8000-0000000000c3',
+  text: coreText,
+  status: 'Open',
+  maybeRecordingID: Option.none(),
+  askedAtMs: 1_794_023_062_762,
+  issueNumbers: [],
+  stretches: [],
+  answers: [],
+  topics: [],
+  typedPassages: [
+    {
+      harness: 'claude-code',
+      sessionID,
+      messageID,
+      link: chatLink,
+      sentAtMs: 1_794_023_062_762,
+      quote: 'Made-up: when you say core, does that mean a CPU?',
+      role: 'Asked',
+    },
+  ],
 }
 
 const build: Questions.Model.Question = {
@@ -127,6 +158,30 @@ describe('the questions page', () => {
       Scene.expect(Scene.text('To Learn', { exact: false })).toExist(),
       Scene.expect(Scene.text('No answer kept yet.')).toExist(),
       Scene.expect(Scene.text('2 questions')).toExist(),
+    )
+  })
+
+  test('a question he typed shows his words, that he typed them in Claude Code and when, and the address of his message (Scribe #1990)', () => {
+    Scene.scene(
+      { update, view: questionsPage },
+      Scene.with(
+        questionsModel(
+          Questions.Model.LoadedQuestions({
+            questions: [core],
+            unreadableCount: 0,
+            isLimitReached: false,
+          }),
+        ),
+      ),
+      Scene.expect(Scene.role('heading', { name: coreText })).toExist(),
+      Scene.expect(
+        Scene.text('Made-up: when you say core, does that mean a CPU?'),
+      ).toExist(),
+      Scene.expect(
+        Scene.text('Asked, typed in Claude Code', { exact: false }),
+      ).toExist(),
+      Scene.expect(Scene.text(chatLink)).toExist(),
+      Scene.expect(Scene.selector(`a[href="${chatLink}"]`)).toBeAbsent(),
     )
   })
 

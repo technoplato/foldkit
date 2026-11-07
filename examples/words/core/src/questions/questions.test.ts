@@ -72,6 +72,61 @@ const buildRow = {
   topics: [],
 }
 
+// Scribe #1990: a question he typed in a chat. Made-up words and ids.
+const SESSION = '00000000-0000-4000-8000-0000000000a1'
+const MESSAGE = '00000000-0000-4000-8000-0000000000b2'
+const CHAT_LINK = `claude-code://session/${SESSION}/message/${MESSAGE}`
+const TYPED_AT = 1_794_023_062_762
+
+const typedMoment = (id: string, quote: string, chatMessage: unknown) => ({
+  id,
+  role: 'asked',
+  kind: 'typed',
+  chatMessageID: '00000000-0000-4000-8000-0000000000d4',
+  startedAtMs: TYPED_AT,
+  quote,
+  chatMessage,
+})
+
+const typedRow = {
+  id: '00000000-0000-4000-8000-0000000000c3',
+  text: 'Is a core the same as a CPU?',
+  askedBy: 'michael',
+  learning: true,
+  status: 'open',
+  askedAtMs: TYPED_AT,
+  answers: [],
+  moments: [
+    typedMoment(
+      'm-typed-1',
+      'Made-up: when you say core, does that mean a CPU?',
+      {
+        harness: 'claude-code',
+        sessionID: SESSION,
+        messageID: MESSAGE,
+        author: 'michael',
+      },
+    ),
+    typedMoment('m-typed-2', 'Made-up: so is a core a CPU?', [
+      {
+        harness: 'claude-code',
+        sessionID: SESSION,
+        messageID: MESSAGE,
+        author: 'michael',
+      },
+    ]),
+    typedMoment('m-typed-3', 'Made-up: and in a thread?', {
+      harness: 'scribe',
+      sessionID: 'thread-1',
+      messageID: 'reply-1',
+      author: 'michael',
+      url: 'https://og.pisspoursoftware.xyz/recording/r/thread/thread-1?reply=reply-1',
+    }),
+    typedMoment('m-typed-4', 'Made-up: a passage whose message is gone', null),
+  ],
+  topics: [],
+}
+
 const loaded = (
   rows: ReadonlyArray<unknown>,
   overrides: Partial<Model> = {},
@@ -130,6 +185,46 @@ describe('decodeQuestions', () => {
     expect(unreadableCount).toBe(1)
   })
 
+  it('reads a question he typed: each passage with his words, where and when he typed it, and the address of his message (Scribe #1990)', () => {
+    const { questions, unreadableCount } = decodeQuestions([typedRow], 500)
+    expect(unreadableCount).toBe(0)
+    const [question] = questions
+    expect(question?.maybeRecordingID).toEqual(Option.none())
+    expect(question?.stretches).toEqual([])
+    expect(question?.typedPassages).toEqual([
+      {
+        harness: 'claude-code',
+        sessionID: SESSION,
+        messageID: MESSAGE,
+        link: CHAT_LINK,
+        sentAtMs: TYPED_AT,
+        quote: 'Made-up: when you say core, does that mean a CPU?',
+        role: 'Asked',
+      },
+      {
+        harness: 'claude-code',
+        sessionID: SESSION,
+        messageID: MESSAGE,
+        link: CHAT_LINK,
+        sentAtMs: TYPED_AT,
+        quote: 'Made-up: so is a core a CPU?',
+        role: 'Asked',
+      },
+      {
+        harness: 'scribe',
+        sessionID: 'thread-1',
+        messageID: 'reply-1',
+        link: 'https://og.pisspoursoftware.xyz/recording/r/thread/thread-1?reply=reply-1',
+        sentAtMs: TYPED_AT,
+        quote: 'Made-up: and in a thread?',
+        role: 'Asked',
+      },
+    ])
+    expect(
+      decodeQuestions([proximityRow], 500).questions[0]?.typedPassages,
+    ).toEqual([])
+  })
+
   it('says when the query’s limit cut the list, so older questions are never missing in silence', () => {
     const rows = [proximityRow, buildRow, { id: 'x', text: 'No asker' }]
     expect(decodeQuestions(rows, 3).isLimitReached).toBe(true)
@@ -156,6 +251,13 @@ describe('listed questions', () => {
     expect(listedQuestionsOf(withSearch(model, 'proximity bluetooth'))).toEqual(
       [],
     )
+    expect(
+      textsOf(
+        listedQuestionsOf(
+          withSearch(loaded([typedRow, buildRow]), 'core does that mean'),
+        ),
+      ),
+    ).toEqual([typedRow.text])
   })
 
   it('filters to the ones to learn from or the open ones; a dismissed one is never listed', () => {
