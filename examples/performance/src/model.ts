@@ -1,13 +1,16 @@
 import { Schema as S } from 'effect'
 import { AsyncData } from 'foldkit'
 
-import { BuildDetail, Index } from './data'
+import { BuildDetail, Index, Understanding } from './data'
 import { Destination } from './route'
 
 // MODEL
 
 /** The exporter's index: loading, loaded, refreshing, or failed with why. */
 export const IndexData = AsyncData.Schema(Index, S.String)
+
+/** The understanding profile's count and areas, loaded with the index. */
+export const UnderstandingData = AsyncData.Schema(Understanding, S.String)
 
 /** One build's own file, loaded when its page opens. */
 export const BuildDetailData = AsyncData.Schema(BuildDetail, S.String)
@@ -27,6 +30,7 @@ export type Hover = typeof Hover.Type
 export const Model = S.Struct({
   destination: Destination,
   index: IndexData.schema,
+  understanding: UnderstandingData.schema,
   maybeOpenBuild: S.Option(OpenBuild),
   maybeHover: S.Option(Hover),
 })

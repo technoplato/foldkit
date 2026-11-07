@@ -1,14 +1,14 @@
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
 
-import { FetchIndex } from './command'
+import { FetchIndex, FetchUnderstanding } from './command'
 import {
   loadingModel,
   openBuildModel,
   readyModelAt,
   unmeasuredUnderstanding,
 } from './main.fixtures'
-import { FailedFetchIndex } from './message'
+import { FailedFetchIndex, FailedFetchUnderstanding } from './message'
 import { IndexData, UnderstandingData } from './model'
 import { update } from './update'
 import { view } from './view/index'
@@ -74,6 +74,10 @@ describe('the page', () => {
       Scene.Command.resolve(
         FetchIndex,
         FailedFetchIndex({ error: 'still 404' }),
+      ),
+      Scene.Command.resolve(
+        FetchUnderstanding,
+        FailedFetchUnderstanding({ error: 'still 404' }),
       ),
     )
   })

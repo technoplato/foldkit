@@ -6,11 +6,18 @@ import { toString as urlToString } from 'foldkit/url'
 import {
   FetchBuild,
   FetchIndex,
+  FetchUnderstanding,
   LoadExternal,
   NavigateInternal,
 } from './command'
 import type { Message } from './message'
-import { BuildDetailData, IndexData, type Model, type OpenBuild } from './model'
+import {
+  BuildDetailData,
+  IndexData,
+  type Model,
+  type OpenBuild,
+  UnderstandingData,
+} from './model'
 import { type Destination, buildRouter, urlToDestination } from './route'
 
 // UPDATE
@@ -105,6 +112,23 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
+      SucceededFetchUnderstanding: ({ understanding }) => [
+        evo(model, {
+          understanding: () =>
+            UnderstandingData.Success({ data: understanding }),
+        }),
+        [],
+      ],
+      FailedFetchUnderstanding: ({ error }) => [
+        evo(model, {
+          understanding: current =>
+            Option.match(AsyncData.getData(current), {
+              onNone: () => UnderstandingData.Failure({ error }),
+              onSome: data => UnderstandingData.Stale({ error, data }),
+            }),
+        }),
+        [],
+      ],
       SucceededFetchBuild: ({ appId, build, detail }) => [
         withBuildDetail(
           model,
@@ -130,8 +154,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               onNone: () => IndexData.Loading(),
               onSome: data => IndexData.Refreshing({ data }),
             }),
+          understanding: current =>
+            Option.match(AsyncData.getData(current), {
+              onNone: () => UnderstandingData.Loading(),
+              onSome: data => UnderstandingData.Refreshing({ data }),
+            }),
         }),
-        [FetchIndex()],
+        [FetchIndex(), FetchUnderstanding()],
       ],
       HoveredChartColumn: ({ metricId, build }) => [
         evo(model, { maybeHover: () => Option.some({ metricId, build }) }),

@@ -2,9 +2,9 @@ import { Option } from 'effect'
 import type { Runtime } from 'foldkit'
 import type { Url } from 'foldkit/url'
 
-import { FetchIndex } from './command'
+import { FetchIndex, FetchUnderstanding } from './command'
 import type { Message } from './message'
-import { IndexData, type Model } from './model'
+import { IndexData, type Model, UnderstandingData } from './model'
 import { urlToDestination } from './route'
 import { openBuildFor } from './update'
 
@@ -22,9 +22,10 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = (
     {
       destination,
       index: IndexData.Loading(),
+      understanding: UnderstandingData.Loading(),
       maybeOpenBuild,
       maybeHover: Option.none(),
     },
-    [FetchIndex(), ...buildCommands],
+    [FetchIndex(), FetchUnderstanding(), ...buildCommands],
   ]
 }

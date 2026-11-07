@@ -67,6 +67,10 @@ test('a failed first load says why, and a failed reload keeps the numbers', () =
     }),
     Story.Command.expectHas(FetchIndex),
     Story.Command.resolve(FetchIndex, FailedFetchIndex({ error: 'offline' })),
+    Story.Command.resolve(
+      FetchUnderstanding,
+      FailedFetchUnderstanding({ error: 'offline' }),
+    ),
     Story.model(model => {
       expect(model.index._tag).toBe('Stale')
     }),

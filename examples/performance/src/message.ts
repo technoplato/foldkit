@@ -3,7 +3,7 @@ import { m } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 
-import { BuildDetail, Index } from './data'
+import { BuildDetail, Index, Understanding } from './data'
 
 // MESSAGE
 
@@ -13,6 +13,12 @@ export const CompletedNavigateInternal = m('CompletedNavigateInternal')
 export const CompletedLoadExternal = m('CompletedLoadExternal')
 export const SucceededFetchIndex = m('SucceededFetchIndex', { index: Index })
 export const FailedFetchIndex = m('FailedFetchIndex', { error: S.String })
+export const SucceededFetchUnderstanding = m('SucceededFetchUnderstanding', {
+  understanding: Understanding,
+})
+export const FailedFetchUnderstanding = m('FailedFetchUnderstanding', {
+  error: S.String,
+})
 export const SucceededFetchBuild = m('SucceededFetchBuild', {
   appId: S.String,
   build: S.String,
@@ -41,6 +47,8 @@ export const Message = S.Union([
   CompletedLoadExternal,
   SucceededFetchIndex,
   FailedFetchIndex,
+  SucceededFetchUnderstanding,
+  FailedFetchUnderstanding,
   SucceededFetchBuild,
   FailedFetchBuild,
   ClickedReload,

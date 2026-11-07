@@ -3,11 +3,12 @@ import { type Html, html } from 'foldkit/html'
 
 import type { App, EvidenceTag, Index } from '../data'
 import type { Message } from '../message'
-import type { Hover } from '../model'
+import type { Hover, Model } from '../model'
 import { appRouter, issuesRouter } from '../route'
 import { chartGrid } from './app'
 import { EVIDENCE_TAGS, counted, scopeLabel } from './format'
 import { evidenceTagChip } from './parts'
+import { understandingSummary } from './understanding'
 
 // VIEW
 
@@ -88,6 +89,7 @@ const appCard = (app: App): Html => {
 export const homeView = (
   index: Index,
   maybeHover: Option.Option<Hover>,
+  understanding: Model['understanding'],
 ): Html => {
   const h = html<Message>()
   return Array.match(index.apps, {
@@ -97,6 +99,7 @@ export const homeView = (
         [],
         [
           proofHero(index),
+          understandingSummary(understanding),
           h.section(
             [h.Class('mb-10')],
             [

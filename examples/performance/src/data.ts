@@ -352,3 +352,59 @@ export const BuildDetail = S.Struct({
   }),
 )
 export type BuildDetail = typeof BuildDetail.Type
+
+/**
+ * The version of `understanding.json` this page reads, which the exporter
+ * writes beside the index; another version fails to decode.
+ */
+export const UNDERSTANDING_SCHEMA_VERSION = 1
+
+/**
+ * One area of the understanding profile as its newest rating has it: where a
+ * course would teach it, a score out of 10, whether it is at proficient (a
+ * problem in it found and fixed without an agent), when and by whom it was
+ * rated, how many ratings it has had, and the links to the words behind it.
+ */
+export const UnderstandingArea = S.Struct({
+  name: S.String,
+  level: S.String,
+  score: S.Number,
+  isProficient: S.Boolean,
+  ratedAt: S.String,
+  by: S.String,
+  ratings: S.Number,
+  evidence: S.Array(S.String),
+}).pipe(S.encodeKeys({ isProficient: 'proficient' }))
+export type UnderstandingArea = typeof UnderstandingArea.Type
+
+/** The count after one rating: the areas at proficient, of the areas rated by then. */
+export const UnderstandingPoint = S.Struct({
+  at: S.String,
+  proficient: S.Number,
+  areas: S.Number,
+})
+export type UnderstandingPoint = typeof UnderstandingPoint.Type
+
+/** The count now: the areas the newest ratings put at proficient, of how many. */
+export const UnderstandingCount = S.TaggedStruct('Measured', {
+  proficient: S.Number,
+  areas: S.Number,
+})
+export type UnderstandingCount = typeof UnderstandingCount.Type
+
+/**
+ * `understanding.json`: the understanding profile's areas at proficient, now
+ * and after each rating, every area by its newest rating, how it is counted,
+ * and the lines the exporter could not read. A count nobody measured says why.
+ */
+export const Understanding = S.Struct({
+  schemaVersion: S.Literal(UNDERSTANDING_SCHEMA_VERSION),
+  generatedAt: S.String,
+  source: S.String,
+  method: S.String,
+  count: S.Union([UnderstandingCount, NotMeasured]),
+  list: S.Array(UnderstandingArea),
+  history: S.Array(UnderstandingPoint),
+  problems: S.Array(S.String),
+})
+export type Understanding = typeof Understanding.Type
