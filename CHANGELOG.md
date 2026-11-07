@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 7th, 2026 at 5:14:37 a.m. EST — `7392417f424a` feat(words): green: Scribe #1990's typed questions on the page
+
+- **Implementation commit:** `7392417f424a18c2477c94e2f6a9a93ac705210b`
+- **Change:** The words page's questions show a question Michael typed in a chat: his words, where and when he typed them, and the address of his message (Scribe #1990)
+- **Details:**
+  - decodeQuestions reads each typed moment with its chat message into typedPassages; a typed moment without its message is no passage, as a stretch without its line is none; a search reads typed words too.
+  - The address shows as selectable text: no app on the Mac registers claude-code:// (Claude.app registers only claude://), so it is never a link that does nothing; a Scribe thread comment's https link opens.
+  - Measured: words core vitest 298/298, the app 40/40, both typechecks clean; on the 14 real typed questions the page's decoder read 14, 0 unreadable, 15 passages.
+- **Files:**
+  - `examples/words/core/src/questions/model.ts` — TypedPassage and Question.typedPassages; search reads typed words
+  - `examples/words/core/src/questions/decode.ts` — typed moments with their chat message become passages
+  - `examples/words/core/src/store.ts` — the questions query reads each moment's chat message
+  - `examples/words/foldkit/src/view/questions.ts` — a typed passage shows his words, the chat and time, and the address
+- **User context (verbatim):**
+  > Also note some of this in the Scribe Q&A.
+- **SpecStory:** unavailable — headless Claude Code run (claude -p) qa-typed-1990, session 5d0c7163-4a09-44d0-b6ec-221fa8e8a33e; SpecStory does not capture claude -p runs
+
 ## November 2nd, 2026 at 10:05:57 p.m. EST — `da9b75fc5e82` fix(words): a live copy that sits still over held audio is nudged on
 
 - **Implementation commit:** `da9b75fc5e82e5d9d46393293a1a167492b70aa9`
