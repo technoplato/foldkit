@@ -3,12 +3,18 @@ import { Story } from 'foldkit'
 import { fromString } from 'foldkit/url'
 import { expect, test } from 'vitest'
 
-import { FetchBuild, FetchIndex, NavigateInternal } from './command'
+import {
+  FetchBuild,
+  FetchIndex,
+  FetchUnderstanding,
+  NavigateInternal,
+} from './command'
 import {
   loadingModel,
   readyModelAt,
   sampleBuildDetail,
   sampleIndex,
+  sampleUnderstanding,
 } from './main.fixtures'
 import {
   ChangedUrl,
@@ -17,10 +23,12 @@ import {
   CompletedNavigateInternal,
   FailedFetchBuild,
   FailedFetchIndex,
+  FailedFetchUnderstanding,
   HoveredChartColumn,
   LeftChart,
   SucceededFetchBuild,
   SucceededFetchIndex,
+  SucceededFetchUnderstanding,
 } from './message'
 import { update } from './update'
 
@@ -127,5 +135,55 @@ test('clicking a build in a chart opens its page', () => {
       NavigateInternal({ url: '/apps/scribe/builds/270' }),
     ),
     Story.Command.resolve(NavigateInternal, CompletedNavigateInternal()),
+  )
+})
+
+test('the understanding profile loads into the page, and a failed first load says why', () => {
+  Story.story(
+    update,
+    Story.with(loadingModel),
+    Story.message(
+      SucceededFetchUnderstanding({ understanding: sampleUnderstanding }),
+    ),
+    Story.model(model => {
+      expect(model.understanding._tag).toBe('Success')
+    }),
+    Story.Command.expectNone(),
+  )
+  Story.story(
+    update,
+    Story.with(loadingModel),
+    Story.message(
+      FailedFetchUnderstanding({
+        error: '/data/understanding.json answered HTTP 404',
+      }),
+    ),
+    Story.model(model => {
+      expect(model.understanding._tag).toBe('Failure')
+    }),
+  )
+})
+
+test('reload fetches the understanding profile again with the index, and a failed reload keeps it', () => {
+  Story.story(
+    update,
+    Story.with(readyModelAt('/understanding')),
+    Story.message(ClickedReload()),
+    Story.model(model => {
+      expect(model.understanding._tag).toBe('Refreshing')
+    }),
+    Story.Command.expectHas(FetchIndex),
+    Story.Command.expectHas(FetchUnderstanding),
+    Story.Command.resolve(
+      FetchIndex,
+      SucceededFetchIndex({ index: sampleIndex }),
+    ),
+    Story.Command.resolve(
+      FetchUnderstanding,
+      FailedFetchUnderstanding({ error: 'offline' }),
+    ),
+    Story.model(model => {
+      expect(model.understanding._tag).toBe('Stale')
+    }),
   )
 })

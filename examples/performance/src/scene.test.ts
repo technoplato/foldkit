@@ -2,13 +2,56 @@ import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
 
 import { FetchIndex } from './command'
-import { loadingModel, openBuildModel, readyModelAt } from './main.fixtures'
+import {
+  loadingModel,
+  openBuildModel,
+  readyModelAt,
+  unmeasuredUnderstanding,
+} from './main.fixtures'
 import { FailedFetchIndex } from './message'
-import { IndexData } from './model'
+import { IndexData, UnderstandingData } from './model'
 import { update } from './update'
 import { view } from './view/index'
 
 describe('the page', () => {
+  test('the understanding page leads with the areas at proficient, then each area by its newest rating', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(readyModelAt('/understanding')),
+      Scene.expect(Scene.role('heading', { name: 'Understanding' })).toExist(),
+      Scene.expect(Scene.text('2 of 3')).toExist(),
+      Scene.expect(Scene.text('Area three')).toExist(),
+      Scene.expect(Scene.text('2 of 10')).toExist(),
+      Scene.expect(Scene.text('Not proficient')).toExist(),
+      Scene.expect(Scene.text('1 of 2')).toExist(),
+    )
+  })
+
+  test('home says how many areas are at proficient and links to them', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(readyModelAt('/')),
+      Scene.expect(
+        Scene.role('link', { name: '2 of 3 areas at proficient' }),
+      ).toExist(),
+    )
+  })
+
+  test('an understanding count nobody measured says why', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with({
+        ...readyModelAt('/understanding'),
+        understanding: UnderstandingData.Success({
+          data: unmeasuredUnderstanding,
+        }),
+      }),
+      Scene.expect(
+        Scene.text('Not measured: no profile on the laptop'),
+      ).toExist(),
+    )
+  })
+
   test('says it is loading before the numbers arrive', () => {
     Scene.scene(
       { update, view },

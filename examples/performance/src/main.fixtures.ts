@@ -1,8 +1,13 @@
 import { Option, Schema as S } from 'effect'
 import { fromString } from 'foldkit/url'
 
-import { BuildDetail, Index } from './data'
-import { BuildDetailData, IndexData, type Model } from './model'
+import { BuildDetail, Index, Understanding } from './data'
+import {
+  BuildDetailData,
+  IndexData,
+  type Model,
+  UnderstandingData,
+} from './model'
 import { type Destination, urlToDestination } from './route'
 
 const LEDGER_URL =
@@ -331,6 +336,62 @@ export const encodedBuildDetail = {
 export const sampleBuildDetail =
   S.decodeUnknownSync(BuildDetail)(encodedBuildDetail)
 
+export const encodedUnderstanding = {
+  schemaVersion: 1,
+  generatedAt: '2026-11-07T02:51:42-05:00',
+  source: 'profile.md',
+  method:
+    "Counted from the profile: each area's newest rating is where it stands now.",
+  count: { _tag: 'Measured', proficient: 2, areas: 3 },
+  list: [
+    {
+      name: 'Area one',
+      level: 'undergraduate',
+      score: 6,
+      proficient: true,
+      ratedAt: '2026-11-07T09:00-05:00',
+      by: 'agent-two',
+      ratings: 2,
+      evidence: ['claude-code://session/s/message/m2'],
+    },
+    {
+      name: 'Area two',
+      level: 'professional',
+      score: 8,
+      proficient: true,
+      ratedAt: '2026-11-06T22:46-05:00',
+      by: 'agent-one',
+      ratings: 1,
+      evidence: [],
+    },
+    {
+      name: 'Area three',
+      level: 'high school',
+      score: 2,
+      proficient: false,
+      ratedAt: '2026-11-07T09:00-05:00',
+      by: 'agent-two',
+      ratings: 1,
+      evidence: ['claude-code://session/s/message/m3'],
+    },
+  ],
+  history: [
+    { at: '2026-11-06T22:46-05:00', proficient: 1, areas: 2 },
+    { at: '2026-11-07T09:00-05:00', proficient: 2, areas: 3 },
+  ],
+  problems: [],
+}
+
+export const sampleUnderstanding =
+  S.decodeUnknownSync(Understanding)(encodedUnderstanding)
+
+export const unmeasuredUnderstanding = S.decodeUnknownSync(Understanding)({
+  ...encodedUnderstanding,
+  count: { _tag: 'NotMeasured', reason: 'no profile on the laptop' },
+  list: [],
+  history: [],
+})
+
 const destinationOf = (path: string): Destination =>
   urlToDestination(
     Option.getOrThrow(fromString(`https://performance.example${path}`)),
@@ -340,6 +401,7 @@ const destinationOf = (path: string): Destination =>
 export const readyModelAt = (path: string): Model => ({
   destination: destinationOf(path),
   index: IndexData.Success({ data: sampleIndex }),
+  understanding: UnderstandingData.Success({ data: sampleUnderstanding }),
   maybeOpenBuild: Option.none(),
   maybeHover: Option.none(),
 })
@@ -347,6 +409,7 @@ export const readyModelAt = (path: string): Model => ({
 export const loadingModel: Model = {
   destination: destinationOf('/'),
   index: IndexData.Loading(),
+  understanding: UnderstandingData.Loading(),
   maybeOpenBuild: Option.none(),
   maybeHover: Option.none(),
 }

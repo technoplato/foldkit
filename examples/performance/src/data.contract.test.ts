@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
-import { BuildDetail, Index } from './data'
+import { BuildDetail, Index, Understanding } from './data'
 
 const dataDirectory = process.env['PERFORMANCE_DATA_DIR'] ?? ''
 
@@ -32,6 +32,13 @@ describe.skipIf(dataDirectory === '')(
       files.forEach(file => {
         S.decodeUnknownSync(BuildDetail)(readJson(file))
       })
+    })
+
+    test('understanding.json decodes', () => {
+      const understanding = S.decodeUnknownSync(Understanding)(
+        readJson(join(dataDirectory, 'understanding.json')),
+      )
+      expect(understanding.schemaVersion).toBe(1)
     })
   },
 )
