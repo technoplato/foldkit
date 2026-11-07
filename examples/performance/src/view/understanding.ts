@@ -49,7 +49,7 @@ const evidenceLinks = (area: UnderstandingArea): ReadonlyArray<Html> => {
   const h = html<Message>()
   return Array.map(area.evidence, (href, position) =>
     h.span(
-      [h.Key(href), h.Class('mr-2')],
+      [h.Key(href), h.Class('mr-2 whitespace-nowrap')],
       [outsideLink(href, `words ${position + 1}`)],
     ),
   )
