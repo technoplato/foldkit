@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 7th, 2026 at 3:07:05 a.m. EST — `5c45dadab075` feat(performance): green: Scribe #1968's understanding page
+
+- **Implementation commit:** `5c45dadab07549dd12b518b3362b9a6a891b0a3d`
+- **Change:** feat(performance): green: Scribe #1968's understanding page
+- **Details:**
+  - examples/performance: /understanding reads understanding.json beside the index: the areas at proficient now and after each rating, every area by its newest rating with links to the words behind it, how the count is made, and why when nothing was measured. Home links to it in one line, and Reload fetches it again with the index.
+  - Data: written by the Scribe exporter (scripts/perf/performance_export.py) from a profile kept on the owner's laptop, never in a repository; served by the origin only to the owner's login. The tests' fixtures are made up. Tests came first in 66bf15c27.
+- **Files:**
+  - `examples/performance/src/data.ts` — the schema of understanding.json
+  - `examples/performance/src/command.ts` — FetchUnderstanding, beside FetchIndex
+  - `examples/performance/src/update.ts` — the profile's loading, failure and reload
+  - `examples/performance/src/route.ts` — /understanding as one parse and print pair
+  - `examples/performance/src/view/understanding.ts` — the page and home's one line
+- **User context (verbatim):**
+  > And let's make that another metric that we measure.
+- **SpecStory:** unavailable — headless Claude Code run started by tools/agent-run for Scribe #1968; its transcript path is logged on that issue
+
 ## November 6th, 2026 at 12:40:44 p.m. EST — `9c9d6d61df85` feat(performance): green: Scribe #1932's page, charts per build, evidence
 
 - **Implementation commit:** `9c9d6d61df850159cf80b901c778f66c40041e4d`
