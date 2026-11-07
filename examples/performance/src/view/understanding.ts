@@ -13,17 +13,6 @@ import { understandingRouter } from '../route'
 import { formatDate } from './format'
 import { outsideLink, sectionHeading } from './parts'
 
-// CONSTANT
-
-const COLUMNS = [
-  'Area',
-  'Level',
-  'Score',
-  'Proficient',
-  'Newest rating',
-  'The words behind it',
-]
-
 // VIEW
 
 const proficientLabel = (area: UnderstandingArea): string =>
@@ -66,51 +55,28 @@ const evidenceLinks = (area: UnderstandingArea): ReadonlyArray<Html> => {
   )
 }
 
-const areaRow = (area: UnderstandingArea): Html => {
+const areaItem = (area: UnderstandingArea): Html => {
   const h = html<Message>()
-  return h.tr(
-    [h.Key(area.name), h.Class('border-b border-[var(--hairline)] align-top')],
+  return h.li(
+    [h.Key(area.name), h.Class('border-b border-[var(--hairline)] py-3')],
     [
-      h.td([h.Class('py-2 pr-4 font-semibold')], [area.name]),
-      h.td([h.Class('py-2 pr-4')], [area.level]),
-      h.td([h.Class('py-2 pr-4 tabular')], [`${area.score} of 10`]),
-      h.td([h.Class('py-2 pr-4')], [proficientLabel(area)]),
-      h.td(
-        [h.Class('py-2 pr-4 whitespace-nowrap ink-secondary')],
-        [`${formatDate(area.ratedAt)} by ${area.by}`],
-      ),
-      h.td([h.Class('py-2')], evidenceLinks(area)),
-    ],
-  )
-}
-
-const areaTable = (understanding: Understanding): Html => {
-  const h = html<Message>()
-  return h.div(
-    [h.Class('mb-10 overflow-x-auto')],
-    [
-      h.table(
-        [h.Class('w-full min-w-[48rem] text-left text-sm')],
+      h.p([h.Class('font-semibold')], [area.name]),
+      h.p(
+        [h.Class('mt-1 flex flex-wrap gap-x-4 gap-y-1')],
         [
-          h.thead(
-            [],
-            [
-              h.tr(
-                [h.Class('border-b border-[var(--hairline)] ink-muted')],
-                Array.map(COLUMNS, title =>
-                  h.th(
-                    [
-                      h.Key(title),
-                      h.Class('py-2 pr-4 font-medium'),
-                      h.Scope('col'),
-                    ],
-                    [title],
-                  ),
-                ),
-              ),
-            ],
+          h.span(
+            [h.Class('tabular whitespace-nowrap')],
+            [`${area.score} of 10`],
           ),
-          h.tbody([], Array.map(understanding.list, areaRow)),
+          h.span([h.Class('whitespace-nowrap')], [proficientLabel(area)]),
+          h.span([h.Class('ink-secondary')], [area.level]),
+        ],
+      ),
+      h.p(
+        [h.Class('mt-1 text-sm ink-muted')],
+        [
+          `Rated ${formatDate(area.ratedAt)} by ${area.by}`,
+          h.span([h.Class('ml-3')], evidenceLinks(area)),
         ],
       ),
     ],
@@ -157,9 +123,12 @@ const pageOf = (understanding: Understanding): Html => {
         onNonEmpty: () => [
           sectionHeading(
             'Every area, by its newest rating',
-            'Where a course would teach it, a score out of 10, and whether it is at proficient.',
+            'A score out of 10, whether it is at proficient, and where a course would teach it.',
           ),
-          areaTable(understanding),
+          h.ul(
+            [h.Class('mb-10 border-t border-[var(--hairline)]')],
+            Array.map(understanding.list, areaItem),
+          ),
         ],
       }),
       ...Array.match(understanding.history, {
