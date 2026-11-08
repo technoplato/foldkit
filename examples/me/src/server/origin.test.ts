@@ -17,6 +17,8 @@ const FRIEND = 'friend@example.com'
 const OWNER_FOLDER =
   'c8cd3c6427301eaf6665bccacd65ddb614527acc843a15463e3faba57124c351'
 const OWNER_ONLY = 'an area only the owner has'
+const SOURCE_HEADER =
+  '<header data-site-source data-repo="technoplato/foldkit" data-ref="main" data-folder="examples/me"><a href="https://github.com/technoplato/foldkit/tree/main/examples/me/src">github.com/technoplato/foldkit/tree/main/examples/me/src</a></header>'
 
 const TOKENS: Readonly<Record<string, string>> = {
   'token-owner': OWNER,
@@ -69,7 +71,7 @@ beforeAll(() => {
   mkdirSync(join(root, 'users', OWNER_FOLDER), { recursive: true })
   writeFileSync(
     join(root, 'site', 'index.html'),
-    '<!doctype html><title>Your page</title>',
+    `<!doctype html><title>Your page</title><body>${SOURCE_HEADER}<div id="root"></div><script type="module" src="/assets/index-abc.js"></script></body>`,
   )
   writeFileSync(join(root, 'site', 'assets', 'index-abc.js'), 'export {}')
   writeFileSync(
@@ -246,6 +248,45 @@ describe('each signed-in user reads only their own folder', () => {
       throughTheTunnel('/data/me.json', signedIn('token-owner')),
     )
     expect(bodyOf(answer)).not.toContain('someone-else@example.com')
+  })
+})
+
+describe("this Mac's header sweep reads where the page's code lives, and nothing else (Scribe #1547)", () => {
+  const onThisMac = (url: string): OriginRequest => ({
+    method: 'GET',
+    url,
+    remoteAddress: '127.0.0.1',
+    headers: { host: '127.0.0.1:5263' },
+  })
+
+  test('/source on this Mac is the built page’s source header alone', async () => {
+    const answer = await answerRequest(config(), onThisMac('/source'))
+    expect(answer.status).toBe(200)
+    expect(bodyOf(answer)).toBe(SOURCE_HEADER)
+    expect(answer.headers['cache-control']).toBe('no-store')
+  })
+
+  test('the page, its data and its assets on this Mac still need a login', async () => {
+    for (const url of [
+      '/',
+      '/understanding',
+      '/data/me.json',
+      '/assets/index-abc.js',
+    ]) {
+      const answer = await answerRequest(config(), onThisMac(url))
+      expect(answer.status).toBe(404)
+    }
+  })
+
+  test('/source through the tunnel, or asked for by a public name, is the same Not found as every path', async () => {
+    for (const request of [
+      throughTheTunnel('/source'),
+      { ...onThisMac('/source'), headers: { host: 'me.knophy.com' } },
+    ]) {
+      const answer = await answerRequest(config(), request)
+      expect(answer.status).toBe(404)
+      expect(bodyOf(answer)).not.toContain('data-site-source')
+    }
   })
 })
 
