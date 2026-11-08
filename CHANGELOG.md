@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 8th, 2026 at 12:09:02 a.m. EST — `6bc9bd09b2cd` feat(me): green: Scribe #2002's page for each signed-in user
+
+- **Implementation commit:** `6bc9bd09b2cdd0954c79076b57fb17bf4bb75558`
+- **Change:** feat(me): green: Scribe #2002's page for each signed-in user
+- **Details:**
+  - examples/me is me.pisspoursoftware.xyz: each signed-in user's own page. The origin takes who is signed in only from a Cloudflare Access login that makeAccessVerifier checks again (the issues site's verifier); no login, a forged one, a failing verifier and the email header alone get the same Not found for every path. Tests came first in 59b9e56e2.
+  - A user's data is only their own folder, named by the SHA-256 of the lowercased email (the Scribe exporter's key); /data/me.json is the origin's own answer and /data/<name>.json a file of that folder by a strict name; per-user answers are private, no-store.
+  - examples/performance loses its understanding page, data, command and Message pair; /understanding answers a 302 to https://me.pisspoursoftware.xyz/understanding for an admitted visitor and the same Not found as every path for anyone else; home and the nav link there.
+- **Files:**
+  - `examples/me/src/server/origin.ts` — the per-user origin: verified login only, one folder per user
+  - `examples/me/src/server/main.ts` — the origin's process: Access audience, site and users folders, build provenance
+  - `examples/me/src/update.ts` — the page: who is signed in, then their understanding profile or plainly none yet
+  - `examples/me/src/view/understanding.ts` — the understanding page, moved whole from examples/performance
+  - `examples/me/README.md` — who sees what, where the data comes from, how to run it
+  - `examples/performance/src/server/origin.ts` — /understanding redirects to the new page
+  - `examples/performance/src/moved.ts` — the new page's address, one constant for the origin, router and links
+  - `.changeset/config.json` — ignores the private me-example package
+- **User context (verbatim):**
+  > Why is understanding on performance? I think it should be me.pisspour… and generalizable to every logged in user
+- **SpecStory:** unavailable — headless Claude Code run started by tools/agent-run for Scribe #2002; its transcript path is logged on that issue
+
 ## November 7th, 2026 at 3:07:05 a.m. EST — `5c45dadab075` feat(performance): green: Scribe #1968's understanding page
 
 - **Implementation commit:** `5c45dadab07549dd12b518b3362b9a6a891b0a3d`
