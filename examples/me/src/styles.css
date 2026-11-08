@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+/* The ink and surfaces of the performance page (examples/performance), light and dark, so the two pages read as one
+   family. */
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --plane: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-secondary: #52514e;
+  --ink-muted: #6f6d68;
+  --hairline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --critical-text: #b42727;
+  --border: rgba(11, 11, 11, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #f0efec;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #9a9890;
+    --hairline: #2c2c2a;
+    --baseline: #383835;
+    --critical-text: #e66767;
+    --border: rgba(255, 255, 255, 0.1);
+  }
+}
+
+body {
+  background: var(--plane);
+  color: var(--ink);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.ink-secondary {
+  color: var(--ink-secondary);
+}
+
+.ink-muted {
+  color: var(--ink-muted);
+}
+
+.text-critical {
+  color: var(--critical-text);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+a.link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--baseline);
+  text-underline-offset: 3px;
+}
+
+a.link:hover {
+  text-decoration-color: var(--ink);
+}

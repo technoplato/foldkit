@@ -6,18 +6,12 @@ import { toString as urlToString } from 'foldkit/url'
 import {
   FetchBuild,
   FetchIndex,
-  FetchUnderstanding,
   LoadExternal,
   NavigateInternal,
 } from './command'
 import type { Message } from './message'
-import {
-  BuildDetailData,
-  IndexData,
-  type Model,
-  type OpenBuild,
-  UnderstandingData,
-} from './model'
+import { BuildDetailData, IndexData, type Model, type OpenBuild } from './model'
+import { UNDERSTANDING_MOVED_TO } from './moved'
 import { type Destination, buildRouter, urlToDestination } from './route'
 
 // UPDATE
@@ -53,6 +47,17 @@ export const openBuildFor = (
     ]
   }
 }
+
+/**
+ * The page a destination sends the visitor on to: the understanding page's
+ * old address loads its new one on me.pisspoursoftware.xyz (Scribe #2002).
+ */
+export const movedPageCommands = (
+  destination: Destination,
+): ReadonlyArray<Command.Command<Message>> =>
+  destination._tag === 'UnderstandingMoved'
+    ? [LoadExternal({ href: UNDERSTANDING_MOVED_TO })]
+    : []
 
 const withBuildDetail = (
   model: Model,
@@ -93,7 +98,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             maybeOpenBuild: () => nextMaybeOpenBuild,
             maybeHover: () => Option.none(),
           }),
-          commands,
+          [...commands, ...movedPageCommands(nextDestination)],
         ]
       },
       CompletedNavigateInternal: () => [model, []],
@@ -108,23 +113,6 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             Option.match(AsyncData.getData(current), {
               onNone: () => IndexData.Failure({ error }),
               onSome: data => IndexData.Stale({ error, data }),
-            }),
-        }),
-        [],
-      ],
-      SucceededFetchUnderstanding: ({ understanding }) => [
-        evo(model, {
-          understanding: () =>
-            UnderstandingData.Success({ data: understanding }),
-        }),
-        [],
-      ],
-      FailedFetchUnderstanding: ({ error }) => [
-        evo(model, {
-          understanding: current =>
-            Option.match(AsyncData.getData(current), {
-              onNone: () => UnderstandingData.Failure({ error }),
-              onSome: data => UnderstandingData.Stale({ error, data }),
             }),
         }),
         [],
@@ -154,13 +142,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               onNone: () => IndexData.Loading(),
               onSome: data => IndexData.Refreshing({ data }),
             }),
-          understanding: current =>
-            Option.match(AsyncData.getData(current), {
-              onNone: () => UnderstandingData.Loading(),
-              onSome: data => UnderstandingData.Refreshing({ data }),
-            }),
         }),
-        [FetchIndex(), FetchUnderstanding()],
+        [FetchIndex()],
       ],
       HoveredChartColumn: ({ metricId, build }) => [
         evo(model, { maybeHover: () => Option.some({ metricId, build }) }),

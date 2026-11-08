@@ -5,12 +5,8 @@ import { type Document, type Html, html } from 'foldkit/html'
 import type { Index } from '../data'
 import { ClickedReload, type Message } from '../message'
 import type { Model } from '../model'
-import {
-  homeRouter,
-  issuesRouter,
-  methodRouter,
-  understandingRouter,
-} from '../route'
+import { UNDERSTANDING_MOVED_TO } from '../moved'
+import { homeRouter, issuesRouter, methodRouter } from '../route'
 import { appView } from './app'
 import { buildView } from './build'
 import { findApp, findMetric, formatDate, shortSha } from './format'
@@ -18,7 +14,6 @@ import { homeView } from './home'
 import { issuesView } from './issues'
 import { methodView } from './method'
 import { metricView } from './metric'
-import { understandingView } from './understanding'
 
 // CONSTANT
 
@@ -41,10 +36,33 @@ const notFoundView = (what: string): Html => {
   )
 }
 
+const understandingMovedView = (): Html => {
+  const h = html<Message>()
+  return h.div(
+    [],
+    [
+      h.h1(
+        [h.Class('text-2xl font-semibold')],
+        ['The understanding page moved'],
+      ),
+      h.p(
+        [h.Class('mt-2 ink-secondary')],
+        [
+          'It is on your own page now: ',
+          h.a(
+            [h.Href(UNDERSTANDING_MOVED_TO), h.Class('link')],
+            ['me.pisspoursoftware.xyz/understanding'],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
 const pageView = (model: Model, index: Index): Html =>
   M.value(model.destination).pipe(
     M.tagsExhaustive({
-      Home: () => homeView(index, model.maybeHover, model.understanding),
+      Home: () => homeView(index, model.maybeHover),
       AppPage: ({ appId, scope }) =>
         Option.match(findApp(index, appId), {
           onNone: () => notFoundView(`No app is named ${appId}.`),
@@ -70,7 +88,7 @@ const pageView = (model: Model, index: Index): Html =>
         ),
       IssuesPage: () => issuesView(index),
       MethodPage: () => methodView(index),
-      UnderstandingPage: () => understandingView(model.understanding),
+      UnderstandingMoved: understandingMovedView,
       NotFound: ({ path }) => notFoundView(`No page answers ${path}.`),
     }),
   )
@@ -130,7 +148,7 @@ const titleOf = (model: Model): string =>
       MetricPage: ({ appId, metricId }) => `${metricId} | ${appId} | ${SITE}`,
       IssuesPage: () => `Issues | ${SITE}`,
       MethodPage: () => `How the numbers are made | ${SITE}`,
-      UnderstandingPage: () => `Understanding | ${SITE}`,
+      UnderstandingMoved: () => `Understanding moved | ${SITE}`,
       NotFound: () => `Not here | ${SITE}`,
     }),
   )
@@ -160,7 +178,7 @@ export const view = (model: Model): Document => {
                   [
                     navLink(homeRouter(), 'Apps'),
                     navLink(issuesRouter(), 'Issues'),
-                    navLink(understandingRouter(), 'Understanding'),
+                    navLink(UNDERSTANDING_MOVED_TO, 'Understanding'),
                     navLink(methodRouter(), 'How it is measured'),
                   ],
                 ),

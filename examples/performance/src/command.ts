@@ -3,24 +3,19 @@ import { HttpClient } from 'effect/unstable/http'
 import { Command, Http } from 'foldkit'
 import { load, pushUrl } from 'foldkit/navigation'
 
-import { BuildDetail, Index, Understanding } from './data'
+import { BuildDetail, Index } from './data'
 import {
   CompletedLoadExternal,
   CompletedNavigateInternal,
   FailedFetchBuild,
   FailedFetchIndex,
-  FailedFetchUnderstanding,
   SucceededFetchBuild,
   SucceededFetchIndex,
-  SucceededFetchUnderstanding,
 } from './message'
 
 // CONSTANT
 
 export const INDEX_PATH = '/data/index.json'
-
-/** Where the understanding profile's count is served, beside the index. */
-export const UNDERSTANDING_PATH = '/data/understanding.json'
 
 /** Where one build's file is served: `/data/builds/scribe/270.json`. */
 export const buildDataPath = (appId: string, build: string): string =>
@@ -52,20 +47,6 @@ export const FetchIndex = Command.define(
     Effect.map(index => SucceededFetchIndex({ index })),
     Effect.catch(error =>
       Effect.succeed(FailedFetchIndex({ error: describeError(error) })),
-    ),
-    Effect.provide(Http.layer),
-  ),
-)
-
-export const FetchUnderstanding = Command.define(
-  'FetchUnderstanding',
-  SucceededFetchUnderstanding,
-  FailedFetchUnderstanding,
-)(
-  fetchDecoded(Understanding, UNDERSTANDING_PATH).pipe(
-    Effect.map(understanding => SucceededFetchUnderstanding({ understanding })),
-    Effect.catch(error =>
-      Effect.succeed(FailedFetchUnderstanding({ error: describeError(error) })),
     ),
     Effect.provide(Http.layer),
   ),

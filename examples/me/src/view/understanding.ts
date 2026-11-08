@@ -1,4 +1,4 @@
-import { Array, Match as M } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 import { AsyncData } from 'foldkit'
 import { type Html, html } from 'foldkit/html'
 
@@ -9,7 +9,6 @@ import type {
 } from '../data'
 import type { Message } from '../message'
 import type { Model } from '../model'
-import { understandingRouter } from '../route'
 import { formatDate } from './format'
 import { outsideLink, sectionHeading } from './parts'
 
@@ -34,7 +33,7 @@ const countView = (understanding: Understanding): Html => {
             h.p(
               [h.Class('mt-1 max-w-2xl ink-secondary')],
               [
-                'areas of the understanding profile are at proficient: a problem in each could be found and fixed without an agent. Each area stands where its newest rating puts it.',
+                'areas of your understanding profile are at proficient: a problem in each could be found and fixed without an agent. Each area stands where its newest rating puts it.',
               ],
             ),
           ],
@@ -157,7 +156,27 @@ const pageOf = (understanding: Understanding): Html => {
   )
 }
 
-/** The understanding profile's page: the areas at proficient, every area by its newest rating, and the count after each rating. */
+const noProfile = (): Html => {
+  const h = html<Message>()
+  return h.div(
+    [h.Class('max-w-5xl')],
+    [
+      h.h1([h.Class('mb-4 text-3xl font-semibold')], ['Understanding']),
+      h.p(
+        [h.Class('ink-secondary')],
+        ['You have no understanding profile yet.'],
+      ),
+    ],
+  )
+}
+
+const profileOf = (maybeUnderstanding: Option.Option<Understanding>): Html =>
+  Option.match(maybeUnderstanding, {
+    onNone: noProfile,
+    onSome: pageOf,
+  })
+
+/** The signed-in user's understanding page: the areas at proficient, every area by its newest rating, and the count after each rating; or, plainly, that they have no profile yet. */
 export const understandingView = (
   understanding: Model['understanding'],
 ): Html => {
@@ -165,7 +184,7 @@ export const understandingView = (
   return AsyncData.match(understanding, {
     onIdle: () => h.p([h.Class('ink-muted')], ['Loading the profile…']),
     onLoading: () => h.p([h.Class('ink-muted')], ['Loading the profile…']),
-    onRefreshing: data => h.div([h.Class('opacity-70')], [pageOf(data)]),
+    onRefreshing: data => h.div([h.Class('opacity-70')], [profileOf(data)]),
     onFailure: error =>
       h.div(
         [h.Class('surface rounded-lg p-4')],
@@ -177,35 +196,7 @@ export const understandingView = (
           h.p([h.Class('mt-1 text-sm ink-secondary')], [error]),
         ],
       ),
-    onStale: ({ data }) => pageOf(data),
-    onSuccess: data => pageOf(data),
-  })
-}
-
-/** One line for home: the areas at proficient, linked to their page. */
-export const understandingSummary = (
-  understanding: Model['understanding'],
-): Html => {
-  const h = html<Message>()
-  return AsyncData.matchData(understanding, {
-    onEmpty: () => h.span([], []),
-    onFailure: () => h.span([], []),
-    onData: data =>
-      M.value(data.count).pipe(
-        M.tagsExhaustive({
-          Measured: ({ proficient, areas }) =>
-            h.p(
-              [h.Class('mb-10 ink-secondary')],
-              [
-                'Understanding: ',
-                h.a(
-                  [h.Href(understandingRouter()), h.Class('link')],
-                  [`${proficient} of ${areas} areas at proficient`],
-                ),
-              ],
-            ),
-          NotMeasured: () => h.span([], []),
-        }),
-      ),
+    onStale: ({ data }) => profileOf(data),
+    onSuccess: profileOf,
   })
 }

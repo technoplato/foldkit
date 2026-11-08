@@ -11,12 +11,18 @@ import {
   publicNotFound,
 } from '@foldkit/instant'
 
+import { UNDERSTANDING_MOVED_TO } from '../moved'
+
 // CONSTANT
 
 const DATA_PREFIX = '/data/'
 const DATA_FILE = /^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*\.json$/
 const ASSETS_PREFIX = '/assets/'
 const INDEX_FILE = 'index.html'
+const UNDERSTANDING_PATHS: ReadonlyArray<string> = [
+  '/understanding',
+  '/understanding/',
+]
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8',
@@ -121,6 +127,22 @@ const notFound: OriginAnswer = {
   body: publicNotFound.body,
 }
 
+/**
+ * The understanding page's old address sends an admitted visitor to each
+ * user's own page (Scribe #2002), with nothing of the page in it. A 302, not
+ * a 301, so a browser keeps no record of it while the move can still be
+ * undone.
+ */
+const understandingMoved: OriginAnswer = {
+  status: 302,
+  headers: {
+    ...securityHeaders,
+    location: UNDERSTANDING_MOVED_TO,
+    'cache-control': 'no-store',
+  },
+  body: '',
+}
+
 const fileAnswer = async (
   path: string,
   cacheControl: string,
@@ -165,7 +187,9 @@ export const answerRequest = async (
     return notFound
   }
   const path = maybePath.value
-  if (String.startsWith(DATA_PREFIX)(path)) {
+  if (Array.contains(UNDERSTANDING_PATHS, path)) {
+    return understandingMoved
+  } else if (String.startsWith(DATA_PREFIX)(path)) {
     const name = String.slice(DATA_PREFIX.length)(path)
     if (!DATA_FILE.test(name)) {
       return notFound

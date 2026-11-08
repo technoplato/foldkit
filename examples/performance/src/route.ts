@@ -20,8 +20,8 @@ export const MetricPage = r('MetricPage', {
 export const IssuesPage = r('IssuesPage')
 /** How every number is made, where it comes from, and who can open this page: `/method`. */
 export const MethodPage = r('MethodPage')
-/** The understanding profile's areas at proficient, area by area: `/understanding`. */
-export const UnderstandingPage = r('UnderstandingPage')
+/** The understanding page's old address, which sends a visitor to its new one on me.pisspoursoftware.xyz: `/understanding`. */
+export const UnderstandingMoved = r('UnderstandingMoved')
 export const NotFound = r('NotFound', { path: S.String })
 
 /**
@@ -35,7 +35,7 @@ export const Destination = S.Union([
   MetricPage,
   IssuesPage,
   MethodPage,
-  UnderstandingPage,
+  UnderstandingMoved,
   NotFound,
 ])
 export type Destination = typeof Destination.Type
@@ -72,9 +72,9 @@ export const issuesRouter = pipe(literal('issues'), Route.mapTo(IssuesPage))
 
 export const methodRouter = pipe(literal('method'), Route.mapTo(MethodPage))
 
-export const understandingRouter = pipe(
+export const understandingMovedRouter = pipe(
   literal('understanding'),
-  Route.mapTo(UnderstandingPage),
+  Route.mapTo(UnderstandingMoved),
 )
 
 const destinationParser = Route.oneOf(
@@ -83,7 +83,7 @@ const destinationParser = Route.oneOf(
   appRouter,
   issuesRouter,
   methodRouter,
-  understandingRouter,
+  understandingMovedRouter,
   homeRouter,
 )
 
@@ -104,7 +104,7 @@ export const destinationPath = (destination: Destination): string =>
         metricRouter({ appId, metricId, scope }),
       IssuesPage: () => issuesRouter(),
       MethodPage: () => methodRouter(),
-      UnderstandingPage: () => understandingRouter(),
+      UnderstandingMoved: () => understandingMovedRouter(),
       NotFound: ({ path }) => path,
     }),
   )
