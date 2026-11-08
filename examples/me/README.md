@@ -1,5 +1,9 @@
 # me.pisspoursoftware.xyz
 
+https://me.pisspoursoftware.xyz is built from
+[github.com/technoplato/foldkit/tree/main/examples/me/src](https://github.com/technoplato/foldkit/tree/main/examples/me/src),
+the line every page of it starts with.
+
 Each signed-in user's own page (Scribe issue 2002). It holds what is kept for that user: today their understanding
 profile, its count and its history, which moved here from the performance page's `/understanding`.
 
@@ -15,6 +19,8 @@ that verified login only, never from the URL, a header, a cookie or anything els
   file of their folder, by a strict name.
 - A user without a profile sees, plainly, that they have none yet.
 - Per-user answers are `private, no-store`; only the built assets may be cached.
+- One answer needs no login: `/source` asked on the Mac that runs the origin (loopback, no proxy header) is the built
+  page's source header alone, so Scribe's header sweep (issue 1547) can check it.
 
 No route names a user: `/understanding` is one address that each user reads as their own.
 

@@ -7,12 +7,15 @@ import { extname, join } from 'node:path'
 import {
   type AccessIdentity,
   accessTokenFromHeaders,
+  isLocalDevelopmentRequest,
   plainPathOf,
   publicNotFound,
 } from '@foldkit/instant'
 
 // CONSTANT
 
+const SOURCE_PATH = '/source'
+const SOURCE_HEADER = /<header data-site-source[^>]*>[\s\S]*?<\/header>/
 const DATA_PREFIX = '/data/'
 const DATA_FILE = /^[a-z0-9][a-z0-9-]*\.json$/
 const ME_FILE = 'me.json'
@@ -161,6 +164,30 @@ const filesIn = async (folder: string): Promise<ReadonlyArray<string>> =>
     () => [],
   )
 
+/**
+ * Where the page's code lives, for Scribe's header sweep (#1547): the built
+ * page's source header alone, with nothing of a user in it. The sweep
+ * carries no login and asks on this Mac, so this is its one answer without
+ * one, as the private stream's `/source` is (#1565).
+ */
+const sourceAnswer = async (siteDirectory: string): Promise<OriginAnswer> =>
+  readFile(join(siteDirectory, INDEX_FILE), 'utf8').then(
+    html =>
+      Option.match(Option.fromNullishOr(SOURCE_HEADER.exec(html)), {
+        onNone: () => notFound,
+        onSome: ([header]) => ({
+          status: 200,
+          headers: {
+            ...securityHeaders,
+            'content-type': CONTENT_TYPES['.html'] ?? 'text/html',
+            'cache-control': 'no-store',
+          },
+          body: header,
+        }),
+      }),
+    () => notFound,
+  )
+
 const meAnswer = async (
   email: string,
   folder: string,
@@ -180,7 +207,9 @@ const meAnswer = async (
 
 /**
  * The answer to one request. Anyone not signed in gets the same Not found
- * for every path, so the page never shows that it exists. A signed-in
+ * for every path, so the page never shows that it exists; the one
+ * exception is `/source` asked on this Mac, the page's source header for
+ * the header sweep, which holds nothing of a user. A signed-in
  * user's data comes only from their own folder: `/data/me.json` is the
  * origin's own answer (who the login says they are, and what their folder
  * holds), and `/data/<name>.json` is that file of their folder, by a strict
@@ -191,8 +220,18 @@ export const answerRequest = async (
   config: OriginConfig,
   request: OriginRequest,
 ): Promise<OriginAnswer> => {
-  const visitor = await visitorOf(config, request)
   const maybePath = plainPathOf(request.url)
+  if (
+    Option.contains(maybePath, SOURCE_PATH) &&
+    String.toUpperCase(request.method) === 'GET' &&
+    isLocalDevelopmentRequest({
+      remoteAddress: request.remoteAddress,
+      headers: request.headers,
+    })
+  ) {
+    return sourceAnswer(config.siteDirectory)
+  }
+  const visitor = await visitorOf(config, request)
   if (visitor._tag === 'Refused') {
     config.log(
       `refused ${request.method} ${Option.getOrElse(maybePath, () => '(not a plain path)')}: ${visitor.reason}`,
