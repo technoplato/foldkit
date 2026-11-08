@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 8th, 2026 at 12:23:10 a.m. EST — `1d0d9befd95b` feat(me): green: Scribe #2002's origin answers the header sweep on this Mac
+
+- **Implementation commit:** `1d0d9befd95ba5e64e0a200038d6c20fe8e30193`
+- **Change:** feat(me): green: Scribe #2002's origin answers the header sweep on this Mac
+- **Details:**
+  - /source asked on this Mac (isLocalDevelopmentRequest: loopback, a loopback Host, no proxy header) answers the built page's source header alone, no-store, so Scribe's #1547 sweep can prove where the page's code lives; everything else still needs a verified login, on this Mac too. Tests came first in 5719f8a48.
+- **Files:**
+  - `examples/me/src/server/origin.ts` — /source on loopback: the built index.html's source header alone
+  - `examples/me/README.md` — links back to https://me.pisspoursoftware.xyz and shows the same source location (#1547)
+- **User context (verbatim):**
+  > Why is understanding on performance? I think it should be me.pisspour… and generalizable to every logged in user
+- **SpecStory:** unavailable — headless Claude Code run started by tools/agent-run for Scribe #2002; its transcript path is logged on that issue
+
 ## November 8th, 2026 at 12:09:02 a.m. EST — `6bc9bd09b2cd` feat(me): green: Scribe #2002's page for each signed-in user
 
 - **Implementation commit:** `6bc9bd09b2cdd0954c79076b57fb17bf4bb75558`
