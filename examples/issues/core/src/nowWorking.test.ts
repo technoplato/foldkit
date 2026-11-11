@@ -236,6 +236,98 @@ describe('Now working', () => {
     ).toEqual(encoded(released))
   })
 
+  // Scribe #2264: on 2026-11-11 a watchdog's resume of a replaced run claimed an
+  // Issue from the agent working on it, stopped ten seconds later, and the sync
+  // released the claim to nobody while that agent worked on, three times.
+  const laneAgent = (name: string, startedAt: number) =>
+    LiveAgent.make({
+      ...liveAgent,
+      agentId: `claude-code/${name}@max`,
+      name,
+      startedAtMs: Option.some(startedAt),
+    })
+  const claimedBy = (agentId: string, atMs: number) =>
+    IssueWorkLogEntry.make({
+      agentId: Option.some(agentId),
+      commitSha: Option.none(),
+      durationSeconds: Option.none(),
+      id: `work-1374-claimed-${String(atMs)}`,
+      occurredAtMs: atMs,
+      state: Option.some('claimed'),
+      summary: `${agentId} claims #1374`,
+    })
+  const takenByAFailedRun = (workLog: ReadonlyArray<IssueWorkLogEntry>) =>
+    Issue.make({
+      ...issue,
+      claimantId: Option.some('claude-code/issue-wip-1374b@max'),
+      workLog: [
+        ...workLog,
+        claimedBy(
+          'claude-code/issue-wip-1374b@max',
+          observedAtMs - 30_000,
+        ),
+      ],
+    })
+  const failedRun = EndedRun.make({
+    endedAtMs: Option.some(observedAtMs - 20_000),
+    how: 'failed (exit 1)',
+    issueId: Option.some('1374'),
+    name: 'issue-wip-1374b',
+  })
+  const releasedBy = (summary: string) =>
+    IssueWorkLogEntry.make({
+      agentId: Option.some(workingSyncAgent),
+      commitSha: Option.none(),
+      durationSeconds: Option.none(),
+      id: `work-1374-released-${String(observedAtMs)}`,
+      occurredAtMs: observedAtMs,
+      state: Option.some('released'),
+      summary,
+    })
+
+  it('hands a released claim back to the newest earlier claimant still running on the Issue', () => {
+    const successor = laneAgent('issue-wip-1374c', startedAtMs)
+    const helper = laneAgent('cut-1374', startedAtMs + 120_000)
+    const taken = takenByAFailedRun([
+      claimedBy(successor.agentId, observedAtMs - 60_000),
+    ])
+    const survey = surveyOf([helper, successor], [failedRun])
+
+    const observed = observedIssue(taken, survey, Option.none())
+
+    expect(observed.claimantId).toEqual(Option.some(successor.agentId))
+    expect(
+      Option.map(observed.agentPresence, presence => [
+        presence.agentId,
+        presence.run._tag,
+      ]),
+    ).toEqual(Option.some([successor.agentId, 'Running']))
+    expect(observed.workLog.slice(taken.workLog.length)).toEqual([
+      releasedBy(
+        'Released the claim of claude-code/issue-wip-1374b@max: its run ended (failed (exit 1)); the claim goes back to claude-code/issue-wip-1374c@max, which is running on #1374.',
+      ),
+    ])
+    expect(encoded(observedIssue(observed, survey, Option.none()))).toEqual(
+      encoded(observed),
+    )
+  })
+
+  it('hands a released claim to the newest agent running on the Issue when none of them claimed it', () => {
+    const older = laneAgent('issue-wip-1374c', startedAtMs)
+    const newer = laneAgent('cut-1374', startedAtMs + 120_000)
+
+    const observed = observedIssue(
+      takenByAFailedRun([]),
+      surveyOf([older, newer], [failedRun]),
+      Option.none(),
+    )
+
+    expect(observed.claimantId).toEqual(Option.some(newer.agentId))
+    expect(observed.workLog.at(-1)?.summary).toBe(
+      'Released the claim of claude-code/issue-wip-1374b@max: its run ended (failed (exit 1)); the claim goes back to claude-code/cut-1374@max, which is running on #1374.',
+    )
+  })
+
   it('says an agent that holds no claim ended once it no longer runs', () => {
     const unclaimed = Issue.make({ ...issue, claimantId: Option.none() })
     const running = observedIssue(
