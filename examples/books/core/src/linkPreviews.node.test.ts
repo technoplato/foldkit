@@ -62,6 +62,7 @@ const feelingHappy: ReadAloud.Book = {
   ),
   links: [],
   aliases: [],
+  contents: [],
 }
 
 const halloween: ReadAloud.Book = {

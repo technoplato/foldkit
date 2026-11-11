@@ -85,6 +85,7 @@ const feelingHappy: Book = {
     },
   ],
   aliases: [],
+  contents: [],
 }
 
 const christmas: Book = {
@@ -112,6 +113,7 @@ const christmas: Book = {
   maybeCoverUrl: Option.none(),
   links: [],
   aliases: [],
+  contents: [],
 }
 
 const turnOf = (
@@ -127,11 +129,13 @@ const turnOf = (
   page: PageNumber.make(page),
   turnedAtMs,
   isOngoing,
+  maybeMoment: Option.none(),
 })
 
 const readingsOf = (turns: ReadonlyArray<PageTurn>): Readings => ({
   books: [feelingHappy, christmas],
   turns: Array.reverse(turns),
+  sittings: [],
 })
 
 const pagesOneToFour: ReadonlyArray<PageTurn> = [
@@ -260,7 +264,7 @@ describe('Read Aloud', () => {
     const { bound, send } = bindApp()
     send(
       ReceivedReadings({
-        readings: { books: [feelingHappy, christmas], turns: [] },
+        readings: { books: [feelingHappy, christmas], turns: [], sittings: [] },
       }),
     )
     expect(
@@ -701,4 +705,3 @@ describe('The book in full', () => {
     expect(listOf(openAt(2), 'This page')).toEqual(Option.none())
   })
 })
-

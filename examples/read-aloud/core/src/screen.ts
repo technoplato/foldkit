@@ -31,15 +31,25 @@ import {
   type Book,
   type CreditRole,
   type GooglePreview,
+  type Moment,
+  type PageTurn,
   type PreviewCheck,
   type ReadAloudView,
+  type Sitting,
   booksOf,
   bylineOf,
   liveTurnOf,
+  momentLabelOf,
+  momentUrlOf,
   nameOfBookKey,
   newestTurnOf,
   previewCheckOf,
+  sittingsOfBook,
+  storiesOf,
+  storyOfPage,
+  turnsOfPage,
 } from './model.js'
+import { pagePathOf } from './routes.js'
 import { shownBookOf } from './stack.js'
 
 // VIEW
@@ -515,6 +525,141 @@ const creditsOf = (
     },
   )
 
+const pagesWordsOf = (
+  first: PageNumber,
+  maybeLast: Option.Option<PageNumber>,
+): string =>
+  Option.match(
+    Option.filter(maybeLast, last => last !== first),
+    {
+      onNone: () =>
+        Option.isSome(maybeLast)
+          ? `page ${first.toString()}`
+          : `from page ${first.toString()}`,
+      onSome: last => `pages ${first.toString()}–${last.toString()}`,
+    },
+  )
+
+const storyLineOf = (
+  maybeBook: Option.Option<Book>,
+  page: PageNumber,
+): ReadonlyArray<UiNode> =>
+  Array.fromOption(
+    Option.map(
+      Option.flatMap(maybeBook, book => storyOfPage(book, page)),
+      story =>
+        Text(
+          `${story.chapter.title} · ${pagesWordsOf(story.chapter.firstPage, story.maybeLastPage)}`,
+          { dim: true },
+        ),
+    ),
+  )
+
+const hereLine = 'You are here'
+
+const contentsItemsOf = (
+  book: Book,
+  page: PageNumber,
+): ReadonlyArray<ListItem> =>
+  Array.map(storiesOf(book), story => {
+    const isHere = Option.exists(
+      storyOfPage(book, page),
+      here => here.chapter.firstPage === story.chapter.firstPage,
+    )
+    return {
+      key: `story-${story.chapter.firstPage.toString()}`,
+      title: story.chapter.title,
+      lines: [
+        pagesWordsOf(story.chapter.firstPage, story.maybeLastPage),
+        ...(isHere ? [hereLine] : []),
+      ],
+      ...(isHere ? { isCurrent: true } : {}),
+      ...hrefOf(pagePathOf(book.key, story.chapter.firstPage)),
+    }
+  })
+
+const titledList = (
+  label: string,
+  items: ReadonlyArray<ListItem>,
+): ReadonlyArray<UiNode> =>
+  Array.match(items, {
+    onEmpty: () => [],
+    onNonEmpty: nonEmpty => [
+      Text(label, { dim: true }),
+      List({ label, items: nonEmpty }),
+    ],
+  })
+
+const recordingWordsOf = (
+  maybeMoment: Option.Option<Moment>,
+): Option.Option<string> =>
+  Option.map(
+    Option.flatMap(maybeMoment, moment => moment.maybeRecordingNumber),
+    number => `Recording ${number}`,
+  )
+
+const momentHrefOf = (
+  maybeMoment: Option.Option<Moment>,
+): Pick<ListItem, 'href'> => hrefOf(Option.map(maybeMoment, momentUrlOf))
+
+const readingNowLine = 'Reading now'
+
+const sittingItemOf = (sitting: Sitting): ListItem => ({
+  key: sitting.readingId,
+  title: momentLabelOf(sitting.startedAtMs),
+  lines: [
+    Array.join(
+      [
+        ...Option.toArray(recordingWordsOf(sitting.maybeMoment)),
+        ...Option.toArray(
+          Option.map(sitting.maybeFirstPage, first =>
+            pagesWordsOf(
+              first,
+              Option.orElse(sitting.maybeLastPage, () => Option.some(first)),
+            ),
+          ),
+        ),
+      ],
+      ' · ',
+    ),
+    ...(sitting.isOngoing ? [readingNowLine] : []),
+  ],
+  ...momentHrefOf(sitting.maybeMoment),
+})
+
+const turnItemOf = (turn: PageTurn): ListItem => ({
+  key: turn.turnId,
+  title: momentLabelOf(turn.turnedAtMs),
+  lines: Option.toArray(recordingWordsOf(turn.maybeMoment)),
+  ...momentHrefOf(turn.maybeMoment),
+})
+
+/**
+ * Where the book on screen meets Michael's recordings: each time the page
+ * on screen was read, its Contents with each story's pages, and every
+ * sitting with the book, each a link to the moment in the recording.
+ * Dates, numbers and links only, never the words read (ADR 0048 section 8).
+ */
+const crossReferencesOf = (
+  model: ReadAloudView,
+  maybeBook: Option.Option<Book>,
+  page: PageNumber,
+): ReadonlyArray<UiNode> =>
+  Option.match(maybeBook, {
+    onNone: () => [],
+    onSome: book => [
+      ...titledList(
+        'This page',
+        Array.map(turnsOfPage(model, book, page), turnItemOf),
+      ),
+      ...titledList('Contents', contentsItemsOf(book, page)),
+      ...titledList(
+        'Read aloud',
+        Array.map(sittingsOfBook(model, book), sittingItemOf),
+      ),
+    ],
+  })
+
 const shareIcon: IconName = 'Share'
 
 const shareRowOf = (entries: Entries): ReadonlyArray<UiNode> =>
@@ -530,11 +675,13 @@ const shareRowOf = (entries: Entries): ReadonlyArray<UiNode> =>
   )
 
 /**
- * One book open at one page: the book, the page in large type, whether
- * the screen is following the reading, Previous and Next page, the
- * preview turned to the page, or a clear "No preview available" with the
- * cover and where to find the book, the book's credits, and Share where
- * the holder shares links. Its buttons come from `entries`, the holder's
+ * One book open at one page: the book, the page in large type, the story
+ * the page is in, whether the screen is following the reading, Previous
+ * and Next page, the preview turned to the page, or a clear "No preview
+ * available" with the cover and where to find the book, each time the
+ * page was read, the book's Contents, every sitting with it, each linked
+ * to its moment in Michael's recordings (Scribe #2182), the book's credits,
+ * and Share where the holder shares links. Its buttons come from `entries`, the holder's
  * own Catalog entries, so a holder that cannot share shows no Share
  * button, and its credits link where `links` names a page.
  *
@@ -564,6 +711,7 @@ export const pageScreen = (
     }),
     pageLineOf(maybeBook, page),
     ...pageProgressOf(maybeBook, page),
+    ...storyLineOf(maybeBook, page),
     Text(followWordsOf(model, key, page), { dim: true }),
     Row(
       { gap: 1 },
@@ -577,6 +725,7 @@ export const pageScreen = (
       nameOfBookKey(model, key),
       page,
     ),
+    ...crossReferencesOf(model, maybeBook, page),
     ...creditsOf(maybeBook, links),
     ...shareRowOf(entries),
   )

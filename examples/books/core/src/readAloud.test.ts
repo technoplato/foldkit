@@ -37,6 +37,7 @@ const feelingHappy: ReadAloud.Book = {
   ),
   links: [],
   aliases: [],
+  contents: [],
 }
 
 const turnAt = (page: number, turnedAtMs: number): ReadAloud.PageTurn => ({
@@ -46,6 +47,7 @@ const turnAt = (page: number, turnedAtMs: number): ReadAloud.PageTurn => ({
   page: ReadAloud.PageNumber.make(page),
   turnedAtMs,
   isOngoing: true,
+  maybeMoment: Option.none(),
 })
 
 const readingsTo = (...pages: ReadonlyArray<number>) =>
@@ -58,6 +60,7 @@ const readingsTo = (...pages: ReadonlyArray<number>) =>
           isOngoing: index === pages.length - 1,
         })),
       ),
+      sittings: [],
     },
   })
 

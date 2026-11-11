@@ -39,6 +39,7 @@ const harborLights: ReadAloud.Book = {
   maybeCoverUrl: Option.none(),
   links: [],
   aliases: [],
+  contents: [],
 }
 
 const tidePools: ReadAloud.Book = {
@@ -56,10 +57,11 @@ const tidePools: ReadAloud.Book = {
   maybeCoverUrl: Option.none(),
   links: [],
   aliases: [],
+  contents: [],
 }
 
 const readings = ReadAloud.ReceivedReadings({
-  readings: { books: [harborLights, tidePools], turns: [] },
+  readings: { books: [harborLights, tidePools], turns: [], sittings: [] },
 })
 
 const bindApp = () => {

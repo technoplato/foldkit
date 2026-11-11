@@ -43,6 +43,7 @@ const feelingHappy: Book = {
   ),
   links: [],
   aliases: [],
+  contents: [],
 }
 
 const christmas: Book = {

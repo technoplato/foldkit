@@ -23,11 +23,14 @@ import {
 import {
   type Book,
   type BookLink,
+  type Chapter,
   type Credit,
   CreditRole,
+  type Moment,
   type PageTurn,
   type Publisher,
   type Readings,
+  type Sitting,
 } from './model.js'
 
 // SCRIBE
@@ -69,13 +72,17 @@ export const RecognitionRow = S.Struct({
   id: S.String,
   thingID: S.String,
   thingKind: S.String,
+  recordingID: maybe(S.String),
   thingRangeStart: maybe(S.Number),
   thingRangeEnd: maybe(S.Number),
   thingRangeUnit: maybe(S.String),
   isOngoing: S.Boolean,
+  startSeconds: maybe(S.Number),
   startedAtMs: S.Number,
+  endedAtMs: maybe(S.Number),
   updatedAtMs: S.Number,
   review: maybe(S.String),
+  evidenceJSON: maybe(S.String),
   detailJSON: maybe(S.String),
 })
 /** One line of Scribe's `recognitions` log. */
@@ -109,6 +116,27 @@ const ThingMetadata = S.Struct({
   publishDate: maybe(S.String),
   pageCount: maybe(S.Number),
   whereToBuy: maybe(S.Array(S.Unknown)),
+  contents: maybe(S.Array(S.Unknown)),
+})
+
+const ContentsEntry = S.Struct({ title: S.String, page: S.Number })
+
+const decodeContentsEntry = S.decodeUnknownOption(ContentsEntry)
+
+const chapterOf = (entry: unknown): Option.Option<Chapter> =>
+  Option.flatMap(decodeContentsEntry(entry), ({ title, page }) =>
+    Option.map(S.decodeUnknownOption(PageNumber)(page), firstPage => ({
+      title,
+      firstPage,
+    })),
+  )
+
+/**
+ * Only which line a recognition came from: the words heard there stay in
+ * Scribe, never on a books page (ADR 0048 section 8).
+ */
+const Evidence = S.Struct({
+  segments: maybe(S.Array(S.Struct({ id: S.String }))),
 })
 
 const noMetadata: typeof ThingMetadata.Type = {}
@@ -162,6 +190,7 @@ const readingDetailOf = ofJsonText(
 const qualifiersOf = ofJsonText(
   S.decodeUnknownOption(S.fromJsonString(RelationQualifiers)),
 )
+const evidenceOf = ofJsonText(S.decodeUnknownOption(S.fromJsonString(Evidence)))
 
 const decodeJsonLine = S.decodeUnknownOption(S.UnknownFromJsonString)
 
@@ -357,6 +386,7 @@ export const bookOfThing = (row: ThingRow): Option.Option<Book> => {
         ),
         links: linksOf(metadata.whereToBuy ?? []),
         aliases: [],
+        contents: Array.getSomes(Array.map(metadata.contents ?? [], chapterOf)),
       })),
     ),
   )
@@ -643,6 +673,10 @@ const sameBookOf = (
         book.links,
         firstNonEmptyOf(members, member => member.links),
       ),
+      contents: orWhenEmpty(
+        book.contents,
+        firstNonEmptyOf(members, member => member.contents),
+      ),
       aliases: aliasesOf(book.key, rows),
     },
     thingIds: Array.map(rows, row => row.id),
@@ -685,6 +719,39 @@ const lastMarkedPageOf = (detail: ReadingDetail): Option.Option<number> =>
     mark => S.decodeUnknownOption(S.FiniteFromString)(mark.page),
   )
 
+/**
+ * Where in a recording a recognition was made: the recording, its number,
+ * the second, and the line its evidence names.
+ */
+const momentOfRow =
+  (recordingNumberOf: (recordingId: string) => Option.Option<string>) =>
+  (row: RecognitionRow): Option.Option<Moment> =>
+    Option.map(
+      Option.all({
+        recordingId: Option.fromNullishOr(row.recordingID),
+        seconds: Option.fromNullishOr(row.startSeconds),
+      }),
+      ({ recordingId, seconds }) => ({
+        recordingId,
+        maybeRecordingNumber: recordingNumberOf(recordingId),
+        seconds,
+        maybeSegmentId: Option.flatMap(evidenceOf(row.evidenceJSON), evidence =>
+          Option.map(
+            Array.head(evidence.segments ?? []),
+            segment => segment.id,
+          ),
+        ),
+      }),
+    )
+
+const pageOf = (value: number | null | undefined): Option.Option<PageNumber> =>
+  Option.flatMap(Option.fromNullishOr(value), S.decodeUnknownOption(PageNumber))
+
+const bySittingStartedDescending = Order.mapInput(
+  Order.flip(Order.Number),
+  (sitting: Sitting) => sitting.startedAtMs,
+)
+
 const readingTurnOf =
   (bookIdOfThing: (thingId: string) => Option.Option<BookId>) =>
   ({ row, detail }: ReadingRow): Option.Option<PageTurn> =>
@@ -712,6 +779,7 @@ const readingTurnOf =
               () => row.updatedAtMs,
             ),
             isOngoing: row.isOngoing,
+            maybeMoment: Option.none(),
           }),
         ),
       ),
@@ -743,7 +811,10 @@ export const readingsOfRows = (
   thingRows: ReadonlyArray<ThingRow>,
   recognitionRows: ReadonlyArray<RecognitionRow>,
   relationRows: ReadonlyArray<RelationRow> = [],
+  recordingNumberOf: (recordingId: string) => Option.Option<string> = () =>
+    Option.none(),
 ): Readings => {
+  const momentOf = momentOfRow(recordingNumberOf)
   const sameBooks = Array.map(
     sameBooksOf(thingRows),
     creditedFrom(graphOf(thingRows, relationRows)),
@@ -796,6 +867,7 @@ export const readingsOfRows = (
           ...ids,
           turnedAtMs: row.startedAtMs,
           isOngoing: row.isOngoing && isReadingOngoing(detail.readingID),
+          maybeMoment: momentOf(row),
         }),
       ),
     ),
@@ -809,8 +881,32 @@ export const readingsOfRows = (
     Array.map(readingTurnOf(bookIdOfThing)),
     Array.getSomes,
   )
+  const sittings = pipe(
+    recognitions,
+    Array.filter(row => Option.isNone(pageDetailOf(row.detailJSON))),
+    Array.map(row =>
+      Option.map(
+        Option.all({
+          readingId: S.decodeUnknownOption(ReadingId)(row.id),
+          bookId: bookIdOfThing(row.thingID),
+        }),
+        (ids): Sitting => ({
+          ...ids,
+          startedAtMs: row.startedAtMs,
+          maybeEndedAtMs: Option.fromNullishOr(row.endedAtMs),
+          isOngoing: row.isOngoing,
+          maybeFirstPage: pageOf(row.thingRangeStart),
+          maybeLastPage: pageOf(row.thingRangeEnd),
+          maybeMoment: momentOf(row),
+        }),
+      ),
+    ),
+    Array.getSomes,
+    Array.sort(bySittingStartedDescending),
+  )
   return {
     books,
     turns: Array.sort([...pageTurns, ...readingTurns], byTurnedAtDescending),
+    sittings,
   }
 }

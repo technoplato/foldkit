@@ -1,17 +1,19 @@
 import {
+  Array,
   Duration,
   Effect,
   Layer,
   Option,
   Predicate,
   Queue,
+  Record,
   Schema as S,
   Stream,
 } from 'effect'
 import { watch } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import type { Book, Readings } from './model.js'
 import { ReadingSource, ReadingSourceError, ReadingsJson } from './reading.js'
@@ -84,10 +86,51 @@ const textOf = (path: string): Effect.Effect<string, ReadingSourceError> =>
       }),
   })
 
+/** The folder beside Scribe's logs where it keeps each recording: `~/Scribe/recordings`. */
+export const recordingsFolderName = 'recordings'
+
+const recordingFolderPattern = /^(\d+) — .+ — ([0-9a-f]{8})$/u
+
+const recordingIdPrefixLength = 8
+
+/**
+ * The number Michael knows each recording by, from the folders Scribe keeps
+ * them in beside its logs: `410 — 2026-11-10 — 725c1dd4` is recording 410,
+ * whose id begins `725c1dd4`. None when the folder is not there.
+ */
+const recordingNumbersOf = (
+  directory: string,
+): Effect.Effect<(recordingId: string) => Option.Option<string>> =>
+  Effect.map(
+    Effect.promise(() =>
+      readdir(join(dirname(directory), recordingsFolderName)).catch(
+        (): ReadonlyArray<string> => [],
+      ),
+    ),
+    names => {
+      const numbers = Record.fromEntries(
+        Array.getSomes(
+          Array.map(names, name =>
+            Option.flatMap(
+              Option.fromNullishOr(recordingFolderPattern.exec(name)),
+              match => Option.all([Array.get(match, 2), Array.get(match, 1)]),
+            ),
+          ),
+        ),
+      )
+      return (recordingId: string) =>
+        Record.get(
+          numbers,
+          recordingId.slice(0, recordingIdPrefixLength).toLowerCase(),
+        )
+    },
+  )
+
 /**
  * The readings in Scribe's logs in `directory` right now, each book with
- * the credits its things graph keeps in `graph/`. A log that does not
- * exist yet reads as empty.
+ * the credits its things graph keeps in `graph/`, and each recording named
+ * by its number from the folders beside them. A log that does not exist
+ * yet reads as empty.
  *
  * @example
  * ```typescript
@@ -104,8 +147,9 @@ export const readingsOfDirectory = (
       textOf(join(directory, recognitionsFileName)),
       textOf(graphThingsPathOf(directory)),
       textOf(relationsPathOf(directory)),
+      recordingNumbersOf(directory),
     ]),
-    ([things, recognitions, graphThings, relations]) =>
+    ([things, recognitions, graphThings, relations, recordingNumberOf]) =>
       readingsOfRows(
         [
           ...thingRowsOf(rowsOfLines(things)),
@@ -113,6 +157,7 @@ export const readingsOfDirectory = (
         ],
         recognitionRowsOf(rowsOfLines(recognitions)),
         relationRowsOf(rowsOfLines(relations)),
+        recordingNumberOf,
       ),
   )
 

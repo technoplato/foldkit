@@ -154,6 +154,7 @@ describe('Scribe rows', () => {
           },
         ],
         aliases: ['thing-feeling-happy'],
+        contents: [],
       },
     ])
   })

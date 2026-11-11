@@ -1,4 +1,4 @@
-import { Array, Effect, Option, Order, Schema as S, pipe } from 'effect'
+import { Array, Effect, Option, Order, Schema as S, String, pipe } from 'effect'
 import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
 
@@ -62,6 +62,30 @@ export type Publisher = typeof Publisher.Type
 const noneYet = Effect.succeed([])
 
 /**
+ * One story or chapter of a book, as its Contents page lists it: its title
+ * and the page it starts on, `Monsters, Inc.: Scariest Day Ever` at page
+ * 141. Catalog facts, as Open Library keeps a table of contents: never the
+ * story's words.
+ */
+export const Chapter = S.Struct({ title: S.String, firstPage: PageNumber })
+/** One story or chapter of a book. */
+export type Chapter = typeof Chapter.Type
+
+/**
+ * A moment in one of Michael's recordings: the recording, the number he
+ * knows it by (`410`), the second into it, and the line said there, so a
+ * link opens the recording at that line.
+ */
+export const Moment = S.Struct({
+  recordingId: S.String,
+  maybeRecordingNumber: S.Option(S.String),
+  seconds: S.Number,
+  maybeSegmentId: S.Option(S.String),
+})
+/** A moment in one of Michael's recordings. */
+export type Moment = typeof Moment.Type
+
+/**
  * One book someone has read aloud, as Scribe recorded it: its title, who
  * made and published it, how many pages it has, its cover from Open
  * Library, and where to find it. Book information only: never its words or
@@ -87,13 +111,15 @@ export const Book = S.Struct({
   maybeCoverUrl: S.Option(S.String),
   links: S.Array(BookLink),
   aliases: S.Array(BookKey).pipe(S.withDecodingDefaultKey(noneYet)),
+  contents: S.Array(Chapter).pipe(S.withDecodingDefaultKey(noneYet)),
 })
 /** One book someone has read aloud. */
 export type Book = typeof Book.Type
 
 /**
  * One page Scribe heard the reader turn to: which book, in which reading,
- * which page, when the page began, and whether the reader is still on it.
+ * which page, when the page began, whether the reader is still on it, and
+ * the moment in the recording where Scribe heard it.
  */
 export const PageTurn = S.Struct({
   turnId: TurnId,
@@ -102,17 +128,38 @@ export const PageTurn = S.Struct({
   page: PageNumber,
   turnedAtMs: S.Number,
   isOngoing: S.Boolean,
+  maybeMoment: S.Option(Moment),
 })
 /** One page Scribe heard the reader turn to. */
 export type PageTurn = typeof PageTurn.Type
 
 /**
- * What the reading source holds: the books read aloud, newest first, and
- * the pages Scribe heard the reader turn to.
+ * One sitting with a book: when it began and ended, whether it goes on,
+ * the pages it reached, and the moment in the recording where Scribe
+ * recognized the book.
+ */
+export const Sitting = S.Struct({
+  readingId: ReadingId,
+  bookId: BookId,
+  startedAtMs: S.Number,
+  maybeEndedAtMs: S.Option(S.Number),
+  isOngoing: S.Boolean,
+  maybeFirstPage: S.Option(PageNumber),
+  maybeLastPage: S.Option(PageNumber),
+  maybeMoment: S.Option(Moment),
+})
+/** One sitting with a book. */
+export type Sitting = typeof Sitting.Type
+
+/**
+ * What the reading source holds: the books read aloud, newest first, the
+ * pages Scribe heard the reader turn to, and every sitting with a book,
+ * newest first.
  */
 export const Readings = S.Struct({
   books: S.Array(Book),
   turns: S.Array(PageTurn),
+  sittings: S.Array(Sitting).pipe(S.withDecodingDefaultKey(noneYet)),
 })
 /** What the reading source holds. */
 export type Readings = typeof Readings.Type
@@ -450,3 +497,133 @@ export const publisherOfKey = (
     Array.flatMap(book => book.publishedBy),
     Array.findFirst(publisher => publisher.key === key),
   )
+
+/**
+ * Each story in a book's Contents with its pages: from its first page to
+ * the page before the next story's, the last one to the book's end when
+ * the book's length is known.
+ *
+ * @example
+ * ```typescript
+ * storiesOf(halloween) // [{ chapter: Tiana's Ghost, maybeLastPage: Some(16) }, …, { chapter: Tricky Treats, maybeLastPage: Some(192) }]
+ * ```
+ */
+export const storiesOf = (
+  book: Book,
+): ReadonlyArray<
+  Readonly<{ chapter: Chapter; maybeLastPage: Option.Option<PageNumber> }>
+> =>
+  Array.map(book.contents, (chapter, index) => ({
+    chapter,
+    maybeLastPage: Option.match(Array.get(book.contents, index + 1), {
+      onNone: () =>
+        Option.filter(book.maybePageCount, count => count >= chapter.firstPage),
+      onSome: next => S.decodeUnknownOption(PageNumber)(next.firstPage - 1),
+    }),
+  }))
+
+/** The story a page is in: the last one in the Contents to start at or before it. */
+export const storyOfPage = (
+  book: Book,
+  page: PageNumber,
+): Option.Option<
+  Readonly<{ chapter: Chapter; maybeLastPage: Option.Option<PageNumber> }>
+> =>
+  Array.findLast(
+    storiesOf(book),
+    story =>
+      story.chapter.firstPage <= page &&
+      Option.match(story.maybeLastPage, {
+        onNone: () => true,
+        onSome: last => page <= last,
+      }),
+  )
+
+const bySittingStartedDescending = Order.mapInput(
+  Order.flip(Order.Number),
+  (sitting: Sitting) => sitting.startedAtMs,
+)
+
+/** Every sitting with `book`, the newest first. */
+export const sittingsOfBook = (
+  model: HasReadings,
+  book: Book,
+): ReadonlyArray<Sitting> =>
+  Option.match(readingsOf(model), {
+    onNone: () => [],
+    onSome: readings =>
+      pipe(
+        readings.sittings,
+        Array.filter(sitting => sitting.bookId === book.bookId),
+        Array.sort(bySittingStartedDescending),
+      ),
+  })
+
+/** Each time Scribe heard the reader turn to `page` of `book`, the newest first. */
+export const turnsOfPage = (
+  model: HasReadings,
+  book: Book,
+  page: PageNumber,
+): ReadonlyArray<PageTurn> =>
+  Option.match(readingsOf(model), {
+    onNone: () => [],
+    onSome: readings =>
+      pipe(
+        readings.turns,
+        Array.filter(turn => turn.bookId === book.bookId && turn.page === page),
+        Array.sort(byTurnedAtDescending),
+      ),
+  })
+
+const momentOrigin = 'https://og.pisspoursoftware.xyz'
+
+/**
+ * The link that opens a moment: the recording at the line said there, as
+ * Scribe's own deep links do, else the recording's playback at its second.
+ *
+ * @example
+ * ```typescript
+ * momentUrlOf(moment) // 'https://og.pisspoursoftware.xyz/recording/725c1dd4-…/section/e77673c1-…?t=7102.27'
+ * ```
+ */
+export const momentUrlOf = (moment: Moment): string =>
+  Option.match(moment.maybeSegmentId, {
+    onNone: () =>
+      `${momentOrigin}/playback/${String.toLowerCase(moment.recordingId)}?t=${Math.max(0, Math.floor(moment.seconds)).toString()}`,
+    onSome: segmentId =>
+      `${momentOrigin}/recording/${String.toLowerCase(moment.recordingId)}/section/${String.toLowerCase(segmentId)}?t=${moment.seconds.toFixed(2)}`,
+  })
+
+const monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+const hoursInHalfDay = 12
+
+/**
+ * When something happened, in the reader's own time zone, the way a
+ * person says it: `Nov 10, 2026, 10:06 PM`.
+ */
+export const momentLabelOf = (atMs: number): string => {
+  const date = new Date(atMs)
+  const hours = date.getHours()
+  const hour =
+    hours % hoursInHalfDay === 0 ? hoursInHalfDay : hours % hoursInHalfDay
+  const minutes = String.padStart(2, '0')(date.getMinutes().toString())
+  const month = Option.getOrElse(
+    Array.get(monthNames, date.getMonth()),
+    () => '',
+  )
+  return `${month} ${date.getDate().toString()}, ${date.getFullYear().toString()}, ${hour.toString()}:${minutes} ${hours < hoursInHalfDay ? 'AM' : 'PM'}`
+}

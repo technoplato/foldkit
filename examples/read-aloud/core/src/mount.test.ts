@@ -70,6 +70,7 @@ const book: Book = {
   maybeCoverUrl: Option.none(),
   links: [],
   aliases: [],
+  contents: [],
 }
 
 const turnAt = (page: number, turnedAtMs: number): PageTurn => ({
@@ -79,6 +80,7 @@ const turnAt = (page: number, turnedAtMs: number): PageTurn => ({
   page: PageNumber.make(page),
   turnedAtMs,
   isOngoing: true,
+  maybeMoment: Option.none(),
 })
 
 const updateHost = updateReadAloud<HostModel, HostDestination>({
@@ -101,7 +103,7 @@ describe('Read Aloud held by another Program', () => {
     const received = updateHost(
       hostAtLibrary,
       ReceivedReadings({
-        readings: { books: [book], turns: [turnAt(4, 4_000)] },
+        readings: { books: [book], turns: [turnAt(4, 4_000)], sittings: [] },
       }),
     )
     const opened = updateHost(received, OpenBook({ book: book.key }))
@@ -123,7 +125,7 @@ describe('Read Aloud held by another Program', () => {
     const received = updateHost(
       atShelf,
       ReceivedReadings({
-        readings: { books: [book], turns: [turnAt(4, 4_000)] },
+        readings: { books: [book], turns: [turnAt(4, 4_000)], sittings: [] },
       }),
     )
     const turned = updateHost(
@@ -136,6 +138,7 @@ describe('Read Aloud held by another Program', () => {
         readings: {
           books: [book],
           turns: [turnAt(6, 6_000), turnAt(4, 4_000)],
+          sittings: [],
         },
       }),
     )
@@ -152,7 +155,7 @@ describe('Read Aloud held by another Program', () => {
     const received = updateHost(
       hostAtLibrary,
       ReceivedReadings({
-        readings: { books: [book], turns: [turnAt(4, 4_000)] },
+        readings: { books: [book], turns: [turnAt(4, 4_000)], sittings: [] },
       }),
     )
     const words = (place: ReadAloudPlace) =>
@@ -180,7 +183,7 @@ describe('Read Aloud held by another Program', () => {
       updateHost(
         hostAtLibrary,
         ReceivedReadings({
-          readings: { books: [book], turns: [turnAt(4, 4_000)] },
+          readings: { books: [book], turns: [turnAt(4, 4_000)], sittings: [] },
         }),
       ),
       OpenBook({ book: book.key }),
