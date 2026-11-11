@@ -61,6 +61,22 @@ const feelingHappy: ReadAloud.Book = {
     'https://covers.openlibrary.org/b/id/15154333-M.jpg',
   ),
   links: [],
+  aliases: [],
+}
+
+const halloween: ReadAloud.Book = {
+  ...feelingHappy,
+  bookId: ReadAloud.BookId.make('thing-halloween-isbn'),
+  key: ReadAloud.BookKey.make('9781368002578'),
+  maybeIsbn13: Option.some(ReadAloud.Isbn13.make('9781368002578')),
+  title: '5-Minute Halloween Stories',
+  credits: [],
+  maybePageCount: Option.some(ReadAloud.PageNumber.make(192)),
+  maybeCoverUrl: Option.some('https://covers.openlibrary.org/b/id/8811043-M.jpg'),
+  aliases: [
+    ReadAloud.BookKey.make('thing-halloween-isbn'),
+    ReadAloud.BookKey.make('1368002579'),
+  ],
 }
 
 const readAloudTitle = (): Title => ({
@@ -95,7 +111,7 @@ const previewsWith = (
     },
     loadReadAloudBooks: async () => {
       readAloudLoads.push(nowMs)
-      return [feelingHappy]
+      return [feelingHappy, halloween]
     },
     nowMs: () => nowMs,
   })
@@ -197,6 +213,28 @@ describe('booksLinkPreviews', () => {
     const { answer } = previewsWith()
     expect(bodyOf(await answer('/books/read-aloud/9780063342705'))).toContain(
       'content="14 pages, by Alice Schertle"',
+    )
+  })
+
+  // Scribe #2182 (Recording 410 #935-937, 2026-11-10): a kept book whose
+  // catalog record names no author answered Not found here, so Scribe showed
+  // its cover as a picture instead of the book.
+  it('previews a book read aloud with no author by its page alone, under any name it is kept by, at its own address', async () => {
+    const { answer } = previewsWith()
+    expect(await answer('/books/read-aloud/1368002579/page/141')).toEqual(
+      Option.some(
+        linkPreviewAnswer({
+          siteName: 'Books',
+          title: '5-Minute Halloween Stories',
+          description: 'Page 141 of 192',
+          maybeImageUrl: Option.some(
+            'https://covers.openlibrary.org/b/id/8811043-L.jpg',
+          ),
+          url: `${origin}/books/read-aloud/9781368002578/page/141`,
+          openPath:
+            '/__foldkit/sign-in?next=%2Fbooks%2Fread-aloud%2F9781368002578%2Fpage%2F141',
+        }),
+      ),
     )
   })
 

@@ -522,3 +522,171 @@ describe('Name tags', () => {
     expect(contributorKeyOf('  ')).toEqual(Option.none())
   })
 })
+
+// Scribe #2182 (Recording 410, 2026-11-10): 5-Minute Halloween Stories was kept
+// twice, once by its Open Library work under one sign-in (with its author and
+// 39 readings) and once by the ISBN he read under the other (with no author),
+// so the shelf showed it twice and the ISBN's page had no author. ADR 0048
+// section 2: the index groups editions by work, and readers merge by key.
+const halloweenWorkLine = (
+  overrides: Readonly<Record<string, unknown>> = {},
+) =>
+  lineOf({
+    id: 'thing-halloween-work',
+    ownerUserID: 'owner-apple-sign-in',
+    kind: 'book',
+    key: 'olwork:OL20165102W',
+    status: 'active',
+    title: '5-Minute Halloween Stories',
+    subtitle: 'Disney Storybook Art Team',
+    imageURL: 'https://covers.openlibrary.org/b/id/8811043-M.jpg',
+    metadataJSON: JSON.stringify({
+      authors: ['Disney Storybook Art Team'],
+      coverID: 8811043,
+    }),
+    externalIDsJSON: JSON.stringify({ openLibraryWork: 'OL20165102W' }),
+    updatedAtMs: 100,
+    lastRecognizedAtMs: 100,
+    ...overrides,
+  })
+
+const halloweenIsbnLine = (
+  overrides: Readonly<Record<string, unknown>> = {},
+) =>
+  lineOf({
+    id: 'thing-halloween-isbn',
+    ownerUserID: 'owner-email-sign-in',
+    kind: 'book',
+    key: 'isbn13:9781368002578',
+    status: 'active',
+    title: '5-Minute Halloween Stories',
+    subtitle: '2018',
+    imageURL: 'https://covers.openlibrary.org/b/id/8811043-M.jpg',
+    metadataJSON: JSON.stringify({
+      authors: [],
+      publishers: ['Disney Press'],
+      publishDate: 'Jul 03, 2018',
+      pageCount: 192,
+    }),
+    externalIDsJSON: JSON.stringify({
+      isbn13: '9781368002578',
+      isbn10s: ['1368002579'],
+      openLibraryEdition: 'OL27347271M',
+      openLibraryWork: 'OL20165102W',
+    }),
+    updatedAtMs: 200,
+    lastRecognizedAtMs: 200,
+    ...overrides,
+  })
+
+describe('One book under every name it is kept by', () => {
+  it('keeps a book found by its work and by its ISBN as one book, named by the ISBN, with the work’s author', () => {
+    const { books } = readingsOfLines(
+      [halloweenWorkLine(), halloweenIsbnLine()],
+      [],
+    )
+    expect(
+      Array.map(books, book => ({
+        bookId: book.bookId,
+        key: book.key,
+        title: book.title,
+        authors: Array.map(book.credits, credit => credit.contributor.name),
+        publishers: Array.map(book.publishedBy, publisher => publisher.name),
+        maybePageCount: book.maybePageCount,
+        aliases: book.aliases,
+      })),
+    ).toEqual([
+      {
+        bookId: 'thing-halloween-isbn',
+        key: '9781368002578',
+        title: '5-Minute Halloween Stories',
+        authors: ['Disney Storybook Art Team'],
+        publishers: ['Disney Press'],
+        maybePageCount: Option.some(192),
+        aliases: [
+          'thing-halloween-isbn',
+          '1368002579',
+          'OL20165102W',
+          'thing-halloween-work',
+        ],
+      },
+    ])
+  })
+
+  it('keeps one ISBN kept under two sign-ins as one book', () => {
+    const { books } = readingsOfLines(
+      [
+        bookLine({ id: 'thing-happy-apple', ownerUserID: 'owner-apple' }),
+        bookLine({
+          id: 'thing-happy-email',
+          ownerUserID: 'owner-email',
+          updatedAtMs: 300,
+          lastRecognizedAtMs: 300,
+        }),
+      ],
+      [],
+    )
+    expect(
+      Array.map(books, book => ({
+        bookId: book.bookId,
+        key: book.key,
+        aliases: book.aliases,
+      })),
+    ).toEqual([
+      {
+        bookId: 'thing-happy-email',
+        key: '9780063342705',
+        aliases: ['thing-happy-email', 'thing-happy-apple'],
+      },
+    ])
+  })
+
+  it('puts the pages of every reading of the work on the one book', () => {
+    const { turns } = readingsOfLines(
+      [halloweenWorkLine(), halloweenIsbnLine()],
+      [
+        pageLine(152, {
+          id: 'page-earlier-night',
+          thingID: 'thing-halloween-work',
+          startedAtMs: 1_000,
+          detailJSON: JSON.stringify({
+            kind: 'page',
+            page: 152,
+            readingID: 'reading-earlier-night',
+          }),
+        }),
+        pageLine(140, {
+          id: 'page-last-night',
+          thingID: 'thing-halloween-isbn',
+          startedAtMs: 2_000,
+          isOngoing: true,
+          detailJSON: JSON.stringify({
+            kind: 'page',
+            page: 140,
+            readingID: 'reading-last-night',
+          }),
+        }),
+      ],
+    )
+    expect(
+      Array.map(turns, turn => ({ bookId: turn.bookId, page: turn.page })),
+    ).toEqual([
+      { bookId: 'thing-halloween-isbn', page: 140 },
+      { bookId: 'thing-halloween-isbn', page: 152 },
+    ])
+  })
+
+  it('keeps two different works apart', () => {
+    const { books } = readingsOfLines(
+      [
+        halloweenWorkLine(),
+        bookLine({ updatedAtMs: 300, lastRecognizedAtMs: 300 }),
+      ],
+      [],
+    )
+    expect(Array.map(books, book => book.key)).toEqual([
+      '9780063342705',
+      'thing-halloween-work',
+    ])
+  })
+})
