@@ -31,6 +31,9 @@ const ownAddress = '11111111111111111111111111111111'
 const michaelsHeldAddress = 'Vote111111111111111111111111111111111111111'
 const strangerAddress = 'Stake11111111111111111111111111111111111111'
 const ethereumAddress = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
+const lookAlikeAtBothEnds = `So1${'2'.repeat(37)}112`
+const lookAlikeAtTheStart = `So1${'3'.repeat(40)}`
+const lookAlikeAtTheEnd = `T${'4'.repeat(39)}112`
 
 const mainnet = 'solana:mainnet-beta'
 
@@ -54,6 +57,25 @@ const personAccounts: ReadonlyArray<
       address: michaelsHeldAddress,
       isHeldByScribe: true,
     },
+  },
+  ...Array.map(
+    [lookAlikeAtBothEnds, lookAlikeAtTheStart, lookAlikeAtTheEnd],
+    address => ({
+      holder: holderOf(recipient),
+      account: { networkId: mainnet, address, isHeldByScribe: false },
+    }),
+  ),
+  {
+    holder: holderOf(emptyHanded),
+    account: {
+      networkId: mainnet,
+      address: strangerAddress,
+      isHeldByScribe: false,
+    },
+  },
+  {
+    holder: holderOf(emptyHanded),
+    account: { networkId: mainnet, address: heldAddress, isHeldByScribe: false },
   },
 ]
 
@@ -119,6 +141,7 @@ const request = (
   method: string,
   path: string,
   maybeEmail: Option.Option<string>,
+  usedStore: BrandonStore = store,
 ): ReturnType<typeof handle> =>
   handle(
     {
@@ -135,7 +158,7 @@ const request = (
     },
     {
       verifier: testVerifier,
-      store,
+      store: usedStore,
       football: Effect.succeed([]),
       loopbackEmail: Option.none(),
       heldBalance: ({ address }) =>
@@ -150,8 +173,8 @@ const request = (
 const get = (path: string, email: string) =>
   request('GET', path, Option.some(email))
 
-const put = (path: string, email: string) =>
-  request('PUT', path, Option.some(email))
+const put = (path: string, email: string, usedStore: BrandonStore = store) =>
+  request('PUT', path, Option.some(email), usedStore)
 
 const heldFor = async (email: string, path = '/api/wallet/held') =>
   S.decodeUnknownSync(HeldAccounts)(
@@ -323,6 +346,45 @@ describe('moving held money to their own wallet', () => {
       expect(answer.status).toBe(403)
     }
     expect(filed).toEqual([])
+  })
+
+  it('refuses an address that looks like the held account, as a copied wrong address does', async () => {
+    for (const lookAlike of [
+      lookAlikeAtBothEnds,
+      lookAlikeAtTheStart,
+      lookAlikeAtTheEnd,
+    ]) {
+      const answer = await put(
+        claimPathOf(mainnet, heldAddress, lookAlike),
+        recipient,
+      )
+      expect(answer.status).toBe(403)
+      expect(answer.body.toString()).toMatch(/looks like/)
+    }
+    expect(filed).toEqual([])
+  })
+
+  it("refuses a signed-in stranger who asks for someone else's held money, even one who follows its address", async () => {
+    const answer = await put(
+      claimPathOf(mainnet, heldAddress, strangerAddress),
+      emptyHanded,
+    )
+    expect(answer.status).toBe(403)
+    expect(filed).toEqual([])
+  })
+
+  it('files one claim when the same move is asked for twice at once', async () => {
+    const slowStore: BrandonStore = {
+      ...store,
+      claims: holder =>
+        Effect.flatMap(Effect.sleep('5 millis'), () => store.claims(holder)),
+    }
+    const answers = await Promise.all([
+      put(claimPathOf(mainnet, heldAddress, ownAddress), recipient, slowStore),
+      put(claimPathOf(mainnet, heldAddress, ownAddress), recipient, slowStore),
+    ])
+    expect(Array.map(answers, answer => answer.status)).toEqual([200, 200])
+    expect(filed.length).toBe(1)
   })
 
   it('refuses to move money to the account it is already in', async () => {

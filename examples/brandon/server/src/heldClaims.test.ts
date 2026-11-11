@@ -30,6 +30,9 @@ const mainnet = 'solana:mainnet-beta'
 const heldAddress = 'So11111111111111111111111111111111111111112'
 const ownAddress = '11111111111111111111111111111111'
 const glowAddress = '9P5ZvpucqtaMqGD9LrwmxqZJvELKrehApri4GCCYt6f7'
+const otherHeldAddress = 'Vote111111111111111111111111111111111111111'
+const lookAlikeOfHeld = `So1${'2'.repeat(37)}112`
+const lookAlikeOfOtherHeld = `Vot${'5'.repeat(37)}111`
 const sendId = '6f9619ff-8b86-d011-b42d-00c04fc964ff'
 const signature = '5'.repeat(88)
 
@@ -132,6 +135,34 @@ describe('what the worker checks before it signs', () => {
       { networkId: mainnet, address: ownAddress, isHeldByScribe: true },
     ])
     expect(heldDestination._tag).toBe('RefuseClaim')
+  })
+
+  it('never pays to an address that looks like an account this Mac holds, or is one', () => {
+    const listings = [
+      listing,
+      { networkId: mainnet, address: otherHeldAddress, holder: otherHolder },
+    ]
+    for (const toAddress of [
+      lookAlikeOfHeld,
+      lookAlikeOfOtherHeld,
+      otherHeldAddress,
+    ]) {
+      const plan = planClaim(claimOf({ toAddress }), listings, [
+        ...accounts,
+        { networkId: mainnet, address: toAddress, isHeldByScribe: false },
+      ])
+      expect(plan._tag).toBe('RefuseClaim')
+      if (plan._tag === 'RefuseClaim') {
+        expect(plan.reason).toMatch(/nothing was signed/i)
+        expect(plan.reason.length).toBeLessThanOrEqual(200)
+      }
+    }
+    expect(
+      planClaim(claimOf({ toAddress: lookAlikeOfHeld }), listings, [
+        ...accounts,
+        { networkId: mainnet, address: lookAlikeOfHeld, isHeldByScribe: false },
+      ]),
+    ).toMatchObject({ reason: expect.stringMatching(/looks like/) })
   })
 
   it('says why in words, and that nothing was signed', () => {
@@ -429,7 +460,11 @@ describe('the claims waiting on this Mac', () => {
   it('takes the oldest claim first, and each one once while it runs', () => {
     const queue = makeClaimQueue()
     const older = claimOf({ claimKey: 'older', requestedAtMs: 1 })
-    const newer = claimOf({ claimKey: 'newer', requestedAtMs: 2 })
+    const newer = claimOf({
+      claimKey: 'newer',
+      requestedAtMs: 2,
+      fromAddress: otherHeldAddress,
+    })
     queue.offer([newer, older])
     expect(Option.map(queue.takeDue(10), ({ claimKey }) => claimKey)).toEqual(
       Option.some('older'),
@@ -438,6 +473,31 @@ describe('the claims waiting on this Mac', () => {
       Option.some('newer'),
     )
     expect(queue.takeDue(10)).toEqual(Option.none())
+  })
+
+  it('never starts a second claim on a held account while an older one is unsettled', () => {
+    const queue = makeClaimQueue()
+    const older = claimOf({ claimKey: 'older', requestedAtMs: 1 })
+    const newer = claimOf({
+      claimKey: 'newer',
+      requestedAtMs: 2,
+      sendId: '6f9619ff-8b86-d011-b42d-00c04fc96400',
+    })
+    const keyOf = Option.map(({ claimKey }: ClaimRecord) => claimKey)
+    queue.offer([newer, older])
+    expect(keyOf(queue.takeDue(10))).toEqual(Option.some('older'))
+    expect(queue.takeDue(10)).toEqual(Option.none())
+    queue.settle('older', 'ConfirmingClaim', 10)
+    expect(queue.takeDue(11)).toEqual(Option.none())
+    expect(keyOf(queue.takeDue(10 + confirmingDelayMs))).toEqual(
+      Option.some('older'),
+    )
+    queue.settle('older', 'WillRetryClaim', 20 + confirmingDelayMs)
+    expect(queue.takeDue(21 + confirmingDelayMs)).toEqual(Option.none())
+    const retryAt = 20 + confirmingDelayMs + retryDelayMs(0)
+    expect(keyOf(queue.takeDue(retryAt))).toEqual(Option.some('older'))
+    queue.settle('older', 'PaidClaim', retryAt)
+    expect(keyOf(queue.takeDue(retryAt))).toEqual(Option.some('newer'))
   })
 
   it('waits longer each time a claim must be tried again', () => {

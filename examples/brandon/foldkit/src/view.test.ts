@@ -567,7 +567,29 @@ describe('money Scribe holds for them', () => {
     ])
   })
 
-  test('says a move is on its way, and offers no second one', () => {
+  test('names in full the address it will move to, before they tap', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(withHeld([heldAccount()])),
+      Scene.expect(moveButton).toExist(),
+      Scene.expect(
+        Scene.text('It goes to this address of your own wallet:'),
+      ).toExist(),
+      Scene.expect(Scene.text(ownMainnetAddress)).toExist(),
+    )
+  })
+
+  test('names no address while there is no wallet to move it to', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(withHeld([heldAccount()], {}, 'Devnet', [])),
+      Scene.expect(
+        Scene.text('It goes to this address of your own wallet:'),
+      ).toBeAbsent(),
+    )
+  })
+
+  test('says a move is on its way, to which address, and offers no second one', () => {
     Scene.scene(
       { update, view },
       Scene.with(withHeld([heldAccount({ maybeClaim: claimOf() })])),
@@ -576,6 +598,7 @@ describe('money Scribe holds for them', () => {
           "Moving it to your wallet. Michael's Mac sends it, and it shows below once the chain has it.",
         ),
       ).toExist(),
+      Scene.expect(Scene.text(ownMainnetAddress)).toExist(),
       Scene.expect(moveButton).toBeAbsent(),
     )
   })
