@@ -4,6 +4,43 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 10th, 2026 at 11:50:55 p.m. EST — `62658cf85b47` feat: green: held money never moves to a look-alike or twice (Scribe #2134)
+
+- **Implementation commit:** `62658cf85b471d9af918e15582046179949f9101`
+- **Change:** feat: green: held money never moves to a look-alike or twice (Scribe #2134)
+- **Details:**
+  - A review of the claim path as an attacker found four gaps, each closed test-first (388051ae2, 4258333a1). A destination that shares its first or last three characters with a held account, as an address-poisoning copy does, is refused by the origin and by the worker, which also refuses any account its held list names. The same move asked for twice at once files one claim, and the worker never starts a second claim on a held account while an older one is unsettled. One claims worker holds a lock beside the held list. The card names the destination address in full before the tap.
+  - Measured: core 55 of 55, origin and worker 177 of 177, page 27 of 27; typechecks, oxlint, prettier, bundles and the page build pass; the worker's end-to-end run on solana-test-validator passes 11 of 11 checks.
+- **Files:**
+  - `examples/brandon/server/src/lookAlike.ts` — what a look-alike address is
+  - `examples/brandon/server/src/workerLock.ts` — one claims worker at a time
+  - `examples/brandon/server/src/held.ts` — RefusedLookAlike
+  - `examples/brandon/server/src/handler.ts` — one claim filed at a time, and the look-alike refusal in words
+  - `examples/brandon/server/src/heldClaims.ts` — the worker's destination checks and the per-account order of its queue
+  - `examples/brandon/server/src/claims.ts` — takes the lock before it follows claims
+  - `examples/brandon/foldkit/src/view.ts` — the destination address on the card
+- **User context (verbatim):**
+  > I'm going to put the money in the app for your email. And if you log in and grab it uh that's great
+- **SpecStory:** unavailable — Claude Code session for Scribe #2134 (agents sol-held-2134 and sol-held-2134b); its transcript path is logged on that issue
+
+## November 10th, 2026 at 11:50:54 p.m. EST — `6589f41c9ebc` wip: green code for held money, written and not yet run (Scribe #2134)
+
+- **Implementation commit:** `6589f41c9ebc682e1a39d5efa4e8fe6a3aba5223`
+- **Change:** wip: green code for held money, written and not yet run (Scribe #2134)
+- **Details:**
+  - The page example: money Scribe holds for a person. The origin answers GET /api/wallet/held with the signed-in person's own held accounts and their chain balances, and PUT /api/wallet/claim/<network>/<held>/<their own address> files a walletClaims row, Requested. The claims worker on the Mac that has the held keys pays each claim with scribe-wallet send --all under the claim's own send id, only from an account its held list names for that person. The page shows a Held for you card and Move it to my wallet. The page's command lists an account as held. Written before it was run; it ran green as written in 62658cf85's check. Tests came first in be952f97e, a32970fcc, 14b94fe66, 0a6a533db and 3475c8c9c.
+- **Files:**
+  - `examples/brandon/server/src/handler.ts` — the held read and the claim request, each for the signed-in person alone
+  - `examples/brandon/server/src/held.ts` — what the origin does with a move a person asked for
+  - `examples/brandon/server/src/heldClaims.ts` — the worker's checks before it signs, the signer's outcomes, the queue
+  - `examples/brandon/server/src/claims.ts` — the worker's process
+  - `examples/brandon/server/src/hold.ts` — the command that holds an account for a person
+  - `examples/brandon/core/src/held.ts` — the page's held accounts and the move it may ask for
+  - `examples/brandon/foldkit/src/view.ts` — the Held for you card
+- **User context (verbatim):**
+  > I'm going to put the money in the app for your email. And if you log in and grab it uh that's great
+- **SpecStory:** unavailable — Claude Code session for Scribe #2134 (agents sol-held-2134 and sol-held-2134b); its transcript path is logged on that issue
+
 ## November 8th, 2026 at 12:23:10 a.m. EST — `1d0d9befd95b` feat(me): green: Scribe #2002's origin answers the header sweep on this Mac
 
 - **Implementation commit:** `1d0d9befd95ba5e64e0a200038d6c20fe8e30193`
