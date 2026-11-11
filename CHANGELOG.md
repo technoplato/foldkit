@@ -4,6 +4,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 11th, 2026 at 10:11:42 a.m. EST — `26a02368b540` feat(issues): which recordings mention an Issue, from Scribe's rows (Scribe #2248)
+
+- **Implementation commit:** `26a02368b540e66239794f5397aa2122dd3e9834`
+- **Change:** feat(issues): which recordings mention an Issue, from Scribe's rows (Scribe #2248)
+- **Details:**
+  - Scribe's issueMentions rows link the recording each mention came from, so one query (issueRecordingsQuery) reads every recording that mentions an Issue, each with its mentions of it; a recording's count is their number. issues show prints a Recordings block above the mentions with a deep link per mention and a line when the tracker lists more recording mentions than the rows reach; show --json gives recordings with mentionCount, or recordingsNotShown; list --json carries every Issue's mentionCount. Measured: core 4 of 4, CLI 109 of 109; test-all.sh instant-tools 101, core 658 of 660 (two pageCost timing budgets at load 140; 17 of 17 alone, twice), react 26.
+- **Files:**
+  - `examples/issues/core/src/issueRecordings.ts` — the query and its decoder
+  - `examples/issues/core/src/index.ts` — export
+  - `examples/issues/cli/src/recordings.ts` — the reader, the block and its JSON
+  - `examples/issues/cli/src/commands.ts` — show and list --json
+  - `examples/issues/cli/src/resources.ts` — the live reader
+  - `examples/issues/cli/src/entry.ts` — the host
+  - `examples/issues/cli/src/mentions.ts` — one link shape
+  - `examples/issues/README.md` — the query and the block
+- **User context (verbatim):**
+  > Make sure our issue track is / is sure to record every / recording that mentions the issue. / with a static count that's incremented with a new / mention is made, even if multiple multiple are made in a single recording. / Let's make that a part of the schema that we can query against.
+- **SpecStory:** unavailable — unavailable — Claude Code headless session for Scribe #2248 (agent mentions-2248, claude -p); its transcript path is logged on that issue
+
+## November 11th, 2026 at 10:11:41 a.m. EST — `771bde625247` test(issues): red: the recordings that mention an Issue (Scribe #2248)
+
+- **Implementation commit:** `771bde625247558f3171718d1b0ddd5e4991c3fa`
+- **Change:** test(issues): red: the recordings that mention an Issue (Scribe #2248)
+- **Details:**
+  - Tests first: the core query and its decoder (each recording with the Issue's mentions; two in one recording count twice), the Recordings block and its JSON, and list --json's mentionCount. Red: the core module did not exist; three command tests failed.
+- **Files:**
+  - `examples/issues/core/src/issueRecordings.test.ts` — the query and its decoder
+  - `examples/issues/cli/src/recordings.test.ts` — the block, its JSON and its reader
+  - `examples/issues/cli/src/commands.test.ts` — show and list --json
+- **User context (verbatim):**
+  > Make sure our issue track is / is sure to record every / recording that mentions the issue. / with a static count that's incremented with a new / mention is made, even if multiple multiple are made in a single recording. / Let's make that a part of the schema that we can query against.
+- **SpecStory:** unavailable — unavailable — Claude Code headless session for Scribe #2248 (agent mentions-2248, claude -p); its transcript path is logged on that issue
+
 ## November 10th, 2026 at 11:50:55 p.m. EST — `62658cf85b47` feat: green: held money never moves to a look-alike or twice (Scribe #2134)
 
 - **Implementation commit:** `62658cf85b471d9af918e15582046179949f9101`
