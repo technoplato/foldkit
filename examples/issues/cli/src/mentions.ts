@@ -326,11 +326,23 @@ const imagesAround = (
 const secondsForLink = (seconds: number): string =>
   Number(seconds.toFixed(LINK_SECOND_DECIMALS)).toString()
 
+/**
+ * The words deep link into a recording: `…/recording/<id>/section/<line id>?t=<s>`, or
+ * `…/recording/<id>?t=<s>` with no line, or `…/recording/<id>` with neither (Scribe #2248).
+ */
+export const recordingDeepLink = (
+  recording: string,
+  maybeLine: string | undefined,
+  maybeSeconds: number | undefined,
+): string =>
+  `${LINE_LINK_ORIGIN}/recording/${recording}${maybeLine === undefined ? '' : `/section/${maybeLine}`}${maybeSeconds === undefined ? '' : `?t=${secondsForLink(maybeSeconds)}`}`
+
 /** The words deep link to one line: `…/recording/<id>/section/<line id>?t=<s>`. */
 export const lineDeepLink = (line: TranscriptLine): string =>
-  `${LINE_LINK_ORIGIN}/recording/${line.recording}/section/${line.id}?t=${secondsForLink(line.start)}`
+  recordingDeepLink(line.recording, line.id, line.start)
 
-const rangeLabel = (first: number, last: number): string =>
+/** A stretch of lines by their #numbers: `#12`, or `#10-15`. */
+export const rangeLabel = (first: number, last: number): string =>
   first === last
     ? `#${first.toString()}`
     : `#${first.toString()}-${last.toString()}`

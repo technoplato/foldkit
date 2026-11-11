@@ -75,6 +75,7 @@ const liveHost = (services: LiveIssueHostServices): IssuesHost => ({
   mirrorRoot: environmentPath('SCRIBE_ROOT', join(homedir(), 'Scribe')),
   nowMs: () => Date.now(),
   readBuildJobs: services.buildJobs,
+  readIssueRecordings: services.recordings,
   readLanding: services.landing,
   readStandardInput: Effect.promise(readStandardInput),
   readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),

@@ -265,6 +265,18 @@ and stored nowhere: `scripts/schema/products-map.mjs` prints them to
 look empty. `issues show` prints the same landing, from the same query, within 5
 seconds or with one line saying why not.
 
+Which recordings mention an Issue, and how many times, is one query on Scribe's
+rows (Scribe #2248): each mention's row links the recording it came from
+(`issueMentions.recording`), so `recordings` where
+`issueMentions.issue.number` is the Issue's number come back each with that
+Issue's mentions, and a recording's count is their number
+(`issueRecordingsQuery` in `core/src/issueRecordings.ts`). `issues show` prints
+it as its Recordings block above the mentions, with a deep link per mention and
+one line when the tracker lists more mentions from recordings than the rows
+reach; `--json` gives `recordings`, each with `mentionCount`, or
+`recordingsNotShown`. `issues list --json` gives every Issue's `mentionCount`:
+every mention once, two in one recording twice.
+
 The catalog is read once. After that a live query holds only the rows changed
 since the newest one seen, and a second holds the row ids, so a write costs a
 reader the Issues it changed, not the whole catalog: on a throwaway app with 300

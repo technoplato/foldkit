@@ -130,6 +130,12 @@ import {
   resolveSaid,
   typedMention,
 } from './mentions.js'
+import {
+  type IssueRecordingsRead,
+  type IssueRecordingsReader,
+  issueRecordingsJson,
+  issueRecordingsSection,
+} from './recordings.js'
 import { type IssueRecordsService } from './resources.js'
 import { issueIdsToCheck, surveyFromProgressCheck } from './working.js'
 
@@ -203,6 +209,12 @@ export type IssuesHost = Readonly<{
    * fails and answers within 5 seconds.
    */
   readLanding: LandingReader
+  /**
+   * The recordings that mention an Issue, each with how many times, from
+   * Scribe's rows, by the Issue's number (Scribe #2248). It never fails and
+   * answers within 5 seconds.
+   */
+  readIssueRecordings: IssueRecordingsReader
   readStandardInput: Effect.Effect<string>
   readTextFile: (path: string) => Effect.Effect<string, unknown>
   records: IssueRecordsService
@@ -783,13 +795,20 @@ const mentionLines = (mention: IssueMention): ReadonlyArray<string> => [
   ),
 ]
 
+/** How many of an Issue's mentions came from a recording: what its Recordings block should reach in Scribe's rows (Scribe #2248). */
+export const recordingMentionCount = (issue: Issue): number =>
+  Array.filter(issue.mentions, mention => mention.source._tag === 'Recording')
+    .length
+
 /**
  * Prints one Issue in full, its work log oldest first, with
- * `buildJobLines` (its Builds section) after Now working and Work in progress.
+ * `buildJobLines` (its Builds section) after Now working and Work in progress,
+ * and `recordingLines` (the recordings that mention it) above its Mentions.
  */
 export const issueDetailLines = (
   issue: Issue,
   buildJobLines: ReadonlyArray<string> = [],
+  recordingLines: ReadonlyArray<string> = [],
 ): ReadonlyArray<string> => [
   issueHeadline(issue),
   issue.title,
@@ -815,6 +834,7 @@ export const issueDetailLines = (
         `  [${criterion.isSatisfied ? 'x' : ' '}] ${criterion.outcome} (${Array.join(criterion.requiredEvidence, ', ')})`,
     ),
   ),
+  ...recordingLines,
   ...section('Mentions', Array.flatMap(issue.mentions, mentionLines)),
   ...Array.match(catalogIssueIds(issue), {
     onEmpty: () => [],
@@ -861,12 +881,14 @@ const issueWithScribeRowsJson = (
   issue: Issue,
   builds: BuildJobsRead,
   landing: LandingRead,
+  recordings: IssueRecordingsRead,
 ): string =>
   JSON.stringify(
     {
       ...encodeIssue(issue),
       ...buildJobsJson(builds),
       ...landingJson(landing),
+      ...issueRecordingsJson(recordings),
     },
     null,
     2,
@@ -1047,7 +1069,7 @@ export const showIssueCommand = (
   finish(
     Effect.gen(function* () {
       const issueId = yield* parseIssueNumber(input.issue)
-      const [model, builds, landing] = yield* Effect.all(
+      const [model, builds, landing, recordings] = yield* Effect.all(
         [
           executeMessages(
             IssueDetail.make({ issueId }),
@@ -1056,17 +1078,22 @@ export const showIssueCommand = (
           ),
           host.readBuildJobs(Number(issueId)),
           host.readLanding(Number(issueId)),
+          host.readIssueRecordings(Number(issueId)),
         ],
         { concurrency: 'unbounded' },
       )
       const issue = yield* loadedIssueOf('show', model, issueId)
       return succeeded(
         input.isJson
-          ? [issueWithScribeRowsJson(issue, builds, landing)]
-          : issueDetailLines(issue, [
-              ...landingSection(landing, host.timeZone),
-              ...buildJobsSection(builds, host.nowMs(), host.timeZone),
-            ]),
+          ? [issueWithScribeRowsJson(issue, builds, landing, recordings)]
+          : issueDetailLines(
+              issue,
+              [
+                ...landingSection(landing, host.timeZone),
+                ...buildJobsSection(builds, host.nowMs(), host.timeZone),
+              ],
+              issueRecordingsSection(recordings, recordingMentionCount(issue)),
+            ),
       )
     }),
   )
@@ -1313,7 +1340,11 @@ export const listIssuesCommand = (
       const stdout = input.isJson
         ? [
             JSON.stringify(
-              Array.map(listing.issues, issue => encodeIssue(issue)),
+              // Scribe #2248: each Issue's mention count, every mention once, as Scribe's issues.mentionCount holds it.
+              Array.map(listing.issues, issue => ({
+                ...encodeIssue(issue),
+                mentionCount: issue.mentions.length,
+              })),
             ),
           ]
         : input.isBacklog
