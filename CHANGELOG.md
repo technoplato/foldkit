@@ -4,6 +4,49 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 11th, 2026 at 10:29:58 a.m. EST — `e2235a65f50d` feat(read-aloud): green: the book in full, cross-referenced (Scribe #2182)
+
+- **Implementation commit:** `e2235a65f50d9a6e92a9f773b77d047a66886a53`
+- **Change:** Read Aloud: the book in full, cross-referenced (Scribe #2182)
+- **Details:**
+  - A book's page names the story the page is in, lists its Contents with each story's pages, a link to its first page and You are here, every sitting with its date, recording number and pages, and each time the page was read, each linked to its line in the recording. Dates, numbers and links only.
+- **Files:**
+  - `examples/read-aloud/core/src/model.ts` — Chapter, Moment, Sitting and their readers
+  - `examples/read-aloud/core/src/scribe.ts` — Contents, sittings and moments from Scribe's rows
+  - `examples/read-aloud/core/src/local.node.ts` — recording numbers from the folders beside the logs
+  - `examples/read-aloud/core/src/screen.ts` — This page, Contents and Read aloud sections
+- **User context (verbatim):**
+  > so that recordings and pages and chapters and things are all cross-referenced. (Scribe Recording 410 #884)
+- **SpecStory:** unavailable — Headless Claude Code run books-2182 (session 222bede6-cd1f-446f-acc4-f3111c2b8bd4); headless claude -p runs have no SpecStory capture
+
+## November 11th, 2026 at 10:29:56 a.m. EST — `c2a0697c24be` feat(books): green: a book kept just now answers at once (Scribe #2182)
+
+- **Implementation commit:** `c2a0697c24be82d60a7d3c3bdd5d16dcd0d3f714`
+- **Change:** Books: a book kept just now answers at once (Scribe #2182)
+- **Details:**
+  - A link to a book the cached list lacks reads the books read aloud again, at most once in three seconds, so the watcher's card for a just-kept book never meets Not found.
+- **Files:**
+  - `examples/books/core/src/linkPreviews.node.ts` — reload on a miss
+  - `examples/books/core/src/linkPreviews.node.test.ts` — the reload test
+- **User context (verbatim):**
+  > I need an automated process for recognizing the playback of the book, ingesting a new book. (Scribe Recording 410 #881)
+- **SpecStory:** unavailable — Headless Claude Code run books-2182 (session 222bede6-cd1f-446f-acc4-f3111c2b8bd4); headless claude -p runs have no SpecStory capture
+
+## November 11th, 2026 at 10:29:54 a.m. EST — `129c9876e02c` feat(read-aloud): green: one book under all its names (Scribe #2182)
+
+- **Implementation commit:** `129c9876e02cf4ad9b6ea7fd3ecb56ac8a64ef80`
+- **Change:** Read Aloud: one book under every name it is kept by, and a kept book's page always answers (Scribe #2182)
+- **Details:**
+  - Rows that share a key, an ISBN-13 or an Open Library work are one book named by the newest-read row with an ISBN; the others' ids, ISBN-10s and work become aliases and fill what the book lacks. A link preview no longer needs an author or a cover and names the canonical address. Recording 410: 5-Minute Halloween Stories answered Not found because its edition names no author.
+- **Files:**
+  - `examples/read-aloud/core/src/scribe.ts` — groups rows into one book
+  - `examples/read-aloud/core/src/model.ts` — aliases and lookup by any name
+  - `examples/read-aloud/core/src/linkPreview.ts` — author and cover optional, canonical path
+  - `examples/books/core/src/linkPreviews.node.ts` — description without an author, canonical url
+- **User context (verbatim):**
+  > Whoa, so it sent a picture in the frame, but that's still not a recognized thing. So that's cheating. (Scribe Recording 410 #936-937)
+- **SpecStory:** unavailable — Headless Claude Code run books-2182 (session 222bede6-cd1f-446f-acc4-f3111c2b8bd4); headless claude -p runs have no SpecStory capture
+
 ## November 11th, 2026 at 10:11:42 a.m. EST — `f7b76145a666` feat(issues): which recordings mention an Issue, from Scribe's rows (Scribe #2248)
 
 - **Implementation commit:** `f7b76145a666c6acbd2313b08d64235c6d494fb5`
