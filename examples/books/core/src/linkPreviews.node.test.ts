@@ -88,6 +88,10 @@ const readAloudTitle = (): Title => ({
 
 const previewsWith = (
   extraTitles: ReadonlyArray<Title> = [],
+  readAloudBooks: () => ReadonlyArray<ReadAloud.Book> = () => [
+    feelingHappy,
+    halloween,
+  ],
 ): Readonly<{
   answer: (path: string) => ReturnType<PublicRoutes>
   loads: ReadonlyArray<number>
@@ -113,7 +117,7 @@ const previewsWith = (
     },
     loadReadAloudBooks: async () => {
       readAloudLoads.push(nowMs)
-      return [feelingHappy, halloween]
+      return readAloudBooks()
     },
     nowMs: () => nowMs,
   })
@@ -238,6 +242,31 @@ describe('booksLinkPreviews', () => {
         }),
       ),
     )
+  })
+
+  // Scribe #2182: the book watcher keeps a book seconds before it posts the
+  // card whose preview Scribe draws, so a book kept since the last read must
+  // answer at once, not after the minute the books are kept for.
+  it('reads the books again on a miss, at most once in a few seconds, so a book kept just now answers at once', async () => {
+    let kept: ReadonlyArray<ReadAloud.Book> = [feelingHappy]
+    const { answer, readAloudLoads, advanceMs } = previewsWith([], () => kept)
+    expect(await answer('/books/read-aloud/9780063342705')).not.toEqual(
+      Option.none(),
+    )
+    kept = [feelingHappy, halloween]
+    advanceMs(5_000)
+    expect(
+      Option.isSome(await answer('/books/read-aloud/9781368002578')),
+    ).toBe(true)
+    expect(readAloudLoads).toEqual([0, 5_000])
+    advanceMs(1_000)
+    expect(await answer('/books/read-aloud/9780152056612')).toEqual(
+      Option.none(),
+    )
+    expect(await answer('/books/read-aloud/9780152056612')).toEqual(
+      Option.none(),
+    )
+    expect(readAloudLoads).toEqual([0, 5_000])
   })
 
   it('answers nothing for the books read aloud, a page past the end, or a book never read aloud', async () => {
