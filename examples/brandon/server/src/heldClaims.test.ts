@@ -5,11 +5,13 @@ import { accountKeyOf } from './account.js'
 import {
   type ClaimDependencies,
   type ClaimUpdate,
+  Confirming,
   type HeldListing,
   type SignerOutcome,
   RetryLater,
   Refused,
   Sent,
+  confirmingDelayMs,
   claimUpdateOf,
   heldListingLineOf,
   heldListingsOf,
@@ -62,7 +64,7 @@ const sendAnswer = (fields: Readonly<Record<string, unknown>> = {}): string =>
     from: heldAddress,
     id: sendId.toUpperCase(),
     network: mainnet,
-    status: 'pending',
+    status: 'final',
     to: ownAddress,
     transactionID: signature,
     ...fields,
@@ -175,6 +177,25 @@ describe('how a signer run ended', () => {
       claimOf(),
     )
 
+  it('is not Sent until the chain includes the send: it waits for the chain to confirm it', () => {
+    for (const status of ['pending', 'seen']) {
+      expect(run({ stdout: sendAnswer({ status }) })).toEqual(
+        Confirming({ transactionId: signature }),
+      )
+    }
+    for (const status of ['included', 'final']) {
+      expect(run({ stdout: sendAnswer({ status }) })).toEqual(
+        Sent({ amountAtomic: '181066945', transactionId: signature }),
+      )
+    }
+  })
+
+  it('tries again, never Sent, on a status the signer has no word for', () => {
+    expect(run({ stdout: sendAnswer({ status: 'landed' }) })._tag).toBe(
+      'RetryLater',
+    )
+  })
+
   it('is Sent with the amount and transaction the signer printed', () => {
     expect(
       run({
@@ -283,6 +304,12 @@ describe('how a signer run ended', () => {
 })
 
 describe('what a claim becomes', () => {
+  it('stays Requested while the chain confirms its send', () => {
+    expect(claimUpdateOf(Confirming({ transactionId: signature }), 7)).toEqual(
+      Option.none(),
+    )
+  })
+
   it('is Sent with its amount and transaction, Failed with words, or left Requested', () => {
     expect(
       claimUpdateOf(Sent({ amountAtomic: '5', transactionId: signature }), 7),
@@ -370,6 +397,15 @@ describe('one claim, run', () => {
     expect(finished).toEqual([])
   })
 
+  it('leaves the claim Requested while the chain confirms its send', async () => {
+    const { dependencies: deps, finished } = dependencies({
+      sign: () => Effect.succeed(Confirming({ transactionId: signature })),
+    })
+    const run = await Effect.runPromise(runClaim(claimOf(), deps))
+    expect(run).toEqual({ _tag: 'ConfirmingClaim', transactionId: signature })
+    expect(finished).toEqual([])
+  })
+
   it('leaves the claim Requested when the signer must try again', async () => {
     const { dependencies: deps, finished } = dependencies({
       sign: () =>
@@ -418,6 +454,18 @@ describe('the claims waiting on this Mac', () => {
     expect(Option.isSome(queue.takeDue(retryDelayMs(0) + retryDelayMs(1)))).toBe(
       true,
     )
+  })
+
+  it('asks again soon while the chain confirms a send, without backing off', () => {
+    const queue = makeClaimQueue()
+    queue.offer([claimOf()])
+    Option.getOrThrow(queue.takeDue(0))
+    queue.settle(claimOf().claimKey, 'ConfirmingClaim', 0)
+    expect(queue.takeDue(confirmingDelayMs - 1)).toEqual(Option.none())
+    Option.getOrThrow(queue.takeDue(confirmingDelayMs))
+    queue.settle(claimOf().claimKey, 'ConfirmingClaim', confirmingDelayMs)
+    expect(Option.isSome(queue.takeDue(2 * confirmingDelayMs))).toBe(true)
+    expect(confirmingDelayMs).toBeLessThan(retryDelayMs(0))
   })
 
   it('never takes a claim again once it is paid or refused, whatever a late list says', () => {

@@ -48,7 +48,7 @@ const answer = JSON.stringify({
   from: heldAddress,
   id: sendId.toUpperCase(),
   network: mainnet,
-  status: 'pending',
+  status: 'final',
   to: ownAddress,
   transactionID: signature,
 })
@@ -80,6 +80,17 @@ describe('the signer on this Mac', () => {
       sendId,
       '--json',
     ])
+  })
+
+  it('waits for the chain when the signer says the send is still pending', async () => {
+    const binary = fakeSigner(
+      'pending.sh',
+      `echo '${answer.replace('"final"', '"pending"')}'\nexit 0`,
+    )
+    expect(await signWith(binary)).toEqual({
+      _tag: 'Confirming',
+      transactionId: signature,
+    })
   })
 
   it('passes on a refusal in the signer’s own words', async () => {
