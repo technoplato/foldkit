@@ -52,6 +52,9 @@ export const BrandonProgram: Program.Program<
       wallet: current.wallet,
       walletActivity: current.walletActivity,
       walletWatch: current.walletWatch,
+      heldAccounts: current.heldAccounts,
+      heldRevision: current.heldRevision,
+      heldMove: current.heldMove,
     }),
   },
 })

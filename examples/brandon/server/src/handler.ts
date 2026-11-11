@@ -2,6 +2,8 @@ import {
   FootballSection,
   type Game,
   Games,
+  HeldAccounts,
+  HeldClaimRequest,
   MarkdownSection,
   Page,
   PersonalWalletSection,
@@ -25,7 +27,7 @@ import {
   Order,
   Schema as S,
 } from 'effect'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
 import {
@@ -56,6 +58,13 @@ import {
   chainIdOfNetwork,
   accountKeyOf as watchedAccountKeyOf,
 } from './activity.js'
+import {
+  claimDecisionOf,
+  heldAccountOf,
+  isHeldByScribeAt,
+  newestClaimFor,
+} from './held.js'
+import type { HeldBalanceReader } from './heldBalance.js'
 import { qrDrawingOf } from './qr.js'
 import type { BrandonStore, SectionRow } from './store.js'
 
@@ -79,7 +88,8 @@ export type OriginResponse = Readonly<{
 /**
  * What the origin needs. `loopbackEmail` names the account for a request
  * made on this machine to `localhost` with no proxy header, for local
- * development and screenshots.
+ * development and screenshots. `heldBalance` reads a held account's
+ * balance from its chain; without it, every held balance reads as unknown.
  */
 export type OriginDependencies = Readonly<{
   verifier: AccessVerifier
@@ -87,6 +97,7 @@ export type OriginDependencies = Readonly<{
   football: Effect.Effect<ReadonlyArray<Game>, Error>
   loopbackEmail: Option.Option<string>
   staticRoot?: string
+  heldBalance?: HeldBalanceReader
 }>
 
 const jsonType = 'application/json; charset=utf-8'
@@ -115,6 +126,22 @@ const notYourAddress = text(
   403,
   'Refused: this login does not follow that address.',
 )
+const heldSender = text(
+  403,
+  'Refused: Scribe holds that account, so only Scribe sends from it.',
+)
+const notHeldForYou = text(
+  403,
+  'Refused: Scribe holds no such account for this login on that network.',
+)
+const notYourOwnAddress = text(
+  403,
+  "Refused: that is not an address this login's own wallet follows on that network.",
+)
+const alreadyThere = text(
+  400,
+  'Refused: the money is in that account already.',
+)
 const followed = text(200, 'ok')
 
 /** The most public addresses one person is followed on: four wallets on each of the four networks. */
@@ -124,6 +151,8 @@ const watchedAccountPath = /^\/api\/wallet\/accounts\/([^/]+)\/([^/]+)$/
 
 const sentTransactionPath =
   /^\/api\/wallet\/sent\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)$/
+
+const heldClaimPath = /^\/api\/wallet\/claim\/([^/]+)\/([^/]+)\/([^/]+)$/
 
 const readMethods: ReadonlySet<string> = new Set(['GET', 'HEAD'])
 
@@ -342,6 +371,86 @@ const reportedSendOf = (
   })
 }
 
+const heldClaimRequestOf = (
+  method: string,
+  path: string,
+): Option.Option<Readonly<Record<keyof HeldClaimRequest, string>>> => {
+  const maybeMatch = Option.fromNullishOr(path.match(heldClaimPath))
+  if (method !== 'PUT' || Option.isNone(maybeMatch)) {
+    return Option.none()
+  }
+  const decode = Option.liftThrowable(decodeURIComponent)
+  return Option.all({
+    networkId: decode(maybeMatch.value[1] ?? ''),
+    heldAddress: decode(maybeMatch.value[2] ?? ''),
+    toAddress: decode(maybeMatch.value[3] ?? ''),
+  })
+}
+
+const isClaimOnItsChain = (request: HeldClaimRequest): boolean => {
+  const chainId = chainIdOfNetwork(request.networkId)
+  return (
+    isPublicAddressOn(chainId, request.heldAddress) &&
+    isPublicAddressOn(chainId, request.toAddress)
+  )
+}
+
+const unknownBalance: HeldBalanceReader = () => Effect.succeed(Option.none())
+
+const fileClaim = (
+  asked: Readonly<Record<keyof HeldClaimRequest, string>>,
+  email: string,
+  store: BrandonStore,
+): Effect.Effect<OriginResponse, Error> =>
+  Effect.gen(function* () {
+    if (!S.is(HeldClaimRequest)(asked) || !isClaimOnItsChain(asked)) {
+      return notAnAddress
+    }
+    const holder = walletHolderOf(email)
+    const decision = claimDecisionOf({
+      holder,
+      request: asked,
+      accounts: yield* store.personAccounts(holder),
+      claims: yield* store.claims(holder),
+      nowMs: Date.now(),
+      sendId: randomUUID(),
+    })
+    return yield* M.value(decision).pipe(
+      M.withReturnType<Effect.Effect<OriginResponse, Error>>(),
+      M.tagsExhaustive({
+        RefusedSameAddress: () => Effect.succeed(alreadyThere),
+        RefusedNotHeld: () => Effect.succeed(notHeldForYou),
+        RefusedNotOwnAddress: () => Effect.succeed(notYourOwnAddress),
+        AlreadyRequested: () => Effect.succeed(followed),
+        FileClaim: ({ claim }) => Effect.as(store.addClaim(claim), followed),
+      }),
+    )
+  })
+
+const heldFor = (
+  email: string,
+  store: BrandonStore,
+  heldBalance: HeldBalanceReader,
+): Effect.Effect<OriginResponse, Error> =>
+  Effect.gen(function* () {
+    const holder = walletHolderOf(email)
+    const accounts = yield* store.personAccounts(holder)
+    const claims = yield* store.claims(holder)
+    const held = yield* Effect.forEach(
+      Array.filter(accounts, account => account.isHeldByScribe),
+      account =>
+        Effect.map(heldBalance(account), maybeBalanceAtomic =>
+          heldAccountOf(
+            account,
+            newestClaimFor(claims, account),
+            maybeBalanceAtomic,
+          ),
+        ),
+      { concurrency: 'unbounded' },
+    )
+    return json(S.encodeSync(HeldAccounts)(held))
+  })
+
 const isSendOnItsChain = (sent: SentTransaction): boolean => {
   const chainId = chainIdOfNetwork(sent.networkId)
   return (
@@ -369,6 +478,15 @@ const recordSend = (
     })
     if (!Array.contains(known, accountKey)) {
       return notYourAddress
+    }
+    if (
+      isHeldByScribeAt(
+        yield* store.personAccounts(holder),
+        reported.networkId,
+        reported.senderAddress,
+      )
+    ) {
+      return heldSender
     }
     yield* store.addSentTransaction(holder, reported)
     return followed
@@ -450,12 +568,15 @@ const staticFile = async (
  * verifies against the team's certs: the email header alone is never
  * read, and a flag that is off means those words stay here. No path reads
  * a request body, so nothing can hand this origin a key in one. Besides
- * reads, it answers two writes, each only for the signed-in person:
+ * reads, it answers three writes, each only for the signed-in person:
  * `PUT /api/wallet/accounts/solana:devnet/5xAm…` follows that public address,
- * which must parse as one on that network, and
+ * which must parse as one on that network,
  * `PUT /api/wallet/sent/solana:devnet/5xAm…/5hSig…/9Pz…/250000000` files a
  * send from an address they follow as Pending, every part of it something
- * the chain shows to anyone.
+ * the chain shows to anyone, and
+ * `PUT /api/wallet/claim/solana:mainnet-beta/43T9…/9Pz…` asks Scribe to move
+ * the money it holds for them at the first address to the second, one of
+ * their own wallet's.
  */
 export const handle = async (
   request: OriginRequest,
@@ -468,10 +589,12 @@ export const handle = async (
   )
   const maybeFollow = publicAccountRequestOf(request.method, path)
   const maybeReportedSend = reportedSendOf(request.method, path)
+  const maybeClaim = heldClaimRequestOf(request.method, path)
   if (
     !readMethods.has(request.method) &&
     Option.isNone(maybeFollow) &&
-    Option.isNone(maybeReportedSend)
+    Option.isNone(maybeReportedSend) &&
+    Option.isNone(maybeClaim)
   ) {
     return notAllowed
   }
@@ -501,6 +624,16 @@ export const handle = async (
           return refused
         }
         return yield* recordSend(maybeReportedSend.value, email, store)
+      }),
+    )
+  } else if (Option.isSome(maybeClaim)) {
+    return read(
+      Effect.gen(function* () {
+        const account = yield* accountOf(email, store)
+        if (!hasFlag(account, walletFlag)) {
+          return refused
+        }
+        return yield* fileClaim(maybeClaim.value, email, store)
       }),
     )
   } else if (path === '/api/page') {
@@ -552,6 +685,20 @@ export const handle = async (
           S.encodeSync(WalletActivity)(
             yield* store.walletActivity(walletHolderOf(email)),
           ),
+        )
+      }),
+    )
+  } else if (path === '/api/wallet/held') {
+    return read(
+      Effect.gen(function* () {
+        const account = yield* accountOf(email, store)
+        if (!hasFlag(account, walletFlag)) {
+          return refused
+        }
+        return yield* heldFor(
+          email,
+          store,
+          dependencies.heldBalance ?? unknownBalance,
         )
       }),
     )

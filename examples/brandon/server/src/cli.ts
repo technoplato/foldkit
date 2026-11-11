@@ -16,6 +16,8 @@ import { accountKeyOf, defaultAccountKey } from './account.js'
 import { makeBrandonAdmin } from './adminStore.js'
 import { brandonEnv, listOf } from './env.js'
 import { sameTotals } from './facts.js'
+import { heldListFileAt, heldListPath } from './heldList.js'
+import { holdAccount, holdLineOf } from './hold.js'
 import { SectionKind } from './store.js'
 import { WalletNetwork } from './walletMirror.js'
 
@@ -40,7 +42,12 @@ const usage = `brandon: drive Brandon dot (the page follows within a second).
   brandon account list                         names and flags, never an address
   brandon wallet add <address> --label L [--network Devnet|Mainnet]
   brandon wallet list
-  brandon wallet mirror                        read public chain data now`
+  brandon wallet mirror                        read public chain data now
+  brandon wallet hold <name> --network solana:mainnet-beta --address <address>
+                                               money Scribe holds for one person, by name: the
+                                               account's key is on this Mac (scribe wallet create
+                                               --another); their page shows it and they move it to
+                                               their own wallet; listed in BRANDON_HELD_ACCOUNTS`
 
 const defaultGame = 'halloween-2026'
 
@@ -235,6 +242,19 @@ const run = (args: ReadonlyArray<string>): Effect.Effect<void, Error> => {
           )
           .join('\n'),
       ),
+    )
+  } else if (area === 'wallet' && verb === 'hold' && first !== undefined) {
+    return Effect.flatMap(
+      holdAccount(
+        {
+          displayName: first,
+          networkId: need(parsed, '--network'),
+          address: need(parsed, '--address'),
+        },
+        admin,
+        heldListFileAt(heldListPath()),
+      ),
+      result => print(holdLineOf(result)),
     )
   } else if (area === 'wallet' && verb === 'mirror') {
     return Effect.flatMap(admin.mirrorWallets(globalThis.fetch), changed =>

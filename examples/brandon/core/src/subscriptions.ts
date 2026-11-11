@@ -13,6 +13,7 @@ import * as Wallet from 'wallet-core-example'
 import {
   CompletedScrollToSection,
   FailedFootball,
+  FailedHeldAccounts,
   FailedPage,
   FailedWalletActivity,
   FailedWallets,
@@ -22,6 +23,7 @@ import {
   IgnoredStaleReload,
   type Message,
   ReceivedFootball,
+  ReceivedHeldAccounts,
   ReceivedPage,
   ReceivedWalletActivity,
   ReceivedWallets,
@@ -129,6 +131,31 @@ const pageSubscriptions = Subscription.make<Model, Message, BrandonServer>()(
                     Effect.match({
                       onFailure: () => FailedWalletActivity(),
                       onSuccess: entries => ReceivedWalletActivity({ entries }),
+                    }),
+                  )
+                }),
+              )
+            : Stream.empty,
+      },
+    ),
+    heldAccounts: entry(
+      { isShown: S.Boolean, activityRevision: S.Int, heldRevision: S.Int },
+      {
+        modelToDependencies: model => ({
+          isShown: hasSection(model, 'PersonalWalletSection'),
+          activityRevision: model.walletActivityRevision,
+          heldRevision: model.heldRevision,
+        }),
+        dependenciesToStream: ({ isShown }) =>
+          isShown
+            ? Stream.fromEffect(
+                Effect.gen(function* () {
+                  const server = yield* BrandonServer
+                  return yield* server.loadHeldAccounts.pipe(
+                    Effect.retry(originRetry),
+                    Effect.match({
+                      onFailure: () => FailedHeldAccounts(),
+                      onSuccess: accounts => ReceivedHeldAccounts({ accounts }),
                     }),
                   )
                 }),

@@ -7,6 +7,7 @@ import { Array, Effect, Option, Schema as S } from 'effect'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { accountKeyOf } from './account.js'
+import { watchedAccountsOf } from './activityStore.js'
 import { handle } from './handler.js'
 import type { BrandonStore, ClaimRecord, PersonAccount } from './store.js'
 import { signedLogin, testVerifier } from './testAccess.js'
@@ -89,12 +90,9 @@ const store: BrandonStore = {
   walletActivity: () => Effect.succeed([]),
   watchedAccountKeys: holder =>
     Effect.succeed(
-      Array.filterMap(personAccounts, entry =>
-        entry.holder === holder
-          ? Option.some(
-              `${holder}|${entry.account.networkId}|${entry.account.address}`,
-            )
-          : Option.none(),
+      Array.map(
+        Array.filter(personAccounts, entry => entry.holder === holder),
+        entry => `${holder}|${entry.account.networkId}|${entry.account.address}`,
       ),
     ),
   addWatchedAccount: () => Effect.void,
@@ -104,10 +102,9 @@ const store: BrandonStore = {
     }),
   personAccounts: holder =>
     Effect.succeed(
-      Array.filterMap(personAccounts, entry =>
-        entry.holder === holder
-          ? Option.some(entry.account)
-          : Option.none(),
+      Array.map(
+        Array.filter(personAccounts, entry => entry.holder === holder),
+        entry => entry.account,
       ),
     ),
   claims: holder =>
@@ -409,5 +406,26 @@ describe('a send the page reports from a held account', () => {
     }
     expect((await put(sentTransactionPathOf(sent), recipient)).status).toBe(200)
     expect(reportedSends).toEqual([sent])
+  })
+})
+
+describe('the chain watcher and a held account', () => {
+  it('listens to a held account like any other, its custody ignored', () => {
+    const row = {
+      id: '3c4d5e6f-7a8b-4c3d-8e4f-5a6b7c8d9e0f',
+      accountKey: `${holderOf(recipient)}|${mainnet}|${heldAddress}`,
+      holder: holderOf(recipient),
+      chainId: 'solana',
+      networkId: mainnet,
+      address: heldAddress,
+      custody: 'Scribe',
+    }
+    expect(
+      Array.map(watchedAccountsOf([row]), account => [
+        account.holder,
+        account.networkId,
+        account.address,
+      ]),
+    ).toEqual([[holderOf(recipient), mainnet, heldAddress]])
   })
 })

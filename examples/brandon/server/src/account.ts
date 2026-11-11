@@ -63,7 +63,19 @@ export const walletOwnerKeyOf = (email: string): string =>
  * ```
  */
 export const walletHolderOf = (email: string): string =>
-  `${walletHolderPrefix}${accountKeyOf(email)}`
+  walletHolderOfKey(accountKeyOf(email))
+
+/**
+ * The same holder from an account's key, for the `brandon` command, which
+ * names a person by display name and never types their address.
+ *
+ * @example
+ * ```typescript
+ * walletHolderOfKey(accountKeyOf('brandon@example.com')) === walletHolderOf('brandon@example.com') // true
+ * ```
+ */
+export const walletHolderOfKey = (accountKey: string): string =>
+  `${walletHolderPrefix}${accountKey}`
 
 /** The account with no flags at all, for a store with no default row. */
 export const noAccess: Account = { displayName: 'Guest', flags: [] }

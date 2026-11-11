@@ -103,7 +103,12 @@ export const transactionFieldsOf = (row: ActivityRow, ownerUserID: string) => ({
 export const decodeActivityRows = (rows: unknown): ReadonlyArray<ActivityRow> =>
   Array.map(S.decodeUnknownSync(S.Array(TransactionRow))(rows), activityRowOf)
 
-const accountsOf = (
+/**
+ * `walletAccounts` rows as the watcher follows them. A field it does not
+ * read, such as a held account's custody, is ignored, so every account is
+ * listened to the same way.
+ */
+export const watchedAccountsOf = (
   rows: ReadonlyArray<unknown>,
 ): ReadonlyArray<WatchedAccount> =>
   Array.filterMap(rows, row =>
@@ -264,7 +269,9 @@ export const makeActivityAdmin = (config: BrandonEnv): ActivityAdmin => {
         payload => {
           if (payload.type === 'ok') {
             try {
-              onAccounts(accountsOf(payload.data['walletAccounts'] ?? []))
+              onAccounts(
+                watchedAccountsOf(payload.data['walletAccounts'] ?? []),
+              )
             } catch (cause) {
               onFailure(failure(cause))
             }

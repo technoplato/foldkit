@@ -1,8 +1,11 @@
 import {
+  ClickedMoveHeldMoney,
   type Game,
   type GameTeam,
   GotWalletMessage,
+  type HeldAccount,
   type Model,
+  type PageInput,
   type Player,
   type Section,
   type SyncedBrandonModel,
@@ -10,6 +13,13 @@ import {
   type WalletAddress,
   type WalletTransaction,
   activityInMode,
+  heldAmountLabel,
+  heldMoveRequestOf,
+  heldNetworkLabel,
+  isHeldAccountEmpty,
+  isHeldMoveOnItsWay,
+  isRealMoneyNetwork,
+  knownHeldAccounts,
   rankedPlayers,
   solOfLamports,
   walletActivityAmountLabel,
@@ -29,7 +39,7 @@ import { view as markdownView } from '@foldkit/markdown'
 
 // VIEW
 
-const h = html<never>()
+const h = html<PageInput>()
 
 const pageTitle = 'Hot Phonez'
 const heading = '🔥📱 Hot Phonez'
@@ -331,6 +341,145 @@ const walletActivity = (model: Model, walletModel: WalletModel): Html =>
     ],
   )
 
+const heldKeyWords =
+  "Its key is on Michael's Mac, not in this browser. Move it to your own wallet here whenever you like."
+
+const heldBalanceWords = (held: HeldAccount): string => {
+  const network = heldNetworkLabel(held.networkId)
+  const money = isRealMoneyNetwork(held.networkId)
+    ? 'This is real money.'
+    : 'This is test money.'
+  return Option.match(held.maybeBalanceAtomic, {
+    onNone: () =>
+      `Scribe holds money for you on ${network}, but its balance could not be read just now. ${money}`,
+    onSome: balance =>
+      `Scribe holds ${heldAmountLabel(held.networkId, balance)} for you on ${network}. ${money}`,
+  })
+}
+
+const heldClaimLines = (held: HeldAccount): ReadonlyArray<Html> =>
+  Option.match(held.maybeClaim, {
+    onNone: () => [],
+    onSome: claim =>
+      M.value(claim.status).pipe(
+        M.withReturnType<ReadonlyArray<Html>>(),
+        M.when('Requested', () => [
+          h.p(
+            [h.Class('note held-moving')],
+            [
+              "Moving it to your wallet. Michael's Mac sends it, and it shows below once the chain has it.",
+            ],
+          ),
+        ]),
+        M.when('Sent', () => [
+          h.p(
+            [h.Class('note')],
+            [
+              Option.match(claim.maybeAmountAtomic, {
+                onNone: () => 'Moved it to your wallet.',
+                onSome: amount =>
+                  `Moved ${heldAmountLabel(held.networkId, amount)} to your wallet.`,
+              }),
+            ],
+          ),
+          ...Option.match(claim.maybeTransactionId, {
+            onNone: () => [],
+            onSome: transactionId => [
+              h.code([h.Class('held-transaction')], [shortSignature(transactionId)]),
+            ],
+          }),
+        ]),
+        M.when('Failed', () => [
+          h.p(
+            [h.Class('note held-failed')],
+            [
+              `${Option.getOrElse(claim.maybeFailure, () => 'The move did not go through.')} Nothing was sent.`,
+            ],
+          ),
+        ]),
+        M.exhaustive,
+      ),
+  })
+
+const heldMoveFailureLines = (
+  model: Model,
+  held: HeldAccount,
+): ReadonlyArray<Html> =>
+  M.value(model.heldMove).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tag('FailedHeldMove', ({ request, reason }) =>
+      request.networkId === held.networkId && request.heldAddress === held.address
+        ? [
+            h.p(
+              [h.Class('note held-failed')],
+              [
+                `The move could not be asked for just now: ${reason} Nothing was sent.`,
+              ],
+            ),
+          ]
+        : [],
+    ),
+    M.orElse(() => []),
+  )
+
+const heldMoveLines = (model: Model, held: HeldAccount): ReadonlyArray<Html> =>
+  isHeldMoveOnItsWay(held) || isHeldAccountEmpty(held)
+    ? []
+    : Option.match(heldMoveRequestOf(model, held), {
+        onNone: () => [
+          h.p(
+            [h.Class('note')],
+            ['Make your wallet below first, then move it there.'],
+          ),
+        ],
+        onSome: request => [
+          h.button(
+            [
+              h.Type('button'),
+              h.Class('held-move'),
+              h.Disabled(model.heldMove._tag === 'FilingHeldMove'),
+              h.OnClick(ClickedMoveHeldMoney({ request })),
+            ],
+            ['Move it to my wallet'],
+          ),
+        ],
+      })
+
+const heldCard = (model: Model, held: HeldAccount): Html =>
+  h.keyed('div')(
+    `${held.networkId}|${held.address}`,
+    [
+      h.Class(
+        isRealMoneyNetwork(held.networkId) ? 'held-card is-mainnet' : 'held-card',
+      ),
+    ],
+    [
+      h.h3([], ['Held for you']),
+      h.p([h.Class('held-balance')], [heldBalanceWords(held)]),
+      h.p([h.Class('note')], [heldKeyWords]),
+      ...heldClaimLines(held),
+      ...heldMoveFailureLines(model, held),
+      ...heldMoveLines(model, held),
+    ],
+  )
+
+const heldCards = (model: Model): ReadonlyArray<Html> => {
+  const accounts = knownHeldAccounts(model.heldAccounts)
+  const staleNote =
+    model.heldAccounts._tag === 'UnavailableHeldAccounts' &&
+    Array.isReadonlyArrayNonEmpty(accounts)
+      ? [
+          h.p(
+            [h.Class('note')],
+            [
+              'The money Scribe holds for you could not be read just now. This is what this page last heard.',
+            ],
+          ),
+        ]
+      : []
+  return [...staleNote, ...Array.map(accounts, held => heldCard(model, held))]
+}
+
 const personalWallet = (model: Model): Html =>
   M.value(model.wallet).pipe(
     M.withReturnType<Html>(),
@@ -340,6 +489,7 @@ const personalWallet = (model: Model): Html =>
         h.div(
           [],
           [
+            ...heldCards(model),
             h.submodel({
               slotId: 'wallet',
               model: walletModel,

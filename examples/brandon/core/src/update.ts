@@ -2,28 +2,41 @@ import { Array, Effect, Match as M, Option } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Wallet from 'wallet-core-example'
 
+import { knownHeldAccounts } from './held.js'
 import {
   type AwardedPoints as AwardedPointsMessage,
   CompletedReportSentTransaction,
+  FailedFileHeldClaim,
   GotWalletMessage,
   type Message,
   type NotedPlayer as NotedPlayerMessage,
+  SucceededFileHeldClaim,
 } from './message.js'
 import {
   ClosedWallet,
   ConfirmedWalletWatch,
+  FailedHeldMove,
   FailedToLoadPage,
   FailedWalletWatch,
+  FilingHeldMove,
+  IdleHeldMove,
+  LoadedHeldAccounts,
   LoadedWalletActivity,
   type Model,
   OpenWallet,
   type Player,
   ReadyPage,
+  UnavailableHeldAccounts,
   UnavailableWalletActivity,
   type WalletActivityState,
   type WalletState,
 } from './model.js'
-import { type Page, SentTransaction, type WalletActivityEntry } from './page.js'
+import {
+  HeldClaimRequest,
+  type Page,
+  SentTransaction,
+  type WalletActivityEntry,
+} from './page.js'
 import { BrandonServer } from './server.js'
 import { hasNewActivity, sentTransactionOf } from './walletActivity.js'
 
@@ -43,6 +56,27 @@ const ReportSentTransaction = Command.define(
     const server = yield* BrandonServer
     yield* Effect.ignore(server.reportSentTransaction(sent))
     return CompletedReportSentTransaction()
+  }),
+)
+
+/**
+ * Asks the origin to move held money to this person's own wallet. The
+ * origin decides whether it may; Michael's Mac sends it.
+ */
+const FileHeldClaim = Command.define(
+  'FileHeldClaim',
+  { request: HeldClaimRequest },
+  SucceededFileHeldClaim,
+  FailedFileHeldClaim,
+)(({ request }) =>
+  Effect.gen(function* () {
+    const server = yield* BrandonServer
+    return yield* server.fileHeldClaim(request).pipe(
+      Effect.match({
+        onFailure: reason => FailedFileHeldClaim({ reason }),
+        onSuccess: () => SucceededFileHeldClaim(),
+      }),
+    )
   }),
 )
 
@@ -173,7 +207,9 @@ const knownActivity = (
  * replay of the log repeats no work. The wallet opens when the origin
  * sends its section and shuts when the origin stops; a failed read leaves
  * it as it is, so a send in flight keeps its result. A transaction the
- * page did not know moves the wallet's balance at once.
+ * page did not know moves the wallet's balance at once. A move of held
+ * money is filed once at a time, and the held accounts are read again
+ * after it, whether or not the origin took it.
  */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -242,6 +278,51 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
       SucceededWatchWalletAccounts: () => [
         { ...model, walletWatch: ConfirmedWalletWatch() },
+        [],
+      ],
+      ReceivedHeldAccounts: ({ accounts }) => [
+        { ...model, heldAccounts: LoadedHeldAccounts({ accounts }) },
+        [],
+      ],
+      FailedHeldAccounts: () => [
+        {
+          ...model,
+          heldAccounts: UnavailableHeldAccounts({
+            accounts: knownHeldAccounts(model.heldAccounts),
+          }),
+        },
+        [],
+      ],
+      ClickedMoveHeldMoney: ({ request }) =>
+        model.heldMove._tag === 'FilingHeldMove'
+          ? [model, []]
+          : [
+              { ...model, heldMove: FilingHeldMove({ request }) },
+              [FileHeldClaim({ request })],
+            ],
+      SucceededFileHeldClaim: () => [
+        {
+          ...model,
+          heldMove: IdleHeldMove(),
+          heldRevision: model.heldRevision + 1,
+        },
+        [],
+      ],
+      FailedFileHeldClaim: ({ reason }) => [
+        {
+          ...model,
+          heldMove: M.value(model.heldMove).pipe(
+            M.withReturnType<Model['heldMove']>(),
+            M.tagsExhaustive({
+              IdleHeldMove: heldMove => heldMove,
+              FilingHeldMove: ({ request }) =>
+                FailedHeldMove({ request, reason }),
+              FailedHeldMove: ({ request }) =>
+                FailedHeldMove({ request, reason }),
+            }),
+          ),
+          heldRevision: model.heldRevision + 1,
+        },
         [],
       ],
       FailedWatchWalletAccounts: () => [

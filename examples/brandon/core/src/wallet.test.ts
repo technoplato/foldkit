@@ -194,6 +194,8 @@ describe('a wallet made on this page', () => {
       loadFootball: Effect.succeed([]),
       loadWallets: Effect.succeed([]),
       loadWalletActivity: Effect.succeed([]),
+      loadHeldAccounts: Effect.succeed([]),
+      fileHeldClaim: () => Effect.void,
       watchWalletAccounts: accounts =>
         Effect.sync(() => {
           watched.push(...accounts)

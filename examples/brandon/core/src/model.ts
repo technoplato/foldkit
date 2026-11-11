@@ -4,6 +4,8 @@ import * as Wallet from 'wallet-core-example'
 
 import {
   Game,
+  HeldAccount,
+  HeldClaimRequest,
   Page,
   SectionKey,
   WalletActivityEntry,
@@ -82,6 +84,45 @@ export const WalletWatchState = S.Union([
 /** Whether the origin follows this wallet on the chain. */
 export type WalletWatchState = typeof WalletWatchState.Type
 
+/** The accounts Scribe holds for this person are on their way. */
+export const LoadingHeldAccounts = ts('LoadingHeldAccounts')
+/** The accounts Scribe holds for this person, as the origin last sent them. */
+export const LoadedHeldAccounts = ts('LoadedHeldAccounts', {
+  accounts: S.Array(HeldAccount),
+})
+/** The origin could not say; the last accounts stay on screen. */
+export const UnavailableHeldAccounts = ts('UnavailableHeldAccounts', {
+  accounts: S.Array(HeldAccount),
+})
+/** Where the accounts Scribe holds for this person stand. */
+export const HeldAccountsState = S.Union([
+  LoadingHeldAccounts,
+  LoadedHeldAccounts,
+  UnavailableHeldAccounts,
+])
+/** Where the accounts Scribe holds for this person stand. */
+export type HeldAccountsState = typeof HeldAccountsState.Type
+
+/** No move of held money is on its way to the origin. */
+export const IdleHeldMove = ts('IdleHeldMove')
+/** A move of held money is on its way to the origin. */
+export const FilingHeldMove = ts('FilingHeldMove', {
+  request: HeldClaimRequest,
+})
+/** The origin did not take the last move, and why. */
+export const FailedHeldMove = ts('FailedHeldMove', {
+  request: HeldClaimRequest,
+  reason: S.String,
+})
+/** Where the last move of held money this page asked for stands. */
+export const HeldMoveState = S.Union([
+  IdleHeldMove,
+  FilingHeldMove,
+  FailedHeldMove,
+])
+/** Where the last move of held money this page asked for stands. */
+export type HeldMoveState = typeof HeldMoveState.Type
+
 /** Every Brandon dot Model field. The log folds the first five. */
 export const Model = S.Struct({
   players: S.Array(Player),
@@ -97,6 +138,9 @@ export const Model = S.Struct({
   wallet: WalletState,
   walletActivity: WalletActivityState,
   walletWatch: WalletWatchState,
+  heldAccounts: HeldAccountsState,
+  heldRevision: S.Int,
+  heldMove: HeldMoveState,
 })
 /** Every Brandon dot Model field. */
 export type Model = typeof Model.Type
@@ -116,6 +160,9 @@ export const initialModel: Model = {
   wallet: ClosedWallet(),
   walletActivity: LoadingWalletActivity(),
   walletWatch: PendingWalletWatch(),
+  heldAccounts: LoadingHeldAccounts(),
+  heldRevision: 0,
+  heldMove: IdleHeldMove(),
 }
 
 const byPointsDescending = Order.mapInput(

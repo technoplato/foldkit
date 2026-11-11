@@ -2,6 +2,8 @@ import { Context, Effect } from 'effect'
 
 import type {
   Game,
+  HeldAccount,
+  HeldClaimRequest,
   Page,
   SectionKey,
   SentTransaction,
@@ -28,6 +30,8 @@ export class BrandonServer extends Context.Service<
       ReadonlyArray<WalletActivityEntry>,
       string
     >
+    loadHeldAccounts: Effect.Effect<ReadonlyArray<HeldAccount>, string>
+    fileHeldClaim: (request: HeldClaimRequest) => Effect.Effect<void, string>
     watchWalletAccounts: (
       accounts: ReadonlyArray<WalletPublicAccount>,
     ) => Effect.Effect<void, string>

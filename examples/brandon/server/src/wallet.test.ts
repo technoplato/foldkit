@@ -94,6 +94,9 @@ const makeStore = () => {
       Effect.sync(() => {
         sent.push({ holder, sent: transaction })
       }),
+    personAccounts: () => Effect.succeed([]),
+    claims: () => Effect.succeed([]),
+    addClaim: () => Effect.void,
   }
   return { store, watched, sent }
 }

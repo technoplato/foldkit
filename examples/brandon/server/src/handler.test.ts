@@ -37,6 +37,9 @@ const store: BrandonStore = {
   watchedAccountKeys: () => Effect.succeed([]),
   addWatchedAccount: () => Effect.void,
   addSentTransaction: () => Effect.void,
+  personAccounts: () => Effect.succeed([]),
+  claims: () => Effect.succeed([]),
+  addClaim: () => Effect.void,
   account: key => {
     if (key === accountKeyOf(michael)) {
       return Effect.succeed(

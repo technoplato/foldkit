@@ -10,6 +10,7 @@ import { makeBrandonAdmin } from './adminStore.js'
 import { brandonEnv, listOf, maybeEnv } from './env.js'
 import { makeFootball } from './football.js'
 import { handle, inlineStyleHashesOf, makeOriginHeaders } from './handler.js'
+import { makeHeldBalanceReader } from './heldBalance.js'
 
 // ORIGIN
 
@@ -36,6 +37,7 @@ const dependencies = {
   staticRoot: Option.getOrElse(maybeEnv('BRANDON_STATIC_ROOT'), () =>
     join(here, '../../foldkit/dist'),
   ),
+  heldBalance: makeHeldBalanceReader(),
 }
 
 const servedPageHtml = Option.getOrElse(

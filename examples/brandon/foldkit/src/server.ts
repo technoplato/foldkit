@@ -1,12 +1,15 @@
 import {
   BrandonServer,
   Games,
+  HeldAccounts,
+  type HeldClaimRequest,
   Page,
   type SectionKey,
   type SentTransaction,
   WalletActivity,
   WalletAddresses,
   type WalletPublicAccount,
+  heldClaimPathOf,
   sentTransactionPathOf,
 } from 'brandon-core-example'
 import { Effect, Layer, Schema as S } from 'effect'
@@ -65,6 +68,37 @@ const putNoBody = (path: string): Effect.Effect<void, string> =>
     }),
   )
 
+const refusalWithin = 200
+
+/**
+ * A PUT with no body whose refusal says the origin's own words, so the
+ * page can say why a move of held money was not taken.
+ */
+const putNoBodySaying = (path: string): Effect.Effect<void, string> =>
+  Effect.tryPromise({
+    try: async signal => {
+      const response = await fetch(path, {
+        method: 'PUT',
+        cache: 'no-store',
+        signal,
+      })
+      if (!response.ok) {
+        const said = (await response.text()).trim().slice(0, refusalWithin)
+        throw new Error(said === '' ? notAllowed : said)
+      }
+    },
+    catch: cause => (cause instanceof Error ? cause.message : String(cause)),
+  }).pipe(
+    Effect.timeoutOrElse({
+      duration: answerWithin,
+      orElse: () => Effect.fail(unanswered),
+    }),
+  )
+
+const fileHeldClaim = (
+  request: HeldClaimRequest,
+): Effect.Effect<void, string> => putNoBodySaying(heldClaimPathOf(request))
+
 const followAccount = (
   account: WalletPublicAccount,
 ): Effect.Effect<void, string> => putNoBody(accountPathOf(account))
@@ -108,6 +142,11 @@ export const liveBrandonServer: Layer.Layer<BrandonServer> = Layer.succeed(
       '/api/wallet/activity',
       S.decodeUnknownSync(WalletActivity),
     ),
+    loadHeldAccounts: readJson(
+      '/api/wallet/held',
+      S.decodeUnknownSync(HeldAccounts),
+    ),
+    fileHeldClaim,
     watchWalletAccounts: accounts =>
       Effect.forEach(accounts, followAccount, { discard: true }),
     reportSentTransaction,

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The held-money claims worker (Scribe #2134), on Michael's Mac. A template: __HOME__ is this Mac's home folder.
+  Install: sed "s|__HOME__|$HOME|g" com.knophy.brandon-held-claims.plist > ~/Library/LaunchAgents/com.knophy.brandon-held-claims.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.knophy.brandon-held-claims</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/Library/Application Support/Scribe/held-claims/run-claims.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__HOME__/Library/Application Support/Scribe/held-claims</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/brandon-held-claims/out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/brandon-held-claims/err.log</string>
+</dict>
+</plist>

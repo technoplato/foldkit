@@ -237,6 +237,8 @@ const startReader = (
     loadFootball: Effect.succeed([]),
     loadWallets: Effect.succeed([]),
     loadWalletActivity: Effect.succeed([]),
+    loadHeldAccounts: Effect.succeed([]),
+    fileHeldClaim: () => Effect.void,
     watchWalletAccounts: () => Effect.void,
     reportSentTransaction: () => Effect.void,
     scrollToSection: () => Effect.void,

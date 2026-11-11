@@ -7,6 +7,7 @@ import {
   MirroredWallets,
   SectionColumn,
   WalletAddress,
+  type WatchedNetworkId,
 } from 'brandon-core-example'
 import { Array, Effect, Option, Order, Schema as S } from 'effect'
 import { randomUUID } from 'node:crypto'
@@ -22,7 +23,14 @@ import {
   accountKeyOf as watchedAccountKeyOf,
 } from './activity.js'
 import { decodeActivityRows, transactionFieldsOf } from './activityStore.js'
+import {
+  claimFieldsOf,
+  claimRecordsOf,
+  personAccountsOf,
+  scribeCustody,
+} from './claimRows.js'
 import { type FactStamp, logFieldsOf } from './facts.js'
+import type { NamedAccount } from './hold.js'
 import {
   type BrandonStore,
   type LinkRow,
@@ -176,6 +184,14 @@ export type BrandonAdmin = BrandonStore &
       account: Account,
     ) => Effect.Effect<void, Error>
     accounts: Effect.Effect<ReadonlyArray<Account>, Error>
+    namedAccounts: Effect.Effect<ReadonlyArray<NamedAccount>, Error>
+    addHeldAccount: (
+      account: Readonly<{
+        holder: string
+        networkId: WatchedNetworkId
+        address: string
+      }>,
+    ) => Effect.Effect<void, Error>
     changeFlags: (
       displayName: string,
       change: (flags: ReadonlyArray<string>) => ReadonlyArray<string>,
@@ -355,6 +371,50 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
         )
       }
     })
+
+  const personAccounts: BrandonStore['personAccounts'] = holder =>
+    attempt(() =>
+      admin.query({ walletAccounts: { $: { where: { holder } } } }),
+    ).pipe(
+      Effect.map(result => personAccountsOf(result['walletAccounts'] ?? [])),
+    )
+
+  const claims: BrandonStore['claims'] = holder =>
+    attempt(() =>
+      admin.query({ walletClaims: { $: { where: { holder } } } }),
+    ).pipe(Effect.map(result => claimRecordsOf(result['walletClaims'] ?? [])))
+
+  const addClaim: BrandonStore['addClaim'] = claim =>
+    attempt(() =>
+      admin.transact([
+        admin.tx['walletClaims']!.lookup('claimKey', claim.claimKey).update(
+          claimFieldsOf(claim, ownerUserIdOfHolder(claim.holder, ownerUserID)),
+        ),
+        factStep(ChangedWalletActivity({ atMs: claim.requestedAtMs })),
+      ]),
+    ).pipe(Effect.asVoid)
+
+  const addHeldAccount: BrandonAdmin['addHeldAccount'] = ({
+    holder,
+    networkId,
+    address,
+  }) =>
+    attempt(() =>
+      admin.transact(
+        admin.tx['walletAccounts']!.lookup(
+          'accountKey',
+          watchedAccountKeyOf({ holder, networkId, address }),
+        ).update({
+          ownerUserID: ownerUserIdOfHolder(holder, ownerUserID),
+          formatVersion,
+          holder,
+          chainId: chainIdOfNetwork(networkId),
+          networkId,
+          address,
+          custody: scribeCustody,
+        }),
+      ),
+    ).pipe(Effect.asVoid)
 
   const addressRows = attempt(() =>
     admin.query({ walletMirrorAddresses: { transactions: {} } }),
@@ -641,6 +701,17 @@ export const makeBrandonAdmin = (config: AdminConfig): BrandonAdmin => {
     watchedAccountKeys,
     addWatchedAccount,
     addSentTransaction,
+    personAccounts,
+    claims,
+    addClaim,
+    addHeldAccount,
+    namedAccounts: Effect.map(accountRows, rows =>
+      Array.map(rows, row => ({
+        accountKey: row.accountKey,
+        displayName: row.displayName,
+        flags: S.decodeUnknownSync(JsonFlags)(row.flags),
+      })),
+    ),
     account,
     sections,
     wallets,

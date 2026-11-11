@@ -1,5 +1,5 @@
 import {
-  GotWalletMessage,
+  PageInput,
   SyncedBrandon,
   brandonWalletNetworks,
 } from 'brandon-core-example'
@@ -36,7 +36,7 @@ const handle = startBrandon({
 
 Effect.runFork(
   Runtime.makeAttachedFoldkitApplication({
-    ClientInput: GotWalletMessage,
+    ClientInput: PageInput,
     container: document.getElementById('root'),
     program: SyncedBrandon,
     sendClientInput: message => {

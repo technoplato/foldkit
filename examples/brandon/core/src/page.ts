@@ -201,6 +201,57 @@ export type SentTransaction = typeof SentTransaction.Type
 /** This person's rows, newest first: `GET /api/wallet/activity`. */
 export const WalletActivity = S.Array(WalletActivityEntry)
 
+// HELD FOR YOU
+
+/** Where a move of held money stands: asked for, sent, or failed with nothing sent. */
+export const HeldClaimStatus = S.Literals(['Requested', 'Sent', 'Failed'])
+/** Where a move of held money stands. */
+export type HeldClaimStatus = typeof HeldClaimStatus.Type
+
+/**
+ * The newest move a person asked for on a held account: where it goes,
+ * when they asked, and how it ended.
+ */
+export const HeldClaim = S.Struct({
+  toAddress: S.String,
+  requestedAtMs: S.Number,
+  status: HeldClaimStatus,
+  maybeAmountAtomic: S.OptionFromOptionalKey(AtomicUnits),
+  maybeTransactionId: S.OptionFromOptionalKey(S.String),
+  maybeFailure: S.OptionFromOptionalKey(S.String),
+})
+/** The newest move a person asked for on a held account. */
+export type HeldClaim = typeof HeldClaim.Type
+
+/**
+ * One account Scribe holds for this person: its key is on Michael's Mac,
+ * not in their browser. It carries the balance the chain reported when
+ * the origin answered, and the newest move they asked for.
+ */
+export const HeldAccount = S.Struct({
+  networkId: WatchedNetworkId,
+  address: S.String,
+  maybeBalanceAtomic: S.OptionFromOptionalKey(AtomicUnits),
+  maybeClaim: S.OptionFromOptionalKey(HeldClaim),
+})
+/** One account Scribe holds for this person. */
+export type HeldAccount = typeof HeldAccount.Type
+
+/** The accounts Scribe holds for this person: `GET /api/wallet/held`. */
+export const HeldAccounts = S.Array(HeldAccount)
+
+/**
+ * A move the page asks for: all of a held account's money to an address
+ * of this person's own wallet, on the same network.
+ */
+export const HeldClaimRequest = S.Struct({
+  networkId: WatchedNetworkId,
+  heldAddress: S.String,
+  toAddress: S.String,
+})
+/** A move the page asks for. */
+export type HeldClaimRequest = typeof HeldClaimRequest.Type
+
 const lamportsPerSol = 1_000_000_000n
 const solDecimals = 9
 

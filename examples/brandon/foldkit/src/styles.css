@@ -233,6 +233,61 @@ aside {
   color: var(--muted);
 }
 
+.held-card {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+}
+
+.held-card.is-mainnet {
+  border-color: #ff5a52;
+}
+
+.held-card h3 {
+  margin: 0 0 8px;
+}
+
+.held-card .held-balance {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.held-card .note {
+  margin: 0 0 8px;
+}
+
+.held-card .held-failed {
+  color: #ff5a52;
+}
+
+.held-card .held-moving {
+  color: var(--accent);
+}
+
+.held-card .held-move {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.held-card .held-move:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.held-card .held-transaction {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+
 .person-activity {
   margin-top: 16px;
   padding: 16px;

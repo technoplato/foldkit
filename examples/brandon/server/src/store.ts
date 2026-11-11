@@ -1,11 +1,13 @@
-import type {
-  SectionColumn,
-  SentTransaction,
-  WalletActivityEntry,
-  WalletAddress,
+import {
+  HeldClaimStatus,
+  type SectionColumn,
+  type SentTransaction,
+  type WalletActivityEntry,
+  type WalletAddress,
   WatchedNetworkId,
 } from 'brandon-core-example'
 import { type Effect, type Option, Schema as S } from 'effect'
+import { AtomicUnits } from 'wallet-core-example'
 
 import type { Account } from './account.js'
 
@@ -39,6 +41,41 @@ export type SectionRow = Readonly<{
 }>
 
 /**
+ * One `walletAccounts` row of a person: a public address on one network,
+ * and whether Scribe holds its key for them (custody `Scribe`, a key on
+ * Michael's Mac) or it is their own wallet's.
+ */
+export const PersonAccount = S.Struct({
+  networkId: WatchedNetworkId,
+  address: S.String,
+  isHeldByScribe: S.Boolean,
+})
+/** One `walletAccounts` row of a person. */
+export type PersonAccount = typeof PersonAccount.Type
+
+/**
+ * One `walletClaims` row: a move of held money a person asked for. Its
+ * key is `<held accountKey>|<requestedAtMs>`, and its send id is the one
+ * payment `scribe-wallet send --id` makes of it.
+ */
+export const ClaimRecord = S.Struct({
+  claimKey: S.String,
+  holder: S.String,
+  networkId: WatchedNetworkId,
+  fromAddress: S.String,
+  toAddress: S.String,
+  sendId: S.String,
+  requestedAtMs: S.Number,
+  status: HeldClaimStatus,
+  maybeAmountAtomic: S.Option(AtomicUnits),
+  maybeTransactionId: S.Option(S.String),
+  maybeFailure: S.Option(S.String),
+  updatedAtMs: S.Number,
+})
+/** One `walletClaims` row. */
+export type ClaimRecord = typeof ClaimRecord.Type
+
+/**
  * What the origin reads. Every row is the owner's alone in Instant, so the
  * live store holds the admin token and only this process reads them.
  */
@@ -63,4 +100,9 @@ export type BrandonStore = Readonly<{
     holder: string,
     sent: SentTransaction,
   ) => Effect.Effect<void, Error>
+  personAccounts: (
+    holder: string,
+  ) => Effect.Effect<ReadonlyArray<PersonAccount>, Error>
+  claims: (holder: string) => Effect.Effect<ReadonlyArray<ClaimRecord>, Error>
+  addClaim: (claim: ClaimRecord) => Effect.Effect<void, Error>
 }>

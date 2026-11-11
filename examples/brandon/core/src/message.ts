@@ -4,6 +4,8 @@ import * as Wallet from 'wallet-core-example'
 
 import {
   Game,
+  HeldAccount,
+  HeldClaimRequest,
   Page,
   SectionKey,
   WalletActivityEntry,
@@ -66,6 +68,22 @@ export const FailedWalletActivity = m('FailedWalletActivity')
 export const SucceededWatchWalletAccounts = m('SucceededWatchWalletAccounts')
 /** The origin did not take this wallet's public addresses. */
 export const FailedWatchWalletAccounts = m('FailedWatchWalletAccounts')
+/** The origin sent the accounts Scribe holds for this person. */
+export const ReceivedHeldAccounts = m('ReceivedHeldAccounts', {
+  accounts: S.Array(HeldAccount),
+})
+/** The held accounts could not be read; the last ones stay on screen. */
+export const FailedHeldAccounts = m('FailedHeldAccounts')
+/** This person asked to move money Scribe holds for them to their own wallet. */
+export const ClickedMoveHeldMoney = m('ClickedMoveHeldMoney', {
+  request: HeldClaimRequest,
+})
+/** The origin took the move; Michael's Mac sends it. */
+export const SucceededFileHeldClaim = m('SucceededFileHeldClaim')
+/** The origin did not take the move, and why. Nothing was sent. */
+export const FailedFileHeldClaim = m('FailedFileHeldClaim', {
+  reason: S.String,
+})
 /** The page told the origin of a send. If that failed, the chain still says so. */
 export const CompletedReportSentTransaction = m(
   'CompletedReportSentTransaction',
@@ -102,6 +120,11 @@ export const Message = S.Union([
   FailedWalletActivity,
   SucceededWatchWalletAccounts,
   FailedWatchWalletAccounts,
+  ReceivedHeldAccounts,
+  FailedHeldAccounts,
+  ClickedMoveHeldMoney,
+  SucceededFileHeldClaim,
+  FailedFileHeldClaim,
   CompletedReportSentTransaction,
   CompletedScrollToSection,
   IgnoredStalePointer,
@@ -110,6 +133,15 @@ export const Message = S.Union([
 ])
 /** Every Brandon dot Message. */
 export type Message = typeof Message.Type
+
+/**
+ * What the page's own controls send its Program: the wallet's Messages,
+ * and a move of held money. Anything else a page could send is refused
+ * when it is decoded.
+ */
+export const PageInput = S.Union([GotWalletMessage, ClickedMoveHeldMoney])
+/** What the page's own controls send its Program. */
+export type PageInput = typeof PageInput.Type
 
 /** The facts that travel on the log, which any guest may read. */
 export const LogMessage = S.Union([

@@ -290,13 +290,18 @@ const eventually = async <A>(
 }
 
 const stopped: Array<() => Promise<void>> = []
+const realFetch = globalThis.fetch
 
 afterEach(async () => {
+  globalThis.fetch = realFetch
   await Promise.all(stopped.splice(0).map(stop => stop()))
 })
 
 describe('the page reading the money Scribe holds', () => {
   it('reads it when the wallet section shows, again on new activity, and again after a move', async () => {
+    globalThis.fetch = async () => {
+      throw new TypeError('offline in this test')
+    }
     const reads = { count: 0 }
     const filed: Array<HeldClaimRequest> = []
     const walletPage = Page.make({

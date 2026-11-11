@@ -21,6 +21,8 @@ server/    the origin behind Cloudflare Access, and the `brandon` command
 | Wallet addresses and balances         | `walletMirrorAddresses`, `walletMirrorTransactions` | The origin, for an account with `wallets` on |
 | A person's wallet activity            | `walletAccounts`, `walletTransactions`              | The origin, for that signed-in person alone  |
 | A person's wallet keys                | IndexedDB on that person's own device               | That person's browser, and nothing else      |
+| Money Scribe holds for a person       | `walletAccounts` (custody `Scribe`), `walletClaims` | The origin, for that signed-in person alone  |
+| The key of a held account             | Michael's Mac's login keychain                      | `scribe-wallet` on that Mac, and nothing else |
 
 Guests never sign into Instant, because that would put their email in the shared project's `$users`. So the browser follows the log signed out, and everything private comes from the origin.
 
@@ -81,6 +83,17 @@ The watcher follows each row not yet Final on the chain itself. A Final row neve
 
 Sockets drop, so every watch listens first and backfills to its cursor alongside, a quiet watch ends after 10 minutes to bound a deaf socket, and a watch that held under a minute backs off up to 30 seconds. Every chain and Instant call has 5 seconds.
 
+## Money Scribe holds for a person
+
+Michael can put money in the app for a person's email before they have a wallet: Scribe makes the account's key on his Mac, and the money is theirs to move to their own wallet from this page. Michael, Recording 409 #297-298: "I'm going to put the money in the app for your email. And if you log in and grab it uh that's great".
+
+1. On Michael's Mac, Scribe makes the key and the person's page holds the account: `scribe wallet create --chain solana --another`, then `brandon wallet hold <name> --network solana:mainnet-beta --address <address>`. The second writes the `walletAccounts` row with custody `Scribe` under that person's holder, by display name so no email is typed, and lists the account in this Mac's held list (`~/.config/scribe-private/brandon-dot/held-accounts.tsv`, `BRANDON_HELD_ACCOUNTS`, readable by its user alone). The watcher follows the row like any other, so a payment to it is the person's activity at once.
+2. Signed in, the person sees a Held for you card at the top of the wallet section, in both modes, naming its network as real money: `Scribe holds 0.181 SOL for you on Solana Mainnet Beta.` The origin answers `GET /api/wallet/held` with that person's held accounts alone, each balance read from its chain as it answers.
+3. Once their own wallet here has its account on that network and the origin follows it, Move it to my wallet asks the origin: `PUT /api/wallet/claim/solana:mainnet-beta/43T9…/9Pz…`, no body. The origin files a `walletClaims` row, Requested, only for one of that person's held accounts and only to an address their own wallet registered on the same network, one move at a time.
+4. The claims worker on Michael's Mac (`claims.ts`, bundled as `claims.mjs`, launchd's `com.knophy.brandon-held-claims`) follows Requested claims and pays each with `scribe-wallet send --all --id <the claim's send id>`: everything less the fee, so the held account ends at zero, and one id is one payment, so a retry re-sends the same signed bytes. It pays only from an account the held list names for that claim's person, so a database row alone never spends from another key of the Mac. A claim is Sent only once the chain has its send in a block; while it is pending the worker asks again every ten seconds under the same id. A refusal or a send that never landed is Failed with the signer's words; a network failure, a timeout or a locked keychain leave the claim to run again. Each end writes a `ChangedWalletActivity` fact, and the card says Moving, Moved or why not.
+
+The key of a held account lives only in that Mac's login keychain, so it moves with the login keychain when the Mac does. `e2e/claim-local.sh` runs the worker's own code and the real signer against `solana-test-validator`: the held account ends at zero, the claim records what the chain moved, and the same claim again moves nothing more. Templates for the worker's launchd job are in `launchd/`.
+
 ### Who sees which address
 
 The mini holds the watcher's sockets, so a closed page still gets its rows. Nothing below sees a key.
@@ -93,7 +106,7 @@ The mini holds the watcher's sockets, so a closed page still gets its rows. Noth
 | `ethereum-sepolia-rpc.publicnode.com`, `eth-sepolia.blockscout.com` | the page, the mini | Sepolia addresses          |
 | `ethereum-rpc.publicnode.com`, `eth.blockscout.com`                 | the page, the mini | Ethereum Mainnet addresses |
 
-A page asks from the person's own IP address. The mini asks from its own.
+A page asks from the person's own IP address. The mini asks from its own: the origin reads a held account's balance there, through the same endpoints the watcher uses. The claims worker's `scribe-wallet` asks from Michael's Mac, and sees the held account and the person's own address it pays.
 
 ## Run it
 
