@@ -45,6 +45,7 @@ const maybe = <Value extends S.Top>(schema: Value) =>
 export const ThingRow = S.Struct({
   id: S.String,
   kind: S.String,
+  key: maybe(S.String),
   status: maybe(S.String),
   scope: maybe(S.String),
   title: S.String,
@@ -122,7 +123,11 @@ const WhereToBuy = S.Struct({
 })
 type WhereToBuy = typeof WhereToBuy.Type
 
-const ThingExternalIds = S.Struct({ isbn13: maybe(S.String) })
+const ThingExternalIds = S.Struct({
+  isbn13: maybe(S.String),
+  isbn10s: maybe(S.Array(S.String)),
+  openLibraryWork: maybe(S.String),
+})
 
 const PageDetail = S.Struct({
   kind: S.Literal('page'),
@@ -255,6 +260,25 @@ const linksOf = (whereToBuy: ReadonlyArray<unknown>): ReadonlyArray<BookLink> =>
 const isActive = (row: ThingRow): boolean =>
   row.status === undefined || row.status === null || row.status === 'active'
 
+const isbn13Of = (row: ThingRow): Option.Option<Isbn13> =>
+  Option.flatMap(
+    Option.flatMap(externalIdsOf(row.externalIDsJSON), ids =>
+      Option.fromNullishOr(ids.isbn13),
+    ),
+    S.decodeUnknownOption(Isbn13),
+  )
+
+const isbn10sOf = (row: ThingRow): ReadonlyArray<string> =>
+  Option.match(externalIdsOf(row.externalIDsJSON), {
+    onNone: () => [],
+    onSome: ids => ids.isbn10s ?? [],
+  })
+
+const workOf = (row: ThingRow): Option.Option<string> =>
+  Option.flatMap(externalIdsOf(row.externalIDsJSON), ids =>
+    Option.fromNullishOr(ids.openLibraryWork),
+  )
+
 const keyOf = (
   bookId: BookId,
   maybeIsbn13: Option.Option<Isbn13>,
@@ -294,12 +318,7 @@ export const bookOfThing = (row: ThingRow): Option.Option<Book> => {
     metadataOf(row.metadataJSON),
     () => noMetadata,
   )
-  const maybeIsbn13 = Option.flatMap(
-    Option.flatMap(externalIdsOf(row.externalIDsJSON), ids =>
-      Option.fromNullishOr(ids.isbn13),
-    ),
-    S.decodeUnknownOption(Isbn13),
-  )
+  const maybeIsbn13 = isbn13Of(row)
   return pipe(
     Option.liftPredicate(
       row,
@@ -337,6 +356,7 @@ export const bookOfThing = (row: ThingRow): Option.Option<Book> => {
           isSecureUrl,
         ),
         links: linksOf(metadata.whereToBuy ?? []),
+        aliases: [],
       })),
     ),
   )
@@ -419,12 +439,17 @@ const namedOf = (
     row => row.id === id && Array.contains(kinds, row.kind),
   )
 
-const relationsTo = (graph: Graph, book: Book): ReadonlyArray<RelationRow> =>
-  Array.filter(graph.relations, relation => relation.objectID === book.bookId)
+const relationsTo = (
+  graph: Graph,
+  same: SameBook,
+): ReadonlyArray<RelationRow> =>
+  Array.filter(graph.relations, relation =>
+    Array.contains(same.thingIds, relation.objectID),
+  )
 
-const graphCreditsOf = (graph: Graph, book: Book): ReadonlyArray<Credit> =>
+const graphCreditsOf = (graph: Graph, same: SameBook): ReadonlyArray<Credit> =>
   pipe(
-    relationsTo(graph, book),
+    relationsTo(graph, same),
     Array.map(relation =>
       Option.flatMap(roleOf(relation), role =>
         Option.flatMap(
@@ -444,10 +469,10 @@ const graphCreditsOf = (graph: Graph, book: Book): ReadonlyArray<Credit> =>
 
 const graphPublishersOf = (
   graph: Graph,
-  book: Book,
+  same: SameBook,
 ): ReadonlyArray<Publisher> =>
   pipe(
-    relationsTo(graph, book),
+    relationsTo(graph, same),
     Array.filter(relation => relation.predicate === 'publisherOf'),
     Array.map(relation =>
       Option.flatMap(
@@ -470,10 +495,16 @@ const orWhenEmpty = <A>(
 
 const creditedFrom =
   (graph: Graph) =>
-  (book: Book): Book => ({
-    ...book,
-    credits: orWhenEmpty(graphCreditsOf(graph, book), book.credits),
-    publishedBy: orWhenEmpty(graphPublishersOf(graph, book), book.publishedBy),
+  (same: SameBook): SameBook => ({
+    ...same,
+    book: {
+      ...same.book,
+      credits: orWhenEmpty(graphCreditsOf(graph, same), same.book.credits),
+      publishedBy: orWhenEmpty(
+        graphPublishersOf(graph, same),
+        same.book.publishedBy,
+      ),
+    },
   })
 
 const recognizedAtOf = (row: ThingRow): number =>
@@ -491,6 +522,161 @@ const byTurnedAtDescending = Order.mapInput(
 
 type PageRow = Readonly<{ row: RecognitionRow; detail: PageDetail }>
 
+type SameBook = Readonly<{ book: Book; thingIds: ReadonlyArray<string> }>
+
+type KeptTogether = Readonly<{
+  names: ReadonlyArray<string>
+  rows: Array.NonEmptyReadonlyArray<ThingRow>
+}>
+
+const isBookRow = (row: ThingRow): boolean =>
+  row.kind === 'book' && isActive(row)
+
+const sameBookNamesOf = (row: ThingRow): ReadonlyArray<string> =>
+  Array.dedupe(
+    Array.getSomes([
+      Option.fromNullishOr(row.key),
+      Option.map(isbn13Of(row), isbn13 => `isbn13:${isbn13}`),
+      Option.map(workOf(row), work => `olwork:${work}`),
+    ]),
+  )
+
+const isSharingName =
+  (names: ReadonlyArray<string>) =>
+  (kept: KeptTogether): boolean =>
+    Array.some(kept.names, name => Array.contains(names, name))
+
+const keptWith = (
+  kept: ReadonlyArray<KeptTogether>,
+  row: ThingRow,
+): ReadonlyArray<KeptTogether> => {
+  const names = sameBookNamesOf(row)
+  const isJoined = isSharingName(names)
+  return Option.match(Array.findFirstIndex(kept, isJoined), {
+    onNone: () => Array.append(kept, { names, rows: Array.of(row) }),
+    onSome: firstJoined => {
+      const joined = Array.filter(kept, isJoined)
+      const together: KeptTogether = {
+        names: Array.dedupe([
+          ...Array.flatMap(joined, each => each.names),
+          ...names,
+        ]),
+        rows: Array.append(
+          Array.flatMap(joined, each => each.rows),
+          row,
+        ),
+      }
+      return [
+        ...Array.take(kept, firstJoined),
+        together,
+        ...Array.filter(Array.drop(kept, firstJoined), each => !isJoined(each)),
+      ]
+    },
+  })
+}
+
+const nothingKept: ReadonlyArray<KeptTogether> = []
+
+const namesOfRow = (row: ThingRow): ReadonlyArray<string> => [
+  row.id,
+  ...Option.toArray(isbn13Of(row)),
+  ...isbn10sOf(row),
+  ...Option.toArray(workOf(row)),
+]
+
+const aliasesOf = (
+  key: BookKey,
+  rows: ReadonlyArray<ThingRow>,
+): ReadonlyArray<BookKey> =>
+  pipe(
+    rows,
+    Array.flatMap(namesOfRow),
+    Array.dedupe,
+    Array.filter(name => name !== key),
+    Array.map(name => S.decodeUnknownOption(BookKey)(name)),
+    Array.getSomes,
+  )
+
+const firstSomeOf = <A>(
+  books: ReadonlyArray<Book>,
+  field: (book: Book) => Option.Option<A>,
+): Option.Option<A> => Array.head(Array.getSomes(Array.map(books, field)))
+
+const firstNonEmptyOf = <A>(
+  books: ReadonlyArray<Book>,
+  field: (book: Book) => ReadonlyArray<A>,
+): ReadonlyArray<A> =>
+  Option.getOrElse(
+    Array.findFirst(Array.map(books, field), Array.isReadonlyArrayNonEmpty),
+    () => [],
+  )
+
+const sameBookOf = (
+  rows: Array.NonEmptyReadonlyArray<ThingRow>,
+): Option.Option<SameBook> => {
+  const canonical = Option.getOrElse(
+    Array.findFirst(rows, row => Option.isSome(isbn13Of(row))),
+    () => Array.headNonEmpty(rows),
+  )
+  const members = Array.getSomes(Array.map(rows, row => bookOfThing(row)))
+  return Option.map(bookOfThing(canonical), book => ({
+    book: {
+      ...book,
+      credits: orWhenEmpty(
+        book.credits,
+        firstNonEmptyOf(members, member => member.credits),
+      ),
+      publishedBy: orWhenEmpty(
+        book.publishedBy,
+        firstNonEmptyOf(members, member => member.publishedBy),
+      ),
+      maybePublishYear: Option.orElse(book.maybePublishYear, () =>
+        firstSomeOf(members, member => member.maybePublishYear),
+      ),
+      maybePageCount: Option.orElse(book.maybePageCount, () =>
+        firstSomeOf(members, member => member.maybePageCount),
+      ),
+      maybeCoverUrl: Option.orElse(book.maybeCoverUrl, () =>
+        firstSomeOf(members, member => member.maybeCoverUrl),
+      ),
+      links: orWhenEmpty(
+        book.links,
+        firstNonEmptyOf(members, member => member.links),
+      ),
+      aliases: aliasesOf(book.key, rows),
+    },
+    thingIds: Array.map(rows, row => row.id),
+  }))
+}
+
+/**
+ * Every book among `thingRows`, once: rows that share a key, an ISBN-13, or
+ * an Open Library work are one book (ADR 0048 section 2: readers merge by
+ * key, and the index groups editions by work). Scribe keeps a book found
+ * first by its title under its work and later by its ISBN under that, and
+ * each of a person's sign-ins keeps its own row. The book is named by the
+ * newest-read row with an ISBN-13, else the newest-read row; the others'
+ * names become its aliases, and whatever it lacks (its authors, its
+ * publisher, its year, its length, its cover) comes from the others.
+ *
+ * Scribe #2182 (Recording 410, 2026-11-10): 5-Minute Halloween Stories was
+ * kept by its work with its author and 39 readings, and by its ISBN with
+ * no author, so the shelf showed it twice and its ISBN page had no byline.
+ */
+const sameBooksOf = (
+  thingRows: ReadonlyArray<ThingRow>,
+): ReadonlyArray<SameBook> =>
+  pipe(
+    newestById(thingRows),
+    Array.filter(isBookRow),
+    Array.sort(byRecognizedDescending),
+    Array.reduce(nothingKept, keptWith),
+    Array.map(kept =>
+      sameBookOf(Array.sort(kept.rows, byRecognizedDescending)),
+    ),
+    Array.getSomes,
+  )
+
 type ReadingRow = Readonly<{ row: RecognitionRow; detail: ReadingDetail }>
 
 const lastMarkedPageOf = (detail: ReadingDetail): Option.Option<number> =>
@@ -499,33 +685,37 @@ const lastMarkedPageOf = (detail: ReadingDetail): Option.Option<number> =>
     mark => S.decodeUnknownOption(S.FiniteFromString)(mark.page),
   )
 
-const readingTurnOf = ({ row, detail }: ReadingRow): Option.Option<PageTurn> =>
-  pipe(
-    Option.orElse(lastMarkedPageOf(detail), () =>
-      Option.fromNullishOr(row.thingRangeEnd),
-    ),
-    Option.flatMap(S.decodeUnknownOption(PageNumber)),
-    Option.flatMap(page =>
-      Option.map(
-        Option.all({
-          turnId: S.decodeUnknownOption(TurnId)(`${row.id}:${page.toString()}`),
-          bookId: S.decodeUnknownOption(BookId)(row.thingID),
-          readingId: S.decodeUnknownOption(ReadingId)(row.id),
-        }),
-        ids => ({
-          ...ids,
-          page,
-          turnedAtMs: Option.getOrElse(
-            Option.flatMap(Option.fromNullishOr(detail.reached), reached =>
-              Option.fromNullishOr(reached.atMs),
-            ),
-            () => row.updatedAtMs,
-          ),
-          isOngoing: row.isOngoing,
-        }),
+const readingTurnOf =
+  (bookIdOfThing: (thingId: string) => Option.Option<BookId>) =>
+  ({ row, detail }: ReadingRow): Option.Option<PageTurn> =>
+    pipe(
+      Option.orElse(lastMarkedPageOf(detail), () =>
+        Option.fromNullishOr(row.thingRangeEnd),
       ),
-    ),
-  )
+      Option.flatMap(S.decodeUnknownOption(PageNumber)),
+      Option.flatMap(page =>
+        Option.map(
+          Option.all({
+            turnId: S.decodeUnknownOption(TurnId)(
+              `${row.id}:${page.toString()}`,
+            ),
+            bookId: bookIdOfThing(row.thingID),
+            readingId: S.decodeUnknownOption(ReadingId)(row.id),
+          }),
+          ids => ({
+            ...ids,
+            page,
+            turnedAtMs: Option.getOrElse(
+              Option.flatMap(Option.fromNullishOr(detail.reached), reached =>
+                Option.fromNullishOr(reached.atMs),
+              ),
+              () => row.updatedAtMs,
+            ),
+            isOngoing: row.isOngoing,
+          }),
+        ),
+      ),
+    )
 
 /**
  * What Read Aloud knows from Scribe's rows: every active book, the one
@@ -554,19 +744,24 @@ export const readingsOfRows = (
   recognitionRows: ReadonlyArray<RecognitionRow>,
   relationRows: ReadonlyArray<RelationRow> = [],
 ): Readings => {
-  const books = pipe(
-    newestById(thingRows),
-    Array.sort(byRecognizedDescending),
-    Array.map(row => bookOfThing(row)),
-    Array.getSomes,
-    Array.map(creditedFrom(graphOf(thingRows, relationRows))),
+  const sameBooks = Array.map(
+    sameBooksOf(thingRows),
+    creditedFrom(graphOf(thingRows, relationRows)),
   )
+  const books = Array.map(sameBooks, same => same.book)
+  const bookIdOfThing = (thingId: string): Option.Option<BookId> =>
+    Option.map(
+      Array.findFirst(sameBooks, same =>
+        Array.contains(same.thingIds, thingId),
+      ),
+      same => same.book.bookId,
+    )
   const recognitions = Array.filter(
     newestById(recognitionRows),
     row =>
       row.thingKind === 'book' &&
       row.review !== 'rejected' &&
-      Array.some(books, book => book.bookId === row.thingID),
+      Option.isSome(bookIdOfThing(row.thingID)),
   )
   const pageRows: ReadonlyArray<PageRow> = Array.getSomes(
     Array.map(recognitions, row =>
@@ -593,7 +788,7 @@ export const readingsOfRows = (
       Option.map(
         Option.all({
           turnId: S.decodeUnknownOption(TurnId)(row.id),
-          bookId: S.decodeUnknownOption(BookId)(row.thingID),
+          bookId: bookIdOfThing(row.thingID),
           readingId: S.decodeUnknownOption(ReadingId)(detail.readingID),
           page: S.decodeUnknownOption(PageNumber)(detail.page),
         }),
@@ -611,7 +806,7 @@ export const readingsOfRows = (
       reading =>
         !Array.some(pageRows, page => page.detail.readingID === reading.row.id),
     ),
-    Array.map(reading => readingTurnOf(reading)),
+    Array.map(readingTurnOf(bookIdOfThing)),
     Array.getSomes,
   )
   return {

@@ -80,6 +80,7 @@ const feelingHappy: Book = {
       isVerified: false,
     },
   ],
+  aliases: [],
 }
 
 const christmas: Book = {
@@ -106,6 +107,7 @@ const christmas: Book = {
   maybePageCount: Option.some(PageNumber.make(24)),
   maybeCoverUrl: Option.none(),
   links: [],
+  aliases: [],
 }
 
 const turnOf = (

@@ -36,6 +36,7 @@ const feelingHappy: ReadAloud.Book = {
     'https://covers.openlibrary.org/b/id/15154333-M.jpg',
   ),
   links: [],
+  aliases: [],
 }
 
 const turnAt = (page: number, turnedAtMs: number): ReadAloud.PageTurn => ({

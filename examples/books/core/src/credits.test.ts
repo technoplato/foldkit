@@ -38,6 +38,7 @@ const harborLights: ReadAloud.Book = {
   maybePageCount: Option.some(ReadAloud.PageNumber.make(32)),
   maybeCoverUrl: Option.none(),
   links: [],
+  aliases: [],
 }
 
 const tidePools: ReadAloud.Book = {
@@ -54,6 +55,7 @@ const tidePools: ReadAloud.Book = {
   maybePageCount: Option.some(ReadAloud.PageNumber.make(24)),
   maybeCoverUrl: Option.none(),
   links: [],
+  aliases: [],
 }
 
 const readings = ReadAloud.ReceivedReadings({

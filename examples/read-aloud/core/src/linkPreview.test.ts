@@ -92,7 +92,9 @@ const halloween: Book = {
     },
   ],
   maybePageCount: Option.some(PageNumber.make(192)),
-  maybeCoverUrl: Option.some('https://covers.openlibrary.org/b/id/8811043-M.jpg'),
+  maybeCoverUrl: Option.some(
+    'https://covers.openlibrary.org/b/id/8811043-M.jpg',
+  ),
   aliases: [
     BookKey.make('thing-halloween-isbn'),
     BookKey.make('thing-halloween-work'),
@@ -170,7 +172,10 @@ describe('Link metadata', () => {
   // public address said Not found, and the book never showed as recognized.
   it('answers for a kept book with no author, with the page and no byline', () => {
     expect(
-      readAloudLinkMetadataOf(books, '/books/read-aloud/thing-no-author/page/2'),
+      readAloudLinkMetadataOf(
+        books,
+        '/books/read-aloud/thing-no-author/page/2',
+      ),
     ).toEqual(
       Option.some({
         title: 'Little Blue Truck Feeling Happy: a Touch-And-Feel Book',

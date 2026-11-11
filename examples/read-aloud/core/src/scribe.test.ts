@@ -153,6 +153,7 @@ describe('Scribe rows', () => {
             isVerified: false,
           },
         ],
+        aliases: ['thing-feeling-happy'],
       },
     ])
   })
@@ -528,9 +529,7 @@ describe('Name tags', () => {
 // 39 readings) and once by the ISBN he read under the other (with no author),
 // so the shelf showed it twice and the ISBN's page had no author. ADR 0048
 // section 2: the index groups editions by work, and readers merge by key.
-const halloweenWorkLine = (
-  overrides: Readonly<Record<string, unknown>> = {},
-) =>
+const halloweenWorkLine = (overrides: Readonly<Record<string, unknown>> = {}) =>
   lineOf({
     id: 'thing-halloween-work',
     ownerUserID: 'owner-apple-sign-in',
@@ -550,9 +549,7 @@ const halloweenWorkLine = (
     ...overrides,
   })
 
-const halloweenIsbnLine = (
-  overrides: Readonly<Record<string, unknown>> = {},
-) =>
+const halloweenIsbnLine = (overrides: Readonly<Record<string, unknown>> = {}) =>
   lineOf({
     id: 'thing-halloween-isbn',
     ownerUserID: 'owner-email-sign-in',

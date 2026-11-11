@@ -72,7 +72,9 @@ const halloween: ReadAloud.Book = {
   title: '5-Minute Halloween Stories',
   credits: [],
   maybePageCount: Option.some(ReadAloud.PageNumber.make(192)),
-  maybeCoverUrl: Option.some('https://covers.openlibrary.org/b/id/8811043-M.jpg'),
+  maybeCoverUrl: Option.some(
+    'https://covers.openlibrary.org/b/id/8811043-M.jpg',
+  ),
   aliases: [
     ReadAloud.BookKey.make('thing-halloween-isbn'),
     ReadAloud.BookKey.make('1368002579'),

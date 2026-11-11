@@ -69,6 +69,7 @@ const book: Book = {
   maybePageCount: Option.some(PageNumber.make(14)),
   maybeCoverUrl: Option.none(),
   links: [],
+  aliases: [],
 }
 
 const turnAt = (page: number, turnedAtMs: number): PageTurn => ({

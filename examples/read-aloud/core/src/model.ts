@@ -67,6 +67,13 @@ const noneYet = Effect.succeed([])
  * Library, and where to find it. Book information only: never its words or
  * its pages. A book sent before books had credits reads as crediting
  * nobody.
+ *
+ * `aliases` are the other words an address may name it by: Scribe keeps one
+ * book under several `things` rows when it found it by its work and later
+ * by its ISBN, or under each of a person's sign-ins, so
+ * `/books/read-aloud/1368002579` (its ISBN-10), `…/OL20165102W` (its Open
+ * Library work), and each row's id open the book `9781368002578`. A book
+ * sent before books had aliases has none.
  */
 export const Book = S.Struct({
   bookId: BookId,
@@ -79,6 +86,7 @@ export const Book = S.Struct({
   maybePageCount: S.Option(PageNumber),
   maybeCoverUrl: S.Option(S.String),
   links: S.Array(BookLink),
+  aliases: S.Array(BookKey).pipe(S.withDecodingDefaultKey(noneYet)),
 })
 /** One book someone has read aloud. */
 export type Book = typeof Book.Type
@@ -207,12 +215,37 @@ export const booksOf = (model: HasReadings): ReadonlyArray<Book> =>
     onSome: readings => readings.books,
   })
 
+/**
+ * True when `key` names `book`: its own key, or one of its aliases.
+ *
+ * @example
+ * ```typescript
+ * isNamedBy(BookKey.make('1368002579'))(halloween) // true: its ISBN-10
+ * ```
+ */
+export const isNamedBy =
+  (key: BookKey) =>
+  (book: Book): boolean =>
+    book.key === key || Array.contains(book.aliases, key)
+
+/**
+ * The book `key` names among `books`, by its own key or an alias.
+ *
+ * @example
+ * ```typescript
+ * bookNamedIn(books, BookKey.make('OL20165102W')) // Some(5-Minute Halloween Stories)
+ * ```
+ */
+export const bookNamedIn = (
+  books: ReadonlyArray<Book>,
+  key: BookKey,
+): Option.Option<Book> => Array.findFirst(books, isNamedBy(key))
+
 /** The book `key` names, while the readings hold it. */
 export const bookOfKey = (
   model: HasReadings,
   key: BookKey,
-): Option.Option<Book> =>
-  Array.findFirst(booksOf(model), book => book.key === key)
+): Option.Option<Book> => bookNamedIn(booksOf(model), key)
 
 const isIsbn13 = S.is(Isbn13)
 

@@ -63,18 +63,25 @@ const previewOf = (
     openPath: signInPathFor(path),
   })
 
+const readAloudDescriptionOf = (
+  metadata: ReadAloud.ReadAloudLinkMetadata,
+): string =>
+  Option.match(metadata.maybeAuthor, {
+    onNone: () => metadata.pageLabel,
+    onSome: author => `${metadata.pageLabel}, by ${author}`,
+  })
+
 const readAloudPreviewOf = (
   config: BooksLinkPreviewConfig,
   metadata: ReadAloud.ReadAloudLinkMetadata,
-  path: string,
 ): PublicAnswer =>
   linkPreviewAnswer({
     siteName: 'Books',
     title: metadata.title,
-    description: `${metadata.pageLabel}, by ${metadata.author}`,
-    maybeImageUrl: Option.some(metadata.coverUrl),
-    url: `${config.origin}${path}`,
-    openPath: signInPathFor(path),
+    description: readAloudDescriptionOf(metadata),
+    maybeImageUrl: metadata.maybeCoverUrl,
+    url: `${config.origin}${metadata.canonicalPath}`,
+    openPath: signInPathFor(metadata.canonicalPath),
   })
 
 const creditPreviewOf = (
@@ -163,7 +170,7 @@ export const booksLinkPreviews = (
   ): Promise<Option.Option<PublicAnswer>> =>
     Option.map(
       ReadAloud.readAloudLinkMetadataOf(await readAloudBooksNow(), path),
-      metadata => readAloudPreviewOf(config, metadata, path),
+      metadata => readAloudPreviewOf(config, metadata),
     )
 
   const contributorNameOf = async ({
