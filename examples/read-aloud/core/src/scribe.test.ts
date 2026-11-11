@@ -687,3 +687,129 @@ describe('One book under every name it is kept by', () => {
     ])
   })
 })
+
+// Scribe #2182 (Recording 410 #884): "so that recordings and pages and
+// chapters and things are all cross-referenced."
+describe('The book in full', () => {
+  const recording410 = '725c1dd4-a8fe-4256-b794-5886ae3888de'
+  const readingsWithMoments = () =>
+    readingsOfRows(
+      thingRowsOf(
+        rowsOfLines(
+          halloweenIsbnLine({
+            metadataJSON: JSON.stringify({
+              authors: ['Disney Storybook Art Team'],
+              publishers: ['Disney Press'],
+              publishDate: 'Jul 03, 2018',
+              pageCount: 192,
+              contents: [
+                { title: "The Princess and the Frog: Tiana's Ghost", page: 1 },
+                { title: 'Monsters, Inc.: Scariest Day Ever', page: 141 },
+              ],
+            }),
+          }),
+        ),
+      ),
+      recognitionRowsOf(
+        rowsOfLines(
+          Array.join(
+            [
+              lineOf({
+                id: 'reading-410',
+                thingID: 'thing-halloween-isbn',
+                thingKind: 'book',
+                thingRangeStart: 1,
+                thingRangeEnd: 141,
+                thingRangeUnit: 'page',
+                isOngoing: false,
+                startedAtMs: 1_000,
+                endedAtMs: 9_000,
+                updatedAtMs: 9_000,
+                recordingID: recording410,
+                startSeconds: 7102.27,
+                evidenceJSON: JSON.stringify({
+                  segments: [{ id: 'segment-914', index: 914 }],
+                  heard: '978-1368-002578',
+                }),
+                detailJSON: JSON.stringify({ reached: { atMs: 9_000 } }),
+              }),
+              pageLine(140, {
+                id: 'page-140',
+                thingID: 'thing-halloween-isbn',
+                recordingID: recording410,
+                startSeconds: 7178,
+                startedAtMs: 2_000,
+                updatedAtMs: 2_000,
+                evidenceJSON: JSON.stringify({
+                  segments: [{ id: 'segment-926', index: 926 }],
+                  heard: 'Cinderella, page 140',
+                }),
+                detailJSON: JSON.stringify({
+                  kind: 'page',
+                  page: 140,
+                  readingID: 'reading-410',
+                  heard: 'Cinderella, page 140',
+                }),
+              }),
+            ],
+            '\n',
+          ),
+        ),
+      ),
+      [],
+      recordingId =>
+        recordingId.startsWith('725c1dd4') ? Option.some('410') : Option.none(),
+    )
+
+  it("reads a book's Contents as its stories and their first pages", () => {
+    expect(
+      Array.map(readingsWithMoments().books, book => book.contents),
+    ).toEqual([
+      [
+        { title: "The Princess and the Frog: Tiana's Ghost", firstPage: 1 },
+        { title: 'Monsters, Inc.: Scariest Day Ever', firstPage: 141 },
+      ],
+    ])
+  })
+
+  it('reads each reading with its recording, its number, its pages, and the line it began on', () => {
+    expect(readingsWithMoments().sittings).toEqual([
+      {
+        readingId: 'reading-410',
+        bookId: 'thing-halloween-isbn',
+        startedAtMs: 1_000,
+        maybeEndedAtMs: Option.some(9_000),
+        isOngoing: false,
+        maybeFirstPage: Option.some(1),
+        maybeLastPage: Option.some(141),
+        maybeMoment: Option.some({
+          recordingId: recording410,
+          maybeRecordingNumber: Option.some('410'),
+          seconds: 7102.27,
+          maybeSegmentId: Option.some('segment-914'),
+        }),
+      },
+    ])
+  })
+
+  it('reads the line each page was said on', () => {
+    expect(
+      Array.map(readingsWithMoments().turns, turn => turn.maybeMoment),
+    ).toEqual([
+      Option.some({
+        recordingId: recording410,
+        maybeRecordingNumber: Option.some('410'),
+        seconds: 7178,
+        maybeSegmentId: Option.some('segment-926'),
+      }),
+    ])
+  })
+
+  it('never carries what he said: the words heard stay in Scribe', () => {
+    const text = JSON.stringify(
+      S.encodeSync(ReadingsJson)(readingsWithMoments()),
+    )
+    expect(text).not.toContain('978-1368-002578')
+    expect(text).not.toContain('Cinderella, page 140')
+  })
+})

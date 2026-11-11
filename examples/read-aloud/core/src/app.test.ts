@@ -28,12 +28,16 @@ import {
 import {
   type Book,
   GooglePreview,
+  type Moment,
   NoPreview,
   type PageTurn,
   type Readings,
+  type Sitting,
 } from './model.js'
 import { googleBooksPreviewKind } from './screen.js'
 import { uncheckedIsbnOf } from './subscriptions.js'
+
+process.env['TZ'] = 'America/New_York'
 
 const feelingHappyIsbn = Isbn13.make('9780063342705')
 
@@ -485,3 +489,216 @@ describe('Read Aloud', () => {
     ).toEqual(Option.some(`/books/read-aloud/${feelingHappy.key}/page/4`))
   })
 })
+
+// Scribe #2182 (Recording 410 #882-884): "displaying the rich text of the
+// book and the page of the book that we're on." "so that recordings and
+// pages and chapters and things are all cross-referenced."
+describe('The book in full', () => {
+  const halloweenIsbn = Isbn13.make('9781368002578')
+  const stories: ReadonlyArray<[string, number]> = [
+    ["The Princess and the Frog: Tiana's Ghost", 1],
+    ["Inside Out: Riley's Haunted Halloween", 17],
+    ['Pinocchio: The Witch of Walddunkel Way', 33],
+    ['Winnie the Pooh: Boo to You, Winnie the Pooh', 47],
+    ['Big Hero 6: Trick or Treat', 63],
+    ['Tangled: Marmalade Moon Night', 79],
+    ['Peter Pan: A Trick for Hook', 95],
+    ["Mickey & Friends: Mickey's Slumber Party", 111],
+    ['Cinderella: A Costume for Cinderella', 127],
+    ['Monsters, Inc.: Scariest Day Ever', 141],
+    ['Alice in Wonderland: Happy Holler-ween!', 157],
+    ['Wreck-It Ralph: Tricky Treats', 173],
+  ]
+  const halloween: Book = {
+    bookId: BookId.make('book-halloween'),
+    key: BookKey.make(halloweenIsbn),
+    maybeIsbn13: Option.some(halloweenIsbn),
+    title: '5-Minute Halloween Stories',
+    credits: [
+      {
+        role: 'Author',
+        contributor: {
+          key: ContributorKey.make('disney-storybook-art-team'),
+          name: 'Disney Storybook Art Team',
+        },
+      },
+    ],
+    publishedBy: [
+      { key: PublisherKey.make('disney-press'), name: 'Disney Press' },
+    ],
+    maybePublishYear: Option.some('2018'),
+    maybePageCount: Option.some(PageNumber.make(192)),
+    maybeCoverUrl: Option.none(),
+    links: [],
+    aliases: [],
+    contents: Array.map(stories, ([title, page]) => ({
+      title,
+      firstPage: PageNumber.make(page),
+    })),
+  }
+  const momentOf = (
+    recordingId: string,
+    number: string,
+    seconds: number,
+    segmentId: string,
+  ): Moment => ({
+    recordingId,
+    maybeRecordingNumber: Option.some(number),
+    seconds,
+    maybeSegmentId: Option.some(segmentId),
+  })
+  const at410 = (seconds: number, segmentId: string) =>
+    momentOf('725c1dd4-a8fe-4256-b794-5886ae3888de', '410', seconds, segmentId)
+  const at411 = (seconds: number, segmentId: string) =>
+    momentOf('f592cdd1-0bab-4c26-be2f-4008a4fe26cf', '411', seconds, segmentId)
+  const lastNight: Sitting = {
+    readingId: ReadingId.make('reading-410'),
+    bookId: halloween.bookId,
+    startedAtMs: Date.parse('2026-11-10T22:06:31-05:00'),
+    maybeEndedAtMs: Option.some(Date.parse('2026-11-10T22:18:03-05:00')),
+    isOngoing: false,
+    maybeFirstPage: Option.some(PageNumber.make(1)),
+    maybeLastPage: Option.some(PageNumber.make(141)),
+    maybeMoment: Option.some(at410(7102.27, 'segment-914')),
+  }
+  const thisMorning: Sitting = {
+    readingId: ReadingId.make('reading-411'),
+    bookId: halloween.bookId,
+    startedAtMs: Date.parse('2026-11-11T09:20:44-05:00'),
+    maybeEndedAtMs: Option.none(),
+    isOngoing: true,
+    maybeFirstPage: Option.some(PageNumber.make(141)),
+    maybeLastPage: Option.some(PageNumber.make(141)),
+    maybeMoment: Option.none(),
+  }
+  const pageTurn = (
+    reading: string,
+    page: number,
+    turnedAt: string,
+    isOngoing: boolean,
+    maybeMoment: Option.Option<Moment>,
+  ): PageTurn => ({
+    turnId: TurnId.make(`${reading}-${page.toString()}`),
+    bookId: halloween.bookId,
+    readingId: ReadingId.make(reading),
+    page: PageNumber.make(page),
+    turnedAtMs: Date.parse(turnedAt),
+    isOngoing,
+    maybeMoment,
+  })
+  const readings: Readings = {
+    books: [halloween],
+    turns: [
+      pageTurn(
+        'reading-411',
+        141,
+        '2026-11-11T09:21:02-05:00',
+        true,
+        Option.some(at411(1543.52, 'segment-137')),
+      ),
+      pageTurn(
+        'reading-410',
+        140,
+        '2026-11-10T22:07:47-05:00',
+        false,
+        Option.some(at410(7178, 'segment-926')),
+      ),
+      pageTurn(
+        'reading-410',
+        141,
+        '2026-11-10T22:06:38-05:00',
+        false,
+        Option.none(),
+      ),
+    ],
+    sittings: [thisMorning, lastNight],
+  }
+  const openAt = (page: number) => {
+    const { bound, send } = bindApp()
+    send(ReceivedReadings({ readings }))
+    bound.openUri(
+      `/books/read-aloud/9781368002578/page/${page.toString()}`,
+      Navigation.Link(),
+    )
+    return bound
+  }
+  const listOf = (bound: Bound, label: string) =>
+    Option.map(
+      Array.findFirst(listsOf(screenOf(bound)), list => list.label === label),
+      list =>
+        Array.map(list.items, item => ({
+          title: item.title,
+          lines: item.lines,
+          href: item.href,
+        })),
+    )
+
+  it('names the story the page is in, with its pages', () => {
+    expect(wordsOf(openAt(141))).toContain(
+      'Monsters, Inc.: Scariest Day Ever · pages 141–156',
+    )
+    expect(wordsOf(openAt(192))).toContain(
+      'Wreck-It Ralph: Tricky Treats · pages 173–192',
+    )
+  })
+
+  it("lists the book's Contents, each story a link to its first page, the page's own story marked", () => {
+    const contents = Option.getOrThrow(listOf(openAt(141), 'Contents'))
+    expect(contents.length).toBe(12)
+    expect(contents[0]).toEqual({
+      title: "The Princess and the Frog: Tiana's Ghost",
+      lines: ['pages 1–16'],
+      href: '/books/read-aloud/9781368002578/page/1',
+    })
+    expect(contents[9]).toEqual({
+      title: 'Monsters, Inc.: Scariest Day Ever',
+      lines: ['pages 141–156', 'You are here'],
+      href: '/books/read-aloud/9781368002578/page/141',
+    })
+  })
+
+  it('lists every reading of the book, the newest first, with its date, recording, pages, and the line it began on', () => {
+    expect(listOf(openAt(141), 'Read aloud')).toEqual(
+      Option.some([
+        {
+          title: 'Nov 11, 2026, 9:20 AM',
+          lines: ['page 141', 'Reading now'],
+          href: undefined,
+        },
+        {
+          title: 'Nov 10, 2026, 10:06 PM',
+          lines: ['Recording 410 · pages 1–141'],
+          href: 'https://og.pisspoursoftware.xyz/recording/725c1dd4-a8fe-4256-b794-5886ae3888de/section/segment-914?t=7102.27',
+        },
+      ]),
+    )
+  })
+
+  it('lists each time the page on screen was read, each a link to the line the page was said on', () => {
+    expect(listOf(openAt(141), 'This page')).toEqual(
+      Option.some([
+        {
+          title: 'Nov 11, 2026, 9:21 AM',
+          lines: ['Recording 411'],
+          href: 'https://og.pisspoursoftware.xyz/recording/f592cdd1-0bab-4c26-be2f-4008a4fe26cf/section/segment-137?t=1543.52',
+        },
+        {
+          title: 'Nov 10, 2026, 10:06 PM',
+          lines: [],
+          href: undefined,
+        },
+      ]),
+    )
+    expect(listOf(openAt(140), 'This page')).toEqual(
+      Option.some([
+        {
+          title: 'Nov 10, 2026, 10:07 PM',
+          lines: ['Recording 410'],
+          href: 'https://og.pisspoursoftware.xyz/recording/725c1dd4-a8fe-4256-b794-5886ae3888de/section/segment-926?t=7178.00',
+        },
+      ]),
+    )
+    expect(listOf(openAt(2), 'This page')).toEqual(Option.none())
+  })
+})
+

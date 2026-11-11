@@ -1,4 +1,4 @@
-import { Array, Effect, Fiber, Stream } from 'effect'
+import { Array, Effect, Fiber, Option, Stream } from 'effect'
 import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -85,7 +85,43 @@ describe('Scribe logs on this machine', () => {
 
   it('reads a folder with no logs yet as no books', async () => {
     const readings = await Effect.runPromise(readingsOfDirectory(directory))
-    expect(readings).toEqual({ books: [], turns: [] })
+    expect(readings).toEqual({ books: [], turns: [], sittings: [] })
+  })
+
+  // Scribe #2182: a reading links the recording it was read in, by the
+  // number Michael knows it by, from the folder Scribe keeps it in.
+  it('names the recording of each reading by its number, from the recordings folder beside the logs', async () => {
+    const things = join(directory, 'things')
+    await mkdir(things)
+    await mkdir(join(directory, 'recordings', '410 — 2026-11-10 — 725c1dd4'), {
+      recursive: true,
+    })
+    await writeFile(join(things, thingsFileName), `${book}\n`)
+    await writeFile(
+      join(things, recognitionsFileName),
+      `${JSON.stringify({
+        id: 'reading-made-up',
+        thingID: 'thing-made-up',
+        thingKind: 'book',
+        isOngoing: false,
+        startedAtMs: 1_000,
+        updatedAtMs: 2_000,
+        recordingID: '725c1dd4-a8fe-4256-b794-5886ae3888de',
+        startSeconds: 12.5,
+        thingRangeStart: 3,
+        thingRangeEnd: 3,
+        thingRangeUnit: 'page',
+        detailJSON: JSON.stringify({ reached: { atMs: 2_000 } }),
+      })}\n`,
+    )
+    const readings = await Effect.runPromise(readingsOfDirectory(things))
+    expect(
+      Array.map(readings.sittings, sitting =>
+        sitting.maybeMoment.pipe(
+          Option.flatMap(moment => moment.maybeRecordingNumber),
+        ),
+      ),
+    ).toEqual([Option.some('410')])
   })
 
   it('reads the credits Scribe keeps in its graph folder beside the books', async () => {
