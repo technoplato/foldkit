@@ -255,9 +255,9 @@ describe('booksLinkPreviews', () => {
     )
     kept = [feelingHappy, halloween]
     advanceMs(5_000)
-    expect(
-      Option.isSome(await answer('/books/read-aloud/9781368002578')),
-    ).toBe(true)
+    expect(Option.isSome(await answer('/books/read-aloud/9781368002578'))).toBe(
+      true,
+    )
     expect(readAloudLoads).toEqual([0, 5_000])
     advanceMs(1_000)
     expect(await answer('/books/read-aloud/9780152056612')).toEqual(

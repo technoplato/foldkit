@@ -39,6 +39,8 @@ const titlesFreshMs = 5 * 60 * 1000
 
 const readAloudBooksFreshMs = 60 * 1000
 
+const readAloudMissRereadMs = 3 * 1000
+
 const coverFreshMs = 24 * 60 * 60 * 1000
 
 const coverMaxBytes = 5 * 1024 * 1024
@@ -150,6 +152,14 @@ export const booksLinkPreviews = (
     }
   }
 
+  const readAloudBooksAgain = async (): Promise<
+    ReadonlyArray<ReadAloud.Book>
+  > => {
+    const books = await config.loadReadAloudBooks()
+    maybeReadAloudBooks = Option.some({ value: books, savedAtMs: nowMs() })
+    return books
+  }
+
   const readAloudBooksNow = async (): Promise<
     ReadonlyArray<ReadAloud.Book>
   > => {
@@ -159,18 +169,38 @@ export const booksLinkPreviews = (
     if (Option.isSome(maybeFresh)) {
       return maybeFresh.value.value
     } else {
-      const books = await config.loadReadAloudBooks()
-      maybeReadAloudBooks = Option.some({ value: books, savedAtMs: nowMs() })
-      return books
+      return readAloudBooksAgain()
+    }
+  }
+
+  const isMissRereadDue = (): boolean =>
+    Option.match(maybeReadAloudBooks, {
+      onNone: () => true,
+      onSome: cached => !isFresh(cached, readAloudMissRereadMs),
+    })
+
+  const readAloudMetadataOf = async (
+    path: string,
+  ): Promise<Option.Option<ReadAloud.ReadAloudLinkMetadata>> => {
+    const maybeKnown = ReadAloud.readAloudLinkMetadataOf(
+      await readAloudBooksNow(),
+      path,
+    )
+    if (Option.isSome(maybeKnown) || !isMissRereadDue()) {
+      return maybeKnown
+    } else {
+      return ReadAloud.readAloudLinkMetadataOf(
+        await readAloudBooksAgain(),
+        path,
+      )
     }
   }
 
   const readAloudAnswerOf = async (
     path: string,
   ): Promise<Option.Option<PublicAnswer>> =>
-    Option.map(
-      ReadAloud.readAloudLinkMetadataOf(await readAloudBooksNow(), path),
-      metadata => readAloudPreviewOf(config, metadata),
+    Option.map(await readAloudMetadataOf(path), metadata =>
+      readAloudPreviewOf(config, metadata),
     )
 
   const contributorNameOf = async ({
