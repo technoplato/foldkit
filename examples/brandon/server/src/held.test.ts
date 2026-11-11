@@ -58,13 +58,30 @@ const personAccounts: ReadonlyArray<
       isHeldByScribe: true,
     },
   },
-  ...Array.map(
-    [lookAlikeAtBothEnds, lookAlikeAtTheStart, lookAlikeAtTheEnd],
-    address => ({
-      holder: holderOf(recipient),
-      account: { networkId: mainnet, address, isHeldByScribe: false },
-    }),
-  ),
+  {
+    holder: holderOf(recipient),
+    account: {
+      networkId: mainnet,
+      address: lookAlikeAtBothEnds,
+      isHeldByScribe: false,
+    },
+  },
+  {
+    holder: holderOf(recipient),
+    account: {
+      networkId: mainnet,
+      address: lookAlikeAtTheStart,
+      isHeldByScribe: false,
+    },
+  },
+  {
+    holder: holderOf(recipient),
+    account: {
+      networkId: mainnet,
+      address: lookAlikeAtTheEnd,
+      isHeldByScribe: false,
+    },
+  },
   {
     holder: holderOf(emptyHanded),
     account: {
@@ -75,7 +92,11 @@ const personAccounts: ReadonlyArray<
   },
   {
     holder: holderOf(emptyHanded),
-    account: { networkId: mainnet, address: heldAddress, isHeldByScribe: false },
+    account: {
+      networkId: mainnet,
+      address: heldAddress,
+      isHeldByScribe: false,
+    },
   },
 ]
 
@@ -114,7 +135,8 @@ const store: BrandonStore = {
     Effect.succeed(
       Array.map(
         Array.filter(personAccounts, entry => entry.holder === holder),
-        entry => `${holder}|${entry.account.networkId}|${entry.account.address}`,
+        entry =>
+          `${holder}|${entry.account.networkId}|${entry.account.address}`,
       ),
     ),
   addWatchedAccount: () => Effect.void,
@@ -163,8 +185,9 @@ const request = (
       loopbackEmail: Option.none(),
       heldBalance: ({ address }) =>
         Effect.succeed(
-          Option.getOrElse(Option.fromNullishOr(balanceAnswers.get(address)), () =>
-            Option.none(),
+          Option.getOrElse(
+            Option.fromNullishOr(balanceAnswers.get(address)),
+            () => Option.none(),
           ),
         ),
     },
@@ -259,13 +282,16 @@ describe('money Scribe holds for a person', () => {
   it('reaches only the signed-in person, whatever the request asks for', async () => {
     expect(
       Array.map(
-        await heldFor(recipient, `/api/wallet/held?holder=${holderOf(michael)}`),
+        await heldFor(
+          recipient,
+          `/api/wallet/held?holder=${holderOf(michael)}`,
+        ),
         ({ address }) => address,
       ),
     ).toEqual([heldAddress])
-    expect(
-      Array.map(await heldFor(michael), ({ address }) => address),
-    ).toEqual([michaelsHeldAddress])
+    expect(Array.map(await heldFor(michael), ({ address }) => address)).toEqual(
+      [michaelsHeldAddress],
+    )
   })
 
   it('is refused without the wallet flag or a login', async () => {
@@ -303,7 +329,10 @@ describe('moving held money to their own wallet', () => {
 
   it('gives every claim its own send id', async () => {
     await put(claimPathOf(mainnet, heldAddress, ownAddress), recipient)
-    filed.splice(0, 1, { ...Option.getOrThrow(Array.head(filed)), status: 'Failed' })
+    filed.splice(0, 1, {
+      ...Option.getOrThrow(Array.head(filed)),
+      status: 'Failed',
+    })
     await put(claimPathOf(mainnet, heldAddress, ownAddress), recipient)
     expect(filed.length).toBe(2)
     expect(filed[0]?.sendId).not.toBe(filed[1]?.sendId)
@@ -327,7 +356,11 @@ describe('moving held money to their own wallet', () => {
   })
 
   it('refuses an account Scribe does not hold for them', async () => {
-    for (const notTheirs of [michaelsHeldAddress, ownAddress, strangerAddress]) {
+    for (const notTheirs of [
+      michaelsHeldAddress,
+      ownAddress,
+      strangerAddress,
+    ]) {
       const answer = await put(
         claimPathOf(mainnet, notTheirs, ownAddress),
         recipient,
@@ -374,10 +407,14 @@ describe('moving held money to their own wallet', () => {
   })
 
   it('files one claim when the same move is asked for twice at once', async () => {
+    const slowly = <A>(
+      effect: Effect.Effect<A, Error>,
+    ): Effect.Effect<A, Error> =>
+      Effect.flatMap(Effect.sleep('5 millis'), () => effect)
     const slowStore: BrandonStore = {
       ...store,
-      claims: holder =>
-        Effect.flatMap(Effect.sleep('5 millis'), () => store.claims(holder)),
+      claims: holder => slowly(store.claims(holder)),
+      addClaim: claim => slowly(store.addClaim(claim)),
     }
     const answers = await Promise.all([
       put(claimPathOf(mainnet, heldAddress, ownAddress), recipient, slowStore),
