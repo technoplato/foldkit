@@ -4,6 +4,44 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 11th, 2026 at 1:21:42 p.m. EST — `baa75cea699d` feat(issues): NeedsUserInput, a status for an Issue that waits on its owner's answer (Scribe #2263)
+
+- **Implementation commit:** `baa75cea699d0f79ce3480566485ed429409c147`
+- **Change:** Issue tracker: NeedsUserInput, a status for an Issue that waits on its owner's answer, with its question shown in the list, show and the page (Scribe #2263)
+- **Details:**
+  - IssueStatus gains NeedsUserInput (the work cannot go further, or a choice is the owner's, until they answer; FeedbackRequested stays for a reaction wanted on shipped work). The set-status menu comes from the order work moves and a record of keys the compiler holds to every status; tests hold the workflow order and a product page's order to the declaration. A question is a work-log entry with state question: issues list prints the open ones under the Issue, list --json gives openQuestions, show and the page lead with a Needs user input block. The backlog leaves such an Issue out of queued work.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — the one declaration
+  - `examples/issues/core/src/needsUserInput.ts` — the open questions and their block
+  - `examples/issues/core/src/choices.ts` — the set-status menu from the workflow order and a record of keys
+  - `examples/issues/core/src/issueView.ts` — the order work moves
+  - `examples/issues/core/src/entityGraph.ts` — a product page lists them first
+  - `examples/issues/core/src/backlog.ts` — not queued work
+  - `examples/issues/core/src/issuePage.ts` — the page's block
+  - `examples/issues/cli/src/commands.ts` — list, list --json and show
+  - `examples/issues/README.md` — the status and the question entry
+- **User context (verbatim):**
+  > Just make sure all the open questions are documented in their issues appropriately, and the issue is labeled with needs user input as an enumerated status on those things. (typed 2026-11-11 12:44 EST)
+- **SpecStory:** unavailable — Claude Code session 31fca551-6899-4522-8a23-f4da08f0d6f2 (a subagent, needs-input-2263); no SpecStory capture for subagent runs
+
+## November 11th, 2026 at 1:21:42 p.m. EST — `ead2c49ad684` test(issues): red: a status for an Issue that waits on its owner's answer (Scribe #2263)
+
+- **Implementation commit:** `ead2c49ad68484db297b74dd6ff30cf19164fd26`
+- **Change:** Issue tracker: red tests for a status that says an Issue waits on its owner's answer (Scribe #2263)
+- **Details:**
+  - Nine tests fail: the domain refuses NeedsUserInput; the order work moves, the set-status menu, the filter's link, the board and a product's page do not hold it; the backlog still queues such an Issue; no list line, show section or page section carries the question its work log holds.
+- **Files:**
+  - `examples/issues/core/src/statuses.test.ts` — every list of statuses held to the one declaration
+  - `examples/issues/core/src/needsUserInput.test.ts` — the questions an Issue waits on
+  - `examples/issues/cli/src/commands.test.ts` — list, list --json and show carry the question
+  - `examples/issues/core/src/issuePage.test.ts` — the page leads with the question
+  - `examples/issues/core/src/backlog.test.ts` — the backlog leaves such an Issue out
+  - `examples/issues/core/src/board.test.ts` — the board has its column
+  - `packages/instant-tools/src/issues/domain.test.ts` — the status decodes
+- **User context (verbatim):**
+  > the issue is labeled with needs user input as an enumerated status on those things. (typed 2026-11-11 12:44 EST)
+- **SpecStory:** unavailable — Claude Code session 31fca551-6899-4522-8a23-f4da08f0d6f2 (a subagent, needs-input-2263); no SpecStory capture for subagent runs
+
 ## November 11th, 2026 at 10:29:58 a.m. EST — `e2235a65f50d` feat(read-aloud): green: the book in full, cross-referenced (Scribe #2182)
 
 - **Implementation commit:** `e2235a65f50d9a6e92a9f773b77d047a66886a53`
