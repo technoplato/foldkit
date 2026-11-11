@@ -1,5 +1,7 @@
 import { Array, Effect, Layer, Option, Stream } from 'effect'
 import {
+  IssueRecording,
+  IssueRecordingMention,
   StaticIssueTrackerResources,
   makeMemoryIssueTracker,
   makeMemoryProductCatalog,
@@ -86,6 +88,11 @@ import {
   workingSyncCommand,
 } from './commands.js'
 import { noLandingReader } from './landing.js'
+import {
+  FoundIssueRecordings,
+  UnavailableIssueRecordings,
+  noIssueRecordingsReader,
+} from './recordings.js'
 import { memoryIssueRecords } from './resources.js'
 
 const product = ApplicationProduct.make({ id: 'scribe', name: 'Scribe' })
@@ -209,6 +216,7 @@ const makeHost = (
       nowMs: () => 1_792_000_000_000,
       readBuildJobs: () =>
         Effect.succeed(FoundBuildJobs.make({ jobs: [], unreadable: [] })),
+      readIssueRecordings: noIssueRecordingsReader,
       readLanding: noLandingReader,
       readStandardInput: Effect.succeed(''),
       readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
@@ -2740,5 +2748,136 @@ describe("issues show lists the Issue's build jobs", () => {
 
     expect(asked).toEqual([41])
     expect(refused.exitCode).toBe(2)
+  })
+})
+
+describe('the recordings that mention an Issue (Scribe #2248)', () => {
+  const recordingMention = (id: string, startMilliseconds: number) =>
+    IssueMention.make({
+      capturedAtMs: Option.some(1_794_405_520_766 + startMilliseconds),
+      directQuote: Option.some(`Recording 411 (${id})`),
+      id,
+      issueId: '2248',
+      related: [],
+      reporter: Option.none(),
+      source: RecordingReference.make({
+        recording: RecordingMention.make({
+          endMilliseconds: Option.some(startMilliseconds + 1_000),
+          recordingId,
+          screenshotIds: [],
+          startMilliseconds,
+        }),
+      }),
+    })
+  const mentioned = stored('2248', 'Mentions and their recordings', {
+    mentions: [
+      recordingMention('mention-2248-1', 202_144),
+      recordingMention('mention-2248-2', 900_000),
+    ],
+  })
+  const twoMentions = FoundIssueRecordings.make({
+    recordings: [
+      IssueRecording.make({
+        id: recordingId,
+        mentions: [
+          IssueRecordingMention.make({
+            id: 'row-1',
+            maybeCapturedAtMs: Option.some(1),
+            maybeLine: Option.some({
+              first: 10,
+              last: 15,
+              segmentId: 'segment-10',
+            }),
+            maybeStartSeconds: Option.some(202.144),
+          }),
+          IssueRecordingMention.make({
+            id: 'row-2',
+            maybeCapturedAtMs: Option.some(2),
+            maybeLine: Option.none(),
+            maybeStartSeconds: Option.some(900),
+          }),
+        ],
+        startedAtMs: 1_794_405_000_000,
+        title: 'Recording 411 — Nov 11, 2026',
+      }),
+    ],
+  })
+
+  it('show prints each recording with how many times it mentions the Issue, above the mentions, asking for the Issue by its number', async () => {
+    const made = await run(makeHost([mentioned]))
+    const asked: Array<number> = []
+    const host: IssuesHost = {
+      ...made.host,
+      readIssueRecordings: issueNumber => {
+        asked.push(issueNumber)
+        return Effect.succeed(twoMentions)
+      },
+    }
+    const text = linesOf(
+      await run(showIssueCommand(host, { issue: '2248', isJson: false })),
+    )
+    expect(asked).toEqual([2248])
+    expect(text).toContain(
+      "Recordings (2 mentions in 1 recording, from Scribe's rows)\n  Recording 411 — Nov 11, 2026  2 mentions\n" +
+        `    #10-15  https://og.pisspoursoftware.xyz/recording/${recordingId}/section/segment-10?t=202.14\n` +
+        `    https://og.pisspoursoftware.xyz/recording/${recordingId}?t=900`,
+    )
+    expect(text.indexOf('Recordings (')).toBeLessThan(
+      text.indexOf('\nMentions\n'),
+    )
+  })
+
+  it('show --json gives the recordings with their counts, or why they could not be read', async () => {
+    const made = await run(makeHost([mentioned]))
+    const json = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(
+            {
+              ...made.host,
+              readIssueRecordings: () => Effect.succeed(twoMentions),
+            },
+            { issue: '2248', isJson: true },
+          ),
+        ),
+      ),
+    )
+    const unavailable = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(
+            {
+              ...made.host,
+              readIssueRecordings: () =>
+                Effect.succeed(
+                  UnavailableIssueRecordings.make({ reason: 'no answer.' }),
+                ),
+            },
+            { issue: '2248', isJson: true },
+          ),
+        ),
+      ),
+    )
+    expect(json.recordings[0]).toMatchObject({
+      id: recordingId,
+      mentionCount: 2,
+    })
+    expect(unavailable).toMatchObject({ recordingsNotShown: 'no answer.' })
+    expect(unavailable).not.toHaveProperty('recordings')
+  })
+
+  it('list --json carries each Issue’s mentionCount: every mention once, two in one recording twice', async () => {
+    const made = await run(
+      makeHost([mentioned, stored('2249', 'Never mentioned')]),
+    )
+    const listed = JSON.parse(
+      linesOf(
+        await run(listIssuesCommand(made.host, { ...allIssues, isJson: true })),
+      ),
+    ) as ReadonlyArray<{ id: string; mentionCount: number }>
+    expect(listed.map(issue => [issue.id, issue.mentionCount]).sort()).toEqual([
+      ['2248', 2],
+      ['2249', 0],
+    ])
   })
 })
