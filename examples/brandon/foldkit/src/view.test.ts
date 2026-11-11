@@ -1,6 +1,11 @@
 import {
+  ClickedMoveHeldMoney,
+  ConfirmedWalletWatch,
+  FailedHeldMove,
   FailedWalletWatch,
   FootballSection,
+  type HeldAccount,
+  LoadedHeldAccounts,
   LoadedWalletActivity,
   MarkdownSection,
   OpenWallet,
@@ -18,7 +23,7 @@ import {
 } from 'brandon-core-example'
 import { Option } from 'effect'
 import { Scene } from 'foldkit'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import * as Wallet from 'wallet-core-example'
 
 import { parseMarkdown } from '@foldkit/markdown/vite'
@@ -392,5 +397,255 @@ describe('the wallet section', () => {
         ).toExist(),
       )
     })
+  })
+})
+
+describe('money Scribe holds for them', () => {
+  const heldPage: Page = {
+    displayName: 'Someone',
+    sections: [
+      PersonalWalletSection({
+        key: key('wallet'),
+        title: 'Your wallet',
+        column: 'Main',
+      }),
+    ],
+  }
+  const mainnet = 'solana:mainnet-beta'
+  const heldAddress = 'So11111111111111111111111111111111111111112'
+  const ownMainnetAddress = 'MainnetAddress1111111111111111111111111111111'
+  const signature = '5hSentSignature1111111111111111111111111111'
+
+  const ownProfile = Wallet.WalletProfile.make({
+    walletId: 'wallet-1',
+    displayName: 'wallet-1',
+    createdAt: 1,
+    accounts: [
+      {
+        accountId: 'wallet-1:solana:mainnet-beta',
+        chainId: 'solana',
+        networkId: mainnet,
+        address: ownMainnetAddress,
+        displayName: mainnet,
+      },
+    ],
+  })
+
+  const heldAccount = (fields: Partial<HeldAccount> = {}): HeldAccount => ({
+    networkId: mainnet,
+    address: heldAddress,
+    maybeBalanceAtomic: Option.some('181071945'),
+    maybeClaim: Option.none(),
+    ...fields,
+  })
+
+  const claimOf = (
+    fields: Partial<
+      Extract<HeldAccount['maybeClaim'], { _tag: 'Some' }>['value']
+    > = {},
+  ): HeldAccount['maybeClaim'] =>
+    Option.some({
+      toAddress: ownMainnetAddress,
+      requestedAtMs: 2,
+      status: 'Requested' as const,
+      maybeAmountAtomic: Option.none(),
+      maybeTransactionId: Option.none(),
+      maybeFailure: Option.none(),
+      ...fields,
+    })
+
+  const withHeld = (
+    accounts: ReadonlyArray<HeldAccount>,
+    fields: Partial<typeof initialModel> = {},
+    networkMode: Wallet.WalletNetworkMode = 'Devnet',
+    wallets: ReadonlyArray<typeof ownProfile> = [ownProfile],
+  ) =>
+    ready({
+      page: { _tag: 'ReadyPage', page: heldPage },
+      wallet: OpenWallet({
+        model: {
+          ...Wallet.init()[0],
+          walletNetworkMode: networkMode,
+          wallets,
+        },
+      }),
+      walletWatch: ConfirmedWalletWatch(),
+      heldAccounts: LoadedHeldAccounts({ accounts }),
+      ...fields,
+    })
+
+  const moveButton = Scene.role('button', { name: 'Move it to my wallet' })
+
+  test('shows it in Devnet mode too, named as real money, with where its key is', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(withHeld([heldAccount()])),
+      Scene.expect(Scene.text('Held for you')).toExist(),
+      Scene.expect(
+        Scene.text(
+          'Scribe holds 0.181071945 SOL for you on Solana Mainnet Beta. This is real money.',
+        ),
+      ).toExist(),
+      Scene.expect(
+        Scene.text(
+          "Its key is on Michael's Mac, not in this browser. Move it to your own wallet here whenever you like.",
+        ),
+      ).toExist(),
+      Scene.expect(Scene.text('Devnet: test money')).toExist(),
+    )
+  })
+
+  test('says so when the chain did not answer for its balance', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(
+        withHeld([heldAccount({ maybeBalanceAtomic: Option.none() })]),
+      ),
+      Scene.expect(
+        Scene.text(
+          'Scribe holds money for you on Solana Mainnet Beta, but its balance could not be read just now. This is real money.',
+        ),
+      ).toExist(),
+    )
+  })
+
+  test('shows no card when Scribe holds nothing for them', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(withHeld([])),
+      Scene.expect(Scene.text('Held for you')).toBeAbsent(),
+    )
+  })
+
+  test('asks them to make their wallet first', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(withHeld([heldAccount()], {}, 'Devnet', [])),
+      Scene.expect(
+        Scene.text('Make your wallet below first, then move it there.'),
+      ).toExist(),
+      Scene.expect(moveButton).toBeAbsent(),
+    )
+  })
+
+  test('waits until this site follows their wallet', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(
+        withHeld([heldAccount()], { walletWatch: FailedWalletWatch() }),
+      ),
+      Scene.expect(moveButton).toBeAbsent(),
+      Scene.expect(
+        Scene.text('Make your wallet below first, then move it there.'),
+      ).toExist(),
+    )
+  })
+
+  test('moves it to their own address on a click', () => {
+    const dispatched: Array<unknown> = []
+    const recording = (
+      model: SyncedBrandonModel,
+      message: unknown,
+    ): readonly [SyncedBrandonModel, ReadonlyArray<never>] => {
+      dispatched.push(message)
+      return [model, []]
+    }
+    Scene.scene(
+      { update: recording, view },
+      Scene.with(withHeld([heldAccount()])),
+      Scene.expect(moveButton).toExist(),
+      Scene.click(moveButton),
+    )
+    expect(dispatched).toEqual([
+      ClickedMoveHeldMoney({
+        request: {
+          networkId: mainnet,
+          heldAddress,
+          toAddress: ownMainnetAddress,
+        },
+      }),
+    ])
+  })
+
+  test('says a move is on its way, and offers no second one', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(withHeld([heldAccount({ maybeClaim: claimOf() })])),
+      Scene.expect(
+        Scene.text(
+          "Moving it to your wallet. Michael's Mac sends it, and it shows below once the chain has it.",
+        ),
+      ).toExist(),
+      Scene.expect(moveButton).toBeAbsent(),
+    )
+  })
+
+  test('says it moved, with its transaction', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(
+        withHeld([
+          heldAccount({
+            maybeBalanceAtomic: Option.some('0'),
+            maybeClaim: claimOf({
+              status: 'Sent',
+              maybeAmountAtomic: Option.some('181066945'),
+              maybeTransactionId: Option.some(signature),
+            }),
+          }),
+        ]),
+      ),
+      Scene.expect(Scene.text('Moved 0.181066945 SOL to your wallet.')).toExist(),
+      Scene.expect(Scene.text('5hSentSi…')).toExist(),
+      Scene.expect(moveButton).toBeAbsent(),
+    )
+  })
+
+  test('says why a move failed, that nothing was sent, and offers it again', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(
+        withHeld([
+          heldAccount({
+            maybeClaim: claimOf({
+              status: 'Failed',
+              maybeFailure: Option.some(
+                'Failed: the send expired before it landed; nothing was sent.',
+              ),
+            }),
+          }),
+        ]),
+      ),
+      Scene.expect(
+        Scene.text(
+          'Failed: the send expired before it landed; nothing was sent. Nothing was sent.',
+        ),
+      ).toExist(),
+      Scene.expect(moveButton).toExist(),
+    )
+  })
+
+  test('says when the move could not be asked for', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(
+        withHeld([heldAccount()], {
+          heldMove: FailedHeldMove({
+            request: {
+              networkId: mainnet,
+              heldAddress,
+              toAddress: ownMainnetAddress,
+            },
+            reason: 'The page did not answer in time.',
+          }),
+        }),
+      ),
+      Scene.expect(
+        Scene.text(
+          'The move could not be asked for just now: The page did not answer in time. Nothing was sent.',
+        ),
+      ).toExist(),
+      Scene.expect(moveButton).toExist(),
+    )
   })
 })
