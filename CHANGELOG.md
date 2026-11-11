@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 11th, 2026 at 2:09:58 p.m. EST — `7a2b7870e481` feat(issues): green: a released claim goes back to the agent still running on the Issue (Scribe #2264)
+
+- **Implementation commit:** `7a2b7870e481600034cf74d84316fafcb7a0f029`
+- **Change:** Issue tracker: a released claim goes back to the agent still running on the Issue, and to nobody only when none runs there (Scribe #2264)
+- **Details:**
+  - When a claimant's run ended, the sync released its claim to nobody, though its text said no agent was running without looking: on 2026-11-11 a resumed, replaced run claimed an Issue from the agent at work on it, stopped ten seconds later, and left the Issue claimed by nobody, three times. A release now hands the claim to an agent still running on the Issue, the latest of them to claim it, else the newest to start, in one released entry naming both; the agent is looked for only when a claim is released.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.ts` — heirOf and releasedClaim
+- **User context (verbatim):**
+  > fix each delay at its cause (Scribe's guide, commandment 10)
+- **SpecStory:** unavailable — Claude Code session c90774b6-e0ae-402e-b18c-cc796676d5b9 (a headless agent-run run, resume-guard-2264); no SpecStory capture for headless runs
+
+## November 11th, 2026 at 2:09:57 p.m. EST — `febc5eea3135` test(issues): red: a released claim goes back to the agent still running on the Issue (Scribe #2264)
+
+- **Implementation commit:** `febc5eea313515e6581aa9305565391e24a3fc2a`
+- **Change:** Issue tracker: red tests: a released claim goes back to the agent still running on the Issue (Scribe #2264)
+- **Details:**
+  - Two tests fail: the claim of a run that ended goes to nobody, though an earlier claimant, or another agent, still runs on the Issue.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.test.ts` — the newest earlier claimant still running, else the newest to start
+- **User context (verbatim):**
+  > fix each delay at its cause (Scribe's guide, commandment 10)
+- **SpecStory:** unavailable — Claude Code session c90774b6-e0ae-402e-b18c-cc796676d5b9 (a headless agent-run run, resume-guard-2264); no SpecStory capture for headless runs
+
 ## November 11th, 2026 at 1:21:42 p.m. EST — `baa75cea699d` feat(issues): NeedsUserInput, a status for an Issue that waits on its owner's answer (Scribe #2263)
 
 - **Implementation commit:** `baa75cea699d0f79ce3480566485ed429409c147`
