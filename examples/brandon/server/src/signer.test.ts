@@ -121,8 +121,6 @@ describe('the signer on this Mac', () => {
   })
 
   it('tries again when there is no signer to run', async () => {
-    expect((await signWith(join(folder, 'missing.sh')))._tag).toBe(
-      'RetryLater',
-    )
+    expect((await signWith(join(folder, 'missing.sh')))._tag).toBe('RetryLater')
   })
 })

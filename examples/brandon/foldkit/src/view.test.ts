@@ -618,7 +618,9 @@ describe('money Scribe holds for them', () => {
           }),
         ]),
       ),
-      Scene.expect(Scene.text('Moved 0.181066945 SOL to your wallet.')).toExist(),
+      Scene.expect(
+        Scene.text('Moved 0.181066945 SOL to your wallet.'),
+      ).toExist(),
       Scene.expect(Scene.text('5hSentSi…')).toExist(),
       Scene.expect(moveButton).toBeAbsent(),
     )

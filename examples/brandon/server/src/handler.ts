@@ -26,6 +26,7 @@ import {
   Option,
   Order,
   Schema as S,
+  Semaphore,
 } from 'effect'
 import { createHash, randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
@@ -138,10 +139,11 @@ const notYourOwnAddress = text(
   403,
   "Refused: that is not an address this login's own wallet follows on that network.",
 )
-const alreadyThere = text(
-  400,
-  'Refused: the money is in that account already.',
+const looksLikeHeld = text(
+  403,
+  'Refused: that address looks like the account Scribe holds for you, which is how a wrong address copied from a list of payments looks.',
 )
+const alreadyThere = text(400, 'Refused: the money is in that account already.')
 const followed = text(200, 'ok')
 
 /** The most public addresses one person is followed on: four wallets on each of the four networks. */
@@ -397,6 +399,11 @@ const isClaimOnItsChain = (request: HeldClaimRequest): boolean => {
 
 const unknownBalance: HeldBalanceReader = () => Effect.succeed(Option.none())
 
+// NOTE: this process is the only one that files claims, so one claim
+// read and filed at a time here means the same move asked for twice at
+// once files one claim, never two.
+const claimFiling = Semaphore.makeUnsafe(1)
+
 const fileClaim = (
   asked: Readonly<Record<keyof HeldClaimRequest, string>>,
   email: string,
@@ -420,6 +427,7 @@ const fileClaim = (
       M.tagsExhaustive({
         RefusedSameAddress: () => Effect.succeed(alreadyThere),
         RefusedNotHeld: () => Effect.succeed(notHeldForYou),
+        RefusedLookAlike: () => Effect.succeed(looksLikeHeld),
         RefusedNotOwnAddress: () => Effect.succeed(notYourOwnAddress),
         AlreadyRequested: () => Effect.succeed(followed),
         FileClaim: ({ claim }) => Effect.as(store.addClaim(claim), followed),
@@ -576,7 +584,7 @@ const staticFile = async (
  * the chain shows to anyone, and
  * `PUT /api/wallet/claim/solana:mainnet-beta/43T9…/9Pz…` asks Scribe to move
  * the money it holds for them at the first address to the second, one of
- * their own wallet's.
+ * their own wallet's and never one that looks like the first.
  */
 export const handle = async (
   request: OriginRequest,
@@ -633,7 +641,9 @@ export const handle = async (
         if (!hasFlag(account, walletFlag)) {
           return refused
         }
-        return yield* fileClaim(maybeClaim.value, email, store)
+        return yield* claimFiling.withPermits(1)(
+          fileClaim(maybeClaim.value, email, store),
+        )
       }),
     )
   } else if (path === '/api/page') {

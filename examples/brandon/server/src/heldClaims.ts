@@ -10,6 +10,7 @@ import {
 import { ts } from 'foldkit/schema'
 import { AtomicUnits } from 'wallet-core-example'
 
+import { isLookAlikeOf } from './lookAlike.js'
 import type { ClaimRecord, PersonAccount } from './store.js'
 
 // HELD CLAIMS
@@ -93,8 +94,9 @@ const isAt = (
  * The checks before a claim is signed. The money moves only from an
  * account this Mac's held list names for the claim's own person on that
  * network, which the database also marks as held, and only to an address
- * of that person's own wallet on the same network. A row in the database
- * alone never makes it spend from another key of this Mac.
+ * of that person's own wallet on the same network, which is not, and does
+ * not look like, any account this Mac holds. A row in the database alone
+ * never makes it spend from another key of this Mac.
  */
 export const planClaim = (
   claim: ClaimRecord,
@@ -121,6 +123,13 @@ export const planClaim = (
       !account.isHeldByScribe &&
       isAt(account, claim.networkId, claim.toAddress),
   )
+  const isHeldHere = Array.some(
+    listings,
+    listing => listing.address === claim.toAddress,
+  )
+  const isLookAlike = Array.some(listings, listing =>
+    isLookAlikeOf(claim.toAddress, listing.address),
+  )
   if (!isListed) {
     return RefuseClaim({
       reason: withinFailureLimit(
@@ -139,6 +148,18 @@ export const planClaim = (
         `${to} is not an address this person's own wallet registered on ${claim.networkId}, so nothing was signed.`,
       ),
     })
+  } else if (isHeldHere) {
+    return RefuseClaim({
+      reason: withinFailureLimit(
+        `${to} is an account this Mac holds, not this person's own wallet, so nothing was signed.`,
+      ),
+    })
+  } else if (isLookAlike) {
+    return RefuseClaim({
+      reason: withinFailureLimit(
+        `${to} looks like an account this Mac holds, as a wrong address copied from a list of payments does, so nothing was signed.`,
+      ),
+    })
   } else {
     return PayClaim()
   }
@@ -151,7 +172,9 @@ export const planClaim = (
  * account has, less the fee, under the claim's own send id, so a retry
  * re-sends the same signed bytes and never pays twice.
  */
-export const signerArgumentsOf = (claim: ClaimRecord): ReadonlyArray<string> => [
+export const signerArgumentsOf = (
+  claim: ClaimRecord,
+): ReadonlyArray<string> => [
   'send',
   '--network',
   claim.networkId,
@@ -240,9 +263,7 @@ const parseJson = Option.liftThrowable((line: string): unknown =>
   JSON.parse(line),
 )
 
-const decodeAnswer = (
-  line: string,
-): Option.Option<typeof SendAnswer.Type> =>
+const decodeAnswer = (line: string): Option.Option<typeof SendAnswer.Type> =>
   Option.flatMap(parseJson(line), S.decodeUnknownOption(SendAnswer))
 
 const answerOf = (stdout: string): Option.Option<typeof SendAnswer.Type> =>
@@ -339,7 +360,10 @@ export const signerOutcomeOf = (
         M.when(networkFailureExitCode, () =>
           RetryLater({
             reason: withinFailureLimit(
-              reasonOf(run.stderr, 'Network failure: the signer gave no reason.'),
+              reasonOf(
+                run.stderr,
+                'Network failure: the signer gave no reason.',
+              ),
             ),
           }),
         ),
@@ -407,7 +431,9 @@ export const PaidClaim = ts('PaidClaim', { transactionId: S.String })
 /** The claim failed with nothing sent. */
 export const RefusedClaim = ts('RefusedClaim', { reason: S.String })
 /** The claim's send is broadcast; it stays Requested until the chain includes it. */
-export const ConfirmingClaim = ts('ConfirmingClaim', { transactionId: S.String })
+export const ConfirmingClaim = ts('ConfirmingClaim', {
+  transactionId: S.String,
+})
 /** The claim stays Requested and runs again later. */
 export const WillRetryClaim = ts('WillRetryClaim', { reason: S.String })
 /** How one run of one claim ended. */
@@ -500,6 +526,27 @@ const byRequestedAt = Order.mapInput(
   (waiting: Waiting) => waiting.claim.requestedAtMs,
 )
 
+const isAskedBefore = (claim: ClaimRecord, other: ClaimRecord): boolean =>
+  claim.requestedAtMs < other.requestedAtMs ||
+  (claim.requestedAtMs === other.requestedAtMs &&
+    claim.claimKey < other.claimKey)
+
+const isBehindAnother = (
+  entry: Waiting,
+  entries: ReadonlyArray<Waiting>,
+): boolean =>
+  Array.some(
+    entries,
+    other =>
+      other.claim.claimKey !== entry.claim.claimKey &&
+      isAt(
+        { networkId: other.claim.networkId, address: other.claim.fromAddress },
+        entry.claim.networkId,
+        entry.claim.fromAddress,
+      ) &&
+      isAskedBefore(other.claim, entry.claim),
+  )
+
 /** The claims waiting on this Mac, the oldest first, one run at a time each. */
 export type ClaimQueue = Readonly<{
   offer: (claims: ReadonlyArray<ClaimRecord>) => void
@@ -511,7 +558,9 @@ export type ClaimQueue = Readonly<{
  * The claims waiting on this Mac. `offer` takes Instant's list of
  * Requested claims: a claim no longer on it is forgotten unless it is
  * running. `takeDue` hands out the oldest claim whose time has come and
- * that is not running. `settle` ends a run: a claim whose send waits for
+ * that is not running, and never a claim on a held account while an
+ * older claim on that account is unsettled, so one send at a time leaves
+ * an account. `settle` ends a run: a claim whose send waits for
  * the chain is asked about again in ten seconds; a claim to try again
  * waits longer each time; a paid or refused one is never taken again,
  * whatever a late list says.
@@ -540,10 +589,14 @@ export const makeClaimQueue = (): ClaimQueue => {
       }
     },
     takeDue: nowMs => {
+      const entries = [...waiting.values()]
       const maybeDue = Array.match(
         Array.filter(
-          [...waiting.values()],
-          entry => entry.dueAtMs <= nowMs && !running.has(entry.claim.claimKey),
+          entries,
+          entry =>
+            entry.dueAtMs <= nowMs &&
+            !running.has(entry.claim.claimKey) &&
+            !isBehindAnother(entry, entries),
         ),
         {
           onEmpty: () => Option.none<Waiting>(),

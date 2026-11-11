@@ -358,24 +358,25 @@ describe('a send the page reports', () => {
         ),
         '/',
       )}`
-    const refused: ReadonlyArray<Readonly<Record<keyof SentTransaction, string>>> =
-      [
-        { ...send, recipientAddress: 'not-an-address' },
-        { ...send, recipientAddress: ethereumAddress },
-        { ...send, senderAddress: 'a'.repeat(88) },
-        { ...send, transactionId: 'not-a-signature' },
-        { ...send, transactionId: ethereumHash },
-        { ...send, amountAtomic: '1.5' },
-        { ...send, amountAtomic: 'seed words' },
-        {
-          ...send,
-          networkId: 'ethereum:sepolia',
-          senderAddress: ethereumAddress,
-          recipientAddress: ethereumAddress,
-          transactionId: `0x${'a'.repeat(128)}`,
-        },
-        { ...send, networkId: 'solana:testnet' },
-      ]
+    const refused: ReadonlyArray<
+      Readonly<Record<keyof SentTransaction, string>>
+    > = [
+      { ...send, recipientAddress: 'not-an-address' },
+      { ...send, recipientAddress: ethereumAddress },
+      { ...send, senderAddress: 'a'.repeat(88) },
+      { ...send, transactionId: 'not-a-signature' },
+      { ...send, transactionId: ethereumHash },
+      { ...send, amountAtomic: '1.5' },
+      { ...send, amountAtomic: 'seed words' },
+      {
+        ...send,
+        networkId: 'ethereum:sepolia',
+        senderAddress: ethereumAddress,
+        recipientAddress: ethereumAddress,
+        transactionId: `0x${'a'.repeat(128)}`,
+      },
+      { ...send, networkId: 'solana:testnet' },
+    ]
     for (const transaction of refused) {
       expect((await put(pathOf(transaction), brandon)).status).toBe(400)
     }

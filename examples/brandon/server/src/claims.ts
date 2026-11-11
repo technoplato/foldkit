@@ -10,9 +10,18 @@ import {
   shortenedAddress,
 } from './heldClaims.js'
 import { heldListPath, readHeldListAt } from './heldList.js'
-import { makeScribeWalletSigner, signerBinary, signerTimeoutMs } from './signer.js'
+import {
+  makeScribeWalletSigner,
+  signerBinary,
+  signerTimeoutMs,
+} from './signer.js'
 import type { ClaimRecord } from './store.js'
 import { stamped } from './watcher.js'
+import {
+  isClaimsWorkerAlive,
+  takeWorkerLock,
+  workerLockPathBeside,
+} from './workerLock.js'
 
 // CLAIMS
 
@@ -22,14 +31,30 @@ import { stamped } from './watcher.js'
  * follows Requested `walletClaims` rows through Instant, runs one at a
  * time, and pays each out with `scribe-wallet send --all` under the
  * claim's own send id, only from an account this Mac's held list names
- * for that person. launchd keeps it alive.
+ * for that person. One worker runs at a time: a second one stops at the
+ * lock. launchd keeps it alive.
  */
 
 const pumpEveryMs = 5_000
 
+const listPath = heldListPath()
+const lockPath = workerLockPathBeside(listPath)
+const maybeOtherWorker = takeWorkerLock({
+  path: lockPath,
+  pid: process.pid,
+  isAlive: isClaimsWorkerAlive,
+})
+if (Option.isSome(maybeOtherWorker)) {
+  console.error(
+    stamped(
+      `claims: another claims worker (process ${maybeOtherWorker.value.toString()}) holds ${lockPath}; one worker pays at a time, so this one stops`,
+    ),
+  )
+  process.exit(1)
+}
+
 const store = makeClaimsAdmin(brandonEnv())
 const queue = makeClaimQueue()
-const listPath = heldListPath()
 const sign = makeScribeWalletSigner({
   binary: signerBinary(),
   timeoutMs: signerTimeoutMs,
@@ -87,7 +112,9 @@ store.followRequestedClaims(
     pump()
   },
   error => {
-    console.error(stamped(`claims: the claim list failed: ${error.message}; exiting`))
+    console.error(
+      stamped(`claims: the claim list failed: ${error.message}; exiting`),
+    )
     process.exit(1)
   },
 )

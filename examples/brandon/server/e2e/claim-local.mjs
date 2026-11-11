@@ -12,29 +12,45 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { heldListingLineOf, heldListingsOf, runClaim } from '../dist/heldClaims.js'
+import {
+  heldListingLineOf,
+  heldListingsOf,
+  runClaim,
+} from '../dist/heldClaims.js'
 import { makeScribeWalletSigner } from '../dist/signer.js'
 
 const [wallet, heldAddress, destinationAddress, work] = process.argv.slice(2)
 const solana = join(
-  process.env.SOLANA_BIN ?? join(process.env.HOME, '.local/share/solana/install/active_release/bin'),
+  process.env.SOLANA_BIN ??
+    join(process.env.HOME, '.local/share/solana/install/active_release/bin'),
   'solana',
 )
 const rpc = 'http://127.0.0.1:8899'
 const network = 'solana:localnet'
 const holder = `brandon-dot:${'0'.repeat(64)}`
-let failures = 0
+const tally = { failures: 0 }
 
 const check = (label, isTrue, detail = '') => {
-  console.log(`${isTrue ? 'PASS' : 'FAIL'}  ${label}${detail === '' ? '' : `  (${detail})`}`)
-  if (!isTrue) failures += 1
+  console.log(
+    `${isTrue ? 'PASS' : 'FAIL'}  ${label}${detail === '' ? '' : `  (${detail})`}`,
+  )
+  if (!isTrue) tally.failures += 1
 }
 
 const lamportsOf = address =>
-  BigInt(execFileSync(solana, ['balance', address, '--url', rpc, '--lamports']).toString().trim().split(/\s+/)[0])
+  BigInt(
+    execFileSync(solana, ['balance', address, '--url', rpc, '--lamports'])
+      .toString()
+      .trim()
+      .split(/\s+/)[0],
+  )
 
 const listPath = join(work, 'held-accounts.tsv')
-writeFileSync(listPath, `${heldListingLineOf({ networkId: network, address: heldAddress, holder })}\n`, { mode: 0o600 })
+writeFileSync(
+  listPath,
+  `${heldListingLineOf({ networkId: network, address: heldAddress, holder })}\n`,
+  { mode: 0o600 },
+)
 
 const accounts = [
   { networkId: network, address: heldAddress, isHeldByScribe: true },
@@ -64,7 +80,9 @@ const finished = []
 const signed = []
 const sign = makeScribeWalletSigner({ binary: wallet, timeoutMs: 60_000 })
 const dependencies = {
-  readListings: Effect.sync(() => heldListingsOf(readFileSync(listPath, 'utf8'))),
+  readListings: Effect.sync(() =>
+    heldListingsOf(readFileSync(listPath, 'utf8')),
+  ),
   personAccounts: () => Effect.succeed(accounts),
   sign: claim =>
     Effect.tap(sign(claim), outcome =>
@@ -81,7 +99,11 @@ const dependencies = {
 
 const heldBefore = lamportsOf(heldAddress)
 const destinationBefore = lamportsOf(destinationAddress)
-check('the held account has local coins to move', heldBefore > 0n, `${heldBefore} lamports`)
+check(
+  'the held account has local coins to move',
+  heldBefore > 0n,
+  `${heldBefore} lamports`,
+)
 
 const confirmingTries = 30
 const confirmingPauseMs = 2_000
@@ -106,15 +128,24 @@ check(
 )
 check(
   'every run before that waited for the chain and wrote nothing',
-  firstRuns.slice(0, -1).every(tag => tag === 'ConfirmingClaim') && finished.length === 1,
+  firstRuns.slice(0, -1).every(tag => tag === 'ConfirmingClaim') &&
+    finished.length === 1,
 )
 const firstUpdate = finished.at(-1)?.update
-check('the claim reads Sent with its amount and transaction', firstUpdate?.status === 'Sent' && Option.isSome(firstUpdate.maybeTransactionId))
+check(
+  'the claim reads Sent with its amount and transaction',
+  firstUpdate?.status === 'Sent' &&
+    Option.isSome(firstUpdate.maybeTransactionId),
+)
 
 const heldAfter = lamportsOf(heldAddress)
 const destinationAfter = lamportsOf(destinationAddress)
 const moved = destinationAfter - destinationBefore
-check('the held account ends at zero', heldAfter === 0n, `${heldAfter} lamports`)
+check(
+  'the held account ends at zero',
+  heldAfter === 0n,
+  `${heldAfter} lamports`,
+)
 check(
   'the destination got everything less the fee',
   moved > 0n && heldBefore - moved <= 10_000n,
@@ -122,23 +153,38 @@ check(
 )
 check(
   'the amount the claim records is what the chain moved',
-  firstUpdate !== undefined && Option.getOrElse(firstUpdate.maybeAmountAtomic, () => '') === moved.toString(),
+  firstUpdate !== undefined &&
+    Option.getOrElse(firstUpdate.maybeAmountAtomic, () => '') ===
+      moved.toString(),
 )
 
 const { run: again } = await runUntilSettled(claim)
 const destinationAgain = lamportsOf(destinationAddress)
 check(
   'the same claim run again is the same payment, never a second one',
-  again._tag === 'PaidClaim' && first._tag === 'PaidClaim' && again.transactionId === first.transactionId,
+  again._tag === 'PaidClaim' &&
+    first._tag === 'PaidClaim' &&
+    again.transactionId === first.transactionId,
   JSON.stringify(again),
 )
-check('nothing more reached the destination', destinationAgain === destinationAfter, `${destinationAgain} lamports`)
+check(
+  'nothing more reached the destination',
+  destinationAgain === destinationAfter,
+  `${destinationAgain} lamports`,
+)
 
 const signedBefore = signed.length
 const unlisted = await Effect.runPromise(
-  runClaim(claimOf({ fromAddress: destinationAddress, toAddress: heldAddress }), dependencies),
+  runClaim(
+    claimOf({ fromAddress: destinationAddress, toAddress: heldAddress }),
+    dependencies,
+  ),
 )
-check('a claim from an account this Mac does not list is refused', unlisted._tag === 'RefusedClaim', JSON.stringify(unlisted))
+check(
+  'a claim from an account this Mac does not list is refused',
+  unlisted._tag === 'RefusedClaim',
+  JSON.stringify(unlisted),
+)
 check('and nothing was signed for it', signed.length === signedBefore)
 
-process.exit(failures)
+process.exit(tally.failures)

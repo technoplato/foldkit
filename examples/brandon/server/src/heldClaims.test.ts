@@ -7,12 +7,12 @@ import {
   type ClaimUpdate,
   Confirming,
   type HeldListing,
-  type SignerOutcome,
-  RetryLater,
   Refused,
+  RetryLater,
   Sent,
-  confirmingDelayMs,
+  type SignerOutcome,
   claimUpdateOf,
+  confirmingDelayMs,
   heldListingLineOf,
   heldListingsOf,
   makeClaimQueue,
@@ -52,7 +52,11 @@ const claimOf = (fields: Partial<ClaimRecord> = {}): ClaimRecord => ({
   ...fields,
 })
 
-const listing: HeldListing = { networkId: mainnet, address: heldAddress, holder }
+const listing: HeldListing = {
+  networkId: mainnet,
+  address: heldAddress,
+  holder,
+}
 
 const accounts: ReadonlyArray<PersonAccount> = [
   { networkId: mainnet, address: heldAddress, isHeldByScribe: true },
@@ -87,7 +91,9 @@ describe('the held list on this Mac', () => {
   })
 
   it('writes a line it reads back', () => {
-    expect(heldListingLineOf(listing)).toBe(`${mainnet}\t${heldAddress}\t${holder}`)
+    expect(heldListingLineOf(listing)).toBe(
+      `${mainnet}\t${heldAddress}\t${holder}`,
+    )
     expect(heldListingsOf(`${heldListingLineOf(listing)}\n`)).toEqual([listing])
   })
 })
@@ -101,7 +107,11 @@ describe('what the worker checks before it signs', () => {
     const refusals = [
       planClaim(claimOf(), [], accounts),
       planClaim(claimOf(), [{ ...listing, holder: otherHolder }], accounts),
-      planClaim(claimOf(), [{ ...listing, networkId: 'solana:devnet' }], accounts),
+      planClaim(
+        claimOf(),
+        [{ ...listing, networkId: 'solana:devnet' }],
+        accounts,
+      ),
       planClaim(
         claimOf({ fromAddress: glowAddress }),
         [listing],
@@ -117,10 +127,14 @@ describe('what the worker checks before it signs', () => {
   })
 
   it('never pays from an account the database does not mark as held', () => {
-    const plan = planClaim(claimOf(), [listing], [
-      { networkId: mainnet, address: heldAddress, isHeldByScribe: false },
-      { networkId: mainnet, address: ownAddress, isHeldByScribe: false },
-    ])
+    const plan = planClaim(
+      claimOf(),
+      [listing],
+      [
+        { networkId: mainnet, address: heldAddress, isHeldByScribe: false },
+        { networkId: mainnet, address: ownAddress, isHeldByScribe: false },
+      ],
+    )
     expect(plan._tag).toBe('RefuseClaim')
   })
 
@@ -130,10 +144,14 @@ describe('what the worker checks before it signs', () => {
         'RefuseClaim',
       )
     }
-    const heldDestination = planClaim(claimOf(), [listing], [
-      { networkId: mainnet, address: heldAddress, isHeldByScribe: true },
-      { networkId: mainnet, address: ownAddress, isHeldByScribe: true },
-    ])
+    const heldDestination = planClaim(
+      claimOf(),
+      [listing],
+      [
+        { networkId: mainnet, address: heldAddress, isHeldByScribe: true },
+        { networkId: mainnet, address: ownAddress, isHeldByScribe: true },
+      ],
+    )
     expect(heldDestination._tag).toBe('RefuseClaim')
   })
 
@@ -376,8 +394,9 @@ describe('one claim, run', () => {
     finished: Array<Readonly<{ claim: ClaimRecord; update: ClaimUpdate }>>
     signed: Array<ClaimRecord>
   }> => {
-    const finished: Array<Readonly<{ claim: ClaimRecord; update: ClaimUpdate }>> =
-      []
+    const finished: Array<
+      Readonly<{ claim: ClaimRecord; update: ClaimUpdate }>
+    > = []
     const signed: Array<ClaimRecord> = []
     return {
       finished,
@@ -409,7 +428,11 @@ describe('one claim, run', () => {
   })
 
   it('signs nothing for a claim the checks refuse, and writes Failed', async () => {
-    const { dependencies: deps, finished, signed } = dependencies({
+    const {
+      dependencies: deps,
+      finished,
+      signed,
+    } = dependencies({
       readListings: Effect.succeed([]),
     })
     const run = await Effect.runPromise(runClaim(claimOf(), deps))
@@ -419,7 +442,11 @@ describe('one claim, run', () => {
   })
 
   it('leaves the claim Requested when the held list cannot be read', async () => {
-    const { dependencies: deps, finished, signed } = dependencies({
+    const {
+      dependencies: deps,
+      finished,
+      signed,
+    } = dependencies({
       readListings: Effect.fail(new Error('no such file')),
     })
     const run = await Effect.runPromise(runClaim(claimOf(), deps))
@@ -511,9 +538,9 @@ describe('the claims waiting on this Mac', () => {
     expect(queue.takeDue(retryDelayMs(0) + retryDelayMs(1) - 1)).toEqual(
       Option.none(),
     )
-    expect(Option.isSome(queue.takeDue(retryDelayMs(0) + retryDelayMs(1)))).toBe(
-      true,
-    )
+    expect(
+      Option.isSome(queue.takeDue(retryDelayMs(0) + retryDelayMs(1))),
+    ).toBe(true)
   })
 
   it('asks again soon while the chain confirms a send, without backing off', () => {

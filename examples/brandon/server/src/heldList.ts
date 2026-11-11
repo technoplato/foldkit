@@ -30,7 +30,13 @@ const privateFolderMode = 0o700
  */
 export const heldListPath = (): string =>
   Option.getOrElse(maybeEnv('BRANDON_HELD_ACCOUNTS'), () =>
-    join(homedir(), '.config', 'scribe-private', 'brandon-dot', 'held-accounts.tsv'),
+    join(
+      homedir(),
+      '.config',
+      'scribe-private',
+      'brandon-dot',
+      'held-accounts.tsv',
+    ),
   )
 
 /** The held list as a file: read whole, or one line added. */
@@ -71,5 +77,7 @@ export const readHeldListAt = (path: string): Effect.Effect<string, Error> =>
   Effect.try({
     try: () => readFileSync(path, 'utf8'),
     catch: cause =>
-      new Error(`the held list ${path} could not be read: ${failure(cause).message}`),
+      new Error(
+        `the held list ${path} could not be read: ${failure(cause).message}`,
+      ),
   })

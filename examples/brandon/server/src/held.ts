@@ -4,6 +4,7 @@ import { ts } from 'foldkit/schema'
 import type { AtomicUnits } from 'wallet-core-example'
 
 import { accountKeyOf } from './activity.js'
+import { isLookAlikeOf } from './lookAlike.js'
 import { ClaimRecord, type PersonAccount } from './store.js'
 
 // HELD
@@ -33,11 +34,13 @@ export const newestClaimFor = (
     Array.filter(
       claims,
       claim =>
-        claim.networkId === held.networkId && claim.fromAddress === held.address,
+        claim.networkId === held.networkId &&
+        claim.fromAddress === held.address,
     ),
     {
       onEmpty: () => Option.none(),
-      onNonEmpty: claimsOfHeld => Option.some(Array.max(claimsOfHeld, byRequestedAt)),
+      onNonEmpty: claimsOfHeld =>
+        Option.some(Array.max(claimsOfHeld, byRequestedAt)),
     },
   )
 
@@ -85,6 +88,8 @@ export const claimKeyOf = (
 export const RefusedSameAddress = ts('RefusedSameAddress')
 /** Scribe holds no such account for this person on that network. */
 export const RefusedNotHeld = ts('RefusedNotHeld')
+/** The address looks like an account Scribe holds for them: a copied wrong address looks so. */
+export const RefusedLookAlike = ts('RefusedLookAlike')
 /** The address is not one their own wallet registered on that network. */
 export const RefusedNotOwnAddress = ts('RefusedNotOwnAddress')
 /** A move of that held account is on its way already. */
@@ -96,6 +101,7 @@ export const FileClaim = ts('FileClaim', { claim: ClaimRecord })
 export const ClaimDecision = S.Union([
   RefusedSameAddress,
   RefusedNotHeld,
+  RefusedLookAlike,
   RefusedNotOwnAddress,
   AlreadyRequested,
   FileClaim,
@@ -112,7 +118,8 @@ const isAt = (
 /**
  * What to do with a move a signed-in person asked for. Money moves only
  * from an account Scribe holds for them, only to an address their own
- * wallet registered on the same network, and one move at a time.
+ * wallet registered on the same network, never to an address that looks
+ * like an account Scribe holds for them, and one move at a time.
  */
 export const claimDecisionOf = ({
   holder,
@@ -141,6 +148,12 @@ export const claimDecisionOf = ({
       !account.isHeldByScribe &&
       isAt(account, request.networkId, request.toAddress),
   )
+  const isLookAlike = Array.some(
+    accounts,
+    account =>
+      account.isHeldByScribe &&
+      isLookAlikeOf(request.toAddress, account.address),
+  )
   const isOnItsWay = Option.exists(
     newestClaimFor(claims, {
       networkId: request.networkId,
@@ -152,6 +165,8 @@ export const claimDecisionOf = ({
     return RefusedNotHeld()
   } else if (request.toAddress === request.heldAddress) {
     return RefusedSameAddress()
+  } else if (isLookAlike) {
+    return RefusedLookAlike()
   } else if (!isTheirOwnThere) {
     return RefusedNotOwnAddress()
   } else if (isOnItsWay) {

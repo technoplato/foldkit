@@ -74,7 +74,9 @@ export const makeClaimsAdmin = (config: BrandonEnv): ClaimsStore => {
     },
     personAccounts: holder =>
       Effect.map(
-        run(() => admin.query({ walletAccounts: { $: { where: { holder } } } })),
+        run(() =>
+          admin.query({ walletAccounts: { $: { where: { holder } } } }),
+        ),
         result => personAccountsOf(result['walletAccounts'] ?? []),
       ),
     finishClaim: (claim, update) =>

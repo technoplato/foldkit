@@ -65,13 +65,21 @@ const makeList = (
 }
 
 const hold = (
-  request: Readonly<{ displayName: string; networkId: string; address: string }>,
+  request: Readonly<{
+    displayName: string
+    networkId: string
+    address: string
+  }>,
   store: HoldStore,
   list: HeldListFile,
 ) => Effect.runPromise(holdAccount(request, store, list))
 
 const refusal = async (
-  request: Readonly<{ displayName: string; networkId: string; address: string }>,
+  request: Readonly<{
+    displayName: string
+    networkId: string
+    address: string
+  }>,
   store: HoldStore,
   list: HeldListFile,
 ): Promise<string> =>
@@ -91,7 +99,9 @@ describe('holding an account for a person', () => {
       store,
       list,
     )
-    expect(added).toEqual([{ holder, networkId: mainnet, address: heldAddress }])
+    expect(added).toEqual([
+      { holder, networkId: mainnet, address: heldAddress },
+    ])
     expect(lines).toEqual([`${mainnet}\t${heldAddress}\t${holder}`])
     expect(result.isRowNew).toBe(true)
     expect(result.isListingNew).toBe(true)
@@ -152,7 +162,11 @@ describe('holding an account for a person', () => {
       [mainnet, 'not-an-address'],
     ] as const) {
       expect(
-        await refusal({ displayName: 'Recipient', networkId, address }, store, list),
+        await refusal(
+          { displayName: 'Recipient', networkId, address },
+          store,
+          list,
+        ),
       ).not.toBe('held')
     }
     expect(added).toEqual([])
@@ -196,8 +210,12 @@ describe('the held list file', () => {
     const path = join(mkdtempSync(join(tmpdir(), 'held-list-')), 'held.tsv')
     const file = heldListFileAt(path)
     expect(await Effect.runPromise(file.read)).toBe('')
-    await Effect.runPromise(file.append(`${mainnet}\t${heldAddress}\t${holder}`))
-    await Effect.runPromise(file.append(`solana:devnet\t${heldAddress}\t${holder}`))
+    await Effect.runPromise(
+      file.append(`${mainnet}\t${heldAddress}\t${holder}`),
+    )
+    await Effect.runPromise(
+      file.append(`solana:devnet\t${heldAddress}\t${holder}`),
+    )
     expect(statSync(path).mode & 0o777).toBe(0o600)
     expect(readFileSync(path, 'utf8')).toBe(
       `${mainnet}\t${heldAddress}\t${holder}\nsolana:devnet\t${heldAddress}\t${holder}\n`,

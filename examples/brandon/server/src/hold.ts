@@ -111,7 +111,8 @@ export const holdAccount = (
     const maybeExisting = Array.findFirst(
       yield* store.personAccounts(holder),
       existing =>
-        existing.networkId === networkId && existing.address === request.address,
+        existing.networkId === networkId &&
+        existing.address === request.address,
     )
     if (Option.exists(maybeExisting, existing => !existing.isHeldByScribe)) {
       return yield* refusal(

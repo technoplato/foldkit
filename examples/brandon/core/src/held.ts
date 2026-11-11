@@ -2,11 +2,7 @@ import { Array, Match as M, Option } from 'effect'
 import { displayAmountFromAtomicUnits } from 'wallet-core-example'
 
 import type { HeldAccountsState, Model } from './model.js'
-import type {
-  HeldAccount,
-  HeldClaimRequest,
-  WatchedNetworkId,
-} from './page.js'
+import type { HeldAccount, HeldClaimRequest, WatchedNetworkId } from './page.js'
 import { brandonWalletNetworks } from './wallet.js'
 import { publicAccountsOf } from './walletActivity.js'
 

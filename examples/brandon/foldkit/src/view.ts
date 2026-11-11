@@ -370,6 +370,7 @@ const heldClaimLines = (held: HeldAccount): ReadonlyArray<Html> =>
               "Moving it to your wallet. Michael's Mac sends it, and it shows below once the chain has it.",
             ],
           ),
+          h.code([h.Class('held-address')], [claim.toAddress]),
         ]),
         M.when('Sent', () => [
           h.p(
@@ -385,7 +386,10 @@ const heldClaimLines = (held: HeldAccount): ReadonlyArray<Html> =>
           ...Option.match(claim.maybeTransactionId, {
             onNone: () => [],
             onSome: transactionId => [
-              h.code([h.Class('held-transaction')], [shortSignature(transactionId)]),
+              h.code(
+                [h.Class('held-transaction')],
+                [shortSignature(transactionId)],
+              ),
             ],
           }),
         ]),
@@ -408,7 +412,8 @@ const heldMoveFailureLines = (
   M.value(model.heldMove).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
     M.tag('FailedHeldMove', ({ request, reason }) =>
-      request.networkId === held.networkId && request.heldAddress === held.address
+      request.networkId === held.networkId &&
+      request.heldAddress === held.address
         ? [
             h.p(
               [h.Class('note held-failed')],
@@ -433,6 +438,11 @@ const heldMoveLines = (model: Model, held: HeldAccount): ReadonlyArray<Html> =>
           ),
         ],
         onSome: request => [
+          h.p(
+            [h.Class('note')],
+            ['It goes to this address of your own wallet:'],
+          ),
+          h.code([h.Class('held-address')], [request.toAddress]),
           h.button(
             [
               h.Type('button'),
@@ -450,7 +460,9 @@ const heldCard = (model: Model, held: HeldAccount): Html =>
     `${held.networkId}|${held.address}`,
     [
       h.Class(
-        isRealMoneyNetwork(held.networkId) ? 'held-card is-mainnet' : 'held-card',
+        isRealMoneyNetwork(held.networkId)
+          ? 'held-card is-mainnet'
+          : 'held-card',
       ),
     ],
     [

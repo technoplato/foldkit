@@ -282,6 +282,12 @@ aside {
   cursor: default;
 }
 
+.held-card .held-address {
+  display: block;
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
 .held-card .held-transaction {
   display: inline-block;
   margin-bottom: 8px;

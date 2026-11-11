@@ -105,13 +105,18 @@ describe('the money Scribe holds for this person, on the page', () => {
       initialModel,
       ReceivedHeldAccounts({ accounts: [held()] }),
     )
-    expect(model.heldAccounts).toEqual(LoadedHeldAccounts({ accounts: [held()] }))
+    expect(model.heldAccounts).toEqual(
+      LoadedHeldAccounts({ accounts: [held()] }),
+    )
     expect(commands).toEqual([])
   })
 
   it('keeps the last accounts on screen when a read fails', () => {
     const [model] = update(
-      { ...initialModel, heldAccounts: LoadedHeldAccounts({ accounts: [held()] }) },
+      {
+        ...initialModel,
+        heldAccounts: LoadedHeldAccounts({ accounts: [held()] }),
+      },
       FailedHeldAccounts(),
     )
     expect(model.heldAccounts).toEqual(
@@ -163,7 +168,10 @@ describe('a move to their own wallet', () => {
 
   it('cannot be asked for before their wallet exists, has that network, or is followed', () => {
     expect(
-      heldMoveRequestOf({ ...withOwnWallet(), wallet: initialModel.wallet }, held()),
+      heldMoveRequestOf(
+        { ...withOwnWallet(), wallet: initialModel.wallet },
+        held(),
+      ),
     ).toEqual(Option.none())
     expect(
       heldMoveRequestOf(
@@ -174,10 +182,16 @@ describe('a move to their own wallet', () => {
       ),
     ).toEqual(Option.none())
     expect(
-      heldMoveRequestOf(withOwnWallet(), held({ networkId: 'ethereum:mainnet' })),
+      heldMoveRequestOf(
+        withOwnWallet(),
+        held({ networkId: 'ethereum:mainnet' }),
+      ),
     ).toEqual(Option.none())
     expect(
-      heldMoveRequestOf(withOwnWallet({ walletWatch: PendingWalletWatch() }), held()),
+      heldMoveRequestOf(
+        withOwnWallet({ walletWatch: PendingWalletWatch() }),
+        held(),
+      ),
     ).toEqual(Option.none())
   })
 
@@ -201,7 +215,10 @@ describe('a move to their own wallet', () => {
 
   it('cannot be asked for when the chain says nothing is left', () => {
     expect(
-      heldMoveRequestOf(withOwnWallet(), held({ maybeBalanceAtomic: Option.some('0') })),
+      heldMoveRequestOf(
+        withOwnWallet(),
+        held({ maybeBalanceAtomic: Option.some('0') }),
+      ),
     ).toEqual(Option.none())
   })
 
@@ -334,7 +351,10 @@ describe('the page reading the money Scribe holds', () => {
       nowMs: Effect.succeed(0),
     })
     const handle = startBrandonOn(
-      Runtime.Memory({ processor: 'foldkit-held', store: Runtime.makeMemoryStore() }),
+      Runtime.Memory({
+        processor: 'foldkit-held',
+        store: Runtime.makeMemoryStore(),
+      }),
       Layer.merge(server, makeTestWalletResources()),
       Processor.Host.Foldkit(),
     )
@@ -343,7 +363,8 @@ describe('the page reading the money Scribe holds', () => {
     const shown = await eventually(
       handle.readModel,
       model =>
-        model._tag === 'Ready' && model.heldAccounts._tag === 'LoadedHeldAccounts',
+        model._tag === 'Ready' &&
+        model.heldAccounts._tag === 'LoadedHeldAccounts',
     )
     expect(shown._tag === 'Ready' && shown.heldAccounts).toEqual(
       LoadedHeldAccounts({ accounts: [held()] }),
