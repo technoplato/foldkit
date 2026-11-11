@@ -538,6 +538,7 @@ describe('issues command', () => {
     expect(Array.join(status.stderr, '\n')).toContain(
       '"Done" is not a status. Valid: Addressing, Backlog, Blocked',
     )
+    expect(Array.join(status.stderr, '\n')).toContain('NeedsUserInput')
   })
 
   it('reads a recording line range from the Scribe mirror, word for word, with a deep link per line', async () => {
@@ -980,6 +981,81 @@ describe('issues command', () => {
       '#690  P2  Open  Open one  [Scribe]',
     ])
     expect(observedStatuses).toEqual([['Open', 'InProgress']])
+  })
+
+  it('sets an Issue to wait on his answer with its question, and lists and shows the question', async () => {
+    const question =
+      'May the pricing page go public?\nOptions: 1. Not yet (recommended: the prices are not settled). 2. Yes, publish it.'
+    const { host, memory } = await run(
+      makeHost([
+        stored('2237', 'The pricing page'),
+        stored('2238', 'One-command self-host'),
+      ]),
+    )
+
+    const asked = await run(
+      logIssueCommand(host, {
+        agent: Option.some('claude-code/needs-input-2263'),
+        claim: Option.none(),
+        commit: Option.none(),
+        issue: '2237',
+        isJson: false,
+        state: 'question',
+        status: Option.some('NeedsUserInput'),
+        summary: question,
+      }),
+    )
+    expect(asked.exitCode).toBe(0)
+    expect(Option.getOrThrow(fetched(memory, '2237')).status).toBe(
+      'NeedsUserInput',
+    )
+
+    const waiting = await run(
+      listIssuesCommand(host, { ...allIssues, statuses: ['NeedsUserInput'] }),
+    )
+    expect(waiting.stderr).toEqual([])
+    expect(waiting.stdout).toEqual([
+      '#2237  P2  NeedsUserInput  The pricing page  [Scribe]',
+      '    ? May the pricing page go public?',
+      '      Options: 1. Not yet (recommended: the prices are not settled). 2. Yes, publish it.',
+    ])
+
+    const everything = await run(listIssuesCommand(host, allIssues))
+    expect(everything.stdout).toEqual([
+      '#2238  P2  Open  One-command self-host  [Scribe]',
+      '#2237  P2  NeedsUserInput  The pricing page  [Scribe]',
+      '    ? May the pricing page go public?',
+      '      Options: 1. Not yet (recommended: the prices are not settled). 2. Yes, publish it.',
+    ])
+
+    const json = await run(
+      listIssuesCommand(host, { ...allIssues, isJson: true }),
+    )
+    const listed: ReadonlyArray<{
+      id: string
+      openQuestions: ReadonlyArray<string>
+    }> = JSON.parse(linesOf(json))
+    expect(Array.map(listed, issue => [issue.id, issue.openQuestions])).toEqual(
+      [
+        ['2238', []],
+        ['2237', [question]],
+      ],
+    )
+
+    const shown = linesOf(
+      await run(showIssueCommand(host, { issue: '2237', isJson: false })),
+    )
+    expect(shown).toContain(
+      'Needs user input\n  May the pricing page go public?\n  Options: 1. Not yet (recommended: the prices are not settled). 2. Yes, publish it.\n  Asked by claude-code/needs-input-2263,',
+    )
+    expect(shown.indexOf('Needs user input')).toBeLessThan(
+      shown.indexOf('Now working'),
+    )
+    expect(
+      linesOf(
+        await run(showIssueCommand(host, { issue: '2238', isJson: false })),
+      ),
+    ).not.toContain('Needs user input')
   })
 
   it('deletes only with a typed yes, after a backup that holds the stored record', async () => {

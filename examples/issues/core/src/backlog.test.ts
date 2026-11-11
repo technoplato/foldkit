@@ -133,6 +133,15 @@ describe('backlog order', () => {
 
     expect(idsOf(backlogIssues(backlogOf(issues)))).toEqual(['006', '007'])
   })
+
+  it('leaves out an Issue that waits on its owner’s answer: no agent can take it further', () => {
+    const issues = [
+      issueAt('001', 'P0', withStatus('NeedsUserInput')),
+      issueAt('002', 'P0', withStatus('Open')),
+    ]
+
+    expect(idsOf(backlogIssues(backlogOf(issues)))).toEqual(['002'])
+  })
 })
 
 describe('next build', () => {

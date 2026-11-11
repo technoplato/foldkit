@@ -166,6 +166,34 @@ const pageOf = (issue: Issue): Model =>
 const contentsOf = (model: Model): ReadonlyArray<string> =>
   Array.map(textsOf(issuesScreen(model)), text => text.content)
 
+describe('an Issue that waits on his answer', () => {
+  it('leads its page with the question, its options, and who asked', () => {
+    const waiting = Issue.make({
+      ...asked,
+      status: 'NeedsUserInput',
+      workLog: [
+        ...asked.workLog,
+        entry(
+          410,
+          'question',
+          'May the heat fix ship to testers?\nOptions: 1. Yes (recommended: it held for a day). 2. Wait a week.',
+        ),
+      ],
+    })
+    const contents = contentsOf(pageOf(waiting))
+
+    expect(contents).toContain('Needs user input')
+    expect(contents).toContain('May the heat fix ship to testers?')
+    expect(contents).toContain(
+      'Options: 1. Yes (recommended: it held for a day). 2. Wait a week.',
+    )
+    expect(contents.indexOf('May the heat fix ship to testers?')).toBeLessThan(
+      contents.indexOf('Details'),
+    )
+    expect(contentsOf(pageOf(asked))).not.toContain('Needs user input')
+  })
+})
+
 describe('an ask’s timeline', () => {
   it('reads each step from the mentions and the work log, with the time each took', () => {
     expect(

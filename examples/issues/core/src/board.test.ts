@@ -222,6 +222,7 @@ const STATUS_COLUMNS: ReadonlyArray<IssueStatus> = [
   'InProgress',
   'Addressing',
   'Blocked',
+  'NeedsUserInput',
   'FeedbackRequested',
   'PartiallyDone',
   'Regressed',

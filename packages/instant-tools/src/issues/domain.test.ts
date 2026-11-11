@@ -126,6 +126,12 @@ describe('issue domain', () => {
     expect(S.decodeUnknownSync(IssueStatus)('Planned')).toBe('Planned')
   })
 
+  it('holds an Issue that waits on its owner’s answer as its own status', () => {
+    expect(S.decodeUnknownSync(IssueStatus)('NeedsUserInput')).toBe(
+      'NeedsUserInput',
+    )
+  })
+
   it('preserves research as live success evidence', () => {
     expect(S.decodeUnknownSync(IssueSuccessEvidence)('Research')).toBe(
       'Research',
