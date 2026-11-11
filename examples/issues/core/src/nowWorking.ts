@@ -259,7 +259,90 @@ const lastActivityMs = (issue: Issue): number =>
     ...Array.map(issue.workLog, entry => entry.occurredAtMs),
   )
 
+const newestFirst: Order.Order<IssueWorkLogEntry> = Order.mapInput(
+  Order.flip(Order.Number),
+  (entry: IssueWorkLogEntry) => entry.occurredAtMs,
+)
+
+/**
+ * The agent a released claim goes back to: of the agents still running on the
+ * Issue, the one that claimed it most recently, else the newest to start. None
+ * when no agent runs there. Scribe #2264: a replaced run, resumed by a
+ * watchdog, claimed an Issue from the agent working on it and stopped ten
+ * seconds later; releasing to nobody left that agent's Issue unclaimed.
+ */
+const heirOf = (
+  issue: Issue,
+  claimant: string,
+  survey: AgentSurvey,
+): Option.Option<LiveAgent> => {
+  const running = Array.filter(
+    survey.live,
+    agent =>
+      Option.contains(agent.issueId, issue.id) &&
+      agent.name !== agentNameOf(claimant),
+  )
+  const claimants = Array.flatMap(
+    Array.sort(issue.workLog, newestFirst),
+    (entry: IssueWorkLogEntry): ReadonlyArray<string> =>
+      Option.exists(entry.state, state => Array.contains(claimStates, state))
+        ? Option.toArray(Option.map(entry.agentId, agentNameOf))
+        : [],
+  )
+  const latestClaimant = Array.findFirst(claimants, name =>
+    Array.some(running, agent => agent.name === name),
+  )
+  return Option.orElse(
+    Option.flatMap(latestClaimant, name =>
+      Array.findFirst(running, agent => agent.name === name),
+    ),
+    () => Array.head(Array.sort(running, newestStartedFirst)),
+  )
+}
+
+/**
+ * The Issue with its claimant's claim released: to the agent still running on
+ * it (heirOf), else to nobody. `alone` is the reason as said when nobody runs
+ * there; the agent is looked for only here, when a claim is released.
+ */
 const releasedClaim = (
+  issue: Issue,
+  claimant: string,
+  release: Readonly<{ how: string; why: string; alone?: string }>,
+  survey: AgentSurvey,
+): Issue =>
+  Option.match(heirOf(issue, claimant, survey), {
+    onNone: () =>
+      releasedToNobody(
+        issue,
+        claimant,
+        { how: release.how, why: release.alone ?? release.why },
+        survey,
+      ),
+    onSome: heir =>
+      Issue.make({
+        ...issue,
+        agentPresence: Option.some(
+          runningPresence(issue, heir, survey, Option.none()),
+        ),
+        claimantId: Option.some(heir.agentId),
+        updatedAtMs: nextUpdatedAtMs(issue, survey.observedAtMs),
+        workLog: [
+          ...issue.workLog,
+          IssueWorkLogEntry.make({
+            agentId: Option.some(workingSyncAgent),
+            commitSha: Option.none(),
+            durationSeconds: Option.none(),
+            id: `work-${issue.id}-released-${survey.observedAtMs.toString()}`,
+            occurredAtMs: survey.observedAtMs,
+            state: Option.some('released'),
+            summary: `Released the claim of ${claimant}: ${release.why}; the claim goes back to ${heir.agentId}, which is running on #${issue.id}.`,
+          }),
+        ],
+      }),
+  })
+
+const releasedToNobody = (
   issue: Issue,
   claimant: string,
   release: Readonly<{ how: string; why: string }>,
@@ -338,8 +421,9 @@ const withClaimObserved = (issue: Issue, survey: AgentSurvey): Issue =>
             issue,
             claimant,
             {
+              alone: `its run ended (${run.how}) and no agent is running on #${issue.id}`,
               how: run.how,
-              why: `its run ended (${run.how}) and no agent is running on #${issue.id}`,
+              why: `its run ended (${run.how})`,
             },
             survey,
           ),
@@ -493,10 +577,12 @@ export const statusFollowingLanding = (
  * ended is released with a work-log entry, and so is the claim on a finished
  * Issue (Closed, Fixed, Resolved, Verified) once no agent of that name runs,
  * and the claim of an agent nothing shows running that wrote nothing on the
- * Issue for seven days; any other claim nothing shows running that stayed
- * quiet for twelve hours reads as stale but is kept; and work recorded Merged
- * or Shipped moves the Issue to VerificationNeeded. Observing the same survey
- * again changes nothing.
+ * Issue for seven days. A released claim goes back to an agent still running
+ * on the Issue (the latest of them to claim it, else the newest to start), and
+ * to nobody only when none runs there (Scribe #2264). Any other claim nothing
+ * shows running that stayed quiet for twelve hours reads as stale but is kept;
+ * and work recorded Merged or Shipped moves the Issue to VerificationNeeded.
+ * Observing the same survey again changes nothing.
  */
 export const observedIssue = (
   issue: Issue,
