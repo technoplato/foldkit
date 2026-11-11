@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ApplicationProduct,
   Issue,
+  IssueStatus,
   IssueTracker,
   type IssueTrackerService,
 } from '@foldkit/instant-tools/issues'
@@ -217,7 +218,7 @@ describe('Issue Tracker triage: status, priority and claim from the row', () => 
     const menu = pressedAll(list(), ['j', 's'])
     const dialog = Option.getOrThrow(dialogOf(menu))
     expect(dialog.label).toBe('Status of #104')
-    expect(dialog.rows).toHaveLength(14)
+    expect(dialog.rows).toHaveLength(IssueStatus.literals.length)
     expect(
       Option.map(
         Array.findFirst(dialog.rows, row => row.title === 'Blocked'),

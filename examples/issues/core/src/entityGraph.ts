@@ -813,6 +813,7 @@ const backlinksUncached = (
 // PRODUCT PAGES
 
 const STATUS_ORDER: ReadonlyArray<IssueStatus> = [
+  'NeedsUserInput',
   'InProgress',
   'Addressing',
   'PartiallyDone',

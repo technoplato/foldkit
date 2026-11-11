@@ -138,9 +138,30 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   every build that shipped work; work for an older build that never shipped
   stays in its priority with its headline, such as `Exploring for build 107`.
   Within a lane Issues run P0 first; within a priority, in rank order, and
-  unranked Issues oldest first. Closed, Fixed, Resolved, Verified, and
-  VerificationNeeded Issues stay out of the priority sections. `--limit 20`
-  keeps the first 20; `--json` prints them in that order.
+  unranked Issues oldest first. Closed, Fixed, Resolved, Verified,
+  VerificationNeeded, and NeedsUserInput Issues stay out of the priority
+  sections. `--limit 20` keeps the first 20; `--json` prints them in that
+  order.
+- The statuses are one list, `IssueStatus` in
+  `@foldkit/instant-tools/issues`: `issues status`, `list --status`, the
+  site's filter and its link, the board's columns, and the set-status menu
+  read it, so a status is added there and nowhere else. Two statuses ask
+  something of the tracker's owner. `NeedsUserInput`: the work cannot go
+  further, or a choice is the owner's, until they answer. `FeedbackRequested`:
+  something shipped and their reaction is wanted; nothing waits on it.
+- A question for the owner is a work-log entry whose state is `question`,
+  written with the status in one command, such as
+  `issues log 2237 question "May the pricing page go public? …" --status NeedsUserInput`.
+  One question per entry, with its options and the recommended one first; a
+  second question is a second entry. `issues list --status NeedsUserInput`
+  prints each such Issue with its open questions beneath it
+  (`    ? May the pricing page go public?`), `list --json` gives them as
+  `openQuestions` (each its `question`, `askedBy`, and `askedAtMs`), and
+  `issues show` and the Issue's page lead with a Needs user input block:
+  each question whole, who asked, and when. The owner's
+  answer is an `answer` entry in their words, such as
+  `issues log 2237 answer "He typed: not yet." --status InProgress`; the
+  questions asked before it are no longer open.
 - `rank` orders an Issue within its priority: `--before 930` or `--after 930`
   (the same priority only; otherwise it names the `issues edit --priority`
   that would allow it), `--top`, or `--clear` for age order. The rank is a

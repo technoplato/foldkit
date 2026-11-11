@@ -75,8 +75,13 @@ export type RankPlacement = typeof RankPlacement.Type
 export const isUnfinished = (issue: Issue): boolean =>
   !Array.contains(FINISHED_STATUSES, issue.status)
 
+const NOT_QUEUED_STATUSES: ReadonlyArray<IssueStatus> = [
+  'NeedsUserInput',
+  'VerificationNeeded',
+]
+
 const isQueuedWork = (issue: Issue): boolean =>
-  isUnfinished(issue) && issue.status !== 'VerificationNeeded'
+  isUnfinished(issue) && !Array.contains(NOT_QUEUED_STATUSES, issue.status)
 
 /** An Issue's place within its priority: its rank, or else when it was filed. */
 export const backlogPlace = (issue: Issue): number =>

@@ -297,32 +297,33 @@ export const layoutChoices: ReadonlyArray<Interaction> = [
 
 // TRIAGE
 
-const STATUS_KEYS: ReadonlyArray<readonly [IssueStatus, string]> = [
-  ['Backlog', 'b'],
-  ['Planned', 'n'],
-  ['Open', 'o'],
-  ['InProgress', 'i'],
-  ['Addressing', 'd'],
-  ['Blocked', 'l'],
-  ['FeedbackRequested', 'f'],
-  ['PartiallyDone', 'h'],
-  ['Regressed', 'r'],
-  ['VerificationNeeded', 'v'],
-  ['Verified', 'y'],
-  ['Fixed', 'x'],
-  ['Resolved', 'e'],
-  ['Closed', 'c'],
-]
+const STATUS_KEY: Readonly<Record<IssueStatus, string>> = {
+  Addressing: 'd',
+  Backlog: 'b',
+  Blocked: 'l',
+  Closed: 'c',
+  FeedbackRequested: 'f',
+  Fixed: 'x',
+  InProgress: 'i',
+  NeedsUserInput: 'u',
+  Open: 'o',
+  PartiallyDone: 'h',
+  Planned: 'n',
+  Regressed: 'r',
+  Resolved: 'e',
+  VerificationNeeded: 'v',
+  Verified: 'y',
+}
 
 /** Every status an Issue can be set to, in the order work moves, each with a key. */
 export const statusChangeChoices: ReadonlyArray<Interaction> = Array.map(
-  STATUS_KEYS,
-  ([status, key]) =>
+  STATUS_WORKFLOW,
+  status =>
     interaction(
       `set-status:${status}`,
       status,
       AppliedRowChange.make({ change: ChangedStatus.make({ status }) }),
-      [key],
+      [STATUS_KEY[status]],
     ),
 )
 

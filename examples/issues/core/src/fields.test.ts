@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ApplicationProduct,
   Issue,
+  IssueStatus,
   IssueTracker,
   type IssueTrackerService,
 } from '@foldkit/instant-tools/issues'
@@ -211,10 +212,10 @@ describe('Issue Tracker fields on the Issue page', () => {
     ])
   })
 
-  it('offers all 14 statuses from the header, and two clicks set one, shown at once', async () => {
+  it('offers every status from the header, and two clicks set one, shown at once', async () => {
     const tracker = memoryTracker()
     const [menu] = clicked(page(), headerButton(page(), 'Open'))
-    expect(dialogRowsOf(menu)).toHaveLength(14)
+    expect(dialogRowsOf(menu)).toHaveLength(IssueStatus.literals.length)
     const picked = pickedRow(menu, 'set-status:Blocked')
     expect(headerButton(picked[0], 'Blocked').token).toBe('menu:set-status')
     const done = await settled(tracker, picked)

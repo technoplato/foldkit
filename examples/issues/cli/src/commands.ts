@@ -49,9 +49,12 @@ import {
   issueFromDraft,
   landingSummary,
   laneHeading,
+  needsUserInputLines,
   nowWorkingLines,
   observedIssue,
+  openQuestionsOf,
   placeInBacklog,
+  questionLinesOf,
   rankAfter,
   rankBefore,
   rankTop,
@@ -818,6 +821,7 @@ export const issueDetailLines = (
   `Created: ${isoTime(issue.createdAtMs)}  Updated: ${isoTime(issue.updatedAtMs)}`,
   issueUrl(issue.id),
   ...section('Details', issue.details === '' ? [] : [issue.details]),
+  ...section('Needs user input', indented(needsUserInputLines(issue))),
   ...section('Now working', indented(nowWorkingLines(issue))),
   ...Option.match(issue.workInProgress, {
     onNone: () => [],
@@ -1141,13 +1145,30 @@ const isWorkListing = (input: ListInput): boolean =>
   input.isStuck ||
   Option.isSome(input.targetBuild)
 
-const listLineFor = (input: ListInput): ((issue: Issue) => string) => {
+const QUESTION_MARK = '    ? '
+const QUESTION_INDENT = '      '
+
+/**
+ * The questions an Issue waits on, under its list line: each question's
+ * first line after `    ? `, its other lines indented beneath, such as
+ * `    ? May the pricing page go public?` then `      Options: 1. Not yet …`.
+ */
+export const openQuestionLines = (issue: Issue): ReadonlyArray<string> =>
+  Array.flatMap(openQuestionsOf(issue), question =>
+    Array.map(questionLinesOf(question), (line, index) =>
+      index === 0 ? `${QUESTION_MARK}${line}` : `${QUESTION_INDENT}${line}`,
+    ),
+  )
+
+const listLinesFor = (
+  input: ListInput,
+): ((issue: Issue) => ReadonlyArray<string>) => {
   if (input.isWorking) {
-    return issueWorkingLine
+    return issue => [issueWorkingLine(issue)]
   } else if (isWorkListing(input)) {
-    return issueWorkLine
+    return issue => [issueWorkLine(issue)]
   } else {
-    return issueListLine
+    return issue => [issueListLine(issue), ...openQuestionLines(issue)]
   }
 }
 
@@ -1341,15 +1362,21 @@ export const listIssuesCommand = (
         ? [
             JSON.stringify(
               // Scribe #2248: each Issue's mention count, every mention once, as Scribe's issues.mentionCount holds it.
+              // Scribe #2263: the questions an Issue at NeedsUserInput waits on, so a reader of the list needs no rule of its own.
               Array.map(listing.issues, issue => ({
                 ...encodeIssue(issue),
                 mentionCount: issue.mentions.length,
+                openQuestions: Array.map(openQuestionsOf(issue), question => ({
+                  askedAtMs: question.occurredAtMs,
+                  askedBy: Option.getOrNull(question.agentId),
+                  question: question.summary,
+                })),
               })),
             ),
           ]
         : input.isBacklog
           ? listing.lines
-          : Array.map(listing.issues, listLineFor(input))
+          : Array.flatMap(listing.issues, listLinesFor(input))
       if (Array.isReadonlyArrayNonEmpty(unreadable)) {
         return {
           exitCode: FAILED_EXIT_CODE,

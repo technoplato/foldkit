@@ -14,7 +14,19 @@ export const IssuePriority = S.Literals(['P0', 'P1', 'P2', 'P3', 'P4'])
 /** The urgency of an Issue, ordered from immediate P0 to eventual P4. */
 export type IssuePriority = typeof IssuePriority.Type
 
-/** The workflow state of an Issue without imposing one project-management service. */
+/**
+ * The workflow state of an Issue without imposing one project-management
+ * service. This list is the one declaration: the `issues` command's choices,
+ * a list's filter and its link, the board's columns and the set-status menu
+ * all read it.
+ *
+ * Two of them ask something of the tracker's owner. `NeedsUserInput`: the
+ * work cannot go further, or a choice is the owner's, until they answer; the
+ * question is on the Issue as a work-log entry whose state is `question`
+ * (`issues log 2237 question "<the question, its options>" --status
+ * NeedsUserInput`). `FeedbackRequested`: something shipped and their reaction
+ * is wanted; nothing waits on it.
+ */
 export const IssueStatus = S.Literals([
   'Addressing',
   'Backlog',
@@ -23,6 +35,7 @@ export const IssueStatus = S.Literals([
   'FeedbackRequested',
   'Fixed',
   'InProgress',
+  'NeedsUserInput',
   'Open',
   'PartiallyDone',
   'Planned',

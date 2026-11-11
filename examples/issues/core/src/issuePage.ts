@@ -80,6 +80,7 @@ import {
   recordingNumberOfMention,
 } from './mentionedIn.js'
 import { type IssueFilesState, type Model } from './model.js'
+import { needsUserInputLines } from './needsUserInput.js'
 import { nowWorkingLines } from './nowWorking.js'
 import { runsOfIssue } from './pageAgents.js'
 import { describeIssueReference, issueAttachmentWebLink } from './reference.js'
@@ -963,6 +964,10 @@ export const issuePageNodes = (
   const pageUrl = issueViewerUrl(issue.id)
   return [
     ...headerNodes(issue, context, actions),
+    ...section(
+      'Needs user input',
+      linesNodes(needsUserInputLines(issue), context),
+    ),
     ...atAGlanceNodes(model, issue, context),
     ...section('Details', detailsNodes(issue, context)),
     ...section('Now working', linesNodes(nowWorkingLines(issue), context)),

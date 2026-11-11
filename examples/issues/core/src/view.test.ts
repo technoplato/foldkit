@@ -12,6 +12,7 @@ import {
   ActiveWork,
   ApplicationProduct,
   Issue,
+  IssueStatus,
   IssueWorkInProgress,
   LibraryProduct,
 } from '@foldkit/instant-tools/issues'
@@ -344,7 +345,7 @@ describe('Issue Tracker views: the filters live in the URL', () => {
     const words = Array.map(textsOf(issuesScreen(menu)), text => text.content)
     expect(words).toContain('Status')
     const statusRows = Array.flatMap(groupsOfLayer(menu), layer => layer.rows)
-    expect(Array.length(statusRows)).toBe(15)
+    expect(Array.length(statusRows)).toBe(IssueStatus.literals.length + 1)
     expect(Array.head(statusRows)).toEqual(
       Option.some(
         expect.objectContaining({

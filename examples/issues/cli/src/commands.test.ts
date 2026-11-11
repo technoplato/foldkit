@@ -1033,14 +1033,17 @@ describe('issues command', () => {
     )
     const listed: ReadonlyArray<{
       id: string
-      openQuestions: ReadonlyArray<string>
+      openQuestions: ReadonlyArray<{ askedBy: string; question: string }>
     }> = JSON.parse(linesOf(json))
-    expect(Array.map(listed, issue => [issue.id, issue.openQuestions])).toEqual(
-      [
-        ['2238', []],
-        ['2237', [question]],
-      ],
-    )
+    expect(
+      Array.map(listed, issue => [
+        issue.id,
+        Array.map(issue.openQuestions, open => [open.askedBy, open.question]),
+      ]),
+    ).toEqual([
+      ['2238', []],
+      ['2237', [['claude-code/needs-input-2263', question]]],
+    ])
 
     const shown = linesOf(
       await run(showIssueCommand(host, { issue: '2237', isJson: false })),
@@ -1049,7 +1052,7 @@ describe('issues command', () => {
       'Needs user input\n  May the pricing page go public?\n  Options: 1. Not yet (recommended: the prices are not settled). 2. Yes, publish it.\n  Asked by claude-code/needs-input-2263,',
     )
     expect(shown.indexOf('Needs user input')).toBeLessThan(
-      shown.indexOf('Now working'),
+      shown.indexOf('Work log'),
     )
     expect(
       linesOf(

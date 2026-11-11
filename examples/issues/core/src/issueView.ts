@@ -488,6 +488,7 @@ export const STATUS_WORKFLOW: ReadonlyArray<IssueStatus> = [
   'InProgress',
   'Addressing',
   'Blocked',
+  'NeedsUserInput',
   'FeedbackRequested',
   'PartiallyDone',
   'Regressed',
