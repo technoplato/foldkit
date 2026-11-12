@@ -4,6 +4,44 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 12th, 2026 at 10:20:28 a.m. EST — `c924c9d6a014` feat(issues): green: an Issue's agents, and a recording's (Scribe #2303)
+
+- **Implementation commit:** `c924c9d6a0145c6345f91a7c13f7a0bada958771`
+- **Change:** Issue tracker: an Issue's agents, and a recording's, from one query on Scribe's rows (Scribe #2303)
+- **Details:**
+  - core's issueAgents asks agentRuns where issueNumber is in the Issues asked for, newest first, with each run's sessions, its subagents that name no Issue of their own, and its parent, and reads each agent's state, times, account, handle, claude.ai link or why it has none, and the app link that opens its chat; a recording's Issues come from its issueMentions. issues show prints an Agents section and gives agents in --json; issues recording <number|id> [--json] lists a recording's Issues with their agents; the Issue page's Runs section lists them from the same query. Nothing is written; no attribute or link is added.
+- **Files:**
+  - `examples/issues/core/src/issueAgents.ts` — the one query, its reading and a recording's Issues
+  - `examples/issues/core/src/issuePage.ts` — the Runs section
+  - `examples/issues/core/src/graphRows.ts` — the live read
+  - `examples/issues/core/src/subscription.ts` — the page reads it while an Issue is open
+  - `examples/issues/core/src/message.ts` — ObservedIssueAgents
+  - `examples/issues/core/src/model.ts` — the page's agents state
+  - `examples/issues/core/src/update.ts` — the agents state
+  - `examples/issues/cli/src/agents.ts` — the readers, the section and the JSON
+  - `examples/issues/cli/src/commands.ts` — show and the recording command
+  - `examples/issues/cli/src/entry.ts` — the recording command
+  - `examples/issues/cli/src/resources.ts` — the live readers
+  - `examples/issues/README.md` — the Agents section and the recording command
+- **User context (verbatim):**
+  > Displayed in the issue they’re working in which should be queryable from all recordings in which the issue they were spawned for is being worked on
+- **SpecStory:** unavailable — Claude Code session 9d9309b0-8306-45e0-9957-9da2f4f538fb (a headless agent-run run, issue-agents-2303); no SpecStory capture for headless runs
+
+## November 12th, 2026 at 10:20:28 a.m. EST — `c4e0dad19e59` test(issues): red: an Issue's agents, and a recording's (Scribe #2303)
+
+- **Implementation commit:** `c4e0dad19e59b3d5652180bac2cb58191b7828ed`
+- **Change:** Issue tracker: red tests: an Issue's agents, and a recording's (Scribe #2303)
+- **Details:**
+  - Tests first for the agents started for an Issue (state, times, account, handle, claude.ai link or why none, chat link, sessions, subagents) and for a recording's Issues with theirs, in core, the command (show's Agents section and --json, the new recording command) and the Issue page; they fail: core's issueAgents and the command's agents module do not exist.
+- **Files:**
+  - `examples/issues/core/src/issueAgents.test.ts` — the one query and its reading
+  - `examples/issues/core/src/issueAgentsPage.test.ts` — the Issue page's Runs section
+  - `examples/issues/cli/src/agents.test.ts` — the readers, the section and the JSON
+  - `examples/issues/cli/src/commands.test.ts` — show and the recording command
+- **User context (verbatim):**
+  > Displayed in the issue they’re working in which should be queryable from all recordings in which the issue they were spawned for is being worked on
+- **SpecStory:** unavailable — Claude Code session 9d9309b0-8306-45e0-9957-9da2f4f538fb (a headless agent-run run, issue-agents-2303); no SpecStory capture for headless runs
+
 ## November 11th, 2026 at 2:09:58 p.m. EST — `7a2b7870e481` feat(issues): green: a released claim goes back to the agent still running on the Issue (Scribe #2264)
 
 - **Implementation commit:** `7a2b7870e481600034cf74d84316fafcb7a0f029`
