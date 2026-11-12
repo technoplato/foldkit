@@ -110,6 +110,15 @@ import {
 } from '@foldkit/instant-tools/issues'
 
 import {
+  type IssueAgentsRead,
+  type IssueAgentsReader,
+  type RecordingIssuesReader,
+  issueAgentsJson,
+  issueAgentsSection,
+  recordingAgentsJson,
+  recordingAgentsLines,
+} from './agents.js'
+import {
   type BuildJobsRead,
   type BuildJobsReader,
   buildJobsJson,
@@ -130,6 +139,7 @@ import {
   type ResolvedSaid,
   type SaidImageKind,
   findRecordingFolder,
+  findRecordingFolders,
   resolveSaid,
   typedMention,
 } from './mentions.js'
@@ -213,11 +223,21 @@ export type IssuesHost = Readonly<{
    */
   readLanding: LandingReader
   /**
+   * The agents started for Issues, by their numbers, from Scribe's rows
+   * (Scribe #2303). It never fails and answers within 5 seconds.
+   */
+  readIssueAgents: IssueAgentsReader
+  /**
    * The recordings that mention an Issue, each with how many times, from
    * Scribe's rows, by the Issue's number (Scribe #2248). It never fails and
    * answers within 5 seconds.
    */
   readIssueRecordings: IssueRecordingsReader
+  /**
+   * The Issues a recording's lines mention, by the recording's id, from
+   * Scribe's rows (Scribe #2303). It never fails and answers within 5 seconds.
+   */
+  readRecordingIssues: RecordingIssuesReader
   readStandardInput: Effect.Effect<string>
   readTextFile: (path: string) => Effect.Effect<string, unknown>
   records: IssueRecordsService
@@ -886,6 +906,7 @@ const issueWithScribeRowsJson = (
   builds: BuildJobsRead,
   landing: LandingRead,
   recordings: IssueRecordingsRead,
+  agents: IssueAgentsRead,
 ): string =>
   JSON.stringify(
     {
@@ -893,6 +914,7 @@ const issueWithScribeRowsJson = (
       ...buildJobsJson(builds),
       ...landingJson(landing),
       ...issueRecordingsJson(recordings),
+      ...issueAgentsJson(agents, Number(issue.id)),
     },
     null,
     2,
@@ -1073,7 +1095,7 @@ export const showIssueCommand = (
   finish(
     Effect.gen(function* () {
       const issueId = yield* parseIssueNumber(input.issue)
-      const [model, builds, landing, recordings] = yield* Effect.all(
+      const [model, builds, landing, recordings, agents] = yield* Effect.all(
         [
           executeMessages(
             IssueDetail.make({ issueId }),
@@ -1083,21 +1105,130 @@ export const showIssueCommand = (
           host.readBuildJobs(Number(issueId)),
           host.readLanding(Number(issueId)),
           host.readIssueRecordings(Number(issueId)),
+          host.readIssueAgents([Number(issueId)]),
         ],
         { concurrency: 'unbounded' },
       )
       const issue = yield* loadedIssueOf('show', model, issueId)
       return succeeded(
         input.isJson
-          ? [issueWithScribeRowsJson(issue, builds, landing, recordings)]
+          ? [
+              issueWithScribeRowsJson(
+                issue,
+                builds,
+                landing,
+                recordings,
+                agents,
+              ),
+            ]
           : issueDetailLines(
               issue,
               [
+                ...issueAgentsSection(agents, Number(issueId), host.timeZone),
                 ...landingSection(landing, host.timeZone),
                 ...buildJobsSection(builds, host.nowMs(), host.timeZone),
               ],
               issueRecordingsSection(recordings, recordingMentionCount(issue)),
             ),
+      )
+    }),
+  )
+
+const RECORDING_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const StoredRecordingMeta = S.Struct({ id: S.String })
+
+const recordingIdOfFolder = (
+  host: IssuesHost,
+  folder: string,
+): Effect.Effect<string, IssuesCommandFailure> =>
+  host.readTextFile(join(folder, 'meta.json')).pipe(
+    Effect.flatMap(text =>
+      Effect.try(() =>
+        S.decodeUnknownSync(StoredRecordingMeta)(JSON.parse(text)),
+      ),
+    ),
+    Effect.map(meta => meta.id.toLowerCase()),
+    Effect.filterOrFail(
+      id => RECORDING_ID.test(id),
+      () => 'not a recording id',
+    ),
+    Effect.mapError(() =>
+      failed('recording', `${join(folder, 'meta.json')} names no recording id`),
+    ),
+  )
+
+/**
+ * A recording's id from what was typed: its whole id as it is, or its number
+ * or the start of its id through the mirror's folder names, which must name
+ * one recording.
+ */
+const recordingIdOf = (
+  host: IssuesHost,
+  recording: string,
+): Effect.Effect<string, IssuesCommandFailure> => {
+  const typed = recording.trim()
+  if (RECORDING_ID.test(typed)) {
+    return Effect.succeed(typed.toLowerCase())
+  }
+  return Array.match(findRecordingFolders(host.mirrorRoot, typed), {
+    onEmpty: () =>
+      Effect.fail(
+        new IssuesCommandFailure({
+          exitCode: MISSING_EXIT_CODE,
+          message: `No recording ${typed} in ${join(host.mirrorRoot, 'recordings')}; give its whole id instead.`,
+        }),
+      ),
+    onNonEmpty: folders =>
+      folders.length === 1
+        ? recordingIdOfFolder(host, Array.headNonEmpty(folders))
+        : Effect.forEach(folders, folder =>
+            Effect.orElseSucceed(recordingIdOfFolder(host, folder), () =>
+              basename(folder),
+            ),
+          ).pipe(
+            Effect.flatMap(ids =>
+              Effect.fail(
+                usage(
+                  `Recording ${typed} names ${ids.length.toString()} recordings in the mirror (${Array.join(ids, ', ')}); give one id.`,
+                ),
+              ),
+            ),
+          ),
+  })
+}
+
+/**
+ * Lists the Issues his lines in one recording mention, by the recording's
+ * number or id, each with how many times and the agents started for it, from
+ * Scribe's rows (Scribe #2303). It writes nothing; it fails, saying why, when
+ * the recording's Issues cannot be read.
+ */
+export const showRecordingCommand = (
+  host: IssuesHost,
+  input: Readonly<{ recording: string; isJson: boolean }>,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const recordingId = yield* recordingIdOf(host, input.recording)
+      const read = yield* host.readRecordingIssues(recordingId)
+      if (read._tag === 'UnavailableRecordingIssues') {
+        return yield* Effect.fail(failed('recording', read.reason))
+      }
+      const agents = yield* host.readIssueAgents(
+        Array.map(read.recording.issues, issue => issue.number),
+      )
+      return succeeded(
+        input.isJson
+          ? [
+              JSON.stringify(
+                recordingAgentsJson(read.recording, agents),
+                null,
+                2,
+              ),
+            ]
+          : recordingAgentsLines(read.recording, agents, host.timeZone),
       )
     }),
   )

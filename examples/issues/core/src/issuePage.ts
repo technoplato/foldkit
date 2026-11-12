@@ -48,9 +48,10 @@ import {
 } from './graphChips.js'
 import { type AgentRunChip, noIssueGraph } from './graphFacts.js'
 import { findingNodes } from './graphPageParts.js'
+import { type IssueAgent } from './issueAgents.js'
 import {
-  type IssueMoment,
   type IssueLanding,
+  type IssueMoment,
   firstLandedBuild,
   firstTestflightBuild,
   noLanding,
@@ -331,9 +332,7 @@ const whoAskedNodes = (
   const said = M.value(mention.source).pipe(
     M.withReturnType<ReadonlyArray<TextPart>>(),
     M.tag('Recording', ({ recording }) => [
-      Plain(
-        askedLeadWords[askedVoiceOf(recording.recordingId, line, context)],
-      ),
+      Plain(askedLeadWords[askedVoiceOf(recording.recordingId, line, context)]),
       segmentChip(mention, line, recording.recordingId, context),
       Plain(atWords),
     ]),
@@ -559,17 +558,150 @@ const runTimeWords = (run: AgentRunChip, context: PageContext): string =>
       })}`,
   })
 
-const runNodes = (
+const runRow = (run: AgentRunChip, context: PageContext): UiNode =>
+  RichText([
+    agentChip(run, clockOf(context)),
+    Plain(`  ${runWords(run)}${runTimeWords(run, context)}`),
+  ])
+
+const chipOfAgent = (
+  agent: Readonly<{
+    handle: string
+    id: string
+    maybeEndedAtMs: Option.Option<number>
+    maybeStartedAtMs: Option.Option<number>
+    name: string
+    state: string
+  }>,
+  harness: string,
+  maybeAccount: Option.Option<string>,
+  maybeKind: Option.Option<string>,
+): AgentRunChip => ({
+  agentId: agent.handle,
+  harness,
+  maybeAccount,
+  maybeEffort: Option.none(),
+  maybeEndedAtMs: agent.maybeEndedAtMs,
+  maybeIssueId: Option.none(),
+  maybeKind,
+  maybeModel: Option.none(),
+  maybeStartedAtMs: agent.maybeStartedAtMs,
+  name: agent.name,
+  runId: agent.id,
+  status: agent.state,
+})
+
+const SUBAGENT_KIND = 'subagent'
+
+const claudeLinkParts = (agent: IssueAgent): ReadonlyArray<TextPart> =>
+  M.value(agent.link).pipe(
+    M.withReturnType<ReadonlyArray<TextPart>>(),
+    M.tagsExhaustive({
+      ClaudeLink: ({ url }) => [
+        Reference({
+          label: 'claude.ai',
+          kind: 'Session',
+          href: url,
+          detail: [
+            'Opens only on the account that made it',
+            ...Option.toArray(agent.maybeAccount),
+          ],
+        }),
+      ],
+      NoClaudeLink: ({ why }) => [Plain(`No Claude link: ${why}`)],
+    }),
+  )
+
+const chatParts = (
+  maybeChatLink: Option.Option<string>,
+): ReadonlyArray<TextPart> =>
+  Option.toArray(
+    Option.map(maybeChatLink, href =>
+      Reference({
+        label: 'Chat',
+        kind: 'App',
+        href,
+        detail: ['Opens its chat in Scribe'],
+      }),
+    ),
+  )
+
+const agentNodes = (
+  agent: IssueAgent,
+  context: PageContext,
+): ReadonlyArray<UiNode> => {
+  const chip = chipOfAgent(
+    agent,
+    agent.harness,
+    agent.maybeAccount,
+    agent.maybeKind,
+  )
+  return [
+    runRow(chip, context),
+    RichText([
+      Plain('    '),
+      ...claudeLinkParts(agent),
+      ...spacedChips(chatParts(agent.maybeChatLink)),
+    ]),
+    ...Array.map(agent.subagents, subagent => {
+      const subagentChip = chipOfAgent(
+        subagent,
+        agent.harness,
+        agent.maybeAccount,
+        Option.some(SUBAGENT_KIND),
+      )
+      return RichText([
+        Plain('    '),
+        agentChip(subagentChip, clockOf(context)),
+        Plain(
+          `${runTimeWords(subagentChip, context)}${Option.match(
+            subagent.maybeTask,
+            { onNone: () => '', onSome: task => `  ·  ${task}` },
+          )}`,
+        ),
+      ])
+    }),
+  ]
+}
+
+/**
+ * The page's runs: every agent started for the Issue, from the one query
+ * `issues show` reads (Scribe #2303), each with its claude.ai link or why it
+ * has none, its chat and its subagents; then each run that only wrote on the
+ * Issue while it ran, as before. Until the agents are read, the runs as before.
+ */
+const runSection = (
   issue: Issue,
   model: Model,
   context: PageContext,
-): ReadonlyArray<UiNode> =>
-  Array.map(runsOfIssue(issue, model.knownAgents), run =>
-    RichText([
-      agentChip(run, clockOf(context)),
-      Plain(`  ${runWords(run)}${runTimeWords(run, context)}`),
-    ]),
+): Readonly<{ count: number; nodes: ReadonlyArray<UiNode> }> => {
+  const agents =
+    model.issueAgents._tag === 'LoadedIssueAgents' &&
+    model.issueAgents.issueId === issue.id
+      ? model.issueAgents.agents
+      : []
+  const others = Array.filter(
+    runsOfIssue(issue, model.knownAgents),
+    run => !Array.some(agents, agent => agent.id === run.runId),
   )
+  const failure =
+    model.issueAgents._tag === 'FailedIssueAgents' &&
+    model.issueAgents.issueId === issue.id
+      ? [
+          Text(`Its agents could not be read: ${model.issueAgents.reason}`, {
+            dim: true,
+          }),
+        ]
+      : []
+  return {
+    count: agents.length + others.length,
+    nodes: [
+      ...Array.flatMap(agents, agent => agentNodes(agent, context)),
+      ...Array.map(others, run => runRow(run, context)),
+      ...failure,
+    ],
+  }
+}
 
 const findingNodesOf = (
   model: Model,
@@ -626,7 +758,7 @@ const atAGlanceNodes = (
 ): ReadonlyArray<UiNode> => {
   const landing = landingOfPage(model, issue.id)
   const steps = timelineOf(issue, landing)
-  const runs = runNodes(issue, model, context)
+  const runs = runSection(issue, model, context)
   const findings = findingNodesOf(model, issue, context)
   const decisions = decisionNodesOf(model, issue, context)
   const questions = questionNodesOf(model, issue, context)
@@ -640,7 +772,7 @@ const atAGlanceNodes = (
       ...landingNodes(issue, steps, context),
     ]),
     ...section('Timeline', timelineNodes(steps, context)),
-    ...section(`Runs: ${runs.length.toString()}`, runs),
+    ...section(`Runs: ${runs.count.toString()}`, runs.nodes),
     ...section(`Findings: ${findings.length.toString()}`, findings),
     ...section(`Decisions: ${decisions.length.toString()}`, decisions),
     ...section(`Questions: ${questions.length.toString()}`, questions),

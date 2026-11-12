@@ -24,6 +24,7 @@ import {
   IssueGraph,
 } from './graphFacts.js'
 import { InboxFilter } from './inbox.js'
+import { IssueAgent } from './issueAgents.js'
 import { IssueFileAddress } from './issueFiles.js'
 import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
 import { IssueView, defaultIssueView } from './issueView.js'
@@ -221,6 +222,30 @@ export const IssueGraphObservation = S.Union([
 ])
 /** Every state of reading what stands around the open Issue. */
 export type IssueGraphObservation = typeof IssueGraphObservation.Type
+
+/** No Issue is open, so no agents are read. */
+export const NotObservingIssueAgents = S.TaggedStruct(
+  'NotObservingIssueAgents',
+  {},
+)
+/** The agents started for the open Issue, newest first, from Scribe's rows (Scribe #2303). */
+export const LoadedIssueAgents = S.TaggedStruct('LoadedIssueAgents', {
+  agents: S.Array(IssueAgent),
+  issueId: S.String,
+})
+/** The open Issue's agents could not be read, and the Issue page says why. */
+export const FailedIssueAgents = S.TaggedStruct('FailedIssueAgents', {
+  issueId: S.String,
+  reason: S.String,
+})
+/** Every state of reading the agents started for the open Issue. */
+export const IssueAgentsObservation = S.Union([
+  NotObservingIssueAgents,
+  LoadedIssueAgents,
+  FailedIssueAgents,
+])
+/** Every state of reading the agents started for the open Issue. */
+export type IssueAgentsObservation = typeof IssueAgentsObservation.Type
 
 /** No build or commit page is open, or the host has no graph. */
 export const NotObservingPageFacts = S.TaggedStruct('NotObservingPageFacts', {})
@@ -843,6 +868,7 @@ export const Model = S.Struct({
   failedRowEdits: S.Array(FailedRowEdit),
   featuresList: FeaturesObservation,
   findingsList: FindingsObservation,
+  issueAgents: IssueAgentsObservation,
   issueDetail: IssueDetailState,
   issueFiles: IssueFilesState,
   issueGraph: IssueGraphObservation,

@@ -31,6 +31,7 @@ issues file --title "…" --details "…" --product scribe --priority P1 --type 
   --said 208:1884-1888 --typed "…" --typed-session <id> --typed-message <id> --typed-at <iso> \
   --log "Filed from Recording 208." --claim claude-code/<agent>   # or --from-json draft.json
 issues show 692 [--json]
+issues recording 398 [--json]                                   # or its id: a recording's Issues and their agents
 issues list [--status Open,InProgress] [--product scribe] [--recording 208] [--claimant …] [--search …] [--json]
 issues list --landing | --wip | --stuck | --target-build 106   # work in progress, one line each
 issues list --working                                           # the Issues an agent runs on now
@@ -114,7 +115,20 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   touched with their line counts; and the last step with its time.
   `list --working` lists the Issues an agent runs on now with the agent, the
   branch, and the file count.
-- After Now working and Work in progress, `show` lists the Issue's newest 10
+- After Now working and Work in progress, `show` lists the agents started for
+  the Issue (Scribe #2303), newest first, from Scribe's `agentRuns` (core's
+  `issueAgentsQuery`, the query the Issue page reads): each with its state and
+  times, harness and account, handle, its claude.ai link or why it has none,
+  the app link that opens its chat (`scribe-shared://agent/<name>`), every
+  session when it ran on more than one account, and its subagents with what
+  they were asked to do. `--json` carries them under `agents`; when they cannot
+  be read, `Agents not shown:` (`agentsNotShown`).
+- `recording 398` (a number from the mirror's folder names, or a recording's
+  id) lists the Issues his lines in that recording mention, in the order he
+  said them, each with how many times and the agents started for it, from
+  Scribe's `issueMentions` and `agentRuns`. It writes nothing. A number two
+  folders share is refused with both ids (exit 2); one no folder has, exit 3.
+- After that, `show` lists the Issue's newest 10
   build jobs from Scribe's `buildJobs` (a row for every job Scribe's build
   script runs; Scribe ADR 0104), newest first, one line each: when it was
   queued in local time, its state, the machine and slot (warm or cold), its
@@ -323,22 +337,22 @@ a panel beside the list, which shows its page, its landing and its graph.
 
 Like Linear, the keyboard reaches everything:
 
-| Keys | What they do |
-| --- | --- |
-| `j` `k`, arrows | the next or previous row, card, or inbox Issue |
-| `Enter` | open the Issue under the cursor |
-| `Space` | peek at it beside the list |
-| `x`, `Shift+j` `Shift+k` | select it, or extend the selection down or up |
-| `s` `p` `a` `m` | its status, priority, claim, or product, for the selection when the cursor is in it |
-| `h` `l`, `Shift+h` `Shift+l` | on the board, the column beside, or move the card there |
-| `Shift+b` | the board, and back to the list |
-| `/` | search; `Enter` opens an Issue the search names |
-| `c` | file an Issue, with Title holding the keyboard |
-| `Enter` in Title, `Cmd+Enter` in Details | file it |
-| `Cmd+Enter` in the comment box | comment |
-| `g` then `l` `b` `i` `t` `f` `d` `q` `r` `e` `p` `v` | the list, backlog, inbox, triage, findings, decisions, questions, reminders, features, products, saved views |
-| `Cmd+K`, `?` | the command palette: every action and place, and Issues by title |
-| `Esc` | close the layer, clear the selection or search, leave the row, or go back to the page an Issue was opened from |
+| Keys                                                 | What they do                                                                                                   |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `j` `k`, arrows                                      | the next or previous row, card, or inbox Issue                                                                 |
+| `Enter`                                              | open the Issue under the cursor                                                                                |
+| `Space`                                              | peek at it beside the list                                                                                     |
+| `x`, `Shift+j` `Shift+k`                             | select it, or extend the selection down or up                                                                  |
+| `s` `p` `a` `m`                                      | its status, priority, claim, or product, for the selection when the cursor is in it                            |
+| `h` `l`, `Shift+h` `Shift+l`                         | on the board, the column beside, or move the card there                                                        |
+| `Shift+b`                                            | the board, and back to the list                                                                                |
+| `/`                                                  | search; `Enter` opens an Issue the search names                                                                |
+| `c`                                                  | file an Issue, with Title holding the keyboard                                                                 |
+| `Enter` in Title, `Cmd+Enter` in Details             | file it                                                                                                        |
+| `Cmd+Enter` in the comment box                       | comment                                                                                                        |
+| `g` then `l` `b` `i` `t` `f` `d` `q` `r` `e` `p` `v` | the list, backlog, inbox, triage, findings, decisions, questions, reminders, features, products, saved views   |
+| `Cmd+K`, `?`                                         | the command palette: every action and place, and Issues by title                                               |
+| `Esc`                                                | close the layer, clear the selection or search, leave the row, or go back to the page an Issue was opened from |
 
 A layer (a menu, the palette, a peek) takes the keyboard when it opens and gives
 it back when it closes, and a key the page takes moves the keyboard off a button

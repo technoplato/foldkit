@@ -40,6 +40,11 @@ import {
   sessionFactsQuery,
 } from './graphFacts.js'
 import {
+  type IssueAgent,
+  issueAgentsOf,
+  issueAgentsQuery,
+} from './issueAgents.js'
+import {
   IssueLandingError,
   type LandingsDatabase,
   NoPageFacts,
@@ -102,6 +107,10 @@ export type GraphRowsService = Readonly<{
   observeIssueGraph: (
     issueId: string,
   ) => Stream.Stream<IssueGraph, IssueLandingError>
+  /** The agents started for an Issue, newest first, by its id (Scribe #2303). */
+  observeIssueAgents: (
+    issueId: string,
+  ) => Stream.Stream<ReadonlyArray<IssueAgent>, IssueLandingError>
   observeProductFacts: (
     productId: string,
   ) => Stream.Stream<PageFacts, IssueLandingError>
@@ -138,6 +147,7 @@ export const NoGraphRows: GraphRowsService = {
   observeFindingFacts: () => Stream.empty,
   observeFindings: Stream.empty,
   observeIssueGraph: () => Stream.succeed(noIssueGraph),
+  observeIssueAgents: () => Stream.empty,
   observeProductFacts: () => Stream.empty,
   observeSessionFacts: () => Stream.empty,
   markFindingPromoted: () => Effect.void,
@@ -341,6 +351,17 @@ export const instantGraphRows = (
       onSome: issueNumber =>
         observed(openDatabase, issueGraphQuery(issueNumber), data =>
           issueGraphOf(data, Option.some(issueId)),
+        ),
+    }),
+  observeIssueAgents: issueId =>
+    Option.match(numberOfIssueId(issueId), {
+      onNone: () => Stream.empty,
+      onSome: issueNumber =>
+        observed(openDatabase, issueAgentsQuery([issueNumber]), data =>
+          Array.flatMap(
+            issueAgentsOf([issueNumber], data),
+            found => found.agents,
+          ),
         ),
     }),
   observeProductFacts: productId =>

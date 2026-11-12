@@ -31,6 +31,7 @@ import {
   redactCredentials,
   setIssueStatusCommand,
   showIssueCommand,
+  showRecordingCommand,
   workInProgressCommand,
   workingSyncCommand,
 } from './commands.js'
@@ -75,8 +76,10 @@ const liveHost = (services: LiveIssueHostServices): IssuesHost => ({
   mirrorRoot: environmentPath('SCRIBE_ROOT', join(homedir(), 'Scribe')),
   nowMs: () => Date.now(),
   readBuildJobs: services.buildJobs,
+  readIssueAgents: services.agents,
   readIssueRecordings: services.recordings,
   readLanding: services.landing,
+  readRecordingIssues: services.recordingIssues,
   readStandardInput: Effect.promise(readStandardInput),
   readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
   records: services.records,
@@ -206,6 +209,22 @@ const show = Command.make(
 ).pipe(
   Command.withDescription(
     "Print one Issue in full, with where it landed and its newest build jobs from Scribe's rows",
+  ),
+)
+
+const recordingArgument = Argument.string('recording').pipe(
+  Argument.withDescription(
+    "A recording, by its number in the mirror's folder names (398) or its id",
+  ),
+)
+
+const recording = Command.make(
+  'recording',
+  { isJson: jsonFlag, recording: recordingArgument },
+  input => withLiveHost(host => showRecordingCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    "List the Issues one recording's lines mention, each with how many times and the agents started for it, from Scribe's rows",
   ),
 )
 
@@ -716,6 +735,7 @@ const issues = Command.make('issues').pipe(
   Command.withSubcommands([
     file,
     show,
+    recording,
     list,
     log,
     claim,

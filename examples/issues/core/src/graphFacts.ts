@@ -4,6 +4,7 @@ import {
   type decisionFactsQuery,
   type decisionsQuery,
 } from './decisionFacts.js'
+import type { issueAgentsQuery } from './issueAgents.js'
 import {
   QUESTION_FIELDS,
   QuestionRow,
@@ -1326,6 +1327,7 @@ export const issueGraphQuery = (issueNumber: number) => ({
 /** Every query the graph's pages ask Scribe's app. */
 export type GraphQuery =
   | ReturnType<typeof agentChipsQuery>
+  | ReturnType<typeof issueAgentsQuery>
   | ReturnType<typeof agentFactsQuery>
   | ReturnType<typeof decisionFactsQuery>
   | ReturnType<typeof questionFactsQuery>

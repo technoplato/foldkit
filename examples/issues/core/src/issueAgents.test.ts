@@ -358,7 +358,9 @@ describe('recordingIssuesOf', () => {
   const mention = (id: string, issue: number, capturedAtMs: number) => ({
     id,
     capturedAtMs,
-    issue: [{ number: issue, title: `Issue ${issue.toString()}`, status: 'Open' }],
+    issue: [
+      { number: issue, title: `Issue ${issue.toString()}`, status: 'Open' },
+    ],
     recording: [
       { id: RECORDING, title: 'Recording 398 — Nov 8, 2026', startedAtMs: 1 },
     ],
@@ -373,7 +375,9 @@ describe('recordingIssuesOf', () => {
       ],
     })
     expect(issues.recordingId).toBe(RECORDING)
-    expect(issues.maybeTitle).toEqual(Option.some('Recording 398 — Nov 8, 2026'))
+    expect(issues.maybeTitle).toEqual(
+      Option.some('Recording 398 — Nov 8, 2026'),
+    )
     expect(issues.mentionCount).toBe(3)
     expect(
       Array.map(issues.issues, issue => [issue.number, issue.mentionCount]),

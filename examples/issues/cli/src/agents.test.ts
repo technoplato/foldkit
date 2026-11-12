@@ -90,21 +90,19 @@ describe('readIssueAgents', () => {
 
   it('says why when Scribe does not answer within its bound, refuses, or answers rows it cannot read', async () => {
     const silent = await run(
-      readIssueAgents(
-        () => new Promise(() => {}),
-        [2303],
-        Duration.millis(20),
-      ),
+      readIssueAgents(() => new Promise(() => {}), [2303], Duration.millis(20)),
     )
     const refused = await run(
-      readIssueAgents(() => Promise.reject(new Error('Permission denied')), [
-        2303,
-      ]),
+      readIssueAgents(
+        () => Promise.reject(new Error('Permission denied')),
+        [2303],
+      ),
     )
     const unreadable = await run(
-      readIssueAgents(() => Promise.resolve({ agentRuns: [{ id: 1 }] }), [
-        2303,
-      ]),
+      readIssueAgents(
+        () => Promise.resolve({ agentRuns: [{ id: 1 }] }),
+        [2303],
+      ),
     )
     expect(silent).toEqual(
       UnavailableIssueAgents.make({
@@ -195,7 +193,9 @@ describe('issueAgentsSection', () => {
   it('says so when no agent was started for the Issue, and why when the rows cannot be read', () => {
     expect(
       issueAgentsSection(
-        FoundIssueAgents.make({ issues: issueAgentsOf([2062], { agentRuns: [] }) }),
+        FoundIssueAgents.make({
+          issues: issueAgentsOf([2062], { agentRuns: [] }),
+        }),
         2062,
         TIME_ZONE,
       ),
@@ -249,7 +249,10 @@ describe('issueAgentsJson', () => {
     })
     expect(json.agents?.[1]).not.toHaveProperty('claudeLink')
     expect(
-      issueAgentsJson(UnavailableIssueAgents.make({ reason: 'no answer.' }), 2303),
+      issueAgentsJson(
+        UnavailableIssueAgents.make({ reason: 'no answer.' }),
+        2303,
+      ),
     ).toEqual({ agentsNotShown: 'no answer.' })
   })
 })
@@ -267,7 +270,9 @@ const recordingRows = {
     {
       id: 'm1',
       capturedAtMs: 1_000,
-      issue: [{ number: 2303, title: 'Agents on their Issue', status: 'InProgress' }],
+      issue: [
+        { number: 2303, title: 'Agents on their Issue', status: 'InProgress' },
+      ],
       recording: [
         { id: RECORDING, title: 'Recording 398 — Nov 8, 2026', startedAtMs: 1 },
       ],
@@ -287,7 +292,10 @@ describe('readRecordingIssues', () => {
     expect(asked).toEqual([
       {
         issueMentions: {
-          $: { where: { recordingID: RECORDING }, fields: ['id', 'capturedAtMs'] },
+          $: {
+            where: { recordingID: RECORDING },
+            fields: ['id', 'capturedAtMs'],
+          },
           issue: { $: { fields: ['number', 'title', 'status'] } },
           recording: { $: { fields: ['id', 'title', 'startedAtMs'] } },
         },
@@ -351,7 +359,9 @@ describe('recordingAgentsLines', () => {
       UnavailableIssueAgents.make({ reason: 'no answer.' }),
       TIME_ZONE,
     )
-    expect(lines).toContain('#2303  Agents on their Issue  [InProgress]  1 mention')
+    expect(lines).toContain(
+      '#2303  Agents on their Issue  [InProgress]  1 mention',
+    )
     expect(lines).toContain('Agents not shown: no answer.')
   })
 })

@@ -122,16 +122,15 @@ import {
   Backlog,
   ChoiceLayer,
   type ChoiceMenu,
+  Decisions,
   DeletedIssueMutation,
   DraftMention,
   EditingIssueDraft,
-  Decisions,
   FailedDecisions,
   FailedFeatures,
   FailedFindings,
-  FailedQuestions,
-  FailedReminders,
   FailedIssue,
+  FailedIssueAgents,
   FailedIssueDraft,
   FailedIssueFiles,
   FailedIssueGraph,
@@ -143,6 +142,8 @@ import {
   FailedPageFacts,
   FailedProductAddition,
   FailedProducts,
+  FailedQuestions,
+  FailedReminders,
   FailedSavedViews,
   FailedTriageCandidates,
   Features,
@@ -156,6 +157,7 @@ import {
   LoadedFeatures,
   LoadedFindings,
   LoadedIssue,
+  LoadedIssueAgents,
   LoadedIssueFiles,
   LoadedIssueGraph,
   LoadedIssueLanding,
@@ -176,6 +178,7 @@ import {
   NotObservingFeatures,
   NotObservingFindings,
   NotObservingIssue,
+  NotObservingIssueAgents,
   NotObservingIssueFiles,
   NotObservingIssueGraph,
   NotObservingIssueLanding,
@@ -187,8 +190,8 @@ import {
   type ProductAdditionState,
   Products,
   Questions,
-  Reminders,
   RefusedProductAddition,
+  Reminders,
   SavedIssueMutation,
   SavedProductAddition,
   SavingIssueDraft,
@@ -1413,7 +1416,11 @@ const claimIssue = (issueId: string, claimantId: string) =>
       agentId: Option.some(author),
       commitSha: Option.none(),
       durationSeconds: Option.none(),
-      id: workLogEntryId(storedIssueIdOf(issueId), Option.some('claimed'), nowMs),
+      id: workLogEntryId(
+        storedIssueIdOf(issueId),
+        Option.some('claimed'),
+        nowMs,
+      ),
       occurredAtMs: nowMs,
       state: Option.some('claimed'),
       summary: claimedSummary(claimantId, author),
@@ -1926,6 +1933,9 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
       issueFiles: isSameIssueDetail
         ? model.issueFiles
         : NotObservingIssueFiles.make({}),
+      issueAgents: isSameIssueDetail
+        ? model.issueAgents
+        : NotObservingIssueAgents.make({}),
       issueGraph: isSameIssueDetail
         ? model.issueGraph
         : NotObservingIssueGraph.make({}),
@@ -2492,7 +2502,6 @@ const savedAsRowEdit = (
     }),
   )
 
-
 const rowEditCommand = ({
   change,
   issueId,
@@ -2972,6 +2981,26 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               nextModel({
                 ...model,
                 issueGraph: FailedIssueGraph.make({ issueId, reason }),
+              }),
+              [],
+            ]
+          : [model, []],
+      ObservedIssueAgents: ({ agents, issueId }) =>
+        Option.contains(shownIssueIdOf(model), issueId)
+          ? [
+              nextModel({
+                ...model,
+                issueAgents: LoadedIssueAgents.make({ agents, issueId }),
+              }),
+              [],
+            ]
+          : [model, []],
+      FailedObserveIssueAgents: ({ issueId, reason }) =>
+        Option.contains(shownIssueIdOf(model), issueId)
+          ? [
+              nextModel({
+                ...model,
+                issueAgents: FailedIssueAgents.make({ issueId, reason }),
               }),
               [],
             ]

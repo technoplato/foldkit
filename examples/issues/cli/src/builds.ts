@@ -125,7 +125,8 @@ export const buildJobsQuery = (issueNumber: number) => ({
 
 const MAXIMUM_REASON_LENGTH = 400
 
-const oneLine = (text: string): string => {
+/** A reason on one line, cut at 400 characters, as every Scribe section prints it. */
+export const oneLine = (text: string): string => {
   const line = text.replace(/\s+/g, ' ').trim()
   if (line.length > MAXIMUM_REASON_LENGTH) {
     return `${line.slice(0, MAXIMUM_REASON_LENGTH)}…`
@@ -245,6 +246,10 @@ const localTimeFormat = (timeZone: string): Intl.DateTimeFormat =>
     ),
     () => new Intl.DateTimeFormat('en-US', localTimeOptions),
   )
+
+/** A time as `issues show` prints it in a time zone, such as `11-12 09:26`. */
+export const localClockText = (timeMs: number, timeZone: string): string =>
+  localTimeText(timeMs, localTimeFormat(timeZone))
 
 const localTimeText = (timeMs: number, format: Intl.DateTimeFormat): string => {
   const parts = format.formatToParts(timeMs)

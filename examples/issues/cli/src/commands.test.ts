@@ -48,6 +48,15 @@ import {
 } from '@foldkit/instant-tools/issues'
 
 import {
+  FoundIssueAgents,
+  FoundRecordingIssues,
+  type IssueAgentsRead,
+  UnavailableIssueAgents,
+  UnavailableRecordingIssues,
+  noIssueAgentsReader,
+  noRecordingIssuesReader,
+} from './agents.js'
+import {
   BuildJob,
   type BuildJobsRead,
   FoundBuildJobs,
@@ -90,15 +99,6 @@ import {
   workInProgressCommand,
   workingSyncCommand,
 } from './commands.js'
-import {
-  FoundIssueAgents,
-  FoundRecordingIssues,
-  type IssueAgentsRead,
-  UnavailableIssueAgents,
-  UnavailableRecordingIssues,
-  noIssueAgentsReader,
-  noRecordingIssuesReader,
-} from './agents.js'
 import { noLandingReader } from './landing.js'
 import {
   FoundIssueRecordings,
@@ -3002,7 +3002,11 @@ describe('an Issue’s agents, and a recording’s (Scribe #2303)', () => {
         id: 'm1',
         capturedAtMs: 1_000,
         issue: [
-          { number: 2303, title: 'Agents on their Issue', status: 'InProgress' },
+          {
+            number: 2303,
+            title: 'Agents on their Issue',
+            status: 'InProgress',
+          },
         ],
         recording: [
           {
@@ -3143,7 +3147,10 @@ describe('an Issue’s agents, and a recording’s (Scribe #2303)', () => {
         {
           ...made.host,
           mirrorRoot: mirrorWith([
-            ['397 — 2026-11-08 — 0d7a1f63', '0d7a1f63-0000-4000-8000-000000000397'],
+            [
+              '397 — 2026-11-08 — 0d7a1f63',
+              '0d7a1f63-0000-4000-8000-000000000397',
+            ],
             ['398 — 2026-11-08 — b619ec79', recording398],
           ]),
           readRecordingIssues: recordingId => {
@@ -3171,8 +3178,14 @@ describe('an Issue’s agents, and a recording’s (Scribe #2303)', () => {
         {
           ...made.host,
           mirrorRoot: mirrorWith([
-            ['020 — 2026-09-30 — 1a2b3c4d', '1a2b3c4d-0000-4000-8000-000000000020'],
-            ['020 — 2026-10-02 — 5e6f7a8b', '5e6f7a8b-0000-4000-8000-000000000020'],
+            [
+              '020 — 2026-09-30 — 1a2b3c4d',
+              '1a2b3c4d-0000-4000-8000-000000000020',
+            ],
+            [
+              '020 — 2026-10-02 — 5e6f7a8b',
+              '5e6f7a8b-0000-4000-8000-000000000020',
+            ],
           ]),
         },
         { recording: '20', isJson: false },

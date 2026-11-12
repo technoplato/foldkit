@@ -9,8 +9,8 @@ import {
 } from '@foldkit/instant-tools/issues'
 
 import { agentChipsOf } from './graphFacts.js'
-import { issueAgentsOf, issueAgentsQuery } from './issueAgents.js'
 import { modelForNavigation } from './init.js'
+import { issueAgentsOf, issueAgentsQuery } from './issueAgents.js'
 import {
   FailedObserveIssueAgents,
   ObservedAgentChips,

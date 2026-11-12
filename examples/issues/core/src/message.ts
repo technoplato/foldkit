@@ -24,6 +24,7 @@ import {
   IssueGraph,
 } from './graphFacts.js'
 import { InboxFilter } from './inbox.js'
+import { IssueAgent } from './issueAgents.js'
 import { IssueFileAddress } from './issueFiles.js'
 import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
 import {
@@ -184,6 +185,16 @@ export const ObservedIssueGraph = S.TaggedStruct('ObservedIssueGraph', {
 /** What stands around an Issue could not be read. */
 export const FailedObserveIssueGraph = S.TaggedStruct(
   'FailedObserveIssueGraph',
+  { issueId: S.String, reason: S.String },
+)
+/** Scribe's rows said which agents were started for an Issue (Scribe #2303). */
+export const ObservedIssueAgents = S.TaggedStruct('ObservedIssueAgents', {
+  agents: S.Array(IssueAgent),
+  issueId: S.String,
+})
+/** The agents started for an Issue could not be read. */
+export const FailedObserveIssueAgents = S.TaggedStruct(
+  'FailedObserveIssueAgents',
   { issueId: S.String, reason: S.String },
 )
 /** Scribe's rows said what the feature contracts hold, in his order. */
@@ -709,6 +720,8 @@ export const Message = S.Union([
   FailedObserveBuilds,
   ObservedIssueGraph,
   FailedObserveIssueGraph,
+  ObservedIssueAgents,
+  FailedObserveIssueAgents,
   ObservedFeatures,
   FailedObserveFeatures,
   ObservedFeatureChips,

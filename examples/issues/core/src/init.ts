@@ -20,15 +20,16 @@ import {
   NotObservingDecisions,
   NotObservingFeatures,
   NotObservingFindings,
-  NotObservingQuestions,
-  NotObservingReminders,
   NotObservingIssue,
+  NotObservingIssueAgents,
   NotObservingIssueFiles,
   NotObservingIssueGraph,
   NotObservingIssueLanding,
   NotObservingIssueLogs,
   NotObservingLeftoverPresence,
   NotObservingPageFacts,
+  NotObservingQuestions,
+  NotObservingReminders,
 } from './model.js'
 
 /**
@@ -54,6 +55,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     failedRowEdits: [],
     featuresList: NotObservingFeatures.make({}),
     findingsList: NotObservingFindings.make({}),
+    issueAgents: NotObservingIssueAgents.make({}),
     issueDetail: NotObservingIssue.make({}),
     issueFiles: NotObservingIssueFiles.make({}),
     issueGraph: NotObservingIssueGraph.make({}),

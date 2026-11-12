@@ -97,6 +97,27 @@ const recordingFolderMatches = (folder: string, recording: string): boolean => {
 }
 
 /**
+ * Every Scribe mirror folder of a recording by its number (`208`) or its id
+ * (`faa684c2`, or the whole UUID), in name order: a number the mirror gave
+ * twice names two (Scribe #2303).
+ */
+export const findRecordingFolders = (
+  mirrorRoot: string,
+  recording: string,
+): ReadonlyArray<string> => {
+  const recordingsDirectory = join(mirrorRoot, 'recordings')
+  if (!existsSync(recordingsDirectory)) {
+    return []
+  }
+  return pipe(
+    readdirSync(recordingsDirectory),
+    Array.sort(Order.String),
+    Array.filter(folder => recordingFolderMatches(folder, recording)),
+    Array.map(folder => join(recordingsDirectory, folder)),
+  )
+}
+
+/**
  * Finds the Scribe mirror folder of a recording by its number (`208`) or its
  * id (`faa684c2`, or the whole UUID), such as `recordings/208 — 2026-10-10 —
  * faa684c2`.
@@ -104,18 +125,8 @@ const recordingFolderMatches = (folder: string, recording: string): boolean => {
 export const findRecordingFolder = (
   mirrorRoot: string,
   recording: string,
-): Option.Option<string> => {
-  const recordingsDirectory = join(mirrorRoot, 'recordings')
-  if (!existsSync(recordingsDirectory)) {
-    return Option.none()
-  }
-  return pipe(
-    readdirSync(recordingsDirectory),
-    Array.sort(Order.String),
-    Array.findFirst(folder => recordingFolderMatches(folder, recording)),
-    Option.map(folder => join(recordingsDirectory, folder)),
-  )
-}
+): Option.Option<string> =>
+  Array.head(findRecordingFolders(mirrorRoot, recording))
 
 const isRetiredLine = (line: TranscriptLine): boolean =>
   line.retired === true ||

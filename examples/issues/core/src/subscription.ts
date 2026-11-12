@@ -35,6 +35,7 @@ import {
   FailedObserveFeatures,
   FailedObserveFindings,
   FailedObserveIssue,
+  FailedObserveIssueAgents,
   FailedObserveIssueFiles,
   FailedObserveIssueGraph,
   FailedObserveIssueLanding,
@@ -54,6 +55,7 @@ import {
   ObservedFeatures,
   ObservedFindings,
   ObservedIssue,
+  ObservedIssueAgents,
   ObservedIssueFiles,
   ObservedIssueGraph,
   ObservedIssueLanding,
@@ -406,6 +408,7 @@ export const graphSubscriptions: Readonly<
     | 'knownAgents'
     | 'knownBuilds'
     | 'selectedIssueGraph'
+    | 'selectedIssueAgents'
     | 'knownFeatures',
     Subscription.Subscriptions<
       Model,
@@ -654,6 +657,39 @@ export const graphSubscriptions: Readonly<
               ),
             )
           : Stream.empty,
+    },
+  ),
+  selectedIssueAgents: entry(
+    { maybeIssueId: S.Option(S.String) },
+    {
+      modelToDependencies: model => ({
+        maybeIssueId: shownIssueIdOf(model),
+      }),
+      dependenciesToStream: ({ maybeIssueId }) => {
+        if (Option.isNone(maybeIssueId)) {
+          return Stream.empty
+        }
+        const issueId = maybeIssueId.value
+        return Stream.unwrap(
+          GraphRows.pipe(
+            Effect.map(graph =>
+              graph.observeIssueAgents(issueId).pipe(
+                Stream.map(agents =>
+                  ObservedIssueAgents.make({ agents, issueId }),
+                ),
+                Stream.catch(error =>
+                  Stream.make(
+                    FailedObserveIssueAgents.make({
+                      issueId,
+                      reason: describeIssueLandingError(error),
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+      },
     },
   ),
   selectedIssueGraph: entry(

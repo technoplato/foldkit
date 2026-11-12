@@ -34,6 +34,14 @@ import {
 import { InstantAPIError, init as initAdmin, lookup } from '@instantdb/admin'
 
 import {
+  type IssueAgentsReader,
+  type RecordingIssuesReader,
+  UnavailableIssueAgents,
+  UnavailableRecordingIssues,
+  readIssueAgents,
+  readRecordingIssues,
+} from './agents.js'
+import {
   type BuildJobsReader,
   type ScribeQuery,
   UnavailableBuildJobs,
@@ -360,8 +368,10 @@ export type IssueRecordsService = Readonly<{
 
 /** Every live resource the one-shot command needs. */
 export type LiveIssueHostServices = Readonly<{
+  agents: IssueAgentsReader
   buildJobs: BuildJobsReader
   landing: LandingReader
+  recordingIssues: RecordingIssuesReader
   recordings: IssueRecordingsReader
   credentials: ReadonlyArray<string>
   files: IssueFilesService
@@ -529,6 +539,50 @@ export const scribeIssueRecordingsReader = (
     },
   })
 
+/**
+ * Reads the agents started for Issues from Scribe's main Instant app with
+ * `queryFor`'s client (Scribe #2303). Without credentials every read answers
+ * `UnavailableIssueAgents` naming what is missing, and nothing is sent.
+ */
+export const scribeIssueAgentsReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): IssueAgentsReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableIssueAgents.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumbers => readIssueAgents(send, issueNumbers)
+    },
+  })
+
+/**
+ * Reads the Issues a recording's lines mention from Scribe's main Instant app
+ * with `queryFor`'s client (Scribe #2303). Without credentials every read
+ * answers `UnavailableRecordingIssues` naming what is missing.
+ */
+export const scribeRecordingIssuesReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): RecordingIssuesReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableRecordingIssues.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return recordingId => readRecordingIssues(send, recordingId)
+    },
+  })
+
 const scribeMainEnvText = (): Result.Result<string, string> => {
   if (!existsSync(scribeMainEnvPath)) {
     return Result.fail('no such file')
@@ -643,8 +697,10 @@ export const liveIssueHostServices = ():
     scribeMainEnvText(),
   )
   return {
+    agents: scribeIssueAgentsReader(scribeCredentials),
     buildJobs: scribeBuildJobsReader(scribeCredentials),
     landing: scribeLandingReader(scribeCredentials),
+    recordingIssues: scribeRecordingIssuesReader(scribeCredentials),
     recordings: scribeIssueRecordingsReader(scribeCredentials),
     credentials: [
       adminToken,
