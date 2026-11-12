@@ -3,8 +3,10 @@ import {
   IssueRecording,
   IssueRecordingMention,
   StaticIssueTrackerResources,
+  issueAgentsOf,
   makeMemoryIssueTracker,
   makeMemoryProductCatalog,
+  recordingIssuesOf,
 } from 'issues-core-example'
 import {
   mkdirSync,
@@ -83,10 +85,20 @@ import {
   resolveSaidMention,
   setIssueStatusCommand,
   showIssueCommand,
+  showRecordingCommand,
   typedMention,
   workInProgressCommand,
   workingSyncCommand,
 } from './commands.js'
+import {
+  FoundIssueAgents,
+  FoundRecordingIssues,
+  type IssueAgentsRead,
+  UnavailableIssueAgents,
+  UnavailableRecordingIssues,
+  noIssueAgentsReader,
+  noRecordingIssuesReader,
+} from './agents.js'
 import { noLandingReader } from './landing.js'
 import {
   FoundIssueRecordings,
@@ -216,7 +228,9 @@ const makeHost = (
       nowMs: () => 1_792_000_000_000,
       readBuildJobs: () =>
         Effect.succeed(FoundBuildJobs.make({ jobs: [], unreadable: [] })),
+      readIssueAgents: noIssueAgentsReader,
       readIssueRecordings: noIssueRecordingsReader,
+      readRecordingIssues: noRecordingIssuesReader,
       readLanding: noLandingReader,
       readStandardInput: Effect.succeed(''),
       readTextFile: path => Effect.try(() => readFileSync(path, 'utf8')),
@@ -2958,5 +2972,283 @@ describe('the recordings that mention an Issue (Scribe #2248)', () => {
       ['2248', 2],
       ['2249', 0],
     ])
+  })
+})
+
+describe('an Issue’s agents, and a recording’s (Scribe #2303)', () => {
+  const ASKED_MS = Date.parse('2026-11-12T12:39:50Z')
+  const recording398 = 'b619ec79-8d48-474e-8dc3-7d7d4862b48a'
+  const agentRows = [
+    {
+      id: 'issue-agents-2303',
+      agentID: 'claude-code/issue-agents-2303@max',
+      account: 'max',
+      harness: 'claude-code',
+      issueNumber: 2303,
+      kind: 'headless',
+      name: 'issue-agents-2303',
+      remoteURL: 'https://claude.ai/code/session_EXAMPLE_RUN',
+      status: 'running',
+      startedAtMs: ASKED_MS + 107 * 60_000,
+    },
+  ]
+  const agentsOf = (issueNumbers: ReadonlyArray<number>): IssueAgentsRead =>
+    FoundIssueAgents.make({
+      issues: issueAgentsOf(issueNumbers, { agentRuns: agentRows }),
+    })
+  const mentionRows = {
+    issueMentions: [
+      {
+        id: 'm1',
+        capturedAtMs: 1_000,
+        issue: [
+          { number: 2303, title: 'Agents on their Issue', status: 'InProgress' },
+        ],
+        recording: [
+          {
+            id: recording398,
+            title: 'Recording 398 — Nov 8, 2026',
+            startedAtMs: 1,
+          },
+        ],
+      },
+    ],
+  }
+  const issue2303 = stored('2303', 'Agents on their Issue')
+  const mirrorWith = (
+    folders: ReadonlyArray<readonly [string, string]>,
+  ): string => {
+    const root = mkdtempSync(join(tmpdir(), 'issues-agents-mirror-'))
+    for (const [folder, id] of folders) {
+      const path = join(root, 'recordings', folder)
+      mkdirSync(path, { recursive: true })
+      writeFileSync(
+        join(path, 'meta.json'),
+        JSON.stringify({ v: 1, id, folder, title: `Recording ${folder}` }),
+      )
+    }
+    return root
+  }
+
+  it('show prints the agents started for the Issue, read by its number, before its work log', async () => {
+    const made = await run(makeHost([issue2303]))
+    const asked: Array<ReadonlyArray<number>> = []
+    const text = linesOf(
+      await run(
+        showIssueCommand(
+          {
+            ...made.host,
+            readIssueAgents: issueNumbers => {
+              asked.push(issueNumbers)
+              return Effect.succeed(agentsOf(issueNumbers))
+            },
+          },
+          { issue: '2303', isJson: false },
+        ),
+      ),
+    )
+    expect(asked).toEqual([[2303]])
+    expect(text).toContain(
+      "Agents (1 started for this Issue, newest first, from Scribe's rows)\n" +
+        '  issue-agents-2303  ·  running, started 11-12 09:26  ·  claude-code  ·  account max\n' +
+        '    claude-code/issue-agents-2303@max\n' +
+        '    Claude: https://claude.ai/code/session_EXAMPLE_RUN\n' +
+        '    Chat: scribe-shared://agent/issue-agents-2303',
+    )
+  })
+
+  it('show --json gives the agents, or why they could not be read', async () => {
+    const made = await run(makeHost([issue2303]))
+    const json = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(
+            {
+              ...made.host,
+              readIssueAgents: issueNumbers =>
+                Effect.succeed(agentsOf(issueNumbers)),
+            },
+            { issue: '2303', isJson: true },
+          ),
+        ),
+      ),
+    )
+    const unavailable = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(
+            {
+              ...made.host,
+              readIssueAgents: () =>
+                Effect.succeed(
+                  UnavailableIssueAgents.make({ reason: 'no answer.' }),
+                ),
+            },
+            { issue: '2303', isJson: true },
+          ),
+        ),
+      ),
+    )
+    expect(json.agents[0]).toMatchObject({
+      name: 'issue-agents-2303',
+      account: 'max',
+      claudeLink: 'https://claude.ai/code/session_EXAMPLE_RUN',
+      chatLink: 'scribe-shared://agent/issue-agents-2303',
+    })
+    expect(unavailable).toMatchObject({ agentsNotShown: 'no answer.' })
+    expect(unavailable).not.toHaveProperty('agents')
+  })
+
+  it('recording lists the Issues its lines mention, each with its agents, by its id', async () => {
+    const made = await run(makeHost([issue2303]))
+    const askedRecordings: Array<string> = []
+    const askedIssues: Array<ReadonlyArray<number>> = []
+    const outcome = await run(
+      showRecordingCommand(
+        {
+          ...made.host,
+          readRecordingIssues: recordingId => {
+            askedRecordings.push(recordingId)
+            return Effect.succeed(
+              FoundRecordingIssues.make({
+                recording: recordingIssuesOf(recordingId, mentionRows),
+              }),
+            )
+          },
+          readIssueAgents: issueNumbers => {
+            askedIssues.push(issueNumbers)
+            return Effect.succeed(agentsOf(issueNumbers))
+          },
+        },
+        { recording: recording398.toUpperCase(), isJson: false },
+      ),
+    )
+    expect(outcome.exitCode).toBe(0)
+    expect(askedRecordings).toEqual([recording398])
+    expect(askedIssues).toEqual([[2303]])
+    expect(outcome.stdout.slice(0, 5)).toEqual([
+      `Recording 398 — Nov 8, 2026  ${recording398}`,
+      "1 mention of 1 Issue in Scribe's rows; agents started for 1 of them",
+      '',
+      '#2303  Agents on their Issue  [InProgress]  1 mention',
+      '  issue-agents-2303  ·  running, started 11-12 09:26  ·  claude-code  ·  account max',
+    ])
+  })
+
+  it('recording finds a number’s id in the mirror’s folder', async () => {
+    const made = await run(makeHost([issue2303]))
+    const asked: Array<string> = []
+    const outcome = await run(
+      showRecordingCommand(
+        {
+          ...made.host,
+          mirrorRoot: mirrorWith([
+            ['397 — 2026-11-08 — 0d7a1f63', '0d7a1f63-0000-4000-8000-000000000397'],
+            ['398 — 2026-11-08 — b619ec79', recording398],
+          ]),
+          readRecordingIssues: recordingId => {
+            asked.push(recordingId)
+            return Effect.succeed(
+              FoundRecordingIssues.make({
+                recording: recordingIssuesOf(recordingId, mentionRows),
+              }),
+            )
+          },
+          readIssueAgents: issueNumbers =>
+            Effect.succeed(agentsOf(issueNumbers)),
+        },
+        { recording: '398', isJson: false },
+      ),
+    )
+    expect(outcome.exitCode).toBe(0)
+    expect(asked).toEqual([recording398])
+  })
+
+  it('recording refuses a number two mirror folders share, naming both ids', async () => {
+    const made = await run(makeHost([issue2303]))
+    const outcome = await run(
+      showRecordingCommand(
+        {
+          ...made.host,
+          mirrorRoot: mirrorWith([
+            ['020 — 2026-09-30 — 1a2b3c4d', '1a2b3c4d-0000-4000-8000-000000000020'],
+            ['020 — 2026-10-02 — 5e6f7a8b', '5e6f7a8b-0000-4000-8000-000000000020'],
+          ]),
+        },
+        { recording: '20', isJson: false },
+      ),
+    )
+    expect(outcome.exitCode).toBe(2)
+    expect(outcome.stderr.join('\n')).toContain(
+      '1a2b3c4d-0000-4000-8000-000000000020',
+    )
+    expect(outcome.stderr.join('\n')).toContain(
+      '5e6f7a8b-0000-4000-8000-000000000020',
+    )
+  })
+
+  it('recording says when no mirror folder has the number', async () => {
+    const made = await run(makeHost([issue2303]))
+    const outcome = await run(
+      showRecordingCommand(
+        { ...made.host, mirrorRoot: mirrorWith([]) },
+        { recording: '9999', isJson: false },
+      ),
+    )
+    expect(outcome.exitCode).toBe(3)
+    expect(outcome.stderr.join('\n')).toContain('9999')
+  })
+
+  it('recording fails, saying why, when Scribe’s rows cannot be read', async () => {
+    const made = await run(makeHost([issue2303]))
+    const outcome = await run(
+      showRecordingCommand(
+        {
+          ...made.host,
+          readRecordingIssues: () =>
+            Effect.succeed(
+              UnavailableRecordingIssues.make({ reason: 'no answer.' }),
+            ),
+        },
+        { recording: recording398, isJson: false },
+      ),
+    )
+    expect(outcome.exitCode).toBe(1)
+    expect(outcome.stderr.join('\n')).toContain('no answer.')
+  })
+
+  it('recording --json gives the recording, its mention count, and each Issue with its count and agents', async () => {
+    const made = await run(makeHost([issue2303]))
+    const json = JSON.parse(
+      linesOf(
+        await run(
+          showRecordingCommand(
+            {
+              ...made.host,
+              readRecordingIssues: recordingId =>
+                Effect.succeed(
+                  FoundRecordingIssues.make({
+                    recording: recordingIssuesOf(recordingId, mentionRows),
+                  }),
+                ),
+              readIssueAgents: issueNumbers =>
+                Effect.succeed(agentsOf(issueNumbers)),
+            },
+            { recording: recording398, isJson: true },
+          ),
+        ),
+      ),
+    )
+    expect(json).toMatchObject({
+      recording: { id: recording398, title: 'Recording 398 — Nov 8, 2026' },
+      mentionCount: 1,
+      issues: [
+        {
+          number: 2303,
+          mentionCount: 1,
+          agents: [{ name: 'issue-agents-2303', account: 'max' }],
+        },
+      ],
+    })
   })
 })
