@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 13th, 2026 at 11:39:57 a.m. EST — `e517a3f18c03` fix(issues): a query to Scribe's app is sent again when Instant rate-limits it (Scribe #2348)
+
+- **Implementation commit:** `e517a3f18c03ded1f56aef78bc53141f6b094ac9`
+- **Change:** Issue tracker: a query to Scribe's app is sent again when Instant rate-limits it (Scribe #2348)
+- **Details:**
+  - issues show asks Scribe's app seven questions at once; on the installed 1.23.0 one met Instant's rate limit and printed Children not shown. adminScribeQuery now retries a rate-limited query by rateLimitRetry, never another refusal, inside each reader's 5-second bound.
+- **Files:**
+  - `examples/issues/cli/src/resources.ts` — retryingScribeQuery wraps adminScribeQuery
+  - `examples/issues/cli/src/resources.test.ts` — rate limits retried, refusals not
+- **User context (verbatim):**
+  > And do we have true epic labels on issues? Like, is it actually an epic, or have you just called it an epic and then linked these items? And then, are the issues themselves linked into all the recordings that mention them, etc. And all the sessions in Claude that mention them, etc.
+- **SpecStory:** unavailable — unavailable — Claude Code sub-agent tracker-epics-2348-foldkit of session https://claude.ai/code/session_01Q9pVPUaAmXDyH2rhhTBiFn (account pp); no SpecStory capture for sub-agents
+
 ## November 13th, 2026 at 11:34:04 a.m. EST — `391d5d700572` feat(issues): green: true epics, and where an Issue is named (Scribe #2348)
 
 - **Implementation commit:** `391d5d7005727c3c4e8baf3d92a9dce203e02302`
