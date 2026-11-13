@@ -467,12 +467,27 @@ export const scribeCredentialsOf = (
 }
 
 /**
- * Sends InstaQL to Scribe's main Instant app as its admin, with no schema, so
- * rows come back as stored. Aborting the signal abandons the request.
+ * A query to Scribe's app that is sent again when Instant rate-limits it, by
+ * `retry` (about 500 ms, then twice as long), and never for another refusal
+ * (Scribe #2348): `issues show` asks Scribe's app seven questions at once, and
+ * one of them met the limit on 2026-11-13. The reader's 5-second bound still
+ * ends the wait.
  */
-export const adminScribeQuery =
-  (credentials: ScribeCredentials): ScribeQuery =>
+export const retryingScribeQuery =
+  (
+    send: ScribeQuery,
+    retry: Schedule.Schedule<unknown, unknown> = rateLimitRetry,
+  ): ScribeQuery =>
   (query, signal) =>
+    sendRetryingRateLimits(() => Promise.resolve(send(query, signal)), retry)
+
+/**
+ * Sends InstaQL to Scribe's main Instant app as its admin, with no schema, so
+ * rows come back as stored, sending it again when Instant rate-limits it.
+ * Aborting the signal abandons the request.
+ */
+export const adminScribeQuery = (credentials: ScribeCredentials): ScribeQuery =>
+  retryingScribeQuery((query, signal) =>
     initAdmin({
       adminToken: credentials.adminToken,
       appId: credentials.appId,
@@ -481,7 +496,8 @@ export const adminScribeQuery =
       // oxlint-disable-next-line typescript/consistent-type-assertions
       query as never,
       { fetchOpts: { signal } },
-    )
+    ),
+  )
 
 /**
  * Reads an Issue's build jobs from Scribe's main Instant app, a second app

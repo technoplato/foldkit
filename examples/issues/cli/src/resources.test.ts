@@ -8,6 +8,7 @@ import {
   type InstantAdminClient,
   adminAsInstantToolsDatabase,
   isRateLimited,
+  retryingScribeQuery,
   scribeBuildJobsReader,
   scribeCredentialsOf,
   scribeMainEnvPath,
@@ -57,6 +58,26 @@ const adminOf = (
 ): InstantAdminClient => ({ query, transact, tx: {} })
 
 const noWait = Schedule.recurs(3)
+
+describe("a query to Scribe's app (Scribe #2348)", () => {
+  it('is sent again when Instant rate-limits it, and only then', async () => {
+    const read = failingFirst([rateLimited, rateLimited], { issues: [] })
+    const send = retryingScribeQuery(() => read.request(), noWait)
+    await expect(
+      send({ issues: {} }, new AbortController().signal),
+    ).resolves.toEqual({ issues: [] })
+    expect(read.attempts()).toBe(3)
+
+    const refusedRead = failingFirst([refused], {})
+    await expect(
+      retryingScribeQuery(() => refusedRead.request(), noWait)(
+        {},
+        new AbortController().signal,
+      ),
+    ).rejects.toBeInstanceOf(InstantAPIError)
+    expect(refusedRead.attempts()).toBe(1)
+  })
+})
 
 describe('the Instant admin adapter', () => {
   it('knows Instant rate limits by status, type, or wording', () => {
