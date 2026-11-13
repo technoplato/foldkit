@@ -4,6 +4,49 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 13th, 2026 at 11:34:04 a.m. EST — `391d5d700572` feat(issues): green: true epics, and where an Issue is named (Scribe #2348)
+
+- **Implementation commit:** `391d5d7005727c3c4e8baf3d92a9dce203e02302`
+- **Change:** Issue tracker: true epics (a parent and an epic type), and the recordings and Claude sessions that name an Issue, from Scribe's rows (Scribe #2348)
+- **Details:**
+  - Issue.parentIssueId and the epic type; issues parent <n> <epic>|--clear and issues file --parent refuse a missing Issue (exit 3), a parent that is not an epic, the Issue itself and a cycle (exit 2), each write read back; issues subtask remove. core's issueFamily (issueChildrenQuery: issues where parentNumber) and issueReferences (issueReferencesQuery: issueReferences where issueNumber, newest first, then recordings' titles) are read by issues show (Parent, Children, Named in recordings, Sessions; '<X> not shown: <reason>' when unreadable), its --json and the Issue page. Matching is by number only.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Issue.parentIssueId
+  - `examples/issues/core/src/issueFamily.ts` — the children query and their reading
+  - `examples/issues/core/src/issueReferences.ts` — the places query and its grouping
+  - `examples/issues/core/src/update.ts` — SetIssueParent, RemoveIssueSubtasks, the page's observations
+  - `examples/issues/core/src/issuePage.ts` — Parent, Children, Named in recordings, Sessions
+  - `examples/issues/core/src/graphRows.ts` — the live reads
+  - `examples/issues/core/src/subscription.ts` — the page reads them while an Issue is open
+  - `examples/issues/core/src/message.ts` — the new Messages
+  - `examples/issues/core/src/model.ts` — the page's states and the draft's parent
+  - `examples/issues/cli/src/family.ts` — the children reader, section and JSON
+  - `examples/issues/cli/src/references.ts` — the places reader, sections and JSON
+  - `examples/issues/cli/src/commands.ts` — parent, subtask remove, file --parent, show
+  - `examples/issues/cli/src/entry.ts` — the parent and subtask remove commands
+  - `examples/issues/cli/src/resources.ts` — the live readers
+  - `examples/issues/README.md` — epics and where an Issue is named
+- **User context (verbatim):**
+  > And do we have true epic labels on issues? Like, is it actually an epic, or have you just called it an epic and then linked these items? And then, are the issues themselves linked into all the recordings that mention them, etc. And all the sessions in Claude that mention them, etc.
+- **SpecStory:** unavailable — unavailable — Claude Code sub-agent tracker-epics-2348-foldkit of session https://claude.ai/code/session_01Q9pVPUaAmXDyH2rhhTBiFn (account pp); no SpecStory capture for sub-agents
+
+## November 13th, 2026 at 11:34:04 a.m. EST — `3df1fe88f6a8` test(issues): red: true epics, and where an Issue is named (Scribe #2348)
+
+- **Implementation commit:** `3df1fe88f6a8d1e4f48366ec7802380264af420b`
+- **Change:** Issue tracker: red tests: true epics, and where an Issue is named (Scribe #2348)
+- **Details:**
+  - Tests first for Issue.parentIssueId, the epic type, issues file --parent, issues parent <n> <epic>|--clear and its refusals, issues subtask remove, an epic's children read from Scribe's issues rows by parentNumber, and the recordings and Claude sessions that name an Issue read from Scribe's issueReferences rows, in instant-tools, core, the command and the Issue page; they fail: the modules do not exist and the Issue has no parentIssueId.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.test.ts` — parentIssueId reads, writes and defaults
+  - `examples/issues/core/src/issueFamily.test.ts` — the children query and their order
+  - `examples/issues/core/src/issueReferences.test.ts` — the places query, recordings and sessions
+  - `examples/issues/core/src/issueFamilyPage.test.ts` — the Issue page's Parent, Children, Named in recordings and Sessions
+  - `examples/issues/cli/src/commands.test.ts` — the commands and show
+  - `examples/issues/cli/src/references.test.ts` — the readers
+- **User context (verbatim):**
+  > And do we have true epic labels on issues? Like, is it actually an epic, or have you just called it an epic and then linked these items? And then, are the issues themselves linked into all the recordings that mention them, etc. And all the sessions in Claude that mention them, etc.
+- **SpecStory:** unavailable — unavailable — Claude Code sub-agent tracker-epics-2348-foldkit of session https://claude.ai/code/session_01Q9pVPUaAmXDyH2rhhTBiFn (account pp); no SpecStory capture for sub-agents
+
 ## November 12th, 2026 at 10:20:28 a.m. EST — `c924c9d6a014` feat(issues): green: an Issue's agents, and a recording's (Scribe #2303)
 
 - **Implementation commit:** `c924c9d6a0145c6345f91a7c13f7a0bada958771`
