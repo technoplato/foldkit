@@ -25,8 +25,10 @@ import {
 } from './graphFacts.js'
 import { InboxFilter } from './inbox.js'
 import { IssueAgent } from './issueAgents.js'
+import { IssueChildren } from './issueFamily.js'
 import { IssueFileAddress } from './issueFiles.js'
 import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
+import { IssueReferences } from './issueReferences.js'
 import { IssueView, defaultIssueView } from './issueView.js'
 import { SavedView } from './issueViews.js'
 import { AllProducts, LeftoverKind, ProductFilter } from './leftover.js'
@@ -246,6 +248,54 @@ export const IssueAgentsObservation = S.Union([
 ])
 /** Every state of reading the agents started for the open Issue. */
 export type IssueAgentsObservation = typeof IssueAgentsObservation.Type
+
+/** No Issue is open, so no children are read. */
+export const NotObservingIssueChildren = S.TaggedStruct(
+  'NotObservingIssueChildren',
+  {},
+)
+/** The Issues under the open Issue, from Scribe's rows (Scribe #2348). */
+export const LoadedIssueChildren = S.TaggedStruct('LoadedIssueChildren', {
+  children: IssueChildren,
+  issueId: S.String,
+})
+/** The open Issue's children could not be read, and the Issue page says why. */
+export const FailedIssueChildren = S.TaggedStruct('FailedIssueChildren', {
+  issueId: S.String,
+  reason: S.String,
+})
+/** Every state of reading the Issues under the open Issue. */
+export const IssueChildrenObservation = S.Union([
+  NotObservingIssueChildren,
+  LoadedIssueChildren,
+  FailedIssueChildren,
+])
+/** Every state of reading the Issues under the open Issue. */
+export type IssueChildrenObservation = typeof IssueChildrenObservation.Type
+
+/** No Issue is open, so no places that name one are read. */
+export const NotObservingIssueReferences = S.TaggedStruct(
+  'NotObservingIssueReferences',
+  {},
+)
+/** Where the open Issue is named: recordings and Claude sessions, from Scribe's rows (Scribe #2348). */
+export const LoadedIssueReferences = S.TaggedStruct('LoadedIssueReferences', {
+  issueId: S.String,
+  references: IssueReferences,
+})
+/** Where the open Issue is named could not be read, and the Issue page says why. */
+export const FailedIssueReferences = S.TaggedStruct('FailedIssueReferences', {
+  issueId: S.String,
+  reason: S.String,
+})
+/** Every state of reading where the open Issue is named. */
+export const IssueReferencesObservation = S.Union([
+  NotObservingIssueReferences,
+  LoadedIssueReferences,
+  FailedIssueReferences,
+])
+/** Every state of reading where the open Issue is named. */
+export type IssueReferencesObservation = typeof IssueReferencesObservation.Type
 
 /** No build or commit page is open, or the host has no graph. */
 export const NotObservingPageFacts = S.TaggedStruct('NotObservingPageFacts', {})
@@ -656,6 +706,7 @@ export const IssueDraft = S.Struct({
     S.withDecodingDefaultKey(Effect.succeed([])),
     S.withConstructorDefault(Effect.succeed([])),
   ),
+  parentIssueId: DraftOptionalString,
   priority: Issue.fields.priority,
   productId: S.String,
   relatedIssueIds: S.Array(S.String).pipe(
@@ -869,12 +920,14 @@ export const Model = S.Struct({
   featuresList: FeaturesObservation,
   findingsList: FindingsObservation,
   issueAgents: IssueAgentsObservation,
+  issueChildren: IssueChildrenObservation,
   issueDetail: IssueDetailState,
   issueFiles: IssueFilesState,
   issueGraph: IssueGraphObservation,
   issueLanding: IssueLandingObservation,
   issueLogs: IssueLogsState,
   issueMutation: IssueMutationState,
+  issueReferences: IssueReferencesObservation,
   isGoKeyPending: S.Boolean,
   isSearchFocused: S.Boolean,
   maybeWritingField: S.Option(WritingField),

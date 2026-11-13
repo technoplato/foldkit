@@ -27,8 +27,10 @@ import {
   logIssueCommand,
   markCriteriaCommand,
   markSubtasksCommand,
+  parentIssueCommand,
   rankIssueCommand,
   redactCredentials,
+  removeSubtasksCommand,
   setIssueStatusCommand,
   showIssueCommand,
   showRecordingCommand,
@@ -77,7 +79,9 @@ const liveHost = (services: LiveIssueHostServices): IssuesHost => ({
   nowMs: () => Date.now(),
   readBuildJobs: services.buildJobs,
   readIssueAgents: services.agents,
+  readIssueChildren: services.children,
   readIssueRecordings: services.recordings,
+  readIssueReferences: services.references,
   readLanding: services.landing,
   readRecordingIssues: services.recordingIssues,
   readStandardInput: Effect.promise(readStandardInput),
@@ -174,6 +178,10 @@ const file = Command.make(
       'log-state',
       'State of the first entry (default filed)',
     ),
+    parent: optionalText(
+      'parent',
+      'The epic it sits under, such as 2347 (an Issue of type epic)',
+    ),
     priority: optionalText('priority', 'P0 to P4 (default P2)'),
     product: optionalText(
       'product',
@@ -186,7 +194,7 @@ const file = Command.make(
     ),
     status: optionalText('status', 'Status (default Open)'),
     title: optionalText('title', 'Title'),
-    type: optionalText('type', 'Issue type, such as defect or feature'),
+    type: optionalText('type', 'Issue type, such as defect, feature or epic'),
     typed: optionalText(
       'typed',
       'Words Michael typed in the Claude chat, verbatim',
@@ -208,7 +216,7 @@ const show = Command.make(
   input => withLiveHost(host => showIssueCommand(host, input)),
 ).pipe(
   Command.withDescription(
-    "Print one Issue in full, with where it landed and its newest build jobs from Scribe's rows",
+    "Print one Issue in full: its parent and children, where it landed, its newest build jobs, and the recordings and Claude sessions that name it, from Scribe's rows",
   ),
 )
 
@@ -493,11 +501,48 @@ const uncheckSubtasks = Command.make(
     ),
 ).pipe(Command.withDescription('Mark subtasks not done again'))
 
+const removeSubtasks = Command.make(
+  'remove',
+  { issue: issueArgument, isJson: jsonFlag, subtasks: subtaskReferences },
+  input => withLiveHost(host => removeSubtasksCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    "Take subtasks off an Issue's checklist, by position or id, and print what is left",
+  ),
+)
+
 const subtask = Command.make('subtask').pipe(
   Command.withDescription(
-    "An Issue's checklist: subtask add, check, and uncheck; issues show prints it",
+    "An Issue's checklist: subtask add, check, uncheck, and remove; issues show prints it",
   ),
-  Command.withSubcommands([addSubtasks, checkSubtasks, uncheckSubtasks]),
+  Command.withSubcommands([
+    addSubtasks,
+    checkSubtasks,
+    uncheckSubtasks,
+    removeSubtasks,
+  ]),
+)
+
+const parent = Command.make(
+  'parent',
+  {
+    issue: issueArgument,
+    isClear: Flag.boolean('clear').pipe(
+      Flag.withDescription('Take the Issue out from under its epic'),
+    ),
+    isJson: jsonFlag,
+    parent: Argument.string('epic').pipe(
+      Argument.withDescription(
+        'The epic to put it under, such as 2347 (an Issue of type epic)',
+      ),
+      Argument.optional,
+    ),
+  },
+  input => withLiveHost(host => parentIssueCommand(host, input)),
+).pipe(
+  Command.withDescription(
+    "Put an Issue under an epic (issues parent 2332 2347), or take it out with --clear; issues show prints the parent and an epic's children",
+  ),
 )
 
 const wip = Command.make(
@@ -746,6 +791,7 @@ const issues = Command.make('issues').pipe(
     criterion,
     satisfy,
     subtask,
+    parent,
     wip,
     working,
     mention,

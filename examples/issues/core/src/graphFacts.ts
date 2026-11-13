@@ -5,6 +5,11 @@ import {
   type decisionsQuery,
 } from './decisionFacts.js'
 import type { issueAgentsQuery } from './issueAgents.js'
+import type { issueChildrenQuery } from './issueFamily.js'
+import type {
+  issueReferencesQuery,
+  referenceRecordingsQuery,
+} from './issueReferences.js'
 import {
   QUESTION_FIELDS,
   QuestionRow,
@@ -1328,6 +1333,9 @@ export const issueGraphQuery = (issueNumber: number) => ({
 export type GraphQuery =
   | ReturnType<typeof agentChipsQuery>
   | ReturnType<typeof issueAgentsQuery>
+  | ReturnType<typeof issueChildrenQuery>
+  | ReturnType<typeof issueReferencesQuery>
+  | ReturnType<typeof referenceRecordingsQuery>
   | ReturnType<typeof agentFactsQuery>
   | ReturnType<typeof decisionFactsQuery>
   | ReturnType<typeof questionFactsQuery>

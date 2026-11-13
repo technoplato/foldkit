@@ -49,6 +49,11 @@ import {
 } from './builds.js'
 import { type IssueFilesService } from './commands.js'
 import {
+  type IssueChildrenReader,
+  UnavailableIssueChildren,
+  readIssueChildren,
+} from './family.js'
+import {
   type LandingReader,
   UnavailableLanding,
   readLanding,
@@ -58,6 +63,11 @@ import {
   UnavailableIssueRecordings,
   readIssueRecordings,
 } from './recordings.js'
+import {
+  type IssueReferencesReader,
+  UnavailableIssueReferences,
+  readIssueReferences,
+} from './references.js'
 
 /** Instant Tools env documented by the issues example and listener. */
 export const documentedInstantEnvPath = join(
@@ -370,9 +380,11 @@ export type IssueRecordsService = Readonly<{
 export type LiveIssueHostServices = Readonly<{
   agents: IssueAgentsReader
   buildJobs: BuildJobsReader
+  children: IssueChildrenReader
   landing: LandingReader
   recordingIssues: RecordingIssuesReader
   recordings: IssueRecordingsReader
+  references: IssueReferencesReader
   credentials: ReadonlyArray<string>
   files: IssueFilesService
   records: IssueRecordsService
@@ -562,6 +574,50 @@ export const scribeIssueAgentsReader = (
   })
 
 /**
+ * Reads the Issues under an Issue from Scribe's main Instant app with
+ * `queryFor`'s client (Scribe #2348). Without credentials every read answers
+ * `UnavailableIssueChildren` naming what is missing, and nothing is sent.
+ */
+export const scribeIssueChildrenReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): IssueChildrenReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableIssueChildren.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readIssueChildren(send, issueNumber)
+    },
+  })
+
+/**
+ * Reads where an Issue is named from Scribe's main Instant app with
+ * `queryFor`'s client (Scribe #2348). Without credentials every read answers
+ * `UnavailableIssueReferences` naming what is missing, and nothing is sent.
+ */
+export const scribeIssueReferencesReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): IssueReferencesReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableIssueReferences.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readIssueReferences(send, issueNumber)
+    },
+  })
+
+/**
  * Reads the Issues a recording's lines mention from Scribe's main Instant app
  * with `queryFor`'s client (Scribe #2303). Without credentials every read
  * answers `UnavailableRecordingIssues` naming what is missing.
@@ -699,9 +755,11 @@ export const liveIssueHostServices = ():
   return {
     agents: scribeIssueAgentsReader(scribeCredentials),
     buildJobs: scribeBuildJobsReader(scribeCredentials),
+    children: scribeIssueChildrenReader(scribeCredentials),
     landing: scribeLandingReader(scribeCredentials),
     recordingIssues: scribeRecordingIssuesReader(scribeCredentials),
     recordings: scribeIssueRecordingsReader(scribeCredentials),
+    references: scribeIssueReferencesReader(scribeCredentials),
     credentials: [
       adminToken,
       ...Result.match(scribeCredentials, {

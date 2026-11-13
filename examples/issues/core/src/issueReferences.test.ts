@@ -85,6 +85,7 @@ const stored = {
       role: 'worked',
     }),
     sessionRow('s3', 50, {
+      lastAtMs: NAMED_MS + 70 * MINUTE_MS,
       claudeURL: SESSION_URL,
       agentName: 'tracker-epics-2348-foldkit',
       agentID: 'claude-code/tracker-epics-2348-foldkit@pp',
@@ -195,7 +196,7 @@ describe('issueReferencesOf: where an Issue is named in recordings', () => {
 })
 
 describe('issueReferencesOf: the Claude sessions that name an Issue', () => {
-  it('groups a session’s rows into one session, its sub-agents under it, the newest session first', () => {
+  it('puts each sub-agent’s row under its session’s, reads when each first and last named the Issue, and lists the session last naming it first', () => {
     expect(references.sessions.map(session => session.key)).toEqual([
       SESSION_URL,
       'other-host',
@@ -207,7 +208,6 @@ describe('issueReferencesOf: the Claude sessions that name an Issue', () => {
     expect(
       Option.map(mine?.own ?? Option.none(), own => ({
         agentId: own.maybeAgentId,
-        count: own.count,
         firstAtMs: own.firstAtMs,
         firstQuote: own.firstQuote,
         isWorked: own.isWorked,
@@ -216,7 +216,6 @@ describe('issueReferencesOf: the Claude sessions that name an Issue', () => {
     ).toEqual(
       Option.some({
         agentId: Option.some('claude-code/tracker-epics-2348@pp'),
-        count: 2,
         firstAtMs: NAMED_MS,
         firstQuote: 'And do we have true epic labels on issues?',
         isWorked: true,
@@ -227,7 +226,6 @@ describe('issueReferencesOf: the Claude sessions that name an Issue', () => {
       mine?.subagents.map(subagent => [
         Option.getOrNull(subagent.maybeAgentName),
         Option.getOrNull(subagent.maybeAgentId),
-        subagent.count,
         subagent.isWorked,
         subagent.firstAtMs,
         subagent.lastAtMs,
@@ -236,10 +234,9 @@ describe('issueReferencesOf: the Claude sessions that name an Issue', () => {
       [
         'tracker-epics-2348-foldkit',
         'claude-code/tracker-epics-2348-foldkit@pp',
-        2,
         true,
         NAMED_MS + 50 * MINUTE_MS,
-        NAMED_MS + 55 * MINUTE_MS,
+        NAMED_MS + 70 * MINUTE_MS,
       ],
     ])
     expect(listener?.link).toEqual({

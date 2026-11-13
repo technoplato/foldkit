@@ -32,6 +32,7 @@ import {
   SubmittedIssueAttachment,
   SubmittedIssueEdit,
   SubmittedIssueMention,
+  SubmittedIssueParent,
   SubmittedIssueRank,
   SubmittedIssueSubtasks,
   SubmittedIssueSuccessCriterion,
@@ -39,6 +40,7 @@ import {
   SubmittedIssueWorkLogEntry,
   SubmittedProduct,
   SubmittedSubtaskMarks,
+  SubmittedSubtaskRemovals,
   SubmittedSuccessCriteriaMarks,
   type SubtaskMark,
   WorkInProgressEdit,
@@ -46,6 +48,7 @@ import {
   backlogOf,
   catalogIssueIds,
   describeIssueReference,
+  isEpic,
   issueFromDraft,
   landingSummary,
   laneHeading,
@@ -125,6 +128,12 @@ import {
   buildJobsSection,
 } from './builds.js'
 import {
+  type IssueChildrenRead,
+  type IssueChildrenReader,
+  issueChildrenJson,
+  issueChildrenSection,
+} from './family.js'
+import {
   IssuesCommandFailure,
   executeMessages,
   withCatalogStatuses,
@@ -149,6 +158,12 @@ import {
   issueRecordingsJson,
   issueRecordingsSection,
 } from './recordings.js'
+import {
+  type IssueReferencesRead,
+  type IssueReferencesReader,
+  issueReferencesJson,
+  issueReferencesSection,
+} from './references.js'
 import { type IssueRecordsService } from './resources.js'
 import { issueIdsToCheck, surveyFromProgressCheck } from './working.js'
 
@@ -168,6 +183,7 @@ export const issueTypes: ReadonlyArray<string> = [
   'architecture',
   'defect',
   'enhancement',
+  'epic',
   'feature',
   'infrastructure',
   'investigation',
@@ -228,11 +244,22 @@ export type IssuesHost = Readonly<{
    */
   readIssueAgents: IssueAgentsReader
   /**
+   * The Issues under an Issue, from Scribe's rows, by the Issue's number
+   * (Scribe #2348). It never fails and answers within 5 seconds.
+   */
+  readIssueChildren: IssueChildrenReader
+  /**
    * The recordings that mention an Issue, each with how many times, from
    * Scribe's rows, by the Issue's number (Scribe #2248). It never fails and
    * answers within 5 seconds.
    */
   readIssueRecordings: IssueRecordingsReader
+  /**
+   * Where an Issue is named, recordings and Claude sessions, from Scribe's
+   * rows, by the Issue's number (Scribe #2348). It never fails and answers
+   * within 5 seconds for each of its two queries.
+   */
+  readIssueReferences: IssueReferencesReader
   /**
    * The Issues a recording's lines mention, by the recording's id, from
    * Scribe's rows (Scribe #2303). It never fails and answers within 5 seconds.
@@ -497,6 +524,8 @@ export type FileInput = Readonly<{
   jsonInput: Option.Option<string>
   log: Option.Option<string>
   logState: Option.Option<string>
+  /** `--parent 2347`: the epic the new Issue sits under. */
+  parent: Option.Option<string>
   priority: Option.Option<string>
   product: Option.Option<string>
   related: ReadonlyArray<string>
@@ -616,6 +645,9 @@ export const composeDraft = (
       ),
       issueTypes,
     )
+    const parentIssueId = yield* Effect.transposeOption(
+      Option.map(input.parent, parseIssueNumber),
+    )
     const relatedIssueIds = yield* parseIssueNumbers([
       ...Array.map(json.relatedIssueIds ?? [], String),
       ...input.related,
@@ -682,6 +714,7 @@ export const composeDraft = (
       issueType,
       leftoverKind: Option.none(),
       mentions: [...jsonMentions, ...saidMentions, ...typedMentions],
+      parentIssueId,
       priority,
       productId: Option.getOrElse(
         firstSome(input.product, jsonProductReference(json.product)),
@@ -826,16 +859,21 @@ export const recordingMentionCount = (issue: Issue): number =>
 /**
  * Prints one Issue in full, its work log oldest first, with
  * `buildJobLines` (its Builds section) after Now working and Work in progress,
- * and `recordingLines` (the recordings that mention it) above its Mentions.
+ * `recordingLines` (the recordings that mention it) above its Mentions,
+ * `parentLines` (the epic it sits under) after its area, and `childrenLines`
+ * (the Issues under it) before its Subtasks.
  */
 export const issueDetailLines = (
   issue: Issue,
   buildJobLines: ReadonlyArray<string> = [],
   recordingLines: ReadonlyArray<string> = [],
+  parentLines: ReadonlyArray<string> = [],
+  childrenLines: ReadonlyArray<string> = [],
 ): ReadonlyArray<string> => [
   issueHeadline(issue),
   issue.title,
   ...optionalLine('Area', issue.area),
+  ...parentLines,
   ...optionalLine('Claimed by', issue.claimantId),
   ...optionalLine('Reported', issue.reportedDate),
   `Created: ${isoTime(issue.createdAtMs)}  Updated: ${isoTime(issue.updatedAtMs)}`,
@@ -849,6 +887,7 @@ export const issueDetailLines = (
       section('Work in progress', indented(workInProgressLines(work))),
   }),
   ...buildJobLines,
+  ...childrenLines,
   ...section(`Subtasks (${subtaskProgress(issue)})`, subtaskLines(issue)),
   ...section(
     'Success criteria',
@@ -901,20 +940,39 @@ const encodeIssue = S.encodeSync(Issue)
 const issueJson = (issue: Issue): string =>
   JSON.stringify(encodeIssue(issue), null, 2)
 
-const issueWithScribeRowsJson = (
-  issue: Issue,
-  builds: BuildJobsRead,
-  landing: LandingRead,
-  recordings: IssueRecordingsRead,
-  agents: IssueAgentsRead,
-): string =>
+type ScribeRowsRead = Readonly<{
+  agents: IssueAgentsRead
+  builds: BuildJobsRead
+  children: IssueChildrenRead
+  landing: LandingRead
+  maybeParent: Option.Option<Option.Option<Issue>>
+  recordings: IssueRecordingsRead
+  references: IssueReferencesRead
+}>
+
+const parentJson = (
+  maybeParent: Option.Option<Option.Option<Issue>>,
+): Readonly<{
+  parent?: Readonly<{ id: string; status: string; title: string }>
+}> =>
+  Option.match(Option.flatten(maybeParent), {
+    onNone: () => ({}),
+    onSome: parent => ({
+      parent: { id: parent.id, status: parent.status, title: parent.title },
+    }),
+  })
+
+const issueWithScribeRowsJson = (issue: Issue, read: ScribeRowsRead): string =>
   JSON.stringify(
     {
       ...encodeIssue(issue),
-      ...buildJobsJson(builds),
-      ...landingJson(landing),
-      ...issueRecordingsJson(recordings),
-      ...issueAgentsJson(agents, Number(issue.id)),
+      ...parentJson(read.maybeParent),
+      ...buildJobsJson(read.builds),
+      ...landingJson(read.landing),
+      ...issueRecordingsJson(read.recordings),
+      ...issueAgentsJson(read.agents, Number(issue.id)),
+      ...issueChildrenJson(read.children),
+      ...issueReferencesJson(read.references),
     },
     null,
     2,
@@ -993,6 +1051,133 @@ const changeIssue = (
     )
   })
 
+/**
+ * Reads one Issue by its number: None when no Issue holds it. A tracker that
+ * cannot be read fails the command.
+ */
+const readIssue = (
+  host: IssuesHost,
+  command: string,
+  issueId: string,
+): Effect.Effect<Option.Option<Issue>, IssuesCommandFailure> =>
+  Effect.flatMap(
+    executeMessages(
+      IssueDetail.make({ issueId }),
+      () => Effect.succeed([]),
+      host.resources,
+    ),
+    model =>
+      model.issueDetail._tag === 'LoadedIssue'
+        ? Effect.succeed(model.issueDetail.issue)
+        : Effect.map(loadedIssueOf(command, model, issueId), Option.some),
+  )
+
+const parentLines = (
+  issue: Issue,
+  maybeParent: Option.Option<Option.Option<Issue>>,
+): ReadonlyArray<string> =>
+  Option.match(issue.parentIssueId, {
+    onNone: () => [],
+    onSome: parentId => [
+      Option.match(Option.flatten(maybeParent), {
+        onNone: () => `Parent: #${parentId} (no Issue holds this number)`,
+        onSome: parent =>
+          `Parent: #${parent.id} ${parent.title} (${parent.status})`,
+      }),
+    ],
+  })
+
+const MAXIMUM_PARENT_DEPTH = 64
+
+/**
+ * The Issues from `from`'s parent up to `targetId`, when `targetId` is among
+ * the epics `from` sits under: `['2347']` when #2350's parent is #2347 and the
+ * target is 2347. None when the chain ends first.
+ */
+const parentChainTo = (
+  host: IssuesHost,
+  command: string,
+  from: Issue,
+  targetId: string,
+  depth: number,
+): Effect.Effect<Option.Option<ReadonlyArray<string>>, IssuesCommandFailure> =>
+  Option.match(from.parentIssueId, {
+    onNone: () => Effect.succeed(Option.none()),
+    onSome: nextId => {
+      if (nextId === targetId) {
+        return Effect.succeed(Option.some([targetId]))
+      } else if (depth >= MAXIMUM_PARENT_DEPTH) {
+        return Effect.succeed(Option.none())
+      } else {
+        return Effect.flatMap(readIssue(host, command, nextId), maybeNext =>
+          Option.match(maybeNext, {
+            onNone: () => Effect.succeed(Option.none()),
+            onSome: next =>
+              Effect.map(
+                parentChainTo(host, command, next, targetId, depth + 1),
+                Option.map(chain => [nextId, ...chain]),
+              ),
+          }),
+        )
+      }
+    },
+  })
+
+/**
+ * Fails unless `parentId` names an epic an Issue can sit under: exit 3 when no
+ * Issue holds the number; exit 2 when it is not of type epic (naming `issues
+ * edit <n> --type epic`), when it is the Issue itself, or when it already sits
+ * under the Issue, which would make a cycle. `maybeChildId` is None for an
+ * Issue not filed yet.
+ */
+const requireEpicParent = (
+  host: IssuesHost,
+  command: string,
+  maybeChildId: Option.Option<string>,
+  parentId: string,
+  consequence: string,
+): Effect.Effect<Issue, IssuesCommandFailure> =>
+  Effect.gen(function* () {
+    if (Option.contains(maybeChildId, parentId)) {
+      return yield* Effect.fail(usage(`#${parentId} cannot be its own parent.`))
+    }
+    const maybeParent = yield* readIssue(host, command, parentId)
+    if (Option.isNone(maybeParent)) {
+      return yield* Effect.fail(
+        new IssuesCommandFailure({
+          exitCode: MISSING_EXIT_CODE,
+          message: `Issue #${parentId} does not exist; ${consequence}`,
+        }),
+      )
+    }
+    const parent = maybeParent.value
+    if (!isEpic(parent)) {
+      return yield* Effect.fail(
+        usage(
+          `#${parentId} is not an epic (${Option.match(parent.issueType, {
+            onNone: () => 'it has no type',
+            onSome: issueType => `its type is ${issueType}`,
+          })}); an Issue's parent is an epic. Make it one first: issues edit ${String(Number(parentId))} --type epic`,
+        ),
+      )
+    }
+    if (Option.isSome(maybeChildId)) {
+      const childId = maybeChildId.value
+      const maybeChain = yield* parentChainTo(host, command, parent, childId, 0)
+      if (Option.isSome(maybeChain)) {
+        return yield* Effect.fail(
+          usage(
+            `#${parentId} sits under #${childId} already (${Array.join(
+              Array.map([parentId, ...maybeChain.value], id => `#${id}`),
+              ', then ',
+            )}): #${childId} under #${parentId} would make a cycle.`,
+          ),
+        )
+      }
+    }
+    return parent
+  })
+
 /** Files one Issue under the next free number. */
 export const fileIssueCommand = (
   host: IssuesHost,
@@ -1012,6 +1197,15 @@ export const fileIssueCommand = (
         draft.relatedIssueIds,
         'nothing was filed.',
       )
+      if (Option.isSome(draft.parentIssueId)) {
+        yield* requireEpicParent(
+          host,
+          'file',
+          Option.none(),
+          draft.parentIssueId.value,
+          'nothing was filed.',
+        )
+      }
       if (input.dryRun) {
         const preview = issueFromDraft(
           draft,
@@ -1095,31 +1289,41 @@ export const showIssueCommand = (
   finish(
     Effect.gen(function* () {
       const issueId = yield* parseIssueNumber(input.issue)
-      const [model, builds, landing, recordings, agents] = yield* Effect.all(
-        [
-          executeMessages(
-            IssueDetail.make({ issueId }),
-            () => Effect.succeed([]),
-            host.resources,
-          ),
-          host.readBuildJobs(Number(issueId)),
-          host.readLanding(Number(issueId)),
-          host.readIssueRecordings(Number(issueId)),
-          host.readIssueAgents([Number(issueId)]),
-        ],
-        { concurrency: 'unbounded' },
-      )
+      const [model, builds, landing, recordings, agents, children, references] =
+        yield* Effect.all(
+          [
+            executeMessages(
+              IssueDetail.make({ issueId }),
+              () => Effect.succeed([]),
+              host.resources,
+            ),
+            host.readBuildJobs(Number(issueId)),
+            host.readLanding(Number(issueId)),
+            host.readIssueRecordings(Number(issueId)),
+            host.readIssueAgents([Number(issueId)]),
+            host.readIssueChildren(Number(issueId)),
+            host.readIssueReferences(Number(issueId)),
+          ],
+          { concurrency: 'unbounded' },
+        )
       const issue = yield* loadedIssueOf('show', model, issueId)
+      const maybeParent = yield* Effect.transposeOption(
+        Option.map(issue.parentIssueId, parentId =>
+          readIssue(host, 'show', parentId),
+        ),
+      )
       return succeeded(
         input.isJson
           ? [
-              issueWithScribeRowsJson(
-                issue,
-                builds,
-                landing,
-                recordings,
+              issueWithScribeRowsJson(issue, {
                 agents,
-              ),
+                builds,
+                children,
+                landing,
+                maybeParent,
+                recordings,
+                references,
+              }),
             ]
           : issueDetailLines(
               issue,
@@ -1128,7 +1332,15 @@ export const showIssueCommand = (
                 ...landingSection(landing, host.timeZone),
                 ...buildJobsSection(builds, host.nowMs(), host.timeZone),
               ],
-              issueRecordingsSection(recordings, recordingMentionCount(issue)),
+              [
+                ...issueRecordingsSection(
+                  recordings,
+                  recordingMentionCount(issue),
+                ),
+                ...issueReferencesSection(references, issueId, host.timeZone),
+              ],
+              parentLines(issue, maybeParent),
+              issueChildrenSection(children, issueId, isEpic(issue)),
             ),
       )
     }),
@@ -3026,6 +3238,151 @@ export const markSubtasksCommand = (
           : [
               `${input.mark} ${Array.join(references, ', ')} on #${issueId}; ${subtaskProgress(issue)}.`,
             ],
+      )
+    }),
+  )
+
+/** Everything `issues subtask remove` reads. */
+export type RemoveSubtasksInput = Readonly<{
+  issue: string
+  isJson: boolean
+  subtasks: ReadonlyArray<string>
+}>
+
+/**
+ * Takes subtasks off an Issue's checklist, by position or id, and prints the
+ * checklist left: `Removed 1 from #2347; 0 of 13 done.` (Scribe #2348).
+ */
+export const removeSubtasksCommand = (
+  host: IssuesHost,
+  input: RemoveSubtasksInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      const references = splitList(input.subtasks)
+      if (Array.isReadonlyArrayEmpty(references)) {
+        return yield* Effect.fail(
+          usage(
+            'issues subtask remove needs a subtask: its position (1, 2, ...) or id.',
+          ),
+        )
+      }
+      const { issue } = yield* changeIssue(
+        host,
+        'subtask remove',
+        issueId,
+        current =>
+          Effect.map(
+            Effect.forEach(references, reference =>
+              Option.match(subtaskIdFor(current, reference), {
+                onNone: () =>
+                  Effect.fail(
+                    usage(
+                      `Issue #${issueId} has no subtask ${reference}. Its subtasks: ${Array.match(
+                        current.subtasks,
+                        {
+                          onEmpty: () => 'none',
+                          onNonEmpty: () => subtaskListing(current),
+                        },
+                      )}.`,
+                    ),
+                  ),
+                onSome: Effect.succeed,
+              }),
+            ),
+            subtaskIds => [
+              SubmittedSubtaskRemovals.make({
+                issueId,
+                subtaskIds: Array.dedupe(subtaskIds),
+              }),
+            ],
+          ),
+      )
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [
+              `Removed ${Array.join(references, ', ')} from #${issueId}; ${subtaskProgress(issue)}.`,
+              ...subtaskLines(issue),
+            ],
+      )
+    }),
+  )
+
+/** Everything `issues parent` reads: an epic to put the Issue under, or `--clear`. */
+export type ParentInput = Readonly<{
+  isClear: boolean
+  isJson: boolean
+  issue: string
+  parent: Option.Option<string>
+}>
+
+/**
+ * Puts an Issue under an epic, or with --clear takes it out from under one,
+ * and reads it back (Scribe #2348): `Set the parent of #2332 to #2347: Epic:
+ * ready for release.` A parent no Issue holds is refused with exit 3; one that
+ * is not an epic, the Issue itself, or one under the Issue already, with exit 2.
+ */
+export const parentIssueCommand = (
+  host: IssuesHost,
+  input: ParentInput,
+): Effect.Effect<IssuesOutcome> =>
+  finish(
+    Effect.gen(function* () {
+      const issueId = yield* parseIssueNumber(input.issue)
+      if (input.isClear === Option.isSome(input.parent)) {
+        return yield* Effect.fail(
+          usage(
+            'issues parent needs an epic or --clear, not both: issues parent 2332 2347, or issues parent 2332 --clear.',
+          ),
+        )
+      }
+      if (Option.isNone(input.parent)) {
+        const maybeIssue = yield* readIssue(host, 'parent', issueId)
+        if (Option.isNone(maybeIssue)) {
+          return yield* Effect.fail(missing(issueId))
+        }
+        const maybeFormerId = maybeIssue.value.parentIssueId
+        if (Option.isNone(maybeFormerId)) {
+          return succeeded(
+            input.isJson
+              ? [issueJson(maybeIssue.value)]
+              : [`#${issueId} has no parent.`],
+          )
+        }
+        const { issue } = yield* changeIssue(host, 'parent', issueId, () => [
+          SubmittedIssueParent.make({
+            issueId,
+            maybeParentIssueId: Option.none(),
+          }),
+        ])
+        return succeeded(
+          input.isJson
+            ? [issueJson(issue)]
+            : [
+                `Cleared the parent of #${issueId}; it was #${maybeFormerId.value}.`,
+              ],
+        )
+      }
+      const parentId = yield* parseIssueNumber(input.parent.value)
+      const parent = yield* requireEpicParent(
+        host,
+        'parent',
+        Option.some(issueId),
+        parentId,
+        'no parent was set.',
+      )
+      const { issue } = yield* changeIssue(host, 'parent', issueId, () => [
+        SubmittedIssueParent.make({
+          issueId,
+          maybeParentIssueId: Option.some(parentId),
+        }),
+      ])
+      return succeeded(
+        input.isJson
+          ? [issueJson(issue)]
+          : [`Set the parent of #${issueId} to #${parentId}: ${parent.title}.`],
       )
     }),
   )

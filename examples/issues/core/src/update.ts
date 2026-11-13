@@ -131,12 +131,14 @@ import {
   FailedFindings,
   FailedIssue,
   FailedIssueAgents,
+  FailedIssueChildren,
   FailedIssueDraft,
   FailedIssueFiles,
   FailedIssueGraph,
   FailedIssueLanding,
   FailedIssueLogs,
   FailedIssueMutation,
+  FailedIssueReferences,
   FailedIssues,
   FailedLeftoverPresence,
   FailedPageFacts,
@@ -158,10 +160,12 @@ import {
   LoadedFindings,
   LoadedIssue,
   LoadedIssueAgents,
+  LoadedIssueChildren,
   LoadedIssueFiles,
   LoadedIssueGraph,
   LoadedIssueLanding,
   LoadedIssueLogs,
+  LoadedIssueReferences,
   LoadedIssues,
   LoadedLeftoverPresence,
   LoadedPageFacts,
@@ -179,10 +183,12 @@ import {
   NotObservingFindings,
   NotObservingIssue,
   NotObservingIssueAgents,
+  NotObservingIssueChildren,
   NotObservingIssueFiles,
   NotObservingIssueGraph,
   NotObservingIssueLanding,
   NotObservingIssueLogs,
+  NotObservingIssueReferences,
   NotObservingLeftoverPresence,
   NotObservingPageFacts,
   type PageFactsObservation,
@@ -351,6 +357,7 @@ export const issueFromDraft = (
       }),
     ),
     nightlyEligible: true,
+    parentIssueId: draft.parentIssueId,
     priority: draft.priority,
     product,
     projectId: Option.none(),
@@ -1057,6 +1064,98 @@ export const MarkIssueSubtasks = Command.define(
           updatedAtMs: nextUpdatedAtMs(current, nowMs),
         }),
       hasLanded: isMarked,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+/**
+ * Takes subtasks off an Issue's checklist by id and reads it back: the
+ * subtasks left keep their ids, so a removed id is never reused for another.
+ */
+export const RemoveIssueSubtasks = Command.define(
+  'RemoveIssueSubtasks',
+  { issueId: S.String, subtaskIds: S.Array(S.String) },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, subtaskIds }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const maybeIssue = yield* tracker.fetchIssue(issueId)
+    if (Option.isNone(maybeIssue)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${issueId} does not exist.`,
+      })
+    }
+    const knownIds = Array.map(maybeIssue.value.subtasks, subtask => subtask.id)
+    const unknownIds = Array.filter(
+      subtaskIds,
+      subtaskId => !Array.contains(knownIds, subtaskId),
+    )
+    if (Array.isReadonlyArrayNonEmpty(unknownIds)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${maybeIssue.value.id} has no subtask ${Array.join(unknownIds, ', ')}. Its subtasks: ${subtaskListing(maybeIssue.value)}.`,
+      })
+    }
+    const isRemoved = (issue: Issue) =>
+      !Array.some(issue.subtasks, subtask =>
+        Array.contains(subtaskIds, subtask.id),
+      )
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        isRemoved(current)
+          ? current
+          : Issue.make({
+              ...current,
+              subtasks: Array.filter(
+                current.subtasks,
+                subtask => !Array.contains(subtaskIds, subtask.id),
+              ),
+              updatedAtMs: nextUpdatedAtMs(current, nowMs),
+            }),
+      hasLanded: isRemoved,
+    })
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: failureReason(error) })),
+    ),
+  ),
+)
+
+/**
+ * Puts an Issue under an epic, or takes it out from under one with none, and
+ * reads it back (Scribe #2348). The epic is checked before this runs: `issues
+ * parent` refuses a parent that does not exist, is not an epic, is the Issue
+ * itself, or sits under it.
+ */
+export const SetIssueParent = Command.define(
+  'SetIssueParent',
+  { issueId: S.String, maybeParentIssueId: S.Option(S.String) },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, maybeParentIssueId }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const hasParent = (issue: Issue) =>
+      Option.getOrNull(issue.parentIssueId) ===
+      Option.getOrNull(maybeParentIssueId)
+    const issue = yield* tracker.update(issueId, {
+      apply: current =>
+        hasParent(current)
+          ? current
+          : Issue.make({
+              ...current,
+              parentIssueId: maybeParentIssueId,
+              updatedAtMs: nextUpdatedAtMs(current, nowMs),
+            }),
+      hasLanded: hasParent,
     })
     return SucceededSaveIssue.make({ issue })
   }).pipe(
@@ -1936,6 +2035,12 @@ const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
       issueAgents: isSameIssueDetail
         ? model.issueAgents
         : NotObservingIssueAgents.make({}),
+      issueChildren: isSameIssueDetail
+        ? model.issueChildren
+        : NotObservingIssueChildren.make({}),
+      issueReferences: isSameIssueDetail
+        ? model.issueReferences
+        : NotObservingIssueReferences.make({}),
       issueGraph: isSameIssueDetail
         ? model.issueGraph
         : NotObservingIssueGraph.make({}),
@@ -3005,6 +3110,52 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               [],
             ]
           : [model, []],
+      ObservedIssueChildren: ({ children, issueId }) =>
+        Option.contains(shownIssueIdOf(model), issueId)
+          ? [
+              nextModel({
+                ...model,
+                issueChildren: LoadedIssueChildren.make({ children, issueId }),
+              }),
+              [],
+            ]
+          : [model, []],
+      FailedObserveIssueChildren: ({ issueId, reason }) =>
+        Option.contains(shownIssueIdOf(model), issueId)
+          ? [
+              nextModel({
+                ...model,
+                issueChildren: FailedIssueChildren.make({ issueId, reason }),
+              }),
+              [],
+            ]
+          : [model, []],
+      ObservedIssueReferences: ({ issueId, references }) =>
+        Option.contains(shownIssueIdOf(model), issueId)
+          ? [
+              nextModel({
+                ...model,
+                issueReferences: LoadedIssueReferences.make({
+                  issueId,
+                  references,
+                }),
+              }),
+              [],
+            ]
+          : [model, []],
+      FailedObserveIssueReferences: ({ issueId, reason }) =>
+        Option.contains(shownIssueIdOf(model), issueId)
+          ? [
+              nextModel({
+                ...model,
+                issueReferences: FailedIssueReferences.make({
+                  issueId,
+                  reason,
+                }),
+              }),
+              [],
+            ]
+          : [model, []],
       ObservedBuilds: ({ builds }) => [
         nextModel({ ...model, knownBuilds: builds }),
         [],
@@ -3816,6 +3967,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         startLeftoverCommand(
           model,
           MarkIssueSubtasks({ issueId, mark, subtaskIds }),
+        ),
+      SubmittedSubtaskRemovals: ({ issueId, subtaskIds }) =>
+        startLeftoverCommand(
+          model,
+          RemoveIssueSubtasks({ issueId, subtaskIds }),
+        ),
+      SubmittedIssueParent: ({ issueId, maybeParentIssueId }) =>
+        startLeftoverCommand(
+          model,
+          SetIssueParent({ issueId, maybeParentIssueId }),
         ),
       SubmittedIssueWorkInProgress: ({ edit, issueId }) =>
         startLeftoverCommand(

@@ -36,10 +36,12 @@ import {
   FailedObserveFindings,
   FailedObserveIssue,
   FailedObserveIssueAgents,
+  FailedObserveIssueChildren,
   FailedObserveIssueFiles,
   FailedObserveIssueGraph,
   FailedObserveIssueLanding,
   FailedObserveIssueLogs,
+  FailedObserveIssueReferences,
   FailedObserveIssues,
   FailedObserveLeftoverPeers,
   FailedObservePageFacts,
@@ -56,10 +58,12 @@ import {
   ObservedFindings,
   ObservedIssue,
   ObservedIssueAgents,
+  ObservedIssueChildren,
   ObservedIssueFiles,
   ObservedIssueGraph,
   ObservedIssueLanding,
   ObservedIssueLogs,
+  ObservedIssueReferences,
   ObservedLeftoverPeers,
   ObservedPageFacts,
   ObservedProducts,
@@ -409,6 +413,8 @@ export const graphSubscriptions: Readonly<
     | 'knownBuilds'
     | 'selectedIssueGraph'
     | 'selectedIssueAgents'
+    | 'selectedIssueChildren'
+    | 'selectedIssueReferences'
     | 'knownFeatures',
     Subscription.Subscriptions<
       Model,
@@ -657,6 +663,72 @@ export const graphSubscriptions: Readonly<
               ),
             )
           : Stream.empty,
+    },
+  ),
+  selectedIssueChildren: entry(
+    { maybeIssueId: S.Option(S.String) },
+    {
+      modelToDependencies: model => ({
+        maybeIssueId: shownIssueIdOf(model),
+      }),
+      dependenciesToStream: ({ maybeIssueId }) => {
+        if (Option.isNone(maybeIssueId)) {
+          return Stream.empty
+        }
+        const issueId = maybeIssueId.value
+        return Stream.unwrap(
+          GraphRows.pipe(
+            Effect.map(graph =>
+              graph.observeIssueChildren(issueId).pipe(
+                Stream.map(children =>
+                  ObservedIssueChildren.make({ children, issueId }),
+                ),
+                Stream.catch(error =>
+                  Stream.make(
+                    FailedObserveIssueChildren.make({
+                      issueId,
+                      reason: describeIssueLandingError(error),
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+      },
+    },
+  ),
+  selectedIssueReferences: entry(
+    { maybeIssueId: S.Option(S.String) },
+    {
+      modelToDependencies: model => ({
+        maybeIssueId: shownIssueIdOf(model),
+      }),
+      dependenciesToStream: ({ maybeIssueId }) => {
+        if (Option.isNone(maybeIssueId)) {
+          return Stream.empty
+        }
+        const issueId = maybeIssueId.value
+        return Stream.unwrap(
+          GraphRows.pipe(
+            Effect.map(graph =>
+              graph.observeIssueReferences(issueId).pipe(
+                Stream.map(references =>
+                  ObservedIssueReferences.make({ issueId, references }),
+                ),
+                Stream.catch(error =>
+                  Stream.make(
+                    FailedObserveIssueReferences.make({
+                      issueId,
+                      reason: describeIssueLandingError(error),
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+      },
     },
   ),
   selectedIssueAgents: entry(

@@ -25,8 +25,10 @@ import {
 } from './graphFacts.js'
 import { InboxFilter } from './inbox.js'
 import { IssueAgent } from './issueAgents.js'
+import { IssueChildren } from './issueFamily.js'
 import { IssueFileAddress } from './issueFiles.js'
 import { IssueLanding, LandedBuild, PageFacts } from './issueLandings.js'
+import { IssueReferences } from './issueReferences.js'
 import {
   ClaimantFilter,
   IssueGrouping,
@@ -195,6 +197,26 @@ export const ObservedIssueAgents = S.TaggedStruct('ObservedIssueAgents', {
 /** The agents started for an Issue could not be read. */
 export const FailedObserveIssueAgents = S.TaggedStruct(
   'FailedObserveIssueAgents',
+  { issueId: S.String, reason: S.String },
+)
+/** Scribe's rows said which Issues sit under an epic (Scribe #2348). */
+export const ObservedIssueChildren = S.TaggedStruct('ObservedIssueChildren', {
+  children: IssueChildren,
+  issueId: S.String,
+})
+/** An epic's children could not be read. */
+export const FailedObserveIssueChildren = S.TaggedStruct(
+  'FailedObserveIssueChildren',
+  { issueId: S.String, reason: S.String },
+)
+/** Scribe's rows said where an Issue is named: recordings and Claude sessions (Scribe #2348). */
+export const ObservedIssueReferences = S.TaggedStruct(
+  'ObservedIssueReferences',
+  { issueId: S.String, references: IssueReferences },
+)
+/** Where an Issue is named could not be read. */
+export const FailedObserveIssueReferences = S.TaggedStruct(
+  'FailedObserveIssueReferences',
   { issueId: S.String, reason: S.String },
 )
 /** Scribe's rows said what the feature contracts hold, in his order. */
@@ -579,6 +601,16 @@ export const SubmittedSubtaskMarks = S.TaggedStruct('SubmittedSubtaskMarks', {
   mark: SubtaskMark,
   subtaskIds: S.Array(S.String),
 })
+/** Subtasks to take off an Issue's checklist, by id (Scribe #2348). */
+export const SubmittedSubtaskRemovals = S.TaggedStruct(
+  'SubmittedSubtaskRemovals',
+  { issueId: S.String, subtaskIds: S.Array(S.String) },
+)
+/** The epic an Issue sits under, or none to take it out from under one (Scribe #2348). */
+export const SubmittedIssueParent = S.TaggedStruct('SubmittedIssueParent', {
+  issueId: S.String,
+  maybeParentIssueId: S.Option(S.String),
+})
 export const SubmittedIssueWorkInProgress = S.TaggedStruct(
   'SubmittedIssueWorkInProgress',
   { edit: WorkInProgressEdit, issueId: S.String },
@@ -722,6 +754,10 @@ export const Message = S.Union([
   FailedObserveIssueGraph,
   ObservedIssueAgents,
   FailedObserveIssueAgents,
+  ObservedIssueChildren,
+  FailedObserveIssueChildren,
+  ObservedIssueReferences,
+  FailedObserveIssueReferences,
   ObservedFeatures,
   FailedObserveFeatures,
   ObservedFeatureChips,
@@ -836,6 +872,8 @@ export const Message = S.Union([
   SubmittedSuccessCriteriaMarks,
   SubmittedIssueSubtasks,
   SubmittedSubtaskMarks,
+  SubmittedSubtaskRemovals,
+  SubmittedIssueParent,
   SubmittedIssueWorkInProgress,
   ObservedAgentSurvey,
   ClearedIssueWorkInProgress,

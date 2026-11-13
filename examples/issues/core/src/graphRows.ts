@@ -45,12 +45,25 @@ import {
   issueAgentsQuery,
 } from './issueAgents.js'
 import {
+  type IssueChildren,
+  issueChildrenOf,
+  issueChildrenQuery,
+} from './issueFamily.js'
+import {
   IssueLandingError,
   type LandingsDatabase,
   NoPageFacts,
   type PageFacts,
   observed,
 } from './issueLandings.js'
+import {
+  type IssueReferences,
+  issueReferencesOf,
+  issueReferencesQuery,
+  recordingTitlesOf,
+  referenceRecordingsQuery,
+  referencedRecordingIds,
+} from './issueReferences.js'
 import {
   type QuestionRow,
   keptQuestionsOf,
@@ -111,6 +124,14 @@ export type GraphRowsService = Readonly<{
   observeIssueAgents: (
     issueId: string,
   ) => Stream.Stream<ReadonlyArray<IssueAgent>, IssueLandingError>
+  /** The Issues under an epic, open first, by its id (Scribe #2348). */
+  observeIssueChildren: (
+    issueId: string,
+  ) => Stream.Stream<IssueChildren, IssueLandingError>
+  /** Where an Issue is named: recordings and Claude sessions, by its id (Scribe #2348). */
+  observeIssueReferences: (
+    issueId: string,
+  ) => Stream.Stream<IssueReferences, IssueLandingError>
   observeProductFacts: (
     productId: string,
   ) => Stream.Stream<PageFacts, IssueLandingError>
@@ -148,6 +169,8 @@ export const NoGraphRows: GraphRowsService = {
   observeFindings: Stream.empty,
   observeIssueGraph: () => Stream.succeed(noIssueGraph),
   observeIssueAgents: () => Stream.empty,
+  observeIssueChildren: () => Stream.empty,
+  observeIssueReferences: () => Stream.empty,
   observeProductFacts: () => Stream.empty,
   observeSessionFacts: () => Stream.empty,
   markFindingPromoted: () => Effect.void,
@@ -267,6 +290,27 @@ const featureWithBuilds =
         )
   }
 
+/**
+ * Where an Issue is named, at once, then again with the titles of its
+ * recordings when Scribe's recordings rows give them. A refused titles query
+ * keeps the places without titles.
+ */
+const withRecordingTitles = (
+  openDatabase: Effect.Effect<GraphDatabase, IssueLandingError>,
+  references: IssueReferences,
+  data: unknown,
+): Stream.Stream<IssueReferences, IssueLandingError> => {
+  const recordingIds = referencedRecordingIds(references)
+  return Array.isReadonlyArrayEmpty(recordingIds)
+    ? Stream.succeed(references)
+    : Stream.concat(
+        Stream.succeed(references),
+        observed(openDatabase, referenceRecordingsQuery(recordingIds), titles =>
+          issueReferencesOf(data, recordingTitlesOf(titles)),
+        ).pipe(Stream.catch(() => Stream.empty)),
+      )
+}
+
 const factsOrNone = <Facts extends PageFacts>(
   maybeFacts: Option.Option<Facts>,
 ): PageFacts =>
@@ -361,6 +405,29 @@ export const instantGraphRows = (
           Array.flatMap(
             issueAgentsOf([issueNumber], data),
             found => found.agents,
+          ),
+        ),
+    }),
+  observeIssueChildren: issueId =>
+    Option.match(numberOfIssueId(issueId), {
+      onNone: () => Stream.empty,
+      onSome: issueNumber =>
+        observed(
+          openDatabase,
+          issueChildrenQuery(issueNumber),
+          issueChildrenOf,
+        ),
+    }),
+  observeIssueReferences: issueId =>
+    Option.match(numberOfIssueId(issueId), {
+      onNone: () => Stream.empty,
+      onSome: issueNumber =>
+        observed(openDatabase, issueReferencesQuery(issueNumber), data => ({
+          data,
+          references: issueReferencesOf(data),
+        })).pipe(
+          Stream.switchMap(({ data, references }) =>
+            withRecordingTitles(openDatabase, references, data),
           ),
         ),
     }),

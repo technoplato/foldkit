@@ -30,6 +30,7 @@ issues file --title "…" --details "…" --product scribe --priority P1 --type 
   --area "Recording / images" --related 502,691 --criterion "…" --evidence FocusedTest \
   --said 208:1884-1888 --typed "…" --typed-session <id> --typed-message <id> --typed-at <iso> \
   --log "Filed from Recording 208." --claim claude-code/<agent>   # or --from-json draft.json
+issues file --title "…" --product scribe --type feature --parent 2347   # filed under an epic
 issues show 692 [--json]
 issues recording 398 [--json]                                   # or its id: a recording's Issues and their agents
 issues list [--status Open,InProgress] [--product scribe] [--recording 208] [--claimant …] [--search …] [--json]
@@ -43,10 +44,11 @@ issues claim 692 claude-code/<agent> ["what the claim is for"]
 issues status 692 VerificationNeeded
 issues link 692 502 691
 issues edit 692 [--title …] [--details …] [--priority P1] [--type …] [--area …] [--product …]
+issues parent 2332 2347                              # put #2332 under the epic #2347; --clear takes it out
 issues criterion 692 "<one observable outcome>" [--evidence FocusedTest,Log]
 issues satisfy 692 1 issue-692-criterion-2 [--unsatisfied]
 issues subtask add 804 "Red: the window census" "Green" "Merge for build 106"
-issues subtask check 804 1 issue-804-subtask-2      # uncheck takes the same
+issues subtask check 804 1 issue-804-subtask-2      # uncheck and remove take the same
 issues wip 804 --branch agent/claude/timeline-804 --repo realtime-voice \
   --worktree ~/Sync/worktrees/scribe-timeline-804 --commit 8b89b2f1b \
   --target-build 106 --state green --step "Green: 37 focused tests"
@@ -73,8 +75,44 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
 - `link` and `file --related` refuse a number no Issue holds (exit 3) and
   write nothing.
 - `subtask add` adds each title once, unchecked, as `issue-804-subtask-1`,
-  `-2`, and so on; `subtask check` and `uncheck` take a position or an id.
-  `show` prints the checklist as `Subtasks (1 of 3 done)`.
+  `-2`, and so on; `subtask check`, `uncheck` and `remove` take a position or
+  an id. `remove` takes the subtask off the checklist and prints what is left;
+  the others keep their ids. `show` prints the checklist as
+  `Subtasks (1 of 3 done)`.
+- Epics (Scribe #2348): `epic` is an issue type, and an Issue names the epic it
+  sits under in `parentIssueId` (`'2347'`; none for Issues stored before it).
+  `issues parent 2332 2347` sets it and `issues parent 2332 --clear` clears it;
+  `issues file --parent 2347` files under one. A parent no Issue holds is
+  refused with exit 3; a parent that is not an epic (the message names
+  `issues edit <n> --type epic`), the Issue itself, and an epic that already
+  sits under the Issue (a cycle) with exit 2. Each write reads the Issue back.
+  `show` prints `Parent: #2347 <title> (<status>)` after the area and, for an
+  epic or an Issue with children, `Children (3 of 14 done)` with each child as
+  `#2332  InProgress  P1  <title>`, the open ones first, then the finished
+  (Closed, Fixed, Resolved, Verified), each by number. The children are read
+  from Scribe's rows, never by scanning the catalog: core's `issueChildrenQuery`
+  (`core/src/issueFamily.ts`) asks `issues` where `parentNumber` is the epic's
+  number, the field Scribe's tracker mirror copies from `parentIssueId`. When
+  they cannot be read, such as before Scribe's schema has `parentNumber`,
+  `show` prints `Children not shown: <reason>` and still succeeds. `--json`
+  adds `parent` (`id`, `title`, `status`) and `children` (`progress` and
+  `issues`) or `childrenNotShown`.
+- Where an Issue is named (Scribe #2348): `show` prints a `Named in recordings`
+  block (how many places in how many recordings, then each recording with its
+  newest lines and thread posts: the deep link
+  `https://og.pisspoursoftware.xyz/recording/<id>/section/<line>?t=<s>`, when,
+  who, and the words verbatim; at most the newest 20, with `N more: issues show
+  <n> --json`) and a `Sessions` block (each Claude Code session that names it,
+  newest first: its agent and account, `worked` when it logged or claimed on the
+  Issue, else `named`, when it first and last named it, its claude.ai link or
+  `no claude.ai link was recorded`, its first words, and its sub-agents under
+  it). Both come from one query on Scribe's `issueReferences` rows, by
+  `issueNumber`, newest first (`issueReferencesQuery` in
+  `core/src/issueReferences.ts`), then the recordings' titles by their ids.
+  Rows match by the Issue's number only; matching by meaning is not built.
+  `--json` gives `references` (`recordings`, each with `placeCount` and every
+  place, and `sessions`) or `referencesNotShown`; until the rows can be read,
+  `show` prints `Named in recordings and sessions not shown: <reason>`.
 - `wip` records where an Issue's work is. Only the flags given change, so
   `issues wip 804 --state pushed` keeps the branch and worktree. The landing
   states run Exploring (no test yet), Red (failing tests committed), Green
@@ -247,6 +285,11 @@ build time, so a build from another branch names that branch. It paints the same
   how long each step took, every run that worked on it with its account and
   model, the findings raised on it, and the decisions, questions and reminders
   around it;
+- on an Issue's page, its parent epic, linked; for an epic, `Children: 3 of 14
+  done` with a progress bar and each child with its status and priority; and the
+  `Named in recordings` and `Sessions` sections, each place's deep link and each
+  session's claude.ai link clickable. They read the same two core queries as
+  `issues show` (`issueChildrenQuery`, `issueReferencesQuery`), live;
 - `/asks`, how long asks take: each step's median, how many Issues reached it,
   and the slowest asks;
 - `/agents/<id>`, every run a handle names: how it ran, when and for how long, what

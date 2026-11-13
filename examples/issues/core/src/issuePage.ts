@@ -50,12 +50,24 @@ import { type AgentRunChip, noIssueGraph } from './graphFacts.js'
 import { findingNodes } from './graphPageParts.js'
 import { type IssueAgent } from './issueAgents.js'
 import {
+  type IssueChild,
+  childrenProgressLabel,
+  isEpic,
+} from './issueFamily.js'
+import {
   type IssueLanding,
   type IssueMoment,
   firstLandedBuild,
   firstTestflightBuild,
   noLanding,
 } from './issueLandings.js'
+import {
+  type RecordingPlace,
+  type ReferencingRecording,
+  type ReferencingSession,
+  type SessionAgent,
+  referencedPlaceCount,
+} from './issueReferences.js'
 import {
   decisionsOfIssue,
   questionsOfIssue,
@@ -99,6 +111,8 @@ const SHORT_SHA_LENGTH = 9
 const ISO_DATE_LENGTH = 10
 const QUOTE_LIMIT = 240
 const BACKLINK_EXCERPTS_SHOWN = 2
+const PLACES_SHOWN = 50
+const RECORDING_ID_SHOWN = 8
 
 /** How large a stored picture draws: a phone screen's shape, as wide as the page allows. */
 const PICTURE_WIDTH = 240
@@ -1079,6 +1093,245 @@ const attachmentNodes = (
     ],
   })
 
+// FAMILY
+
+const parentNodes = (
+  issue: Issue,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  Option.match(issue.parentIssueId, {
+    onNone: () => [],
+    onSome: parentId => [RichText([issueChipOf(parentId, context.chips)])],
+  })
+
+const childNode = (child: IssueChild, context: PageContext): UiNode =>
+  RichText([
+    issueChipOf(child.id, context.chips),
+    Plain(`  ${child.status}  ${child.priority}  ${child.title}`),
+  ])
+
+/**
+ * The Issues under an epic, from Scribe's rows by the one query `issues show`
+ * reads (Scribe #2348): how many are done, then each with its status and
+ * priority, the open ones first. An Issue that is no epic and has no children
+ * shows none, and only an epic says why they could not be read.
+ */
+const childrenSection = (
+  issue: Issue,
+  model: Model,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  M.value(model.issueChildren).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      NotObservingIssueChildren: () => [],
+      LoadedIssueChildren: ({ children, issueId }) =>
+        issueId !== issue.id ||
+        (Array.isReadonlyArrayEmpty(children.children) && !isEpic(issue))
+          ? []
+          : [
+              Column(
+                { gap: 1 },
+                Text(`Children: ${childrenProgressLabel(children)}`, {
+                  emphasis: 'Headline',
+                }),
+                Progress({
+                  label: childrenProgressLabel(children),
+                  max: Math.max(children.total, 1),
+                  value: children.done,
+                }),
+                ...Array.match(children.children, {
+                  onEmpty: () => [
+                    Text(`No Issue sits under #${issue.id} yet.`, {
+                      dim: true,
+                    }),
+                  ],
+                  onNonEmpty: each =>
+                    Array.map(each, child => childNode(child, context)),
+                }),
+              ),
+            ],
+      FailedIssueChildren: ({ issueId, reason }) =>
+        issueId === issue.id && isEpic(issue)
+          ? [Text(`Children not shown: ${reason}`, { dim: true })]
+          : [],
+    }),
+  )
+
+// NAMED
+
+const counted = (count: number, word: string): string =>
+  `${count.toString()} ${word}${count === 1 ? '' : 's'}`
+
+const recordingLabel = (recording: ReferencingRecording): string =>
+  Option.getOrElse(
+    recording.maybeTitle,
+    () => `Recording ${recording.id.slice(0, RECORDING_ID_SHOWN)}`,
+  )
+
+const placeLabel = (place: RecordingPlace): string =>
+  M.value(place.kind).pipe(
+    M.withReturnType<string>(),
+    M.when('Line', () =>
+      Option.match(place.maybeLineIndex, {
+        onNone: () => 'Line',
+        onSome: index => `Line #${index.toString()}`,
+      }),
+    ),
+    M.when('ThreadPost', () => 'Thread post'),
+    M.exhaustive,
+  )
+
+const placeNode = (place: RecordingPlace, context: PageContext): UiNode =>
+  RichText([
+    Reference({
+      label: placeLabel(place),
+      kind: 'Segment',
+      href: place.link,
+      detail: ['Opens the recording at this place'],
+    }),
+    Plain(
+      `  ${Array.join(
+        [
+          ...Option.toArray(place.maybeAuthorName),
+          whenLabel(place.atMs, context.nowMs, context.timeZone),
+        ],
+        '  ',
+      )}  `,
+    ),
+    ...partsOfText(place.quote, context.chips),
+  ])
+
+const recordingNodes = (
+  recordings: ReadonlyArray<ReferencingRecording>,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  Array.flatMap(recordings, recording => [
+    RichText([
+      Reference({
+        label: recordingLabel(recording),
+        kind: 'Recording',
+        href: `/recordings/${recording.id}`,
+        detail: [`Every Issue from ${recordingLabel(recording)}`],
+      }),
+    ]),
+    ...Array.map(Array.take(recording.places, PLACES_SHOWN), place =>
+      placeNode(place, context),
+    ),
+  ])
+
+const agentWords = (agent: SessionAgent, context: PageContext): string =>
+  Array.join(
+    [
+      ...Option.toArray(
+        Option.map(agent.maybeAccount, account => `account ${account}`),
+      ),
+      agent.isWorked ? 'worked' : 'named',
+      `last named it ${whenLabel(agent.lastAtMs, context.nowMs, context.timeZone)}`,
+    ],
+    '  ·  ',
+  )
+
+const sessionLinkPart = (session: ReferencingSession): TextPart =>
+  M.value(session.link).pipe(
+    M.withReturnType<TextPart>(),
+    M.tagsExhaustive({
+      ClaudeLink: ({ url }) =>
+        Reference({
+          label: 'claude.ai',
+          kind: 'Session',
+          href: url,
+          detail: [
+            'Opens only on the account that made it',
+            ...Option.toArray(session.maybeAccount),
+          ],
+        }),
+      NoClaudeLink: ({ why }) => Plain(why),
+    }),
+  )
+
+const sessionLabel = (session: ReferencingSession): string =>
+  Option.getOrElse(
+    Option.flatMap(session.own, own =>
+      Option.orElse(own.maybeAgentId, () => own.maybeAgentName),
+    ),
+    () =>
+      `session ${Option.getOrElse(session.maybeHostSessionId, () => session.key)}`,
+  )
+
+const sessionNodes = (
+  session: ReferencingSession,
+  context: PageContext,
+): ReadonlyArray<UiNode> => [
+  RichText([
+    sessionLinkPart(session),
+    Plain(
+      `  ${sessionLabel(session)}${Option.match(session.own, {
+        onNone: () => '',
+        onSome: own => `  ·  ${agentWords(own, context)}`,
+      })}`,
+    ),
+  ]),
+  ...Option.toArray(
+    Option.map(session.own, own =>
+      chipped(own.firstQuote, context, { dim: true }),
+    ),
+  ),
+  ...Array.map(session.subagents, subagent =>
+    RichText([
+      Plain(
+        `    sub-agent ${Option.getOrElse(
+          Option.orElse(subagent.maybeAgentName, () => subagent.maybeAgentId),
+          () => 'unnamed',
+        )}  ·  ${agentWords(subagent, context)}  ·  `,
+      ),
+      ...partsOfText(subagent.firstQuote, context.chips),
+    ]),
+  ),
+]
+
+/**
+ * Where the Issue is named, from Scribe's rows by the one query `issues show`
+ * reads (Scribe #2348): each recording with the lines and thread posts that
+ * name it, each linked at its moment, then each Claude Code session with its
+ * claude.ai link or why it has none and its sub-agents. Matching is by the
+ * Issue's number; matching by meaning is not built.
+ */
+const namedNodes = (
+  issue: Issue,
+  model: Model,
+  context: PageContext,
+): ReadonlyArray<UiNode> =>
+  M.value(model.issueReferences).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      NotObservingIssueReferences: () => [],
+      LoadedIssueReferences: ({ issueId, references }) =>
+        issueId === issue.id
+          ? [
+              ...section(
+                `Named in recordings: ${counted(referencedPlaceCount(references), 'place')} in ${counted(references.recordings.length, 'recording')}`,
+                recordingNodes(references.recordings, context),
+              ),
+              ...section(
+                `Sessions: ${references.sessions.length.toString()}`,
+                Array.flatMap(references.sessions, session =>
+                  sessionNodes(session, context),
+                ),
+              ),
+            ]
+          : [],
+      FailedIssueReferences: ({ issueId, reason }) =>
+        issueId === issue.id
+          ? [
+              Text(`Named in recordings and sessions not shown: ${reason}`, {
+                dim: true,
+              }),
+            ]
+          : [],
+    }),
+  )
+
 /**
  * One Issue's page: its fields and `actions` first, then at a glance who
  * asked and in which words, linked at the moment he said it; the app; where
@@ -1100,6 +1353,8 @@ export const issuePageNodes = (
       'Needs user input',
       linesNodes(needsUserInputLines(issue), context),
     ),
+    ...section('Parent', parentNodes(issue, context)),
+    ...childrenSection(issue, model, context),
     ...atAGlanceNodes(model, issue, context),
     ...section('Details', detailsNodes(issue, context)),
     ...section('Now working', linesNodes(nowWorkingLines(issue), context)),
@@ -1119,6 +1374,7 @@ export const issuePageNodes = (
     ...section('Pointed at by', pointedAtByNodes(issue, context)),
     ...section('Work log', workLogNodes(issue, context)),
     ...section('Mentioned in', mentionedInNodes(issue, context)),
+    ...namedNodes(issue, model, context),
     ...section('Mentions', otherMentionNodes(issue, context)),
     ...section('Attachments', attachmentNodes(issue, model.issueFiles)),
     Text('Link to this Issue', { href: pageUrl, copyable: true, dim: true }),

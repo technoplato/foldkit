@@ -3657,6 +3657,7 @@ describe('where an Issue is named: recordings and Claude sessions (Scribe #2348)
         placeKind: 'session',
         quote: 'Logged on #2347',
         atMs: NAMED_MS + MINUTE_MS,
+        lastAtMs: NAMED_MS + 80 * MINUTE_MS,
         claudeURL: sessionUrl,
         agentID: 'claude-code/tracker-epics-2348@pp',
         account: 'pp',
@@ -3717,12 +3718,12 @@ describe('where an Issue is named: recordings and Claude sessions (Scribe #2348)
     )
     expect(text).toContain(
       "Sessions (2 that name #2347, newest first, from Scribe's rows)\n" +
-        '  claude-code/tracker-epics-2348@pp  ·  account pp  ·  worked  ·  1 time, 11-13 09:21\n' +
+        '  claude-code/tracker-epics-2348@pp  ·  account pp  ·  worked  ·  11-13 09:21 to 11-13 10:40\n' +
         `    ${sessionUrl}\n` +
         '    "Logged on #2347"\n' +
-        '    sub-agent tracker-epics-2348-foldkit  ·  named  ·  1 time, 11-13 09:30\n' +
+        '    sub-agent tracker-epics-2348-foldkit  ·  named  ·  11-13 09:30\n' +
         '      "Read #2347 too"\n' +
-        '  session other-host  ·  named  ·  1 time, 11-13 09:22\n' +
+        '  session other-host  ·  named  ·  11-13 09:22\n' +
         '    no claude.ai link was recorded\n' +
         '    "named #2347 in passing"',
     )
@@ -3803,7 +3804,6 @@ describe('where an Issue is named: recordings and Claude sessions (Scribe #2348)
       own: {
         agentId: 'claude-code/tracker-epics-2348@pp',
         role: 'worked',
-        count: 1,
         firstQuote: 'Logged on #2347',
       },
       subagents: [{ agentName: 'tracker-epics-2348-foldkit', role: 'named' }],

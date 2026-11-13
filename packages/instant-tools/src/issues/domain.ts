@@ -667,6 +667,15 @@ export const Issue = S.Struct({
     S.withDecodingDefaultKey(Effect.succeed(true)),
     S.withConstructorDefault(Effect.succeed(true)),
   ),
+  /**
+   * The epic this Issue sits under, by its tracker id, such as `'2347'`
+   * (Scribe #2348). None for an Issue under no epic, and for every Issue
+   * stored before parents existed.
+   */
+  parentIssueId: S.OptionFromNullOr(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+    S.withConstructorDefault(Effect.succeed(Option.none())),
+  ),
   priority: IssuePriority,
   product: TrackedProduct,
   projectId: S.OptionFromNullOr(S.String),
