@@ -4,6 +4,8 @@ import {
   IssueRecordingMention,
   StaticIssueTrackerResources,
   issueAgentsOf,
+  issueChildrenOf,
+  issueReferencesOf,
   makeMemoryIssueTracker,
   makeMemoryProductCatalog,
   recordingIssuesOf,
@@ -82,14 +84,17 @@ import {
   downloadIssueFileCommand,
   editIssueCommand,
   fileIssueCommand,
+  issueTypes,
   linkIssuesCommand,
   listIssuesCommand,
   listProductsCommand,
   logIssueCommand,
   markCriteriaCommand,
   markSubtasksCommand,
+  parentIssueCommand,
   rankIssueCommand,
   redactCredentials,
+  removeSubtasksCommand,
   resolveSaid,
   resolveSaidMention,
   setIssueStatusCommand,
@@ -99,12 +104,22 @@ import {
   workInProgressCommand,
   workingSyncCommand,
 } from './commands.js'
+import {
+  FoundIssueChildren,
+  UnavailableIssueChildren,
+  noIssueChildrenReader,
+} from './family.js'
 import { noLandingReader } from './landing.js'
 import {
   FoundIssueRecordings,
   UnavailableIssueRecordings,
   noIssueRecordingsReader,
 } from './recordings.js'
+import {
+  FoundIssueReferences,
+  UnavailableIssueReferences,
+  noIssueReferencesReader,
+} from './references.js'
 import { memoryIssueRecords } from './resources.js'
 
 const product = ApplicationProduct.make({ id: 'scribe', name: 'Scribe' })
@@ -229,7 +244,9 @@ const makeHost = (
       readBuildJobs: () =>
         Effect.succeed(FoundBuildJobs.make({ jobs: [], unreadable: [] })),
       readIssueAgents: noIssueAgentsReader,
+      readIssueChildren: noIssueChildrenReader,
       readIssueRecordings: noIssueRecordingsReader,
+      readIssueReferences: noIssueReferencesReader,
       readRecordingIssues: noRecordingIssuesReader,
       readLanding: noLandingReader,
       readStandardInput: Effect.succeed(''),
@@ -453,6 +470,7 @@ describe('issues command', () => {
         jsonInput: Option.none(),
         log: Option.some('Filed from the session that hit it.'),
         logState: Option.none(),
+        parent: Option.none(),
         priority: Option.some('P1'),
         product: Option.some('Scribe'),
         related: ['001', '#005'],
@@ -518,6 +536,7 @@ describe('issues command', () => {
         jsonInput: Option.none(),
         log: Option.none(),
         logState: Option.none(),
+        parent: Option.none(),
         priority: Option.none(),
         product: Option.some('Scribee'),
         related: [],
@@ -891,6 +910,7 @@ describe('issues command', () => {
         jsonInput: Option.none(),
         log: Option.none(),
         logState: Option.none(),
+        parent: Option.none(),
         priority: Option.none(),
         product: Option.some('scribe'),
         related: ['001', '998', '#999'],
@@ -2097,6 +2117,7 @@ describe('issues carry the pictures of the moment they quote', () => {
     jsonInput: Option.none(),
     log: Option.none(),
     logState: Option.none(),
+    parent: Option.none(),
     priority: Option.none(),
     product: Option.some('scribe'),
     related: [],
@@ -3263,5 +3284,551 @@ describe('an Issue’s agents, and a recording’s (Scribe #2303)', () => {
         },
       ],
     })
+  })
+})
+
+describe('true epics: an Issue’s parent and its children (Scribe #2348)', () => {
+  const epic = stored('2347', 'Epic: ready for release', {
+    issueType: Option.some('epic'),
+  })
+  const child = stored('2332', 'QR sign-in', {
+    priority: 'P1',
+    status: 'InProgress',
+  })
+  const defect = stored('2340', 'A plain defect')
+  const childRows = {
+    issues: [
+      {
+        number: 2333,
+        title: 'One scribe command',
+        status: 'Closed',
+        priority: 'P2',
+        issueType: 'feature',
+      },
+      {
+        number: 2332,
+        title: 'QR sign-in',
+        status: 'InProgress',
+        priority: 'P1',
+        issueType: 'feature',
+      },
+    ],
+  }
+  const foundChildren = FoundIssueChildren.make({
+    children: issueChildrenOf(childRows),
+  })
+  const parentInput = (
+    issue: string,
+    parent: Option.Option<string>,
+    isClear = false,
+  ) => ({ issue, isClear, isJson: false, parent })
+  const fileUnder = (parent: string): FileInput => ({
+    agent: Option.none(),
+    area: Option.none(),
+    claim: Option.none(),
+    criteria: [],
+    details: Option.none(),
+    dryRun: false,
+    evidence: [],
+    images: [],
+    isJson: false,
+    isWithoutImages: false,
+    jsonInput: Option.none(),
+    log: Option.none(),
+    logState: Option.none(),
+    parent: Option.some(parent),
+    priority: Option.none(),
+    product: Option.some('scribe'),
+    related: [],
+    said: [],
+    status: Option.none(),
+    title: Option.some('A child of the release epic'),
+    type: Option.some('feature'),
+    typed: Option.none(),
+    typedAt: Option.none(),
+    typedMessage: Option.none(),
+    typedSession: Option.none(),
+  })
+
+  it('knows epic as an issue type', () => {
+    expect(issueTypes).toContain('epic')
+  })
+
+  it('files an Issue under an epic with --parent, and files nothing under a parent that is not an epic or does not exist', async () => {
+    const { host, memory } = await run(makeHost([epic, defect]))
+    const filed = await run(fileIssueCommand(host, fileUnder('2347')))
+    expect(filed.exitCode).toBe(0)
+    expect(linesOf(filed)).toContain('Filed #2348')
+    expect(Option.getOrThrow(fetched(memory, '2348')).parentIssueId).toEqual(
+      Option.some('2347'),
+    )
+
+    const notEpic = await run(fileIssueCommand(host, fileUnder('2340')))
+    expect(notEpic.exitCode).toBe(2)
+    expect(Array.join(notEpic.stderr, '\n')).toContain(
+      '#2340 is not an epic (its type is defect)',
+    )
+    expect(Array.join(notEpic.stderr, '\n')).toContain(
+      'issues edit 2340 --type epic',
+    )
+    const unknown = await run(fileIssueCommand(host, fileUnder('9999')))
+    expect(unknown.exitCode).toBe(3)
+    expect(Array.join(unknown.stderr, '\n')).toContain(
+      'Issue #9999 does not exist',
+    )
+    expect(fetched(memory, '2349')).toEqual(Option.none())
+  })
+
+  it('sets an Issue’s parent, clears it, and reads each change back', async () => {
+    const { host, memory } = await run(makeHost([epic, child]))
+    const set = await run(
+      parentIssueCommand(host, parentInput('2332', Option.some('#2347'))),
+    )
+    expect(set).toMatchObject({
+      exitCode: 0,
+      stdout: ['Set the parent of #2332 to #2347: Epic: ready for release.'],
+    })
+    expect(Option.getOrThrow(fetched(memory, '2332')).parentIssueId).toEqual(
+      Option.some('2347'),
+    )
+
+    const cleared = await run(
+      parentIssueCommand(host, parentInput('2332', Option.none(), true)),
+    )
+    expect(cleared.stdout).toEqual([
+      'Cleared the parent of #2332; it was #2347.',
+    ])
+    expect(Option.getOrThrow(fetched(memory, '2332')).parentIssueId).toEqual(
+      Option.none(),
+    )
+
+    const again = await run(
+      parentIssueCommand(host, parentInput('2332', Option.none(), true)),
+    )
+    expect(again).toMatchObject({
+      exitCode: 0,
+      stdout: ['#2332 has no parent.'],
+    })
+  })
+
+  it('refuses a parent no Issue holds, one that is not an epic, the Issue itself, and a cycle', async () => {
+    const outerEpic = stored('2350', 'An epic under the release epic', {
+      issueType: Option.some('epic'),
+      parentIssueId: Option.some('2347'),
+    })
+    const { host, memory } = await run(
+      makeHost([epic, child, defect, outerEpic]),
+    )
+    const refused = async (
+      issue: string,
+      parent: Option.Option<string>,
+      isClear = false,
+    ) => {
+      const outcome = await run(
+        parentIssueCommand(host, parentInput(issue, parent, isClear)),
+      )
+      return { code: outcome.exitCode, text: Array.join(outcome.stderr, '\n') }
+    }
+
+    expect(await refused('2332', Option.some('9999'))).toEqual({
+      code: 3,
+      text: 'Issue #9999 does not exist; no parent was set.',
+    })
+    expect(await refused('9998', Option.some('2347'))).toMatchObject({
+      code: 3,
+    })
+    expect(await refused('2332', Option.some('2340'))).toEqual({
+      code: 2,
+      text: "#2340 is not an epic (its type is defect); an Issue's parent is an epic. Make it one first: issues edit 2340 --type epic",
+    })
+    expect(await refused('2347', Option.some('2347'))).toEqual({
+      code: 2,
+      text: '#2347 cannot be its own parent.',
+    })
+    expect(await refused('2347', Option.some('2350'))).toEqual({
+      code: 2,
+      text: '#2350 sits under #2347 already (#2350, then #2347): #2347 under #2350 would make a cycle.',
+    })
+    expect((await refused('2332', Option.none())).code).toBe(2)
+    expect((await refused('2332', Option.some('2347'), true)).code).toBe(2)
+    expect(Option.getOrThrow(fetched(memory, '2347')).parentIssueId).toEqual(
+      Option.none(),
+    )
+    expect(Option.getOrThrow(fetched(memory, '2332')).parentIssueId).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('removes subtasks by position or id and prints the checklist after', async () => {
+    const { host, memory } = await run(
+      makeHost([stored('835', 'Track work in progress')]),
+    )
+    await run(
+      addSubtasksCommand(host, {
+        issue: '835',
+        isJson: false,
+        titles: ['Red tests', 'Green', 'Install the CLI'],
+      }),
+    )
+    const removed = await run(
+      removeSubtasksCommand(host, {
+        issue: '835',
+        isJson: false,
+        subtasks: ['1', 'issue-835-subtask-3'],
+      }),
+    )
+    expect(removed.stdout).toEqual([
+      'Removed 1, issue-835-subtask-3 from #835; 0 of 1 done.',
+      '  [ ] 1 Green (issue-835-subtask-2)',
+    ])
+    expect(
+      Option.getOrThrow(fetched(memory, '835')).subtasks.map(
+        subtask => subtask.id,
+      ),
+    ).toEqual(['issue-835-subtask-2'])
+
+    const unknown = await run(
+      removeSubtasksCommand(host, {
+        issue: '835',
+        isJson: false,
+        subtasks: ['7'],
+      }),
+    )
+    expect(unknown.exitCode).toBe(2)
+    expect(Array.join(unknown.stderr, '\n')).toContain(
+      'Issue #835 has no subtask 7. Its subtasks: 1 issue-835-subtask-2 "Green"',
+    )
+    const none = await run(
+      removeSubtasksCommand(host, {
+        issue: '835',
+        isJson: false,
+        subtasks: [],
+      }),
+    )
+    expect(none.exitCode).toBe(2)
+  })
+
+  it('show prints the parent, and an epic’s children read from Scribe’s rows by its number, open first', async () => {
+    const underEpic = Issue.make({
+      ...child,
+      parentIssueId: Option.some('2347'),
+    })
+    const made = await run(makeHost([epic, underEpic]))
+    const asked: Array<number> = []
+    const host: IssuesHost = {
+      ...made.host,
+      readIssueChildren: issueNumber => {
+        asked.push(issueNumber)
+        return Effect.succeed(
+          issueNumber === 2347
+            ? foundChildren
+            : FoundIssueChildren.make({
+                children: issueChildrenOf({ issues: [] }),
+              }),
+        )
+      },
+    }
+    const childText = linesOf(
+      await run(showIssueCommand(host, { issue: '2332', isJson: false })),
+    )
+    expect(childText).toContain('Parent: #2347 Epic: ready for release (Open)')
+    expect(childText).not.toContain('Children')
+
+    const epicText = linesOf(
+      await run(showIssueCommand(host, { issue: '2347', isJson: false })),
+    )
+    expect(asked).toEqual([2332, 2347])
+    expect(epicText).toContain(
+      'Children (1 of 2 done)\n' +
+        '  #2332  InProgress  P1  QR sign-in\n' +
+        '  #2333  Closed  P2  One scribe command',
+    )
+  })
+
+  it('show still shows the Issue, saying why its children are not shown, when they cannot be read', async () => {
+    const made = await run(makeHost([epic]))
+    const outcome = await run(
+      showIssueCommand(
+        {
+          ...made.host,
+          readIssueChildren: () =>
+            Effect.succeed(
+              UnavailableIssueChildren.make({
+                reason: 'Attributes are missing in your schema: parentNumber',
+              }),
+            ),
+        },
+        { issue: '2347', isJson: false },
+      ),
+    )
+    expect(outcome.exitCode).toBe(0)
+    expect(linesOf(outcome)).toContain(
+      'Children not shown: Attributes are missing in your schema: parentNumber',
+    )
+  })
+
+  it('show --json gives the parent, the children with their progress, or why they could not be read', async () => {
+    const underEpic = Issue.make({
+      ...child,
+      parentIssueId: Option.some('2347'),
+    })
+    const made = await run(makeHost([epic, underEpic]))
+    const epicJson = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(
+            {
+              ...made.host,
+              readIssueChildren: () => Effect.succeed(foundChildren),
+            },
+            { issue: '2347', isJson: true },
+          ),
+        ),
+      ),
+    )
+    expect(epicJson.children).toMatchObject({
+      progress: { done: 1, total: 2 },
+      issues: [
+        { id: '2332', number: 2332, status: 'InProgress', priority: 'P1' },
+        { id: '2333', number: 2333, status: 'Closed' },
+      ],
+    })
+    const childJson = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(
+            {
+              ...made.host,
+              readIssueChildren: () =>
+                Effect.succeed(
+                  UnavailableIssueChildren.make({ reason: 'no answer.' }),
+                ),
+            },
+            { issue: '2332', isJson: true },
+          ),
+        ),
+      ),
+    )
+    expect(childJson).toMatchObject({
+      parentIssueId: '2347',
+      parent: {
+        id: '2347',
+        title: 'Epic: ready for release',
+        status: 'Open',
+      },
+      childrenNotShown: 'no answer.',
+    })
+    expect(childJson).not.toHaveProperty('children')
+  })
+})
+
+describe('where an Issue is named: recordings and Claude sessions (Scribe #2348)', () => {
+  const NAMED_MS = Date.parse('2026-11-13T14:20:00Z')
+  const MINUTE_MS = 60_000
+  const recording428 = 'aa11bb22-0000-4000-8000-000000000428'
+  const sessionUrl = 'https://claude.ai/code/session_01EXAMPLE'
+  const epic = stored('2347', 'Epic: ready for release', {
+    issueType: Option.some('epic'),
+  })
+  const base = {
+    issueNumber: 2347,
+    matchedBy: 'number',
+    source: 'test',
+  }
+  const lineRow = (index: number) => ({
+    ...base,
+    id: `l${index.toString()}`,
+    placeKind: 'line',
+    quote: `Line ${index.toString()} names 2347.`,
+    atMs: NAMED_MS + index * MINUTE_MS,
+    recordingID: recording428,
+    segmentID: `segment-${index.toString()}`,
+    startSeconds: 12.5,
+    lineIndex: index,
+    authorKind: 'person',
+    authorName: 'Michael',
+  })
+  const rows = {
+    issueReferences: [
+      lineRow(0),
+      {
+        ...base,
+        id: 's1',
+        placeKind: 'session',
+        quote: 'Logged on #2347',
+        atMs: NAMED_MS + MINUTE_MS,
+        claudeURL: sessionUrl,
+        agentID: 'claude-code/tracker-epics-2348@pp',
+        account: 'pp',
+        role: 'worked',
+        source: 'workLog',
+      },
+      {
+        ...base,
+        id: 's2',
+        placeKind: 'session',
+        quote: 'Read #2347 too',
+        atMs: NAMED_MS + 10 * MINUTE_MS,
+        claudeURL: sessionUrl,
+        agentName: 'tracker-epics-2348-foldkit',
+        role: 'named',
+        source: 'toolCall',
+      },
+      {
+        ...base,
+        id: 's3',
+        placeKind: 'session',
+        quote: 'named #2347 in passing',
+        atMs: NAMED_MS + 2 * MINUTE_MS,
+        hostSessionID: 'other-host',
+        source: 'agentMessage',
+      },
+    ],
+  }
+  const found = FoundIssueReferences.make({
+    references: issueReferencesOf(rows, [
+      { id: recording428, title: 'Recording 428 — Nov 12, 2026' },
+    ]),
+  })
+
+  it('show prints each recording place that names the Issue and each session, read by its number', async () => {
+    const made = await run(makeHost([epic]))
+    const asked: Array<number> = []
+    const text = linesOf(
+      await run(
+        showIssueCommand(
+          {
+            ...made.host,
+            readIssueReferences: issueNumber => {
+              asked.push(issueNumber)
+              return Effect.succeed(found)
+            },
+          },
+          { issue: '2347', isJson: false },
+        ),
+      ),
+    )
+    expect(asked).toEqual([2347])
+    expect(text).toContain(
+      "Named in recordings (1 place in 1 recording, newest first, from Scribe's rows)\n" +
+        '  Recording 428 — Nov 12, 2026\n' +
+        `    line #0  11-13 09:20  Michael  https://og.pisspoursoftware.xyz/recording/${recording428}/section/segment-0?t=12.5\n` +
+        '      "Line 0 names 2347."',
+    )
+    expect(text).toContain(
+      "Sessions (2 that name #2347, newest first, from Scribe's rows)\n" +
+        '  claude-code/tracker-epics-2348@pp  ·  account pp  ·  worked  ·  1 time, 11-13 09:21\n' +
+        `    ${sessionUrl}\n` +
+        '    "Logged on #2347"\n' +
+        '    sub-agent tracker-epics-2348-foldkit  ·  named  ·  1 time, 11-13 09:30\n' +
+        '      "Read #2347 too"\n' +
+        '  session other-host  ·  named  ·  1 time, 11-13 09:22\n' +
+        '    no claude.ai link was recorded\n' +
+        '    "named #2347 in passing"',
+    )
+  })
+
+  it('show prints the newest 20 places and says how many more --json gives', async () => {
+    const made = await run(makeHost([epic]))
+    const many = FoundIssueReferences.make({
+      references: issueReferencesOf({
+        issueReferences: Array.makeBy(25, lineRow),
+      }),
+    })
+    const text = linesOf(
+      await run(
+        showIssueCommand(
+          { ...made.host, readIssueReferences: () => Effect.succeed(many) },
+          { issue: '2347', isJson: false },
+        ),
+      ),
+    )
+    expect(text).toContain('Named in recordings (25 places in 1 recording')
+    expect(text).toContain('line #24  ')
+    expect(text).not.toContain('line #4  ')
+    expect(text).toContain('  5 more: issues show 2347 --json')
+  })
+
+  it('show still shows the Issue, saying why, when the places cannot be read', async () => {
+    const made = await run(makeHost([epic]))
+    const outcome = await run(
+      showIssueCommand(
+        {
+          ...made.host,
+          readIssueReferences: () =>
+            Effect.succeed(
+              UnavailableIssueReferences.make({
+                reason: 'issueReferences is not in the schema yet',
+              }),
+            ),
+        },
+        { issue: '2347', isJson: false },
+      ),
+    )
+    expect(outcome.exitCode).toBe(0)
+    expect(linesOf(outcome)).toContain(
+      'Named in recordings and sessions not shown: issueReferences is not in the schema yet',
+    )
+  })
+
+  it('show --json gives the places and the sessions, or why they could not be read', async () => {
+    const made = await run(makeHost([epic]))
+    const json = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(
+            { ...made.host, readIssueReferences: () => Effect.succeed(found) },
+            { issue: '2347', isJson: true },
+          ),
+        ),
+      ),
+    )
+    expect(json.references.recordings[0]).toMatchObject({
+      id: recording428,
+      title: 'Recording 428 — Nov 12, 2026',
+      placeCount: 1,
+      places: [
+        {
+          kind: 'line',
+          quote: 'Line 0 names 2347.',
+          link: `https://og.pisspoursoftware.xyz/recording/${recording428}/section/segment-0?t=12.5`,
+          authorName: 'Michael',
+          lineIndex: 0,
+          atMs: NAMED_MS,
+        },
+      ],
+    })
+    expect(json.references.sessions[0]).toMatchObject({
+      claudeURL: sessionUrl,
+      own: {
+        agentId: 'claude-code/tracker-epics-2348@pp',
+        role: 'worked',
+        count: 1,
+        firstQuote: 'Logged on #2347',
+      },
+      subagents: [{ agentName: 'tracker-epics-2348-foldkit', role: 'named' }],
+    })
+    expect(json.references.sessions[1]).toMatchObject({
+      claudeLinkMissing: 'no claude.ai link was recorded',
+      hostSessionId: 'other-host',
+    })
+    const unavailable = JSON.parse(
+      linesOf(
+        await run(
+          showIssueCommand(
+            {
+              ...made.host,
+              readIssueReferences: () =>
+                Effect.succeed(
+                  UnavailableIssueReferences.make({ reason: 'no answer.' }),
+                ),
+            },
+            { issue: '2347', isJson: true },
+          ),
+        ),
+      ),
+    )
+    expect(unavailable).toMatchObject({ referencesNotShown: 'no answer.' })
+    expect(unavailable).not.toHaveProperty('references')
   })
 })

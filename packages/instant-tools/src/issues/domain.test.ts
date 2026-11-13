@@ -5,10 +5,11 @@ import {
   AbandonedWork,
   ActiveWork,
   ApplicationProduct,
-  CheckedSubtask,
-  Issue,
+  BinaryFile,
   ChangedFile,
+  CheckedSubtask,
   EndedAgent,
+  Issue,
   IssueAgentPresence,
   IssueAttachment,
   IssueComplexity,
@@ -25,16 +26,15 @@ import {
   IssueWorkInProgress,
   IssueWorkLogEntry,
   MediaReference,
-  RunningAgent,
   RecordingMention,
   RecordingReference,
   RepositoryAttachmentSource,
+  RunningAgent,
+  StaleAgent,
   StuckWork,
   UncheckedSubtask,
-  BinaryFile,
-  escalatePriority,
-  StaleAgent,
   UntrackedFile,
+  escalatePriority,
   isCloseToLanding,
   isWorkingNow,
   issueViewerUrl,
@@ -600,6 +600,27 @@ describe('issue domain', () => {
     delete legacyPayload['relatedIssueIds']
     expect(S.decodeUnknownSync(Issue)(legacyPayload).relatedIssueIds).toEqual(
       [],
+    )
+  })
+
+  it('reads and writes the epic an Issue sits under, and reads an Issue stored before parents as having none (Scribe #2348)', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    expect(makeIssue().parentIssueId).toEqual(Option.none())
+    expect(encoded).toMatchObject({ parentIssueId: null })
+
+    const underEpic = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      parentIssueId: '2347',
+    })
+    expect(underEpic.parentIssueId).toEqual(Option.some('2347'))
+    expect(S.encodeUnknownSync(Issue)(underEpic)).toMatchObject({
+      parentIssueId: '2347',
+    })
+
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['parentIssueId']
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).parentIssueId).toEqual(
+      Option.none(),
     )
   })
 
