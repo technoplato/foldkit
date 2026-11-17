@@ -12,6 +12,7 @@
  *   books seek-to 1h00m00s         go to a place
  *   books open /books/audible      go to a page and print it; `books back` returns
  *   books screen                   the page the player is on
+ *   pbpaste | books connect-audible -   a last word of `-` is read from stdin
  *   books words                    the paragraph being read, with those around it
  *   books follow words             the same, again on each new paragraph
  *   books follow words --json      as lines of JSON, for another program
@@ -27,16 +28,23 @@
  * file must not import Effect, Instant, or the Program, so a command
  * starts fast.
  */
-import { followArgvOf, parseProgramArgv } from 'foldkit/cli/view'
+import {
+  followArgvOf,
+  parseProgramArgv,
+  readStdinText,
+  withStdinWord,
+} from 'foldkit/cli/view'
 import { spawnSync } from 'node:child_process'
 
 import { askPlayer, followPlayer, showPlayerTui, stopPlayer } from './view.js'
 
 const hostedOrigin = 'https://books.pisspoursoftware.xyz'
 
-const request = parseProgramArgv(process.argv.slice(2))
+const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
 
-const maybeFollow = followArgvOf(process.argv.slice(2))
+const request = parseProgramArgv(argv)
+
+const maybeFollow = followArgvOf(argv)
 
 const [head = ''] = request._tag === 'Do' ? request.token.split(' ') : []
 
