@@ -4,6 +4,190 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 17th, 2026 at 5:47:47 p.m. EST — `edd80a654706` feat(counter): counter follow prints the daemon's screen each time it changes (Scribe #2494)
+
+- **Implementation commit:** `edd80a654706de3776697927807d9b19182930ae`
+- **Change:** counter follow prints the daemon's screen each time it changes (Scribe #2494)
+- **Details:**
+  - The Counter CLI's entry reads 'follow [topic]' with Foldkit's followArgvOf and writes it with writeCliFollow, on its Instant daemon. It needed nothing else: the screen topic comes from programCliSurface, which the daemon already serves. This is the second user of the Follow request after Books.
+- **Files:**
+  - `examples/counter/cli/src/entry.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `7d874b343578` feat(books): take a command's last word from stdin, for the pasted sign-in address (Scribe #2494)
+
+- **Implementation commit:** `7d874b34357815b176d2990ce27bd1ddb36cf37c`
+- **Change:** take a command's last word from stdin, for the pasted sign-in address (Scribe #2494)
+- **Details:**
+  - The books entry passes its argv through Foldkit's withStdinWord, so 'pbpaste | books connect-audible -' connects with the address on stdin and nothing secret is typed as an argument. Checked against the demo reader: a wrong paste shows the page's own sentence, the demo's landing address connects and lands on the titles.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `9a7c1eb4fd0d` feat(foldkit): green: a command's last word may come from stdin (Scribe #2494)
+
+- **Implementation commit:** `9a7c1eb4fd0d18730e0ca8e6517c7681021b2cff`
+- **Change:** green: a command's last word may come from stdin (Scribe #2494)
+- **Details:**
+  - foldkit/cli/view: withStdinWord replaces a trailing lone dash in argv with stdin's text, trimmed, and readStdinText reads it, so an open choice that is a secret, such as a pasted sign-in address, stays out of the shell's history and the process list: 'pbpaste | books connect-audible -'. Both import no Effect.
+- **Files:**
+  - `packages/foldkit/src/cli/argv.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `695c04d33544` feat(books): green: books open prints the page it opened, books screen the page it is on (Scribe #2494)
+
+- **Implementation commit:** `695c04d33544f3734be12e7cfaca0f335c9838e4`
+- **Change:** green: books open prints the page it opened, books screen the page it is on (Scribe #2494)
+- **Details:**
+  - In the Books terminal adapter, 'open <uri>' and 'back' answer with Foldkit's paintScreen of where the player now is, and 'screen' prints it on request: where it is, what the page shows, and the addresses that leave the Program, without the Action list. Every other command still answers with the player brief. A place that cannot be opened says why on stderr with exit code 1, as before.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `686970042b8a` feat(books): green: a terminal gets a sign-in address it can open (Scribe #2494)
+
+- **Implementation commit:** `686970042b8a631c873db419a6297f0e6f2793c0`
+- **Change:** green: a terminal gets a sign-in address it can open (Scribe #2494)
+- **Details:**
+  - httpAudibleImport's startSignIn resolves an address without an origin on the server it asked, when the host names that server: a terminal on the demo reader gets http://127.0.0.1:5183/__books/audible-demo/landing. A browser on the same origin keeps the address as it came, and an address with its own origin, Amazon's, is never changed. This is the HTTP adapter's knowledge, so the Audible Model and
+- **Files:**
+  - `examples/books/core/src/audible/http.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `655e967567b9` feat(foldkit): green: a terminal prints the addresses that leave the Program (Scribe #2494)
+
+- **Implementation commit:** `655e967567b9b54c9ca662d0e99f6e3130852248`
+- **Change:** green: a terminal prints the addresses that leave the Program (Scribe #2494)
+- **Details:**
+  - Terminal text cuts a row to the width and cannot be clicked, so a row that links out could not be opened from a terminal.
+- **Files:**
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/query.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `9cfe85aa1b04` docs: say which layer a change belongs to, with the Books CLI as the worked example (Scribe #2494)
+
+- **Implementation commit:** `9cfe85aa1b041f74432ec550a46d0d948ea56ab9`
+- **Change:** say which layer a change belongs to, with the Books CLI as the worked example (Scribe #2494)
+- **Details:**
+  - AGENTS.md opens with 'Which layer? Decide before you add code': his words of 2026-11-17, the four layers (Foldkit core, a domain core, Client adapters, engine and service adapters) with what each may and may not name, a table that places every piece of the words tail and background playback in its layer, and five questions to answer before adding code. Nothing that was there is changed.
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+  - `PRINCIPLES.md` — changed by this commit
+  - `skills/foldkit-client-hosts/SKILL.md` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `2fa3ee2e06cb` feat(books): green: books words, once or followed, from the player (Scribe #2494)
+
+- **Implementation commit:** `2fa3ee2e06cb011be9b809000cf93259d86e577d`
+- **Change:** green: books words, once or followed, from the player (Scribe #2494)
+- **Details:**
+  - The terminal adapter prints what the books core says is being read and adds nothing of its own:
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `7e37cfa60824` feat(foldkit): green: follow <topic> on the command line, written to a pipe (Scribe #2494)
+
+- **Implementation commit:** `7e37cfa608244b365352f2743240672fd1ac6f40`
+- **Change:** green: follow <topic> on the command line, written to a pipe (Scribe #2494)
+- **Details:**
+  - The slim CLI view reads and serves 'follow <topic>' for any Program:
+- **Files:**
+  - `packages/foldkit/src/cli/argv.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `93921e4f1bc4` feat(books): green: the words being read, as the books core says them (Scribe #2494)
+
+- **Implementation commit:** `93921e4f1bc42c2cbc03b5080f51056986c3f886`
+- **Change:** green: the words being read, as the books core says them (Scribe #2494)
+- **Details:**
+  - core/src/words.ts reads the words being read from the Model alone, whatever page is showing, so every Client says the same thing:
+- **Files:**
+  - `examples/books/core/src/index.ts` — changed by this commit
+  - `examples/books/core/src/words.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `eebe1076cbe7` feat(foldkit): export an excerpt's wire form for a Program's own Schemas (Scribe #2494)
+
+- **Implementation commit:** `eebe1076cbe72a6f489ee3dc0cb9a2835c7a4f98`
+- **Change:** export an excerpt's wire form for a Program's own Schemas (Scribe #2494)
+- **Details:**
+  - TranscriptExcerptWire is the excerpt with heading, currentWord and currentWordIndex as its encoded keys, the Schema TranscriptExcerptJson is built from, so a Program that sends an excerpt inside a larger value, such as the title and place it belongs to, reuses it instead of naming the keys again. The excerpt test checks the JSON line against it.
+- **Files:**
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptExcerpt.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptExcerpt.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:46 p.m. EST — `62ac4c59f5d7` feat(foldkit): green: the paragraph being read, with those around it (Scribe #2494)
+
+- **Implementation commit:** `62ac4c59f5d7f218e4982868231b2429521c9879`
+- **Change:** green: the paragraph being read, with those around it (Scribe #2494)
+- **Details:**
+  - foldkit/renderers gains a reading of a Transcript for surfaces that show only the words being read:
+- **Files:**
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/query.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptExcerpt.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:46 p.m. EST — `b8ef1630ebe8` feat(foldkit): green: follow a CLI daemon's topic until it ends (Scribe #2494)
+
+- **Implementation commit:** `b8ef1630ebe8d9f18f4e12f68e810f1b20c9bc35`
+- **Change:** green: follow a CLI daemon's topic until it ends (Scribe #2494)
+- **Details:**
+  - A view can keep one connection open on a topic of a daemon's Program and hear each new text as it changes, so an import's progress, a player's place, or the words being read need no polling and take over no terminal.
+- **Files:**
+  - `packages/foldkit/src/cli/follow.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/listen.ts` — changed by this commit
+  - `packages/foldkit/src/cli/protocol.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/follow.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/index.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/public.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 13th, 2026 at 11:39:57 a.m. EST — `e517a3f18c03` fix(issues): a query to Scribe's app is sent again when Instant rate-limits it (Scribe #2348)
 
 - **Implementation commit:** `e517a3f18c03ded1f56aef78bc53141f6b094ac9`
