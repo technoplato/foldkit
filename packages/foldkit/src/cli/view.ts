@@ -323,7 +323,10 @@ export const printCliViewTrace = (
   runtime.stderr.write(`${lines.join('\n')}\n`)
 }
 
-const writeText = (stream: NodeJS.WriteStream, text: string): void => {
+const writeText = (
+  stream: Readonly<{ write: (text: string) => unknown }>,
+  text: string,
+): void => {
   if (text === '') {
     return
   }
@@ -553,6 +556,21 @@ export const runCliFollowView = async (
   )
 }
 
+/**
+ * What {@link writeCliFollow} needs of the process it writes for: where
+ * the texts and a refusal go, the signals that stop it, and the exit code
+ * it sets. `process` is one.
+ */
+export type CliFollowRuntime = {
+  readonly stdout: Readonly<{
+    write: (text: string) => unknown
+    once: (event: 'error', listener: () => void) => unknown
+  }>
+  readonly stderr: Readonly<{ write: (text: string) => unknown }>
+  readonly once: (event: 'SIGINT' | 'SIGTERM', listener: () => void) => unknown
+  exitCode?: number | string | null | undefined
+}
+
 export type WriteCliFollowOptions = Readonly<{
   socketPath: string
   request: CliFollowRequest
@@ -580,7 +598,7 @@ export type WriteCliFollowOptions = Readonly<{
  */
 export const writeCliFollow = async (
   options: WriteCliFollowOptions,
-  runtime: NodeJS.Process = process,
+  runtime: CliFollowRuntime = process,
 ): Promise<void> => {
   const stopping = new AbortController()
   const stop = (): void => {
@@ -614,7 +632,9 @@ export const writeCliFollow = async (
       runtime.exitCode = 0
     }
   } catch (cause) {
-    writeCliViewResult(cliViewFailed(cause), runtime)
+    const failed = cliViewFailed(cause)
+    writeText(runtime.stderr, failed.stderr)
+    runtime.exitCode = failed.exitCode
   }
 }
 

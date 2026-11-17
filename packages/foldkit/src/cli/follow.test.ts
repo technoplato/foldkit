@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { Effect, Stream } from 'effect'
+import { Effect, Schema as S, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { follow } from '../interaction/follow.js'
@@ -9,7 +9,12 @@ import { startCliDaemonServer } from './listen.js'
 import { cliDaemonSocketPath } from './paths.js'
 import { CliDaemonError, type CliDaemonSurface } from './protocol.js'
 import { followTopicOf, programCliSurface } from './surface.js'
-import { askCliView, followCliView, writeCliFollow } from './view.js'
+import {
+  type CliFollowRuntime,
+  askCliView,
+  followCliView,
+  writeCliFollow,
+} from './view.js'
 
 const socketPathFor = (name: string): string =>
   cliDaemonSocketPath({
@@ -45,8 +50,8 @@ const serving = <A>(
       Effect.andThen(
         startCliDaemonServer({
           socketPath,
-          Model: undefined as never,
-          Message: undefined as never,
+          Model: S.Unknown,
+          Message: S.Never,
           surface,
         }),
         Effect.promise(use),
@@ -141,22 +146,21 @@ describe('following a CLI daemon', () => {
 
 const fakeRuntime = () => {
   const written = { stdout: '', stderr: '' }
-  const runtime = {
+  const runtime: CliFollowRuntime = {
     stdout: {
-      write: (text: string) => {
+      write: text => {
         written.stdout = `${written.stdout}${text}`
         return true
       },
-      once: () => runtime.stdout,
+      once: () => undefined,
     },
     stderr: {
-      write: (text: string) => {
+      write: text => {
         written.stderr = `${written.stderr}${text}`
         return true
       },
     },
-    once: () => runtime,
-    exitCode: undefined as number | undefined,
+    once: () => undefined,
   }
   return { runtime, written }
 }
@@ -169,10 +173,7 @@ describe('following to a pipe', () => {
       socketPath,
       surfaceFollowing(() => Stream.make('# one', '# two\n> line')),
       () =>
-        writeCliFollow(
-          { socketPath, request: { topic: 'words' } },
-          runtime as never,
-        ),
+        writeCliFollow({ socketPath, request: { topic: 'words' } }, runtime),
     )
     expect(written.stdout).toBe('# one\n# two\n> line\n')
     expect(written.stderr).toBe('')
@@ -188,10 +189,7 @@ describe('following to a pipe', () => {
         Stream.fail(new CliDaemonError({ message: 'Nothing to follow.' })),
       ),
       () =>
-        writeCliFollow(
-          { socketPath, request: { topic: 'nothing' } },
-          runtime as never,
-        ),
+        writeCliFollow({ socketPath, request: { topic: 'nothing' } }, runtime),
     )
     expect(written.stdout).toBe('')
     expect(written.stderr).toBe('Nothing to follow.\n')
