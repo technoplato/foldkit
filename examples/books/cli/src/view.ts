@@ -6,12 +6,14 @@
  */
 import {
   type CliViewRequest,
+  type FollowArgv,
   askCliView,
   cliViewFailed,
   isCliViewListening,
   runCliTuiView,
   runCliView,
   spawnCliViewDaemon,
+  writeCliFollow,
   writeCliViewResult,
 } from 'foldkit/cli/view'
 import { fileURLToPath } from 'node:url'
@@ -48,6 +50,18 @@ export const askPlayer = async (request: CliViewRequest): Promise<void> => {
   } catch (cause) {
     writeCliViewResult(cliViewFailed(cause))
   }
+}
+
+/**
+ * `books follow words`: writes a topic of the player to stdout each time
+ * it changes, starting the player first when it is not running, until
+ * Ctrl-C or the pipe's reader goes away. It takes over nothing, so
+ * `books follow words --json | jq .header.place` works.
+ */
+export const followPlayer = async (request: FollowArgv): Promise<void> => {
+  const socketPath = booksPlayerSocketPath()
+  await sayWhenStarting(socketPath)
+  await writeCliFollow({ socketPath, spawn: spawnPlayer, request })
 }
 
 /**

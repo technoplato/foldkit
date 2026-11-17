@@ -10,6 +10,9 @@
  *   books pause                    pause; `books play` plays again
  *   books skip-forward             30 seconds on; `books skip-back` back
  *   books seek-to 1h00m00s         go to a place
+ *   books words                    the paragraph being read, with those around it
+ *   books follow words             the same, again on each new paragraph
+ *   books follow words --json      as lines of JSON, for another program
  *   books tui                      the player, live, in this terminal
  *   books stop                     pause, save your place, end the player
  *   books actions                  every command
@@ -22,18 +25,22 @@
  * file must not import Effect, Instant, or the Program, so a command
  * starts fast.
  */
-import { parseProgramArgv } from 'foldkit/cli/view'
+import { followArgvOf, parseProgramArgv } from 'foldkit/cli/view'
 import { spawnSync } from 'node:child_process'
 
-import { askPlayer, showPlayerTui, stopPlayer } from './view.js'
+import { askPlayer, followPlayer, showPlayerTui, stopPlayer } from './view.js'
 
 const hostedOrigin = 'https://books.pisspoursoftware.xyz'
 
 const request = parseProgramArgv(process.argv.slice(2))
 
+const maybeFollow = followArgvOf(process.argv.slice(2))
+
 const [head = ''] = request._tag === 'Do' ? request.token.split(' ') : []
 
-if (request._tag === 'Tail') {
+if (maybeFollow !== undefined) {
+  await followPlayer(maybeFollow)
+} else if (request._tag === 'Tail') {
   const { runTail } = await import('./inProcess.js')
   await runTail()
 } else if (request._tag === 'Watch') {

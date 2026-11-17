@@ -1,28 +1,45 @@
 import {
   type BoundBooks,
   type LibraryStoreService,
+  type SpokenWords,
+  SpokenWordsJson,
   type SyncedBooksMessage,
   type SyncedBooksModel,
   briefScreen,
   clockOf,
+  isSameParagraph,
   loadedTitleOf,
   placeOf,
+  spokenWordsLines,
+  spokenWordsOf,
   suggestedPressesOf,
 } from 'books-core-example'
-import { Array, Deferred, Duration, Effect, Option, pipe } from 'effect'
+import {
+  Array,
+  Deferred,
+  Duration,
+  Effect,
+  Option,
+  Schema as S,
+  Stream,
+  pipe,
+} from 'effect'
 import { Interaction, type Processor } from 'foldkit'
 import {
   CliDaemonError,
   type CliDaemonFlags,
   type CliDaemonPaintedResult,
   type CliDaemonSurface,
+  type CliFollowing,
   type HostCommand,
   type TerminalPaintReporting,
+  followTopicOf,
   isTerminalViewRequest,
   makeProgramTerminalView,
   paintCommands,
   paintProgram,
   programCliSurface,
+  programFollowings,
   runProgramCommand,
 } from 'foldkit/cli'
 import { renderScreen } from 'foldkit/renderers'
@@ -40,7 +57,10 @@ const readyOf = (
 const hostCommandsOf = (isLoaded: boolean): ReadonlyArray<HostCommand> => [
   { command: 'tui', what: 'Opens the live player here' },
   ...(isLoaded
-    ? [{ command: 'stop', what: 'Stops and saves your place' }]
+    ? [
+        { command: 'follow words', what: 'Prints the words as they are read' },
+        { command: 'stop', what: 'Stops and saves your place' },
+      ]
     : []),
   { command: 'actions', what: 'Lists every command' },
   { command: 'login', what: 'Signs in to Cloudflare Access' },
@@ -86,6 +106,102 @@ export const paintBrief = (bound: BoundBooks): string =>
         '\n',
       ),
   })
+
+// WORDS
+
+const countFlagOf = (
+  flags: CliDaemonFlags,
+  name: string,
+): Option.Option<number> =>
+  pipe(
+    Option.fromNullishOr(flags[name]),
+    Option.map(Number),
+    Option.filter(count => Number.isInteger(count) && count >= 0),
+  )
+
+const aroundOf = (flags: CliDaemonFlags) => ({
+  ...Option.match(countFlagOf(flags, 'before'), {
+    onNone: () => ({}),
+    onSome: leading => ({ leading }),
+  }),
+  ...Option.match(countFlagOf(flags, 'after'), {
+    onNone: () => ({}),
+    onSome: trailing => ({ trailing }),
+  }),
+})
+
+const wordsNowOf = (bound: BoundBooks, flags: CliDaemonFlags) =>
+  Option.map(readyOf(bound.readModel()), model =>
+    spokenWordsOf(model, aroundOf(flags)),
+  )
+
+/**
+ * What `books words` prints: the words being read in the player, as the
+ * books core says them. Lines for a pipe, a `#` line naming the title,
+ * chapter, place and link, then `-`, `>` and `+` paragraphs; with
+ * `--json`, one line of JSON. `--before 2 --after 3` choose how many
+ * paragraphs sit around the one being read. While Books is still opening,
+ * one `#` line says so.
+ *
+ * @example
+ * ```typescript
+ * paintWords(bound, {})
+ * // '# A New Earth · Chapter 3 · 1:02:03 of 9:13:01 · playing · /books/a-new-earth/listen/1h02m03s\n- 1:01:40 …\n> 1:02:01 … [word] …\n+ 1:02:30 …'
+ * paintWords(bound, { json: '1' })
+ * // '{"_tag":"WordsNow","header":{…},"excerpt":{…}}'
+ * ```
+ */
+export const paintWords = (bound: BoundBooks, flags: CliDaemonFlags): string =>
+  wordsTextOf(bound, flags, wordsNowOf(bound, flags))
+
+const wordsTextOf = (
+  bound: BoundBooks,
+  flags: CliDaemonFlags,
+  maybeWords: Option.Option<SpokenWords>,
+): string =>
+  Option.match(maybeWords, {
+    onNone: () =>
+      flags['json'] === '1'
+        ? JSON.stringify({ _tag: 'Opening', sentence: statusOf(bound) })
+        : `# ${statusOf(bound)}`,
+    onSome: words =>
+      flags['json'] === '1'
+        ? S.encodeSync(SpokenWordsJson)(words)
+        : Array.join(spokenWordsLines(words), '\n'),
+  })
+
+type WordsReading = Readonly<{
+  maybeWords: Option.Option<SpokenWords>
+  text: string
+}>
+
+const isSameWords = Option.makeEquivalence(isSameParagraph)
+
+/**
+ * The `words` topic a view follows: what `books words` prints now, then
+ * again each time the paragraph being read, the title, or whether it
+ * plays changes, so `books follow words` scrolls the book as it is read.
+ * `--each-word` prints again for every word instead. Each text is painted
+ * at the moment it changed, so a slow reader never sees a later place
+ * under an earlier change.
+ */
+const followWords =
+  (bound: BoundBooks): CliFollowing =>
+  flags => {
+    const read = (): WordsReading => {
+      const maybeWords = wordsNowOf(bound, flags)
+      return { maybeWords, text: wordsTextOf(bound, flags, maybeWords) }
+    }
+    const isSame =
+      flags['each-word'] === '1'
+        ? (self: WordsReading, that: WordsReading) => self.text === that.text
+        : (self: WordsReading, that: WordsReading) =>
+            isSameWords(self.maybeWords, that.maybeWords)
+    return Stream.map(
+      Interaction.follow(bound, read, isSame),
+      reading => reading.text,
+    )
+  }
 
 // WRITES
 
@@ -217,9 +333,10 @@ export type BooksPlayer = Readonly<{
  * The Books player's socket surface. Every command acts on this one
  * player and prints the brief after it runs: `books listen a-new-earth`
  * plays, `books pause` pauses, `books seek-to 1h00m00s` moves. `books` and
- * `books help` print the brief, `books actions` every command, and
- * `books stop` pauses, waits for the place to save, says so, and ends the
- * player. A terminal UI view gets the player's screen, fitted to its
+ * `books help` print the brief, `books actions` every command, `books
+ * words` the paragraph being read with those around it, and `books stop`
+ * pauses, waits for the place to save, says so, and ends the player. A
+ * view may follow `words` or `screen` and hear each change. A terminal UI view gets the player's screen, fitted to its
  * terminal, and its keys go through the same Program. Every command and
  * key is sent on behalf of the client that asked, `Cli` for `books pause`
  * and `Tui` for a `books tui` key, so telemetry records what each caused
@@ -266,11 +383,17 @@ export const makeBooksPlayer = (
       yield* Deferred.succeed(stopped, undefined)
       return { stdout: sentence, exitCode: 0 }
     })
+  const followings = {
+    ...programFollowings(bound),
+    words: followWords(bound),
+  }
   return {
     stopped: Deferred.await(stopped),
     surface: {
       read: programSurface.read,
       run: programSurface.run,
+      follow: (topic, flags, client) =>
+        followTopicOf(followings, topic, flags, client),
       show: (flags, client) =>
         isTerminalViewRequest(flags)
           ? terminal.paint(flags, client)
@@ -289,6 +412,11 @@ export const makeBooksPlayer = (
           }))
         } else if (head === 'stop') {
           return stop(client)
+        } else if (head === 'words') {
+          return Effect.sync(() => ({
+            stdout: paintWords(bound, flags),
+            exitCode: 0,
+          }))
         } else if (head === 'where') {
           return Effect.sync(() =>
             runProgramCommand(bound, booksCommandName, words, flags),
@@ -313,6 +441,7 @@ export const refusingSurface = (
   return {
     read: () => Effect.fail(new CliDaemonError({ message: reason })),
     run: () => Effect.fail(new CliDaemonError({ message: reason })),
+    follow: () => Stream.fail(new CliDaemonError({ message: reason })),
     show: () => refused,
     do: () => refused,
   }

@@ -313,6 +313,7 @@ describe('books words', () => {
     expect(words.exitCode).toBe(0)
     expect(words.stdout.split('\n')).toEqual([
       '# The Lantern Keeper · The Tide · 0:06 of 1:20:00 · playing · /books/the-lantern-keeper/listen/6s',
+      '## The Tide',
       '- 0:00 The keeper climbed the stairs at dusk.',
       '> 0:05 He [trimmed] the wick and waited.',
       '+ 0:10 Far out a bell answered the lamp.',
