@@ -12,6 +12,7 @@
  *   counter key k --meta    press any key
  *   counter tail            print every event as it lands
  *   counter watch           repaint the count as it changes
+ *   counter follow          print the daemon's screen each time it changes
  *   counter help            usage derived from the Catalog
  *
  * This file must not import Effect, Instant, or the Program, so the view
@@ -20,9 +21,11 @@
 import {
   cliDaemonSocketPath,
   cliViewFailed,
+  followArgvOf,
   parseProgramArgv,
   runCliView,
   spawnCliViewDaemon,
+  writeCliFollow,
   writeCliViewResult,
 } from 'foldkit/cli/view'
 import { fileURLToPath } from 'node:url'
@@ -43,22 +46,23 @@ if (request._tag === 'Tail') {
   const { runWatch } = await import('./watch.js')
   await runWatch(tape)
 } else if (tape._tag === 'Instant') {
-  try {
-    writeCliViewResult(
-      await runCliView({
-        socketPath: cliDaemonSocketPath({
-          programId: counterCliProgramId,
-          isolationKey: counterCliIsolationKey,
-        }),
-        spawn: () =>
-          spawnCliViewDaemon({
-            scriptPath: fileURLToPath(new URL('./daemon.js', import.meta.url)),
-          }),
-        request,
-      }),
-    )
-  } catch (cause) {
-    writeCliViewResult(cliViewFailed(cause))
+  const socketPath = cliDaemonSocketPath({
+    programId: counterCliProgramId,
+    isolationKey: counterCliIsolationKey,
+  })
+  const spawn = () =>
+    spawnCliViewDaemon({
+      scriptPath: fileURLToPath(new URL('./daemon.js', import.meta.url)),
+    })
+  const maybeFollow = followArgvOf(process.argv.slice(2))
+  if (maybeFollow !== undefined) {
+    await writeCliFollow({ socketPath, spawn, request: maybeFollow })
+  } else {
+    try {
+      writeCliViewResult(await runCliView({ socketPath, spawn, request }))
+    } catch (cause) {
+      writeCliViewResult(cliViewFailed(cause))
+    }
   }
 } else {
   const { runInProcess } = await import('./inProcess.js')
