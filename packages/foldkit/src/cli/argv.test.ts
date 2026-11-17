@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseProgramArgv } from './argv.js'
+import { followArgvOf, parseProgramArgv } from './argv.js'
 import { cliViewFailed } from './view.js'
 
 describe('parseProgramArgv', () => {
@@ -21,6 +21,23 @@ describe('parseProgramArgv', () => {
       token: 'key k',
       flags: { meta: '1' },
     })
+  })
+})
+
+describe('followArgvOf', () => {
+  it('reads follow, its topic, and the flags that shape its text', () => {
+    expect(
+      followArgvOf(['follow', 'words', '--json', '--before', '2']),
+    ).toEqual({ topic: 'words', flags: { json: '1', before: '2' } })
+  })
+
+  it('follows the screen when no topic is named', () => {
+    expect(followArgvOf(['follow'])).toEqual({ topic: 'screen', flags: {} })
+  })
+
+  it('is undefined for any other command', () => {
+    expect(followArgvOf(['increment'])).toBeUndefined()
+    expect(followArgvOf([])).toBeUndefined()
   })
 })
 

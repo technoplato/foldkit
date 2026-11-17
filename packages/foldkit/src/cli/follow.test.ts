@@ -9,7 +9,7 @@ import { startCliDaemonServer } from './listen.js'
 import { cliDaemonSocketPath } from './paths.js'
 import { CliDaemonError, type CliDaemonSurface } from './protocol.js'
 import { followTopicOf, programCliSurface } from './surface.js'
-import { askCliView, followCliView } from './view.js'
+import { askCliView, followCliView, writeCliFollow } from './view.js'
 
 const socketPathFor = (name: string): string =>
   cliDaemonSocketPath({
@@ -136,6 +136,66 @@ describe('following a CLI daemon', () => {
       () => followCliView(socketPath, { topic: 'nothing' }, () => {}),
     )
     expect(end).toEqual({ _tag: 'Lost', reason: 'Nothing to follow.' })
+  })
+})
+
+const fakeRuntime = () => {
+  const written = { stdout: '', stderr: '' }
+  const runtime = {
+    stdout: {
+      write: (text: string) => {
+        written.stdout = `${written.stdout}${text}`
+        return true
+      },
+      once: () => runtime.stdout,
+    },
+    stderr: {
+      write: (text: string) => {
+        written.stderr = `${written.stderr}${text}`
+        return true
+      },
+    },
+    once: () => runtime,
+    exitCode: undefined as number | undefined,
+  }
+  return { runtime, written }
+}
+
+describe('following to a pipe', () => {
+  it('writes each text on its own lines and exits 0 when the topic ends', async () => {
+    const socketPath = socketPathFor('pipe')
+    const { runtime, written } = fakeRuntime()
+    await serving(
+      socketPath,
+      surfaceFollowing(() => Stream.make('# one', '# two\n> line')),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'words' } },
+          runtime as never,
+        ),
+    )
+    expect(written.stdout).toBe('# one\n# two\n> line\n')
+    expect(written.stderr).toBe('')
+    expect(runtime.exitCode).toBe(0)
+  })
+
+  it('says why on stderr and exits 1 when the topic is refused', async () => {
+    const socketPath = socketPathFor('pipe-refused')
+    const { runtime, written } = fakeRuntime()
+    await serving(
+      socketPath,
+      surfaceFollowing(() =>
+        Stream.fail(new CliDaemonError({ message: 'Nothing to follow.' })),
+      ),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'nothing' } },
+          runtime as never,
+        ),
+    )
+    expect(written.stdout).toBe('')
+    expect(written.stderr).toBe('Nothing to follow.\n')
+    expect(runtime.exitCode).toBe(1)
   })
 })
 
