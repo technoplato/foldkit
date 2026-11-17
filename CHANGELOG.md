@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 17th, 2026 at 5:50:50 p.m. EST — `c05de40298cc` refactor(foldkit): writeCliFollow names what it needs of a process (Scribe #2494)
+
+- **Implementation commit:** `c05de40298cc8bb4687fb3e8b95e7a15268d6bfb`
+- **Change:** writeCliFollow names what it needs of a process (Scribe #2494)
+- **Details:**
+  - writeCliFollow takes a CliFollowRuntime that process satisfies, so its test passes a typed stand-in; the type assertions lint reported in follow.test.ts are gone.
+- **Files:**
+  - `packages/foldkit/src/cli/view.ts` — CliFollowRuntime and writeCliFollow's parameter
+  - `packages/foldkit/src/cli/follow.test.ts` — a typed stand-in and real Schemas
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 17th, 2026 at 5:47:47 p.m. EST — `edd80a654706` feat(counter): counter follow prints the daemon's screen each time it changes (Scribe #2494)
 
 - **Implementation commit:** `edd80a654706de3776697927807d9b19182930ae`
