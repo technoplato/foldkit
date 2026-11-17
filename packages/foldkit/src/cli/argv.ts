@@ -31,9 +31,17 @@ export type ProgramArgv =
       flags: Readonly<Record<string, string>>
     }>
 
-const booleanFlags: ReadonlySet<string> = new Set(['meta', 'ctrl', 'shift'])
+const booleanFlags: ReadonlySet<string> = new Set([
+  'meta',
+  'ctrl',
+  'shift',
+  'json',
+])
 
-/** Splits argv into words and `--name value` or `--name=value` flags. */
+/**
+ * Splits argv into words and `--name value` or `--name=value` flags.
+ * `--meta`, `--ctrl`, `--shift`, and `--json` take no value.
+ */
 export const parseProgramArgv = (argv: ReadonlyArray<string>): ProgramArgv => {
   const words: Array<string> = []
   const flags: Record<string, string> = {}
@@ -65,5 +73,49 @@ export const parseProgramArgv = (argv: ReadonlyArray<string>): ProgramArgv => {
     return { _tag: 'Watch', flags }
   } else {
     return { _tag: 'Do', token, flags }
+  }
+}
+
+/**
+ * A topic to follow, as argv names it: the word after `follow`, the
+ * screen when there is none, and the flags that shape its text.
+ */
+export type FollowArgv = Readonly<{
+  topic: string
+  flags: Readonly<Record<string, string>>
+}>
+
+const followWord = 'follow'
+
+const defaultFollowTopic = 'screen'
+
+/**
+ * Reads `follow <topic>` from argv, the command every Program's CLI has
+ * for hearing a topic of its daemon as it changes: `counter follow`
+ * follows the screen, `books follow words --json` the words being read as
+ * lines of JSON. Undefined for any other command.
+ *
+ * @example
+ * ```typescript
+ * followArgvOf(['follow', 'words', '--json']) // { topic: 'words', flags: { json: '1' } }
+ * followArgvOf(['follow']) // { topic: 'screen', flags: {} }
+ * followArgvOf(['increment']) // undefined
+ * ```
+ */
+export const followArgvOf = (
+  argv: ReadonlyArray<string>,
+): FollowArgv | undefined => {
+  const request = parseProgramArgv(argv)
+  if (request._tag !== 'Do') {
+    return undefined
+  }
+  const [head = '', ...rest] = request.token.split(' ')
+  if (head !== followWord) {
+    return undefined
+  }
+  const topic = rest.join(' ')
+  return {
+    topic: topic === '' ? defaultFollowTopic : topic,
+    flags: request.flags,
   }
 }

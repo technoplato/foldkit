@@ -19,7 +19,12 @@ export {
   cliDaemonSocketPath,
   removeCliDaemonFiles,
 } from './paths.js'
-export { parseProgramArgv, type ProgramArgv } from './argv.js'
+export {
+  type FollowArgv,
+  type ProgramArgv,
+  followArgvOf,
+  parseProgramArgv,
+} from './argv.js'
 
 /** Ready wait copied from the Effect client so this file never imports Effect. */
 export const cliViewReadyTimeoutMs = 20_000
@@ -527,6 +532,71 @@ export const runCliFollowView = async (
     options.onText,
     options.signal === undefined ? {} : { signal: options.signal },
   )
+}
+
+export type WriteCliFollowOptions = Readonly<{
+  socketPath: string
+  request: CliFollowRequest
+  spawn?: () => ChildProcess
+  timeoutMs?: number
+}>
+
+/**
+ * Follows one topic and writes it where a pipe can read it: each text on
+ * its own lines on stdout, nothing else, until the topic ends, the
+ * process is told to stop (Ctrl-C, SIGTERM), or the reader of the pipe
+ * goes away, as after `books follow words | head -3`. Those exit 0. When
+ * the daemon refuses the topic or goes away, the reason goes to stderr
+ * and the exit code is 1. With `spawn`, a daemon that is not running is
+ * started first. This module must not import Effect, Instant, or a
+ * Program.
+ *
+ * @example
+ * ```typescript
+ * const follow = followArgvOf(process.argv.slice(2))
+ * if (follow !== undefined) {
+ *   await writeCliFollow({ socketPath, spawn, request: follow })
+ * }
+ * ```
+ */
+export const writeCliFollow = async (
+  options: WriteCliFollowOptions,
+  runtime: NodeJS.Process = process,
+): Promise<void> => {
+  const stopping = new AbortController()
+  const stop = (): void => {
+    stopping.abort()
+  }
+  runtime.once('SIGINT', stop)
+  runtime.once('SIGTERM', stop)
+  runtime.stdout.once('error', stop)
+  try {
+    if (options.spawn !== undefined) {
+      await ensureCliViewDaemon({
+        socketPath: options.socketPath,
+        spawn: options.spawn,
+        ...(options.timeoutMs === undefined
+          ? {}
+          : { timeoutMs: options.timeoutMs }),
+      })
+    }
+    const end = await followCliView(
+      options.socketPath,
+      options.request,
+      text => {
+        writeText(runtime.stdout, text)
+      },
+      { signal: stopping.signal },
+    )
+    if (end._tag === 'Lost') {
+      writeText(runtime.stderr, end.reason)
+      runtime.exitCode = 1
+    } else {
+      runtime.exitCode = 0
+    }
+  } catch (cause) {
+    writeCliViewResult(cliViewFailed(cause), runtime)
+  }
 }
 
 // TERMINAL UI

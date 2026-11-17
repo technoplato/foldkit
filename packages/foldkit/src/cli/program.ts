@@ -391,6 +391,11 @@ const controlsOf = <Model, Message>(
       example: 'watch',
     },
     {
+      usage: 'follow [topic]',
+      what: 'Print a topic each time it changes, the screen unless named',
+      example: 'follow screen',
+    },
+    {
       usage: 'tail',
       what: 'Print every event as it lands, from every device',
       example: 'tail',
