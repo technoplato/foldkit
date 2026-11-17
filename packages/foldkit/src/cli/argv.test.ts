@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { followArgvOf, parseProgramArgv } from './argv.js'
+import { followArgvOf, parseProgramArgv, withStdinWord } from './argv.js'
 import { cliViewFailed } from './view.js'
 
 describe('parseProgramArgv', () => {
@@ -38,6 +38,27 @@ describe('followArgvOf', () => {
   it('is undefined for any other command', () => {
     expect(followArgvOf(['increment'])).toBeUndefined()
     expect(followArgvOf([])).toBeUndefined()
+  })
+})
+
+describe('withStdinWord', () => {
+  it('takes the last word from stdin when it is a lone dash, so a secret stays out of argv', async () => {
+    const argv = await withStdinWord(
+      ['connect', '-'],
+      async () => 'https://sign-in.example.test/landing?code=made-up\n',
+    )
+    expect(argv).toEqual([
+      'connect',
+      'https://sign-in.example.test/landing?code=made-up',
+    ])
+  })
+
+  it('leaves argv alone, and never reads stdin, without a trailing dash', async () => {
+    const argv = await withStdinWord(['increment'], async () => {
+      throw new Error('stdin was read')
+    })
+    expect(argv).toEqual(['increment'])
+    expect(await withStdinWord([], async () => 'unused')).toEqual([])
   })
 })
 
