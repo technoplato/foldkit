@@ -24,7 +24,26 @@ export {
   type ProgramArgv,
   followArgvOf,
   parseProgramArgv,
+  withStdinWord,
 } from './argv.js'
+
+/**
+ * All of a process's stdin as text, for {@link withStdinWord}.
+ *
+ * @example
+ * ```typescript
+ * const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
+ * ```
+ */
+export const readStdinText = async (
+  input: NodeJS.ReadableStream = process.stdin,
+): Promise<string> => {
+  const chunks: Array<string> = []
+  for await (const chunk of input) {
+    chunks.push(String(chunk))
+  }
+  return chunks.join('')
+}
 
 /** Ready wait copied from the Effect client so this file never imports Effect. */
 export const cliViewReadyTimeoutMs = 20_000

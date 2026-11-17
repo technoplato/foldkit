@@ -119,3 +119,29 @@ export const followArgvOf = (
     flags: request.flags,
   }
 }
+
+const stdinWord = '-'
+
+/**
+ * Argv with its last word read from stdin when that word is a lone dash,
+ * so a secret never sits in the shell's history or the process list:
+ * `pbpaste | books connect-audible -` sends the pasted address as the
+ * word. Stdin's text is trimmed. Without a trailing dash argv comes back
+ * as it is and stdin is never read.
+ *
+ * @example
+ * ```typescript
+ * await withStdinWord(['connect-audible', '-'], readStdinText)
+ * // ['connect-audible', 'https://www.amazon.com/ap/maplanding?…']
+ * ```
+ */
+export const withStdinWord = async (
+  argv: ReadonlyArray<string>,
+  readStdin: () => Promise<string>,
+): Promise<ReadonlyArray<string>> => {
+  if (argv.at(-1) !== stdinWord) {
+    return argv
+  }
+  const word = (await readStdin()).trim()
+  return [...argv.slice(0, -1), word]
+}
