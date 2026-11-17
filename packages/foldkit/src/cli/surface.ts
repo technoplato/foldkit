@@ -1,14 +1,16 @@
-import { Array, Effect, Option, Ref, pipe } from 'effect'
+import { Array, Effect, Option, Record, Ref, Stream, pipe } from 'effect'
 
 import { type BoundInteraction, onBehalfOf } from '../interaction/bind.js'
+import { follow } from '../interaction/follow.js'
 import { terminalKeyInput } from '../interaction/interaction.js'
 import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
 import { type Host, Tui } from '../processor/host.js'
-import { paintProgram, runProgramCommand } from './program.js'
-import type {
-  CliDaemonFlags,
-  CliDaemonPaintedResult,
-  CliDaemonSurface,
+import { paintProgram, paintScreen, runProgramCommand } from './program.js'
+import {
+  CliDaemonError,
+  type CliDaemonFlags,
+  type CliDaemonPaintedResult,
+  type CliDaemonSurface,
 } from './protocol.js'
 import {
   type TerminalPaintPhase,
@@ -163,6 +165,66 @@ export const makeProgramTerminalView = <Model, Message>(
   return { paint, pressKey }
 }
 
+// FOLLOW
+
+/**
+ * The texts one topic emits while a view follows it: the text now, then
+ * each new one. `flags` shape the text, such as `{ json: '1' }`, and
+ * `client` is the Host of the view that follows.
+ */
+export type CliFollowing = (
+  flags: CliDaemonFlags,
+  client: Host,
+) => Stream.Stream<string, CliDaemonError>
+
+/** The topics a daemon lets a view follow, by name, such as `screen`. */
+export type CliFollowings = Readonly<Record<string, CliFollowing>>
+
+/**
+ * The topics every bound Program has. `screen` is the painted screen,
+ * where the Program is and what it shows without the Action list, sent
+ * now and again each time it paints differently, so a view can watch an
+ * import count up or a player move without asking twice. A host adds its
+ * Program's own topics beside it.
+ *
+ * @example
+ * ```typescript
+ * const followings = { ...programFollowings(bound), words: followWords }
+ * ```
+ */
+export const programFollowings = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+): CliFollowings => ({
+  screen: () => follow(bound, () => paintScreen(bound)),
+})
+
+/**
+ * The Stream for the topic a view asked to follow, or a refusal that names
+ * the topics there are.
+ *
+ * @example
+ * ```typescript
+ * followTopicOf(programFollowings(bound), 'screen', {}, Cli())
+ * followTopicOf(programFollowings(bound), 'wrods', {}, Cli())
+ * // fails: Nothing here is called "wrods" to follow. Follow one of: screen.
+ * ```
+ */
+export const followTopicOf = (
+  followings: CliFollowings,
+  topic: string,
+  flags: CliDaemonFlags,
+  client: Host,
+): Stream.Stream<string, CliDaemonError> =>
+  Option.match(Record.get(followings, topic), {
+    onNone: () =>
+      Stream.fail(
+        new CliDaemonError({
+          message: `Nothing here is called "${topic}" to follow. Follow one of: ${Array.join(Record.keys(followings), ', ')}.`,
+        }),
+      ),
+    onSome: following => following(flags, client),
+  })
+
 // SURFACE
 
 const wordsOf = (token: string): ReadonlyArray<string> =>
@@ -178,6 +240,8 @@ const wordsOf = (token: string): ReadonlyArray<string> =>
  * from a terminal UI view paints the Program to fit that terminal and
  * presses the key it read, so `runCliTuiView` shows the daemon's Program
  * live, and `onPainted` hears how long each of those frames took to paint.
+ * `follow` serves the topics every Program has, see
+ * {@link programFollowings}.
  */
 export const programCliSurface = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
@@ -208,5 +272,7 @@ export const programCliSurface = <Model, Message>(
               runProgramCommand(bound, name, wordsOf(token), flags),
             ),
           ),
+    follow: (topic, flags, client) =>
+      followTopicOf(programFollowings(bound), topic, flags, client),
   }
 }

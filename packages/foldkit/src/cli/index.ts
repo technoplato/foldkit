@@ -2,6 +2,9 @@ export {
   CliDaemonDo,
   CliDaemonFailed,
   CliDaemonFlags,
+  CliDaemonFollow,
+  CliDaemonFollowEnded,
+  CliDaemonFollowed,
   CliDaemonPainted,
   CliDaemonRead,
   CliDaemonShow,
@@ -51,10 +54,14 @@ export {
   runProgramCommand,
 } from './program.js'
 export {
+  type CliFollowing,
+  type CliFollowings,
   type ProgramTerminalView,
+  followTopicOf,
   isTerminalViewRequest,
   makeProgramTerminalView,
   programCliSurface,
+  programFollowings,
 } from './surface.js'
 
 export { keyInputOfTerminal, runProgramTui } from './tui.js'

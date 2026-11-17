@@ -9,6 +9,7 @@ export {
   TypedInMenu,
   applyGesture,
   bind,
+  follow,
   onBehalfOf,
   frameOfModel,
   windowTitleOfModel,

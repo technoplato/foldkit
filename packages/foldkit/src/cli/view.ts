@@ -367,6 +367,168 @@ export const runCliView = async (
   return painted
 }
 
+// FOLLOW
+
+const lostReasonOf = (cause: unknown): string =>
+  cause instanceof Error && cause.message !== ''
+    ? cause.message
+    : daemonUnreachable
+
+/**
+ * A topic a slim view follows, such as `{ topic: 'screen' }` or a
+ * Program's own `{ topic: 'words', flags: { json: '1' } }`. `client` is
+ * the Host of the view, `{ _tag: 'Cli' }` unless it names another.
+ */
+export type CliFollowRequest = Readonly<{
+  topic: string
+  flags?: Readonly<Record<string, string>>
+  client?: Host
+}>
+
+/**
+ * How a follow ended: the topic had no more to say, the view asked to
+ * stop, or the daemon went away or refused, and why.
+ */
+export type CliFollowEnd =
+  | Readonly<{ _tag: 'Ended' }>
+  | Readonly<{ _tag: 'Stopped' }>
+  | Readonly<{ _tag: 'Lost'; reason: string }>
+
+/** When a follow stops on the view's side: an AbortSignal, such as Ctrl-C's. */
+export type CliFollowOptions = Readonly<{ signal?: AbortSignal }>
+
+const daemonWentAway = 'The daemon stopped answering.'
+
+/**
+ * Follows one topic of a daemon that is already listening: `onText` hears
+ * each text the topic emits, as it changes, and the promise resolves with
+ * how the follow ended. It takes over nothing: no raw mode, no screen, no
+ * prompt, so its output pipes into another program. Aborting `signal`
+ * closes the connection, and the daemon stops the topic.
+ * This module must not import Effect, Instant, or a Program.
+ *
+ * @example
+ * ```typescript
+ * const end = await followCliView(socketPath, { topic: 'screen' }, text => {
+ *   process.stdout.write(`${text}\n`)
+ * })
+ * // { _tag: 'Ended' }
+ * ```
+ */
+export const followCliView = async (
+  socketPath: string,
+  request: CliFollowRequest,
+  onText: (text: string) => void,
+  options: CliFollowOptions = {},
+): Promise<CliFollowEnd> => {
+  const socket = await connectSocket(socketPath)
+  await writeLine(
+    socket,
+    JSON.stringify({
+      _tag: 'Follow',
+      ...request,
+      client: request.client ?? cliClient,
+    }),
+  )
+  return new Promise(resolve => {
+    const state = { buffer: '', isDone: false }
+    const finish = (end: CliFollowEnd): void => {
+      if (state.isDone) {
+        return
+      }
+      state.isDone = true
+      options.signal?.removeEventListener('abort', onAbort)
+      socket.end()
+      resolve(end)
+    }
+    const onAbort = (): void => {
+      finish({ _tag: 'Stopped' })
+    }
+    const hear = (line: string): void => {
+      const parsed: unknown = JSON.parse(line)
+      if (!isRecord(parsed)) {
+        return
+      }
+      if (parsed['_tag'] === 'Followed' && typeof parsed['text'] === 'string') {
+        onText(parsed['text'])
+      } else if (parsed['_tag'] === 'FollowEnded') {
+        finish({ _tag: 'Ended' })
+      } else if (parsed['_tag'] === 'Failed') {
+        finish({
+          _tag: 'Lost',
+          reason:
+            typeof parsed['cause'] === 'string'
+              ? parsed['cause']
+              : daemonWentAway,
+        })
+      }
+    }
+    socket.on('data', (chunk: Buffer) => {
+      state.buffer = `${state.buffer}${chunk.toString('utf8')}`
+      let maybeNewline = newlineIndex(state.buffer)
+      while (maybeNewline !== undefined && !state.isDone) {
+        const line = state.buffer.slice(0, maybeNewline).replace(/\r$/, '')
+        state.buffer = state.buffer.slice(maybeNewline + 1)
+        if (line !== '') {
+          hear(line)
+        }
+        maybeNewline = newlineIndex(state.buffer)
+      }
+    })
+    socket.on('close', () => {
+      finish({ _tag: 'Lost', reason: daemonWentAway })
+    })
+    socket.on('error', cause => {
+      finish({ _tag: 'Lost', reason: lostReasonOf(cause) })
+    })
+    if (options.signal?.aborted === true) {
+      onAbort()
+    } else {
+      options.signal?.addEventListener('abort', onAbort)
+    }
+  })
+}
+
+export type RunCliFollowViewOptions = Readonly<{
+  socketPath: string
+  spawn: () => ChildProcess
+  request: CliFollowRequest
+  onText: (text: string) => void
+  signal?: AbortSignal
+  timeoutMs?: number
+}>
+
+/**
+ * Ensures the daemon, then follows one topic of its Program until the
+ * topic ends, the view stops, or the daemon goes away: `books words
+ * --follow` prints the paragraph being read each time it changes.
+ * This module must not import Effect, Instant, or a Program.
+ *
+ * @example
+ * ```typescript
+ * const stopping = new AbortController()
+ * process.once('SIGINT', () => stopping.abort())
+ * await runCliFollowView({ socketPath, spawn, request: { topic: 'words' }, onText: print, signal: stopping.signal })
+ * ```
+ */
+export const runCliFollowView = async (
+  options: RunCliFollowViewOptions,
+): Promise<CliFollowEnd> => {
+  await ensureCliViewDaemon({
+    socketPath: options.socketPath,
+    spawn: options.spawn,
+    ...(options.timeoutMs === undefined
+      ? {}
+      : { timeoutMs: options.timeoutMs }),
+  })
+  return followCliView(
+    options.socketPath,
+    options.request,
+    options.onText,
+    options.signal === undefined ? {} : { signal: options.signal },
+  )
+}
+
 // TERMINAL UI
 
 /** How a terminal UI view ended: the person quit, or the daemon went away. */
@@ -422,11 +584,6 @@ const fallbackRows = 24
 const fallbackColumns = 80
 
 const flagOf = (isHeld: boolean | undefined): string => (isHeld ? '1' : '0')
-
-const lostReasonOf = (cause: unknown): string =>
-  cause instanceof Error && cause.message !== ''
-    ? cause.message
-    : daemonUnreachable
 
 /**
  * Runs a terminal UI for a Program its daemon holds, so the UI is a view

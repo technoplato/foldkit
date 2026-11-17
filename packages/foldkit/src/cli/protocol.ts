@@ -1,4 +1,4 @@
-import { Data, type Effect, Schema as S } from 'effect'
+import { Data, type Effect, Schema as S, type Stream } from 'effect'
 
 import { Host } from '../processor/host.js'
 import type { ProgramSchema } from '../program/program.js'
@@ -54,6 +54,33 @@ export const CliDaemonDo = ts('Do', {
 /** Asks the daemon to run one token and paint. */
 export type CliDaemonDo = typeof CliDaemonDo.Type
 
+/**
+ * Asks the daemon to keep the connection open on one topic of its Program
+ * and send each new text as the topic changes, such as `screen` for the
+ * painted screen or a Program's own `words`. `flags` shape the text, such
+ * as `{ json: '1' }`, and `client` is the Host of the view that follows,
+ * as for {@link CliDaemonShow}. The daemon answers with one
+ * {@link CliDaemonFollowed} line per text, then {@link CliDaemonFollowEnded}
+ * when the topic has no more to say.
+ */
+export const CliDaemonFollow = ts('Follow', {
+  topic: S.String,
+  flags: S.optionalKey(CliDaemonFlags),
+  client: S.optionalKey(Host),
+})
+/** Asks the daemon to follow one topic of its Program. */
+export type CliDaemonFollow = typeof CliDaemonFollow.Type
+
+/** One text a followed topic emitted. */
+export const CliDaemonFollowed = ts('Followed', { text: S.String })
+/** One text a followed topic emitted. */
+export type CliDaemonFollowed = typeof CliDaemonFollowed.Type
+
+/** The followed topic has no more to say; the daemon closes the connection. */
+export const CliDaemonFollowEnded = ts('FollowEnded')
+/** The followed topic has no more to say. */
+export type CliDaemonFollowEnded = typeof CliDaemonFollowEnded.Type
+
 /** Settled Model after Read or Run. */
 export const makeCliDaemonOk = <Model>(Model: ProgramSchema<Model>) =>
   S.Struct({
@@ -104,7 +131,9 @@ export type CliDaemonPaintedResult = Readonly<{
  * The live Processor the daemon holds. `show` and `do` hear the Host of
  * the client that asked, `Tui` for a `books tui` view and `Cli` for a
  * one-shot command, so what they send can be sent on that client's
- * behalf; see `Interaction.onBehalfOf`.
+ * behalf; see `Interaction.onBehalfOf`. `follow` is the texts one topic
+ * emits for as long as a view stays connected, such as each new paint of
+ * the screen; the daemon interrupts the Stream when the view leaves.
  */
 export type CliDaemonSurface<Model, Message> = Readonly<{
   read: () => Effect.Effect<Model, CliDaemonError>
@@ -124,6 +153,11 @@ export type CliDaemonSurface<Model, Message> = Readonly<{
     flags: CliDaemonFlags,
     client: Host,
   ) => Effect.Effect<CliDaemonPaintedResult, CliDaemonError>
+  follow?: (
+    topic: string,
+    flags: CliDaemonFlags,
+    client: Host,
+  ) => Stream.Stream<string, CliDaemonError>
 }>
 
 /** How long a CLI view waits for the daemon socket. */

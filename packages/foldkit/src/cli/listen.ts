@@ -1,5 +1,13 @@
 /// <reference types="node" />
-import { Effect, Option, Schema as S, type Scope, String } from 'effect'
+import {
+  Effect,
+  Fiber,
+  Option,
+  Schema as S,
+  type Scope,
+  Stream,
+  String,
+} from 'effect'
 import { type Server, type Socket, createServer } from 'node:net'
 
 import { Cli, type Host, Tui } from '../processor/host.js'
@@ -10,6 +18,9 @@ import {
   CliDaemonError,
   CliDaemonFailed,
   type CliDaemonFlags,
+  CliDaemonFollow,
+  CliDaemonFollowEnded,
+  CliDaemonFollowed,
   CliDaemonPainted,
   type CliDaemonPaintedResult,
   CliDaemonShow,
@@ -92,16 +103,77 @@ const decodeRunMessage = <Message>(
   value: unknown,
 ): Message => S.decodeUnknownSync(Message)(value)
 
+const followRequestOf = (line: string): Option.Option<CliDaemonFollow> => {
+  try {
+    const parsed: unknown = JSON.parse(line)
+    return isRecord(parsed) && parsed['_tag'] === 'Follow'
+      ? S.decodeUnknownOption(CliDaemonFollow)(parsed)
+      : Option.none()
+  } catch {
+    return Option.none()
+  }
+}
+
+const nothingToFollow = 'This CLI daemon has nothing to follow.'
+
+/**
+ * Keeps one connection open on a topic: each text the topic emits goes out
+ * as a Followed line, then FollowEnded, or Failed with why. The topic's
+ * Stream is interrupted when the view closes the connection, so a topic
+ * that listens to the Program stops listening.
+ */
+const startFollowing = <Model, Message>(
+  socket: Socket,
+  request: CliDaemonFollow,
+  surface: CliDaemonSurface<Model, Message>,
+): void => {
+  const flags: CliDaemonFlags = request.flags ?? {}
+  const topic =
+    surface.follow === undefined
+      ? Stream.fail(new CliDaemonError({ message: nothingToFollow }))
+      : surface.follow(request.topic, flags, clientOf(request, flags))
+  const send = (response: unknown) =>
+    Effect.tryPromise({
+      try: () => writeLine(socket, JSON.stringify(response)),
+      catch: () => new CliDaemonError({ message: 'The follower left.' }),
+    })
+  const fiber = Effect.runFork(
+    topic.pipe(
+      Stream.runForEach(text => send(CliDaemonFollowed({ text }))),
+      Effect.andThen(send(CliDaemonFollowEnded())),
+      Effect.catch(error =>
+        Effect.ignore(send(CliDaemonFailed({ cause: error.message }))),
+      ),
+      Effect.ensuring(
+        Effect.sync(() => {
+          socket.end()
+        }),
+      ),
+    ),
+  )
+  socket.on('error', () => {})
+  socket.once('close', () => {
+    Effect.runFork(Fiber.interrupt(fiber))
+  })
+}
+
 const handleConnection = <Model, Message>(
   socket: Socket,
   requestLine: Promise<string>,
   Message: ProgramSchema<Message>,
   surface: CliDaemonSurface<Model, Message>,
+  onFollowing: (socket: Socket) => void,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const line = yield* Effect.promise(() => requestLine)
     if (line === '') {
       socket.end()
+      return
+    }
+    const maybeFollow = followRequestOf(line)
+    if (Option.isSome(maybeFollow)) {
+      onFollowing(socket)
+      startFollowing(socket, maybeFollow.value, surface)
       return
     }
     const encoded = yield* Effect.gen(function* () {
@@ -190,7 +262,7 @@ const handleConnection = <Model, Message>(
       }
       return yield* Effect.fail(
         new CliDaemonError({
-          message: 'CLI daemon request must be Read, Run, Show, or Do.',
+          message: 'CLI daemon request must be Read, Run, Show, Do, or Follow.',
         }),
       )
     }).pipe(
@@ -246,7 +318,12 @@ const listenServer = (
       }),
   })
 
-/** Opens the daemon socket. Keeps the Processor alive until the Scope closes. */
+/**
+ * Opens the daemon socket. Keeps the Processor alive until the Scope
+ * closes. Read, Run, Show, and Do are answered one at a time, in the order
+ * they arrive. A Follow keeps its connection open beside them and never
+ * holds them up; closing the Scope ends every Follow.
+ */
 export const startCliDaemonServer = <Model, Message>(options: {
   readonly socketPath: string
   readonly Model: ProgramSchema<Model>
@@ -254,6 +331,13 @@ export const startCliDaemonServer = <Model, Message>(options: {
   readonly surface: CliDaemonSurface<Model, Message>
 }): Effect.Effect<void, CliDaemonError, Scope.Scope> => {
   let exclusive: Promise<void> = Promise.resolve()
+  const followers = new Set<Socket>()
+  const keepFollower = (socket: Socket): void => {
+    followers.add(socket)
+    socket.once('close', () => {
+      followers.delete(socket)
+    })
+  }
   return Effect.acquireRelease(
     listenServer(options.socketPath, socket => {
       // NOTE: Each request is read from the moment its connection arrives,
@@ -270,6 +354,7 @@ export const startCliDaemonServer = <Model, Message>(options: {
               requestLine,
               options.Message,
               options.surface,
+              keepFollower,
             ),
           ),
         )
@@ -280,6 +365,9 @@ export const startCliDaemonServer = <Model, Message>(options: {
     }),
     server =>
       Effect.sync(() => {
+        for (const follower of followers) {
+          follower.destroy()
+        }
         server.close()
         removeCliDaemonFiles(options.socketPath)
       }),

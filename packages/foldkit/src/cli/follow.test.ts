@@ -164,10 +164,7 @@ describe('the topics every Program has', () => {
     const surface = programCliSurface(bound, 'chapters')
     const paints = Effect.runPromise(
       Stream.runCollect(
-        Stream.take(
-          surface.follow?.('screen', {}, Cli()) ?? Stream.empty,
-          2,
-        ),
+        Stream.take(surface.follow?.('screen', {}, Cli()) ?? Stream.empty, 2),
       ),
     )
     await settled()
