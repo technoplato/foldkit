@@ -4,6 +4,7 @@ import type {
   ButtonNode,
   TextInputNode,
   TextNode,
+  TextPart,
   TranscriptNode,
   UiNode,
 } from './types.js'
@@ -88,5 +89,55 @@ export const transcriptsOf = (node: UiNode): ReadonlyArray<TranscriptNode> =>
       Seek: () => [],
       Transcript: transcript => [transcript],
       DeviceShell: shell => Array.flatMap(shell.children, transcriptsOf),
+    }),
+  )
+
+/**
+ * A link on a screen: the words that name it and where it goes, such as
+ * `{ title: 'Open Amazon sign-in', href: 'https://www.amazon.com/ap/signin?…' }`.
+ */
+export type ScreenLink = Readonly<{ title: string; href: string }>
+
+const linksOfParts = (
+  parts: ReadonlyArray<TextPart>,
+): ReadonlyArray<ScreenLink> =>
+  Array.flatMap(parts, part =>
+    part._tag === 'Reference' && part.href !== undefined
+      ? [{ title: part.label, href: part.href }]
+      : [],
+  )
+
+/**
+ * Reads every link on a screen, depth first, with the words that name it:
+ * a Text with an `href`, a Reference inside rich text, and a List row
+ * that is a link. A painter that cannot follow a link, such as terminal
+ * text, lists them so a person still can.
+ */
+export const linksOf = (node: UiNode): ReadonlyArray<ScreenLink> =>
+  M.value(node).pipe(
+    M.withReturnType<ReadonlyArray<ScreenLink>>(),
+    M.tagsExhaustive({
+      Text: text => [
+        ...(text.href === undefined
+          ? []
+          : [{ title: text.content, href: text.href }]),
+        ...linksOfParts(text.parts ?? []),
+      ],
+      Button: () => [],
+      TextInput: () => [],
+      Spacer: () => [],
+      Row: row => Array.flatMap(row.children, linksOf),
+      Column: column => Array.flatMap(column.children, linksOf),
+      Box: box => Array.flatMap(box.children, linksOf),
+      Progress: () => [],
+      List: list =>
+        Array.flatMap(list.items, item =>
+          item.href === undefined
+            ? []
+            : [{ title: item.title, href: item.href }],
+        ),
+      Seek: () => [],
+      Transcript: () => [],
+      DeviceShell: shell => Array.flatMap(shell.children, linksOf),
     }),
   )

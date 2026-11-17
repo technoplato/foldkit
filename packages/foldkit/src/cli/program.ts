@@ -21,6 +21,7 @@ import { backOneEntry } from '../navigation/carrier.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, frameOf } from '../navigation/frame.js'
 import { Cli } from '../navigation/message.js'
+import { linksOf } from '../renderers/query.js'
 import { renderScreen } from '../renderers/render.js'
 import type { UiNode } from '../renderers/types.js'
 import { columnRow, underColumn } from './layout.js'
@@ -218,11 +219,43 @@ const menuLines = (menu: MenuView): ReadonlyArray<string> => [
 const treeLines = (tree: UiNode): ReadonlyArray<string> =>
   Array.map(renderScreen(tree).split('\n'), line => line.trimEnd())
 
+const outsideLinkPattern = /^[a-z][a-z0-9+.-]*:/i
+
+/**
+ * The addresses on a screen that leave the Program, each whole on its own
+ * line under the words that name it, headed `Links`. Terminal text cuts a
+ * row to the width and cannot be clicked, so without these a row such as
+ * `Open Amazon sign-in` could not be opened from a terminal. A link that
+ * stays in the Program, `/books/a-new-earth/listen/12m03s`, is left out:
+ * `open <uri>` goes there. Empty when no link leaves.
+ *
+ * @example
+ * ```typescript
+ * screenLinkLines(connectScreen)
+ * // ['', 'Links', '  Open Amazon sign-in', '  https://www.amazon.com/ap/signin?…']
+ * ```
+ */
+export const screenLinkLines = (tree: UiNode): ReadonlyArray<string> =>
+  Array.match(
+    Array.filter(linksOf(tree), link => outsideLinkPattern.test(link.href)),
+    {
+      onEmpty: () => [],
+      onNonEmpty: links => [
+        '',
+        'Links',
+        ...Array.flatMap(links, link => [
+          `${indent}${link.title}`,
+          `${indent}${link.href}`,
+        ]),
+      ],
+    },
+  )
+
 const viewLines = (view: EntryView): ReadonlyArray<string> =>
   M.value(view).pipe(
     M.withReturnType<ReadonlyArray<string>>(),
     M.tagsExhaustive({
-      Screen: ({ node }) => treeLines(node),
+      Screen: ({ node }) => [...treeLines(node), ...screenLinkLines(node)],
       Menu: ({ menu }) => menuLines(menu),
     }),
   )
@@ -237,7 +270,10 @@ const frameLines = (frame: Frame): ReadonlyArray<string> => [
 const rootLines = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
 ): ReadonlyArray<string> =>
-  Option.match(bound.screen(), { onNone: () => [], onSome: treeLines })
+  Option.match(bound.screen(), {
+    onNone: () => [],
+    onSome: tree => [...treeLines(tree), ...screenLinkLines(tree)],
+  })
 
 const statusLine = <Model, Message>(
   bound: BoundInteraction<Model, Message>,

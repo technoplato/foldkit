@@ -52,6 +52,7 @@ export {
   paintScreen,
   programUsage,
   runProgramCommand,
+  screenLinkLines,
 } from './program.js'
 export {
   type CliFollowing,

@@ -28,7 +28,14 @@ export type {
   PressableButton,
   PressableKey,
 } from './pad.js'
-export { buttonsOf, inputsOf, textsOf, transcriptsOf } from './query.js'
+export {
+  type ScreenLink,
+  buttonsOf,
+  inputsOf,
+  linksOf,
+  textsOf,
+  transcriptsOf,
+} from './query.js'
 export {
   ExcerptPosition,
   TranscriptExcerpt,
