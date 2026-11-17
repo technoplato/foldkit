@@ -28,7 +28,16 @@ export type {
   PressableButton,
   PressableKey,
 } from './pad.js'
-export { buttonsOf, inputsOf, textsOf } from './query.js'
+export { buttonsOf, inputsOf, textsOf, transcriptsOf } from './query.js'
+export {
+  ExcerptPosition,
+  TranscriptExcerpt,
+  TranscriptExcerptJson,
+  type TranscriptExcerptOptions,
+  TranscriptExcerptParagraph,
+  transcriptExcerptLines,
+  transcriptExcerptOf,
+} from './transcriptExcerpt.js'
 export {
   isClearedOnSubmit,
   isSubmittedOnLeave,

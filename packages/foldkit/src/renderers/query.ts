@@ -1,6 +1,12 @@
 import { Array, Match as M } from 'effect'
 
-import type { ButtonNode, TextInputNode, TextNode, UiNode } from './types.js'
+import type {
+  ButtonNode,
+  TextInputNode,
+  TextNode,
+  TranscriptNode,
+  UiNode,
+} from './types.js'
 
 /** Reads every Text node, depth first. */
 export const textsOf = (node: UiNode): ReadonlyArray<TextNode> =>
@@ -59,5 +65,28 @@ export const inputsOf = (node: UiNode): ReadonlyArray<TextInputNode> =>
       Seek: () => [],
       Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, inputsOf),
+    }),
+  )
+
+/**
+ * Reads every Transcript node, depth first, so a surface that shows only
+ * the words being read finds them wherever a screen puts them.
+ */
+export const transcriptsOf = (node: UiNode): ReadonlyArray<TranscriptNode> =>
+  M.value(node).pipe(
+    M.withReturnType<ReadonlyArray<TranscriptNode>>(),
+    M.tagsExhaustive({
+      Text: () => [],
+      Button: () => [],
+      TextInput: () => [],
+      Spacer: () => [],
+      Row: row => Array.flatMap(row.children, transcriptsOf),
+      Column: column => Array.flatMap(column.children, transcriptsOf),
+      Box: box => Array.flatMap(box.children, transcriptsOf),
+      Progress: () => [],
+      List: () => [],
+      Seek: () => [],
+      Transcript: transcript => [transcript],
+      DeviceShell: shell => Array.flatMap(shell.children, transcriptsOf),
     }),
   )
