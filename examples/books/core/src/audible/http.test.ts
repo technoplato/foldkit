@@ -92,6 +92,28 @@ describe('the Audible import over HTTP', () => {
     ])
   })
 
+  it('gives a sign-in address a person can open: one without an origin is on the server it came from', async () => {
+    const relative = answering(() =>
+      jsonResponse(200, { loginUrl: '/__books/audible-demo/landing' }),
+    )
+    const fromTerminal = httpAudibleImport({
+      origin: 'http://127.0.0.1:5183',
+      headers: {},
+      fetch: relative.fetch,
+    })
+    expect(await Effect.runPromise(fromTerminal.startSignIn)).toEqual({
+      loginUrl: 'http://127.0.0.1:5183/__books/audible-demo/landing',
+    })
+    const inBrowser = httpAudibleImport({
+      origin: '',
+      headers: {},
+      fetch: relative.fetch,
+    })
+    expect(await Effect.runPromise(inBrowser.startSignIn)).toEqual({
+      loginUrl: '/__books/audible-demo/landing',
+    })
+  })
+
   it('sends the pasted address only in the body of the request that finishes the sign-in', async () => {
     const { sent, fetch } = answering(() => jsonResponse(200, {}))
     const audible = httpAudibleImport({ origin: '', fetch })
