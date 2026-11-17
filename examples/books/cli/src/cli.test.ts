@@ -400,6 +400,35 @@ describe('books words', () => {
   })
 })
 
+describe('books open and books screen', () => {
+  it('prints the page a person opened, not the player brief', async () => {
+    const { player } = await openBooks()
+    const opened = await run(player, 'open /books/profile')
+    expect(opened.exitCode).toBe(0)
+    expect(opened.stdout).toMatch(/^at \/books\/profile$/m)
+    expect(opened.stdout).not.toMatch(/^Actions$/m)
+    expect(opened.stdout).not.toMatch(/Nothing is playing/)
+    const back = await run(player, 'back')
+    expect(back.stdout).toMatch(/^at \/books$/m)
+  })
+
+  it('prints the screen where the player is, without the Action list', async () => {
+    const { player } = await openBooks()
+    const screen = await run(player, 'screen')
+    expect(screen.exitCode).toBe(0)
+    expect(screen.stdout).toMatch(/^at \/books$/m)
+    expect(screen.stdout).toMatch(/The Lantern Keeper/)
+    expect(screen.stdout).not.toMatch(/^Actions$/m)
+  })
+
+  it('says why a place cannot be opened, on stderr with exit code 1', async () => {
+    const { player } = await openBooks()
+    const refused = await run(player, 'back')
+    expect(refused.exitCode).toBe(1)
+    expect(refused.stderr).toBe('Already at the first screen.')
+  })
+})
+
 describe('books CLI', () => {
   it('lists the library and every Action with its command for books actions', async () => {
     const { bound, player } = await openBooks()
