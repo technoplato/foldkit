@@ -32,6 +32,17 @@ import {
 // HTTP
 
 /**
+ * A sign-in address as a host can open it. A host that names the server's
+ * origin, such as a terminal, gets an address without one resolved on that
+ * server: the demo's `/__books/audible-demo/landing` becomes
+ * `http://127.0.0.1:5183/__books/audible-demo/landing`. A browser on the
+ * same origin, `''`, keeps the address as it came, and Amazon's own
+ * address is never changed.
+ */
+const openableFrom = (origin: string, loginUrl: string): string =>
+  origin === '' || !loginUrl.startsWith('/') ? loginUrl : `${origin}${loginUrl}`
+
+/**
  * Where a host reaches the Books server: its origin, `''` in a browser on
  * the same origin, and the headers to send with every request, such as a
  * terminal's Cloudflare Access login.
@@ -272,11 +283,9 @@ export const httpAudibleImport = (
     Effect.asVoid(Effect.promise(() => response.text().catch(() => '')))
 
   return {
-    startSignIn: answered(
-      'POST',
-      audibleStartPath,
-      Option.none(),
-      StartedSignInJson,
+    startSignIn: Effect.map(
+      answered('POST', audibleStartPath, Option.none(), StartedSignInJson),
+      ({ loginUrl }) => ({ loginUrl: openableFrom(config.origin, loginUrl) }),
     ),
     finishSignIn: address => {
       const body: FinishSignIn = { redirectUrl: Redacted.value(address) }
