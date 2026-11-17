@@ -44,27 +44,30 @@ export const TranscriptExcerpt = S.Struct({
 export type TranscriptExcerpt = typeof TranscriptExcerpt.Type
 
 /**
- * An excerpt as one line of JSON, with no `maybe` in its keys:
+ * An excerpt as other programs read it, with no `maybe` in its keys: a
+ * paragraph that opens a section has `heading`, and the word sounding is
+ * `currentWord` at `currentWordIndex`. A Program that sends an excerpt
+ * inside a larger value puts this in its own wire Schema.
+ */
+export const TranscriptExcerptWire = S.Struct({
+  paragraphs: S.Array(
+    TranscriptExcerptParagraph.pipe(S.encodeKeys({ maybeHeading: 'heading' })),
+  ),
+  maybeCurrentWord: S.OptionFromOptionalKey(S.String),
+  maybeCurrentWordIndex: S.OptionFromOptionalKey(S.Int),
+}).pipe(
+  S.encodeKeys({
+    maybeCurrentWord: 'currentWord',
+    maybeCurrentWordIndex: 'currentWordIndex',
+  }),
+)
+
+/**
+ * An excerpt as one line of JSON, in its wire form:
  * `{"paragraphs":[{"key":"w12","position":"Current","label":"12:03","text":"…"}],"currentWord":"lamp","currentWordIndex":4}`.
- * A paragraph that opens a section also has `heading`.
  */
 export const TranscriptExcerptJson = S.fromJsonString(
-  S.toCodecJson(
-    S.Struct({
-      paragraphs: S.Array(
-        TranscriptExcerptParagraph.pipe(
-          S.encodeKeys({ maybeHeading: 'heading' }),
-        ),
-      ),
-      maybeCurrentWord: S.OptionFromOptionalKey(S.String),
-      maybeCurrentWordIndex: S.OptionFromOptionalKey(S.Int),
-    }).pipe(
-      S.encodeKeys({
-        maybeCurrentWord: 'currentWord',
-        maybeCurrentWordIndex: 'currentWordIndex',
-      }),
-    ),
-  ),
+  S.toCodecJson(TranscriptExcerptWire),
 )
 
 /**

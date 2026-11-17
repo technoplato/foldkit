@@ -5,6 +5,7 @@ import { Column, Text, Transcript } from './elements.js'
 import { transcriptsOf } from './query.js'
 import {
   TranscriptExcerptJson,
+  TranscriptExcerptWire,
   transcriptExcerptLines,
   transcriptExcerptOf,
 } from './transcriptExcerpt.js'
@@ -147,6 +148,9 @@ describe('the paragraph being read, with those around it', () => {
     )
     const json = S.encodeSync(TranscriptExcerptJson)(excerpt)
     expect(json).not.toContain('\n')
+    expect(JSON.parse(json)).toEqual(
+      S.encodeSync(S.toCodecJson(TranscriptExcerptWire))(excerpt),
+    )
     expect(JSON.parse(json)).toEqual({
       paragraphs: [
         {

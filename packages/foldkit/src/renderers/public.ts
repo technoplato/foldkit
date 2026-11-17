@@ -35,6 +35,7 @@ export {
   TranscriptExcerptJson,
   type TranscriptExcerptOptions,
   TranscriptExcerptParagraph,
+  TranscriptExcerptWire,
   transcriptExcerptLines,
   transcriptExcerptOf,
 } from './transcriptExcerpt.js'
