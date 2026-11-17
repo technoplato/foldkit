@@ -109,6 +109,14 @@ shows it as a `Modal` only while the Model presents it. Android's back button
 fires `onRequestClose`, which sends `DismissedActionMenu`, and the Model closes
 the menu. The Modal never keeps an open flag of its own.
 
+Example: the words tail. `books follow words` prints the paragraph being read
+in the background player, with the paragraphs around it, each time it changes.
+The Books CLI adds no books logic for it. The Books core says what is being
+read (`spokenWordsOf`), Foldkit core says how any Transcript is excerpted
+(`transcriptExcerptOf`) and how any reading of a running Program is followed
+(`Interaction.follow`), and the terminal adapter only keeps a connection open
+on the daemon and writes lines. `AGENTS.md` ("Which layer?") has the table.
+
 **Test:** remove the carrier (no router, no URL bar) and the Program still
 knows exactly what is on screen. Replay the Message log and you land on the
 same destination.
