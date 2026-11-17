@@ -10,6 +10,8 @@
  *   books pause                    pause; `books play` plays again
  *   books skip-forward             30 seconds on; `books skip-back` back
  *   books seek-to 1h00m00s         go to a place
+ *   books open /books/audible      go to a page and print it; `books back` returns
+ *   books screen                   the page the player is on
  *   books words                    the paragraph being read, with those around it
  *   books follow words             the same, again on each new paragraph
  *   books follow words --json      as lines of JSON, for another program

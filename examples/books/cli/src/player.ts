@@ -38,6 +38,7 @@ import {
   makeProgramTerminalView,
   paintCommands,
   paintProgram,
+  paintScreen,
   programCliSurface,
   programFollowings,
   runProgramCommand,
@@ -323,6 +324,8 @@ const wordsOf = (token: string): ReadonlyArray<string> =>
 
 const briefWords: ReadonlySet<string> = new Set(['', 'help', 'show'])
 
+const movingWords: ReadonlySet<string> = new Set(['open', 'back'])
+
 /** The Books player a daemon serves, and the moment `books stop` asks it to end. */
 export type BooksPlayer = Readonly<{
   surface: CliDaemonSurface<SyncedBooksModel, SyncedBooksMessage>
@@ -334,6 +337,8 @@ export type BooksPlayer = Readonly<{
  * player and prints the brief after it runs: `books listen a-new-earth`
  * plays, `books pause` pauses, `books seek-to 1h00m00s` moves. `books` and
  * `books help` print the brief, `books actions` every command, `books
+ * open /books/audible` and `books back` the page they land on, `books
+ * screen` the page the player is on, `books
  * words` the paragraph being read with those around it, and `books stop`
  * pauses, waits for the place to save, says so, and ends the player. A
  * view may follow `words` or `screen` and hear each change. A terminal UI view gets the player's screen, fitted to its
@@ -377,6 +382,20 @@ export const makeBooksPlayer = (
       ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
     }
   }
+  const moved = (
+    words: ReadonlyArray<string>,
+    flags: CliDaemonFlags,
+    client: Processor.Host.Host,
+  ): CliDaemonPaintedResult => {
+    const result = Interaction.onBehalfOf(bound, client, () =>
+      runProgramCommand(bound, booksCommandName, words, flags),
+    )
+    return {
+      stdout: paintScreen(bound),
+      exitCode: result.exitCode,
+      ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
+    }
+  }
   const stop = (client: Processor.Host.Host) =>
     Effect.gen(function* () {
       const sentence = yield* pausedAndSaved(bound, writes, Option.some(client))
@@ -412,6 +431,13 @@ export const makeBooksPlayer = (
           }))
         } else if (head === 'stop') {
           return stop(client)
+        } else if (head === 'screen') {
+          return Effect.sync(() => ({
+            stdout: paintScreen(bound),
+            exitCode: 0,
+          }))
+        } else if (movingWords.has(head)) {
+          return Effect.sync(() => moved(words, flags, client))
         } else if (head === 'words') {
           return Effect.sync(() => ({
             stdout: paintWords(bound, flags),
