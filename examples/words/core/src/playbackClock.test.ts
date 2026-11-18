@@ -2,6 +2,7 @@ import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
+  bringsIntoView,
   clockPlaceAt,
   positionReportIntervalMs,
   progressFractionOf,
@@ -13,6 +14,7 @@ const playing = {
   rate: 1,
   durationSeconds: 60,
   isMarking: true,
+  keepsInView: true,
 }
 
 const paused = { ...playing, rate: 0 }
@@ -84,5 +86,26 @@ describe('the word being spoken at a place', () => {
       maybeSection: Option.none(),
       maybeWord: Option.none(),
     })
+  })
+})
+
+describe('keeping the spoken section in view', () => {
+  it('brings a section into view when the mark crosses into it, while the page follows the voice', () => {
+    expect(bringsIntoView(playing, Option.some(1), Option.some(2))).toBe(true)
+  })
+
+  it('leaves the page where the listener put it once he has scrolled away', () => {
+    expect(
+      bringsIntoView(
+        { ...playing, keepsInView: false },
+        Option.some(1),
+        Option.some(2),
+      ),
+    ).toBe(false)
+  })
+
+  it('does nothing while the mark stays in its section, or when it leaves every section', () => {
+    expect(bringsIntoView(playing, Option.some(2), Option.some(2))).toBe(false)
+    expect(bringsIntoView(playing, Option.some(2), Option.none())).toBe(false)
   })
 })

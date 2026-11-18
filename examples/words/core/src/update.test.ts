@@ -377,7 +377,11 @@ describe('playing', () => {
       rate: 1,
       durationSeconds: durationOf(readyOf(playing)),
       isMarking: true,
+      keepsInView: true,
     })
+    expect(
+      clockOf(run(playing, [ScrolledTranscriptAway()]).model).keepsInView,
+    ).toBe(false)
     expect(clockOf(run(playing, [HeardAudioPaused()]).model).rate).toBe(0)
     const scrubbing = clockOf(run(playing, [MovedScrub({ seconds: 40 })]).model)
     expect([scrubbing.placeSeconds, scrubbing.rate]).toEqual([40, 0])
