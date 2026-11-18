@@ -11,6 +11,28 @@ if (!exampleSlug) {
 const PORT = 5180
 const BASE_URL = `http://localhost:${PORT}`
 
+type ExamplePage = Readonly<{
+  directory: string
+  env: Readonly<Record<string, string>>
+}>
+
+// NOTE: Where an example's page lives when it is not `examples/<slug>`
+// itself, and what it is started with so a test never writes to a shared
+// sync app: the Counter's page keeps its tape in memory, and Counters
+// starts with no app to sync with, so each run begins from its own state.
+const pagesElsewhere: Readonly<Record<string, ExamplePage>> = {
+  counter: {
+    directory: 'counter/foldkit',
+    env: { VITE_COUNTER_TAPE: 'memory' },
+  },
+  counters: { directory: 'counters', env: { VITE_INSTANT_APP_ID: '' } },
+}
+
+const examplePage: ExamplePage = pagesElsewhere[exampleSlug] ?? {
+  directory: exampleSlug,
+  env: {},
+}
+
 export default defineConfig({
   testDir: './e2e',
   testMatch: `**/${exampleSlug}.spec.ts`,
@@ -25,7 +47,8 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }],
   webServer: {
-    command: `pnpm -C ../../examples/${exampleSlug} exec vite --port ${PORT} --strictPort`,
+    command: `pnpm -C ../../examples/${examplePage.directory} exec vite --port ${PORT} --strictPort`,
+    env: examplePage.env,
     url: BASE_URL,
     reuseExistingServer: false,
     timeout: 120_000,
