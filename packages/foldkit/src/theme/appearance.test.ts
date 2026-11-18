@@ -15,6 +15,23 @@ import {
   update,
 } from './appearance.js'
 
+describe('what SetAppearance touches', () => {
+  const states = [initialAppearance]
+  const touching = (
+    state: typeof initialAppearance,
+    message: typeof SetAppearance.Type,
+  ) => [update(state, message), []] as const
+
+  it('is the choice of look, and nothing else', () => {
+    expect(Catalog.declarationOf(SetAppearance).touches).toEqual({
+      mutates: ['appearance'],
+      triggers: [],
+    })
+    expect(Catalog.undeclaredTouches(catalog, touching, states)).toEqual([])
+    expect(Catalog.unseenTouches(catalog, touching, states)).toEqual([])
+  })
+})
+
 describe('appearance as state', () => {
   it('starts following the system, in light until the system says otherwise', () => {
     expect(initialAppearance).toEqual({

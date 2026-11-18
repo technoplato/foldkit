@@ -52,6 +52,42 @@ export const isEnabled = (availability: Availability): boolean =>
 
 const alwaysEnabled = (): Availability => Enabled()
 
+// ALSO
+
+/**
+ * The same Action, saying it also touches what a Program that holds it
+ * adds: `mutates` and `triggers` beside any it already said. Its tag,
+ * fields, words, keys, rule, and choices are unchanged, so it is the
+ * same Message. A parent uses it for one Action it takes from another
+ * core; for a whole child Catalog, `Catalog.within` takes `also`.
+ *
+ * @example
+ * ```typescript
+ * const SharePage = Catalog.withTouches(ReadAloud.SharePage, {
+ *   mutates: [at.maybeNotice],
+ *   triggers: [ShareLink],
+ * })
+ * ```
+ */
+export const withTouches = <Declared extends AnyAction>(
+  declaration: Declared,
+  also: Touched,
+): Declared =>
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+  callableWith(schemaOf(declaration), {
+    tag: declaration.tag,
+    what: declaration.what,
+    why: declaration.why,
+    enabled: declaration.enabled,
+    meta: declaration.meta,
+    isPayloadFree: declaration.isPayloadFree,
+    maybeChoose: declaration.maybeChoose,
+    aliases: declaration.aliases,
+    parameters: declaration.parameters,
+    examples: declaration.examples,
+    maybeTouches: touchesWith(declaration.maybeTouches, also),
+  }) as unknown as Declared
+
 // DECLARATION
 
 /**
@@ -198,6 +234,20 @@ export type ActionConfig<Model> = Readonly<{
   meta: ActionMeta
   aliases?: ReadonlyArray<string>
   examples?: ReadonlyArray<Example>
+}> &
+  Touched
+
+/**
+ * What an Action touches, as it is written: the state it `mutates`, as
+ * typed paths of the Model, and the Commands it `triggers`, as their
+ * definitions.
+ *
+ * @example
+ * ```typescript
+ * const touched: Catalog.Touched = { mutates: [at.count], triggers: [SaveCount] }
+ * ```
+ */
+export type Touched = Readonly<{
   mutates?: ReadonlyArray<ModelPath<unknown>>
   triggers?: ReadonlyArray<Readonly<{ name: string }>>
 }>
@@ -215,9 +265,7 @@ const touchesUnder = (
         triggers: touches.triggers,
       }))
 
-const touchesOf = (
-  config: Pick<ActionConfig<unknown>, 'mutates' | 'triggers'>,
-): Option.Option<Touches> =>
+const touchesOf = (config: Touched): Option.Option<Touches> =>
   config.mutates === undefined && config.triggers === undefined
     ? Option.none()
     : Option.some({
@@ -226,6 +274,24 @@ const touchesOf = (
         ),
         triggers: Array.map(config.triggers ?? [], triggered => triggered.name),
       })
+
+const touchesWith = (
+  maybeTouches: Option.Option<Touches>,
+  also: Touched | undefined,
+): Option.Option<Touches> =>
+  Option.match(touchesOf(also ?? {}), {
+    onNone: () => maybeTouches,
+    onSome: added =>
+      Option.some(
+        Option.match(maybeTouches, {
+          onNone: () => added,
+          onSome: touches => ({
+            mutates: Array.dedupe([...touches.mutates, ...added.mutates]),
+            triggers: Array.dedupe([...touches.triggers, ...added.triggers]),
+          }),
+        }),
+      ),
+  })
 
 const parametersOf = (
   fields: S.Struct.Fields,
@@ -998,11 +1064,23 @@ export const lift = <
  * and when the parent offers the child's Actions at all. `under` is the
  * typed path where the parent keeps the child, so what a child's Action
  * mutates reads under the parent's key: `count` becomes
- * `maybeCounter.count`.
+ * `maybeCounter.count`. `also` is what the parent itself does on a
+ * child's Action, keyed by the Action's tag: the parent's own state it
+ * mutates and the Commands it triggers, beside the child's.
+ *
+ * @example
+ * ```typescript
+ * also: { Pause: { mutates: [at.savedPlaceMs], triggers: [WriteLibrary] } }
+ * ```
  */
-export type WithinConfig<Model, ChildModel> = Readonly<{
+export type WithinConfig<
+  Model,
+  ChildModel,
+  Tag extends string = string,
+> = Readonly<{
   childOf: (model: Model) => Option.Option<ChildModel>
   under?: ModelPath<unknown>
+  also?: Readonly<Partial<Record<Tag, Touched>>>
   nothing: string
   enabled?: (model: Model) => Availability
 }>
@@ -1050,7 +1128,11 @@ export const within = <
   Model,
 >(
   child: Catalog<Actions>,
-  config: WithinConfig<Model, ModelOf<Catalog<Actions>>>,
+  config: WithinConfig<
+    Model,
+    ModelOf<Catalog<Actions>>,
+    TagOf<Catalog<Actions>>
+  >,
 ): Readonly<{
   actions: WithinActions<Actions, Model>
   childOf: (
@@ -1065,6 +1147,8 @@ export const within = <
     ) =>
     (model: Model): A =>
       Option.match(config.childOf(model), { onNone, onSome: onChild })
+  const also: Readonly<Record<string, Touched | undefined>> = config.also ?? {}
+  const alsoOf = (tag: string): Touched | undefined => also[tag]
   const offerOne = (declaration: AnyAction): AnyAction =>
     callableWith(schemaOf(declaration), {
       tag: declaration.tag,
@@ -1075,7 +1159,10 @@ export const within = <
       aliases: declaration.aliases,
       parameters: declaration.parameters,
       examples: declaration.examples,
-      maybeTouches: touchesUnder(declaration.maybeTouches, config.under),
+      maybeTouches: touchesWith(
+        touchesUnder(declaration.maybeTouches, config.under),
+        alsoOf(declaration.tag),
+      ),
       enabled: (model: Model) => {
         const availability = parentEnabled(model)
         return isEnabled(availability)
