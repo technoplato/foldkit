@@ -97,3 +97,13 @@ describe('a theme for a painter', () => {
     expect(sheet).not.toContain('prefers-color-scheme')
   })
 })
+
+describe('the roles of a person’s own mark', () => {
+  it('has a color for a mark and a soft ground for it, in both modes, apart from the accent and a selection', () => {
+    expect(defaultTheme.Mark.light).not.toBe(defaultTheme.Accent.light)
+    expect(defaultTheme.Mark.light).not.toBe(defaultTheme.SelectedMark.light)
+    expect(defaultTheme.Mark.dark).not.toBe(defaultTheme.Mark.light)
+    expect(defaultTheme.MarkSoft.dark).not.toBe(defaultTheme.MarkSoft.light)
+    expect(cssVariableOf('MarkSoft')).toBe('--fk-mark-soft')
+  })
+})

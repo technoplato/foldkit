@@ -301,6 +301,71 @@ const spokenTranscript = transcriptsInMemory(
 const followOf = (player: BooksPlayer) =>
   Option.getOrThrow(Option.fromNullishOr(player.surface.follow))
 
+describe('books bookmark and books bookmarks', () => {
+  const readingAtSixSeconds = async () => {
+    const opened = await openBooks({ transcripts: spokenTranscript })
+    await run(opened.player, 'listen the-lantern-keeper')
+    await run(opened.player, 'seek-to 6s')
+    await eventually(async () =>
+      (await run(opened.player, 'words')).stdout.includes('> 0:05'),
+    )
+    await run(opened.player, 'pause')
+    return opened
+  }
+
+  it('marks the word being spoken, says which, and lists it with its words and its link', async () => {
+    const { player } = await readingAtSixSeconds()
+    const marked = await run(player, 'bookmark')
+    expect(marked.exitCode).toBe(0)
+    expect(marked.stdout).toMatch(
+      /^Bookmarked “\S+” at 0:0\d · \/books\/the-lantern-keeper\/listen\/\S+s$/,
+    )
+    const listed = await run(player, 'bookmarks')
+    const lines = listed.stdout.split('\n')
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toBe('# The Lantern Keeper · 1 bookmark')
+    expect(lines[1]).toMatch(
+      /^0:0\d · The Tide · .*He trimmed the wick.* · \/books\/the-lantern-keeper\/listen\/\S+s · \S+$/,
+    )
+  })
+
+  it('takes the words after it as a note', async () => {
+    const { player } = await readingAtSixSeconds()
+    await run(player, 'bookmark why the wick matters')
+    const listed = await run(player, 'bookmarks')
+    expect(listed.stdout).toContain(' · note: why the wick matters · ')
+  })
+
+  it('prints one line of JSON for --json', async () => {
+    const { player } = await readingAtSixSeconds()
+    await run(player, 'bookmark a note')
+    const json = await run(player, 'bookmarks', { json: '1' })
+    expect(json.stdout).not.toContain('\n')
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      slug: 'the-lantern-keeper',
+      title: 'The Lantern Keeper',
+      bookmarks: [{ chapter: 'The Tide', note: 'a note' }],
+    })
+  })
+
+  it('says the word is already bookmarked, and adds nothing', async () => {
+    const { player } = await readingAtSixSeconds()
+    await run(player, 'bookmark')
+    const again = await run(player, 'bookmark')
+    expect(again.stdout).toBe('That word is already bookmarked')
+    expect((await run(player, 'bookmarks')).stdout.split('\n')).toHaveLength(2)
+  })
+
+  it('says so when nothing is in the player', async () => {
+    const { player } = await openBooks()
+    const marked = await run(player, 'bookmark')
+    expect(marked.exitCode).not.toBe(0)
+    expect((await run(player, 'bookmarks')).stdout).toBe(
+      '# No title is open or playing.',
+    )
+  })
+})
+
 describe('books words', () => {
   it('prints the paragraph being read with those around it, once', async () => {
     const { player } = await openBooks({ transcripts: spokenTranscript })

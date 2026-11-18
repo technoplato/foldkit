@@ -10,7 +10,7 @@ import {
 import { ts } from 'foldkit/schema'
 
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
-import type { Chapter, Shelf } from './model.js'
+import { BookmarkExcerpt, type Chapter, type Shelf } from './model.js'
 
 // LIBRARY
 
@@ -21,10 +21,23 @@ export const SavePlace = ts('SavePlace', {
 })
 /** Marks a title finished. */
 export const FinishTitle = ts('FinishTitle', { slug: TitleSlug })
-/** Adds a bookmark at a place in a title. */
+/**
+ * Adds a bookmark on the word that starts at `atMs` in a title, with the
+ * note and the words around it, when there are any. `maybeCreatedAtMs` is
+ * the time a bookmark put back by Undo was first made; without it the
+ * store stamps now.
+ */
 export const AddBookmarkAt = ts('AddBookmarkAt', {
   slug: TitleSlug,
   atMs: Milliseconds,
+  maybeNote: S.OptionFromOptionalKey(S.String),
+  maybeExcerpt: S.OptionFromOptionalKey(BookmarkExcerpt),
+  maybeCreatedAtMs: S.OptionFromOptionalKey(S.Number),
+})
+/** Writes one bookmark's note, or clears it with None. */
+export const NoteBookmark = ts('NoteBookmark', {
+  bookmarkId: BookmarkId,
+  maybeNote: S.OptionFromOptionalKey(S.String),
 })
 /** Removes one bookmark. */
 export const RemoveBookmark = ts('RemoveBookmark', { bookmarkId: BookmarkId })
@@ -34,6 +47,7 @@ export const LibraryWrite = S.Union([
   SavePlace,
   FinishTitle,
   AddBookmarkAt,
+  NoteBookmark,
   RemoveBookmark,
 ])
 /** One change the library store makes for the listener. */

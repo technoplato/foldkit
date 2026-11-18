@@ -19,9 +19,12 @@ import {
   Progress,
   Row,
   Text,
+  TextInput,
   Toolbar,
+  type TranscriptBookmark,
   type UiNode,
   actionButtons,
+  withTranscriptBookmarks,
 } from 'foldkit/renderers'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -32,6 +35,12 @@ import {
   ShowAddBooks,
 } from './addBooks.js'
 import * as Audible from './audible/index.js'
+import {
+  bookmarkCountWords,
+  bookmarkCountsOf,
+  bookmarkPathOf,
+  bookmarkTitleOf,
+} from './bookmarks.js'
 import {
   type ChapterReading,
   chapterColumnNames,
@@ -50,14 +59,15 @@ import {
 } from './find.js'
 import {
   type BookmarkId,
+  type ChapterNumber,
   Milliseconds,
   type TitleSlug,
   clockOf,
 } from './ids.js'
-import { placePathOf } from './links.js'
 import {
   AddBookmark,
   CancelDeleteBookmark,
+  ClearBookmarkNote,
   CloseSearch,
   CollapseControls,
   ConfirmDeleteBookmark,
@@ -66,19 +76,25 @@ import {
   JumpToChapter,
   Listen,
   Open,
+  OpenBookmark,
   OpenPlayer,
   Pause,
   Play,
+  PlayBookmark,
+  SetBookmarkNote,
   SetSpeed,
   SharePlace,
+  ShowBookmarks,
   ShowContents,
   ShowLibrary,
   ShowProfile,
   ShowReadAloud,
   ShowSpeeds,
+  UndoRemoveBookmark,
   catalog,
 } from './message.js'
 import {
+  type Bookmark,
   type Chapter,
   type Loaded,
   type Model,
@@ -273,6 +289,78 @@ const markedPlaceOf = (
 ): Option.Option<Milliseconds> =>
   isStarted(model, title) ? Option.some(placeFor(model, title)) : Option.none()
 
+type PanelTab = 'Contents' | 'Bookmarks' | 'OneBookmark'
+
+/** How a tab stands: its list is showing, something within it is, or neither. */
+type TabStanding = 'Showing' | 'Within' | 'Other'
+
+const currentTab = (label: string): ButtonNode => ({
+  _tag: 'Button',
+  label,
+  variant: 'Tab',
+  isCurrent: true,
+})
+
+const tabOf = (
+  model: Model,
+  action: AnyAction,
+  label: string,
+  standing: TabStanding,
+): ReadonlyArray<ButtonNode> =>
+  standing === 'Showing'
+    ? [currentTab(label)]
+    : Array.map(buttonsOf(model, [action], 'Tab'), button => ({
+        ...button,
+        label,
+        ...(standing === 'Within' ? { isCurrent: true } : {}),
+      }))
+
+const bookmarksStandingOf = (current: PanelTab): TabStanding => {
+  if (current === 'Bookmarks') {
+    return 'Showing'
+  } else if (current === 'OneBookmark') {
+    return 'Within'
+  } else {
+    return 'Other'
+  }
+}
+
+/**
+ * The tabs that head the panel beside a title's page: Contents, and
+ * Bookmarks with how many there are. The one whose list is showing is
+ * marked and does nothing when pressed; the other switches to its list.
+ * On one bookmark, Bookmarks is marked and goes back to the list.
+ */
+const panelTabsOf = (model: Model, title: Title, current: PanelTab): UiNode => {
+  const count = bookmarksOf(model, title.slug).length
+  return Row(
+    {},
+    ...tabOf(
+      model,
+      ShowContents,
+      'Contents',
+      current === 'Contents' ? 'Showing' : 'Other',
+    ),
+    ...tabOf(
+      model,
+      ShowBookmarks,
+      count === 0 ? 'Bookmarks' : `Bookmarks ${count.toString()}`,
+      bookmarksStandingOf(current),
+    ),
+  )
+}
+
+const badgeOf = (
+  counts: ReadonlyMap<ChapterNumber, number>,
+  chapter: Chapter,
+): Pick<ListItem, 'badge'> =>
+  Option.match(Option.fromNullishOr(counts.get(chapter.chapterNumber)), {
+    onNone: () => ({}),
+    onSome: count => ({
+      badge: { text: count.toString(), label: bookmarkCountWords(count) },
+    }),
+  })
+
 const chapterFilterOf = (title: Title): ListFilter => ({
   placeholder: 'Find a chapter',
   label: `Find a chapter in ${title.name}`,
@@ -302,14 +390,18 @@ const contentsOf = (model: Model, title: Title): ReadonlyArray<UiNode> =>
               maybePlace,
               place => chapterAt(chapters, place).chapterNumber,
             )
+            const counts = bookmarkCountsOf(
+              chapters,
+              bookmarksOf(model, title.slug),
+            )
             return [
               Text(contentsSummaryOf(chapters), { dim: true }),
               List({
                 label: 'Chapters',
                 columns: chapterColumnNames,
                 filter: chapterFilterOf(title),
-                items: Array.map(chapters, chapter =>
-                  chapterItemOf(
+                items: Array.map(chapters, chapter => ({
+                  ...chapterItemOf(
                     entries,
                     Option.map(
                       Option.filter(maybePlace, () =>
@@ -322,7 +414,8 @@ const contentsOf = (model: Model, title: Title): ReadonlyArray<UiNode> =>
                     ),
                     chapter,
                   ),
-                ),
+                  ...badgeOf(counts, chapter),
+                })),
               }),
             ]
           },
@@ -970,36 +1063,202 @@ export const audibleTitlesScreen = (model: Model): UiNode =>
     },
   )
 
+const noteLinesOf = (bookmark: Bookmark): Pick<ListItem, 'lines'> =>
+  Option.match(bookmark.maybeNote, {
+    onNone: () => ({}),
+    onSome: note => ({ lines: [note] }),
+  })
+
+const chapterGroupOf = (
+  model: Model,
+  title: Title,
+  bookmark: Bookmark,
+): Pick<ListItem, 'group'> =>
+  Option.match(chapterNameAt(model, title.slug, bookmark.atMs), {
+    onNone: () => ({}),
+    onSome: group => ({ group }),
+  })
+
+/**
+ * One bookmark as a row: its words, or its time when it kept none, its
+ * note under them, its chapter as the group it sits in, its time in a
+ * column, a link to its word as the row's press, and a button that opens
+ * it for its note.
+ */
 const bookmarkItemOf = (
   model: Model,
   title: Title,
-  bookmark: Readonly<{ bookmarkId: BookmarkId; atMs: Milliseconds }>,
+  bookmark: Bookmark,
 ): ListItem => ({
   key: bookmark.bookmarkId,
-  href: placePathOf(title.slug, bookmark.atMs),
-  title: clockOf(bookmark.atMs),
-  lines: Array.fromOption(chapterNameAt(model, title.slug, bookmark.atMs)),
-  trailing: choiceButtonsOf(
-    model,
-    bookmark.bookmarkId,
-    [DeleteBookmark],
-    'Ghost',
+  href: bookmarkPathOf(title.slug, bookmark.atMs),
+  title: bookmarkTitleOf(bookmark),
+  ...noteLinesOf(bookmark),
+  ...chapterGroupOf(model, title, bookmark),
+  columns: [clockOf(bookmark.atMs)],
+  trailing: withIcon(
+    choiceButtonsOf(model, bookmark.bookmarkId, [OpenBookmark], 'Ghost'),
+    'More',
+    true,
   ),
 })
+
+const bookmarkColumnNames: ReadonlyArray<string> = ['At']
+
+const bookmarkFilterOf = (title: Title): ListFilter => ({
+  placeholder: 'Find in your bookmarks',
+  label: `Find in the bookmarks of ${title.name}`,
+  emptyText: 'No bookmark has that in its words or its note.',
+  isOverLines: true,
+})
+
+const bookmarksListOf = (
+  model: Model,
+  title: Title,
+  bookmarks: ReadonlyArray<Bookmark>,
+): UiNode =>
+  List({
+    label: 'Bookmarks',
+    columns: bookmarkColumnNames,
+    filter: bookmarkFilterOf(title),
+    items: Array.map(bookmarks, bookmark =>
+      bookmarkItemOf(model, title, bookmark),
+    ),
+  })
 
 const bookmarkLists = (model: Model, title: Title): ReadonlyArray<UiNode> =>
   Array.match(bookmarksOf(model, title.slug), {
     onEmpty: () => [],
     onNonEmpty: bookmarks => [
       Text('Bookmarks', { dim: true }),
-      List({
-        label: 'Bookmarks',
-        items: Array.map(bookmarks, bookmark =>
-          bookmarkItemOf(model, title, bookmark),
-        ),
-      }),
+      bookmarksListOf(model, title, bookmarks),
     ],
   })
+
+/**
+ * A title's bookmarks as its reader's Transcript takes them: each on the millisecond
+ * its word starts, named by its time, with its note and the press that
+ * opens it.
+ */
+const transcriptBookmarksOf = (
+  model: Model,
+  title: Title,
+): ReadonlyArray<TranscriptBookmark> =>
+  Array.map(bookmarksOf(model, title.slug), bookmark => ({
+    startMs: bookmark.atMs,
+    label: `Bookmark at ${clockOf(bookmark.atMs)}`,
+    ...Option.match(bookmark.maybeNote, {
+      onNone: () => ({}),
+      onSome: note => ({ note }),
+    }),
+    action: `${OpenBookmark.tag}:${bookmark.bookmarkId}`,
+  }))
+
+const undoLines = (model: Model): ReadonlyArray<UiNode> =>
+  Option.match(model.maybeRemovedBookmark, {
+    onNone: () => [],
+    onSome: () => [
+      Row(
+        { gap: 1 },
+        Text('Bookmark removed.', { dim: true }),
+        ...buttonsOf(model, [UndoRemoveBookmark], 'Ghost'),
+      ),
+    ],
+  })
+
+/**
+ * The bookmarks of the title on screen, beside its page, the tab next to
+ * the contents: each with its words, its note and its time, under its
+ * chapter, found by typing, and a way back for one just removed. While
+ * there are none, how to make one.
+ */
+export const bookmarksScreen = (model: Model): UiNode =>
+  Option.match(
+    Option.flatMap(shownTitleOf(model), slug => titleOf(model, slug)),
+    {
+      onNone: () => Column({}, Text('No title is open.', { dim: true })),
+      onSome: title =>
+        Column(
+          { gap: 1 },
+          panelTabsOf(model, title, 'Bookmarks'),
+          ...undoLines(model),
+          ...Array.match(bookmarksOf(model, title.slug), {
+            onEmpty: () => [
+              Text('No bookmarks yet.', { dim: true }),
+              Text(
+                'Press b while you listen to mark the word being read, or pick Bookmark this word from a word’s menu.',
+                { dim: true },
+              ),
+            ],
+            onNonEmpty: bookmarks => [bookmarksListOf(model, title, bookmarks)],
+          }),
+        ),
+    },
+  )
+
+const bookmarkPlaceLineOf = (
+  model: Model,
+  title: Title,
+  bookmark: Bookmark,
+): string =>
+  Array.join(
+    [
+      ...Array.fromOption(chapterNameAt(model, title.slug, bookmark.atMs)),
+      clockOf(bookmark.atMs),
+    ],
+    ' · ',
+  )
+
+/**
+ * One bookmark beside the page, under the panel's tabs: its words, where
+ * it is as a link to its word, a field for its note, playing from it and
+ * removing it. The Bookmarks tab goes back to the list.
+ */
+export const bookmarkScreen = (model: Model, bookmarkId: BookmarkId): UiNode =>
+  Option.match(
+    Option.flatMap(bookmarkOf(model, bookmarkId), bookmark =>
+      Option.map(titleOf(model, bookmark.slug), title => ({ bookmark, title })),
+    ),
+    {
+      onNone: () =>
+        Column(
+          { gap: 1 },
+          Text('That bookmark is gone.', { dim: true }),
+          ...undoLines(model),
+          Row({}, ...buttonsOf(model, [ShowBookmarks], 'Ghost')),
+        ),
+      onSome: ({ bookmark, title }) =>
+        Column(
+          { gap: 1 },
+          panelTabsOf(model, title, 'OneBookmark'),
+          Text(bookmarkTitleOf(bookmark), {
+            label: `Bookmark: ${bookmarkTitleOf(bookmark)}`,
+          }),
+          Text(bookmarkPlaceLineOf(model, title, bookmark), {
+            dim: true,
+            href: bookmarkPathOf(title.slug, bookmark.atMs),
+          }),
+          TextInput({
+            value: Option.getOrElse(bookmark.maybeNote, () => ''),
+            placeholder: 'Add a note',
+            action: SetBookmarkNote.tag,
+            clearAction: ClearBookmarkNote.tag,
+            label: `Note on the bookmark at ${clockOf(bookmark.atMs)}`,
+          }),
+          Row(
+            { gap: 1 },
+            ...Array.map(
+              choiceButtonsOf(model, bookmarkId, [PlayBookmark], 'Primary'),
+              button => ({ ...button, label: 'Play from here' }),
+            ),
+            ...Array.map(
+              choiceButtonsOf(model, bookmarkId, [DeleteBookmark], 'Ghost'),
+              button => ({ ...button, label: 'Remove' }),
+            ),
+          ),
+        ),
+    },
+  )
 
 const authorLinksOf = (title: Title): ReadonlyArray<UiNode> =>
   Array.match(title.authors, {
@@ -1235,7 +1494,10 @@ export const playerScreen = (model: Model): UiNode =>
               { gap: 1 },
               Text(title.name, { dim: true }),
               ...chapterPickerOf(model, title, placeOf(loaded)),
-              readerTranscriptOf(loaded),
+              withTranscriptBookmarks(
+                readerTranscriptOf(loaded),
+                transcriptBookmarksOf(model, title),
+              ),
               Dock(
                 ...TranscriptPlayer.problemOf(loaded.player),
                 ...problemLines(model),
@@ -1287,10 +1549,7 @@ export const contentsScreen = (model: Model): UiNode =>
       onSome: title =>
         Column(
           { gap: 1 },
-          Text('Contents', {
-            emphasis: 'Headline',
-            label: `${title.name} contents`,
-          }),
+          panelTabsOf(model, title, 'Contents'),
           ...contentsOf(model, title),
         ),
     },

@@ -1156,6 +1156,7 @@ ${themeStylesheet(defaultTheme)}
 :where(.fk-list-frame .fk-item-title) {
   font-size: 15px;
   font-weight: 500;
+  -webkit-line-clamp: 3;
 }
 
 :where(.fk-list-frame .fk-item[data-current]) {
@@ -1293,6 +1294,142 @@ ${themeStylesheet(defaultTheme)}
 
   :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Right']) .fk-dock) {
     right: ${px(screenLook.drawerWidth)};
+  }
+}
+
+:where(.fk-list-group) {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 8px 5px;
+  border-bottom: 1px solid ${roleVar('Rule')};
+  color: ${roleVar('QuietText')};
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+:where(.fk-list-group:first-child) {
+  margin-top: 0;
+}
+
+:where(.fk-list-group-count) {
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.fk-item-badge) {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: ${roleVar('MarkSoft')};
+  color: ${roleVar('Mark')};
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  vertical-align: 1px;
+}
+
+:where(.fk-passage:has(.fk-word-ribbon)) {
+  position: relative;
+}
+
+:where(.fk-word[data-ribbon]) {
+  background: linear-gradient(transparent 62%, ${roleVar('MarkSoft')} 62%);
+  border-radius: 0;
+}
+
+:where(.fk-word-ribbon) {
+  position: absolute;
+  left: 3px;
+  width: 10px;
+  height: 14px;
+  margin-top: 0.45em;
+  padding: 0;
+  border: 0;
+  background: ${roleVar('Mark')};
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+  cursor: pointer;
+}
+
+:where(.fk-word-ribbon:focus-visible) {
+  outline: 2px solid ${roleVar('Focus')};
+  outline-offset: 2px;
+}
+
+:where(.fk-passage-note) {
+  display: block;
+  margin: 6px 0 2px;
+  padding: 0 0 0 16px;
+  border: 0;
+  background: none;
+  color: ${roleVar('Mark')};
+  font: inherit;
+  font-size: 15px;
+  font-style: italic;
+  text-align: left;
+  cursor: pointer;
+}
+
+:where(.fk-passage-note)::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 12px;
+  margin: 0 8px 0 -16px;
+  background: ${roleVar('Mark')};
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+  vertical-align: -1px;
+}
+
+:where(.fk-overlay[data-style='Drawer'] .fk-row:has(> .fk-button[data-variant='Tab'])) {
+  align-self: stretch;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: ${roleVar('Surface')};
+}
+
+:where(.fk-overlay[data-style='Drawer'] .fk-button[data-variant='Tab']) {
+  flex-direction: row;
+  gap: 6px;
+  height: 36px;
+  border-radius: 9px;
+  font-size: 14px;
+}
+
+:where(.fk-overlay[data-style='Drawer'] .fk-button[data-variant='Tab'][data-current]) {
+  background: ${roleVar('RaisedSurface')};
+  box-shadow: 0 1px 3px ${roleVar('Shadow')};
+}
+
+:where(.fk-overlay[data-style='Drawer']:focus) {
+  outline: none;
+}
+
+:where(.fk-column > .fk-text[data-dim]:has(+ .fk-list-frame):not(.fk-overlay *)) {
+  box-sizing: border-box;
+  width: min(100%, ${px(screenLook.listWidth)});
+  margin-bottom: -8px;
+  padding: 0 8px;
+  color: ${roleVar('Text')};
+  font-size: 20px;
+  font-weight: 700;
+  text-align: left;
+}
+
+@media (max-width: 560px) {
+  :where(.fk-word-ribbon) {
+    left: 0;
+    width: 6px;
+    height: 12px;
   }
 }
 ${readAlongStylesOf(screenLook)}`

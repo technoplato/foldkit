@@ -51,6 +51,7 @@ import {
   type Model,
   type Passage,
   type Search,
+  type SearchParts,
   type Section,
   currentWordOf,
   isFollowingPlayhead,
@@ -663,6 +664,27 @@ const foundTextOf = (
   }
 }
 
+/**
+ * The line under the search field while only some of the recording's
+ * words are in: how many parts of them, so a slow read is said, and the
+ * matches above it are known to be only those found so far.
+ */
+const partsLineOf = (search: Search): ReadonlyArray<UiNode> =>
+  Option.match(
+    search._tag === 'Searching' || search._tag === 'SearchFound'
+      ? search.maybeParts
+      : Option.none<SearchParts>(),
+    {
+      onNone: () => [],
+      onSome: parts => [
+        Text(
+          `Searching… ${parts.partsRead.toString()} of ${parts.partsTotal.toString()} parts`,
+          { dim: true },
+        ),
+      ],
+    },
+  )
+
 const searchTextOf = (model: Model, search: Search): string => {
   if (search._tag === 'SearchIdle') {
     return 'Type words, then Enter'
@@ -736,6 +758,7 @@ export const searchPanelOf = (
                 : []),
             ]
           : []),
+        ...partsLineOf(search),
       ),
     ],
   })

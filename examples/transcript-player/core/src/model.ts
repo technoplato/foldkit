@@ -114,19 +114,35 @@ export type Match = typeof Match.Type
 
 /** The search is open and nothing has been searched for yet. */
 export const SearchIdle = ts('SearchIdle')
-/** The recording is being read through for `query`. */
-export const Searching = ts('Searching', { query: SearchQuery })
+/**
+ * How far the read of the recording's words has come, while not all of
+ * them are in: `partsRead` of `partsTotal` parts.
+ */
+export const SearchParts = S.Struct({ partsRead: S.Int, partsTotal: S.Int })
+/** How far the read of the recording's words has come. */
+export type SearchParts = typeof SearchParts.Type
+
+/**
+ * The recording is being read through for `query`, and nothing read so
+ * far holds it. `maybeParts` says how far the read has come, once known.
+ */
+export const Searching = ts('Searching', {
+  query: SearchQuery,
+  maybeParts: S.OptionFromOptionalKey(SearchParts),
+})
 /**
  * What a search for `query` found: how many places in the whole
  * recording, the first of them in order, at most
  * {@link searchMatchesLimit}, and the one the person is on, by the time it
- * starts.
+ * starts. While `maybeParts` is there, only those parts of the recording
+ * have been read, and more matches may come.
  */
 export const SearchFound = ts('SearchFound', {
   query: SearchQuery,
   total: S.Int,
   matches: S.Array(Match),
   maybeSelectedMs: S.Option(Milliseconds),
+  maybeParts: S.OptionFromOptionalKey(SearchParts),
 })
 /** The recording could not be searched for `query`, and why, safe to show. */
 export const SearchFailed = ts('SearchFailed', {

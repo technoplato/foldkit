@@ -70,3 +70,87 @@ describe('the look of a picker bar over words read along with', () => {
     )
   })
 })
+
+describe('the look of a list in groups, and of a badge', () => {
+  it('heads a group in small quiet capitals, its count at the end of the line', () => {
+    const group = ruleOf(':where(.fk-list-group)')
+    expect(group).toContain('justify-content: space-between')
+    expect(group).toContain(`color: ${roleVar('QuietText')}`)
+    expect(group).toContain('text-transform: uppercase')
+  })
+
+  it('draws a badge as a small pill in the colors of a person’s own mark', () => {
+    const badge = ruleOf(':where(.fk-item-badge)')
+    expect(badge).toContain(`background: ${roleVar('MarkSoft')}`)
+    expect(badge).toContain(`color: ${roleVar('Mark')}`)
+    expect(badge).toContain('border-radius: 999px')
+  })
+})
+
+describe('the look of a mark in words read along with', () => {
+  it('underlines the marked word in the soft color of a person’s own mark', () => {
+    expect(ruleOf(':where(.fk-word[data-ribbon])')).toContain(roleVar('MarkSoft'))
+  })
+
+  it('sets the mark in the margin at the word’s own line, as a ribbon', () => {
+    const mark = ruleOf(':where(.fk-word-ribbon)')
+    expect(mark).toContain('position: absolute')
+    expect(mark).toContain(`background: ${roleVar('Mark')}`)
+    expect(mark).toContain('clip-path: polygon')
+    expect(ruleOf(':where(.fk-passage:has(.fk-word-ribbon))')).toContain(
+      'position: relative',
+    )
+  })
+
+  it('writes the note under its paragraph in the mark’s color', () => {
+    expect(ruleOf(':where(.fk-passage-note)')).toContain(
+      `color: ${roleVar('Mark')}`,
+    )
+  })
+})
+
+describe('the look of the tabs that head a drawer', () => {
+  it('sets them side by side as one control, the one showing raised', () => {
+    const row = ruleOf(
+      ":where(.fk-overlay[data-style='Drawer'] .fk-row:has(> .fk-button[data-variant='Tab']))",
+    )
+    expect(row).toContain(`background: ${roleVar('Surface')}`)
+    expect(row).toContain('border-radius: 12px')
+    const current = ruleOf(
+      ":where(.fk-overlay[data-style='Drawer'] .fk-button[data-variant='Tab'][data-current])",
+    )
+    expect(current).toContain(`background: ${roleVar('RaisedSurface')}`)
+  })
+
+  it('lets a row in a list with a head run to three lines', () => {
+    expect(ruleOf(':where(.fk-list-frame .fk-item-title)')).toContain(
+      '-webkit-line-clamp: 3',
+    )
+  })
+})
+
+describe('the look of a heading over a list with a head', () => {
+  it('heads it as it heads a bare list: at the list’s width, strong, at the left', () => {
+    const heading = ruleOf(
+      ':where(.fk-column > .fk-text[data-dim]:has(+ .fk-list-frame):not(.fk-overlay *))',
+    )
+    expect(heading).toContain(
+      `width: min(100%, ${screenLook.listWidth.toString()}px)`,
+    )
+    expect(heading).toContain(`color: ${roleVar('Text')}`)
+    expect(heading).toContain('font-weight: 700')
+    expect(heading).toContain('text-align: left')
+  })
+})
+
+describe('the look of a mark on a narrow window', () => {
+  it('draws the ribbon narrower than the paragraph’s side padding there, clear of the words', () => {
+    const start = screenStylesheet.indexOf(
+      '@media (max-width: 560px) {\n  :where(.fk-word-ribbon)',
+    )
+    expect(start).toBeGreaterThan(0)
+    const narrow = screenStylesheet.slice(start, start + 200)
+    expect(narrow).toContain('left: 0')
+    expect(narrow).toContain('width: 6px')
+  })
+})

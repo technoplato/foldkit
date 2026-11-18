@@ -23,7 +23,12 @@ export { Host } from './host.js'
 export { IconName, iconDrawings, iconGlyphs } from './icons.js'
 export type { IconDrawing } from './icons.js'
 export { progressLineOf, seekLineOf } from './layout.js'
-export { filterListItems, itemLinesOf } from './listRows.js'
+export {
+  type ItemGroup,
+  filterListItems,
+  groupedItemsOf,
+  itemLinesOf,
+} from './listRows.js'
 export { padOf } from './pad.js'
 export type {
   MobilePad,
@@ -54,6 +59,11 @@ export {
   wordAtAddress,
   wordStepOf,
 } from './readAlong.js'
+export {
+  type PlacedBookmark,
+  bookmarksInPassage,
+  withTranscriptBookmarks,
+} from './transcriptBookmarks.js'
 export {
   currentWordTokenAt,
   transcriptAt,
@@ -86,6 +96,7 @@ export type {
   ColumnNode,
   DeviceShellNode,
   HotspotAction,
+  ItemBadge,
   ItemCheck,
   ItemImage,
   LayoutBox,
@@ -107,6 +118,7 @@ export type {
   TextNode,
   TextPart,
   TranscriptClock,
+  TranscriptBookmark,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWord,

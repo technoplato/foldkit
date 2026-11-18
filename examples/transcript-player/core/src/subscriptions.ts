@@ -2,13 +2,15 @@ import { Effect, Match as M, Option, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
 
 import { type AudioEvent, AudioOutput, Track } from './audio.js'
-import { MediaId, Speed } from './ids.js'
+import { MediaId, Milliseconds, Speed } from './ids.js'
 import {
   FailedLoadTranscript,
   FailedPlayAudio,
+  FailedReadSearchWords,
   type Message,
   ReachedEnd,
   ReachedPlace,
+  ReadSearchWords,
   ReceivedPassages,
 } from './message.js'
 import { type Model, viewPlaceOf } from './model.js'
@@ -141,9 +143,77 @@ export const transcriptStream = ({
   })
 
 /**
+ * When a player reads a recording's words for searching: `OnOpen`, as
+ * soon as the search opens, so they are usually in before a person has
+ * typed; or `OnSearch`, only once there are words to search for, which a
+ * Program chooses where the read is costly, such as on a metered link.
+ */
+export type SearchReadAhead = 'OnOpen' | 'OnSearch'
+
+/** What the read for a search listens to: the recording to read. */
+export const SearchWordsDependencies = S.Struct({
+  maybeRecording: S.Option(
+    S.Struct({ mediaId: MediaId, durationMs: Milliseconds }),
+  ),
+})
+/** What the read for a search listens to. */
+export type SearchWordsDependencies = typeof SearchWordsDependencies.Type
+
+/**
+ * The read's dependencies for a player, or for none: the recording, while
+ * its search is open and, under `OnSearch`, has words to search for. They
+ * do not change while the search stays open, so the read is made once;
+ * closing the search ends it, and the source keeps what came in.
+ *
+ * @example
+ * ```typescript
+ * searchWordsDependenciesOf(Option.some(player), 'OnSearch')
+ * // { maybeRecording: None } until a person searches for words
+ * ```
+ */
+export const searchWordsDependenciesOf = (
+  maybePlayer: Option.Option<Model>,
+  readAhead: SearchReadAhead = 'OnOpen',
+): SearchWordsDependencies => ({
+  maybeRecording: Option.flatMap(maybePlayer, player =>
+    Option.match(player.maybeSearch, {
+      onNone: () => Option.none(),
+      onSome: search =>
+        readAhead === 'OnOpen' || search._tag !== 'SearchIdle'
+          ? Option.some({
+              mediaId: player.media.mediaId,
+              durationMs: player.media.durationMs,
+            })
+          : Option.none(),
+    }),
+  ),
+})
+
+/** The read of a recording's words for searching, as the player's facts. */
+export const searchWordsStream = ({
+  maybeRecording,
+}: SearchWordsDependencies): Stream.Stream<Message, never, TranscriptSource> =>
+  Option.match(maybeRecording, {
+    onNone: () => Stream.empty,
+    onSome: ({ mediaId, durationMs }) =>
+      Stream.unwrap(
+        Effect.gen(function* () {
+          const source = yield* TranscriptSource
+          return source.searchWordsOf(mediaId, durationMs).pipe(
+            Stream.map(reading => ReadSearchWords(reading)),
+            Stream.catch(error =>
+              Stream.make(FailedReadSearchWords({ reason: error.reason })),
+            ),
+          )
+        }),
+      ),
+  })
+
+/**
  * What the Transcript Player listens to on its own: its audio while it
- * plays, and the words around its place. A Program that holds a player
- * builds the same two entries from the exports above, with its own lens.
+ * plays, the words around its place, and the words for a search while
+ * one is open. A Program that holds a player builds the same entries from
+ * the exports above, with its own lens.
  */
 export const subscriptions = Subscription.make<
   Model,
@@ -158,5 +228,9 @@ export const subscriptions = Subscription.make<
   transcript: entry(TranscriptDependencies.fields, {
     modelToDependencies: model => transcriptDependenciesOf(Option.some(model)),
     dependenciesToStream: transcriptStream,
+  }),
+  searchWords: entry(SearchWordsDependencies.fields, {
+    modelToDependencies: model => searchWordsDependenciesOf(Option.some(model)),
+    dependenciesToStream: searchWordsStream,
   }),
 }))

@@ -1,6 +1,9 @@
 import { Array, Option } from 'effect'
 
 import {
+  isBookmarkDrawer,
+  isBookmarksDrawer,
+  isContentsSheet,
   isDeleteBookmarkQuestion,
   isPlayerPage,
   isPlayerScreen,
@@ -118,6 +121,26 @@ export const askedBookmarkOf = (model: HasStack): Option.Option<BookmarkId> =>
     isDeleteBookmarkQuestion(modal.destination)
       ? Option.some(modal.destination.bookmarkId)
       : Option.none(),
+  )
+
+/** The bookmark whose drawer is open, the one a note is written on. */
+export const openBookmarkOf = (model: HasStack): Option.Option<BookmarkId> =>
+  Option.flatMap(model.navigation.maybeModal, modal =>
+    isBookmarkDrawer(modal.destination)
+      ? Option.some(modal.destination.bookmarkId)
+      : Option.none(),
+  )
+
+/** True while the contents show beside the page. */
+export const isShowingContents = (model: HasStack): boolean =>
+  Option.exists(model.navigation.maybeModal, modal =>
+    isContentsSheet(modal.destination),
+  )
+
+/** True while the list of bookmarks shows beside the page. */
+export const isShowingBookmarks = (model: HasStack): boolean =>
+  Option.exists(model.navigation.maybeModal, modal =>
+    isBookmarksDrawer(modal.destination),
   )
 
 /** True while the delete-bookmark question waits for an answer. */

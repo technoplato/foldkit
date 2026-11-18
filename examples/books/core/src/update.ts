@@ -1,5 +1,6 @@
 import {
   Array,
+  Clock,
   Effect,
   Match as M,
   Option,
@@ -7,6 +8,7 @@ import {
   Schema as S,
 } from 'effect'
 import { Command, Navigation } from 'foldkit'
+import { transcriptPlaceAt } from 'foldkit/renderers'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -16,8 +18,16 @@ import {
   presentedAddBooks,
   reconnectedAudible,
 } from './addBooks.js'
+import {
+  alreadyBookmarkedNotice,
+  bookmarkOnWord,
+  bookmarkPlaceAt,
+  excerptAround,
+} from './bookmarks.js'
 import { closingsOf } from './closings.js'
 import {
+  BookmarkDrawer,
+  BookmarksDrawer,
   ContentsSheet,
   DeleteBookmarkQuestion,
   type Destination,
@@ -25,7 +35,7 @@ import {
   ProfilePage,
   SpeedSheet,
   TitlePage,
-  isContentsSheet,
+  isBesidePanel,
   isDeleteBookmarkQuestion,
   isPlayerPage,
   isPlayerScreen,
@@ -45,6 +55,7 @@ import {
   FinishTitle,
   LibraryStore,
   LibraryWrite,
+  NoteBookmark,
   RemoveBookmark,
   SavePlace,
 } from './library.js'
@@ -57,6 +68,7 @@ import {
   FailedReportStretch,
   FailedShareLink,
   FailedWriteLibrary,
+  MarkedMoment,
   type Message,
   SharedLink,
 } from './message.js'
@@ -72,6 +84,7 @@ import {
   Title,
   type TitleChapters,
   bookmarkOf,
+  bookmarksOf,
   chapterOf,
   chaptersOf,
   loadedTitleOf,
@@ -87,7 +100,10 @@ import type { BooksServices } from './services.js'
 import { LinkSharing, type SharedHow } from './share.js'
 import {
   isOnPlayer,
+  isShowingBookmarks,
+  isShowingContents,
   loadedSlugOf,
+  openBookmarkOf,
   shownTitleOf,
   titlePageSlugOf,
 } from './stack.js'
@@ -123,6 +139,20 @@ export const WriteLibrary = Command.define(
     Effect.catch(error =>
       Effect.succeed(FailedWriteLibrary({ reason: error.reason })),
     ),
+  ),
+)
+
+/**
+ * Reads the clock for a bookmark, so the word being spoken at the moment
+ * the person asked is the one marked.
+ */
+export const ReadMoment = Command.define(
+  'ReadMoment',
+  { maybeNote: S.OptionFromOptionalKey(S.String) },
+  MarkedMoment,
+)(({ maybeNote }) =>
+  Effect.map(Clock.currentTimeMillis, wallClockMs =>
+    MarkedMoment({ wallClockMs, maybeNote }),
   ),
 )
 
@@ -253,23 +283,38 @@ const presentedSheet = (model: Model, sheet: Destination): Model =>
     ),
   )
 
-const contentsSide = 'Left'
+const panelSide = 'Left'
 
 /**
- * The contents presented beside the page, as a drawer from the left, the
- * same style its route declares.
+ * A destination presented beside the page, as a drawer from the left, the
+ * style the routes declare for the contents, the bookmarks, and one
+ * bookmark. It takes the place of whichever of them is showing, so the
+ * tabs switch the one panel.
  */
-const presentedContents = (model: Model): Model =>
+const presentedBeside = (model: Model, destination: Destination): Model =>
   withStack(
     model,
     Navigation.pushed(
-      model.navigation,
+      Navigation.withoutDestinations(model.navigation, isBesidePanel),
       Navigation.presented<Destination>(
-        ContentsSheet(),
-        Navigation.Drawer({ from: contentsSide }),
+        destination,
+        Navigation.Drawer({ from: panelSide }),
       ),
     ),
   )
+
+/**
+ * Shows a panel beside the page, or closes it when it is the one showing,
+ * so its key and its button open and close it.
+ */
+const toggledBeside = (
+  model: Model,
+  isShowing: boolean,
+  destination: Destination,
+): Model =>
+  isShowing
+    ? withoutModal(model, isBesidePanel)
+    : presentedBeside(model, destination)
 
 const withoutModal = (
   model: Model,
@@ -674,7 +719,7 @@ const jumpedToChapter = (
           Option.some(chapter.startMs),
           'ShowsPlayer',
         )
-        return [withoutModal(next, isContentsSheet), commands]
+        return [withoutModal(next, isBesidePanel), commands]
       },
     },
   )
@@ -700,26 +745,201 @@ const askedToDelete = (model: Model, bookmarkId: BookmarkId): Model =>
       )
     : model
 
-const bookmarkedPlace = (model: Model): UpdateReturn =>
-  M.value(model.listening).pipe(
-    withUpdateReturn,
-    M.tagsExhaustive({
-      Idle: () => [model, []],
-      Loaded: loaded => [
-        {
-          ...model,
-          maybeNotice: Option.some(
-            `Bookmark added at ${clockOf(placeOf(loaded))}`,
+/**
+ * Asks for the moment a bookmark was wanted, so the word being spoken
+ * then is the one marked: the player reports its place once a second,
+ * and the word moves several times in that second.
+ */
+const askedForMoment = (
+  model: Model,
+  maybeNote: Option.Option<string>,
+): UpdateReturn =>
+  model.listening._tag === 'Loaded'
+    ? [model, [ReadMoment({ maybeNote })]]
+    : [model, []]
+
+/**
+ * Marks the word at a place in the loaded title, on the millisecond it
+ * starts, with the words around it and a note, if there is one. A word
+ * already marked is not marked again.
+ */
+const bookmarkedAt = (
+  model: Model,
+  loaded: Loaded,
+  placeMs: Milliseconds,
+  maybeNote: Option.Option<string>,
+): UpdateReturn => {
+  const passages = TranscriptPlayer.passagesOf(loaded.player)
+  const atMs = bookmarkPlaceAt(passages, placeMs)
+  const maybeExcerpt = excerptAround(passages, atMs)
+  if (
+    Option.isSome(
+      bookmarkOnWord(bookmarksOf(model, loaded.slug), loaded.slug, atMs),
+    )
+  ) {
+    return [
+      {
+        ...model,
+        maybeNotice: Option.some(alreadyBookmarkedNotice),
+      },
+      [],
+    ]
+  } else {
+    return [
+      {
+        ...model,
+        maybeNotice: Option.some(
+          Option.match(maybeExcerpt, {
+            onNone: () => `Bookmark added at ${clockOf(atMs)}`,
+            onSome: excerpt =>
+              `Bookmarked “${excerpt.word}” at ${clockOf(atMs)}`,
+          }),
+        ),
+      },
+      [
+        WriteLibrary({
+          write: AddBookmarkAt({
+            slug: loaded.slug,
+            atMs,
+            maybeNote,
+            maybeExcerpt,
+            maybeCreatedAtMs: Option.none(),
+          }),
+        }),
+      ],
+    ]
+  }
+}
+
+const loadedOf = (model: Model): Option.Option<Loaded> =>
+  model.listening._tag === 'Loaded'
+    ? Option.some(model.listening)
+    : Option.none()
+
+const markedMoment = (
+  model: Model,
+  wallClockMs: number,
+  maybeNote: Option.Option<string>,
+): UpdateReturn =>
+  Option.match(loadedOf(model), {
+    onNone: () => [model, []],
+    onSome: loaded =>
+      bookmarkedAt(
+        model,
+        loaded,
+        Milliseconds.make(
+          Math.max(
+            0,
+            Math.round(
+              transcriptPlaceAt(
+                TranscriptPlayer.playbackClockOf(loaded.player),
+                wallClockMs,
+              ),
+            ),
           ),
-        },
+        ),
+        maybeNote,
+      ),
+  })
+
+const bookmarkedWord = (
+  model: Model,
+  wordId: TranscriptPlayer.WordId,
+): UpdateReturn =>
+  Option.match(
+    Option.flatMap(loadedOf(model), loaded =>
+      Option.map(TranscriptPlayer.wordOf(loaded.player, wordId), word => ({
+        loaded,
+        word,
+      })),
+    ),
+    {
+      onNone: () => [model, []],
+      onSome: ({ loaded, word }) => {
+        const [closed, closing] = playerUpdated(
+          model,
+          TranscriptPlayer.CloseWordMenu(),
+        )
+        const [marked, marking] = bookmarkedAt(
+          closed,
+          loaded,
+          word.startMs,
+          Option.none(),
+        )
+        return [marked, [...closing, ...marking]]
+      },
+    },
+  )
+
+const openedBookmark = (model: Model, bookmarkId: BookmarkId): Model =>
+  Option.isSome(bookmarkOf(model, bookmarkId))
+    ? presentedBeside(model, BookmarkDrawer({ bookmarkId }))
+    : model
+
+const notedBookmark = (
+  model: Model,
+  maybeNote: Option.Option<string>,
+): UpdateReturn =>
+  Option.match(
+    Option.flatMap(openBookmarkOf(model), bookmarkId =>
+      bookmarkOf(model, bookmarkId),
+    ),
+    {
+      onNone: () => [model, []],
+      onSome: bookmark => [
+        model,
         [
           WriteLibrary({
-            write: AddBookmarkAt({ slug: loaded.slug, atMs: placeOf(loaded) }),
+            write: NoteBookmark({
+              bookmarkId: bookmark.bookmarkId,
+              maybeNote,
+            }),
           }),
         ],
       ],
-    }),
+    },
   )
+
+const removedBookmark = (
+  model: Model,
+  bookmarkId: BookmarkId,
+): UpdateReturn => {
+  const maybeBookmark = bookmarkOf(model, bookmarkId)
+  return [
+    {
+      ...withoutModal(model, isDeleteBookmarkQuestion),
+      maybeRemovedBookmark: maybeBookmark,
+      maybeNotice: Option.map(
+        maybeBookmark,
+        () => 'Bookmark removed. Press z to put it back.',
+      ),
+    },
+    [WriteLibrary({ write: RemoveBookmark({ bookmarkId }) })],
+  ]
+}
+
+const restoredBookmark = (model: Model): UpdateReturn =>
+  Option.match(model.maybeRemovedBookmark, {
+    onNone: () => [model, []],
+    onSome: bookmark => [
+      {
+        ...model,
+        maybeRemovedBookmark: Option.none(),
+        maybeNotice: Option.some('Bookmark put back'),
+      },
+      [
+        WriteLibrary({
+          write: AddBookmarkAt({
+            slug: bookmark.slug,
+            atMs: bookmark.atMs,
+            maybeNote: bookmark.maybeNote,
+            maybeExcerpt: bookmark.maybeExcerpt,
+            maybeCreatedAtMs: Option.some(bookmark.createdAtMs),
+          }),
+        }),
+      ],
+    ],
+  })
 
 const sharedPlace = (model: Model): UpdateReturn =>
   Option.match(loadedTitleOf(model), {
@@ -902,13 +1122,16 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       ShowContents: () => [
-        Option.exists(model.navigation.maybeModal, modal =>
-          isContentsSheet(modal.destination),
-        )
-          ? withoutModal(model, isContentsSheet)
-          : presentedContents(model),
+        toggledBeside(model, isShowingContents(model), ContentsSheet()),
         [],
       ],
+      ShowBookmarks: () => [
+        toggledBeside(model, isShowingBookmarks(model), BookmarksDrawer()),
+        [],
+      ],
+      OpenBookmark: ({ bookmarkId }) => [openedBookmark(model, bookmarkId), []],
+      SetBookmarkNote: ({ note }) => notedBookmark(model, Option.some(note)),
+      ClearBookmarkNote: () => notedBookmark(model, Option.none()),
       JumpToChapter: ({ chapterNumber }) =>
         jumpedToChapter(model, chapterNumber),
       ShowSpeeds: () => [presentedSheet(model, SpeedSheet()), []],
@@ -919,16 +1142,19 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         { ...model, maybeNotice: Option.some(`Could not share: ${reason}`) },
         [],
       ],
-      AddBookmark: () => bookmarkedPlace(model),
+      AddBookmark: () => askedForMoment(model, Option.none()),
+      AddNotedBookmark: ({ note }) => askedForMoment(model, Option.some(note)),
+      BookmarkWord: ({ wordId }) => bookmarkedWord(model, wordId),
+      MarkedMoment: ({ wallClockMs, maybeNote }) =>
+        markedMoment(model, wallClockMs, maybeNote),
+      UndoRemoveBookmark: () => restoredBookmark(model),
       PlayBookmark: ({ bookmarkId }) => playedBookmark(model, bookmarkId),
       DeleteBookmark: ({ bookmarkId }) => [
         askedToDelete(model, bookmarkId),
         [],
       ],
-      ConfirmDeleteBookmark: ({ bookmarkId }) => [
-        withoutModal(model, isDeleteBookmarkQuestion),
-        [WriteLibrary({ write: RemoveBookmark({ bookmarkId }) })],
-      ],
+      ConfirmDeleteBookmark: ({ bookmarkId }) =>
+        removedBookmark(model, bookmarkId),
       CancelDeleteBookmark: () => [
         withoutModal(model, isDeleteBookmarkQuestion),
         [],
@@ -961,6 +1187,8 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       FailedLoadTranscript: message => playerUpdated(model, message),
       ReceivedMatches: message => playerUpdated(model, message),
       FailedSearch: message => playerUpdated(model, message),
+      ReadSearchWords: message => playerUpdated(model, message),
+      FailedReadSearchWords: message => playerUpdated(model, message),
       CompletedWriteLibrary: () => [
         { ...model, maybeProblem: Option.none() },
         [],

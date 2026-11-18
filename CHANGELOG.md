@@ -4,6 +4,43 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 2:16:42 a.m. EST — `64c83e9cd55e` feat(books): green: the words for a search come from Instant in parts, all asked for at once (Scribe #2494)
+
+- **Implementation commit:** `64c83e9cd55e4b6b27f53de8d9777c8c33616469`
+- **Change:** green: the words for a search come from Instant in parts, all asked for at once (Scribe #2494)
+- **Details:**
+  - The Instant source splits a title into parts of about two and a half hours, eight at most, asks for all of them at once, and says how many are in as each lands. It holds the words while a search is open and ten minutes after the last one closes, keeps the parts that landed when a search closes and asks only for the rest next time, and asks nothing for a title it still holds. Books reads ahead when
+- **Files:**
+  - `examples/books/core/src/find.test.ts` — changed by this commit
+  - `examples/books/core/src/find.ts` — changed by this commit
+  - `examples/books/core/src/instantTranscript.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/books/core/src/program.ts` — changed by this commit
+  - `examples/books/core/src/subscriptions.ts` — changed by this commit
+  - `examples/books/core/src/update.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 2:16:42 a.m. EST — `95bda27945cd` feat(transcript-player): green: the words for a search are read in parts when the search opens, with matches as parts land (Scribe #2494)
+
+- **Implementation commit:** `95bda27945cdbb47390f9ed4fb42565b0add169a`
+- **Change:** green: the words for a search are read in parts when the search opens, with matches as parts land (Scribe #2494)
+- **Details:**
+  - The transcript port gains searchWordsOf: a source reads a recording's words for searching in parts, keeps them, and says after each part how many are in. passagesMatching now answers from what is kept, with how many parts that is, and reads nothing itself.
+- **Files:**
+  - `examples/transcript-player/core/src/message.ts` — changed by this commit
+  - `examples/transcript-player/core/src/model.ts` — changed by this commit
+  - `examples/transcript-player/core/src/screen.ts` — changed by this commit
+  - `examples/transcript-player/core/src/search.test.ts` — changed by this commit
+  - `examples/transcript-player/core/src/searchReading.test.ts` — changed by this commit
+  - `examples/transcript-player/core/src/subscriptions.ts` — changed by this commit
+  - `examples/transcript-player/core/src/transcript.ts` — changed by this commit
+  - `examples/transcript-player/core/src/update.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 1:59:24 a.m. EST — `cbff3e6988a0` test(transcript-player): the painted search shows the found words set apart in a terminal (Scribe #2494)
 
 - **Implementation commit:** `cbff3e6988a0e0d26b85b2febcdb3feff43cb050`

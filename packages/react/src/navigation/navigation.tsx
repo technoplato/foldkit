@@ -218,9 +218,15 @@ const hasKeyboardAtHand = (): boolean =>
 /**
  * What takes the keyboard when a presented screen opens: a field that asks
  * for it, such as the one that narrows a long list, where there is a
- * keyboard to type on, else the current row's button, else the first.
+ * keyboard to type on. Else a drawer takes it itself, since it sits beside
+ * the page and asks nothing: keys reach it, and no button looks chosen.
+ * Any other presented screen, such as a question, gives it to its current
+ * row's button, else its first.
  */
-const openingFocusOf = (root: HTMLElement): Option.Option<HTMLElement> =>
+const openingFocusOf = (
+  root: HTMLElement,
+  isDrawer: boolean,
+): Option.Option<HTMLElement> =>
   Option.orElse(
     Option.filter(
       Option.fromNullishOr(
@@ -228,7 +234,8 @@ const openingFocusOf = (root: HTMLElement): Option.Option<HTMLElement> =>
       ),
       () => hasKeyboardAtHand(),
     ),
-    () => openingButtonOf(enabledButtonsOf(root)),
+    () =>
+      isDrawer ? Option.some(root) : openingButtonOf(enabledButtonsOf(root)),
   )
 
 const caretKeys: ReadonlySet<string> = new Set(['ArrowLeft', 'ArrowRight'])
@@ -274,19 +281,21 @@ const PresentedScreen = ({
   const bound = useBound()
   const ref = useRef<HTMLDivElement>(null)
   const maybeSide = Navigation.sideTagOf(layer)
+  const isDrawer = Option.isSome(maybeSide)
   useEffect(() => {
     const root = ref.current
     if (root !== null) {
-      Option.map(openingFocusOf(root), control => {
+      Option.map(openingFocusOf(root, isDrawer), control => {
         control.focus({ preventScroll: true })
       })
     }
-  }, [])
+  }, [isDrawer])
   return (
     <div
       ref={ref}
       role="dialog"
-      aria-modal={Option.isNone(maybeSide)}
+      aria-modal={!isDrawer}
+      tabIndex={-1}
       className="fk-overlay"
       data-style={Navigation.styleTagOf(layer)}
       data-side={Option.getOrUndefined(maybeSide)}
