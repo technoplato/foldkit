@@ -13,10 +13,15 @@ import { OpenedPlace, ReceivedChapters, ReceivedShelf } from './message.js'
 import { sampleChapters, sampleShelf } from './sample.js'
 import { addressCueOfModel } from './subscriptions.js'
 import {
+  Paused,
+  Playing,
   SpokenWordsJson,
+  WordsHeardJson,
   isSameParagraph,
   spokenWordsLines,
   spokenWordsOf,
+  wordsHeardBetween,
+  wordsHeardLines,
 } from './words.js'
 
 const lanternKeeper = TitleSlug.make('the-lantern-keeper')
@@ -227,5 +232,131 @@ describe('the words being read', () => {
         currentWordIndex: 1,
       },
     })
+  })
+})
+
+describe('what a follower of the words hears', () => {
+  const reportedAtMs = Date.UTC(2026, 9, 18, 19, 0, 0)
+  const at = (bound: ReturnType<typeof playingAt>['bound'], afterMs: number) =>
+    spokenWordsOf(bound.readModel(), {}, reportedAtMs + afterMs)
+  const tagsOf = (events: ReadonlyArray<{ _tag: string }>) =>
+    events.map(event => event._tag)
+  const wordOf = (words: ReturnType<typeof at>) =>
+    words._tag === 'WordsNow'
+      ? {
+          text: Option.getOrElse(words.excerpt.maybeCurrentWord, () => ''),
+          link: Option.getOrElse(words.header.maybeWordLink, () => ''),
+        }
+      : { text: '', link: '' }
+
+  it('hears the paragraph, then its word with its time and link, when it starts to follow', () => {
+    const { bound } = playingAt(secondSentenceMs)
+    const now = at(bound, 0)
+    const events = wordsHeardBetween(Option.none(), now)
+    expect(tagsOf(events)).toEqual(['WordsNow', 'WordSpoken'])
+    expect(wordOf(now).text).not.toBe('')
+    expect(events[1]).toMatchObject({
+      _tag: 'WordSpoken',
+      text: wordOf(now).text,
+      link: wordOf(now).link,
+    })
+    expect(events[1]).toHaveProperty('startMs')
+    expect(events[1]).toHaveProperty('place', '0:36')
+  })
+
+  it('hears only the word when the word moves within the paragraph, and nothing while it has not moved', () => {
+    const { bound } = playingAt(secondSentenceMs)
+    const first = at(bound, 0)
+    const next = at(bound, 600)
+    expect(wordOf(next).text).not.toBe(wordOf(first).text)
+    expect(wordsHeardBetween(Option.some(first), next)).toMatchObject([
+      { _tag: 'WordSpoken', text: wordOf(next).text },
+    ])
+    expect(wordsHeardBetween(Option.some(first), at(bound, 10))).toEqual([])
+  })
+
+  it('hears one line that it paused, and one that it plays, and never the paragraph again for that', () => {
+    const { bound } = playingAt(secondSentenceMs)
+    const playing = at(bound, 0)
+    bound.press('Pause')
+    const paused = spokenWordsOf(bound.readModel(), {}, reportedAtMs)
+    expect(wordsHeardBetween(Option.some(playing), paused)).toMatchObject([
+      { _tag: 'Paused', place: '0:36' },
+    ])
+    bound.press('Play')
+    expect(
+      tagsOf(
+        wordsHeardBetween(
+          Option.some(paused),
+          spokenWordsOf(bound.readModel(), {}, reportedAtMs),
+        ),
+      ),
+    ).toEqual(['Playing'])
+  })
+
+  it('hears the paragraph, then its word, when the paragraph changes', () => {
+    const { bound, send } = playingAt(secondSentenceMs)
+    const before = at(bound, 0)
+    send(
+      ReachedPlace({
+        placeMs: Milliseconds.make(41_000),
+        wallClockMs: reportedAtMs + 5_000,
+      }),
+    )
+    expect(
+      tagsOf(wordsHeardBetween(Option.some(before), at(bound, 5_000))),
+    ).toEqual(['WordsNow', 'WordSpoken'])
+  })
+
+  it('hears paragraphs and no words when asked for paragraphs only', () => {
+    const { bound } = playingAt(secondSentenceMs)
+    const quiet = { paragraphsOnly: true }
+    expect(
+      tagsOf(wordsHeardBetween(Option.none(), at(bound, 0), quiet)),
+    ).toEqual(['WordsNow'])
+    expect(
+      wordsHeardBetween(Option.some(at(bound, 0)), at(bound, 600), quiet),
+    ).toEqual([])
+  })
+
+  it('prints each as lines for a pipe: the paragraphs as books words prints them, a word with its time and link, a turn in a sentence', () => {
+    const { bound } = playingAt(secondSentenceMs)
+    const now = at(bound, 0)
+    const [paragraph, word] = wordsHeardBetween(Option.none(), now)
+    expect(paragraph === undefined ? [] : wordsHeardLines(paragraph)).toEqual(
+      spokenWordsLines(now),
+    )
+    expect(word === undefined ? [] : wordsHeardLines(word)).toEqual([
+      `. 0:36 ${wordOf(now).text} ${wordOf(now).link}`,
+    ])
+    const turn = { placeMs: Milliseconds.make(36_100), place: '0:36' }
+    expect(wordsHeardLines(Paused(turn))).toEqual(['# paused at 0:36'])
+    expect(wordsHeardLines(Playing(turn))).toEqual(['# playing from 0:36'])
+  })
+
+  it('prints each as one line of JSON for another program', () => {
+    const { bound } = playingAt(secondSentenceMs)
+    const now = at(bound, 0)
+    const [paragraph, word] = wordsHeardBetween(Option.none(), now)
+    expect(
+      paragraph === undefined
+        ? {}
+        : JSON.parse(S.encodeSync(WordsHeardJson)(paragraph)),
+    ).toMatchObject({ _tag: 'WordsNow', header: { slug: lanternKeeper } })
+    expect(
+      word === undefined ? {} : JSON.parse(S.encodeSync(WordsHeardJson)(word)),
+    ).toMatchObject({
+      _tag: 'WordSpoken',
+      text: wordOf(now).text,
+      place: '0:36',
+      link: wordOf(now).link,
+    })
+    expect(
+      JSON.parse(
+        S.encodeSync(WordsHeardJson)(
+          Paused({ placeMs: Milliseconds.make(36_100), place: '0:36' }),
+        ),
+      ),
+    ).toEqual({ _tag: 'Paused', placeMs: 36_100, place: '0:36' })
   })
 })
