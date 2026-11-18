@@ -4,7 +4,12 @@ import {
   startBooks,
 } from 'books-core-example/browser'
 import { Processor, Telemetry } from 'foldkit'
-import { modeOfState, paintModeOnPage } from 'foldkit/theme'
+import {
+  contrastOfState,
+  modeOfState,
+  paintContrastOnPage,
+  paintModeOnPage,
+} from 'foldkit/theme'
 import { Profiler, type ProfilerOnRenderCallback, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
@@ -39,9 +44,10 @@ const recordCommit: ProfilerOnRenderCallback = (_id, phase, actualDuration) => {
 }
 
 // NOTE: The Program holds the look. The page is only told: each time the
-// Model's mode changes, this host sets it on the page and mirrors it for
-// the next first paint (index.html reads the mirror before React starts).
-// No component reads the system, the mirror, or the attribute.
+// Model's mode or contrast changes, this host sets them on the page and
+// mirrors the mode for the next first paint (index.html reads the mirror
+// before React starts). No component reads the system, the mirror, or
+// the attributes.
 const tellPageItsMode = (): void => {
   const model = handle.readModel()
   if (model._tag === 'Ready') {
@@ -49,6 +55,10 @@ const tellPageItsMode = (): void => {
       root: document.documentElement,
       storage: window.localStorage,
     })
+    paintContrastOnPage(
+      contrastOfState(model.appearance),
+      document.documentElement,
+    )
   }
 }
 handle.subscribe(tellPageItsMode)

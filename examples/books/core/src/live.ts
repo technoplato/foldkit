@@ -1,6 +1,10 @@
 import { type Context, Effect, Layer, Option } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
-import { localSnapshotFile, localSnapshotPath } from 'foldkit/cli'
+import {
+  localSnapshotFile,
+  localSnapshotPath,
+  terminalSystemAppearance,
+} from 'foldkit/cli'
 import { dirname, join } from 'node:path'
 import {
   fetchPreviewSource,
@@ -173,8 +177,9 @@ const terminalAudibleImport = (signedIn: SignedInBooks) =>
  * Starts Books in a terminal as the signed-in member: the shelf and the
  * words from Instant, the audio through ffplay, what it plays on Scribe's
  * timeline, the books read aloud from Scribe's logs on this machine, the
- * Audible import through the reader it signed in with, and this machine's
- * fold of the log in a file, so the next run paints at once.
+ * Audible import through the reader it signed in with, the contrast this
+ * machine's system asks for, and this machine's fold of the log in a
+ * file, so the next run paints at once.
  *
  * @example
  * ```typescript
@@ -208,6 +213,7 @@ export const startBooks = (
       localReadingSource(thingsDirectoryFromEnv()),
       fetchPreviewSource,
       terminalAudibleImport(signedIn),
+      terminalSystemAppearance(),
     ),
     localSnapshot: localSnapshotFile(
       join(stateDirectoryOf(signedIn.appId), 'snapshot.json'),

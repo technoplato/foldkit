@@ -29,6 +29,21 @@ export const madeUpNameOf = (
   return name === '' ? undefined : name
 }
 
+/**
+ * The contrast the made-up library's made-up system asks for, from
+ * `BOOKS_MADE_UP_CONTRAST`: `More`, or the usual one. A made-up player
+ * never reads this machine's own setting, so a test says which it is.
+ *
+ * @example
+ * ```typescript
+ * madeUpContrastOf({ BOOKS_MADE_UP_CONTRAST: 'More' }) // 'More'
+ * ```
+ */
+export const madeUpContrastOf = (
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): 'Standard' | 'More' =>
+  env['BOOKS_MADE_UP_CONTRAST']?.trim() === 'More' ? 'More' : 'Standard'
+
 /** The Instant app the environment names, `bd40c50a-…`, or empty. */
 export const booksAppIdOf = (
   env: Readonly<Record<string, string | undefined>> = process.env,

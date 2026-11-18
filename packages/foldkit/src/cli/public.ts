@@ -70,6 +70,12 @@ export {
 } from './terminalScreen.js'
 export { type WatchOptions, paintWatch, runProgramWatch } from './watch.js'
 export { localSnapshotFile, localSnapshotPath } from './localSnapshotFile.js'
+export {
+  contrastOfMacSetting,
+  contrastsRead,
+  readSystemContrast,
+  terminalSystemAppearance,
+} from './systemAppearance.js'
 export { formatTailRow, runProgramTail } from './tail.js'
 export { columnRow, terminalWidth, underColumn, wrapWords } from './layout.js'
 

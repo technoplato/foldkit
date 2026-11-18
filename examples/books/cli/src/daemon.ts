@@ -28,7 +28,10 @@ import {
 } from 'books-core-example'
 import { Duration, Effect } from 'effect'
 import { Interaction, Processor, Telemetry } from 'foldkit'
-import { listenBackgroundProcessor } from 'foldkit/cli'
+import {
+  listenBackgroundProcessor,
+  terminalSystemAppearance,
+} from 'foldkit/cli'
 import { fileSink } from 'foldkit/telemetry/node'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -44,7 +47,12 @@ import {
   whenIdleFor,
   whenTitleFinished,
 } from './player.js'
-import { booksPlayerSocketPath, buildOf, madeUpNameOf } from './settings.js'
+import {
+  booksPlayerSocketPath,
+  buildOf,
+  madeUpContrastOf,
+  madeUpNameOf,
+} from './settings.js'
 import { signInFromEnv } from './signIn.js'
 
 const readyTimeoutMs = 20_000
@@ -82,6 +90,7 @@ const serve = Effect.gen(function* () {
           startMadeUpBooks({
             host: Processor.Host.Cli(),
             library: writes.wrap,
+            resources: terminalSystemAppearance(Effect.sync(madeUpContrastOf)),
           }),
         )
       : startBooks(signIn.signedIn, {
