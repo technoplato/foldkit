@@ -11,7 +11,7 @@ import {
   Schema as S,
   pipe,
 } from 'effect'
-import { Command } from 'foldkit'
+import { Command, Theme } from 'foldkit'
 import * as Dom from 'foldkit/dom'
 import { load, pushUrl, replaceUrl } from 'foldkit/navigation'
 import {
@@ -26,6 +26,7 @@ import { evo } from 'foldkit/struct'
 import { toString as urlToString } from 'foldkit/url'
 
 import * as Account from './account/index.js'
+import { AppearanceStore } from './appearance.js'
 import {
   AudioPlayer,
   type AudioPlayerService,
@@ -78,6 +79,7 @@ import {
   CompletedFocusContent,
   CompletedFocusPlayer,
   CompletedFocusSearch,
+  CompletedKeepAppearance,
   CompletedLoadExternal,
   CompletedNavigate,
   CompletedPauseAudio,
@@ -102,6 +104,7 @@ import {
   GotShareMessage,
   type Message,
   type ObservedRecordings,
+  ReadKeptAppearance,
   SucceededCopy,
 } from './message.js'
 import {
@@ -457,6 +460,29 @@ export const HideCopyNoticeLater = Command.define(
 )(({ revision }) =>
   Effect.sleep(COPY_NOTICE_DURATION).pipe(
     Effect.as(ElapsedCopyNotice({ revision })),
+  ),
+)
+
+/** Reads the look kept on this device, at the start. */
+export const ReadAppearance = Command.define(
+  'ReadAppearance',
+  ReadKeptAppearance,
+)(
+  Effect.map(
+    Effect.flatMap(AppearanceStore, store => store.read),
+    maybeAppearance => ReadKeptAppearance({ maybeAppearance }),
+  ),
+)
+
+/** Keeps the chosen look on this device. */
+export const KeepAppearance = Command.define(
+  'KeepAppearance',
+  { appearance: Theme.Appearance },
+  CompletedKeepAppearance,
+)(({ appearance }) =>
+  Effect.as(
+    Effect.flatMap(AppearanceStore, store => store.keep(appearance)),
+    CompletedKeepAppearance(),
   ),
 )
 
@@ -1707,6 +1733,7 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       copyRevision: 0,
       connectivity: 'Online',
       searchQuery: '',
+      appearance: Theme.initialAppearance,
     },
     route,
   )[0]
@@ -2958,10 +2985,12 @@ const captureContextOf = (model: Model): Capture.CaptureContext => ({
 })
 
 /** The Commands a page load starts: the account check that signs the browser in. */
-export const startupCommands: Commands = Command.mapMessages(
-  [Account.CheckAccess()],
-  message => GotAccountMessage({ message }),
-)
+export const startupCommands: Commands = [
+  ...Command.mapMessages([Account.CheckAccess()], message =>
+    GotAccountMessage({ message }),
+  ),
+  ReadAppearance(),
+]
 
 const showNotice = (model: Model, notice: CopyNotice): UpdateReturn => [
   evo(model, { maybeCopyNotice: () => Option.some(notice) }),
@@ -3343,6 +3372,29 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           }),
         ),
       ClosedWordMenu: () => evolveReady(model, withoutWordMenu),
+      ChoseAppearance: ({ appearance }) => [
+        evo(model, {
+          appearance: state => ({ ...state, appearance }),
+        }),
+        [KeepAppearance({ appearance })],
+      ],
+      ObservedSystemMode: ({ mode }) => [
+        evo(model, {
+          appearance: state => ({ ...state, systemMode: mode }),
+        }),
+        [],
+      ],
+      ReadKeptAppearance: ({ maybeAppearance }) => [
+        Option.match(maybeAppearance, {
+          onNone: () => model,
+          onSome: appearance =>
+            evo(model, {
+              appearance: state => ({ ...state, appearance }),
+            }),
+        }),
+        [],
+      ],
+      CompletedKeepAppearance: () => [model, []],
       OpenedFind: () =>
         updateReady(model, ready => [
           Option.isSome(ready.maybeFind)

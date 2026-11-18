@@ -8,7 +8,7 @@ import {
   Schema as S,
   Stream,
 } from 'effect'
-import { Subscription } from 'foldkit'
+import { Subscription, Theme } from 'foldkit'
 
 import * as Account from './account/index.js'
 import { AudioPlayer, type AudioPlayerService } from './audioPlayer.js'
@@ -34,6 +34,7 @@ import {
   ObservedLiveBeat,
   ObservedRecording,
   ObservedRecordings,
+  ObservedSystemMode,
   PressedShortcut,
   TickedLiveClock,
 } from './message.js'
@@ -696,6 +697,14 @@ const pageSubscriptions = Subscription.make<
           ),
         ),
       ),
+    ),
+  ),
+  // NOTE: the only place the system's light or dark reaches the page: the
+  // host reports it, and it becomes a fact in the Model. No view and no
+  // stylesheet asks the system.
+  systemMode: Subscription.persistent(
+    Stream.map(Theme.systemModeStream, ({ mode }) =>
+      ObservedSystemMode({ mode }),
     ),
   ),
 }))

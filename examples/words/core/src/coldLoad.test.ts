@@ -524,8 +524,11 @@ describe('opening the other links in a new tab', () => {
       )
       expect(model.route._tag).toBe(tag)
       expect(model.playback._tag).toBe('NoPlayback')
+      // NOTE: the account is checked first; the look kept on this device
+      // is read after it (#2494).
       expect(startupCommands.map(command => command.name)).toEqual([
         'CheckAccess',
+        'ReadAppearance',
       ])
     })
   }

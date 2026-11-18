@@ -1,4 +1,5 @@
 import { Schema as S } from 'effect'
+import { Theme } from 'foldkit'
 import { m } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
@@ -285,6 +286,18 @@ export const OpenedWordMenu = m('OpenedWordMenu', {
   x: S.Number,
   y: S.Number,
 })
+/** The listener chose how the page looks: follow the system, light, or dark. */
+export const ChoseAppearance = m('ChoseAppearance', {
+  appearance: Theme.Appearance,
+})
+/** The system this device is on is in light, or in dark. */
+export const ObservedSystemMode = m('ObservedSystemMode', { mode: Theme.Mode })
+/** The look kept on this device was read at the start, if there was one. */
+export const ReadKeptAppearance = m('ReadKeptAppearance', {
+  maybeAppearance: S.Option(Theme.Appearance),
+})
+/** The chosen look was kept on this device. */
+export const CompletedKeepAppearance = m('CompletedKeepAppearance')
 /** The listener opened the search inside the recording. */
 export const OpenedFind = m('OpenedFind')
 /** The listener closed the search inside the recording. */
@@ -427,6 +440,10 @@ export const Message = S.Union([
   ClickedCopyWordLink,
   OpenedWordMenu,
   ClosedWordMenu,
+  ChoseAppearance,
+  ObservedSystemMode,
+  ReadKeptAppearance,
+  CompletedKeepAppearance,
   OpenedFind,
   ClosedFind,
   ChangedFindQuery,

@@ -1,4 +1,5 @@
 import { Schema as S } from 'effect'
+import { Theme } from 'foldkit'
 import { ts } from 'foldkit/schema'
 
 import * as Account from './account/model.js'
@@ -344,6 +345,7 @@ export const Model = S.Struct({
   copyRevision: S.Number,
   connectivity: Connectivity,
   searchQuery: S.String,
+  appearance: Theme.AppearanceState,
 })
 /** The web Scribe Model. */
 export type Model = typeof Model.Type

@@ -1,4 +1,5 @@
 export * as Account from './account/index.js'
+export * from './appearance.js'
 export * from './audioPlayer.js'
 export * as Capture from './capture/index.js'
 export * from './clipboard.js'
