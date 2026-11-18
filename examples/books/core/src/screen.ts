@@ -58,6 +58,7 @@ import { placePathOf } from './links.js'
 import {
   AddBookmark,
   CancelDeleteBookmark,
+  CloseSearch,
   CollapseControls,
   ConfirmDeleteBookmark,
   DeleteBookmark,
@@ -1099,7 +1100,10 @@ const collapsedControlsOf = (
         ],
       }),
     ],
-    center: TranscriptPlayer.miniTransportOf(loaded.player, entries),
+    center: [
+      ...TranscriptPlayer.miniTransportOf(loaded.player, entries),
+      ...barSearchButtonsOf(model, loaded),
+    ],
     end: withIcon(buttonsOf(model, [ExpandControls], 'Ghost'), 'Expand', true),
   })
 }
@@ -1132,11 +1136,54 @@ const expandedControlsOf = (model: Model, loaded: Loaded): UiNode =>
     ),
   )
 
-const readerRowOf = (model: Model, loaded: Loaded): ReadonlyArray<UiNode> =>
-  Array.match(readerButtonsOf(model, loaded), {
-    onEmpty: () => [],
-    onNonEmpty: buttons => [Row({ gap: 1 }, ...buttons)],
+const isSearchButton = (button: ButtonNode): boolean =>
+  button.action === TranscriptPlayer.ShowSearch.tag
+
+const searchButtonsOf = (
+  model: Model,
+  loaded: Loaded,
+): ReadonlyArray<ButtonNode> =>
+  Array.filter(readerButtonsOf(model, loaded), isSearchButton)
+
+/**
+ * Search in the folded bar, beside Play: a magnifier that opens the
+ * search, and, while the search is open, the same magnifier closes it,
+ * so Play stays in the middle of the bar.
+ */
+const barSearchButtonsOf = (
+  model: Model,
+  loaded: Loaded,
+): ReadonlyArray<ButtonNode> =>
+  Array.match(searchButtonsOf(model, loaded), {
+    onEmpty: () =>
+      withIcon(buttonsOf(model, [CloseSearch], 'Ghost'), 'Search', true),
+    onNonEmpty: buttons =>
+      Array.map(buttons, button => ({
+        ...button,
+        variant: 'Ghost' as const,
+        isIconOnly: true,
+      })),
   })
+
+/**
+ * The reader's own buttons in a row above the controls. While the
+ * controls are folded into the bar, Search sits in the bar itself, so
+ * this row holds only `Back to playhead`, and nothing while the words
+ * follow the voice.
+ */
+const readerRowOf = (model: Model, loaded: Loaded): ReadonlyArray<UiNode> =>
+  Array.match(
+    model.controls === 'Expanded'
+      ? readerButtonsOf(model, loaded)
+      : Array.filter(
+          readerButtonsOf(model, loaded),
+          button => !isSearchButton(button),
+        ),
+    {
+      onEmpty: () => [],
+      onNonEmpty: buttons => [Row({ gap: 1 }, ...buttons)],
+    },
+  )
 
 /**
  * The player for the book its address names, read and listen: the words

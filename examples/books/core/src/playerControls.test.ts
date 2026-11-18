@@ -4,7 +4,12 @@ import { describe, expect, it } from 'vitest'
 
 import { App, type AppModel } from './app.js'
 import { TitleSlug } from './ids.js'
-import { Listen, ReceivedChapters, ReceivedShelf } from './message.js'
+import {
+  Listen,
+  ReceivedChapters,
+  ReceivedShelf,
+  ShowSearch,
+} from './message.js'
 import { sampleChapters, sampleShelf } from './sample.js'
 import { playerScreen } from './screen.js'
 
@@ -41,7 +46,7 @@ const toolbarsOf = (node: UiNode): ReadonlyArray<RowNode> => {
 }
 
 describe('the controls of the player', () => {
-  it('are a toolbar: what is playing at the start, the transport in the centre, more at the end', () => {
+  it('are a toolbar: what is playing at the start, the transport with Search beside Play in the centre, more at the end', () => {
     const [toolbar] = toolbarsOf(playerScreen(listening()))
     const [start, center, end] = Option.getOrThrow(
       Option.fromNullishOr(toolbar),
@@ -51,8 +56,8 @@ describe('the controls of the player', () => {
         ? []
         : Array.map(buttonsOf(maybeNode), button => button.action)
     expect(start?._tag).toBe('Row')
-    expect(actionsOf(center)).toEqual(['SkipBack', 'Pause'])
-    expect(actionsOf(end)).toEqual(['ShowSearch', 'ExpandControls'])
+    expect(actionsOf(center)).toEqual(['SkipBack', 'Pause', 'ShowSearch'])
+    expect(actionsOf(end)).toEqual(['ExpandControls'])
   })
 
   it('offer Search once, in the bar beside the transport, not in a row of its own', () => {
@@ -61,5 +66,18 @@ describe('the controls of the player', () => {
       button => button.action === 'ShowSearch',
     )
     expect(searches).toHaveLength(1)
+  })
+
+  it('keep Play in the middle while the search is open: the magnifier stays and closes it', () => {
+    const searching = App.update(listening(), ShowSearch())[0]
+    const [toolbar] = toolbarsOf(playerScreen(searching))
+    const center = Option.getOrThrow(Option.fromNullishOr(toolbar)).children[1]
+    const buttons = center === undefined ? [] : buttonsOf(center)
+    expect(Array.map(buttons, button => button.action)).toEqual([
+      'SkipBack',
+      'Pause',
+      'CloseSearch',
+    ])
+    expect(buttons[2]?.isIconOnly).toBe(true)
   })
 })
