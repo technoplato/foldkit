@@ -2,8 +2,9 @@ import { Array, Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 import { type ScrubDirection, matchStepOf } from 'foldkit/renderers'
 
+import { FailedSearch, ReceivedMatches } from './fact.js'
 import { MediaId, Milliseconds, SearchQuery, type WordId } from './ids.js'
-import { FailedSearch, type Message, ReceivedMatches } from './message.js'
+import type { Message } from './message.js'
 import {
   LookingAt,
   type Match,

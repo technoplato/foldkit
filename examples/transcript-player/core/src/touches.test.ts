@@ -113,7 +113,7 @@ const pausedAfterSounding = after(busy, Pause())
 const models: ReadonlyArray<Model> = [fresh, atEnd, busy, pausedAfterSounding]
 
 /** The Messages a person types or presses that no menu lists. */
-const typed: ReadonlyArray<Message> = [
+const typed: ReadonlyArray<typeof catalog.Message.Type> = [
   SeekTo({ placeMs: Milliseconds.make(5 * minuteMs) }),
   SeekToWord({ wordId: WordId.make('a.0') }),
   PlayFrom({ placeMs: Milliseconds.make(19_000) }),
