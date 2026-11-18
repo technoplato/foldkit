@@ -65,6 +65,8 @@ describe('the mode on a page', () => {
     expect(script).toContain('localStorage.getItem("foldkit.mode")')
     expect(script).toContain('prefers-color-scheme: dark')
     expect(script).toContain('data-fk-mode')
+    expect(script).toContain('prefers-contrast: more')
+    expect(script).toContain('data-fk-contrast')
     const root = document.documentElement
     root.removeAttribute('data-fk-mode')
     window.localStorage.setItem('foldkit.mode', 'Dark')

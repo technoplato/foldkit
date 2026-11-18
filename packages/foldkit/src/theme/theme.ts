@@ -17,6 +17,15 @@ export const Mode = S.Literals(['Light', 'Dark'])
 export type Mode = typeof Mode.Type
 
 /**
+ * How much contrast a Program is painted with: the usual, or more, for a
+ * person whose device asks for it. Like the mode it is state in the
+ * Model, heard from the host as a fact; no painter or stylesheet asks.
+ */
+export const Contrast = S.Literals(['Standard', 'More'])
+/** How much contrast a Program is painted with. */
+export type Contrast = typeof Contrast.Type
+
+/**
  * What a color is for. A screen and its styling name roles, never colors:
  * the ground of the page, a surface on it and a surface raised above
  * that, text and quieter text, the accent and its soft ground, a rule,
@@ -79,8 +88,27 @@ export const Role = S.Literals([
 /** What a color is for. */
 export type Role = typeof Role.Type
 
-/** A role's color in each mode. */
-export type RoleColors = Readonly<{ light: string; dark: string }>
+/**
+ * A role's color in each mode, and, where the role is stronger under
+ * More Contrast, its color then: `lightMore` and `darkMore`. A role that
+ * names none keeps its usual color.
+ */
+export type RoleColors = Readonly<{
+  light: string
+  dark: string
+  lightMore?: string
+  darkMore?: string
+}>
+
+const colorOf = (
+  colors: RoleColors,
+  mode: Mode,
+  contrast: Contrast,
+): string => {
+  const usual = mode === 'Dark' ? colors.dark : colors.light
+  const maybeMore = mode === 'Dark' ? colors.darkMore : colors.lightMore
+  return contrast === 'More' ? (maybeMore ?? usual) : usual
+}
 
 /** A theme: every role's color, light and dark. */
 export type Theme = Readonly<Record<Role, RoleColors>>
@@ -174,12 +202,16 @@ export const withRoles = (
 export const modeOf = (appearance: Appearance, systemMode: Mode): Mode =>
   appearance === 'System' ? systemMode : appearance
 
-/** Each role's color in one mode, as a painter reads them. */
+/**
+ * Each role's color in one mode, at the usual contrast or with more, as
+ * a painter reads them.
+ */
 export const roleColorsOf = (
   theme: Theme,
   mode: Mode,
+  contrast: Contrast = 'Standard',
 ): Readonly<Record<Role, string>> =>
-  Record.map(theme, colors => (mode === 'Dark' ? colors.dark : colors.light))
+  Record.map(theme, colors => colorOf(colors, mode, contrast))
 
 /**
  * The CSS variable a role is declared as: `--fk-page-ground` for
@@ -266,12 +298,49 @@ const declarationsOf = (theme: Theme, own: OwnRoles, mode: Mode): string =>
     Array.join('\n'),
   )
 
+/** The attribute a DOM painter sets while the Model's contrast is More. */
+export const contrastAttribute = 'data-fk-contrast'
+
+const moreColorOf = (colors: RoleColors, mode: Mode): string | undefined =>
+  mode === 'Dark' ? colors.darkMore : colors.lightMore
+
+// NOTE: only the roles that are stronger under More Contrast are declared
+// again, so a theme that names none writes no contrast rules at all.
+const moreDeclarationsOf = (
+  theme: Theme,
+  own: OwnRoles,
+  mode: Mode,
+): ReadonlyArray<string> => [
+  ...Array.flatMap(Role.literals, role => {
+    const maybeColor = moreColorOf(theme[role], mode)
+    return maybeColor === undefined
+      ? []
+      : [`  ${cssVariableOf(role)}: ${maybeColor};`]
+  }),
+  ...Array.flatMap(Record.toEntries(own), ([name, colors]) => {
+    const maybeColor = moreColorOf(colors, mode)
+    return maybeColor === undefined
+      ? []
+      : [`  ${ownCssVariableOf(name)}: ${maybeColor};`]
+  }),
+]
+
+const moreBlockOf = (
+  selector: string,
+  declarations: ReadonlyArray<string>,
+): ReadonlyArray<string> =>
+  Array.isReadonlyArrayNonEmpty(declarations)
+    ? [`:where(${selector}) {\n${Array.join(declarations, '\n')}\n}`]
+    : []
+
 /**
  * The stylesheet that declares a theme for the DOM: every role as a CSS
  * variable, light by default, and dark on and under an element whose
  * `data-fk-mode` is `Dark`. The DOM painter sets that attribute from the
  * mode in the Model; nothing here asks the system which mode it is in. A
  * domain's own roles, when given, are declared beside the library's.
+ * Roles that are stronger under More Contrast are declared again on an
+ * element whose `data-fk-contrast` is `More`, light and dark apart.
  *
  * @example
  * ```typescript
@@ -284,4 +353,12 @@ export const themeStylesheet = (theme: Theme, own: OwnRoles = {}): string =>
     `:where(:root) {\n${declarationsOf(theme, own, 'Light')}\n}`,
     `:where([${modeAttribute}="Light"]) {\n${declarationsOf(theme, own, 'Light')}\n}`,
     `:where([${modeAttribute}="Dark"]) {\n${declarationsOf(theme, own, 'Dark')}\n}`,
+    ...moreBlockOf(
+      `[${contrastAttribute}="More"]:not([${modeAttribute}="Dark"])`,
+      moreDeclarationsOf(theme, own, 'Light'),
+    ),
+    ...moreBlockOf(
+      `[${modeAttribute}="Dark"][${contrastAttribute}="More"]`,
+      moreDeclarationsOf(theme, own, 'Dark'),
+    ),
   ].join('\n\n')
