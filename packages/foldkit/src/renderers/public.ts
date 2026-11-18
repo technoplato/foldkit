@@ -37,6 +37,16 @@ export {
   transcriptsOf,
 } from './query.js'
 export {
+  type ScrubDirection,
+  type ScrubUnit,
+  type TranscriptMatch,
+  searchTranscript,
+  transcriptDefectOf,
+  wordAddressOf,
+  wordAtAddress,
+  wordStepOf,
+} from './readAlong.js'
+export {
   currentWordTokenAt,
   transcriptAt,
   transcriptPlaceAt,
