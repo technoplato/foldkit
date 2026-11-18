@@ -52,6 +52,14 @@ describe('the controls of the player', () => {
         : Array.map(buttonsOf(maybeNode), button => button.action)
     expect(start?._tag).toBe('Row')
     expect(actionsOf(center)).toEqual(['SkipBack', 'Pause'])
-    expect(actionsOf(end)).toEqual(['ExpandControls'])
+    expect(actionsOf(end)).toEqual(['ShowSearch', 'ExpandControls'])
+  })
+
+  it('offer Search once, in the bar beside the transport, not in a row of its own', () => {
+    const searches = Array.filter(
+      buttonsOf(playerScreen(listening())),
+      button => button.action === 'ShowSearch',
+    )
+    expect(searches).toHaveLength(1)
   })
 })
