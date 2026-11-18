@@ -5,7 +5,7 @@ import { screenStylesheet } from '../interaction/screenStyles.js'
 import { defaultTheme, themeStylesheet } from './theme.js'
 
 const rawColor =
-  /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\b(?:white|black|red|blue|green|gray|grey|orange)\b/
+  /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|(?<![-\w])(?:white|black|red|blue|green|gray|grey|orange)(?![-\w])/
 
 // NOTE: A mask is an alpha channel, not a color a person sees: its
 // gradient runs from transparent to opaque, and opaque has to be written

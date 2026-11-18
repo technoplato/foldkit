@@ -20,7 +20,11 @@ export type Mode = typeof Mode.Type
  * What a color is for. A screen and its styling name roles, never colors:
  * the ground of the page, a surface on it and a surface raised above
  * that, text and quieter text, the accent and its soft ground, a rule,
- * the focus ring, danger, and the roles of words read along with: their
+ * the focus ring, danger, fainter text, a link, a border, a field, a
+ * button with its hover, disabled and label colors, the scrim behind a
+ * sheet, a veil over what scrolls beneath a bar, a shadow, a selected
+ * row and its mark, a warning, a device's frame, and the roles of words
+ * read along with: their
  * ground, the words already spoken, the words to come, the word being
  * spoken and its ground, the ground of the paragraph being read, and the
  * rule beside it.
@@ -36,6 +40,21 @@ export const Role = S.Literals([
   'Rule',
   'Focus',
   'Danger',
+  'FaintText',
+  'Link',
+  'Border',
+  'Field',
+  'Button',
+  'ButtonHover',
+  'ButtonDisabled',
+  'ButtonLabel',
+  'Scrim',
+  'Veil',
+  'Shadow',
+  'Selected',
+  'SelectedMark',
+  'Warning',
+  'DeviceBorder',
   'ReadingGround',
   'ReadingSpoken',
   'ReadingToCome',
@@ -69,8 +88,23 @@ export const defaultTheme: Theme = {
   Accent: { light: '#ea580c', dark: '#fb923c' },
   AccentSoft: { light: '#ffedd5', dark: '#3a2414' },
   Rule: { light: '#e5e7eb', dark: '#2a302d' },
-  Focus: { light: '#2563eb', dark: '#93c5fd' },
+  Focus: { light: '#111827', dark: '#93c5fd' },
   Danger: { light: '#b91c1c', dark: '#fca5a5' },
+  FaintText: { light: '#9ca3af', dark: '#6b7280' },
+  Link: { light: '#2563eb', dark: '#93c5fd' },
+  Border: { light: '#d1d5db', dark: '#3a403d' },
+  Field: { light: '#f9fafb', dark: '#161a18' },
+  Button: { light: '#000000', dark: '#f3f4f6' },
+  ButtonHover: { light: '#374151', dark: '#d1d5db' },
+  ButtonDisabled: { light: '#d1d5db', dark: '#3a403d' },
+  ButtonLabel: { light: '#ffffff', dark: '#0b0d0c' },
+  Scrim: { light: 'rgba(15, 23, 42, 0.4)', dark: 'rgba(0, 0, 0, 0.6)' },
+  Veil: { light: 'rgba(255, 255, 255, 0.94)', dark: 'rgba(11, 13, 12, 0.92)' },
+  Shadow: { light: 'rgba(15, 23, 42, 0.3)', dark: 'rgba(0, 0, 0, 0.6)' },
+  Selected: { light: '#eef2ff', dark: '#23264a' },
+  SelectedMark: { light: '#4f46e5', dark: '#a5b4fc' },
+  Warning: { light: '#b45309', dark: '#fbbf24' },
+  DeviceBorder: { light: '#3f3f46', dark: '#52525b' },
   ReadingGround: {
     light: 'transparent',
     dark: 'linear-gradient(#12301d, #060907 42%)',
