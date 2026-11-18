@@ -643,7 +643,8 @@ const searchTextOf = (model: Model, search: Search): string => {
 
 /**
  * The search while it is open, for a Program to place by the words: the
- * field to type in, which presses `SearchFor:<words>` on Enter; how the
+ * field to type in, which presses `SearchFor:<words>` on Enter and
+ * `NextMatch` on Enter again; how the
  * search stands, `2 of 4`, `No matches for “lamp”`; the buttons to step
  * to the match before and after and to close; and each match as a row
  * with a few words around it, its time and its chapter. Pressing a row
@@ -673,6 +674,7 @@ export const searchPanelOf = (
             label: 'Search the words',
             action: SearchFor.tag,
             clearAction: ClearSearch.tag,
+            againAction: NextMatch.tag,
             focused: true,
             width: searchFieldWidth,
           }),
@@ -696,6 +698,8 @@ export const searchPanelOf = (
     ],
   })
 
+const pill: ButtonNode['variant'] = 'Pill'
+
 const withIconOf =
   (icon: IconName) =>
   (button: ButtonNode): ButtonNode => ({ ...button, icon })
@@ -717,12 +721,12 @@ export const readerButtonsOf = (
   ...(isFollowingPlayhead(model)
     ? []
     : Array.map(
-        buttonOf(entries, BackToPlayhead, 'Ghost'),
+        buttonOf(entries, BackToPlayhead, pill),
         withIconOf('Playhead'),
       )),
   ...(Option.isSome(model.maybeSearch)
     ? []
-    : Array.map(buttonOf(entries, ShowSearch, 'Ghost'), withIconOf('Search'))),
+    : Array.map(buttonOf(entries, ShowSearch, pill), withIconOf('Search'))),
 ]
 
 /**

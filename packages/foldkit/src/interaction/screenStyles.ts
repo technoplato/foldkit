@@ -1,3 +1,5 @@
+import { readAlongStylesOf } from './readAlongStyles.js'
+
 /**
  * The one look every graphical painter maps, in pixels and hex colors. The
  * web stylesheet is built from it and React Native reads it directly, so
@@ -1266,4 +1268,4 @@ export const screenStylesheet = `
     right: ${px(screenLook.drawerWidth)};
   }
 }
-`
+${readAlongStylesOf(screenLook)}`

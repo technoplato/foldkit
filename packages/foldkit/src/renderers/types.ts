@@ -96,9 +96,11 @@ export type TextNode = Readonly<{
 /**
  * How a Button looks. `Primary` is the one main act, `Ghost` a quiet one,
  * `Destructive` one that removes something, `Tab` one of a set of places,
- * such as Library and Profile, the current one marked with `isCurrent`.
+ * such as Library and Profile, the current one marked with `isCurrent`,
+ * and `Pill` a small rounded one that floats by what it acts on, such as
+ * `Back to playhead` under words read along with.
  */
-export type ButtonVariant = 'Primary' | 'Ghost' | 'Destructive' | 'Tab'
+export type ButtonVariant = 'Primary' | 'Ghost' | 'Destructive' | 'Tab' | 'Pill'
 
 /**
  * A pressable control. The label is product data. `action` is the Catalog
@@ -132,6 +134,8 @@ export type ButtonNode = Readonly<{
  * `clearAction` such as `ClearNotes`, also submits when a person leaves it
  * after a change, and submitting it empty presses `clearAction`. `label`
  * names the field for a screen reader, `New reminder in Groceries`.
+ * `againAction` is what submitting the text unchanged presses, such as
+ * `NextMatch` when Enter is pressed again in a search.
  * `token` is the older binding that sends every keystroke. `focused` says
  * the Model wants the field to hold the focus, as a search does after `/`.
  * `focusToken` and `blurToken` are pressed when it gains and loses the focus,
@@ -147,6 +151,7 @@ export type TextInputNode = Readonly<{
   readonly token?: string
   readonly action?: string
   readonly clearAction?: string
+  readonly againAction?: string
   readonly label?: string
   readonly focusToken?: string
   readonly blurToken?: string

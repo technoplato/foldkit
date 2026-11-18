@@ -237,6 +237,7 @@ export const TextInput = (props: {
   readonly token?: string
   readonly action?: string
   readonly clearAction?: string
+  readonly againAction?: string
   readonly label?: string
   readonly focusToken?: string
   readonly blurToken?: string
@@ -253,6 +254,9 @@ export const TextInput = (props: {
   ...(props.clearAction === undefined
     ? {}
     : { clearAction: props.clearAction }),
+  ...(props.againAction === undefined
+    ? {}
+    : { againAction: props.againAction }),
   ...(props.label === undefined ? {} : { label: props.label }),
   ...(props.focusToken === undefined ? {} : { focusToken: props.focusToken }),
   ...(props.blurToken === undefined ? {} : { blurToken: props.blurToken }),
