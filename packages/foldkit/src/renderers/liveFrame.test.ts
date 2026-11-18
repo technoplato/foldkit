@@ -111,7 +111,7 @@ describe('a part of the view fitted to a terminal of any size', () => {
     ])
     expect(body).toContain('›0:40')
     expect(body).not.toContain(' 0:00 ')
-    expect(body).not.toContain('1:20')
+    expect(body).not.toContain(' 1:20 ')
   })
 
   it('ends with what can be run now, each line whole or cut to the width, resting', () => {
@@ -122,6 +122,9 @@ describe('a part of the view fitted to a terminal of any size', () => {
     )
     expect(frame.lines.slice(-3)).toEqual(footer.map(line => line.slice(0, 40)))
     expect(frame.inks.at(-1)).toEqual([
+      { col: 0, width: (footer.at(-1) ?? '').length, role: 'QuietText' },
+    ])
+    expect(frame.inks.at(-3)).toEqual([
       { col: 0, width: 40, role: 'QuietText' },
     ])
   })

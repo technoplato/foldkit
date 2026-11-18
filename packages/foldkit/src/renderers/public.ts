@@ -66,6 +66,13 @@ export {
 } from './transcriptBookmarks.js'
 export { holdsTyped, namedByTyped, typedWordsOf } from './typed.js'
 export {
+  type LiveFrame,
+  type LiveFrameAround,
+  type LiveFrameSize,
+  anchorRowsOf,
+  liveFrameOf,
+} from './liveFrame.js'
+export {
   type TranscriptEntry,
   transcriptEntriesOf,
 } from './transcriptEntries.js'
