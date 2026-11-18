@@ -1,5 +1,6 @@
 import {
   Array,
+  Deferred,
   Duration,
   Effect,
   Layer,
@@ -110,7 +111,21 @@ export type StartedProgram<
 > = ProgramRuntime<Model, Message, P> &
   Readonly<{
     lastWrite: () => Option.Option<SyncWriteResult>
+    /**
+     * Completes once this Processor has asked the sync engine for the log
+     * rows it had not seen: `CaughtUp` when it read them and the Model
+     * holds them, `CouldNotRead` when the engine could not return them. A
+     * Program that starts from its local snapshot paints at once and
+     * reads the log behind it, so a host that answers once, such as a
+     * command in a terminal, waits on this and never answers from before
+     * the last time it ran. It never completes while the engine neither
+     * answers nor fails, so such a host bounds its wait.
+     */
+    caughtUp: Effect.Effect<CatchUp>
   }>
+
+/** How a started Program's first read of the log ended. */
+export type CatchUp = 'CaughtUp' | 'CouldNotRead'
 
 const nowMs = (): number => Date.now()
 
@@ -1058,6 +1073,8 @@ export function start<
      * already on screen, this runs behind it, so a reload paints at once
      * instead of waiting on the network.
      */
+    const caughtUp = yield* Deferred.make<CatchUp>()
+
     const reconcile = Effect.gen(function* () {
       const knownBefore = knownRows.size
       const maybeReadFailure = yield* readUnseen
@@ -1092,6 +1109,10 @@ export function start<
           }
         })
       }
+      yield* Deferred.succeed(
+        caughtUp,
+        Option.isSome(maybeReadFailure) ? 'CouldNotRead' : 'CaughtUp',
+      )
 
       yield* engine.subscribe(onEvent)
       yield* flushOutbox().pipe(
@@ -1143,6 +1164,7 @@ export function start<
         }
       },
       lastWrite: () => lastWrite,
+      caughtUp: Deferred.await(caughtUp),
     }
   })
 }

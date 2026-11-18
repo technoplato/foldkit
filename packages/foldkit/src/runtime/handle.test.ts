@@ -16,8 +16,9 @@ import { compose } from '../program/compose.js'
 import { make } from '../program/program.js'
 import { CommandOperation } from './commandTracing.js'
 import { startHandle } from './handle.js'
+import * as LocalSnapshot from './localSnapshot.js'
 import type { TransitionSource } from './programJournal.js'
-import { Memory } from './syncEngine.js'
+import { Memory, makeMemoryStore } from './syncEngine.js'
 
 const Increment = m('Increment')
 const ClickedSave = m('ClickedSave')
@@ -210,5 +211,47 @@ describe('Runtime.startHandle provenance', () => {
     expect(spans).toStrictEqual([
       { name: 'Save', maybeOperationId: operationOf('ClickedSave') },
     ])
+  })
+})
+
+describe('a handle that starts from its local snapshot', () => {
+  const countOf = (
+    handle: Pick<ReturnType<typeof watchedHandle>['handle'], 'readModel'>,
+  ) => {
+    const model = handle.readModel()
+    return model._tag === 'Ready' ? model.count : Number.NaN
+  }
+
+  it('says when it has caught up with the log, so a host that answers once can wait for it', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    const pressed = async (
+      times: number,
+      localSnapshot: LocalSnapshot.LocalSnapshotStore,
+    ) => {
+      const handle = startHandle({
+        program: SyncedCounter,
+        sync: Memory({ processor: Host.Cli(), store }),
+        localSnapshot,
+      })
+      const before = await handle.whenCaughtUp().then(() => countOf(handle))
+      for (let press = 0; press < times; press += 1) {
+        handle.send(Increment())
+      }
+      await vi.waitFor(() => {
+        expect(countOf(handle)).toBe(before + times)
+      })
+      await handle.stop()
+    }
+    await pressed(2, snapshots)
+    await pressed(3, LocalSnapshot.memory())
+    const handle = startHandle({
+      program: SyncedCounter,
+      sync: Memory({ processor: Host.Cli(), store }),
+      localSnapshot: snapshots,
+    })
+    expect(await handle.whenCaughtUp()).toBe('CaughtUp')
+    expect(countOf(handle)).toBe(5)
+    await handle.stop()
   })
 })

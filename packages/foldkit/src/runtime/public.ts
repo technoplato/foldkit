@@ -26,6 +26,7 @@ export * from '../programRuntime/public.js'
 export {
   start,
   untilSettled,
+  type CatchUp,
   type StartConfig,
   type StartedProgram,
   type SyncStartProgram,
