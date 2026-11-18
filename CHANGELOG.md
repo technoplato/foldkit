@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:51:52 a.m. EST — `cff564e13a13` fix(books): green: books with no command prints how to use it and starts no player (Scribe #2494)
+
+- **Implementation commit:** `cff564e13a13e28e2d8b21c837dce3f0cc153a81`
+- **Change:** green: books with no command prints how to use it and starts no player (Scribe #2494)
+- **Details:**
+  - With no player running, books alone and books help print the commands and which of them start the player, and start nothing.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > That's the CLI, nothing interactive
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 1:44:05 a.m. EST — `c4932f0585e8` feat(books): green: Search sits beside Play in the player bar (Scribe #2494)
 
 - **Implementation commit:** `c4932f0585e8e044b3c0a9c192bf98f1957f4ac0`

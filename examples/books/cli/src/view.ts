@@ -5,6 +5,7 @@
  * Effect, Instant, or the Program, so a command starts fast.
  */
 import {
+  type CliViewPainted,
   type CliViewRequest,
   type FollowArgv,
   askCliView,
@@ -49,6 +50,65 @@ export const askPlayer = async (request: CliViewRequest): Promise<void> => {
     )
   } catch (cause) {
     writeCliViewResult(cliViewFailed(cause))
+  }
+}
+
+/**
+ * What `books` alone prints while no player runs here: how to use it,
+ * and which commands start the player. It is plain text this module
+ * holds, because printing it must start nothing.
+ */
+export const usageText = [
+  'The Books player is not running here, and `books` alone does not start it.',
+  '',
+  '  books listen <title>     Starts the player and plays a title from your place',
+  '  books open /books        Starts the player and prints your library',
+  '  books tui                Starts the player and opens it live in this terminal',
+  '  books search "<words>"   Finds where words are spoken, with links',
+  '  books follow words       Prints the words as they are read',
+  '  books devices            Lists the audio outputs, by number',
+  '  books login              Signs in to Cloudflare Access',
+  '  books stop               Pauses, saves your place, and ends the player',
+  '',
+  'While the player runs, `books` says what is playing and what to run next.',
+].join('\n')
+
+/**
+ * What {@link showBriefOrUsage} needs from outside: whether a player is
+ * listening, a way to ask it, and where to write.
+ */
+export type BriefRuntime = Readonly<{
+  isListening: (socketPath: string) => Promise<boolean>
+  ask: (socketPath: string, request: CliViewRequest) => Promise<CliViewPainted>
+  write: (result: CliViewPainted) => void
+}>
+
+const briefRuntime: BriefRuntime = {
+  isListening: isCliViewListening,
+  ask: askCliView,
+  write: writeCliViewResult,
+}
+
+/**
+ * `books` alone, and `books help`: what is playing and what to run next
+ * when a player runs here; otherwise how to use `books`, starting no
+ * player. Reading must never start something that plays.
+ */
+export const showBriefOrUsage = async (
+  flags: Readonly<Record<string, string>>,
+  runtime: BriefRuntime = briefRuntime,
+): Promise<void> => {
+  const socketPath = booksPlayerSocketPath()
+  if (!(await runtime.isListening(socketPath))) {
+    runtime.write({ stdout: usageText, stderr: '', exitCode: 0 })
+    return
+  }
+  try {
+    runtime.write(
+      await runtime.ask(socketPath, { _tag: 'Do', token: 'help', flags }),
+    )
+  } catch (cause) {
+    runtime.write(cliViewFailed(cause))
   }
 }
 
