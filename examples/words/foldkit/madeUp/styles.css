@@ -1,0 +1,4 @@
+/* The site's own stylesheet, told where the site's class names are: this
+   page is served from its own folder, outside the one Tailwind scans. */
+@import '../src/styles.css';
+@source '../src';

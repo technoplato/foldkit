@@ -25,6 +25,7 @@
   "scripts": {
     "build": "./scripts/with-scribe-instant-env vite build",
     "dev": "./scripts/with-scribe-instant-env vite --port 5231",
+    "dev:made-up": "vite --config madeUp/vite.config.ts",
     "preview": "./scripts/with-scribe-instant-env vite preview --host 127.0.0.1 --port 5232 --strictPort",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit",
