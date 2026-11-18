@@ -79,8 +79,8 @@ describe('how a phone presents an entry', () => {
   it('presents a drawer as a sheet, since a phone has no room beside the page', () => {
     expect(
       presentationOf(Option.some(Navigation.Drawer({ from: 'Left' }))),
-    ).toBe('formSheet')
-    expect(presentationOf(Option.some(Navigation.Sheet()))).toBe('formSheet')
+    ).toBe('modal')
+    expect(presentationOf(Option.some(Navigation.Sheet()))).toBe('modal')
     expect(presentationOf(Option.some(Navigation.Dialog()))).toBe(
       'transparentModal',
     )

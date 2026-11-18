@@ -180,7 +180,7 @@ describe('presentationOf', () => {
   it.each<[string, Option.Option<Navigation.PresentationStyle>, string]>([
     ['the root', Option.none(), 'card'],
     ['a pushed page', Option.some(Navigation.Push()), 'card'],
-    ['a sheet', Option.some(Navigation.Sheet()), 'formSheet'],
+    ['a sheet', Option.some(Navigation.Sheet()), 'modal'],
     ['a dialog', Option.some(Navigation.Dialog()), 'transparentModal'],
     [
       'a full screen cover',

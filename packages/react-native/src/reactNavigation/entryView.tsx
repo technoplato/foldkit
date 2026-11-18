@@ -61,13 +61,18 @@ export const EntryView = ({
     entry => entry.key,
   )
   const maybeView = useViewAt(Option.getOrElse(maybeEntryKey, () => entryKey))
-  const presentation = entryOptionsOf(bound, entryKey, look).presentation
+  const options = entryOptionsOf(bound, entryKey, look)
+  const presentation = options.presentation
   const isUnderHeader = presentation === 'card'
+  const headerTitle = options.title
   const handlers = useMemo<PaintHandlers>(
     () => ({
       look,
       styles,
       platformActions: isUnderHeader ? headerActions : noActions,
+      ...(isUnderHeader && headerTitle !== ''
+        ? { platformTitle: headerTitle }
+        : {}),
       onPress: button => {
         if (button.action !== undefined) {
           bound.press(button.action)
@@ -75,7 +80,7 @@ export const EntryView = ({
       },
       onLink: openLinkOf(bound),
     }),
-    [bound, look, styles, isUnderHeader],
+    [bound, look, styles, isUnderHeader, headerTitle],
   )
   return useMemo(
     () =>
@@ -116,13 +121,16 @@ export const EntryView = ({
                         borderColor: look.colors.Border,
                         borderRadius: look.sizes.panelRadius,
                         borderWidth: 1,
-                        maxHeight: '80%',
                         maxWidth: cardMaxWidth,
                         overflow: 'hidden',
                         width: '100%',
                       }}
                     >
-                      <ScreenFrame handlers={handlers} tree={node} />
+                      <ScreenFrame
+                        fit="Content"
+                        handlers={handlers}
+                        tree={node}
+                      />
                     </View>
                   </View>
                 ) : (

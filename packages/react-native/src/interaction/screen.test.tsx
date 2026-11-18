@@ -211,6 +211,41 @@ describe('buttons', () => {
   })
 })
 
+describe('what the platform already shows', () => {
+  it('leaves out a headline that only repeats the title in the native header', () => {
+    const page = Column(
+      {},
+      Text('Library', { emphasis: 'Headline' }),
+      Text('Your books', { dim: true }),
+    )
+    const underHeader = paintTree(page, {
+      onPress: () => {},
+      platformTitle: 'Library',
+    })
+    expect(wordsOf(underHeader)).toBe('Your books')
+    expect(wordsOf(paintTree(page, { onPress: () => {} }))).toBe(
+      'LibraryYour books',
+    )
+    const other = paintTree(page, {
+      onPress: () => {},
+      platformTitle: 'Profile',
+    })
+    expect(wordsOf(other)).toBe('LibraryYour books')
+  })
+
+  it('centers rows of controls where a host says so, as a bar at the bottom edge does', () => {
+    const row = Row({}, Button({ label: 'Play', action: 'Play' }))
+    expect(
+      styleOf(paintTree(row, { onPress: () => {}, isCentered: true }))[
+        'justifyContent'
+      ],
+    ).toBe('center')
+    expect(
+      styleOf(paintTree(row, { onPress: () => {} }))['justifyContent'],
+    ).toBe('flex-start')
+  })
+})
+
 describe('docks', () => {
   it('lifts a dock out of the body, so it stays at the bottom edge while the body scrolls', () => {
     const tabs = Box(

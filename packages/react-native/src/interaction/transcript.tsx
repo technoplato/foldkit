@@ -19,19 +19,12 @@ import {
   useRef,
   useState,
 } from 'react'
-import {
-  Modal,
-  Platform,
-  Pressable,
-  Text,
-  type TextStyle,
-  View,
-} from 'react-native'
+import { Platform, Pressable, Text, type TextStyle, View } from 'react-native'
 
 import { Icon } from './icon.js'
 import { groundStyleOf } from './look.js'
 import { type Paint, pressOf } from './paint.js'
-import { ScreenScrollContext } from './scroll.js'
+import { ScreenOverlayContext, ScreenScrollContext } from './scroll.js'
 
 const readingFamily = Platform.select({
   ios: 'Iowan Old Style',
@@ -368,9 +361,9 @@ const wordTextOf = (transcript: TranscriptNode, token: string): string =>
 
 /**
  * The menu the Program holds open on one word, drawn as a sheet at the
- * bottom edge: the word, then what the menu offers. A press outside it,
- * or the system's back, presses the menu's `dismissAction`. Whether it
- * is open, and on which word, is the Program's.
+ * bottom edge of its screen: the word, then what the menu offers. A press
+ * outside it presses the menu's `dismissAction`. Whether it is open, and
+ * on which word, is the Program's.
  */
 export const WordMenuSheet = ({
   menu,
@@ -386,70 +379,74 @@ export const WordMenuSheet = ({
     paint.onPress(pressOf(menu.dismissAction, 'Close'))
   }
   return (
-    <Modal animationType="fade" onRequestClose={dismiss} transparent visible>
+    <View
+      accessibilityViewIsModal
+      style={{ flex: 1, justifyContent: 'flex-end' }}
+    >
       <Pressable
         accessibilityLabel="Close"
         accessibilityRole="button"
         onPress={dismiss}
         style={{
           backgroundColor: colors.Scrim,
-          flex: 1,
-          justifyContent: 'flex-end',
+          bottom: 0,
+          left: 0,
+          position: 'absolute',
+          right: 0,
+          top: 0,
+        }}
+      />
+      <View
+        accessibilityLabel={wordText}
+        accessibilityRole="menu"
+        style={{
+          backgroundColor: colors.RaisedSurface,
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18,
+          gap: 2,
+          paddingBottom: 34,
+          paddingHorizontal: 12,
+          paddingTop: 14,
         }}
       >
-        <Pressable
-          accessibilityLabel={wordText}
-          accessibilityRole="menu"
-          onPress={() => {}}
+        <Text
           style={{
-            backgroundColor: colors.RaisedSurface,
-            borderTopLeftRadius: 18,
-            borderTopRightRadius: 18,
-            gap: 2,
-            paddingBottom: 34,
-            paddingHorizontal: 12,
-            paddingTop: 14,
+            color: colors.QuietText,
+            fontFamily: readingFamily,
+            fontSize: 17,
+            paddingBottom: 8,
+            paddingHorizontal: 10,
           }}
         >
-          <Text
+          {`“${wordText}”`}
+        </Text>
+        {Array.map(menu.items, item => (
+          <Pressable
+            key={item.action}
+            accessibilityLabel={item.label}
+            accessibilityRole="menuitem"
+            onPress={() => {
+              paint.onPress(pressOf(item.action, item.label))
+            }}
             style={{
-              color: colors.QuietText,
-              fontFamily: readingFamily,
-              fontSize: 17,
-              paddingBottom: 8,
+              alignItems: 'center',
+              borderRadius: 10,
+              flexDirection: 'row',
+              gap: 12,
+              minHeight: sizes.buttonHeight,
               paddingHorizontal: 10,
             }}
           >
-            {`“${wordText}”`}
-          </Text>
-          {Array.map(menu.items, item => (
-            <Pressable
-              key={item.action}
-              accessibilityLabel={item.label}
-              accessibilityRole="menuitem"
-              onPress={() => {
-                paint.onPress(pressOf(item.action, item.label))
-              }}
-              style={{
-                alignItems: 'center',
-                borderRadius: 10,
-                flexDirection: 'row',
-                gap: 12,
-                minHeight: sizes.buttonHeight,
-                paddingHorizontal: 10,
-              }}
-            >
-              {item.icon === undefined ? null : (
-                <Icon color={colors.QuietText} name={item.icon} size={20} />
-              )}
-              <Text style={{ color: colors.Text, fontSize: sizes.bodySize }}>
-                {item.label}
-              </Text>
-            </Pressable>
-          ))}
-        </Pressable>
-      </Pressable>
-    </Modal>
+            {item.icon === undefined ? null : (
+              <Icon color={colors.QuietText} name={item.icon} size={20} />
+            )}
+            <Text style={{ color: colors.Text, fontSize: sizes.bodySize }}>
+              {item.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
   )
 }
 
@@ -704,6 +701,25 @@ export const TranscriptView = ({
 
   const entries = transcriptEntriesOf(transcript)
   const wordMenu = transcript.wordMenu
+  const showOverlay = useContext(ScreenOverlayContext)
+  const menuWord =
+    wordMenu === undefined ? '' : wordTextOf(transcript, wordMenu.token)
+  const menuSheet = useMemo(
+    () =>
+      wordMenu === undefined ? undefined : (
+        <WordMenuSheet menu={wordMenu} paint={paint} wordText={menuWord} />
+      ),
+    [wordMenu, paint, menuWord],
+  )
+  useEffect(() => {
+    if (showOverlay === undefined) {
+      return undefined
+    }
+    showOverlay(menuSheet)
+    return () => {
+      showOverlay(undefined)
+    }
+  }, [showOverlay, menuSheet])
   return (
     <View
       accessibilityLabel={transcript.label}
@@ -793,13 +809,7 @@ export const TranscriptView = ({
           }),
         ),
       )}
-      {wordMenu === undefined ? null : (
-        <WordMenuSheet
-          menu={wordMenu}
-          paint={paint}
-          wordText={wordTextOf(transcript, wordMenu.token)}
-        />
-      )}
+      {showOverlay === undefined ? menuSheet : null}
     </View>
   )
 }

@@ -32,6 +32,7 @@ const paintWith = (
     followed.push(href)
   },
   platformActions: [],
+  maybePlatformTitle: undefined,
   isCentered: false,
 })
 

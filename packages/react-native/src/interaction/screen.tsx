@@ -86,6 +86,8 @@ const paddingUnit = 8
 
 const readingMeasure = 720
 
+const minColumnGap = 8
+
 const buttonRadius = 10
 
 const iconSize = 22
@@ -107,7 +109,6 @@ const styleOfText = (text: TextNode, paint: Paint): TextStyle => {
   return {
     color: colors.Text,
     fontSize: sizes.bodySize,
-    ...(paint.isCentered ? { textAlign: 'center' } : {}),
     ...(text.emphasis === 'Display'
       ? {
           fontSize: sizes.displaySize,
@@ -411,8 +412,14 @@ const isPlatformButton = (node: UiNode, paint: Paint): boolean =>
   node.action !== undefined &&
   Array.contains(paint.platformActions, node.action)
 
+const isPlatformTitle = (node: UiNode, paint: Paint): boolean =>
+  node._tag === 'Text' &&
+  node.emphasis === 'Headline' &&
+  node.content === paint.maybePlatformTitle
+
 const isEmptyOf = (node: UiNode, paint: Paint): boolean =>
   isPlatformButton(node, paint) ||
+  isPlatformTitle(node, paint) ||
   ((node._tag === 'Row' || node._tag === 'Column') &&
     Array.every(node.children, child => isEmptyOf(child, paint)))
 
@@ -476,7 +483,8 @@ export const paintTree = (
     onInput: handlers.onInput,
     onLink,
     platformActions: handlers.platformActions ?? [],
-    isCentered: false,
+    maybePlatformTitle: handlers.platformTitle,
+    isCentered: handlers.isCentered === true,
   }
   const keyFor = (child: UiNode, index: number): string =>
     child._tag === 'Button' && child.action !== undefined
@@ -582,9 +590,11 @@ export const paintTree = (
             <View
               style={[
                 {
-                  alignItems: inner.isCentered ? 'center' : 'stretch',
+                  alignItems: hasDisplay(column.children)
+                    ? 'center'
+                    : 'stretch',
                   alignSelf: 'stretch',
-                  gap: column.gap * gapUnit,
+                  gap: Math.max(column.gap * gapUnit, minColumnGap),
                 },
                 paint.styles.Column,
               ]}

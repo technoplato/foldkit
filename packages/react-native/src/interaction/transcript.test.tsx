@@ -84,6 +84,7 @@ const paintWith = (pressed: Array<ButtonNode>, look = lightLook): Paint => ({
   onInput: undefined,
   onLink: () => {},
   platformActions: [],
+  maybePlatformTitle: undefined,
   isCentered: false,
 })
 
@@ -266,14 +267,17 @@ describe('the menu on a word', () => {
         ],
       },
     })
-    expect(sheet.type).toBe('Modal')
     const item = firstOf(
       hostsOf(sheet, 'Pressable'),
       element =>
         propsOf(element)['accessibilityLabel'] === 'Copy link to this word',
     )
     callProp(item, 'onPress')
-    callProp(sheet, 'onRequestClose')
+    const outside = firstOf(
+      hostsOf(sheet, 'Pressable'),
+      element => propsOf(element)['accessibilityLabel'] === 'Close',
+    )
+    callProp(outside, 'onPress')
     expect(Array.map(pressed, button => button.action)).toEqual([
       'CopyWordLink:p0w1',
       'CloseWordMenu',

@@ -158,16 +158,21 @@ export const SeekBar = ({
           }}
         />
       </View>
-      <Text
-        numberOfLines={2}
-        style={{
-          color: Option.isSome(maybeLanding) ? colors.Text : colors.QuietText,
-          fontSize: sizes.codeSize,
-          fontVariant: ['tabular-nums'],
-        }}
-      >
-        {valueText}
-      </Text>
+      {Option.match(maybeLanding, {
+        onNone: () => null,
+        onSome: landing => (
+          <Text
+            numberOfLines={2}
+            style={{
+              color: colors.Text,
+              fontSize: sizes.codeSize,
+              fontVariant: ['tabular-nums'],
+            }}
+          >
+            {landing.text}
+          </Text>
+        ),
+      })}
     </View>
   )
 }

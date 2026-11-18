@@ -20,6 +20,7 @@ export const native = {
   Text: 'Text',
   TextInput: 'TextInput',
   View: 'View',
+  useWindowDimensions: () => ({ height: 874, width: 402 }),
 }
 
 /** `react-native-svg`'s parts as plain names. */

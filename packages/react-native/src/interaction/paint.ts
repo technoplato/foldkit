@@ -35,6 +35,9 @@ export type PaintStyles = Readonly<{
  * draw with, and the styles it merges. `platformActions` are Actions the
  * platform already offers where the tree is shown, such as going back
  * under a native header: a Button that only repeats one is left out.
+ * `platformTitle` is the title the platform already shows there: a
+ * Headline that only repeats it is left out too. `isCentered` centers
+ * rows of controls, as a bar at the bottom edge does.
  */
 export type PaintHandlers = Readonly<{
   onPress: (button: ButtonNode) => void
@@ -43,6 +46,8 @@ export type PaintHandlers = Readonly<{
   look?: Look
   styles?: PaintStyles
   platformActions?: ReadonlyArray<string>
+  platformTitle?: string
+  isCentered?: boolean
 }>
 
 /** Everything one paint of a tree reads, resolved from the handlers. */
@@ -53,6 +58,7 @@ export type Paint = Readonly<{
   onInput: ((token: string, value: string) => void) | undefined
   onLink: (href: string) => void
   platformActions: ReadonlyArray<string>
+  maybePlatformTitle: string | undefined
   isCentered: boolean
 }>
 

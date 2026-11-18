@@ -75,9 +75,10 @@ export type NativePresentation =
 
 /**
  * The native stack presentation for an entry's style. The root and pushed
- * pages slide in as cards; sheets present as form sheets, and so does a
- * drawer, since a phone has no room for a panel beside the page; a dialog
- * and a popover float over the page beneath.
+ * pages slide in as cards; a sheet presents as the platform's modal
+ * sheet, which a person swipes down to leave, and so does a drawer, since
+ * a phone has no room for a panel beside the page; a dialog and a popover
+ * float over the page beneath.
  *
  * @example
  * ```typescript
@@ -94,12 +95,12 @@ export const presentationOf = (
         M.withReturnType<NativePresentation>(),
         M.tagsExhaustive({
           Push: () => 'card',
-          Sheet: () => 'formSheet',
-          BottomSheet: () => 'formSheet',
+          Sheet: () => 'modal',
+          BottomSheet: () => 'modal',
           FullScreenCover: () => 'fullScreenModal',
           Dialog: () => 'transparentModal',
           Popover: () => 'transparentModal',
-          Drawer: () => 'formSheet',
+          Drawer: () => 'modal',
         }),
       ),
   })

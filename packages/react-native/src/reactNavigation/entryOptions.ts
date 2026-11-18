@@ -11,8 +11,6 @@ import {
 
 // OPTIONS
 
-const sheetDetents = (): Array<number> => [0.6, 1]
-
 /**
  * The native stack options one entry asks for. `title` is empty for an
  * entry without one, because native stack headers fall back to the route
@@ -28,8 +26,6 @@ export type EntryOptions = Readonly<{
   headerStyle: Readonly<{ backgroundColor: string }>
   headerTitleStyle: Readonly<{ color: string }>
   contentStyle: Readonly<{ backgroundColor: string }>
-  sheetGrabberVisible: boolean
-  sheetAllowedDetents: Array<number>
 }>
 
 /**
@@ -42,7 +38,7 @@ export type EntryOptions = Readonly<{
  * @example
  * ```typescript
  * entryOptionsOf(bound, '/counter/session', look)
- * // { presentation: 'formSheet', headerShown: false, title: 'Session', … }
+ * // { presentation: 'modal', headerShown: false, title: 'Session', … }
  * entryOptionsOf(bound, '/counter/menu', look)
  * // { presentation: 'transparentModal', headerShown: false, title: 'Actions', … }
  * ```
@@ -73,7 +69,5 @@ export const entryOptionsOf = (
     contentStyle: {
       backgroundColor: isFloating ? 'transparent' : look.colors.PageGround,
     },
-    sheetGrabberVisible: true,
-    sheetAllowedDetents: sheetDetents(),
   }
 }
