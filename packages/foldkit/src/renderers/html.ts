@@ -1,6 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 
-import { type Html, html } from '../html/index.js'
+import { type Html, OnCustomEvent, html } from '../html/index.js'
 import {
   type KeyPlatform,
   type MenuView,
@@ -15,7 +15,11 @@ import { screenStylesheet } from '../interaction/screenStyles.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
-import { transcriptMount, wordMenuMount } from './htmlEdge.js'
+import {
+  leftPlayheadEventName,
+  transcriptMount,
+  wordMenuMount,
+} from './htmlEdge.js'
 import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
@@ -35,6 +39,22 @@ export const paintHtml = <Message>(
   toMessage: (token: string) => Message | undefined,
 ): Html => {
   const h = html<Message>()
+  const leaveAttributes = (transcript: TranscriptNode) => {
+    const maybeLeave =
+      transcript.leaveAction === undefined
+        ? undefined
+        : toMessage(transcript.leaveAction)
+    return maybeLeave === undefined
+      ? []
+      : [
+          h.DataAttribute('leave', 'true'),
+          OnCustomEvent<Message>({
+            name: leftPlayheadEventName,
+            f: () => maybeLeave,
+          }),
+        ]
+  }
+
   // NOTE: the menu a Program holds open on one word. The view draws its
   // items and a backdrop that closes it; the edge puts it by its word and
   // reports Escape. Whether it is open is the Program's.
@@ -479,6 +499,18 @@ export const paintHtml = <Message>(
               ...(transcript.wordMenuAction === undefined
                 ? []
                 : [h.DataAttribute('word-menu', 'true')]),
+              // NOTE: whether the words follow the voice, and which word to
+              // show, are the Program's; the edge keeps the spoken word in
+              // the middle and sends this event when the reader scrolls it
+              // away, which the view answers with the leave press.
+              h.DataAttribute(
+                'following',
+                transcript.isFollowing === false ? 'false' : 'true',
+              ),
+              ...(transcript.focusToken === undefined
+                ? []
+                : [h.DataAttribute('focus-token', transcript.focusToken)]),
+              ...leaveAttributes(transcript),
               h.OnMount(transcriptMount<Message>()),
             ],
             [
