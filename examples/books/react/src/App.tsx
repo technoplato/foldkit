@@ -53,7 +53,7 @@ export const App = (): ReactElement => {
   useDocumentTitle()
   return (
     <main
-      className="min-h-screen bg-white flex justify-center px-4 pt-4 pb-6"
+      className="min-h-screen bg-[var(--fk-page-ground)] text-[var(--fk-text)] flex justify-center px-4 pt-4 pb-6"
       onClick={openLeavingLinksInNewTab}
     >
       <section className="w-full max-w-7xl text-center space-y-6">

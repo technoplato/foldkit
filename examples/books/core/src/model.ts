@@ -9,6 +9,7 @@ import {
 } from 'effect'
 import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
+import { AppearanceState } from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -192,6 +193,7 @@ export const Model = S.Struct({
   readings: ReadAloud.ReadingsState,
   previewChecks: S.Array(ReadAloud.PreviewCheck),
   audible: AudibleModel,
+  appearance: AppearanceState,
   navigation: Navigation.NavigationStack(Destination),
 })
 /**
