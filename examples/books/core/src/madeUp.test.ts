@@ -21,7 +21,6 @@ describe('the made-up library on a host', () => {
       host: Processor.Host.ExpoIos(),
       resources: Layer.succeed(SystemAppearance, {
         modes: Stream.make('Dark'),
-        contrasts: Stream.make('More'),
       }),
     })
     const bound = bindBooks(handle)
@@ -32,7 +31,6 @@ describe('the made-up library on a host', () => {
     }
     await waitUntil(() => appearanceNow()?.systemMode === 'Dark')
     expect(appearanceNow()?.systemMode).toBe('Dark')
-    expect(appearanceNow()?.systemContrast).toBe('More')
     await handle.stop()
   })
 

@@ -101,12 +101,18 @@ const madeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> = Array.reduce(
 // START
 
 /**
- * How a terminal starts the made-up Books: the Host it runs on, and a
- * wrapper around the library store, as `startBooks` takes.
+ * How a Client starts the made-up Books: the Host it runs on, and a
+ * wrapper around the library store, as `startBooks` takes. `resources`
+ * are services of the host's own that replace the made-up ones of the
+ * same kind, such as a phone's audio output and its report of the
+ * system's appearance. `sync` is the engine the session runs on; without
+ * one it stays in this process.
  */
 export type MadeUpBooksConfig = Readonly<{
   host: Processor.Host.Host
   library?: (store: LibraryStoreService) => LibraryStoreService
+  resources?: Layer.Layer<never>
+  sync?: Runtime.SyncEngine
 }>
 
 /**
@@ -130,7 +136,7 @@ export const startMadeUpBooks = async (
   const wrap = config.library ?? ((service: LibraryStoreService) => service)
   return Runtime.startHandle({
     program: SyncedBooks,
-    sync: Runtime.Memory({ processor: 'made-up' }),
+    sync: config.sync ?? Runtime.Memory({ processor: 'made-up' }),
     resources: Layer.mergeAll(
       Layer.effect(LibraryStore, Effect.map(LibraryStore, wrap)).pipe(
         Layer.provide(store.layer),
@@ -149,6 +155,7 @@ export const startMadeUpBooks = async (
       sharing.layer,
       noReadAloud,
       noScribeTimeline,
+      config.resources ?? Layer.empty,
     ),
     host: config.host,
   })
