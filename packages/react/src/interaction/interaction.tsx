@@ -8,7 +8,7 @@ import {
   String,
   pipe,
 } from 'effect'
-import { type Catalog, Environment, Interaction } from 'foldkit'
+import { Catalog, Declaration, Environment, Interaction } from 'foldkit'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import {
   Fragment,
@@ -322,6 +322,167 @@ export const useActions = <P extends FeatureProgram>(
   const bound = useBoundTo(program)
   const entries = useBoundRead(bound, bound.entries)
   return useMemo(() => actionsOf<P>(bound, entries), [bound, entries])
+}
+
+// CALLS
+
+type FieldsOf<Action> =
+  Action extends Readonly<{ Type: infer Value }>
+    ? Readonly<Omit<Value, '_tag'>>
+    : never
+
+type WithFieldsOf<Action> =
+  Action extends Readonly<{ Type: infer Value }>
+    ? keyof Omit<Value, '_tag'> extends never
+      ? never
+      : Action
+    : never
+
+/**
+ * One Action that takes fields, as a typed control. `call` sends it with
+ * its fields and answers whether it was taken; the Action's own rule
+ * decides, as it does for a menu and a terminal. `check` answers what a
+ * form holds, raw, with one sentence about the first wrong thing, the
+ * sentence every Client gives, or None when it would be read. `props`
+ * spreads onto the control that asks for it, such as an input: its
+ * accessible name and description, the Action's hint, and `disabled`
+ * with the reason while the Action is unavailable. All of it is read
+ * from the Action's declaration.
+ *
+ * @example
+ * ```tsx
+ * const { seekTo } = useCalls(Player)
+ * seekTo.check({ placeMs: 'soon' }) // Some('placeMs takes a number, such as …')
+ * seekTo.call({ placeMs: 723_000 }) // true
+ * return <input {...seekTo.props} />
+ * ```
+ */
+export type CallHandle<Fields> = Readonly<{
+  entry: Catalog.Entry
+  isEnabled: boolean
+  maybeBecause: Option.Option<string>
+  call: (fields: Fields) => boolean
+  check: (said: Readonly<Record<string, unknown>>) => Option.Option<string>
+  props: Readonly<{
+    disabled: boolean
+    'aria-label': string
+    'data-action': string
+  }> &
+    Interaction.HintAttributes
+}>
+
+/**
+ * Every Action of a Program's Catalog that takes fields, keyed by its tag
+ * in lower camel case, each typed by its own fields.
+ *
+ * @example
+ * ```typescript
+ * type PlayerCalls = CallsOf<typeof Player>
+ * // { seekTo: CallHandle<{ placeMs: Milliseconds }>; setSpeed: CallHandle<{ speed: Speed }> }
+ * ```
+ */
+export type CallsOf<P> = {
+  readonly [Action in WithFieldsOf<
+    Catalog.ActionOf<Catalog.CatalogOf<P>>
+  > as Uncapitalize<Action['tag']>]: CallHandle<FieldsOf<Action>>
+}
+
+const noActions: ReadonlyArray<Catalog.AnyAction> = []
+
+const actionsWithFieldsOf = (
+  program: FeatureProgram,
+): ReadonlyArray<Catalog.AnyAction> =>
+  Array.filter(
+    'catalog' in program &&
+      typeof program.catalog === 'object' &&
+      program.catalog !== null &&
+      'actions' in program.catalog &&
+      globalThis.Array.isArray(program.catalog.actions)
+      ? /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+        (program.catalog.actions as ReadonlyArray<Catalog.AnyAction>)
+      : noActions,
+    action => !action.isPayloadFree,
+  )
+
+const callOf =
+  (bound: AnyBound, entries: ReadonlyArray<Catalog.Entry>) =>
+  (
+    action: Catalog.AnyAction,
+  ): Option.Option<readonly [string, CallHandle<never>]> =>
+    Option.map(
+      Array.findFirst(entries, entry => entry.tag === action.tag),
+      entry => {
+        const declaration = Catalog.declarationOf(action)
+        const maybeBecause =
+          entry.availability._tag === 'Disabled'
+            ? Option.some(entry.availability.because)
+            : Option.none()
+        const isEnabled = entry.availability._tag === 'Enabled'
+        return [
+          String.uncapitalize(action.tag),
+          {
+            entry,
+            isEnabled,
+            maybeBecause,
+            call: (fields: Readonly<Record<string, unknown>>) =>
+              Option.match(Catalog.tagFor(action, fields), {
+                onNone: () => false,
+                onSome: tag => bound.press(tag),
+              }),
+            check: said => {
+              const parsed = Declaration.parse(declaration, said)
+              return parsed._tag === 'Refused'
+                ? Option.some(parsed.sentence)
+                : Option.none()
+            },
+            props: {
+              disabled: !isEnabled,
+              'aria-label': entry.title,
+              ...Option.match(
+                Interaction.controlHintOf(
+                  {
+                    label: entry.title,
+                    description: entry.what,
+                    why: entry.why,
+                    because: Option.getOrUndefined(maybeBecause),
+                  },
+                  browserKeyPlatform(),
+                  'Browser',
+                ),
+                { onNone: () => ({}), onSome: Interaction.hintAttributesOf },
+              ),
+              'data-action': entry.tag,
+            },
+          },
+        ]
+      },
+    )
+
+/**
+ * Every Action of the bound Program that takes fields, as a typed call
+ * with its check and its control's props: `calls.seekTo.call({ placeMs })`.
+ * The object keeps its reference until an Action's availability changes.
+ *
+ * @example
+ * ```tsx
+ * const { setCount } = useCalls(SyncedCounter)
+ * const maybeProblem = setCount.check({ count: typed })
+ * return <input {...setCount.props} aria-invalid={Option.isSome(maybeProblem)} />
+ * ```
+ */
+export const useCalls = <P extends FeatureProgram>(program: P): CallsOf<P> => {
+  const bound = useBoundTo(program)
+  const entries = useBoundRead(bound, bound.entries)
+  return useMemo(
+    () =>
+      /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+      Record.fromEntries(
+        Array.getSomes(
+          Array.map(actionsWithFieldsOf(program), callOf(bound, entries)),
+        ),
+      ) as CallsOf<P>,
+    [bound, entries, program],
+  )
 }
 
 /**
