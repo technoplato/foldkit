@@ -421,7 +421,7 @@ export const Progress = (
  * List({
  *   label: 'Chapters',
  *   columns: ['Starts', 'Length'],
- *   filter: { placeholder: 'Find a chapter', label: 'Find a chapter in A New Earth', emptyText: 'No chapter has that in its name.' },
+ *   filter: { placeholder: 'Find a chapter', label: 'Find a chapter in The Lantern Keeper', emptyText: 'No chapter has that in its name.' },
  *   items: [{ key: '3', title: 'The Light', columns: ['20:00', '7:33'], action: 'JumpToChapter:3' }],
  * })
  * ```
