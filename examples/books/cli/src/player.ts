@@ -1,10 +1,15 @@
 import {
+  type BookmarksListing,
+  BookmarksListingJson,
   type BoundBooks,
   type LibraryStoreService,
   type SpokenWords,
   SpokenWordsJson,
   type SyncedBooksMessage,
   type SyncedBooksModel,
+  alreadyBookmarkedNotice,
+  bookmarksListingLines,
+  bookmarksListingOf,
   briefScreen,
   clockOf,
   isSameParagraph,
@@ -61,6 +66,7 @@ const hostCommandsOf = (isLoaded: boolean): ReadonlyArray<HostCommand> => [
   ...(isLoaded
     ? [
         { command: 'follow words', what: 'Prints the words as they are read' },
+        { command: 'bookmarks', what: 'Lists this title’s bookmarks' },
         { command: 'stop', what: 'Stops and saves your place' },
       ]
     : []),
@@ -175,6 +181,65 @@ const wordsTextOf = (
         return Array.join(spokenWordsLines(words), '\n')
       }
     },
+  })
+
+const noTitleSentence = 'No title is open or playing.'
+
+const listingOf = (bound: BoundBooks): Option.Option<BookmarksListing> =>
+  Option.flatMap(readyOf(bound.readModel()), bookmarksListingOf)
+
+/**
+ * What `books bookmarks` prints: the bookmarks of the title on screen, or
+ * else of the one in the player, as the books core lists them. A `#` line
+ * with the title and the count, then a line per bookmark: its time,
+ * chapter, words, note, link and id; with `--json`, one line of JSON.
+ *
+ * @example
+ * ```typescript
+ * paintBookmarks(bound, {})
+ * // '# The Lantern Keeper · 1 bookmark\n0:05 · The Tide · …He trimmed the wick and waited.… · /books/the-lantern-keeper/listen/5.5s · bookmark-1'
+ * paintBookmarks(bound, { json: '1' })
+ * // '{"slug":"the-lantern-keeper","title":"The Lantern Keeper","bookmarks":[…]}'
+ * ```
+ */
+export const paintBookmarks = (
+  bound: BoundBooks,
+  flags: CliDaemonFlags,
+): string =>
+  Option.match(listingOf(bound), {
+    onNone: () =>
+      flags['json'] === '1'
+        ? JSON.stringify({ _tag: 'NoTitle', sentence: noTitleSentence })
+        : `# ${noTitleSentence}`,
+    onSome: listing =>
+      flags['json'] === '1'
+        ? S.encodeSync(BookmarksListingJson)(listing)
+        : Array.join(bookmarksListingLines(listing), '\n'),
+  })
+
+const bookmarkCountOf = (bound: BoundBooks): number =>
+  Option.match(listingOf(bound), {
+    onNone: () => 0,
+    onSome: listing => listing.bookmarks.length,
+  })
+
+const noticeOf = (bound: BoundBooks): Option.Option<string> =>
+  Option.flatMap(readyOf(bound.readModel()), model => model.maybeNotice)
+
+const bookmarkSettleEvery = Duration.millis(10)
+
+const bookmarkSettleTries = 200
+
+/**
+ * The words after `bookmark` as the command the Program runs: the Action
+ * that marks the word being spoken, with the note when there are words.
+ */
+const bookmarkCommandOf = (
+  words: ReadonlyArray<string>,
+): ReadonlyArray<string> =>
+  Array.match(Array.drop(words, 1), {
+    onEmpty: () => ['add-bookmark'],
+    onNonEmpty: note => ['add-noted-bookmark', ...note],
   })
 
 // NOTE: The view says whether its output is a terminal (the `color` flag);
@@ -483,6 +548,63 @@ export const makeBooksPlayer = (
       ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
     }
   }
+  /**
+   * `books bookmark [note]`: marks the word being spoken and answers once
+   * the library store holds it, with what was marked and the link to the
+   * word, or with why nothing was added.
+   */
+  const bookmarked = (
+    words: ReadonlyArray<string>,
+    flags: CliDaemonFlags,
+    client: Processor.Host.Host,
+  ): Effect.Effect<CliDaemonPaintedResult> => {
+    const countBefore = bookmarkCountOf(bound)
+    const result = Interaction.onBehalfOf(bound, client, () =>
+      runProgramCommand(
+        bound,
+        booksCommandName,
+        bookmarkCommandOf(words),
+        flags,
+      ),
+    )
+    const isAdded = (): boolean => bookmarkCountOf(bound) > countBefore
+    const isSettled = (): boolean =>
+      isAdded() || Option.contains(noticeOf(bound), alreadyBookmarkedNotice)
+    const linkOfAdded = (): Option.Option<string> =>
+      Option.flatMap(listingOf(bound), listing =>
+        Option.map(
+          Array.findFirst(listing.bookmarks, bookmark =>
+            Option.exists(noticeOf(bound), notice =>
+              notice.endsWith(` at ${bookmark.place}`),
+            ),
+          ),
+          bookmark => bookmark.link,
+        ),
+      )
+    const answer = (): CliDaemonPaintedResult => ({
+      stdout: Array.join(
+        [
+          ...Array.fromOption(noticeOf(bound)),
+          ...(isAdded() ? Array.fromOption(linkOfAdded()) : []),
+        ],
+        ' · ',
+      ),
+      exitCode: 0,
+    })
+    if (result.exitCode === 0) {
+      return pipe(
+        Effect.sleep(bookmarkSettleEvery),
+        Effect.repeat({ until: isSettled, times: bookmarkSettleTries }),
+        Effect.map(answer),
+      )
+    } else {
+      return Effect.succeed({
+        stdout: result.stdout,
+        exitCode: result.exitCode,
+        ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
+      })
+    }
+  }
   const moved = (
     words: ReadonlyArray<string>,
     flags: CliDaemonFlags,
@@ -539,6 +661,13 @@ export const makeBooksPlayer = (
           }))
         } else if (movingWords.has(head)) {
           return Effect.sync(() => moved(words, flags, client))
+        } else if (head === 'bookmark') {
+          return bookmarked(words, flags, client)
+        } else if (head === 'bookmarks') {
+          return Effect.sync(() => ({
+            stdout: paintBookmarks(bound, flags),
+            exitCode: 0,
+          }))
         } else if (head === 'words') {
           return Effect.sync(() => ({
             stdout: paintWords(bound, flags),

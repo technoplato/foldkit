@@ -133,6 +133,9 @@ export const bookmarkTitleOf = (bookmark: Bookmark): string =>
 export const bookmarkPathOf = (slug: TitleSlug, atMs: Milliseconds): string =>
   `/books/${slug}/listen/${S.encodeSync(TranscriptPlayer.WordSegment)(atMs)}`
 
+/** What the player says when the word asked for already has a bookmark. */
+export const alreadyBookmarkedNotice = 'That word is already bookmarked'
+
 /** `1 bookmark`, `3 bookmarks`. */
 export const bookmarkCountWords = (count: number): string =>
   count === 1 ? '1 bookmark' : `${count.toString()} bookmarks`
