@@ -184,6 +184,28 @@ describe('listenForHints', () => {
     }).not.toThrow()
   })
 
+  it('stays, and still comes, while something else on the page scrolls, such as words that follow a voice; hides when what holds the control scrolls', () => {
+    listen()
+    const words = document.createElement('div')
+    const dock = document.createElement('div')
+    document.body.append(words, dock)
+    const button = hinted(play)
+    dock.append(button)
+    fire(button, 'pointerover')
+    fire(words, 'scroll', { bubbles: false })
+    vi.advanceTimersByTime(hintShowDelayMs)
+    expect(isShown()).toBe(true)
+    fire(words, 'scroll', { bubbles: false })
+    expect(isShown()).toBe(true)
+    fire(dock, 'scroll', { bubbles: false })
+    expect(isShown()).toBe(false)
+    fire(document, 'keydown')
+    fire(button, 'focusin')
+    expect(isShown()).toBe(true)
+    fire(document, 'scroll', { bubbles: false })
+    expect(isShown()).toBe(false)
+  })
+
   it('shows nothing for a control without a hint, and nothing once stopped', () => {
     listen()
     const plain = document.createElement('button')
