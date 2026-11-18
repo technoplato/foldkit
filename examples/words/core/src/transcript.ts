@@ -106,7 +106,7 @@ const byEntrySeconds = Order.mapInput(Order.Number, entrySeconds)
 
 /** A recording's sections, clipboard copies, and images in time order. */
 export const timelineOf = (
-  detail: RecordingDetail,
+  detail: Pick<RecordingDetail, 'sections' | 'clipboard' | 'images'>,
 ): ReadonlyArray<TimelineEntry> =>
   Array.sort(
     [
@@ -149,7 +149,7 @@ export const speakerRunStartIDsOf = (
 
 /** The label the iPhone shows for a section's speaker, when it has one. */
 export const speakerLabelOf = (
-  detail: RecordingDetail,
+  detail: Pick<RecordingDetail, 'speakers'>,
   section: Section,
 ): Option.Option<string> =>
   Option.map(section.maybeSpeakerID, speakerID =>
