@@ -268,6 +268,8 @@ describe('Books', () => {
               slug: lanternKeeper,
               atMs: Milliseconds.make(723_000),
               createdAtMs: 0,
+              maybeNote: Option.none(),
+              maybeExcerpt: Option.none(),
             },
           ],
         },

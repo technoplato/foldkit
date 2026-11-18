@@ -337,13 +337,30 @@ export type TranscriptPassage = Readonly<{
 }>
 
 /**
+ * A bookmark in a Transcript, a place a person marked: the word that
+ * starts on `startMs`. `label` names it for a screen reader,
+ * `Bookmark at 12:03`; `note` is what they wrote on it; pressing the bookmark
+ * or its note presses `action`, `OpenBookmark:7e1f04c2`. Graphical
+ * painters draw a ribbon beside the word and the note under its
+ * paragraph; a terminal stars the word.
+ */
+export type TranscriptBookmark = Readonly<{
+  readonly startMs: number
+  readonly label: string
+  readonly note?: string
+  readonly action?: string
+}>
+
+/**
  * Words on a timeline that a person reads along with: passages of words,
  * the one sounding marked current. Pressing a word presses `action` with
  * the word's token, `SeekToWord:w4012`. Graphical painters keep the
  * current word in view; a terminal brackets it, `[word]`. `emptyText` is
  * what shows while there are no passages. With a `clock` and each word's
  * `startMs`, the marks say which word was sounding when the Program last
- * heard the place, and `transcriptAt` says which is sounding now.
+ * heard the place, and `transcriptAt` says which is sounding now. `bookmarks`
+ * are the places a person marked, each on the millisecond one of the
+ * words starts.
  *
  * The view and the word sounding can differ. `isFollowing` is false while
  * a person reads somewhere else: a painter then leaves the view where it
@@ -365,6 +382,7 @@ export type TranscriptNode = Readonly<{
   readonly passages: ReadonlyArray<TranscriptPassage>
   readonly emptyText: string
   readonly clock?: TranscriptClock
+  readonly bookmarks?: ReadonlyArray<TranscriptBookmark>
   readonly isFollowing?: boolean
   readonly leaveAction?: string
   readonly focusToken?: string
@@ -407,6 +425,16 @@ export type ItemCheck = Readonly<{
 }>
 
 /**
+ * A short count after a list row's title, such as `3` for the bookmarks in
+ * a chapter. `label` is what it stands for, `3 bookmarks`, for a screen
+ * reader and for a painter that draws no badge.
+ */
+export type ItemBadge = Readonly<{
+  readonly text: string
+  readonly label: string
+}>
+
+/**
  * One row of a List: a box to tick, a picture, a title, the lines under
  * it, how far along it is, the press the whole row sends, and buttons at
  * its end. `key` is the row's stable identity, such as the book's slug.
@@ -416,9 +444,13 @@ export type ItemCheck = Readonly<{
  * `dropAction`, where a painter has a pointer. `columns` are short values
  * at the row's end that line up down the list, such as when a chapter
  * starts and how long it runs, `['20:00', '7:33']`; a painter that cannot
- * line them up reads them as one more line, as `itemLinesOf` says.
- * `titleMark` names the part of the title to set apart, from the
- * character at `start` up to `end`, such as the words a search found.
+ * line them up reads them as one more line, as `itemLinesOf` says. `group`
+ * names what the row belongs to, such as a bookmark's chapter: rows next to
+ * each other with the same group are headed by it once, as
+ * `groupedItemsOf` says. `badge` is a short count after the title, such as
+ * the bookmarks in a chapter. `titleMark` names the part of the title to
+ * set apart, from the character at `start` up to `end`, such as the words
+ * a search found.
  */
 export type ListItem = Readonly<{
   readonly key: string
@@ -430,6 +462,8 @@ export type ListItem = Readonly<{
   }>
   readonly lines?: ReadonlyArray<string>
   readonly columns?: ReadonlyArray<string>
+  readonly group?: string
+  readonly badge?: ItemBadge
   readonly check?: ItemCheck
   readonly image?: ItemImage
   readonly progress?: Readonly<{ readonly value: number; readonly max: number }>
@@ -447,12 +481,15 @@ export type ListItem = Readonly<{
  * `label` names it for a screen reader, and `emptyText` is what shows when
  * no row is left. What is typed is held by the painter, the way a text
  * field holds a draft and a page its scroll: the Program is not told, so
- * typing sends no Message and nothing is synchronized.
+ * typing sends no Message and nothing is synchronized. With `isOverLines`
+ * the filter reads the lines under each title too, so a bookmark is found
+ * by its note.
  */
 export type ListFilter = Readonly<{
   readonly placeholder: string
   readonly label: string
   readonly emptyText: string
+  readonly isOverLines?: boolean
 }>
 
 /**

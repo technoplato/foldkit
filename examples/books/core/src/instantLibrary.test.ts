@@ -190,6 +190,75 @@ describe('decodeLibrary', () => {
   })
 })
 
+describe('decodeLibrary: a bookmark’s note and words', () => {
+  const bookmarkRow = (fields: Readonly<Record<string, unknown>>) => ({
+    id: 'b-1',
+    relativeMs: 723_450,
+    createdAtMs: 4,
+    item: [{ id: 'item-1' }],
+    ...fields,
+  })
+
+  const bookmarkOf = (fields: Readonly<Record<string, unknown>>) =>
+    Array.head(
+      decodeLibrary({
+        libraryItems: [itemRow('item-1', 'Small Hours', 1)],
+        libraryBookmarks: [bookmarkRow(fields)],
+      }).shelf.bookmarks,
+    )
+
+  it('reads the note and the words a bookmark row keeps', () => {
+    expect(
+      bookmarkOf({
+        note: 'why the lamp',
+        excerptJSON: JSON.stringify({
+          before: 'He trimmed the',
+          word: 'wick',
+          after: 'and waited',
+        }),
+      }),
+    ).toEqual(
+      Option.some(
+        expect.objectContaining({
+          atMs: 723_450,
+          maybeNote: Option.some('why the lamp'),
+          maybeExcerpt: Option.some({
+            before: 'He trimmed the',
+            word: 'wick',
+            after: 'and waited',
+          }),
+        }),
+      ),
+    )
+  })
+
+  it('reads a row made before notes and words were kept, or with a cleared note, as having neither', () => {
+    expect(bookmarkOf({})).toEqual(
+      Option.some(
+        expect.objectContaining({
+          maybeNote: Option.none(),
+          maybeExcerpt: Option.none(),
+        }),
+      ),
+    )
+    expect(
+      Option.map(bookmarkOf({ note: '', excerptJSON: null }), bookmark => [
+        bookmark.maybeNote,
+        bookmark.maybeExcerpt,
+      ]),
+    ).toEqual(Option.some([Option.none(), Option.none()]))
+  })
+
+  it('keeps a bookmark whose words this build cannot read, without them', () => {
+    expect(
+      Option.map(
+        bookmarkOf({ excerptJSON: '{"word":' }),
+        bookmark => bookmark.maybeExcerpt,
+      ),
+    ).toEqual(Option.some(Option.none()))
+  })
+})
+
 describe('decodeChapters', () => {
   it("reads one book's chapters in index order, numbered from one, leaving out a broken row", () => {
     const read = decodeChapters(

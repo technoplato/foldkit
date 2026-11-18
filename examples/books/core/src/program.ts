@@ -5,7 +5,7 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import * as Audible from './audible/index.js'
 import { init } from './init.js'
-import { Message, catalog } from './message.js'
+import { Message, catalog, isBookmarkEdit } from './message.js'
 import { Model } from './model.js'
 import { navigation } from './navigation.js'
 import { libraryScreen } from './screen.js'
@@ -71,6 +71,14 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       ShowSpeeds: () => 'Navigation',
       SetSpeed: () => 'Navigation',
       AddBookmark: () => 'Domain',
+      AddNotedBookmark: () => 'Domain',
+      BookmarkWord: () => 'Domain',
+      MarkedMoment: () => 'Domain',
+      ShowBookmarks: () => 'Navigation',
+      OpenBookmark: () => 'Navigation',
+      SetBookmarkNote: () => 'Domain',
+      ClearBookmarkNote: () => 'Domain',
+      UndoRemoveBookmark: () => 'Domain',
       PlayBookmark: () => 'Navigation',
       DeleteBookmark: () => 'Navigation',
       ConfirmDeleteBookmark: () => 'Domain',
@@ -138,13 +146,15 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
  * ```typescript
  * isLocalOnlyMessage(SearchFor({ query })) // true
  * isLocalOnlyMessage(PlayFrom({ placeMs })) // false: the audio moves on every device that mirrors
+ * isLocalOnlyMessage(SetBookmarkNote({ note })) // true: the note reaches every device through the library store
  * ```
  */
 export const isLocalOnlyMessage = (message: Message): boolean =>
   Audible.isMessage(message) ||
   Theme.isMessage(message) ||
   TranscriptPlayer.isViewMessage(message) ||
-  message._tag === 'CopyWordLink'
+  message._tag === 'CopyWordLink' ||
+  isBookmarkEdit(message)
 
 /**
  * The Books Program: a library of audiobooks, a page per title and per
@@ -183,6 +193,7 @@ export const BooksProgram = Program.make({
       readings: current.readings,
       previewChecks: current.previewChecks,
       audible: current.audible,
+      maybeRemovedBookmark: current.maybeRemovedBookmark,
       appearance: current.appearance,
     }),
   },

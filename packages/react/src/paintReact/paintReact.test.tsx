@@ -826,3 +826,192 @@ describe('paintTree: a list with columns and a filter', () => {
     expect(document.querySelector('.fk-list-frame')).toBeNull()
   })
 })
+
+describe('paintTree: list rows in groups, with a badge, found by their lines', () => {
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+  })
+
+  const bookmarks = () =>
+    render(
+      paintTree(
+        List({
+          label: 'Bookmarks',
+          columns: ['At'],
+          filter: {
+            placeholder: 'Find in your bookmarks',
+            label: 'Find in the bookmarks of The Lantern Keeper',
+            emptyText: 'No bookmark has that in its words or its note.',
+            isOverLines: true,
+          },
+          items: [
+            {
+              key: 'b1',
+              title: '…the old sheets were drawn by men…',
+              group: 'Prologue',
+              columns: ['12:41'],
+            },
+            {
+              key: 'b2',
+              title: '…carry the paper dry…',
+              lines: ['packing order'],
+              group: 'The Long Portage',
+              columns: ['1:05:10'],
+            },
+            {
+              key: 'b3',
+              title: '…she counted paces, not hours…',
+              group: 'The Long Portage',
+              columns: ['1:09:52'],
+            },
+          ],
+        }),
+        { onPress: () => {} },
+      ),
+    )
+
+  const groups = (): ReadonlyArray<ReadonlyArray<string | null>> =>
+    globalThis.Array.from(document.querySelectorAll('.fk-list-group')).map(
+      group => [
+        group.querySelector('.fk-list-group-name')?.textContent ?? null,
+        group.querySelector('.fk-list-group-count')?.textContent ?? null,
+      ],
+    )
+
+  it('heads each group once, with how many rows it holds, before its rows', () => {
+    bookmarks()
+    expect(groups()).toEqual([
+      ['Prologue', '1'],
+      ['The Long Portage', '2'],
+    ])
+    expect(
+      globalThis.Array.from(document.querySelectorAll('.fk-list > li')).map(
+        row => row.className,
+      ),
+    ).toEqual([
+      'fk-list-group',
+      'fk-item',
+      'fk-list-group',
+      'fk-item',
+      'fk-item',
+    ])
+  })
+
+  it('finds a row by a line under its title, and heads only the groups left', () => {
+    bookmarks()
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'packing' },
+    })
+    expect(
+      globalThis.Array.from(document.querySelectorAll('.fk-item-title')).map(
+        title => title.textContent,
+      ),
+    ).toEqual(['…carry the paper dry…'])
+    expect(groups()).toEqual([['The Long Portage', '1']])
+  })
+
+  it('paints a row’s badge after its title, named for a screen reader', () => {
+    render(
+      paintTree(
+        List({
+          label: 'Chapters',
+          items: [
+            {
+              key: '2',
+              title: 'The Light',
+              badge: { text: '3', label: '3 bookmarks' },
+            },
+            { key: '3', title: 'The Storm' },
+          ],
+        }),
+        { onPress: () => {} },
+      ),
+    )
+    const badges = globalThis.Array.from(
+      document.querySelectorAll('.fk-item-badge'),
+    )
+    expect(badges.map(badge => badge.textContent)).toEqual(['3'])
+    expect(badges.map(badge => badge.getAttribute('aria-label'))).toEqual([
+      '3 bookmarks',
+    ])
+    expect(
+      screen.getByText('The Light').closest('.fk-item-title')?.textContent,
+    ).toBe('The Light3')
+  })
+})
+
+describe('a Transcript with bookmarks', () => {
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+  })
+
+  const marked = (onPress = vi.fn()) => {
+    render(
+      paintTree(
+        Transcript({
+          label: 'Transcript',
+          action: 'SeekToWord',
+          emptyText: 'No words yet',
+          passages: [
+            {
+              key: 'p1',
+              label: '20:30',
+              words: [
+                { token: 'w0', text: 'He', startMs: 1_230_000 },
+                { token: 'w1', text: 'trimmed', startMs: 1_230_400 },
+                { token: 'w2', text: 'the', startMs: 1_230_800 },
+                { token: 'w3', text: 'wick', startMs: 1_231_200 },
+              ],
+            },
+          ],
+          bookmarks: [
+            {
+              startMs: 1_231_200,
+              label: 'Bookmark at 20:31',
+              note: 'why the lamp',
+              action: 'OpenBookmark:b-wick',
+            },
+          ],
+        }),
+        { onPress },
+      ),
+    )
+    return onPress
+  }
+
+  it('marks the word that starts on the bookmark’s millisecond, and no other', () => {
+    marked()
+    expect(
+      globalThis.Array.from(
+        document.querySelectorAll('.fk-word[data-ribbon]'),
+      ).map(word => word.getAttribute('data-token')),
+    ).toEqual(['w3'])
+  })
+
+  it('puts a named ribbon beside the word that presses the bookmark’s action, not the word’s', () => {
+    const onPress = marked()
+    fireEvent.click(screen.getByRole('button', { name: 'Bookmark at 20:31' }))
+    expect(onPress).toHaveBeenCalledTimes(1)
+    expect(onPress.mock.calls[0]?.[0]).toMatchObject({
+      action: 'OpenBookmark:b-wick',
+    })
+  })
+
+  it('shows the note under the paragraph, pressing the same action', () => {
+    const onPress = marked()
+    const note = screen.getByText('why the lamp')
+    expect(note.closest('.fk-passage')).not.toBeNull()
+    fireEvent.click(note)
+    expect(onPress.mock.calls[0]?.[0]).toMatchObject({
+      action: 'OpenBookmark:b-wick',
+    })
+  })
+
+  it('still plays from a bookmarked word when the word itself is pressed', () => {
+    const onPress = marked()
+    fireEvent.click(screen.getByText('wick', { exact: false }))
+    expect(onPress.mock.calls[0]?.[0]).toMatchObject({
+      action: 'SeekToWord:w3',
+    })
+  })
+})

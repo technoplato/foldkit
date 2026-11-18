@@ -10,6 +10,8 @@ import {
 } from './audible/destination.js'
 import {
   type AddBooksSheet,
+  type BookmarkDrawer,
+  type BookmarksDrawer,
   type ContentsSheet,
   type ContributorPage,
   type DeleteBookmarkQuestion,
@@ -34,6 +36,8 @@ import { declared } from './routes.js'
 import {
   audibleConnectScreen,
   audibleTitlesScreen,
+  bookmarkScreen,
+  bookmarksScreen,
   contentsScreen,
   contributorScreen,
   deleteBookmarkScreen,
@@ -69,6 +73,12 @@ const viewOf = (
     return Option.some(Navigation.screenView(playerScreen(model)))
   } else if (destination._tag === 'ContentsSheet') {
     return Option.some(Navigation.screenView(contentsScreen(model)))
+  } else if (destination._tag === 'BookmarksDrawer') {
+    return Option.some(Navigation.screenView(bookmarksScreen(model)))
+  } else if (destination._tag === 'BookmarkDrawer') {
+    return Option.some(
+      Navigation.screenView(bookmarkScreen(model, destination.bookmarkId)),
+    )
   } else if (destination._tag === 'SpeedSheet') {
     return Option.some(Navigation.screenView(speedScreen(model)))
   } else if (destination._tag === 'DeleteBookmarkQuestion') {
@@ -121,6 +131,8 @@ export const navigation = Navigation.composeNavigation<
   | PlayerPage
   | ListenPage
   | ContentsSheet
+  | BookmarksDrawer
+  | BookmarkDrawer
   | SpeedSheet
   | DeleteBookmarkQuestion
   | AddBooksSheet

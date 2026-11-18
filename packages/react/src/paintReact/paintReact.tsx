@@ -8,6 +8,7 @@ import {
   type ItemCheck,
   type ListItem,
   type ListNode,
+  type PlacedBookmark,
   type ReferencePart,
   type SeekNode,
   type TextEmbed,
@@ -18,8 +19,10 @@ import {
   type TranscriptPassage,
   type TranscriptWordMenu,
   type UiNode,
+  bookmarksInPassage,
   currentWordTokenAt,
   filterListItems,
+  groupedItemsOf,
   iconDrawings,
   isClearedOnSubmit,
   isSubmittedOnLeave,
@@ -575,6 +578,23 @@ const currentTokenOf = (passage: TranscriptPassage): string | undefined =>
     ),
   )
 
+const noBookmarks: ReadonlyArray<PlacedBookmark> = []
+
+/**
+ * What tells one passage's bookmarks from another's between paints:
+ * each one's word, note and press, so a passage repaints when a bookmark on it
+ * is made, noted or removed, and not when one elsewhere is.
+ */
+const bookmarksKeyOf = (bookmarks: ReadonlyArray<PlacedBookmark>): string =>
+  Array.join(
+    Array.map(
+      bookmarks,
+      ({ token, bookmark }) =>
+        `${token}|${bookmark.note ?? ''}|${bookmark.action ?? ''}|${bookmark.label}`,
+    ),
+    '\n',
+  )
+
 const marksOf = (passage: TranscriptPassage): string =>
   Array.join(
     Array.flatMap(passage.words, word =>
@@ -587,13 +607,23 @@ const PassageView = memo(
   ({
     passage,
     action,
+    bookmarks,
     onPress,
   }: Readonly<{
     passage: TranscriptPassage
     action: string
+    bookmarks: ReadonlyArray<PlacedBookmark>
     onPress: (button: ButtonNode) => void
   }>): ReactElement => {
     const labelAction = passage.labelAction
+    const bookmarkOf = (token: string): Option.Option<PlacedBookmark> =>
+      Array.findFirst(bookmarks, placed => placed.token === token)
+    const pressBookmark = (placed: PlacedBookmark): void => {
+      const bookmarkAction = placed.bookmark.action
+      if (bookmarkAction !== undefined) {
+        onPress(pressOf(bookmarkAction, placed.bookmark.label))
+      }
+    }
     return (
       <article
         className="fk-passage"
@@ -616,21 +646,55 @@ const PassageView = memo(
           </button>
         )}
         <p className="fk-passage-words">
-          {Array.map(passage.words, word => (
-            <span
-              key={word.token}
-              className="fk-word"
-              data-token={word.token}
-              data-current={word.isCurrent === true ? true : undefined}
-              data-mark={word.mark}
+          {Array.map(passage.words, word => {
+            const maybeBookmark = bookmarkOf(word.token)
+            return (
+              <span
+                key={word.token}
+                className="fk-word"
+                data-token={word.token}
+                data-current={word.isCurrent === true ? true : undefined}
+                data-mark={word.mark}
+                data-ribbon={Option.isSome(maybeBookmark) ? true : undefined}
+                onClick={() => {
+                  onPress(pressOf(`${action}:${word.token}`, word.text))
+                }}
+              >
+                {Option.match(maybeBookmark, {
+                  onNone: () => null,
+                  onSome: placed => (
+                    <button
+                      type="button"
+                      className="fk-word-ribbon"
+                      aria-label={placed.bookmark.label}
+                      title={placed.bookmark.note ?? placed.bookmark.label}
+                      onClick={event => {
+                        event.stopPropagation()
+                        pressBookmark(placed)
+                      }}
+                    />
+                  ),
+                })}
+                {`${word.text} `}
+              </span>
+            )
+          })}
+        </p>
+        {Array.map(
+          Array.filter(bookmarks, placed => placed.bookmark.note !== undefined),
+          placed => (
+            <button
+              key={placed.token}
+              type="button"
+              className="fk-passage-note"
               onClick={() => {
-                onPress(pressOf(`${action}:${word.token}`, word.text))
+                pressBookmark(placed)
               }}
             >
-              {`${word.text} `}
-            </span>
-          ))}
-        </p>
+              {placed.bookmark.note}
+            </button>
+          ),
+        )}
       </article>
     )
   },
@@ -642,6 +706,7 @@ const PassageView = memo(
     currentTokenOf(before.passage) === currentTokenOf(after.passage) &&
     marksOf(before.passage) === marksOf(after.passage) &&
     before.action === after.action &&
+    bookmarksKeyOf(before.bookmarks) === bookmarksKeyOf(after.bookmarks) &&
     before.onPress === after.onPress,
 )
 
@@ -1051,6 +1116,11 @@ const TranscriptView = ({
                 key={passage.key}
                 passage={passage}
                 action={transcript.action}
+                bookmarks={
+                  transcript.bookmarks === undefined
+                    ? noBookmarks
+                    : bookmarksInPassage(passage, transcript.bookmarks)
+                }
                 onPress={onPress}
               />
             )),
@@ -1214,6 +1284,11 @@ const ListRowView = memo(
                 {item.title.slice(item.titleMark.end)}
               </>
             )}
+            {item.badge === undefined ? null : (
+              <span className="fk-item-badge" aria-label={item.badge.label}>
+                {item.badge.text}
+              </span>
+            )}
           </span>
           {Array.map(item.lines ?? [], (line, index) => (
             <span key={index} className="fk-item-line">
@@ -1262,11 +1337,12 @@ const ListFrame = ({
 }>): ReactElement => {
   const [typed, setTyped] = useState('')
   const frame = useRef<HTMLDivElement>(null)
-  const items = useMemo(
-    () => filterListItems(list.items, typed),
-    [list.items, typed],
-  )
   const filter = list.filter
+  const isOverLines = filter?.isOverLines === true
+  const items = useMemo(
+    () => filterListItems(list.items, typed, isOverLines),
+    [list.items, typed, isOverLines],
+  )
   return (
     <div className="fk-list-frame" ref={frame}>
       <div className="fk-list-head">
@@ -1435,15 +1511,30 @@ export const paintTree = (
       aria-label={list.label}
       {...dropAttributes(list)}
     >
-      {Array.map(items, item => (
-        <ListRowView
-          key={item.key}
-          item={item}
-          onPress={handlers.onPress}
-          onLink={handlers.onLink}
-          paintChildren={paintChildren}
-        />
-      ))}
+      {Array.flatMap(groupedItemsOf(items), (section, index) => [
+        ...(section.group === undefined
+          ? []
+          : [
+              <li
+                key={`group-${index.toString()}-${section.group}`}
+                className="fk-list-group"
+              >
+                <span className="fk-list-group-name">{section.group}</span>
+                <span className="fk-list-group-count">
+                  {section.items.length}
+                </span>
+              </li>,
+            ]),
+        ...Array.map(section.items, item => (
+          <ListRowView
+            key={item.key}
+            item={item}
+            onPress={handlers.onPress}
+            onLink={handlers.onLink}
+            paintChildren={paintChildren}
+          />
+        )),
+      ])}
     </ul>
   )
   const paintReference = (reference: ReferencePart): ReactElement => {

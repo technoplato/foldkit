@@ -35,6 +35,7 @@ export const init = (): readonly [
     audible: Audible.init(),
     appearance: initialAppearance,
     navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
+    maybeRemovedBookmark: Option.none(),
   },
   [],
 ]

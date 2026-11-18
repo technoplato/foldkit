@@ -6,6 +6,8 @@ import { WordSegment } from 'transcript-player-core-example'
 import { AudibleConnectPage, AudibleTitlesPage } from './audible/destination.js'
 import {
   AddBooksSheet,
+  BookmarkDrawer,
+  BookmarksDrawer,
   ContentsSheet,
   ContributorPage,
   DeleteBookmarkQuestion,
@@ -96,8 +98,9 @@ export const nameOfSlug = (slug: TitleSlug): string => nameOfTag(slug)
  *   that starts then, and prints that way until the audio plays on.
  *   `/books/the-lantern-keeper/listen` opens it at the listener's place.
  * - `…/contents` is a Drawer from the left, beside the page where a
- *   window has the room; `…/speed` is a Sheet; `…/delete-bookmark/<id>` is
- *   a Dialog.
+ *   window has the room, and so are `…/bookmarks`, the title's bookmarks,
+ *   and `…/bookmarks/<id>`, one of them with its note; `…/speed` is a
+ *   Sheet; `…/delete-bookmark/<id>` is a Dialog.
  */
 export const declared = Navigation.screens({
   slug: 'books',
@@ -178,6 +181,24 @@ export const declared = Navigation.screens({
       isAllowedAbove: beneath =>
         isTopOf(isTitlePage)(beneath) && !Array.some(beneath, isPlayerScreen),
     }),
+    Navigation.presentScreen(
+      BookmarkDrawer,
+      pipe(Route.literal('bookmarks'), Route.slash(bookmarkSegment)),
+      Navigation.Drawer({ from: 'Left' }),
+      {
+        title: () => 'Bookmark',
+        isAllowedAbove: isTopOf(isTitlePage, isPlayerScreen),
+      },
+    ),
+    Navigation.presentScreen(
+      BookmarksDrawer,
+      Route.literal('bookmarks'),
+      Navigation.Drawer({ from: 'Left' }),
+      {
+        title: () => 'Bookmarks',
+        isAllowedAbove: isTopOf(isTitlePage, isPlayerScreen),
+      },
+    ),
     Navigation.presentScreen(
       ContentsSheet,
       Route.literal('contents'),
