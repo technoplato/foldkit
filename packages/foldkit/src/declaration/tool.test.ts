@@ -4,10 +4,9 @@ import * as Declaration from './declaration.js'
 import * as Parameter from './parameter.js'
 import { toolOf, toolsOf } from './tool.js'
 
-const Follow = Declaration.declare('Follow', {
+const Follow = Declaration.make('Follow', {
   what: 'Prints a topic each time it changes',
   why: 'To read along somewhere else, or to hand the words to another program.',
-  touches: 'ReadsOnly',
   parameters: {
     topic: Parameter.subject(
       Parameter.withDefault(
@@ -20,21 +19,19 @@ const Follow = Declaration.declare('Follow', {
   },
 })
 
-const Listen = Declaration.declare('Listen', {
-  what: 'Plays this book from where you stopped',
-  why: 'The person wants to listen',
-  touches: 'ChangesData',
+const Listen = Declaration.make('Listen', {
+  what: 'Plays a title from the last place the user listened',
+  why: 'To hear the book',
   parameters: {
-    slug: Parameter.subject(
-      Parameter.required(Parameter.named('title', 'Which title?')),
+    slug: Parameter.required(
+      Parameter.subject(Parameter.named('title', 'Which title?')),
     ),
   },
 })
 
-const SignIn = Declaration.declare('SignIn', {
+const SignIn = Declaration.make('SignIn', {
   what: 'Signs in to the library',
   why: 'A command was refused because the sign-in ran out',
-  touches: 'ReachesOutside',
 })
 
 describe('toolOf', () => {
@@ -65,7 +62,6 @@ describe('toolOf', () => {
         required: [],
         additionalProperties: false,
       },
-      annotations: { readOnlyHint: true, openWorldHint: false },
     })
   })
 
@@ -78,15 +74,27 @@ describe('toolOf', () => {
     })
   })
 
-  it('says what a call touches, so an agent can tell reading from changing', () => {
-    expect(toolOf(['Listen'], Listen).annotations).toEqual({
-      readOnlyHint: false,
-      openWorldHint: false,
-    })
-    expect(toolOf(['SignIn'], SignIn).annotations).toEqual({
-      readOnlyHint: false,
-      openWorldHint: true,
-    })
+  it('says what a call touches once that is derived, and nothing before', () => {
+    expect(toolOf(['Listen'], Listen).annotations).toBeUndefined()
+    expect(
+      toolOf(['Follow'], { ...Follow, touches: { state: [], reaches: [] } })
+        .annotations,
+    ).toEqual({ readOnlyHint: true, openWorldHint: false })
+    expect(
+      toolOf(['Listen'], {
+        ...Listen,
+        touches: { state: ['listening'], reaches: [] },
+      }).annotations,
+    ).toEqual({ readOnlyHint: false, openWorldHint: false })
+    expect(
+      toolOf(['SignIn'], {
+        ...SignIn,
+        touches: {
+          state: [],
+          reaches: [{ entity: 'sign-in', access: 'Writes', isOutside: true }],
+        },
+      }).annotations,
+    ).toEqual({ readOnlyHint: false, openWorldHint: true })
   })
 
   it('names a tool by its whole path', () => {

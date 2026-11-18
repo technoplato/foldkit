@@ -1,14 +1,13 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import * as Declaration from './declaration.js'
 import * as Parameter from './parameter.js'
 
-const Follow = Declaration.declare('Follow', {
+const Follow = Declaration.make('Follow', {
   what: 'Prints a topic each time it changes',
   why: 'To read along somewhere else, or to hand the words to another program as they are spoken',
-  touches: 'ReadsOnly',
   parameters: {
     topic: Parameter.subject(
       Parameter.withDefault(
@@ -28,11 +27,10 @@ const Follow = Declaration.declare('Follow', {
   ],
 })
 
-const Search = Declaration.declare('Search', {
+const Search = Declaration.make('Search', {
   aliases: ['Find'],
   what: 'Finds where words are spoken',
-  why: 'To get back to a passage you remember a few words of',
-  touches: 'ReadsOnly',
+  why: 'To get back to a passage the user remembers a few words of',
   parameters: {
     words: Parameter.subject(
       Parameter.required(Parameter.text('The words to look for')),
@@ -40,26 +38,24 @@ const Search = Declaration.declare('Search', {
   },
 })
 
-const SignIn = Declaration.declare('SignIn', {
+const SignIn = Declaration.make('SignIn', {
   what: 'Signs in to the library',
   why: 'A command was refused because the sign-in ran out',
-  touches: 'ReachesOutside',
 })
 
-describe('Declaration.declare', () => {
+describe('Declaration.make', () => {
   it('holds one thing a person or a program can ask for, as plain data', () => {
     expect(Search).toEqual({
       _tag: 'Declaration',
       name: 'Search',
       aliases: ['Find'],
       what: 'Finds where words are spoken',
-      why: 'To get back to a passage you remember a few words of',
-      touches: 'ReadsOnly',
+      why: 'To get back to a passage the user remembers a few words of',
       parameters: {
         words: {
           kind: { _tag: 'Text' },
           what: 'The words to look for',
-          isRequired: true,
+          presence: 'Required',
           isSubject: true,
         },
       },
@@ -77,8 +73,8 @@ describe('Declaration.declare', () => {
   it('gives what a handler is handed its type, from the parameters', () => {
     expectTypeOf<Declaration.GivenOf<typeof Follow>>().toEqualTypeOf<
       Readonly<{
-        topic?: 'words' | 'screen'
-        eachWord?: boolean
+        topic: 'words' | 'screen'
+        eachWord: boolean
         before?: number
       }>
     >()
@@ -88,10 +84,9 @@ describe('Declaration.declare', () => {
   })
 
   it('refuses, in the types, an example that names what is not declared', () => {
-    Declaration.declare('Follow', {
+    Declaration.make('Follow', {
       what: 'Prints a topic each time it changes',
       why: 'To read along somewhere else',
-      touches: 'ReadsOnly',
       parameters: { topic: Parameter.oneOf(['words', 'screen'], 'What') },
       examples: [
         // @ts-expect-error `title` is not a parameter of Follow
@@ -114,10 +109,7 @@ describe('Declaration.wordsOf', () => {
 describe('Declaration.restates', () => {
   it('is true when the why only says the what again', () => {
     expect(
-      Declaration.restates(
-        'Sets the count to 0',
-        'To set the count to 0',
-      ),
+      Declaration.restates('Sets the count to 0', 'To set the count to 0'),
     ).toBe(true)
     expect(Declaration.restates('Plays this book', 'Plays the book.')).toBe(
       true,
@@ -142,22 +134,32 @@ describe('Declaration.problemsOf', () => {
   })
 
   it('says each thing a declaration gets wrong, in a sentence', () => {
-    const unsound = Declaration.declare('Seek', {
+    const unsound = Declaration.make('Seek', {
       aliases: ['Seek'],
       what: 'Goes to a place',
       why: 'Go to a place',
-      touches: 'ChangesData',
       parameters: {
         place: Parameter.subject(Parameter.place('Where to go')),
         title: Parameter.subject(Parameter.named('title', 'Which title')),
-        quiet: Parameter.required(Parameter.toggle('Says nothing')),
+        quiet: { ...Parameter.toggle('Says nothing'), presence: 'Required' },
       },
     })
     expect(Declaration.problemsOf(unsound)).toEqual([
       'Seek: its why only repeats its what. Say when or for what it would be asked.',
       'Seek: the alias Seek is its own name.',
       'Seek: place and title are both its subject. A declaration is about one thing; the rest are given by name.',
-      'Seek: quiet is on or off, so it cannot be required.',
+      'Seek: quiet is on or off, and off unless it is given, so it is neither required nor optional.',
+    ])
+  })
+
+  it('says when a what or a why speaks to the user instead of about them', () => {
+    const spoken = Declaration.make('Play', {
+      what: 'Plays a title from the last place you listened',
+      why: 'To hear your book',
+    })
+    expect(Declaration.problemsOf(spoken)).toEqual([
+      'Play: its what says "you". Name the user, in the third person.',
+      'Play: its why says "your". Name the user, in the third person.',
     ])
   })
 
@@ -165,7 +167,10 @@ describe('Declaration.problemsOf', () => {
     const drifted: Declaration.Declaration = {
       ...Search,
       examples: [
-        { given: { title: 'lamp' }, what: 'Names a parameter that is gone' },
+        {
+          given: { title: 'lamp', words: 'lamp' },
+          what: 'Names a parameter that is gone',
+        },
         { given: {}, what: 'Leaves out the words' },
       ],
     }
@@ -187,15 +192,13 @@ describe('Declaration.group', () => {
   const Menu = Declaration.group('Menu', {
     what: 'The action menu',
     children: [
-      Declaration.declare('Open', {
+      Declaration.make('Open', {
         what: 'Presents the action menu',
         why: 'To see every Action offered now',
-        touches: 'ChangesData',
       }),
-      Declaration.declare('Type', {
+      Declaration.make('Type', {
         what: 'Filters the action menu',
         why: 'To find an Action by a few letters',
-        touches: 'ChangesData',
         parameters: {
           text: Parameter.subject(Parameter.text('The letters to filter by')),
         },
@@ -204,9 +207,9 @@ describe('Declaration.group', () => {
   })
 
   it('composes children under a parent, each addressed by its path', () => {
-    expect(
-      Declaration.pathsOf([Follow, Menu]).map(({ path }) => path),
-    ).toEqual([['Follow'], ['Menu', 'Open'], ['Menu', 'Type']])
+    expect(Declaration.pathsOf([Follow, Menu]).map(({ path }) => path)).toEqual(
+      [['Follow'], ['Menu', 'Open'], ['Menu', 'Type']],
+    )
     expect(
       Declaration.pathsOf([Menu]).map(({ declaration }) => declaration.what),
     ).toEqual(['Presents the action menu', 'Filters the action menu'])
@@ -228,10 +231,9 @@ describe('Declaration.group', () => {
     const Session = Declaration.group('Session', {
       what: 'The session',
       children: [
-        Declaration.declare('Open', {
+        Declaration.make('Open', {
           what: 'Opens the session settings',
           why: 'To choose what is shared between devices',
-          touches: 'ChangesData',
         }),
       ],
     })
@@ -239,10 +241,9 @@ describe('Declaration.group', () => {
   })
 
   it('says which names two declarations of one group both answer to', () => {
-    const Find = Declaration.declare('Find', {
+    const Find = Declaration.make('Find', {
       what: 'Finds a title',
       why: 'To pick a book by part of its name',
-      touches: 'ReadsOnly',
     })
     expect(Declaration.collisionsOf([Search, Find, Menu])).toEqual([
       'Find is answered by both Search and Find.',
@@ -253,15 +254,16 @@ describe('Declaration.group', () => {
 describe('the declaration module', () => {
   it('imports nothing at run time, so a slim view can read it', () => {
     const sourceOf = (file: string): string =>
-      readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8')
+      readFileSync(join(process.cwd(), 'src/declaration', file), 'utf8')
     const importPattern = /^import (?!type\b)[^;]*?from '([^']+)'/gmu
     const runtimeImports = [
       'declaration.ts',
       'parameter.ts',
+      'parse.ts',
       'tool.ts',
       'plain.ts',
     ]
-      .flatMap(file => [...sourceOf(`./${file}`).matchAll(importPattern)])
+      .flatMap(file => [...sourceOf(file).matchAll(importPattern)])
       .map(([, specifier]) => specifier ?? '')
       .filter(specifier => !specifier.startsWith('./'))
     expect(runtimeImports).toEqual([])

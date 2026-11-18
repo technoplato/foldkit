@@ -72,6 +72,16 @@
       "import": "./dist/command/public.js",
       "default": "./dist/command/public.js"
     },
+    "./declaration": {
+      "types": "./dist/declaration/public.d.ts",
+      "import": "./dist/declaration/public.js",
+      "default": "./dist/declaration/public.js"
+    },
+    "./declaration/plain": {
+      "types": "./dist/declaration/plain.d.ts",
+      "import": "./dist/declaration/plain.js",
+      "default": "./dist/declaration/plain.js"
+    },
     "./customElement": {
       "types": "./dist/customElement/public.d.ts",
       "import": "./dist/customElement/public.js",
