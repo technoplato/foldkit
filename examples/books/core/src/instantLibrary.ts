@@ -31,6 +31,7 @@ import {
 } from './library.js'
 import {
   type Bookmark,
+  BookmarkExcerpt,
   type Chapter,
   Finished,
   InProgress,
@@ -90,8 +91,27 @@ const BookmarkRow = S.Struct({
   id: S.String,
   relativeMs: S.optionalKey(S.Number),
   createdAtMs: S.Number,
+  note: S.optionalKey(S.NullOr(S.String)),
+  excerptJSON: S.optionalKey(S.NullOr(S.String)),
   item: LinkOf(ItemLink),
 })
+
+const ExcerptJson = S.fromJsonString(BookmarkExcerpt)
+
+/**
+ * The words a bookmark row keeps, read from its `excerptJSON`. None for a
+ * row with none, or one this build cannot read.
+ */
+const excerptOfRow = (
+  excerptJSON: string | null | undefined,
+): Option.Option<BookmarkExcerpt> =>
+  Option.flatMap(
+    Option.fromNullishOr(excerptJSON),
+    S.decodeUnknownOption(ExcerptJson),
+  )
+
+const noteOfRow = (note: string | null | undefined): Option.Option<string> =>
+  Option.filter(Option.fromNullishOr(note), String.isNonEmpty)
 const LibraryData = S.Struct({
   libraryItems: S.optionalKey(S.Array(S.Unknown)),
   libraryProgress: S.optionalKey(S.Array(S.Unknown)),
@@ -372,6 +392,8 @@ export const decodeLibrary = (data: unknown): Decoded => {
           slug,
           atMs: Milliseconds.make(Math.max(0, Math.round(row.relativeMs ?? 0))),
           createdAtMs: row.createdAtMs,
+          maybeNote: noteOfRow(row.note),
+          maybeExcerpt: excerptOfRow(row.excerptJSON),
         })),
       ),
     ),
@@ -580,7 +602,13 @@ export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
                   Array.of,
                 ),
               ),
-            AddBookmarkAt: ({ slug, atMs }) =>
+            AddBookmarkAt: ({
+              slug,
+              atMs,
+              maybeNote,
+              maybeExcerpt,
+              maybeCreatedAtMs,
+            }) =>
               Effect.flatMap(entryFor(decoded, slug), entry =>
                 Effect.map(tableOf(database, 'libraryBookmarks', id()), row => [
                   row
@@ -589,10 +617,29 @@ export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
                       formatVersion: 1,
                       markKind: 'place',
                       relativeMs: atMs,
-                      createdAtMs: Date.now(),
+                      createdAtMs: Option.getOrElse(maybeCreatedAtMs, () =>
+                        Date.now(),
+                      ),
+                      ...Option.match(maybeNote, {
+                        onNone: () => ({}),
+                        onSome: note => ({ note }),
+                      }),
+                      ...Option.match(maybeExcerpt, {
+                        onNone: () => ({}),
+                        onSome: excerpt => ({
+                          excerptJSON: S.encodeSync(ExcerptJson)(excerpt),
+                        }),
+                      }),
                     })
                     .link({ item: entry.itemId }),
                 ]),
+              ),
+            NoteBookmark: ({ bookmarkId, maybeNote }) =>
+              Effect.map(
+                tableOf(database, 'libraryBookmarks', bookmarkId),
+                row => [
+                  row.update({ note: Option.getOrElse(maybeNote, () => '') }),
+                ],
               ),
             RemoveBookmark: ({ bookmarkId }) =>
               Effect.map(

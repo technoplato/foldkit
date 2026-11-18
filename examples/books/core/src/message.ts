@@ -11,6 +11,7 @@ import {
   audibleActions,
 } from './addBooks.js'
 import * as Audible from './audible/index.js'
+import { excerptLineOf } from './bookmarks.js'
 import {
   BookmarkId,
   ChapterNumber,
@@ -20,6 +21,7 @@ import {
   clockOf,
 } from './ids.js'
 import {
+  BookmarkNote,
   Chapter,
   type Model,
   Shelf,
@@ -43,6 +45,7 @@ import {
   isOnOtherPlayer,
   isOnPlayer,
   loadedSlugOf,
+  openBookmarkOf,
   shownTitleOf,
   titlePageSlugOf,
 } from './stack.js'
@@ -146,6 +149,10 @@ const whichBookmark = (
         Array.map(bookmarksOf(model, title.slug), bookmark => ({
           value: bookmark.bookmarkId,
           title: clockOf(bookmark.atMs),
+          ...Option.match(bookmark.maybeExcerpt, {
+            onNone: () => ({}),
+            onSome: excerpt => ({ detail: excerptLineOf(excerpt) }),
+          }),
           availability: availabilityOf(title),
         })),
     }),
@@ -346,12 +353,148 @@ export const ShowReadAloud = Catalog.action('ShowReadAloud', {
   meta: { label: 'Read aloud', keys: [], title: 'Show the books read aloud' },
 })
 
-/** Marks the place in the player. `b` presses it. */
+/**
+ * Marks the word being spoken in the player, on the millisecond it
+ * starts, with the words around it. `b` presses it.
+ */
 export const AddBookmark = Catalog.action('AddBookmark', {
-  what: 'Marks the place in the player',
+  what: 'Marks the word being spoken in the player',
   why: 'The person wants to come back to it',
   enabled: whenLoaded,
   meta: { label: 'Bookmark', keys: ['b'], title: 'Add bookmark' },
+})
+
+/** Marks the word being spoken, with a note: `books bookmark "why"`. */
+export const AddNotedBookmark = Catalog.action('AddNotedBookmark', {
+  fields: { note: BookmarkNote },
+  choose: {
+    field: 'note',
+    prompt: 'What note?',
+    token: BookmarkNote,
+    choicesOf: () => [],
+    accepts: whenLoaded,
+    nothingToChoose: 'type the note',
+  },
+  what: 'Marks the word being spoken, with a note',
+  why: 'The person wants to come back to it and remember why',
+  enabled: whenLoaded,
+  meta: {
+    label: 'Bookmark with a note',
+    keys: [],
+    title: 'Add bookmark with a note',
+  },
+})
+
+/**
+ * Marks one word near the place. A word's menu presses it with that
+ * word, `BookmarkWord:w4012`.
+ */
+export const BookmarkWord = Catalog.action('BookmarkWord', {
+  fields: { wordId: TranscriptPlayer.WordId },
+  choose: {
+    field: 'wordId',
+    prompt: 'Which word?',
+    token: TranscriptPlayer.WordId,
+    choicesOf: () => [],
+    accepts: (model: Model, wordId: TranscriptPlayer.WordId) =>
+      Option.isSome(
+        Option.flatMap(loadedPlayerOf(model), player =>
+          TranscriptPlayer.wordOf(player, wordId),
+        ),
+      )
+        ? Catalog.Enabled()
+        : Catalog.Disabled({ because: 'that word is not near the place' }),
+    nothingToChoose: 'press a word in the reader',
+  },
+  what: 'Marks one word near the place',
+  why: 'The person wants to come back to that word',
+  enabled: whenLoaded,
+  meta: {
+    label: 'Bookmark this word',
+    keys: [],
+    title: 'Bookmark a word',
+  },
+})
+
+/**
+ * Shows the bookmarks of the title on screen, beside its page, and closes
+ * them when they are showing. `m` presses it.
+ */
+export const ShowBookmarks = Catalog.action('ShowBookmarks', {
+  what: 'Shows the bookmarks of the title on screen',
+  why: 'The person wants to find a word they marked',
+  enabled: (model: Model) =>
+    Option.isSome(shownTitle(model))
+      ? unlessAsking(model)
+      : Catalog.Disabled({ because: 'no title is open' }),
+  meta: { label: 'Bookmarks', keys: ['m'] },
+})
+
+/** Opens one bookmark beside the page: its words and its note. */
+export const OpenBookmark = Catalog.action('OpenBookmark', {
+  fields: { bookmarkId: BookmarkId },
+  choose: whichBookmark('Open which bookmark?'),
+  what: 'Opens one bookmark, with its note',
+  why: 'The person wants to read or change what they wrote on it',
+  enabled: unlessAsking,
+  meta: { label: 'Open bookmark', keys: [], title: 'Open bookmark' },
+})
+
+const onOpenBookmark = (model: Model): Catalog.Availability =>
+  Option.isSome(
+    Option.flatMap(openBookmarkOf(model), bookmarkId =>
+      bookmarkOf(model, bookmarkId),
+    ),
+  )
+    ? Catalog.Enabled()
+    : Catalog.Disabled({ because: 'no bookmark is open' })
+
+/** Writes the open bookmark's note. */
+export const SetBookmarkNote = Catalog.action('SetBookmarkNote', {
+  fields: { note: BookmarkNote },
+  choose: {
+    field: 'note',
+    prompt: 'What is the note?',
+    token: BookmarkNote,
+    choicesOf: () => [],
+    accepts: onOpenBookmark,
+    nothingToChoose: 'type the note',
+  },
+  what: 'Writes the open bookmark’s note',
+  why: 'The person wants to remember why they marked it',
+  enabled: onOpenBookmark,
+  meta: { label: 'Note', keys: [], title: 'Write a bookmark’s note' },
+})
+
+/** Clears the open bookmark's note. */
+export const ClearBookmarkNote = Catalog.action('ClearBookmarkNote', {
+  what: 'Clears the open bookmark’s note',
+  why: 'The note no longer applies',
+  enabled: (model: Model) =>
+    Option.match(
+      Option.flatMap(openBookmarkOf(model), bookmarkId =>
+        bookmarkOf(model, bookmarkId),
+      ),
+      {
+        onNone: () => Catalog.Disabled({ because: 'no bookmark is open' }),
+        onSome: bookmark =>
+          Option.isSome(bookmark.maybeNote)
+            ? Catalog.Enabled()
+            : Catalog.Disabled({ because: 'it has no note' }),
+      },
+    ),
+  meta: { label: 'Clear note', keys: [], title: 'Clear a bookmark’s note' },
+})
+
+/** Puts back the bookmark that was just removed. `z` presses it. */
+export const UndoRemoveBookmark = Catalog.action('UndoRemoveBookmark', {
+  what: 'Puts back the bookmark that was just removed',
+  why: 'The person removed it by mistake',
+  enabled: (model: Model) =>
+    Option.isSome(model.maybeRemovedBookmark)
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'no bookmark was just removed' }),
+  meta: { label: 'Undo', keys: ['z'], title: 'Put the bookmark back' },
 })
 
 /** Plays the title on screen from one of its bookmarks. */
@@ -460,10 +603,17 @@ export const catalog = Catalog.make([
   SetSpeed,
   SharePlace,
   AddBookmark,
+  AddNotedBookmark,
+  BookmarkWord,
+  ShowBookmarks,
+  OpenBookmark,
+  SetBookmarkNote,
+  ClearBookmarkNote,
   PlayBookmark,
   DeleteBookmark,
   ConfirmDeleteBookmark,
   CancelDeleteBookmark,
+  UndoRemoveBookmark,
   ...ReadAloud.catalog.actions,
   ReadAloud.SharePage,
   ShowAddBooks,
@@ -510,6 +660,34 @@ export const OpenedPlace = m('OpenedPlace', {
 export const SharedLink = m('SharedLink', { how: SharedHow })
 /** The link to a moment could not go out, and why, safe to show. */
 export const FailedShareLink = m('FailedShareLink', { reason: S.String })
+/**
+ * The clock was read for a bookmark: `wallClockMs` is the moment the
+ * person asked for one, so the word being spoken then is the one marked,
+ * with the note they gave, if any. It stays on the device that asked: the
+ * bookmark itself reaches every device through the library store.
+ */
+export const MarkedMoment = m('MarkedMoment', {
+  wallClockMs: S.Number,
+  maybeNote: S.OptionFromOptionalKey(S.String),
+})
+const bookmarkEditTags: ReadonlySet<string> = new Set([
+  AddNotedBookmark.tag,
+  BookmarkWord.tag,
+  SetBookmarkNote.tag,
+  ClearBookmarkNote.tag,
+  UndoRemoveBookmark.tag,
+  'MarkedMoment',
+])
+
+/**
+ * True for a Message that changes a bookmark through the library store
+ * and carries the person's own words or a word they pressed: a note, a
+ * marked word, the moment one was asked for. It stays on the device that
+ * sent it, so the log never holds a note; the bookmark itself reaches
+ * every device through the library store.
+ */
+export const isBookmarkEdit = (message: Readonly<{ _tag: string }>): boolean =>
+  bookmarkEditTags.has(message._tag)
 /** The library store saved a place, a finish, or a bookmark change. */
 export const CompletedWriteLibrary = m('CompletedWriteLibrary')
 /** The library store refused a write, and why, safe to show. */
@@ -572,6 +750,7 @@ export const Message = S.Union([
   TranscriptPlayer.FailedPlayAudio,
   TranscriptPlayer.ReceivedPassages,
   TranscriptPlayer.FailedLoadTranscript,
+  MarkedMoment,
   CompletedWriteLibrary,
   FailedWriteLibrary,
   CompletedReportStretch,

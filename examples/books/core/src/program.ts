@@ -3,7 +3,7 @@ import { Program } from 'foldkit'
 
 import * as Audible from './audible/index.js'
 import { init } from './init.js'
-import { Message, catalog } from './message.js'
+import { Message, catalog, isBookmarkEdit } from './message.js'
 import { Model } from './model.js'
 import { navigation } from './navigation.js'
 import { libraryScreen } from './screen.js'
@@ -48,6 +48,14 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       ShowSpeeds: () => 'Navigation',
       SetSpeed: () => 'Navigation',
       AddBookmark: () => 'Domain',
+      AddNotedBookmark: () => 'Domain',
+      BookmarkWord: () => 'Domain',
+      MarkedMoment: () => 'Domain',
+      ShowBookmarks: () => 'Navigation',
+      OpenBookmark: () => 'Navigation',
+      SetBookmarkNote: () => 'Domain',
+      ClearBookmarkNote: () => 'Domain',
+      UndoRemoveBookmark: () => 'Domain',
       PlayBookmark: () => 'Navigation',
       DeleteBookmark: () => 'Navigation',
       ConfirmDeleteBookmark: () => 'Domain',
@@ -128,7 +136,8 @@ export const BooksProgram = Program.make({
   synchronization: {
     messageCategory: categoryOf,
     projectDomain: model => ({ library: model.library }),
-    isLocalOnly: Audible.isMessage,
+    isLocalOnly: message =>
+      Audible.isMessage(message) || isBookmarkEdit(message),
     keepOnRefold: (current, refolded) => ({
       ...refolded,
       library: current.library,
@@ -139,6 +148,7 @@ export const BooksProgram = Program.make({
       readings: current.readings,
       previewChecks: current.previewChecks,
       audible: current.audible,
+      maybeRemovedBookmark: current.maybeRemovedBookmark,
     }),
   },
 })

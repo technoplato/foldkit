@@ -156,14 +156,30 @@ const appliedWrite = (
           ...Array.filter(shelf.progress, progress => progress.slug !== slug),
         ],
       }),
-      AddBookmarkAt: ({ slug, atMs }) => ({
+      AddBookmarkAt: ({
+        slug,
+        atMs,
+        maybeNote,
+        maybeExcerpt,
+        maybeCreatedAtMs,
+      }) => ({
         ...shelf,
         bookmarks: Array.append(shelf.bookmarks, {
           bookmarkId: BookmarkId.make(`bookmark-${bookmarkNumber.toString()}`),
           slug,
           atMs,
-          createdAtMs: nowMs,
+          createdAtMs: Option.getOrElse(maybeCreatedAtMs, () => nowMs),
+          maybeNote,
+          maybeExcerpt,
         }),
+      }),
+      NoteBookmark: ({ bookmarkId, maybeNote }) => ({
+        ...shelf,
+        bookmarks: Array.map(shelf.bookmarks, bookmark =>
+          bookmark.bookmarkId === bookmarkId
+            ? { ...bookmark, maybeNote }
+            : bookmark,
+        ),
       }),
       RemoveBookmark: ({ bookmarkId }) => ({
         ...shelf,

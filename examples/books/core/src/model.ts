@@ -26,6 +26,8 @@ import { StretchEvent, StretchState } from './stretch.js'
 
 // MODEL
 
+const bookmarkNoteLimit = 500
+
 /** One chapter: its number, its name, and where it starts and ends. */
 export const Chapter = S.Struct({
   chapterNumber: ChapterNumber,
@@ -95,14 +97,44 @@ export const Progress = S.Union([InProgress, Finished])
 /** How far someone is in one title. */
 export type Progress = typeof Progress.Type
 
-/** A place someone marked in a title. */
+/** What a person wrote on a bookmark: not empty, at most 500 characters. */
+export const BookmarkNote = S.String.check(
+  S.isMinLength(1),
+  S.isMaxLength(bookmarkNoteLimit),
+).pipe(S.brand('BookmarkNote'))
+/** What a person wrote on a bookmark. */
+export type BookmarkNote = typeof BookmarkNote.Type
+
+/**
+ * The words around a bookmarked word, kept when the bookmark is made: the
+ * word, and up to eight words before and after it in its paragraph. The
+ * reader holds only the words near the place, so a bookmark elsewhere in
+ * the book shows these.
+ */
+export const BookmarkExcerpt = S.Struct({
+  before: S.String,
+  word: S.String,
+  after: S.String,
+})
+/** The words around a bookmarked word. */
+export type BookmarkExcerpt = typeof BookmarkExcerpt.Type
+
+/**
+ * A word someone marked in a title: `atMs` is the millisecond the word
+ * starts, the same address a link to that word carries, with the note
+ * they wrote, if any, and the words around it. A bookmark made before
+ * words were kept, or where none were loaded, has no excerpt and reads as
+ * its time.
+ */
 export const Bookmark = S.Struct({
   bookmarkId: BookmarkId,
   slug: TitleSlug,
   atMs: Milliseconds,
   createdAtMs: S.Number,
+  maybeNote: S.OptionFromOptionalKey(S.String),
+  maybeExcerpt: S.OptionFromOptionalKey(BookmarkExcerpt),
 })
-/** A place someone marked in a title. */
+/** A word someone marked in a title. */
 export type Bookmark = typeof Bookmark.Type
 
 /**
@@ -193,6 +225,7 @@ export const Model = S.Struct({
   previewChecks: S.Array(ReadAloud.PreviewCheck),
   audible: AudibleModel,
   navigation: Navigation.NavigationStack(Destination),
+  maybeRemovedBookmark: S.OptionFromOptionalKey(Bookmark),
 })
 /**
  * A Books Model value. An interface rather than an alias, so every type
