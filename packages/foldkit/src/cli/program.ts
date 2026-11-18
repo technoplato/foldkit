@@ -9,6 +9,7 @@ import {
   isEnabled,
   parseChoiceTag,
 } from '../catalog/catalog.js'
+import { pathsOf } from '../declaration/plain.js'
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type MenuView, keyInput } from '../interaction/interaction.js'
 import { terminalLineText, terminalMenuLines } from '../interaction/terminal.js'
@@ -25,6 +26,21 @@ import { linksOf } from '../renderers/query.js'
 import { renderScreen } from '../renderers/render.js'
 import { namedByTyped } from '../renderers/typed.js'
 import type { UiNode } from '../renderers/types.js'
+import {
+  ChooseFromMenu,
+  Follow,
+  Help,
+  Key,
+  Open,
+  TypeInMenu,
+  programControls,
+} from './controls.js'
+import {
+  commandOf as declaredCommandOf,
+  usageOf as declaredUsageOf,
+  exampleOf,
+  flagOf,
+} from './declared.js'
 import { columnRow, underColumn } from './layout.js'
 import type { CliDaemonFlags, CliDaemonPaintedResult } from './protocol.js'
 
@@ -358,17 +374,23 @@ export const paintProgram = <Model, Message>(
 
 type Control = Readonly<{ usage: string; what: string; example: string }>
 
-const controlsOf = <Model, Message>(
+/**
+ * What each control's example is given, built from this Program: the
+ * first Action that can be pressed, the first key, the page that is
+ * open. The words of each example are spelled from its declaration.
+ */
+const exampleGivenOf = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
-  name: string,
-): ReadonlyArray<Control> => {
-  const maybeFirstEnabled = Array.findFirst(
-    bound.entries(),
-    entry => entry.availability._tag === 'Enabled',
-  )
+): Readonly<Record<string, Readonly<Record<string, string>>>> => {
   const firstCommand = Option.getOrElse(
-    Option.map(maybeFirstEnabled, entry => commandOf(entry.tag)),
-    () => 'help',
+    Option.map(
+      Array.findFirst(
+        bound.entries(),
+        entry => entry.availability._tag === 'Enabled',
+      ),
+      entry => commandOf(entry.tag),
+    ),
+    () => declaredCommandOf([Help.declaration.name]),
   )
   const firstKey = Option.getOrElse(
     Array.findFirst(
@@ -381,62 +403,43 @@ const controlsOf = <Model, Message>(
     Option.map(bound.navigation(), plan => plan.uri),
     () => '/',
   )
-  return [
-    {
-      usage: 'show',
-      what: `Paint the ${name} and its Actions`,
-      example: 'show',
+  return {
+    [declaredCommandOf(['Menu', TypeInMenu.declaration.name])]: {
+      text: firstCommand.slice(0, 2),
     },
-    {
-      usage: 'menu open|close',
-      what: 'Present or dismiss the action menu',
-      example: 'menu open',
+    [declaredCommandOf(['Menu', ChooseFromMenu.declaration.name])]: {
+      action: firstCommand,
     },
-    {
-      usage: 'menu type <text>',
-      what: 'Filter the action menu',
-      example: `menu type ${firstCommand.slice(0, 2)}`,
-    },
-    {
-      usage: 'menu next|previous',
-      what: 'Move focus in the action menu',
-      example: 'menu next',
-    },
-    {
-      usage: 'menu choose <cmd>',
-      what: 'Choose one Action from the menu',
-      example: `menu choose ${firstCommand}`,
-    },
-    {
-      usage: 'key <key>',
-      what: 'Press a key, with --meta, --ctrl, or --shift',
-      example: `key ${firstKey}`,
-    },
-    {
-      usage: 'open <uri>',
-      what: "Go to one of the Program's URIs",
-      example: `open ${currentUri}`,
-    },
-    { usage: 'back', what: 'Go back one screen', example: 'back' },
-    { usage: 'where', what: 'Print the current URI', example: 'where' },
-    {
-      usage: 'watch',
-      what: 'Repaint the screen as it changes, on every device',
-      example: 'watch',
-    },
-    {
-      usage: 'follow [topic]',
-      what: 'Print a topic each time it changes, such as the screen',
-      example: 'follow screen',
-    },
-    {
-      usage: 'tail',
-      what: 'Print every event as it lands, from every device',
-      example: 'tail',
-    },
-    { usage: 'help', what: 'Print this help', example: 'help' },
-  ]
+    [declaredCommandOf([Key.declaration.name])]: { key: firstKey },
+    [declaredCommandOf([Open.declaration.name])]: { uri: currentUri },
+    [declaredCommandOf([Follow.declaration.name])]: { topic: 'screen' },
+  }
 }
+
+const controlsOf = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+): ReadonlyArray<Control> => {
+  const given = exampleGivenOf(bound)
+  return Array.map(pathsOf(programControls), ({ path, declaration }) => ({
+    usage: declaredUsageOf(path, declaration),
+    what: declaration.what,
+    example: exampleOf(path, declaration, {
+      given: given[declaredCommandOf(path)] ?? {},
+      what: declaration.what,
+    }),
+  }))
+}
+
+const keyFlags = Array.join(
+  Array.map(
+    Array.filter(
+      Object.entries(Key.declaration.parameters),
+      ([, parameter]) => parameter.kind._tag === 'Toggle',
+    ),
+    ([name]) => `[${flagOf(name)}]`,
+  ),
+  ' ',
+)
 
 /**
  * Usage derived from the Program: every Action is a command, laid out like
@@ -447,7 +450,7 @@ export const programUsage = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
 ): string => {
-  const controls = controlsOf(bound, name)
+  const controls = controlsOf(bound)
   const usageWidth = widestOf(
     Array.map(controls, control => control.usage),
     minimumCommandWidth,
@@ -455,7 +458,7 @@ export const programUsage = <Model, Message>(
   const column = indentWidth + usageWidth
   return [
     'Usage',
-    `${indent}${name} [command] [--meta] [--ctrl] [--shift]`,
+    `${indent}${name} [command] ${keyFlags}`,
     '',
     'Actions',
     ...actionTable(bound.entries(), Option.some(name)),
@@ -575,7 +578,7 @@ const paintedLineOf =
  *   { command: 'tui', what: 'Opens the live player here' },
  * ])
  * // while it plays:
- * // ['  books pause  Pauses and keeps your place',
+ * // ['  books pause  Pauses and keeps the place',
  * //  '  books listen 21-lessons-for-the-21st-century',
  * //  '  books tui    Opens the live player here']
  * ```

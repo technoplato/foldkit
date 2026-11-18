@@ -49,7 +49,7 @@ export const OpenBook = Catalog.action('OpenBook', {
     nothingToChoose: 'no book has been read aloud yet',
   },
   what: 'Opens the book at the page being read, or at its first page',
-  why: 'The person wants to follow along in that book',
+  why: 'To follow along in that book',
   meta: { label: 'Open', keys: [], title: 'Open book' },
 })
 
@@ -125,7 +125,7 @@ export const TurnToPage = Catalog.action('TurnToPage', {
     nothingToChoose: noBookOpen,
   },
   what: 'Turns to one page of the book',
-  why: 'The person wants to show that page',
+  why: 'To show that page',
   meta: { label: 'Turn to page', keys: [], title: 'Turn to page' },
 })
 
@@ -135,7 +135,7 @@ export const TurnToPage = Catalog.action('TurnToPage', {
  */
 export const FollowReading = Catalog.action('FollowReading', {
   what: 'Turns to the book and page being read now',
-  why: 'The person wants the screen to follow the reader again',
+  why: 'The user wants the screen to follow the reader again',
   enabled: (model: ReadAloudView) =>
     Option.match(liveTurnOf(model), {
       onNone: () => Catalog.Disabled({ because: 'nothing is being read now' }),
@@ -159,7 +159,7 @@ export const FollowReading = Catalog.action('FollowReading', {
  */
 export const SharePage = Catalog.action('SharePage', {
   what: 'Shares a link to this page of the book',
-  why: 'The person wants someone to see this page, or to come back to it',
+  why: 'To let someone see this page, or to come back to it',
   enabled: (model: ReadAloudView) =>
     Option.isSome(shownPageOf(model))
       ? Catalog.Enabled()

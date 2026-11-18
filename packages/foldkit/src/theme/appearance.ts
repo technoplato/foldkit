@@ -66,7 +66,7 @@ export const SetAppearance = Catalog.action('SetAppearance', {
     nothingToChoose: 'there is no other look',
   },
   what: 'Sets the look to light, to dark, or to follow the system',
-  why: 'The person wants the screen lighter or darker',
+  why: 'To have the screen lighter or darker',
   meta: { label: 'Appearance', keys: [], title: 'Appearance' },
 })
 

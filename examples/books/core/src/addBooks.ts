@@ -64,8 +64,8 @@ export const audibleViewOf = (
  * "Add more of your books" row under the library presses it.
  */
 export const ShowAddBooks = Catalog.action('ShowAddBooks', {
-  what: 'Shows where more of your books can come from',
-  why: 'The person wants to add books they already own',
+  what: 'Shows where more books can come from',
+  why: 'To add books the user already owns',
   enabled: (model: Model) => {
     if (isAsking(model)) {
       return Catalog.Disabled({ because: answerFirst })
@@ -87,8 +87,8 @@ export const ShowAddBooks = Catalog.action('ShowAddBooks', {
  * offer it.
  */
 export const ImportFromAudible = Catalog.action('ImportFromAudible', {
-  what: 'Imports the books you own on Audible',
-  why: 'The person wants their Audible books in the library',
+  what: 'Imports the books the user owns on Audible',
+  why: 'To have the Audible books in the library',
   enabled: (model: Model) =>
     isOnHome(model)
       ? unlessAsking(model)
@@ -106,7 +106,7 @@ export const ImportFromAudible = Catalog.action('ImportFromAudible', {
  * started.
  */
 export const ReconnectAudible = Catalog.action('ReconnectAudible', {
-  what: 'Connects your Audible account again',
+  what: 'Connects the Audible account again',
   why: 'Audible no longer accepts the login Books saved',
   enabled: (model: Model) =>
     Option.exists(

@@ -299,19 +299,38 @@ describe("each owned book's audio on the titles screen", () => {
   })
   const status: AudioStatus = {
     titles: [
-      { asin: Asin.make('B0FAKE0001'), name: 'The Long Way to Noon', state: AudioWords({ done: 3, total: 14 }) },
-      { asin: Asin.make('B002V0RAUU'), name: 'A New Earth', state: AudioDone() },
-      { asin: Asin.make('B0FAKE0003'), name: 'A Map of Small Rivers', state: AudioQueued({ position: 1 }) },
+      {
+        asin: Asin.make('B0FAKE0001'),
+        name: 'The Long Way to Noon',
+        state: AudioWords({ done: 3, total: 14 }),
+      },
+      {
+        asin: Asin.make('B002V0RAUU'),
+        name: 'A New Earth',
+        state: AudioDone(),
+      },
+      {
+        asin: Asin.make('B0FAKE0003'),
+        name: 'A Map of Small Rivers',
+        state: AudioQueued({ position: 1 }),
+      },
       {
         asin: Asin.make('B0FAKE0004'),
         name: 'The Glass Orchard',
-        state: AudioRefused({ reason: 'CustomerThrottled (Ownership)', fix: 'Connect Audible again' }),
+        state: AudioRefused({
+          reason: 'CustomerThrottled (Ownership)',
+          fix: 'Connect Audible again',
+        }),
       },
     ],
     next: Asin.make('B0FAKE0003'),
     running: Asin.make('B0FAKE0001'),
   }
-  const audio = AudioRead({ status, maybeAsking: Option.none(), maybeProblem: Option.none() })
+  const audio = AudioRead({
+    status,
+    maybeAsking: Option.none(),
+    maybeProblem: Option.none(),
+  })
 
   it("says where each book's audio stands, what the queue is on and takes next", () => {
     const screen = titlesOf({ titles: read, audio })
@@ -343,18 +362,37 @@ describe("each owned book's audio on the titles screen", () => {
   })
 
   it('offers nothing while an ask is on its way, and says why one failed', () => {
-    const problem = Unavailable({ reason: 'the audio queue is not set up on this computer' })
+    const problem = Unavailable({
+      reason: 'the audio queue is not set up on this computer',
+    })
     const asking = titlesOf({
       titles: read,
-      audio: AudioRead({ status, maybeAsking: Option.some(Asin.make('B0FAKE0003')), maybeProblem: Option.none() }),
+      audio: AudioRead({
+        status,
+        maybeAsking: Option.some(Asin.make('B0FAKE0003')),
+        maybeProblem: Option.none(),
+      }),
     })
-    expect(Array.flatMap(itemsOf(asking), item => item.trailing ?? [])).toEqual([])
+    expect(Array.flatMap(itemsOf(asking), item => item.trailing ?? [])).toEqual(
+      [],
+    )
     const failed = titlesOf({
       titles: read,
-      audio: AudioRead({ status, maybeAsking: Option.none(), maybeProblem: Option.some(problem) }),
+      audio: AudioRead({
+        status,
+        maybeAsking: Option.none(),
+        maybeProblem: Option.some(problem),
+      }),
     })
-    expect(wordsOf(failed).join(' ')).toContain('the audio queue is not set up on this computer')
-    const unreadable = titlesOf({ titles: read, audio: AudioUnreadable({ problem }) })
-    expect(wordsOf(unreadable).join(' ')).toContain('the audio queue is not set up on this computer')
+    expect(wordsOf(failed).join(' ')).toContain(
+      'the audio queue is not set up on this computer',
+    )
+    const unreadable = titlesOf({
+      titles: read,
+      audio: AudioUnreadable({ problem }),
+    })
+    expect(wordsOf(unreadable).join(' ')).toContain(
+      'the audio queue is not set up on this computer',
+    )
   })
 })

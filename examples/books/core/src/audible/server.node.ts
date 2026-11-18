@@ -49,11 +49,11 @@ import {
 } from './problem.js'
 import {
   AudibleLibraryJson,
-  FinishSignInJson,
-  ImportAdvanced,
   type AudioQueueRequest,
   AudioQueueRequestJson,
   AudioStatusJson,
+  FinishSignInJson,
+  ImportAdvanced,
   type ImportEvent,
   ImportEventJson,
   ImportRequestJson,
@@ -738,8 +738,7 @@ const encodeAudioStatus = S.encodeSync(AudioStatusJson)
 
 const audioRefusal = (problem: AudibleProblem): Refusal =>
   refusal(
-    problem._tag === 'Unavailable' &&
-      problem.reason === noAudioQueue.reason
+    problem._tag === 'Unavailable' && problem.reason === noAudioQueue.reason
       ? statusUnavailable
       : statusBadRequest,
     problem,

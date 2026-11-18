@@ -755,7 +755,7 @@ describe('books words', () => {
     const [playing = ''] = await heard(player, terminal, 1)
     expect(playing.split('\n')[1]).toMatch(/· playing$/)
     expect(playing.split('\n').slice(-5)).toEqual([
-      '  books pause      Pauses and keeps your place',
+      '  books pause      Pauses and keeps the place',
       '  books skip-back  Goes back 30 seconds',
       '  books bookmark   Marks the word being spoken, with a note…',
       '  books link       Shows the whole link to the word being r…',
@@ -957,7 +957,7 @@ describe('books CLI', () => {
     expect(listened.exitCode).toBe(0)
     expect(listened.stdout).toMatch(/^▶ Playing The Lantern Keeper$/m)
     expect(listened.stdout).toMatch(
-      /^ {2}books pause +Pauses and keeps your place$/m,
+      /^ {2}books pause +Pauses and keeps the place$/m,
     )
     expect(listened.stdout).toMatch(/^ {2}books stop +Pauses, saves the place/m)
     await eventually(() => {

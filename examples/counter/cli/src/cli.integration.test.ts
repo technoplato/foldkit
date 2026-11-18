@@ -80,7 +80,7 @@ describe('counter CLI on a file tape', () => {
     expect(help.stdout).toMatch(
       /^ {2}increment +\+ = +Increments the count by one$/m,
     )
-    expect(help.stdout).toContain('menu choose <cmd>')
+    expect(help.stdout).toContain('menu choose <action>')
     expect(help.stdout).toMatch(/^ +\$ counter menu choose increment$/m)
   })
 })

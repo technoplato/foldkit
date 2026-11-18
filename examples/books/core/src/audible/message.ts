@@ -90,8 +90,8 @@ export const ConnectAudible = Catalog.action('ConnectAudible', {
     accepts: connectAvailabilityOf,
     nothingToChoose: 'paste the address Amazon showed',
   },
-  what: 'Connects your Audible account with the address Amazon showed after you signed in',
-  why: 'The person signed in on Amazon and wants Books to read their library',
+  what: 'Connects the Audible account with the address Amazon showed after sign-in',
+  why: 'The user signed in on Amazon and wants Books to read their library',
   enabled: connectAvailabilityOf,
   meta: { label: 'Connect', keys: [], title: 'Connect Audible' },
 })
@@ -134,7 +134,7 @@ export const ToggleAudibleTitle = Catalog.action('ToggleAudibleTitle', {
     nothingToChoose: 'no titles are listed',
   },
   what: 'Selects or clears one title to import',
-  why: 'The person chooses which of their books come into the library',
+  why: 'The user chooses which of their books come into the library',
   enabled: (view: AudibleView) => withTitles(view, () => Catalog.Enabled()),
   meta: { label: 'Select', keys: [], title: 'Select title' },
 })
@@ -142,7 +142,7 @@ export const ToggleAudibleTitle = Catalog.action('ToggleAudibleTitle', {
 /** Selects every Audible title, those already in the library too. */
 export const SelectAllAudibleTitles = Catalog.action('SelectAllAudibleTitles', {
   what: 'Selects every title to import',
-  why: 'The person wants all of their books',
+  why: 'To bring in every book',
   enabled: (view: AudibleView) =>
     withTitles(view, read =>
       read.selected.length === read.titles.length
@@ -155,7 +155,7 @@ export const SelectAllAudibleTitles = Catalog.action('SelectAllAudibleTitles', {
 /** Clears every selected Audible title. */
 export const DeselectAudibleTitles = Catalog.action('DeselectAudibleTitles', {
   what: 'Clears every selected title',
-  why: 'The person wants to pick a few books one by one',
+  why: 'To pick a few books one by one',
   enabled: (view: AudibleView) =>
     withTitles(view, read =>
       Array.isReadonlyArrayEmpty(read.selected)
@@ -171,7 +171,7 @@ export const DeselectAudibleTitles = Catalog.action('DeselectAudibleTitles', {
  */
 export const ImportAudibleTitles = Catalog.action('ImportAudibleTitles', {
   what: 'Imports the selected titles into the library, without their audio',
-  why: 'The person wants their Audible books on the shelf',
+  why: 'To have the Audible books on the shelf',
   enabled: (view: AudibleView) =>
     withTitles(view, read =>
       Array.isReadonlyArrayEmpty(read.selected)
@@ -185,7 +185,7 @@ export const ImportAudibleTitles = Catalog.action('ImportAudibleTitles', {
 export const ReadAudibleLibraryAgain = Catalog.action(
   'ReadAudibleLibraryAgain',
   {
-    what: 'Reads your Audible titles again',
+    what: 'Reads the Audible titles again',
     why: 'The last read failed',
     enabled: (view: AudibleView) =>
       onPage(view, 'Titles', () => {
@@ -210,7 +210,9 @@ const getAudioAvailabilityOf = (view: AudibleView): Catalog.Availability =>
   onPage(view, 'Titles', () =>
     Option.match(readAudioOf(view.audible.audio), {
       onNone: () =>
-        Catalog.Disabled({ because: 'the audio of your books is not read yet' }),
+        Catalog.Disabled({
+          because: 'the audio of your books is not read yet',
+        }),
       onSome: read =>
         Option.isSome(read.maybeAsking)
           ? Catalog.Disabled({ because: 'Books is asking for a book already' })
@@ -218,7 +220,9 @@ const getAudioAvailabilityOf = (view: AudibleView): Catalog.Availability =>
                 canGetAudioOf(view.audible.audio, title.asin),
               )
             ? Catalog.Enabled()
-            : Catalog.Disabled({ because: 'every book with audio to get has it' }),
+            : Catalog.Disabled({
+                because: 'every book with audio to get has it',
+              }),
     }),
   )
 
@@ -250,7 +254,7 @@ export const GetAudiobookAudio = Catalog.action('GetAudiobookAudio', {
     nothingToChoose: 'no book is waiting for its audio',
   },
   what: "Brings one book's audio in now, ahead of the queue",
-  why: 'The person wants to listen to this book with its read-along soon',
+  why: 'To listen to this book with its read-along soon',
   enabled: getAudioAvailabilityOf,
   meta: { label: 'Get audio now', keys: [], title: 'Get audio now' },
 })
