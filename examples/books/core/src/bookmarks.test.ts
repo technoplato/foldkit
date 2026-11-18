@@ -332,6 +332,51 @@ describe('Adding a bookmark', () => {
   })
 })
 
+describe('A word’s menu', () => {
+  const menuOf = (bound: Bound) =>
+    Option.flatMap(
+      Option.flatMap(Navigation.frameOf(bound), frame => nodeOf(frame.base)),
+      base =>
+        Option.flatMap(Array.head(transcriptsOf(base)), transcript =>
+          Option.fromNullishOr(transcript.wordMenu),
+        ),
+    )
+
+  it('offers Bookmark this word after the link, pressed with the word', () => {
+    const { bound } = playingAt(passageStartMs)
+    bound.press('ShowWordMenu:w-1-9')
+    expect(
+      Option.map(menuOf(bound), menu =>
+        Array.map(menu.items, item => [item.label, item.action, item.icon]),
+      ),
+    ).toEqual(
+      Option.some([
+        ['Play from here', 'SeekToWord:w-1-9', 'Play'],
+        ['Copy link to this word', 'CopyWordLink:w-1-9', 'Link'],
+        ['Bookmark this word', 'BookmarkWord:w-1-9', 'Bookmark'],
+      ]),
+    )
+  })
+
+  it('marks the word when picked, and closes', () => {
+    const { bound, written } = playingAt(passageStartMs)
+    bound.press('ShowWordMenu:w-1-9')
+    bound.press('BookmarkWord:w-1-9')
+    expect(menuOf(bound)).toEqual(Option.none())
+    expect(writesOf(written)).toMatchObject([
+      { _tag: 'AddBookmarkAt', maybeExcerpt: { word: 'stone' } },
+    ])
+  })
+
+  it('closes too when the word already has a bookmark', () => {
+    const { bound, written } = playingAt(passageStartMs, shelfWithBookmarks)
+    bound.press('ShowWordMenu:w-1-9')
+    bound.press('BookmarkWord:w-1-9')
+    expect(menuOf(bound)).toEqual(Option.none())
+    expect(writesOf(written)).toEqual([])
+  })
+})
+
 describe('The Bookmarks panel', () => {
   it('opens beside the page at its own address, a tab next to Contents', () => {
     const { bound } = playingAt(passageStartMs, shelfWithBookmarks)
