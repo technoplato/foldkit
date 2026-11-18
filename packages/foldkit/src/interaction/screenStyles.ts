@@ -1293,4 +1293,56 @@ ${themeStylesheet(defaultTheme)}
   text-align: center;
   vertical-align: 1px;
 }
+
+:where(.fk-passage:has(.fk-word-mark)) {
+  position: relative;
+}
+
+:where(.fk-word[data-mark]) {
+  background: linear-gradient(transparent 62%, ${roleVar('MarkSoft')} 62%);
+  border-radius: 0;
+}
+
+:where(.fk-word-mark) {
+  position: absolute;
+  left: 3px;
+  width: 10px;
+  height: 14px;
+  margin-top: 0.45em;
+  padding: 0;
+  border: 0;
+  background: ${roleVar('Mark')};
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+  cursor: pointer;
+}
+
+:where(.fk-word-mark:focus-visible) {
+  outline: 2px solid ${roleVar('Focus')};
+  outline-offset: 2px;
+}
+
+:where(.fk-passage-note) {
+  display: block;
+  margin: 6px 0 2px;
+  padding: 0 0 0 16px;
+  border: 0;
+  background: none;
+  color: ${roleVar('Mark')};
+  font: inherit;
+  font-size: 15px;
+  font-style: italic;
+  text-align: left;
+  cursor: pointer;
+}
+
+:where(.fk-passage-note)::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 12px;
+  margin: 0 8px 0 -16px;
+  background: ${roleVar('Mark')};
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+  vertical-align: -1px;
+}
 `

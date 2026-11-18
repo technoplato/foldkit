@@ -53,6 +53,11 @@ export {
   wordStepOf,
 } from './readAlong.js'
 export {
+  type PlacedMark,
+  marksInPassage,
+  withTranscriptMarks,
+} from './transcriptMarks.js'
+export {
   currentWordTokenAt,
   transcriptAt,
   transcriptPlaceAt,
@@ -103,6 +108,7 @@ export type {
   TextNode,
   TextPart,
   TranscriptClock,
+  TranscriptMark,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWord,

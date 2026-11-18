@@ -20,8 +20,10 @@ import {
   Row,
   Text,
   TextInput,
+  type TranscriptMark,
   type UiNode,
   actionButtons,
+  withTranscriptMarks,
 } from 'foldkit/renderers'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -1105,6 +1107,25 @@ const bookmarkLists = (model: Model, title: Title): ReadonlyArray<UiNode> =>
     ],
   })
 
+/**
+ * A title's bookmarks as marks for its reader: each on the millisecond
+ * its word starts, named by its time, with its note and the press that
+ * opens it.
+ */
+const bookmarkMarksOf = (
+  model: Model,
+  title: Title,
+): ReadonlyArray<TranscriptMark> =>
+  Array.map(bookmarksOf(model, title.slug), bookmark => ({
+    startMs: bookmark.atMs,
+    label: `Bookmark at ${clockOf(bookmark.atMs)}`,
+    ...Option.match(bookmark.maybeNote, {
+      onNone: () => ({}),
+      onSome: note => ({ note }),
+    }),
+    action: `${OpenBookmark.tag}:${bookmark.bookmarkId}`,
+  }))
+
 const undoLines = (model: Model): ReadonlyArray<UiNode> =>
   Option.match(model.maybeRemovedBookmark, {
     onNone: () => [],
@@ -1411,7 +1432,10 @@ export const playerScreen = (model: Model): UiNode =>
               { gap: 1 },
               Text(title.name, { dim: true }),
               ...chapterPickerOf(model, title, placeOf(loaded)),
-              TranscriptPlayer.transcriptOf(loaded.player),
+              withTranscriptMarks(
+                TranscriptPlayer.transcriptOf(loaded.player),
+                bookmarkMarksOf(model, title),
+              ),
               Dock(
                 ...TranscriptPlayer.problemOf(loaded.player),
                 ...problemLines(model),

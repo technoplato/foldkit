@@ -97,7 +97,9 @@ describe('the look of a mark in words read along with', () => {
     expect(mark).toContain('position: absolute')
     expect(mark).toContain(`background: ${roleVar('Mark')}`)
     expect(mark).toContain('clip-path: polygon')
-    expect(ruleOf(':where(.fk-passage)')).toContain('position: relative')
+    expect(ruleOf(':where(.fk-passage:has(.fk-word-mark))')).toContain(
+      'position: relative',
+    )
   })
 
   it('writes the note under its paragraph in the mark’s color', () => {
