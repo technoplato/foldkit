@@ -72,7 +72,8 @@ describe('the roles a painted screen says its parts play, for a terminal to ink'
     const buttons = paintAscii(
       layoutTree(
         Column(
-          Button({ label: 'Play', action: 'Play', focused: true }),
+          {},
+          { ...Button({ label: 'Play', action: 'Play' }), focused: true },
           Button({ label: 'Contents', action: 'Contents', isCurrent: true }),
           Button({ label: 'Search', action: 'Search' }),
         ),

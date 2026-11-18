@@ -18,6 +18,7 @@ import { layoutTree } from '../renderers/layout.js'
 import { paintAscii } from '../renderers/paint.js'
 import type { LayoutBox, UiNode } from '../renderers/types.js'
 import type { RenderReport } from '../telemetry/recorder.js'
+import type { InkRun } from '../theme/terminal.js'
 import { paintScreen } from './program.js'
 
 // MODEL
@@ -46,9 +47,16 @@ export const initialTerminalView: TerminalView = {
   maybeScroll: Option.none(),
 }
 
-/** One painted terminal screen, exactly as tall as the terminal. */
+/**
+ * One painted terminal screen, exactly as tall as the terminal. `inks`
+ * says the role each part of each line plays, one list per line, such as
+ * the word being spoken or the button with the keyboard, so a host whose
+ * output takes color inks the lines from the theme (`inkedLine`); the
+ * lines themselves are plain text.
+ */
 export type TerminalPaint = Readonly<{
   lines: ReadonlyArray<string>
+  inks: ReadonlyArray<ReadonlyArray<InkRun>>
   view: TerminalView
 }>
 
@@ -91,8 +99,19 @@ const minimumBodyRows = 3
 
 // BODY
 
+// One line of the screen and the roles its parts play.
+type Line = Readonly<{ text: string; inks: ReadonlyArray<InkRun> }>
+
+const plain = (text: string): Line => ({ text, inks: [] })
+
+// The screen's own lines rest: where it is, how much is hidden, the keys.
+const quiet = (text: string): Line => ({
+  text,
+  inks: text === '' ? [] : [{ col: 0, width: text.length, role: 'QuietText' }],
+})
+
 type Part = Readonly<{
-  lines: ReadonlyArray<string>
+  lines: ReadonlyArray<Line>
   maybeFocusedRow: Option.Option<number>
   currentRows: ReadonlyArray<number>
 }>
@@ -199,7 +218,10 @@ const treePart = (
   const laid = layoutTree(node, 0, 0, width)
   const painted = paintAscii(laid)
   return {
-    lines: Array.map(painted.lines, line => line.trimEnd()),
+    lines: Array.map(painted.lines, (line, row) => ({
+      text: line.trimEnd(),
+      inks: Option.getOrElse(Array.get(painted.inks, row), () => []),
+    })),
     maybeFocusedRow: Option.flatMap(maybeFocused, tag =>
       Option.map(
         Array.findFirst(painted.hotspots, hotspot => hotspot.action.id === tag),
@@ -237,7 +259,15 @@ const layerPart = (
         const lines = terminalMenuLines(menu, width)
         return {
           body: {
-            lines: Array.map(lines, terminalLineText),
+            lines: Array.map(lines, line => {
+              const text = terminalLineText(line)
+              return line.isFocused
+                ? {
+                    text,
+                    inks: [{ col: 0, width: text.length, role: 'Focus' }],
+                  }
+                : plain(text)
+            }),
             maybeFocusedRow: Array.findFirstIndex(
               lines,
               line => line.isFocused,
@@ -306,19 +336,19 @@ const offsetOf = (
   })
 }
 
-const moreLine = (arrow: string, count: number): string =>
-  `  ${arrow} ${count.toString()} more ${count === 1 ? 'line' : 'lines'}`
+const moreLine = (arrow: string, count: number): Line =>
+  quiet(`  ${arrow} ${count.toString()} more ${count === 1 ? 'line' : 'lines'}`)
 
 /**
  * The body lines a window shows, with a line saying how much is hidden
  * above or below, in place of the line at that edge.
  */
 const windowLines = (
-  lines: ReadonlyArray<string>,
+  lines: ReadonlyArray<Line>,
   offset: number,
   height: number,
   minimumOffset: number,
-): ReadonlyArray<string> => {
+): ReadonlyArray<Line> => {
   const top = offset > minimumOffset ? 1 : 0
   const bottom = lines.length > offset + height ? 1 : 0
   const shown = Array.take(
@@ -333,21 +363,32 @@ const windowLines = (
   ]
 }
 
-const blankLines = (count: number): ReadonlyArray<string> =>
-  count > 0 ? Array.makeBy(count, () => '') : []
+const blankLines = (count: number): ReadonlyArray<Line> =>
+  count > 0 ? Array.makeBy(count, () => plain('')) : []
 
 const padded = (
-  lines: ReadonlyArray<string>,
+  lines: ReadonlyArray<Line>,
   height: number,
-): ReadonlyArray<string> => [
+): ReadonlyArray<Line> => [
   ...Array.take(lines, height),
   ...blankLines(height - lines.length),
 ]
 
 const fittedLine =
   (width: number) =>
-  (line: string): string =>
-    line.length > width ? line.slice(0, width) : line
+  (line: Line): Line =>
+    line.text.length > width
+      ? { text: line.text.slice(0, width), inks: line.inks }
+      : line
+
+const paintOf = (
+  lines: ReadonlyArray<Line>,
+  view: TerminalView,
+): TerminalPaint => ({
+  lines: Array.map(lines, line => line.text),
+  inks: Array.map(lines, line => line.inks),
+  view,
+})
 
 // PAINT
 
@@ -412,21 +453,21 @@ const paintedFrame = <Model, Message>(
     maybeAnchor,
     maybePrevious,
   )
-  return {
-    lines: Array.map(
+  return paintOf(
+    Array.map(
       [
-        `${name}  ${frame.uri}`,
+        quiet(`${name}  ${frame.uri}`),
         ...padded(windowLines(body, offset, height, minimumOffset), height),
         ...dockLines,
-        terminalFooterOf(bound.menuKeys()),
+        quiet(terminalFooterOf(bound.menuKeys())),
       ],
       fittedLine(size.columns),
     ),
-    view: {
+    {
       focus: view.focus,
       maybeScroll: Option.some({ identity: keyboard.identity, offset }),
     },
-  }
+  )
 }
 
 const startingLines = <Model, Message>(
@@ -434,19 +475,22 @@ const startingLines = <Model, Message>(
   name: string,
   view: TerminalView,
   size: TerminalSize,
-): ReadonlyArray<string> => {
+): ReadonlyArray<Line> => {
   const screen = Array.map(paintScreen(bound, view.focus).split('\n'), line =>
     line.trimEnd(),
   )
   const lines = Array.match(screen, {
-    onEmpty: () => [name],
+    onEmpty: () => [quiet(name)],
     onNonEmpty: nonEmpty => [
-      `${name}  ${Array.headNonEmpty(nonEmpty)}`,
-      ...Array.tailNonEmpty(nonEmpty),
+      quiet(`${name}  ${Array.headNonEmpty(nonEmpty)}`),
+      ...Array.map(Array.tailNonEmpty(nonEmpty), plain),
     ],
   })
   return Array.map(
-    [...padded(lines, size.rows - 1), terminalFooterOf(bound.menuKeys())],
+    [
+      ...padded(lines, size.rows - 1),
+      quiet(terminalFooterOf(bound.menuKeys())),
+    ],
     fittedLine(size.columns),
   )
 }
@@ -479,7 +523,7 @@ export const paintTerminal = <Model, Message>(
     columns: Math.max(minimumColumns, size.columns),
   }
   return Option.match(frameOf(bound), {
-    onNone: () => ({ lines: startingLines(bound, name, view, fitted), view }),
+    onNone: () => paintOf(startingLines(bound, name, view, fitted), view),
     onSome: frame => paintedFrame(bound, name, view, frame, fitted),
   })
 }

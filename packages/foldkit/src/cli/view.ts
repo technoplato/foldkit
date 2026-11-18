@@ -679,6 +679,12 @@ export type RunCliTuiViewOptions = Readonly<{
   timeoutMs?: number
   input?: CliTuiInput
   output?: CliTuiOutput
+  /**
+   * Whether this view's output takes color: a terminal, with color not
+   * refused. The view says so with every frame it asks for, and a Program
+   * that paints from a theme inks the frame; otherwise frames are plain.
+   */
+  isColor?: boolean
 }>
 
 type KeypressKey = Readonly<{
@@ -754,6 +760,7 @@ export const runCliTuiView = async (
       viewId,
       rows: String(output.rows ?? fallbackRows),
       columns: String(output.columns ?? fallbackColumns),
+      ...(options.isColor === true ? { color: '1' } : {}),
     })
     const finish = (end: CliTuiViewEnd): void => {
       if (state.isDone) {

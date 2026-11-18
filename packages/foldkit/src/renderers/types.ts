@@ -1,3 +1,4 @@
+import type { InkRun } from '../theme/terminal.js'
 import type { Device } from './device.js'
 import type { IconName } from './icons.js'
 
@@ -556,6 +557,8 @@ export type LayoutBox = Readonly<{
   readonly label?: string
   readonly isCurrent?: boolean
   readonly isShown?: boolean
+  /** The roles parts of this box's text play, by column on its row. */
+  readonly inks?: ReadonlyArray<InkRun>
   readonly children: ReadonlyArray<LayoutBox>
 }>
 
@@ -574,5 +577,10 @@ export type AsciiHotspot = Readonly<{
 export type AsciiFrame = Readonly<{
   readonly maybeDevice: Device | undefined
   readonly lines: ReadonlyArray<string>
+  /**
+   * The roles the parts of each line play, one list per line, for a
+   * terminal to ink from the theme.
+   */
+  readonly inks: ReadonlyArray<ReadonlyArray<InkRun>>
   readonly hotspots: ReadonlyArray<AsciiHotspot>
 }>
