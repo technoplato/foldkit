@@ -343,7 +343,11 @@ type WithFieldsOf<Action> =
  * its fields and answers whether it was taken; the Action's own rule
  * decides, as it does for a menu and a terminal. `check` answers what a
  * form holds, raw, with one sentence about the first wrong thing, the
- * sentence every Client gives, or None when it would be read. `props`
+ * sentence every Client gives, or None when it would be read: a wrong
+ * name or kind from the declaration, and, for an Action that chooses
+ * among what the Program holds, a name that matches none of it or more
+ * than one. `callNamed` sends it for the one choice a person names, a
+ * title or part of it. `props`
  * spreads onto the control that asks for it, such as an input: its
  * accessible name and description, the Action's hint, and `disabled`
  * with the reason while the Action is unavailable. All of it is read
@@ -362,6 +366,7 @@ export type CallHandle<Fields> = Readonly<{
   isEnabled: boolean
   maybeBecause: Option.Option<string>
   call: (fields: Fields) => boolean
+  callNamed: (typed: string) => boolean
   check: (said: Readonly<Record<string, unknown>>) => Option.Option<string>
   props: Readonly<{
     disabled: boolean
@@ -404,6 +409,27 @@ const actionsWithFieldsOf = (
     action => !action.isPayloadFree,
   )
 
+/**
+ * The sentence for a name that picks no one choice, for an entry whose
+ * choices are the ones the Program holds; None when what was said names
+ * one, or when the entry takes values of its own, such as a time.
+ */
+const nameProblemOf = (
+  entry: Catalog.Entry,
+  said: Readonly<Record<string, unknown>>,
+): Option.Option<string> =>
+  Option.flatMap(entry.maybeChoices, choices => {
+    const typed = said[choices.field]
+    if (choices.isOpen || typeof typed !== 'string') {
+      return Option.none()
+    } else {
+      const named = Catalog.choiceNamed(entry, typed)
+      return named._tag === 'NotNamed'
+        ? Option.some(named.sentence)
+        : Option.none()
+    }
+  })
+
 const callOf =
   (bound: AnyBound, entries: ReadonlyArray<Catalog.Entry>) =>
   (
@@ -429,11 +455,15 @@ const callOf =
                 onNone: () => false,
                 onSome: tag => bound.press(tag),
               }),
+            callNamed: (typed: string) => {
+              const named = Catalog.choiceNamed(entry, typed)
+              return named._tag === 'Named' && bound.press(named.tag)
+            },
             check: said => {
               const parsed = Declaration.parse(declaration, said)
               return parsed._tag === 'Refused'
                 ? Option.some(parsed.sentence)
-                : Option.none()
+                : nameProblemOf(entry, said)
             },
             props: {
               disabled: !isEnabled,
