@@ -37,6 +37,13 @@ Layout is organization first, style on top. Michael, typed 2026-11-17: "start de
 - Each painter maps a layout node to its own means: the HTML and React painters to elements with `fk-` class names, a terminal to lines and columns. Styling is applied on top by the painter's stylesheet and the `classNames` a host passes, never inside a Program's screen.
 - When a screen needs an arrangement the set lacks, such as a reading measure (a column that fills the window up to a readable width), a toolbar, or a split, add it as a layout node with a painter for every Client, then style it. Do not reach for a class name or a one-off element in a Client to get there.
 
+State drives; the components at the edge are told. Michael, typed 2026-11-18: "Let's get real dark mode light mode working in foldkit/core/theme or style" and "All state driven driving the components at the edge".
+
+- Everything a component shows is state in a core: the appearance, the word being spoken, a search, a hover description, what Contents holds. The view is a pure function of the Model, and the painters at the edge (React and DOM, the terminal) only receive values and draw.
+- No component reads the system's dark mode, storage, a context it mutates, or a class it toggles by itself. A fact about the outside, such as the system's mode, arrives through a Subscription as a Message (`SystemAppearance`, `ObservedSystemMode`), update decides, and the painters are told.
+- Colors are roles, never literals. `foldkit/theme` holds the roles, each with a light and a dark value; a stylesheet writes `${roleVar('QuietText')}` and a painter with no CSS reads `roleColorsOf(theme, mode)`. Tests fail on a raw color in the shared stylesheets and the Books site, and on a painter that asks the system. If a role is missing, add the role.
+- One exception, written down rather than hidden: a page has to be in the right mode before the Program starts. The host mirrors the mode the Program resolved (`paintModeOnPage`), and the page's first paint reads that mirror with `firstPaintScript()`. The mirror has one writer, the host acting on the Model, and one reader, the first paint; no component touches it, and the Program's own mode replaces it as soon as it starts.
+
 Before you add code, answer these in order:
 
 1. Would a second Client need this fact or behavior? Then it is core. Put it in the domain core when it names the domain, in Foldkit core when it does not.

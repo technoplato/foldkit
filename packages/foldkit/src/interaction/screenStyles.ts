@@ -677,14 +677,14 @@ ${themeStylesheet(defaultTheme)}
 :where(.fk-passage-label) {
   float: left;
   margin: 0 14px 0 0;
-  padding: 0;
+  padding: 11px 0 0;
   border: 0;
   background: none;
   color: ${roleVar('ReadingToCome')};
   font-family: ${screenLook.monoFamily};
   font-size: 14px;
   font-variant-numeric: tabular-nums;
-  line-height: ${px(Math.round(screenLook.readingSize * 1.55))};
+  line-height: 1;
 }
 
 :where(button.fk-passage-label) {
@@ -947,7 +947,7 @@ ${themeStylesheet(defaultTheme)}
   }
 
   :where(.fk-passage-label) {
-    line-height: ${px(Math.round(screenLook.readingSize * 0.85 * 1.55))};
+    padding-top: 8px;
   }
 }
 
