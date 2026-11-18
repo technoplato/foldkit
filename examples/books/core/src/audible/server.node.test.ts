@@ -5,6 +5,7 @@ import {
   ManagedRuntime,
   Option,
   Redacted,
+  Schema as S,
   Stream,
   String,
 } from 'effect'
@@ -17,15 +18,17 @@ import {
   type BridgeLibrary,
 } from './bridge.node.js'
 import { type AppliedImport, makeTestLibraryImport } from './libraryImport.js'
+import { Unavailable } from './problem.js'
 import {
   AudibleMembers,
   type AudibleRequest,
   type AudibleResponse,
   AudibleServerConfig,
+  AudioQueue,
   audibleSessions,
   handleAudibleRequest,
 } from './server.node.js'
-import { Asin, type ListedTitle } from './title.js'
+import { Asin, AudioStatus, type ListedTitle } from './title.js'
 import { memoryVault } from './vault.node.js'
 
 const memberEmail = 'listener@example.invalid'
@@ -80,6 +83,7 @@ const minuteMs = 60_000
 const makeServer = async (
   options: Readonly<{
     isLoginExpired?: boolean
+    audioQueue?: Layer.Layer<never>
   }> = {},
 ) => {
   const logs: Array<string> = []
@@ -180,6 +184,7 @@ const makeServer = async (
       memoryVault,
       bridge,
       importer.layer,
+      options.audioQueue ?? Layer.empty,
     ),
   )
   const answers: Array<string> = []
@@ -522,6 +527,55 @@ describe('the Audible import server', () => {
         expect.stringMatching(/^audible [0-9a-f]{8}: connected$/),
       ]),
     )
+    await server.dispose()
+  })
+})
+
+describe('the owned books\' audio on the Audible import server', () => {
+  const status = {
+    titles: [{ asin: 'B0FAKE0007', name: 'The Quiet Orchard', state: { _tag: 'Queued', position: 1 } }],
+    next: 'B0FAKE0007',
+    running: null,
+  }
+  const asked: Array<Readonly<{ email: string; asin: string }>> = []
+  const queueLayer = Layer.succeed(AudioQueue, {
+    status: () => Effect.succeed(S.decodeUnknownSync(AudioStatus)(status)),
+    queue: (owner, asin) => {
+      asked.push({ email: owner.email, asin })
+      return asin === 'B0NOTOWNED'
+        ? Effect.fail(Unavailable({ reason: 'that is not one of your Audible books without audio' }))
+        : Effect.succeed(S.decodeUnknownSync(AudioStatus)(status))
+    },
+  })
+
+  it('answers every owned book\'s audio, and takes one first for the owner', async () => {
+    const server = await makeServer({ audioQueue: queueLayer })
+    expect(await server.json('GET', '/__books/audible/audio')).toEqual({ status: 200, body: status })
+    expect(
+      await server.json('POST', '/__books/audible/audio/queue', JSON.stringify({ asin: 'B0FAKE0007' })),
+    ).toEqual({ status: 200, body: status })
+    expect(asked).toEqual([{ email: memberEmail, asin: 'B0FAKE0007' }])
+    await server.dispose()
+  })
+
+  it('says why the queue would not take a book', async () => {
+    const server = await makeServer({ audioQueue: queueLayer })
+    expect(
+      await server.json('POST', '/__books/audible/audio/queue', JSON.stringify({ asin: 'B0NOTOWNED' })),
+    ).toEqual({
+      status: 400,
+      body: { problem: { _tag: 'Unavailable', reason: 'that is not one of your Audible books without audio' } },
+    })
+    await server.dispose()
+  })
+
+  it('says the queue is not set up on a computer without one, and refuses no login first', async () => {
+    const server = await makeServer()
+    expect(await server.json('GET', '/__books/audible/audio')).toEqual({
+      status: 503,
+      body: { problem: { _tag: 'Unavailable', reason: 'the audio queue is not set up on this computer' } },
+    })
+    expect((await server.json('GET', '/__books/audible/audio', '', false)).status).toBe(401)
     await server.dispose()
   })
 })
