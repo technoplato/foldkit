@@ -206,9 +206,20 @@ const wordGlyph = (word: TranscriptWord, isBookmarked: boolean): string => {
   return isBookmarked ? `${bookmarkGlyph}${glyph}` : glyph
 }
 
-type TranscriptLine = Readonly<{ text: string; isCurrent: boolean }>
+// NOTE: `isShown` marks the line of the word a Transcript says to show,
+// such as the match a search is on, while its words do not follow the
+// voice. A screen keeps that line in view in place of the one being read.
+type TranscriptLine = Readonly<{
+  text: string
+  isCurrent: boolean
+  isShown: boolean
+}>
 
-const plainLine = (text: string): TranscriptLine => ({ text, isCurrent: false })
+const plainLine = (text: string): TranscriptLine => ({
+  text,
+  isCurrent: false,
+  isShown: false,
+})
 
 type Wrapped = Readonly<{
   lines: ReadonlyArray<TranscriptLine>
@@ -221,14 +232,16 @@ const wrappedWords = (
   words: ReadonlyArray<TranscriptWord>,
   width: number,
   bookmarkedTokens: ReadonlySet<string>,
+  maybeShownToken: string | undefined,
 ): ReadonlyArray<TranscriptLine> => {
   const wrapped = Array.reduce(words, nothingWrapped, (state, word) => {
     const glyph = wordGlyph(word, bookmarkedTokens.has(word.token))
     const isCurrent = word.isCurrent === true
+    const isShown = word.token === maybeShownToken
     return Option.match(state.maybeOpen, {
       onNone: () => ({
         lines: state.lines,
-        maybeOpen: Option.some({ text: glyph, isCurrent }),
+        maybeOpen: Option.some({ text: glyph, isCurrent, isShown }),
       }),
       onSome: open =>
         open.text.length + 1 + glyph.length <= width
@@ -237,11 +250,12 @@ const wrappedWords = (
               maybeOpen: Option.some({
                 text: `${open.text} ${glyph}`,
                 isCurrent: open.isCurrent || isCurrent,
+                isShown: open.isShown || isShown,
               }),
             }
           : {
               lines: Array.append(state.lines, open),
-              maybeOpen: Option.some({ text: glyph, isCurrent }),
+              maybeOpen: Option.some({ text: glyph, isCurrent, isShown }),
             },
     })
   })
@@ -252,6 +266,7 @@ const passageLines = (
   passage: TranscriptPassage,
   availableW: number,
   bookmarks: ReadonlyArray<TranscriptBookmark>,
+  maybeShownToken: string | undefined,
 ): ReadonlyArray<TranscriptLine> => {
   const marker = passage.isCurrent === true ? '›' : ' '
   const label = `${marker}${passage.label}`.padEnd(passageLabelWidth, ' ')
@@ -263,10 +278,11 @@ const passageLines = (
       ? []
       : [plainLine(''), plainLine(passage.heading.toUpperCase())]),
     ...Array.map(
-      wrappedWords(passage.words, textWidth, bookmarkedTokens),
+      wrappedWords(passage.words, textWidth, bookmarkedTokens, maybeShownToken),
       (line, index) => ({
         text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,
         isCurrent: line.isCurrent,
+        isShown: line.isShown,
       }),
     ),
     ...Array.getSomes(
@@ -287,7 +303,12 @@ const transcriptLines = (
     onEmpty: () => [plainLine(transcript.emptyText)],
     onNonEmpty: passages =>
       Array.flatMap(passages, passage =>
-        passageLines(passage, availableW, transcript.bookmarks ?? []),
+        passageLines(
+          passage,
+          availableW,
+          transcript.bookmarks ?? [],
+          transcript.isFollowing === false ? transcript.focusToken : undefined,
+        ),
       ),
   })
 
@@ -578,6 +599,7 @@ const layoutNode = (
           kind: 'Text' as const,
           text: fit(line.text, measureText(line.text, availableW)),
           ...(line.isCurrent ? { isCurrent: true } : {}),
+          ...(line.isShown ? { isShown: true } : {}),
           children: [],
         }))
         return {

@@ -170,6 +170,27 @@ const currentRowsOf = (box: LayoutBox): ReadonlyArray<number> => [
   ...Array.flatMap(box.children, currentRowsOf),
 ]
 
+const shownRowsOf = (box: LayoutBox): ReadonlyArray<number> => [
+  ...(box.isShown === true ? [box.y] : []),
+  ...Array.flatMap(box.children, shownRowsOf),
+]
+
+/**
+ * The rows a screen keeps in view: the line a Transcript says to show,
+ * such as the match a search is on, when there is one, and otherwise the
+ * current lines, such as the one being read.
+ *
+ * @example
+ * ```typescript
+ * anchorRowsOf(layoutTree(screen, 0, 0, 80)) // [12]
+ * ```
+ */
+export const anchorRowsOf = (box: LayoutBox): ReadonlyArray<number> =>
+  Array.match(shownRowsOf(box), {
+    onEmpty: () => currentRowsOf(box),
+    onNonEmpty: rows => rows,
+  })
+
 const treePart = (
   node: UiNode,
   width: number,
@@ -185,7 +206,7 @@ const treePart = (
         hotspot => hotspot.row,
       ),
     ),
-    currentRows: currentRowsOf(laid),
+    currentRows: anchorRowsOf(laid),
   }
 }
 

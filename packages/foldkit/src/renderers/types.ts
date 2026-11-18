@@ -555,6 +555,7 @@ export type LayoutBox = Readonly<{
   readonly action?: HotspotAction
   readonly label?: string
   readonly isCurrent?: boolean
+  readonly isShown?: boolean
   readonly children: ReadonlyArray<LayoutBox>
 }>
 
