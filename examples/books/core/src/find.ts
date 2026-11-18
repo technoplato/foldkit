@@ -10,7 +10,7 @@ import { ts } from 'foldkit/schema'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import { Milliseconds, TitleSlug, clockOf } from './ids.js'
-import { wordPathOf } from './links.js'
+import { booksOrigin, placePathOf, wordPathOf } from './links.js'
 import { BookmarkWord, CopyWordLink, catalog } from './message.js'
 import {
   type Loaded,
@@ -18,6 +18,7 @@ import {
   type Title,
   chapterNameAt,
   loadedTitleOf,
+  placeOf,
 } from './model.js'
 
 // FIND
@@ -85,6 +86,45 @@ export const currentWordLinkOf = (model: Model): Option.Option<string> =>
       wordPathOf(title.slug, word.startMs),
     ),
   )
+
+/**
+ * The whole address of the word being read in this device's player, to
+ * paste anywhere: the site's origin and the word's link, or the place's
+ * link where no word near the place is known. None while nothing is in
+ * the player.
+ *
+ * @example
+ * ```typescript
+ * currentWordAddressOf(model) // Some('https://books.pisspoursoftware.xyz/books/the-lantern-keeper/listen/12m03.45s')
+ * ```
+ */
+export const currentWordAddressOf = (model: Model): Option.Option<string> =>
+  Option.map(loadedTitleOf(model), ({ title, loaded }) =>
+    Option.match(currentWordLinkOf(model), {
+      onNone: () => `${booksOrigin}${placePathOf(title.slug, placeOf(loaded))}`,
+      onSome: path => `${booksOrigin}${path}`,
+    }),
+  )
+
+/**
+ * The place a link to a word, or a time, names, as the text a seek takes:
+ * the last part of `/books/<title>/listen/12m03.45s`, of a whole address,
+ * or the time itself, `12m03s` or `0:02`. None for text that names no
+ * place.
+ *
+ * @example
+ * ```typescript
+ * placeTextOf('https://books.pisspoursoftware.xyz/books/the-lantern-keeper/listen/12m03.45s') // Some('12m03.45s')
+ * placeTextOf('0:02') // Some('0:02')
+ * ```
+ */
+export const placeTextOf = (text: string): Option.Option<string> => {
+  const last = text.trim().split('?')[0]?.split('/').at(-1) ?? ''
+  return Option.map(
+    S.decodeUnknownOption(TranscriptPlayer.PlaceSegment)(last),
+    () => last,
+  )
+}
 
 /**
  * `Copy link to this word` for the word being read, as a button for the

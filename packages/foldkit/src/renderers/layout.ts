@@ -1,10 +1,13 @@
 import { Array, Match as M, Option } from 'effect'
 
+import type { InkRun } from '../theme/terminal.js'
+import type { Role } from '../theme/theme.js'
 import type { Device } from './device.js'
 import { Column, Row, Text } from './elements.js'
 import { iconGlyphs } from './icons.js'
 import { itemLinesOf } from './listRows.js'
 import { bookmarksInPassage } from './transcriptBookmarks.js'
+import { transcriptEntriesOf } from './transcriptEntries.js'
 import type {
   ButtonNode,
   HotspotAction,
@@ -14,7 +17,6 @@ import type {
   ProgressNode,
   SeekNode,
   TranscriptBookmark,
-  TranscriptNode,
   TranscriptPassage,
   TranscriptWord,
   UiNode,
@@ -93,6 +95,24 @@ const buttonGlyph = (button: ButtonNode): string => {
     return `[*${text}*]`
   } else {
     return `[ ${text} ]`
+  }
+}
+
+/**
+ * The role a button or a row plays where it stands out: the one with the
+ * keyboard, and the current one, such as the chapter playing.
+ */
+const standingInkOf = (
+  standing: Readonly<{ focused?: boolean; isCurrent?: boolean }>,
+  col: number,
+  width: number,
+): Readonly<{ inks?: ReadonlyArray<InkRun> }> => {
+  if (standing.focused === true) {
+    return { inks: [{ col, width, role: 'Focus' }] }
+  } else if (standing.isCurrent === true) {
+    return { inks: [{ col, width, role: 'Accent' }] }
+  } else {
+    return {}
   }
 }
 
@@ -206,9 +226,81 @@ const wordGlyph = (word: TranscriptWord, isBookmarked: boolean): string => {
   return isBookmarked ? `${bookmarkGlyph}${glyph}` : glyph
 }
 
-type TranscriptLine = Readonly<{ text: string; isCurrent: boolean }>
+// NOTE: `isShown` marks the line of the word a Transcript says to show,
+// such as the match a search is on, while its words do not follow the
+// voice. A screen keeps that line in view in place of the one being read.
+// `inks` says the role each part of the line plays, by column in `text`,
+// for a terminal to ink from the theme.
+type TranscriptLine = Readonly<{
+  text: string
+  isCurrent: boolean
+  isShown: boolean
+  inks: ReadonlyArray<InkRun>
+}>
 
-const plainLine = (text: string): TranscriptLine => ({ text, isCurrent: false })
+const plainLine = (
+  text: string,
+  inks: ReadonlyArray<InkRun> = [],
+): TranscriptLine => ({
+  text,
+  isCurrent: false,
+  isShown: false,
+  inks,
+})
+
+// NOTE: Words side by side in one role are one part, the space between
+// them included, so a line of words to come is marked up once.
+const withWordInk = (
+  inks: ReadonlyArray<InkRun>,
+  col: number,
+  width: number,
+  role: Role,
+): ReadonlyArray<InkRun> =>
+  Option.match(
+    Option.filter(
+      Array.last(inks),
+      last => last.role === role && last.col + last.width + 1 === col,
+    ),
+    {
+      onNone: () => [...inks, { col, width, role }],
+      onSome: last => [
+        ...Array.dropRight(inks, 1),
+        { ...last, width: last.width + 1 + width },
+      ],
+    },
+  )
+
+/**
+ * The role a word of a passage plays in a terminal: the word being
+ * spoken, the match a person is on, a word a search found, and otherwise
+ * what was spoken, in the paragraph being read up to the word being
+ * spoken, or what is to come.
+ */
+const wordRoleOf = (
+  passage: TranscriptPassage,
+): ((word: TranscriptWord, index: number) => Role) => {
+  const maybeCurrentIndex = Array.findFirstIndex(
+    passage.words,
+    word => word.isCurrent === true,
+  )
+  return (word, index) => {
+    if (word.isCurrent === true) {
+      return 'ReadingCurrentWord'
+    } else if (word.mark === 'Selected') {
+      return 'SelectedMark'
+    } else if (word.mark === 'Found') {
+      return 'Mark'
+    } else if (passage.isCurrent !== true) {
+      return 'ReadingToCome'
+    } else {
+      return Option.match(maybeCurrentIndex, {
+        onNone: () => 'ReadingSpoken',
+        onSome: currentIndex =>
+          index < currentIndex ? 'ReadingSpoken' : 'ReadingToCome',
+      })
+    }
+  }
+}
 
 type Wrapped = Readonly<{
   lines: ReadonlyArray<TranscriptLine>
@@ -221,15 +313,22 @@ const wrappedWords = (
   words: ReadonlyArray<TranscriptWord>,
   width: number,
   bookmarkedTokens: ReadonlySet<string>,
+  maybeShownToken: string | undefined,
+  roleOf: (word: TranscriptWord, index: number) => Role,
 ): ReadonlyArray<TranscriptLine> => {
-  const wrapped = Array.reduce(words, nothingWrapped, (state, word) => {
+  const wrapped = Array.reduce(words, nothingWrapped, (state, word, index) => {
     const glyph = wordGlyph(word, bookmarkedTokens.has(word.token))
     const isCurrent = word.isCurrent === true
+    const isShown = word.token === maybeShownToken
+    const role = roleOf(word, index)
+    const opened: TranscriptLine = {
+      text: glyph,
+      isCurrent,
+      isShown,
+      inks: [{ col: 0, width: glyph.length, role }],
+    }
     return Option.match(state.maybeOpen, {
-      onNone: () => ({
-        lines: state.lines,
-        maybeOpen: Option.some({ text: glyph, isCurrent }),
-      }),
+      onNone: () => ({ lines: state.lines, maybeOpen: Option.some(opened) }),
       onSome: open =>
         open.text.length + 1 + glyph.length <= width
           ? {
@@ -237,11 +336,18 @@ const wrappedWords = (
               maybeOpen: Option.some({
                 text: `${open.text} ${glyph}`,
                 isCurrent: open.isCurrent || isCurrent,
+                isShown: open.isShown || isShown,
+                inks: withWordInk(
+                  open.inks,
+                  open.text.length + 1,
+                  glyph.length,
+                  role,
+                ),
               }),
             }
           : {
               lines: Array.append(state.lines, open),
-              maybeOpen: Option.some({ text: glyph, isCurrent }),
+              maybeOpen: Option.some(opened),
             },
     })
   })
@@ -252,21 +358,55 @@ const passageLines = (
   passage: TranscriptPassage,
   availableW: number,
   bookmarks: ReadonlyArray<TranscriptBookmark>,
+  maybeShownToken: string | undefined,
 ): ReadonlyArray<TranscriptLine> => {
   const marker = passage.isCurrent === true ? '›' : ' '
-  const label = `${marker}${passage.label}`.padEnd(passageLabelWidth, ' ')
+  const named = `${marker}${passage.label}`
+  const label = named.padEnd(passageLabelWidth, ' ')
+  const labelInk: InkRun = { col: 0, width: named.length, role: 'QuietText' }
+  const shiftedBy = (run: InkRun): InkRun => ({
+    ...run,
+    col: run.col + passageLabelWidth,
+  })
   const textWidth = Math.max(1, availableW - passageLabelWidth)
   const placed = bookmarksInPassage(passage, bookmarks)
   const bookmarkedTokens = new Set(Array.map(placed, ({ token }) => token))
   return [
     ...(passage.heading === undefined
       ? []
-      : [plainLine(''), plainLine(passage.heading.toUpperCase())]),
+      : [
+          plainLine(''),
+          plainLine(passage.heading.toUpperCase(), [
+            { col: 0, width: passage.heading.length, role: 'ReadingRule' },
+          ]),
+        ]),
+    ...(passage.speaker === undefined
+      ? []
+      : [
+          plainLine(`${' '.repeat(passageLabelWidth)}${passage.speaker}`, [
+            {
+              col: passageLabelWidth,
+              width: passage.speaker.length,
+              role: 'QuietText',
+            },
+          ]),
+        ]),
     ...Array.map(
-      wrappedWords(passage.words, textWidth, bookmarkedTokens),
+      wrappedWords(
+        passage.words,
+        textWidth,
+        bookmarkedTokens,
+        maybeShownToken,
+        wordRoleOf(passage),
+      ),
       (line, index) => ({
         text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,
         isCurrent: line.isCurrent,
+        isShown: line.isShown,
+        inks: [
+          ...(index === 0 ? [labelInk] : []),
+          ...Array.map(line.inks, shiftedBy),
+        ],
       }),
     ),
     ...Array.getSomes(
@@ -279,17 +419,9 @@ const passageLines = (
   ]
 }
 
-const transcriptLines = (
-  transcript: TranscriptNode,
-  availableW: number,
-): ReadonlyArray<TranscriptLine> =>
-  Array.match(transcript.passages, {
-    onEmpty: () => [plainLine(transcript.emptyText)],
-    onNonEmpty: passages =>
-      Array.flatMap(passages, passage =>
-        passageLines(passage, availableW, transcript.bookmarks ?? []),
-      ),
-  })
+type Timeline = Readonly<{ boxes: ReadonlyArray<LayoutBox>; rows: number }>
+
+const noTimeline: Timeline = { boxes: [], rows: 0 }
 
 const layoutNode = (
   node: UiNode,
@@ -332,6 +464,7 @@ const layoutNode = (
           kind: 'Button',
           text: glyph.substring(0, w),
           label: button.label,
+          ...standingInkOf(button, x, w),
           ...(action === undefined ? {} : { action }),
           children: [],
         }
@@ -512,6 +645,7 @@ const layoutNode = (
             text: fit(title, titleW),
             label: item.title,
             ...(item.isCurrent === true ? { isCurrent: true } : {}),
+            ...standingInkOf(item, titleX, titleW),
             ...Option.match(
               Option.orElse(Option.fromNullishOr(item.action), () =>
                 Option.fromNullishOr(item.href),
@@ -568,27 +702,93 @@ const layoutNode = (
         }
       },
       Transcript: transcript => {
-        const lines = transcriptLines(transcript, availableW)
-        const children = Array.map(lines, (line, index) => ({
+        const maybeShownToken =
+          transcript.isFollowing === false ? transcript.focusToken : undefined
+        const lineBox = (line: TranscriptLine, row: number): LayoutBox => ({
           id: ids.next('text'),
           x,
-          y: y + index,
+          y: y + row,
           w: measureText(line.text, availableW),
           h: 1,
-          kind: 'Text' as const,
+          kind: 'Text',
           text: fit(line.text, measureText(line.text, availableW)),
           ...(line.isCurrent ? { isCurrent: true } : {}),
+          ...(line.isShown ? { isShown: true } : {}),
+          ...(Array.isReadonlyArrayNonEmpty(line.inks)
+            ? {
+                inks: Array.map(line.inks, run => ({
+                  ...run,
+                  col: run.col + x,
+                })),
+              }
+            : {}),
           children: [],
-        }))
+        })
+        // NOTE: The timeline is laid out top to bottom, an entry at a
+        // time: a passage is its lines, and an item is its time in the
+        // column the passages keep theirs in, with the screen part it
+        // shows laid out beside it, as tall as that part is.
+        const timeline = Array.reduce(
+          transcriptEntriesOf(transcript),
+          Array.isReadonlyArrayNonEmpty(transcript.passages)
+            ? noTimeline
+            : {
+                boxes: [lineBox(plainLine(transcript.emptyText), 0)],
+                rows: 1,
+              },
+          (state: Timeline, entry): Timeline => {
+            if (entry._tag === 'PassageEntry') {
+              const lines = passageLines(
+                entry.passage,
+                availableW,
+                transcript.bookmarks ?? [],
+                maybeShownToken,
+              )
+              return {
+                boxes: [
+                  ...state.boxes,
+                  ...Array.map(lines, (line, index) =>
+                    lineBox(line, state.rows + index),
+                  ),
+                ],
+                rows: state.rows + lines.length,
+              }
+            } else {
+              const named = ` ${entry.item.label}`
+              const shown = layoutNode(
+                entry.item.node,
+                x + passageLabelWidth,
+                y + state.rows,
+                Math.max(1, availableW - passageLabelWidth),
+                ids,
+              )
+              return {
+                boxes: [
+                  ...state.boxes,
+                  lineBox(
+                    plainLine(named, [
+                      { col: 0, width: named.length, role: 'QuietText' },
+                    ]),
+                    state.rows,
+                  ),
+                  shown,
+                ],
+                rows: state.rows + Math.max(1, shown.h),
+              }
+            }
+          },
+        )
         return {
           id: ids.next('transcript'),
           x,
           y,
-          w: Array.reduce(children, 0, (max, child) => Math.max(max, child.w)),
-          h: lines.length,
+          w: Array.reduce(timeline.boxes, 0, (max, child) =>
+            Math.max(max, child.x - x + child.w),
+          ),
+          h: timeline.rows,
           kind: 'Transcript',
           label: transcript.label,
-          children,
+          children: timeline.boxes,
         }
       },
       DeviceShell: shell => {

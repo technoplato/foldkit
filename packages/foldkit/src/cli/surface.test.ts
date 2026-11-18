@@ -11,6 +11,7 @@ import { Cli, Tui } from '../processor/host.js'
 import type { RenderReport } from '../telemetry/recorder.js'
 import { ChapterApp, bindChapters } from '../test/apps/chapterContents.js'
 import { handleOf } from '../test/apps/navigableCounter.js'
+import { terminalInkOf } from '../theme/terminal.js'
 import { isCliDaemonListening } from './client.js'
 import { listenCliDaemon, startCliDaemonServer } from './listen.js'
 import { cliDaemonPidPath, cliDaemonSocketPath } from './paths.js'
@@ -331,6 +332,49 @@ describe('a daemon a terminal UI view talks to', () => {
     expect(shown).toMatchObject({ stdout: 'shown' })
     await Effect.runPromise(Deferred.succeed(stopped, undefined))
     await Effect.runPromise(Fiber.join(serving))
+  })
+
+  it('inks a remote terminal UI from the theme when the view says its output takes color', async () => {
+    const socketPath = socketPathFor('tui-ink')
+    const bound = bindChapters()
+    bound.openUri('/chapters/contents', Link())
+    const inkOf = () =>
+      terminalInkOf({ isTerminal: true, env: {}, mode: 'Dark' })
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* startCliDaemonServer({
+            socketPath,
+            Model: ChapterApp.Model,
+            Message: ChapterApp.Message,
+            surface: programCliSurface(bound, 'chapters', {}, inkOf),
+          })
+          const viewOf = async (isColor: boolean) => {
+            const terminal = fakeTerminal()
+            const ending = runCliTuiView({
+              socketPath,
+              spawn: () => {
+                throw new Error('the daemon is already listening')
+              },
+              refreshMs: 60_000,
+              input: terminal.keyboard,
+              output: terminal.screen,
+              isColor,
+            })
+            await eventually(() =>
+              terminal.written.some(text => text.includes('Chapter 2')),
+            )
+            terminal.keyboard.write('q')
+            await ending
+            return terminal.written.join('')
+          }
+          const plain = yield* Effect.promise(() => viewOf(false))
+          const inked = yield* Effect.promise(() => viewOf(true))
+          expect(plain).not.toContain('\u001b[2m')
+          expect(inked).toContain('\u001b[2mchapters  /chapters/contents')
+        }),
+      ),
+    )
   })
 
   it('runs a remote terminal UI that keeps up with keys and quits on q', async () => {

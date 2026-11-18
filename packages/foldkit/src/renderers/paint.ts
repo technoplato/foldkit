@@ -1,5 +1,7 @@
 import { Array, Match as M, Option, Record } from 'effect'
 
+import type { InkRun } from '../theme/terminal.js'
+import type { Role } from '../theme/theme.js'
 import type { Device } from './device.js'
 import {
   deviceHasHome,
@@ -14,6 +16,7 @@ type Mark = Readonly<{
   row: number
   col: number
   chars: ReadonlyArray<string>
+  inks: ReadonlyArray<InkRun>
 }>
 
 type Border = Readonly<{
@@ -52,10 +55,16 @@ const double: Border = {
   vertical: '║',
 }
 
-const markOf = (row: number, col: number, text: string): Mark => ({
+const markOf = (
+  row: number,
+  col: number,
+  text: string,
+  inks: ReadonlyArray<InkRun> = [],
+): Mark => ({
   row,
   col,
   chars: Array.fromIterable(text),
+  inks,
 })
 
 const borderFor = (device: Device): Border =>
@@ -152,7 +161,9 @@ const deviceMarks = (box: LayoutBox): ReadonlyArray<Mark> => {
 
 const marksOf = (box: LayoutBox): ReadonlyArray<Mark> => [
   ...(box.kind === 'DeviceShell' ? deviceMarks(box) : []),
-  ...(box.text === undefined ? [] : [markOf(box.y, box.x, box.text)]),
+  ...(box.text === undefined
+    ? []
+    : [markOf(box.y, box.x, box.text, box.inks ?? [])]),
   ...Array.flatMap(box.children, marksOf),
 ]
 
@@ -202,6 +213,88 @@ const lineOf = (marks: ReadonlyArray<Mark>, width: number): string =>
 
 const noMarks: ReadonlyArray<Mark> = []
 
+type RoleCell = Role | undefined
+
+const blankRoles = (width: number): ReadonlyArray<RoleCell> =>
+  Array.makeBy(width, () => undefined)
+
+// NOTE: A later mark covers an earlier one, roles and all, as its
+// characters do: the cells it writes lose the role they had, then take
+// the roles its own runs say.
+const rolesPlaced = (
+  cells: ReadonlyArray<RoleCell>,
+  mark: Mark,
+  width: number,
+): ReadonlyArray<RoleCell> => {
+  const end = Math.min(width, mark.col + mark.chars.length)
+  return Array.map(cells, (cell, col) => {
+    if (col < mark.col || col >= end) {
+      return cell
+    } else {
+      return Option.getOrUndefined(
+        Option.map(
+          Array.findFirst(
+            mark.inks,
+            run => col >= run.col && col < run.col + run.width,
+          ),
+          run => run.role,
+        ),
+      )
+    }
+  })
+}
+
+type Runs = Readonly<{
+  runs: ReadonlyArray<InkRun>
+  maybeOpen: Option.Option<InkRun>
+}>
+
+const noRuns: Runs = { runs: [], maybeOpen: Option.none() }
+
+const closed = (state: Runs): ReadonlyArray<InkRun> => [
+  ...state.runs,
+  ...Option.toArray(state.maybeOpen),
+]
+
+const runsOf = (cells: ReadonlyArray<RoleCell>): ReadonlyArray<InkRun> =>
+  closed(
+    Array.reduce(cells, noRuns, (state, cell, col) => {
+      const maybeContinued = Option.filter(
+        state.maybeOpen,
+        open => open.role === cell && open.col + open.width === col,
+      )
+      if (Option.isSome(maybeContinued)) {
+        return {
+          runs: state.runs,
+          maybeOpen: Option.some({
+            ...maybeContinued.value,
+            width: maybeContinued.value.width + 1,
+          }),
+        }
+      } else {
+        return {
+          runs: closed(state),
+          maybeOpen:
+            cell === undefined
+              ? Option.none()
+              : Option.some({ col, width: 1, role: cell }),
+        }
+      }
+    }),
+  )
+
+const inksOf = (
+  marks: ReadonlyArray<Mark>,
+  width: number,
+): ReadonlyArray<InkRun> =>
+  Array.some(marks, mark => Array.isReadonlyArrayNonEmpty(mark.inks))
+    ? runsOf(
+        Array.reduce(marks, blankRoles(width), (cells, mark) =>
+          rolesPlaced(cells, mark, width),
+        ),
+      )
+    : []
+
 /**
  * Paints a layout tree to monospace lines and hotspots. Each row is
  * composed from the runs written on it, in paint order, so a later run
@@ -210,18 +303,16 @@ const noMarks: ReadonlyArray<Mark> = []
 export const paintAscii = (root: LayoutBox): AsciiFrame => {
   const byRow = Array.groupBy(marksOf(root), mark => mark.row.toString())
   const rows = root.h === 0 ? [] : Array.range(0, root.h - 1)
-  const lines = Array.map(rows, row =>
-    lineOf(
-      Option.match(Record.get(byRow, row.toString()), {
-        onNone: () => noMarks,
-        onSome: marks => marks,
-      }),
-      root.w,
-    ),
-  )
+  const marksOn = (row: number): ReadonlyArray<Mark> =>
+    Option.match(Record.get(byRow, row.toString()), {
+      onNone: () => noMarks,
+      onSome: marks => marks,
+    })
+  const lines = Array.map(rows, row => lineOf(marksOn(row), root.w))
   return {
     maybeDevice: root.device,
     lines,
+    inks: Array.map(rows, row => inksOf(marksOn(row), root.w)),
     hotspots: hotspotsOf(root),
   }
 }

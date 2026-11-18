@@ -16,10 +16,12 @@ import {
   bookmarksListingOf,
   briefScreen,
   clockOf,
+  currentWordAddressOf,
   isBookSearchSettled,
   isSameParagraph,
   loadedTitleOf,
   placeOf,
+  placeTextOf,
   spokenWordsLines,
   spokenWordsOf,
   suggestedPressesOf,
@@ -73,6 +75,7 @@ const hostCommandsOf = (isLoaded: boolean): ReadonlyArray<HostCommand> => [
     ? [
         { command: 'follow words', what: 'Prints the words as they are read' },
         { command: 'bookmarks', what: 'Lists this title’s bookmarks' },
+        { command: 'link', what: 'Prints the link to the word being read' },
         {
           command: 'search "<words>"',
           what: 'Finds where words are spoken, with links',
@@ -658,7 +661,12 @@ export const makeBooksPlayer = (
   reporting: TerminalPaintReporting = {},
 ): BooksPlayer => {
   const programSurface = programCliSurface(bound, booksCommandName)
-  const terminal = makeProgramTerminalView(bound, booksCommandName, reporting)
+  const terminal = makeProgramTerminalView(
+    bound,
+    booksCommandName,
+    reporting,
+    () => inkOf(bound),
+  )
   const stopped = Effect.runSync(Deferred.make<void>())
   const brief = (): CliDaemonPaintedResult => ({
     stdout: paintBrief(bound),
@@ -678,6 +686,47 @@ export const makeBooksPlayer = (
       ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
     }
   }
+  /**
+   * `books link`: the whole link to the word being read, to paste
+   * anywhere, on a line of its own so it pipes to a clipboard.
+   */
+  const linked = (): CliDaemonPaintedResult =>
+    Option.match(readyOf(bound.readModel()), {
+      onNone: () => ({
+        stdout: '',
+        stderr: 'The library is still opening. Try again in a moment.',
+        exitCode: 1,
+      }),
+      onSome: model =>
+        Option.match(currentWordAddressOf(model), {
+          onNone: () => ({
+            stdout: '',
+            stderr: `Nothing is in the player. Play a title first, such as: ${booksCommandName} listen ${exampleTitleOf(bound)}`,
+            exitCode: 1,
+          }),
+          onSome: address => ({ stdout: address, exitCode: 0 }),
+        }),
+    })
+  /**
+   * `books play-from <a link to a word, or a time>`: plays from the word
+   * the link names, or from the time, in the title that is in the player.
+   */
+  const playedFrom = (
+    words: ReadonlyArray<string>,
+    flags: CliDaemonFlags,
+    client: Processor.Host.Host,
+  ): CliDaemonPaintedResult =>
+    Option.match(Option.flatMap(Array.get(words, 1), placeTextOf), {
+      onNone: () => ({
+        stdout: '',
+        stderr: `Play from where? Give a link to a word or a time, such as: ${booksCommandName} play-from 12m03s`,
+        exitCode: 1,
+      }),
+      onSome: place => {
+        const sought = ran(['seek-to', place], flags, client)
+        return sought.exitCode === 0 ? ran(['play'], flags, client) : sought
+      },
+    })
   /**
    * `books bookmark [note]`: marks the word being spoken and answers once
    * the library store holds it, with what was marked and the link to the
@@ -795,6 +844,10 @@ export const makeBooksPlayer = (
           )
         } else if (head === 'search') {
           return searchedBook(bound, words, flags, client)
+        } else if (head === 'link') {
+          return Effect.sync(linked)
+        } else if (head === 'play-from') {
+          return Effect.sync(() => playedFrom(words, flags, client))
         } else if (head === 'bookmark') {
           return bookmarked(words, flags, client)
         } else if (head === 'bookmarks') {

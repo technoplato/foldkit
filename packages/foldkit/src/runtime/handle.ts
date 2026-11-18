@@ -17,7 +17,7 @@ import type {
   ProgramRuntimeObserver,
   SendOptions,
 } from './programRuntime.js'
-import { type StartedProgram, start } from './start.js'
+import { type CatchUp, type StartedProgram, start } from './start.js'
 import type { SyncEngine } from './syncEngine.js'
 
 /**
@@ -83,6 +83,23 @@ export type SyncedHandle<
         Readonly<{ _tag: string }>
     >
     onBehalfOf: OnBehalfOf
+    /**
+     * Resolves once this Processor has asked the sync engine for the log
+     * rows it had not seen: `CaughtUp` when the Model holds them,
+     * `CouldNotRead` when the engine could not return them or the
+     * runtime could not start. A handle that starts from its local
+     * snapshot is Ready at once, with the Model from the last time it
+     * ran, so a host that answers once, such as a command in a terminal,
+     * waits on this first, with a limit of its own: it never resolves
+     * while the engine neither answers nor fails.
+     *
+     * @example
+     * ```typescript
+     * await Promise.race([handle.whenCaughtUp(), after(15_000)])
+     * print(handle.readModel())
+     * ```
+     */
+    whenCaughtUp: () => Promise<CatchUp>
   }> &
   HostOfHandle<OnHost>
 
@@ -335,6 +352,11 @@ export function startHandle<Child extends SyncChild, Resources = never>(
       }
     },
     observeRuntime: observerRegistry.observe,
+    whenCaughtUp: () =>
+      opening.then(
+        started => Effect.runPromise(started.caughtUp),
+        (): CatchUp => 'CouldNotRead',
+      ),
     onBehalfOf: (clientHost, send) => {
       const maybeOuterClientHost = maybeClientHost
       maybeClientHost = Option.some(clientHost)
@@ -355,3 +377,30 @@ export function startHandle<Child extends SyncChild, Resources = never>(
     },
   }
 }
+
+/**
+ * Waits for a handle to catch up with the log, for at most `timeoutMs`:
+ * how its first read of the log ended, or `TimedOut` when the limit
+ * passed first, as it does when the sync engine neither answers nor
+ * fails. A host that answers once, such as a command in a terminal,
+ * calls this before it reads the Model, then answers with what it has.
+ *
+ * @example
+ * ```typescript
+ * await caughtUpWithin(handle, 15_000) // 'CaughtUp'
+ * print(handle.readModel())
+ * ```
+ */
+export const caughtUpWithin = (
+  handle: Readonly<{ whenCaughtUp: () => Promise<CatchUp> }>,
+  timeoutMs: number,
+): Promise<CatchUp | 'TimedOut'> =>
+  new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      resolve('TimedOut')
+    }, timeoutMs)
+    void handle.whenCaughtUp().then(outcome => {
+      clearTimeout(timeout)
+      resolve(outcome)
+    })
+  })

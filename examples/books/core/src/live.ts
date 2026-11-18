@@ -217,17 +217,7 @@ export const startBooks = (
 
 const shelfPollMs = 100
 
-/**
- * Waits until the library has opened, or could not, so a one-shot command
- * paints the shelf instead of "Opening your library…". Gives up after
- * `timeoutMs` and paints what there is.
- *
- * @example
- * ```typescript
- * await whenLibraryOpened(handle, 15_000)
- * ```
- */
-export const whenLibraryOpened = (
+const shelfOpenedWithin = (
   handle: BooksHandle,
   timeoutMs: number,
 ): Promise<void> =>
@@ -245,3 +235,29 @@ export const whenLibraryOpened = (
     }
     check()
   })
+
+/**
+ * Waits until this device has caught up with what its other sessions
+ * did, and the library has opened, or could not, so a one-shot command
+ * paints the shelf instead of "Opening your library…" and says the place
+ * the title is at now. A player starts from what it kept the last time it
+ * ran and reads the rest behind that, so without the first wait its first
+ * answer could be a place from before. Gives up after `timeoutMs` in all
+ * and paints what there is.
+ *
+ * @example
+ * ```typescript
+ * await whenLibraryOpened(handle, 15_000)
+ * ```
+ */
+export const whenLibraryOpened = async (
+  handle: BooksHandle,
+  timeoutMs: number,
+): Promise<void> => {
+  const startedAtMs = Date.now()
+  await Runtime.caughtUpWithin(handle, timeoutMs)
+  await shelfOpenedWithin(
+    handle,
+    Math.max(0, timeoutMs - (Date.now() - startedAtMs)),
+  )
+}

@@ -66,6 +66,8 @@ export const usageText = [
   '  books tui                Starts the player and opens it live in this terminal',
   '  books search "<words>"   Finds where words are spoken, with links',
   '  books follow words       Prints the words as they are read',
+  '  books link               Prints the link to the word being read',
+  '  books play-from <link>   Plays from the word a link names, or from a time',
   '  books devices            Lists the audio outputs, by number',
   '  books login              Signs in to Cloudflare Access',
   '  books stop               Pauses, saves your place, and ends the player',
@@ -144,6 +146,20 @@ export const stopPlayer = async (): Promise<void> => {
 }
 
 /**
+ * Whether a terminal takes color: color was not refused with `NO_COLOR`
+ * and the terminal is not a `dumb` one.
+ *
+ * @example
+ * ```typescript
+ * takesColor({ TERM: 'xterm-256color' }) // true
+ * takesColor({ NO_COLOR: '1' }) // false
+ * ```
+ */
+export const takesColor = (
+  env: Readonly<Record<string, string | undefined>>,
+): boolean => (env['NO_COLOR'] ?? '') === '' && env['TERM'] !== 'dumb'
+
+/**
  * `books tui`: the player's screen, live, in this terminal, with its
  * words and controls. It is a view of the player, so `q` closes it and
  * the title plays on; the brief after says what is still playing.
@@ -160,7 +176,11 @@ export const showPlayerTui = async (): Promise<void> => {
   const socketPath = booksPlayerSocketPath()
   await sayWhenStarting(socketPath)
   try {
-    const end = await runCliTuiView({ socketPath, spawn: spawnPlayer })
+    const end = await runCliTuiView({
+      socketPath,
+      spawn: spawnPlayer,
+      isColor: takesColor(process.env),
+    })
     if (end._tag === 'Lost') {
       writeCliViewResult({
         stdout: '',

@@ -28,6 +28,7 @@ import type {
   TextPart,
   TranscriptBookmark,
   TranscriptClock,
+  TranscriptItem,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWordMenu,
@@ -466,6 +467,7 @@ export const Transcript = (
     focusToken?: string
     wordMenuAction?: string
     wordMenu?: TranscriptWordMenu
+    items?: ReadonlyArray<TranscriptItem>
   }>,
 ): TranscriptNode => ({
   _tag: 'Transcript',
@@ -486,6 +488,7 @@ export const Transcript = (
     ? {}
     : { wordMenuAction: props.wordMenuAction }),
   ...(props.wordMenu === undefined ? {} : { wordMenu: props.wordMenu }),
+  ...(props.items === undefined ? {} : { items: props.items }),
 })
 
 /**

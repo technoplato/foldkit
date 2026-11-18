@@ -5,6 +5,7 @@ import { follow } from '../interaction/follow.js'
 import { terminalKeyInput } from '../interaction/interaction.js'
 import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
 import { type Host, Tui } from '../processor/host.js'
+import { type TerminalInk, inkedLine } from '../theme/terminal.js'
 import { paintProgram, paintScreen, runProgramCommand } from './program.js'
 import {
   CliDaemonError,
@@ -13,6 +14,7 @@ import {
   type CliDaemonSurface,
 } from './protocol.js'
 import {
+  type TerminalPaint,
   type TerminalPaintPhase,
   type TerminalPaintReporting,
   type TerminalSize,
@@ -81,7 +83,10 @@ export type ProgramTerminalView = Readonly<{
  * are sent on behalf of the view's client, so the journal and telemetry
  * say a `Tui` client sent them. `onPainted` hears how long each frame took
  * to paint, why, and the client it was painted for: `mount` for a view's
- * first frame, `refresh` when it asks again, and `key` after a key.
+ * first frame, `refresh` when it asks again, and `key` after a key. With
+ * `inkOf`, a frame for a view that says its output takes color
+ * (`color: '1'`) is inked from the theme by the roles its parts play, in
+ * the mode the Program reads from its Model; any other frame is plain.
  *
  * @example
  * ```typescript
@@ -96,7 +101,24 @@ export const makeProgramTerminalView = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   reporting: TerminalPaintReporting = {},
+  inkOf?: () => TerminalInk,
 ): ProgramTerminalView => {
+  // NOTE: Whether its output takes color is the view's to know, and it
+  // says so with the `color` flag; the mode is the Program's, read from
+  // the Model each frame. With either missing the frame is plain text.
+  const inkedLines = (
+    flags: CliDaemonFlags,
+    painted: TerminalPaint,
+  ): ReadonlyArray<string> =>
+    inkOf === undefined || flags['color'] !== '1'
+      ? painted.lines
+      : Array.map(painted.lines, (line, row) =>
+          inkedLine(
+            inkOf(),
+            line,
+            Option.getOrElse(Array.get(painted.inks, row), () => []),
+          ),
+        )
   const views = Effect.runSync(Ref.make<ReadonlyArray<KeptView>>([]))
   const viewIdOf = (flags: CliDaemonFlags): string => flags['viewId'] ?? ''
   const keptOf = (flags: CliDaemonFlags) =>
@@ -136,7 +158,10 @@ export const makeProgramTerminalView = <Model, Message>(
         Option.some(client),
       )
       yield* keep(flags, painted.view)
-      return { stdout: Array.join(painted.lines, '\n'), exitCode: 0 }
+      return {
+        stdout: Array.join(inkedLines(flags, painted), '\n'),
+        exitCode: 0,
+      }
     })
   const paint = (flags: CliDaemonFlags, client: Host = Tui()) =>
     Effect.flatMap(keptOf(flags), maybeKept =>
@@ -257,8 +282,9 @@ export const programCliSurface = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   reporting: TerminalPaintReporting = {},
+  inkOf?: () => TerminalInk,
 ): CliDaemonSurface<Model, Message> => {
-  const terminal = makeProgramTerminalView(bound, name, reporting)
+  const terminal = makeProgramTerminalView(bound, name, reporting, inkOf)
   return {
     read: () => Effect.sync(() => bound.readModel()),
     run: message =>

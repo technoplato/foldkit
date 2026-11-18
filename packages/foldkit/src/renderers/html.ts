@@ -26,6 +26,7 @@ import {
 import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
+import { transcriptEntriesOf } from './transcriptEntries.js'
 import type { BoxNode, TextPart, TranscriptNode, UiNode } from './types.js'
 
 const browserKeyPlatform = (): KeyPlatform =>
@@ -550,73 +551,98 @@ export const paintHtml = <Message>(
               h.OnMount(transcriptMount<Message>()),
             ],
             [
-              ...Array.match(transcript.passages, {
-                onEmpty: () => [
-                  h.p([h.Class('fk-transcript-empty')], [transcript.emptyText]),
-                ],
-                onNonEmpty: passages =>
-                  Array.map(passages, passage =>
-                    h.article(
-                      [
-                        h.Class('fk-passage'),
-                        ...(passage.isCurrent === true
-                          ? [h.DataAttribute('current', 'true')]
-                          : []),
-                      ],
-                      [
-                        ...(passage.heading === undefined
-                          ? []
-                          : [
-                              h.h3(
-                                [h.Class('fk-passage-heading')],
-                                [passage.heading],
-                              ),
-                            ]),
-                        h.span([h.Class('fk-passage-label')], [passage.label]),
-                        h.p(
-                          [h.Class('fk-passage-words')],
-                          Array.map(passage.words, word => {
-                            const message = toMessage(
-                              `${transcript.action}:${word.token}`,
-                            )
-                            const menuMessage =
-                              transcript.wordMenuAction === undefined
-                                ? undefined
-                                : toMessage(
-                                    `${transcript.wordMenuAction}:${word.token}`,
-                                  )
-                            return h.span(
-                              [
-                                h.Class('fk-word'),
-                                h.DataAttribute('token', word.token),
-                                ...(word.startMs === undefined
-                                  ? []
-                                  : [
-                                      h.DataAttribute(
-                                        'start-ms',
-                                        word.startMs.toString(),
-                                      ),
-                                    ]),
-                                ...(word.isCurrent === true
-                                  ? [h.DataAttribute('current', 'true')]
-                                  : []),
-                                ...(word.mark === undefined
-                                  ? []
-                                  : [h.DataAttribute('mark', word.mark)]),
-                                ...(message === undefined
-                                  ? []
-                                  : [h.OnClick(message)]),
-                                ...(menuMessage === undefined
-                                  ? []
-                                  : [h.OnContextMenu(menuMessage)]),
-                              ],
-                              [`${word.text} `],
-                            )
-                          }),
-                        ),
-                      ],
+              ...(Array.isReadonlyArrayNonEmpty(transcript.passages)
+                ? []
+                : [
+                    h.p(
+                      [h.Class('fk-transcript-empty')],
+                      [transcript.emptyText],
                     ),
-                  ),
+                  ]),
+              // NOTE: the timeline's order is the shared reading's: each
+              // passage, and what sits between the passages at its time.
+              ...Array.map(transcriptEntriesOf(transcript), entry => {
+                if (entry._tag === 'ItemEntry') {
+                  return h.aside(
+                    [
+                      h.Class('fk-transcript-item'),
+                      h.DataAttribute('key', entry.item.key),
+                    ],
+                    [
+                      h.span([h.Class('fk-passage-label')], [entry.item.label]),
+                      paint(entry.item.node),
+                    ],
+                  )
+                }
+                const passage = entry.passage
+                return h.article(
+                  [
+                    h.Class('fk-passage'),
+                    ...(passage.isCurrent === true
+                      ? [h.DataAttribute('current', 'true')]
+                      : []),
+                  ],
+                  [
+                    ...(passage.heading === undefined
+                      ? []
+                      : [
+                          h.h3(
+                            [h.Class('fk-passage-heading')],
+                            [passage.heading],
+                          ),
+                        ]),
+                    ...(passage.speaker === undefined
+                      ? []
+                      : [
+                          h.p(
+                            [h.Class('fk-passage-speaker')],
+                            [passage.speaker],
+                          ),
+                        ]),
+                    h.span([h.Class('fk-passage-label')], [passage.label]),
+                    h.p(
+                      [h.Class('fk-passage-words')],
+                      Array.map(passage.words, word => {
+                        const message = toMessage(
+                          `${transcript.action}:${word.token}`,
+                        )
+                        const menuMessage =
+                          transcript.wordMenuAction === undefined
+                            ? undefined
+                            : toMessage(
+                                `${transcript.wordMenuAction}:${word.token}`,
+                              )
+                        return h.span(
+                          [
+                            h.Class('fk-word'),
+                            h.DataAttribute('token', word.token),
+                            ...(word.startMs === undefined
+                              ? []
+                              : [
+                                  h.DataAttribute(
+                                    'start-ms',
+                                    word.startMs.toString(),
+                                  ),
+                                ]),
+                            ...(word.isCurrent === true
+                              ? [h.DataAttribute('current', 'true')]
+                              : []),
+                            ...(word.mark === undefined
+                              ? []
+                              : [h.DataAttribute('mark', word.mark)]),
+                            ...(message === undefined
+                              ? []
+                              : [h.OnClick(message)]),
+                            ...(menuMessage === undefined
+                              ? []
+                              : [h.OnContextMenu(menuMessage)]),
+                          ],
+                          [`${word.text} `],
+                        )
+                      }),
+                    ),
+                  ],
+                )
               }),
               ...paintWordMenu(transcript),
             ],

@@ -26,11 +26,13 @@ export * from '../programRuntime/public.js'
 export {
   start,
   untilSettled,
+  type CatchUp,
   type StartConfig,
   type StartedProgram,
   type SyncStartProgram,
 } from './start.js'
 export {
+  caughtUpWithin,
   startHandle,
   type ObserveRuntime,
   type StartHandleConfig,

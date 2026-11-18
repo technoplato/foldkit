@@ -728,6 +728,39 @@ ${themeStylesheet(defaultTheme)}
   cursor: pointer;
 }
 
+:where(.fk-passage-speaker) {
+  margin: 0 0 4px;
+  color: ${roleVar('QuietText')};
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* An item between passages: its time in the column the passages keep
+   theirs in, and what it shows beside it, from the start edge. */
+:where(.fk-transcript-item) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: baseline;
+  justify-items: start;
+  padding: 6px 16px;
+  color: ${roleVar('QuietText')};
+}
+
+:where(.fk-transcript-item > .fk-passage-label) {
+  float: none;
+  margin: 0;
+  padding: 0;
+}
+
+:where(.fk-transcript-item .fk-column) {
+  align-items: flex-start;
+}
+
+:where(.fk-transcript-item .fk-row) {
+  justify-content: flex-start;
+}
+
 :where(button.fk-passage-label:hover) {
   color: ${roleVar('ReadingSpoken')};
 }
@@ -996,6 +1029,14 @@ ${themeStylesheet(defaultTheme)}
 
   :where(.fk-passage-label) {
     padding-top: 8px;
+  }
+
+  :where(.fk-transcript-item) {
+    padding: 6px 8px;
+  }
+
+  :where(.fk-transcript-item > .fk-passage-label) {
+    padding-top: 0;
   }
 }
 

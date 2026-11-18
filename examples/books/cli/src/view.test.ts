@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { showBriefOrUsage, usageText } from './view.js'
+import { showBriefOrUsage, takesColor, usageText } from './view.js'
 
 describe('books with no command', () => {
   it('prints how to use it and starts no player when none is running', async () => {
@@ -43,5 +43,15 @@ describe('books with no command', () => {
       },
     )
     expect(written).toEqual(['Playing Small Hours'])
+  })
+})
+
+describe('whether a terminal takes color', () => {
+  it('does unless color was refused or the terminal is a dumb one', () => {
+    expect(takesColor({ TERM: 'xterm-256color' })).toBe(true)
+    expect(takesColor({})).toBe(true)
+    expect(takesColor({ NO_COLOR: '1' })).toBe(false)
+    expect(takesColor({ NO_COLOR: '' })).toBe(true)
+    expect(takesColor({ TERM: 'dumb' })).toBe(false)
   })
 })

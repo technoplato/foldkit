@@ -1,3 +1,4 @@
+import type { InkRun } from '../theme/terminal.js'
 import type { Device } from './device.js'
 import type { IconName } from './icons.js'
 
@@ -325,11 +326,14 @@ export type TranscriptClock = Readonly<{
  * `12:03`. Pressing the label presses `labelAction` when it has one, such
  * as `SeekTo:723000`. `isCurrent` marks the passage sounding now.
  * `heading` titles the section the passage opens, such as `Chapter 8:
- * Religion`.
+ * Religion`. `speaker` says who speaks it, such as `Speaker 2`: a Program
+ * names the speaker on the first passage of each run by one voice, so a
+ * painter labels the run once.
  */
 export type TranscriptPassage = Readonly<{
   readonly key: string
   readonly heading?: string
+  readonly speaker?: string
   readonly label: string
   readonly labelAction?: string
   readonly isCurrent?: boolean
@@ -352,6 +356,21 @@ export type TranscriptBookmark = Readonly<{
 }>
 
 /**
+ * Something on a Transcript's timeline that is not spoken words, such as
+ * text copied or a picture taken while a recording ran. `label` is its
+ * time, `12:03`, and `node` is what it shows, any part of a screen. It
+ * sits before the passage `beforePassage` names by key, and after the
+ * last passage when it names none, or one that is not there;
+ * `transcriptEntriesOf` gives the order.
+ */
+export type TranscriptItem = Readonly<{
+  readonly key: string
+  readonly label: string
+  readonly beforePassage?: string
+  readonly node: UiNode
+}>
+
+/**
  * Words on a timeline that a person reads along with: passages of words,
  * the one sounding marked current. Pressing a word presses `action` with
  * the word's token, `SeekToWord:w4012`. Graphical painters keep the
@@ -360,7 +379,9 @@ export type TranscriptBookmark = Readonly<{
  * `startMs`, the marks say which word was sounding when the Program last
  * heard the place, and `transcriptAt` says which is sounding now. `bookmarks`
  * are the places a person marked, each on the millisecond one of the
- * words starts.
+ * words starts. `items` are what sits between the passages, such as text
+ * copied while a recording ran; while there are no passages a painter
+ * shows `emptyText`, then the items.
  *
  * The view and the word sounding can differ. `isFollowing` is false while
  * a person reads somewhere else: a painter then leaves the view where it
@@ -388,6 +409,7 @@ export type TranscriptNode = Readonly<{
   readonly focusToken?: string
   readonly wordMenuAction?: string
   readonly wordMenu?: TranscriptWordMenu
+  readonly items?: ReadonlyArray<TranscriptItem>
 }>
 
 /**
@@ -555,6 +577,9 @@ export type LayoutBox = Readonly<{
   readonly action?: HotspotAction
   readonly label?: string
   readonly isCurrent?: boolean
+  readonly isShown?: boolean
+  /** The roles parts of this box's text play, by column on its row. */
+  readonly inks?: ReadonlyArray<InkRun>
   readonly children: ReadonlyArray<LayoutBox>
 }>
 
@@ -573,5 +598,10 @@ export type AsciiHotspot = Readonly<{
 export type AsciiFrame = Readonly<{
   readonly maybeDevice: Device | undefined
   readonly lines: ReadonlyArray<string>
+  /**
+   * The roles the parts of each line play, one list per line, for a
+   * terminal to ink from the theme.
+   */
+  readonly inks: ReadonlyArray<ReadonlyArray<InkRun>>
   readonly hotspots: ReadonlyArray<AsciiHotspot>
 }>

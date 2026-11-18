@@ -25,6 +25,8 @@
  *   books search "lit at dusk"     where those words are spoken, with links
  *   books search lamp --json       the same as one line of JSON
  *   books open <a link to a word>  go to that word, paused
+ *   books link                     the whole link to the word being read
+ *   books play-from <link or time> play from the word a link names, or a time
  *   books tui                      the player, live, in this terminal
  *   books stop                     pause, save your place, end the player
  *   books actions                  every command
@@ -52,6 +54,7 @@ import {
   showBriefOrUsage,
   showPlayerTui,
   stopPlayer,
+  takesColor,
 } from './view.js'
 
 const hostedOrigin = 'https://books.pisspoursoftware.xyz'
@@ -60,10 +63,7 @@ const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
 
 // NOTE: Whether to paint is this view's to know: its output is a
 // terminal, and color was not refused. The player paints from the theme.
-const paints =
-  process.stdout.isTTY === true &&
-  (process.env['NO_COLOR'] ?? '') === '' &&
-  process.env['TERM'] !== 'dumb'
+const paints = process.stdout.isTTY === true && takesColor(process.env)
 
 const paintedArgv =
   paints && !argv.includes('--json') ? [...argv, '--color', '1'] : argv

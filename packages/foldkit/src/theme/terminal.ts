@@ -108,3 +108,51 @@ export const inked = (ink: TerminalInk, role: Role, text: string): string => {
     })
   }
 }
+
+/**
+ * A part of one line of a terminal screen and the role it plays: `width`
+ * characters from column `col`, such as the word being spoken.
+ */
+export type InkRun = Readonly<{ col: number; width: number; role: Role }>
+
+/**
+ * One line of a terminal screen inked by the roles its parts play. Each
+ * part is painted as `inked` paints its role; what no part covers stays
+ * as the terminal has it. The parts may come in any order, a part stops
+ * at the end of the line, and an ink with no color returns the line as it
+ * came, so a frame sent down a pipe is never marked up.
+ *
+ * @example
+ * ```typescript
+ * inkedLine(ink, 'He [trimmed] the wick', [
+ *   { col: 3, width: 9, role: 'ReadingCurrentWord' },
+ * ])
+ * // 'He \u001b[38;2;157;184;255m[trimmed]\u001b[39m the wick'
+ * ```
+ */
+export const inkedLine = (
+  ink: TerminalInk,
+  line: string,
+  runs: ReadonlyArray<InkRun>,
+): string => {
+  if (!ink.isColor) {
+    return line
+  }
+  const ordered = [...runs]
+    .filter(run => run.width > 0 && run.col < line.length)
+    .sort((first, second) => first.col - second.col)
+  const painted = ordered.reduce(
+    (state, run) => {
+      const start = Math.max(run.col, state.end)
+      const end = Math.min(line.length, run.col + run.width)
+      return end <= start
+        ? state
+        : {
+            text: `${state.text}${line.slice(state.end, start)}${inked(ink, run.role, line.slice(start, end))}`,
+            end,
+          }
+    },
+    { text: '', end: 0 },
+  )
+  return `${painted.text}${line.slice(painted.end)}`
+}
