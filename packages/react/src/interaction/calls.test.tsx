@@ -49,7 +49,28 @@ const SetCount = Catalog.action('SetCount', {
   meta: { label: 'Set', keys: [], title: 'Set the count' },
 })
 
-const catalog = Catalog.make([Reset, SetCount])
+const rooms = [
+  { value: 'north-room', title: 'North Room' },
+  { value: 'north-hall', title: 'North Hall' },
+  { value: 'south-room', title: 'South Room' },
+]
+
+const OpenRoom = Catalog.action('OpenRoom', {
+  fields: { room: S.String },
+  choose: {
+    field: 'room',
+    noun: 'room',
+    prompt: 'Which room?',
+    token: S.String,
+    choicesOf: () => rooms,
+    nothingToChoose: 'there are no rooms',
+  },
+  what: 'Opens a room',
+  why: 'To count what is in it',
+  meta: { label: 'Open', keys: [], title: 'Open room' },
+})
+
+const catalog = Catalog.make([Reset, SetCount, OpenRoom])
 type CounterMessage = typeof catalog.Message.Type
 
 const Counter = ts('Counter')
@@ -68,6 +89,7 @@ const makeProgram = (startAt: number) =>
           M.tagsExhaustive({
             Reset: () => [{ count: 0 }, []],
             SetCount: ({ count }) => [{ count }, []],
+            OpenRoom: ({ room }) => [{ count: room.length }, []],
           }),
         ),
       catalog,
@@ -142,7 +164,7 @@ afterEach(cleanup)
 
 describe('useCalls', () => {
   it('types each Action that takes fields by those fields, from the Catalog', () => {
-    expectTypeOf<keyof Calls>().toEqualTypeOf<'setCount'>()
+    expectTypeOf<keyof Calls>().toEqualTypeOf<'setCount' | 'openRoom'>()
     expectTypeOf<Parameters<Calls['setCount']['call']>[0]>().toEqualTypeOf<
       Readonly<{ count: number }>
     >()
@@ -182,6 +204,29 @@ describe('useCalls', () => {
     expect(calls().setCount.check({ total: 7 })).toEqual(
       sentenceOf({ total: 7 }),
     )
+  })
+
+  it('checks a name against what the Program holds, with the sentence every Client gives', () => {
+    const { calls } = mount()
+    expect(calls().openRoom.check({ room: 'attic' })).toEqual(
+      Option.some('No room matches "attic".'),
+    )
+    expect(calls().openRoom.check({ room: 'north' })).toEqual(
+      Option.some('"north" matches 2 rooms.'),
+    )
+    expect(calls().openRoom.check({ room: 'south' })).toEqual(Option.none())
+    expect(calls().openRoom.check({ room: 'north-hall' })).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('sends the Action for the one choice a person names', () => {
+    const { bound, calls } = mount()
+    act(() => {
+      expect(calls().openRoom.callNamed('attic')).toBe(false)
+      expect(calls().openRoom.callNamed('south')).toBe(true)
+    })
+    expect(bound.readModel().count).toBe('south-room'.length)
   })
 
   it('names and describes its control from the declaration', () => {
