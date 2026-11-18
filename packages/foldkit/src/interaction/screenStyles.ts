@@ -1372,4 +1372,15 @@ ${themeStylesheet(defaultTheme)}
 :where(.fk-overlay[data-style='Drawer']:focus) {
   outline: none;
 }
+
+:where(.fk-column > .fk-text[data-dim]:has(+ .fk-list-frame):not(.fk-overlay *)) {
+  box-sizing: border-box;
+  width: min(100%, ${px(screenLook.listWidth)});
+  margin-bottom: -8px;
+  padding: 0 8px;
+  color: ${roleVar('Text')};
+  font-size: 20px;
+  font-weight: 700;
+  text-align: left;
+}
 `

@@ -128,3 +128,17 @@ describe('the look of the tabs that head a drawer', () => {
     )
   })
 })
+
+describe('the look of a heading over a list with a head', () => {
+  it('heads it as it heads a bare list: at the list’s width, strong, at the left', () => {
+    const heading = ruleOf(
+      ':where(.fk-column > .fk-text[data-dim]:has(+ .fk-list-frame):not(.fk-overlay *))',
+    )
+    expect(heading).toContain(
+      `width: min(100%, ${screenLook.listWidth.toString()}px)`,
+    )
+    expect(heading).toContain(`color: ${roleVar('Text')}`)
+    expect(heading).toContain('font-weight: 700')
+    expect(heading).toContain('text-align: left')
+  })
+})
