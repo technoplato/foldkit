@@ -3384,6 +3384,12 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
+      ObservedSystemContrast: ({ contrast }) => [
+        evo(model, {
+          appearance: state => ({ ...state, systemContrast: contrast }),
+        }),
+        [],
+      ],
       ReadKeptAppearance: ({ maybeAppearance }) => [
         Option.match(maybeAppearance, {
           onNone: () => model,

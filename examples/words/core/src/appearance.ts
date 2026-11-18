@@ -56,6 +56,13 @@ export const makeMemoryAppearanceStore = (
 export const modeOf = (model: Model): Theme.Mode =>
   Theme.modeOfState(model.appearance)
 
+/**
+ * The contrast the page is painted with: the usual, or more where the
+ * system on this device asks for it. From the Model alone.
+ */
+export const contrastOf = (model: Model): Theme.Contrast =>
+  Theme.contrastOfState(model.appearance)
+
 /** One look a listener can choose, in words, and whether it is in use. */
 export type AppearanceChoice = Readonly<{
   appearance: Theme.Appearance

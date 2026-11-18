@@ -98,38 +98,6 @@
   }
 }
 
-/* NOTE: More Contrast is still asked of the browser here, and its values
-   are written here, not in the theme: the theme has light and dark only.
-   The blocks are keyed on the painted mode, so they follow the Program's
-   mode and not the system's scheme. */
-@media (prefers-contrast: more) {
-  :root:not([data-fk-mode='Dark']) {
-    --label-secondary: rgb(60 60 67 / 0.92);
-    --label-tertiary: rgb(60 60 67 / 0.78);
-    --separator: rgb(60 60 67 / 0.4);
-    --tint: #0040a0;
-    --accent-strong: #b50012;
-    --positive: #176a2d;
-    --caution: #9a2a00;
-    --badge-recording: #9e0010;
-    --badge-paused: #8f2600;
-    --badge-playing: #003d85;
-  }
-
-  :root[data-fk-mode='Dark'] {
-    --label-secondary: rgb(235 235 245 / 0.86);
-    --label-tertiary: rgb(235 235 245 / 0.7);
-    --separator: rgb(235 235 245 / 0.4);
-    --tint: #79b8ff;
-    --accent-strong: #ffa198;
-    --positive: #4ee07a;
-    --caution: #ffb340;
-    --badge-recording: #ffbdb6;
-    --badge-paused: #ffcc80;
-    --badge-playing: #add5ff;
-  }
-}
-
 @theme inline {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -195,16 +163,17 @@ body {
   }
 }
 
-@media (prefers-contrast: more) {
-  .glass {
-    background: var(--surface);
-    box-shadow: 0 0 0 1px var(--label);
-  }
+/* NOTE: under More Contrast, glass and the bar are solid and outlined.
+   The Program says the contrast (data-fk-contrast, told to the page from
+   the Model); the stronger colours themselves are the theme's. */
+[data-fk-contrast='More'] .glass {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--label);
+}
 
-  .bar {
-    background: var(--canvas);
-    box-shadow: 0 1px 0 var(--separator);
-  }
+[data-fk-contrast='More'] .bar {
+  background: var(--canvas);
+  box-shadow: 0 1px 0 var(--separator);
 }
 
 @utility card {

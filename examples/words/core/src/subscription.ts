@@ -34,6 +34,7 @@ import {
   ObservedLiveBeat,
   ObservedRecording,
   ObservedRecordings,
+  ObservedSystemContrast,
   ObservedSystemMode,
   PressedShortcut,
   TickedLiveClock,
@@ -705,6 +706,11 @@ const pageSubscriptions = Subscription.make<
   systemMode: Subscription.persistent(
     Stream.map(Theme.systemModeStream, ({ mode }) =>
       ObservedSystemMode({ mode }),
+    ),
+  ),
+  systemContrast: Subscription.persistent(
+    Stream.map(Theme.systemContrastStream, ({ contrast }) =>
+      ObservedSystemContrast({ contrast }),
     ),
   ),
 }))

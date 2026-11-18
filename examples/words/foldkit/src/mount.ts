@@ -1138,8 +1138,9 @@ export const RunClockTime = Mount.define(
 // APPEARANCE
 
 /**
- * Tells the page its mode. The view says the mode on the element this is
- * mounted on (`data-mode`, from the Model); this paints it on the page's
+ * Tells the page its mode and its contrast. The view says both on the
+ * element this is mounted on (`data-mode`, `data-contrast`, from the
+ * Model); this paints them on the page's
  * root, where the theme's colors are declared, remembers it for the next
  * first paint, and gives the browser's own bar the page's ground. It is
  * the only place the mode reaches the page, and it reads nothing but the
@@ -1158,6 +1159,12 @@ export const TellPageItsMode: Mount.MountAction<Message> = {
               root: document.documentElement,
               storage: window.localStorage,
             })
+            Theme.paintContrastOnPage(
+              element.getAttribute('data-contrast') === 'More'
+                ? 'More'
+                : 'Standard',
+              document.documentElement,
+            )
             const ground = getComputedStyle(document.documentElement)
               .getPropertyValue('--fk-page-ground')
               .trim()
@@ -1169,7 +1176,7 @@ export const TellPageItsMode: Mount.MountAction<Message> = {
           const told = new MutationObserver(tell)
           told.observe(element, {
             attributes: true,
-            attributeFilter: ['data-mode'],
+            attributeFilter: ['data-mode', 'data-contrast'],
           })
           tell()
           return told

@@ -11,6 +11,7 @@ import {
   PLAYER_ELEMENT_ID,
   type ReadyPlayback,
   ScrolledTranscriptAway,
+  contrastOf,
   displayedPlaybackOf,
   isListRoute,
   isOwnRecordingOf,
@@ -410,6 +411,7 @@ export const view =
         [
           // NOTE: the Model says the mode; the mount tells the page.
           h.DataAttribute('mode', modeOf(model)),
+          h.DataAttribute('contrast', contrastOf(model)),
           h.OnMount(TellPageItsMode),
           h.Class(
             '@container/page folding-title-scope min-h-dvh bg-canvas font-sans text-label antialiased',

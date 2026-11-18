@@ -292,6 +292,10 @@ export const ChoseAppearance = m('ChoseAppearance', {
 })
 /** The system this device is on is in light, or in dark. */
 export const ObservedSystemMode = m('ObservedSystemMode', { mode: Theme.Mode })
+/** The system this device is on asks for the usual contrast, or for more. */
+export const ObservedSystemContrast = m('ObservedSystemContrast', {
+  contrast: Theme.Contrast,
+})
 /** The look kept on this device was read at the start, if there was one. */
 export const ReadKeptAppearance = m('ReadKeptAppearance', {
   maybeAppearance: S.Option(Theme.Appearance),
@@ -442,6 +446,7 @@ export const Message = S.Union([
   ClosedWordMenu,
   ChoseAppearance,
   ObservedSystemMode,
+  ObservedSystemContrast,
   ReadKeptAppearance,
   CompletedKeepAppearance,
   OpenedFind,

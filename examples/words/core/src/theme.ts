@@ -7,8 +7,9 @@ import { Theme } from 'foldkit'
  * in each role it uses, light and dark. They are the colors the site
  * named for itself before (canvas, surface, label, tint, the red of
  * Record, the highlight on the spoken word, and the rest), so nothing
- * looks different; what changes is who decides the mode. A role the site
- * does not use keeps the library's color.
+ * looks different; what changes is who decides the mode. Where the site
+ * was stronger under More Contrast, the role says so (`lightMore`,
+ * `darkMore`). A role the site does not use keeps the library's color.
  */
 export const wordsTheme: Theme.Theme = Theme.withRoles(Theme.defaultTheme, {
   PageGround: { light: '#f2f2f7', dark: '#000000' },
@@ -20,22 +21,62 @@ export const wordsTheme: Theme.Theme = Theme.withRoles(Theme.defaultTheme, {
     dark: 'rgb(120 120 128 / 0.36)',
   },
   Text: { light: '#1d1d1f', dark: '#f5f5f7' },
-  QuietText: { light: 'rgb(60 60 67 / 0.76)', dark: 'rgb(235 235 245 / 0.72)' },
-  FaintText: { light: 'rgb(60 60 67 / 0.5)', dark: 'rgb(235 235 245 / 0.46)' },
-  Rule: { light: 'rgb(60 60 67 / 0.14)', dark: 'rgb(84 84 88 / 0.6)' },
+  QuietText: {
+    light: 'rgb(60 60 67 / 0.76)',
+    dark: 'rgb(235 235 245 / 0.72)',
+    lightMore: 'rgb(60 60 67 / 0.92)',
+    darkMore: 'rgb(235 235 245 / 0.86)',
+  },
+  FaintText: {
+    light: 'rgb(60 60 67 / 0.5)',
+    dark: 'rgb(235 235 245 / 0.46)',
+    lightMore: 'rgb(60 60 67 / 0.78)',
+    darkMore: 'rgb(235 235 245 / 0.7)',
+  },
+  Rule: {
+    light: 'rgb(60 60 67 / 0.14)',
+    dark: 'rgb(84 84 88 / 0.6)',
+    lightMore: 'rgb(60 60 67 / 0.4)',
+    darkMore: 'rgb(235 235 245 / 0.4)',
+  },
   Danger: { light: '#ff3b30', dark: '#ff453a' },
-  DangerStrong: { light: '#d70015', dark: '#ff8a80' },
+  DangerStrong: {
+    light: '#d70015',
+    dark: '#ff8a80',
+    lightMore: '#b50012',
+    darkMore: '#ffa198',
+  },
   DangerFill: { light: '#d70015', dark: '#d70015' },
   DangerSoft: { light: 'rgb(255 59 48 / 0.12)', dark: 'rgb(255 69 58 / 0.2)' },
-  Accent: { light: '#0058b0', dark: '#4da3ff' },
-  Link: { light: '#0058b0', dark: '#4da3ff' },
+  Accent: {
+    light: '#0058b0',
+    dark: '#4da3ff',
+    lightMore: '#0040a0',
+    darkMore: '#79b8ff',
+  },
+  Link: {
+    light: '#0058b0',
+    dark: '#4da3ff',
+    lightMore: '#0040a0',
+    darkMore: '#79b8ff',
+  },
   AccentSoft: { light: 'rgb(0 88 176 / 0.1)', dark: 'rgb(77 163 255 / 0.18)' },
-  Positive: { light: '#1f7a36', dark: '#30d158' },
+  Positive: {
+    light: '#1f7a36',
+    dark: '#30d158',
+    lightMore: '#176a2d',
+    darkMore: '#4ee07a',
+  },
   PositiveSoft: {
     light: 'rgb(52 199 89 / 0.16)',
     dark: 'rgb(48 209 88 / 0.18)',
   },
-  Warning: { light: '#b83200', dark: '#ff9f0a' },
+  Warning: {
+    light: '#b83200',
+    dark: '#ff9f0a',
+    lightMore: '#9a2a00',
+    darkMore: '#ffb340',
+  },
   WarningSoft: {
     light: 'rgb(255 149 0 / 0.16)',
     dark: 'rgb(255 159 10 / 0.18)',
@@ -60,9 +101,24 @@ export const wordsTheme: Theme.Theme = Theme.withRoles(Theme.defaultTheme, {
  * behind a device's icon.
  */
 export const wordsOwnRoles: Theme.OwnRoles = Theme.withOwnRoles({
-  BadgeRecording: { light: '#b50012', dark: '#ffa198' },
-  BadgePaused: { light: '#a32c00', dark: '#ffb340' },
-  BadgePlaying: { light: '#0058b0', dark: '#8cc4ff' },
+  BadgeRecording: {
+    light: '#b50012',
+    dark: '#ffa198',
+    lightMore: '#9e0010',
+    darkMore: '#ffbdb6',
+  },
+  BadgePaused: {
+    light: '#a32c00',
+    dark: '#ffb340',
+    lightMore: '#8f2600',
+    darkMore: '#ffcc80',
+  },
+  BadgePlaying: {
+    light: '#0058b0',
+    dark: '#8cc4ff',
+    lightMore: '#003d85',
+    darkMore: '#add5ff',
+  },
   DeviceTile: { light: '#1c1c1e', dark: '#48484a' },
 })
 
