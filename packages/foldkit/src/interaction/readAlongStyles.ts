@@ -1,3 +1,4 @@
+import { roleVar } from '../theme/theme.js'
 import type { ScreenLook } from './screenStyles.js'
 
 const px = (value: number): string => `${value.toString()}px`
@@ -6,9 +7,10 @@ const px = (value: number): string => `${value.toString()}px`
  * The look of Read Along's own parts on the web, appended to the shared
  * screen stylesheet: the words a search found, the reader's pills (`Back
  * to playhead`, `Search`), a search by the words, a word's menu, and
- * where a drag of the seek bar will land. It names no color of its own:
- * every color is a token of the shared look or one of the reader's
- * `--fk-reading-*` variables, so it follows them in either appearance.
+ * where a drag of the seek bar will land. It names roles of the theme and
+ * no color of its own, so it follows light and dark with the rest: the
+ * marks are mixed from the reader's own rule color, the menu and the
+ * pills sit on the raised surface. It takes only sizes from the look.
  *
  * @example
  * ```typescript
@@ -17,36 +19,36 @@ const px = (value: number): string => `${value.toString()}px`
  */
 export const readAlongStylesOf = (look: ScreenLook): string => `
 :where(.fk-word[data-mark]) {
-  background: color-mix(in srgb, var(--fk-reading-rule) 24%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--fk-reading-rule) 24%, transparent);
-  color: var(--fk-reading-text);
+  background: color-mix(in srgb, ${roleVar('ReadingRule')} 24%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, ${roleVar('ReadingRule')} 24%, transparent);
+  color: ${roleVar('ReadingSpoken')};
 }
 
 :where(.fk-word[data-mark='Selected']) {
-  background: color-mix(in srgb, var(--fk-reading-rule) 46%, transparent);
-  box-shadow: 0 0 0 2px var(--fk-reading-rule);
+  background: color-mix(in srgb, ${roleVar('ReadingRule')} 46%, transparent);
+  box-shadow: 0 0 0 2px ${roleVar('ReadingRule')};
 }
 
 :where(.fk-word[data-mark='Picked']) {
-  background: var(--fk-reading-current-ground);
-  box-shadow: 0 0 0 2px var(--fk-reading-rest);
+  background: ${roleVar('ReadingCurrentGround')};
+  box-shadow: 0 0 0 2px ${roleVar('ReadingToCome')};
 }
 
 :where(.fk-button[data-variant='Pill']) {
   height: 38px;
   min-width: 0;
   padding: 0 16px;
-  border: 1px solid ${look.trackColor};
+  border: 1px solid ${roleVar('Rule')};
   border-radius: 999px;
-  background: ${look.panelColor};
-  color: ${look.textColor};
+  background: ${roleVar('RaisedSurface')};
+  color: ${roleVar('Text')};
   font-size: 14px;
-  box-shadow: 0 6px 18px -10px color-mix(in srgb, ${look.textColor} 50%, transparent);
+  box-shadow: 0 6px 18px -10px ${roleVar('Shadow')};
 }
 
 @media (hover: hover) {
   :where(.fk-button[data-variant='Pill']:hover) {
-    background: ${look.rowHoverColor};
+    background: ${roleVar('Surface')};
   }
 }
 
@@ -82,7 +84,7 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
 :where(.fk-dock .fk-row:has(.fk-text-input) > .fk-text) {
   flex: none;
   max-width: 46%;
-  color: ${look.dimColor};
+  color: ${roleVar('QuietText')};
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -94,7 +96,7 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
   max-height: 34dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-top: 1px solid ${look.trackColor};
+  border-top: 1px solid ${roleVar('Rule')};
 }
 
 :where(.fk-dock .fk-column > .fk-list .fk-item-title) {
@@ -133,10 +135,10 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
   flex-direction: column;
   min-width: 220px;
   padding: 6px;
-  border: 1px solid ${look.trackColor};
+  border: 1px solid ${roleVar('Rule')};
   border-radius: 14px;
-  background: ${look.panelColor};
-  box-shadow: 0 18px 40px -16px color-mix(in srgb, ${look.textColor} 45%, transparent);
+  background: ${roleVar('RaisedSurface')};
+  box-shadow: 0 18px 40px -16px ${roleVar('Shadow')};
   text-align: left;
 }
 
@@ -149,7 +151,7 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
   border: 0;
   border-radius: 10px;
   background: none;
-  color: ${look.textColor};
+  color: ${roleVar('Text')};
   font-family: inherit;
   font-size: 15px;
   text-align: left;
@@ -157,18 +159,18 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
 }
 
 :where(.fk-word-menu-item:hover, .fk-word-menu-item:focus-visible) {
-  background: ${look.rowHoverColor};
+  background: ${roleVar('Surface')};
 }
 
 :where(.fk-word-menu-item .fk-icon) {
   width: 18px;
   height: 18px;
-  color: ${look.dimColor};
+  color: ${roleVar('QuietText')};
 }
 
 :where(.fk-seek-landing) {
   display: block;
-  color: ${look.textColor};
+  color: ${roleVar('Text')};
   font-size: 14px;
 }
 
@@ -182,10 +184,10 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
   max-width: min(92vw, ${px(look.listWidth)});
   margin: 0;
   padding: 8px 14px;
-  border: 1px solid ${look.trackColor};
+  border: 1px solid ${roleVar('Rule')};
   border-radius: 12px;
-  background: ${look.panelColor};
-  box-shadow: 0 12px 30px -14px color-mix(in srgb, ${look.textColor} 45%, transparent);
+  background: ${roleVar('RaisedSurface')};
+  box-shadow: 0 12px 30px -14px ${roleVar('Shadow')};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

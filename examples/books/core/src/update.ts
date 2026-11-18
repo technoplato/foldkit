@@ -887,6 +887,14 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         { ...model, maybeMember: maybeEmail },
         [],
       ],
+      SetAppearance: ({ appearance }) => [
+        { ...model, appearance: { ...model.appearance, appearance } },
+        [],
+      ],
+      ObservedSystemMode: ({ mode }) => [
+        { ...model, appearance: { ...model.appearance, systemMode: mode } },
+        [],
+      ],
       OpenPlayer: () => [
         model.listening._tag === 'Loaded'
           ? openedPlayer(model, model.listening.slug)

@@ -4,6 +4,138 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:12:19 a.m. EST — `9503911b64ff` fix(books): green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
+
+- **Implementation commit:** `9503911b64ffdf87e2edca6295ce3489ad20394d`
+- **Change:** green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
+- **Details:**
+  - contentsOf works out the Catalog's entries once and hands them to every chapter row, where it worked them out again for each of the 114 rows. The count of shelf reads while Contents paints is now the same for 4 chapters and for 120. The terminal UI test that asks every key to answer within 250 ms, which failed about one run in two, passed three whole-file runs in a row at a load of 7: its limit wa
+- **Files:**
+  - `examples/books/core/src/screen.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `817aa8b5c8e1` feat(foldkit): green: a sync failure names the sync engine, not one product (Scribe #2494)
+
+- **Implementation commit:** `817aa8b5c8e1e9573f93e9001c2b2c8075651c14`
+- **Change:** green: a sync failure names the sync engine, not one product (Scribe #2494)
+- **Details:**
+  - The seven sentences the runtime shows when a write is refused, a row cannot be read, or the log cannot be fetched say 'the sync engine' where they said Instant, since the runtime carries any engine. What happened, what it means and what to do read as before. foldkit runtime and program: 269 tests pass; the 4 that fail are the crash-view tests that fail on the base commit too.
+- **Files:**
+  - `packages/foldkit/src/runtime/start.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `707fb1710cf4` feat(foldkit): green: the reading ground runs edge to edge on a narrow window (Scribe #2494)
+
+- **Implementation commit:** `707fb1710cf49251e780bf8e04f9d86a864c62cb`
+- **Change:** green: the reading ground runs edge to edge on a narrow window (Scribe #2494)
+- **Details:**
+  - At 560 px and narrower the Transcript is as wide as the window, with no rounded corners, so on a phone the reading ground meets both edges and the words are not a card inside the page. Wider windows keep the 1200 px column. Checked at 390 by 844 in light and dark: the ground spans 0 to 390 with no sideways scroll, and the chapter bar and the mini player sit clear of it. foldkit interaction and the
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:03 a.m. EST — `6b996de189f0` docs: state drives and the components at the edge are told; the time label sits within its line (Scribe #2494)
+
+- **Implementation commit:** `6b996de189f02de9be8fdd69cc3a67457bd09a4e`
+- **Change:** state drives and the components at the edge are told; the time label sits within its line (Scribe #2494)
+- **Details:**
+  - AGENTS.md's 'Which layer?' section gains his words of 2026-11-18 and the rule they set: everything a component shows is state in a core, facts from outside arrive as Messages, colors are theme roles, tests fail on a raw color or a painter that asks the system, and the one exception, the first paint's mirror, is described with its single writer and single reader.
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:03 a.m. EST — `83a7bf34154d` feat(books): the look of Books is state: light, dark, or following the system (Scribe #2494)
+
+- **Implementation commit:** `83a7bf34154dc35993dd652e31381132a548e342`
+- **Change:** the look of Books is state: light, dark, or following the system (Scribe #2494)
+- **Details:**
+  - Books holds Foldkit's appearance in its Model (the choice and the system's mode on this device) and takes Foldkit's SetAppearance Action into its Catalog, so 'Appearance' is in the action menu with its three named looks and 'books set-appearance dark' sets it. The system's mode arrives as ObservedSystemMode from a Subscription on Foldkit's SystemAppearance; the browser host provides the browser's
+- **Files:**
+  - `examples/books/core/src/appearance.test.ts` — changed by this commit
+  - `examples/books/core/src/init.ts` — changed by this commit
+  - `examples/books/core/src/live.browser.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/books/core/src/model.ts` — changed by this commit
+  - `examples/books/core/src/program.ts` — changed by this commit
+  - `examples/books/core/src/siteLook.test.ts` — changed by this commit
+  - `examples/books/core/src/subscriptions.ts` — changed by this commit
+  - `examples/books/core/src/update.ts` — changed by this commit
+  - `examples/books/react/index.html` — changed by this commit
+  - `examples/books/react/src/App.tsx` — changed by this commit
+  - `examples/books/react/src/main.tsx` — changed by this commit
+  - `examples/books/react/src/styles.css` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:03 a.m. EST — `c68b11cec7dd` feat(foldkit): green: the page is told its mode, and the first paint reads only a mirror (Scribe #2494)
+
+- **Implementation commit:** `c68b11cec7ddf31dffcfdfeb8c355c41253f4bca`
+- **Change:** green: the page is told its mode, and the first paint reads only a mirror (Scribe #2494)
+- **Details:**
+  - foldkit/theme's browser side: paintModeOnPage(mode, page) sets the mode the Program resolved on the page's root, where the theme's stylesheet reads it, and mirrors it; firstPaintScript() is the script a page runs before its first paint, which reads that mirror and sets the same attribute so the page does not open in the wrong mode. The mirror has one writer, the host acting on the Model's mode, an
+- **Files:**
+  - `packages/foldkit/src/theme/browser.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:02 a.m. EST — `82a089a3d613` feat(foldkit): green: appearance is state, and the components at the edge are told (Scribe #2494)
+
+- **Implementation commit:** `82a089a3d613d2fc446b21c2109efca0ed31d4c1`
+- **Change:** green: appearance is state, and the components at the edge are told (Scribe #2494)
+- **Details:**
+  - foldkit/theme gains appearance as a Program holds it:
+- **Files:**
+  - `packages/foldkit/src/theme/appearance.test.ts` — changed by this commit
+  - `packages/foldkit/src/theme/appearance.ts` — changed by this commit
+  - `packages/foldkit/src/theme/browser.ts` — changed by this commit
+  - `packages/foldkit/src/theme/index.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:02 a.m. EST — `3655d1a5ee3c` feat(foldkit): green: the shared look names roles, never a color, and never asks the system (Scribe #2494)
+
+- **Implementation commit:** `3655d1a5ee3cc07b2e2596c66143cb1b7d767666`
+- **Change:** green: the shared look names roles, never a color, and never asks the system (Scribe #2494)
+- **Details:**
+  - The screen and menu stylesheets are written in the theme's roles. The screen stylesheet opens with the theme's declarations (every role as a CSS variable, light by default, dark under data-fk-mode="Dark") and every rule after that names a role with roleVar; no hex, rgb, hsl or named color remains in either sheet, and no prefers-color-scheme: the reader's own dark rule is gone, its colors are the R
+- **Files:**
+  - `packages/foldkit/src/interaction/menuStyles.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.lists.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/theme/noRawColors.test.ts` — changed by this commit
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:02 a.m. EST — `c7a5b0611415` feat(foldkit): green: a theme of roles, each light and dark (Scribe #2494)
+
+- **Implementation commit:** `c7a5b0611415bb1e889da80fbc2b112a6a202c67`
+- **Change:** green: a theme of roles, each light and dark (Scribe #2494)
+- **Details:**
+  - foldkit/theme (Theme in the foldkit barrel) is appearance as core data:
+- **Files:**
+  - `packages/foldkit/package.json` — changed by this commit
+  - `packages/foldkit/src/index.ts` — changed by this commit
+  - `packages/foldkit/src/theme/index.ts` — changed by this commit
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 12:14:34 a.m. EST — `2b3eda200151` feat(foldkit): green: the reader closer to Scribe Playback (Scribe #2494)
 
 - **Implementation commit:** `2b3eda200151b57de9f2ff072b489aa19037352f`

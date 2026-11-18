@@ -1,6 +1,7 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
 import { m } from 'foldkit/message'
+import * as Theme from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -272,6 +273,16 @@ export const CopyWordLink = Catalog.action('CopyWordLink', {
   },
 })
 
+/**
+ * The look: light, dark, or following the system, `SetAppearance:Dark`.
+ * Foldkit's own Action, reading this Model's appearance, so the menu, a
+ * hover description, and `books set-appearance dark` all come from it.
+ */
+export const [SetAppearance] = Catalog.within(Theme.catalog, {
+  childOf: (model: Model) => Option.some(model.appearance),
+  nothing: 'the look cannot change here',
+}).actions
+
 /** Shows the player, whatever this device has loaded. */
 export const OpenPlayer = Catalog.action('OpenPlayer', {
   what: 'Shows the player',
@@ -533,6 +544,7 @@ export const catalog = Catalog.make([
   JumpToChapter,
   ShowSpeeds,
   SetSpeed,
+  SetAppearance,
   SharePlace,
   AddBookmark,
   PlayBookmark,
@@ -635,6 +647,7 @@ export const Message = S.Union([
   ReceivedChapters,
   FailedReadChapters,
   ReceivedMember,
+  Theme.ObservedSystemMode,
   ReadAloud.ReceivedReadings,
   ReadAloud.FailedReadReadings,
   ReadAloud.ReceivedPreview,

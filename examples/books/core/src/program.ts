@@ -1,5 +1,6 @@
 import { Match as M } from 'effect'
 import { Program } from 'foldkit'
+import * as Theme from 'foldkit/theme'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import * as Audible from './audible/index.js'
@@ -44,6 +45,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       FailedSearch: () => 'Navigation',
       ExpandControls: () => 'Navigation',
       CollapseControls: () => 'Navigation',
+      SetAppearance: () => 'Navigation',
+      ObservedSystemMode: () => 'Navigation',
       ShowLibrary: () => 'Navigation',
       ShowProfile: () => 'Navigation',
       ShowReadAloud: () => 'Navigation',
@@ -123,7 +126,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
 /**
  * True for a Message that stays on the device that sent it and never
  * reaches the log: the Audible import's, so a pasted sign-in address
- * never leaves; what one person is looking at in the reader, the search,
+ * never leaves; the look, as the integration branch already kept it;
+ * what one person is looking at in the reader, the search,
  * its matches, and whether the words follow the playhead, so a search on
  * a phone never moves the words on a desk; and copying a link, which
  * goes to this device's clipboard.
@@ -136,6 +140,7 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
  */
 export const isLocalOnlyMessage = (message: Message): boolean =>
   Audible.isMessage(message) ||
+  Theme.isMessage(message) ||
   TranscriptPlayer.isViewMessage(message) ||
   message._tag === 'CopyWordLink'
 
@@ -176,6 +181,7 @@ export const BooksProgram = Program.make({
       readings: current.readings,
       previewChecks: current.previewChecks,
       audible: current.audible,
+      appearance: current.appearance,
     }),
   },
 })

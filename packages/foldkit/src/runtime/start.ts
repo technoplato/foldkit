@@ -817,10 +817,10 @@ export function start<
           sendFromSync(
             asMessage<Message>(
               transportFailed({
-                what: 'Instant did not accept this Message.',
+                what: 'The sync engine did not accept this Message.',
                 meaning:
-                  'The local Model is Ready. Instant rejected the write or the network is down.',
-                fix: 'Keep the local number. Retry the same Message id when Instant is back.',
+                  'The local Model is Ready. The sync engine rejected the write or the network is down.',
+                fix: 'Keep the local number. Retry the same Message id when the sync engine is back.',
                 sent: message,
                 cause: written.failure.cause,
                 raw: write,
@@ -882,7 +882,7 @@ export function start<
         sendFromSync(
           asMessage<Message>(
             decodeFailed({
-              what: 'Instant sent a Message this Program cannot read.',
+              what: 'The sync engine sent a Message this Program cannot read.',
               meaning: 'The row did not match the Message Schema.',
               fix: 'Keep the current count. Check the Message Schema.',
               cause: 'Message Schema decode failed.',
@@ -1065,9 +1065,9 @@ export function start<
         sendFromSync(
           asMessage<Message>(
             transportFailed({
-              what: 'Instant did not return the Message log.',
-              meaning: 'This Processor could not start from Instant.',
-              fix: 'Check the Instant app and try again.',
+              what: 'The sync engine did not return the Message log.',
+              meaning: 'This Processor could not start from the sync engine.',
+              fix: 'Check the sync engine and try again.',
               cause: maybeReadFailure.value.cause,
               raw: maybeReadFailure.value.raw,
             }),

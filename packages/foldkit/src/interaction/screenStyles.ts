@@ -1,3 +1,4 @@
+import { defaultTheme, roleVar, themeStylesheet } from '../theme/theme.js'
 import { readAlongStylesOf } from './readAlongStyles.js'
 
 /**
@@ -148,6 +149,7 @@ const px = (value: number): string => `${value.toString()}px`
  * ```
  */
 export const screenStylesheet = `
+${themeStylesheet(defaultTheme)}
 :where(.fk-column) {
   display: flex;
   flex-direction: column;
@@ -180,7 +182,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-text) {
-  color: ${screenLook.textColor};
+  color: ${roleVar('Text')};
   font-size: ${px(screenLook.bodySize)};
   overflow-wrap: anywhere;
   text-wrap: pretty;
@@ -202,7 +204,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-text[data-dim]) {
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   font-size: ${px(screenLook.dimSize)};
   font-weight: 400;
 }
@@ -220,7 +222,7 @@ export const screenStylesheet = `
   width: 100%;
   padding: 8px 12px;
   border-radius: 8px;
-  background: ${screenLook.codeColor};
+  background: ${roleVar('Surface')};
   font-family: ${screenLook.monoFamily};
   font-size: ${px(screenLook.codeSize)};
   text-align: left;
@@ -234,10 +236,10 @@ export const screenStylesheet = `
 :where(.fk-copy-button) {
   flex: none;
   padding: 4px 10px;
-  border: 1px solid ${screenLook.dimColor};
+  border: 1px solid ${roleVar('QuietText')};
   border-radius: 6px;
-  background: ${screenLook.panelColor};
-  color: ${screenLook.textColor};
+  background: ${roleVar('RaisedSurface')};
+  color: ${roleVar('Text')};
   font-family: inherit;
   font-size: ${px(screenLook.codeSize)};
   cursor: pointer;
@@ -246,14 +248,14 @@ export const screenStylesheet = `
 
 :where(.fk-status) {
   margin: 0;
-  color: ${screenLook.textColor};
+  color: ${roleVar('Text')};
   font-size: ${px(screenLook.bodySize)};
   text-align: center;
   white-space: pre-line;
 }
 
 :where(.fk-text-link) {
-  color: ${screenLook.linkColor};
+  color: ${roleVar('Link')};
 }
 
 :where(.fk-ref) {
@@ -263,18 +265,18 @@ export const screenStylesheet = `
   max-width: 100%;
   padding: 0 6px;
   border-radius: 6px;
-  background: ${screenLook.codeColor};
-  color: ${screenLook.textColor};
+  background: ${roleVar('Surface')};
+  color: ${roleVar('Text')};
   text-decoration: none;
   white-space: nowrap;
 }
 
 :where(a.fk-ref:hover, a.fk-ref:focus-visible) {
-  background: ${screenLook.trackColor};
+  background: ${roleVar('Rule')};
 }
 
 :where(.fk-ref-label) {
-  color: ${screenLook.linkColor};
+  color: ${roleVar('Link')};
   font-family: ${screenLook.monoFamily};
   font-size: 0.9em;
 }
@@ -286,7 +288,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-ref-state) {
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   font-size: 0.8em;
 }
 
@@ -299,7 +301,7 @@ export const screenStylesheet = `
 :where(.fk-layer-backdrop) {
   position: absolute;
   inset: 0;
-  background: ${screenLook.backdropColor};
+  background: ${roleVar('Scrim')};
 }
 
 :where(.fk-layer-surface) {
@@ -307,8 +309,8 @@ export const screenStylesheet = `
   box-sizing: border-box;
   overflow: auto;
   padding: 16px;
-  background: ${screenLook.panelColor};
-  box-shadow: 0 24px 64px rgb(15 23 42 / 0.28);
+  background: ${roleVar('RaisedSurface')};
+  box-shadow: 0 24px 64px ${roleVar('Shadow')};
 }
 
 :where(.fk-layer-surface:focus) {
@@ -337,8 +339,8 @@ export const screenStylesheet = `
   min-width: ${px(screenLook.buttonMinWidth)};
   padding: 0 ${px(screenLook.buttonPaddingX)};
   border: 0;
-  background: ${screenLook.buttonColor};
-  color: ${screenLook.buttonLabelColor};
+  background: ${roleVar('Button')};
+  color: ${roleVar('ButtonLabel')};
   font-family: inherit;
   font-size: ${px(screenLook.buttonLabelSize)};
   font-weight: ${screenLook.buttonLabelWeight.toString()};
@@ -347,17 +349,17 @@ export const screenStylesheet = `
 
 @media (hover: hover) {
   :where(.fk-button:hover) {
-    background: ${screenLook.buttonHoverColor};
+    background: ${roleVar('ButtonHover')};
   }
 }
 
 :where(.fk-button:focus-visible) {
-  outline: 2px solid ${screenLook.focusColor};
+  outline: 2px solid ${roleVar('Focus')};
   outline-offset: 2px;
 }
 
 :where(.fk-button:disabled) {
-  background: ${screenLook.buttonDisabledColor};
+  background: ${roleVar('ButtonDisabled')};
   cursor: not-allowed;
 }
 
@@ -421,13 +423,13 @@ export const screenStylesheet = `
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   font-size: 11px;
   font-weight: 600;
 }
 
 :where(.fk-button[data-variant='Tab'][data-current]) {
-  color: ${screenLook.textColor};
+  color: ${roleVar('Text')};
 }
 
 :where(.fk-dock) {
@@ -440,8 +442,8 @@ export const screenStylesheet = `
   flex-direction: column;
   align-items: stretch;
   padding: 0 0 env(safe-area-inset-bottom);
-  border-top: 1px solid ${screenLook.trackColor};
-  background: rgb(255 255 255 / 0.94);
+  border-top: 1px solid ${roleVar('Rule')};
+  background: ${roleVar('Veil')};
   backdrop-filter: blur(18px);
 }
 
@@ -461,7 +463,7 @@ export const screenStylesheet = `
 
 :where(.fk-dock .fk-item) {
   padding: 0 8px;
-  border-bottom: 1px solid ${screenLook.trackColor};
+  border-bottom: 1px solid ${roleVar('Rule')};
 }
 
 :where(.fk-dock .fk-item-image) {
@@ -474,25 +476,25 @@ export const screenStylesheet = `
 }
 
 :where(.fk-button[data-variant='Ghost']) {
-  border: 1px solid ${screenLook.ghostBorderColor};
+  border: 1px solid ${roleVar('Border')};
   background: transparent;
-  color: ${screenLook.textColor};
+  color: ${roleVar('Text')};
 }
 
 @media (hover: hover) {
   :where(.fk-button[data-variant='Ghost']:hover) {
-    background: ${screenLook.rowHoverColor};
+    background: ${roleVar('Surface')};
   }
 }
 
 :where(.fk-button[data-variant='Ghost']:disabled) {
-  border-color: ${screenLook.trackColor};
+  border-color: ${roleVar('Rule')};
   background: transparent;
-  color: ${screenLook.buttonDisabledColor};
+  color: ${roleVar('ButtonDisabled')};
 }
 
 :where(.fk-button[data-variant='Destructive']) {
-  background: ${screenLook.destructiveColor};
+  background: ${roleVar('Danger')};
 }
 
 :where(.fk-progress) {
@@ -502,20 +504,20 @@ export const screenStylesheet = `
   height: 4px;
   border: 0;
   border-radius: 999px;
-  background: ${screenLook.trackColor};
+  background: ${roleVar('Rule')};
   overflow: hidden;
 }
 
 :where(.fk-progress)::-webkit-progress-bar {
-  background: ${screenLook.trackColor};
+  background: ${roleVar('Rule')};
 }
 
 :where(.fk-progress)::-webkit-progress-value {
-  background: ${screenLook.accentColor};
+  background: ${roleVar('Accent')};
 }
 
 :where(.fk-progress)::-moz-progress-bar {
-  background: ${screenLook.accentColor};
+  background: ${roleVar('Accent')};
 }
 
 :where(.fk-list) {
@@ -531,7 +533,7 @@ export const screenStylesheet = `
   display: flex;
   align-items: center;
   gap: ${px(screenLook.rowGap)};
-  border-bottom: 1px solid ${screenLook.trackColor};
+  border-bottom: 1px solid ${roleVar('Rule')};
 }
 
 :where(.fk-item:last-child) {
@@ -557,12 +559,12 @@ export const screenStylesheet = `
 
 @media (hover: hover) {
   :where(.fk-item-press:hover) {
-    background: ${screenLook.rowHoverColor};
+    background: ${roleVar('Surface')};
   }
 }
 
 :where(.fk-item-press:focus-visible) {
-  outline: 2px solid ${screenLook.focusColor};
+  outline: 2px solid ${roleVar('Focus')};
   outline-offset: -2px;
 }
 
@@ -580,7 +582,7 @@ export const screenStylesheet = `
   height: ${px(screenLook.itemImageSize)};
   border-radius: 6px;
   object-fit: cover;
-  box-shadow: 0 2px 8px -2px rgb(15 23 42 / 0.35);
+  box-shadow: 0 2px 8px -2px ${roleVar('Shadow')};
 }
 
 :where(.fk-item-body) {
@@ -593,7 +595,7 @@ export const screenStylesheet = `
 
 :where(.fk-item-title) {
   overflow: hidden;
-  color: ${screenLook.textColor};
+  color: ${roleVar('Text')};
   font-size: ${px(screenLook.bodySize)};
   font-weight: 600;
   text-overflow: ellipsis;
@@ -602,7 +604,7 @@ export const screenStylesheet = `
 
 :where(.fk-item-line) {
   overflow: hidden;
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -624,18 +626,11 @@ export const screenStylesheet = `
   width: min(100%, ${px(screenLook.listWidth)});
   height: 24px;
   margin: 0;
-  accent-color: ${screenLook.accentColor};
+  accent-color: ${roleVar('Accent')};
   cursor: pointer;
 }
 
 :where(.fk-transcript) {
-  --fk-reading-ground: transparent;
-  --fk-reading-text: ${screenLook.textColor};
-  --fk-reading-rest: ${screenLook.restingWordsColor};
-  --fk-reading-spoken: #c2410c;
-  --fk-reading-spoken-ground: ${screenLook.accentSoftColor};
-  --fk-reading-current-ground: ${screenLook.currentPassageColor};
-  --fk-reading-rule: ${screenLook.accentColor};
   box-sizing: border-box;
   position: relative;
   display: flex;
@@ -645,30 +640,15 @@ export const screenStylesheet = `
   max-height: min(58vh, 640px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 0;
+  padding: 12px 16px;
   border-radius: 18px;
-  background: var(--fk-reading-ground);
+  background: ${roleVar('ReadingGround')};
   text-align: left;
-  mask-image: linear-gradient(transparent, #000 24px, #000 calc(100% - 24px), transparent);
-}
-
-@media (prefers-color-scheme: dark) {
-  :where(.fk-transcript) {
-    --fk-reading-ground: ${screenLook.readingDarkGround};
-    --fk-reading-text: #ffffff;
-    --fk-reading-rest: #8d949e;
-    --fk-reading-spoken: #9db8ff;
-    --fk-reading-spoken-ground: transparent;
-    --fk-reading-current-ground: rgba(255, 255, 255, 0.06);
-    --fk-reading-rule: #6ea0ff;
-    padding: 16px 20px;
-    mask-image: none;
-  }
 }
 
 :where(.fk-transcript-empty) {
   margin: 0;
-  color: var(--fk-reading-rest);
+  color: ${roleVar('ReadingToCome')};
   text-align: center;
 }
 
@@ -680,15 +660,15 @@ export const screenStylesheet = `
 }
 
 :where(.fk-passage[data-current]) {
-  background: var(--fk-reading-current-ground);
-  box-shadow: inset 3px 0 0 var(--fk-reading-rule);
+  background: ${roleVar('ReadingCurrentGround')};
+  box-shadow: inset 3px 0 0 ${roleVar('ReadingRule')};
 }
 
 :where(.fk-passage-heading) {
   margin: 14px 0 8px;
   padding-left: 12px;
-  border-left: 3px solid var(--fk-reading-rule);
-  color: var(--fk-reading-rule);
+  border-left: 3px solid ${roleVar('ReadingRule')};
+  color: ${roleVar('ReadingRule')};
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -698,14 +678,14 @@ export const screenStylesheet = `
 :where(.fk-passage-label) {
   float: left;
   margin: 0 14px 0 0;
-  padding: 0;
+  padding: 11px 0 0;
   border: 0;
   background: none;
-  color: var(--fk-reading-rest);
+  color: ${roleVar('ReadingToCome')};
   font-family: ${screenLook.monoFamily};
   font-size: 14px;
   font-variant-numeric: tabular-nums;
-  line-height: ${px(Math.round(screenLook.readingSize * 1.55))};
+  line-height: 1;
 }
 
 :where(button.fk-passage-label) {
@@ -713,12 +693,12 @@ export const screenStylesheet = `
 }
 
 :where(button.fk-passage-label:hover) {
-  color: var(--fk-reading-text);
+  color: ${roleVar('ReadingSpoken')};
 }
 
 :where(.fk-passage-words) {
   margin: 0;
-  color: var(--fk-reading-rest);
+  color: ${roleVar('ReadingToCome')};
   font-family: ${screenLook.readingFamily};
   font-size: ${px(screenLook.readingSize)};
   line-height: 1.55;
@@ -726,7 +706,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-passage[data-current] .fk-passage-words) {
-  color: var(--fk-reading-text);
+  color: ${roleVar('ReadingSpoken')};
 }
 
 :where(.fk-word) {
@@ -737,25 +717,25 @@ export const screenStylesheet = `
 
 @media (hover: hover) {
   :where(.fk-word:hover) {
-    background: var(--fk-reading-current-ground);
+    background: ${roleVar('ReadingCurrentGround')};
   }
 }
 
 :where(.fk-passage[data-current] .fk-word[data-current] ~ .fk-word) {
-  color: var(--fk-reading-rest);
+  color: ${roleVar('ReadingToCome')};
 }
 
 :where(.fk-word[data-current]) {
-  background: var(--fk-reading-spoken-ground);
-  box-shadow: 0 0 0 2px var(--fk-reading-spoken-ground);
-  color: var(--fk-reading-spoken);
+  background: ${roleVar('ReadingCurrentWordGround')};
+  box-shadow: 0 0 0 2px ${roleVar('ReadingCurrentWordGround')};
+  color: ${roleVar('ReadingCurrentWord')};
 }
 
 :where(.fk-device-phone) {
   box-sizing: border-box;
   width: min(100%, ${px(screenLook.deviceWidth)});
   padding: 24px 16px 32px;
-  border: 2px solid ${screenLook.deviceBorderColor};
+  border: 2px solid ${roleVar('DeviceBorder')};
   border-radius: ${px(screenLook.deviceRadius)};
 }
 
@@ -767,7 +747,7 @@ export const screenStylesheet = `
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: ${screenLook.backdropColor};
+  background: ${roleVar('Scrim')};
 }
 
 :where(.fk-overlay[data-style='Sheet'], .fk-overlay[data-style='BottomSheet']) {
@@ -780,7 +760,7 @@ export const screenStylesheet = `
 
 :where(.fk-overlay[data-style='FullScreenCover']) {
   padding: 0;
-  background: ${screenLook.panelColor};
+  background: ${roleVar('RaisedSurface')};
 }
 
 :where(.fk-image) {
@@ -790,14 +770,14 @@ export const screenStylesheet = `
   margin: 0 auto;
   border-radius: 6px;
   object-fit: cover;
-  box-shadow: 0 6px 18px -8px rgb(15 23 42 / 0.45);
+  box-shadow: 0 6px 18px -8px ${roleVar('Shadow')};
 }
 
 :where(.fk-overlay .fk-button[data-keys])::after {
   content: attr(data-keys);
   margin-left: 8px;
   padding: 1px 6px;
-  border: 1px solid rgb(255 255 255 / 0.4);
+  border: 1px solid ${roleVar('Border')};
   border-radius: 4px;
   font-family: ${screenLook.monoFamily};
   font-size: 12px;
@@ -811,14 +791,14 @@ export const screenStylesheet = `
   overflow-y: auto;
   padding: ${px(screenLook.columnGap)};
   border-radius: ${px(screenLook.panelRadius)};
-  background: ${screenLook.panelColor};
-  box-shadow: 0 24px 64px -12px rgb(15 23 42 / 0.35);
+  background: ${roleVar('RaisedSurface')};
+  box-shadow: 0 24px 64px -12px ${roleVar('Shadow')};
 }
 
 :where(.fk-action-menu-opener) {
   border: 0;
   background: none;
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   font-family: inherit;
   font-size: ${px(screenLook.buttonLabelSize)};
   cursor: pointer;
@@ -840,7 +820,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-item > .fk-button[data-icon-only][data-variant='Ghost']) {
-  border-color: ${screenLook.ghostBorderColor};
+  border-color: ${roleVar('Border')};
 }
 
 :where(.fk-dock .fk-item > .fk-button[data-icon-only][data-variant='Ghost']) {
@@ -896,7 +876,7 @@ export const screenStylesheet = `
   gap: 0;
   padding: 3px;
   border-radius: 999px;
-  background: ${screenLook.trackColor};
+  background: ${roleVar('Rule')};
 }
 
 :where(.fk-row:has(> .fk-button[data-variant='Ghost'][data-current]) > .fk-button) {
@@ -905,14 +885,14 @@ export const screenStylesheet = `
   padding: 0 16px;
   border: 0;
   background: transparent;
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   font-size: 13px;
 }
 
 :where(.fk-row:has(> .fk-button[data-variant='Ghost'][data-current]) > .fk-button[data-current]) {
-  background: ${screenLook.panelColor};
-  color: ${screenLook.textColor};
-  box-shadow: 0 1px 3px rgb(15 23 42 / 0.15);
+  background: ${roleVar('RaisedSurface')};
+  color: ${roleVar('Text')};
+  box-shadow: 0 1px 3px ${roleVar('Shadow')};
 }
 
 :where(.fk-row:has(> .fk-button[data-action='GoBack'])) {
@@ -933,7 +913,7 @@ export const screenStylesheet = `
   width: min(100%, ${px(screenLook.listWidth)});
   margin-bottom: -16px;
   padding: 0 8px;
-  color: ${screenLook.textColor};
+  color: ${roleVar('Text')};
   font-size: 20px;
   font-weight: 700;
   text-align: left;
@@ -951,7 +931,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-item[data-current] .fk-item-title) {
-  color: ${screenLook.accentColor};
+  color: ${roleVar('Accent')};
 }
 
 :where(.fk-transcript) {
@@ -959,6 +939,13 @@ export const screenStylesheet = `
 }
 
 @media (max-width: 560px) {
+  :where(.fk-transcript) {
+    width: 100vw;
+    max-width: 100vw;
+    padding: 12px 10px;
+    border-radius: 0;
+  }
+
   :where(.fk-passage) {
     padding: 6px 8px;
   }
@@ -968,7 +955,7 @@ export const screenStylesheet = `
   }
 
   :where(.fk-passage-label) {
-    line-height: ${px(Math.round(screenLook.readingSize * 0.85 * 1.55))};
+    padding-top: 8px;
   }
 }
 
@@ -981,28 +968,28 @@ export const screenStylesheet = `
   width: min(100%, ${px(screenLook.listWidth)});
   height: ${px(screenLook.fieldHeight)};
   padding: 0 14px;
-  border: 1px solid ${screenLook.ghostBorderColor};
+  border: 1px solid ${roleVar('Border')};
   border-radius: 12px;
-  background: ${screenLook.fieldColor};
-  color: ${screenLook.textColor};
+  background: ${roleVar('Field')};
+  color: ${roleVar('Text')};
   font-family: inherit;
   font-size: max(${px(screenLook.bodySize)}, 1rem);
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
 
 :where(.fk-text-input::placeholder) {
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
 }
 
 :where(.fk-text-input:hover) {
-  border-color: ${screenLook.dimColor};
+  border-color: ${roleVar('QuietText')};
 }
 
 :where(.fk-text-input:focus) {
-  border-color: ${screenLook.accentColor};
+  border-color: ${roleVar('Accent')};
   outline: none;
-  background: ${screenLook.panelColor};
-  box-shadow: 0 0 0 3px ${screenLook.accentSoftColor};
+  background: ${roleVar('RaisedSurface')};
+  box-shadow: 0 0 0 3px ${roleVar('AccentSoft')};
 }
 
 :where(.fk-item-check) {
@@ -1012,7 +999,7 @@ export const screenStylesheet = `
   height: ${px(screenLook.checkSize)};
   margin: 0 0 0 8px;
   padding: 0;
-  border: 2px solid ${screenLook.checkBorderColor};
+  border: 2px solid ${roleVar('Border')};
   border-radius: 999px;
   background: transparent center / 14px no-repeat;
   cursor: pointer;
@@ -1020,7 +1007,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-item-check:hover) {
-  border-color: ${screenLook.accentColor};
+  border-color: ${roleVar('Accent')};
 }
 
 :where(.fk-item-check:active) {
@@ -1028,13 +1015,13 @@ export const screenStylesheet = `
 }
 
 :where(.fk-item-check:focus-visible) {
-  outline: 2px solid ${screenLook.focusColor};
+  outline: 2px solid ${roleVar('Focus')};
   outline-offset: 2px;
 }
 
 :where(.fk-item-check[data-checked]) {
-  border-color: ${screenLook.accentColor};
-  background-color: ${screenLook.accentColor};
+  border-color: ${roleVar('Accent')};
+  background-color: ${roleVar('Accent')};
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.4l2.6 2.6L11 4.3' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
@@ -1044,7 +1031,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-item:has(.fk-item-check[data-checked]) .fk-item-title) {
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   font-weight: 500;
 }
 
@@ -1069,8 +1056,8 @@ export const screenStylesheet = `
   flex-direction: column;
   gap: 10px;
   padding: 10px 0 6px;
-  border-bottom: 1px solid ${screenLook.trackColor};
-  background: ${screenLook.panelColor};
+  border-bottom: 1px solid ${roleVar('Rule')};
+  background: ${roleVar('RaisedSurface')};
 }
 
 :where(.fk-list-filter) {
@@ -1078,16 +1065,16 @@ export const screenStylesheet = `
   width: 100%;
   height: ${px(screenLook.fieldHeight)};
   padding: 0 14px;
-  border: 1px solid ${screenLook.ghostBorderColor};
+  border: 1px solid ${roleVar('Border')};
   border-radius: 12px;
-  background: ${screenLook.fieldColor};
-  color: ${screenLook.textColor};
+  background: ${roleVar('Field')};
+  color: ${roleVar('Text')};
   font: inherit;
   font-size: ${px(screenLook.bodySize)};
 }
 
 :where(.fk-list-filter:focus-visible) {
-  outline: 2px solid ${screenLook.focusColor};
+  outline: 2px solid ${roleVar('Focus')};
   outline-offset: 1px;
 }
 
@@ -1100,7 +1087,7 @@ export const screenStylesheet = `
 
 :where(.fk-item-column, .fk-list-head-column) {
   flex: 0 0 ${px(screenLook.listColumnWidth)};
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -1117,7 +1104,7 @@ export const screenStylesheet = `
 :where(.fk-list-empty) {
   margin: 0;
   padding: 20px 8px;
-  color: ${screenLook.dimColor};
+  color: ${roleVar('QuietText')};
   text-align: left;
 }
 
@@ -1133,8 +1120,8 @@ export const screenStylesheet = `
 
 :where(.fk-list-frame .fk-item[data-current]) {
   border-radius: 8px;
-  background: ${screenLook.accentSoftColor};
-  box-shadow: inset 3px 0 0 ${screenLook.accentColor};
+  background: ${roleVar('AccentSoft')};
+  box-shadow: inset 3px 0 0 ${roleVar('Accent')};
 }
 
 :where(.fk-list-frame .fk-item[data-current] .fk-item-title) {
@@ -1142,7 +1129,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-list-frame .fk-item[data-current] .fk-item-line) {
-  color: #9a3412;
+  color: ${roleVar('ReadingCurrentWord')};
 }
 
 :where(.fk-list:has(+ .fk-transcript)) {
@@ -1151,9 +1138,9 @@ export const screenStylesheet = `
   z-index: 2;
   box-sizing: border-box;
   width: min(100%, ${px(screenLook.readingWidth)});
-  border: 1px solid ${screenLook.ghostBorderColor};
+  border: 1px solid ${roleVar('Border')};
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.92);
+  background: ${roleVar('Veil')};
   backdrop-filter: blur(14px);
 }
 
@@ -1249,7 +1236,7 @@ export const screenStylesheet = `
 
   :where(.fk-overlay[data-style='Drawer'] > *) {
     pointer-events: auto;
-    box-shadow: 0 0 0 1px ${screenLook.trackColor}, 0 0 40px -16px rgb(15 23 42 / 0.3);
+    box-shadow: 0 0 0 1px ${roleVar('Rule')}, 0 0 40px -16px ${roleVar('Shadow')};
   }
 
   :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Left'])) {
