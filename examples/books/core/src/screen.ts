@@ -19,6 +19,7 @@ import {
   Progress,
   Row,
   Text,
+  Toolbar,
   type UiNode,
   actionButtons,
 } from 'foldkit/renderers'
@@ -1069,33 +1070,33 @@ const collapsedControlsOf = (
   model: Model,
   title: Title,
   loaded: Loaded,
-): UiNode =>
-  List({
-    label: 'Player',
-    items: [
-      {
-        key: `controls-${title.slug}`,
-        title: Option.getOrElse(
-          chapterNameAt(model, title.slug, placeOf(loaded)),
-          () => title.name,
-        ),
-        lines: [
-          TranscriptPlayer.leftWordsOf(title.durationMs - placeOf(loaded)),
+): UiNode => {
+  const entries = entriesOf(model)
+  return Toolbar({
+    start: [
+      List({
+        label: 'Player',
+        items: [
+          {
+            key: `controls-${title.slug}`,
+            title: Option.getOrElse(
+              chapterNameAt(model, title.slug, placeOf(loaded)),
+              () => title.name,
+            ),
+            lines: [
+              TranscriptPlayer.leftWordsOf(title.durationMs - placeOf(loaded)),
+            ],
+            ...imageOf(title),
+            progress: { value: placeOf(loaded), max: title.durationMs },
+            ...offeredActionOf(entries, ExpandControls.tag),
+          },
         ],
-        ...imageOf(title),
-        progress: { value: placeOf(loaded), max: title.durationMs },
-        ...offeredActionOf(entriesOf(model), ExpandControls.tag),
-        trailing: [
-          ...TranscriptPlayer.miniTransportOf(loaded.player, entriesOf(model)),
-          ...withIcon(
-            buttonsOf(model, [ExpandControls], 'Ghost'),
-            'Expand',
-            true,
-          ),
-        ],
-      },
+      }),
     ],
+    center: TranscriptPlayer.miniTransportOf(loaded.player, entries),
+    end: withIcon(buttonsOf(model, [ExpandControls], 'Ghost'), 'Expand', true),
   })
+}
 
 const expandedControlsOf = (model: Model, loaded: Loaded): UiNode =>
   Column(
