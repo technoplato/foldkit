@@ -893,14 +893,77 @@ const unknownAnswer = <Model, Message>(
   )
 }
 
+// ALIASES
+
+/**
+ * A typed command with its first word as the Action's own: the word
+ * itself when an Action is called that and takes what follows, nothing
+ * for an Action that takes nothing and something for one that chooses;
+ * else the word of the Action that answers to it as another name, the one
+ * that chooses when something follows and the one that takes nothing when
+ * nothing does. A word nobody answers to comes back as it is. So `play`
+ * stays Play while `play small hours` and `play-title small hours` are
+ * `listen small hours`.
+ *
+ * @example
+ * ```typescript
+ * canonicalCommandOf(entries, 'play-title small hours') // 'listen small hours'
+ * ```
+ */
+export const canonicalCommandOf = (
+  entries: ReadonlyArray<Entry>,
+  command: string,
+): string => {
+  const [word = '', ...rest] = command.split(' ')
+  const hasMore = rest.length > 0
+  const takes = (entry: Entry): boolean =>
+    hasMore ? Option.isSome(entry.maybeChoices) : true
+  const isOwn = (entry: Entry): boolean => commandOf(entry.tag) === word
+  const isAlias = (entry: Entry): boolean =>
+    Array.some(entry.aliases, alias => commandOf(alias) === word)
+  if (Array.some(entries, entry => isOwn(entry) && takes(entry))) {
+    return command
+  }
+  const named = Array.filter(entries, isAlias)
+  return Option.match(
+    Option.orElse(
+      Array.findFirst(
+        named,
+        entry => Option.isSome(entry.maybeChoices) === hasMore,
+      ),
+      () =>
+        Array.some(entries, isOwn) ? Option.none<Entry>() : Array.head(named),
+    ),
+    {
+      onNone: () => command,
+      onSome: entry => Array.join([commandOf(entry.tag), ...rest], ' '),
+    },
+  )
+}
+
 // PRESS
 
 const pressCommand = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
-  command: string,
+  typedCommand: string,
   press: (tag: string) => boolean,
   options: ProgramCommandOptions = {},
+): CliDaemonPaintedResult =>
+  pressCanonical(
+    bound,
+    name,
+    canonicalCommandOf(bound.entries(), typedCommand),
+    press,
+    options,
+  )
+
+const pressCanonical = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  name: string,
+  command: string,
+  press: (tag: string) => boolean,
+  options: ProgramCommandOptions,
 ): CliDaemonPaintedResult => {
   const [word = '', ...rest] = command.split(' ')
   const typed = rest.join(' ')

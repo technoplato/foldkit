@@ -72,6 +72,7 @@ describe('Catalog.entries', () => {
       keys: ['+', '='],
       availability: Catalog.Enabled(),
       isPayloadFree: true,
+      aliases: [],
       maybeChoices: Option.none(),
     })
     expect(reset?.availability).toEqual(

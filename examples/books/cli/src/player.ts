@@ -54,6 +54,7 @@ import {
   type HostCommand,
   type ProgramCommandOptions,
   type TerminalPaintReporting,
+  canonicalCommandOf,
   followLive,
   followTopicOf,
   isTerminalViewRequest,
@@ -978,7 +979,10 @@ export const makeBooksPlayer = (
         isTerminalViewRequest(flags)
           ? terminal.paint(flags, client)
           : Effect.sync(brief),
-      do: (token, flags, client) => {
+      do: (typed, flags, client) => {
+        // NOTE: An Action's other names are read first, so `play` with a
+        // title is `listen` with it for everything below.
+        const token = canonicalCommandOf(bound.entries(), typed)
         const words = wordsOf(token)
         const head = Option.getOrElse(Array.head(words), () => '')
         if (isTerminalViewRequest(flags)) {
