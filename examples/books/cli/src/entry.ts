@@ -25,6 +25,8 @@
  *   books search "lit at dusk"     where those words are spoken, with links
  *   books search lamp --json       the same as one line of JSON
  *   books open <a link to a word>  go to that word, paused
+ *   books link                     the whole link to the word being read
+ *   books play-from <link or time> play from the word a link names, or a time
  *   books tui                      the player, live, in this terminal
  *   books stop                     pause, save your place, end the player
  *   books actions                  every command

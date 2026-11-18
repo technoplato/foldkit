@@ -66,6 +66,8 @@ export const usageText = [
   '  books tui                Starts the player and opens it live in this terminal',
   '  books search "<words>"   Finds where words are spoken, with links',
   '  books follow words       Prints the words as they are read',
+  '  books link               Prints the link to the word being read',
+  '  books play-from <link>   Plays from the word a link names, or from a time',
   '  books devices            Lists the audio outputs, by number',
   '  books login              Signs in to Cloudflare Access',
   '  books stop               Pauses, saves your place, and ends the player',
