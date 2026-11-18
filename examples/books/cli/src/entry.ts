@@ -4,7 +4,9 @@
  * keeps playing after the command returns, and prints what it is doing
  * and what to run next:
  *
- *   books                          what is playing, and commands to copy
+ *   books                          what is playing, and commands to copy;
+ *                                  with no player running, how to use it,
+ *                                  and it starts none
  *   books help                     the same
  *   books listen a-new-earth       play a title from your place
  *   books pause                    pause; `books play` plays again
@@ -42,7 +44,13 @@ import {
 import { spawnSync } from 'node:child_process'
 
 import { listAudioDevices, paintAudioDevices } from './devices.js'
-import { askPlayer, followPlayer, showPlayerTui, stopPlayer } from './view.js'
+import {
+  askPlayer,
+  followPlayer,
+  showBriefOrUsage,
+  showPlayerTui,
+  stopPlayer,
+} from './view.js'
 
 const hostedOrigin = 'https://books.pisspoursoftware.xyz'
 
@@ -78,8 +86,8 @@ if (maybeFollow !== undefined) {
 } else if (request._tag === 'Watch') {
   const { runWatch } = await import('./inProcess.js')
   await runWatch()
-} else if (request._tag === 'Show') {
-  await askPlayer({ _tag: 'Do', token: 'help', flags: request.flags })
+} else if (request._tag === 'Show' || head === 'help') {
+  await showBriefOrUsage(request.flags)
 } else if (head === 'devices') {
   process.stdout.write(`${paintAudioDevices(listAudioDevices())}\n`)
 } else if (head === 'login') {
