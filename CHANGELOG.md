@@ -4,6 +4,75 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 3:53:31 a.m. EST — `b77df6b3b027` feat(foldkit): green: the seek landing and Enter again in the Foldkit HTML painter (Scribe #2494)
+
+- **Implementation commit:** `b77df6b3b027c143fc9d39c80b8c8586fb24a8d1`
+- **Change:** green: the seek landing and Enter again in the Foldkit HTML painter (Scribe #2494)
+- **Details:**
+  - A seek bar with landings is painted in a wrapper that takes no room of its own, with the landings on it and a place to name them; its mount names the landing under a drag and puts the name away on release, and the bar's own handler still presses the seek. A text field with an again action carries the text it shows; its mount notices Enter on unchanged, non-empty text and sends the field an event t
+- **Files:**
+  - `packages/foldkit/src/interaction/readAlongStyles.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/htmlEdge.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/htmlSeekAndAgain.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 3:53:31 a.m. EST — `f78e102ceb4c` feat(foldkit): green: reading away from the voice in the Foldkit HTML painter (Scribe #2494)
+
+- **Implementation commit:** `f78e102ceb4c57a3a50e2bf8110a67b764a0df8b`
+- **Change:** green: reading away from the voice in the Foldkit HTML painter (Scribe #2494)
+- **Details:**
+  - A painted Transcript says whether its words follow the voice and which word to show. Its mount keeps the spoken word in the middle while they follow, inside the Transcript's own scroll area when it has one; leaves the words alone for a moment after the reader scrolls; shows the word the Transcript names; and, when a scroll has taken the spoken word out of the middle, sends the Transcript an event
+- **Files:**
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/htmlEdge.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 3:53:31 a.m. EST — `0774ff895c2d` feat(foldkit): green: a word's menu in the Foldkit HTML painter (Scribe #2494)
+
+- **Implementation commit:** `0774ff895c2dd68d1afe2618b3858a2d61aff0e1`
+- **Change:** green: a word's menu in the Foldkit HTML painter (Scribe #2494)
+- **Details:**
+  - Where a Transcript offers a word menu, each painted word asks for it on a right click through the view's own handler, and the Transcript's mount opens it on a long press with a finger or a pen by sending the word that same right click, so the Program is always told through the view's current handler; a press that moves opens nothing, and the tap that ends a long press does not also play from the w
+- **Files:**
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/htmlEdge.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/htmlEdge.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/htmlWordMenu.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 3:53:31 a.m. EST — `d7c5c537a1eb` feat(foldkit): green: the Foldkit HTML painter moves the spoken word between reports (Scribe #2494)
+
+- **Implementation commit:** `d7c5c537a1eb434a4d7e20482258f6dc2a703fe1`
+- **Change:** green: the Foldkit HTML painter moves the spoken word between reports (Scribe #2494)
+- **Details:**
+  - A Transcript with a clock is painted with the clock on its element, each word's start on the word, and one mount, in the new renderers/htmlEdge: it marks the word the clock has reached and its passage, about 25 times a second while the clock runs, once when the clock is told something new while it stands still, and not otherwise; it reads the words from the page once, and again only after the pass
+- **Files:**
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/htmlEdge.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/htmlEdge.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 2:33:19 a.m. EST — `48684bdc14f8` feat(foldkit): green: the Foldkit HTML painter marks what a search found (Scribe #2494)
+
+- **Implementation commit:** `48684bdc14f8aefc106826ec921dad722a2edddc`
+- **Change:** green: the Foldkit HTML painter marks what a search found (Scribe #2494)
+- **Details:**
+  - In the HTML painter a word carries its token, a found word and the match a person is on carry data-mark, and a match row sets the found part of its title apart.
+- **Files:**
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 2:16:42 a.m. EST — `64c83e9cd55e` feat(books): green: the words for a search come from Instant in parts, all asked for at once (Scribe #2494)
 
 - **Implementation commit:** `64c83e9cd55e4b6b27f53de8d9777c8c33616469`

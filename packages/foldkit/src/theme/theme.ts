@@ -27,7 +27,10 @@ export type Mode = typeof Mode.Type
  * read along with: their
  * ground, the words already spoken, the words to come, the word being
  * spoken and its ground, the ground of the paragraph being read, and the
- * rule beside it.
+ * rule beside it; then a stronger field, the strong, filled and soft
+ * forms of danger, a positive color and its soft ground, a soft warning,
+ * and the ground of a bar. A domain adds what is its own beside these
+ * with {@link withOwnRoles}.
  */
 export const Role = S.Literals([
   'PageGround',
@@ -64,6 +67,14 @@ export const Role = S.Literals([
   'ReadingCurrentWordGround',
   'ReadingCurrentGround',
   'ReadingRule',
+  'FieldStrong',
+  'DangerStrong',
+  'DangerFill',
+  'DangerSoft',
+  'Positive',
+  'PositiveSoft',
+  'WarningSoft',
+  'BarGround',
 ])
 /** What a color is for. */
 export type Role = typeof Role.Type
@@ -122,6 +133,17 @@ export const defaultTheme: Theme = {
     dark: 'rgba(255, 255, 255, 0.06)',
   },
   ReadingRule: { light: '#ea580c', dark: '#6ea0ff' },
+  FieldStrong: { light: '#e5e7eb', dark: '#2a302d' },
+  DangerStrong: { light: '#991b1b', dark: '#fecaca' },
+  DangerFill: { light: '#b91c1c', dark: '#b91c1c' },
+  DangerSoft: { light: '#fee2e2', dark: '#3b1414' },
+  Positive: { light: '#15803d', dark: '#86efac' },
+  PositiveSoft: { light: '#dcfce7', dark: '#12301d' },
+  WarningSoft: { light: '#fef3c7', dark: '#3a2a0c' },
+  BarGround: {
+    light: 'rgba(243, 244, 246, 0.92)',
+    dark: 'rgba(11, 13, 12, 0.9)',
+  },
 }
 
 /**
@@ -172,6 +194,49 @@ export const cssVariableOf = (role: Role): string =>
  */
 export const roleVar = (role: Role): string => `var(${cssVariableOf(role)})`
 
+const kebabOf = (name: string): string =>
+  pipe(name, String.replace(/([a-z0-9])([A-Z])/g, '$1-$2'), String.toLowerCase)
+
+/**
+ * Roles a domain adds beside the library's: what a color is for in that
+ * domain alone, such as the badge of a recording in progress. Each has a
+ * light and a dark color, is declared with the theme, and is named by a
+ * rule with {@link ownRoleVar}.
+ */
+export type OwnRoles = Readonly<Record<string, RoleColors>>
+
+const isLibraryRole = (name: string): boolean =>
+  Array.some(Role.literals, role => role === name)
+
+/**
+ * A domain's own roles, checked: a name the library already uses is
+ * refused, so a domain overrides a library role with {@link withRoles}
+ * and never shadows one by accident.
+ *
+ * @example
+ * ```typescript
+ * const own = withOwnRoles({ BadgeRecording: { light: '#b50012', dark: '#ffa198' } })
+ * themeStylesheet(theme, own)
+ * ```
+ */
+export const withOwnRoles = (roles: OwnRoles): OwnRoles => {
+  const taken = Array.filter(Record.keys(roles), isLibraryRole)
+  if (Array.isReadonlyArrayNonEmpty(taken)) {
+    throw new Error(
+      `The library already has a role called ${Array.join(taken, ', ')}. Give it a color with withRoles, or name the domain's role something else.`,
+    )
+  }
+  return roles
+}
+
+/** The CSS variable a domain's own role is declared as: `--fk-own-badge-recording`. */
+export const ownCssVariableOf = (name: string): string =>
+  `--fk-own-${kebabOf(name)}`
+
+/** How a rule names a domain's own role: `var(--fk-own-badge-recording)`. */
+export const ownRoleVar = (name: string): string =>
+  `var(${ownCssVariableOf(name)})`
+
 /** One CSS declaration per role, for one mode. */
 export const cssVariablesOf = (
   theme: Theme,
@@ -187,9 +252,16 @@ export const cssVariablesOf = (
 /** The attribute a DOM painter sets from the Model's mode. */
 export const modeAttribute = 'data-fk-mode'
 
-const declarationsOf = (theme: Theme, mode: Mode): string =>
+const ownVariablesOf = (own: OwnRoles, mode: Mode): ReadonlyArray<string> =>
+  Array.map(
+    Record.toEntries(own),
+    ([name, colors]) =>
+      `${ownCssVariableOf(name)}: ${mode === 'Dark' ? colors.dark : colors.light};`,
+  )
+
+const declarationsOf = (theme: Theme, own: OwnRoles, mode: Mode): string =>
   pipe(
-    cssVariablesOf(theme, mode),
+    [...cssVariablesOf(theme, mode), ...ownVariablesOf(own, mode)],
     Array.map(declaration => `  ${declaration}`),
     Array.join('\n'),
   )
@@ -198,7 +270,8 @@ const declarationsOf = (theme: Theme, mode: Mode): string =>
  * The stylesheet that declares a theme for the DOM: every role as a CSS
  * variable, light by default, and dark on and under an element whose
  * `data-fk-mode` is `Dark`. The DOM painter sets that attribute from the
- * mode in the Model; nothing here asks the system which mode it is in.
+ * mode in the Model; nothing here asks the system which mode it is in. A
+ * domain's own roles, when given, are declared beside the library's.
  *
  * @example
  * ```typescript
@@ -206,9 +279,9 @@ const declarationsOf = (theme: Theme, mode: Mode): string =>
  * // ':where(:root) {\n  --fk-page-ground: #ffffff;\n  …\n}\n\n:where([data-fk-mode="Dark"]) {\n  --fk-page-ground: #0b0d0c;\n  …\n}'
  * ```
  */
-export const themeStylesheet = (theme: Theme): string =>
+export const themeStylesheet = (theme: Theme, own: OwnRoles = {}): string =>
   [
-    `:where(:root) {\n${declarationsOf(theme, 'Light')}\n}`,
-    `:where([${modeAttribute}="Light"]) {\n${declarationsOf(theme, 'Light')}\n}`,
-    `:where([${modeAttribute}="Dark"]) {\n${declarationsOf(theme, 'Dark')}\n}`,
+    `:where(:root) {\n${declarationsOf(theme, own, 'Light')}\n}`,
+    `:where([${modeAttribute}="Light"]) {\n${declarationsOf(theme, own, 'Light')}\n}`,
+    `:where([${modeAttribute}="Dark"]) {\n${declarationsOf(theme, own, 'Dark')}\n}`,
   ].join('\n\n')

@@ -1,6 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 
-import { type Html, html } from '../html/index.js'
+import { type Html, OnCustomEvent, html } from '../html/index.js'
 import {
   type KeyPlatform,
   type MenuView,
@@ -15,10 +15,18 @@ import { screenStylesheet } from '../interaction/screenStyles.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
+import {
+  againEventName,
+  leftPlayheadEventName,
+  seekFieldMount,
+  textAgainMount,
+  transcriptMount,
+  wordMenuMount,
+} from './htmlEdge.js'
 import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
-import type { BoxNode, TextPart, UiNode } from './types.js'
+import type { BoxNode, TextPart, TranscriptNode, UiNode } from './types.js'
 
 const browserKeyPlatform = (): KeyPlatform =>
   typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
@@ -34,6 +42,73 @@ export const paintHtml = <Message>(
   toMessage: (token: string) => Message | undefined,
 ): Html => {
   const h = html<Message>()
+  const leaveAttributes = (transcript: TranscriptNode) => {
+    const maybeLeave =
+      transcript.leaveAction === undefined
+        ? undefined
+        : toMessage(transcript.leaveAction)
+    return maybeLeave === undefined
+      ? []
+      : [
+          h.DataAttribute('leave', 'true'),
+          OnCustomEvent<Message>({
+            name: leftPlayheadEventName,
+            f: () => maybeLeave,
+          }),
+        ]
+  }
+
+  // NOTE: the menu a Program holds open on one word. The view draws its
+  // items and a backdrop that closes it; the edge puts it by its word and
+  // reports Escape. Whether it is open is the Program's.
+  const paintWordMenu = (transcript: TranscriptNode): ReadonlyArray<Html> => {
+    const menu = transcript.wordMenu
+    if (menu === undefined) {
+      return []
+    }
+    const dismiss = toMessage(menu.dismissAction)
+    return [
+      h.div(
+        [
+          h.Class('fk-word-menu-backdrop'),
+          h.AriaHidden(true),
+          ...(dismiss === undefined ? [] : [h.OnClick(dismiss)]),
+        ],
+        [],
+      ),
+      h.div(
+        [
+          h.Class('fk-word-menu'),
+          h.Role('menu'),
+          ...(dismiss === undefined
+            ? []
+            : [h.OnMount(wordMenuMount<Message>(menu.token, dismiss))]),
+        ],
+        Array.map(menu.items, item => {
+          const message = toMessage(item.action)
+          return h.button(
+            [
+              h.Type('button'),
+              h.Role('menuitem'),
+              h.Class('fk-word-menu-item'),
+              ...(message === undefined ? [] : [h.OnClick(message)]),
+            ],
+            [
+              ...(item.icon === undefined
+                ? []
+                : [
+                    h.span(
+                      [h.Class('fk-icon'), h.AriaHidden(true)],
+                      [iconGlyphs[item.icon]],
+                    ),
+                  ]),
+              item.label,
+            ],
+          )
+        }),
+      ),
+    ]
+  }
   const paintPart = (part: TextPart): Html | string =>
     M.value(part).pipe(
       M.withReturnType<Html | string>(),
@@ -219,6 +294,10 @@ export const paintHtml = <Message>(
               ),
               () => new Error(`nothing to submit: ${input.action ?? ''}`),
             )
+          const againMessage =
+            input.againAction === undefined
+              ? undefined
+              : toMessage(input.againAction)
           const attrs = [
             h.Type('text'),
             h.Class('fk-text-input'),
@@ -234,6 +313,19 @@ export const paintHtml = <Message>(
             ...(input.action === undefined
               ? []
               : [h.EnterKeyHint('done'), h.OnChange(submittedMessage)]),
+            // NOTE: Enter on text the field already shows presses its again
+            // action, such as the next match. The edge notices the key and
+            // the unchanged text, and the view answers its event.
+            ...(againMessage === undefined
+              ? []
+              : [
+                  h.DataAttribute('shown', input.value),
+                  OnCustomEvent<Message>({
+                    name: againEventName,
+                    f: () => againMessage,
+                  }),
+                  h.OnMount(textAgainMount<Message>()),
+                ]),
           ]
           return h.input(attrs)
         },
@@ -334,7 +426,24 @@ export const paintHtml = <Message>(
                     h.span(
                       [h.Class('fk-item-body')],
                       [
-                        h.span([h.Class('fk-item-title')], [item.title]),
+                        h.span(
+                          [h.Class('fk-item-title')],
+                          item.titleMark === undefined
+                            ? [item.title]
+                            : [
+                                item.title.slice(0, item.titleMark.start),
+                                h.mark(
+                                  [h.Class('fk-item-mark')],
+                                  [
+                                    item.title.slice(
+                                      item.titleMark.start,
+                                      item.titleMark.end,
+                                    ),
+                                  ],
+                                ),
+                                item.title.slice(item.titleMark.end),
+                              ],
+                        ),
                         ...Array.map(item.lines ?? [], line =>
                           h.span([h.Class('fk-item-line')], [line]),
                         ),
@@ -369,7 +478,7 @@ export const paintHtml = <Message>(
             }
             throw new Error(`unknown seek: ${seek.action}:${value}`)
           }
-          return h.input([
+          const bar = h.input([
             h.Type('range'),
             h.Class('fk-seek'),
             h.Min((seek.min ?? 0).toString()),
@@ -382,57 +491,135 @@ export const paintHtml = <Message>(
               ? [h.Disabled(true)]
               : [h.OnChange(messageAt)]),
           ])
+          // NOTE: a bar that names what a drag lands on is painted beside a
+          // place for the name; the view says the landings, and the edge
+          // shows the one under the drag. A bar with none is the bar alone.
+          return seek.landings === undefined || seek.landings.length === 0
+            ? bar
+            : h.span(
+                [
+                  h.Class('fk-seek-field'),
+                  h.DataAttribute('landings', JSON.stringify(seek.landings)),
+                  h.OnMount(seekFieldMount<Message>()),
+                ],
+                [
+                  bar,
+                  h.output([h.Class('fk-seek-landing'), h.Hidden(true)], []),
+                ],
+              )
         },
         Transcript: transcript =>
           h.section(
-            [h.Class('fk-transcript'), h.AriaLabel(transcript.label)],
-            Array.match(transcript.passages, {
-              onEmpty: () => [
-                h.p([h.Class('fk-transcript-empty')], [transcript.emptyText]),
-              ],
-              onNonEmpty: passages =>
-                Array.map(passages, passage =>
-                  h.article(
-                    [
-                      h.Class('fk-passage'),
-                      ...(passage.isCurrent === true
-                        ? [h.DataAttribute('current', 'true')]
-                        : []),
-                    ],
-                    [
-                      ...(passage.heading === undefined
-                        ? []
-                        : [
-                            h.h3(
-                              [h.Class('fk-passage-heading')],
-                              [passage.heading],
-                            ),
-                          ]),
-                      h.span([h.Class('fk-passage-label')], [passage.label]),
-                      h.p(
-                        [h.Class('fk-passage-words')],
-                        Array.map(passage.words, word => {
-                          const message = toMessage(
-                            `${transcript.action}:${word.token}`,
-                          )
-                          return h.span(
-                            [
-                              h.Class('fk-word'),
-                              ...(word.isCurrent === true
-                                ? [h.DataAttribute('current', 'true')]
-                                : []),
-                              ...(message === undefined
-                                ? []
-                                : [h.OnClick(message)]),
-                            ],
-                            [`${word.text} `],
-                          )
-                        }),
-                      ),
-                    ],
+            [
+              h.Class('fk-transcript'),
+              h.AriaLabel(transcript.label),
+              // NOTE: the view says the clock and whether a word has a menu;
+              // the edge reads on from the clock, moving the mark on the
+              // word between reports, and opens the menu on a long press.
+              ...(transcript.clock === undefined
+                ? []
+                : [
+                    h.DataAttribute(
+                      'clock-place-ms',
+                      transcript.clock.placeMs.toString(),
+                    ),
+                    h.DataAttribute(
+                      'clock-at-ms',
+                      transcript.clock.atMs.toString(),
+                    ),
+                    h.DataAttribute(
+                      'clock-rate',
+                      transcript.clock.rate.toString(),
+                    ),
+                  ]),
+              ...(transcript.wordMenuAction === undefined
+                ? []
+                : [h.DataAttribute('word-menu', 'true')]),
+              // NOTE: whether the words follow the voice, and which word to
+              // show, are the Program's; the edge keeps the spoken word in
+              // the middle and sends this event when the reader scrolls it
+              // away, which the view answers with the leave press.
+              h.DataAttribute(
+                'following',
+                transcript.isFollowing === false ? 'false' : 'true',
+              ),
+              ...(transcript.focusToken === undefined
+                ? []
+                : [h.DataAttribute('focus-token', transcript.focusToken)]),
+              ...leaveAttributes(transcript),
+              h.OnMount(transcriptMount<Message>()),
+            ],
+            [
+              ...Array.match(transcript.passages, {
+                onEmpty: () => [
+                  h.p([h.Class('fk-transcript-empty')], [transcript.emptyText]),
+                ],
+                onNonEmpty: passages =>
+                  Array.map(passages, passage =>
+                    h.article(
+                      [
+                        h.Class('fk-passage'),
+                        ...(passage.isCurrent === true
+                          ? [h.DataAttribute('current', 'true')]
+                          : []),
+                      ],
+                      [
+                        ...(passage.heading === undefined
+                          ? []
+                          : [
+                              h.h3(
+                                [h.Class('fk-passage-heading')],
+                                [passage.heading],
+                              ),
+                            ]),
+                        h.span([h.Class('fk-passage-label')], [passage.label]),
+                        h.p(
+                          [h.Class('fk-passage-words')],
+                          Array.map(passage.words, word => {
+                            const message = toMessage(
+                              `${transcript.action}:${word.token}`,
+                            )
+                            const menuMessage =
+                              transcript.wordMenuAction === undefined
+                                ? undefined
+                                : toMessage(
+                                    `${transcript.wordMenuAction}:${word.token}`,
+                                  )
+                            return h.span(
+                              [
+                                h.Class('fk-word'),
+                                h.DataAttribute('token', word.token),
+                                ...(word.startMs === undefined
+                                  ? []
+                                  : [
+                                      h.DataAttribute(
+                                        'start-ms',
+                                        word.startMs.toString(),
+                                      ),
+                                    ]),
+                                ...(word.isCurrent === true
+                                  ? [h.DataAttribute('current', 'true')]
+                                  : []),
+                                ...(word.mark === undefined
+                                  ? []
+                                  : [h.DataAttribute('mark', word.mark)]),
+                                ...(message === undefined
+                                  ? []
+                                  : [h.OnClick(message)]),
+                                ...(menuMessage === undefined
+                                  ? []
+                                  : [h.OnContextMenu(menuMessage)]),
+                              ],
+                              [`${word.text} `],
+                            )
+                          }),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-            }),
+              }),
+              ...paintWordMenu(transcript),
+            ],
           ),
         DeviceShell: shell =>
           h.div(
