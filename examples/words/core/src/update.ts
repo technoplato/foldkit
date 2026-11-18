@@ -14,6 +14,12 @@ import {
 import { Command } from 'foldkit'
 import * as Dom from 'foldkit/dom'
 import { load, pushUrl, replaceUrl } from 'foldkit/navigation'
+import {
+  type ScrubDirection,
+  type ScrubUnit,
+  wordAtAddress,
+  wordStepOf,
+} from 'foldkit/renderers'
 import { evo } from 'foldkit/struct'
 import { toString as urlToString } from 'foldkit/url'
 
@@ -128,6 +134,7 @@ import {
 } from './model.js'
 import type { WordsOrigin } from './origin.js'
 import * as Questions from './questions/index.js'
+import { type ReadAlongPlayback, readAlongOf } from './readAlong.js'
 import type {
   CaptureGap,
   LiveBeat,
@@ -1140,6 +1147,69 @@ const seekTo = (ready: ReadyPlayback, seconds: number): ReadyReturn =>
         }),
         [],
       ]
+
+/** How far into a word a step lands, so the place is on the word itself. */
+const INTO_WORD_SECONDS = 0.001
+
+const stillAt = (ready: ReadyPlayback): ReadAlongPlayback => ({
+  positionSeconds: displayedPositionOf(ready),
+  isPlaying: false,
+  reportedAtMs: 0,
+  rate: 1,
+})
+
+/**
+ * A step through the recording from the word at the place: to the next or
+ * the previous word, or by paragraph, to the start of the next section,
+ * and going back to the start of this one, or of the one before when
+ * already on it. It is the library's shared step over the recording as a
+ * Transcript, so every Client of the library steps the same way. From
+ * before the first word, a step on plays from it; past either end it
+ * does nothing.
+ */
+const steppedBy = (
+  ready: ReadyPlayback,
+  unit: ScrubUnit,
+  direction: ScrubDirection,
+): ReadyReturn => {
+  const transcript = readAlongOf(ready.detail.sections, stillAt(ready))
+  const maybeToken = pipe(
+    wordAtAddress(
+      transcript,
+      displayedPositionOf(ready) * MILLISECONDS_PER_SECOND,
+    ),
+    Option.match({
+      onNone: () =>
+        direction === 'Next'
+          ? pipe(
+              transcript.passages,
+              Array.flatMap(passage => passage.words),
+              Array.head,
+            )
+          : Option.none(),
+      onSome: here => wordStepOf(transcript, here.token, unit, direction),
+    }),
+    Option.map(word => word.token),
+  )
+  // NOTE: the seek goes a millisecond into the word, from the word's own
+  // start. An audio element answers a seek with a time that can fall a
+  // hair before the time asked for, which would leave the place on the
+  // word before; a millisecond in, it is on the word.
+  return pipe(
+    maybeToken,
+    Option.flatMap(token =>
+      pipe(
+        ready.detail.sections,
+        Array.flatMap(section => section.words),
+        Array.findFirst(word => word.id === token),
+      ),
+    ),
+    Option.match({
+      onNone: (): ReadyReturn => [ready, []],
+      onSome: word => seekTo(ready, word.startSeconds + INTO_WORD_SECONDS),
+    }),
+  )
+}
 
 const startForRequest = (
   detail: RecordingDetail,
@@ -3164,6 +3234,20 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ),
           M.when('SkipForward', () =>
             updateAudio(model, ready => skipBy(ready, SKIP_SECONDS)),
+          ),
+          M.when('PreviousWord', () =>
+            updateAudio(model, ready => steppedBy(ready, 'Word', 'Previous')),
+          ),
+          M.when('NextWord', () =>
+            updateAudio(model, ready => steppedBy(ready, 'Word', 'Next')),
+          ),
+          M.when('PreviousParagraph', () =>
+            updateAudio(model, ready =>
+              steppedBy(ready, 'Paragraph', 'Previous'),
+            ),
+          ),
+          M.when('NextParagraph', () =>
+            updateAudio(model, ready => steppedBy(ready, 'Paragraph', 'Next')),
           ),
           M.when('NewRecording', () =>
             update(

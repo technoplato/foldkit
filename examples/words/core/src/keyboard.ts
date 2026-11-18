@@ -12,6 +12,10 @@ export const Shortcut = S.Literals([
   'ToggleFullScreen',
   'ExitFullScreen',
   'FocusSearch',
+  'PreviousWord',
+  'NextWord',
+  'PreviousParagraph',
+  'NextParagraph',
 ])
 /** A keyboard shortcut web Scribe answers. */
 export type Shortcut = typeof Shortcut.Type
@@ -148,6 +152,20 @@ export const shortcutFor = (
       M.when({ key: '/' }, () =>
         context.isSearchAvailable ? Option.some('FocusSearch') : Option.none(),
       ),
+      M.when({ key: '[' }, () =>
+        context.isPlaybackReady ? Option.some('PreviousWord') : Option.none(),
+      ),
+      M.when({ key: ']' }, () =>
+        context.isPlaybackReady ? Option.some('NextWord') : Option.none(),
+      ),
+      M.when({ key: '{' }, () =>
+        context.isPlaybackReady
+          ? Option.some('PreviousParagraph')
+          : Option.none(),
+      ),
+      M.when({ key: '}' }, () =>
+        context.isPlaybackReady ? Option.some('NextParagraph') : Option.none(),
+      ),
       M.when({ key: 'Escape' }, pressed =>
         context.isFullScreen && pressed.target !== 'Control'
           ? Option.some('ExitFullScreen')
@@ -172,6 +190,10 @@ export const shortcutKeyOf = (shortcut: Shortcut): string =>
     M.when('ToggleFullScreen', () => 'F'),
     M.when('ExitFullScreen', () => 'Escape'),
     M.when('FocusSearch', () => '/'),
+    M.when('PreviousWord', () => '['),
+    M.when('NextWord', () => ']'),
+    M.when('PreviousParagraph', () => 'Shift+['),
+    M.when('NextParagraph', () => 'Shift+]'),
     M.exhaustive,
   )
 
