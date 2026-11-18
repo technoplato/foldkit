@@ -11,72 +11,59 @@
  *   counters delete 2            ask before deleting Counter 2
  *   counters confirm-delete 2    delete it
  *   counters back                go back one screen
+ *   counters follow              print the screen each time it changes
  *   counters watch               repaint the list as it changes
  *   counters tail                print every Message as it lands
  *   counters help                usage derived from the Program
  *
  * The counters live on the one Instant project, shared with every other
- * window; run it through `with-counter-v01-env` for the admin token.
+ * window; run it through `with-counter-v01-env` for the admin token. The
+ * first command starts the Counters' Background Processor, which keeps
+ * the Program and its sync connection warm, so later commands answer at
+ * once and `counters follow` hears every change. This file must not
+ * import Effect, Instant, or the Program, so a command starts fast.
  */
-import { Effect } from 'effect'
-import { Interaction, Processor } from 'foldkit'
-import { runProgramCommand, runProgramTail, runProgramWatch } from 'foldkit/cli'
-import { parseProgramArgv, writeCliViewResult } from 'foldkit/cli/view'
 import {
-  MessageWire,
-  bindCounters,
-  countersEngine,
-  newProcessorInstance,
-  startCounters,
-} from 'multiple-counters-core-example'
+  backgroundProcessorSocketPath,
+  cliViewFailed,
+  followArgvOf,
+  parseProgramArgv,
+  runCliView,
+  spawnBackgroundProcessorFromView,
+  writeCliFollow,
+  writeCliViewResult,
+} from 'foldkit/cli/view'
+import { fileURLToPath } from 'node:url'
 
-const name = 'counters'
+import { countersProgramId } from './settings.js'
 
-const readyTimeoutMs = 10_000
+const argv = process.argv.slice(2)
 
-const config = {
-  host: Processor.Host.Cli(),
-  instance: newProcessorInstance(),
-}
+const request = parseProgramArgv(argv)
 
-const request = parseProgramArgv(process.argv.slice(2))
+const maybeFollow = followArgvOf(argv)
+
+const socketPath = backgroundProcessorSocketPath({
+  programId: countersProgramId,
+})
+
+const spawn = () =>
+  spawnBackgroundProcessorFromView({
+    scriptPath: fileURLToPath(new URL('./daemon.js', import.meta.url)),
+  })
 
 if (request._tag === 'Tail') {
-  await Effect.runPromise(
-    Effect.scoped(
-      Effect.andThen(
-        runProgramTail(countersEngine(config), MessageWire, line => {
-          process.stdout.write(`${line}\n`)
-        }),
-        Effect.never,
-      ),
-    ),
-  )
+  const { runTail } = await import('./inProcess.js')
+  await runTail()
 } else if (request._tag === 'Watch') {
-  const handle = startCounters(config)
-  const bound = bindCounters(handle)
-  await Interaction.whenSettled(bound, readyTimeoutMs)
-  await Effect.runPromise(
-    Effect.scoped(
-      runProgramWatch(
-        bound,
-        painted => {
-          process.stdout.write(painted)
-        },
-        { isTerminal: process.stdout.isTTY === true },
-      ),
-    ),
-  ).finally(handle.stop)
+  const { runWatch } = await import('./inProcess.js')
+  await runWatch()
+} else if (maybeFollow !== undefined) {
+  await writeCliFollow({ socketPath, spawn, request: maybeFollow })
 } else {
-  const handle = startCounters(config)
-  const bound = bindCounters(handle)
-  await Interaction.whenSettled(bound, readyTimeoutMs)
-  const painted = runProgramCommand(
-    bound,
-    name,
-    request._tag === 'Show' ? [] : request.token.split(' '),
-    request.flags,
-  )
-  await handle.stop()
-  writeCliViewResult({ stderr: '', ...painted })
+  try {
+    writeCliViewResult(await runCliView({ socketPath, spawn, request }))
+  } catch (cause) {
+    writeCliViewResult(cliViewFailed(cause))
+  }
 }
