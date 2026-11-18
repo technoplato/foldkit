@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:44:05 a.m. EST — `c4932f0585e8` feat(books): green: Search sits beside Play in the player bar (Scribe #2494)
+
+- **Implementation commit:** `c4932f0585e8e044b3c0a9c192bf98f1957f4ac0`
+- **Change:** green: Search sits beside Play in the player bar (Scribe #2494)
+- **Details:**
+  - With the controls folded into the bar, Search is a magnifier in the bar's centre: back 30 seconds, Play, Search, so Play is in the middle of the window. While the search is open the same magnifier closes it, so Play does not move. The row above the bar then holds only Back to playhead; with the full controls open the reader's row is as before.
+- **Files:**
+  - `examples/books/core/src/playerControls.test.ts` — changed by this commit
+  - `examples/books/core/src/screen.ts` — changed by this commit
+- **User context (verbatim):**
+  > I really like the look of the scribe playback application
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 1:31:16 a.m. EST — `edad8c4f1740` feat(foldkit): on a narrow window a toolbar gives its start the room (Scribe #2494)
 
 - **Implementation commit:** `edad8c4f1740e6fa05f49255882b7a80e7bcead8`
