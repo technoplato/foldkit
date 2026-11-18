@@ -77,8 +77,8 @@ export const parseProgramArgv = (argv: ReadonlyArray<string>): ProgramArgv => {
 }
 
 /**
- * A topic to follow, as argv names it: the word after `follow`, the
- * screen when there is none, and the flags that shape its text.
+ * A topic to follow, as argv names it: the word after `follow`, empty
+ * when there is none, and the flags that shape its text.
  */
 export type FollowArgv = Readonly<{
   topic: string
@@ -87,18 +87,18 @@ export type FollowArgv = Readonly<{
 
 const followWord = 'follow'
 
-const defaultFollowTopic = 'screen'
-
 /**
  * Reads `follow <topic>` from argv, the command every Program's CLI has
- * for hearing a topic of its daemon as it changes: `counter follow`
- * follows the screen, `books follow words --json` the words being read as
- * lines of JSON. Undefined for any other command.
+ * for hearing a topic of its Background Processor as it changes:
+ * `books follow words --json` the words being read as lines of JSON,
+ * `counter follow` its only topic, the screen. With no topic named the
+ * Background Processor follows its only topic or says which there are.
+ * Undefined for any other command.
  *
  * @example
  * ```typescript
  * followArgvOf(['follow', 'words', '--json']) // { topic: 'words', flags: { json: '1' } }
- * followArgvOf(['follow']) // { topic: 'screen', flags: {} }
+ * followArgvOf(['follow']) // { topic: '', flags: {} }
  * followArgvOf(['increment']) // undefined
  * ```
  */
@@ -115,7 +115,7 @@ export const followArgvOf = (
   }
   const topic = rest.join(' ')
   return {
-    topic: topic === '' ? defaultFollowTopic : topic,
+    topic,
     flags: request.flags,
   }
 }

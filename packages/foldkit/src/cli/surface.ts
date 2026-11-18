@@ -200,7 +200,8 @@ export const programFollowings = <Model, Message>(
 
 /**
  * The Stream for the topic a view asked to follow, or a refusal that names
- * the topics there are.
+ * the topics there are. With no topic named it follows the only topic
+ * when there is one, and asks which when there are several.
  *
  * @example
  * ```typescript
@@ -214,16 +215,25 @@ export const followTopicOf = (
   topic: string,
   flags: CliDaemonFlags,
   client: Host,
-): Stream.Stream<string, CliDaemonError> =>
-  Option.match(Record.get(followings, topic), {
+): Stream.Stream<string, CliDaemonError> => {
+  const names = Record.keys(followings)
+  const named =
+    topic === '' && names.length === 1
+      ? Option.getOrElse(Array.head(names), () => topic)
+      : topic
+  return Option.match(Record.get(followings, named), {
     onNone: () =>
       Stream.fail(
         new CliDaemonError({
-          message: `Nothing here is called "${topic}" to follow. Follow one of: ${Array.join(Record.keys(followings), ', ')}.`,
+          message:
+            named === ''
+              ? `Follow what? Name one of: ${Array.join(names, ', ')}. For example: follow ${Option.getOrElse(Array.head(names), () => 'screen')}`
+              : `Nothing here is called "${named}" to follow. Follow one of: ${Array.join(names, ', ')}.`,
         }),
       ),
     onSome: following => following(flags, client),
   })
+}
 
 // SURFACE
 

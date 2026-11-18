@@ -428,7 +428,7 @@ const controlsOf = <Model, Message>(
     },
     {
       usage: 'follow [topic]',
-      what: 'Print a topic each time it changes, the screen unless named',
+      what: 'Print a topic each time it changes, such as the screen',
       example: 'follow screen',
     },
     {
