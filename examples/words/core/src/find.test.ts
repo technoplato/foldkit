@@ -107,7 +107,7 @@ const searching = (seconds: number, query: string): Model =>
   run(at(seconds), [OpenedFind(), ChangedFindQuery({ query })]).model
 
 describe('finding words inside one recording', () => {
-  it('is closed until opened, and opens with nothing found', () => {
+  it('is closed until opened, and opens with nothing found and the keyboard in its field', () => {
     expect(find(at(0))).toEqual(Option.none())
     expect(find(run(at(0), [OpenedFind()]).model)).toEqual(
       Option.some({
@@ -116,6 +116,7 @@ describe('finding words inside one recording', () => {
         maybeSelectedIndex: Option.none(),
       }),
     )
+    expect(run(at(0), [OpenedFind()]).commands).toEqual(['FocusFind'])
   })
 
   it('finds the words whatever their case or punctuation, with the section and the words of each match', () => {

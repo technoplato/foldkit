@@ -1,20 +1,26 @@
-import { Array, Match as M, Option, Record } from 'effect'
+import { Array, Match as M, Option, Record, Schema as S, pipe } from 'effect'
 import { type Html, createKeyedLazy, createLazy, html } from 'foldkit/html'
 import {
+  ChangedFindQuery,
   ClickedCopySectionLink,
   ClickedCopySectionText,
   ClickedCopyWordLink,
   ClickedWord,
   type ClipboardEntry,
+  ClosedFind,
   ClosedWordMenu,
+  FIND_FIELD_ID,
   type FileUrls,
+  type FindState,
   type ImageEntry,
   type Message,
   type ReadyPlayback,
   type RecordingDetail,
   type Section,
+  SteppedFind,
   type Word,
   type WordsSeal,
+  findOf,
   followedSectionOf,
   formatClock,
   isAudioPlayableOf,
@@ -43,7 +49,14 @@ const transcriptSlot = createLazy()
 // NOTE: The view does not mark the word being spoken. It says when each
 // word starts, and the edge marks the one the playback clock has reached
 // (RunSpokenWord), so the place need only be heard about once a second.
-const wordView = (word: Word, isPlayable: boolean): Html => {
+/** How the search inside the recording marks a word, if it does. */
+type FindMark = 'Found' | 'Selected'
+
+const wordView = (
+  word: Word,
+  isPlayable: boolean,
+  maybeMark: FindMark | undefined,
+): Html => {
   const h = html<Message>()
   return h.span(
     [
@@ -51,6 +64,7 @@ const wordView = (word: Word, isPlayable: boolean): Html => {
       ...(isPlayable
         ? [h.DataAttribute('word-seconds', String(word.startSeconds))]
         : []),
+      ...(maybeMark === undefined ? [] : [h.DataAttribute('find', maybeMark)]),
       h.Class(isPlayable ? 'word' : ''),
     ],
     [`${word.text} `],
@@ -203,7 +217,30 @@ const sealedLineWords = (seal: WordsSeal): Html => {
   )
 }
 
-const openLineWords = (section: Section, isPlayable: boolean): Html => {
+/**
+ * The words of a section the search found, and those of the match the
+ * listener is on, as two lists of word ids joined by commas: plain text,
+ * so a section is drawn again only when its own marks change.
+ */
+type SectionMarks = Readonly<{ found: string; selected: string }>
+
+const noMarks: SectionMarks = { found: '', selected: '' }
+
+const markOf = (marks: SectionMarks, wordID: string): FindMark | undefined => {
+  if (marks.selected !== '' && marks.selected.split(',').includes(wordID)) {
+    return 'Selected'
+  } else if (marks.found !== '' && marks.found.split(',').includes(wordID)) {
+    return 'Found'
+  } else {
+    return undefined
+  }
+}
+
+const openLineWords = (
+  section: Section,
+  isPlayable: boolean,
+  marks: SectionMarks,
+): Html => {
   const h = html<Message>()
   return h.p(
     [
@@ -213,14 +250,21 @@ const openLineWords = (section: Section, isPlayable: boolean): Html => {
     ],
     Array.match(section.words, {
       onEmpty: () => [section.text],
-      onNonEmpty: words => Array.map(words, word => wordView(word, isPlayable)),
+      onNonEmpty: words =>
+        Array.map(words, word =>
+          wordView(word, isPlayable, markOf(marks, word.id)),
+        ),
     }),
   )
 }
 
-const lineWords = (section: Section, isPlayable: boolean): Html =>
+const lineWords = (
+  section: Section,
+  isPlayable: boolean,
+  marks: SectionMarks,
+): Html =>
   Option.match(section.maybeWordsSeal, {
-    onNone: () => openLineWords(section, isPlayable),
+    onNone: () => openLineWords(section, isPlayable, marks),
     onSome: sealedLineWords,
   })
 
@@ -232,6 +276,8 @@ const sectionView = (
   isPlayable: boolean,
   hasActions: boolean,
   maybeMomentHref?: string,
+  found = '',
+  selected = '',
 ): Html => {
   const h = html<Message>()
   return h.article(
@@ -258,7 +304,7 @@ const sectionView = (
                   [speakerLabel],
                 ),
               ]),
-          lineWords(section, isPlayable),
+          lineWords(section, isPlayable, { found, selected }),
         ],
       ),
       ...(isFollowed ? [playheadSentinel(section)] : []),
@@ -340,9 +386,11 @@ const timelineView = (
   focusedSectionID: string | undefined,
   followedSectionID: string | undefined,
   isPlayable: boolean,
+  marksKey: string,
 ): Html => {
   const h = html<Message>()
   const runStartIDs = speakerRunStartIDsOf(detail.sections)
+  const marks = marksOfKey(marksKey)
   return h.div(
     [h.OnMount(TrackWordClicks()), h.Class('flex flex-col gap-0.5')],
     Array.map(timelineOf(detail), entry =>
@@ -359,6 +407,9 @@ const timelineView = (
                 : undefined,
               isPlayable,
               true,
+              undefined,
+              (marks[section.id] ?? noMarks).found,
+              (marks[section.id] ?? noMarks).selected,
             ]),
           ClipboardTimelineEntry: ({ clipboard }) => clipboardView(clipboard),
           ImageTimelineEntry: ({ image }) =>
@@ -394,6 +445,183 @@ const waitingForWords = (isTranscribing: boolean): Html => {
       ),
     ],
   )
+}
+
+/**
+ * Every section's marks from the search inside the recording, as one
+ * piece of text, so the timeline is drawn again only when what is found,
+ * or the match the listener is on, changes. Empty while nothing is found.
+ */
+const marksKeyOf = (ready: ReadyPlayback): string =>
+  Option.match(findOf(ready), {
+    onNone: () => '',
+    onSome: find =>
+      Array.match(find.matches, {
+        onEmpty: () => '',
+        onNonEmpty: matches => {
+          const maybeSelected = Option.flatMap(find.maybeSelectedIndex, index =>
+            Array.get(matches, index),
+          )
+          const sectionIDs = Array.dedupe(
+            Array.map(matches, match => match.sectionID),
+          )
+          return JSON.stringify(
+            Array.map(sectionIDs, sectionID => [
+              sectionID,
+              pipe(
+                matches,
+                Array.filter(match => match.sectionID === sectionID),
+                Array.flatMap(match => match.wordIDs),
+                Array.join(','),
+              ),
+              Option.match(
+                Option.filter(
+                  maybeSelected,
+                  selected => selected.sectionID === sectionID,
+                ),
+                {
+                  onNone: () => '',
+                  onSome: selected => selected.wordIDs.join(','),
+                },
+              ),
+            ]),
+          )
+        },
+      }),
+  })
+
+const MarksRows = S.fromJsonString(
+  S.Array(S.Tuple([S.String, S.String, S.String])),
+)
+
+const marksOfKey = (key: string): Readonly<Record<string, SectionMarks>> =>
+  key === ''
+    ? {}
+    : Option.match(S.decodeUnknownOption(MarksRows)(key), {
+        onNone: () => ({}),
+        onSome: rows =>
+          Object.fromEntries(
+            Array.map(rows, ([sectionID, found, selected]) => [
+              sectionID,
+              { found, selected },
+            ]),
+          ),
+      })
+
+const findStatusOf = (find: FindState): string => {
+  if (find.query.trim() === '') {
+    return ''
+  } else if (find.matches.length === 0) {
+    return 'No matches'
+  } else {
+    return Option.match(find.maybeSelectedIndex, {
+      onNone: () =>
+        `${find.matches.length.toString()} ${find.matches.length === 1 ? 'match' : 'matches'}`,
+      onSome: index =>
+        `${(index + 1).toString()} of ${find.matches.length.toString()}`,
+    })
+  }
+}
+
+const findStepButton = (
+  label: string,
+  direction: 'Next' | 'Previous',
+  isDisabled: boolean,
+): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.AriaLabel(label),
+      h.Title(label),
+      h.Disabled(isDisabled),
+      h.OnClick(SteppedFind({ direction })),
+      h.Class(
+        'inline-flex size-11 shrink-0 items-center justify-center rounded-full text-label enabled:hover:bg-fill disabled:opacity-40',
+      ),
+    ],
+    [
+      icon(
+        'ChevronDown',
+        direction === 'Previous' ? 'size-5 rotate-180' : 'size-5',
+      ),
+    ],
+  )
+}
+
+/**
+ * The search inside the recording, while it is open: a field for the
+ * words, how the search stands (`2 of 7`), the match before and the next
+ * one, and Done. Enter goes to the next match, Shift-Enter to the one
+ * before, Escape closes. It stays at the top of the words while they
+ * scroll to each match.
+ */
+const findBar = (ready: ReadyPlayback): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return Option.match(findOf(ready), {
+    onNone: () => [],
+    onSome: find => [
+      h.div(
+        [
+          h.Role('search'),
+          h.AriaLabel('Find in Recording'),
+          h.Class('find-bar'),
+        ],
+        [
+          icon('Search', 'ml-3 size-[18px] shrink-0 text-secondary'),
+          h.input([
+            h.Id(FIND_FIELD_ID),
+            h.Type('search'),
+            h.AriaLabel('Find in Recording'),
+            h.Placeholder('Find in this recording'),
+            h.Autocomplete('off'),
+            h.Autofocus(true),
+            h.Value(find.query),
+            h.OnInput(query => ChangedFindQuery({ query })),
+            h.OnKeyDownPreventDefault((key, modifiers) => {
+              if (key === 'Enter') {
+                return Option.some(
+                  SteppedFind({
+                    direction: modifiers.shiftKey ? 'Previous' : 'Next',
+                  }),
+                )
+              } else if (key === 'Escape') {
+                return Option.some(ClosedFind())
+              } else {
+                return Option.none()
+              }
+            }),
+            h.Class(
+              'min-h-11 min-w-0 flex-1 appearance-none border-0 bg-transparent text-body text-label outline-none placeholder:text-secondary [&::-webkit-search-cancel-button]:hidden',
+            ),
+          ]),
+          h.span(
+            [
+              h.AriaLive('polite'),
+              h.Class('tabular shrink-0 text-footnote text-secondary'),
+            ],
+            [findStatusOf(find)],
+          ),
+          findStepButton(
+            'Previous Match',
+            'Previous',
+            find.matches.length === 0,
+          ),
+          findStepButton('Next Match', 'Next', find.matches.length === 0),
+          h.button(
+            [
+              h.Type('button'),
+              h.OnClick(ClosedFind()),
+              h.Class(
+                'mr-1 inline-flex min-h-9 shrink-0 items-center rounded-full px-3 text-subhead font-semibold text-tint hover:bg-fill',
+              ),
+            ],
+            ['Done'],
+          ),
+        ],
+      ),
+    ],
+  })
 }
 
 const wordMenuItem = (
@@ -493,6 +721,7 @@ export const transcript = (
       ),
     ],
     [
+      ...findBar(ready),
       Array.match(ready.detail.sections, {
         onEmpty: () =>
           isLiveRecording(ready)
@@ -508,6 +737,7 @@ export const transcript = (
             Option.getOrUndefined(ready.maybeFocusedSectionID),
             sectionIDOf(followedSectionOf(ready)),
             isAudioPlayableOf(ready),
+            marksKeyOf(ready),
           ]),
       }),
       wordMenu(ready),

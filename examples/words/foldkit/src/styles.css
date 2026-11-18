@@ -440,6 +440,45 @@ body {
   margin-block: 6px;
 }
 
+/* The search inside a recording stays under the top bar while the words
+   scroll to each match; what it found is marked in the words. */
+.find-bar {
+  position: sticky;
+  top: 4.5rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 0 4px 0 6px;
+  border-radius: 999px;
+  /* NOTE: the words scroll under it, so it is the raised surface itself,
+     not glass they would show through. */
+  background: var(--surface-raised);
+  box-shadow: 0 1px 8px rgb(0 0 0 / 0.18);
+}
+
+/* The ring goes round the whole bar, not round the field inside it. */
+.find-bar input:focus-visible {
+  outline: none;
+}
+
+.find-bar:focus-within {
+  outline: 2px solid var(--tint);
+  outline-offset: 2px;
+}
+
+[data-find='Found'] {
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--tint) 22%, transparent);
+}
+
+[data-find='Selected'] {
+  border-radius: 4px;
+  background: var(--tint);
+  color: #fff;
+}
+
 /* A word's menu opens where the word was pressed, kept inside the window. */
 .word-menu-backdrop {
   position: fixed;

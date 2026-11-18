@@ -5,6 +5,9 @@ import type { PreviewLine, RecordingSummary } from './recording.js'
 /** The element id of the recording search field. */
 export const SEARCH_FIELD_ID = 'recording-search'
 
+/** The element id of the field that searches inside the open recording. */
+export const FIND_FIELD_ID = 'recording-find'
+
 const WHITESPACE = /\s+/
 
 const REGULAR_EXPRESSION_SYNTAX = /[.*+?^${}()|[\]\\]/g

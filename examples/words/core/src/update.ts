@@ -146,7 +146,7 @@ import type {
   Section,
 } from './recording.js'
 import { SectionPlacement, TranscriptScroller } from './scroller.js'
-import { SEARCH_FIELD_ID, searchTermsOf } from './search.js'
+import { FIND_FIELD_ID, SEARCH_FIELD_ID, searchTermsOf } from './search.js'
 import * as Share from './share/index.js'
 import { WordsStore, storeFailureReasonOf } from './store.js'
 import { exportTranscript, sectionAt } from './transcript.js'
@@ -369,6 +369,17 @@ export const FocusSearch = Command.define(
   CompletedFocusSearch,
 )(
   Dom.focus(`#${SEARCH_FIELD_ID}`).pipe(
+    Effect.ignore,
+    Effect.as(CompletedFocusSearch()),
+  ),
+)
+
+/** Moves keyboard focus to the search inside the open recording. */
+export const FocusFind = Command.define(
+  'FocusFind',
+  CompletedFocusSearch,
+)(
+  Dom.focus(`#${FIND_FIELD_ID}`).pipe(
     Effect.ignore,
     Effect.as(CompletedFocusSearch()),
   ),
@@ -3333,14 +3344,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ),
       ClosedWordMenu: () => evolveReady(model, withoutWordMenu),
       OpenedFind: () =>
-        evolveReady(model, ready =>
+        updateReady(model, ready => [
           Option.isSome(ready.maybeFind)
             ? ready
             : evo(ready, {
                 maybeFind: () =>
                   Option.some({ query: '', maybeSelectedMs: Option.none() }),
               }),
-        ),
+          [FocusFind()],
+        ]),
       ClosedFind: () =>
         evolveReady(model, ready =>
           evo(ready, { maybeFind: () => Option.none() }),
