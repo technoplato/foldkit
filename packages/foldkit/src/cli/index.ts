@@ -48,7 +48,7 @@ export {
 export {
   type HostCommand,
   paintCommands,
-  paintOffered,
+  offeredCommandsOf,
   paintProgram,
   paintScreen,
   programUsage,

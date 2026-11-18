@@ -612,67 +612,41 @@ export const paintCommands = <Model, Message>(
 }
 
 /**
- * The commands a part of the view offers now, for under it: of the Action
- * tags the part's own controls press, the first few that run now, each as
- * the terminal spells it with what it does, then the commands the host
- * adds for this part, then the command that lists the rest. Nothing here is typed by hand: the words and sentences are the
- * catalog's, so they change with the state, `pause` while it plays and
- * `play` once it is paused.
+ * The commands a part of the view offers now, each as it is typed, for a
+ * Client that shows them in a line: of the Action tags the part's own
+ * controls press, the first few that run now, then the host's own for
+ * the part. They are the catalog's words, so they change with the state.
  *
  * @example
  * ```typescript
- * paintOffered(bound, 'books', ['Pause', 'Play', 'SkipBack'], { list: { command: 'actions', what: 'Lists every command' } })
- * // ['  books pause      Pauses and keeps your place',
- * //  '  books skip-back  Goes back 30 seconds',
- * //  '  books actions    Lists every command']
+ * offeredCommandsOf(bound, 'books', ['Pause', 'Play', 'SkipBack'])
+ * // while it plays: ['books pause', 'books skip-back']
  * ```
  */
-export const paintOffered = <Model, Message>(
+export const offeredCommandsOf = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   tags: ReadonlyArray<string>,
   options: Readonly<{
     limit?: number
     hostCommands?: ReadonlyArray<HostCommand>
-    list?: HostCommand
   }> = {},
 ): ReadonlyArray<string> => {
   const entries = bound.entries()
-  const runnable = Array.take(
-    Array.dedupe(
-      Array.filter(tags, tag => Option.isSome(pressableLineOf(entries, tag))),
+  return Array.dedupe(
+    Array.map(
+      [
+        ...Array.take(
+          Array.getSomes(Array.map(tags, tag => pressableLineOf(entries, tag))),
+          options.limit ?? offeredShown,
+        ),
+        ...Array.map(options.hostCommands ?? [], host =>
+          lineOf(host.command, host.what),
+        ),
+      ],
+      line => `${name} ${line.command}`,
     ),
-    options.limit ?? offeredShown,
   )
-  // NOTE: One line for each, however long its sentence: a Client that
-  // fits these to a width cuts a line, and a wrapped sentence would leave
-  // its second half behind.
-  const list = options.list ?? defaultList
-  const lines: ReadonlyArray<CommandLine> = [
-    ...Array.getSomes(
-      Array.map(runnable, tag => pressableLineOf(entries, tag)),
-    ),
-    ...Array.map(options.hostCommands ?? [], host =>
-      lineOf(host.command, host.what),
-    ),
-    lineOf(list.command, list.what),
-  ]
-  const width = widestOf(
-    Array.map(lines, line => `${name} ${line.command}`),
-    0,
-  )
-  return Array.map(lines, line =>
-    Option.match(line.maybeWhat, {
-      onNone: () => `${indent}${name} ${line.command}`,
-      onSome: what =>
-        `${indent}${`${name} ${line.command}`.padEnd(width)}${what}`,
-    }),
-  )
-}
-
-const defaultList: HostCommand = {
-  command: 'help',
-  what: 'Lists every command',
 }
 
 const offeredShown = 4

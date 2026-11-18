@@ -21,7 +21,7 @@ import type { UiNode } from '../renderers/types.js'
 import { type TerminalInk, inkedLine } from '../theme/terminal.js'
 import {
   type HostCommand,
-  paintOffered,
+  offeredCommandsOf,
   paintProgram,
   paintScreen,
   runProgramCommand,
@@ -295,7 +295,7 @@ const fallbackLiveSize = { columns: 80, rows: 24 }
 // NOTE: A live frame is a few lines rewritten where they are, not the
 // whole screen: it takes at most this many rows, and one fewer than the
 // terminal has, so the cursor has a line under it.
-const mostLiveRows = 18
+const mostLiveRows = 24
 
 const sizeFlag = (flags: CliDaemonFlags, name: string, fallback: number) => {
   const parsed = Number.parseInt(flags[name] ?? '', 10)
@@ -339,18 +339,23 @@ export const followLive =
       ),
     }
     const paint = (part: LivePart): string => {
+      const inkOf = options.inkOf
+      const isInked = inkOf !== undefined && flags['color'] === '1'
+      const list = options.list ?? { command: 'help', what: '' }
       const frame = liveFrameOf(part.node, size, {
         ...(part.header === undefined ? {} : { header: part.header }),
-        footer: paintOffered(bound, options.name, part.offers ?? [], {
-          ...(options.hostOffers === undefined
-            ? {}
-            : { hostCommands: options.hostOffers() }),
-          ...(options.list === undefined ? {} : { list: options.list }),
-        }),
+        footer: {
+          commands: offeredCommandsOf(bound, options.name, part.offers ?? [], {
+            ...(options.hostOffers === undefined
+              ? {}
+              : { hostCommands: options.hostOffers() }),
+          }),
+          more: `${options.name} ${list.command}`,
+        },
+        marks: isInked ? 'Ink' : 'Glyph',
       })
-      const inkOf = options.inkOf
       return Array.join(
-        inkOf === undefined || flags['color'] !== '1'
+        inkOf === undefined || !isInked
           ? frame.lines
           : Array.map(frame.lines, (line, row) =>
               inkedLine(

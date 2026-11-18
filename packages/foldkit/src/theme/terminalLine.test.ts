@@ -6,7 +6,7 @@ const escape = '\u001b['
 
 // Made-up words: nothing here is from a real recording or book.
 describe('a line of a terminal screen, inked by the roles its parts play', () => {
-  const ink = terminalInkOf({ isTerminal: true, env: {}, mode: 'Dark' })
+  const ink = terminalInkOf({ isTerminal: true, env: {}, ground: 'Dark' })
   const line = '›0:35   He [trimmed] the wick'
 
   it('paints each part in its role and leaves the rest as the terminal has it', () => {
@@ -18,7 +18,7 @@ describe('a line of a terminal screen, inked by the roles its parts play', () =>
         { col: 21, width: 8, role: 'ReadingToCome' },
       ]),
     ).toBe(
-      `${escape}2m›0:35${escape}22m   ${escape}1mHe${escape}22m ${escape}38;2;157;184;255m[trimmed]${escape}39m ${escape}2mthe wick${escape}22m`,
+      `${escape}38;2;154;161;170m›0:35${escape}39m   ${escape}1mHe${escape}22m ${escape}4m${escape}38;2;157;184;255m[trimmed]${escape}39m${escape}24m the wick`,
     )
   })
 
@@ -29,11 +29,11 @@ describe('a line of a terminal screen, inked by the roles its parts play', () =>
         { col: 0, width: 2, role: 'ReadingSpoken' },
         { col: 9, width: 3, role: 'Accent' },
       ]),
-    ).toBe(`${escape}1mla${escape}22m${escape}2mmp${escape}22m`)
+    ).toBe(`${escape}1mla${escape}22mmp`)
   })
 
   it('marks nothing up for an ink with no color', () => {
-    const piped = terminalInkOf({ isTerminal: false, env: {}, mode: 'Dark' })
+    const piped = terminalInkOf({ isTerminal: false, env: {}, ground: 'Dark' })
     expect(
       inkedLine(piped, line, [{ col: 11, width: 9, role: 'Accent' }]),
     ).toBe(line)

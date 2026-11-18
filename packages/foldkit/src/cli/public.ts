@@ -33,7 +33,7 @@ export type { CliDaemonPaintedResult, CliDaemonSurface } from './index.js'
 export {
   type HostCommand,
   paintCommands,
-  paintOffered,
+  offeredCommandsOf,
   paintProgram,
   paintScreen,
   programUsage,
