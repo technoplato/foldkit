@@ -57,6 +57,85 @@ describe('a child’s Actions offered by its parent', () => {
   })
 })
 
+describe('a child’s Actions lifted over a list', () => {
+  const Row = S.Struct({ id: S.Number, counter: Counter })
+  const Board = S.Struct({ rows: S.Array(Row) })
+  type Board = typeof Board.Type
+  const inBoard = ModelPath.of(Board)
+
+  const lifted = Catalog.lift(counterCatalog, {
+    field: 'id',
+    Id: S.Number,
+    token: S.FiniteFromString,
+    prompt: 'Which counter?',
+    rowsOf: (model: Board) =>
+      model.rows.map(row => ({
+        id: row.id,
+        title: `Counter ${row.id.toString()}`,
+        model: row.counter,
+      })),
+    under: inBoard.rows.counter,
+    nothingToChoose: 'there are no counters yet',
+  })
+  const boardCatalog = Catalog.make(lifted.actions)
+  type BoardMessage = typeof boardCatalog.Message.Type
+
+  const counted = (
+    model: Board,
+    message: BoardMessage,
+    stepBy: number,
+  ): readonly [Board, ReadonlyArray<never>] => [
+    {
+      rows: model.rows.map(row =>
+        row.id === message.id
+          ? {
+              ...row,
+              counter: {
+                count: row.counter.count + row.counter.step,
+                step: row.counter.step + stepBy,
+              },
+            }
+          : row,
+      ),
+    },
+    [],
+  ]
+
+  const boards: ReadonlyArray<Board> = [
+    {
+      rows: [
+        { id: 1, counter: { count: 0, step: 1 } },
+        { id: 2, counter: { count: 5, step: 2 } },
+      ],
+    },
+  ]
+
+  it('mutate the child’s state under the place the parent keeps each row', () => {
+    expect(
+      lifted.actions.map(action => Catalog.declarationOf(action).touches),
+    ).toEqual([{ mutates: ['rows.counter.count'], triggers: [] }])
+  })
+
+  it('are held to it row by row', () => {
+    const update = (model: Board, message: BoardMessage) =>
+      counted(model, message, 0)
+    expect(Catalog.undeclaredTouches(boardCatalog, update, boards)).toEqual([])
+    expect(Catalog.unseenTouches(boardCatalog, update, boards)).toEqual([])
+  })
+
+  it('are caught changing another field of the row’s child', () => {
+    expect(
+      Catalog.undeclaredTouches(
+        boardCatalog,
+        (model: Board, message: BoardMessage) => counted(model, message, 1),
+        boards,
+      ),
+    ).toEqual([
+      'Increment changed rows.counter.step, which it does not say it mutates.',
+    ])
+  })
+})
+
 describe('what a parent adds to a child’s Action', () => {
   const SaveShelf = { name: 'SaveShelf' }
 
