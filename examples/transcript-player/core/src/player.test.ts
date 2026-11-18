@@ -1,6 +1,10 @@
 import { Array, Effect, Option, Stream } from 'effect'
 import { Catalog, Interaction } from 'foldkit'
-import { renderScreen } from 'foldkit/renderers'
+import {
+  currentWordTokenAt,
+  renderScreen,
+  transcriptsOf,
+} from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
 import { MediaId, Milliseconds, WordId } from './ids.js'
@@ -186,6 +190,46 @@ describe('the Transcript Player', () => {
         ? Array.map(transcript.passages, passage => passage.isCurrent)
         : [],
     ).toEqual([true, false])
+  })
+
+  it('gives its transcript a clock and each word its start, so a painter can tell the word between seconds', () => {
+    const reportedAtMs = Date.UTC(2026, 9, 18, 19, 0, 0)
+    const { model: playing } = run(
+      pressed(loaded(19_000), 'Play'),
+      ReachedPlace({
+        placeMs: Milliseconds.make(20_000),
+        wallClockMs: reportedAtMs,
+      }),
+    )
+    const [transcript] = transcriptsOf(transcriptOf(playing))
+    expect(transcript?.clock).toEqual({
+      placeMs: 20_000,
+      atMs: reportedAtMs,
+      rate: 1,
+    })
+    expect(
+      Array.map(transcript?.passages[0]?.words ?? [], word => word.startMs),
+    ).toEqual([19_000, 20_000, 21_000, 22_000, 23_000])
+    expect(
+      Option.map(Option.fromNullishOr(transcript), node =>
+        currentWordTokenAt(node, reportedAtMs + 1_200),
+      ),
+    ).toEqual(Option.some(Option.some('a.2')))
+  })
+
+  it('stops its clock while paused, after a seek until the audio reports, and runs it at the speed', () => {
+    const reportedAtMs = Date.UTC(2026, 9, 18, 19, 0, 0)
+    const reported = ReachedPlace({
+      placeMs: Milliseconds.make(20_000),
+      wallClockMs: reportedAtMs,
+    })
+    const rateOf = (model: Model): number | undefined =>
+      transcriptsOf(transcriptOf(model))[0]?.clock?.rate
+    const playing = run(pressed(loaded(19_000), 'Play'), reported).model
+    expect(rateOf(pressed(loaded(19_000), 'Play'))).toBe(0)
+    expect(rateOf(pressed(playing, 'Pause'))).toBe(0)
+    expect(rateOf(pressed(playing, 'SkipForward'))).toBe(0)
+    expect(rateOf(pressed(playing, 'SetSpeed:1.5'))).toBe(1.5)
   })
 
   it('goes to the chapter start, then the one before, and on to the next', () => {
