@@ -221,6 +221,11 @@ describe('a link to one word', () => {
           label: 'Copy link to this word',
           icon: 'Link',
         },
+        {
+          action: 'BookmarkWord:w3',
+          label: 'Bookmark this word',
+          icon: 'Bookmark',
+        },
       ]),
     )
     bound.press('CopyWordLink:w3')

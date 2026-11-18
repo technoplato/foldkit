@@ -452,7 +452,7 @@ describe('The Bookmarks panel', () => {
     expect(listsOf(panelOf(bound))).toEqual([])
     expect(Array.map(textsOf(panelOf(bound)), text => text.content)).toEqual([
       'No bookmarks yet.',
-      'Press b while you listen to mark the word being read.',
+      'Press b while you listen to mark the word being read, or pick Bookmark this word from a word’s menu.',
     ])
   })
 

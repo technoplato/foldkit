@@ -8,6 +8,7 @@ import {
   TitleSlug,
   clockOf,
 } from './ids.js'
+import { wordPathOf } from './links.js'
 import {
   type Bookmark,
   type BookmarkExcerpt,
@@ -121,17 +122,15 @@ export const bookmarkTitleOf = (bookmark: Bookmark): string =>
   })
 
 /**
- * The address of a bookmark, the player's own at the millisecond the word
- * starts: `/books/the-lantern-keeper/listen/12m03.45s`. It is the link to
- * that word.
+ * The address of a bookmark: the link to its word, `wordPathOf`, since a
+ * bookmark sits on the millisecond its word starts.
  *
  * @example
  * ```typescript
  * bookmarkPathOf(slug, Milliseconds.make(723_450)) // '/books/the-lantern-keeper/listen/12m03.45s'
  * ```
  */
-export const bookmarkPathOf = (slug: TitleSlug, atMs: Milliseconds): string =>
-  `/books/${slug}/listen/${S.encodeSync(TranscriptPlayer.WordSegment)(atMs)}`
+export const bookmarkPathOf = wordPathOf
 
 /** What the player says when the word asked for already has a bookmark. */
 export const alreadyBookmarkedNotice = 'That word is already bookmarked'

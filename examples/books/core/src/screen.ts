@@ -1185,9 +1185,10 @@ export const bookmarksScreen = (model: Model): UiNode =>
           ...Array.match(bookmarksOf(model, title.slug), {
             onEmpty: () => [
               Text('No bookmarks yet.', { dim: true }),
-              Text('Press b while you listen to mark the word being read.', {
-                dim: true,
-              }),
+              Text(
+                'Press b while you listen to mark the word being read, or pick Bookmark this word from a word’s menu.',
+                { dim: true },
+              ),
             ],
             onNonEmpty: bookmarks => [bookmarksListOf(model, title, bookmarks)],
           }),

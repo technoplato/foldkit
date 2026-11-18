@@ -11,7 +11,7 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import { Milliseconds, TitleSlug, clockOf } from './ids.js'
 import { wordPathOf } from './links.js'
-import { CopyWordLink, catalog } from './message.js'
+import { BookmarkWord, CopyWordLink, catalog } from './message.js'
 import {
   type Loaded,
   type Model,
@@ -24,10 +24,16 @@ import {
 
 /**
  * What a word's menu offers in Books besides playing from it: `Copy link
- * to this word`, which presses `CopyWordLink` with the word.
+ * to this word`, which presses `CopyWordLink` with the word, and
+ * `Bookmark this word`, which presses `BookmarkWord` with it.
  */
 export const wordActions: ReadonlyArray<TranscriptWordAction> = [
   { action: CopyWordLink.tag, label: 'Copy link to this word', icon: 'Link' },
+  {
+    action: BookmarkWord.tag,
+    label: 'Bookmark this word',
+    icon: 'Bookmark',
+  },
 ]
 
 /**

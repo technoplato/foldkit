@@ -855,8 +855,19 @@ const bookmarkedWord = (
     ),
     {
       onNone: () => [model, []],
-      onSome: ({ loaded, word }) =>
-        bookmarkedAt(model, loaded, word.startMs, Option.none()),
+      onSome: ({ loaded, word }) => {
+        const [closed, closing] = playerUpdated(
+          model,
+          TranscriptPlayer.CloseWordMenu(),
+        )
+        const [marked, marking] = bookmarkedAt(
+          closed,
+          loaded,
+          word.startMs,
+          Option.none(),
+        )
+        return [marked, [...closing, ...marking]]
+      },
     },
   )
 
