@@ -1155,6 +1155,7 @@ ${themeStylesheet(defaultTheme)}
 :where(.fk-list-frame .fk-item-title) {
   font-size: 15px;
   font-weight: 500;
+  -webkit-line-clamp: 3;
 }
 
 :where(.fk-list-frame .fk-item[data-current]) {
@@ -1384,5 +1385,31 @@ ${themeStylesheet(defaultTheme)}
   background: ${roleVar('Mark')};
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
   vertical-align: -1px;
+}
+
+:where(.fk-overlay[data-style='Drawer'] .fk-row:has(> .fk-button[data-variant='Tab'])) {
+  align-self: stretch;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: ${roleVar('Surface')};
+}
+
+:where(.fk-overlay[data-style='Drawer'] .fk-button[data-variant='Tab']) {
+  flex-direction: row;
+  gap: 6px;
+  height: 36px;
+  border-radius: 9px;
+  font-size: 14px;
+}
+
+:where(.fk-overlay[data-style='Drawer'] .fk-button[data-variant='Tab'][data-current]) {
+  background: ${roleVar('RaisedSurface')};
+  box-shadow: 0 1px 3px ${roleVar('Shadow')};
+}
+
+:where(.fk-overlay[data-style='Drawer']:focus) {
+  outline: none;
 }
 `
