@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { firstPaintScript, modeStorageKey, paintModeOnPage } from './browser.js'
+import {
+  firstPaintScript,
+  firstPaintScriptFollowingSystem,
+  modeStorageKey,
+  paintModeOnPage,
+} from './browser.js'
 
 const fakePage = () => {
   const attributes = new Map<string, string>()
@@ -53,5 +58,26 @@ describe('the mode on a page', () => {
     expect(script).toContain('data-fk-mode')
     expect(script).not.toContain('setItem')
     expect(script).not.toContain('prefers-color-scheme')
+  })
+
+  it('has a first-paint script for a page that has no remembered mode yet: it takes the system’s, once, before the Program starts', () => {
+    const script = firstPaintScriptFollowingSystem()
+    expect(script).toContain('localStorage.getItem("foldkit.mode")')
+    expect(script).toContain('prefers-color-scheme: dark')
+    expect(script).toContain('data-fk-mode')
+    const root = document.documentElement
+    root.removeAttribute('data-fk-mode')
+    window.localStorage.setItem('foldkit.mode', 'Dark')
+    // NOTE: the script is the page's own inline script; a test runs it the
+    // way the page would.
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+    new Function(script)()
+    expect(root.getAttribute('data-fk-mode')).toBe('Dark')
+    window.localStorage.removeItem('foldkit.mode')
+    root.removeAttribute('data-fk-mode')
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+    new Function(script)()
+    expect(['Light', 'Dark']).toContain(root.getAttribute('data-fk-mode'))
+    root.removeAttribute('data-fk-mode')
   })
 })
