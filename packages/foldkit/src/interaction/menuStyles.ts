@@ -210,14 +210,19 @@ export const menuStylesheet = `
 
 :where(.fk-action-menu-pick) {
   flex: none;
-  min-width: 1.75rem;
+  box-sizing: border-box;
+  min-width: 2rem;
   padding: 0.125rem 0.375rem;
+  border: 1px solid rgb(229 231 235);
+  border-bottom-width: 2px;
   border-radius: 0.375rem;
-  color: rgb(107 114 128);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgb(249 250 251);
+  color: rgb(55 65 81);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
   line-height: 1rem;
-  text-align: right;
+  text-align: center;
 }
 
 :where(.fk-action-menu-key) {

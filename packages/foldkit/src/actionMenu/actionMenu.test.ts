@@ -618,6 +618,24 @@ describe('saying what a key did', () => {
     expect(echo(inList, keyInput('j'))).toEqual(Option.none())
   })
 
+  it('says nothing for a key the menu itself takes, even when an Action declares it', () => {
+    const inList = press(openMenu(initial(0)), keyInput('ArrowDown'))
+    const withEscape = {
+      ...interaction,
+      entries: (model: AppModel) =>
+        Array.map(interaction.entries(model), entry =>
+          entry.tag === 'Decrement'
+            ? { ...entry, keys: ['Escape', 'Tab', 'ArrowDown'] }
+            : entry,
+        ),
+    }
+    expect(
+      Array.map(['Escape', 'Tab', 'ArrowDown'], key =>
+        echoOfKey(withEscape, inList, keyInput(key)),
+      ),
+    ).toEqual([Option.none(), Option.none(), Option.none()])
+  })
+
   it('says why Enter did nothing on an unavailable row', () => {
     const onReset = press(
       press(openMenu(initial(0)), keyInput('ArrowUp')),

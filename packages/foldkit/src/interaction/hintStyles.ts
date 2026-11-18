@@ -46,7 +46,7 @@ export const hintStylesheet = `
 }
 
 :where(.fk-echo) {
-  bottom: 6.5rem;
+  top: 0.75rem;
   left: 50%;
   max-width: min(28rem, calc(100vw - 2rem));
   transform: translateX(-50%);

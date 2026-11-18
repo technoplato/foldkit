@@ -779,7 +779,16 @@ const echoOfEntry = (entry: Entry): Echo => ({
   keys: [],
 })
 
-const menuMoveKeys: ReadonlySet<string> = new Set(['j', 'k', 'J', 'K'])
+const menuOwnKeys: ReadonlySet<string> = new Set([
+  'j',
+  'k',
+  'J',
+  'K',
+  'Escape',
+  'Tab',
+  'ArrowDown',
+  'ArrowUp',
+])
 
 const rowEchoOf = (row: MenuRow): Option.Option<Echo> =>
   row.isNested && isEnabled(row.entry.availability)
@@ -804,7 +813,7 @@ const echoInMenu = (
       Array.findFirst(menu.rows, row => row.isHighlighted),
       rowEchoOf,
     )
-  } else if (menu.areRowKeysLive && !menuMoveKeys.has(key)) {
+  } else if (menu.areRowKeysLive && !menuOwnKeys.has(key)) {
     return Option.map(keyedEntryOf(catalogEntries, input), echoOfEntry)
   } else {
     return Option.none()

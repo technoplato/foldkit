@@ -291,7 +291,7 @@ const echoTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>()
 /**
  * Says for a moment what a key just did, such as `Play title` after `p`,
  * or why it did nothing, `Reset · Unavailable: count is already 0`. It is
- * a status line near the bottom of the window that a screen reader also
+ * a status line at the top of the window that a screen reader also
  * announces, and it goes away by itself.
  *
  * @example
