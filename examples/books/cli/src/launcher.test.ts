@@ -145,6 +145,25 @@ describe(
       expect(again.stdout).toContain('Playing The Lantern Keeper')
     })
 
+    it('paints the quiet words stronger on a system that asks for More Contrast', () => {
+      // The words to come are quiet text: #9aa1aa on a dark ground, and
+      // #d1d5db when the system asks for more contrast.
+      const usual = '38;2;154;161;170m'
+      const stronger = '38;2;209;213;219m'
+      const dark = { FORCE_COLOR: '1', COLORFGBG: '15;0' }
+      const asUsual = newLibrary()
+      expect(books(asUsual, ['listen', 'lantern']).status).toBe(0)
+      const plainWords = books(asUsual, ['words'], dark)
+      expect(plainWords.stdout).toContain(usual)
+      expect(plainWords.stdout).not.toContain(stronger)
+      const asked = newLibrary()
+      const more = { ...dark, BOOKS_MADE_UP_CONTRAST: 'More' }
+      expect(books(asked, ['listen', 'lantern'], more).status).toBe(0)
+      const strongWords = books(asked, ['words'], more)
+      expect(strongWords.stdout).toContain(stronger)
+      expect(strongWords.stdout).not.toContain(usual)
+    })
+
     it('follows the words with flags after and before the topic, down a pipe and with a terminal’s color', async () => {
       const library = newLibrary()
       expect(books(library, ['listen', 'lantern']).status).toBe(0)
