@@ -1,10 +1,14 @@
 import { Array, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { Transcript } from './elements.js'
+import { Seek, Transcript } from './elements.js'
 import {
+  matchStepOf,
+  matchesIn,
   searchTranscript,
+  seekLandingAt,
   transcriptDefectOf,
+  transcriptWithMatches,
   wordAddressOf,
   wordAtAddress,
   wordStepOf,
@@ -60,6 +64,165 @@ describe('searching a transcript', () => {
     ).toEqual([['a3', 'lit at dusk.']])
     expect(searchTranscript(lighthouse, '  ')).toEqual([])
     expect(searchTranscript(lighthouse, 'harbour')).toEqual([])
+  })
+})
+
+describe('what a search finds', () => {
+  it('takes the last word typed as the start of a word, and the words before it whole', () => {
+    expect(
+      Array.map(searchTranscript(lighthouse, 'la'), match => match.text),
+    ).toEqual(['lamp', 'Lamp'])
+    expect(
+      Array.map(searchTranscript(lighthouse, 'the la'), match => match.text),
+    ).toEqual(['The lamp', 'the Lamp'])
+    expect(searchTranscript(lighthouse, 'th lamp')).toEqual([])
+  })
+
+  it('carries a few words either side, and each word it found, to show and to mark', () => {
+    expect(
+      Array.map(
+        searchTranscript(lighthouse, 'lamp rail', { contextWords: 2 }),
+        match => [match.before, match.text, match.after, match.tokens],
+      ),
+    ).toEqual([['on the', 'Lamp rail.', 'A boat', ['b4', 'b5']]])
+    expect(
+      Array.map(searchTranscript(lighthouse, 'the lamp'), match => [
+        match.before,
+        match.after,
+      ]),
+    ).toEqual([
+      ['', 'was lit at dusk. Gulls settled on the'],
+      [
+        'lamp was lit at dusk. Gulls settled on',
+        'rail. A boat rounded the point.',
+      ],
+    ])
+  })
+
+  it('reads over a word that is only punctuation', () => {
+    expect(matchesIn(['lit', '—', 'at', 'dusk.'], 'lit at')).toEqual([
+      { index: 0, length: 3 },
+    ])
+    expect(matchesIn(['lit', 'at'], '— …')).toEqual([])
+  })
+
+  it('searches sixteen hours of words fast enough to answer as a person types', () => {
+    const sentences = [
+      'The lantern keeper climbed the stairs at dusk.',
+      'Gulls settled on the harbour rail, and waited.',
+      'A boat rounded the point before the weather turned.',
+      'He trimmed the wick — then lit the lamp.',
+      'Far out a bell answered the lantern.',
+    ]
+    const sixteenHoursOfWords = 150_000
+    const wordsPerSentence = 8
+    const texts = Array.take(
+      Array.flatMap(
+        Array.makeBy(
+          sixteenHoursOfWords / wordsPerSentence + sentences.length,
+          index => (index * 3 + Math.floor(index / 7)) % sentences.length,
+        ),
+        pick =>
+          Option.match(Array.get(sentences, pick), {
+            onNone: () => [],
+            onSome: sentence => sentence.split(' '),
+          }),
+      ),
+      sixteenHoursOfWords,
+    )
+    expect(texts.length).toBe(sixteenHoursOfWords)
+    const startedAt = performance.now()
+    const found = matchesIn(texts, 'the lantern keep')
+    const tookMs = performance.now() - startedAt
+    expect(found.length).toBeGreaterThan(0)
+    expect(tookMs).toBeLessThan(400)
+  })
+})
+
+describe('marking what a search found', () => {
+  const marksOf = (transcript: ReturnType<typeof transcriptWithMatches>) =>
+    Array.flatMap(transcript.passages, passage =>
+      Array.flatMap(passage.words, word =>
+        word.mark === undefined ? [] : [[word.token, word.mark]],
+      ),
+    )
+
+  it('marks every word found, and the match a person is on apart from the rest', () => {
+    expect(
+      marksOf(transcriptWithMatches(lighthouse, 'the lamp', 13_200)),
+    ).toEqual([
+      ['a0', 'Found'],
+      ['a1', 'Found'],
+      ['b3', 'Selected'],
+      ['b4', 'Selected'],
+    ])
+    expect(marksOf(transcriptWithMatches(lighthouse, 'lamp'))).toEqual([
+      ['a1', 'Found'],
+      ['b4', 'Found'],
+    ])
+  })
+
+  it('leaves a transcript as it is when nothing is searched for', () => {
+    expect(transcriptWithMatches(lighthouse, '')).toBe(lighthouse)
+  })
+})
+
+describe('stepping through matches', () => {
+  const matches = [{ startMs: 400 }, { startMs: 13_600 }, { startMs: 40_000 }]
+
+  it('goes to the next match after a place and the one before it, and around the ends', () => {
+    expect(matchStepOf(matches, 400, 'Next')).toEqual(
+      Option.some({ startMs: 13_600 }),
+    )
+    expect(matchStepOf(matches, 20_000, 'Previous')).toEqual(
+      Option.some({ startMs: 13_600 }),
+    )
+    expect(matchStepOf(matches, 40_000, 'Next')).toEqual(
+      Option.some({ startMs: 400 }),
+    )
+    expect(matchStepOf(matches, 400, 'Previous')).toEqual(
+      Option.some({ startMs: 40_000 }),
+    )
+    expect(matchStepOf([], 0, 'Next')).toEqual(Option.none())
+  })
+})
+
+describe('where a drag of the seek bar will land', () => {
+  const bar = Seek({
+    value: 0,
+    max: 60_000,
+    action: 'SeekTo',
+    label: 'Place',
+    valueText: '0:00 of 1:00',
+    landings: [
+      { value: 0, text: '0:00 · The lamp was lit at dusk.' },
+      { value: 12_000, text: '0:12 · Gulls settled on the Lamp rail.' },
+      { value: 31_000, text: '0:31 · A boat rounded the point.' },
+    ],
+  })
+
+  it('is the paragraph that starts at or before the place under the drag', () => {
+    expect(
+      Option.map(seekLandingAt(bar, 20_000), landing => landing.text),
+    ).toEqual(Option.some('0:12 · Gulls settled on the Lamp rail.'))
+    expect(
+      Option.map(seekLandingAt(bar, 31_000), landing => landing.text),
+    ).toEqual(Option.some('0:31 · A boat rounded the point.'))
+  })
+
+  it('is nothing for a bar that names no landings', () => {
+    expect(
+      seekLandingAt(
+        Seek({
+          value: 0,
+          max: 60_000,
+          action: 'SeekTo',
+          label: 'Place',
+          valueText: '0:00 of 1:00',
+        }),
+        20_000,
+      ),
+    ).toEqual(Option.none())
   })
 })
 

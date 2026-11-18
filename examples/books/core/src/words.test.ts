@@ -212,6 +212,7 @@ describe('the words being read', () => {
         durationMs: 4_800_000,
         isPlaying: true,
         link: '/books/the-lantern-keeper/listen/36s',
+        wordLink: '/books/the-lantern-keeper/listen/36s',
       },
       excerpt: {
         paragraphs: [

@@ -16,12 +16,14 @@ import {
   type TextPart,
   type TranscriptNode,
   type TranscriptPassage,
+  type TranscriptWordMenu,
   type UiNode,
   currentWordTokenAt,
   filterListItems,
   iconDrawings,
   isClearedOnSubmit,
   isSubmittedOnLeave,
+  seekLandingAt,
   submittedTagOf,
   transcriptAt,
 } from 'foldkit/renderers'
@@ -34,6 +36,7 @@ import {
   memo,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -311,7 +314,9 @@ const pressOf = (action: string, label: string): ButtonNode => ({
 /**
  * A seek bar. It follows the Program's place until a person grabs it,
  * shows where they drag, and presses `SeekTo:<value>` once, when they let
- * go, so dragging never restarts the audio at every step.
+ * go, so dragging never restarts the audio at every step. While they
+ * drag, it names what the drag will land on, such as the paragraph
+ * there, from the bar's own landings.
  */
 const SeekBar = ({
   seek,
@@ -340,22 +345,36 @@ const SeekBar = ({
       input.removeEventListener('change', commit)
     }
   }, [seek.action, seek.label, onPress])
+  const maybeLanding = Option.flatMap(maybeDragged, dragged =>
+    seekLandingAt(seek, dragged),
+  )
   return (
-    <input
-      ref={ref}
-      type="range"
-      className={className}
-      min={seek.min ?? 0}
-      max={seek.max}
-      step={seek.step}
-      value={Option.getOrElse(maybeDragged, () => seek.value)}
-      disabled={seek.disabled === true}
-      aria-label={seek.label}
-      aria-valuetext={seek.valueText}
-      onChange={event => {
-        setMaybeDragged(Option.some(Number(event.currentTarget.value)))
-      }}
-    />
+    <>
+      <input
+        ref={ref}
+        type="range"
+        className={className}
+        min={seek.min ?? 0}
+        max={seek.max}
+        step={seek.step}
+        value={Option.getOrElse(maybeDragged, () => seek.value)}
+        disabled={seek.disabled === true}
+        aria-label={seek.label}
+        aria-valuetext={Option.match(maybeLanding, {
+          onNone: () => seek.valueText,
+          onSome: landing => landing.text,
+        })}
+        onChange={event => {
+          setMaybeDragged(Option.some(Number(event.currentTarget.value)))
+        }}
+      />
+      {Option.match(maybeLanding, {
+        onNone: () => null,
+        onSome: landing => (
+          <output className="fk-seek-landing">{landing.text}</output>
+        ),
+      })}
+    </>
   )
 }
 
@@ -364,7 +383,9 @@ const SeekBar = ({
  * and for a field that edits, such as a title, when a person leaves it
  * after a change. It holds what is typed until then, as the seek bar holds
  * a drag, so typing never sends a Message per keystroke, and a field that
- * adds, such as `New reminder`, empties for the next entry.
+ * adds, such as `New reminder`, empties for the next entry. Enter on text
+ * that has not changed presses the field's `againAction` when it has one,
+ * such as the next match of a search.
  */
 const TextField = ({
   input,
@@ -380,7 +401,13 @@ const TextField = ({
   useEffect(() => {
     setDraft(input.value)
   }, [input.value])
-  const submit = (): void => {
+  const againAction = input.againAction
+  const isUnchanged = draft.trim() !== '' && draft.trim() === input.value.trim()
+  const submit = (how: 'Enter' | 'Leave'): void => {
+    if (how === 'Enter' && againAction !== undefined && isUnchanged) {
+      onPress(pressOf(againAction, input.label ?? input.placeholder ?? draft))
+      return
+    }
     if (Option.contains(lastSubmitted.current, draft)) {
       return
     }
@@ -401,7 +428,7 @@ const TextField = ({
       className="fk-text-form"
       onSubmit={event => {
         event.preventDefault()
-        submit()
+        submit('Enter')
       }}
     >
       <input
@@ -418,7 +445,7 @@ const TextField = ({
         }}
         onBlur={() => {
           if (isSubmittedOnLeave(input)) {
-            submit()
+            submit('Leave')
           }
         }}
       />
@@ -548,6 +575,14 @@ const currentTokenOf = (passage: TranscriptPassage): string | undefined =>
     ),
   )
 
+const marksOf = (passage: TranscriptPassage): string =>
+  Array.join(
+    Array.flatMap(passage.words, word =>
+      word.mark === undefined ? [] : [`${word.token}:${word.mark}`],
+    ),
+    ' ',
+  )
+
 const PassageView = memo(
   ({
     passage,
@@ -587,6 +622,7 @@ const PassageView = memo(
               className="fk-word"
               data-token={word.token}
               data-current={word.isCurrent === true ? true : undefined}
+              data-mark={word.mark}
               onClick={() => {
                 onPress(pressOf(`${action}:${word.token}`, word.text))
               }}
@@ -604,33 +640,45 @@ const PassageView = memo(
     before.passage.isCurrent === after.passage.isCurrent &&
     before.passage.words.length === after.passage.words.length &&
     currentTokenOf(before.passage) === currentTokenOf(after.passage) &&
+    marksOf(before.passage) === marksOf(after.passage) &&
     before.action === after.action &&
     before.onPress === after.onPress,
 )
 
 const userScrollQuietMs = 4000
 
+const leavingScrollQuietMs = 1000
+
+const leaveCheckAfterMs = 250
+
+const autoScrollMs = 900
+
 const middleBandStart = 0.25
 
 const middleBandEnd = 0.75
 
-/**
- * Keeps a word near the middle of the transcript: inside the transcript's
- * own scroll area when it has one, so the controls above stay put, else
- * in the window.
- */
-const followWord = (root: HTMLElement, word: HTMLElement): void => {
+const isNearMiddleOf = (root: HTMLElement, word: HTMLElement): boolean => {
   const isScrollArea = root.scrollHeight > root.clientHeight
   const view = isScrollArea
     ? root.getBoundingClientRect()
     : { top: 0, height: window.innerHeight }
   const bounds = word.getBoundingClientRect()
-  const isNearMiddle =
+  return (
     bounds.top > view.top + view.height * middleBandStart &&
     bounds.bottom < view.top + view.height * middleBandEnd
-  if (isNearMiddle) {
-    return
-  } else if (isScrollArea) {
+  )
+}
+
+/**
+ * Brings a word to the middle of the transcript: inside the transcript's
+ * own scroll area when it has one, so the controls above stay put, else
+ * in the window.
+ */
+const centerWord = (root: HTMLElement, word: HTMLElement): void => {
+  const isScrollArea = root.scrollHeight > root.clientHeight
+  if (isScrollArea) {
+    const view = root.getBoundingClientRect()
+    const bounds = word.getBoundingClientRect()
     root.scrollTo({
       top: root.scrollTop + (bounds.top - view.top) - root.clientHeight / 2,
       behavior: 'smooth',
@@ -639,6 +687,21 @@ const followWord = (root: HTMLElement, word: HTMLElement): void => {
     word.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
 }
+
+/** Keeps a word near the middle of the transcript, moving only when it has left it. */
+const followWord = (root: HTMLElement, word: HTMLElement): void => {
+  if (!isNearMiddleOf(root, word)) {
+    centerWord(root, word)
+  }
+}
+
+const wordIn = (root: HTMLElement, token: string): HTMLElement | null =>
+  root.querySelector<HTMLElement>(`[data-token="${CSS.escape(token)}"]`)
+
+const tokenOfTarget = (target: EventTarget | null): string | undefined =>
+  target instanceof Element
+    ? (target.closest('[data-token]')?.getAttribute('data-token') ?? undefined)
+    : undefined
 
 /**
  * Words to read along with. It keeps the word sounding in the middle of
@@ -682,6 +745,115 @@ const useLiveTranscript = (transcript: TranscriptNode): TranscriptNode => {
   )
 }
 
+const longPressMs = 500
+
+const longPressSlackPx = 10
+
+const menuGapPx = 8
+
+const menuEdgePx = 8
+
+type MenuPlace = Readonly<{ left: number; top: number }>
+
+/**
+ * The menu the Program holds open on one word, drawn by that word: its
+ * items as a menu, a press outside or Escape closing it. It draws only
+ * what the Transcript carries and presses what a person picks; whether
+ * it is open is the Program's.
+ */
+const WordMenu = ({
+  menu,
+  root,
+  onPress,
+}: Readonly<{
+  menu: TranscriptWordMenu
+  root: () => HTMLElement | null
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const ref = useRef<HTMLDivElement>(null)
+  const [place, setPlace] = useState<MenuPlace>({ left: 0, top: 0 })
+  const [wordText, setWordText] = useState('')
+  const dismiss = (): void => {
+    onPress(pressOf(menu.dismissAction, 'Close'))
+  }
+  useLayoutEffect(() => {
+    const container = root()
+    const word = container === null ? null : wordIn(container, menu.token)
+    const panel = ref.current
+    if (word === null || panel === null) {
+      return
+    }
+    const bounds = word.getBoundingClientRect()
+    const size = panel.getBoundingClientRect()
+    const below = bounds.bottom + menuGapPx
+    const fitsBelow = below + size.height <= window.innerHeight - menuEdgePx
+    setWordText(word.textContent?.trim() ?? '')
+    setPlace({
+      left: Math.max(
+        menuEdgePx,
+        Math.min(bounds.left, window.innerWidth - size.width - menuEdgePx),
+      ),
+      top: fitsBelow
+        ? below
+        : Math.max(menuEdgePx, bounds.top - menuGapPx - size.height),
+    })
+    // NOTE: `root` is a stable reader of the transcript's element; the
+    // menu is placed again only when it opens on another word.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu.token])
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onPress(pressOf(menu.dismissAction, 'Close'))
+      }
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [menu.dismissAction, onPress])
+  return (
+    <>
+      <div className="fk-word-menu-backdrop" aria-hidden onClick={dismiss} />
+      <div
+        ref={ref}
+        role="menu"
+        aria-label={wordText}
+        className="fk-word-menu"
+        style={{ left: place.left, top: place.top }}
+      >
+        {Array.map(menu.items, item => (
+          <button
+            key={item.action}
+            type="button"
+            role="menuitem"
+            className="fk-word-menu-item"
+            onClick={() => {
+              onPress(pressOf(item.action, item.label))
+            }}
+          >
+            {item.icon === undefined ? null : <Icon name={item.icon} />}
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
+/**
+ * Words to read along with. While the Transcript says the view follows
+ * the word sounding, it keeps that word in the middle as it moves. When a
+ * person scrolls it out of the middle it tells the Program, with the
+ * Transcript's `leaveAction`, and from then the view stays where they put
+ * it until the Program says it follows again: it never pulls the view
+ * back by itself. A `focusToken` is brought to the middle once, when it
+ * is named. A Transcript with no `leaveAction` follows again a few
+ * seconds after a person stops scrolling, as before. A secondary click or
+ * a long press on a word asks the Program for the word's menu, and the
+ * menu the Program holds is drawn by its word.
+ */
 const TranscriptView = ({
   transcript: given,
   className,
@@ -694,58 +866,204 @@ const TranscriptView = ({
   const transcript = useLiveTranscript(given)
   const ref = useRef<HTMLElement>(null)
   const lastUserScrollAtMs = useRef(0)
+  const autoScrollUntilMs = useRef(0)
+  const leaveCheck = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  )
+  const longPress = useRef<
+    | Readonly<{
+        timer: ReturnType<typeof setTimeout>
+        x: number
+        y: number
+      }>
+    | undefined
+  >(undefined)
+  const isClickSwallowed = useRef(false)
   const maybeCurrentToken = Array.findFirst(
     Array.flatMap(transcript.passages, passage =>
       Array.fromNullishOr(currentTokenOf(passage)),
     ),
     () => true,
   )
+  const currentToken = Option.getOrUndefined(maybeCurrentToken)
+  const isFollowing = transcript.isFollowing !== false
+  const leaveAction = transcript.leaveAction
+  const focusToken = transcript.focusToken
+  const wordMenuAction = transcript.wordMenuAction
+  const isFocusWordHere =
+    focusToken !== undefined &&
+    Array.some(transcript.passages, passage =>
+      Array.some(passage.words, word => word.token === focusToken),
+    )
+  const live = useRef({ currentToken, isFollowing, leaveAction, onPress })
+  live.current = { currentToken, isFollowing, leaveAction, onPress }
   useEffect(() => {
+    const leaveIfAway = (): void => {
+      const now = live.current
+      const root = ref.current
+      if (
+        root === null ||
+        now.leaveAction === undefined ||
+        !now.isFollowing ||
+        now.currentToken === undefined
+      ) {
+        return
+      }
+      const word = wordIn(root, now.currentToken)
+      if (word !== null && !isNearMiddleOf(root, word)) {
+        now.onPress(pressOf(now.leaveAction, 'Read elsewhere'))
+      }
+    }
     const noteUserScroll = (): void => {
       lastUserScrollAtMs.current = Date.now()
+      clearTimeout(leaveCheck.current)
+      leaveCheck.current = setTimeout(leaveIfAway, leaveCheckAfterMs)
     }
+    const noteScroll = (): void => {
+      if (Date.now() > autoScrollUntilMs.current) {
+        noteUserScroll()
+      }
+    }
+    const root = ref.current
     window.addEventListener('wheel', noteUserScroll, { passive: true })
     window.addEventListener('touchmove', noteUserScroll, { passive: true })
+    window.addEventListener('scroll', noteScroll, { passive: true })
+    root?.addEventListener('scroll', noteScroll, { passive: true })
     return () => {
+      clearTimeout(leaveCheck.current)
       window.removeEventListener('wheel', noteUserScroll)
       window.removeEventListener('touchmove', noteUserScroll)
+      window.removeEventListener('scroll', noteScroll)
+      root?.removeEventListener('scroll', noteScroll)
     }
   }, [])
-  const currentToken = Option.getOrUndefined(maybeCurrentToken)
   useEffect(() => {
     const root = ref.current
+    const quietMs =
+      leaveAction === undefined ? userScrollQuietMs : leavingScrollQuietMs
     if (
       root === null ||
       currentToken === undefined ||
-      Date.now() - lastUserScrollAtMs.current < userScrollQuietMs
+      !isFollowing ||
+      Date.now() - lastUserScrollAtMs.current < quietMs
     ) {
       return
     }
-    const word = root.querySelector<HTMLElement>(
-      `[data-token="${CSS.escape(currentToken)}"]`,
-    )
+    const word = wordIn(root, currentToken)
     if (word === null) {
       return
     }
+    autoScrollUntilMs.current = Date.now() + autoScrollMs
     followWord(root, word)
-  }, [currentToken])
+    // NOTE: `leaveAction` only picks how long a person's own scroll is
+    // left alone; a change of it alone moves nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentToken, isFollowing])
+  useEffect(() => {
+    const root = ref.current
+    if (root === null || focusToken === undefined || !isFocusWordHere) {
+      return
+    }
+    const word = wordIn(root, focusToken)
+    if (word === null) {
+      return
+    }
+    autoScrollUntilMs.current = Date.now() + autoScrollMs
+    centerWord(root, word)
+  }, [focusToken, isFocusWordHere])
+  const askForMenu = (token: string): void => {
+    if (wordMenuAction !== undefined) {
+      onPress(pressOf(`${wordMenuAction}:${token}`, 'Word menu'))
+    }
+  }
+  const endLongPress = (): void => {
+    if (longPress.current !== undefined) {
+      clearTimeout(longPress.current.timer)
+      longPress.current = undefined
+    }
+  }
   return (
-    <section ref={ref} className={className} aria-label={transcript.label}>
-      {Array.match(transcript.passages, {
-        onEmpty: () => (
-          <p className="fk-transcript-empty">{transcript.emptyText}</p>
-        ),
-        onNonEmpty: passages =>
-          Array.map(passages, passage => (
-            <PassageView
-              key={passage.key}
-              passage={passage}
-              action={transcript.action}
-              onPress={onPress}
-            />
-          )),
-      })}
-    </section>
+    <>
+      <section
+        ref={ref}
+        className={className}
+        aria-label={transcript.label}
+        data-following={isFollowing ? undefined : 'false'}
+        onContextMenu={
+          wordMenuAction === undefined
+            ? undefined
+            : event => {
+                const token = tokenOfTarget(event.target)
+                if (token !== undefined) {
+                  event.preventDefault()
+                  endLongPress()
+                  askForMenu(token)
+                }
+              }
+        }
+        onPointerDown={
+          wordMenuAction === undefined
+            ? undefined
+            : event => {
+                const token = tokenOfTarget(event.target)
+                if (token === undefined || event.pointerType === 'mouse') {
+                  return
+                }
+                endLongPress()
+                longPress.current = {
+                  x: event.clientX,
+                  y: event.clientY,
+                  timer: setTimeout(() => {
+                    longPress.current = undefined
+                    isClickSwallowed.current = true
+                    askForMenu(token)
+                  }, longPressMs),
+                }
+              }
+        }
+        onPointerMove={event => {
+          const pressed = longPress.current
+          if (
+            pressed !== undefined &&
+            Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) >
+              longPressSlackPx
+          ) {
+            endLongPress()
+          }
+        }}
+        onPointerUp={endLongPress}
+        onPointerCancel={endLongPress}
+        onClickCapture={event => {
+          if (isClickSwallowed.current) {
+            isClickSwallowed.current = false
+            event.stopPropagation()
+            event.preventDefault()
+          }
+        }}
+      >
+        {Array.match(transcript.passages, {
+          onEmpty: () => (
+            <p className="fk-transcript-empty">{transcript.emptyText}</p>
+          ),
+          onNonEmpty: passages =>
+            Array.map(passages, passage => (
+              <PassageView
+                key={passage.key}
+                passage={passage}
+                action={transcript.action}
+                onPress={onPress}
+              />
+            )),
+        })}
+      </section>
+      {transcript.wordMenu === undefined ? null : (
+        <WordMenu
+          menu={transcript.wordMenu}
+          root={() => ref.current}
+          onPress={onPress}
+        />
+      )}
+    </>
   )
 }
 
@@ -884,7 +1202,19 @@ const ListRowView = memo(
           />
         )}
         <span className="fk-item-body">
-          <span className="fk-item-title">{item.title}</span>
+          <span className="fk-item-title">
+            {item.titleMark === undefined ? (
+              item.title
+            ) : (
+              <>
+                {item.title.slice(0, item.titleMark.start)}
+                <mark className="fk-item-mark">
+                  {item.title.slice(item.titleMark.start, item.titleMark.end)}
+                </mark>
+                {item.title.slice(item.titleMark.end)}
+              </>
+            )}
+          </span>
           {Array.map(item.lines ?? [], (line, index) => (
             <span key={index} className="fk-item-line">
               {line}

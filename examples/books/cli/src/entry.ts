@@ -4,7 +4,9 @@
  * keeps playing after the command returns, and prints what it is doing
  * and what to run next:
  *
- *   books                          what is playing, and commands to copy
+ *   books                          what is playing, and commands to copy;
+ *                                  with no player running, how to use it,
+ *                                  and it starts none
  *   books help                     the same
  *   books listen a-new-earth       play a title from your place
  *   books pause                    pause; `books play` plays again
@@ -18,6 +20,9 @@
  *   books words                    the paragraph being read, with those around it
  *   books follow words             the same, again on each new paragraph
  *   books follow words --json      as lines of JSON, for another program
+ *   books search "lit at dusk"     where those words are spoken, with links
+ *   books search lamp --json       the same as one line of JSON
+ *   books open <a link to a word>  go to that word, paused
  *   books tui                      the player, live, in this terminal
  *   books stop                     pause, save your place, end the player
  *   books actions                  every command
@@ -39,7 +44,13 @@ import {
 import { spawnSync } from 'node:child_process'
 
 import { listAudioDevices, paintAudioDevices } from './devices.js'
-import { askPlayer, followPlayer, showPlayerTui, stopPlayer } from './view.js'
+import {
+  askPlayer,
+  followPlayer,
+  showBriefOrUsage,
+  showPlayerTui,
+  stopPlayer,
+} from './view.js'
 
 const hostedOrigin = 'https://books.pisspoursoftware.xyz'
 
@@ -75,8 +86,8 @@ if (maybeFollow !== undefined) {
 } else if (request._tag === 'Watch') {
   const { runWatch } = await import('./inProcess.js')
   await runWatch()
-} else if (request._tag === 'Show') {
-  await askPlayer({ _tag: 'Do', token: 'help', flags: request.flags })
+} else if (request._tag === 'Show' || head === 'help') {
+  await showBriefOrUsage(request.flags)
 } else if (head === 'devices') {
   process.stdout.write(`${paintAudioDevices(listAudioDevices())}\n`)
 } else if (head === 'login') {

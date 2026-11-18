@@ -25,6 +25,11 @@ export const IconName = S.Literals([
   'Profile',
   'Settings',
   'More',
+  'Search',
+  'PreviousMatch',
+  'NextMatch',
+  'Playhead',
+  'Link',
 ])
 /** One icon a Button can show. */
 export type IconName = typeof IconName.Type
@@ -115,6 +120,23 @@ export const iconDrawings: Readonly<Record<IconName, IconDrawing>> = {
     'M17.5 16h5',
   ),
   More: stroked('M5 12h.01', 'M12 12h.01', 'M19 12h.01'),
+  Search: stroked(
+    'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z',
+    'M20 20l-4.9-4.9',
+  ),
+  PreviousMatch: stroked('M6 14.5l6-6 6 6'),
+  NextMatch: stroked('M6 9.5l6 6 6-6'),
+  Playhead: stroked(
+    'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+    'M12 3v3',
+    'M12 18v3',
+    'M3 12h3',
+    'M18 12h3',
+  ),
+  Link: stroked(
+    'M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2',
+    'M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2',
+  ),
 }
 
 /**
@@ -144,4 +166,9 @@ export const iconGlyphs: Readonly<Record<IconName, string>> = {
   Profile: '◉',
   Settings: '⚙',
   More: '…',
+  Search: '⌕',
+  PreviousMatch: '↑',
+  NextMatch: '↓',
+  Playhead: '◎',
+  Link: '∞',
 }

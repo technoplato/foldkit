@@ -1,7 +1,7 @@
 import { Array, Option, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
-import { MediaId, Milliseconds, Speed, WordId } from './ids.js'
+import { MediaId, Milliseconds, SearchQuery, Speed, WordId } from './ids.js'
 
 // MODEL
 
@@ -99,11 +99,78 @@ export const SeekScope = S.Literals(['Section', 'Recording'])
 export type SeekScope = typeof SeekScope.Type
 
 /**
+ * One place a search found: the time its first word starts, which is the
+ * word's address, the words that matched, and a few words before and
+ * after them from the same passage, to show where it is.
+ */
+export const Match = S.Struct({
+  startMs: Milliseconds,
+  text: S.String,
+  before: S.String,
+  after: S.String,
+})
+/** One place a search found. */
+export type Match = typeof Match.Type
+
+/** The search is open and nothing has been searched for yet. */
+export const SearchIdle = ts('SearchIdle')
+/** The recording is being read through for `query`. */
+export const Searching = ts('Searching', { query: SearchQuery })
+/**
+ * What a search for `query` found: how many places in the whole
+ * recording, the first of them in order, at most
+ * {@link searchMatchesLimit}, and the one the person is on, by the time it
+ * starts.
+ */
+export const SearchFound = ts('SearchFound', {
+  query: SearchQuery,
+  total: S.Int,
+  matches: S.Array(Match),
+  maybeSelectedMs: S.Option(Milliseconds),
+})
+/** The recording could not be searched for `query`, and why, safe to show. */
+export const SearchFailed = ts('SearchFailed', {
+  query: SearchQuery,
+  reason: S.String,
+})
+/** Where an open search stands. */
+export const Search = S.Union([
+  SearchIdle,
+  Searching,
+  SearchFound,
+  SearchFailed,
+])
+/** Where an open search stands. */
+export type Search = typeof Search.Type
+
+/** How many matches a search keeps to show and step through. */
+export const searchMatchesLimit = 100
+
+/**
+ * The person scrolled the words away from the word sounding. The words
+ * on screen stay the ones around `anchorMs`, the place it was at when
+ * they did, while the audio plays on.
+ */
+export const ScrolledAway = ts('ScrolledAway', { anchorMs: Milliseconds })
+/**
+ * The person is looking at one word away from the word sounding, such as
+ * a match of a search: the word that starts at `atMs`, to bring into view.
+ */
+export const LookingAt = ts('LookingAt', { atMs: Milliseconds })
+/** How the words on screen stand away from the word sounding. */
+export const Away = S.Union([ScrolledAway, LookingAt])
+/** How the words on screen stand away from the word sounding. */
+export type Away = typeof Away.Type
+
+/**
  * The Transcript Player: one recording, where it is, whether it sounds,
  * how fast, what the seek bar spans, and the words near the place.
  * `maybePlacedAtMs` is the wall-clock time the audio last reported the
  * place while playing; None after a jump until it reports again. With it
  * a painter knows the place between reports, see {@link playbackClockOf}.
+ * `maybeSearch` is the search while it is open. `maybeAway` says the
+ * words on screen are somewhere other than the word sounding; None, they
+ * follow it. `maybeWordMenu` is the word whose menu is open.
  */
 export const Model = S.Struct({
   media: Media,
@@ -114,9 +181,17 @@ export const Model = S.Struct({
   speed: Speed,
   seekScope: SeekScope,
   transcript: Transcript,
+  maybeSearch: S.OptionFromOptionalKey(Search),
+  maybeAway: S.OptionFromOptionalKey(Away),
+  maybeWordMenu: S.OptionFromOptionalKey(WordId),
 })
-/** The Transcript Player. */
-export type Model = typeof Model.Type
+/**
+ * A Transcript Player Model value. An interface rather than an alias, so
+ * every type that names it, such as each Action's, carries `Model` by
+ * name instead of the whole Model again; a Program that offers the
+ * player's Actions with `Catalog.within` depends on that to typecheck.
+ */
+export interface Model extends S.Schema.Type<typeof Model> {}
 
 /**
  * A player holding `media`, paused at `placeMs` at `speed`, its words on
@@ -145,6 +220,9 @@ export const init = (
     options.seekScope ??
     (Array.isReadonlyArrayEmpty(media.sections) ? 'Recording' : 'Section'),
   transcript: TranscriptLoading(),
+  maybeSearch: Option.none(),
+  maybeAway: Option.none(),
+  maybeWordMenu: Option.none(),
 })
 
 /** True while the player is sounding. */
@@ -247,3 +325,55 @@ export const wordOf = (model: Model, wordId: WordId): Option.Option<Word> =>
     Array.flatMap(passagesOf(model), passage => passage.words),
     word => word.wordId === wordId,
   )
+
+/** The search, while it is open. */
+export const searchOf = (model: Model): Option.Option<Search> =>
+  model.maybeSearch
+
+/** The words being searched for, once a search has been made. */
+export const searchQueryOf = (model: Model): Option.Option<SearchQuery> =>
+  Option.flatMap(model.maybeSearch, search =>
+    search._tag === 'SearchIdle' ? Option.none() : Option.some(search.query),
+  )
+
+/** The matches a search found, in order; empty until it has. */
+export const matchesOf = (model: Model): ReadonlyArray<Match> =>
+  Option.match(model.maybeSearch, {
+    onNone: () => [],
+    onSome: search => (search._tag === 'SearchFound' ? search.matches : []),
+  })
+
+/** The match the person is on, while a search has one selected. */
+export const selectedMatchOf = (model: Model): Option.Option<Match> =>
+  Option.flatMap(model.maybeSearch, search =>
+    search._tag === 'SearchFound'
+      ? Option.flatMap(search.maybeSelectedMs, selectedMs =>
+          Array.findFirst(
+            search.matches,
+            match => match.startMs === selectedMs,
+          ),
+        )
+      : Option.none(),
+  )
+
+/** True while the words on screen follow the word sounding. */
+export const isFollowingPlayhead = (model: Model): boolean =>
+  Option.isNone(model.maybeAway)
+
+/**
+ * The place the words on screen are around: the place being heard while
+ * they follow it, else where the person scrolled away or the word they
+ * are looking at. The player asks its source for the words around this
+ * place, so a match hours away has its words without moving the audio.
+ *
+ * @example
+ * ```typescript
+ * viewPlaceOf(following) // 723000, the place being heard
+ * viewPlaceOf(atMatch) // 10802400, the match on screen, while 12:03 plays on
+ * ```
+ */
+export const viewPlaceOf = (model: Model): Milliseconds =>
+  Option.match(model.maybeAway, {
+    onNone: () => model.placeMs,
+    onSome: away => (away._tag === 'ScrolledAway' ? away.anchorMs : away.atMs),
+  })
