@@ -4,6 +4,158 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 9:46:40 a.m. EST — `983701c48c94` feat(foldkit): green: a Transcript says who speaks and holds what sits between its passages (Scribe #2494)
+
+- **Implementation commit:** `983701c48c9477374ec8f82295f7ebdfb53a2b63`
+- **Change:** green: a Transcript says who speaks and holds what sits between its passages (Scribe #2494)
+- **Details:**
+  - A passage may name its speaker; a Program names it on the first passage of each run, so a painter labels the run once. A Transcript may hold items, each with its time, the passage it sits before and the screen part it shows. transcriptEntriesOf gives the timeline's order for every painter: each passage with the items that name it before it, then the items that name no passage that is there. A terminal prints the speaker on a line above the passage and each item at its time, laid out beside it and as tall as its part is; the line being read stays marked. The Foldkit HTML painter draws both in that order, an item with its time in the column the passages keep theirs in and its part beside it from the start edge, at desktop and phone widths. While there are no passages a painter shows the empty text, then the items. The React, Svelte and React Native painters do not draw speakers or items yet. foldkit renderers, cli, interaction and theme: 366 tests pass; @foldkit/react 103, books core 269 and books cli 37 pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/elements.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/layout.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptEntries.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptTimeline.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/types.ts` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content and then we can apply the styling on top of that very compositionally very functionally
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:40 a.m. EST — `b599c8d4ab33` feat(books): green: a newly started player answers once it has caught up (Scribe #2494)
+
+- **Implementation commit:** `b599c8d4ab3332ee9fd8ae0e8daa9b6b797d453f`
+- **Change:** green: a newly started player answers once it has caught up (Scribe #2494)
+- **Details:**
+  - caughtUpWithin waits for a handle's first read of the log with a limit, and says TimedOut when the limit passes first. The Books wait every terminal host already makes before its first answer (the player, the watch, the in-process run) now waits for that first, within the same limit, then for the shelf. The cause, read in the runtime: with a local snapshot the Program is Ready at once and reads the log behind it, so the player's first answer could come from the snapshot, a place from before the last time it ran. foldkit runtime handle tests pass; books core 269 and books cli 37 pass; tsc clean. Not run against a real session.
+- **Files:**
+  - `examples/books/core/src/live.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/handle.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/public.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:40 a.m. EST — `6748f9970938` feat(foldkit): green: a started Program says when it has caught up with the log (Scribe #2494)
+
+- **Implementation commit:** `6748f99709384838948b351bc0e9a7bdae7e9727`
+- **Change:** green: a started Program says when it has caught up with the log (Scribe #2494)
+- **Details:**
+  - start returns caughtUp, which completes once the Processor has asked the sync engine for the rows it had not seen: CaughtUp when the Model holds them, CouldNotRead when the engine could not return them. A handle offers the same as whenCaughtUp, with its own test. Nothing else changes: a Program with a local snapshot still paints at once and reads the log behind it. foldkit runtime and cli: 290 tests pass; the four tests of resources.test.ts that fail here fail the same way at e64824314, before this change, and are not touched.
+- **Files:**
+  - `packages/foldkit/src/runtime/handle.test.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/handle.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/public.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/start.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:40 a.m. EST — `36e115b227cc` feat(books): green: the live player paints from the theme (Scribe #2494)
+
+- **Implementation commit:** `36e115b227ccfc79cab00cd60534c39a04651bc1`
+- **Change:** green: the live player paints from the theme (Scribe #2494)
+- **Details:**
+  - The Books player hands its ink to its terminal view, the mode read from the Model each frame, and books tui says its output takes color when color was not refused and the terminal is not a dumb one (takesColor, which the entry now uses for the words too). The word being read, what was spoken and what is to come, a match, a heading and the current row take the theme's roles; a frame for anything else is plain text as before. books cli: 37 tests pass; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/view.test.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:40 a.m. EST — `35d0e2fe84fe` feat(foldkit): green: the live player in a terminal paints from the theme (Scribe #2494)
+
+- **Implementation commit:** `35d0e2fe84fe904792e43d2a7144dfb1ed94d224`
+- **Change:** green: the live player in a terminal paints from the theme (Scribe #2494)
+- **Details:**
+  - A painted screen says the role each part of a line plays: in a Transcript the passage's time, what was spoken, the word being spoken, a word a search found, the match a person is on and what is to come; a heading; the button or row with the keyboard, and the current one. The painter keeps the roles cell by cell, so a later mark covers an earlier one's role as it covers its characters. The terminal screen carries the roles beside its plain lines and rests its own lines (where it is, how much is hidden, the keys). inkedLine paints a line from its roles. A Program's terminal view inks a frame only for a view that says its output takes color and only with the ink the Program hands it, the mode read from the Model each frame; the remote view says so with isColor. Frames stay plain text everywhere else, and an inked frame with the ink removed is the plain frame. foldkit theme, renderers, cli and interaction: 359 tests pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/cli/surface.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+  - `packages/foldkit/src/cli/terminalScreen.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/layout.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/paint.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/terminalInks.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/types.ts` — changed by this commit
+  - `packages/foldkit/src/theme/terminal.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:40 a.m. EST — `42caffcd632c` feat(books): green: a word's two actions as commands, books link and books play-from (Scribe #2494)
+
+- **Implementation commit:** `42caffcd632cb4b676a4fbae2d14244ffe046104`
+- **Change:** green: a word's two actions as commands, books link and books play-from (Scribe #2494)
+- **Details:**
+  - books link prints the whole address of the word being read, on a line of its own so it pipes to a clipboard; where no word near the place is known it is the place's link. books play-from takes a link to a word or a time and plays from it in the title that is in the player. Each says what it needs on stderr when it has nothing to act on. The address and the place a link names are readings in the Books core, so any Client uses them. books cli 35 tests pass; books core passes; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+  - `examples/books/core/src/find.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:40 a.m. EST — `eb81e4eb2f80` feat(foldkit): green: a terminal goes to the match a search shows (Scribe #2494)
+
+- **Implementation commit:** `eb81e4eb2f8070bfcd7f738ef071edb7638b2154`
+- **Change:** green: a terminal goes to the match a search shows (Scribe #2494)
+- **Details:**
+  - A Transcript's layout marks the line of the word it says to show while its words do not follow the voice, and the terminal screen keeps that line in view in place of the line being read (anchorRowsOf); once the words follow again, or nothing is named, it is the line being read as before. foldkit cli and renderers: 192 tests pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/cli/terminalScreen.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/layout.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/types.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:39 a.m. EST — `1dcb66146bc1` feat(foldkit): green: More Contrast is a third dimension of a theme, and state (Scribe #2494)
+
+- **Implementation commit:** `1dcb66146bc183536287d58d1258b5921644465b`
+- **Change:** green: More Contrast is a third dimension of a theme, and state (Scribe #2494)
+- **Details:**
+  - A role may name a stronger colour for More Contrast, light and dark apart (lightMore, darkMore), and so may a domain's own role; one that names none keeps its usual colour. roleColorsOf takes the contrast, and themeStylesheet declares again only the roles that change, on an element whose data-fk-contrast is More; a theme that names none writes no contrast rule. The contrast is state like the mode: AppearanceState holds what the system asks for (optional, so a state saved before reads as Standard), ObservedSystemContrast is the fact, the host's SystemAppearance reports it (the browser's from the one media query, in the host adapter only), contrastOfState reads it, and paintContrastOnPage tells the page. The first-paint script that takes the system's mode takes its contrast too. No painter or stylesheet asks the system. foldkit theme 37 tests pass; interaction, books core, @foldkit/react pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/theme/appearance.ts` — changed by this commit
+  - `packages/foldkit/src/theme/browser.test.ts` — changed by this commit
+  - `packages/foldkit/src/theme/browser.ts` — changed by this commit
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:39 a.m. EST — `a8fa7ac268c6` feat(foldkit): green: a first-paint script that takes the system's mode when none is remembered (Scribe #2494)
+
+- **Implementation commit:** `a8fa7ac268c6905b01b89abda60193e3bd1c630d`
+- **Change:** green: a first-paint script that takes the system's mode when none is remembered (Scribe #2494)
+- **Details:**
+  - firstPaintScriptFollowingSystem uses the remembered mode when there is one and otherwise the system's, once, before the Program exists, so a page whose mode has become state does not open light on a dark system at its first visit. Books keeps the script it has. foldkit theme: 30 tests pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/theme/browser.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:46:39 a.m. EST — `f2afd856b779` feat(foldkit): green: eight more roles, and roles a domain adds beside the library's (Scribe #2494)
+
+- **Implementation commit:** `f2afd856b779e87c2b25d974a100392021bd6d2f`
+- **Change:** green: eight more roles, and roles a domain adds beside the library's (Scribe #2494)
+- **Details:**
+  - The theme names eight more things a color is for, with light and dark values in the default theme: FieldStrong, DangerStrong, DangerFill, DangerSoft, Positive, PositiveSoft, WarningSoft and BarGround. A domain adds roles of its own with withOwnRoles, such as the badge of a recording in progress: themeStylesheet declares them beside the library's, light and dark, as --fk-own-… variables, and a rule names one with ownRoleVar. A name the library already uses is refused, so a domain gives a library role a color with withRoles and never shadows one. A Program with none gets the stylesheet it had, plus the eight new variables. foldkit theme and interaction: 147 tests pass; books core and @foldkit/react pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 3:53:31 a.m. EST — `b77df6b3b027` feat(foldkit): green: the seek landing and Enter again in the Foldkit HTML painter (Scribe #2494)
 
 - **Implementation commit:** `b77df6b3b027c143fc9d39c80b8c8586fb24a8d1`
