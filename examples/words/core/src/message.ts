@@ -276,6 +276,10 @@ export const CompletedShareRecordingLink = m('CompletedShareRecordingLink')
 export const ClickedCopySectionLink = m('ClickedCopySectionLink', {
   sectionID: S.String,
 })
+/** The listener copied a link to one word. */
+export const ClickedCopyWordLink = m('ClickedCopyWordLink', {
+  wordID: S.String,
+})
 /** The listener copied a link to the current playback position. */
 export const ClickedCopyMomentLink = m('ClickedCopyMomentLink')
 /** The listener copied one section's text. */
@@ -391,6 +395,7 @@ export const Message = S.Union([
   ClickedShareRecordingLink,
   CompletedShareRecordingLink,
   ClickedCopySectionLink,
+  ClickedCopyWordLink,
   ClickedCopyMomentLink,
   ClickedCopySectionText,
   ClickedCopyTranscript,

@@ -363,6 +363,44 @@ export const formatStartSeconds = (seconds: number): string =>
   )
 
 /**
+ * The time a link to one word uses: the word's start, rounded up to the
+ * millisecond, so the link lands on the word and never a hair before it.
+ */
+export const wordLinkSeconds = (startSeconds: number): number =>
+  Math.ceil(startSeconds * MILLISECONDS_PER_SECOND - 1e-6) /
+  MILLISECONDS_PER_SECOND
+
+/**
+ * The link to one word of a section: the section's own link at the time
+ * the word starts, with no lead-in. A time is what names a word here, as
+ * in every Client of the library: it stays true across devices and across
+ * a transcript made again. None for a word the section does not hold.
+ *
+ * @example
+ * ```ts
+ * wordLinkRouteOf(recordingID, section, wordID)
+ * // Some(SectionRoute({ recordingID, sectionID, t: Some('7.257') }))
+ * ```
+ */
+export const wordLinkRouteOf = (
+  recordingID: string,
+  section: Readonly<{
+    id: string
+    words: ReadonlyArray<Readonly<{ id: string; startSeconds: number }>>
+  }>,
+  wordID: string,
+): Option.Option<typeof SectionRoute.Type> =>
+  Option.map(
+    Option.fromNullishOr(section.words.find(word => word.id === wordID)),
+    word =>
+      SectionRoute({
+        recordingID,
+        sectionID: section.id,
+        t: Option.some(formatStartSeconds(wordLinkSeconds(word.startSeconds))),
+      }),
+  )
+
+/**
  * The start time a shared link uses: the whole second before `seconds`, so the
  * listener hears a moment of lead-in instead of landing mid-word.
  */

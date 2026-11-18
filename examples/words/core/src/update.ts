@@ -54,6 +54,7 @@ import {
   shareableStartSeconds,
   startSecondsOf,
   urlToScribeRoute,
+  wordLinkRouteOf,
 } from './link.js'
 import { LinkSharer } from './linkSharer.js'
 import {
@@ -3361,6 +3362,24 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             ),
             'Copied link to this moment',
           ]),
+        ),
+      ClickedCopyWordLink: ({ wordID }) =>
+        copyFromReady(model, ready =>
+          pipe(
+            ready.detail.sections,
+            Array.map(section =>
+              wordLinkRouteOf(ready.recordingID, section, wordID),
+            ),
+            Array.getSomes,
+            Array.head,
+            Option.map(
+              route =>
+                [
+                  scribeRouteToShareUrl(route),
+                  'Copied link to this word',
+                ] as const,
+            ),
+          ),
         ),
       ClickedCopyMomentLink: () =>
         copyFromReady(model, ready =>
