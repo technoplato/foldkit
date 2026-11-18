@@ -4,6 +4,146 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 17th, 2026 at 11:05:07 p.m. EST — `5e5d12b76ba8` docs(foldkit): the sync engine interface describes itself, not Instant (Scribe #2494)
+
+- **Implementation commit:** `5e5d12b76ba842bce5ede206389f13be7df95955`
+- **Change:** the sync engine interface describes itself, not Instant (Scribe #2494)
+- **Details:**
+  - Michael, 2026-11-17: 'Sync engine should be generic, and our implementation just happens to be instant DB, but any kind of sync engine should work there.' Runtime.SyncEngine was already that in code; its TSDoc called it the Instant I/O surface and Memory a fake Instant. The comments now say what the interface asks of any engine and name Memory, Instant and a test's own engine as implementations. N
+- **Files:**
+  - `packages/foldkit/src/runtime/syncEngine.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `684e0df6fa7f` feat(books): green: the books core's domain entry names no sync engine (Scribe #2494)
+
+- **Implementation commit:** `684e0df6fa7f2164d9ef6cdb328732b179d7c672`
+- **Change:** green: the books core's domain entry names no sync engine (Scribe #2494)
+- **Details:**
+  - The Instant library store, transcript source and timeline are exported from index.node.ts and index.browser.ts, the two host entries, and no longer from index.ts, the domain every host shares. Importers of 'books-core-example' get the same names from either host entry, so none changes. books core: 27 files, 185 tests pass; the core, the CLI and the site typecheck.
+- **Files:**
+  - `examples/books/core/src/index.browser.ts` — changed by this commit
+  - `examples/books/core/src/index.node.ts` — changed by this commit
+  - `examples/books/core/src/index.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `8b80a59f094f` feat(foldkit): green: the Background Processor is the name of the CLI daemon (Scribe #2494)
+
+- **Implementation commit:** `8b80a59f094fec271b4897a1182a0c21b50b1dbc`
+- **Change:** green: the Background Processor is the name of the CLI daemon (Scribe #2494)
+- **Details:**
+  - foldkit/cli exports the primitive under the name he chose: listenBackgroundProcessor, startBackgroundProcessorServer, backgroundProcessorSocketPath, ask, ensure, spawn, stop and isBackgroundProcessorListening, BackgroundProcessorError and the Surface, Flags, Painted and Following types; the slim view exports backgroundProcessorSocketPath, isBackgroundProcessorRunning and spawnBackgroundProcessorFr
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+  - `examples/books/cli/src/daemon.ts` — changed by this commit
+  - `examples/counter/cli/src/daemon.ts` — changed by this commit
+  - `glossary.md` — changed by this commit
+  - `packages/foldkit/src/cli/backgroundProcessor.ts` — changed by this commit
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+  - `skills/foldkit-client-hosts/SKILL.md` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `ee2ea40c382b` feat(foldkit): green: follow with no topic follows the only one, or asks which (Scribe #2494)
+
+- **Implementation commit:** `ee2ea40c382bbd2c06ff66b33cae92ba4c790641`
+- **Change:** green: follow with no topic follows the only one, or asks which (Scribe #2494)
+- **Details:**
+  - followArgvOf names no topic when none is given, and followTopicOf then follows the only topic when there is one ('counter follow' follows the screen) and otherwise answers 'Follow what? Name one of: screen, words. For example: follow screen' with exit code 1, the same way it names the topics for one it does not have. foldkit/src/cli: 9 files, 64 tests pass.
+- **Files:**
+  - `packages/foldkit/src/cli/argv.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `a655bd74999b` feat(books): green: a terminal follows the session's navigation like a browser (Scribe #2494)
+
+- **Implementation commit:** `a655bd74999b48e91c9c57e3440368a66e032628`
+- **Change:** green: a terminal follows the session's navigation like a browser (Scribe #2494)
+- **Details:**
+  - Books no longer passes the terminal Hosts as ownNavigationHosts, so a terminal Processor follows the session's navigation exactly as the web and mobile apps do: while the session mirrors, each moves the others; Keep navigation local gives each its own. The Session feature itself is unchanged and still tested in Foldkit; Books simply names no Host.
+- **Files:**
+  - `docs/adr/0014-one-contract-for-every-surface.md` — changed by this commit
+  - `examples/books/cli/src/daemon.ts` — changed by this commit
+  - `examples/books/core/src/app.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `29823340ac8d` feat(books): green: follow words --each-word moves by the clock (Scribe #2494)
+
+- **Implementation commit:** `29823340ac8dd8654b20b56e1f7855b20507ee77`
+- **Change:** green: follow words --each-word moves by the clock (Scribe #2494)
+- **Details:**
+  - The terminal adapter asks the books core for the words at this moment (spokenWordsOf with Date.now()), so 'books words' marks the word being spoken now, and 'books follow words --each-word' reads it twenty times a second and prints when the text changes. The paragraph-by-paragraph follow is unchanged. books cli: 17 of 17 tests pass.
+- **Files:**
+  - `examples/books/cli/src/player.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `6eaba8c0fb7b` feat(react): green: the mark moves on the word between the reports of the place (Scribe #2494)
+
+- **Implementation commit:** `6eaba8c0fb7b9a011a482481780d7803b08d3fc8`
+- **Change:** green: the mark moves on the word between the reports of the place (Scribe #2494)
+- **Details:**
+  - The React painter's TranscriptView reads the word being spoken from the Transcript's clock every 50 ms while the clock runs (Foldkit's currentWordTokenAt) and marks the Transcript again only when the word changes (transcriptAt), so the highlight and the scroll that follows it move on the word. A Transcript with no clock, or one standing still, is painted as the Program marked it. Only the two pass
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `2242084bb7b9` feat(books): green: the word being spoken at a moment between the player's reports (Scribe #2494)
+
+- **Implementation commit:** `2242084bb7b9e814bb00c4754408d873aca332a9`
+- **Change:** green: the word being spoken at a moment between the player's reports (Scribe #2494)
+- **Details:**
+  - spokenWordsOf takes an optional wall-clock time and marks the word being spoken then, through Foldkit's transcriptAt on the player's own transcript; without one it marks the word at the last reported place, as before. books core: 25 files, 180 tests pass; tsc is clean.
+- **Files:**
+  - `examples/books/core/src/words.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `e356b93c4f8b` feat(transcript-player): green: the player's transcript carries its clock and each word's start (Scribe #2494)
+
+- **Implementation commit:** `e356b93c4f8b871794283c42556ca578f307514a`
+- **Change:** green: the player's transcript carries its clock and each word's start (Scribe #2494)
+- **Details:**
+  - The player keeps the wall-clock time its audio last reported the place (maybePlacedAtMs, absent in older snapshots and after a jump until the audio reports again). playbackClockOf reads its clock: the place, that time, and the speed while it sounds, standing still when paused or just after a seek. transcriptOf puts the clock and each word's start on its Transcript, so a painter moves the mark on t
+- **Files:**
+  - `examples/transcript-player/core/src/model.ts` — changed by this commit
+  - `examples/transcript-player/core/src/screen.ts` — changed by this commit
+  - `examples/transcript-player/core/src/update.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:06 p.m. EST — `f0c1b1f71af9` feat(foldkit): green: the word being spoken at a moment, from a Transcript's clock (Scribe #2494)
+
+- **Implementation commit:** `f0c1b1f71af9887896e42bb1fb405280ffcd231e`
+- **Change:** green: the word being spoken at a moment, from a Transcript's clock (Scribe #2494)
+- **Details:**
+  - foldkit/renderers: a Transcript may carry a clock, the place, the wall-clock time it was reported, and its rate (0 while paused), and each word the place it starts at.
+- **Files:**
+  - `packages/foldkit/src/renderers/elements.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptClock.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/types.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 17th, 2026 at 5:50:50 p.m. EST — `c05de40298cc` refactor(foldkit): writeCliFollow names what it needs of a process (Scribe #2494)
 
 - **Implementation commit:** `c05de40298cc8bb4687fb3e8b95e7a15268d6bfb`
