@@ -93,8 +93,9 @@ export const nameOfSlug = (slug: TitleSlug): string => nameOfTag(slug)
  *   it plays. It stays one page while its place moves, so the words,
  *   their scroll, and the cover are never rebuilt.
  *   `/books/the-lantern-keeper/listen` opens it at the listener's place.
- * - `…/contents` and `…/speed` are Sheets; `…/delete-bookmark/<id>` is a
- *   Dialog.
+ * - `…/contents` is a Drawer from the left, beside the page where a
+ *   window has the room; `…/speed` is a Sheet; `…/delete-bookmark/<id>` is
+ *   a Dialog.
  */
 export const declared = Navigation.screens({
   slug: 'books',
@@ -178,7 +179,7 @@ export const declared = Navigation.screens({
     Navigation.presentScreen(
       ContentsSheet,
       Route.literal('contents'),
-      Navigation.Sheet(),
+      Navigation.Drawer({ from: 'Left' }),
       {
         title: () => 'Contents',
         isAllowedAbove: isTopOf(isTitlePage, isPlayerScreen),

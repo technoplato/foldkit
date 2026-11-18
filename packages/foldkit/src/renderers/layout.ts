@@ -3,6 +3,7 @@ import { Array, Match as M, Option } from 'effect'
 import type { Device } from './device.js'
 import { Column, Row, Text } from './elements.js'
 import { iconGlyphs } from './icons.js'
+import { itemLinesOf } from './listRows.js'
 import type {
   ButtonNode,
   HotspotAction,
@@ -478,7 +479,7 @@ const layoutNode = (
             ),
             children: [],
           }
-          const detail = Array.join(item.lines ?? [], ' · ')
+          const detail = Array.join(itemLinesOf(item), ' · ')
           const rest = layoutNode(
             Row(
               { gap: 2 },

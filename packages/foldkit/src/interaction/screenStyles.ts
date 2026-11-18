@@ -49,6 +49,8 @@ export type ScreenLook = Readonly<{
   rowHoverColor: string
   listWidth: number
   readingWidth: number
+  readingFamily: string
+  readingDarkGround: string
   currentPassageColor: string
   restingWordsColor: string
   itemImageSize: number
@@ -59,6 +61,9 @@ export type ScreenLook = Readonly<{
   fieldColor: string
   checkSize: number
   checkBorderColor: string
+  listColumnWidth: number
+  drawerWidth: number
+  drawerDockWidth: number
 }>
 
 /** The look every graphical painter maps; see {@link ScreenLook}. */
@@ -99,17 +104,22 @@ export const screenLook: ScreenLook = {
   trackColor: '#e5e7eb',
   rowHoverColor: '#f3f4f6',
   listWidth: 680,
-  readingWidth: 960,
+  readingWidth: 1200,
+  readingFamily: "'Iowan Old Style', Charter, 'Source Serif 4', Georgia, serif",
+  readingDarkGround: 'linear-gradient(#12301d, #060907 42%)',
   currentPassageColor: '#e8ecf2',
   restingWordsColor: '#6b7280',
   itemImageSize: 56,
   ghostBorderColor: '#d1d5db',
   destructiveColor: '#b91c1c',
-  readingSize: 21,
+  readingSize: 24,
   fieldHeight: 44,
   fieldColor: '#f9fafb',
   checkSize: 24,
   checkBorderColor: '#c7c7cc',
+  listColumnWidth: 64,
+  drawerWidth: 420,
+  drawerDockWidth: 1100,
 }
 
 const px = (value: number): string => `${value.toString()}px`
@@ -617,6 +627,13 @@ export const screenStylesheet = `
 }
 
 :where(.fk-transcript) {
+  --fk-reading-ground: transparent;
+  --fk-reading-text: ${screenLook.textColor};
+  --fk-reading-rest: ${screenLook.restingWordsColor};
+  --fk-reading-spoken: #c2410c;
+  --fk-reading-spoken-ground: ${screenLook.accentSoftColor};
+  --fk-reading-current-ground: ${screenLook.currentPassageColor};
+  --fk-reading-rule: ${screenLook.accentColor};
   box-sizing: border-box;
   position: relative;
   display: flex;
@@ -627,50 +644,66 @@ export const screenStylesheet = `
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px 0;
+  border-radius: 18px;
+  background: var(--fk-reading-ground);
   text-align: left;
   mask-image: linear-gradient(transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 
+@media (prefers-color-scheme: dark) {
+  :where(.fk-transcript) {
+    --fk-reading-ground: ${screenLook.readingDarkGround};
+    --fk-reading-text: #ffffff;
+    --fk-reading-rest: #8d949e;
+    --fk-reading-spoken: #9db8ff;
+    --fk-reading-spoken-ground: transparent;
+    --fk-reading-current-ground: rgba(255, 255, 255, 0.06);
+    --fk-reading-rule: #6ea0ff;
+    padding: 16px 20px;
+    mask-image: none;
+  }
+}
+
 :where(.fk-transcript-empty) {
   margin: 0;
-  color: ${screenLook.dimColor};
+  color: var(--fk-reading-rest);
   text-align: center;
 }
 
 :where(.fk-passage) {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 8px;
-  padding: 8px 10px;
+  display: block;
+  padding: 10px 16px;
   border-radius: 14px;
   transition: background-color 0.2s;
 }
 
 :where(.fk-passage[data-current]) {
-  background: ${screenLook.currentPassageColor};
-  box-shadow: inset 3px 0 0 ${screenLook.accentColor};
+  background: var(--fk-reading-current-ground);
+  box-shadow: inset 3px 0 0 var(--fk-reading-rule);
 }
 
 :where(.fk-passage-heading) {
-  grid-column: 1 / -1;
-  margin: 12px 0 2px;
-  color: ${screenLook.textColor};
-  font-size: 13px;
+  margin: 14px 0 8px;
+  padding-left: 12px;
+  border-left: 3px solid var(--fk-reading-rule);
+  color: var(--fk-reading-rule);
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 :where(.fk-passage-label) {
-  align-self: start;
-  padding-top: 5px;
+  float: left;
+  margin: 0 14px 0 0;
+  padding: 0;
   border: 0;
   background: none;
-  color: ${screenLook.dimColor};
+  color: var(--fk-reading-rest);
   font-family: ${screenLook.monoFamily};
-  font-size: 12px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  line-height: ${px(Math.round(screenLook.readingSize * 1.55))};
 }
 
 :where(button.fk-passage-label) {
@@ -678,19 +711,20 @@ export const screenStylesheet = `
 }
 
 :where(button.fk-passage-label:hover) {
-  color: ${screenLook.textColor};
+  color: var(--fk-reading-text);
 }
 
 :where(.fk-passage-words) {
   margin: 0;
-  color: ${screenLook.restingWordsColor};
+  color: var(--fk-reading-rest);
+  font-family: ${screenLook.readingFamily};
   font-size: ${px(screenLook.readingSize)};
-  line-height: 1.7;
+  line-height: 1.55;
   transition: color 0.2s;
 }
 
 :where(.fk-passage[data-current] .fk-passage-words) {
-  color: ${screenLook.textColor};
+  color: var(--fk-reading-text);
 }
 
 :where(.fk-word) {
@@ -701,14 +735,18 @@ export const screenStylesheet = `
 
 @media (hover: hover) {
   :where(.fk-word:hover) {
-    background: ${screenLook.trackColor};
+    background: var(--fk-reading-current-ground);
   }
 }
 
+:where(.fk-passage[data-current] .fk-word[data-current] ~ .fk-word) {
+  color: var(--fk-reading-rest);
+}
+
 :where(.fk-word[data-current]) {
-  background: ${screenLook.accentSoftColor};
-  box-shadow: 0 0 0 2px ${screenLook.accentSoftColor};
-  color: #9a3412;
+  background: var(--fk-reading-spoken-ground);
+  box-shadow: 0 0 0 2px var(--fk-reading-spoken-ground);
+  color: var(--fk-reading-spoken);
 }
 
 :where(.fk-device-phone) {
@@ -920,15 +958,15 @@ export const screenStylesheet = `
 
 @media (max-width: 560px) {
   :where(.fk-passage) {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
     padding: 6px 8px;
   }
 
+  :where(.fk-passage-words) {
+    font-size: ${px(Math.round(screenLook.readingSize * 0.85))};
+  }
+
   :where(.fk-passage-label) {
-    justify-self: start;
-    padding-top: 0;
-    text-align: left;
+    line-height: ${px(Math.round(screenLook.readingSize * 0.85 * 1.55))};
   }
 }
 
@@ -1006,5 +1044,226 @@ export const screenStylesheet = `
 :where(.fk-item:has(.fk-item-check[data-checked]) .fk-item-title) {
   color: ${screenLook.dimColor};
   font-weight: 500;
+}
+
+:where(.fk-list-frame) {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  width: min(100%, ${px(screenLook.listWidth)});
+  margin: 0 auto;
+}
+
+:where(.fk-list-frame > .fk-list) {
+  width: 100%;
+}
+
+:where(.fk-list-head) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 0 6px;
+  border-bottom: 1px solid ${screenLook.trackColor};
+  background: ${screenLook.panelColor};
+}
+
+:where(.fk-list-filter) {
+  box-sizing: border-box;
+  width: 100%;
+  height: ${px(screenLook.fieldHeight)};
+  padding: 0 14px;
+  border: 1px solid ${screenLook.ghostBorderColor};
+  border-radius: 12px;
+  background: ${screenLook.fieldColor};
+  color: ${screenLook.textColor};
+  font: inherit;
+  font-size: ${px(screenLook.bodySize)};
+}
+
+:where(.fk-list-filter:focus-visible) {
+  outline: 2px solid ${screenLook.focusColor};
+  outline-offset: 1px;
+}
+
+:where(.fk-list-head-columns) {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  padding: 0 8px;
+}
+
+:where(.fk-item-column, .fk-list-head-column) {
+  flex: 0 0 ${px(screenLook.listColumnWidth)};
+  color: ${screenLook.dimColor};
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+:where(.fk-list-head-column) {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+:where(.fk-list-empty) {
+  margin: 0;
+  padding: 20px 8px;
+  color: ${screenLook.dimColor};
+  text-align: left;
+}
+
+:where(.fk-list-frame .fk-item-press) {
+  padding: 9px 8px 9px 12px;
+  border-radius: 8px;
+}
+
+:where(.fk-list-frame .fk-item-title) {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+:where(.fk-list-frame .fk-item[data-current]) {
+  border-radius: 8px;
+  background: ${screenLook.accentSoftColor};
+  box-shadow: inset 3px 0 0 ${screenLook.accentColor};
+}
+
+:where(.fk-list-frame .fk-item[data-current] .fk-item-title) {
+  font-weight: 700;
+}
+
+:where(.fk-list-frame .fk-item[data-current] .fk-item-line) {
+  color: #9a3412;
+}
+
+:where(.fk-list:has(+ .fk-transcript)) {
+  position: sticky;
+  top: 8px;
+  z-index: 2;
+  box-sizing: border-box;
+  width: min(100%, ${px(screenLook.readingWidth)});
+  border: 1px solid ${screenLook.ghostBorderColor};
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  backdrop-filter: blur(14px);
+}
+
+:where(.fk-list:has(+ .fk-transcript) .fk-item) {
+  padding: 0 6px 0 0;
+}
+
+:where(.fk-list:has(+ .fk-transcript) .fk-item-press) {
+  padding: 8px 20px;
+  border-radius: 999px;
+}
+
+:where(.fk-list:has(+ .fk-transcript) .fk-item > .fk-button[data-icon-only]) {
+  border-color: transparent;
+}
+
+:where(.fk-list:has(+ .fk-transcript) .fk-item-title) {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  -webkit-line-clamp: 1;
+}
+
+:where(.fk-column > .fk-text[data-dim]:has(+ .fk-list + .fk-transcript)) {
+  width: min(100%, ${px(screenLook.readingWidth)});
+  margin-bottom: -12px;
+  padding: 0 20px;
+}
+
+@media (min-width: 561px) {
+  :where(.fk-list:has(+ .fk-transcript) .fk-item-body) {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 14px;
+  }
+
+  :where(.fk-list:has(+ .fk-transcript) .fk-item-title) {
+    flex: 0 1 auto;
+  }
+
+  :where(.fk-list:has(+ .fk-transcript) .fk-item-line) {
+    flex: 1;
+  }
+}
+
+@media (max-width: 560px) {
+  :where(.fk-list:has(+ .fk-transcript)) {
+    border-radius: 18px;
+  }
+
+  :where(.fk-list:has(+ .fk-transcript) .fk-item-press) {
+    padding: 6px 16px;
+    border-radius: 18px;
+  }
+}
+
+:where(.fk-overlay[data-style='Drawer']) {
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+}
+
+:where(.fk-overlay[data-style='Drawer'][data-side='Left']) {
+  justify-content: flex-start;
+}
+
+:where(.fk-overlay[data-style='Drawer'] > *) {
+  width: min(88vw, ${px(screenLook.drawerWidth)});
+  height: 100dvh;
+  max-height: none;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 0;
+  text-align: left;
+}
+
+:where(.fk-overlay[data-style='Drawer'] > * > :first-child) {
+  margin-top: 20px;
+}
+
+:where(.fk-overlay[data-style='Drawer'] > * > .fk-text) {
+  align-self: stretch;
+  padding: 0 8px;
+  text-align: left;
+}
+
+@media (min-width: ${px(screenLook.drawerDockWidth)}) {
+  :where(.fk-overlay[data-style='Drawer']) {
+    background: none;
+    pointer-events: none;
+  }
+
+  :where(.fk-overlay[data-style='Drawer'] > *) {
+    pointer-events: auto;
+    box-shadow: 0 0 0 1px ${screenLook.trackColor}, 0 0 40px -16px rgb(15 23 42 / 0.3);
+  }
+
+  :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Left'])) {
+    padding-left: ${px(screenLook.drawerWidth)};
+  }
+
+  :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Left']) .fk-dock) {
+    left: ${px(screenLook.drawerWidth)};
+  }
+
+  :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Right'])) {
+    padding-right: ${px(screenLook.drawerWidth)};
+  }
+
+  :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Right']) .fk-dock) {
+    right: ${px(screenLook.drawerWidth)};
+  }
 }
 `

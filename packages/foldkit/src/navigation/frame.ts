@@ -37,6 +37,24 @@ export const styleTagOf = (
   })
 
 /**
+ * The edge a painter marks a drawer with, so a stylesheet can place it at
+ * that side of the window: `Left` or `Right`. None for any layer that is
+ * not a drawer.
+ *
+ * @example
+ * ```typescript
+ * sideTagOf(contentsLayer) // Some('Left')
+ * sideTagOf(sessionSheetLayer) // None
+ * ```
+ */
+export const sideTagOf = (
+  layer: Readonly<{ maybeStyle: Option.Option<PresentationStyle> }>,
+): Option.Option<string> =>
+  Option.flatMap(layer.maybeStyle, style =>
+    style._tag === 'Drawer' ? Option.some(style.from) : Option.none(),
+  )
+
+/**
  * Everything a host with one surface paints: where the Program is, the
  * title of the topmost entry that declares one, the base screen, and each
  * entry presented over it, bottom first.

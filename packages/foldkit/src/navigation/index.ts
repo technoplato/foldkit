@@ -159,7 +159,7 @@ export {
 } from './browserHistory.js'
 export { maybeTitleOf } from './carrier.js'
 export type { BrowserWindow } from './browserHistory.js'
-export { documentTitleOf, frameOf, styleTagOf } from './frame.js'
+export { documentTitleOf, frameOf, sideTagOf, styleTagOf } from './frame.js'
 export { uriOfDeepLink } from './deepLink.js'
 export type { Frame, FrameLayer, FrameSource } from './frame.js'
 export { coalescedStack, keyedStackDriver } from './keyedStack.js'

@@ -230,7 +230,10 @@ export const OpenPlayer = Catalog.action('OpenPlayer', {
   meta: { label: 'Now playing', keys: [], title: 'Open the player' },
 })
 
-/** Shows the chapters of the title on screen. `c` presses it. */
+/**
+ * Shows the chapters of the title on screen, beside its page, and closes
+ * them when they are showing. `c` presses it.
+ */
 export const ShowContents = Catalog.action('ShowContents', {
   what: "Lists this book's chapters so you can jump to one",
   why: 'The person wants to find a chapter',

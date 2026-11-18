@@ -9,6 +9,7 @@ import {
   type TranscriptPassage,
   type UiNode,
   iconGlyphs,
+  itemLinesOf,
   progressLineOf,
   seekLineOf,
 } from 'foldkit/renderers'
@@ -146,7 +147,7 @@ const paintItem = (
     }),
   )
   row.add(title)
-  Array.match(item.lines ?? [], {
+  Array.match(itemLinesOf(item), {
     onEmpty: () => undefined,
     onNonEmpty: lines => {
       row.add(
