@@ -301,6 +301,65 @@ const spokenTranscript = transcriptsInMemory(
 const followOf = (player: BooksPlayer) =>
   Option.getOrThrow(Option.fromNullishOr(player.surface.follow))
 
+describe('books listen and books open take a title as a person types it', () => {
+  it('plays the title named in full, in any case, and by part of its name', async () => {
+    const { player, bound } = await openBooks()
+    const named = await run(player, 'listen The Lantern Keeper')
+    expect(named.exitCode).toBe(0)
+    expect(named.stdout).toContain('Playing The Lantern Keeper')
+    const part = await run(player, 'listen WEATHER guide')
+    expect(part.exitCode).toBe(0)
+    expect(part.stdout).toContain('Playing A Field Guide to Weather')
+    expect(isSounding(bound)).toBe(true)
+    await run(player, 'pause')
+  })
+
+  it('lists the titles that match when there are several, with the command for each, and plays nothing', async () => {
+    const { player, bound } = await openBooks()
+    const vague = await run(player, 'listen a')
+    expect(vague.exitCode).toBe(2)
+    expect(vague.stdout).toBe('')
+    expect(vague.stderr?.split('\n')).toEqual([
+      '"a" matches 3 titles. Say more of the name, or copy one:',
+      '  books listen the-lantern-keeper        The Lantern Keeper',
+      '  books listen small-hours               Small Hours',
+      '  books listen a-field-guide-to-weather  A Field Guide to Weather',
+    ])
+    expect(isSounding(bound)).toBe(false)
+  })
+
+  it('says no title matches, with the command’s own usage and the titles it can play', async () => {
+    const { player } = await openBooks()
+    const none = await run(player, 'listen moby')
+    expect(none.exitCode).toBe(2)
+    expect(none.stdout).toBe('')
+    expect(none.stderr?.split('\n')).toEqual([
+      'No title matches "moby". Usage: books listen <title>, such as:',
+      '  books listen the-lantern-keeper        The Lantern Keeper',
+      '  books listen small-hours               Small Hours',
+      '  books listen a-field-guide-to-weather  A Field Guide to Weather',
+    ])
+  })
+
+  it('opens a title’s page by its name', async () => {
+    const { player } = await openBooks()
+    const opened = await run(player, 'open small hours')
+    expect(opened.exitCode).toBe(0)
+    expect(opened.stdout).toContain('Small Hours')
+    expect(opened.stdout).toContain('/books/small-hours')
+  })
+
+  it('answers a command nobody declared with one sentence and nothing else', async () => {
+    const { player } = await openBooks()
+    const unknown = await run(player, 'lisen')
+    expect(unknown.exitCode).toBe(2)
+    expect(unknown.stdout).toBe('')
+    expect(unknown.stderr).toBe(
+      'Unknown command "lisen". Nearest: books listen <title>, books link. `books actions` lists every command.',
+    )
+  })
+})
+
 describe('the live player paints from the theme', () => {
   const showOf = (player: BooksPlayer) =>
     Option.getOrThrow(Option.fromNullishOr(player.surface.show))
