@@ -48,6 +48,7 @@ export {
 export {
   type HostCommand,
   paintCommands,
+  offeredCommandsOf,
   paintProgram,
   paintScreen,
   programUsage,
@@ -63,6 +64,9 @@ export {
   isTerminalViewRequest,
   makeProgramTerminalView,
   programCliSurface,
+  type FollowLiveOptions,
+  type LivePart,
+  followLive,
   programFollowings,
 } from './surface.js'
 

@@ -184,6 +184,62 @@ describe(
       expect(first.stdout).toMatch(/Lantern Keeper/)
     })
 
+    it('follows the words when books follow is typed alone, by the word, down a pipe', async () => {
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      const bare = await firstOf(launcher, ['follow'], environmentOf(library))
+      expect(bare.stderr).toBe('')
+      expect(bare.stdout).toMatch(/^# The Lantern Keeper/)
+    })
+
+    it('repaints the words in place in a real terminal 60 columns wide, with what can be run under them', async () => {
+      if (process.platform !== 'darwin') {
+        return
+      }
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      const written = await new Promise<string>(resolve => {
+        const child = spawn(
+          'script',
+          [
+            '-q',
+            '/dev/null',
+            'sh',
+            '-c',
+            `stty cols 60 rows 20; exec "${launcher}" follow`,
+          ],
+          {
+            env: { ...environmentOf(library), TERM: 'xterm-256color' },
+            stdio: ['ignore', 'pipe', 'pipe'],
+          },
+        )
+        const state = { text: '' }
+        child.stdout.on('data', chunk => {
+          state.text += String(chunk)
+        })
+        setTimeout(() => {
+          child.kill('SIGINT')
+          resolve(state.text)
+        }, 4_000)
+      })
+      // eslint-disable-next-line no-control-regex
+      const plain = written.replace(/\u001b\[[0-9;]*m/g, '').replace(/\r/g, '')
+      // eslint-disable-next-line no-control-regex
+      const frames = plain.split(/\u001b\[\d+A\u001b\[J/)
+      expect(frames.length).toBeGreaterThan(2)
+      const last = (frames.at(-1) ?? '').split('\n').filter(line => line !== '')
+      expect(last.every(line => line.length <= 60)).toBe(true)
+      expect(last.length).toBeLessThanOrEqual(19)
+      expect(last[0]).toBe('  The Lantern Keeper')
+      expect(last[1]).toMatch(/^ {2}The Tide · \d+:\d\d of 1:20:00 · playing$/)
+      expect(last.some(line => /^ {2}▎ \d+:\d\d {2}\S/.test(line))).toBe(true)
+      expect(last.join('\n')).not.toMatch(/^[#>+-] /m)
+      expect(last.join('\n')).toMatch(
+        /^ {2}books pause {3}books skip-back {3}books bookmark$/m,
+      )
+      expect(last.at(-1)).toBe('  books link   ·   books actions for more')
+    })
+
     it('prints help read from the declarations, and starts no player to do it', () => {
       const library = newLibrary()
       const help = books(library, [])
@@ -209,7 +265,7 @@ describe(
       expect(refused.stdout).toBe('')
       expect(refused.stderr.split('\n').filter(line => line !== '')).toEqual([
         'books follow takes no --each-wrd. Did you mean --each-word?',
-        'Usage: books follow [words|screen] [--each-word] [--json] [--before <number>] [--after <number>]',
+        'Usage: books follow [words|screen] [--each-word] [--paragraphs] [--json] [--before <number>] [--after <number>]',
       ])
       const wrongKind = books(library, ['words', '--before', 'two'])
       expect(wrongKind.status).toBe(2)

@@ -78,7 +78,7 @@ export const Tui = Declaration.declare('Tui', {
 
 /** `books follow`: prints something each time it changes. */
 export const Follow = Declaration.declare('Follow', {
-  what: 'Shows the words being read as they change',
+  what: 'Shows the words being read, moving with each word',
   why: 'To read along while the book plays',
   fields: {
     topic: S.Literals(['words', 'screen'])
@@ -86,7 +86,12 @@ export const Follow = Declaration.declare('Follow', {
       .pipe(S.withDecodingDefaultKey(Effect.succeed('words' as const))),
     eachWord: S.optionalKey(
       S.Boolean.annotate({
-        description: 'Moves with every word instead of every paragraph',
+        description: 'Moves with every word, as it does unless told otherwise',
+      }),
+    ),
+    paragraphs: S.optionalKey(
+      S.Boolean.annotate({
+        description: 'Follows by the paragraph alone, without each word',
       }),
     ),
     json,
@@ -270,6 +275,12 @@ export const everywhere = Declaration.parametersOfFields({
   color: S.optionalKey(
     S.Boolean.annotate({
       description: 'Paints for a terminal that shows color',
+    }),
+  ),
+  terminalGround: S.optionalKey(
+    S.String.annotate({
+      description:
+        'The ground the terminal says it has, as its COLORFGBG says it, so colors read on it',
     }),
   ),
 })

@@ -1,4 +1,4 @@
-import { Array, Match as M, Option, Schema as S } from 'effect'
+import { Array, Equivalence, Match as M, Option, Schema as S } from 'effect'
 import { ModelPath, computed } from 'foldkit/declaration'
 import {
   TranscriptExcerpt,
@@ -45,6 +45,7 @@ export const WordsHeader = S.Struct({
   isPlaying: S.Boolean,
   link: S.String,
   maybeWordLink: S.OptionFromOptionalKey(S.String),
+  maybeWordStartMs: S.OptionFromOptionalKey(Milliseconds),
 })
 /** The title in the player as the words' heading. */
 export type WordsHeader = typeof WordsHeader.Type
@@ -76,7 +77,11 @@ export const SpokenWords = S.Union([NothingInPlayer, WordsWaiting, WordsNow])
 export type SpokenWords = typeof SpokenWords.Type
 
 const HeaderWire = WordsHeader.pipe(
-  S.encodeKeys({ maybeChapter: 'chapter', maybeWordLink: 'wordLink' }),
+  S.encodeKeys({
+    maybeChapter: 'chapter',
+    maybeWordLink: 'wordLink',
+    maybeWordStartMs: 'wordStartMs',
+  }),
 )
 
 /**
@@ -93,10 +98,9 @@ export const SpokenWordsJson = S.fromJsonString(
   ),
 )
 
-const wordLinkOf = (
-  title: Title,
+const wordStartOf = (
   maybeTranscript: Option.Option<TranscriptNode>,
-): Option.Option<string> =>
+): Option.Option<Milliseconds> =>
   Option.map(
     Option.flatMap(maybeTranscript, transcript =>
       Option.flatMap(
@@ -107,7 +111,7 @@ const wordLinkOf = (
         wordAddressOf,
       ),
     ),
-    startMs => wordPathOf(title.slug, Milliseconds.make(startMs)),
+    startMs => Milliseconds.make(startMs),
   )
 
 const headerOf = (
@@ -117,6 +121,7 @@ const headerOf = (
   maybeTranscript: Option.Option<TranscriptNode>,
 ): WordsHeader => {
   const placeMs = placeOf(loaded)
+  const maybeWordStartMs = wordStartOf(maybeTranscript)
   return {
     slug: title.slug,
     title: title.name,
@@ -126,7 +131,10 @@ const headerOf = (
     durationMs: title.durationMs,
     isPlaying: TranscriptPlayer.isSounding(loaded.player),
     link: placePathOf(title.slug, placeMs),
-    maybeWordLink: wordLinkOf(title, maybeTranscript),
+    maybeWordLink: Option.map(maybeWordStartMs, startMs =>
+      wordPathOf(title.slug, startMs),
+    ),
+    maybeWordStartMs,
   }
 }
 
@@ -305,3 +313,176 @@ export const isSameParagraph = (
   self: SpokenWords,
   that: SpokenWords,
 ): boolean => paragraphKeyOf(self) === paragraphKeyOf(that)
+
+// FOLLOWING
+
+/**
+ * A word as its time arrives: its text, the millisecond it starts, that
+ * place as a clock, and the link that opens the book on it,
+ * `/books/the-lantern-keeper/listen/12m03.45s`.
+ */
+export const WordSpoken = ts('WordSpoken', {
+  text: S.String,
+  startMs: Milliseconds,
+  place: S.String,
+  link: S.String,
+})
+/** Playback paused, at this place. */
+export const Paused = ts('Paused', { placeMs: Milliseconds, place: S.String })
+/** Playback plays, from this place. */
+export const Playing = ts('Playing', { placeMs: Milliseconds, place: S.String })
+
+/**
+ * What a follower of the words hears, one thing at a time: the paragraph
+ * being read with those around it when it changes (the same reading
+ * `spokenWordsOf` gives), each word as its time arrives, and a turn when
+ * playback pauses or plays.
+ */
+export const WordsHeard = S.Union([
+  NothingInPlayer,
+  WordsWaiting,
+  WordsNow,
+  WordSpoken,
+  Paused,
+  Playing,
+])
+/** What a follower of the words hears, one thing at a time. */
+export type WordsHeard = typeof WordsHeard.Type
+
+/**
+ * What a follower hears as one line of JSON: a paragraph as
+ * `SpokenWordsJson` prints it, a word as
+ * `{"_tag":"WordSpoken","text":"trimmed","startMs":36600,"place":"0:36","link":"/books/the-lantern-keeper/listen/36.6s"}`,
+ * a turn as `{"_tag":"Paused","placeMs":36100,"place":"0:36"}`.
+ */
+export const WordsHeardJson = S.fromJsonString(
+  S.toCodecJson(
+    S.Union([
+      NothingInPlayer,
+      ts('WordsWaiting', { header: HeaderWire, sentence: S.String }),
+      ts('WordsNow', { header: HeaderWire, excerpt: TranscriptExcerptWire }),
+      WordSpoken,
+      Paused,
+      Playing,
+    ]),
+  ),
+)
+
+/** How a follower wants the words: `paragraphsOnly` leaves the words out. */
+export type WordsHeardOptions = Readonly<{ paragraphsOnly?: boolean }>
+
+const placeKeyOf = (words: SpokenWords): string =>
+  M.value(words).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      NothingInPlayer: () => 'nothing',
+      WordsWaiting: ({ header, sentence }) =>
+        Array.join([header.slug, sentence], '\n'),
+      WordsNow: ({ header, excerpt }) =>
+        Array.join(
+          [
+            header.slug,
+            ...Array.map(
+              excerpt.paragraphs,
+              paragraph => `${paragraph.position}:${paragraph.key}`,
+            ),
+          ],
+          '\n',
+        ),
+    }),
+  )
+
+const headerOfWords = (words: SpokenWords): Option.Option<WordsHeader> =>
+  words._tag === 'NothingInPlayer' ? Option.none() : Option.some(words.header)
+
+const wordSpokenOf = (words: SpokenWords): Option.Option<WordsHeard> =>
+  words._tag === 'WordsNow'
+    ? Option.flatMap(words.header.maybeWordStartMs, startMs =>
+        Option.flatMap(words.header.maybeWordLink, link =>
+          Option.map(words.excerpt.maybeCurrentWord, text =>
+            WordSpoken({ text, startMs, place: clockOf(startMs), link }),
+          ),
+        ),
+      )
+    : Option.none()
+
+const turnOf = (
+  previous: SpokenWords,
+  next: SpokenWords,
+): Option.Option<WordsHeard> =>
+  Option.flatMap(headerOfWords(next), header =>
+    Option.exists(
+      headerOfWords(previous),
+      before => before.isPlaying !== header.isPlaying,
+    )
+      ? Option.some(
+          header.isPlaying
+            ? Playing({ placeMs: header.placeMs, place: header.place })
+            : Paused({ placeMs: header.placeMs, place: header.place }),
+        )
+      : Option.none(),
+  )
+
+const isWordMoved = (previous: SpokenWords, next: SpokenWords): boolean =>
+  !Option.makeEquivalence(Equivalence.Number)(
+    Option.flatMap(headerOfWords(previous), header => header.maybeWordStartMs),
+    Option.flatMap(headerOfWords(next), header => header.maybeWordStartMs),
+  )
+
+/**
+ * What a follower hears between two readings of the words, from the one
+ * before (none when it starts to follow) to the one now: the paragraph and
+ * its word when the title or the paragraph changed; otherwise one turn
+ * when playback paused or plays, never the paragraph again for that, and
+ * the word when the word moved. With `paragraphsOnly`, no words. Every
+ * Client that follows the words derives what it prints from this.
+ *
+ * @example
+ * ```typescript
+ * wordsHeardBetween(Option.some(before), spokenWordsOf(model, {}, Date.now()))
+ * // [WordSpoken({ text: 'trimmed', startMs: 36600, place: '0:36', link: '/books/…/listen/36.6s' })]
+ * ```
+ */
+export const wordsHeardBetween = (
+  maybePrevious: Option.Option<SpokenWords>,
+  next: SpokenWords,
+  options: WordsHeardOptions = {},
+): ReadonlyArray<WordsHeard> => {
+  const word =
+    options.paragraphsOnly === true ? [] : Array.fromOption(wordSpokenOf(next))
+  return Option.match(maybePrevious, {
+    onNone: () => [next, ...word],
+    onSome: previous =>
+      placeKeyOf(previous) === placeKeyOf(next)
+        ? [
+            ...Array.fromOption(turnOf(previous, next)),
+            ...(isWordMoved(previous, next) ? word : []),
+          ]
+        : [next, ...word],
+  })
+}
+
+/**
+ * What a follower hears as lines for a pipe: a paragraph as
+ * `spokenWordsLines` prints it; a word on a line that starts with `.`,
+ * then its time, its text and its link; a turn on a `#` line.
+ *
+ * @example
+ * ```typescript
+ * wordsHeardLines(WordSpoken({ text: 'trimmed', startMs, place: '0:36', link }))
+ * // ['. 0:36 trimmed /books/the-lantern-keeper/listen/36.6s']
+ * wordsHeardLines(Paused({ placeMs, place: '0:36' })) // ['# paused at 0:36']
+ * ```
+ */
+export const wordsHeardLines = (heard: WordsHeard): ReadonlyArray<string> =>
+  M.value(heard).pipe(
+    M.withReturnType<ReadonlyArray<string>>(),
+    M.tagsExhaustive({
+      NothingInPlayer: spokenWordsLines,
+      WordsWaiting: spokenWordsLines,
+      WordsNow: spokenWordsLines,
+      WordSpoken: ({ place, text, link }) => [`. ${place} ${text} ${link}`],
+      Paused: ({ place }) => [`# paused at ${place}`],
+      Playing: ({ place }) => [`# playing from ${place}`],
+    }),
+  )

@@ -339,7 +339,7 @@ describe('a daemon a terminal UI view talks to', () => {
     const bound = bindChapters()
     bound.openUri('/chapters/contents', Link())
     const inkOf = () =>
-      terminalInkOf({ isTerminal: true, env: {}, mode: 'Dark' })
+      terminalInkOf({ isTerminal: true, env: {}, ground: 'Dark' })
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -370,8 +370,10 @@ describe('a daemon a terminal UI view talks to', () => {
           }
           const plain = yield* Effect.promise(() => viewOf(false))
           const inked = yield* Effect.promise(() => viewOf(true))
-          expect(plain).not.toContain('\u001b[2m')
-          expect(inked).toContain('\u001b[2mchapters  /chapters/contents')
+          expect(plain).not.toContain('\u001b[38;2;')
+          expect(inked).toContain(
+            '\u001b[38;2;154;161;170mchapters  /chapters/contents',
+          )
         }),
       ),
     )

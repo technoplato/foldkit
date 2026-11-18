@@ -611,6 +611,46 @@ export const paintCommands = <Model, Message>(
   return Array.flatMap(lines, paintedLineOf(name, commandWidth))
 }
 
+/**
+ * The commands a part of the view offers now, each as it is typed, for a
+ * Client that shows them in a line: of the Action tags the part's own
+ * controls press, the first few that run now, then the host's own for
+ * the part. They are the catalog's words, so they change with the state.
+ *
+ * @example
+ * ```typescript
+ * offeredCommandsOf(bound, 'books', ['Pause', 'Play', 'SkipBack'])
+ * // while it plays: ['books pause', 'books skip-back']
+ * ```
+ */
+export const offeredCommandsOf = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  name: string,
+  tags: ReadonlyArray<string>,
+  options: Readonly<{
+    limit?: number
+    hostCommands?: ReadonlyArray<HostCommand>
+  }> = {},
+): ReadonlyArray<string> => {
+  const entries = bound.entries()
+  return Array.dedupe(
+    Array.map(
+      [
+        ...Array.take(
+          Array.getSomes(Array.map(tags, tag => pressableLineOf(entries, tag))),
+          options.limit ?? offeredShown,
+        ),
+        ...Array.map(options.hostCommands ?? [], host =>
+          lineOf(host.command, host.what),
+        ),
+      ],
+      line => `${name} ${line.command}`,
+    ),
+  )
+}
+
+const offeredShown = 4
+
 // RUN
 
 const painted = (

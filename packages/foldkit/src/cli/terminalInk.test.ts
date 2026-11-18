@@ -14,7 +14,7 @@ const escape = '\u001b['
 const withoutInk = (text: string): string =>
   text.replace(/\u001b\[[0-9;]*m/g, '')
 
-const inkOf = () => terminalInkOf({ isTerminal: true, env: {}, mode: 'Dark' })
+const inkOf = () => terminalInkOf({ isTerminal: true, env: {}, ground: 'Dark' })
 
 describe('the live player in a terminal paints from the theme', () => {
   it('says the roles of its own lines: where it is, and the keys, rest', () => {
@@ -48,7 +48,7 @@ describe('the live player in a terminal paints from the theme', () => {
       terminal.paint({ ...size, viewId: 'inked', color: '1' }),
     )
     expect(plain.stdout).not.toContain(escape)
-    expect(inked.stdout).toContain(`${escape}2m`)
+    expect(inked.stdout).toContain(`${escape}38;2;154;161;170m`)
     expect(withoutInk(inked.stdout)).toBe(plain.stdout)
   })
 

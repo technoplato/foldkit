@@ -1,12 +1,31 @@
-import { Array, Effect, Option, Record, Ref, Stream, pipe } from 'effect'
+import {
+  Array,
+  Duration,
+  Effect,
+  Option,
+  Record,
+  Ref,
+  Stream,
+  pipe,
+} from 'effect'
 
 import { type BoundInteraction, onBehalfOf } from '../interaction/bind.js'
 import { follow } from '../interaction/follow.js'
 import { terminalKeyInput } from '../interaction/interaction.js'
 import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
 import { type Host, Tui } from '../processor/host.js'
+import { Text } from '../renderers/elements.js'
+import { liveFrameOf } from '../renderers/liveFrame.js'
+import { offeredBy } from '../renderers/query.js'
+import type { UiNode } from '../renderers/types.js'
 import { type TerminalInk, inkedLine } from '../theme/terminal.js'
-import { paintProgram, paintScreen, runProgramCommand } from './program.js'
+import {
+  type HostCommand,
+  offeredCommandsOf,
+  paintProgram,
+  paintScreen,
+  runProgramCommand,
+} from './program.js'
 import {
   CliDaemonError,
   type CliDaemonFlags,
@@ -86,7 +105,8 @@ export type ProgramTerminalView = Readonly<{
  * first frame, `refresh` when it asks again, and `key` after a key. With
  * `inkOf`, a frame for a view that says its output takes color
  * (`color: '1'`) is inked from the theme by the roles its parts play, in
- * the mode the Program reads from its Model; any other frame is plain.
+ * for the ground the view says its terminal has, which the ink reads
+ * from the view's flags; any other frame is plain.
  *
  * @example
  * ```typescript
@@ -101,7 +121,7 @@ export const makeProgramTerminalView = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   reporting: TerminalPaintReporting = {},
-  inkOf?: () => TerminalInk,
+  inkOf?: (flags: CliDaemonFlags) => TerminalInk,
 ): ProgramTerminalView => {
   // NOTE: Whether its output takes color is the view's to know, and it
   // says so with the `color` flag; the mode is the Program's, read from
@@ -114,7 +134,7 @@ export const makeProgramTerminalView = <Model, Message>(
       ? painted.lines
       : Array.map(painted.lines, (line, row) =>
           inkedLine(
-            inkOf(),
+            inkOf(flags),
             line,
             Option.getOrElse(Array.get(painted.inks, row), () => []),
           ),
@@ -219,9 +239,157 @@ export type CliFollowings = Readonly<Record<string, CliFollowing>>
  */
 export const programFollowings = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
+  name = '',
+  options: Readonly<{
+    list?: HostCommand
+    inkOf?: (flags: CliDaemonFlags) => TerminalInk
+  }> = {},
 ): CliFollowings => ({
-  screen: () => follow(bound, () => paintScreen(bound)),
+  screen: followLive(
+    bound,
+    () =>
+      Option.match(bound.screen(), {
+        onNone: () => ({ node: Text(paintScreen(bound)) }),
+        onSome: node => ({ node, offers: offeredBy(node) }),
+      }),
+    {
+      name,
+      ...options,
+      piped: () => follow(bound, () => paintScreen(bound)),
+    },
+  ),
 })
+
+// LIVE
+
+/**
+ * A part of a Program's view to follow live: the node to show, a node
+ * pinned above it, such as what is playing, and the tags of the Actions
+ * the part offers, which become the commands under it; `offeredBy` reads
+ * them from a node's own buttons. `isClocked` says the part moves between
+ * Messages, as a Transcript does while its clock runs, so it is read
+ * again by the clock.
+ */
+export type LivePart = Readonly<{
+  node: UiNode
+  header?: UiNode
+  offers?: ReadonlyArray<string>
+  isClocked?: boolean
+}>
+
+/**
+ * How a part is followed: the Program's command `name`, for the commands
+ * under the part; `hostOffers`, the commands the host itself adds for
+ * this part, read when a frame is painted; `list`, the command that lists
+ * them all, `help` unless the host has another; the ink for a view whose
+ * output takes color; and what a pipe gets in place of frames.
+ */
+export type FollowLiveOptions = Readonly<{
+  name: string
+  list?: HostCommand
+  hostOffers?: () => ReadonlyArray<HostCommand>
+  inkOf?: (flags: CliDaemonFlags) => TerminalInk
+  piped: CliFollowing
+}>
+
+const liveFrameEvery = Duration.millis(30)
+
+const fallbackLiveSize = { columns: 80, rows: 24 }
+
+// NOTE: A live frame is a few lines rewritten where they are, not the
+// whole screen: it takes at most this many rows, and one fewer than the
+// terminal has, so the cursor has a line under it.
+const mostLiveRows = 24
+
+const sizeFlag = (flags: CliDaemonFlags, name: string, fallback: number) => {
+  const parsed = Number.parseInt(flags[name] ?? '', 10)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+/**
+ * Follows a part of a Program's view. For a view that says its output is
+ * a terminal (`in-place`), with its size as facts (`columns`, `rows`), it
+ * sends the part fitted to that size by `liveFrameOf`, with the commands
+ * the part offers now under it, each time the frame differs: after a
+ * Message, and by the clock for a part that says it moves between
+ * Messages. The view repaints each frame over the last. For any other
+ * view it sends what `piped` sends, so another program gets events and
+ * never a frame. Every Program's `screen` topic is followed this way; a
+ * host names its own parts beside it.
+ *
+ * @example
+ * ```typescript
+ * const followings = {
+ *   ...programFollowings(bound, 'books'),
+ *   words: followLive(bound, nowMs => wordsPartAt(nowMs), { name: 'books', piped: wordEvents }),
+ * }
+ * ```
+ */
+export const followLive =
+  <Model, Message>(
+    bound: BoundInteraction<Model, Message>,
+    partAt: (nowMs: number) => LivePart,
+    options: FollowLiveOptions,
+  ): CliFollowing =>
+  (flags, client) => {
+    if (flags['in-place'] !== '1') {
+      return options.piped(flags, client)
+    }
+    const size = {
+      columns: sizeFlag(flags, 'columns', fallbackLiveSize.columns),
+      rows: Math.min(
+        mostLiveRows,
+        Math.max(1, sizeFlag(flags, 'rows', fallbackLiveSize.rows) - 1),
+      ),
+    }
+    const paint = (part: LivePart): string => {
+      const inkOf = options.inkOf
+      const isInked = inkOf !== undefined && flags['color'] === '1'
+      const list = options.list ?? { command: 'help', what: '' }
+      const frame = liveFrameOf(part.node, size, {
+        ...(part.header === undefined ? {} : { header: part.header }),
+        footer: {
+          commands: offeredCommandsOf(bound, options.name, part.offers ?? [], {
+            ...(options.hostOffers === undefined
+              ? {}
+              : { hostCommands: options.hostOffers() }),
+          }),
+          more: `${options.name} ${list.command}`,
+        },
+        marks: isInked ? 'Ink' : 'Glyph',
+      })
+      return Array.join(
+        inkOf === undefined || !isInked
+          ? frame.lines
+          : Array.map(frame.lines, (line, row) =>
+              inkedLine(
+                inkOf(flags),
+                line,
+                Option.getOrElse(Array.get(frame.inks, row), () => []),
+              ),
+            ),
+        '\n',
+      )
+    }
+    // NOTE: A part that does not move between Messages is painted again
+    // only when the Model is another one; a clocked part on every tick.
+    const state: { model: unknown; isClocked: boolean; text: string } = {
+      model: undefined,
+      isClocked: true,
+      text: '',
+    }
+    const read = (): string => {
+      const model = bound.readModel()
+      if (state.isClocked || model !== state.model) {
+        const part = partAt(Date.now())
+        state.model = model
+        state.isClocked = part.isClocked === true
+        state.text = paint(part)
+      }
+      return state.text
+    }
+    return Stream.tick(liveFrameEvery).pipe(Stream.map(read), Stream.changes)
+  }
 
 /**
  * The Stream for the topic a view asked to follow, or a refusal that names
@@ -282,7 +450,7 @@ export const programCliSurface = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   reporting: TerminalPaintReporting = {},
-  inkOf?: () => TerminalInk,
+  inkOf?: (flags: CliDaemonFlags) => TerminalInk,
 ): CliDaemonSurface<Model, Message> => {
   const terminal = makeProgramTerminalView(bound, name, reporting, inkOf)
   return {
@@ -309,6 +477,13 @@ export const programCliSurface = <Model, Message>(
             ),
           ),
     follow: (topic, flags, client) =>
-      followTopicOf(programFollowings(bound), topic, flags, client),
+      followTopicOf(
+        programFollowings(bound, name, inkOf === undefined ? {} : { inkOf }),
+        topic,
+        flags,
+        client,
+      ),
   }
 }
+
+export { offeredBy }

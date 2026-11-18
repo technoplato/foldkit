@@ -1,41 +1,66 @@
 import { Option } from 'effect'
 
-import {
-  type Mode,
-  type Role,
-  type Theme,
-  defaultTheme,
-  roleColorsOf,
-} from './theme.js'
+import { type Mode, type Role, type Theme, defaultTheme } from './theme.js'
 
 // TERMINAL
 
 /**
- * What a terminal painter needs to paint from the theme: whether it may
- * use color at all, the mode it was told, and the theme.
+ * How text is painted for one terminal output: whether it takes color,
+ * the ground the terminal says it has, dark or light, when it says, and
+ * the theme the colors come from.
  */
 export type TerminalInk = Readonly<{
   isColor: boolean
-  mode: Mode
+  maybeGround: Mode | undefined
   theme: Theme
 }>
+
+const lightGrounds: ReadonlySet<string> = new Set([
+  '7',
+  '9',
+  '10',
+  '11',
+  '12',
+  '13',
+  '14',
+  '15',
+])
+
+const groundPattern = /^\d+$/u
+
+/**
+ * The ground a terminal says it has in `COLORFGBG`, `15;0` for light text
+ * on black: the last number is the ground's color, 7 and 9 to 15 light,
+ * the others dark. Undefined when the terminal does not say.
+ */
+const groundOfEnv = (
+  env: Readonly<Record<string, string | undefined>>,
+): Mode | undefined => {
+  const last = (env['COLORFGBG'] ?? '').split(';').at(-1) ?? ''
+  if (!groundPattern.test(last)) {
+    return undefined
+  } else {
+    return lightGrounds.has(last) ? 'Light' : 'Dark'
+  }
+}
 
 /**
  * The ink for one terminal output. Color is used only on a terminal, and
  * not when `NO_COLOR` is set or `TERM` is `dumb`, so text sent down a
- * pipe is never marked up. The mode is handed in from the Model, as for
- * every painter.
+ * pipe is never marked up. The ground is the terminal's, never the mode
+ * a Model holds: `ground` when the host knows it, else what the terminal
+ * says in `COLORFGBG`, else not known, and then nothing is assumed.
  *
  * @example
  * ```typescript
- * terminalInkOf({ isTerminal: process.stdout.isTTY === true, env: process.env, mode: 'Dark' })
+ * terminalInkOf({ isTerminal: process.stdout.isTTY === true, env: process.env })
  * ```
  */
 export const terminalInkOf = (
   output: Readonly<{
     isTerminal: boolean
     env: Readonly<Record<string, string | undefined>>
-    mode: Mode
+    ground?: Mode
     theme?: Theme
   }>,
 ): TerminalInk => ({
@@ -43,7 +68,7 @@ export const terminalInkOf = (
     output.isTerminal &&
     (output.env['NO_COLOR'] ?? '') === '' &&
     output.env['TERM'] !== 'dumb',
-  mode: output.mode,
+  maybeGround: output.ground ?? groundOfEnv(output.env),
   theme: output.theme ?? defaultTheme,
 })
 
@@ -51,15 +76,18 @@ const escape = '\u001b['
 
 const strong = (text: string): string => `${escape}1m${text}${escape}22m`
 
-const dim = (text: string): string => `${escape}2m${text}${escape}22m`
+const underlined = (text: string): string => `${escape}4m${text}${escape}24m`
 
+// What stands out is strong, in the terminal's own color.
 const strongRoles: ReadonlySet<Role> = new Set(['Text', 'ReadingSpoken'])
 
-const dimRoles: ReadonlySet<Role> = new Set([
-  'QuietText',
-  'FaintText',
-  'ReadingToCome',
-])
+// What is to come keeps the terminal's own text, untouched.
+const plainRoles: ReadonlySet<Role> = new Set(['ReadingToCome'])
+
+// What rests is the theme's quiet grey for the ground, never dimmed.
+const quietRoles: ReadonlySet<Role> = new Set(['QuietText', 'FaintText'])
+
+const underlinedRoles: ReadonlySet<Role> = new Set(['ReadingCurrentWord'])
 
 const hexPattern = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i
 
@@ -77,19 +105,95 @@ const channelsOf = (
       ])
 }
 
+const linear = (channel: number): number => {
+  const part = channel / 255
+  return part <= 0.039_28 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4
+}
+
+const luminanceOf = (color: string): number =>
+  Option.match(channelsOf(color), {
+    onNone: () => 0,
+    onSome: ([red, green, blue]) =>
+      0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue),
+  })
+
 /**
- * Text painted for a role in a terminal. A role that is one flat color,
- * such as the accent or the word being spoken, takes that color from the
- * theme in the ink's mode. Body text keeps the terminal's own color,
- * since a terminal's ground is not the theme's to choose: the roles that
- * stand out are strong and the roles that rest are dim. A role that is
- * not a flat color, such as a gradient ground, leaves the text alone, and
- * so does an ink with no color.
+ * How well one flat color reads on another, as WCAG counts it: 21 for
+ * black on white, 1 for a color on itself, 4.5 the least for body text.
  *
  * @example
  * ```typescript
- * inked(ink, 'ReadingCurrentWord', 'lamp') // '\u001b[38;2;157;184;255mlamp\u001b[39m'
- * inked(ink, 'ReadingToCome', 'slow and patient') // dim
+ * contrastOf('#ffffff', '#000000') // 21
+ * ```
+ */
+export const contrastOf = (first: string, second: string): number => {
+  const lighter = Math.max(luminanceOf(first), luminanceOf(second))
+  const darker = Math.min(luminanceOf(first), luminanceOf(second))
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+const worstOnEither = (color: string): number =>
+  Math.min(contrastOf(color, '#000000'), contrastOf(color, '#ffffff'))
+
+/**
+ * The flat color a role takes in a terminal: the theme's for the ground
+ * the terminal has; with the ground not known, the one of the role's two
+ * colors that reads better on both black and white, so nothing is
+ * assumed. A quiet role takes the theme's quiet grey, and none with the
+ * ground not known, since no grey reads well on both. Undefined for a
+ * role that is not one flat color, and for the roles that keep the
+ * terminal's own color.
+ *
+ * @example
+ * ```typescript
+ * terminalColorOf(ink, 'Accent') // '#fb923c' on a dark ground
+ * ```
+ */
+export const terminalColorOf = (
+  ink: TerminalInk,
+  role: Role,
+): string | undefined => {
+  if (strongRoles.has(role) || plainRoles.has(role)) {
+    return undefined
+  }
+  const colors = ink.theme[quietRoles.has(role) ? 'QuietText' : role]
+  const isFlat = (color: string): boolean => Option.isSome(channelsOf(color))
+  if (ink.maybeGround !== undefined) {
+    const color = ink.maybeGround === 'Dark' ? colors.dark : colors.light
+    return isFlat(color) ? color : undefined
+  } else if (quietRoles.has(role)) {
+    return undefined
+  } else if (isFlat(colors.light) && isFlat(colors.dark)) {
+    return worstOnEither(colors.light) >= worstOnEither(colors.dark)
+      ? colors.light
+      : colors.dark
+  } else {
+    return undefined
+  }
+}
+
+const colored = (color: string, text: string): string =>
+  Option.match(channelsOf(color), {
+    onNone: () => text,
+    onSome: ([red, green, blue]) =>
+      `${escape}38;2;${red.toString()};${green.toString()};${blue.toString()}m${text}${escape}39m`,
+  })
+
+/**
+ * Text painted for a role in a terminal. What stands out, a heading and
+ * the words already spoken, is strong in the terminal's own color, and
+ * what is to come is left as it is, since a terminal's body text is not
+ * the theme's to choose. A role that is one flat color takes it from the
+ * theme for the terminal's ground (see {@link terminalColorOf}); the word
+ * being read is underlined as well, so it shows whatever the color.
+ * Nothing is ever dimmed: a dimmed line is hard to read on a dark ground.
+ * A role that is not a flat color leaves the text alone, and so does an
+ * ink with no color.
+ *
+ * @example
+ * ```typescript
+ * inked(ink, 'ReadingCurrentWord', 'lamp') // underlined, in the theme's color
+ * inked(ink, 'ReadingSpoken', 'He trimmed') // strong
  * inked(pipedInk, 'Accent', 'lamp') // 'lamp'
  * ```
  */
@@ -98,14 +202,10 @@ export const inked = (ink: TerminalInk, role: Role, text: string): string => {
     return text
   } else if (strongRoles.has(role)) {
     return strong(text)
-  } else if (dimRoles.has(role)) {
-    return dim(text)
   } else {
-    return Option.match(channelsOf(roleColorsOf(ink.theme, ink.mode)[role]), {
-      onNone: () => text,
-      onSome: ([red, green, blue]) =>
-        `${escape}38;2;${red.toString()};${green.toString()};${blue.toString()}m${text}${escape}39m`,
-    })
+    const color = terminalColorOf(ink, role)
+    const painted = color === undefined ? text : colored(color, text)
+    return underlinedRoles.has(role) ? underlined(painted) : painted
   }
 }
 

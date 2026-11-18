@@ -608,6 +608,10 @@ export type CliFollowRuntime = {
   readonly stdout: Readonly<{
     write: (text: string) => unknown
     once: (event: 'error', listener: () => void) => unknown
+    columns?: number
+    rows?: number
+    on?: (event: 'resize', listener: () => void) => unknown
+    off?: (event: 'resize', listener: () => void) => unknown
   }>
   readonly stderr: Readonly<{ write: (text: string) => unknown }>
   readonly once: (event: 'SIGINT' | 'SIGTERM', listener: () => void) => unknown
@@ -619,11 +623,44 @@ export type WriteCliFollowOptions = Readonly<{
   request: CliFollowRequest
   spawn?: () => ChildProcess
   timeoutMs?: number
+  /**
+   * Rewrite the topic in place, for a terminal: each text is written over
+   * the last one instead of under it, so a few lines change where they
+   * are and nothing scrolls. No key is read and the screen is not taken
+   * over; Ctrl-C ends it and leaves the last text. Leave it out for a
+   * pipe, which gets every text on its own lines.
+   */
+  inPlace?: boolean
 }>
+
+const inkPattern = /\u001b\[[0-9;]*m/gu
+
+const fallbackFollowColumns = 80
+
+const fallbackFollowRows = 24
+
+/**
+ * The rows a text takes on a terminal `columns` wide: a row for each
+ * line, and more for a line that wraps, counted by what shows, not by
+ * its color codes.
+ */
+const rowsOf = (text: string, columns: number): number =>
+  text
+    .split('\n')
+    .reduce(
+      (rows, line) =>
+        rows +
+        Math.max(1, Math.ceil(line.replace(inkPattern, '').length / columns)),
+      0,
+    )
+
+const eraseRows = (rows: number): string =>
+  rows > 0 ? `\u001b[${rows.toString()}A\r\u001b[J` : ''
 
 /**
  * Follows one topic and writes it where a pipe can read it: each text on
- * its own lines on stdout, nothing else, until the topic ends, the
+ * its own lines on stdout, or with `inPlace` each text over the last for
+ * a terminal, nothing else, until the topic ends, the
  * process is told to stop (Ctrl-C, SIGTERM), or the reader of the pipe
  * goes away, as after `books follow words | head -3`. Those exit 0. When
  * the daemon refuses the topic or goes away, the reason goes to stderr
@@ -660,14 +697,56 @@ export const writeCliFollow = async (
           : { timeoutMs: options.timeoutMs }),
       })
     }
-    const end = await followCliView(
-      options.socketPath,
-      options.request,
-      text => {
+    const shown = { rows: 0 }
+    const write = (text: string): void => {
+      if (options.inPlace !== true) {
         writeText(runtime.stdout, text)
-      },
-      { signal: stopping.signal },
-    )
+      } else if (text !== '') {
+        const body = text.endsWith('\n') ? text.slice(0, -1) : text
+        runtime.stdout.write(`${eraseRows(shown.rows)}${body}\n`)
+        shown.rows = rowsOf(
+          body,
+          runtime.stdout.columns ?? fallbackFollowColumns,
+        )
+      }
+    }
+    // NOTE: A view that rewrites in place tells the topic so, and its
+    // size as facts. When the terminal is resized it asks again with the
+    // new size; the next frame is written over the last one.
+    const requestNow = (): CliFollowRequest =>
+      options.inPlace === true
+        ? {
+            ...options.request,
+            flags: {
+              ...options.request.flags,
+              'in-place': '1',
+              columns: String(runtime.stdout.columns ?? fallbackFollowColumns),
+              rows: String(runtime.stdout.rows ?? fallbackFollowRows),
+            },
+          }
+        : options.request
+    const followUntilResized = async (): Promise<CliFollowEnd> => {
+      const resized = new AbortController()
+      const onResize = (): void => {
+        resized.abort()
+      }
+      const onStop = (): void => {
+        resized.abort()
+      }
+      if (options.inPlace === true) {
+        runtime.stdout.on?.('resize', onResize)
+      }
+      stopping.signal.addEventListener('abort', onStop)
+      const end = await followCliView(options.socketPath, requestNow(), write, {
+        signal: resized.signal,
+      })
+      stopping.signal.removeEventListener('abort', onStop)
+      runtime.stdout.off?.('resize', onResize)
+      return end._tag === 'Stopped' && !stopping.signal.aborted
+        ? followUntilResized()
+        : end
+    }
+    const end = await followUntilResized()
     if (end._tag === 'Lost') {
       writeText(runtime.stderr, end.reason)
       runtime.exitCode = 1

@@ -1,4 +1,4 @@
-import { Array, Match as M } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 
 import type {
   ButtonNode,
@@ -140,4 +140,26 @@ export const linksOf = (node: UiNode): ReadonlyArray<ScreenLink> =>
       Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, linksOf),
     }),
+  )
+
+/**
+ * The tags of the Actions a part of the view offers: the ones its own
+ * buttons press, in the order they sit, each once, without the ones a
+ * button shows as unavailable. A Client that shows a part alone, such as
+ * a terminal following the words, offers these under it.
+ *
+ * @example
+ * ```typescript
+ * offeredBy(playerControls) // ['Pause', 'SkipBack', 'AddBookmark']
+ * ```
+ */
+export const offeredBy = (node: UiNode): ReadonlyArray<string> =>
+  Array.dedupe(
+    Array.getSomes(
+      Array.map(buttonsOf(node), button =>
+        button.disabled === true
+          ? Option.none()
+          : Option.fromNullishOr(button.action),
+      ),
+    ),
   )

@@ -10,6 +10,8 @@ import {
   SpokenWordsJson,
   type SyncedBooksMessage,
   type SyncedBooksModel,
+  type WordsHeard,
+  WordsHeardJson,
   alreadyBookmarkedNotice,
   bookSearchLines,
   bookSearchOf,
@@ -19,7 +21,6 @@ import {
   clockOf,
   currentWordAddressOf,
   isBookSearchSettled,
-  isSameParagraph,
   loadedTitleOf,
   placeOf,
   placeTextOf,
@@ -28,6 +29,9 @@ import {
   suggestedPressesOf,
   titlesNamed,
   titlesOf,
+  wordsHeardBetween,
+  wordsHeardLines,
+  wordsPartAt,
 } from 'books-core-example'
 import {
   Array,
@@ -50,6 +54,7 @@ import {
   type HostCommand,
   type ProgramCommandOptions,
   type TerminalPaintReporting,
+  followLive,
   followTopicOf,
   isTerminalViewRequest,
   makeProgramTerminalView,
@@ -62,12 +67,13 @@ import {
 } from 'foldkit/cli'
 import { declaredCommandOf, exampleOf, usageOf } from 'foldkit/cli/view'
 import type { Declaration, Declared } from 'foldkit/declaration'
-import { renderScreen } from 'foldkit/renderers'
+import { Text, renderScreen } from 'foldkit/renderers'
 import * as Theme from 'foldkit/theme'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
   Actions,
+  Bookmark,
   Bookmarks,
   Follow,
   Link,
@@ -242,7 +248,7 @@ const wordsTextOf = (
       if (flags['json'] === '1') {
         return S.encodeSync(SpokenWordsJson)(words)
       } else if (flags['color'] === '1') {
-        return Array.join(inkedWordsLines(words, inkOf(bound)), '\n')
+        return Array.join(inkedWordsLines(words, inkOf(flags)), '\n')
       } else {
         return Array.join(spokenWordsLines(words), '\n')
       }
@@ -308,16 +314,14 @@ const bookmarkCommandOf = (
     onNonEmpty: note => ['add-noted-bookmark', ...note],
   })
 
-// NOTE: The view says whether its output is a terminal (the `color` flag);
-// the player only knows the mode, from the Model, and paints from roles.
-const inkOf = (bound: BoundBooks): Theme.TerminalInk =>
+// NOTE: The view says whether its output is a terminal (the `color` flag)
+// and, when its terminal says, the ground it has (`terminal-ground`, what
+// the terminal put in COLORFGBG); the ink reads on that ground, never on
+// the mode the Model holds, which is the site's.
+const inkOf = (flags: CliDaemonFlags): Theme.TerminalInk =>
   Theme.terminalInkOf({
     isTerminal: true,
-    env: {},
-    mode: Option.match(readyOf(bound.readModel()), {
-      onNone: () => 'Dark',
-      onSome: model => Theme.modeOfState(model.appearance),
-    }),
+    env: { COLORFGBG: flags['terminal-ground'] },
   })
 
 const inkedParagraphOf = (
@@ -397,44 +401,95 @@ const inkedWordsLines = (
   }
 }
 
-type WordsReading = Readonly<{
-  maybeWords: Option.Option<SpokenWords>
-  text: string
+const wordEventsEvery = Duration.millis(25)
+
+type Heard = Readonly<{
+  maybePrevious: Option.Option<SpokenWords>
+  opening: string
 }>
 
-const isSameWords = Option.makeEquivalence(isSameParagraph)
+const nothingHeard: Heard = { maybePrevious: Option.none(), opening: '' }
 
-const eachWordEvery = Duration.millis(50)
+const heardTextOf = (flags: CliDaemonFlags, heard: WordsHeard): string => {
+  if (flags['json'] === '1') {
+    return S.encodeSync(WordsHeardJson)(heard)
+  } else if (
+    flags['color'] === '1' &&
+    (heard._tag === 'WordsNow' ||
+      heard._tag === 'WordsWaiting' ||
+      heard._tag === 'NothingInPlayer')
+  ) {
+    return Array.join(inkedWordsLines(heard, inkOf(flags)), '\n')
+  } else {
+    return Array.join(wordsHeardLines(heard), '\n')
+  }
+}
 
 /**
- * The `words` topic a view follows: what `books words` prints now, then
- * again each time the paragraph being read, the title, or whether it
- * plays changes, so `books follow words` scrolls the book as it is read.
- * `--each-word` prints again for every word instead: it reads the word
- * being spoken from the player's clock twenty times a second and prints
- * when the text changes, so it moves on the word while the Program hears
- * the place once a second. Each text is painted at the moment it changed,
- * so a slow reader never sees a later place under an earlier change.
+ * What a pipe hears while it follows the words, as the Books core says
+ * it: the paragraph being read when it changes, each word as its time
+ * arrives, read from the player's clock forty times a second, and one
+ * line when playback pauses or plays; with `--paragraphs`, no words;
+ * with `--json`, a line of JSON for each. Nothing is printed twice.
  */
-const followWords =
+const wordEvents =
   (bound: BoundBooks): CliFollowing =>
-  flags => {
-    const read = (): WordsReading => {
-      const maybeWords = wordsNowOf(bound, flags)
-      return { maybeWords, text: wordsTextOf(bound, flags, maybeWords) }
-    }
-    return flags['each-word'] === '1'
-      ? Stream.tick(eachWordEvery).pipe(
-          Stream.map(() => read().text),
-          Stream.changes,
-        )
-      : Stream.map(
-          Interaction.follow(bound, read, (self, that) =>
-            isSameWords(self.maybeWords, that.maybeWords),
-          ),
-          reading => reading.text,
-        )
-  }
+  flags =>
+    Stream.tick(wordEventsEvery).pipe(
+      Stream.mapAccum(
+        (): Heard => nothingHeard,
+        (heard): readonly [Heard, ReadonlyArray<string>] =>
+          Option.match(wordsNowOf(bound, flags), {
+            onNone: () => {
+              const opening = wordsTextOf(bound, flags, Option.none())
+              return [
+                { ...heard, opening },
+                opening === heard.opening ? [] : [opening],
+              ]
+            },
+            onSome: words => [
+              { maybePrevious: Option.some(words), opening: '' },
+              Array.map(
+                wordsHeardBetween(heard.maybePrevious, words, {
+                  paragraphsOnly: flags['paragraphs'] === '1',
+                }),
+                event => heardTextOf(flags, event),
+              ),
+            ],
+          }),
+      ),
+    )
+
+/**
+ * The `words` topic a view follows. A terminal gets the words as a live
+ * frame: the reader's own words fitted to its size, the mark on the word
+ * being spoken, moving by the word, with what can be run now under them,
+ * repainted in place. A pipe gets what {@link wordEvents} says. Which
+ * words, what sits above them and what they offer is the Books core's
+ * `wordsPartAt`; how a part is followed is the library's.
+ */
+const followWords = (bound: BoundBooks): CliFollowing =>
+  followLive(
+    bound,
+    nowMs =>
+      Option.match(readyOf(bound.readModel()), {
+        onNone: () => ({ node: Text(statusOf(bound)) }),
+        onSome: model => wordsPartAt(model, nowMs),
+      }),
+    {
+      name: booksCommandName,
+      // NOTE: What this terminal adds for a word, beside what the reader
+      // offers: its own bookmark and link commands, read from their
+      // declarations, while a title is in the player.
+      hostOffers: () =>
+        Option.isSome(loadedNowOf(bound))
+          ? Array.map([Bookmark, Link], hostCommandOf)
+          : [],
+      list: hostCommandOf(Actions),
+      inkOf: inkOf,
+      piped: wordEvents(bound),
+    },
+  )
 
 const loadedNowOf = (bound: BoundBooks) =>
   Option.flatMap(readyOf(bound.readModel()), loadedTitleOf)
@@ -718,7 +773,7 @@ export const makeBooksPlayer = (
     bound,
     booksCommandName,
     reporting,
-    () => inkOf(bound),
+    inkOf,
   )
   const stopped = Effect.runSync(Deferred.make<void>())
   const brief = (): CliDaemonPaintedResult => ({
@@ -897,7 +952,10 @@ export const makeBooksPlayer = (
       return { stdout: sentence, exitCode: 0 }
     })
   const followings = {
-    ...programFollowings(bound),
+    ...programFollowings(bound, booksCommandName, {
+      list: hostCommandOf(Actions),
+      inkOf: inkOf,
+    }),
     words: followWords(bound),
   }
   return {
@@ -905,8 +963,16 @@ export const makeBooksPlayer = (
     surface: {
       read: programSurface.read,
       run: programSurface.run,
+      // NOTE: `books follow` alone follows the words: of the two topics
+      // it is the one a person means, and `books follow screen` names
+      // the other.
       follow: (topic, flags, client) =>
-        followTopicOf(followings, topic, flags, client),
+        followTopicOf(
+          followings,
+          topic === '' ? 'words' : topic,
+          flags,
+          client,
+        ),
       show: (flags, client) =>
         isTerminalViewRequest(flags)
           ? terminal.paint(flags, client)

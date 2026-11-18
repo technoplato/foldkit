@@ -144,7 +144,19 @@ describe('following a CLI daemon', () => {
   })
 })
 
-const fakeRuntime = () => {
+const eventually = async (isDone: () => boolean): Promise<void> => {
+  const startedAt = Date.now()
+  while (!isDone()) {
+    if (Date.now() - startedAt > 4_000) {
+      throw new Error('never happened')
+    }
+    await settled()
+  }
+}
+
+const fakeRuntime = (
+  screen: Partial<Omit<CliFollowRuntime['stdout'], 'write' | 'once'>> = {},
+) => {
   const written = { stdout: '', stderr: '' }
   const runtime: CliFollowRuntime = {
     stdout: {
@@ -153,6 +165,7 @@ const fakeRuntime = () => {
         return true
       },
       once: () => undefined,
+      ...screen,
     },
     stderr: {
       write: text => {
@@ -178,6 +191,111 @@ describe('following to a pipe', () => {
     expect(written.stdout).toBe('# one\n# two\n> line\n')
     expect(written.stderr).toBe('')
     expect(runtime.exitCode).toBe(0)
+  })
+
+  it('rewrites a topic in place on a terminal: each text over the last, as many rows as the last took', async () => {
+    const socketPath = socketPathFor('in-place')
+    const { runtime, written } = fakeRuntime()
+    await serving(
+      socketPath,
+      surfaceFollowing(() =>
+        Stream.make(
+          '# one\n> The [keeper] climbed',
+          '# one\n> The keeper [climbed]',
+          '# two',
+        ),
+      ),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'words' }, inPlace: true },
+          runtime,
+        ),
+    )
+    expect(written.stdout).toBe(
+      [
+        '# one\n> The [keeper] climbed\n',
+        '\u001b[2A\r\u001b[J# one\n> The keeper [climbed]\n',
+        '\u001b[2A\r\u001b[J# two\n',
+      ].join(''),
+    )
+  })
+
+  it('counts the rows a line wraps over, by what shows and not by its color codes', async () => {
+    const socketPath = socketPathFor('in-place-wrap')
+    const { runtime, written } = fakeRuntime({ columns: 10 })
+    const inked = '\u001b[2m0123456789\u001b[22m'
+    await serving(
+      socketPath,
+      surfaceFollowing(() => Stream.make(`${inked}\n0123456789ab`, 'next')),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'words' }, inPlace: true },
+          runtime,
+        ),
+    )
+    expect(written.stdout).toBe(
+      `${inked}\n0123456789ab\n\u001b[3A\r\u001b[Jnext\n`,
+    )
+  })
+
+  it('tells the topic it rewrites in place, and its size as facts, and asks again with the new size when the terminal is resized', async () => {
+    const socketPath = socketPathFor('in-place-size')
+    const asked: Array<Record<string, string>> = []
+    const resizing: Array<() => void> = []
+    const { runtime } = fakeRuntime({
+      columns: 60,
+      rows: 20,
+      on: (_event: 'resize', listener: () => void) => {
+        resizing.push(listener)
+      },
+      off: () => undefined,
+    })
+    const screen = runtime.stdout as { columns?: number; rows?: number }
+    await serving(
+      socketPath,
+      surfaceFollowing((_topic, flags) => {
+        asked.push({ ...flags })
+        return asked.length === 1
+          ? Stream.concat(Stream.make('first'), Stream.never)
+          : Stream.make('second')
+      }),
+      async () => {
+        const following = writeCliFollow(
+          { socketPath, request: { topic: 'words' }, inPlace: true },
+          runtime,
+        )
+        await eventually(() => asked.length === 1)
+        screen.columns = 100
+        screen.rows = 30
+        resizing.forEach(listener => {
+          listener()
+        })
+        await following
+      },
+    )
+    expect(asked).toEqual([
+      { 'in-place': '1', columns: '60', rows: '20' },
+      { 'in-place': '1', columns: '100', rows: '30' },
+    ])
+  })
+
+  it('sends a pipe’s request as it was given, with no size', async () => {
+    const socketPath = socketPathFor('pipe-no-size')
+    const asked: Array<Record<string, string>> = []
+    const { runtime } = fakeRuntime({ columns: 60, rows: 20 })
+    await serving(
+      socketPath,
+      surfaceFollowing((_topic, flags) => {
+        asked.push({ ...flags })
+        return Stream.make('once')
+      }),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'words', flags: { json: '1' } } },
+          runtime,
+        ),
+    )
+    expect(asked).toEqual([{ json: '1' }])
   })
 
   it('says why on stderr and exits 1 when the topic is refused', async () => {
