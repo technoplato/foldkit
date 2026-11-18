@@ -17,10 +17,12 @@ import {
   type TranscriptNode,
   type TranscriptPassage,
   type UiNode,
+  currentWordTokenAt,
   iconDrawings,
   isClearedOnSubmit,
   isSubmittedOnLeave,
   submittedTagOf,
+  transcriptAt,
 } from 'foldkit/renderers'
 import {
   type DragEvent,
@@ -31,6 +33,7 @@ import {
   memo,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -626,8 +629,45 @@ const followWord = (root: HTMLElement, word: HTMLElement): void => {
  * the window as it moves, and lets a person scroll away to read ahead: it
  * follows again a few seconds after they stop.
  */
+const liveWordEveryMs = 50
+
+/**
+ * A Transcript as it reads right now. While its clock runs, the word
+ * being spoken is read from the clock many times a second and the
+ * Transcript is marked again only when the word changes, so the mark
+ * moves on the word while the Program hears the place once a second. A
+ * Transcript with no clock, or one standing still, is painted as given.
+ */
+const useLiveTranscript = (transcript: TranscriptNode): TranscriptNode => {
+  const isRunning = transcript.clock !== undefined && transcript.clock.rate > 0
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (!isRunning) {
+      return
+    }
+    setNowMs(Date.now())
+    const timer = setInterval(() => {
+      setNowMs(Date.now())
+    }, liveWordEveryMs)
+    return () => {
+      clearInterval(timer)
+    }
+  }, [isRunning])
+  const liveToken = isRunning
+    ? Option.getOrUndefined(currentWordTokenAt(transcript, nowMs))
+    : undefined
+  return useMemo(
+    () =>
+      liveToken === undefined ? transcript : transcriptAt(transcript, nowMs),
+    // NOTE: `nowMs` is left out on purpose: the Transcript is marked again
+    // when the word changes, not on every tick of the clock.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [transcript, liveToken],
+  )
+}
+
 const TranscriptView = ({
-  transcript,
+  transcript: given,
   className,
   onPress,
 }: Readonly<{
@@ -635,6 +675,7 @@ const TranscriptView = ({
   className: string
   onPress: (button: ButtonNode) => void
 }>): ReactElement => {
+  const transcript = useLiveTranscript(given)
   const ref = useRef<HTMLElement>(null)
   const lastUserScrollAtMs = useRef(0)
   const maybeCurrentToken = Array.findFirst(
