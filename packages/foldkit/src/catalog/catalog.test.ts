@@ -31,6 +31,42 @@ const SetCount = Catalog.action('SetCount', {
 
 const catalog = Catalog.make([Increment, Reset, SetCount])
 
+describe('Catalog.tagFor', () => {
+  const SetStep = Catalog.action('SetStep', {
+    fields: { step: S.Number },
+    choose: {
+      field: 'step',
+      prompt: 'Which step?',
+      token: S.FiniteFromString,
+      choicesOf: () => [],
+      accepts: () => Catalog.Enabled(),
+      nothingToChoose: 'type a number',
+    },
+    what: 'Sets how far one press counts',
+    why: 'To count in larger steps',
+    meta: { label: 'Step', keys: [] },
+  })
+
+  it('spells a typed value as the tag every Client presses', () => {
+    expect(Catalog.tagFor(SetStep, { step: 4 })).toEqual(
+      Option.some('SetStep:4'),
+    )
+  })
+
+  it('is the bare tag for an Action that takes nothing', () => {
+    expect(Catalog.tagFor(Reset, {})).toEqual(Option.some('Reset'))
+  })
+
+  it('is None when the chosen field is missing or not of its kind', () => {
+    expect(Catalog.tagFor(SetStep, {})).toEqual(Option.none())
+    expect(Catalog.tagFor(SetStep, { step: 'four' })).toEqual(Option.none())
+  })
+
+  it('is None for an Action whose fields nothing chooses', () => {
+    expect(Catalog.tagFor(SetCount, { count: 4 })).toEqual(Option.none())
+  })
+})
+
 describe('Catalog.action', () => {
   it('builds the Message and keeps wire values to the tag and fields', () => {
     expect(Increment()).toEqual({ _tag: 'Increment' })
