@@ -334,7 +334,24 @@ export const paintHtml = <Message>(
                     h.span(
                       [h.Class('fk-item-body')],
                       [
-                        h.span([h.Class('fk-item-title')], [item.title]),
+                        h.span(
+                          [h.Class('fk-item-title')],
+                          item.titleMark === undefined
+                            ? [item.title]
+                            : [
+                                item.title.slice(0, item.titleMark.start),
+                                h.mark(
+                                  [h.Class('fk-item-mark')],
+                                  [
+                                    item.title.slice(
+                                      item.titleMark.start,
+                                      item.titleMark.end,
+                                    ),
+                                  ],
+                                ),
+                                item.title.slice(item.titleMark.end),
+                              ],
+                        ),
                         ...Array.map(item.lines ?? [], line =>
                           h.span([h.Class('fk-item-line')], [line]),
                         ),
@@ -418,9 +435,13 @@ export const paintHtml = <Message>(
                           return h.span(
                             [
                               h.Class('fk-word'),
+                              h.DataAttribute('token', word.token),
                               ...(word.isCurrent === true
                                 ? [h.DataAttribute('current', 'true')]
                                 : []),
+                              ...(word.mark === undefined
+                                ? []
+                                : [h.DataAttribute('mark', word.mark)]),
                               ...(message === undefined
                                 ? []
                                 : [h.OnClick(message)]),
