@@ -8,6 +8,7 @@ import {
   type ItemCheck,
   type ListItem,
   type ListNode,
+  type PlacedMark,
   type ReferencePart,
   type SeekNode,
   type TextEmbed,
@@ -23,6 +24,7 @@ import {
   iconDrawings,
   isClearedOnSubmit,
   isSubmittedOnLeave,
+  marksInPassage,
   submittedTagOf,
   transcriptAt,
 } from 'foldkit/renderers'
@@ -549,17 +551,44 @@ const currentTokenOf = (passage: TranscriptPassage): string | undefined =>
     ),
   )
 
+const noMarks: ReadonlyArray<PlacedMark> = []
+
+/**
+ * What tells one passage's marks from another's between paints: each
+ * mark's word, note and press, so a passage repaints when a bookmark on it
+ * is made, noted or removed, and not when one elsewhere is.
+ */
+const marksKeyOf = (marks: ReadonlyArray<PlacedMark>): string =>
+  Array.join(
+    Array.map(
+      marks,
+      ({ token, mark }) =>
+        `${token}|${mark.note ?? ''}|${mark.action ?? ''}|${mark.label}`,
+    ),
+    '\n',
+  )
+
 const PassageView = memo(
   ({
     passage,
     action,
+    marks,
     onPress,
   }: Readonly<{
     passage: TranscriptPassage
     action: string
+    marks: ReadonlyArray<PlacedMark>
     onPress: (button: ButtonNode) => void
   }>): ReactElement => {
     const labelAction = passage.labelAction
+    const markOf = (token: string): Option.Option<PlacedMark> =>
+      Array.findFirst(marks, placed => placed.token === token)
+    const pressMark = (placed: PlacedMark): void => {
+      const markAction = placed.mark.action
+      if (markAction !== undefined) {
+        onPress(pressOf(markAction, placed.mark.label))
+      }
+    }
     return (
       <article
         className="fk-passage"
@@ -582,20 +611,54 @@ const PassageView = memo(
           </button>
         )}
         <p className="fk-passage-words">
-          {Array.map(passage.words, word => (
-            <span
-              key={word.token}
-              className="fk-word"
-              data-token={word.token}
-              data-current={word.isCurrent === true ? true : undefined}
+          {Array.map(passage.words, word => {
+            const maybeMark = markOf(word.token)
+            return (
+              <span
+                key={word.token}
+                className="fk-word"
+                data-token={word.token}
+                data-current={word.isCurrent === true ? true : undefined}
+                data-mark={Option.isSome(maybeMark) ? true : undefined}
+                onClick={() => {
+                  onPress(pressOf(`${action}:${word.token}`, word.text))
+                }}
+              >
+                {Option.match(maybeMark, {
+                  onNone: () => null,
+                  onSome: placed => (
+                    <button
+                      type="button"
+                      className="fk-word-mark"
+                      aria-label={placed.mark.label}
+                      title={placed.mark.note ?? placed.mark.label}
+                      onClick={event => {
+                        event.stopPropagation()
+                        pressMark(placed)
+                      }}
+                    />
+                  ),
+                })}
+                {`${word.text} `}
+              </span>
+            )
+          })}
+        </p>
+        {Array.map(
+          Array.filter(marks, placed => placed.mark.note !== undefined),
+          placed => (
+            <button
+              key={placed.token}
+              type="button"
+              className="fk-passage-note"
               onClick={() => {
-                onPress(pressOf(`${action}:${word.token}`, word.text))
+                pressMark(placed)
               }}
             >
-              {`${word.text} `}
-            </span>
-          ))}
-        </p>
+              {placed.mark.note}
+            </button>
+          ),
+        )}
       </article>
     )
   },
@@ -606,6 +669,7 @@ const PassageView = memo(
     before.passage.words.length === after.passage.words.length &&
     currentTokenOf(before.passage) === currentTokenOf(after.passage) &&
     before.action === after.action &&
+    marksKeyOf(before.marks) === marksKeyOf(after.marks) &&
     before.onPress === after.onPress,
 )
 
@@ -742,6 +806,11 @@ const TranscriptView = ({
               key={passage.key}
               passage={passage}
               action={transcript.action}
+              marks={
+                transcript.marks === undefined
+                  ? noMarks
+                  : marksInPassage(passage, transcript.marks)
+              }
               onPress={onPress}
             />
           )),

@@ -4,6 +4,7 @@ import type { Device } from './device.js'
 import { Column, Row, Text } from './elements.js'
 import { iconGlyphs } from './icons.js'
 import { itemLinesOf } from './listRows.js'
+import { marksInPassage } from './transcriptMarks.js'
 import type {
   ButtonNode,
   HotspotAction,
@@ -12,6 +13,7 @@ import type {
   ListItem,
   ProgressNode,
   SeekNode,
+  TranscriptMark,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWord,
@@ -175,8 +177,12 @@ const itemTitleGlyph = (item: ListItem): string => {
 
 const passageLabelWidth = 8
 
-const wordGlyph = (word: TranscriptWord): string =>
-  word.isCurrent === true ? `[${word.text}]` : word.text
+const markGlyph = '*'
+
+const wordGlyph = (word: TranscriptWord, isMarked: boolean): string => {
+  const glyph = word.isCurrent === true ? `[${word.text}]` : word.text
+  return isMarked ? `${markGlyph}${glyph}` : glyph
+}
 
 type TranscriptLine = Readonly<{ text: string; isCurrent: boolean }>
 
@@ -192,9 +198,10 @@ const nothingWrapped: Wrapped = { lines: [], maybeOpen: Option.none() }
 const wrappedWords = (
   words: ReadonlyArray<TranscriptWord>,
   width: number,
+  markedTokens: ReadonlySet<string>,
 ): ReadonlyArray<TranscriptLine> => {
   const wrapped = Array.reduce(words, nothingWrapped, (state, word) => {
-    const glyph = wordGlyph(word)
+    const glyph = wordGlyph(word, markedTokens.has(word.token))
     const isCurrent = word.isCurrent === true
     return Option.match(state.maybeOpen, {
       onNone: () => ({
@@ -222,18 +229,31 @@ const wrappedWords = (
 const passageLines = (
   passage: TranscriptPassage,
   availableW: number,
+  marks: ReadonlyArray<TranscriptMark>,
 ): ReadonlyArray<TranscriptLine> => {
   const marker = passage.isCurrent === true ? '›' : ' '
   const label = `${marker}${passage.label}`.padEnd(passageLabelWidth, ' ')
   const textWidth = Math.max(1, availableW - passageLabelWidth)
+  const placed = marksInPassage(passage, marks)
+  const markedTokens = new Set(Array.map(placed, ({ token }) => token))
   return [
     ...(passage.heading === undefined
       ? []
       : [plainLine(''), plainLine(passage.heading.toUpperCase())]),
-    ...Array.map(wrappedWords(passage.words, textWidth), (line, index) => ({
-      text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,
-      isCurrent: line.isCurrent,
-    })),
+    ...Array.map(
+      wrappedWords(passage.words, textWidth, markedTokens),
+      (line, index) => ({
+        text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,
+        isCurrent: line.isCurrent,
+      }),
+    ),
+    ...Array.getSomes(
+      Array.map(placed, ({ mark }) =>
+        Option.map(Option.fromNullishOr(mark.note), note =>
+          plainLine(`${' '.repeat(passageLabelWidth)}${markGlyph} ${note}`),
+        ),
+      ),
+    ),
   ]
 }
 
@@ -244,7 +264,9 @@ const transcriptLines = (
   Array.match(transcript.passages, {
     onEmpty: () => [plainLine(transcript.emptyText)],
     onNonEmpty: passages =>
-      Array.flatMap(passages, passage => passageLines(passage, availableW)),
+      Array.flatMap(passages, passage =>
+        passageLines(passage, availableW, transcript.marks ?? []),
+      ),
   })
 
 const layoutNode = (

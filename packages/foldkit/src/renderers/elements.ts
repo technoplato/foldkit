@@ -26,6 +26,7 @@ import type {
   TextNode,
   TextPart,
   TranscriptClock,
+  TranscriptMark,
   TranscriptNode,
   TranscriptPassage,
   UiNode,
@@ -451,6 +452,7 @@ export const Transcript = (
     emptyText: string
     passages: ReadonlyArray<TranscriptPassage>
     clock?: TranscriptClock
+    marks?: ReadonlyArray<TranscriptMark>
   }>,
 ): TranscriptNode => ({
   _tag: 'Transcript',
@@ -459,6 +461,7 @@ export const Transcript = (
   emptyText: props.emptyText,
   passages: props.passages,
   ...(props.clock === undefined ? {} : { clock: props.clock }),
+  ...(props.marks === undefined ? {} : { marks: props.marks }),
 })
 
 /**
