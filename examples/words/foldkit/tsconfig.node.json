@@ -7,6 +7,7 @@
     "vite.config.ts",
     "vitePlugins.ts",
     "themePlugin.ts",
+    "themePlugin.test.ts",
     "vitePlugins.test.ts",
     "vitest.config.ts"
   ]

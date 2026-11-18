@@ -46,11 +46,12 @@ describe('the words theme', () => {
     })
   })
 
-  it('names the recorder’s badges as roles of its own', () => {
+  it('names the recorder’s badges and a device’s tile as roles of its own', () => {
     expect(wordsOwnRoles).toEqual({
       BadgeRecording: { light: '#b50012', dark: '#ffa198' },
       BadgePaused: { light: '#a32c00', dark: '#ffb340' },
       BadgePlaying: { light: '#0058b0', dark: '#8cc4ff' },
+      DeviceTile: { light: '#1c1c1e', dark: '#48484a' },
     })
   })
 

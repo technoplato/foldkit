@@ -56,12 +56,14 @@ export const wordsTheme: Theme.Theme = Theme.withRoles(Theme.defaultTheme, {
 
 /**
  * The roles that are Scribe's own: the badge beside a recording's title
- * while it records, while it is paused, and while it plays.
+ * while it records, while it is paused, and while it plays, and the tile
+ * behind a device's icon.
  */
 export const wordsOwnRoles: Theme.OwnRoles = Theme.withOwnRoles({
   BadgeRecording: { light: '#b50012', dark: '#ffa198' },
   BadgePaused: { light: '#a32c00', dark: '#ffb340' },
   BadgePlaying: { light: '#0058b0', dark: '#8cc4ff' },
+  DeviceTile: { light: '#1c1c1e', dark: '#48484a' },
 })
 
 /**

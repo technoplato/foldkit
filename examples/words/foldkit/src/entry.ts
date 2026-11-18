@@ -1,5 +1,5 @@
 import { Layer } from 'effect'
-import { browserSystemAppearance } from 'foldkit/theme'
+import { Theme } from 'foldkit'
 import {
   Capture,
   Share,
@@ -36,7 +36,7 @@ startWords({
     browserKeyboardInput,
     browserNetworkStatus,
     browserAppearanceStore,
-    browserSystemAppearance,
+    Theme.browserSystemAppearance,
   ),
   origin: browserOrigin,
   copyReader: makeLiveCopyReader(database),

@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 
+/* NOTE: a rule that differs in dark follows the mode the Program painted,
+   never the browser's own scheme. */
+@custom-variant dark (&:where([data-fk-mode='Dark'], [data-fk-mode='Dark'] *));
+
 @theme {
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',

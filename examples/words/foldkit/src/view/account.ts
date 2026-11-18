@@ -267,7 +267,7 @@ const scribeGroup = (model: Model): ReadonlyArray<Html> => [
     groupRow(
       'Account',
       [accountKindOf(model)],
-      Option.some(rowIcon('Phone', 'bg-[#1c1c1e] dark:bg-[#48484a]')),
+      Option.some(rowIcon('Phone', 'bg-[var(--fk-own-device-tile)]')),
     ),
     ...userIDRow(model),
   ]),
