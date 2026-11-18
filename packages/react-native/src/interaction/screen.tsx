@@ -10,6 +10,7 @@ import {
   iconGlyphs,
   isClearedOnSubmit,
   isSubmittedOnLeave,
+  itemLinesOf,
   submittedTagOf,
 } from 'foldkit/renderers'
 import {
@@ -611,7 +612,7 @@ export const paintTree = (
                       >
                         {item.title}
                       </Text>
-                      {Array.map(item.lines ?? [], (line, index) => (
+                      {Array.map(itemLinesOf(item), (line, index) => (
                         <Text
                           key={index}
                           numberOfLines={1}

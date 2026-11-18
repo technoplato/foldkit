@@ -324,13 +324,17 @@ export type ItemCheck = Readonly<{
  * `href` makes the row a link instead, such as a bookmark's moment, so a
  * person can open it, copy it, or share it the way a platform shares any
  * link. `isDraggable` lets a person drag the row onto a list with a
- * `dropAction`, where a painter has a pointer.
+ * `dropAction`, where a painter has a pointer. `columns` are short values
+ * at the row's end that line up down the list, such as when a chapter
+ * starts and how long it runs, `['20:00', '7:33']`; a painter that cannot
+ * line them up reads them as one more line, as `itemLinesOf` says.
  */
 export type ListItem = Readonly<{
   readonly key: string
   readonly href?: string
   readonly title: string
   readonly lines?: ReadonlyArray<string>
+  readonly columns?: ReadonlyArray<string>
   readonly check?: ItemCheck
   readonly image?: ItemImage
   readonly progress?: Readonly<{ readonly value: number; readonly max: number }>
@@ -342,19 +346,38 @@ export type ListItem = Readonly<{
 }>
 
 /**
+ * A field over a long List that narrows its rows as a person types, such
+ * as `Find a chapter` over a book's 134 chapters: the rows left are the
+ * ones `filterListItems` keeps. `placeholder` shows in the empty field,
+ * `label` names it for a screen reader, and `emptyText` is what shows when
+ * no row is left. What is typed is held by the painter, the way a text
+ * field holds a draft and a page its scroll: the Program is not told, so
+ * typing sends no Message and nothing is synchronized.
+ */
+export type ListFilter = Readonly<{
+  readonly placeholder: string
+  readonly label: string
+  readonly emptyText: string
+}>
+
+/**
  * Rows a person picks from, such as the books in a library or a book's
  * chapters: full width, one under another, each row pressable as a whole.
  * `label` names the list for a screen reader and heads it in a terminal.
  * `dropAction` takes a draggable row dropped on the list: dropping row `804`
  * on a list whose `dropAction` is `Move:Blocked` presses `Move:Blocked:804`.
  * A painter without a pointer has no drop, so every move a drop makes needs
- * another way in, such as a key.
+ * another way in, such as a key. `columns` names each of the rows'
+ * `columns` in order, `['Starts', 'Length']`. With `filter`, a painter that
+ * takes typing offers a field over the list that narrows its rows.
  */
 export type ListNode = Readonly<{
   readonly _tag: 'List'
   readonly label: string
   readonly items: ReadonlyArray<ListItem>
   readonly dropAction?: string
+  readonly columns?: ReadonlyArray<string>
+  readonly filter?: ListFilter
 }>
 
 /** Device chrome around a product tree. The shell does not own product buttons. */

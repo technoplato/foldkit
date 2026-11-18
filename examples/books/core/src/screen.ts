@@ -14,6 +14,7 @@ import {
   Dock,
   type IconName,
   List,
+  type ListFilter,
   type ListItem,
   Progress,
   Row,
@@ -30,6 +31,15 @@ import {
   ShowAddBooks,
 } from './addBooks.js'
 import * as Audible from './audible/index.js'
+import {
+  type ChapterReading,
+  chapterColumnNames,
+  chapterColumnsOf,
+  chapterLeftLineOf,
+  chapterPlaceLineOf,
+  chapterReadingAt,
+  contentsSummaryOf,
+} from './contents.js'
 import type { ContributorPage, PublisherPage } from './destination.js'
 import {
   type BookmarkId,
@@ -70,6 +80,7 @@ import {
   bookmarksOf,
   chapterAt,
   chapterNameAt,
+  chaptersOf,
   loadedTitleOf,
   placeOf,
   progressOf,
@@ -245,32 +256,107 @@ const placeLineOf = (model: Model, title: Title, place: Milliseconds): string =>
   )
 
 /**
- * The chapters of a title as a list, the one playing marked, or a word on
- * why there is no list yet.
+ * The place the contents mark in a title: where its player is, or where
+ * the listener left off. None for a title not started.
  */
-const contentsOf = (model: Model, title: Title): UiNode =>
+const markedPlaceOf = (
+  model: Model,
+  title: Title,
+): Option.Option<Milliseconds> =>
+  isStarted(model, title) ? Option.some(placeFor(model, title)) : Option.none()
+
+const chapterFilterOf = (title: Title): ListFilter => ({
+  placeholder: 'Find a chapter',
+  label: `Find a chapter in ${title.name}`,
+  emptyText: 'No chapter has that in its name.',
+})
+
+/**
+ * The chapters of a title: how many run how long, then the list, each row
+ * with when it starts and how long it runs in columns, the one being read
+ * marked with how far through it the listener is, under a field that
+ * narrows the rows by name. Or a word on why there is no list yet.
+ */
+const contentsOf = (model: Model, title: Title): ReadonlyArray<UiNode> =>
   Option.match(Record_.get(model.chapters, title.slug), {
-    onNone: () => Text('Loading the chapters…', { dim: true }),
+    onNone: () => [Text('Loading the chapters…', { dim: true })],
     onSome: state =>
       M.value(state).pipe(
-        M.withReturnType<UiNode>(),
+        M.withReturnType<ReadonlyArray<UiNode>>(),
         M.tagsExhaustive({
-          ChaptersUnavailable: ({ reason }) =>
+          ChaptersUnavailable: ({ reason }) => [
             Text(`The chapters could not be read: ${reason}`, { dim: true }),
+          ],
           ChaptersReady: ({ chapters }) => {
-            const maybePlayingNumber = Option.map(
-              loadedFor(model, title),
-              loaded => chapterAt(chapters, placeOf(loaded)).chapterNumber,
+            const maybePlace = markedPlaceOf(model, title)
+            const maybeMarkedNumber = Option.map(
+              maybePlace,
+              place => chapterAt(chapters, place).chapterNumber,
             )
-            return List({
-              label: 'Chapters',
-              items: Array.map(chapters, chapter =>
-                chapterItemOf(entriesOf(model), maybePlayingNumber, chapter),
-              ),
-            })
+            return [
+              Text(contentsSummaryOf(chapters), { dim: true }),
+              List({
+                label: 'Chapters',
+                columns: chapterColumnNames,
+                filter: chapterFilterOf(title),
+                items: Array.map(chapters, chapter =>
+                  chapterItemOf(
+                    entriesOf(model),
+                    Option.map(
+                      Option.filter(maybePlace, () =>
+                        Option.contains(
+                          maybeMarkedNumber,
+                          chapter.chapterNumber,
+                        ),
+                      ),
+                      place => chapterReadingAt(chapter, place),
+                    ),
+                    chapter,
+                  ),
+                ),
+              }),
+            ]
           },
         }),
       ),
+  })
+
+/**
+ * The chapter picker, a bar for the top of a reader: the chapter a place
+ * is in, which one of how many it is and what is left of it, and a press
+ * that opens the contents. Empty until the title's chapters are here.
+ *
+ * @example
+ * ```typescript
+ * chapterPickerOf(model, title, Milliseconds.make(1_680_000))
+ * // [List('Chapter'): The Light · Chapter 2 of 4 · 12:00 left in it [▴]]
+ * ```
+ */
+export const chapterPickerOf = (
+  model: Model,
+  title: Title,
+  place: Milliseconds,
+): ReadonlyArray<UiNode> =>
+  Option.match(chaptersOf(model, title.slug), {
+    onNone: () => [],
+    onSome: chapters => [
+      List({
+        label: 'Chapter',
+        items: [
+          {
+            key: `chapter-picker-${title.slug}`,
+            title: chapterAt(chapters, place).name,
+            lines: [chapterPlaceLineOf(chapters, place)],
+            ...offeredActionOf(entriesOf(model), ShowContents.tag),
+            trailing: withIcon(
+              buttonsOf(model, [ShowContents], 'Ghost'),
+              'Expand',
+              true,
+            ),
+          },
+        ],
+      }),
+    ],
   })
 
 const progressText = (model: Model, title: Title): string => {
@@ -1086,6 +1172,7 @@ export const playerScreen = (model: Model): UiNode =>
             Column(
               { gap: 1 },
               Text(title.name, { dim: true }),
+              ...chapterPickerOf(model, title, placeOf(loaded)),
               TranscriptPlayer.transcriptOf(loaded.player),
               Dock(
                 ...TranscriptPlayer.problemOf(loaded.player),
@@ -1103,24 +1190,30 @@ export const playerScreen = (model: Model): UiNode =>
 
 const chapterItemOf = (
   entries: ReadonlyArray<Catalog.Entry>,
-  maybePlayingNumber: Option.Option<number>,
+  maybeReading: Option.Option<ChapterReading>,
   chapter: Chapter,
 ): ListItem => {
   const token = chapter.chapterNumber.toString()
   return {
     key: token,
     title: chapter.name,
-    lines: [
-      `${clockOf(chapter.startMs)} · ${clockOf(Milliseconds.make(chapter.endMs - chapter.startMs))}`,
-    ],
+    columns: chapterColumnsOf(chapter),
     ...offeredActionOf(entries, `${JumpToChapter.tag}:${token}`),
-    isCurrent: Option.contains(maybePlayingNumber, chapter.chapterNumber),
+    isCurrent: Option.isSome(maybeReading),
+    ...Option.match(maybeReading, {
+      onNone: () => ({}),
+      onSome: reading => ({
+        lines: [chapterLeftLineOf(reading)],
+        progress: { value: reading.heardMs, max: reading.lengthMs },
+      }),
+    }),
   }
 }
 
 /**
- * The chapters of the title on screen: pressing one plays from its start
- * on the player. The one playing is marked.
+ * The chapters of the title on screen, beside its page: pressing one
+ * plays from its start on the player. The one being read is marked with
+ * how far through it the listener is.
  */
 export const contentsScreen = (model: Model): UiNode =>
   Option.match(
@@ -1134,7 +1227,7 @@ export const contentsScreen = (model: Model): UiNode =>
             emphasis: 'Headline',
             label: `${title.name} contents`,
           }),
-          contentsOf(model, title),
+          ...contentsOf(model, title),
         ),
     },
   )

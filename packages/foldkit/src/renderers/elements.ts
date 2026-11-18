@@ -8,6 +8,7 @@ import type {
   ButtonNode,
   ButtonVariant,
   ColumnNode,
+  ListFilter,
   ListItem,
   ListNode,
   PlainPart,
@@ -407,13 +408,21 @@ export const Progress = (
 })
 
 /**
- * Rows a person picks from, each pressable as a whole.
+ * Rows a person picks from, each pressable as a whole. `columns` names the
+ * values that line up at the rows' ends, and `filter` offers a field that
+ * narrows a long list by its rows' titles.
  *
  * @example
  * ```typescript
  * List({
  *   label: 'Your books',
  *   items: [{ key: 'a-new-earth', title: 'A New Earth', lines: ['Eckhart Tolle', '9:09:44 left'], action: 'Open:a-new-earth' }],
+ * })
+ * List({
+ *   label: 'Chapters',
+ *   columns: ['Starts', 'Length'],
+ *   filter: { placeholder: 'Find a chapter', label: 'Find a chapter in A New Earth', emptyText: 'No chapter has that in its name.' },
+ *   items: [{ key: '3', title: 'The Light', columns: ['20:00', '7:33'], action: 'JumpToChapter:3' }],
  * })
  * ```
  */
@@ -422,10 +431,14 @@ export const List = (
     label: string
     items: ReadonlyArray<ListItem>
     dropAction?: string
+    columns?: ReadonlyArray<string>
+    filter?: ListFilter
   }>,
 ): ListNode => ({
   _tag: 'List',
   label: props.label,
   items: props.items,
   ...(props.dropAction === undefined ? {} : { dropAction: props.dropAction }),
+  ...(props.columns === undefined ? {} : { columns: props.columns }),
+  ...(props.filter === undefined ? {} : { filter: props.filter }),
 })
