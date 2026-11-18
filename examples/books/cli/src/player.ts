@@ -45,6 +45,7 @@ import {
   type CliDaemonSurface,
   type CliFollowing,
   type HostCommand,
+  type ProgramCommandOptions,
   type TerminalPaintReporting,
   followTopicOf,
   isTerminalViewRequest,
@@ -672,19 +673,32 @@ export const makeBooksPlayer = (
     stdout: paintBrief(bound),
     exitCode: 0,
   })
+  // NOTE: A command that is refused prints its sentence and nothing
+  // before it; one that ran prints what the player is doing now.
+  const answered = (
+    result: CliDaemonPaintedResult,
+    paint: () => string,
+  ): CliDaemonPaintedResult =>
+    result.exitCode === 0
+      ? { stdout: paint(), exitCode: 0 }
+      : {
+          stdout: '',
+          exitCode: result.exitCode,
+          ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
+        }
+  const answering = (): ProgramCommandOptions => ({
+    listCommand: 'actions',
+    hostCommands: hostCommandsOf(Option.isSome(loadedNowOf(bound))),
+  })
   const ran = (
     words: ReadonlyArray<string>,
     flags: CliDaemonFlags,
     client: Processor.Host.Host,
   ): CliDaemonPaintedResult => {
     const result = Interaction.onBehalfOf(bound, client, () =>
-      runProgramCommand(bound, booksCommandName, words, flags),
+      runProgramCommand(bound, booksCommandName, words, flags, answering()),
     )
-    return {
-      stdout: paintBrief(bound),
-      exitCode: result.exitCode,
-      ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
-    }
+    return answered(result, () => paintBrief(bound))
   }
   /**
    * `books link`: the whole link to the word being read, to paste
@@ -790,13 +804,9 @@ export const makeBooksPlayer = (
     client: Processor.Host.Host,
   ): CliDaemonPaintedResult => {
     const result = Interaction.onBehalfOf(bound, client, () =>
-      runProgramCommand(bound, booksCommandName, words, flags),
+      runProgramCommand(bound, booksCommandName, words, flags, answering()),
     )
-    return {
-      stdout: paintScreen(bound),
-      exitCode: result.exitCode,
-      ...(result.stderr === undefined ? {} : { stderr: result.stderr }),
-    }
+    return answered(result, () => paintScreen(bound))
   }
   const stop = (client: Processor.Host.Host) =>
     Effect.gen(function* () {

@@ -355,7 +355,7 @@ describe('books listen and books open take a title as a person types it', () => 
     expect(unknown.exitCode).toBe(2)
     expect(unknown.stdout).toBe('')
     expect(unknown.stderr).toBe(
-      'Unknown command "lisen". Nearest: books listen <title>, books link. `books actions` lists every command.',
+      'Unknown command "lisen". Nearest: books listen <title>. `books actions` lists every command.',
     )
   })
 })
@@ -801,10 +801,10 @@ describe('books CLI', () => {
     const { bound, player } = await openBooks()
     const painted = await run(player, 'actions')
     expect(painted.stdout).toMatch(/The Lantern Keeper/)
-    expect(painted.stdout).toMatch(/^ {2}listen <slug> +Plays this book/m)
-    expect(painted.stdout).toMatch(/^ {2}seek-to <place-ms> +Moves to a place/m)
+    expect(painted.stdout).toMatch(/^ {2}listen <title> +Plays this book/m)
+    expect(painted.stdout).toMatch(/^ {2}seek-to <time> +Moves to a place/m)
     expect(runProgramCommand(bound, 'books', [], {}).stdout).toMatch(
-      /^ {2}listen <slug>/m,
+      /^ {2}listen <title>/m,
     )
   })
 

@@ -36,6 +36,7 @@ export {
   paintProgram,
   paintScreen,
   programUsage,
+  type ProgramCommandOptions,
   runProgramCommand,
   screenLinkLines,
 } from './program.js'

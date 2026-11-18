@@ -97,6 +97,7 @@ export const SeekTo = Catalog.action('SeekTo', {
   fields: { placeMs: Milliseconds },
   choose: {
     field: 'placeMs',
+    noun: 'time',
     prompt: 'Where to?',
     token: PlaceToken,
     choicesOf: (model: Model) =>
@@ -351,6 +352,7 @@ export const PlayFrom = Catalog.action('PlayFrom', {
   fields: { placeMs: Milliseconds },
   choose: {
     field: 'placeMs',
+    noun: 'time',
     prompt: 'Play from where?',
     token: PlaceToken,
     choicesOf: matchChoicesOf,

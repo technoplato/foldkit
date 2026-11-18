@@ -86,6 +86,7 @@ const whichTitle = (
   preferredOf?: (model: Model) => Option.Option<TitleSlug>,
 ): Catalog.Choose<Model, 'slug', TitleSlug> => ({
   field: 'slug',
+  noun: 'title',
   prompt: 'Which title?',
   token: TitleSlug,
   choicesOf: model =>
