@@ -12,6 +12,7 @@ import { AudibleProblem, Unavailable } from './problem.js'
 import {
   Asin,
   AudibleTitle,
+  AudioStatus,
   ImportProgress,
   ImportSummary,
   SkippedCount,
@@ -35,6 +36,25 @@ export const audibleLibraryPath = '/__books/audible/library'
 export const audibleImportPath = '/__books/audible/import'
 
 /** The Amazon sign-in the server started: the address to open in a new tab. */
+/** `GET`: every owned title's audio and what the queue does next. */
+export const audibleAudioPath = '/__books/audible/audio'
+
+/** `POST { asin }`: brings that title's audio in first, now. */
+export const audibleAudioQueuePath = '/__books/audible/audio/queue'
+
+/** Every owned title's audio, as JSON. */
+export const AudioStatusJson = S.fromJsonString(S.toCodecJson(AudioStatus))
+
+/** The title whose audio to bring in first. */
+export const AudioQueueRequest = S.Struct({ asin: Asin })
+/** The title whose audio to bring in first. */
+export type AudioQueueRequest = typeof AudioQueueRequest.Type
+
+/** The title whose audio to bring in first, as JSON. */
+export const AudioQueueRequestJson = S.fromJsonString(
+  S.toCodecJson(AudioQueueRequest),
+)
+
 export const StartedSignIn = S.Struct({ loginUrl: S.String })
 /** The Amazon sign-in the server started. */
 export type StartedSignIn = typeof StartedSignIn.Type
@@ -132,6 +152,8 @@ export type AudibleImportShape = Readonly<{
   importTitles: (
     asins: ReadonlyArray<Asin>,
   ) => Stream.Stream<ImportUpdate, AudibleImportError>
+  readAudio: Effect.Effect<AudioStatus, AudibleImportError>
+  queueAudio: (asin: Asin) => Effect.Effect<AudioStatus, AudibleImportError>
 }>
 
 const cannotImport = new AudibleImportError({
@@ -158,6 +180,8 @@ export const AudibleImport = Context.Reference<AudibleImportShape>(
       finishSignIn: () => Effect.fail(cannotImport),
       readLibrary: Effect.fail(cannotImport),
       importTitles: () => Stream.fail(cannotImport),
+      readAudio: Effect.fail(cannotImport),
+      queueAudio: () => Effect.fail(cannotImport),
     }),
   },
 )

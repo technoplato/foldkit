@@ -5,6 +5,7 @@ import { AudibleProblem } from './problem.js'
 import {
   Asin,
   AudibleTitle,
+  AudioStatus,
   ImportProgress,
   ImportSummary,
   SkippedCount,
@@ -80,11 +81,37 @@ export const Titles = S.Union([
 /** Where the family member's Audible titles stand on this device. */
 export type Titles = typeof Titles.Type
 
+/** The owned titles' audio is not read yet: it is read while the titles page shows. */
+export const AudioUnread = ts('AudioUnread')
 /**
- * The Audible import on this device: the Amazon sign-in and the titles.
- * It never comes from the log, so a refold keeps it as it is.
+ * Every owned title's audio and what the queue does next, read again
+ * every so often while the titles page shows; the title asked for now,
+ * while the ask is on its way; and why the last ask failed, if it did.
  */
-export const AudibleModel = S.Struct({ signIn: SignIn, titles: Titles })
+export const AudioRead = ts('AudioRead', {
+  status: AudioStatus,
+  maybeAsking: S.Option(Asin),
+  maybeProblem: S.Option(AudibleProblem),
+})
+/** The owned titles' audio could not be read, and why. */
+export const AudioUnreadable = ts('AudioUnreadable', {
+  problem: AudibleProblem,
+})
+/** Where the owned titles' audio stands, as this device last read it. */
+export const Audio = S.Union([AudioUnread, AudioRead, AudioUnreadable])
+/** Where the owned titles' audio stands, as this device last read it. */
+export type Audio = typeof Audio.Type
+
+/**
+ * The Audible import on this device: the Amazon sign-in, the titles, and
+ * the owned titles' audio. It never comes from the log, so a refold keeps
+ * it as it is.
+ */
+export const AudibleModel = S.Struct({
+  signIn: SignIn,
+  titles: Titles,
+  audio: Audio,
+})
 /** The Audible import on this device. */
 export type AudibleModel = typeof AudibleModel.Type
 
@@ -111,6 +138,7 @@ export type AudibleView = typeof AudibleView.Type
 export const init = (): AudibleModel => ({
   signIn: SignInWaiting({ maybeProblem: Option.none() }),
   titles: TitlesUnread(),
+  audio: AudioUnread(),
 })
 
 // READ
@@ -138,4 +166,27 @@ export const newAsinsOf = (
   Array.map(
     Array.filter(titles, title => title.match === 'New'),
     title => title.asin,
+  )
+
+/** The owned titles' audio read so far, while there is a status to show. */
+export const readAudioOf = (audio: Audio): Option.Option<AudioRead> =>
+  audio._tag === 'AudioRead' ? Option.some(audio) : Option.none()
+
+/**
+ * True when Books may bring in `asin`'s audio now: it is an owned title
+ * waiting in the queue, refused, or set aside, and no ask is on its way.
+ */
+export const canGetAudioOf = (audio: Audio, asin: Asin): boolean =>
+  Option.exists(
+    readAudioOf(audio),
+    read =>
+      Option.isNone(read.maybeAsking) &&
+      Array.some(
+        read.status.titles,
+        title =>
+          title.asin === asin &&
+          (title.state._tag === 'Queued' ||
+            title.state._tag === 'Refused' ||
+            title.state._tag === 'Failed'),
+      ),
   )

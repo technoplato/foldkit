@@ -6,12 +6,15 @@ import {
   type AudiblePage,
   type AudibleView,
   type TitlesRead,
+  canGetAudioOf,
+  readAudioOf,
   readTitlesOf,
 } from './model.js'
 import { AudibleProblem } from './problem.js'
 import {
   Asin,
   AudibleTitle,
+  AudioStatus,
   ImportProgress,
   ImportSummary,
   SkippedCount,
@@ -203,6 +206,55 @@ export const ReadAudibleLibraryAgain = Catalog.action(
   },
 )
 
+const getAudioAvailabilityOf = (view: AudibleView): Catalog.Availability =>
+  onPage(view, 'Titles', () =>
+    Option.match(readAudioOf(view.audible.audio), {
+      onNone: () =>
+        Catalog.Disabled({ because: 'the audio of your books is not read yet' }),
+      onSome: read =>
+        Option.isSome(read.maybeAsking)
+          ? Catalog.Disabled({ because: 'Books is asking for a book already' })
+          : Array.some(read.status.titles, title =>
+                canGetAudioOf(view.audible.audio, title.asin),
+              )
+            ? Catalog.Enabled()
+            : Catalog.Disabled({ because: 'every book with audio to get has it' }),
+    }),
+  )
+
+/**
+ * Brings one owned book's audio in now, ahead of the queue: its license,
+ * download, words, read-along passages, and catalog entry. Its row's
+ * button presses `GetAudiobookAudio:B0FAKE0007`. The CLI offers the same
+ * Action.
+ */
+export const GetAudiobookAudio = Catalog.action('GetAudiobookAudio', {
+  fields: { asin: Asin },
+  choose: {
+    field: 'asin',
+    prompt: 'Which book?',
+    token: Asin,
+    choicesOf: (view: AudibleView) =>
+      view.page === 'Titles'
+        ? Option.match(readAudioOf(view.audible.audio), {
+            onNone: () => [],
+            onSome: read =>
+              Array.map(
+                Array.filter(read.status.titles, title =>
+                  canGetAudioOf(view.audible.audio, title.asin),
+                ),
+                title => ({ value: title.asin, title: title.name }),
+              ),
+          })
+        : [],
+    nothingToChoose: 'no book is waiting for its audio',
+  },
+  what: "Brings one book's audio in now, ahead of the queue",
+  why: 'The person wants to listen to this book with its read-along soon',
+  enabled: getAudioAvailabilityOf,
+  meta: { label: 'Get audio now', keys: [], title: 'Get audio now' },
+})
+
 /**
  * The Audible import's Actions, in the order surfaces list them. Books
  * offers them only while one of its pages is showing.
@@ -215,6 +267,7 @@ export const catalog = Catalog.make([
   DeselectAudibleTitles,
   ImportAudibleTitles,
   ReadAudibleLibraryAgain,
+  GetAudiobookAudio,
 ])
 
 /** The server started an Amazon sign-in, to open at `loginUrl`. */
@@ -253,6 +306,23 @@ export const FailedImportAudibleTitles = m('FailedImportAudibleTitles', {
   problem: AudibleProblem,
 })
 
+/** Every owned title's audio arrived, and what the queue does next. */
+export const ReceivedAudiobookAudio = m('ReceivedAudiobookAudio', {
+  status: AudioStatus,
+})
+/** The owned titles' audio could not be read, and why. */
+export const FailedReadAudiobookAudio = m('FailedReadAudiobookAudio', {
+  problem: AudibleProblem,
+})
+/** The queue took the book first; the audio as it stands now. */
+export const QueuedAudiobookAudio = m('QueuedAudiobookAudio', {
+  status: AudioStatus,
+})
+/** The queue did not take the book, and why. */
+export const FailedQueueAudiobookAudio = m('FailedQueueAudiobookAudio', {
+  problem: AudibleProblem,
+})
+
 /**
  * Every Message the Audible import accepts: its Actions, and the facts its
  * Commands and Subscriptions report.
@@ -268,6 +338,10 @@ export const Message = S.Union([
   AdvancedAudibleImport,
   ImportedAudibleTitles,
   FailedImportAudibleTitles,
+  ReceivedAudiobookAudio,
+  FailedReadAudiobookAudio,
+  QueuedAudiobookAudio,
+  FailedQueueAudiobookAudio,
 ])
 /** An Audible import Message. */
 export type Message = typeof Message.Type
