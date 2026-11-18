@@ -580,6 +580,9 @@ export type CliFollowRuntime = {
     write: (text: string) => unknown
     once: (event: 'error', listener: () => void) => unknown
     columns?: number
+    rows?: number
+    on?: (event: 'resize', listener: () => void) => unknown
+    off?: (event: 'resize', listener: () => void) => unknown
   }>
   readonly stderr: Readonly<{ write: (text: string) => unknown }>
   readonly once: (event: 'SIGINT' | 'SIGTERM', listener: () => void) => unknown
@@ -604,6 +607,8 @@ export type WriteCliFollowOptions = Readonly<{
 const inkPattern = /\u001b\[[0-9;]*m/gu
 
 const fallbackFollowColumns = 80
+
+const fallbackFollowRows = 24
 
 /**
  * The rows a text takes on a terminal `columns` wide: a row for each
@@ -664,23 +669,55 @@ export const writeCliFollow = async (
       })
     }
     const shown = { rows: 0 }
-    const end = await followCliView(
-      options.socketPath,
-      options.request,
-      text => {
-        if (options.inPlace !== true) {
-          writeText(runtime.stdout, text)
-        } else if (text !== '') {
-          const body = text.endsWith('\n') ? text.slice(0, -1) : text
-          runtime.stdout.write(`${eraseRows(shown.rows)}${body}\n`)
-          shown.rows = rowsOf(
-            body,
-            runtime.stdout.columns ?? fallbackFollowColumns,
-          )
-        }
-      },
-      { signal: stopping.signal },
-    )
+    const write = (text: string): void => {
+      if (options.inPlace !== true) {
+        writeText(runtime.stdout, text)
+      } else if (text !== '') {
+        const body = text.endsWith('\n') ? text.slice(0, -1) : text
+        runtime.stdout.write(`${eraseRows(shown.rows)}${body}\n`)
+        shown.rows = rowsOf(
+          body,
+          runtime.stdout.columns ?? fallbackFollowColumns,
+        )
+      }
+    }
+    // NOTE: A view that rewrites in place tells the topic so, and its
+    // size as facts. When the terminal is resized it asks again with the
+    // new size; the next frame is written over the last one.
+    const requestNow = (): CliFollowRequest =>
+      options.inPlace === true
+        ? {
+            ...options.request,
+            flags: {
+              ...options.request.flags,
+              'in-place': '1',
+              columns: String(runtime.stdout.columns ?? fallbackFollowColumns),
+              rows: String(runtime.stdout.rows ?? fallbackFollowRows),
+            },
+          }
+        : options.request
+    const followUntilResized = async (): Promise<CliFollowEnd> => {
+      const resized = new AbortController()
+      const onResize = (): void => {
+        resized.abort()
+      }
+      const onStop = (): void => {
+        resized.abort()
+      }
+      if (options.inPlace === true) {
+        runtime.stdout.on?.('resize', onResize)
+      }
+      stopping.signal.addEventListener('abort', onStop)
+      const end = await followCliView(options.socketPath, requestNow(), write, {
+        signal: resized.signal,
+      })
+      stopping.signal.removeEventListener('abort', onStop)
+      runtime.stdout.off?.('resize', onResize)
+      return end._tag === 'Stopped' && !stopping.signal.aborted
+        ? followUntilResized()
+        : end
+    }
+    const end = await followUntilResized()
     if (end._tag === 'Lost') {
       writeText(runtime.stderr, end.reason)
       runtime.exitCode = 1
