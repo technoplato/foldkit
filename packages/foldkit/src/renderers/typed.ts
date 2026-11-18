@@ -28,8 +28,8 @@ const readOf = (text: string): string => Array.join(typedWordsOf(text), ' ')
 /**
  * Whether a name holds what a person typed: every word typed is in it, in
  * any order, whatever the case, the marks on letters, or the punctuation.
- * A word typed in part counts, so `listen soc` holds for `The Listening
- * Society`. Nothing typed holds for nothing.
+ * A word typed in part counts, so `lant keep` holds for `The Lantern
+ * Keeper`. Nothing typed holds for nothing.
  *
  * @example
  * ```typescript
@@ -56,8 +56,8 @@ export const holdsTyped = (name: string, typed: string): boolean => {
  *
  * @example
  * ```typescript
- * namedByTyped(titles, 'listening society', title => [title.name, title.slug])
- * // [{ name: 'The Listening Society: Book One', slug: 'the-listening-society' }]
+ * namedByTyped(titles, 'lantern keeper', title => [title.name, title.slug])
+ * // [{ name: 'The Lantern Keeper: Book One', slug: 'the-lantern-keeper' }]
  * ```
  */
 export const namedByTyped = <Thing>(
