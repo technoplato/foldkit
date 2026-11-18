@@ -74,6 +74,24 @@ export const DeleteBookmarkQuestion = ts('DeleteBookmarkQuestion', {
 export type DeleteBookmarkQuestion = typeof DeleteBookmarkQuestion.Type
 
 /**
+ * The bookmarks of the title beneath, or of the one in the player, at
+ * `…/bookmarks`: a Drawer from the left, the tab next to the contents.
+ */
+export const BookmarksDrawer = ts('BookmarksDrawer')
+/** The bookmarks of the title beneath. */
+export type BookmarksDrawer = typeof BookmarksDrawer.Type
+
+/**
+ * One bookmark at `…/bookmarks/<id>`, in the same Drawer: its words, a
+ * field for its note, playing from it, and removing it.
+ */
+export const BookmarkDrawer = ts('BookmarkDrawer', {
+  bookmarkId: BookmarkId,
+})
+/** One bookmark, with its note. */
+export type BookmarkDrawer = typeof BookmarkDrawer.Type
+
+/**
  * Where more books can come from, a Sheet over the library at
  * `/books/add`: one row per source, Audible today.
  */
@@ -119,6 +137,8 @@ export const Destination = S.Union([
   PlayerPage,
   ListenPage,
   ContentsSheet,
+  BookmarksDrawer,
+  BookmarkDrawer,
   SpeedSheet,
   DeleteBookmarkQuestion,
   AddBooksSheet,
@@ -149,6 +169,18 @@ export const isPlayerScreen = (destination: unknown): boolean =>
   isPlayerPage(destination) || isListenPage(destination)
 /** True for a title's contents. */
 export const isContentsSheet = S.is(ContentsSheet)
+/** True for a title's bookmarks. */
+export const isBookmarksDrawer = S.is(BookmarksDrawer)
+/** True for one bookmark's drawer. */
+export const isBookmarkDrawer = S.is(BookmarkDrawer)
+/**
+ * True for anything shown in the panel beside the page: the contents, the
+ * bookmarks, or one bookmark.
+ */
+export const isBesidePanel = (destination: unknown): boolean =>
+  isContentsSheet(destination) ||
+  isBookmarksDrawer(destination) ||
+  isBookmarkDrawer(destination)
 /** True for the speeds. */
 export const isSpeedSheet = S.is(SpeedSheet)
 /** True for the delete-bookmark question. */

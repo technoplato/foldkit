@@ -7,7 +7,11 @@ import {
 } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import type { ListItem, ListNode, UiNode } from 'foldkit/renderers'
-import { ReachedPlace, ReceivedPassages } from 'transcript-player-core-example'
+import {
+  ReachedPlace,
+  ReceivedPassages,
+  WordId,
+} from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
@@ -21,6 +25,7 @@ import {
   excerptLineOf,
 } from './bookmarks.js'
 import { BookmarkId, ChapterNumber, Milliseconds, TitleSlug } from './ids.js'
+import { LibraryWrite } from './library.js'
 import {
   MarkedMoment,
   OpenedPlace,
@@ -49,7 +54,7 @@ const passageStartMs = 20 * minuteMs + 30_000
 const passages = Array.map(paragraphs, (text, paragraph) => {
   const startMs = passageStartMs + paragraph * 60_000
   const words = Array.map(text.split(' '), (word, at) => ({
-    wordId: `w-${paragraph.toString()}-${at.toString()}`,
+    wordId: WordId.make(`w-${paragraph.toString()}-${at.toString()}`),
     text: word,
     startMs: Milliseconds.make(startMs + at * wordMs),
     endMs: Milliseconds.make(startMs + at * wordMs + wordMs - 40),
@@ -110,10 +115,18 @@ const playingAt = (placeMs: number, shelf: typeof Shelf.Type = sampleShelf) => {
   return app
 }
 
+const WrittenWrite = S.Struct({ write: S.toType(LibraryWrite) })
+
 const writesOf = (written: ReadonlyArray<Written>): ReadonlyArray<unknown> =>
   Array.map(
-    Array.filter(written, command => command.name === 'WriteLibrary'),
-    command => JSON.parse(JSON.stringify(command.args)).write,
+    Array.filter(
+      Array.map(
+        Array.filter(written, command => command.name === 'WriteLibrary'),
+        command => S.decodeUnknownSync(WrittenWrite)(command.args).write,
+      ),
+      write => write._tag !== 'SavePlace',
+    ),
+    write => S.encodeSync(LibraryWrite)(write),
   )
 
 const nodeOf = (layer: Navigation.FrameLayer): Option.Option<UiNode> =>
@@ -185,7 +198,7 @@ describe('excerptAround', () => {
       excerptAround(passages, Milliseconds.make(passageStartMs + 10 * wordMs)),
     ).toEqual(
       Option.some({
-        before: 'the time the survey party reached the pass the',
+        before: 'time the survey party reached the pass the',
         word: 'snow',
         after: 'had closed the lower road and Ilse counted',
       }),
@@ -252,7 +265,7 @@ describe('Adding a bookmark', () => {
         slug: 'the-lantern-keeper',
         atMs: passageStartMs + 10 * wordMs,
         maybeExcerpt: {
-          before: 'the time the survey party reached the pass the',
+          before: 'time the survey party reached the pass the',
           word: 'snow',
           after: 'had closed the lower road and Ilse counted',
         },

@@ -1,6 +1,11 @@
 import { Array, Match as M, Option, Record as Record_ } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import { type ListNode, type UiNode, textsOf } from 'foldkit/renderers'
+import {
+  type ListNode,
+  type UiNode,
+  buttonsOf,
+  textsOf,
+} from 'foldkit/renderers'
 import { ReachedPlace } from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
 
@@ -221,15 +226,23 @@ describe('Contents', () => {
     })
   })
 
-  it('heads the list with how many chapters there are and how long they run', () => {
+  it('heads the list with its tabs, and how many chapters there are and how long they run', () => {
     const { bound } = playingAt(0)
     bound.press('ShowContents')
-    const texts = Array.map(
-      textsOf(Option.getOrThrow(nodeOf(topLayerOf(bound)))),
-      text => text.content,
+    const panel = Option.getOrThrow(nodeOf(topLayerOf(bound)))
+    expect(
+      Array.map(buttonsOf(panel), button => [
+        button.label,
+        button.isCurrent === true,
+        button.action,
+      ]),
+    ).toEqual([
+      ['Contents', true, undefined],
+      ['Bookmarks', false, 'ShowBookmarks'],
+    ])
+    expect(Array.map(textsOf(panel), text => text.content)).toContain(
+      '4 chapters · 1h 20m',
     )
-    expect(texts).toContain('Contents')
-    expect(texts).toContain('4 chapters · 1h 20m')
   })
 
   it('closes when Contents is pressed again, so its key and the picker open and close it', () => {
