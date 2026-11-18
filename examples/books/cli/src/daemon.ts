@@ -23,12 +23,15 @@ import {
   bindBooks,
   newProcessorInstance,
   startBooks,
+  startMadeUpBooks,
   whenLibraryOpened,
 } from 'books-core-example'
 import { Duration, Effect } from 'effect'
 import { Interaction, Processor, Telemetry } from 'foldkit'
 import { listenBackgroundProcessor } from 'foldkit/cli'
 import { fileSink } from 'foldkit/telemetry/node'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { NodeRuntime } from '@effect/platform-node'
 
@@ -40,7 +43,7 @@ import {
   whenIdleFor,
   whenTitleFinished,
 } from './player.js'
-import { booksPlayerSocketPath } from './settings.js'
+import { booksPlayerSocketPath, madeUpNameOf } from './settings.js'
 import { signInFromEnv } from './signIn.js'
 
 const readyTimeoutMs = 20_000
@@ -53,8 +56,11 @@ const stopTimeoutMs = 5_000
 
 const serve = Effect.gen(function* () {
   const socketPath = booksPlayerSocketPath()
-  const signIn = yield* Effect.promise(signInFromEnv)
-  if (signIn._tag === 'Refused') {
+  // NOTE: The made-up library signs nobody in and reads no real library;
+  // its telemetry goes to a folder of its own, never beside his.
+  const isMadeUp = madeUpNameOf() !== undefined
+  const signIn = isMadeUp ? undefined : yield* Effect.promise(signInFromEnv)
+  if (signIn !== undefined && signIn._tag === 'Refused') {
     return yield* listenBackgroundProcessor({
       socketPath,
       Model: SyncedBooks.Model,
@@ -64,15 +70,25 @@ const serve = Effect.gen(function* () {
     })
   }
   const writes = trackLibraryWrites()
-  const handle = startBooks(signIn.signedIn, {
-    host: Processor.Host.Cli(),
-    instance: newProcessorInstance(),
-    library: writes.wrap,
-  })
+  const handle =
+    signIn === undefined
+      ? yield* Effect.promise(() =>
+          startMadeUpBooks({
+            host: Processor.Host.Cli(),
+            library: writes.wrap,
+          }),
+        )
+      : startBooks(signIn.signedIn, {
+          host: Processor.Host.Cli(),
+          instance: newProcessorInstance(),
+          library: writes.wrap,
+        })
   const telemetry = Telemetry.attach(handle, {
     app: 'books',
     role: 'daemon',
-    sink: fileSink(),
+    sink: isMadeUp
+      ? fileSink({ directory: join(tmpdir(), 'foldkit-books-made-up') })
+      : fileSink(),
   })
   yield* Effect.addFinalizer(() =>
     Effect.promise(() =>

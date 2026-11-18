@@ -30,6 +30,35 @@ const noPlayerSentence =
 
 const spawnPlayer = () => spawnCliViewDaemon({ scriptPath: daemonScriptPath })
 
+const notUnderstoodExitCode = 2
+
+const stoppedAgainSentence =
+  'The player was started only to read that, and is stopped again.'
+
+/**
+ * What {@link askPlayer} needs from outside: whether a player is
+ * listening, a way to run a command starting the player when needed, a
+ * way to ask a running one, and where to write and to say a line.
+ */
+export type AskRuntime = Readonly<{
+  isListening: (socketPath: string) => Promise<boolean>
+  run: (socketPath: string, request: CliViewRequest) => Promise<CliViewPainted>
+  ask: (socketPath: string, request: CliViewRequest) => Promise<CliViewPainted>
+  write: (result: CliViewPainted) => void
+  say: (sentence: string) => void
+}>
+
+const askRuntime: AskRuntime = {
+  isListening: isCliViewListening,
+  run: (socketPath, request) =>
+    runCliView({ socketPath, spawn: spawnPlayer, request }),
+  ask: askCliView,
+  write: writeCliViewResult,
+  say: sentence => {
+    process.stderr.write(`${sentence}\n`)
+  },
+}
+
 const sayWhenStarting = async (socketPath: string): Promise<void> => {
   if (!(await isCliViewListening(socketPath))) {
     process.stderr.write(`${startingSentence}\n`)
@@ -39,17 +68,30 @@ const sayWhenStarting = async (socketPath: string): Promise<void> => {
 /**
  * Sends one command to the player, starting it first when it is not
  * running, and prints its answer: `books pause` pauses and prints the
- * brief.
+ * brief. When the player could not read the command, and this command is
+ * what started it, the player is stopped again and a line says so.
  */
-export const askPlayer = async (request: CliViewRequest): Promise<void> => {
+export const askPlayer = async (
+  request: CliViewRequest,
+  runtime: AskRuntime = askRuntime,
+): Promise<void> => {
   const socketPath = booksPlayerSocketPath()
-  await sayWhenStarting(socketPath)
+  const wasRunning = await runtime.isListening(socketPath)
+  if (!wasRunning) {
+    runtime.say(startingSentence)
+  }
   try {
-    writeCliViewResult(
-      await runCliView({ socketPath, spawn: spawnPlayer, request }),
-    )
+    const result = await runtime.run(socketPath, request)
+    runtime.write(result)
+    // NOTE: A command the player could not read, an unknown one or one
+    // that named nothing, must leave no player running that this command
+    // started: he asked for nothing that needs one.
+    if (!wasRunning && result.exitCode === notUnderstoodExitCode) {
+      await runtime.ask(socketPath, { _tag: 'Do', token: 'stop' })
+      runtime.say(stoppedAgainSentence)
+    }
   } catch (cause) {
-    writeCliViewResult(cliViewFailed(cause))
+    runtime.write(cliViewFailed(cause))
   }
 }
 
@@ -158,6 +200,26 @@ export const stopPlayer = async (): Promise<void> => {
 export const takesColor = (
   env: Readonly<Record<string, string | undefined>>,
 ): boolean => (env['NO_COLOR'] ?? '') === '' && env['TERM'] !== 'dumb'
+
+/**
+ * Whether this command paints with color: its output is a terminal that
+ * takes color, or `FORCE_COLOR` asks for color whatever the output is,
+ * as it does for many commands, unless color was refused.
+ *
+ * @example
+ * ```typescript
+ * paintsColor(true, { TERM: 'xterm-256color' }) // true
+ * paintsColor(false, { FORCE_COLOR: '1' }) // true
+ * paintsColor(false, {}) // false
+ * ```
+ */
+export const paintsColor = (
+  isTerminal: boolean,
+  env: Readonly<Record<string, string | undefined>>,
+): boolean => {
+  const forced = env['FORCE_COLOR'] ?? ''
+  return (isTerminal || (forced !== '' && forced !== '0')) && takesColor(env)
+}
 
 /**
  * `books tui`: the player's screen, live, in this terminal, with its

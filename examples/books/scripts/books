@@ -10,6 +10,8 @@
 #   names. Only its app id is read, never a token.
 # - FOLDKIT_HOSTED_IDENTITY_ORIGIN and BOOKS_INSTANT_APP_ID, when set,
 #   choose instead, such as the dev reader and dev app for testing.
+# - BOOKS_MADE_UP, when set, opens a made-up library instead: no sign-in,
+#   no real library, no sound.
 set -eu
 
 here="$(cd "$(dirname "$0")" && pwd -P)"
@@ -24,6 +26,14 @@ fi
 if [ ! -f "$cli" ]; then
   echo "Terminal Books is not built yet. Run $here/install-books-command" >&2
   exit 1
+fi
+
+# The made-up library: three titles nobody wrote, made-up words, no sound,
+# nobody signed in and no real library read. For trying a command, and
+# for tests that run this very script. BOOKS_MADE_UP names it; each name
+# has its own player.
+if [ -n "${BOOKS_MADE_UP:-}" ]; then
+  exec node "$cli" "$@"
 fi
 
 if [ -z "${FOLDKIT_HOSTED_IDENTITY_ORIGIN:-}" ]; then
