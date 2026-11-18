@@ -1,4 +1,4 @@
-import { Array, Context, Data, Layer, Stream } from 'effect'
+import { Array, Context, Data, Effect, Layer, Stream } from 'effect'
 
 import { type MediaId, Milliseconds } from './ids.js'
 import type { Passage } from './model.js'
@@ -50,9 +50,14 @@ export const windowOf = (placeMs: Milliseconds): number =>
   Math.floor(placeMs / transcriptWindowMs)
 
 /**
- * Where a recording's words come from: the passages that overlap a range,
- * sent again whenever they change, such as when a new transcript lands. A
- * recording with no transcript sends no passages.
+ * Where a recording's words come from. `passagesIn` gives the passages
+ * that overlap a range, sent again whenever they change, such as when a
+ * new transcript lands; a recording with no transcript sends no passages.
+ * `passagesMatching` answers a search: every passage that may hold the
+ * words of `query`, read once, when a person searches and not before. It
+ * may give more than hold them, since the player checks each word itself:
+ * a source with a text index gives only the passages that match, and one
+ * without reads the whole recording through.
  */
 export class TranscriptSource extends Context.Service<
   TranscriptSource,
@@ -61,6 +66,10 @@ export class TranscriptSource extends Context.Service<
       mediaId: MediaId,
       range: TranscriptRange,
     ) => Stream.Stream<ReadonlyArray<Passage>, TranscriptSourceError>
+    passagesMatching: (
+      mediaId: MediaId,
+      query: string,
+    ) => Effect.Effect<ReadonlyArray<Passage>, TranscriptSourceError>
   }>
 >()('transcript-player/TranscriptSource') {}
 
@@ -85,6 +94,7 @@ export const transcriptsInMemory = (
             passage.endMs > range.fromMs && passage.startMs < range.toMs,
         ),
       ),
+    passagesMatching: mediaId => Effect.succeed(byMedia.get(mediaId) ?? []),
   })
 
 /** A source with no transcripts at all. */

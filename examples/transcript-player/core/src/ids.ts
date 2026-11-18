@@ -42,6 +42,18 @@ export const WordId = S.String.check(S.isPattern(/^[A-Za-z0-9._-]+$/)).pipe(
 /** One word's id. */
 export type WordId = typeof WordId.Type
 
+const maxQueryLength = 200
+
+/**
+ * What a person searches a recording for, as they type it, trimmed: `lit
+ * at dusk`.
+ */
+export const SearchQuery = S.Trim.check(
+  S.isLengthBetween(1, maxQueryLength),
+).pipe(S.brand('SearchQuery'))
+/** What a person searches a recording for. */
+export type SearchQuery = typeof SearchQuery.Type
+
 /**
  * The speeds the player offers, as a person picks them: `1.5` plays half
  * again as fast.

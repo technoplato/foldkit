@@ -1,41 +1,65 @@
-import { Array, Option } from 'effect'
+import { Array, Option, Order } from 'effect'
 import { Catalog } from 'foldkit'
 import {
   type ButtonNode,
   Column,
   type IconName,
+  List,
+  type ListItem,
   Row,
   Seek,
+  type SeekLanding,
   Text,
+  TextInput,
   Transcript,
   type TranscriptPassage,
+  type TranscriptWordAction,
   type UiNode,
   actionButtons,
+  transcriptWithMatches,
+  transcriptsOf,
+  wordAtAddress,
 } from 'foldkit/renderers'
 
 import { Milliseconds, clockOf } from './ids.js'
 import {
+  BackToPlayhead,
+  ClearSearch,
+  CloseSearch,
+  LeavePlayhead,
+  NextMatch,
   NextSection,
   Pause,
   Play,
+  PlayFrom,
+  PreviousMatch,
   PreviousSection,
+  SearchFor,
   SeekTo,
   SeekToWord,
   SetSeekScope,
+  ShowMatch,
+  ShowSearch,
   SkipBack,
   SkipForward,
 } from './message.js'
 import {
+  type Match,
   type Model,
   type Passage,
+  type Search,
   type Section,
-  type Word,
   currentWordOf,
+  isFollowingPlayhead,
   isSounding,
   passagesOf,
   playbackClockOf,
+  searchQueryOf,
   sectionAt,
+  selectedMatchOf,
+  viewPlaceOf,
 } from './model.js'
+import { type Paragraph, paragraphsOf, startsSection } from './paragraphs.js'
 
 // VIEW
 
@@ -81,10 +105,71 @@ const spannedSectionOf = (model: Model): Option.Option<Section> =>
     ? sectionAt(model.media, model.placeMs)
     : Option.none()
 
+const landingWords = 8
+
+const paragraphLandingOf = (paragraph: Paragraph): SeekLanding => {
+  const first = Array.headNonEmpty(paragraph)
+  const opening = Array.join(
+    Array.map(Array.take(paragraph, landingWords), word => word.text),
+    ' ',
+  )
+  return {
+    value: first.startMs,
+    text: `${clockOf(first.startMs)} · ${opening}${paragraph.length > landingWords ? '…' : ''}`,
+  }
+}
+
+const wordsGapMs = 5000
+
+const sectionLandingAt = (
+  model: Model,
+  placeMs: Milliseconds,
+): ReadonlyArray<SeekLanding> =>
+  Array.fromOption(
+    Option.map(sectionAt(model.media, placeMs), section => ({
+      value: placeMs,
+      text: section.title,
+    })),
+  )
+
+/**
+ * What a drag of the seek bar will land on, in order of place: each
+ * paragraph near the place, by the time it starts and its first words,
+ * and outside the words at hand only the chapter, since the words there
+ * have not been read yet.
+ */
+const landingsOf = (model: Model): ReadonlyArray<SeekLanding> => {
+  const passages = passagesOf(model)
+  return Array.sortWith(
+    [
+      ...Array.map(model.media.sections, section => ({
+        value: section.startMs,
+        text: section.title,
+      })),
+      ...Array.flatMap(passages, (passage, index) => [
+        ...Array.map(
+          paragraphsOf(model.media.sections, passage.words),
+          paragraphLandingOf,
+        ),
+        ...(Option.exists(
+          Array.get(passages, index + 1),
+          next => next.startMs - passage.endMs <= wordsGapMs,
+        )
+          ? []
+          : sectionLandingAt(model, passage.endMs)),
+      ]),
+    ],
+    landing => landing.value,
+    Order.Number,
+  )
+}
+
 /**
  * The seek bar over this section, such as the chapter being heard, or the
  * whole recording, as the player's scope says. Moving it presses
- * `SeekTo:<place>`, a place in the whole recording either way.
+ * `SeekTo:<place>`, a place in the whole recording either way. It names
+ * what a drag will land on: the paragraph, where the words are at hand,
+ * else the chapter.
  */
 export const seekBarOf = (model: Model): UiNode =>
   Option.match(spannedSectionOf(model), {
@@ -96,6 +181,7 @@ export const seekBarOf = (model: Model): UiNode =>
         action: SeekTo.tag,
         label: 'Place in the recording',
         valueText: `${clockOf(model.placeMs)} of ${clockOf(model.media.durationMs)}`,
+        landings: landingsOf(model),
       }),
     onSome: section =>
       Seek({
@@ -106,6 +192,7 @@ export const seekBarOf = (model: Model): UiNode =>
         action: SeekTo.tag,
         label: `Place in ${section.title}`,
         valueText: `${clockOf(Milliseconds.make(model.placeMs - section.startMs))} of ${clockOf(Milliseconds.make(section.endMs - section.startMs))} in ${section.title}`,
+        landings: landingsOf(model),
       }),
   })
 
@@ -287,70 +374,12 @@ const indexOfPlace = (
 
 const shownPassagesOf = (model: Model): ReadonlyArray<Passage> => {
   const passages = passagesOf(model)
-  const index = indexOfPlace(passages, model.placeMs)
+  const index = indexOfPlace(passages, viewPlaceOf(model))
   return passages.slice(
     Math.max(0, index - passagesBefore),
     index + passagesAfter + 1,
   )
 }
-
-const paragraphPauseMs = 1500
-
-const paragraphWords = 70
-
-const sentenceEnd = /[.!?…]["”’')\]]*$/u
-
-const startsSection = (
-  sections: ReadonlyArray<Section>,
-  afterMs: number,
-  atMs: number,
-): Option.Option<Section> =>
-  Array.findFirst(
-    sections,
-    section => section.startMs > afterMs && section.startMs <= atMs,
-  )
-
-const endsParagraph = (
-  sections: ReadonlyArray<Section>,
-  word: Word,
-  maybeNext: Option.Option<Word>,
-  count: number,
-): boolean =>
-  Option.match(maybeNext, {
-    onNone: () => true,
-    onSome: next =>
-      next.startMs - word.endMs >= paragraphPauseMs ||
-      Option.isSome(startsSection(sections, word.startMs, next.startMs)) ||
-      (count >= paragraphWords && sentenceEnd.test(word.text)),
-  })
-
-type Paragraphs = Readonly<{
-  done: ReadonlyArray<Array.NonEmptyReadonlyArray<Word>>
-  open: ReadonlyArray<Word>
-}>
-
-const noParagraphs: Paragraphs = { done: [], open: [] }
-
-/**
- * A passage's words in paragraphs, so a five-minute passage reads as
- * prose: a paragraph ends at a pause of a second and a half, where a
- * section starts, or at the end of a sentence once it has 70 words.
- */
-const paragraphsOf = (
-  sections: ReadonlyArray<Section>,
-  words: ReadonlyArray<Word>,
-): ReadonlyArray<Array.NonEmptyReadonlyArray<Word>> =>
-  Array.reduce(words, noParagraphs, (state, word, index): Paragraphs => {
-    const open = Array.append(state.open, word)
-    return endsParagraph(
-      sections,
-      word,
-      Array.get(words, index + 1),
-      open.length,
-    )
-      ? { done: Array.append(state.done, open), open: [] }
-      : { done: state.done, open }
-  }).done
 
 const headingLookbackMs = 5000
 
@@ -364,12 +393,36 @@ const emptyTextOf = (model: Model): string => {
   }
 }
 
+const focusTokenOf = (
+  model: Model,
+  transcript: UiNode,
+): Option.Option<string> =>
+  Option.flatMap(model.maybeAway, away =>
+    away._tag === 'LookingAt'
+      ? Option.map(
+          Option.flatMap(Array.head(transcriptsOf(transcript)), node =>
+            wordAtAddress(node, away.atMs),
+          ),
+          word => word.token,
+        )
+      : Option.none(),
+  )
+
 /**
- * The words around the place, a passage before and a few after, the one
- * sounding marked. Pressing a word plays from it; pressing a passage's
- * time moves there. It carries the player's clock and each word's start,
- * so a painter moves the mark on the word between the once-a-second
- * reports of the place, with `transcriptAt` from `foldkit/renderers`.
+ * The words around the place on screen, a passage before and a few
+ * after, the one sounding marked. Pressing a word plays from it; pressing
+ * a passage's time moves there. It carries the player's clock and each
+ * word's start, so a painter moves the mark on the word between the
+ * once-a-second reports of the place, with `transcriptAt` from
+ * `foldkit/renderers`.
+ *
+ * The words are the ones around the place being heard while they follow
+ * it. Once the person scrolls away (a painter presses `LeavePlayhead`)
+ * they stay put while the audio plays on, and at a match of a search
+ * they are the words around the match, with the match to bring into
+ * view. What a search found is marked, the match the person is on apart.
+ * `wordActions` are what a word's menu offers besides playing from it,
+ * such as a Program's `Copy link to this word`.
  *
  * @example
  * ```typescript
@@ -377,14 +430,19 @@ const emptyTextOf = (model: Model): string => {
  * // Transcript: [0:19] Evocation Earth, [114] million years ago…
  * ```
  */
-export const transcriptOf = (model: Model): UiNode => {
+export const transcriptOf = (
+  model: Model,
+  options: Readonly<{
+    wordActions?: ReadonlyArray<TranscriptWordAction>
+  }> = {},
+): UiNode => {
   const sections = model.media.sections
   const maybeCurrentWordId = Option.map(
     currentWordOf(model),
     word => word.wordId,
   )
   const paragraphOf = (
-    words: Array.NonEmptyReadonlyArray<Word>,
+    words: Paragraph,
     endMs: Milliseconds,
     afterMs: number,
   ): TranscriptPassage => {
@@ -432,14 +490,209 @@ export const transcriptOf = (model: Model): UiNode => {
       ),
     ),
   )
-  return Transcript({
+  const plain = Transcript({
     label: 'Transcript',
     action: SeekToWord.tag,
     emptyText: emptyTextOf(model),
     passages: paragraphs,
     clock: playbackClockOf(model),
+    isFollowing: isFollowingPlayhead(model),
+    leaveAction: LeavePlayhead.tag,
+    ...(options.wordActions === undefined
+      ? {}
+      : { wordActions: options.wordActions }),
+  })
+  const focused = Option.match(focusTokenOf(model, plain), {
+    onNone: () => plain,
+    onSome: focusToken => ({ ...plain, focusToken }),
+  })
+  return Option.match(searchQueryOf(model), {
+    onNone: () => focused,
+    onSome: query =>
+      transcriptWithMatches(
+        focused,
+        query,
+        Option.getOrUndefined(
+          Option.map(selectedMatchOf(model), match => match.startMs),
+        ),
+      ),
   })
 }
+
+// SEARCH
+
+const matchTitleOf = (match: Match): string =>
+  Array.join(
+    Array.filter([match.before, match.text, match.after], part => part !== ''),
+    ' ',
+  )
+
+const matchItemOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+  match: Match,
+): ListItem => {
+  const token = match.startMs.toString()
+  return {
+    key: token,
+    title: matchTitleOf(match),
+    lines: [
+      Array.join(
+        [
+          clockOf(match.startMs),
+          ...Array.fromOption(
+            Option.map(
+              sectionAt(model.media, match.startMs),
+              section => section.title,
+            ),
+          ),
+        ],
+        ' · ',
+      ),
+    ],
+    action: `${ShowMatch.tag}:${token}`,
+    isCurrent: Option.exists(
+      selectedMatchOf(model),
+      selected => selected.startMs === match.startMs,
+    ),
+    trailing: Array.map(
+      actionButtons(
+        Array.filter(
+          Array.flatMap(
+            Array.filter(entries, entry => entry.tag === PlayFrom.tag),
+            Catalog.choicesAsEntries,
+          ),
+          entry => entry.tag === `${PlayFrom.tag}:${token}`,
+        ),
+      ),
+      button => ({ ...button, icon: 'Play', isIconOnly: true, variant: ghost }),
+    ),
+  }
+}
+
+const searchFieldWidth = 28
+
+const countOf = (count: number): string => count.toLocaleString('en-US')
+
+const foundTextOf = (
+  model: Model,
+  search: Extract<Search, { _tag: 'SearchFound' }>,
+): string => {
+  const maybePosition = Option.flatMap(selectedMatchOf(model), selected =>
+    Array.findFirstIndex(
+      search.matches,
+      match => match.startMs === selected.startMs,
+    ),
+  )
+  if (search.total === 0) {
+    return `No matches for “${search.query}”`
+  } else if (search.total > search.matches.length) {
+    return `The first ${countOf(search.matches.length)} of ${countOf(search.total)} matches. Add a word to narrow it.`
+  } else {
+    return Option.match(maybePosition, {
+      onNone: () =>
+        `${countOf(search.total)} ${search.total === 1 ? 'match' : 'matches'}`,
+      onSome: position =>
+        `${countOf(position + 1)} of ${countOf(search.total)}`,
+    })
+  }
+}
+
+const searchTextOf = (model: Model, search: Search): string => {
+  if (search._tag === 'SearchIdle') {
+    return 'Type words, then Enter'
+  } else if (search._tag === 'Searching') {
+    return 'Searching…'
+  } else if (search._tag === 'SearchFailed') {
+    return `Could not search: ${search.reason}`
+  } else {
+    return foundTextOf(model, search)
+  }
+}
+
+/**
+ * The search while it is open, for a Program to place by the words: the
+ * field to type in, which presses `SearchFor:<words>` on Enter; how the
+ * search stands, `2 of 4`, `No matches for “lamp”`; the buttons to step
+ * to the match before and after and to close; and each match as a row
+ * with a few words around it, its time and its chapter. Pressing a row
+ * shows that match in the words without moving the audio, and its play
+ * button plays from it. Nothing while the search is closed.
+ *
+ * @example
+ * ```typescript
+ * searchPanelOf(player, entries)
+ * // [Column: [lamp] 2 of 4 [↑] [↓] [Done], Matches: The keeper lit the lamp at dusk… · 0:11 · The Light [▶] …]
+ * ```
+ */
+export const searchPanelOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+): ReadonlyArray<UiNode> =>
+  Option.match(model.maybeSearch, {
+    onNone: () => [],
+    onSome: search => [
+      Column(
+        { gap: 1 },
+        Row(
+          { gap: 1 },
+          TextInput({
+            value: Option.getOrElse(searchQueryOf(model), () => ''),
+            placeholder: 'Search the words',
+            label: 'Search the words',
+            action: SearchFor.tag,
+            clearAction: ClearSearch.tag,
+            focused: true,
+            width: searchFieldWidth,
+          }),
+          Text(searchTextOf(model, search), { dim: true }),
+          ...iconButtonOf(entries, PreviousMatch, 'PreviousMatch', 'Ghost'),
+          ...iconButtonOf(entries, NextMatch, 'NextMatch', 'Ghost'),
+          ...buttonOf(entries, CloseSearch, 'Ghost'),
+        ),
+        ...(search._tag === 'SearchFound' &&
+        Array.isReadonlyArrayNonEmpty(search.matches)
+          ? [
+              List({
+                label: 'Matches',
+                items: Array.map(search.matches, match =>
+                  matchItemOf(model, entries, match),
+                ),
+              }),
+            ]
+          : []),
+      ),
+    ],
+  })
+
+const withIconOf =
+  (icon: IconName) =>
+  (button: ButtonNode): ButtonNode => ({ ...button, icon })
+
+/**
+ * The reader's own buttons, for a Program to place by the words: `Back
+ * to playhead` while the words are away from the word sounding, and
+ * `Search` while the search is closed.
+ *
+ * @example
+ * ```typescript
+ * readerButtonsOf(player, entries) // [Search], or [Back to playhead, Search] after scrolling away
+ * ```
+ */
+export const readerButtonsOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+): ReadonlyArray<ButtonNode> => [
+  ...(isFollowingPlayhead(model)
+    ? []
+    : Array.map(
+        buttonOf(entries, BackToPlayhead, 'Ghost'),
+        withIconOf('Playhead'),
+      )),
+  ...(Option.isSome(model.maybeSearch)
+    ? []
+    : Array.map(buttonOf(entries, ShowSearch, 'Ghost'), withIconOf('Search'))),
+]
 
 /**
  * The whole player on one screen: the seek bar, the times, the transport,
