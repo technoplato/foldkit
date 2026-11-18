@@ -478,7 +478,7 @@ describe('books CLI', () => {
     const { bound, player } = await openBooks()
     const painted = await run(player, 'actions')
     expect(painted.stdout).toMatch(/The Lantern Keeper/)
-    expect(painted.stdout).toMatch(/^ {2}listen <slug> +Plays the title/m)
+    expect(painted.stdout).toMatch(/^ {2}listen <slug> +Plays this book/m)
     expect(painted.stdout).toMatch(/^ {2}seek-to <place-ms> +Moves to a place/m)
     expect(runProgramCommand(bound, 'books', [], {}).stdout).toMatch(
       /^ {2}listen <slug>/m,
@@ -516,7 +516,9 @@ describe('books CLI', () => {
     const listened = await run(player, 'listen the-lantern-keeper')
     expect(listened.exitCode).toBe(0)
     expect(listened.stdout).toMatch(/^▶ Playing The Lantern Keeper$/m)
-    expect(listened.stdout).toMatch(/^ {2}books pause +Pauses where it is$/m)
+    expect(listened.stdout).toMatch(
+      /^ {2}books pause +Pauses and keeps your place$/m,
+    )
     expect(listened.stdout).toMatch(/^ {2}books stop +Stops and saves/m)
     await eventually(() => {
       const model = bound.readModel()
@@ -529,7 +531,9 @@ describe('books CLI', () => {
     expect(sought.stdout).toMatch(/The Keeper · 1:00:00 of 1:20:00 · 20m left/)
     const paused = await run(player, 'pause')
     expect(paused.stdout).toMatch(/^❚❚ Paused The Lantern Keeper$/m)
-    expect(paused.stdout).toMatch(/^ {2}books play +Plays from the place$/m)
+    expect(paused.stdout).toMatch(
+      /^ {2}books play +Plays from where it is paused$/m,
+    )
     const refused = await run(player, 'pause')
     expect(refused.exitCode).toBe(1)
     expect(refused.stderr).toBe('pause is disabled: nothing is playing.')

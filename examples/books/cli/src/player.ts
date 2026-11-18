@@ -83,7 +83,7 @@ const statusOf = (bound: BoundBooks): string => {
  * @example
  * ```typescript
  * paintBrief(bound)
- * // '▶ Playing A New Earth\n…\n\n  books pause   Pauses where it is\n…'
+ * // '▶ Playing A New Earth\n…\n\n  books pause   Pauses and keeps your place\n…'
  * ```
  */
 export const paintBrief = (bound: BoundBooks): string =>
