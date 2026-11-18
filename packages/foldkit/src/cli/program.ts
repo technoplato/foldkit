@@ -637,9 +637,26 @@ export const paintOffered = <Model, Message>(
     ),
     options.limit ?? offeredShown,
   )
-  return paintCommands(bound, name, runnable, [
-    { command: options.listCommand ?? 'help', what: 'Lists every command' },
-  ])
+  // NOTE: One line for each, however long its sentence: a Client that
+  // fits these to a width cuts a line, and a wrapped sentence would leave
+  // its second half behind.
+  const lines: ReadonlyArray<CommandLine> = [
+    ...Array.getSomes(
+      Array.map(runnable, tag => pressableLineOf(entries, tag)),
+    ),
+    lineOf(options.listCommand ?? 'help', 'Lists every command'),
+  ]
+  const width = widestOf(
+    Array.map(lines, line => `${name} ${line.command}`),
+    0,
+  )
+  return Array.map(lines, line =>
+    Option.match(line.maybeWhat, {
+      onNone: () => `${indent}${name} ${line.command}`,
+      onSome: what =>
+        `${indent}${`${name} ${line.command}`.padEnd(width)}${what}`,
+    }),
+  )
 }
 
 const offeredShown = 4

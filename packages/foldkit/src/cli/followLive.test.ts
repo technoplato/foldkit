@@ -37,6 +37,21 @@ describe('following a part of any Program’s view, live', () => {
     expect(lines.at(-1)).toMatch(/^ {2}counter help +Lists every command$/)
   })
 
+  it('gives each command one line, however long its sentence, so a line cut to the width leaves nothing behind', async () => {
+    const bound = bindChapters()
+    const following = followLive(
+      bound,
+      () => ({ node: Text('made up'), offers: ['NextChapter'] }),
+      { name: 'chapters', piped: () => Stream.make('piped') },
+    )
+    const [frame = ''] = await first(following(terminal(30, 10), Cli()))
+    expect(frame.split('\n')).toEqual([
+      'made up',
+      '  chapters next-chapter  Play…',
+      '  chapters help          List…',
+    ])
+  })
+
   it('sends the frame again when the Model changes what it shows, and the commands change with it', async () => {
     const bound = bindCounter()
     const heard = first(

@@ -24,6 +24,8 @@ import {
   type TranscriptBookmark,
   type UiNode,
   actionButtons,
+  offeredBy,
+  transcriptAt,
   withTranscriptBookmarks,
 } from 'foldkit/renderers'
 import * as ReadAloud from 'read-aloud-core-example'
@@ -1443,6 +1445,85 @@ const readerRowOf = (model: Model, loaded: Loaded): ReadonlyArray<UiNode> =>
       onNonEmpty: buttons => [Row({ gap: 1 }, ...buttons)],
     },
   )
+
+/**
+ * A part of the view for a Client that shows it alone and follows it: the
+ * node to show, a node pinned above it, the tags of the Actions the part
+ * offers, and whether it moves between Messages, as words do while the
+ * title plays.
+ */
+export type FollowedPart = Readonly<{
+  node: UiNode
+  header?: UiNode
+  offers: ReadonlyArray<string>
+  isClocked: boolean
+}>
+
+/**
+ * The words of the title in the player, as a part of the view to follow:
+ * the reader's own Transcript, with its bookmarks and what a search
+ * found, the word being spoken at `nowMs` marked from the Transcript's
+ * clock as the site marks it; above it the title, the chapter, the place
+ * and whether it plays; and what the reader's folded controls and its
+ * bookmark button offer, play or pause, back 30 seconds and a bookmark.
+ * With nothing in the player it says so and offers nothing.
+ *
+ * @example
+ * ```typescript
+ * wordsPartAt(model, Date.now())
+ * // { header: Column(The Lantern Keeper · The Tide, 0:36 of 1:20:00 · playing),
+ * //   node: Transcript(…the word at 0:36 marked…), offers: ['Pause', 'SkipBack', 'AddBookmark'], isClocked: true }
+ * ```
+ */
+export const wordsPartAt = (model: Model, nowMs: number): FollowedPart =>
+  Option.match(loadedTitleOf(model), {
+    onNone: () => ({
+      node: Text('Nothing is in the player.'),
+      offers: [],
+      isClocked: false,
+    }),
+    onSome: ({ title, loaded }) => {
+      const words = withTranscriptBookmarks(
+        readerTranscriptOf(loaded),
+        transcriptBookmarksOf(model, title),
+      )
+      const isSounding = TranscriptPlayer.isSounding(loaded.player)
+      return {
+        node: words._tag === 'Transcript' ? transcriptAt(words, nowMs) : words,
+        header: Column(
+          {},
+          Text(
+            Array.join(
+              [
+                title.name,
+                ...Array.fromOption(
+                  chapterNameAt(model, title.slug, placeOf(loaded)),
+                ),
+              ],
+              ' · ',
+            ),
+          ),
+          Text(
+            `${clockOf(placeOf(loaded))} of ${clockOf(title.durationMs)} · ${
+              isSounding ? 'playing' : 'paused'
+            }`,
+          ),
+        ),
+        offers: offeredBy(
+          Row(
+            {},
+            ...playOrPauseOf(model, title, 'Ghost', true),
+            ...TranscriptPlayer.miniTransportOf(
+              loaded.player,
+              entriesOf(model),
+            ),
+            ...buttonsOf(model, [AddBookmark], 'Ghost'),
+          ),
+        ),
+        isClocked: isSounding,
+      }
+    },
+  })
 
 /**
  * The player for the book its address names, read and listen: the words

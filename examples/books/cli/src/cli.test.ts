@@ -618,13 +618,21 @@ describe('books words', () => {
       ),
   })
 
-  const playingFrom = async (place: string) => {
+  // NOTE: The title is paused on a known word with its words loaded, so
+  // what a follower hears first is certain however busy the machine is;
+  // `play` then starts the clock from that word.
+  const pausedOn = async (place: string) => {
     const opened = await openBooks({
       transcripts: spokenTranscript,
       audio: reportingOnce,
     })
     await run(opened.player, 'listen the-lantern-keeper')
     await run(opened.player, `seek-to ${place}`)
+    await run(opened.player, 'pause')
+    await eventually(async () => {
+      const words = (await run(opened.player, 'words')).stdout
+      return words.includes('> 0:05') && words.includes('· The Tide ·')
+    })
     return opened
   }
 
@@ -632,41 +640,59 @@ describe('books words', () => {
     player: BooksPlayer,
     flags: Readonly<Record<string, string>>,
     count: number,
+    keep: (text: string) => Option.Option<string> = Option.some,
     topic = 'words',
   ) =>
     Effect.runPromise(
       Stream.runCollect(
         Stream.take(
-          followOf(player)(topic, flags, Processor.Host.Cli()),
+          followOf(player)(topic, flags, Processor.Host.Cli()).pipe(
+            Stream.map(keep),
+            Stream.filter(Option.isSome),
+            Stream.map(kept => kept.value),
+            Stream.changes,
+          ),
           count,
         ),
       ),
     )
 
+  const settle = (): Promise<void> =>
+    new Promise(resolve => setTimeout(resolve, 150))
+
+  const startingWith =
+    (prefix: string) =>
+    (text: string): Option.Option<string> =>
+      text.startsWith(prefix) ? Option.some(text) : Option.none()
+
   it('follows by the word down a pipe: the paragraph, then each word as its time arrives with its start and link', async () => {
-    const { player } = await playingFrom('5500')
-    const texts = await heard(player, { before: '0', after: '0' }, 4)
-    expect(texts[0]?.split('\n').slice(1)).toEqual([
+    const { player } = await pausedOn('5500')
+    const [paragraph = ''] = await heard(player, { before: '0', after: '0' }, 1)
+    expect(paragraph.split('\n').slice(1)).toEqual([
       '> 0:05 [He] trimmed the wick and waited.',
     ])
-    expect(texts.slice(1)).toEqual([
+    const words = heard(player, {}, 3, startingWith('. '))
+    await settle()
+    await run(player, 'play')
+    expect(await words).toEqual([
       '. 0:05 He /books/the-lantern-keeper/listen/5.5s',
       '. 0:06 trimmed /books/the-lantern-keeper/listen/6s',
       '. 0:06 the /books/the-lantern-keeper/listen/6.5s',
     ])
+    await run(player, 'pause')
   })
 
-  it('says one line when it pauses and one when it plays, and never the paragraph again for that', async () => {
-    const { player } = await playingFrom('5500')
-    const listening = heard(player, { paragraphs: '1' }, 3)
-    await new Promise(resolve => setTimeout(resolve, 100))
-    await run(player, 'pause')
-    await new Promise(resolve => setTimeout(resolve, 100))
+  it('says one line when it plays and one when it pauses, and never the paragraph again for that', async () => {
+    const { player } = await pausedOn('5500')
+    const turns = heard(player, { paragraphs: '1' }, 3)
+    await settle()
     await run(player, 'play')
-    const texts = await listening
+    await settle()
+    await run(player, 'pause')
+    const texts = await turns
     expect(texts[0]).toContain('> 0:05')
-    expect(texts[1]).toMatch(/^# paused at 0:0\d$/)
-    expect(texts[2]).toMatch(/^# playing from 0:0\d$/)
+    expect(texts[1]).toMatch(/^# playing from 0:0\d$/)
+    expect(texts[2]).toMatch(/^# paused at 0:0\d$/)
   })
 
   it('follows by the paragraph alone when asked, as it did before', async () => {
@@ -692,7 +718,7 @@ describe('books words', () => {
   })
 
   it('sends another program one line of JSON for each: the paragraph, each word, each turn', async () => {
-    const { player } = await playingFrom('5500')
+    const { player } = await pausedOn('5500')
     const texts = await heard(player, { json: '1' }, 2)
     expect(Array.map(texts, text => JSON.parse(text))).toMatchObject([
       { _tag: 'WordsNow', header: { slug: 'the-lantern-keeper' } },
@@ -706,36 +732,46 @@ describe('books words', () => {
   })
 
   it('sends a terminal the words fitted to its size, the mark moving by the word, with what can be run now under them', async () => {
-    const { player } = await playingFrom('5500')
+    const { player } = await pausedOn('5500')
     const terminal = { 'in-place': '1', columns: '60', rows: '20' }
-    const frames = await heard(player, terminal, 3)
-    const markOf = (frame: string): string =>
-      /\[(\S+)\]/.exec(
-        frame.split('\n').find(line => line.startsWith('›')) ?? '',
-      )?.[1] ?? ''
-    expect(Array.map(frames, markOf)).toEqual(['He', 'trimmed', 'the'])
-    const [frame = ''] = frames
-    const lines = frame.split('\n')
+    const markOf = (frame: string): Option.Option<string> =>
+      Option.fromNullishOr(
+        /\[(\S+)\]/.exec(
+          frame.split('\n').find(line => line.startsWith('›')) ?? '',
+        )?.[1],
+      )
+    const [paused = ''] = await heard(player, terminal, 1)
+    const lines = paused.split('\n')
     expect(lines.every(line => line.length <= 60)).toBe(true)
     expect(lines.length).toBeLessThanOrEqual(18)
     expect(lines[0]).toBe('The Lantern Keeper · The Tide')
-    expect(lines[1]).toMatch(/^0:0\d of 1:20:00 · playing$/)
-    expect(lines.slice(-4)).toEqual([
+    expect(lines[1]).toBe('0:05 of 1:20:00 · paused')
+    expect(paused).toMatch(/^ {2}books play +Plays from where it is paused$/m)
+    expect(paused).not.toMatch(/books pause/)
+    const marks = heard(player, terminal, 3, markOf)
+    await settle()
+    await run(player, 'play')
+    expect(await marks).toEqual(['He', 'trimmed', 'the'])
+    const [playing = ''] = await heard(player, terminal, 1)
+    expect(playing.split('\n')[1]).toMatch(/· playing$/)
+    expect(playing.split('\n').slice(-4)).toEqual([
       '  books pause         Pauses and keeps your place',
       '  books skip-back     Goes back 30 seconds',
-      expect.stringMatching(/^ {2}books add-bookmark {2}Saves a bookmark on/),
+      '  books add-bookmark  Saves a bookmark on the word being sp…',
       '  books actions       Lists every command',
     ])
     await run(player, 'pause')
-    const [paused = ''] = await heard(player, terminal, 1)
-    expect(paused.split('\n')[1]).toMatch(/· paused$/)
-    expect(paused).toMatch(/^ {2}books play +Plays from where it is paused$/m)
-    expect(paused).not.toMatch(/books pause/)
   })
 
   it('follows the words when no topic is named', async () => {
-    const { player } = await playingFrom('5500')
-    const [first = ''] = await heard(player, { before: '0', after: '0' }, 1, '')
+    const { player } = await pausedOn('5500')
+    const [first = ''] = await heard(
+      player,
+      { before: '0', after: '0' },
+      1,
+      Option.some,
+      '',
+    )
     expect(first).toContain('> 0:05')
   })
 

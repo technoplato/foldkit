@@ -157,15 +157,25 @@ export const showBriefOrUsage = async (
 }
 
 /**
- * `books follow words`: writes a topic of the player to stdout each time
- * it changes, starting the player first when it is not running, until
- * Ctrl-C or the pipe's reader goes away. It takes over nothing, so
- * `books follow words --json | jq .header.place` works.
+ * `books follow`: follows a topic of the player, the words unless another
+ * is named, starting the player first when it is not running, until
+ * Ctrl-C or the pipe's reader goes away. On a terminal it repaints the
+ * topic in place, a few lines that change where they are; it reads no
+ * key and does not take the screen over. Down a pipe it writes each event
+ * on its own line, so `books follow --json | jq .text` works.
  */
-export const followPlayer = async (request: FollowArgv): Promise<void> => {
+export const followPlayer = async (
+  request: FollowArgv,
+  isTerminal: boolean = process.stdout.isTTY === true,
+): Promise<void> => {
   const socketPath = booksPlayerSocketPath()
   await sayWhenStarting(socketPath)
-  await writeCliFollow({ socketPath, spawn: spawnPlayer, request })
+  await writeCliFollow({
+    socketPath,
+    spawn: spawnPlayer,
+    request,
+    inPlace: isTerminal,
+  })
 }
 
 /**
