@@ -286,6 +286,40 @@ describe('Books', () => {
     expect(Array.map(written, ({ name }) => name)).toEqual(['WriteLibrary'])
   })
 
+  it('asks before deleting the bookmark whose panel is open, when Remove is pressed there, and removes it on yes', () => {
+    const { bound, send, written } = bindApp()
+    send(
+      ReceivedShelf({
+        shelf: {
+          ...sampleShelf,
+          bookmarks: [
+            {
+              bookmarkId: BookmarkId.make('bookmark-1'),
+              slug: lanternKeeper,
+              atMs: Milliseconds.make(723_000),
+              createdAtMs: 0,
+              maybeNote: Option.none(),
+              maybeExcerpt: Option.none(),
+            },
+          ],
+        },
+      }),
+    )
+    bound.press(`Open:${lanternKeeper}`)
+    bound.press('OpenBookmark:bookmark-1')
+    const open = uriOf(bound)
+    bound.press('DeleteBookmark:bookmark-1')
+    expect(uriOf(bound)).toEqual(
+      Option.some('/books/the-lantern-keeper/delete-bookmark/bookmark-1'),
+    )
+    bound.press('CancelDeleteBookmark')
+    expect(uriOf(bound)).toEqual(open)
+    bound.press('DeleteBookmark:bookmark-1')
+    bound.pressKey(Interaction.keyInput('y'))
+    expect(uriOf(bound)).toEqual(Option.some('/books/the-lantern-keeper'))
+    expect(Array.map(written, ({ name }) => name)).toEqual(['WriteLibrary'])
+  })
+
   it('will not play a title whose audio is not in the library yet', () => {
     const { bound, send, written } = bindApp()
     send(
