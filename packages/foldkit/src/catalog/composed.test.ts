@@ -57,6 +57,60 @@ describe('a child’s Actions offered by its parent', () => {
   })
 })
 
+describe('what a parent adds to a child’s Action', () => {
+  const SaveShelf = { name: 'SaveShelf' }
+
+  it('is said beside the child’s own touches, keyed by the Action’s tag', () => {
+    const offered = Catalog.within(counterCatalog, {
+      childOf: (model: Shelf) => model.maybeCounter,
+      under: inShelf.maybeCounter,
+      also: {
+        Increment: { mutates: [inShelf.title], triggers: [SaveShelf] },
+      },
+      nothing: 'there is no counter on this shelf',
+    })
+    expect(
+      offered.actions.map(action => Catalog.declarationOf(action).touches),
+    ).toEqual([
+      { mutates: ['maybeCounter.count', 'title'], triggers: ['SaveShelf'] },
+    ])
+  })
+
+  it('is refused for a tag the child does not have', () => {
+    Catalog.within(counterCatalog, {
+      childOf: (model: Shelf) => model.maybeCounter,
+      // @ts-expect-error the child has no `Decrement`
+      also: { Decrement: { mutates: [inShelf.title] } },
+      nothing: 'there is no counter on this shelf',
+    })
+  })
+
+  it('is added to one Action with Catalog.withTouches, which stays the same Action', () => {
+    const Saving = Catalog.withTouches(Increment, { triggers: [SaveShelf] })
+    expect(Catalog.declarationOf(Saving).touches).toEqual({
+      mutates: ['count'],
+      triggers: ['SaveShelf'],
+    })
+    expect(Saving()).toEqual(Increment())
+    expect(Saving.what).toBe(Increment.what)
+    expect(Saving.meta).toEqual(Increment.meta)
+  })
+
+  it('gives touches to an Action that had said none', () => {
+    const Rename = Catalog.action('Rename', {
+      what: 'Renames the shelf',
+      why: 'To tell shelves apart',
+      meta: { label: 'Rename', keys: [] },
+    })
+    expect(Catalog.declarationOf(Rename).touches).toBeUndefined()
+    expect(
+      Catalog.declarationOf(
+        Catalog.withTouches(Rename, { mutates: [inShelf.title] }),
+      ).touches,
+    ).toEqual({ mutates: ['title'], triggers: [] })
+  })
+})
+
 describe('a computed field', () => {
   const ahead = computed({
     what: 'The count one step on',

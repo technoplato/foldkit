@@ -1,10 +1,12 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
+import { ModelPath } from 'foldkit/declaration'
 import { m } from 'foldkit/message'
 
 import { BookKey, Isbn13, PageNumber, PageNumberSegment } from './ids.js'
 import {
   type Book,
+  Model,
   Preview,
   type ReadAloudView,
   Readings,
@@ -17,6 +19,8 @@ import { shownBookKeyOf, shownBookOf, shownPageOf } from './stack.js'
 // MESSAGE
 
 const noBookOpen = 'no book is open'
+
+const at = ModelPath.of(Model)
 
 const lastPageOf = (book: Book): Option.Option<PageNumber> =>
   book.maybePageCount
@@ -50,6 +54,7 @@ export const OpenBook = Catalog.action('OpenBook', {
   },
   what: 'Opens the book at the page being read, or at its first page',
   why: 'To follow along in that book',
+  mutates: [at.navigation.pages],
   meta: { label: 'Open', keys: [], title: 'Open book' },
 })
 
@@ -65,6 +70,7 @@ export const PreviousPage = Catalog.action('PreviousPage', {
           ? Catalog.Disabled({ because: 'this is the first page' })
           : Catalog.Enabled(),
     }),
+  mutates: [at.navigation.pages],
   meta: { label: 'Previous page', keys: ['ArrowLeft'] },
 })
 
@@ -83,6 +89,7 @@ export const NextPage = Catalog.action('NextPage', {
           ? Catalog.Disabled({ because: 'this is the last page' })
           : Catalog.Enabled(),
     }),
+  mutates: [at.navigation.pages],
   meta: { label: 'Next page', keys: ['ArrowRight'] },
 })
 
@@ -126,6 +133,7 @@ export const TurnToPage = Catalog.action('TurnToPage', {
   },
   what: 'Turns to one page of the book',
   why: 'To show that page',
+  mutates: [at.navigation.pages],
   meta: { label: 'Turn to page', keys: [], title: 'Turn to page' },
 })
 
@@ -147,6 +155,7 @@ export const FollowReading = Catalog.action('FollowReading', {
           ? Catalog.Disabled({ because: 'this is the page being read' })
           : Catalog.Enabled(),
     }),
+  mutates: [at.navigation.pages],
   meta: { label: 'Follow the reading', keys: ['f'] },
 })
 

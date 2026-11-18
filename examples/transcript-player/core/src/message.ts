@@ -1,7 +1,18 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog } from 'foldkit'
-import { m } from 'foldkit/message'
+import { ModelPath } from 'foldkit/declaration'
 
+import {
+  FailedLoadTranscript,
+  FailedPlayAudio,
+  FailedReadSearchWords,
+  FailedSearch,
+  ReachedEnd,
+  ReachedPlace,
+  ReadSearchWords,
+  ReceivedMatches,
+  ReceivedPassages,
+} from './fact.js'
 import {
   Milliseconds,
   PlaceToken,
@@ -12,9 +23,9 @@ import {
   clockOf,
 } from './ids.js'
 import {
-  Match,
-  type Model,
-  Passage,
+  type Match,
+  Model,
+  type Passage,
   SeekScope,
   hasAudio,
   isFollowingPlayhead,
@@ -27,10 +38,26 @@ import {
   wordOf,
 } from './model.js'
 import { nextParagraphOf, previousParagraphOf } from './paragraphs.js'
+import { SearchRecording } from './update.js'
+
+export * from './fact.js'
 
 // MESSAGE
 
 const noAudio = 'its audio is not in the library yet'
+
+const at = ModelPath.of(Model)
+
+const mutatedBySounding = [
+  at.placeMs,
+  at.maybePlacedAtMs,
+  at.transport,
+  at.nextCue,
+]
+
+const mutatedByMoving = [...mutatedBySounding, at.maybeAway, at.maybeWordMenu]
+
+const mutatedByShowingMatch = [at.maybeSearch.maybeSelectedMs, at.maybeAway]
 
 /** Plays from the place. `p` presses it, and pauses while it plays. */
 export const Play = Catalog.action('Play', {
@@ -45,6 +72,7 @@ export const Play = Catalog.action('Play', {
       return Catalog.Enabled()
     }
   },
+  mutates: mutatedBySounding,
   meta: { label: 'Play', keys: ['p'] },
 })
 
@@ -56,6 +84,7 @@ export const Pause = Catalog.action('Pause', {
     isSounding(model)
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'nothing is playing' }),
+  mutates: [at.transport],
   meta: { label: 'Pause', keys: ['p', 'k'] },
 })
 
@@ -67,6 +96,7 @@ export const SkipBack = Catalog.action('SkipBack', {
     model.placeMs === 0
       ? Catalog.Disabled({ because: 'it is at the start' })
       : Catalog.Enabled(),
+  mutates: mutatedByMoving,
   meta: { label: '−30s', keys: ['['], title: 'Skip back' },
 })
 
@@ -78,6 +108,7 @@ export const SkipForward = Catalog.action('SkipForward', {
     model.placeMs >= model.media.durationMs
       ? Catalog.Disabled({ because: 'it is at the end' })
       : Catalog.Enabled(),
+  mutates: mutatedByMoving,
   meta: { label: '+30s', keys: [']'], title: 'Skip forward' },
 })
 
@@ -114,6 +145,7 @@ export const SeekTo = Catalog.action('SeekTo', {
   },
   what: 'Moves to a place in the recording',
   why: 'To hear another part',
+  mutates: mutatedByMoving,
   meta: { label: 'Seek', keys: [], title: 'Seek to' },
 })
 
@@ -141,6 +173,7 @@ export const SeekToWord = Catalog.action('SeekToWord', {
   },
   what: 'Plays from the chosen word',
   why: 'To hear that part',
+  mutates: mutatedByMoving,
   meta: { label: 'Play from here', keys: [], title: 'Play from word' },
 })
 
@@ -152,6 +185,7 @@ export const PreviousSection = Catalog.action('PreviousSection', {
     Option.isSome(previousSectionOf(model))
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'there is no chapter before' }),
+  mutates: mutatedByMoving,
   meta: { label: 'Previous chapter', keys: [',', '<'] },
 })
 
@@ -163,6 +197,7 @@ export const NextSection = Catalog.action('NextSection', {
     Option.isSome(nextSectionOf(model))
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'this is the last chapter' }),
+  mutates: mutatedByMoving,
   meta: { label: 'Next chapter', keys: ['.', '>'] },
 })
 
@@ -186,6 +221,7 @@ export const SetSeekScope = Catalog.action('SetSeekScope', {
   },
   what: 'Makes the seek bar span this chapter or the whole recording',
   why: 'To move finely within a chapter, or far across the book',
+  mutates: [at.seekScope],
   meta: { label: 'Bar spans', keys: [], title: 'Set what the bar spans' },
 })
 
@@ -209,6 +245,7 @@ export const SetSpeed = Catalog.action('SetSpeed', {
   },
   what: 'Plays faster or slower',
   why: 'To hear it faster or slower',
+  mutates: [at.speed],
   meta: { label: 'Speed', keys: [], title: 'Set speed' },
 })
 
@@ -223,6 +260,7 @@ export const PreviousParagraph = Catalog.action('PreviousParagraph', {
     Option.isSome(previousParagraphOf(model))
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'there is no paragraph before' }),
+  mutates: mutatedByMoving,
   meta: { label: 'Previous paragraph', keys: ['{'] },
 })
 
@@ -234,6 +272,7 @@ export const NextParagraph = Catalog.action('NextParagraph', {
     Option.isSome(nextParagraphOf(model))
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'there is no paragraph after' }),
+  mutates: mutatedByMoving,
   meta: { label: 'Next paragraph', keys: ['}'] },
 })
 
@@ -245,6 +284,7 @@ export const ShowSearch = Catalog.action('ShowSearch', {
     Option.isSome(model.maybeSearch)
       ? Catalog.Disabled({ because: 'the search is open' })
       : Catalog.Enabled(),
+  mutates: [at.maybeSearch],
   meta: { label: 'Search', keys: ['/'], title: 'Search the words' },
 })
 
@@ -256,6 +296,7 @@ export const CloseSearch = Catalog.action('CloseSearch', {
     Option.isSome(model.maybeSearch)
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'the search is not open' }),
+  mutates: [at.maybeSearch],
   meta: { label: 'Done', keys: [], title: 'Close the search' },
 })
 
@@ -277,6 +318,8 @@ export const SearchFor = Catalog.action('SearchFor', {
   },
   what: 'Finds every place the words are spoken in the recording',
   why: 'To find where something was said',
+  mutates: [at.maybeSearch],
+  triggers: [SearchRecording],
   meta: { label: 'Search', keys: [], title: 'Search for' },
 })
 
@@ -288,6 +331,7 @@ export const ClearSearch = Catalog.action('ClearSearch', {
     Option.isSome(searchQueryOf(model))
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'nothing is searched for' }),
+  mutates: [at.maybeSearch],
   meta: { label: 'Clear', keys: [], title: 'Clear the search' },
 })
 
@@ -301,6 +345,7 @@ export const NextMatch = Catalog.action('NextMatch', {
   what: 'Shows the next place the words were found',
   why: 'The user is looking for one place among the matches',
   enabled: whenMatches,
+  mutates: mutatedByShowingMatch,
   meta: { label: 'Next match', keys: ['n'] },
 })
 
@@ -309,6 +354,7 @@ export const PreviousMatch = Catalog.action('PreviousMatch', {
   what: 'Shows the place before, where the words were found',
   why: 'The user is looking for one place among the matches',
   enabled: whenMatches,
+  mutates: mutatedByShowingMatch,
   meta: { label: 'Previous match', keys: ['N'] },
 })
 
@@ -340,6 +386,7 @@ export const ShowMatch = Catalog.action('ShowMatch', {
   },
   what: 'Shows one place the words were found',
   why: 'To read around that match',
+  mutates: mutatedByShowingMatch,
   meta: { label: 'Show', keys: [], title: 'Show a match' },
 })
 
@@ -369,6 +416,7 @@ export const PlayFrom = Catalog.action('PlayFrom', {
   },
   what: 'Plays from a place in the recording',
   why: 'To hear that part',
+  mutates: [...mutatedByMoving, at.maybeSearch.maybeSelectedMs],
   meta: { label: 'Play from here', keys: [], title: 'Play from a place' },
 })
 
@@ -383,6 +431,7 @@ export const LeavePlayhead = Catalog.action('LeavePlayhead', {
     isFollowingPlayhead(model)
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'the words are away from the playhead' }),
+  mutates: [at.maybeAway],
   meta: {
     label: 'Read elsewhere',
     keys: [],
@@ -398,6 +447,7 @@ export const BackToPlayhead = Catalog.action('BackToPlayhead', {
     isFollowingPlayhead(model)
       ? Catalog.Disabled({ because: 'the words follow the playhead' })
       : Catalog.Enabled(),
+  mutates: [at.maybeAway, at.maybeWordMenu],
   meta: { label: 'Back to playhead', keys: [] },
 })
 
@@ -422,6 +472,7 @@ export const ShowWordMenu = Catalog.action('ShowWordMenu', {
   },
   what: 'Opens the menu for the chosen word',
   why: 'To do something with that word',
+  mutates: [at.maybeWordMenu],
   meta: { label: 'Word menu', keys: [], title: 'Open a word’s menu' },
 })
 
@@ -433,6 +484,7 @@ export const CloseWordMenu = Catalog.action('CloseWordMenu', {
     Option.isSome(model.maybeWordMenu)
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'no word’s menu is open' }),
+  mutates: [at.maybeWordMenu],
   meta: { label: 'Close', keys: [], title: 'Close the word’s menu' },
 })
 
@@ -463,57 +515,6 @@ export const catalog = Catalog.make([
   ShowWordMenu,
   CloseWordMenu,
 ])
-
-/**
- * The audio reached a place, at a moment by the wall clock: `placeMs` into
- * the recording at `wallClockMs` since 1970, so a holder knows what played
- * when, such as 12:03 into a book at 15:20:03.
- */
-export const ReachedPlace = m('ReachedPlace', {
-  placeMs: Milliseconds,
-  wallClockMs: S.Number,
-})
-/** The audio reached the end of the recording. */
-export const ReachedEnd = m('ReachedEnd')
-/** The audio would not play, and why, safe to show. */
-export const FailedPlayAudio = m('FailedPlayAudio', { reason: S.String })
-/** The words near the place arrived. */
-export const ReceivedPassages = m('ReceivedPassages', {
-  passages: S.Array(Passage),
-})
-/** The words near the place could not be read, and why, safe to show. */
-export const FailedLoadTranscript = m('FailedLoadTranscript', {
-  reason: S.String,
-})
-/**
- * A search of the recording for `query` finished: how many places it
- * found, and the first of them, each with its time and a few words
- * around it.
- */
-export const ReceivedMatches = m('ReceivedMatches', {
-  query: SearchQuery,
-  total: S.Int,
-  matches: S.Array(Match),
-  partsRead: S.Int,
-  partsTotal: S.Int,
-})
-/**
- * More of the recording's words are in for searching: `partsRead` of the
- * `partsTotal` parts they are read in.
- */
-export const ReadSearchWords = m('ReadSearchWords', {
-  partsRead: S.Int,
-  partsTotal: S.Int,
-})
-/** The recording's words could not be read for searching, and why, safe to show. */
-export const FailedReadSearchWords = m('FailedReadSearchWords', {
-  reason: S.String,
-})
-/** The recording could not be searched for `query`, and why, safe to show. */
-export const FailedSearch = m('FailedSearch', {
-  query: SearchQuery,
-  reason: S.String,
-})
 
 /** Every Message the Transcript Player accepts. */
 export const Message = S.Union([

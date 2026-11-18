@@ -6,6 +6,7 @@ export {
   declarationOf,
   declarationsOf,
   undeclaredTouches,
+  unseenTouches,
   commandOf,
   entries,
   entryOf,
@@ -22,6 +23,7 @@ export {
   parseChoiceTag,
   titleOf,
   within,
+  withTouches,
 } from './index.js'
 
 export type {
@@ -48,6 +50,8 @@ export type {
   LiftedActions,
   LiftedRow,
   TagOf,
+  Touched,
+  TouchingUpdate,
   WithinAction,
   WithinActions,
   WithinConfig,

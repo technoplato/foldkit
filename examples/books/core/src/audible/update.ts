@@ -10,14 +10,14 @@ import {
 import { Command } from 'foldkit'
 import { ts } from 'foldkit/schema'
 
+import { PastedAddress } from './address.js'
 import {
   ConnectedAudible,
   FailedConnectAudible,
   FailedQueueAudiobookAudio,
-  type Message,
-  PastedAddress,
   QueuedAudiobookAudio,
-} from './message.js'
+} from './fact.js'
+import type { Message } from './message.js'
 import {
   type AudibleModel,
   type Audio,

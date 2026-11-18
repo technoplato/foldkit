@@ -52,6 +52,42 @@ export const isEnabled = (availability: Availability): boolean =>
 
 const alwaysEnabled = (): Availability => Enabled()
 
+// ALSO
+
+/**
+ * The same Action, saying it also touches what a Program that holds it
+ * adds: `mutates` and `triggers` beside any it already said. Its tag,
+ * fields, words, keys, rule, and choices are unchanged, so it is the
+ * same Message. A parent uses it for one Action it takes from another
+ * core; for a whole child Catalog, `Catalog.within` takes `also`.
+ *
+ * @example
+ * ```typescript
+ * const SharePage = Catalog.withTouches(ReadAloud.SharePage, {
+ *   mutates: [at.maybeNotice],
+ *   triggers: [ShareLink],
+ * })
+ * ```
+ */
+export const withTouches = <Declared extends AnyAction>(
+  declaration: Declared,
+  also: Touched,
+): Declared =>
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+  callableWith(schemaOf(declaration), {
+    tag: declaration.tag,
+    what: declaration.what,
+    why: declaration.why,
+    enabled: declaration.enabled,
+    meta: declaration.meta,
+    isPayloadFree: declaration.isPayloadFree,
+    maybeChoose: declaration.maybeChoose,
+    aliases: declaration.aliases,
+    parameters: declaration.parameters,
+    examples: declaration.examples,
+    maybeTouches: touchesWith(declaration.maybeTouches, also),
+  }) as unknown as Declared
+
 // DECLARATION
 
 /**
@@ -198,6 +234,20 @@ export type ActionConfig<Model> = Readonly<{
   meta: ActionMeta
   aliases?: ReadonlyArray<string>
   examples?: ReadonlyArray<Example>
+}> &
+  Touched
+
+/**
+ * What an Action touches, as it is written: the state it `mutates`, as
+ * typed paths of the Model, and the Commands it `triggers`, as their
+ * definitions.
+ *
+ * @example
+ * ```typescript
+ * const touched: Catalog.Touched = { mutates: [at.count], triggers: [SaveCount] }
+ * ```
+ */
+export type Touched = Readonly<{
   mutates?: ReadonlyArray<ModelPath<unknown>>
   triggers?: ReadonlyArray<Readonly<{ name: string }>>
 }>
@@ -215,9 +265,7 @@ const touchesUnder = (
         triggers: touches.triggers,
       }))
 
-const touchesOf = (
-  config: Pick<ActionConfig<unknown>, 'mutates' | 'triggers'>,
-): Option.Option<Touches> =>
+const touchesOf = (config: Touched): Option.Option<Touches> =>
   config.mutates === undefined && config.triggers === undefined
     ? Option.none()
     : Option.some({
@@ -226,6 +274,24 @@ const touchesOf = (
         ),
         triggers: Array.map(config.triggers ?? [], triggered => triggered.name),
       })
+
+const touchesWith = (
+  maybeTouches: Option.Option<Touches>,
+  also: Touched | undefined,
+): Option.Option<Touches> =>
+  Option.match(touchesOf(also ?? {}), {
+    onNone: () => maybeTouches,
+    onSome: added =>
+      Option.some(
+        Option.match(maybeTouches, {
+          onNone: () => added,
+          onSome: touches => ({
+            mutates: Array.dedupe([...touches.mutates, ...added.mutates]),
+            triggers: Array.dedupe([...touches.triggers, ...added.triggers]),
+          }),
+        }),
+      ),
+  })
 
 const parametersOf = (
   fields: S.Struct.Fields,
@@ -998,11 +1064,23 @@ export const lift = <
  * and when the parent offers the child's Actions at all. `under` is the
  * typed path where the parent keeps the child, so what a child's Action
  * mutates reads under the parent's key: `count` becomes
- * `maybeCounter.count`.
+ * `maybeCounter.count`. `also` is what the parent itself does on a
+ * child's Action, keyed by the Action's tag: the parent's own state it
+ * mutates and the Commands it triggers, beside the child's.
+ *
+ * @example
+ * ```typescript
+ * also: { Pause: { mutates: [at.savedPlaceMs], triggers: [WriteLibrary] } }
+ * ```
  */
-export type WithinConfig<Model, ChildModel> = Readonly<{
+export type WithinConfig<
+  Model,
+  ChildModel,
+  Tag extends string = string,
+> = Readonly<{
   childOf: (model: Model) => Option.Option<ChildModel>
   under?: ModelPath<unknown>
+  also?: Readonly<Partial<Record<Tag, Touched>>>
   nothing: string
   enabled?: (model: Model) => Availability
 }>
@@ -1050,7 +1128,11 @@ export const within = <
   Model,
 >(
   child: Catalog<Actions>,
-  config: WithinConfig<Model, ModelOf<Catalog<Actions>>>,
+  config: WithinConfig<
+    Model,
+    ModelOf<Catalog<Actions>>,
+    TagOf<Catalog<Actions>>
+  >,
 ): Readonly<{
   actions: WithinActions<Actions, Model>
   childOf: (
@@ -1065,6 +1147,8 @@ export const within = <
     ) =>
     (model: Model): A =>
       Option.match(config.childOf(model), { onNone, onSome: onChild })
+  const also: Readonly<Record<string, Touched | undefined>> = config.also ?? {}
+  const alsoOf = (tag: string): Touched | undefined => also[tag]
   const offerOne = (declaration: AnyAction): AnyAction =>
     callableWith(schemaOf(declaration), {
       tag: declaration.tag,
@@ -1075,7 +1159,10 @@ export const within = <
       aliases: declaration.aliases,
       parameters: declaration.parameters,
       examples: declaration.examples,
-      maybeTouches: touchesUnder(declaration.maybeTouches, config.under),
+      maybeTouches: touchesWith(
+        touchesUnder(declaration.maybeTouches, config.under),
+        alsoOf(declaration.tag),
+      ),
       enabled: (model: Model) => {
         const availability = parentEnabled(model)
         return isEnabled(availability)
@@ -1171,30 +1258,40 @@ const changedPathsOf = (
   before: unknown,
   after: unknown,
   path: ReadonlyArray<string>,
-): ReadonlyArray<ReadonlyArray<string>> => {
+): ReadonlyArray<string> => {
   if (Equal.equals(before, after)) {
     return []
+  } else if (Option.isOption(before) && Option.isOption(after)) {
+    return Option.isSome(before) && Option.isSome(after)
+      ? changedPathsOf(before.value, after.value, path)
+      : [Array.join(path, '.')]
+  } else if (
+    globalThis.Array.isArray(before) &&
+    globalThis.Array.isArray(after)
+  ) {
+    return before.length === after.length
+      ? Array.flatMap(Array.zip(before, after), ([rowBefore, rowAfter]) =>
+          changedPathsOf(rowBefore, rowAfter, path),
+        )
+      : [Array.join(path, '.')]
   } else if (isPlainObject(before) && isPlainObject(after)) {
     return Array.flatMap(
       Array.dedupe([...Object.keys(before), ...Object.keys(after)]),
       key => changedPathsOf(before[key], after[key], [...path, key]),
     )
   } else {
-    return [path]
+    return [Array.join(path, '.')]
   }
 }
 
-// NOTE: A change is told apart only as deep as plain records go. A list
-// or an Option changes as a whole, so a path declared inside one covers
-// the change of the whole.
-const isUnder = (path: ReadonlyArray<string>, declared: string): boolean => {
-  const joined = Array.join(path, '.')
-  return (
-    joined === declared ||
-    joined.startsWith(`${declared}.`) ||
-    declared.startsWith(`${joined}.`)
-  )
-}
+// NOTE: An Option and a list are looked through, as a ModelPath looks
+// through them: two Somes, or two lists of one length, are compared
+// inside, row against the row at the same position, under the same path.
+// None against Some, or a row added or removed, is a change of the
+// Option or the list itself. Any other value that is not a plain record
+// changes as a whole.
+const isUnder = (changed: string, declared: string): boolean =>
+  changed === declared || changed.startsWith(`${declared}.`)
 
 const messagesFor = <C extends AnyCatalog>(
   catalog: C,
@@ -1215,72 +1312,176 @@ const messagesFor = <C extends AnyCatalog>(
       ),
   })
 
+type Observed = Readonly<{
+  tag: string
+  touches: Touches
+  changed: ReadonlyArray<string>
+  triggered: ReadonlyArray<string>
+}>
+
+/**
+ * An update as the checks read it: the next Model, the Commands, and
+ * whatever else it answers, such as a Submodel's OutMessage.
+ */
+export type TouchingUpdate<Model, Message> = (
+  model: Model,
+  message: Message,
+) => readonly [
+  Model,
+  ReadonlyArray<Readonly<{ name: string }>>,
+  ...ReadonlyArray<unknown>,
+]
+
+const observedTouches = <C extends AnyCatalog, Model>(
+  catalog: C,
+  update: TouchingUpdate<Model, MessageOf<C>>,
+  models: ReadonlyArray<Model>,
+  messages: ReadonlyArray<MessageOf<C>>,
+): ReadonlyArray<Observed> =>
+  Array.flatMap(catalog.actions, declaration =>
+    Option.match(declaration.maybeTouches, {
+      onNone: () => [],
+      onSome: touches => {
+        const given = Array.filter(
+          messages,
+          message =>
+            Predicate.hasProperty(message, '_tag') &&
+            message._tag === declaration.tag,
+        )
+        const outcomes = Array.flatMap(models, model =>
+          Array.map(
+            [
+              /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+              ...messagesFor(catalog, declaration, model as ModelOf<C>),
+              ...given,
+            ],
+            message => {
+              const [next, commands] = update(model, message)
+              return {
+                changed: changedPathsOf(model, next, []),
+                triggered: Array.map(commands, command => command.name),
+              }
+            },
+          ),
+        )
+        return [
+          {
+            tag: declaration.tag,
+            touches,
+            changed: Array.dedupe(
+              Array.flatMap(outcomes, outcome => outcome.changed),
+            ),
+            triggered: Array.dedupe(
+              Array.flatMap(outcomes, outcome => outcome.triggered),
+            ),
+          },
+        ]
+      },
+    }),
+  )
+
 /**
  * What `update` does that an Action did not say, a sentence each; empty
  * when every Action touches only what it declares. For each sample
  * Model it sends every Action that is enabled there, a choosing Action
- * once for each choice, and compares: a path of the Model that changed
- * must be one the Action says it `mutates`, or inside one, and a Command
- * returned must be one it says it `triggers`. `update` is pure, so this
- * sends nothing and runs no side effect. An Action that has not said
- * what it touches is not asked. A Program's test calls this, so what an
- * Action says it touches is checked, not trusted.
+ * once for each choice, and every one of `messages`, the Messages no
+ * menu offers, such as an Action that takes typed words. It compares: a
+ * path of the Model that changed must be one the Action says it
+ * `mutates`, or inside one, and a Command returned must be one it says
+ * it `triggers`. `update` is pure, so this sends nothing and runs no
+ * side effect. An Action that has not said what it touches is not
+ * asked. A Program's test calls this, so what an Action says it touches
+ * is checked, not trusted.
+ *
+ * A path is followed into plain records, through an Option, and through
+ * a list row by row, so `maybeCounter.count` does not cover a change of
+ * `maybeCounter.step`, the emptying of `maybeCounter`, or a row added to
+ * a list. What it cannot see: anything outside the samples it is given;
+ * a change inside a value that is none of those, such as a `HashMap` or
+ * a `Date`, which is reported as that whole value; a row that moved,
+ * which reads as its fields changing; the arguments of a Command and
+ * what its effect does; and what `update` changes later, when that
+ * Command's result arrives as its own Message.
  *
  * @example
  * ```typescript
  * Catalog.undeclaredTouches(catalog, update, [initialModel, playingModel]) // []
  * // after `Increment` also clears the favourite mark:
  * // ['Increment changed isFavorite, which it does not say it mutates.']
+ * Catalog.undeclaredTouches(catalog, update, models, [SearchFor({ query })])
  * ```
  */
 export const undeclaredTouches = <C extends AnyCatalog, Model>(
   catalog: C,
-  update: (
-    model: Model,
-    message: MessageOf<C>,
-  ) => readonly [Model, ReadonlyArray<Readonly<{ name: string }>>],
+  update: TouchingUpdate<Model, MessageOf<C>>,
   models: ReadonlyArray<Model>,
+  messages: ReadonlyArray<MessageOf<C>> = [],
 ): ReadonlyArray<string> =>
-  Array.dedupe(
-    Array.flatMap(models, model =>
-      Array.flatMap(catalog.actions, declaration =>
-        Option.match(declaration.maybeTouches, {
-          onNone: () => [],
-          onSome: touches =>
-            Array.flatMap(
-              /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-              messagesFor(catalog, declaration, model as ModelOf<C>),
-              message => {
-                const [next, commands] = update(model, message)
-                return [
-                  ...pipe(
-                    changedPathsOf(model, next, []),
-                    Array.filter(
-                      path =>
-                        !Array.some(touches.mutates, declared =>
-                          isUnder(path, declared),
-                        ),
-                    ),
-                    Array.map(
-                      path =>
-                        `${declaration.tag} changed ${Array.join(path, '.')}, which it does not say it mutates.`,
-                    ),
-                  ),
-                  ...pipe(
-                    commands,
-                    Array.filter(
-                      command =>
-                        !Array.contains(touches.triggers, command.name),
-                    ),
-                    Array.map(
-                      command =>
-                        `${declaration.tag} triggered ${command.name}, which it does not say it triggers.`,
-                    ),
-                  ),
-                ]
-              },
-            ),
-        }),
+  Array.flatMap(
+    observedTouches(catalog, update, models, messages),
+    ({ tag, touches, changed, triggered }) => [
+      ...pipe(
+        changed,
+        Array.filter(
+          path =>
+            !Array.some(touches.mutates, declared => isUnder(path, declared)),
+        ),
+        Array.map(
+          path => `${tag} changed ${path}, which it does not say it mutates.`,
+        ),
       ),
-    ),
+      ...pipe(
+        triggered,
+        Array.filter(name => !Array.contains(touches.triggers, name)),
+        Array.map(
+          name =>
+            `${tag} triggered ${name}, which it does not say it triggers.`,
+        ),
+      ),
+    ],
+  )
+
+/**
+ * What an Action says it touches that no sample showed, a sentence
+ * each; empty when every path it `mutates` changed, or changed inside,
+ * and every Command it `triggers` was returned, for at least one sample.
+ * It reads the same samples as {@link undeclaredTouches}. With both
+ * empty, what an Action says is neither less nor more than `update`
+ * does for the samples, so add a sample Model or Message until an Action
+ * is shown doing all it says, or take the claim away.
+ *
+ * @example
+ * ```typescript
+ * Catalog.unseenTouches(catalog, update, [initialModel]) // []
+ * // when no sample has a search open:
+ * // ['CloseSearch says it mutates maybeSearch, and no sample showed it.']
+ * ```
+ */
+export const unseenTouches = <C extends AnyCatalog, Model>(
+  catalog: C,
+  update: TouchingUpdate<Model, MessageOf<C>>,
+  models: ReadonlyArray<Model>,
+  messages: ReadonlyArray<MessageOf<C>> = [],
+): ReadonlyArray<string> =>
+  Array.flatMap(
+    observedTouches(catalog, update, models, messages),
+    ({ tag, touches, changed, triggered }) => [
+      ...pipe(
+        touches.mutates,
+        Array.filter(
+          declared => !Array.some(changed, path => isUnder(path, declared)),
+        ),
+        Array.map(
+          declared =>
+            `${tag} says it mutates ${declared}, and no sample showed it.`,
+        ),
+      ),
+      ...pipe(
+        touches.triggers,
+        Array.filter(name => !Array.contains(triggered, name)),
+        Array.map(
+          name => `${tag} says it triggers ${name}, and no sample showed it.`,
+        ),
+      ),
+    ],
   )

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import * as Catalog from '../catalog/catalog.js'
 import {
+  type AppearanceState,
   ObservedSystemMode,
   SetAppearance,
   SystemAppearance,
@@ -14,6 +15,26 @@ import {
   systemModeStream,
   update,
 } from './appearance.js'
+
+describe('what SetAppearance touches', () => {
+  const states = [initialAppearance]
+  const touching = (
+    state: AppearanceState,
+    message: typeof SetAppearance.Type,
+  ): readonly [AppearanceState, ReadonlyArray<never>] => [
+    update(state, message),
+    [],
+  ]
+
+  it('is the choice of look, and nothing else', () => {
+    expect(Catalog.declarationOf(SetAppearance).touches).toEqual({
+      mutates: ['appearance'],
+      triggers: [],
+    })
+    expect(Catalog.undeclaredTouches(catalog, touching, states)).toEqual([])
+    expect(Catalog.unseenTouches(catalog, touching, states)).toEqual([])
+  })
+})
 
 describe('appearance as state', () => {
   it('starts following the system, in light until the system says otherwise', () => {

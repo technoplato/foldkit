@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 import { Catalog, type Command, Navigation } from 'foldkit'
+import { ModelPath } from 'foldkit/declaration'
 
 import * as Audible from './audible/index.js'
 import {
@@ -8,12 +9,14 @@ import {
   isAddBooksSheet,
   isProfilePage,
 } from './destination.js'
-import type { Model } from './model.js'
+import { Model } from './model.js'
 import { isAsking } from './stack.js'
 
 // AUDIBLE
 
 const answerFirst = 'answer the question first'
+
+const at = ModelPath.of(Model)
 
 const unlessAsking = (model: Model): Catalog.Availability =>
   isAsking(model)
@@ -77,6 +80,7 @@ export const ShowAddBooks = Catalog.action('ShowAddBooks', {
       return Catalog.Disabled({ because: 'the library is not open' })
     }
   },
+  mutates: [at.navigation.maybeModal],
   meta: { label: 'Add more of your books', keys: [], title: 'Add books' },
 })
 
@@ -93,6 +97,7 @@ export const ImportFromAudible = Catalog.action('ImportFromAudible', {
     isOnHome(model)
       ? unlessAsking(model)
       : Catalog.Disabled({ because: 'open the library or the profile first' }),
+  mutates: [at.audible.titles, at.navigation.pages, at.navigation.maybeModal],
   meta: {
     label: 'Import from Audible',
     keys: [],
@@ -118,6 +123,7 @@ export const ReconnectAudible = Catalog.action('ReconnectAudible', {
     )
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'the Audible login works' }),
+  mutates: [at.audible.signIn, at.navigation.pages],
   meta: { label: 'Connect again', keys: [], title: 'Connect Audible again' },
 })
 

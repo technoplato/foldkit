@@ -1,6 +1,7 @@
 import { Context, Effect, Match as M, Schema as S, Stream } from 'effect'
 
 import * as Catalog from '../catalog/catalog.js'
+import * as ModelPath from '../declaration/modelPath.js'
 import { m } from '../message/index.js'
 import { Appearance, Contrast, Mode, modeOf } from './theme.js'
 
@@ -67,6 +68,7 @@ export const SetAppearance = Catalog.action('SetAppearance', {
   },
   what: 'Sets the look to light, to dark, or to follow the system',
   why: 'To have the screen lighter or darker',
+  mutates: [ModelPath.of(AppearanceState).appearance],
   meta: { label: 'Appearance', keys: [], title: 'Appearance' },
 })
 
