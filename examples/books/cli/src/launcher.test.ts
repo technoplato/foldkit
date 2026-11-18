@@ -229,13 +229,15 @@ describe(
       expect(frames.length).toBeGreaterThan(2)
       const last = (frames.at(-1) ?? '').split('\n').filter(line => line !== '')
       expect(last.every(line => line.length <= 60)).toBe(true)
-      expect(last.length).toBeLessThanOrEqual(18)
-      expect(last[0]).toMatch(/^The Lantern Keeper · The Tide/)
-      expect(last.some(line => /^›\d+:\d\d {3}.*\[\S+\]/.test(line))).toBe(true)
-      expect(last.at(-1)).toMatch(/^ {2}books actions +Lists everything/)
-      expect(last.join('\n')).toMatch(/^ {2}books bookmark +Marks the word/m)
-      expect(last.join('\n')).toMatch(/^ {2}books link +Shows the whole link/m)
-      expect(last.join('\n')).toMatch(/^ {2}books pause +Pauses and keeps/m)
+      expect(last.length).toBeLessThanOrEqual(19)
+      expect(last[0]).toBe('  The Lantern Keeper')
+      expect(last[1]).toMatch(/^ {2}The Tide · \d+:\d\d of 1:20:00 · playing$/)
+      expect(last.some(line => /^ {2}▎ \d+:\d\d {2}\S/.test(line))).toBe(true)
+      expect(last.join('\n')).not.toMatch(/^[#>+-] /m)
+      expect(last.join('\n')).toMatch(
+        /^ {2}books pause {3}books skip-back {3}books bookmark$/m,
+      )
+      expect(last.at(-1)).toBe('  books link   ·   books actions for more')
     })
 
     it('prints help read from the declarations, and starts no player to do it', () => {

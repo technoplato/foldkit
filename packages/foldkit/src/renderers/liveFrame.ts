@@ -173,9 +173,10 @@ const wrapped = (
   tokens: ReadonlyArray<Token>,
   width: number,
 ): ReadonlyArray<Line> => {
+  const nothing: Wrapped = { lines: [], open: blank }
   const state = Array.reduce(
     tokens,
-    { lines: [], open: blank } as Wrapped,
+    nothing,
     (current, token): Wrapped =>
       current.open.text !== '' &&
       current.open.text.length + 1 + token.text.length > width
@@ -533,11 +534,13 @@ const mostFooterLines = 2
 
 type FooterItem = Readonly<{ text: string; isMore: boolean }>
 
+const noLines: ReadonlyArray<Line> = []
+
 const footerRows = (
   items: ReadonlyArray<FooterItem>,
   width: number,
 ): ReadonlyArray<Line> =>
-  Array.reduce(items, [] as ReadonlyArray<Line>, (lines, item) => {
+  Array.reduce(items, noLines, (lines, item) => {
     const open = Array.last(lines)
     const joined = (line: Line): Line => {
       const lead = item.isMore

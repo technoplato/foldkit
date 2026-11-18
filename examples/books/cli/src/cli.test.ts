@@ -589,11 +589,12 @@ describe('books words', () => {
     })
     const [, current = '', trailing = ''] = painted.stdout.split('\n')
     expect(current).toContain(`${escape}1mHe${escape}22m`)
-    expect(current).toMatch(/\u001b\[38;2;\d+;\d+;\d+mtrimmed\u001b\[39m/)
-    expect(current).toContain(`${escape}2mthe wick and waited.${escape}22m`)
-    expect(trailing).toContain(
-      `${escape}2mFar out a bell answered the lamp.${escape}22m`,
+    expect(current).toMatch(
+      /\u001b\[4m\u001b\[38;2;\d+;\d+;\d+mtrimmed\u001b\[39m\u001b\[24m/,
     )
+    expect(current).toContain(' the wick and waited.')
+    expect(trailing).toContain('Far out a bell answered the lamp.')
+    expect(painted.stdout).not.toContain(`${escape}2m`)
     const json = await run(player, 'words', { json: '1', color: '1' })
     expect(json.stdout).not.toContain(escape)
   })
@@ -731,37 +732,74 @@ describe('books words', () => {
     ])
   })
 
-  it('sends a terminal the words fitted to its size, the mark moving by the word, with what can be run now under them', async () => {
+  it('sends a terminal the words laid out to be read, the mark moving by the word, with what can be run now under them', async () => {
     const { player } = await pausedOn('5500')
     const terminal = { 'in-place': '1', columns: '60', rows: '20' }
     const markOf = (frame: string): Option.Option<string> =>
       Option.fromNullishOr(
         /\[(\S+)\]/.exec(
-          frame.split('\n').find(line => line.startsWith('›')) ?? '',
+          frame.split('\n').find(line => line.startsWith('  ▎')) ?? '',
         )?.[1],
       )
     const [paused = ''] = await heard(player, terminal, 1)
     const lines = paused.split('\n')
     expect(lines.every(line => line.length <= 60)).toBe(true)
-    expect(lines.length).toBeLessThanOrEqual(18)
-    expect(lines[0]).toBe('The Lantern Keeper · The Tide')
-    expect(lines[1]).toBe('0:05 of 1:20:00 · paused')
-    expect(paused).toMatch(/^ {2}books play +Plays from where it is paused$/m)
-    expect(paused).not.toMatch(/books pause/)
+    expect(lines.length).toBeLessThanOrEqual(19)
+    expect(lines.slice(0, 3)).toEqual([
+      '  The Lantern Keeper',
+      '  The Tide · 0:05 of 1:20:00 · paused',
+      '',
+    ])
+    expect(lines).toContain('  ▎ 0:05  [He] trimmed the wick and waited.')
+    expect(lines).toContain('    0:00  The keeper climbed the stairs at dusk.')
+    expect(lines.slice(-3)).toEqual([
+      '',
+      '  books play   books skip-back   books bookmark   books link',
+      '  books actions for more',
+    ])
     const marks = heard(player, terminal, 3, markOf)
     await settle()
     await run(player, 'play')
     expect(await marks).toEqual(['He', 'trimmed', 'the'])
     const [playing = ''] = await heard(player, terminal, 1)
     expect(playing.split('\n')[1]).toMatch(/· playing$/)
-    expect(playing.split('\n').slice(-5)).toEqual([
-      '  books pause      Pauses and keeps the place',
-      '  books skip-back  Goes back 30 seconds',
-      '  books bookmark   Marks the word being spoken, with a note…',
-      '  books link       Shows the whole link to the word being r…',
-      '  books actions    Lists everything the library can be aske…',
+    expect(playing.split('\n').slice(-3)).toEqual([
+      '',
+      '  books pause   books skip-back   books bookmark',
+      '  books link   ·   books actions for more',
     ])
     await run(player, 'pause')
+  })
+
+  it('inks the frame for the ground the view says its terminal has, the word being read underlined and unbracketed, and never dims', async () => {
+    const { player } = await pausedOn('5500')
+    const terminal = {
+      'in-place': '1',
+      columns: '60',
+      rows: '20',
+      color: '1',
+    }
+    const [dark = ''] = await heard(
+      player,
+      { ...terminal, 'terminal-ground': '15;0' },
+      1,
+    )
+    expect(dark).toContain(
+      '\u001b[38;2;251;146;60m▎\u001b[39m \u001b[38;2;154;161;170m0:05\u001b[39m  \u001b[4m\u001b[38;2;157;184;255mHe\u001b[39m\u001b[24m trimmed the wick and waited.',
+    )
+    expect(dark.split('\n')[0]).toBe('  \u001b[1mThe Lantern Keeper\u001b[22m')
+    const [light = ''] = await heard(
+      player,
+      { ...terminal, 'terminal-ground': '0;15' },
+      1,
+    )
+    expect(light).toContain('\u001b[38;2;107;114;128m0:05\u001b[39m')
+    const [unknown = ''] = await heard(player, terminal, 1)
+    expect(unknown).toContain('▎\u001b[39m 0:05  \u001b[4m')
+    for (const frame of [dark, light, unknown]) {
+      expect(frame).not.toContain('\u001b[2m')
+      expect(frame).not.toContain('[He]')
+    }
   })
 
   it('follows the words when no topic is named', async () => {

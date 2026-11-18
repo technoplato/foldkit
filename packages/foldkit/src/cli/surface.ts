@@ -105,7 +105,8 @@ export type ProgramTerminalView = Readonly<{
  * first frame, `refresh` when it asks again, and `key` after a key. With
  * `inkOf`, a frame for a view that says its output takes color
  * (`color: '1'`) is inked from the theme by the roles its parts play, in
- * the mode the Program reads from its Model; any other frame is plain.
+ * for the ground the view says its terminal has, which the ink reads
+ * from the view's flags; any other frame is plain.
  *
  * @example
  * ```typescript
@@ -120,7 +121,7 @@ export const makeProgramTerminalView = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   reporting: TerminalPaintReporting = {},
-  inkOf?: () => TerminalInk,
+  inkOf?: (flags: CliDaemonFlags) => TerminalInk,
 ): ProgramTerminalView => {
   // NOTE: Whether its output takes color is the view's to know, and it
   // says so with the `color` flag; the mode is the Program's, read from
@@ -133,7 +134,7 @@ export const makeProgramTerminalView = <Model, Message>(
       ? painted.lines
       : Array.map(painted.lines, (line, row) =>
           inkedLine(
-            inkOf(),
+            inkOf(flags),
             line,
             Option.getOrElse(Array.get(painted.inks, row), () => []),
           ),
@@ -239,7 +240,10 @@ export type CliFollowings = Readonly<Record<string, CliFollowing>>
 export const programFollowings = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name = '',
-  options: Readonly<{ list?: HostCommand; inkOf?: () => TerminalInk }> = {},
+  options: Readonly<{
+    list?: HostCommand
+    inkOf?: (flags: CliDaemonFlags) => TerminalInk
+  }> = {},
 ): CliFollowings => ({
   screen: followLive(
     bound,
@@ -284,7 +288,7 @@ export type FollowLiveOptions = Readonly<{
   name: string
   list?: HostCommand
   hostOffers?: () => ReadonlyArray<HostCommand>
-  inkOf?: () => TerminalInk
+  inkOf?: (flags: CliDaemonFlags) => TerminalInk
   piped: CliFollowing
 }>
 
@@ -359,7 +363,7 @@ export const followLive =
           ? frame.lines
           : Array.map(frame.lines, (line, row) =>
               inkedLine(
-                inkOf(),
+                inkOf(flags),
                 line,
                 Option.getOrElse(Array.get(frame.inks, row), () => []),
               ),
@@ -446,7 +450,7 @@ export const programCliSurface = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   reporting: TerminalPaintReporting = {},
-  inkOf?: () => TerminalInk,
+  inkOf?: (flags: CliDaemonFlags) => TerminalInk,
 ): CliDaemonSurface<Model, Message> => {
   const terminal = makeProgramTerminalView(bound, name, reporting, inkOf)
   return {

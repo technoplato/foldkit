@@ -248,7 +248,7 @@ const wordsTextOf = (
       if (flags['json'] === '1') {
         return S.encodeSync(SpokenWordsJson)(words)
       } else if (flags['color'] === '1') {
-        return Array.join(inkedWordsLines(words, inkOf(bound)), '\n')
+        return Array.join(inkedWordsLines(words, inkOf(flags)), '\n')
       } else {
         return Array.join(spokenWordsLines(words), '\n')
       }
@@ -314,16 +314,14 @@ const bookmarkCommandOf = (
     onNonEmpty: note => ['add-noted-bookmark', ...note],
   })
 
-// NOTE: The view says whether its output is a terminal (the `color` flag);
-// the player only knows the mode, from the Model, and paints from roles.
-const inkOf = (bound: BoundBooks): Theme.TerminalInk =>
+// NOTE: The view says whether its output is a terminal (the `color` flag)
+// and, when its terminal says, the ground it has (`terminal-ground`, what
+// the terminal put in COLORFGBG); the ink reads on that ground, never on
+// the mode the Model holds, which is the site's.
+const inkOf = (flags: CliDaemonFlags): Theme.TerminalInk =>
   Theme.terminalInkOf({
     isTerminal: true,
-    env: {},
-    mode: Option.match(readyOf(bound.readModel()), {
-      onNone: () => 'Dark',
-      onSome: model => Theme.modeOfState(model.appearance),
-    }),
+    env: { COLORFGBG: flags['terminal-ground'] },
   })
 
 const inkedParagraphOf = (
@@ -412,11 +410,7 @@ type Heard = Readonly<{
 
 const nothingHeard: Heard = { maybePrevious: Option.none(), opening: '' }
 
-const heardTextOf = (
-  bound: BoundBooks,
-  flags: CliDaemonFlags,
-  heard: WordsHeard,
-): string => {
+const heardTextOf = (flags: CliDaemonFlags, heard: WordsHeard): string => {
   if (flags['json'] === '1') {
     return S.encodeSync(WordsHeardJson)(heard)
   } else if (
@@ -425,7 +419,7 @@ const heardTextOf = (
       heard._tag === 'WordsWaiting' ||
       heard._tag === 'NothingInPlayer')
   ) {
-    return Array.join(inkedWordsLines(heard, inkOf(bound)), '\n')
+    return Array.join(inkedWordsLines(heard, inkOf(flags)), '\n')
   } else {
     return Array.join(wordsHeardLines(heard), '\n')
   }
@@ -459,7 +453,7 @@ const wordEvents =
                 wordsHeardBetween(heard.maybePrevious, words, {
                   paragraphsOnly: flags['paragraphs'] === '1',
                 }),
-                event => heardTextOf(bound, flags, event),
+                event => heardTextOf(flags, event),
               ),
             ],
           }),
@@ -492,7 +486,7 @@ const followWords = (bound: BoundBooks): CliFollowing =>
           ? Array.map([Bookmark, Link], hostCommandOf)
           : [],
       list: hostCommandOf(Actions),
-      inkOf: () => inkOf(bound),
+      inkOf: inkOf,
       piped: wordEvents(bound),
     },
   )
@@ -779,7 +773,7 @@ export const makeBooksPlayer = (
     bound,
     booksCommandName,
     reporting,
-    () => inkOf(bound),
+    inkOf,
   )
   const stopped = Effect.runSync(Deferred.make<void>())
   const brief = (): CliDaemonPaintedResult => ({
@@ -960,7 +954,7 @@ export const makeBooksPlayer = (
   const followings = {
     ...programFollowings(bound, booksCommandName, {
       list: hostCommandOf(Actions),
-      inkOf: () => inkOf(bound),
+      inkOf: inkOf,
     }),
     words: followWords(bound),
   }

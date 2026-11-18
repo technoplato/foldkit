@@ -277,6 +277,12 @@ export const everywhere = Declaration.parametersOfFields({
       description: 'Paints for a terminal that shows color',
     }),
   ),
+  terminalGround: S.optionalKey(
+    S.String.annotate({
+      description:
+        'The ground the terminal says it has, as its COLORFGBG says it, so colors read on it',
+    }),
+  ),
 })
 
 /** Everything this terminal declares itself, as plain data. */

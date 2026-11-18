@@ -68,8 +68,20 @@ const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
 // terminal, and color was not refused. The player paints from the theme.
 const paints = paintsColor(process.stdout.isTTY === true, process.env)
 
+// NOTE: The ground a terminal has is a fact only this view can read; the
+// player takes it as said, and assumes nothing when the terminal is silent.
+const groundSaid = process.env['COLORFGBG'] ?? ''
+
 const paintedArgv =
-  paints && !argv.includes('--json') ? [...argv, '--color=1'] : argv
+  paints && !argv.includes('--json')
+    ? [
+        ...argv,
+        '--color=1',
+        ...(groundSaid === ''
+          ? []
+          : [`${flagOf('terminalGround')}=${groundSaid}`]),
+      ]
+    : argv
 
 const request = parseProgramArgv(paintedArgv, {
   switches: toggleFlagsOf(declared.hostTree, declared.everywhere),
