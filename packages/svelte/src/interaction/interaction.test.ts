@@ -193,3 +193,45 @@ describe('row checks and fields that press', () => {
     expect(body).toContain('aria-label="Mark Oat milk done"')
   })
 })
+
+describe('a list with a field that narrows it', () => {
+  it('paints the field over the rows, named for a screen reader, and every row before anything is typed', () => {
+    const { body } = render(PaintTree, {
+      props: {
+        node: List({
+          label: 'Chapters',
+          filter: {
+            placeholder: 'Find a chapter',
+            label: 'Find a chapter in The Lantern Keeper',
+            emptyText: 'No chapter has that in its name.',
+          },
+          items: [
+            { key: '1', title: 'The Tide', columns: ['0:00', '20:00'] },
+            { key: '2', title: 'The Light', columns: ['20:00', '7:33'] },
+          ],
+        }),
+        onPress: () => {},
+      },
+    })
+    expect(body).toContain('class="fk-list-frame"')
+    expect(body).toContain('type="search"')
+    expect(body).toContain('class="fk-list-filter"')
+    expect(body).toContain('aria-label="Find a chapter in The Lantern Keeper"')
+    expect(body).toContain('placeholder="Find a chapter"')
+    expect(body).toContain('The Tide')
+    expect(body).toContain('The Light')
+    expect(body).toContain('20:00 · 7:33')
+    expect(body).not.toContain('No chapter has that in its name.')
+  })
+
+  it('paints a list without a filter as a bare list', () => {
+    const { body } = render(PaintTree, {
+      props: {
+        node: List({ label: 'Rows', items: [{ key: 'a', title: 'A' }] }),
+        onPress: () => {},
+      },
+    })
+    expect(body).not.toContain('fk-list-frame')
+    expect(body).not.toContain('fk-list-filter')
+  })
+})
