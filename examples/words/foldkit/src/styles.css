@@ -440,6 +440,24 @@ body {
   margin-block: 6px;
 }
 
+/* A word's menu opens where the word was pressed, kept inside the window. */
+.word-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.word-menu {
+  position: fixed;
+  z-index: 61;
+  left: max(8px, min(var(--word-menu-x), calc(100vw - 15.5rem)));
+  top: max(8px, min(var(--word-menu-y), calc(100dvh - 7.5rem)));
+  padding: 6px;
+  min-width: 14rem;
+  border-radius: 18px;
+  color: var(--label);
+}
+
 @supports not (position-area: bottom) {
   .menu-popover {
     inset: 0;

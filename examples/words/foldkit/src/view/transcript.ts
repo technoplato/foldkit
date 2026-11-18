@@ -3,8 +3,10 @@ import { type Html, createKeyedLazy, createLazy, html } from 'foldkit/html'
 import {
   ClickedCopySectionLink,
   ClickedCopySectionText,
+  ClickedCopyWordLink,
   ClickedWord,
   type ClipboardEntry,
+  ClosedWordMenu,
   type FileUrls,
   type ImageEntry,
   type Message,
@@ -23,12 +25,14 @@ import {
   speakerLabelOf,
   speakerRunStartIDsOf,
   timelineOf,
+  wordMenuOf,
 } from 'words-core-example'
 
 import {
   ObservePlayheadVisibility,
   RunSpokenWord,
   TrackWordClicks,
+  TrackWordMenus,
 } from '../mount.js'
 import { clockAttributes } from './clock.js'
 import { type IconName, icon } from './icon.js'
@@ -392,6 +396,82 @@ const waitingForWords = (isTranscribing: boolean): Html => {
   )
 }
 
+const wordMenuItem = (
+  iconName: IconName,
+  label: string,
+  message: Message,
+  isDisabled = false,
+): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.Role('menuitem'),
+      h.OnClick(message),
+      h.Disabled(isDisabled),
+      h.Class(
+        'flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-subhead text-label enabled:hover:bg-fill disabled:opacity-40',
+      ),
+    ],
+    [icon(iconName, 'size-[18px] text-secondary'), label],
+  )
+}
+
+/**
+ * A word's menu, opened by a right click on the word: Play from Here and
+ * Copy Link to This Word, drawn where the word was pressed. Whether it is
+ * open, and on which word, is the Model's; a click outside it or Escape
+ * closes it. The element is always there, since it carries the listener
+ * that opens the menu.
+ */
+const wordMenu = (ready: ReadyPlayback): Html => {
+  const h = html<Message>()
+  return h.div(
+    [h.OnMount(TrackWordMenus()), h.DataAttribute('word-menu-host', '')],
+    Option.match(wordMenuOf(ready), {
+      onNone: () => [],
+      onSome: ({ word, x, y }) => [
+        h.div(
+          [
+            h.AriaHidden(true),
+            h.OnClick(ClosedWordMenu()),
+            h.OnContextMenu(ClosedWordMenu()),
+            h.Class('word-menu-backdrop'),
+          ],
+          [],
+        ),
+        h.div(
+          [
+            h.Role('menu'),
+            h.AriaLabel(`“${word.text}” at ${formatClock(word.startSeconds)}`),
+            h.Style({
+              '--word-menu-x': `${x}px`,
+              '--word-menu-y': `${y}px`,
+            }),
+            h.OnKeyDownPreventDefault(key =>
+              key === 'Escape' ? Option.some(ClosedWordMenu()) : Option.none(),
+            ),
+            h.Class('word-menu glass'),
+          ],
+          [
+            wordMenuItem(
+              'Play',
+              'Play from Here',
+              ClickedWord({ seconds: word.startSeconds }),
+              !isAudioPlayableOf(ready),
+            ),
+            wordMenuItem(
+              'Link',
+              'Copy Link to This Word',
+              ClickedCopyWordLink({ wordID: word.id }),
+            ),
+          ],
+        ),
+      ],
+    }),
+  )
+}
+
 /**
  * The timeline. The section playing (or, while recording, the newest one)
  * stays on screen until the listener scrolls away; a linked section is shown
@@ -430,6 +510,7 @@ export const transcript = (
             isAudioPlayableOf(ready),
           ]),
       }),
+      wordMenu(ready),
     ],
   )
 }

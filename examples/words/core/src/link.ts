@@ -366,9 +366,15 @@ export const formatStartSeconds = (seconds: number): string =>
  * The time a link to one word uses: the word's start, rounded up to the
  * millisecond, so the link lands on the word and never a hair before it.
  */
-export const wordLinkSeconds = (startSeconds: number): number =>
-  Math.ceil(startSeconds * MILLISECONDS_PER_SECOND - 1e-6) /
-  MILLISECONDS_PER_SECOND
+export const wordLinkSeconds = (startSeconds: number): number => {
+  const roundedUp =
+    Math.ceil(startSeconds * MILLISECONDS_PER_SECOND) / MILLISECONDS_PER_SECOND
+  // NOTE: a start a hair above a whole millisecond, as a sum of fractions
+  // gives, can still round to just under itself; then one more millisecond.
+  return roundedUp >= startSeconds
+    ? roundedUp
+    : roundedUp + 1 / MILLISECONDS_PER_SECOND
+}
 
 /**
  * The link to one word of a section: the section's own link at the time

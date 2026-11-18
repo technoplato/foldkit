@@ -19,6 +19,7 @@ import {
   CompletedShowRowMenuOnContextMenu,
   GotShareMessage,
   ListEdge,
+  OpenedWordMenu,
   type PlaybackClock,
   ReachedListTop,
   RecordingWindow,
@@ -172,6 +173,64 @@ export const TrackWordClicks = Mount.defineStream(
       }),
       handleClick =>
         Effect.sync(() => element.removeEventListener('click', handleClick)),
+    ).pipe(Effect.flatMap(() => Effect.never)),
+  ),
+)
+
+/**
+ * Opens a word's menu when the word is right-clicked. It is mounted on a
+ * child of the transcript and listens on the transcript, so one listener
+ * serves every word. A right click while words are selected is left to
+ * the browser, so its own menu still copies and looks up the selection.
+ * A long press is left to the browser too: on a phone it selects text.
+ */
+export const TrackWordMenus = Mount.defineStream(
+  'TrackWordMenus',
+  OpenedWordMenu,
+)(element =>
+  Stream.callback<typeof OpenedWordMenu.Type>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const transcript = element.parentElement ?? element
+        const handleContextMenu = (event: Event) => {
+          const isSelecting = Option.exists(
+            Option.fromNullishOr(window.getSelection()),
+            selection => !selection.isCollapsed,
+          )
+          const maybeSeconds = pipe(
+            Option.fromNullishOr(event.target),
+            Option.filter(
+              (target): target is Element => target instanceof Element,
+            ),
+            Option.flatMap(target =>
+              Option.fromNullishOr(target.closest(WORD_SELECTOR)),
+            ),
+            Option.map(word => Number(word.getAttribute('data-word-seconds'))),
+            Option.filter(seconds => Number.isFinite(seconds)),
+          )
+          if (
+            !isSelecting &&
+            Option.isSome(maybeSeconds) &&
+            event instanceof MouseEvent
+          ) {
+            event.preventDefault()
+            Queue.offerUnsafe(
+              queue,
+              OpenedWordMenu({
+                seconds: maybeSeconds.value,
+                x: event.clientX,
+                y: event.clientY,
+              }),
+            )
+          }
+        }
+        transcript.addEventListener('contextmenu', handleContextMenu)
+        return { transcript, handleContextMenu }
+      }),
+      ({ transcript, handleContextMenu }) =>
+        Effect.sync(() =>
+          transcript.removeEventListener('contextmenu', handleContextMenu),
+        ),
     ).pipe(Effect.flatMap(() => Effect.never)),
   ),
 )

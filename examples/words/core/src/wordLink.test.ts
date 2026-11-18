@@ -7,6 +7,7 @@ import {
   scribeRouteToShareUrl,
   urlToScribeRoute,
   wordLinkRouteOf,
+  wordLinkSeconds,
 } from './link.js'
 import {
   AcquiredAudioPlayer,
@@ -122,6 +123,20 @@ describe('a link to one word', () => {
     ).toEqual(Option.some(Option.some('2.357')))
     expect(wordLinkRouteOf(recordingID, out, 'not-a-word')).toEqual(
       Option.none(),
+    )
+  })
+
+  it('never names a time before the word starts, whatever fraction the start is', () => {
+    Array.forEach(
+      [14.34, 14.340000000000002, 7.2567, 2, 0.1 + 0.2, 13.660000000000002],
+      startSeconds => {
+        expect(wordLinkSeconds(startSeconds)).toBeGreaterThanOrEqual(
+          startSeconds,
+        )
+        expect(wordLinkSeconds(startSeconds) - startSeconds).toBeLessThan(
+          0.0011,
+        )
+      },
     )
   })
 
