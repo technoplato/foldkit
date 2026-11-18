@@ -14,7 +14,12 @@ import { make } from '../program/program.js'
 import { defaultSessionPolicy } from '../synchronization/synchronization.js'
 import * as LocalSnapshot from './localSnapshot.js'
 import { start } from './start.js'
-import { Memory, type MemoryStore, makeMemoryStore } from './syncEngine.js'
+import {
+  Memory,
+  type MemoryStore,
+  SyncTransportError,
+  makeMemoryStore,
+} from './syncEngine.js'
 
 const Increment = m('Increment')
 const Decrement = m('Decrement')
@@ -373,6 +378,117 @@ describe('Runtime.start with a local snapshot', () => {
       ),
     )
     expect(model).toEqual({ _tag: 'Ready', count: 2, isPanelOpen: false })
+  })
+
+  it('says when it has caught up with the log, so a host that answers once waits and never answers from a stale snapshot', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    await Effect.runPromise(
+      pressAndClose(store, snapshots, [Increment(), Increment()]),
+    )
+    await Effect.runPromise(
+      pressAndClose(store, LocalSnapshot.memory(), [
+        Increment(),
+        Increment(),
+        Increment(),
+      ]),
+    )
+    const counts = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: Memory({ processor: 'reader', store }),
+            localSnapshot: snapshots,
+          })
+          const countOf = (): number => {
+            const model = runtime.readModel()
+            return model._tag === 'Ready' ? model.count : Number.NaN
+          }
+          const atStart = countOf()
+          const outcome = yield* runtime.caughtUp
+          return [atStart, countOf(), outcome]
+        }),
+      ),
+    )
+    expect(counts).toEqual([2, 5, 'CaughtUp'])
+  })
+
+  it('has caught up when it starts with no local state, since it read the log to start', async () => {
+    const store = makeMemoryStore()
+    await Effect.runPromise(
+      pressAndClose(store, LocalSnapshot.memory(), [Increment(), Increment()]),
+    )
+    const model = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: Memory({ processor: 'reader', store }),
+          })
+          yield* runtime.caughtUp
+          return runtime.readModel()
+        }),
+      ),
+    )
+    expect(model).toEqual({ _tag: 'Ready', count: 2, isPanelOpen: false })
+  })
+
+  it('has not caught up while the log cannot be reached, and keeps the snapshot on screen', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    await Effect.runPromise(
+      pressAndClose(store, snapshots, [Increment(), Increment()]),
+    )
+    const offline = Memory({ processor: 'reader', store })
+    const waited = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: {
+              ...offline,
+              read: () => Effect.never,
+              readSince: () => Effect.never,
+            },
+            localSnapshot: snapshots,
+          })
+          return yield* Effect.timeoutOption(
+            runtime.caughtUp,
+            Duration.millis(30),
+          )
+        }),
+      ),
+    )
+    expect(Option.isNone(waited)).toBe(true)
+  })
+
+  it('says the log could not be read, and keeps the snapshot, when the sync engine fails', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    await Effect.runPromise(
+      pressAndClose(store, snapshots, [Increment(), Increment()]),
+    )
+    const failing = Memory({ processor: 'reader', store })
+    const failed = Effect.fail(
+      new SyncTransportError({
+        cause: 'made up: the engine is unreachable',
+        operation: 'Read',
+      }),
+    )
+    const outcome = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: { ...failing, read: () => failed, readSince: () => failed },
+            localSnapshot: snapshots,
+          })
+          return yield* runtime.caughtUp
+        }),
+      ),
+    )
+    expect(outcome).toBe('CouldNotRead')
   })
 
   it('refolds the whole log when a row lands behind the snapshot', async () => {
