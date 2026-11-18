@@ -261,6 +261,25 @@ describe(
       )
     })
 
+    it('gives help for a command by any name it answers to, spelled as it is typed', () => {
+      const library = newLibrary()
+      const firstLines = ['play-title', 'play', 'listen', 'seek-to'].map(
+        name => {
+          const help = books(library, ['help', name])
+          return [help.status, help.stdout.split('\n').at(0), help.stderr]
+        },
+      )
+      expect(firstLines).toEqual([
+        [0, 'books play <title>', ''],
+        [0, 'books play <title>', ''],
+        [0, 'books play <title>', ''],
+        [0, 'books seek-to <time>', ''],
+      ])
+      expect(books(library, ['stop']).stdout).toContain(
+        'Nothing is playing in this terminal’s player.',
+      )
+    })
+
     it('refuses a flag a command does not take, with the nearest, before any player starts', () => {
       const library = newLibrary()
       const refused = books(library, ['follow', 'words', '--each-wrd'])

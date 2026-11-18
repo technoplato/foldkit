@@ -266,6 +266,19 @@ describe('Declaration.group', () => {
     expect(Declaration.findByPath([Search, Menu], ['Type'])).toBeUndefined()
   })
 
+  it('finds a declaration by a name however its words are joined', () => {
+    const SeekTo = Declaration.make('SeekTo', {
+      aliases: ['GoTo'],
+      what: 'Moves to a place',
+      why: 'To hear another part',
+    })
+    expect(
+      ['seek-to', 'seek to', 'seek_to', 'SeekTo', 'go-to'].map(
+        said => Declaration.findByPath([SeekTo], [said])?.declaration.name,
+      ),
+    ).toEqual(['SeekTo', 'SeekTo', 'SeekTo', 'SeekTo', 'SeekTo'])
+  })
+
   it('lets a child share a name with one in another group', () => {
     const Session = Declaration.group('Session', {
       what: 'The session',
