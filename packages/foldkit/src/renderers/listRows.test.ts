@@ -2,7 +2,7 @@ import { Array } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { List } from './elements.js'
-import { filterListItems, itemLinesOf } from './listRows.js'
+import { filterListItems, groupedItemsOf, itemLinesOf } from './listRows.js'
 import { renderScreen } from './render.js'
 import type { ListItem } from './types.js'
 
@@ -83,5 +83,79 @@ describe('a List with columns in a terminal', () => {
     expect(screen).toContain('Opening Credits')
     expect(screen).toContain('0:00 · 0:28')
     expect(screen).toContain('0:28 · 5:31')
+  })
+})
+
+const bookmarks: ReadonlyArray<ListItem> = [
+  {
+    key: 'b1',
+    title: '…the old sheets were drawn by men who had never wintered there…',
+    group: 'Prologue',
+    columns: ['12:41'],
+  },
+  {
+    key: 'b2',
+    title: '…carry the paper dry and the instruments will forgive you…',
+    lines: ['packing order'],
+    group: 'The Long Portage',
+    columns: ['1:05:10'],
+  },
+  {
+    key: 'b3',
+    title: '…she counted paces, not hours, because hours lie in snow…',
+    group: 'The Long Portage',
+    columns: ['1:09:52'],
+  },
+]
+
+describe('a filter that also reads the rows’ lines', () => {
+  it('finds a row by a word of a line under its title, such as a note', () => {
+    expect(keysOf(filterListItems(bookmarks, 'packing'))).toEqual([])
+    expect(keysOf(filterListItems(bookmarks, 'packing', true))).toEqual(['b2'])
+  })
+
+  it('finds a row whose title and lines hold the words between them', () => {
+    expect(keysOf(filterListItems(bookmarks, 'paper order', true))).toEqual([
+      'b2',
+    ])
+  })
+})
+
+describe('groupedItemsOf', () => {
+  it('heads each run of rows that share a group once, with how many it holds', () => {
+    expect(
+      Array.map(groupedItemsOf(bookmarks), section => [
+        section.group,
+        keysOf(section.items),
+      ]),
+    ).toEqual([
+      ['Prologue', ['b1']],
+      ['The Long Portage', ['b2', 'b3']],
+    ])
+  })
+
+  it('keeps rows with no group as one run with no heading', () => {
+    expect(
+      Array.map(groupedItemsOf(chapters), section => [
+        section.group,
+        section.items.length,
+      ]),
+    ).toEqual([[undefined, 4]])
+    expect(groupedItemsOf([])).toEqual([])
+  })
+})
+
+describe('itemLinesOf with a group and a badge', () => {
+  it('reads the group and what the badge stands for as lines, before the columns', () => {
+    expect(
+      itemLinesOf({
+        key: 'b2',
+        title: '…carry the paper dry…',
+        lines: ['packing order'],
+        group: 'The Long Portage',
+        badge: { text: '3', label: '3 bookmarks' },
+        columns: ['1:05:10'],
+      }),
+    ).toEqual(['packing order', 'The Long Portage', '3 bookmarks', '1:05:10'])
   })
 })
