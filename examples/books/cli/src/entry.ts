@@ -12,6 +12,8 @@
  *   books seek-to 1h00m00s         go to a place
  *   books open /books/audible      go to a page and print it; `books back` returns
  *   books screen                   the page the player is on
+ *   books devices                  the audio outputs, by number
+ *   books listen <title> --device 4   play on that output, when this command starts the player
  *   pbpaste | books connect-audible -   a last word of `-` is read from stdin
  *   books words                    the paragraph being read, with those around it
  *   books follow words             the same, again on each new paragraph
@@ -36,6 +38,7 @@ import {
 } from 'foldkit/cli/view'
 import { spawnSync } from 'node:child_process'
 
+import { listAudioDevices, paintAudioDevices } from './devices.js'
 import { askPlayer, followPlayer, showPlayerTui, stopPlayer } from './view.js'
 
 const hostedOrigin = 'https://books.pisspoursoftware.xyz'
@@ -48,6 +51,12 @@ const maybeFollow = followArgvOf(argv)
 
 const [head = ''] = request._tag === 'Do' ? request.token.split(' ') : []
 
+// NOTE: The player picks its audio output when it starts, from this
+// variable, so --device takes effect on the command that starts it.
+if (request.flags['device'] !== undefined) {
+  process.env['FOLDKIT_AUDIO_DEVICE'] = request.flags['device']
+}
+
 if (maybeFollow !== undefined) {
   await followPlayer(maybeFollow)
 } else if (request._tag === 'Tail') {
@@ -58,6 +67,8 @@ if (maybeFollow !== undefined) {
   await runWatch()
 } else if (request._tag === 'Show') {
   await askPlayer({ _tag: 'Do', token: 'help', flags: request.flags })
+} else if (head === 'devices') {
+  process.stdout.write(`${paintAudioDevices(listAudioDevices())}\n`)
 } else if (head === 'login') {
   const login = spawnSync('cloudflared', ['access', 'login', hostedOrigin], {
     stdio: 'inherit',
