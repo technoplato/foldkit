@@ -444,6 +444,23 @@ describe('Dialog', () => {
     )
   })
 
+  describe('the scroll lock when the dialog is gone before it shows', () => {
+    it.effect(
+      'gives the lock back when its page was left in the moment after Open was pressed',
+      () =>
+        Effect.gen(function* () {
+          document.body.innerHTML = ''
+          const before = document.documentElement.style.overflow
+          // The page was left before the dialog reached the page: nothing
+          // called `gone-dialog` is there to show, and nothing was held for
+          // the unmount backstop to release.
+          yield* ShowDialog({ id: 'gone-dialog', focusSelector: '' }).effect
+          expect(document.documentElement.style.overflow).toBe(before)
+          expect(document.documentElement.style.overflow).not.toBe('hidden')
+        }),
+    )
+  })
+
   describe('view OnUnmount gating', () => {
     it('includes the OnUnmount backstop on the dialog while it is open', () => {
       expect(dialogHasOnUnmount(init({ id: 'test', isOpen: true }))).toBe(true)
