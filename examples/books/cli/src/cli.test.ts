@@ -833,9 +833,9 @@ describe('books CLI', () => {
       '  books listen the-lantern-keeper',
       '  books listen small-hours',
       '  books listen a-field-guide-to-weather',
-      '  books tui      Opens the live player here',
-      '  books actions  Lists every command',
-      '  books login    Signs in to Cloudflare Access',
+      '  books tui      Opens the player live in this terminal',
+      '  books actions  Lists everything the library can be asked to do',
+      '  books login    Signs the user in to their library',
     ])
   })
 
@@ -858,7 +858,7 @@ describe('books CLI', () => {
     expect(listened.stdout).toMatch(
       /^ {2}books pause +Pauses and keeps your place$/m,
     )
-    expect(listened.stdout).toMatch(/^ {2}books stop +Stops and saves/m)
+    expect(listened.stdout).toMatch(/^ {2}books stop +Pauses, saves the place/m)
     await eventually(() => {
       const model = bound.readModel()
       return (

@@ -234,10 +234,7 @@ const parametersOf = (
                     }
                   : parameter.kind,
               what: choose.prompt,
-              presence:
-                choose.preferredOf === undefined
-                  ? ('Required' as const)
-                  : ('Optional' as const),
+              presence: 'Required' as const,
               isSubject: true,
             }
           : parameter,
@@ -1103,15 +1100,16 @@ export const within = <
  * An Action as the plain declaration every Client reads, derived from
  * what `Catalog.action` was given and nothing else: its tag as the name,
  * its `what` and `why`, its parameters read from its Effect Schema
- * fields, with the chosen field as its subject, and what it touches
- * when it has said. A terminal's usage, a form's check, a hint, and an
+ * fields, with the chosen field as its required subject (a bare press
+ * that takes the preferred choice is a Client's convenience, decided
+ * with a Model), and what it touches when it has said. A terminal's usage, a form's check, a hint, and an
  * agent's tool are read from this value.
  *
  * @example
  * ```typescript
  * Catalog.declarationOf(Listen)
  * // { name: 'Listen', what: '…', why: '…',
- * //   parameters: { slug: { kind: { _tag: 'Named', noun: 'title' }, what: 'Which title?', presence: 'Optional', isSubject: true } }, … }
+ * //   parameters: { slug: { kind: { _tag: 'Named', noun: 'title' }, what: 'Which title?', presence: 'Required', isSubject: true } }, … }
  * ```
  */
 export const declarationOf = (

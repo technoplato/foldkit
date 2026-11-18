@@ -25,12 +25,20 @@ export const audioDevicesOf = (listing: string): ReadonlyArray<AudioDevice> =>
   })
 
 /**
+ * How the commands a devices listing points to are spelled, read from
+ * their declarations: the command that stops the player, and the flag
+ * that names an output.
+ */
+export type DeviceHints = Readonly<{ stop: string; deviceFlag: string }>
+
+/**
  * What `books devices` prints: each output with its number, and how to
  * play on one. The player picks its output when it starts, so the words
  * say to stop it first.
  */
 export const paintAudioDevices = (
   devices: ReadonlyArray<AudioDevice>,
+  hints: DeviceHints,
 ): string =>
   devices.length === 0
     ? 'No audio outputs were listed. Books plays on the Mac’s default output.'
@@ -40,8 +48,8 @@ export const paintAudioDevices = (
           device => `  ${device.index.toString()}  ${device.name}`,
         ),
         '',
-        `Play on one: books stop, then books listen <title> --device ${(devices.at(-1)?.index ?? 0).toString()}`,
-        'Without --device, Books plays on the Mac’s default output.',
+        `Play on one: ${hints.stop}, then add ${hints.deviceFlag} ${(devices.at(-1)?.index ?? 0).toString()} to the command that starts the player.`,
+        `Without ${hints.deviceFlag}, Books plays on the Mac’s default output.`,
       ].join('\n')
 
 /** Asks ffmpeg for this Mac's audio outputs. Empty when ffmpeg is missing. */

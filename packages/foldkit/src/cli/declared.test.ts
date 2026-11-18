@@ -6,10 +6,13 @@ import { group, make, pathsOf } from '../declaration/declaration.js'
 import * as Parameter from '../declaration/parameter.js'
 import {
   askedOf,
+  commandHelpOf,
   commandOf,
   exampleOf,
   flagOf,
   givenFor,
+  helpLines,
+  helpRowOf,
   toggleFlagsOf,
   usageOf,
 } from './declared.js'
@@ -204,7 +207,7 @@ describe('askedOf', () => {
       path: ['Follow'],
       declaration: Follow,
       sentence:
-        'books follow takes no --each-wrd. Did you mean --each-word? Usage: books follow [words|screen] [--each-word] [--before <number>]',
+        'books follow takes no --each-wrd. Did you mean --each-word?\nUsage: books follow [words|screen] [--each-word] [--before <number>]',
     })
   })
 
@@ -214,12 +217,12 @@ describe('askedOf', () => {
     ).toMatchObject({
       _tag: 'Refused',
       sentence:
-        '--before must be a number; got "two". Usage: books follow [words|screen] [--each-word] [--before <number>]',
+        '--before must be a number; got "two".\nUsage: books follow [words|screen] [--each-word] [--before <number>]',
     })
     expect(askedOf(tree, ['follow', 'pages'], {})).toMatchObject({
       _tag: 'Refused',
       sentence:
-        '<topic> must be one of words, screen; got "pages". Usage: follow [words|screen] [--each-word] [--before <number>]',
+        '<topic> must be one of words, screen; got "pages".\nUsage: follow [words|screen] [--each-word] [--before <number>]',
     })
   })
 
@@ -237,7 +240,8 @@ describe('askedOf', () => {
   it('refuses words after a command that takes none', () => {
     expect(askedOf(tree, ['devices', 'now'], {})).toMatchObject({
       _tag: 'Refused',
-      sentence: 'devices takes nothing after it, and got "now". Usage: devices',
+      sentence:
+        'devices takes nothing after it, and got "now".\nUsage: devices',
     })
   })
 
@@ -245,7 +249,7 @@ describe('askedOf', () => {
     expect(askedOf(tree, ['search'], {}, { name: 'books' })).toMatchObject({
       _tag: 'Refused',
       sentence:
-        'books search needs <words>: the words to look for. For example: books search "lit at dusk" Usage: books search <words> [--json]',
+        'books search needs <words>: the words to look for. For example: books search "lit at dusk"\nUsage: books search <words> [--json]',
     })
   })
 })
@@ -264,6 +268,50 @@ describe('givenFor', () => {
     >()
     expect(follow).toEqual({ topic: 'words', eachWord: false, before: 3 })
     expect(givenFor(asked, Search)).toBeUndefined()
+  })
+})
+
+describe('helpLines', () => {
+  it('lays out what to type and what it does, read from declarations', () => {
+    expect(
+      helpLines(
+        pathsOf([Devices, Search, Follow]).map(addressed =>
+          helpRowOf('books', addressed),
+        ),
+      ),
+    ).toEqual([
+      '  books devices  Lists the audio outputs, by number',
+      '  books search <words> [--json]',
+      '                 Finds where words are spoken',
+      '  books follow [words|screen] [--each-word] [--before <number>]',
+      '                 Prints a topic each time it changes',
+    ])
+  })
+})
+
+describe('commandHelpOf', () => {
+  it('says everything one declaration says, for a person who asks', () => {
+    expect(commandHelpOf('books', { path: ['Follow'], declaration: Follow }))
+      .toBe(`books follow [words|screen] [--each-word] [--before <number>]
+  Prints a topic each time it changes. To read along somewhere else, or to hand
+  the words to another program.
+
+  words|screen       What to follow. Left out, it is words.
+  --each-word        Says each word as it is spoken.
+  --before <number>  How many paragraphs to keep before.
+
+Examples
+  books follow words --each-word --before 2
+      A word at a time, with two paragraphs before`)
+  })
+
+  it('names the other names a command answers to', () => {
+    expect(
+      commandHelpOf('books', {
+        path: ['AddBookmark'],
+        declaration: AddBookmark,
+      }),
+    ).toContain('Also: books bookmark')
   })
 })
 

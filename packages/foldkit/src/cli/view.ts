@@ -28,6 +28,35 @@ export {
   parseProgramArgv,
   withStdinWord,
 } from './argv.js'
+export {
+  type Asked,
+  type AskedOptions,
+  type HelpRow,
+  askedOf,
+  commandHelpOf,
+  commandOf as declaredCommandOf,
+  exampleOf,
+  flagOf,
+  givenFor,
+  helpLines,
+  helpRowOf,
+  toggleFlagsOf,
+  usageOf,
+} from './declared.js'
+export {
+  type CachedDerivationOptions,
+  cachedDerivation,
+} from './declaredCache.js'
+export {
+  type Addressed,
+  type Declaration,
+  type Node,
+  type Parameters,
+  type Tool,
+  findByPath,
+  pathsOf,
+  toolsOf,
+} from '../declaration/plain.js'
 
 /**
  * All of a process's stdin as text, for {@link withStdinWord}.

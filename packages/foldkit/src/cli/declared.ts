@@ -67,12 +67,17 @@ const isSayable = (parameter: Parameter.Parameter): boolean =>
 const bracketed = (parameter: Parameter.Parameter, text: string): string =>
   parameter.presence === 'Required' ? text : `[${text}]`
 
+const nameOf = (name: string, parameter: Parameter.Parameter): string =>
+  parameter.kind._tag === 'Named'
+    ? parameter.kind.noun.replaceAll(' ', '-')
+    : dashed(name)
+
 const subjectPlaceholderOf = (
   name: string,
   parameter: Parameter.Parameter,
 ): string =>
   parameter.presence !== 'Required' && parameter.kind._tag !== 'OneOf'
-    ? dashed(name)
+    ? nameOf(name, parameter)
     : placeholderOf(name, parameter)
 
 const partOf = (name: string, parameter: Parameter.Parameter): string => {
@@ -299,7 +304,7 @@ const spellingOf = (
  * askedOf(tree, ['follow', 'words'], { 'each-word': '1' }, { name: 'books' })
  * // { _tag: 'Asked', path: ['Follow'], declaration: Follow, given: { topic: 'words', eachWord: true } }
  * askedOf(tree, ['follow'], { 'each-wrd': '1' }, { name: 'books' })
- * // { _tag: 'Refused', …, sentence: 'books follow takes no --each-wrd. Did you mean --each-word? Usage: books follow [words|screen] [--each-word]' }
+ * // { _tag: 'Refused', …, sentence: 'books follow takes no --each-wrd. Did you mean --each-word?\nUsage: books follow [words|screen] [--each-word]' }
  * askedOf(tree, ['pause'], {}) // { _tag: 'NotDeclared' }
  * ```
  */
@@ -320,7 +325,7 @@ export const askedOf = (
     _tag: 'Refused',
     path,
     declaration,
-    sentence: `${sentence} ${usage}`,
+    sentence: `${sentence}\n${usage}`,
   })
   const subject = Object.entries(declaration.parameters).find(
     ([, parameter]) => parameter.isSubject,
@@ -370,3 +375,159 @@ export const givenFor = <D extends Declaration<string, any>>(
     ? /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
       (asked.given as GivenOf<D>)
     : undefined
+
+// HELP
+
+const helpWidth = 80
+
+const indent = '  '
+
+const columnGap = 2
+
+const widestUsageColumn = 30
+
+const narrowestUsageColumn = 4
+
+const wrapped = (text: string, width: number): ReadonlyArray<string> =>
+  text
+    .split(' ')
+    .filter(word => word !== '')
+    .reduce((lines: ReadonlyArray<string>, word) => {
+      const last = lines.at(-1)
+      return last === undefined || last.length + 1 + word.length > width
+        ? [...lines, word]
+        : [...lines.slice(0, -1), `${last} ${word}`]
+    }, [])
+
+/** One line of help before it is laid out: what to type, and what it does. */
+export type HelpRow = Readonly<{ usage: string; what: string }>
+
+/**
+ * A declaration as a row of help: its usage after the command's name,
+ * and its `what`.
+ *
+ * @example
+ * ```typescript
+ * helpRowOf('books', { path: ['Devices'], declaration: Devices })
+ * // { usage: 'books devices', what: 'Lists the audio outputs, by number' }
+ * ```
+ */
+export const helpRowOf = (
+  name: string,
+  { path, declaration }: Addressed,
+): HelpRow => ({
+  usage: `${name} ${usageOf(path, declaration)}`,
+  what: declaration.what,
+})
+
+/**
+ * Rows of help laid out in two columns to 80 columns: what to type, then
+ * what it does, wrapped under itself. A usage too long for its column
+ * puts what it does on the next line, so one long usage never pushes
+ * every description off the screen.
+ *
+ * @example
+ * ```typescript
+ * helpLines([{ usage: 'books devices', what: 'Lists the audio outputs, by number' }])
+ * // ['  books devices  Lists the audio outputs, by number']
+ * ```
+ */
+export const helpLines = (
+  rows: ReadonlyArray<HelpRow>,
+): ReadonlyArray<string> => {
+  const column = Math.min(
+    Math.max(
+      narrowestUsageColumn,
+      ...rows
+        .map(row => row.usage.length + columnGap)
+        .filter(width => width <= widestUsageColumn),
+    ),
+    widestUsageColumn,
+  )
+  const under = ' '.repeat(indent.length + column)
+  return rows.flatMap(row => {
+    const lines = wrapped(row.what, helpWidth - under.length)
+    const [first = '', ...rest] = lines
+    return row.usage.length + columnGap > column
+      ? [`${indent}${row.usage}`, ...lines.map(line => `${under}${line}`)]
+      : [
+          `${indent}${row.usage.padEnd(column)}${first}`,
+          ...rest.map(line => `${under}${line}`),
+        ]
+  })
+}
+
+const sentenceOf = (text: string): string =>
+  /[.!?…]$/u.test(text.trim()) ? text.trim() : `${text.trim()}.`
+
+const parameterRowOf = (
+  name: string,
+  parameter: Parameter.Parameter,
+): HelpRow => {
+  const shown =
+    parameter.default === undefined || parameter.kind._tag === 'Toggle'
+      ? sentenceOf(parameter.what)
+      : `${sentenceOf(parameter.what)} Left out, it is ${String(parameter.default)}.`
+  if (parameter.isSubject) {
+    return { usage: subjectPlaceholderOf(name, parameter), what: shown }
+  } else if (parameter.kind._tag === 'Toggle') {
+    return { usage: flagOf(name), what: shown }
+  } else {
+    return {
+      usage: `${flagOf(name)} ${placeholderOf(name, parameter)}`,
+      what: shown,
+    }
+  }
+}
+
+/**
+ * Everything one declaration says, for a person who asks about that
+ * command: its usage, what it does and why the user would want it, each
+ * parameter with what it is for, and its examples as lines to type.
+ *
+ * @example
+ * ```typescript
+ * commandHelpOf('books', { path: ['Search'], declaration: Search })
+ * // 'books search <words> [--json]\n  Finds where words are spoken. To get back to a passage …\n\n  <words>  The words to look for.\n…'
+ * ```
+ */
+export const commandHelpOf = (name: string, addressed: Addressed): string => {
+  const { path, declaration } = addressed
+  const parameters = orderedOf(declaration.parameters)
+  return [
+    `${name} ${usageOf(path, declaration)}`,
+    ...wrapped(
+      `${sentenceOf(declaration.what)} ${sentenceOf(declaration.why)}`,
+      helpWidth - indent.length,
+    ).map(line => `${indent}${line}`),
+    ...(declaration.aliases.length === 0
+      ? []
+      : [
+          `${indent}Also: ${declaration.aliases
+            .map(alias => `${name} ${commandOf([...path.slice(0, -1), alias])}`)
+            .join(', ')}`,
+        ]),
+    ...(parameters.length === 0
+      ? []
+      : [
+          '',
+          ...helpLines(
+            parameters.map(([parameterName, parameter]) =>
+              parameterRowOf(parameterName, parameter),
+            ),
+          ),
+        ]),
+    ...(declaration.examples.length === 0
+      ? []
+      : [
+          '',
+          'Examples',
+          ...helpLines(
+            declaration.examples.map(example => ({
+              usage: `${name} ${exampleOf(path, declaration, example)}`,
+              what: example.what,
+            })),
+          ),
+        ]),
+  ].join('\n')
+}

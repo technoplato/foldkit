@@ -5,6 +5,7 @@ import {
   BookmarksListingJson,
   type BoundBooks,
   type LibraryStoreService,
+  Listen,
   type SpokenWords,
   SpokenWordsJson,
   type SyncedBooksMessage,
@@ -34,11 +35,12 @@ import {
   Duration,
   Effect,
   Option,
+  Record,
   Schema as S,
   Stream,
   pipe,
 } from 'effect'
-import { Interaction, type Processor } from 'foldkit'
+import { Catalog, Interaction, type Processor } from 'foldkit'
 import {
   CliDaemonError,
   type CliDaemonFlags,
@@ -58,10 +60,23 @@ import {
   programFollowings,
   runProgramCommand,
 } from 'foldkit/cli'
+import { declaredCommandOf, exampleOf, usageOf } from 'foldkit/cli/view'
+import type { Declaration, Declared } from 'foldkit/declaration'
 import { renderScreen } from 'foldkit/renderers'
 import * as Theme from 'foldkit/theme'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
+import {
+  Actions,
+  Bookmarks,
+  Follow,
+  Link,
+  Login,
+  PlayFrom,
+  Search,
+  Stop,
+  Tui,
+} from './declared.js'
 import { booksCommandName } from './settings.js'
 
 // BRIEF
@@ -71,23 +86,59 @@ const readyOf = (
 ): Option.Option<Extract<SyncedBooksModel, { _tag: 'Ready' }>> =>
   model._tag === 'Ready' ? Option.some(model) : Option.none()
 
-const hostCommandsOf = (isLoaded: boolean): ReadonlyArray<HostCommand> => [
-  { command: 'tui', what: 'Opens the live player here' },
-  ...(isLoaded
-    ? [
-        { command: 'follow words', what: 'Prints the words as they are read' },
-        { command: 'bookmarks', what: 'Lists this title’s bookmarks' },
-        { command: 'link', what: 'Prints the link to the word being read' },
-        {
-          command: 'search "<words>"',
-          what: 'Finds where words are spoken, with links',
-        },
-        { command: 'stop', what: 'Stops and saves your place' },
-      ]
-    : []),
-  { command: 'actions', what: 'Lists every command' },
-  { command: 'login', what: 'Signs in to Cloudflare Access' },
-]
+const isRunAsNamed = (declaration: Declaration): boolean =>
+  !Record.some(
+    declaration.parameters,
+    parameter => parameter.presence === 'Required',
+  )
+
+/**
+ * A command this terminal declares, as a line to copy: its bare words
+ * when they run as written, its usage when it needs something, and what
+ * it does. Both are read from the declaration.
+ */
+const hostCommandOf = (declared: Declared): HostCommand => ({
+  command: isRunAsNamed(declared.declaration)
+    ? declaredCommandOf([declared.declaration.name])
+    : usageOf([declared.declaration.name], declared.declaration),
+  what: declared.declaration.what,
+})
+
+/** A declared command's first example, as the line to type. */
+const exampleLineOf = (declared: Declared): string =>
+  Array.join(
+    [
+      booksCommandName,
+      Option.match(Array.head(declared.declaration.examples), {
+        onNone: () =>
+          usageOf([declared.declaration.name], declared.declaration),
+        onSome: example =>
+          exampleOf([declared.declaration.name], declared.declaration, example),
+      }),
+    ],
+    ' ',
+  )
+
+/** The line that plays one title, its words read from the Action. */
+const listenLineOf = (title: string): string =>
+  Array.join(
+    [
+      booksCommandName,
+      Catalog.commandOf(Catalog.choiceTagOf(Listen.tag, title)),
+    ],
+    ' ',
+  )
+
+const hostCommandsOf = (isLoaded: boolean): ReadonlyArray<HostCommand> =>
+  Array.map(
+    [
+      Tui,
+      ...(isLoaded ? [Follow, Bookmarks, Link, Search, Stop] : []),
+      Actions,
+      Login,
+    ],
+    hostCommandOf,
+  )
 
 const briefWidth = 200
 
@@ -464,14 +515,14 @@ export const searchedBook = (
     if (query === '') {
       return {
         stdout: '',
-        stderr: `Search for what? For example: ${booksCommandName} search "lit at dusk"`,
+        stderr: `Search for what? For example: ${exampleLineOf(Search)}`,
         exitCode: 1,
       }
     }
     if (Option.isNone(loadedNowOf(bound))) {
       return {
         stdout: '',
-        stderr: `Nothing is in the player. Play a title first, such as: ${booksCommandName} listen ${exampleTitleOf(bound)}`,
+        stderr: `Nothing is in the player. Play a title first, such as: ${listenLineOf(exampleTitleOf(bound))}`,
         exitCode: 1,
       }
     }
@@ -746,7 +797,7 @@ export const makeBooksPlayer = (
         Option.match(currentWordAddressOf(model), {
           onNone: () => ({
             stdout: '',
-            stderr: `Nothing is in the player. Play a title first, such as: ${booksCommandName} listen ${exampleTitleOf(bound)}`,
+            stderr: `Nothing is in the player. Play a title first, such as: ${listenLineOf(exampleTitleOf(bound))}`,
             exitCode: 1,
           }),
           onSome: address => ({ stdout: address, exitCode: 0 }),
@@ -764,7 +815,7 @@ export const makeBooksPlayer = (
     Option.match(Option.flatMap(Array.get(words, 1), placeTextOf), {
       onNone: () => ({
         stdout: '',
-        stderr: `Play from where? Give a link to a word or a time, such as: ${booksCommandName} play-from 12m03s`,
+        stderr: `Play from where? Give a link to a word or a time, such as: ${exampleLineOf(PlayFrom)}`,
         exitCode: 1,
       }),
       onSome: place => {

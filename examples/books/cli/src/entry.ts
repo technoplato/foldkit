@@ -2,53 +2,39 @@
 /**
  * The `books` command. Every command goes to this machine's player, which
  * keeps playing after the command returns, and prints what it is doing
- * and what to run next:
- *
- *   books                          what is playing, and commands to copy;
- *                                  with no player running, how to use it,
- *                                  and it starts none
- *   books help                     the same
- *   books listen a-new-earth       play a title from your place
- *   books pause                    pause; `books play` plays again
- *   books skip-forward             30 seconds on; `books skip-back` back
- *   books seek-to 1h00m00s         go to a place
- *   books open /books/audible      go to a page and print it; `books back` returns
- *   books screen                   the page the player is on
- *   books devices                  the audio outputs, by number
- *   books listen <title> --device 4   play on that output, when this command starts the player
- *   pbpaste | books connect-audible -   a last word of `-` is read from stdin
- *   books words                    the paragraph being read, with those around it
- *   books follow words             the same, again on each new paragraph
- *   books follow words --json      as lines of JSON, for another program
- *   books bookmark                 mark the word being spoken; words after it are its note
- *   books bookmarks                this title's bookmarks, a line each; --json for another program
- *   books search "lit at dusk"     where those words are spoken, with links
- *   books search lamp --json       the same as one line of JSON
- *   books open <a link to a word>  go to that word, paused
- *   books link                     the whole link to the word being read
- *   books play-from <link or time> play from the word a link names, or a time
- *   books tui                      the player, live, in this terminal
- *   books stop                     pause, save your place, end the player
- *   books actions                  every command
- *   books login                    sign in to Cloudflare Access
- *   books watch                    repaint the library as it changes
- *   books tail                     print every Message as it lands
+ * and what to run next. `books` alone, or `books help`, says what there
+ * is to run; `books help <command>` says everything about one. That help
+ * is read from the declarations in `declared.ts` and in the Books core,
+ * so no list of commands is kept here.
  *
  * Run it as `books`, the launcher `scripts/install-books-command` puts on
  * your PATH: it picks where to sign in and which library to open. This
  * file must not import Effect, Instant, or the Program, so a command
- * starts fast.
+ * starts fast: it reads what the terminal declares as plain data, kept
+ * in a file beside the player's socket and derived again when the code
+ * changes.
  */
 import {
-  followArgvOf,
+  type Node,
+  type Parameters,
+  askedOf,
+  cachedDerivation,
+  declaredCommandOf,
+  flagOf,
   parseProgramArgv,
   readStdinText,
+  toggleFlagsOf,
   withStdinWord,
+  writeCliViewResult,
 } from 'foldkit/cli/view'
+import type { GivenOfDeclared } from 'foldkit/declaration'
 import { spawnSync } from 'node:child_process'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+import type { viewDeclared } from './declared.js'
 import { listAudioDevices, paintAudioDevices } from './devices.js'
-import { booksArgv } from './settings.js'
+import { booksCommandName, booksPlayerSocketPath } from './settings.js'
 import {
   askPlayer,
   followPlayer,
@@ -60,6 +46,22 @@ import {
 
 const hostedOrigin = 'https://books.pisspoursoftware.xyz'
 
+const notUnderstoodExitCode = 2
+
+type Declared = Readonly<{
+  hostTree: ReadonlyArray<Node>
+  everywhere: Parameters
+}>
+
+const declared = await cachedDerivation<Declared>({
+  cachePath: join(dirname(booksPlayerSocketPath()), 'books-declared.json'),
+  sourcePath: fileURLToPath(new URL('./declared.js', import.meta.url)),
+  derive: async () => {
+    const { everywhere, hostTree } = await import('./declared.js')
+    return { hostTree, everywhere }
+  },
+})
+
 const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
 
 // NOTE: Whether to paint is this view's to know: its output is a
@@ -69,39 +71,123 @@ const paints = paintsColor(process.stdout.isTTY === true, process.env)
 const paintedArgv =
   paints && !argv.includes('--json') ? [...argv, '--color=1'] : argv
 
-const request = parseProgramArgv(paintedArgv, booksArgv)
+const request = parseProgramArgv(paintedArgv, {
+  switches: toggleFlagsOf(declared.hostTree, declared.everywhere),
+})
 
-const maybeFollow = followArgvOf(paintedArgv, booksArgv)
+const wordsOf = (): ReadonlyArray<string> => {
+  if (request._tag === 'Do') {
+    return request.token.split(' ')
+  } else if (request._tag === 'Tail') {
+    return ['tail']
+  } else if (request._tag === 'Watch') {
+    return ['watch']
+  } else {
+    return ['help']
+  }
+}
 
-const [head = ''] = request._tag === 'Do' ? request.token.split(' ') : []
+const words = wordsOf()
+
+const asked = askedOf(declared.hostTree, words, request.flags, {
+  name: booksCommandName,
+  everywhere: declared.everywhere,
+})
 
 // NOTE: The player picks its audio output when it starts, from this
-// variable, so --device takes effect on the command that starts it.
+// variable, so the device takes effect on the command that starts it.
 if (request.flags['device'] !== undefined) {
   process.env['FOLDKIT_AUDIO_DEVICE'] = request.flags['device']
 }
 
-if (maybeFollow !== undefined) {
-  await followPlayer(maybeFollow)
-} else if (request._tag === 'Tail') {
-  const { runTail } = await import('./inProcess.js')
-  await runTail()
-} else if (request._tag === 'Watch') {
-  const { runWatch } = await import('./inProcess.js')
-  await runWatch()
-} else if (request._tag === 'Show' || head === 'help') {
-  await showBriefOrUsage(request.flags)
-} else if (head === 'devices') {
-  process.stdout.write(`${paintAudioDevices(listAudioDevices())}\n`)
-} else if (head === 'login') {
-  const login = spawnSync('cloudflared', ['access', 'login', hostedOrigin], {
-    stdio: 'inherit',
+type ViewDeclared = (typeof viewDeclared)[number]
+
+type ViewHandlers = {
+  readonly [D in ViewDeclared as D['declaration']['name']]: (
+    given: GivenOfDeclared<D>,
+  ) => Promise<void>
+}
+
+// NOTE: One handler for each command this terminal answers itself. The
+// type is read from the declarations, so a command declared without a
+// handler, or a handler that reads a parameter that is not declared,
+// does not compile.
+const answer: ViewHandlers = {
+  Help: async given => {
+    if (given.command === undefined) {
+      await showBriefOrUsage(request.flags)
+    } else {
+      const { commandHelp } = await import('./help.js')
+      const text = commandHelp(given.command.split(' '))
+      writeCliViewResult(
+        text === undefined
+          ? {
+              stdout: '',
+              stderr: `Nothing here is called "${given.command}".`,
+              exitCode: notUnderstoodExitCode,
+            }
+          : { stdout: text, stderr: '', exitCode: 0 },
+      )
+    }
+  },
+  Devices: async () => {
+    process.stdout.write(
+      `${paintAudioDevices(listAudioDevices(), {
+        stop: `${booksCommandName} ${declaredCommandOf(['Stop'])}`,
+        deviceFlag: flagOf('device'),
+      })}\n`,
+    )
+  },
+  Login: async () => {
+    const login = spawnSync('cloudflared', ['access', 'login', hostedOrigin], {
+      stdio: 'inherit',
+    })
+    process.exitCode = login.status ?? 1
+  },
+  Stop: () => stopPlayer(),
+  Tui: () => showPlayerTui(),
+  Follow: given => followPlayer({ topic: given.topic, flags: request.flags }),
+  Watch: async () => {
+    const { runWatch } = await import('./inProcess.js')
+    await runWatch()
+  },
+  Tail: async () => {
+    const { runTail } = await import('./inProcess.js')
+    await runTail()
+  },
+}
+
+const isViewName = (name: string): name is keyof ViewHandlers =>
+  Object.hasOwn(answer, name)
+
+if (asked._tag === 'Refused') {
+  writeCliViewResult({
+    stdout: '',
+    stderr: asked.sentence,
+    exitCode: notUnderstoodExitCode,
   })
-  process.exitCode = login.status ?? 1
-} else if (head === 'stop') {
-  await stopPlayer()
-} else if (head === 'tui') {
-  await showPlayerTui()
+} else if (asked._tag === 'Asked' && isViewName(asked.declaration.name)) {
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+  await answer[asked.declaration.name](asked.given as never)
+} else if (
+  asked._tag === 'Asked' &&
+  asked.declaration.name === 'Actions' &&
+  asked.given['json'] === true
+) {
+  const { toolsText } = await import('./help.js')
+  process.stdout.write(`${toolsText()}\n`)
+} else if (asked._tag === 'Asked' && request._tag === 'Do') {
+  // NOTE: The player hears a command by its own name, whichever of its
+  // names was typed, with the words after it as they were.
+  await askPlayer({
+    ...request,
+    token: [
+      declaredCommandOf(asked.path),
+      ...words.slice(asked.path.length),
+    ].join(' '),
+  })
+} else if (request._tag === 'Tail' || request._tag === 'Watch') {
+  await showBriefOrUsage(request.flags)
 } else {
   await askPlayer(request)
 }
