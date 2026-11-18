@@ -15,7 +15,7 @@ import * as Host from '../processor/host.js'
 import { compose } from '../program/compose.js'
 import { make } from '../program/program.js'
 import { CommandOperation } from './commandTracing.js'
-import { startHandle } from './handle.js'
+import { caughtUpWithin, startHandle } from './handle.js'
 import * as LocalSnapshot from './localSnapshot.js'
 import type { TransitionSource } from './programJournal.js'
 import { Memory, makeMemoryStore } from './syncEngine.js'
@@ -253,5 +253,22 @@ describe('a handle that starts from its local snapshot', () => {
     expect(await handle.whenCaughtUp()).toBe('CaughtUp')
     expect(countOf(handle)).toBe(5)
     await handle.stop()
+  })
+})
+
+describe('waiting for a handle to catch up, with a limit', () => {
+  it('says how the read ended when it ends within the limit', async () => {
+    expect(
+      await caughtUpWithin(
+        { whenCaughtUp: () => Promise.resolve('CaughtUp') },
+        1_000,
+      ),
+    ).toBe('CaughtUp')
+  })
+
+  it('says the limit passed when the engine neither answers nor fails', async () => {
+    expect(
+      await caughtUpWithin({ whenCaughtUp: () => new Promise(() => {}) }, 20),
+    ).toBe('TimedOut')
   })
 })
