@@ -1,0 +1,32 @@
+{
+  "name": "transcript-player-expo-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "pretest": "pnpm --filter transcript-player-core-example build",
+    "pretypecheck": "pnpm --filter transcript-player-core-example build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "4.0.0-beta.97",
+    "transcript-player-core-example": "workspace:*"
+  },
+  "peerDependencies": {
+    "expo-audio": ">=57.0.3 <58"
+  },
+  "devDependencies": {
+    "expo": "~57.0.9",
+    "expo-audio": "~57.0.3",
+    "prettier": "^3.8.4",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
