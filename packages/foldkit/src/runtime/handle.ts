@@ -377,3 +377,30 @@ export function startHandle<Child extends SyncChild, Resources = never>(
     },
   }
 }
+
+/**
+ * Waits for a handle to catch up with the log, for at most `timeoutMs`:
+ * how its first read of the log ended, or `TimedOut` when the limit
+ * passed first, as it does when the sync engine neither answers nor
+ * fails. A host that answers once, such as a command in a terminal,
+ * calls this before it reads the Model, then answers with what it has.
+ *
+ * @example
+ * ```typescript
+ * await caughtUpWithin(handle, 15_000) // 'CaughtUp'
+ * print(handle.readModel())
+ * ```
+ */
+export const caughtUpWithin = (
+  handle: Readonly<{ whenCaughtUp: () => Promise<CatchUp> }>,
+  timeoutMs: number,
+): Promise<CatchUp | 'TimedOut'> =>
+  new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      resolve('TimedOut')
+    }, timeoutMs)
+    void handle.whenCaughtUp().then(outcome => {
+      clearTimeout(timeout)
+      resolve(outcome)
+    })
+  })

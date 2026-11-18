@@ -32,6 +32,7 @@ export {
   type SyncStartProgram,
 } from './start.js'
 export {
+  caughtUpWithin,
   startHandle,
   type ObserveRuntime,
   type StartHandleConfig,
