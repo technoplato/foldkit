@@ -81,7 +81,7 @@ export const clockOf = (place: Milliseconds): string => {
 
 const clockPattern = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/u
 
-const unitsPattern = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/u
+const unitsPattern = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d{1,3})?)s)?$/u
 
 const millisecondsPerClockSecond = 1000
 
@@ -94,10 +94,12 @@ const placeOfParts = (
   minutes: string,
   seconds: string,
 ): number =>
-  (Number(hours) * secondsPerClockHour +
-    Number(minutes) * secondsPerClockMinute +
-    Number(seconds)) *
-  millisecondsPerClockSecond
+  Math.round(
+    (Number(hours) * secondsPerClockHour +
+      Number(minutes) * secondsPerClockMinute +
+      Number(seconds)) *
+      millisecondsPerClockSecond,
+  )
 
 const placeOfSegment = (input: string): Option.Option<number> => {
   const clock = clockPattern.exec(input)
@@ -116,8 +118,10 @@ const placeOfSegment = (input: string): Option.Option<number> => {
 /**
  * A place as one URI segment or CLI word, in hours, minutes, and seconds:
  * `4h54m06s` is 4 hours 54 minutes 6 seconds in, `12m03s` is 12 minutes 3
- * seconds, `7s` is 7 seconds. It reads a clock too, `4:54:06`. It keeps
- * whole seconds, so a link names the second someone was listening to.
+ * seconds, `7s` is 7 seconds. It reads a clock too, `4:54:06`, and a
+ * place to the millisecond, `12m03.45s`, as a link to one word carries
+ * (see {@link WordSegment}). It prints whole seconds, so the address of a
+ * player names the second someone was listening to.
  *
  * @example
  * ```typescript
@@ -198,3 +202,48 @@ const segmentOfPlace = (placeMs: number): string => {
     return `${seconds.toString()}s`
   }
 }
+
+const fractionOfSecond = (placeMs: number): string => {
+  const milliseconds = Math.round(placeMs) % millisecondsPerClockSecond
+  return milliseconds === 0
+    ? ''
+    : `.${milliseconds.toString().padStart(3, '0').replace(/0+$/u, '')}`
+}
+
+const preciseSegmentOfPlace = (placeMs: number): string =>
+  segmentOfPlace(placeMs).replace(/s$/u, `${fractionOfSecond(placeMs)}s`)
+
+/**
+ * The address of one word: the time it starts, to the millisecond, as one
+ * URI segment, `12m03.45s`. A time is what names a word everywhere: it is
+ * the same in every session and Client and stays right when a transcript
+ * is made again, and the player's own address already takes a time, so
+ * `/books/the-lantern-keeper/listen/12m03.45s` opens the title on that
+ * word in the site, in `books open`, and from any link. A word that
+ * starts on a whole second prints as the player's address does, `12m03s`,
+ * and every whole-second link reads as before.
+ *
+ * @example
+ * ```typescript
+ * S.encodeSync(WordSegment)(word.startMs) // '12m03.45s'
+ * S.decodeUnknownSync(WordSegment)('12m03.45s') // 723450
+ * ```
+ */
+export const WordSegment = S.String.pipe(
+  S.decodeTo(
+    Milliseconds,
+    SchemaTransformation.transformOrFail({
+      decode: input =>
+        Option.match(placeOfSegment(input), {
+          onNone: () =>
+            Effect.fail(
+              new SchemaIssue.InvalidValue(Option.some(input), {
+                description: `Expected the time a word starts, such as 12m03.45s, got ${JSON.stringify(input)}`,
+              }),
+            ),
+          onSome: placeMs => Effect.succeed(placeMs),
+        }),
+      encode: placeMs => Effect.succeed(preciseSegmentOfPlace(placeMs)),
+    }),
+  ),
+)
