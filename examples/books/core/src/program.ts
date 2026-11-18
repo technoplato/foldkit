@@ -1,5 +1,6 @@
 import { Match as M } from 'effect'
 import { Program } from 'foldkit'
+import * as Theme from 'foldkit/theme'
 
 import * as Audible from './audible/index.js'
 import { init } from './init.js'
@@ -26,6 +27,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       SetSeekScope: () => 'Navigation',
       ExpandControls: () => 'Navigation',
       CollapseControls: () => 'Navigation',
+      SetAppearance: () => 'Navigation',
+      ObservedSystemMode: () => 'Navigation',
       ShowLibrary: () => 'Navigation',
       ShowProfile: () => 'Navigation',
       ShowReadAloud: () => 'Navigation',
@@ -137,7 +140,9 @@ export const BooksProgram = Program.make({
     messageCategory: categoryOf,
     projectDomain: model => ({ library: model.library }),
     isLocalOnly: message =>
-      Audible.isMessage(message) || isBookmarkEdit(message),
+      Audible.isMessage(message) ||
+      Theme.isMessage(message) ||
+      isBookmarkEdit(message),
     keepOnRefold: (current, refolded) => ({
       ...refolded,
       library: current.library,
@@ -149,6 +154,7 @@ export const BooksProgram = Program.make({
       previewChecks: current.previewChecks,
       audible: current.audible,
       maybeRemovedBookmark: current.maybeRemovedBookmark,
+      appearance: current.appearance,
     }),
   },
 })

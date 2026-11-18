@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { roleVar } from '../theme/theme.js'
 import { screenLook, screenStylesheet } from './screenStyles.js'
 
 const ruleOf = (selector: string, from = 0): string => {
@@ -32,7 +33,7 @@ describe('the look of a list with columns', () => {
 
   it('marks the row being read with a rule at its side, not only a color', () => {
     expect(ruleOf(':where(.fk-list-frame .fk-item[data-current])')).toContain(
-      `box-shadow: inset 3px 0 0 ${screenLook.accentColor}`,
+      `box-shadow: inset 3px 0 0 ${roleVar('Accent')}`,
     )
   })
 })

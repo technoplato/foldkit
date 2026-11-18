@@ -1,15 +1,13 @@
 import { Layer } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
+import { browserSystemAppearance } from 'foldkit/theme'
 import {
   endpointReadingSource,
   scriptPreviewSource,
 } from 'read-aloud-core-example/browser'
 import { htmlAudioOutput } from 'transcript-player-core-example/browser'
 
-import {
-  Instant,
-  withHostedIdentity,
-} from '@foldkit/instant/browser'
+import { Instant, withHostedIdentity } from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
 import { httpAudibleImport } from './audible/http.js'
@@ -62,6 +60,7 @@ export const startBooks = (config: StartBooksConfig): BooksHandleOnHost => {
     Layer.mergeAll(
       Layer.effect(LibraryStore, makeInstantLibraryStore(database)),
       htmlAudioOutput,
+      browserSystemAppearance,
       instantTranscriptSource(database),
       Layer.effect(
         ScribeTimeline,
