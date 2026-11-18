@@ -238,6 +238,17 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
         TranscriptPlayer.transcriptDependenciesOf(loadedPlayerOf(model)),
       dependenciesToStream: TranscriptPlayer.transcriptStream,
     }),
+    // NOTE: Reading a whole title's words is the costly part of a search.
+    // Books reads ahead when the search opens; a Program on a metered link
+    // would pass 'OnSearch' here and read only once words are asked for.
+    searchWords: entry(TranscriptPlayer.SearchWordsDependencies.fields, {
+      modelToDependencies: model =>
+        TranscriptPlayer.searchWordsDependenciesOf(
+          loadedPlayerOf(model),
+          'OnOpen',
+        ),
+      dependenciesToStream: TranscriptPlayer.searchWordsStream,
+    }),
     readings: entry(
       {},
       {

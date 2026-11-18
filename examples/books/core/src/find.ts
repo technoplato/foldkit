@@ -227,16 +227,18 @@ export const bookSearchOf = (model: Model): BookSearch =>
               NoBookSearch({ sentence: 'Nothing has been searched for.' }),
             Searching: ({ query }) =>
               SearchingBook({ slug: title.slug, title: title.name, query }),
-            SearchFound: ({ query, total, matches }) =>
-              BookMatches({
-                slug: title.slug,
-                title: title.name,
-                query,
-                total,
-                matches: Array.map(matches, match =>
-                  bookMatchOf(model, title, match),
-                ),
-              }),
+            SearchFound: ({ query, total, matches, maybeParts }) =>
+              Option.isSome(maybeParts)
+                ? SearchingBook({ slug: title.slug, title: title.name, query })
+                : BookMatches({
+                    slug: title.slug,
+                    title: title.name,
+                    query,
+                    total,
+                    matches: Array.map(matches, match =>
+                      bookMatchOf(model, title, match),
+                    ),
+                  }),
             SearchFailed: ({ query, reason }) =>
               BookSearchFailed({
                 slug: title.slug,

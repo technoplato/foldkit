@@ -43,6 +43,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       CopyWordLink: () => 'Navigation',
       ReceivedMatches: () => 'Navigation',
       FailedSearch: () => 'Navigation',
+      ReadSearchWords: () => 'Navigation',
+      FailedReadSearchWords: () => 'Navigation',
       ExpandControls: () => 'Navigation',
       CollapseControls: () => 'Navigation',
       SetAppearance: () => 'Navigation',

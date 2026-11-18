@@ -961,6 +961,8 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       FailedLoadTranscript: message => playerUpdated(model, message),
       ReceivedMatches: message => playerUpdated(model, message),
       FailedSearch: message => playerUpdated(model, message),
+      ReadSearchWords: message => playerUpdated(model, message),
+      FailedReadSearchWords: message => playerUpdated(model, message),
       CompletedWriteLibrary: () => [
         { ...model, maybeProblem: Option.none() },
         [],

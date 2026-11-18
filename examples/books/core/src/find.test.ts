@@ -1,4 +1,4 @@
-import { Array, Effect, Option, Record as Record_, Schema as S } from 'effect'
+import { Array, Option, Record as Record_, Schema as S } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import { transcriptsOf } from 'foldkit/renderers'
 import {
@@ -8,12 +8,9 @@ import {
   ReceivedPassages,
   SearchFor,
   SearchQuery,
-  TranscriptSource,
   WordId,
 } from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
-
-import type { ProgramLogDatabase } from '@foldkit/instant/browser'
 
 import { App, type AppMessage, type AppModel } from './app.js'
 import {
@@ -23,8 +20,7 @@ import {
   currentWordLinkOf,
   readerTranscriptOf,
 } from './find.js'
-import { MediaId, Milliseconds, TitleSlug } from './ids.js'
-import { instantTranscriptSource } from './instantTranscript.js'
+import { Milliseconds, TitleSlug } from './ids.js'
 import { wordPathOf } from './links.js'
 import { OpenedPlace, ReceivedChapters, ReceivedShelf } from './message.js'
 import { isLocalOnlyMessage } from './program.js'
@@ -265,6 +261,8 @@ const lamp = SearchQuery.make('lamp')
 const twoMatches = ReceivedMatches({
   query: lamp,
   total: 2,
+  partsRead: 1,
+  partsTotal: 1,
   matches: [
     {
       startMs: Milliseconds.make(43_500),
@@ -349,94 +347,5 @@ describe('searching a book', () => {
     expect(
       isLocalOnlyMessage(PlayFrom({ placeMs: Milliseconds.make(43_500) })),
     ).toBe(false)
-  })
-})
-
-type SegmentRow = Readonly<{
-  id: string
-  relativeStartMs: number
-  relativeEndMs: number
-  wordsJSON: string
-}>
-
-const segmentMs = 216_000
-
-const segmentCount = 85
-
-const madeUpSegments: ReadonlyArray<SegmentRow> = Array.makeBy(
-  segmentCount,
-  index => ({
-    id: `segment-${index.toString()}`,
-    relativeStartMs: index * segmentMs,
-    relativeEndMs: (index + 1) * segmentMs,
-    wordsJSON: JSON.stringify([
-      {
-        text: index === 84 ? 'lamp' : 'tide',
-        relativeStartMs: index * segmentMs + 100,
-        relativeEndMs: index * segmentMs + 500,
-      },
-    ]),
-  }),
-)
-
-type PageQuery = Readonly<{
-  librarySegments: Readonly<{
-    $: Readonly<{
-      where: Readonly<{ relativeStartMs: Readonly<{ $gt: number }> }>
-      limit: number
-    }>
-  }>
-}>
-
-/** An Instant that answers a page of made-up segments and counts the reads. */
-const fakeInstant = () => {
-  const asked: Array<number> = []
-  const database = {
-    queryOnce: (query: PageQuery) => {
-      const { where, limit } = query.librarySegments.$
-      asked.push(where.relativeStartMs.$gt)
-      return Promise.resolve({
-        data: {
-          librarySegments: Array.take(
-            Array.filter(
-              madeUpSegments,
-              segment => segment.relativeStartMs > where.relativeStartMs.$gt,
-            ),
-            limit,
-          ),
-        },
-      })
-    },
-  }
-  return { asked, database }
-}
-
-describe('the words for a search, from Instant', () => {
-  it('reads the whole recording in pages of forty, only when a search is made, and keeps it for the next search', async () => {
-    const { asked, database } = fakeInstant()
-    const mediaId = MediaId.make('the-lantern-keeper')
-    // NOTE: the fake answers only `queryOnce`, the one call a search makes.
-    const words = instantTranscriptSource(
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-      database as unknown as ProgramLogDatabase,
-    )
-    const search = (query: string) =>
-      Effect.runPromise(
-        Effect.gen(function* () {
-          const source = yield* TranscriptSource
-          return yield* source.passagesMatching(mediaId, query)
-        }).pipe(Effect.provide(words)),
-      )
-    expect(asked).toEqual([])
-    const passages = await search('lamp')
-    expect(passages.length).toBe(segmentCount)
-    expect(asked).toEqual([-1, 39 * segmentMs, 79 * segmentMs])
-    expect(
-      Array.map(Array.takeRight(passages, 1), passage =>
-        Array.map(passage.words, word => [word.text, word.startMs]),
-      ),
-    ).toEqual([[['lamp', 84 * segmentMs + 100]]])
-    await search('tide')
-    expect(asked.length).toBe(3)
   })
 })

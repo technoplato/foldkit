@@ -662,6 +662,8 @@ export const Message = S.Union([
   TranscriptPlayer.FailedLoadTranscript,
   TranscriptPlayer.ReceivedMatches,
   TranscriptPlayer.FailedSearch,
+  TranscriptPlayer.ReadSearchWords,
+  TranscriptPlayer.FailedReadSearchWords,
   CompletedWriteLibrary,
   FailedWriteLibrary,
   CompletedReportStretch,
