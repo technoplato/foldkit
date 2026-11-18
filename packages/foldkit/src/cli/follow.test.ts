@@ -144,7 +144,19 @@ describe('following a CLI daemon', () => {
   })
 })
 
-const fakeRuntime = (screen: Readonly<{ columns?: number }> = {}) => {
+const eventually = async (isDone: () => boolean): Promise<void> => {
+  const startedAt = Date.now()
+  while (!isDone()) {
+    if (Date.now() - startedAt > 4_000) {
+      throw new Error('never happened')
+    }
+    await settled()
+  }
+}
+
+const fakeRuntime = (
+  screen: Partial<Omit<CliFollowRuntime['stdout'], 'write' | 'once'>> = {},
+) => {
   const written = { stdout: '', stderr: '' }
   const runtime: CliFollowRuntime = {
     stdout: {
@@ -224,6 +236,66 @@ describe('following to a pipe', () => {
     expect(written.stdout).toBe(
       `${inked}\n0123456789ab\n\u001b[3A\r\u001b[Jnext\n`,
     )
+  })
+
+  it('tells the topic it rewrites in place, and its size as facts, and asks again with the new size when the terminal is resized', async () => {
+    const socketPath = socketPathFor('in-place-size')
+    const asked: Array<Record<string, string>> = []
+    const resizing: Array<() => void> = []
+    const { runtime } = fakeRuntime({
+      columns: 60,
+      rows: 20,
+      on: (_event: 'resize', listener: () => void) => {
+        resizing.push(listener)
+      },
+      off: () => undefined,
+    })
+    const screen = runtime.stdout as { columns?: number; rows?: number }
+    await serving(
+      socketPath,
+      surfaceFollowing((_topic, flags) => {
+        asked.push({ ...flags })
+        return asked.length === 1
+          ? Stream.concat(Stream.make('first'), Stream.never)
+          : Stream.make('second')
+      }),
+      async () => {
+        const following = writeCliFollow(
+          { socketPath, request: { topic: 'words' }, inPlace: true },
+          runtime,
+        )
+        await eventually(() => asked.length === 1)
+        screen.columns = 100
+        screen.rows = 30
+        resizing.forEach(listener => {
+          listener()
+        })
+        await following
+      },
+    )
+    expect(asked).toEqual([
+      { 'in-place': '1', columns: '60', rows: '20' },
+      { 'in-place': '1', columns: '100', rows: '30' },
+    ])
+  })
+
+  it('sends a pipe’s request as it was given, with no size', async () => {
+    const socketPath = socketPathFor('pipe-no-size')
+    const asked: Array<Record<string, string>> = []
+    const { runtime } = fakeRuntime({ columns: 60, rows: 20 })
+    await serving(
+      socketPath,
+      surfaceFollowing((_topic, flags) => {
+        asked.push({ ...flags })
+        return Stream.make('once')
+      }),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'words', flags: { json: '1' } } },
+          runtime,
+        ),
+    )
+    expect(asked).toEqual([{ json: '1' }])
   })
 
   it('says why on stderr and exits 1 when the topic is refused', async () => {
