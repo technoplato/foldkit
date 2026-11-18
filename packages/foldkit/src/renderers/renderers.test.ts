@@ -1,6 +1,7 @@
 import { Array, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import * as Catalog from '../catalog/catalog.js'
 import { wrapDevice } from './devices/devices.js'
 import {
   Box,
@@ -15,6 +16,7 @@ import {
   Text,
   TextInput,
   Transcript,
+  actionButtons,
 } from './elements.js'
 import { Host } from './host.js'
 import { paintHtml, paintMobile, paintStatusHtml } from './html.js'
@@ -444,5 +446,45 @@ describe('a Text made of parts and a Box shown as a layer', () => {
     )
     expect(palette.layer?.kind).toBe('Dialog')
     expect(renderScreen(palette, 40)).toContain('Go to backlog')
+  })
+})
+
+describe('actionButtons', () => {
+  const Reset = Catalog.action('Reset', {
+    what: 'Sets the count to 0',
+    why: 'The person wants to start over',
+    enabled: (count: number) =>
+      count === 0
+        ? Catalog.Disabled({ because: 'count is already 0' })
+        : Catalog.Enabled(),
+    meta: { label: 'Reset', keys: ['r'] },
+  })
+  const catalog = Catalog.make([Reset])
+
+  it('gives each Button the description its Action declares once, in the Catalog', () => {
+    expect(
+      Array.map(
+        actionButtons(Catalog.entries(catalog, 3)),
+        button => button.description,
+      ),
+    ).toEqual(['Sets the count to 0'])
+    expect(
+      Array.map(actionButtons(Catalog.entries(catalog, 0)), button => [
+        button.description,
+        button.because,
+      ]),
+    ).toEqual([['Sets the count to 0', 'count is already 0']])
+  })
+
+  it('paints the description, the keys, and the reason as a hint on the HTML control', () => {
+    const painted = JSON.stringify(
+      paintHtml(
+        Row({}, ...actionButtons(Catalog.entries(catalog, 0))),
+        tag => tag,
+      ),
+    )
+    expect(painted).toContain('Sets the count to 0')
+    expect(painted).toContain('hint-because')
+    expect(painted).toContain('hint-keys')
   })
 })

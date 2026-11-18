@@ -117,8 +117,12 @@ describe('Screen', () => {
     expect(body).toContain('<div class="fk-text">0</div>')
     expect(body).toContain('data-action="Increment"')
     expect(body).toMatch(
-      /<button[^>]*data-action="Reset"[^>]*disabled[^>]*title="count is already 0"/,
+      /<button[^>]*data-action="Reset"[^>]*disabled[^>]*data-hint-because="count is already 0"/,
     )
+    expect(body).toMatch(
+      /<button[^>]*data-action="Reset"[^>]*data-hint="Sets the count to 0"/,
+    )
+    expect(body).not.toMatch(/<button[^>]*data-action="Reset"[^>]*title=/)
   })
 
   it('appends caller classes after the fk-* base class', () => {

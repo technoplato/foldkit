@@ -24,7 +24,7 @@
 
   const pickShortcutOf = (row: Interaction.MenuRow): Option.Option<string> =>
     Option.flatMap(row.maybePick, pick =>
-      Interaction.pickShortcutOf(pick, platform),
+      Interaction.pickShortcutOf(pick, platform, 'Browser'),
     )
 
   const listId = 'fk-action-menu-list'
@@ -81,6 +81,7 @@
       aria-labelledby="fk-action-menu-title"
       aria-modal="true"
       class={panelClass}
+      data-keys-live={menu.areRowKeysLive}
       data-style={menu.style._tag}
       role="dialog"
     >
@@ -140,8 +141,10 @@
               {/if}
             </span>
             {#if Array.isReadonlyArrayNonEmpty(row.keys)}
-              <span aria-hidden="true" class="fk-action-menu-keys"
-                >{@render keyCaps(row.keys)}</span
+              <span
+                aria-hidden="true"
+                class="fk-action-menu-keys"
+                data-hint={menu.rowKeysHint}>{@render keyCaps(row.keys)}</span
               >
             {/if}
             {#if Option.isSome(pickShortcutOf(row))}
@@ -164,6 +167,7 @@
             >{@render keyCaps(hint.keys)}{hint.does}</span
           >
         {/each}
+        <span class="fk-action-menu-count">{menu.summary}</span>
       </p>
     </div>
   </div>

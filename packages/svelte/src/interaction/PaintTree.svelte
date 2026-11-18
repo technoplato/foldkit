@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Option } from 'effect'
-  import { Environment, Navigation } from 'foldkit'
+  import { Environment, Interaction, Navigation } from 'foldkit'
   import {
     type ButtonNode,
     type UiNode,
@@ -24,6 +24,17 @@
   }>
 
   const { node, onPress, onInput, onLink, classNames = {} }: Props = $props()
+
+  const platform: Interaction.KeyPlatform =
+    typeof navigator === 'undefined'
+      ? 'Other'
+      : Interaction.keyPlatformOf(navigator)
+
+  const hintOf = (button: ButtonNode): Interaction.HintAttributes =>
+    Option.match(Interaction.controlHintOf(button, platform, 'Browser'), {
+      onNone: () => ({}),
+      onSome: Interaction.hintAttributesOf,
+    })
 
   let dockHeight = $state(0)
 
@@ -142,8 +153,8 @@
     onclick={() => {
       onPress(node)
     }}
-    title={node.because}
     type="button"
+    {...hintOf(node)}
   >
     {#if node.icon !== undefined}
       <Icon name={node.icon} />

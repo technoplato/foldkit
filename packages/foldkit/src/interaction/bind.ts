@@ -18,6 +18,7 @@ import { type Host, labelOf } from '../processor/host.js'
 import type { ProgramSchema } from '../program/program.js'
 import type { UiNode } from '../renderers/types.js'
 import {
+  type Echo,
   type KeyInput,
   type KeyPlatform,
   type MenuOpener,
@@ -25,6 +26,7 @@ import {
   type ProgramInteraction,
   Ready,
   type Status,
+  echoOfKey,
   isBrowserOwnedChord,
   menuOpenerOf,
 } from './interaction.js'
@@ -107,6 +109,7 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
     menu: () => Option.Option<MenuView>
     press: (tag: string) => boolean
     pressKey: (input: KeyInput) => boolean
+    echoOfKey: (input: KeyInput) => Option.Option<Echo>
     openMenu: () => boolean
     dismissMenu: () => boolean
     typeInMenu: (query: string) => boolean
@@ -266,6 +269,11 @@ export const bind = <Model, Message>(
       !isBrowserOwnedChord(input) &&
       sendAll(
         whenInteractive((inner, model) => inner.pressKey(model, input), []),
+      ),
+    echoOfKey: input =>
+      whenInteractive(
+        (inner, model) => echoOfKey(inner, model, input),
+        Option.none(),
       ),
     openMenu: () =>
       sendAll(whenInteractive((inner, model) => inner.openMenu(model), [])),

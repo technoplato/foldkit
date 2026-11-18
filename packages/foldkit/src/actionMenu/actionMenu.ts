@@ -558,6 +558,11 @@ const menuTitle = 'Actions'
 
 const menuFilterLabel = 'Search actions'
 
+const rowKeysLiveHint = 'This key runs its row now'
+
+const rowKeysRestingHint =
+  'Letters search here. Press ↓ to use this key, or press it on the page once the menu is closed'
+
 type RowNoun = Readonly<{ one: string; many: string }>
 
 const actionNoun: RowNoun = { one: 'action', many: 'actions' }
@@ -574,10 +579,16 @@ const summaryOf = (
       String.isEmpty(query.trim())
         ? `No ${noun.many}`
         : `No ${noun.many} match “${query.trim()}”`,
-    onNonEmpty: nonEmpty =>
-      nonEmpty.length === 1
-        ? `1 ${noun.one}`
-        : `${nonEmpty.length.toString()} ${noun.many}`,
+    onNonEmpty: nonEmpty => {
+      const count =
+        nonEmpty.length === 1
+          ? `1 ${noun.one}`
+          : `${nonEmpty.length.toString()} ${noun.many}`
+      const matches = nonEmpty.length === 1 ? 'matches' : 'match'
+      return String.isEmpty(query.trim())
+        ? count
+        : `${count} ${matches} “${query.trim()}”`
+    },
   })
 
 const escapeHintOf = (focus: Focus, isChoosing: boolean): string => {
@@ -597,6 +608,10 @@ const hintsOf = (
   { keys: ['↑', '↓'], does: 'move' },
   { keys: ['↵'], does: 'run' },
   { keys: ['esc'], does: escapeHintOf(focus, isChoosing) },
+  {
+    keys: ['a–z'],
+    does: focus._tag === 'OnFilter' ? 'search' : 'run a row by its key',
+  },
 ]
 
 /**
@@ -709,6 +724,9 @@ export const menuViewOf = (
     dismissLabel: `Close ${menuTitle.toLowerCase()}`,
     query: menu.query,
     isFilterFocused: menu.focus._tag === 'OnFilter',
+    areRowKeysLive: menu.focus._tag === 'OnAction',
+    rowKeysHint:
+      menu.focus._tag === 'OnAction' ? rowKeysLiveHint : rowKeysRestingHint,
     rows,
     summary: summaryOf(menu.query, rows, isChoosing ? choiceNoun : actionNoun),
     hints: hintsOf(menu.focus, isChoosing),
