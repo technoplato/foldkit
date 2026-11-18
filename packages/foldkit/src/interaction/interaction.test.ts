@@ -320,6 +320,41 @@ describe('controlHintOf', () => {
     )
   })
 
+  it('says why a control is unavailable as a sentence that stands alone', () => {
+    const hint = Interaction.controlHintOf(
+      { ...play, because: 'it is already playing' },
+      'Mac',
+      'Browser',
+    )
+    expect(Option.flatMap(hint, ({ maybeBecause }) => maybeBecause)).toEqual(
+      Option.some('It is already playing.'),
+    )
+    expect(
+      Option.map(
+        hint,
+        found => Interaction.hintAttributesOf(found)['data-hint-because'],
+      ),
+    ).toEqual(Option.some('It is already playing.'))
+    expect(Option.map(hint, ({ spoken }) => spoken)).toEqual(
+      Option.some(
+        'Plays from where you stopped. Unavailable: it is already playing',
+      ),
+    )
+  })
+
+  it('leaves a reason that is already a sentence as it is', () => {
+    expect(
+      Option.flatMap(
+        Interaction.controlHintOf(
+          { ...play, because: 'Nothing is in the player; play a book first.' },
+          'Mac',
+          'Browser',
+        ),
+        ({ maybeBecause }) => maybeBecause,
+      ),
+    ).toEqual(Option.some('Nothing is in the player; play a book first.'))
+  })
+
   it('carries no why for a control with nothing else to say', () => {
     expect(
       Interaction.controlHintOf(
