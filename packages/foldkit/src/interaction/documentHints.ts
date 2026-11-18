@@ -139,11 +139,13 @@ const startListening = (target: Document): (() => void) => {
 
   const state: {
     maybeShown: Option.Option<Element>
+    maybeWaiting: Option.Option<Element>
     maybeTimer: Option.Option<ReturnType<typeof setTimeout>>
     hiddenAtMs: number
     isKeyboard: boolean
   } = {
     maybeShown: Option.none(),
+    maybeWaiting: Option.none(),
     maybeTimer: Option.none(),
     hiddenAtMs: 0,
     isKeyboard: false,
@@ -152,6 +154,7 @@ const startListening = (target: Document): (() => void) => {
   const cancel = (): void => {
     Option.map(state.maybeTimer, clearTimeout)
     state.maybeTimer = Option.none()
+    state.maybeWaiting = Option.none()
   }
 
   const hide = (): void => {
@@ -198,6 +201,7 @@ const startListening = (target: Document): (() => void) => {
         if (isWarm) {
           show(from)
         } else {
+          state.maybeWaiting = Option.some(from)
           state.maybeTimer = Option.some(
             setTimeout(() => {
               show(from)
@@ -232,6 +236,21 @@ const startListening = (target: Document): (() => void) => {
     }
   }
 
+  // NOTE: A scroll hides the hint only when it moved the control: the
+  // page itself scrolled, or something that holds the control did. Words
+  // that scroll to follow a voice elsewhere on the page leave it be.
+  const onScroll = (event: Event): void => {
+    const scrolled = event.target
+    const isMoved = (control: Element): boolean =>
+      !(scrolled instanceof Element) || scrolled.contains(control)
+    if (
+      Option.exists(state.maybeShown, isMoved) ||
+      Option.exists(state.maybeWaiting, isMoved)
+    ) {
+      hide()
+    }
+  }
+
   const onPointerDown = (): void => {
     state.isKeyboard = false
     hide()
@@ -245,7 +264,7 @@ const startListening = (target: Document): (() => void) => {
     ['keydown', onKeyDown],
     ['pointerdown', onPointerDown],
     ['click', hide],
-    ['scroll', hide],
+    ['scroll', onScroll],
   ]
   Array.forEach(events, ([type, listener]) => {
     target.addEventListener(type, listener, true)
