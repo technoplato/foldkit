@@ -184,7 +184,15 @@ export const ShowDialog = Command.define(
   CompletedShowDialog,
 )(({ id, focusSelector }) =>
   Dom.lockScroll.pipe(
-    Effect.andThen(() => Dom.showDialog(dialogSelector(id), { focusSelector })),
+    Effect.andThen(() =>
+      // NOTE: The lock is taken before the dialog is shown, and showing
+      // waits for the next paint. When the dialog is gone by then, as
+      // when its page was left in that moment, nothing was held for the
+      // unmount to release, so the lock is given back here.
+      Dom.showDialog(dialogSelector(id), { focusSelector }).pipe(
+        Effect.catch(() => Dom.unlockScroll),
+      ),
+    ),
     Effect.ignore,
     Effect.as(CompletedShowDialog()),
   ),

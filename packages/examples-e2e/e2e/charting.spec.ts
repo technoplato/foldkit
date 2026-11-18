@@ -126,9 +126,7 @@ test.describe('charting example', () => {
     await expect(
       page.getByRole('heading', { name: 'Foldkit Adoption Observatory' }),
     ).toBeVisible()
-    await page.getByRole('button', { name: 'Velocity' }).click()
-    await expect(
-      page.getByRole('button', { name: 'Velocity' }),
-    ).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('radio', { name: 'Velocity' }).click()
+    await expect(page.getByRole('radio', { name: 'Velocity' })).toBeChecked()
   })
 })

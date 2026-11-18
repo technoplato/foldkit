@@ -5,7 +5,7 @@
   "description": "foldkit: Elm-inspired UI framework powered by Effect-TS",
   "packageManager": "pnpm@11.8.0",
   "scripts": {
-    "prepare": "test -z \"$CI\" && simple-git-hooks || true",
+    "prepare": "test -n \"$FOLDKIT_GIT_HOOKS\" && simple-git-hooks || true",
     "build": "pnpm -r --if-present build",
     "bench": "pnpm --filter foldkit-bench start",
     "demo": "tsx scripts/run-counter-demo.ts",
