@@ -171,6 +171,43 @@ const listAt = (
 const resetEntryOf = (model: ListModel) =>
   Option.getOrThrow(Array.head(Catalog.entries(listCatalog, model)))
 
+describe('what a person calls the thing a choosing Action takes', () => {
+  const nounOf = (action: typeof ResetCounter) =>
+    Option.map(
+      Option.flatMap(
+        Array.head(Catalog.entries(Catalog.make([action]), listAt([1]))),
+        entry => entry.maybeChoices,
+      ),
+      choices => choices.noun,
+    )
+
+  it('is its field in words unless the Action says another', () => {
+    expect(nounOf(ResetCounter)).toEqual(Option.some('id'))
+  })
+
+  it('is the noun the Action declares, such as a title for a field that holds a slug', () => {
+    const RenameCounter = Catalog.action('ResetCounter', {
+      fields: { id: S.Int },
+      choose: {
+        field: 'id',
+        noun: 'counter',
+        prompt: 'Which counter?',
+        token: S.FiniteFromString.pipe(S.decodeTo(S.Int)),
+        choicesOf: (model: ListModel) =>
+          model.counters.map(counter => ({
+            value: counter.id,
+            title: `Counter ${counter.id.toString()}`,
+          })),
+        nothingToChoose: 'there are no counters yet',
+      },
+      what: 'Sets one count to 0',
+      why: 'The person wants to start that counter over',
+      meta: { label: 'Reset', keys: ['r'] },
+    })
+    expect(nounOf(RenameCounter)).toEqual(Option.some('counter'))
+  })
+})
+
 describe('choosing Actions', () => {
   it('is one entry that offers each choice with its own availability', () => {
     const entry = resetEntryOf(listAt([0, 3]))

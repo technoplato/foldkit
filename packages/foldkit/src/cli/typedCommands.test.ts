@@ -33,7 +33,7 @@ describe('a command’s choice, typed as a person names it', () => {
     expect(vague.exitCode).toBe(2)
     expect(vague.stdout).toBe('')
     expect(vague.stderr?.split('\n')).toEqual([
-      '"chap 11" matches 6 choices of jump-to-chapter. Say more of the name, or copy one:',
+      '"chap 11" matches 6 chapters. Say more of the name, or copy one:',
       '  chapters jump-to-chapter 11   Chapter 11',
       '  chapters jump-to-chapter 110  Chapter 110',
       '  chapters jump-to-chapter 111  Chapter 111',
@@ -49,7 +49,7 @@ describe('a command’s choice, typed as a person names it', () => {
     expect(result.exitCode).toBe(2)
     const lines = result.stderr?.split('\n') ?? []
     expect(lines[0]).toBe(
-      '"chapter" matches 114 choices of jump-to-chapter. Say more of the name, or copy one:',
+      '"chapter" matches 114 chapters. Say more of the name, or copy one:',
     )
     expect(lines).toHaveLength(10)
     expect(lines.at(-1)).toBe('  and 106 more.')
@@ -61,7 +61,7 @@ describe('a command’s choice, typed as a person names it', () => {
     expect(result.stdout).toBe('')
     const lines = result.stderr?.split('\n') ?? []
     expect(lines[0]).toBe(
-      'No choice of jump-to-chapter matches "the tide". Usage: chapters jump-to-chapter <chapter>, such as:',
+      'No chapter matches "the tide". Usage: chapters jump-to-chapter <chapter>, such as:',
     )
     expect(lines[1]).toBe('  chapters jump-to-chapter 2  Chapter 2')
     expect(lines.at(-1)).toMatch(/^ {2}and \d+ more\.$/)
