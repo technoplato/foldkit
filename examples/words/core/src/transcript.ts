@@ -29,7 +29,11 @@ export const TranscriptFormat = S.Literals(['PlainText', 'Markdown', 'Srt'])
 /** The transcript formats the iPhone copies, in the same text. */
 export type TranscriptFormat = typeof TranscriptFormat.Type
 
-const lastIndexAtOrBefore = <A>(
+/**
+ * The index of the last item to start at or before `seconds`, by binary
+ * search over items in time order. None before the first.
+ */
+export const lastIndexAtOrBefore = <A>(
   items: ReadonlyArray<A>,
   seconds: number,
   startOf: (item: A) => number,

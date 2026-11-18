@@ -86,6 +86,7 @@ import * as Share from './share/index.js'
 import {
   audioSourceOf,
   displayedLengthOf,
+  durationOf,
   fileIDsOf,
   followedSectionOf,
   isCountingLiveOf,
