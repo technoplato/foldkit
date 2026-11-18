@@ -57,13 +57,13 @@ describe('counter CLI on a file tape', () => {
     expect(refused.stderr).toContain('reset is disabled: count is already 0.')
   })
 
-  it('rejects an unknown command and lists the real ones', () => {
+  it('rejects an unknown command in a sentence, names the nearest, and says where all are listed', () => {
     const counter = counterOnNewTape()
     const unknown = counter('explode')
     expect(unknown.status).toBe(2)
-    expect(unknown.stderr).toContain(
-      'Try one of: increment, decrement, reset, go-back, mirror-navigation, keep-navigation-local, open-session-settings, close-session-settings.',
-    )
+    expect(unknown.stderr).toContain('Unknown command "explode".')
+    expect(unknown.stderr).toContain('lists every command.')
+    expect(counter('incremnt').stderr).toContain('Nearest: counter increment')
   })
 
   it('drives the action menu and chooses by name', () => {

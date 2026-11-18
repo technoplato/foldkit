@@ -66,11 +66,12 @@ describe('runProgramCommand', () => {
     expect(result.stderr).toBe('reset is disabled: count is already 0.')
   })
 
-  it('rejects an unknown command with exit code 2 and the real ones', () => {
+  it('rejects an unknown command with exit code 2, in a sentence, and paints nothing', () => {
     const result = runProgramCommand(bindCounter(), 'counter', ['explode'], {})
     expect(result.exitCode).toBe(2)
+    expect(result.stdout).toBe('')
     expect(result.stderr).toBe(
-      'Unknown command "explode". Try one of: increment, reset.',
+      'Unknown command "explode". `counter help` lists every command.',
     )
   })
 

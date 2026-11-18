@@ -31,38 +31,65 @@ export type ProgramArgv =
       flags: Readonly<Record<string, string>>
     }>
 
-const booleanFlags: ReadonlySet<string> = new Set([
-  'meta',
-  'ctrl',
-  'shift',
-  'json',
-])
+const switches: ReadonlySet<string> = new Set(['meta', 'ctrl', 'shift', 'json'])
 
 /**
- * Splits argv into words and `--name value` or `--name=value` flags.
- * `--meta`, `--ctrl`, `--shift`, and `--json` take no value.
+ * What a Program's CLI adds to how its argv is read: the flags that are
+ * on or off, such as `each-word`, beside the ones every Program has
+ * (`meta`, `ctrl`, `shift`, `json`). A switch never takes a word as its
+ * value, so it may be typed before the words: `follow --each-word words`.
  */
-export const parseProgramArgv = (argv: ReadonlyArray<string>): ProgramArgv => {
+export type ArgvOptions = Readonly<{ switches?: ReadonlyArray<string> }>
+
+/**
+ * Splits argv into words and flags. A flag written `--name=value` has
+ * that value. A switch, one of `--meta`, `--ctrl`, `--shift`, `--json`
+ * and those the Program names, is on and takes nothing. Any other
+ * `--name` takes the next item as its value when that item is a word;
+ * followed by another flag, or by nothing, it is on. A flag is never
+ * folded into the words, wherever it is typed.
+ *
+ * @example
+ * ```typescript
+ * parseProgramArgv(['follow', 'words', '--each-word', '--color', '1'])
+ * // { _tag: 'Do', token: 'follow words', flags: { 'each-word': '1', color: '1' } }
+ * parseProgramArgv(['follow', '--each-word', 'words'], { switches: ['each-word'] })
+ * // { _tag: 'Do', token: 'follow words', flags: { 'each-word': '1' } }
+ * ```
+ */
+export const parseProgramArgv = (
+  argv: ReadonlyArray<string>,
+  options: ArgvOptions = {},
+): ProgramArgv => {
+  const isSwitch = (name: string): boolean =>
+    switches.has(name) || (options.switches ?? []).includes(name)
   const words: Array<string> = []
   const flags: Record<string, string> = {}
   let pendingFlag: string | undefined
   for (const item of argv) {
-    if (pendingFlag !== undefined) {
-      flags[pendingFlag] = item
-      pendingFlag = undefined
-    } else if (item.startsWith('--')) {
+    if (item.startsWith('--') && item !== '--') {
+      if (pendingFlag !== undefined) {
+        flags[pendingFlag] = '1'
+        pendingFlag = undefined
+      }
       const body = item.slice(2)
       if (body.includes('=')) {
         const [name = '', ...valueParts] = body.split('=')
         flags[name] = valueParts.join('=')
-      } else if (booleanFlags.has(body)) {
+      } else if (isSwitch(body)) {
         flags[body] = '1'
       } else {
         pendingFlag = body
       }
+    } else if (pendingFlag !== undefined) {
+      flags[pendingFlag] = item
+      pendingFlag = undefined
     } else if (item !== '--') {
       words.push(item)
     }
+  }
+  if (pendingFlag !== undefined) {
+    flags[pendingFlag] = '1'
   }
   const token = words.join(' ')
   if (token === '' || token === 'show') {
@@ -104,8 +131,9 @@ const followWord = 'follow'
  */
 export const followArgvOf = (
   argv: ReadonlyArray<string>,
+  options: ArgvOptions = {},
 ): FollowArgv | undefined => {
-  const request = parseProgramArgv(argv)
+  const request = parseProgramArgv(argv, options)
   if (request._tag !== 'Do') {
     return undefined
   }

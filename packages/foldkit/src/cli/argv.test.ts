@@ -24,6 +24,50 @@ describe('parseProgramArgv', () => {
   })
 })
 
+describe('flags a person types anywhere', () => {
+  it('turns a flag on when another flag follows it, and never takes that flag as its value', () => {
+    expect(
+      followArgvOf(['follow', 'words', '--each-word', '--color', '1']),
+    ).toEqual({ topic: 'words', flags: { 'each-word': '1', color: '1' } })
+  })
+
+  it('turns a flag on when nothing follows it', () => {
+    expect(followArgvOf(['follow', 'words', '--each-word'])).toEqual({
+      topic: 'words',
+      flags: { 'each-word': '1' },
+    })
+  })
+
+  it('never takes a word as the value of a flag the Program says is on or off, so the flag may come before the words', () => {
+    const switches = { switches: ['each-word'] }
+    expect(
+      followArgvOf(['follow', '--each-word', 'words', '--json'], switches),
+    ).toEqual({ topic: 'words', flags: { 'each-word': '1', json: '1' } })
+    expect(
+      followArgvOf(
+        ['--before', '2', 'follow', '--each-word', 'words', '--after', '3'],
+        switches,
+      ),
+    ).toEqual({
+      topic: 'words',
+      flags: { before: '2', 'each-word': '1', after: '3' },
+    })
+    expect(
+      parseProgramArgv(['listen', '--json', 'The', 'Lantern', 'Keeper']),
+    ).toEqual({
+      _tag: 'Do',
+      token: 'listen The Lantern Keeper',
+      flags: { json: '1' },
+    })
+  })
+
+  it('takes a value written with an equals sign', () => {
+    expect(
+      followArgvOf(['follow', 'words', '--color=1', '--before=2']),
+    ).toEqual({ topic: 'words', flags: { color: '1', before: '2' } })
+  })
+})
+
 describe('followArgvOf', () => {
   it('reads follow, its topic, and the flags that shape its text', () => {
     expect(

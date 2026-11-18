@@ -104,6 +104,13 @@ export type Choice<Value> = Readonly<{
  */
 export type Choose<Model, Field extends string, Value> = Readonly<{
   field: Field
+  /**
+   * What a person calls the thing chosen, such as `title` for a field
+   * that holds a slug. Usage and the sentences about the choices use it:
+   * `listen <title>`, `No title matches`. The field in words, `counter
+   * id`, when it is left out.
+   */
+  noun?: string
   prompt: string
   token: S.Codec<Value, string>
   choicesOf: (model: Model) => ReadonlyArray<Choice<Value>>
@@ -123,6 +130,7 @@ export type EntryChoice = Readonly<{
 /** A Choose with its value printed, as a declaration keeps it. */
 export type ChooseDeclaration<Model> = Readonly<{
   field: string
+  noun: string
   prompt: string
   nothingToChoose: string
   choicesOf: (model: Model) => ReadonlyArray<EntryChoice>
@@ -230,12 +238,19 @@ export function action(
   })
 }
 
+const fieldWordPattern = /(?<=[a-z0-9])(?=[A-Z])/u
+
+/** A field's name as words: `counterId` is `counter id`. */
+const wordsOfField = (field: string): string =>
+  field.split(fieldWordPattern).join(' ').toLowerCase()
+
 const chooseOf = <Model, Value>(
   choose: Choose<Model, string, Value>,
 ): ChooseDeclaration<Model> => {
   const printToken = S.encodeSync(choose.token)
   return {
     field: choose.field,
+    noun: choose.noun ?? wordsOfField(choose.field),
     prompt: choose.prompt,
     nothingToChoose: choose.nothingToChoose,
     choicesOf: model =>
@@ -389,6 +404,7 @@ export type Entry<Tag extends string = string> = Readonly<{
  */
 export type EntryChoices = Readonly<{
   field: string
+  noun: string
   prompt: string
   choices: ReadonlyArray<EntryChoice>
   maybePreferred: Option.Option<string>
@@ -430,6 +446,7 @@ const choicesEntryOf = <Model>(
     keys: Option.isSome(maybePreferred) ? declaration.meta.keys : [],
     maybeChoices: Option.some({
       field: choose.field,
+      noun: choose.noun,
       prompt: choose.prompt,
       choices,
       maybePreferred,
