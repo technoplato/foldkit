@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 17th, 2026 at 11:25:11 p.m. EST — `9972680ef7d9` feat(transcript-player): green: a link that opens on one word (Scribe #2494)
+
+- **Implementation commit:** `9972680ef7d94513a11ceaec1bf8615187ae3e5c`
+- **Change:** a link that opens on one word (Scribe #2494)
+- **Details:**
+  - A place in an address reads to the millisecond beside every whole-second form, and WordSegment prints the time a word starts that way; PlaceSegment still prints whole seconds, so no existing link or printed address changes.
+- **Files:**
+  - `examples/transcript-player/core/src/ids.ts` — fractional seconds read, WordSegment
+- **User context (verbatim):**
+  > the site highlights it and I'd like to be able to link to that word as well
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 17th, 2026 at 11:19:23 p.m. EST — `0c8187c29b7c` docs: layout is organization first, style on top (Scribe #2494)
 
 - **Implementation commit:** `0c8187c29b7c16c1a0b1db4ac3a701c3d8e74bab`
