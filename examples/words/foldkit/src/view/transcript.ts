@@ -4,6 +4,7 @@ import {
   ChangedFindQuery,
   ClickedCopySectionLink,
   ClickedCopySectionText,
+  ClickedCopySectionWordLink,
   ClickedCopyWordLink,
   ClickedWord,
   type ClipboardEntry,
@@ -81,6 +82,7 @@ const menuItem = (
   label: string,
   message: Message,
   isDisabled = false,
+  maybeHelp?: string,
 ): Html => {
   const h = html<Message>()
   return h.button(
@@ -90,6 +92,7 @@ const menuItem = (
       h.Popovertargetaction('hide'),
       h.OnClick(message),
       h.Disabled(isDisabled),
+      ...(maybeHelp === undefined ? [] : [h.Title(maybeHelp)]),
       h.Class(
         'flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-subhead text-label enabled:hover:bg-fill disabled:opacity-40',
       ),
@@ -122,6 +125,14 @@ const sectionMenu = (section: Section, isPlayable: boolean): Html => {
         'Link',
         'Copy Link to This Moment',
         ClickedCopySectionLink({ sectionID: section.id }),
+      ),
+      menuItem(
+        menuID,
+        'Link',
+        'Copy Link to This Word',
+        ClickedCopySectionWordLink({ sectionID: section.id }),
+        false,
+        'A link to the word being spoken in this section, or to its first word. On a computer, a right click on any word offers its own link.',
       ),
       menuItem(
         menuID,

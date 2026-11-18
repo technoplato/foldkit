@@ -297,6 +297,13 @@ export const SteppedFind = m('SteppedFind', {
 })
 /** The listener dismissed a word's menu. */
 export const ClosedWordMenu = m('ClosedWordMenu')
+/**
+ * The listener copied, from a section's menu, a link to the word being
+ * spoken in that section, or to its first word when the voice is elsewhere.
+ */
+export const ClickedCopySectionWordLink = m('ClickedCopySectionWordLink', {
+  sectionID: S.String,
+})
 /** The listener copied a link to one word. */
 export const ClickedCopyWordLink = m('ClickedCopyWordLink', {
   wordID: S.String,
@@ -416,6 +423,7 @@ export const Message = S.Union([
   ClickedShareRecordingLink,
   CompletedShareRecordingLink,
   ClickedCopySectionLink,
+  ClickedCopySectionWordLink,
   ClickedCopyWordLink,
   OpenedWordMenu,
   ClosedWordMenu,

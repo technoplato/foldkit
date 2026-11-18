@@ -149,7 +149,7 @@ import { SectionPlacement, TranscriptScroller } from './scroller.js'
 import { FIND_FIELD_ID, SEARCH_FIELD_ID, searchTermsOf } from './search.js'
 import * as Share from './share/index.js'
 import { WordsStore, storeFailureReasonOf } from './store.js'
-import { exportTranscript, sectionAt } from './transcript.js'
+import { exportTranscript, sectionAt, wordAt } from './transcript.js'
 
 /** How far the skip buttons, arrow keys, and system skip commands move playback. */
 export const SKIP_SECONDS = 15
@@ -3565,6 +3565,32 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             ),
             'Copied link to this moment',
           ]),
+        ),
+      ClickedCopySectionWordLink: ({ sectionID }) =>
+        copyFromReady(model, ready =>
+          pipe(
+            sectionNamed(ready, sectionID),
+            Option.flatMap(section =>
+              pipe(
+                sectionAt(ready.detail.sections, displayedPositionOf(ready)),
+                Option.filter(spoken => spoken.id === section.id),
+                Option.flatMap(() =>
+                  wordAt(section, displayedPositionOf(ready)),
+                ),
+                Option.orElse(() => Array.head(section.words)),
+                Option.flatMap(word =>
+                  wordLinkRouteOf(ready.recordingID, section, word.id),
+                ),
+              ),
+            ),
+            Option.map(
+              route =>
+                [
+                  scribeRouteToShareUrl(route),
+                  'Copied link to this word',
+                ] as const,
+            ),
+          ),
         ),
       ClickedCopyWordLink: ({ wordID }) =>
         copyFromReady(evolveReady(model, withoutWordMenu)[0], ready =>
