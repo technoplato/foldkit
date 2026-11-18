@@ -8,6 +8,7 @@ import {
   pipe,
 } from 'effect'
 import { Navigation } from 'foldkit'
+import { described } from 'foldkit/declaration'
 import { namedByTyped } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
 import { AppearanceState } from 'foldkit/theme'
@@ -213,10 +214,25 @@ export type PlayerControls = typeof PlayerControls.Type
  * log.
  */
 export const Model = S.Struct({
-  library: Library,
+  library: Library.annotate(
+    described({
+      what: 'The books on the shelf, with the place reached in each and its bookmarks',
+      why: 'It is what the user has to listen to, and where they stopped',
+    }),
+  ),
   chapters: ChaptersByTitle,
-  listening: Listening,
-  speed: Speed,
+  listening: Listening.annotate(
+    described({
+      what: 'The book in the player, with its place and whether it is playing',
+      why: 'It is what the user is hearing now',
+    }),
+  ),
+  speed: Speed.annotate(
+    described({
+      what: 'How fast books play',
+      why: 'The user chose to hear them faster or slower',
+    }),
+  ),
   maybeProblem: S.Option(S.String),
   maybeTimelineProblem: S.Option(S.String),
   unsentReports: S.Array(StretchReport),
@@ -226,7 +242,12 @@ export const Model = S.Struct({
   readings: ReadAloud.ReadingsState,
   previewChecks: S.Array(ReadAloud.PreviewCheck),
   audible: AudibleModel,
-  appearance: AppearanceState,
+  appearance: AppearanceState.annotate(
+    described({
+      what: 'Whether the screen is light or dark, and what the user chose',
+      why: 'The user reads more easily in one than the other',
+    }),
+  ),
   navigation: Navigation.NavigationStack(Destination),
   maybeRemovedBookmark: S.OptionFromOptionalKey(Bookmark),
 })
