@@ -133,7 +133,7 @@ const aroundOf = (flags: CliDaemonFlags) => ({
 
 const wordsNowOf = (bound: BoundBooks, flags: CliDaemonFlags) =>
   Option.map(readyOf(bound.readModel()), model =>
-    spokenWordsOf(model, aroundOf(flags)),
+    spokenWordsOf(model, aroundOf(flags), Date.now()),
   )
 
 /**
@@ -178,13 +178,17 @@ type WordsReading = Readonly<{
 
 const isSameWords = Option.makeEquivalence(isSameParagraph)
 
+const eachWordEvery = Duration.millis(50)
+
 /**
  * The `words` topic a view follows: what `books words` prints now, then
  * again each time the paragraph being read, the title, or whether it
  * plays changes, so `books follow words` scrolls the book as it is read.
- * `--each-word` prints again for every word instead. Each text is painted
- * at the moment it changed, so a slow reader never sees a later place
- * under an earlier change.
+ * `--each-word` prints again for every word instead: it reads the word
+ * being spoken from the player's clock twenty times a second and prints
+ * when the text changes, so it moves on the word while the Program hears
+ * the place once a second. Each text is painted at the moment it changed,
+ * so a slow reader never sees a later place under an earlier change.
  */
 const followWords =
   (bound: BoundBooks): CliFollowing =>
@@ -193,15 +197,17 @@ const followWords =
       const maybeWords = wordsNowOf(bound, flags)
       return { maybeWords, text: wordsTextOf(bound, flags, maybeWords) }
     }
-    const isSame =
-      flags['each-word'] === '1'
-        ? (self: WordsReading, that: WordsReading) => self.text === that.text
-        : (self: WordsReading, that: WordsReading) =>
-            isSameWords(self.maybeWords, that.maybeWords)
-    return Stream.map(
-      Interaction.follow(bound, read, isSame),
-      reading => reading.text,
-    )
+    return flags['each-word'] === '1'
+      ? Stream.tick(eachWordEvery).pipe(
+          Stream.map(() => read().text),
+          Stream.changes,
+        )
+      : Stream.map(
+          Interaction.follow(bound, read, (self, that) =>
+            isSameWords(self.maybeWords, that.maybeWords),
+          ),
+          reading => reading.text,
+        )
   }
 
 // WRITES
