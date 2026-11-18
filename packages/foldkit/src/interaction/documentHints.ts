@@ -103,6 +103,11 @@ const placeHint = (
   const view = target.defaultView
   const viewWidth = view === null ? 0 : view.innerWidth
   const rect = from.getBoundingClientRect()
+  // NOTE: Measured from the page's start edge. A browser shrinks a placed
+  // panel to the room left of the far edge, so one measured where the
+  // last hint left it comes out narrow, and grows to the edge once moved.
+  panel.style.left = '0px'
+  panel.style.top = '0px'
   const width = panel.offsetWidth
   const height = panel.offsetHeight
   const above = rect.top - height - edgeGapPx
@@ -180,7 +185,10 @@ const startListening = (target: Document): (() => void) => {
     Option.match(hintedOf(event), {
       onNone: hide,
       onSome: from => {
-        if (Option.contains(state.maybeShown, from)) {
+        // NOTE: The same element, asked by identity. Asking Effect whether
+        // two elements are equal reads into them, and some parts of an
+        // element, such as an icon's SVG length, throw when read.
+        if (Option.exists(state.maybeShown, shown => shown === from)) {
           return
         }
         const isWarm =
