@@ -16,6 +16,10 @@ import {
 
 import { useBound, useMenu, useMenuOpener } from '@foldkit/react/interaction'
 
+import { useLook } from '../theme/themed.js'
+import { Icon } from './icon.js'
+import type { Look } from './look.js'
+
 const presentationOf = (
   style: Navigation.PresentationStyle,
 ): Pick<ModalProps, 'presentationStyle' | 'transparent'> =>
@@ -47,13 +51,11 @@ const presentationOf = (
     }),
   )
 
-const accent = '#4f46e5'
-
-const rowBackground = (row: Interaction.MenuRow): string => {
+const rowBackground = (row: Interaction.MenuRow, look: Look): string => {
   if (row.isFocused) {
-    return '#eef2ff'
+    return look.colors.Selected
   } else if (row.isHighlighted) {
-    return '#f3f4f6'
+    return look.colors.Surface
   } else {
     return 'transparent'
   }
@@ -61,14 +63,18 @@ const rowBackground = (row: Interaction.MenuRow): string => {
 
 const MatchedText = ({
   runs,
-}: Readonly<{ runs: ReadonlyArray<Interaction.TextRun> }>): ReactElement => (
+  look,
+}: Readonly<{
+  runs: ReadonlyArray<Interaction.TextRun>
+  look: Look
+}>): ReactElement => (
   <>
     {Array.map(runs, (run, position) =>
       run.isMatch ? (
         <Text
           key={position}
           style={{
-            color: accent,
+            color: look.colors.SelectedMark,
             fontWeight: '700',
             textDecorationLine: 'underline',
           }}
@@ -82,15 +88,18 @@ const MatchedText = ({
   </>
 )
 
-const KeyCap = ({ label }: Readonly<{ label: string }>): ReactElement => (
+const KeyCap = ({
+  label,
+  look,
+}: Readonly<{ label: string; look: Look }>): ReactElement => (
   <Text
     style={{
-      backgroundColor: '#f9fafb',
+      backgroundColor: look.colors.Field,
       borderBottomWidth: 2,
-      borderColor: '#e5e7eb',
+      borderColor: look.colors.Rule,
       borderRadius: 6,
       borderWidth: 1,
-      color: '#374151',
+      color: look.colors.QuietText,
       fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
       fontSize: 12,
       minWidth: 24,
@@ -106,9 +115,11 @@ const KeyCap = ({ label }: Readonly<{ label: string }>): ReactElement => (
 
 const MenuRow = ({
   row,
+  look,
   onChoose,
 }: Readonly<{
   row: Interaction.MenuRow
+  look: Look
   onChoose: (tag: string) => void
 }>): ReactElement => {
   const isDisabled = row.entry.availability._tag === 'Disabled'
@@ -117,7 +128,7 @@ const MenuRow = ({
       {row.isFirstUnavailable ? (
         <View
           style={{
-            backgroundColor: '#e5e7eb',
+            backgroundColor: look.colors.Rule,
             height: StyleSheet.hairlineWidth,
             marginHorizontal: 12,
             marginVertical: 6,
@@ -137,8 +148,10 @@ const MenuRow = ({
         }}
         style={{
           alignItems: 'center',
-          backgroundColor: rowBackground(row),
-          borderLeftColor: row.isFocused ? accent : 'transparent',
+          backgroundColor: rowBackground(row, look),
+          borderLeftColor: row.isFocused
+            ? look.colors.SelectedMark
+            : 'transparent',
           borderLeftWidth: 3,
           borderRadius: 8,
           flexDirection: 'row',
@@ -150,27 +163,30 @@ const MenuRow = ({
         <View style={{ flex: 1, gap: 2 }}>
           <Text
             style={{
-              color: isDisabled ? '#9ca3af' : '#111827',
+              color: isDisabled ? look.colors.FaintText : look.colors.Text,
               fontSize: 15,
               fontWeight: '600',
             }}
           >
-            <MatchedText runs={row.title} />
+            <MatchedText look={look} runs={row.title} />
           </Text>
           <Text
             numberOfLines={1}
-            style={{ color: isDisabled ? '#9ca3af' : '#6b7280', fontSize: 13 }}
+            style={{
+              color: isDisabled ? look.colors.FaintText : look.colors.QuietText,
+              fontSize: 13,
+            }}
           >
-            <MatchedText runs={row.description} />
+            <MatchedText look={look} runs={row.description} />
           </Text>
           {row.entry.availability._tag === 'Disabled' ? (
-            <Text style={{ color: '#b45309', fontSize: 12 }}>
+            <Text style={{ color: look.colors.Warning, fontSize: 12 }}>
               {row.entry.availability.because}
             </Text>
           ) : null}
         </View>
         {Array.map(row.keys, key => (
-          <KeyCap key={key} label={key} />
+          <KeyCap key={key} label={key} look={look} />
         ))}
       </Pressable>
     </Fragment>
@@ -193,11 +209,12 @@ export const ActionMenuSheet = ({
   menu,
 }: Readonly<{ menu: Interaction.MenuView }>): ReactElement => {
   const bound = useBound()
+  const look = useLook()
   return (
     <View
       style={{
         alignItems: 'center',
-        backgroundColor: 'rgba(15, 23, 42, 0.4)',
+        backgroundColor: look.colors.Scrim,
         flex: 1,
         justifyContent: 'flex-start',
         paddingTop: '15%',
@@ -220,14 +237,14 @@ export const ActionMenuSheet = ({
       <View
         accessibilityLabel={menu.title}
         style={{
-          backgroundColor: '#ffffff',
-          borderColor: 'rgba(0, 0, 0, 0.08)',
+          backgroundColor: look.colors.RaisedSurface,
+          borderColor: look.colors.Border,
           borderRadius: 14,
           borderWidth: 1,
           elevation: 12,
           maxWidth: 576,
           overflow: 'hidden',
-          shadowColor: '#0f172a',
+          shadowColor: look.colors.Shadow,
           shadowOffset: { width: 0, height: 12 },
           shadowOpacity: 0.25,
           shadowRadius: 24,
@@ -243,11 +260,11 @@ export const ActionMenuSheet = ({
             bound.typeInMenu(query)
           }}
           placeholder={menu.filterLabel}
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={look.colors.FaintText}
           style={{
-            borderBottomColor: '#e5e7eb',
+            borderBottomColor: look.colors.Rule,
             borderBottomWidth: 1,
-            color: '#111827',
+            color: look.colors.Text,
             fontSize: 16,
             paddingHorizontal: 18,
             paddingVertical: 14,
@@ -258,7 +275,11 @@ export const ActionMenuSheet = ({
           {Array.match(menu.rows, {
             onEmpty: () => (
               <Text
-                style={{ color: '#6b7280', padding: 24, textAlign: 'center' }}
+                style={{
+                  color: look.colors.QuietText,
+                  padding: 24,
+                  textAlign: 'center',
+                }}
               >
                 {menu.summary}
               </Text>
@@ -267,6 +288,7 @@ export const ActionMenuSheet = ({
               Array.map(rows, row => (
                 <MenuRow
                   key={row.entry.tag}
+                  look={look}
                   row={row}
                   onChoose={tag => {
                     bound.chooseFromMenu(tag)
@@ -280,8 +302,7 @@ export const ActionMenuSheet = ({
   )
 }
 
-const floatingOpenerStyle: StyleProp<ViewStyle> = {
-  backgroundColor: '#111827',
+const floatingOpenerStyle: ViewStyle = {
   borderRadius: 24,
   bottom: 24,
   paddingHorizontal: 16,
@@ -304,6 +325,7 @@ const floatingOpenerStyle: StyleProp<ViewStyle> = {
 export const ActionMenuButton = ({
   style,
 }: Readonly<{ style?: StyleProp<ViewStyle> }>): ReactElement | null => {
+  const look = useLook()
   return Option.match(useMenuOpener('Touch'), {
     onNone: () => null,
     onSome: ({ opener, open }) => (
@@ -311,11 +333,59 @@ export const ActionMenuButton = ({
         accessibilityLabel={opener.label}
         accessibilityRole="button"
         onPress={open}
-        style={style ?? floatingOpenerStyle}
+        style={
+          style ?? [
+            floatingOpenerStyle,
+            { backgroundColor: look.colors.Button },
+          ]
+        }
       >
-        <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>
+        <Text
+          style={{
+            color: look.colors.ButtonLabel,
+            fontSize: 14,
+            fontWeight: '600',
+          }}
+        >
           {opener.label}
         </Text>
+      </Pressable>
+    ),
+  })
+}
+
+const headerOpenerSize = 36
+
+/**
+ * The button that opens the bound Program's action menu from a native
+ * header: the shared `More` icon, named from the Program for a screen
+ * reader. Both native stacks put it at the end of every page's header, so
+ * it never covers a screen's own controls. It renders nothing for a
+ * Program without a menu.
+ *
+ * @example
+ * ```tsx
+ * <Stack screenOptions={{ headerRight: () => <HeaderMenuButton /> }} />
+ * ```
+ */
+export const HeaderMenuButton = (): ReactElement | null => {
+  const look = useLook()
+  return Option.match(useMenuOpener('Touch'), {
+    onNone: () => null,
+    onSome: ({ opener, open }) => (
+      <Pressable
+        accessibilityLabel={opener.label}
+        accessibilityRole="button"
+        hitSlop={8}
+        onPress={open}
+        style={{
+          alignItems: 'center',
+          height: headerOpenerSize,
+          justifyContent: 'center',
+          width: headerOpenerSize,
+        }}
+      >
+        <Icon color={look.colors.Text} name="More" size={22} />
       </Pressable>
     ),
   })

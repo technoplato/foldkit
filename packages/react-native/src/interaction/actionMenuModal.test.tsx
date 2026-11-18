@@ -18,6 +18,8 @@ vi.mock('@foldkit/react/interaction', () => ({
   useMenu: () => presented.get('menu'),
 }))
 
+vi.mock('react-native-svg', async () => (await import('../test/native.js')).svg)
+
 vi.mock('../theme/themed.js', async () => {
   const { lightLook } = await import('./look.js')
   return { useLook: () => lightLook }

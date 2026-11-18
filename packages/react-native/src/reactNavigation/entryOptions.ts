@@ -1,43 +1,64 @@
-import { Array, Option } from 'effect'
+import { Option } from 'effect'
 
 import type { AnyBound } from '@foldkit/react/interaction'
 
-import { type NativePresentation, presentationOf } from './stack.js'
+import { type Look, lightLook } from '../interaction/look.js'
+import {
+  type NativePresentation,
+  entryOfNavigatorKey,
+  presentationOf,
+} from './stack.js'
 
 // OPTIONS
+
+const sheetDetents = (): Array<number> => [0.6, 1]
 
 /**
  * The native stack options one entry asks for. `title` is empty for an
  * entry without one, because native stack headers fall back to the route
- * name otherwise.
+ * name otherwise. The header and the page beneath take the look's
+ * colors, so the platform's own chrome is in the Program's mode.
  */
 export type EntryOptions = Readonly<{
   presentation: NativePresentation
   headerShown: boolean
   title: string
+  headerTintColor: string
+  headerShadowVisible: boolean
+  headerStyle: Readonly<{ backgroundColor: string }>
+  headerTitleStyle: Readonly<{ color: string }>
+  contentStyle: Readonly<{ backgroundColor: string }>
+  sheetGrabberVisible: boolean
+  sheetAllowedDetents: Array<number>
 }>
 
 /**
- * The native stack options for one entry, read from the plan when the
- * stack asks for them: its declared presentation, a header for a card, and
- * its declared title. Both native stacks call it from `screenOptions`, so
- * neither re-renders on a move to keep options current.
+ * The native stack options for the entry a navigator's route shows, read
+ * from the plan when the stack asks for them: its declared presentation, a header for a card,
+ * its declared title, and the look's colors. Both native stacks call it
+ * from `screenOptions`, so neither re-renders on a move to keep options
+ * current.
  *
  * @example
  * ```typescript
- * entryOptionsOf(bound, '/counter/session')
- * // { presentation: 'card', headerShown: true, title: 'Session' }
- * entryOptionsOf(bound, '/counter/menu')
- * // { presentation: 'transparentModal', headerShown: false, title: 'Actions' }
+ * entryOptionsOf(bound, '/counter/session', look)
+ * // { presentation: 'formSheet', headerShown: false, title: 'Session', … }
+ * entryOptionsOf(bound, '/counter/menu', look)
+ * // { presentation: 'transparentModal', headerShown: false, title: 'Actions', … }
  * ```
  */
-export const entryOptionsOf = (bound: AnyBound, key: string): EntryOptions => {
+export const entryOptionsOf = (
+  bound: AnyBound,
+  key: string,
+  look: Look = lightLook,
+): EntryOptions => {
   const maybeEntry = Option.flatMap(bound.navigation(), plan =>
-    Array.findFirst(plan.entries, entry => entry.key === key),
+    entryOfNavigatorKey(plan, key),
   )
   const presentation = presentationOf(
     Option.flatMap(maybeEntry, entry => entry.maybeStyle),
   )
+  const isFloating = presentation === 'transparentModal'
   return {
     presentation,
     headerShown: presentation === 'card',
@@ -45,5 +66,14 @@ export const entryOptionsOf = (bound: AnyBound, key: string): EntryOptions => {
       Option.flatMap(maybeEntry, entry => entry.maybeTitle),
       () => '',
     ),
+    headerTintColor: look.colors.Text,
+    headerShadowVisible: false,
+    headerStyle: { backgroundColor: look.colors.PageGround },
+    headerTitleStyle: { color: look.colors.Text },
+    contentStyle: {
+      backgroundColor: isFloating ? 'transparent' : look.colors.PageGround,
+    },
+    sheetGrabberVisible: true,
+    sheetAllowedDetents: sheetDetents(),
   }
 }

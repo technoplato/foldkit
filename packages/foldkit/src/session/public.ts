@@ -1,5 +1,6 @@
 export {
   CloseSessionSettings,
+  GoBack,
   KeepNavigationLocal,
   Message,
   MirrorNavigation,

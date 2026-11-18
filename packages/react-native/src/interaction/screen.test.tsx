@@ -219,7 +219,7 @@ describe('docks', () => {
     )
     const parts = screenPartsOf(Column({}, Text('Library'), Column({}, tabs)))
     expect(parts.docks).toEqual([tabs])
-    expect(parts.maybeBody).toEqual(Column({}, Text('Library'), Column({})))
+    expect(parts.maybeBody).toEqual(Column({}, Text('Library'), Column()))
   })
 
   it('keeps a screen with no dock whole', () => {

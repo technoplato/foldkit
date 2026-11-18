@@ -2,18 +2,25 @@ import { Array, Option } from 'effect'
 import { Stack, useNavigationContainerRef, useRoute } from 'expo-router'
 import { Navigation } from 'foldkit'
 import { type ReactElement, useEffect, useState } from 'react'
+import { Platform } from 'react-native'
 
 import { useBound } from '@foldkit/react/interaction'
 import { useIsNavigationReady } from '@foldkit/react/navigation'
 
-import type { PaintStyles } from '../interaction/screen.js'
+import { HeaderMenuButton } from '../interaction/actionMenuModal.js'
+import type { PaintStyles } from '../interaction/paint.js'
 import { entryOptionsOf } from '../reactNavigation/entryOptions.js'
 import {
   EntryStylesContext,
   EntryView,
   entryStylesOf,
 } from '../reactNavigation/entryView.js'
-import { keyedRoutesOf } from '../reactNavigation/stack.js'
+import {
+  keyedRoutesOf,
+  renewedStack,
+  steadyStack,
+} from '../reactNavigation/stack.js'
+import { useLook } from '../theme/themed.js'
 import { expoRouterStack } from './routerStack.js'
 
 // LAYOUT
@@ -65,6 +72,7 @@ export const FoldkitRouterStack = ({
   styles,
 }: Readonly<{ styles?: PaintStyles }>): ReactElement => {
   const bound = useBound()
+  const look = useLook()
   const ref = useNavigationContainerRef()
   const isContainerReady = useIsContainerReady(ref)
   const isPlanReady = useIsNavigationReady()
@@ -76,10 +84,16 @@ export const FoldkitRouterStack = ({
     return Option.match(bound.navigation(), {
       onNone: () => undefined,
       onSome: plan => {
-        const stack = expoRouterStack(ref, keyedRoutesOf(plan))
+        const stack = steadyStack(
+          Navigation.coalescedStack(
+            renewedStack(expoRouterStack(ref, keyedRoutesOf(plan))),
+          ),
+          bound.navigation,
+          { isAddressShown: Platform.OS === 'web' },
+        )
         return Navigation.runCarrier(
           bound,
-          Navigation.keyedStackDriver(Navigation.coalescedStack(stack)),
+          Navigation.keyedStackDriver(stack),
           { launchUri: Option.some(Array.lastNonEmpty(stack.routes()).uri) },
         )
       },
@@ -88,7 +102,12 @@ export const FoldkitRouterStack = ({
 
   return (
     <EntryStylesContext.Provider value={entryStylesOf(styles)}>
-      <Stack screenOptions={({ route }) => entryOptionsOf(bound, route.key)} />
+      <Stack
+        screenOptions={({ route }) => ({
+          ...entryOptionsOf(bound, route.key, look),
+          headerRight: () => <HeaderMenuButton />,
+        })}
+      />
     </EntryStylesContext.Provider>
   )
 }

@@ -6,6 +6,8 @@ import {
 import { Processor } from 'foldkit'
 import { Platform } from 'react-native'
 
+import { nativeSystemAppearance } from '@foldkit/react-native/theme'
+
 const boundBooksKey = Symbol.for('foldkit.books.expo.boundBooks')
 
 type ExpoGlobals = typeof globalThis & {
@@ -22,7 +24,8 @@ const expoHost = (): Processor.Host.Host =>
 /**
  * Starts Books once per JavaScript runtime, on the made-up library every
  * Client can open: three titles nobody wrote, with made-up words. Nobody
- * is signed in and no real library is read. Fast Refresh runs this module
+ * is signed in and no real library is read. The Program hears the phone's
+ * own appearance. Fast Refresh runs this module
  * again, so the running Books lives on `globalThis` and is reused.
  *
  * @example
@@ -36,7 +39,10 @@ export const startExpoBooks = (): Promise<BoundBooks> => {
   if (existing !== undefined) {
     return existing
   }
-  const started = startMadeUpBooks({ host: expoHost() }).then(bindBooks)
+  const started = startMadeUpBooks({
+    host: expoHost(),
+    resources: nativeSystemAppearance,
+  }).then(bindBooks)
   globals[boundBooksKey] = started
   return started
 }

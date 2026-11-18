@@ -13,8 +13,10 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack'
 
-import type { PaintStyles } from '../interaction/screen.js'
+import { HeaderMenuButton } from '../interaction/actionMenuModal.js'
+import type { PaintStyles } from '../interaction/paint.js'
 import { WhenReady } from '../interaction/whenReady.js'
+import { useLook } from '../theme/themed.js'
 import { entryOptionsOf } from './entryOptions.js'
 import { EntryStylesContext, EntryView, entryStylesOf } from './entryView.js'
 import {
@@ -22,6 +24,8 @@ import {
   entryStateOf,
   keyedRoutesOf,
   reactNavigationStack,
+  renewedStack,
+  steadyStack,
 } from './stack.js'
 
 // STACK
@@ -46,6 +50,7 @@ const ReadyStack = ({
   launchUri: string | undefined
 }>): ReactElement => {
   const bound = useBound()
+  const look = useLook()
   const navigationRef = useMemo(
     () => createNavigationContainerRef<ParamList>(),
     [],
@@ -60,8 +65,12 @@ const ReadyStack = ({
     return Navigation.runCarrier(
       bound,
       Navigation.keyedStackDriver(
-        Navigation.coalescedStack(
-          reactNavigationStack(navigationRef, routesAtMount),
+        steadyStack(
+          Navigation.coalescedStack(
+            renewedStack(reactNavigationStack(navigationRef, routesAtMount)),
+          ),
+          bound.navigation,
+          { isAddressShown: false },
         ),
       ),
       { launchUri: Option.fromNullishOr(launchUri) },
@@ -77,7 +86,10 @@ const ReadyStack = ({
       }}
     >
       <Stack.Navigator
-        screenOptions={({ route }) => entryOptionsOf(bound, route.key)}
+        screenOptions={({ route }) => ({
+          ...entryOptionsOf(bound, route.key, look),
+          headerRight: () => <HeaderMenuButton />,
+        })}
       >
         <Stack.Screen name={entryRouteName} component={EntryScreen} />
       </Stack.Navigator>

@@ -1,32 +1,40 @@
 import { Match as M } from 'effect'
-import { Interaction } from 'foldkit'
 import type { ReactElement, ReactNode } from 'react'
-import { Text, type TextStyle, View, type ViewStyle } from 'react-native'
+import { Text, View } from 'react-native'
 
 import { useStatus } from '@foldkit/react/interaction'
 
+import { useLook } from '../theme/themed.js'
+
 const statusPadding = 24
-
-const statusViewStyle: ViewStyle = {
-  alignItems: 'center',
-  flex: 1,
-  justifyContent: 'center',
-  padding: statusPadding,
-}
-
-const statusTextStyle: TextStyle = {
-  color: Interaction.screenLook.textColor,
-  fontSize: Interaction.screenLook.bodySize,
-  textAlign: 'center',
-}
 
 const StatusText = ({
   description,
-}: Readonly<{ description: string }>): ReactElement => (
-  <View accessibilityRole="summary" style={statusViewStyle}>
-    <Text style={statusTextStyle}>{description}</Text>
-  </View>
-)
+}: Readonly<{ description: string }>): ReactElement => {
+  const look = useLook()
+  return (
+    <View
+      accessibilityRole="summary"
+      style={{
+        alignItems: 'center',
+        backgroundColor: look.colors.PageGround,
+        flex: 1,
+        justifyContent: 'center',
+        padding: statusPadding,
+      }}
+    >
+      <Text
+        style={{
+          color: look.colors.Text,
+          fontSize: look.sizes.bodySize,
+          textAlign: 'center',
+        }}
+      >
+        {description}
+      </Text>
+    </View>
+  )
+}
 
 /**
  * Paints `children` once the Program is Ready, and the Program's own
