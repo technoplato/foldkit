@@ -74,6 +74,7 @@ import {
   type ReadyPlayback,
   SignedIn,
 } from './model.js'
+import { playbackClockOf } from './playbackClock.js'
 import {
   type RecordingDetail,
   type RecordingSummary,
@@ -361,6 +362,24 @@ describe('playing', () => {
     expect(
       readyOf(run(detached, [ClickedReturnToPlayhead()]).model).follow,
     ).toBe('Following')
+  })
+
+  it('holds the clock the edge reads on from: the place, whether it runs, the length, and whether a word is marked', () => {
+    const playing = run(ready, [
+      ClickedPlay(),
+      HeardAudioPlaying(),
+      HeardAudioPosition({ seconds: 12 }),
+    ]).model
+    const clockOf = (model: Model) => playbackClockOf(readyOf(model))
+    expect(clockOf(playing)).toEqual({
+      placeSeconds: 12,
+      rate: 1,
+      durationSeconds: durationOf(readyOf(playing)),
+      isMarking: true,
+    })
+    expect(clockOf(run(playing, [HeardAudioPaused()]).model).rate).toBe(0)
+    const scrubbing = clockOf(run(playing, [MovedScrub({ seconds: 40 })]).model)
+    expect([scrubbing.placeSeconds, scrubbing.rate]).toEqual([40, 0])
   })
 
   it('shows Playing while audio plays and Paused only when it stopped part way through', () => {
@@ -1810,14 +1829,24 @@ describe('recordings shared with this account', () => {
 
   it('opens the share in place of the recording page, whichever answer comes first', () => {
     const sharePath = scribeRouteToPath(
-      ShareRoute({ recordingID, shareID: 'newer', k: Option.none(), m: Option.none() }),
+      ShareRoute({
+        recordingID,
+        shareID: 'newer',
+        k: Option.none(),
+        m: Option.none(),
+      }),
     )
     const sharesFirst = run(signedInAt(RecordingRoute({ recordingID })), [
       received([shareOf('newer', 20)]),
       observed(detail({ summary: othersSummary })),
     ])
     expect(sharesFirst.model.route).toEqual(
-      ShareRoute({ recordingID, shareID: 'newer', k: Option.none(), m: Option.none() }),
+      ShareRoute({
+        recordingID,
+        shareID: 'newer',
+        k: Option.none(),
+        m: Option.none(),
+      }),
     )
     expect(sharesFirst.model.playback._tag).toBe('NoPlayback')
     expect(sharesFirst.model.share.sharedRange._tag).toBe('OpeningSharedRange')
