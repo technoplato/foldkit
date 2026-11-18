@@ -54,6 +54,13 @@ const vnodesOf = (node: Vnode | string): ReadonlyArray<Vnode> =>
 const classed = (root: Vnode, name: string): ReadonlyArray<Vnode> =>
   vnodesOf(root).filter(node => node.data?.class?.[name] === true)
 
+/** The words an element shows: its own text, or its text children joined. */
+const labelOf = (node: Vnode): string =>
+  node.text ??
+  (node.children ?? [])
+    .map(child => (typeof child === 'string' ? child : (child.text ?? '')))
+    .join('')
+
 const paintedTree = (isOpen: boolean): Vnode =>
   // NOTE: the painter returns the library's own element tree, read here
   // as plain data.
@@ -87,13 +94,10 @@ describe('a word’s menu in the Foldkit HTML painter', () => {
     const html = JSON.stringify(tree)
     expect(classed(tree, 'fk-word-menu')).toHaveLength(1)
     expect(classed(tree, 'fk-word-menu-backdrop')).toHaveLength(1)
-    expect(
-      classed(tree, 'fk-word-menu-item').map(item =>
-        (item.children ?? [])
-          .filter(child => typeof child === 'string')
-          .join(''),
-      ),
-    ).toEqual(['Play from here', 'Copy link to this word'])
+    expect(classed(tree, 'fk-word-menu-item').map(labelOf)).toEqual([
+      'Play from here',
+      'Copy link to this word',
+    ])
     expect(html).toContain('"role":"menu"')
     expect(
       classed(tree, 'fk-word-menu-item').every(

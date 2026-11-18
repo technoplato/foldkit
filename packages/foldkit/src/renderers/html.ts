@@ -15,11 +15,11 @@ import { screenStylesheet } from '../interaction/screenStyles.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
-import { transcriptClockMount } from './htmlEdge.js'
+import { transcriptMount, wordMenuMount } from './htmlEdge.js'
 import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
-import type { BoxNode, TextPart, UiNode } from './types.js'
+import type { BoxNode, TextPart, TranscriptNode, UiNode } from './types.js'
 
 const browserKeyPlatform = (): KeyPlatform =>
   typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
@@ -35,6 +35,57 @@ export const paintHtml = <Message>(
   toMessage: (token: string) => Message | undefined,
 ): Html => {
   const h = html<Message>()
+  // NOTE: the menu a Program holds open on one word. The view draws its
+  // items and a backdrop that closes it; the edge puts it by its word and
+  // reports Escape. Whether it is open is the Program's.
+  const paintWordMenu = (transcript: TranscriptNode): ReadonlyArray<Html> => {
+    const menu = transcript.wordMenu
+    if (menu === undefined) {
+      return []
+    }
+    const dismiss = toMessage(menu.dismissAction)
+    return [
+      h.div(
+        [
+          h.Class('fk-word-menu-backdrop'),
+          h.AriaHidden(true),
+          ...(dismiss === undefined ? [] : [h.OnClick(dismiss)]),
+        ],
+        [],
+      ),
+      h.div(
+        [
+          h.Class('fk-word-menu'),
+          h.Role('menu'),
+          ...(dismiss === undefined
+            ? []
+            : [h.OnMount(wordMenuMount<Message>(menu.token, dismiss))]),
+        ],
+        Array.map(menu.items, item => {
+          const message = toMessage(item.action)
+          return h.button(
+            [
+              h.Type('button'),
+              h.Role('menuitem'),
+              h.Class('fk-word-menu-item'),
+              ...(message === undefined ? [] : [h.OnClick(message)]),
+            ],
+            [
+              ...(item.icon === undefined
+                ? []
+                : [
+                    h.span(
+                      [h.Class('fk-icon'), h.AriaHidden(true)],
+                      [iconGlyphs[item.icon]],
+                    ),
+                  ]),
+              item.label,
+            ],
+          )
+        }),
+      ),
+    ]
+  }
   const paintPart = (part: TextPart): Html | string =>
     M.value(part).pipe(
       M.withReturnType<Html | string>(),
@@ -406,8 +457,9 @@ export const paintHtml = <Message>(
             [
               h.Class('fk-transcript'),
               h.AriaLabel(transcript.label),
-              // NOTE: the view says the clock; the edge reads on from it
-              // and moves the mark on the word between reports.
+              // NOTE: the view says the clock and whether a word has a menu;
+              // the edge reads on from the clock, moving the mark on the
+              // word between reports, and opens the menu on a long press.
               ...(transcript.clock === undefined
                 ? []
                 : [
@@ -423,68 +475,83 @@ export const paintHtml = <Message>(
                       'clock-rate',
                       transcript.clock.rate.toString(),
                     ),
-                    h.OnMount(transcriptClockMount<Message>()),
                   ]),
+              ...(transcript.wordMenuAction === undefined
+                ? []
+                : [h.DataAttribute('word-menu', 'true')]),
+              h.OnMount(transcriptMount<Message>()),
             ],
-            Array.match(transcript.passages, {
-              onEmpty: () => [
-                h.p([h.Class('fk-transcript-empty')], [transcript.emptyText]),
-              ],
-              onNonEmpty: passages =>
-                Array.map(passages, passage =>
-                  h.article(
-                    [
-                      h.Class('fk-passage'),
-                      ...(passage.isCurrent === true
-                        ? [h.DataAttribute('current', 'true')]
-                        : []),
-                    ],
-                    [
-                      ...(passage.heading === undefined
-                        ? []
-                        : [
-                            h.h3(
-                              [h.Class('fk-passage-heading')],
-                              [passage.heading],
-                            ),
-                          ]),
-                      h.span([h.Class('fk-passage-label')], [passage.label]),
-                      h.p(
-                        [h.Class('fk-passage-words')],
-                        Array.map(passage.words, word => {
-                          const message = toMessage(
-                            `${transcript.action}:${word.token}`,
-                          )
-                          return h.span(
-                            [
-                              h.Class('fk-word'),
-                              h.DataAttribute('token', word.token),
-                              ...(word.startMs === undefined
-                                ? []
-                                : [
-                                    h.DataAttribute(
-                                      'start-ms',
-                                      word.startMs.toString(),
-                                    ),
-                                  ]),
-                              ...(word.isCurrent === true
-                                ? [h.DataAttribute('current', 'true')]
-                                : []),
-                              ...(word.mark === undefined
-                                ? []
-                                : [h.DataAttribute('mark', word.mark)]),
-                              ...(message === undefined
-                                ? []
-                                : [h.OnClick(message)]),
-                            ],
-                            [`${word.text} `],
-                          )
-                        }),
-                      ),
-                    ],
+            [
+              ...Array.match(transcript.passages, {
+                onEmpty: () => [
+                  h.p([h.Class('fk-transcript-empty')], [transcript.emptyText]),
+                ],
+                onNonEmpty: passages =>
+                  Array.map(passages, passage =>
+                    h.article(
+                      [
+                        h.Class('fk-passage'),
+                        ...(passage.isCurrent === true
+                          ? [h.DataAttribute('current', 'true')]
+                          : []),
+                      ],
+                      [
+                        ...(passage.heading === undefined
+                          ? []
+                          : [
+                              h.h3(
+                                [h.Class('fk-passage-heading')],
+                                [passage.heading],
+                              ),
+                            ]),
+                        h.span([h.Class('fk-passage-label')], [passage.label]),
+                        h.p(
+                          [h.Class('fk-passage-words')],
+                          Array.map(passage.words, word => {
+                            const message = toMessage(
+                              `${transcript.action}:${word.token}`,
+                            )
+                            const menuMessage =
+                              transcript.wordMenuAction === undefined
+                                ? undefined
+                                : toMessage(
+                                    `${transcript.wordMenuAction}:${word.token}`,
+                                  )
+                            return h.span(
+                              [
+                                h.Class('fk-word'),
+                                h.DataAttribute('token', word.token),
+                                ...(word.startMs === undefined
+                                  ? []
+                                  : [
+                                      h.DataAttribute(
+                                        'start-ms',
+                                        word.startMs.toString(),
+                                      ),
+                                    ]),
+                                ...(word.isCurrent === true
+                                  ? [h.DataAttribute('current', 'true')]
+                                  : []),
+                                ...(word.mark === undefined
+                                  ? []
+                                  : [h.DataAttribute('mark', word.mark)]),
+                                ...(message === undefined
+                                  ? []
+                                  : [h.OnClick(message)]),
+                                ...(menuMessage === undefined
+                                  ? []
+                                  : [h.OnContextMenu(menuMessage)]),
+                              ],
+                              [`${word.text} `],
+                            )
+                          }),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-            }),
+              }),
+              ...paintWordMenu(transcript),
+            ],
           ),
         DeviceShell: shell =>
           h.div(

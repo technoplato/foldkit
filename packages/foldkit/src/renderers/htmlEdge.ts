@@ -1,4 +1,4 @@
-import { Effect, Stream } from 'effect'
+import { Effect, Queue, Stream } from 'effect'
 
 import type { MountAction } from '../mount/index.js'
 import { transcriptPlaceAt } from './transcriptClock.js'
@@ -8,9 +8,6 @@ import { transcriptPlaceAt } from './transcriptClock.js'
 // the attributes the view puts there. The Program says the clock; the
 // edge reads on from it between reports, so the page moves on the word
 // while the Program hears the place about once a second.
-
-/** The name of the mount that moves the spoken word on a painted Transcript. */
-export const transcriptClockMountName = 'FoldkitTranscriptClock'
 
 /** A word is never marked later than this after it starts. */
 const PAINT_GAP_MS = 40
@@ -179,23 +176,199 @@ const runTranscriptClock = (transcript: Element): (() => void) => {
   }
 }
 
+/** The name of the mount every painted Transcript carries. */
+export const transcriptMountName = 'FoldkitTranscript'
+
+const LONG_PRESS_MS = 500
+
+const LONG_PRESS_SLACK_PX = 10
+
+const wordOfTarget = (target: EventTarget | null): Element | undefined =>
+  target instanceof Element
+    ? (target.closest('.fk-word[data-token]') ?? undefined)
+    : undefined
+
 /**
- * The mount a painted Transcript with a clock carries: it moves the mark
- * on the word between a Program's reports of the place. It sends the
- * Program nothing, so any Program's page can carry it.
+ * Opens a word's menu on a long press with a finger or a pen, the way a
+ * right click does: it sends the word the same `contextmenu` the view
+ * already answers, so the Program is told through the view's own, current
+ * handler. A press that moves, or lifts early, opens nothing; the tap that
+ * ends a long press does not also play from the word.
+ */
+const runLongPress = (transcript: Element): (() => void) => {
+  const state: {
+    maybePress: Readonly<{ x: number; y: number; timer: number }> | undefined
+    isClickSwallowed: boolean
+  } = { maybePress: undefined, isClickSwallowed: false }
+  const end = () => {
+    if (state.maybePress !== undefined) {
+      window.clearTimeout(state.maybePress.timer)
+      state.maybePress = undefined
+    }
+  }
+  const onDown = (event: Event) => {
+    const maybeWord = wordOfTarget(event.target)
+    if (
+      maybeWord === undefined ||
+      !(event instanceof PointerEvent) ||
+      event.pointerType === 'mouse' ||
+      transcript.getAttribute('data-word-menu') !== 'true'
+    ) {
+      return
+    }
+    end()
+    state.maybePress = {
+      x: event.clientX,
+      y: event.clientY,
+      timer: window.setTimeout(() => {
+        state.maybePress = undefined
+        state.isClickSwallowed = true
+        maybeWord.dispatchEvent(
+          new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        )
+      }, LONG_PRESS_MS),
+    }
+  }
+  const onMove = (event: Event) => {
+    const press = state.maybePress
+    if (
+      press !== undefined &&
+      event instanceof PointerEvent &&
+      Math.hypot(event.clientX - press.x, event.clientY - press.y) >
+        LONG_PRESS_SLACK_PX
+    ) {
+      end()
+    }
+  }
+  const onClick = (event: Event) => {
+    if (state.isClickSwallowed) {
+      state.isClickSwallowed = false
+      event.stopPropagation()
+      event.preventDefault()
+    }
+  }
+  transcript.addEventListener('pointerdown', onDown)
+  transcript.addEventListener('pointermove', onMove)
+  transcript.addEventListener('pointerup', end)
+  transcript.addEventListener('pointercancel', end)
+  transcript.addEventListener('click', onClick, true)
+  return () => {
+    end()
+    transcript.removeEventListener('pointerdown', onDown)
+    transcript.removeEventListener('pointermove', onMove)
+    transcript.removeEventListener('pointerup', end)
+    transcript.removeEventListener('pointercancel', end)
+    transcript.removeEventListener('click', onClick, true)
+  }
+}
+
+/**
+ * The mount every painted Transcript carries, the edge of the HTML
+ * painter: it moves the mark on the word between a Program's reports of
+ * the place, where the Transcript has a clock, and opens a word's menu on
+ * a long press, where it offers one. What it does is told only by the
+ * element's attributes, and it sends the Program nothing itself, so any
+ * Program's page can carry it.
  *
  * @example
  * ```typescript
- * h.section([h.Class('fk-transcript'), h.OnMount(transcriptClockMount())], passages)
+ * h.section([h.Class('fk-transcript'), h.OnMount(transcriptMount())], passages)
  * ```
  */
-export const transcriptClockMount = <Message>(): MountAction<Message> => ({
-  name: transcriptClockMountName,
+export const transcriptMount = <Message>(): MountAction<Message> => ({
+  name: transcriptMountName,
   f: transcript =>
     Stream.callback<Message>(() =>
       Effect.acquireRelease(
-        Effect.sync(() => runTranscriptClock(transcript)),
+        Effect.sync(() => {
+          const stopClock = runTranscriptClock(transcript)
+          const stopLongPress = runLongPress(transcript)
+          return () => {
+            stopClock()
+            stopLongPress()
+          }
+        }),
         stop => Effect.sync(stop),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+})
+
+const MENU_GAP_PX = 8
+
+const MENU_EDGE_PX = 8
+
+/**
+ * Puts an open word menu by its word: under it, or above it where there
+ * is no room below, and inside the window. The menu is named for the word.
+ *
+ * @example
+ * ```typescript
+ * placeWordMenu(menuElement, 'w4012')
+ * ```
+ */
+export const placeWordMenu = (menu: HTMLElement, token: string): void => {
+  const maybeWord = (
+    menu.closest('.fk-transcript') ??
+    menu.parentElement ??
+    document
+  ).querySelector(`[data-token="${CSS.escape(token)}"]`)
+  if (maybeWord !== null) {
+    const bounds = maybeWord.getBoundingClientRect()
+    const size = menu.getBoundingClientRect()
+    const below = bounds.bottom + MENU_GAP_PX
+    const fitsBelow = below + size.height <= window.innerHeight - MENU_EDGE_PX
+    const left = Math.max(
+      MENU_EDGE_PX,
+      Math.min(bounds.left, window.innerWidth - size.width - MENU_EDGE_PX),
+    )
+    const top = fitsBelow
+      ? below
+      : Math.max(MENU_EDGE_PX, bounds.top - MENU_GAP_PX - size.height)
+    menu.style.left = `${left.toString()}px`
+    menu.style.top = `${top.toString()}px`
+    menu.setAttribute('aria-label', maybeWord.textContent?.trim() ?? '')
+  }
+}
+
+/** The name of the mount an open word menu carries. */
+export const wordMenuMountName = 'FoldkitWordMenu'
+
+/**
+ * The mount an open word menu carries: it puts the menu by its word, and
+ * tells the Program `dismiss` when Escape is pressed. The Program decides
+ * whether the menu is open; this only places it and reports the key.
+ *
+ * @example
+ * ```typescript
+ * h.div([h.Class('fk-word-menu'), h.OnMount(wordMenuMount(menu.token, dismissMessage))], items)
+ * ```
+ */
+export const wordMenuMount = <Message>(
+  token: string,
+  dismiss: Message,
+): MountAction<Message> => ({
+  name: wordMenuMountName,
+  args: { token },
+  f: menu =>
+    Stream.callback<Message>(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          if (menu instanceof HTMLElement) {
+            placeWordMenu(menu, token)
+          }
+          const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              Queue.offerUnsafe(queue, dismiss)
+            }
+          }
+          document.addEventListener('keydown', onKeyDown, true)
+          return onKeyDown
+        }),
+        onKeyDown =>
+          Effect.sync(() =>
+            document.removeEventListener('keydown', onKeyDown, true),
+          ),
       ).pipe(Effect.flatMap(() => Effect.never)),
     ),
 })

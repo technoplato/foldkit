@@ -5,8 +5,8 @@ import { Transcript } from './elements.js'
 import { paintHtml } from './html.js'
 import {
   markSpokenWord,
-  transcriptClockMount,
-  transcriptClockMountName,
+  transcriptMount,
+  transcriptMountName,
 } from './htmlEdge.js'
 
 const painted = (node: Parameters<typeof paintHtml>[0]): string =>
@@ -97,7 +97,7 @@ describe('the Foldkit HTML painter tells its edge the clock', () => {
     expect(html).toContain('"data-clock-at-ms":"50000"')
     expect(html).toContain('"data-clock-rate":"1"')
     expect(html).toContain('"data-start-ms":"1400"')
-    expect(html).toContain(transcriptClockMountName)
+    expect(html).toContain(transcriptMountName)
   })
 
   it('paints no clock for a Transcript that has none', () => {
@@ -115,7 +115,6 @@ describe('the Foldkit HTML painter tells its edge the clock', () => {
       ),
     )
     expect(html).not.toContain('data-clock')
-    expect(html).not.toContain(transcriptClockMountName)
   })
 })
 
@@ -171,7 +170,7 @@ describe('the mount on a painted Transcript', () => {
     document.body.append(root)
     const told: Array<unknown> = []
     const fiber = Effect.runFork(
-      Stream.runForEach(transcriptClockMount<unknown>().f(root), message =>
+      Stream.runForEach(transcriptMount<unknown>().f(root), message =>
         Effect.sync(() => told.push(message)),
       ),
     )
@@ -191,7 +190,7 @@ describe('the mount on a painted Transcript', () => {
     const root = page(0)
     document.body.append(root)
     const fiber = Effect.runFork(
-      Stream.runDrain(transcriptClockMount<unknown>().f(root)),
+      Stream.runDrain(transcriptMount<unknown>().f(root)),
     )
     await until(() => currentTokens(root)[0] === 'w2')
     root.setAttribute('data-clock-place-ms', '2600')
