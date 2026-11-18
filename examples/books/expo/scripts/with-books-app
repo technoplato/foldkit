@@ -1,0 +1,11 @@
+#!/bin/sh
+# Names, for the phone's bundle, the Instant app that holds the library.
+# Only the app's id is read from the env file, as the terminal's
+# `with-books-access` reads it, so a bundle never holds an admin token.
+# Without an id the app opens the made-up library.
+ENV_FILE="${BOOKS_ENV_FILE:-$HOME/.config/knophy-host/books/books.env}"
+if [ -z "${EXPO_PUBLIC_BOOKS_INSTANT_APP_ID:-}" ] && [ -f "$ENV_FILE" ]; then
+  EXPO_PUBLIC_BOOKS_INSTANT_APP_ID="$(sed -n 's/^INSTANT_APP_ID=//p' "$ENV_FILE" | head -n 1 | tr -d "\"'")"
+fi
+export EXPO_PUBLIC_BOOKS_INSTANT_APP_ID
+exec "$@"

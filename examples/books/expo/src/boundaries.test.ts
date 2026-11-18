@@ -49,4 +49,13 @@ describe('Books Expo boundaries', () => {
     expect(start).toContain('startMadeUpBooks')
     expect(start).toContain('books-core-example')
   })
+
+  it('keeps no sign-in secret: no token, cookie or password is written by the app', () => {
+    const sources = [...sourcesIn(appDir), ...sourcesIn(here)]
+    for (const file of sources) {
+      const source = readFileSync(file, 'utf8')
+      expect(source, file).not.toMatch(/AsyncStorage\.setItem|SecureStore/)
+      expect(source, file).not.toMatch(/CF_Authorization|password/i)
+    }
+  })
 })

@@ -1,24 +1,36 @@
 import {
+  Audible,
+  BooksProgram,
   type BoundBooks,
+  LibraryStore,
+  ScribeTimeline,
+  SyncedBooks,
   bindBooks,
+  instantTranscriptSource,
+  makeInstantLibraryStore,
+  makeInstantScribeTimeline,
+  newProcessorInstance,
+  noReadAloud,
   startMadeUpBooks,
-  titlesOf,
 } from 'books-core-example/browser'
-import { Array, Layer, Option } from 'effect'
-import { Processor } from 'foldkit'
+import { Layer } from 'effect'
+import { Processor, Runtime } from 'foldkit'
 import { Platform } from 'react-native'
-import { Pause, Play, type Track } from 'transcript-player-core-example/browser'
-import {
-  type TrackLabel,
-  expoAudioOutput,
-} from 'transcript-player-expo-example'
 
-import { nativeSystemAppearance } from '@foldkit/react-native/theme'
+import { Instant, withHostedIdentity } from '@foldkit/instant/browser'
+import { init } from '@instantdb/react-native'
+
+import type { PhoneConnection } from './connection'
+import { type Running, phoneResources } from './phoneResources'
+
+type PhoneDatabase = ReturnType<typeof init>
 
 const boundBooksKey = Symbol.for('foldkit.books.expo.boundBooks')
+const databaseKey = Symbol.for('foldkit.books.expo.database')
 
 type ExpoGlobals = typeof globalThis & {
   [boundBooksKey]?: Promise<BoundBooks>
+  [databaseKey]?: PhoneDatabase
 }
 
 const expoGlobals = (): ExpoGlobals => globalThis
@@ -28,82 +40,111 @@ const expoHost = (): Processor.Host.Host =>
     ? Processor.Host.ExpoIos()
     : Processor.Host.ExpoAndroid()
 
-// NOTE: the made-up titles name audio at an address nothing answers. The
-// app carries a made-up voice for them, made from the made-up words' own
-// times by `scripts/make-made-up-voice.mjs`.
-const madeUpAudioOrigin = 'https://audio.invalid/'
-
-const madeUpVoice = (): number => require('../assets/made-up/voice.m4a')
-
-/**
- * What the phone's audio needs of the running Books, which starts after
- * the audio is made: the Model, to name a track, and a press, to tell the
- * Program what the lock screen did.
- */
-type Running = { maybeBooks: BoundBooks | undefined }
-
-const labelOf =
-  (running: Running) =>
-  (track: Track): TrackLabel => {
-    const model = running.maybeBooks?.readModel()
-    const maybeTitle =
-      model === undefined || model._tag !== 'Ready'
-        ? Option.none()
-        : Array.findFirst(
-            titlesOf(model),
-            title => title.mediaId === track.mediaId,
-          )
-    return Option.match(maybeTitle, {
-      onNone: () => ({ title: track.mediaId }),
-      onSome: title => ({
-        title: title.name,
-        artist: Array.join(title.authors, ', '),
-      }),
-    })
-  }
-
-const phoneAudio = (running: Running) =>
-  expoAudioOutput({
-    sourceOf: url =>
-      url.startsWith(madeUpAudioOrigin) ? madeUpVoice() : { uri: url },
-    labelOf: labelOf(running),
-    onDevicePause: () => {
-      running.maybeBooks?.press(Pause()._tag)
-    },
-    onDevicePlay: () => {
-      running.maybeBooks?.press(Play()._tag)
-    },
-  })
-
-/**
- * Starts Books once per JavaScript runtime, on the made-up library every
- * Client can open: three titles nobody wrote, with made-up words and a
- * made-up voice. Nobody is signed in and no real library is read. The
- * Program hears the phone's own appearance, plays through the phone's
- * audio, in the background and on the lock screen, and hears what the
- * lock screen does as its own Play and Pause. Fast Refresh runs this
- * module again, so the running Books lives on `globalThis` and is reused.
- *
- * @example
- * ```typescript
- * const books = await startExpoBooks()
- * ```
- */
-export const startExpoBooks = (): Promise<BoundBooks> => {
+const startedOnce = (start: () => Promise<BoundBooks>): Promise<BoundBooks> => {
   const globals = expoGlobals()
   const existing = globals[boundBooksKey]
   if (existing !== undefined) {
     return existing
   }
-  const running: Running = { maybeBooks: undefined }
-  const started = startMadeUpBooks({
-    host: expoHost(),
-    resources: Layer.mergeAll(nativeSystemAppearance, phoneAudio(running)),
-  }).then(handle => {
-    const books = bindBooks(handle)
-    running.maybeBooks = books
-    return books
-  })
+  const started = start()
   globals[boundBooksKey] = started
   return started
 }
+
+/**
+ * Starts Books once per JavaScript runtime, on the made-up library every
+ * Client can open: three titles nobody wrote, with made-up words and a
+ * made-up voice. Nobody is signed in and no real library is read. The
+ * phone's own services are the same as for a person's library. Fast
+ * Refresh runs this module again, so the running Books lives on
+ * `globalThis` and is reused.
+ *
+ * @example
+ * ```typescript
+ * const books = await startMadeUpExpoBooks()
+ * ```
+ */
+export const startMadeUpExpoBooks = (): Promise<BoundBooks> =>
+  startedOnce(() => {
+    const running: Running = { maybeBooks: undefined }
+    return startMadeUpBooks({
+      host: expoHost(),
+      resources: phoneResources(running),
+    }).then(handle => {
+      const books = bindBooks(handle)
+      running.maybeBooks = books
+      return books
+    })
+  })
+
+/**
+ * The phone's Instant database for the library's app, opened once. It
+ * keeps a signed-in person's session on the device, as a browser does, so
+ * the next launch needs no sign-in.
+ */
+export const phoneDatabase = (connection: PhoneConnection): PhoneDatabase => {
+  const globals = expoGlobals()
+  const existing = globals[databaseKey]
+  if (existing !== undefined) {
+    return existing
+  }
+  const created = init({ appId: connection.appId })
+  globals[databaseKey] = created
+  return created
+}
+
+/**
+ * Starts Books on a signed-in person's own library, once per JavaScript
+ * runtime: the shelf, their place and bookmarks and each title's words
+ * from the library's Instant app, what it plays on their Scribe timeline,
+ * the Audible import through the site, and the phone's own audio,
+ * appearance and sharing. It is the browser's start with the phone's
+ * services in place of the browser's. The books read aloud are not on the
+ * phone yet. Call it once the person is signed in.
+ *
+ * @example
+ * ```typescript
+ * const books = await startSignedInExpoBooks(connection)
+ * ```
+ */
+export const startSignedInExpoBooks = (
+  connection: PhoneConnection,
+): Promise<BoundBooks> =>
+  startedOnce(() => {
+    const running: Running = { maybeBooks: undefined }
+    const database = phoneDatabase(connection).core
+    const host = expoHost()
+    const sync = Instant({
+      app: { id: connection.appId },
+      processor: host,
+      instance: newProcessorInstance(),
+      database,
+      programLog: BooksProgram.id,
+      owner: 'SignedInUser',
+    })
+    const resources = withHostedIdentity(
+      Layer.mergeAll(
+        Layer.effect(LibraryStore, makeInstantLibraryStore(database)),
+        instantTranscriptSource(database),
+        Layer.effect(
+          ScribeTimeline,
+          makeInstantScribeTimeline(database, {
+            origin: connection.sessionOrigin,
+          }),
+        ),
+        Layer.succeed(
+          Audible.AudibleImport,
+          Audible.httpAudibleImport({ origin: connection.sessionOrigin }),
+        ),
+        noReadAloud,
+        phoneResources(running),
+      ),
+      database,
+      { sessionOrigin: connection.sessionOrigin },
+    )
+    const books = bindBooks(
+      Runtime.startHandle({ program: SyncedBooks, sync, resources, host }),
+    )
+    running.maybeBooks = books
+    return Promise.resolve(books)
+  })
