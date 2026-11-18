@@ -30,7 +30,7 @@ describe('books with no command', () => {
     )
     expect(started).toEqual([])
     expect(written).toEqual([usageText()])
-    expect(usageText()).toContain('books listen <title>')
+    expect(usageText()).toContain('books play <title>')
     expect(usageText()).toContain('does not start it')
   })
 

@@ -41,6 +41,7 @@ export {
   helpLines,
   helpRowOf,
   toggleFlagsOf,
+  saidPathOf,
   usageOf,
 } from './declared.js'
 export {

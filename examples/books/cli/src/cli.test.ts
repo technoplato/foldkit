@@ -356,9 +356,9 @@ describe('books listen and books open take a title as a person types it', () => 
     expect(vague.stdout).toBe('')
     expect(vague.stderr?.split('\n')).toEqual([
       '"a" matches 3 titles. Say more of the name, or copy one:',
-      '  books listen the-lantern-keeper        The Lantern Keeper',
-      '  books listen small-hours               Small Hours',
-      '  books listen a-field-guide-to-weather  A Field Guide to Weather',
+      '  books play the-lantern-keeper        The Lantern Keeper',
+      '  books play small-hours               Small Hours',
+      '  books play a-field-guide-to-weather  A Field Guide to Weather',
     ])
     expect(isSounding(bound)).toBe(false)
   })
@@ -369,10 +369,10 @@ describe('books listen and books open take a title as a person types it', () => 
     expect(none.exitCode).toBe(2)
     expect(none.stdout).toBe('')
     expect(none.stderr?.split('\n')).toEqual([
-      'No title matches "moby". Usage: books listen <title>, such as:',
-      '  books listen the-lantern-keeper        The Lantern Keeper',
-      '  books listen small-hours               Small Hours',
-      '  books listen a-field-guide-to-weather  A Field Guide to Weather',
+      'No title matches "moby". Usage: books play <title>, such as:',
+      '  books play the-lantern-keeper        The Lantern Keeper',
+      '  books play small-hours               Small Hours',
+      '  books play a-field-guide-to-weather  A Field Guide to Weather',
     ])
   })
 
@@ -390,7 +390,7 @@ describe('books listen and books open take a title as a person types it', () => 
     expect(unknown.exitCode).toBe(2)
     expect(unknown.stdout).toBe('')
     expect(unknown.stderr).toBe(
-      'Unknown command "lisen". Nearest: books listen <title>. `books actions` lists every command.',
+      'Unknown command "lisen". Nearest: books play <title>. `books actions` lists every command.',
     )
   })
 })
@@ -916,7 +916,7 @@ describe('books search', () => {
     const idle = await run(player, 'search lamp')
     expect(idle.exitCode).toBe(1)
     expect(idle.stderr).toBe(
-      'Nothing is in the player. Play a title first, such as: books listen the-lantern-keeper',
+      'Nothing is in the player. Play a title first, such as: books play the-lantern-keeper',
     )
     const wordless = await run(player, 'search')
     expect(wordless.exitCode).toBe(1)
@@ -984,10 +984,10 @@ describe('books CLI', () => {
     const { bound, player } = await openBooks()
     const painted = await run(player, 'actions')
     expect(painted.stdout).toMatch(/The Lantern Keeper/)
-    expect(painted.stdout).toMatch(/^ {2}listen <title> +Plays this book/m)
+    expect(painted.stdout).toMatch(/^ {2}play <title> +Plays this book/m)
     expect(painted.stdout).toMatch(/^ {2}seek-to <time> +Moves to a place/m)
     expect(runProgramCommand(bound, 'books', [], {}).stdout).toMatch(
-      /^ {2}listen <title>/m,
+      /^ {2}play <title>/m,
     )
   })
 
@@ -997,9 +997,9 @@ describe('books CLI', () => {
     expect(idle.stdout.split('\n')).toEqual([
       'Nothing is playing.',
       '',
-      '  books listen the-lantern-keeper',
-      '  books listen small-hours',
-      '  books listen a-field-guide-to-weather',
+      '  books play the-lantern-keeper',
+      '  books play small-hours',
+      '  books play a-field-guide-to-weather',
       '  books tui      Opens the player live in this terminal',
       '  books actions  Lists everything the library can be asked to do',
       '  books login    Signs the user in to their library',

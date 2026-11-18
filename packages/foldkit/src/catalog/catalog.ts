@@ -1287,6 +1287,9 @@ export const declarationOf = (
   declaration: ActionDeclaration<string, any>,
 ): Declaration =>
   makeDeclaration(declaration.tag, {
+    ...(declaration.meta.title === undefined
+      ? {}
+      : { title: declaration.meta.title }),
     aliases: declaration.aliases,
     what: declaration.what,
     why: declaration.why,

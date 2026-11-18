@@ -16,6 +16,7 @@ import {
   type Spelling,
   parse,
   pathsOf,
+  saidNameOf,
   wordsOf,
 } from '../declaration/plain.js'
 
@@ -105,6 +106,47 @@ const orderedOf = (
   ]
 }
 
+const subjectNounOf = (declaration: Declaration): string | undefined =>
+  Object.values(declaration.parameters).flatMap(parameter =>
+    parameter.isSubject && parameter.kind._tag === 'Named'
+      ? [parameter.kind.noun]
+      : [],
+  )[0]
+
+/**
+ * The path a terminal says for a declaration: the path given, its last
+ * word the name people say, {@link saidNameOf}. An Action titled `Play
+ * title` that chooses a title and answers to `Play` is said `play
+ * <title>`, while its name, the Message's identity, stays `Listen`.
+ *
+ * @example
+ * ```typescript
+ * saidPathOf(['Listen'], Listen) // ['Play']
+ * saidPathOf(['Search'], Search) // ['Search']
+ * ```
+ */
+export const saidPathOf = (
+  path: ReadonlyArray<string>,
+  declaration: Declaration<string, any>,
+): ReadonlyArray<string> => {
+  const whole: Declaration = declaration
+  const said = saidNameOf(whole, subjectNounOf(whole))
+  return said === whole.name ? path : [...path.slice(0, -1), said]
+}
+
+/**
+ * The other names a declaration answers to, beside the one a terminal
+ * says: its own name when that is not the one said, then its aliases.
+ */
+const otherNamesOf = (
+  path: ReadonlyArray<string>,
+  declaration: Declaration<string, any>,
+): ReadonlyArray<string> => {
+  const whole: Declaration = declaration
+  const said = saidPathOf(path, whole).at(-1)
+  return [whole.name, ...whole.aliases].filter(other => other !== said)
+}
+
 /**
  * A declaration's usage line, read from its parameters: the command's
  * words, its subject, then each parameter given by name, with what may
@@ -123,7 +165,7 @@ export const usageOf = (
 ): string => {
   const whole: Declaration = declaration
   return [
-    commandOf(path),
+    commandOf(saidPathOf(path, whole)),
     ...orderedOf(whole.parameters).map(([name, parameter]) =>
       partOf(name, parameter),
     ),
@@ -154,7 +196,7 @@ export const exampleOf = (
   const whole: Declaration = declaration
   const given: Readonly<Record<string, unknown>> = example.given
   return [
-    commandOf(path),
+    commandOf(saidPathOf(path, declaration)),
     ...orderedOf(whole.parameters).flatMap(([name, parameter]) => {
       const value = given[name]
       if (value === undefined || value === false) {
@@ -500,11 +542,11 @@ export const commandHelpOf = (name: string, addressed: Addressed): string => {
       `${sentenceOf(declaration.what)} ${sentenceOf(declaration.why)}`,
       helpWidth - indent.length,
     ).map(line => `${indent}${line}`),
-    ...(declaration.aliases.length === 0
+    ...(otherNamesOf(path, declaration).length === 0
       ? []
       : [
-          `${indent}Also: ${declaration.aliases
-            .map(alias => `${name} ${commandOf([...path.slice(0, -1), alias])}`)
+          `${indent}Also: ${otherNamesOf(path, declaration)
+            .map(other => `${name} ${commandOf([...path.slice(0, -1), other])}`)
             .join(', ')}`,
         ]),
     ...(parameters.length === 0

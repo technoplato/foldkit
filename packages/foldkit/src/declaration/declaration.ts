@@ -128,6 +128,7 @@ export type Declaration<
 > = Readonly<{
   _tag: 'Declaration'
   name: Name
+  title?: string
   aliases: ReadonlyArray<string>
   what: string
   why: string
@@ -142,6 +143,7 @@ export type GivenOf<D> =
 
 /** What {@link make} takes beside the name. */
 export type Config<P extends Parameters> = Readonly<{
+  title?: string
   aliases?: ReadonlyArray<string>
   what: string
   why: string
@@ -173,6 +175,7 @@ export const make = <
 ): Declaration<Name, P> => ({
   _tag: 'Declaration',
   name,
+  ...(config.title === undefined ? {} : { title: config.title }),
   aliases: config.aliases ?? [],
   what: config.what,
   why: config.why,
@@ -224,6 +227,49 @@ export const wordsOf = (name: string): ReadonlyArray<string> =>
     .filter(word => word !== '')
 
 const spokenOf = (name: string): string => wordsOf(name).join(' ')
+
+const wordsSaidIn = (text: string): ReadonlyArray<string> =>
+  text
+    .toLowerCase()
+    .split(/[^\p{Letter}\p{Number}]+/u)
+    .filter(word => word !== '')
+
+/**
+ * The name people say for a thing that has a name, a title, and other
+ * names it answers to. It is the name, unless the title ends with what
+ * the thing chooses, `noun`, and the rest of the title is one of its
+ * other names; then it is that name. An Action named `Listen`, titled
+ * `Play title`, that chooses a title and answers to `Play` is said
+ * `Play`, while `Listen` stays the Message's identity. A title it does
+ * not answer to changes nothing, so no Client says a name that would not
+ * be understood.
+ *
+ * @example
+ * ```typescript
+ * saidNameOf({ name: 'Listen', title: 'Play title', aliases: ['Play'] }, 'title') // 'Play'
+ * saidNameOf({ name: 'Listen', title: 'Play title', aliases: [] }, 'title') // 'Listen'
+ * ```
+ */
+export const saidNameOf = (
+  named: Readonly<{
+    name: string
+    title?: string | undefined
+    aliases: ReadonlyArray<string>
+  }>,
+  noun: string | undefined,
+): string => {
+  const titleWords = wordsSaidIn(named.title ?? '')
+  const nounWords = wordsSaidIn(noun ?? '')
+  const restWords = titleWords.slice(0, titleWords.length - nounWords.length)
+  const endsWithNoun =
+    nounWords.length > 0 &&
+    restWords.length > 0 &&
+    titleWords.slice(restWords.length).join(' ') === nounWords.join(' ')
+  const answered = endsWithNoun
+    ? named.aliases.find(alias => spokenOf(alias) === restWords.join(' '))
+    : undefined
+  return answered ?? named.name
+}
 
 // GROUP
 

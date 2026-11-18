@@ -9,7 +9,7 @@ import {
   isEnabled,
   parseChoiceTag,
 } from '../catalog/catalog.js'
-import { pathsOf } from '../declaration/plain.js'
+import { pathsOf, saidNameOf } from '../declaration/plain.js'
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type MenuView, keyInput } from '../interaction/interaction.js'
 import { terminalLineText, terminalMenuLines } from '../interaction/terminal.js'
@@ -70,14 +70,27 @@ const widestOf = (texts: ReadonlyArray<string>, minimum: number): number =>
   )
 
 /**
+ * The name a terminal says for an entry: the one people say, read from
+ * its title, what it chooses, and the names it answers to. `Listen`,
+ * titled `Play title`, is said `Play`; its tag stays `Listen`.
+ */
+const saidTagOf = (entry: Entry): string =>
+  saidNameOf(
+    { name: entry.tag, title: entry.title, aliases: entry.aliases },
+    Option.getOrUndefined(
+      Option.map(entry.maybeChoices, choices => choices.noun),
+    ),
+  )
+
+/**
  * How an Action reads as a CLI command: its word, then the choice it
  * needs, `decrement-counter <counter-id>`.
  */
 const usageOf = (entry: Entry): string =>
   Option.match(entry.maybeChoices, {
-    onNone: () => commandOf(entry.tag),
+    onNone: () => commandOf(saidTagOf(entry)),
     onSome: choices =>
-      `${commandOf(entry.tag)} <${choices.noun.replaceAll(' ', '-')}>`,
+      `${commandOf(saidTagOf(entry))} <${choices.noun.replaceAll(' ', '-')}>`,
   })
 
 const offeredTokensOf = (entry: Entry): ReadonlyArray<string> =>
@@ -147,10 +160,10 @@ const unavailableGroupsOf = (
 
 const exampleWordsOf = (entry: Entry): Option.Option<string> =>
   Option.match(entry.maybeChoices, {
-    onNone: () => Option.some(commandOf(entry.tag)),
+    onNone: () => Option.some(commandOf(saidTagOf(entry))),
     onSome: () =>
       Option.map(Array.head(offeredTokensOf(entry)), token =>
-        commandOf(choiceTagOf(entry.tag, token)),
+        commandOf(choiceTagOf(saidTagOf(entry), token)),
       ),
   })
 
@@ -388,7 +401,7 @@ const exampleGivenOf = <Model, Message>(
         bound.entries(),
         entry => entry.availability._tag === 'Enabled',
       ),
-      entry => commandOf(entry.tag),
+      entry => commandOf(saidTagOf(entry)),
     ),
     () => declaredCommandOf([Help.declaration.name]),
   )
@@ -501,7 +514,6 @@ const wordsOfText = (text: string): string =>
 
 const choiceLineOf = (
   entry: Entry,
-  tag: string,
   token: string,
 ): Option.Option<CommandLine> =>
   Option.flatMap(entry.maybeChoices, choices =>
@@ -510,12 +522,17 @@ const choiceLineOf = (
       {
         onNone: () =>
           choices.isOpen && isEnabled(entry.availability)
-            ? Option.some(lineOf(commandOf(tag), entry.what))
+            ? Option.some(
+                lineOf(
+                  commandOf(choiceTagOf(saidTagOf(entry), token)),
+                  entry.what,
+                ),
+              )
             : Option.none(),
         onSome: choice =>
           isEnabled(choice.availability)
             ? Option.some({
-                command: commandOf(tag),
+                command: commandOf(choiceTagOf(saidTagOf(entry), token)),
                 maybeWhat: Option.liftPredicate(
                   choice.title,
                   title => wordsOfText(title) !== wordsOfText(token),
@@ -536,13 +553,13 @@ const pressableLineOf = (
         Array.findFirst(entries, entry => entry.tag === tag),
         entry =>
           isEnabled(entry.availability) && Option.isNone(entry.maybeChoices)
-            ? Option.some(lineOf(commandOf(tag), entry.what))
+            ? Option.some(lineOf(commandOf(saidTagOf(entry)), entry.what))
             : Option.none(),
       ),
     onSome: choice =>
       Option.flatMap(
         Array.findFirst(entries, entry => entry.tag === choice.tag),
-        entry => choiceLineOf(entry, tag, choice.token),
+        entry => choiceLineOf(entry, choice.token),
       ),
   })
 
@@ -744,7 +761,8 @@ const choiceCommandLines = (
   const shown = Array.take(choices, shownChoices)
   const commands = Array.map(
     shown,
-    choice => `${name} ${commandOf(choiceTagOf(entry.tag, choice.token))}`,
+    choice =>
+      `${name} ${commandOf(choiceTagOf(saidTagOf(entry), choice.token))}`,
   )
   const width = widestOf(commands, 0)
   const more = choices.length - shown.length
@@ -845,20 +863,30 @@ const farnessOf = (typed: string, word: string): number => {
 const firstWordOf = (text: string): string => text.split(' ')[0] ?? ''
 
 /**
+ * A usage line with every first word it answers to: the one it says,
+ * its Action's own, and its other names.
+ */
+type Answering = Readonly<{ usage: string; words: ReadonlyArray<string> }>
+
+/**
  * The commands nearest what was typed, by spelling: up to three, the
  * nearest first, from the Program's Actions and the host's own commands.
+ * A word near any name a command answers to finds it, and it is shown
+ * as the terminal says it: `lisen` finds `play <title>`.
  */
 const nearestUsages = (
   typed: string,
-  usages: ReadonlyArray<string>,
+  usages: ReadonlyArray<Answering>,
 ): ReadonlyArray<string> => {
   const word = firstWordOf(typed).toLowerCase()
   const allowed = Math.max(1, Math.floor(word.length / 3))
   return pipe(
-    Array.map(usages, (usage, index) => ({
+    Array.map(usages, ({ usage, words }, index) => ({
       usage,
       index,
-      farness: farnessOf(word, firstWordOf(usage)),
+      farness: Array.reduce(words, Infinity, (nearest, answered) =>
+        Math.min(nearest, farnessOf(word, answered)),
+      ),
     })),
     Array.filter(({ farness }) => farness <= allowed),
     Array.sortWith(
@@ -877,8 +905,17 @@ const unknownAnswer = <Model, Message>(
   options: ProgramCommandOptions,
 ): CliDaemonPaintedResult => {
   const nearest = nearestUsages(command, [
-    ...Array.map(bound.entries(), usageOf),
-    ...Array.map(options.hostCommands ?? [], host => host.command),
+    ...Array.map(bound.entries(), entry => ({
+      usage: usageOf(entry),
+      words: Array.map(
+        [saidTagOf(entry), entry.tag, ...entry.aliases],
+        commandOf,
+      ),
+    })),
+    ...Array.map(options.hostCommands ?? [], host => ({
+      usage: host.command,
+      words: [firstWordOf(host.command)],
+    })),
   ])
   const listing = `\`${name} ${options.listCommand ?? 'help'}\` lists every command.`
   return refused(
@@ -968,6 +1005,7 @@ const pressCanonical = <Model, Message>(
   const [word = '', ...rest] = command.split(' ')
   const typed = rest.join(' ')
   const commandWord = (entry: Entry): string => commandOf(entry.tag)
+  const saidWord = (entry: Entry): string => commandOf(saidTagOf(entry))
   // NOTE: A choice is taken by its word first, `listen the-lantern-keeper`.
   // What that does not take is read as a person names a choice: its
   // title or part of it, in any case. One choice named is pressed;
@@ -981,7 +1019,7 @@ const pressCanonical = <Model, Message>(
       return usageAnswer(
         name,
         entry,
-        `${commandWord(entry)} needs ${withArticle(nounOf(entry))}.`,
+        `${saidWord(entry)} needs ${withArticle(nounOf(entry))}.`,
       )
     }
     const matches = namedByTyped(choices, typed, choice => [
@@ -1028,7 +1066,7 @@ const pressCanonical = <Model, Message>(
             return usageAnswer(
               name,
               found.entry,
-              `${commandWord(found.entry)} could not take "${typed}".`,
+              `${saidWord(found.entry)} could not take "${typed}".`,
             )
           }
         },

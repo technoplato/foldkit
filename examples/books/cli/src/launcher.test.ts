@@ -249,9 +249,7 @@ describe(
       const library = newLibrary()
       const help = books(library, [])
       expect(help.status).toBe(0)
-      expect(help.stdout).toMatch(
-        /^ {2}books listen <title> +Plays this book/mu,
-      )
+      expect(help.stdout).toMatch(/^ {2}books play <title> +Plays this book/mu)
       expect(help.stdout).toMatch(
         /^ {2}books follow \[words\|screen\] \[--each-word\]/mu,
       )
@@ -327,7 +325,7 @@ describe(
       expect(unknown.stdout).toBe('')
       expect(unknown.stderr.split('\n').filter(line => line !== '')).toEqual([
         'Starting the Books player…',
-        'Unknown command "lisen lantern". Nearest: books listen <title>. `books actions` lists every command.',
+        'Unknown command "lisen lantern". Nearest: books play <title>. `books actions` lists every command.',
         'The player was started only to read that, and is stopped again.',
       ])
       expect(books(library, ['stop']).stdout).toContain(
@@ -341,7 +339,7 @@ describe(
       expect(none.status).toBe(2)
       expect(none.stdout).toBe('')
       expect(none.stderr).toContain('No title matches "moby".')
-      expect(none.stderr).toContain('books listen the-lantern-keeper')
+      expect(none.stderr).toContain('books play the-lantern-keeper')
       expect(books(library, ['stop']).stdout).toContain(
         'Nothing is playing in this terminal’s player.',
       )

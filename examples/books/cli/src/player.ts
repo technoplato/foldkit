@@ -66,7 +66,12 @@ import {
   programFollowings,
   runProgramCommand,
 } from 'foldkit/cli'
-import { declaredCommandOf, exampleOf, usageOf } from 'foldkit/cli/view'
+import {
+  declaredCommandOf,
+  exampleOf,
+  saidPathOf,
+  usageOf,
+} from 'foldkit/cli/view'
 import type { Declaration, Declared } from 'foldkit/declaration'
 import { Text, renderScreen } from 'foldkit/renderers'
 import * as Theme from 'foldkit/theme'
@@ -126,12 +131,18 @@ const exampleLineOf = (declared: Declared): string =>
     ' ',
   )
 
-/** The line that plays one title, its words read from the Action. */
+/**
+ * The line that plays one title, its words read from the Action: the
+ * name the terminal says for it, then the title.
+ */
 const listenLineOf = (title: string): string =>
   Array.join(
     [
       booksCommandName,
-      Catalog.commandOf(Catalog.choiceTagOf(Listen.tag, title)),
+      declaredCommandOf(
+        saidPathOf([Listen.tag], Catalog.declarationOf(Listen)),
+      ),
+      title,
     ],
     ' ',
   )
