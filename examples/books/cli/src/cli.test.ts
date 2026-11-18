@@ -301,6 +301,56 @@ const spokenTranscript = transcriptsInMemory(
 const followOf = (player: BooksPlayer) =>
   Option.getOrThrow(Option.fromNullishOr(player.surface.follow))
 
+describe('a word’s two actions, as commands', () => {
+  const readingAtSixSeconds = async () => {
+    const opened = await openBooks({ transcripts: spokenTranscript })
+    await run(opened.player, 'listen the-lantern-keeper')
+    await run(opened.player, 'seek-to 6s')
+    await eventually(async () =>
+      (await run(opened.player, 'words')).stdout.includes('> 0:05'),
+    )
+    await run(opened.player, 'pause')
+    return opened
+  }
+
+  it('prints the link to the word being read, whole, so it can be pasted', async () => {
+    const { player } = await readingAtSixSeconds()
+    const link = await run(player, 'link')
+    expect(link.exitCode).toBe(0)
+    expect(link.stdout).toMatch(
+      /^https:\/\/books\.pisspoursoftware\.xyz\/books\/the-lantern-keeper\/listen\/\d+(\.\d+)?s$/,
+    )
+  })
+
+  it('plays from the word a link or a time names, and says so', async () => {
+    const { player } = await readingAtSixSeconds()
+    const link = (await run(player, 'link')).stdout
+    await run(player, 'seek-to 0s')
+    const played = await run(player, `play-from ${link}`)
+    expect(played.exitCode).toBe(0)
+    await eventually(async () =>
+      (await run(player, 'words')).stdout.includes('· playing ·'),
+    )
+    expect((await run(player, 'words')).stdout).toContain('> 0:05')
+    await run(player, 'pause')
+    const byTime = await run(player, 'play-from 0:02')
+    expect(byTime.exitCode).toBe(0)
+    await run(player, 'pause')
+  })
+
+  it('says what to give it, and that nothing is in the player, on stderr', async () => {
+    const { player } = await openBooks({ transcripts: spokenTranscript })
+    const none = await run(player, 'link')
+    expect(none.exitCode).toBe(1)
+    expect(none.stderr).toContain('Nothing is in the player')
+    await run(player, 'listen the-lantern-keeper')
+    const bare = await run(player, 'play-from')
+    expect(bare.exitCode).toBe(1)
+    expect(bare.stderr).toContain('books play-from')
+    await run(player, 'pause')
+  })
+})
+
 describe('books bookmark and books bookmarks', () => {
   const readingAtSixSeconds = async () => {
     const opened = await openBooks({ transcripts: spokenTranscript })
