@@ -197,7 +197,7 @@ describe('useCalls', () => {
     const { calls } = mount(makeProgram(-1))
     const input = screen.getByRole('textbox', { name: 'Set the count' })
     expect(input.hasAttribute('disabled')).toBe(true)
-    expect(input.getAttribute('data-hint-because')).toBe('the count is broken')
+    expect(input.getAttribute('data-hint-because')).toBe('The count is broken.')
     expect(calls().setCount.maybeBecause).toEqual(
       Option.some('the count is broken'),
     )

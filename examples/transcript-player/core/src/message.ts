@@ -65,7 +65,7 @@ export const Play = Catalog.action('Play', {
   why: 'To go on listening',
   enabled: (model: Model) => {
     if (isSounding(model)) {
-      return Catalog.Disabled({ because: 'it is playing' })
+      return Catalog.Disabled({ because: 'it is already playing' })
     } else if (!hasAudio(model)) {
       return Catalog.Disabled({ because: noAudio })
     } else {
@@ -94,7 +94,7 @@ export const SkipBack = Catalog.action('SkipBack', {
   why: 'To hear again what was missed',
   enabled: (model: Model) =>
     model.placeMs === 0
-      ? Catalog.Disabled({ because: 'it is at the start' })
+      ? Catalog.Disabled({ because: 'it is already at the start' })
       : Catalog.Enabled(),
   mutates: mutatedByMoving,
   meta: { label: '−30s', keys: ['['], title: 'Skip back' },
@@ -106,7 +106,7 @@ export const SkipForward = Catalog.action('SkipForward', {
   why: 'To skip ahead',
   enabled: (model: Model) =>
     model.placeMs >= model.media.durationMs
-      ? Catalog.Disabled({ because: 'it is at the end' })
+      ? Catalog.Disabled({ because: 'it is already at the end' })
       : Catalog.Enabled(),
   mutates: mutatedByMoving,
   meta: { label: '+30s', keys: [']'], title: 'Skip forward' },
@@ -214,7 +214,7 @@ export const SetSeekScope = Catalog.action('SetSeekScope', {
         title: scope === 'Section' ? 'Chapter' : 'Whole book',
         availability:
           scope === model.seekScope
-            ? Catalog.Disabled({ because: 'the bar spans it now' })
+            ? Catalog.Disabled({ because: 'the seek bar already spans this' })
             : Catalog.Enabled(),
       })),
     nothingToChoose: 'there is nothing to span',
@@ -238,7 +238,7 @@ export const SetSpeed = Catalog.action('SetSpeed', {
         title: `${speed.toString()}×`,
         availability:
           speed === model.speed
-            ? Catalog.Disabled({ because: 'it is the speed' })
+            ? Catalog.Disabled({ because: 'it already plays at this speed' })
             : Catalog.Enabled(),
       })),
     nothingToChoose: 'there are no speeds',
@@ -282,7 +282,7 @@ export const ShowSearch = Catalog.action('ShowSearch', {
   why: 'To find where something was said',
   enabled: (model: Model) =>
     Option.isSome(model.maybeSearch)
-      ? Catalog.Disabled({ because: 'the search is open' })
+      ? Catalog.Disabled({ because: 'the search is already open' })
       : Catalog.Enabled(),
   mutates: [at.maybeSearch],
   meta: { label: 'Search', keys: ['/'], title: 'Search the words' },
@@ -430,7 +430,9 @@ export const LeavePlayhead = Catalog.action('LeavePlayhead', {
   enabled: (model: Model) =>
     isFollowingPlayhead(model)
       ? Catalog.Enabled()
-      : Catalog.Disabled({ because: 'the words are away from the playhead' }),
+      : Catalog.Disabled({
+          because: 'the words are already away from the voice',
+        }),
   mutates: [at.maybeAway],
   meta: {
     label: 'Read elsewhere',
@@ -445,7 +447,7 @@ export const BackToPlayhead = Catalog.action('BackToPlayhead', {
   why: 'To follow the voice again after reading elsewhere',
   enabled: (model: Model) =>
     isFollowingPlayhead(model)
-      ? Catalog.Disabled({ because: 'the words follow the playhead' })
+      ? Catalog.Disabled({ because: 'the words already follow the voice' })
       : Catalog.Enabled(),
   mutates: [at.maybeAway, at.maybeWordMenu],
   meta: { label: 'Back to playhead', keys: [] },

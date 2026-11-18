@@ -109,7 +109,9 @@ const whenLoaded = (model: Model): Catalog.Availability => {
   if (isAsking(model)) {
     return Catalog.Disabled({ because: answerFirst })
   } else if (model.listening._tag === 'Idle') {
-    return Catalog.Disabled({ because: 'nothing is in the player' })
+    return Catalog.Disabled({
+      because: 'nothing is in the player; play a book first',
+    })
   } else if (isOnOtherPlayer(model)) {
     return Catalog.Disabled({ because: 'this title is not in the player' })
   } else {
@@ -178,7 +180,7 @@ const whichChapter = (
           })),
       },
     ),
-  nothingToChoose: 'no title is open',
+  nothingToChoose: 'no book is open; open one first',
 })
 
 const whichBookmark = (
@@ -211,7 +213,7 @@ export const Open = Catalog.action('Open', {
   fields: { slug: TitleSlug },
   choose: whichTitle((model, title) =>
     Option.contains(titlePageSlugOf(model), title.slug)
-      ? Catalog.Disabled({ because: 'its page is open' })
+      ? Catalog.Disabled({ because: 'its page is already open' })
       : Catalog.Enabled(),
   ),
   what: "Opens this book's page, with its chapters and bookmarks",
@@ -232,7 +234,7 @@ export const Listen = Catalog.action('Listen', {
   choose: whichTitle(
     (model, title) =>
       Option.contains(loadedSlugOf(model), title.slug)
-        ? Catalog.Disabled({ because: 'it is in the player' })
+        ? Catalog.Disabled({ because: 'it is already in the player' })
         : audioOf(title),
     shownTitleOf,
   ),
@@ -273,7 +275,7 @@ export const playerActions = Catalog.within(TranscriptPlayer.catalog, {
       triggers: [ReportStretch],
     },
   },
-  nothing: 'nothing is in the player',
+  nothing: 'nothing is in the player; play a book first',
   enabled: unlessAsking,
 })
 
@@ -372,9 +374,11 @@ export const OpenPlayer = Catalog.action('OpenPlayer', {
     if (isAsking(model)) {
       return Catalog.Disabled({ because: answerFirst })
     } else if (isOnPlayer(model) && !isOnOtherPlayer(model)) {
-      return Catalog.Disabled({ because: 'the player is open' })
+      return Catalog.Disabled({ because: 'the player is already open' })
     } else if (model.listening._tag === 'Idle') {
-      return Catalog.Disabled({ because: 'nothing is in the player' })
+      return Catalog.Disabled({
+        because: 'nothing is in the player; play a book first',
+      })
     } else {
       return Catalog.Enabled()
     }
@@ -393,7 +397,7 @@ export const ShowContents = Catalog.action('ShowContents', {
   enabled: (model: Model) =>
     Option.isSome(shownTitle(model))
       ? unlessAsking(model)
-      : Catalog.Disabled({ because: 'no title is open' }),
+      : Catalog.Disabled({ because: 'no book is open; open one first' }),
   mutates: [at.navigation.maybeModal],
   meta: { label: 'Contents', keys: ['c'] },
 })
@@ -418,7 +422,7 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
           ),
       )
     ) {
-      return Catalog.Disabled({ because: 'it is playing now' })
+      return Catalog.Disabled({ because: 'this chapter is playing now' })
     } else {
       return Catalog.Enabled()
     }
@@ -463,7 +467,7 @@ export const ExpandControls = Catalog.action('ExpandControls', {
   enabled: (model: Model) =>
     model.controls === 'Collapsed' && isOnPlayer(model)
       ? whenLoaded(model)
-      : Catalog.Disabled({ because: 'the controls are open' }),
+      : Catalog.Disabled({ because: 'every control is already showing' }),
   mutates: [at.controls],
   meta: { label: 'More controls', keys: ['e'], title: 'Show every control' },
 })
@@ -475,7 +479,7 @@ export const CollapseControls = Catalog.action('CollapseControls', {
   enabled: (model: Model) =>
     model.controls === 'Expanded' && isOnPlayer(model)
       ? Catalog.Enabled()
-      : Catalog.Disabled({ because: 'the controls are folded' }),
+      : Catalog.Disabled({ because: 'the controls are already folded' }),
   mutates: [at.controls],
   meta: { label: 'Fewer controls', keys: ['e'], title: 'Fold the controls' },
 })
@@ -587,7 +591,7 @@ export const ShowBookmarks = Catalog.action('ShowBookmarks', {
   enabled: (model: Model) =>
     Option.isSome(shownTitle(model))
       ? unlessAsking(model)
-      : Catalog.Disabled({ because: 'no title is open' }),
+      : Catalog.Disabled({ because: 'no book is open; open one first' }),
   mutates: [at.navigation.maybeModal],
   meta: { label: 'Bookmarks', keys: ['m'] },
 })
@@ -610,7 +614,7 @@ const onOpenBookmark = (model: Model): Catalog.Availability =>
     ),
   )
     ? Catalog.Enabled()
-    : Catalog.Disabled({ because: 'no bookmark is open' })
+    : Catalog.Disabled({ because: 'no bookmark is open; open one first' })
 
 /** Writes the open bookmark's note. */
 export const SetBookmarkNote = Catalog.action('SetBookmarkNote', {
@@ -640,11 +644,12 @@ export const ClearBookmarkNote = Catalog.action('ClearBookmarkNote', {
         bookmarkOf(model, bookmarkId),
       ),
       {
-        onNone: () => Catalog.Disabled({ because: 'no bookmark is open' }),
+        onNone: () =>
+          Catalog.Disabled({ because: 'no bookmark is open; open one first' }),
         onSome: bookmark =>
           Option.isSome(bookmark.maybeNote)
             ? Catalog.Enabled()
-            : Catalog.Disabled({ because: 'it has no note' }),
+            : Catalog.Disabled({ because: 'this bookmark has no note' }),
       },
     ),
   triggers: [WriteLibrary],

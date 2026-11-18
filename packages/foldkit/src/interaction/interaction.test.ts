@@ -308,7 +308,7 @@ describe('controlHintOf', () => {
 
   it('leaves the why out for a control that is unavailable, and says why it is', () => {
     const hint = Interaction.controlHintOf(
-      { ...play, why: 'To go on listening', because: 'it is playing' },
+      { ...play, why: 'To go on listening', because: 'it is already playing' },
       'Mac',
       'Browser',
     )
@@ -316,7 +316,7 @@ describe('controlHintOf', () => {
       Option.none(),
     )
     expect(Option.flatMap(hint, ({ maybeBecause }) => maybeBecause)).toEqual(
-      Option.some('it is playing'),
+      Option.some('It is already playing.'),
     )
   })
 
@@ -390,7 +390,7 @@ describe('controlHintOf', () => {
       ),
     ).toEqual(
       Option.some([
-        Option.some('nothing is loaded'),
+        Option.some('Nothing is loaded.'),
         'Plays from where you stopped. Unavailable: nothing is loaded',
       ]),
     )
@@ -423,7 +423,7 @@ describe('controlHintOf', () => {
         'data-hint': 'Plays from where you stopped',
         'data-hint-title': 'Play',
         'data-hint-keys': 'p',
-        'data-hint-because': 'nothing is loaded',
+        'data-hint-because': 'Nothing is loaded.',
         'aria-description':
           'Plays from where you stopped. Unavailable: nothing is loaded',
       }),

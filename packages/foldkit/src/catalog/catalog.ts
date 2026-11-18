@@ -1184,7 +1184,7 @@ export type WithinActions<
  * ```typescript
  * const playerActions = Catalog.within(TranscriptPlayer.catalog, {
  *   childOf: model => loadedPlayerOf(model),
- *   nothing: 'nothing is in the player',
+ *   nothing: 'nothing is in the player; play a book first',
  * })
  * playerActions.actions // [Play, Pause, SeekTo, ...], reading the loaded player
  * playerActions.childOf(SeekTo({ placeMs: 60_000 })) // Some(SeekTo({ placeMs: 60_000 }))

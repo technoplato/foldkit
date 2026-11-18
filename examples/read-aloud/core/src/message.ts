@@ -47,7 +47,7 @@ export const OpenBook = Catalog.action('OpenBook', {
         title: book.title,
         detail: bylineOf(book),
         availability: Option.contains(shownBookKeyOf(model), book.key)
-          ? Catalog.Disabled({ because: 'it is open' })
+          ? Catalog.Disabled({ because: 'it is already open' })
           : Catalog.Enabled(),
       })),
     nothingToChoose: 'no book has been read aloud yet',
@@ -115,7 +115,7 @@ export const TurnToPage = Catalog.action('TurnToPage', {
               shownPageOf(model),
               shown => shown.page === page,
             )
-              ? Catalog.Disabled({ because: 'it is open' })
+              ? Catalog.Disabled({ because: 'it is already open' })
               : Catalog.Enabled(),
           })),
       }),

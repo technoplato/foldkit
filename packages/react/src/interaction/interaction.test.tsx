@@ -140,7 +140,7 @@ describe('@foldkit/react/interaction', () => {
     renderApp()
     const reset = screen.getByRole('button', { name: 'Reset' })
     expect(reset.hasAttribute('disabled')).toBe(true)
-    expect(reset.getAttribute('data-hint-because')).toBe('count is already 0')
+    expect(reset.getAttribute('data-hint-because')).toBe('Count is already 0.')
   })
 
   it('gives each control its hint: what a press does, its key, and a line for a screen reader', () => {

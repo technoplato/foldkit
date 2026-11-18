@@ -61,7 +61,7 @@ export const SetAppearance = Catalog.action('SetAppearance', {
         title: titleOf(appearance),
         availability:
           appearance === state.appearance
-            ? Catalog.Disabled({ because: 'it looks this way now' })
+            ? Catalog.Disabled({ because: 'the screen already looks this way' })
             : Catalog.Enabled(),
       })),
     nothingToChoose: 'there is no other look',

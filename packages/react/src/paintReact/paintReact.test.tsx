@@ -84,7 +84,7 @@ describe('paintReact', () => {
     const reset = screen.getByRole('button', { name: 'Reset' })
     expect(reset.getAttribute('data-hint')).toBe('Sets the count to 0')
     expect(reset.getAttribute('data-hint-keys')).toBe('r')
-    expect(reset.getAttribute('data-hint-because')).toBe('count is already 0')
+    expect(reset.getAttribute('data-hint-because')).toBe('Count is already 0.')
     expect(reset.getAttribute('aria-description')).toBe(
       'Sets the count to 0. Unavailable: count is already 0',
     )

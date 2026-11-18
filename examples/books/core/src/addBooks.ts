@@ -73,7 +73,7 @@ export const ShowAddBooks = Catalog.action('ShowAddBooks', {
     if (isAsking(model)) {
       return Catalog.Disabled({ because: answerFirst })
     } else if (isAddBooksOpen(model)) {
-      return Catalog.Disabled({ because: 'it is open' })
+      return Catalog.Disabled({ because: 'it is already open' })
     } else if (isOnLibrary(model)) {
       return Catalog.Enabled()
     } else {
@@ -122,7 +122,7 @@ export const ReconnectAudible = Catalog.action('ReconnectAudible', {
         view.audible.titles.problem._tag === 'LoginExpired',
     )
       ? Catalog.Enabled()
-      : Catalog.Disabled({ because: 'the Audible login works' }),
+      : Catalog.Disabled({ because: 'the Audible login still works' }),
   mutates: [at.audible.signIn, at.navigation.pages],
   meta: { label: 'Connect again', keys: [], title: 'Connect Audible again' },
 })

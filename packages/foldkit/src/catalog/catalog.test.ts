@@ -357,7 +357,7 @@ const Rewind = Catalog.action('Rewind', {
   why: 'The person wants to hear it again',
   enabled: (player: Player) =>
     player.placeMs === 0
-      ? Catalog.Disabled({ because: 'it is at the start' })
+      ? Catalog.Disabled({ because: 'it is already at the start' })
       : Catalog.Enabled(),
   meta: { label: 'Rewind', keys: ['w'] },
 })
@@ -398,7 +398,7 @@ type Library = Readonly<{ maybePlayer: Option.Option<Player> }>
 
 const playerActions = Catalog.within(playerCatalog, {
   childOf: (library: Library) => library.maybePlayer,
-  nothing: 'nothing is in the player',
+  nothing: 'nothing is in the player; play a book first',
 })
 
 const libraryCatalog = Catalog.make(playerActions.actions)
@@ -436,8 +436,12 @@ describe('Catalog.within', () => {
     expect(
       Catalog.entries(libraryCatalog, idle).map(entry => entry.availability),
     ).toEqual([
-      Catalog.Disabled({ because: 'nothing is in the player' }),
-      Catalog.Disabled({ because: 'nothing is in the player' }),
+      Catalog.Disabled({
+        because: 'nothing is in the player; play a book first',
+      }),
+      Catalog.Disabled({
+        because: 'nothing is in the player; play a book first',
+      }),
     ])
     expect(Catalog.messageFor(libraryCatalog, idle, 'SeekTo:42000')).toEqual(
       Option.none(),

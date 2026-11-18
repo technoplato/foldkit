@@ -44,7 +44,7 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
         title: `Chapter ${chapter.toString()}`,
         availability:
           chapter === model.playing
-            ? Catalog.Disabled({ because: 'it is playing now' })
+            ? Catalog.Disabled({ because: 'this chapter is playing now' })
             : Catalog.Enabled(),
       })),
     nothingToChoose: 'there are no chapters',

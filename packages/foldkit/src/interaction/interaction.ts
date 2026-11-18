@@ -437,11 +437,24 @@ export type ControlHint = Readonly<{
   spoken: string
 }>
 
+const sentenceEnd = /[.!?…]$/u
+
+/**
+ * A reason declared as a clause, `it is already playing`, as a sentence that
+ * stands alone: `It is playing.`
+ */
+const sentenceOfClause = (clause: string): string => {
+  const trimmed = clause.trim()
+  const capitalized = trimmed.slice(0, 1).toUpperCase() + trimmed.slice(1)
+  return sentenceEnd.test(capitalized) ? capitalized : `${capitalized}.`
+}
+
 /**
  * The hint for one control, from what its Action declares: the
  * description, why the user would press it, the keys this platform and
  * host leave it, and the reason
- * it is unavailable. An unavailable control says that reason and leaves
+ * it is unavailable, as a sentence that stands alone. An unavailable
+ * control says that reason and leaves
  * the why out, since the user cannot press it. None for a control with
  * nothing to add to its label.
  *
@@ -470,7 +483,8 @@ export const controlHintOf = (
     Option.fromNullishOr(control.description),
     description => description !== '',
   )
-  const maybeBecause = Option.fromNullishOr(control.because)
+  const maybeClause = Option.fromNullishOr(control.because)
+  const maybeBecause = Option.map(maybeClause, sentenceOfClause)
   const maybeWhy = Option.filter(
     Option.fromNullishOr(control.why),
     why => why !== '' && Option.isNone(maybeBecause),
@@ -493,7 +507,7 @@ export const controlHintOf = (
           [
             ...Array.fromOption(maybeDescription),
             ...Array.fromOption(
-              Option.map(maybeBecause, because => `Unavailable: ${because}`),
+              Option.map(maybeClause, because => `Unavailable: ${because}`),
             ),
           ],
           '. ',

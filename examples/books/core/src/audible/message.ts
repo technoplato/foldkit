@@ -202,9 +202,11 @@ export const ReadAudibleLibraryAgain = Catalog.action(
       onPage(view, 'Titles', () => {
         const titles = view.audible.titles
         if (titles._tag !== 'TitlesUnreadable') {
-          return Catalog.Disabled({ because: 'the titles are not stuck' })
+          return Catalog.Disabled({
+            because: 'the titles were read, so there is nothing to try again',
+          })
         } else if (titles.problem._tag === 'LoginExpired') {
-          return Catalog.Disabled({ because: 'connect again first' })
+          return Catalog.Disabled({ because: 'connect to Audible again first' })
         } else {
           return Catalog.Enabled()
         }
@@ -223,7 +225,7 @@ const getAudioAvailabilityOf = (view: AudibleView): Catalog.Availability =>
     Option.match(readAudioOf(view.audible.audio), {
       onNone: () =>
         Catalog.Disabled({
-          because: 'the audio of your books is not read yet',
+          because: 'the audio of the books is not read yet',
         }),
       onSome: read =>
         Option.isSome(read.maybeAsking)

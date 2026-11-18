@@ -196,7 +196,9 @@ export const OpenSessionSettings = Catalog.action('OpenSessionSettings', {
   why: 'To see or change whether every device follows',
   enabled: (model: NavigationModel) => {
     if (isSettingsOpen(model)) {
-      return Catalog.Disabled({ because: 'session settings are already open' })
+      return Catalog.Disabled({
+        because: 'the session settings are already open',
+      })
     } else if (isOtherModalOpen(model)) {
       return Catalog.Disabled({ because: 'another screen is open on top' })
     } else {
@@ -213,7 +215,7 @@ export const CloseSessionSettings = Catalog.action('CloseSessionSettings', {
   enabled: (model: NavigationModel) =>
     isSettingsOpen(model)
       ? Catalog.Enabled()
-      : Catalog.Disabled({ because: 'session settings are not open' }),
+      : Catalog.Disabled({ because: 'the session settings are not open' }),
   meta: { label: 'Close', keys: [] },
 })
 
