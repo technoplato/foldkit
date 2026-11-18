@@ -1,7 +1,7 @@
 import { Array } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { type PlayerStatus, isResumeOf, notHeardYet, stepOf } from './steps.js'
+import { type PlayerStatus, isResumeOf, notHeardYet, stepOf } from './steps'
 
 const playingAt = (currentTimeMs: number): PlayerStatus => ({
   currentTimeMs,

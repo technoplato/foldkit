@@ -1,0 +1,124 @@
+import {
+  type AudioEvent,
+  AudioEvent as AudioEvents,
+  Milliseconds,
+} from 'transcript-player-core-example'
+
+// STATUS
+
+/**
+ * What a phone's audio player says about itself, in the port's terms:
+ * where it is, whether it is sounding, whether its audio has loaded,
+ * whether it just reached the end, and why it failed, if it did.
+ */
+export type PlayerStatus = Readonly<{
+  currentTimeMs: number
+  isPlaying: boolean
+  isLoaded: boolean
+  didJustFinish: boolean
+  maybeFailure: string | undefined
+}>
+
+/**
+ * What the steps remember between two statuses: the second last reported,
+ * and whether the audio has sounded since it was asked to.
+ */
+export type Heard = Readonly<{
+  maybeReachedSecond: number | undefined
+  hasPlayed: boolean
+}>
+
+/** Nothing heard yet: the state a track starts from. */
+export const notHeardYet: Heard = {
+  maybeReachedSecond: undefined,
+  hasPlayed: false,
+}
+
+/**
+ * What one status means: the events to report, whether the track is
+ * done, and whether the device itself paused the audio, as a lock screen
+ * does, which the host tells the Program.
+ */
+export type Step = Readonly<{
+  heard: Heard
+  events: ReadonlyArray<AudioEvent>
+  isDone: boolean
+  isPausedByDevice: boolean
+}>
+
+const millisecondsPerSecond = 1000
+
+/**
+ * Reads one status of a phone's player as the audio port's events. A new
+ * second is reported once, with the wall clock; a skip made on the lock
+ * screen lands on a second not yet reported, so it is reported as the new
+ * place. Audio that stops sounding after it has sounded, without ending
+ * or failing, was paused by the device.
+ *
+ * @example
+ * ```typescript
+ * stepOf(notHeardYet, { currentTimeMs: 12_040, isPlaying: true, … }, Date.now())
+ * // { events: [Advanced({ placeMs: 12_040, wallClockMs })], isDone: false, … }
+ * ```
+ */
+export const stepOf = (
+  heard: Heard,
+  status: PlayerStatus,
+  wallClockMs: number,
+): Step => {
+  if (status.maybeFailure !== undefined) {
+    return {
+      heard,
+      events: [AudioEvents.Failed({ reason: status.maybeFailure })],
+      isDone: true,
+      isPausedByDevice: false,
+    }
+  } else if (status.didJustFinish) {
+    return {
+      heard,
+      events: [AudioEvents.Ended()],
+      isDone: true,
+      isPausedByDevice: false,
+    }
+  } else if (status.isPlaying) {
+    const second = Math.floor(status.currentTimeMs / millisecondsPerSecond)
+    return {
+      heard: { maybeReachedSecond: second, hasPlayed: true },
+      events:
+        second === heard.maybeReachedSecond
+          ? []
+          : [
+              AudioEvents.Advanced({
+                placeMs: Milliseconds.make(Math.round(status.currentTimeMs)),
+                wallClockMs,
+              }),
+            ],
+      isDone: false,
+      isPausedByDevice: false,
+    }
+  } else {
+    return {
+      heard,
+      events: [],
+      isDone: false,
+      isPausedByDevice: heard.hasPlayed && status.isLoaded,
+    }
+  }
+}
+
+const resumeToleranceMs = 1500
+
+/**
+ * True when a player already stands where it is asked to play from, as it
+ * does when the lock screen resumed it: it is left to play on. Any other
+ * place is a move, and the player seeks.
+ *
+ * @example
+ * ```typescript
+ * isResumeOf({ currentTimeMs: 61_200, fromMs: 61_000 }) // true
+ * isResumeOf({ currentTimeMs: 61_000, fromMs: 120_000 }) // false
+ * ```
+ */
+export const isResumeOf = (
+  place: Readonly<{ currentTimeMs: number; fromMs: number }>,
+): boolean => Math.abs(place.currentTimeMs - place.fromMs) <= resumeToleranceMs

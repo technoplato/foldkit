@@ -54,49 +54,51 @@ const noPassages: Passages = { passages: [], nextMs: 0 }
  * Made-up words for a made-up title: the same few sentences over and
  * over, a paragraph of one, of five and of three in turn, every word half
  * a second after the last, for the first ten minutes or so. They are the
- * words of no book.
+ * words of no book. A host that wants a voice for them, such as a phone
+ * proving its sound, makes one from these words and their times.
  */
-const madeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> = Array.reduce(
-  Array.range(0, madeUpPassageCount - 1),
-  noPassages,
-  (state, index) => {
-    // A paragraph is a few of the sentences, starting one further on
-    // each time, so paragraphs differ and are long enough to wrap.
-    const sentence = Array.join(
-      Array.map(
-        Array.range(0, sentencesInPassage(index) - 1),
-        at =>
-          madeUpSentences[(index + at) % madeUpSentences.length] ??
-          'The lamp was lit.',
-      ),
-      ' ',
-    )
-    const words = Array.map(sentence.split(' '), (text, at) => {
-      const startMs = state.nextMs + at * (wordMs + wordGapMs)
-      return {
-        wordId: TranscriptPlayer.WordId.make(
-          `p${index.toString()}w${at.toString()}`,
+export const madeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
+  Array.reduce(
+    Array.range(0, madeUpPassageCount - 1),
+    noPassages,
+    (state, index) => {
+      // A paragraph is a few of the sentences, starting one further on
+      // each time, so paragraphs differ and are long enough to wrap.
+      const sentence = Array.join(
+        Array.map(
+          Array.range(0, sentencesInPassage(index) - 1),
+          at =>
+            madeUpSentences[(index + at) % madeUpSentences.length] ??
+            'The lamp was lit.',
         ),
-        text,
-        startMs: Milliseconds.make(startMs),
-        endMs: Milliseconds.make(startMs + wordMs),
+        ' ',
+      )
+      const words = Array.map(sentence.split(' '), (text, at) => {
+        const startMs = state.nextMs + at * (wordMs + wordGapMs)
+        return {
+          wordId: TranscriptPlayer.WordId.make(
+            `p${index.toString()}w${at.toString()}`,
+          ),
+          text,
+          startMs: Milliseconds.make(startMs),
+          endMs: Milliseconds.make(startMs + wordMs),
+        }
+      })
+      const endMs = state.nextMs + words.length * (wordMs + wordGapMs)
+      return {
+        passages: [
+          ...state.passages,
+          {
+            passageId: `p${index.toString()}`,
+            startMs: Milliseconds.make(state.nextMs),
+            endMs: Milliseconds.make(endMs),
+            words,
+          },
+        ],
+        nextMs: endMs + passageGapMs,
       }
-    })
-    const endMs = state.nextMs + words.length * (wordMs + wordGapMs)
-    return {
-      passages: [
-        ...state.passages,
-        {
-          passageId: `p${index.toString()}`,
-          startMs: Milliseconds.make(state.nextMs),
-          endMs: Milliseconds.make(endMs),
-          words,
-        },
-      ],
-      nextMs: endMs + passageGapMs,
-    }
-  },
-).passages
+    },
+  ).passages
 
 // START
 

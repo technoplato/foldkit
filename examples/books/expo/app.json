@@ -7,10 +7,13 @@
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "plugins": ["expo-router"],
+    "plugins": ["expo-router", "expo-audio"],
     "ios": {
       "bundleIdentifier": "com.knophy.foldkit.books.dev",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "package": "com.knophy.foldkit.books.dev"

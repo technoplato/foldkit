@@ -1,0 +1,6 @@
+# What a build or a tool makes here; none of it is source.
+.expo/
+ios/
+android/
+dist/
+assets/made-up/*.m4a

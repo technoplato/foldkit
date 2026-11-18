@@ -5,21 +5,30 @@
   "main": "index.js",
   "scripts": {
     "ios": "expo start --ios --port 8097",
-    "prestart": "pnpm run prepare-cores",
+    "prepare-cores": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter transcript-player-core-example build && pnpm --filter read-aloud-core-example build && pnpm --filter books-core-example build",
+    "prestart": "pnpm run prepare-cores && pnpm run voice",
     "pretest": "pnpm run prepare-cores",
     "pretypecheck": "pnpm run prepare-cores",
-    "prepare-cores": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter transcript-player-core-example build && pnpm --filter read-aloud-core-example build && pnpm --filter books-core-example build",
     "start": "expo start --port 8097",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "voice": "node scripts/make-made-up-voice.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
+    "@foldkit/instant": "workspace:*",
     "@foldkit/react-native": "workspace:*",
+    "@instantdb/core": "1.0.65",
+    "@instantdb/react-native": "1.0.65",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
     "books-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "expo": "~57.0.9",
+    "expo-audio": "~57.0.3",
+    "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.20",
+    "expo-dev-client": "~57.0.10",
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.24",
     "expo-status-bar": "~57.0.1",
@@ -29,7 +38,11 @@
     "react-native-get-random-values": "~1.11.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "react-native-webview": "13.16.1",
+    "read-aloud-core-example": "workspace:*",
+    "transcript-player-core-example": "workspace:*",
+    "transcript-player-expo-example": "workspace:*"
   },
   "devDependencies": {
     "@babel/plugin-transform-object-rest-spread": "^7.29.7",
