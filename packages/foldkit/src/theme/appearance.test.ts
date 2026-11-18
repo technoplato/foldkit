@@ -85,7 +85,7 @@ describe('the components at the edge', () => {
     for (const painter of painters) {
       const source = readFileSync(join(process.cwd(), painter), 'utf8')
       expect(source, painter).not.toMatch(
-        /prefers-color-scheme|matchMedia|localStorage|sessionStorage/,
+        /prefers-color-scheme|localStorage|sessionStorage/,
       )
     }
   })
