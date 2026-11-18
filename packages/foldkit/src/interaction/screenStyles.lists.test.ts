@@ -70,3 +70,19 @@ describe('the look of a picker bar over words read along with', () => {
     )
   })
 })
+
+describe('the look of a list in groups, and of a badge', () => {
+  it('heads a group in small quiet capitals, its count at the end of the line', () => {
+    const group = ruleOf(':where(.fk-list-group)')
+    expect(group).toContain('justify-content: space-between')
+    expect(group).toContain(`color: ${roleVar('QuietText')}`)
+    expect(group).toContain('text-transform: uppercase')
+  })
+
+  it('draws a badge as a small pill in the colors of a person’s own mark', () => {
+    const badge = ruleOf(':where(.fk-item-badge)')
+    expect(badge).toContain(`background: ${roleVar('MarkSoft')}`)
+    expect(badge).toContain(`color: ${roleVar('Mark')}`)
+    expect(badge).toContain('border-radius: 999px')
+  })
+})
