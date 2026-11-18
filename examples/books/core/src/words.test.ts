@@ -173,6 +173,28 @@ describe('the words being read', () => {
     ).toBe(false)
   })
 
+  it('says the word being spoken at a moment between the reports the player makes once a second', () => {
+    const reportedAtMs = Date.UTC(2026, 9, 18, 19, 0, 0)
+    const { bound } = playingAt(secondSentenceMs)
+    const currentLineAt = (nowMs: number): string | undefined =>
+      spokenWordsLines(spokenWordsOf(bound.readModel(), {}, nowMs)).find(line =>
+        line.startsWith('> '),
+      )
+    expect(currentLineAt(reportedAtMs)).toBe(
+      '> 0:35 He [trimmed] the wick and waited.',
+    )
+    expect(currentLineAt(reportedAtMs + 500)).toBe(
+      '> 0:35 He trimmed [the] wick and waited.',
+    )
+    expect(currentLineAt(reportedAtMs + 1_000)).toBe(
+      '> 0:35 He trimmed the [wick] and waited.',
+    )
+    bound.press('Pause')
+    expect(currentLineAt(reportedAtMs + 1_000)).toBe(
+      '> 0:35 He [trimmed] the wick and waited.',
+    )
+  })
+
   it('encodes as one line of JSON with the same facts', () => {
     const { bound } = playingAt(secondSentenceMs)
     const json = S.encodeSync(SpokenWordsJson)(
