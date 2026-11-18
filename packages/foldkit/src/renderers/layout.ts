@@ -7,6 +7,7 @@ import { Column, Row, Text } from './elements.js'
 import { iconGlyphs } from './icons.js'
 import { itemLinesOf } from './listRows.js'
 import { bookmarksInPassage } from './transcriptBookmarks.js'
+import { transcriptEntriesOf } from './transcriptEntries.js'
 import type {
   ButtonNode,
   HotspotAction,
@@ -16,7 +17,6 @@ import type {
   ProgressNode,
   SeekNode,
   TranscriptBookmark,
-  TranscriptNode,
   TranscriptPassage,
   TranscriptWord,
   UiNode,
@@ -380,6 +380,17 @@ const passageLines = (
             { col: 0, width: passage.heading.length, role: 'ReadingRule' },
           ]),
         ]),
+    ...(passage.speaker === undefined
+      ? []
+      : [
+          plainLine(`${' '.repeat(passageLabelWidth)}${passage.speaker}`, [
+            {
+              col: passageLabelWidth,
+              width: passage.speaker.length,
+              role: 'QuietText',
+            },
+          ]),
+        ]),
     ...Array.map(
       wrappedWords(
         passage.words,
@@ -408,22 +419,9 @@ const passageLines = (
   ]
 }
 
-const transcriptLines = (
-  transcript: TranscriptNode,
-  availableW: number,
-): ReadonlyArray<TranscriptLine> =>
-  Array.match(transcript.passages, {
-    onEmpty: () => [plainLine(transcript.emptyText)],
-    onNonEmpty: passages =>
-      Array.flatMap(passages, passage =>
-        passageLines(
-          passage,
-          availableW,
-          transcript.bookmarks ?? [],
-          transcript.isFollowing === false ? transcript.focusToken : undefined,
-        ),
-      ),
-  })
+type Timeline = Readonly<{ boxes: ReadonlyArray<LayoutBox>; rows: number }>
+
+const noTimeline: Timeline = { boxes: [], rows: 0 }
 
 const layoutNode = (
   node: UiNode,
@@ -704,14 +702,15 @@ const layoutNode = (
         }
       },
       Transcript: transcript => {
-        const lines = transcriptLines(transcript, availableW)
-        const children = Array.map(lines, (line, index) => ({
+        const maybeShownToken =
+          transcript.isFollowing === false ? transcript.focusToken : undefined
+        const lineBox = (line: TranscriptLine, row: number): LayoutBox => ({
           id: ids.next('text'),
           x,
-          y: y + index,
+          y: y + row,
           w: measureText(line.text, availableW),
           h: 1,
-          kind: 'Text' as const,
+          kind: 'Text',
           text: fit(line.text, measureText(line.text, availableW)),
           ...(line.isCurrent ? { isCurrent: true } : {}),
           ...(line.isShown ? { isShown: true } : {}),
@@ -724,16 +723,72 @@ const layoutNode = (
               }
             : {}),
           children: [],
-        }))
+        })
+        // NOTE: The timeline is laid out top to bottom, an entry at a
+        // time: a passage is its lines, and an item is its time in the
+        // column the passages keep theirs in, with the screen part it
+        // shows laid out beside it, as tall as that part is.
+        const timeline = Array.reduce(
+          transcriptEntriesOf(transcript),
+          Array.isReadonlyArrayNonEmpty(transcript.passages)
+            ? noTimeline
+            : {
+                boxes: [lineBox(plainLine(transcript.emptyText), 0)],
+                rows: 1,
+              },
+          (state: Timeline, entry): Timeline => {
+            if (entry._tag === 'PassageEntry') {
+              const lines = passageLines(
+                entry.passage,
+                availableW,
+                transcript.bookmarks ?? [],
+                maybeShownToken,
+              )
+              return {
+                boxes: [
+                  ...state.boxes,
+                  ...Array.map(lines, (line, index) =>
+                    lineBox(line, state.rows + index),
+                  ),
+                ],
+                rows: state.rows + lines.length,
+              }
+            } else {
+              const named = ` ${entry.item.label}`
+              const shown = layoutNode(
+                entry.item.node,
+                x + passageLabelWidth,
+                y + state.rows,
+                Math.max(1, availableW - passageLabelWidth),
+                ids,
+              )
+              return {
+                boxes: [
+                  ...state.boxes,
+                  lineBox(
+                    plainLine(named, [
+                      { col: 0, width: named.length, role: 'QuietText' },
+                    ]),
+                    state.rows,
+                  ),
+                  shown,
+                ],
+                rows: state.rows + Math.max(1, shown.h),
+              }
+            }
+          },
+        )
         return {
           id: ids.next('transcript'),
           x,
           y,
-          w: Array.reduce(children, 0, (max, child) => Math.max(max, child.w)),
-          h: lines.length,
+          w: Array.reduce(timeline.boxes, 0, (max, child) =>
+            Math.max(max, child.x - x + child.w),
+          ),
+          h: timeline.rows,
           kind: 'Transcript',
           label: transcript.label,
-          children,
+          children: timeline.boxes,
         }
       },
       DeviceShell: shell => {

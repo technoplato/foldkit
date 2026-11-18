@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { screenStylesheet } from '../interaction/screenStyles.js'
 import { Text, Transcript } from './elements.js'
 import { paintHtml } from './html.js'
 import { layoutTree } from './layout.js'
@@ -155,5 +156,25 @@ describe('a Transcript’s timeline: who speaks, and what sits between the passa
       'This recording has no transcript.',
       ' 0:08   Copied: dusk',
     ])
+  })
+
+  it('lays an item out with its time in the passages’ column and what it shows beside it, from the start edge', () => {
+    const ruleOf = (selector: string): string => {
+      const start = screenStylesheet.indexOf(`${selector} {`)
+      return screenStylesheet.slice(start, screenStylesheet.indexOf('}', start))
+    }
+    expect(ruleOf(':where(.fk-transcript-item)')).toContain(
+      'grid-template-columns: auto minmax(0, 1fr)',
+    )
+    expect(ruleOf(':where(.fk-transcript-item)')).toContain(
+      'justify-items: start',
+    )
+    expect(ruleOf(':where(.fk-transcript-item .fk-column)')).toContain(
+      'align-items: flex-start',
+    )
+    expect(ruleOf(':where(.fk-transcript-item .fk-row)')).toContain(
+      'justify-content: flex-start',
+    )
+    expect(ruleOf(':where(.fk-passage-speaker)')).toContain('font-weight')
   })
 })

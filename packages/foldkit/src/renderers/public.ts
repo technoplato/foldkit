@@ -65,6 +65,10 @@ export {
   withTranscriptBookmarks,
 } from './transcriptBookmarks.js'
 export {
+  type TranscriptEntry,
+  transcriptEntriesOf,
+} from './transcriptEntries.js'
+export {
   currentWordTokenAt,
   transcriptAt,
   transcriptPlaceAt,
@@ -119,6 +123,7 @@ export type {
   TextPart,
   TranscriptClock,
   TranscriptBookmark,
+  TranscriptItem,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWord,
