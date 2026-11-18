@@ -10,7 +10,9 @@ const segmentsKey: unique symbol = Symbol.for('foldkit/ModelPath')
  * field that is renamed or removed breaks the build, and nothing is
  * matched by text. An Option and a list are looked through: a field
  * after one is that field of what the Option holds, or of every row, so
- * `at.maybeCounter.count` and `at.counters.count` are both `count`.
+ * `at.maybeCounter.count` and `at.counters.count` are both `count`. A
+ * state that is one of several offers the fields of each, so
+ * `at.maybeSearch.selected` names a field only a found search has.
  *
  * @example
  * ```typescript
@@ -27,11 +29,19 @@ export type ModelPath<A> = Readonly<{
 
 type Inside<A> = [A] extends [Option.Option<infer Held>]
   ? Inside<Held>
-  : A extends ReadonlyArray<infer Row>
+  : [A] extends [ReadonlyArray<infer Row>]
     ? Inside<Row>
-    : A extends object
-      ? { readonly [Key in keyof A]-?: ModelPath<A[Key]> }
+    : [A] extends [object]
+      ? { readonly [Key in KeyOf<A>]-?: ModelPath<ValueAt<A, Key>> }
       : unknown
+
+type KeyOf<A> = A extends unknown ? keyof A : never
+
+type ValueAt<A, Key> = A extends unknown
+  ? Key extends keyof A
+    ? A[Key]
+    : never
+  : never
 
 const pathAt = (segments: ReadonlyArray<string>): unknown =>
   new Proxy(
