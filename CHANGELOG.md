@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 12:14:34 a.m. EST — `2b3eda200151` feat(foldkit): green: the reader closer to Scribe Playback (Scribe #2494)
+
+- **Implementation commit:** `2b3eda200151b57de9f2ff072b489aa19037352f`
+- **Change:** the reader closer to Scribe Playback (Scribe #2494)
+- **Details:**
+  - Serif reading text at 24 px in a column up to 1200 px, the time at the start of its paragraph, words already spoken at full strength and those to come resting, the spoken word colored, a rule at a section's left, and a dark stage when the system appearance is dark; the Books page container allows 1280 px.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — reading variables, serif, dark appearance
+  - `examples/books/react/src/App.tsx` — the page container allows 1280 px
+- **User context (verbatim):**
+  > Closer and fire off subagents and organize them to accomplish or other design objectives
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 17th, 2026 at 11:43:16 p.m. EST — `5b934a3ce6a9` feat(foldkit): green: the paragraph being read stands apart, in a wider reading column (Scribe #2494)
 
 - **Implementation commit:** `5b934a3ce6a9ed8f6beab7b845ebd585820648d0`

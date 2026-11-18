@@ -49,6 +49,8 @@ export type ScreenLook = Readonly<{
   rowHoverColor: string
   listWidth: number
   readingWidth: number
+  readingFamily: string
+  readingDarkGround: string
   currentPassageColor: string
   restingWordsColor: string
   itemImageSize: number
@@ -99,13 +101,15 @@ export const screenLook: ScreenLook = {
   trackColor: '#e5e7eb',
   rowHoverColor: '#f3f4f6',
   listWidth: 680,
-  readingWidth: 960,
+  readingWidth: 1200,
+  readingFamily: "'Iowan Old Style', Charter, 'Source Serif 4', Georgia, serif",
+  readingDarkGround: 'linear-gradient(#12301d, #060907 42%)',
   currentPassageColor: '#e8ecf2',
   restingWordsColor: '#6b7280',
   itemImageSize: 56,
   ghostBorderColor: '#d1d5db',
   destructiveColor: '#b91c1c',
-  readingSize: 21,
+  readingSize: 24,
   fieldHeight: 44,
   fieldColor: '#f9fafb',
   checkSize: 24,
@@ -617,6 +621,13 @@ export const screenStylesheet = `
 }
 
 :where(.fk-transcript) {
+  --fk-reading-ground: transparent;
+  --fk-reading-text: ${screenLook.textColor};
+  --fk-reading-rest: ${screenLook.restingWordsColor};
+  --fk-reading-spoken: #c2410c;
+  --fk-reading-spoken-ground: ${screenLook.accentSoftColor};
+  --fk-reading-current-ground: ${screenLook.currentPassageColor};
+  --fk-reading-rule: ${screenLook.accentColor};
   box-sizing: border-box;
   position: relative;
   display: flex;
@@ -627,50 +638,66 @@ export const screenStylesheet = `
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px 0;
+  border-radius: 18px;
+  background: var(--fk-reading-ground);
   text-align: left;
   mask-image: linear-gradient(transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 
+@media (prefers-color-scheme: dark) {
+  :where(.fk-transcript) {
+    --fk-reading-ground: ${screenLook.readingDarkGround};
+    --fk-reading-text: #ffffff;
+    --fk-reading-rest: #8d949e;
+    --fk-reading-spoken: #9db8ff;
+    --fk-reading-spoken-ground: transparent;
+    --fk-reading-current-ground: rgba(255, 255, 255, 0.06);
+    --fk-reading-rule: #6ea0ff;
+    padding: 16px 20px;
+    mask-image: none;
+  }
+}
+
 :where(.fk-transcript-empty) {
   margin: 0;
-  color: ${screenLook.dimColor};
+  color: var(--fk-reading-rest);
   text-align: center;
 }
 
 :where(.fk-passage) {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 8px;
-  padding: 8px 10px;
+  display: block;
+  padding: 10px 16px;
   border-radius: 14px;
   transition: background-color 0.2s;
 }
 
 :where(.fk-passage[data-current]) {
-  background: ${screenLook.currentPassageColor};
-  box-shadow: inset 3px 0 0 ${screenLook.accentColor};
+  background: var(--fk-reading-current-ground);
+  box-shadow: inset 3px 0 0 var(--fk-reading-rule);
 }
 
 :where(.fk-passage-heading) {
-  grid-column: 1 / -1;
-  margin: 12px 0 2px;
-  color: ${screenLook.textColor};
-  font-size: 13px;
+  margin: 14px 0 8px;
+  padding-left: 12px;
+  border-left: 3px solid var(--fk-reading-rule);
+  color: var(--fk-reading-rule);
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 :where(.fk-passage-label) {
-  align-self: start;
-  padding-top: 5px;
+  float: left;
+  margin: 0 14px 0 0;
+  padding: 0;
   border: 0;
   background: none;
-  color: ${screenLook.dimColor};
+  color: var(--fk-reading-rest);
   font-family: ${screenLook.monoFamily};
-  font-size: 12px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  line-height: ${px(Math.round(screenLook.readingSize * 1.55))};
 }
 
 :where(button.fk-passage-label) {
@@ -678,19 +705,20 @@ export const screenStylesheet = `
 }
 
 :where(button.fk-passage-label:hover) {
-  color: ${screenLook.textColor};
+  color: var(--fk-reading-text);
 }
 
 :where(.fk-passage-words) {
   margin: 0;
-  color: ${screenLook.restingWordsColor};
+  color: var(--fk-reading-rest);
+  font-family: ${screenLook.readingFamily};
   font-size: ${px(screenLook.readingSize)};
-  line-height: 1.7;
+  line-height: 1.55;
   transition: color 0.2s;
 }
 
 :where(.fk-passage[data-current] .fk-passage-words) {
-  color: ${screenLook.textColor};
+  color: var(--fk-reading-text);
 }
 
 :where(.fk-word) {
@@ -701,14 +729,18 @@ export const screenStylesheet = `
 
 @media (hover: hover) {
   :where(.fk-word:hover) {
-    background: ${screenLook.trackColor};
+    background: var(--fk-reading-current-ground);
   }
 }
 
+:where(.fk-passage[data-current] .fk-word[data-current] ~ .fk-word) {
+  color: var(--fk-reading-rest);
+}
+
 :where(.fk-word[data-current]) {
-  background: ${screenLook.accentSoftColor};
-  box-shadow: 0 0 0 2px ${screenLook.accentSoftColor};
-  color: #9a3412;
+  background: var(--fk-reading-spoken-ground);
+  box-shadow: 0 0 0 2px var(--fk-reading-spoken-ground);
+  color: var(--fk-reading-spoken);
 }
 
 :where(.fk-device-phone) {
@@ -920,15 +952,15 @@ export const screenStylesheet = `
 
 @media (max-width: 560px) {
   :where(.fk-passage) {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
     padding: 6px 8px;
   }
 
+  :where(.fk-passage-words) {
+    font-size: ${px(Math.round(screenLook.readingSize * 0.85))};
+  }
+
   :where(.fk-passage-label) {
-    justify-self: start;
-    padding-top: 0;
-    text-align: left;
+    line-height: ${px(Math.round(screenLook.readingSize * 0.85 * 1.55))};
   }
 }
 
