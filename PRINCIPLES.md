@@ -27,9 +27,41 @@ availability rule. The React button, the action menu row, the `+` key, and
 `counter do increment` all come from that declaration. Adding a `Double`
 Action means one new declaration and one update arm, and nothing else.
 
+Worked example, from the Books terminal (Scribe #2518). Its first-read help
+was a string array typed in the terminal adapter. One line read
+`books listen <title>` while the command took a slug, so the first command
+its owner typed failed. Beside it, the declaration and the derived line that
+cannot lie:
+
+```ts
+// Typed by hand in examples/books/cli/src/view.ts. Nothing held it to the code.
+'  books listen <title>     Starts the player and plays a title from your place'
+
+// Declared once in the Books core. The terminal prints
+// usageOf(['Listen'], Catalog.declarationOf(Listen)) and reads the argv
+// with the same value, so a usage line names only what the reader takes.
+export const Listen = Catalog.action('Listen', {
+  fields: { slug: TitleSlug },
+  choose: whichTitle(...), // noun: 'title'
+  what, why, meta,
+})
+```
+
+The same holds for a tooltip (`title="Sets the count to 0"` on a button
+against `what` on `Reset`, read through `Interaction.controlHintOf`), for an
+accessible description (`aria-description` typed on an element against
+`hintAttributesOf`), and for an agent's tool list (a markdown table of
+commands against `toolsOf(declarations)`, which `books actions --json`
+prints). `AGENTS.md` ("Declare once; derive everything") has the table and
+the derivation path.
+
 **Test:** count the files a new Action or Destination touches. The target is
 two: the declaration and its update arm. Every extra file is a projection
 someone typed by hand.
+
+**Smell:** a usage line, a help table, a tooltip, or an accessible label
+typed beside the Action it describes. A list kept by hand is a defect even
+while it is correct.
 
 **Smell:** a hand-written list that mirrors a Schema union. A `showSurfaces`
 array copying `HostId`, a `factHandles.ts` naming every Action, or a React
