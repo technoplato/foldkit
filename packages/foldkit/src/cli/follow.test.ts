@@ -154,19 +154,36 @@ const eventually = async (isDone: () => boolean): Promise<void> => {
   }
 }
 
+// A terminal's size as the test holds it, so the test can resize it.
+type FakeSize = { columns?: number; rows?: number }
+
 const fakeRuntime = (
-  screen: Partial<Omit<CliFollowRuntime['stdout'], 'write' | 'once'>> = {},
+  screen: Partial<
+    Omit<CliFollowRuntime['stdout'], 'write' | 'once' | 'columns' | 'rows'>
+  > &
+    FakeSize = {},
 ) => {
   const written = { stdout: '', stderr: '' }
-  const runtime: CliFollowRuntime = {
-    stdout: {
-      write: text => {
-        written.stdout = `${written.stdout}${text}`
-        return true
-      },
-      once: () => undefined,
-      ...screen,
+  const { columns, rows, ...listening } = screen
+  const size: FakeSize = {
+    ...(columns === undefined ? {} : { columns }),
+    ...(rows === undefined ? {} : { rows }),
+  }
+  const stdout: CliFollowRuntime['stdout'] = {
+    write: text => {
+      written.stdout = `${written.stdout}${text}`
+      return true
     },
+    once: () => undefined,
+    ...listening,
+  }
+  // The size is read each time it is asked, as a terminal's is.
+  Object.defineProperties(stdout, {
+    columns: { get: () => size.columns },
+    rows: { get: () => size.rows },
+  })
+  const runtime: CliFollowRuntime = {
+    stdout,
     stderr: {
       write: text => {
         written.stderr = `${written.stderr}${text}`
@@ -175,7 +192,7 @@ const fakeRuntime = (
     },
     once: () => undefined,
   }
-  return { runtime, written }
+  return { runtime, written, size }
 }
 
 describe('following to a pipe', () => {
@@ -242,7 +259,7 @@ describe('following to a pipe', () => {
     const socketPath = socketPathFor('in-place-size')
     const asked: Array<Record<string, string>> = []
     const resizing: Array<() => void> = []
-    const { runtime } = fakeRuntime({
+    const { runtime, size: screen } = fakeRuntime({
       columns: 60,
       rows: 20,
       on: (_event: 'resize', listener: () => void) => {
@@ -250,7 +267,6 @@ describe('following to a pipe', () => {
       },
       off: () => undefined,
     })
-    const screen = runtime.stdout as { columns?: number; rows?: number }
     await serving(
       socketPath,
       surfaceFollowing((_topic, flags) => {

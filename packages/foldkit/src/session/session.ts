@@ -473,9 +473,18 @@ export type SessionProgram<Child extends SessionChild> = Program<
 > &
   Readonly<{ of: Child; catalog: SessionCatalogOf<Child> }>
 
+// NOTE: The session wraps any child Program, so the types it builds, its
+// Model, its Messages, its catalog and its Commands, are computed from
+// the child's, and TypeScript cannot follow the computation. Every place
+// that hands such a value its computed type goes through this one
+// function, the only type assertion in the module, so each is easy to
+// find and none hides in a line that looks like plain code.
+/* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+const composedAs = <A>(value: unknown): A => value as A
+
 const structFieldsOf = (schema: unknown): S.Struct.Fields =>
   Predicate.hasProperty(schema, 'fields') && Predicate.isObject(schema.fields)
-    ? (schema.fields as S.Struct.Fields)
+    ? composedAs<S.Struct.Fields>(schema.fields)
     : {}
 
 /**
@@ -562,23 +571,29 @@ export const compose = <Child extends SessionChild>(config: {
     [SessionSettings],
     hold,
   )
-  const Model = S.Struct({
-    ...composedFields(childFields, Destination),
-    session: SessionState,
-  }) as unknown as ProgramSchema<AppModel>
-  const AppMessageSchema = S.Union([
-    ...schemaMembersOf(child.Message),
-    ...Message.members,
-    ...ownedMessages(hold),
-  ]) as unknown as ProgramSchema<AppMessage>
-  const catalog = Catalog.make([
-    ...child.catalog.actions,
-    MirrorNavigation,
-    KeepNavigationLocal,
-    OpenSessionSettings,
-    CloseSessionSettings,
-    GoBack,
-  ]) as unknown as SessionCatalogOf<Child>
+  const Model = composedAs<ProgramSchema<AppModel>>(
+    S.Struct({
+      ...composedFields(childFields, Destination),
+      session: SessionState,
+    }),
+  )
+  const AppMessageSchema = composedAs<ProgramSchema<AppMessage>>(
+    S.Union([
+      ...schemaMembersOf(child.Message),
+      ...Message.members,
+      ...ownedMessages(hold),
+    ]),
+  )
+  const catalog = composedAs<SessionCatalogOf<Child>>(
+    Catalog.make([
+      ...child.catalog.actions,
+      MirrorNavigation,
+      KeepNavigationLocal,
+      OpenSessionSettings,
+      CloseSessionSettings,
+      GoBack,
+    ]),
+  )
 
   const initialSession = SessionState.make({
     mode: config.initialMode ?? 'Mirror',
@@ -587,19 +602,21 @@ export const compose = <Child extends SessionChild>(config: {
 
   const childOf = (model: AppModel): ChildModel => {
     const { session: _session, navigation, ...childFieldsOnly } = model
-    return (
-      hold === 'Owns' ? childFieldsOnly : { ...childFieldsOnly, navigation }
-    ) as ChildModel
+    return composedAs<ChildModel>(
+      hold === 'Owns' ? childFieldsOnly : { ...childFieldsOnly, navigation },
+    )
   }
 
   const withChild = (model: AppModel, childModel: ChildModel): AppModel =>
-    (hold === 'Owns'
-      ? {
-          ...childModel,
-          session: model.session,
-          navigation: model.navigation,
-        }
-      : { ...childModel, session: model.session }) as AppModel
+    composedAs<AppModel>(
+      hold === 'Owns'
+        ? {
+            ...childModel,
+            session: model.session,
+            navigation: model.navigation,
+          }
+        : { ...childModel, session: model.session },
+    )
 
   const sessionSettingsRoute = presentRoute(
     Route.caseOf(
@@ -624,7 +641,7 @@ export const compose = <Child extends SessionChild>(config: {
   >({
     child: childNavigation,
     hold,
-    Destination: Destination as unknown as ProgramSchema<AppDestination>,
+    Destination: composedAs<ProgramSchema<AppDestination>>(Destination),
     childOf,
     stack: fieldLens<AppModel, AppDestination>(),
     embedNotFound: notFound => notFound,
@@ -740,12 +757,12 @@ export const compose = <Child extends SessionChild>(config: {
         ? stackAtRoot<AppDestination>(childNavigation.root)
         : childModel.navigation
     return [
-      {
+      composedAs<AppModel>({
         ...childModel,
         session: initialSession,
         navigation: initialNavigation,
-      } as AppModel,
-      commands as ReadonlyArray<AppCommand>,
+      }),
+      composedAs<ReadonlyArray<AppCommand>>(commands),
     ]
   }
 
@@ -756,7 +773,10 @@ export const compose = <Child extends SessionChild>(config: {
       return [model, []]
     }
     const [childModel, commands] = child.restore(childOf(model))
-    return [withChild(model, childModel), commands as ReadonlyArray<AppCommand>]
+    return [
+      withChild(model, childModel),
+      composedAs<ReadonlyArray<AppCommand>>(commands),
+    ]
   }
 
   const allowed = (model: AppModel): AppModel => {
@@ -778,27 +798,28 @@ export const compose = <Child extends SessionChild>(config: {
     }
     const [childModel, commands] = child.update(
       childOf(model),
-      message as ChildMessage,
+      composedAs<ChildMessage>(message),
     )
     return [
       allowed(withChild(model, childModel)),
-      mapMessages(commands, commandMessage => commandMessage as AppMessage),
+      mapMessages(commands, commandMessage =>
+        composedAs<AppMessage>(commandMessage),
+      ),
     ]
   }
 
-  const settingsInteraction = fromCatalog(
-    sessionActionsCatalog,
-  ) as unknown as ProgramInteraction<AppModel, AppMessage>
+  const settingsInteraction = composedAs<
+    ProgramInteraction<AppModel, AppMessage>
+  >(fromCatalog(sessionActionsCatalog))
 
-  const childInteraction = (child.interaction ??
-    fromCatalog(child.catalog)) as unknown as ProgramInteraction<
-    ChildModel,
-    ChildMessage
-  >
+  const childInteraction = composedAs<
+    ProgramInteraction<ChildModel, ChildMessage>
+  >(child.interaction ?? fromCatalog(child.catalog))
 
   const asAppMessages = (
     messages: ReadonlyArray<ChildMessage>,
-  ): ReadonlyArray<AppMessage> => messages as ReadonlyArray<AppMessage>
+  ): ReadonlyArray<AppMessage> =>
+    composedAs<ReadonlyArray<AppMessage>>(messages)
 
   const interaction: ProgramInteraction<AppModel, AppMessage> = {
     menuTitle: childInteraction.menuTitle,
@@ -872,8 +893,9 @@ export const compose = <Child extends SessionChild>(config: {
           return 'Navigation'
         } else {
           return (
-            childSynchronization?.messageCategory(message as ChildMessage) ??
-            'Domain'
+            childSynchronization?.messageCategory(
+              composedAs<ChildMessage>(message),
+            ) ?? 'Domain'
           )
         }
       },
@@ -914,7 +936,9 @@ export const compose = <Child extends SessionChild>(config: {
         }),
   })
 
-  return Object.assign(program, {
-    of: child,
-  }) as unknown as SessionProgram<Child>
+  return composedAs<SessionProgram<Child>>(
+    Object.assign(program, {
+      of: child,
+    }),
+  )
 }

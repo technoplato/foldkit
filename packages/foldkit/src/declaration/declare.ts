@@ -503,17 +503,16 @@ export const undeclaredSources = <Model>(
     Array.flatMap(Record.toEntries(computedFields), ([name, field]) =>
       Array.flatMap(models, first =>
         Array.flatMap(models, second => {
+          const start: unknown = second
+          const folded = Array.reduce(field.from, start, (model, path) =>
+            withValueAt(
+              model,
+              segmentsOf(path),
+              valueAt(first, segmentsOf(path)),
+            ),
+          )
           /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-          const mixed = Array.reduce(
-            field.from,
-            second as unknown,
-            (model, path) =>
-              withValueAt(
-                model,
-                segmentsOf(path),
-                valueAt(first, segmentsOf(path)),
-              ),
-          ) as Model
+          const mixed = folded as Model
           return Equal.equals(field.read(mixed), field.read(first))
             ? []
             : [

@@ -30,13 +30,13 @@ type Model = typeof Model.Type
 
 const at = ModelPath.of(Model)
 
-const GotPrimeAnswer = m('GotPrimeAnswer', { isPrime: S.Boolean })
+const ReceivedPrimeAnswer = m('ReceivedPrimeAnswer', { isPrime: S.Boolean })
 
 const AskWhetherPrime = Command.define(
   'AskWhetherPrime',
   { count: S.Number },
-  GotPrimeAnswer,
-)(({ count }) => Effect.succeed(GotPrimeAnswer({ isPrime: count === 7 })))
+  ReceivedPrimeAnswer,
+)(({ count }) => Effect.succeed(ReceivedPrimeAnswer({ isPrime: count === 7 })))
 
 const Increment = Catalog.action('Increment', {
   what: 'Raises the count by one',
