@@ -264,3 +264,88 @@ describe('shortcutsOf', () => {
     expect(Interaction.shortcutsOf(['p'], 'Touch', 'Browser')).toEqual([])
   })
 })
+
+describe('controlHintOf', () => {
+  const play = {
+    label: 'Play',
+    description: 'Plays from where you stopped',
+    keys: ['p'],
+  }
+
+  it('says what a control does and the keys that press it', () => {
+    expect(Interaction.controlHintOf(play, 'Mac', 'Browser')).toEqual(
+      Option.some({
+        maybeTitle: Option.none(),
+        maybeDescription: Option.some('Plays from where you stopped'),
+        shortcuts: ['p'],
+        maybeBecause: Option.none(),
+        spoken: 'Plays from where you stopped',
+      }),
+    )
+  })
+
+  it('names a control that shows only an icon', () => {
+    expect(
+      Option.flatMap(
+        Interaction.controlHintOf(
+          { ...play, isIconOnly: true },
+          'Mac',
+          'Browser',
+        ),
+        hint => hint.maybeTitle,
+      ),
+    ).toEqual(Option.some('Play'))
+  })
+
+  it('says why a control is unavailable', () => {
+    expect(
+      Option.map(
+        Interaction.controlHintOf(
+          { ...play, because: 'nothing is loaded' },
+          'Mac',
+          'Browser',
+        ),
+        hint => [hint.maybeBecause, hint.spoken],
+      ),
+    ).toEqual(
+      Option.some([
+        Option.some('nothing is loaded'),
+        'Plays from where you stopped. Unavailable: nothing is loaded',
+      ]),
+    )
+  })
+
+  it('shows no keys on a touch screen, and nothing for a control with nothing to add', () => {
+    expect(
+      Option.map(
+        Interaction.controlHintOf(play, 'Touch', 'Browser'),
+        hint => hint.shortcuts,
+      ),
+    ).toEqual(Option.some([]))
+    expect(
+      Interaction.controlHintOf({ label: 'Close' }, 'Mac', 'Browser'),
+    ).toEqual(Option.none())
+  })
+
+  it('writes the hint as the attributes every DOM painter puts on the control', () => {
+    expect(
+      Option.map(
+        Interaction.controlHintOf(
+          { ...play, isIconOnly: true, because: 'nothing is loaded' },
+          'Mac',
+          'Browser',
+        ),
+        Interaction.hintAttributesOf,
+      ),
+    ).toEqual(
+      Option.some({
+        'data-hint': 'Plays from where you stopped',
+        'data-hint-title': 'Play',
+        'data-hint-keys': 'p',
+        'data-hint-because': 'nothing is loaded',
+        'aria-description':
+          'Plays from where you stopped. Unavailable: nothing is loaded',
+      }),
+    )
+  })
+})

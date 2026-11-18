@@ -2,7 +2,11 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import * as Catalog from '../catalog/catalog.js'
-import { type KeyInput, keyInput } from '../interaction/interaction.js'
+import {
+  type KeyInput,
+  echoOfKey,
+  keyInput,
+} from '../interaction/interaction.js'
 import { terminalLineText, terminalMenuLines } from '../interaction/terminal.js'
 import * as Declaration from '../navigation/declaration.js'
 import { Dialog, entriesOf, stackAtRoot } from '../navigation/structure.js'
@@ -130,12 +134,16 @@ describe('opening and dismissing', () => {
         dismissLabel: 'Close actions',
         query: '',
         isFilterFocused: true,
+        areRowKeysLive: false,
+        rowKeysHint:
+          'Letters search here. Press ↓ to use this key, or press it on the page once the menu is closed',
         style: Dialog(),
         summary: '3 actions',
         hints: [
           { keys: ['↑', '↓'], does: 'move' },
           { keys: ['↵'], does: 'run' },
           { keys: ['esc'], does: 'close' },
+          { keys: ['a–z'], does: 'search' },
         ],
         rows: [
           expect.objectContaining({
@@ -366,7 +374,9 @@ describe('filtering', () => {
         menu => menu.summary,
       )
     expect(summaryOf('')).toEqual(Option.some('3 actions'))
-    expect(summaryOf('rst')).toEqual(Option.some('1 action'))
+    expect(summaryOf('rst')).toEqual(
+      Option.some('1 action matches “rst”'),
+    )
     expect(summaryOf('zz')).toEqual(Option.some('No actions match “zz”'))
   })
 
@@ -395,7 +405,9 @@ describe('focus', () => {
       Option.map(interaction.menu(inList), menu =>
         menu.hints.map(hint => hint.does),
       ),
-    ).toEqual(Option.some(['move', 'run', 'back to search']))
+    ).toEqual(
+      Option.some(['move', 'run', 'back to search', 'run a row by its key']),
+    )
   })
 
   it('moves from the filter into the list and back up', () => {
@@ -532,5 +544,89 @@ describe('synchronization', () => {
     const incremented = apply(open, [Increment()])
     expect(incremented.navigation).toEqual(open.navigation)
     expect(incremented.count).toBe(1)
+  })
+})
+
+describe('saying what a key will do', () => {
+  const hintsOf = (model: AppModel) =>
+    Option.map(interaction.menu(model), menu => ({
+      does: menu.hints.map(hint => hint.does),
+      areRowKeysLive: menu.areRowKeysLive,
+    }))
+
+  it('says letters search while the search has the keyboard', () => {
+    expect(hintsOf(openMenu(initial()))).toEqual(
+      Option.some({
+        does: ['move', 'run', 'close', 'search'],
+        areRowKeysLive: false,
+      }),
+    )
+  })
+
+  it("says a row's own key runs it once a row has the keyboard", () => {
+    expect(hintsOf(press(openMenu(initial()), keyInput('ArrowDown')))).toEqual(
+      Option.some({
+        does: ['move', 'run', 'back to search', 'run a row by its key'],
+        areRowKeysLive: true,
+      }),
+    )
+  })
+
+  it('counts the rows a typed letter kept', () => {
+    const typed = press(openMenu(initial(3)), keyInput('r'))
+    expect(Option.map(interaction.menu(typed), menu => menu.summary)).toEqual(
+      Option.some('3 actions match “r”'),
+    )
+    const narrowed = press(typed, keyInput('s'))
+    expect(
+      Option.map(interaction.menu(narrowed), menu => menu.summary),
+    ).toEqual(Option.some('1 action matches “rs”'))
+  })
+})
+
+describe('saying what a key did', () => {
+  const echo = (model: AppModel, input: KeyInput) =>
+    Option.map(echoOfKey(interaction, model, input), found => [
+      found.title,
+      Option.getOrNull(found.maybeNote),
+    ])
+
+  it('names the Action a key runs on the page, and why a key does nothing', () => {
+    expect(echo(initial(3), keyInput('r'))).toEqual(
+      Option.some(['Reset', null]),
+    )
+    expect(echo(initial(0), keyInput('r'))).toEqual(
+      Option.some(['Reset', 'Unavailable: count is already 0']),
+    )
+    expect(echo(initial(0), keyInput('x'))).toEqual(Option.none())
+  })
+
+  it('says nothing for a letter typed into the search', () => {
+    expect(echo(openMenu(initial(3)), keyInput('r'))).toEqual(Option.none())
+  })
+
+  it('names the row a number, Enter, or its own key runs from the menu', () => {
+    const open = openMenu(initial(0))
+    expect(echo(open, keyInput('2', { isControl: true }))).toEqual(
+      Option.some(['Decrement', null]),
+    )
+    expect(echo(open, keyInput('Enter'))).toEqual(
+      Option.some(['Increment', null]),
+    )
+    const inList = press(open, keyInput('ArrowDown'))
+    expect(echo(inList, keyInput('-'))).toEqual(
+      Option.some(['Decrement', null]),
+    )
+    expect(echo(inList, keyInput('j'))).toEqual(Option.none())
+  })
+
+  it('says why Enter did nothing on an unavailable row', () => {
+    const onReset = press(
+      press(openMenu(initial(0)), keyInput('ArrowUp')),
+      keyInput('Enter'),
+    )
+    expect(echo(onReset, keyInput('Enter'))).toEqual(
+      Option.some(['Reset', 'Unavailable: count is already 0']),
+    )
   })
 })
