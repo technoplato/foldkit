@@ -152,6 +152,24 @@ describe('Declaration.problemsOf', () => {
     ])
   })
 
+  it('says when a why tells of someone instead of being the reason itself', () => {
+    const told = Declaration.make('Back', {
+      what: 'Returns to the screen beneath this one',
+      why: 'The person is done with this screen',
+    })
+    expect(Declaration.problemsOf(told)).toEqual([
+      'Back: its why is told about someone or something. Say the reason itself, as the user would give it, such as `To leave this screen`.',
+    ])
+    expect(
+      Declaration.problemsOf(
+        Declaration.make('Back', {
+          what: 'Returns to the screen beneath this one',
+          why: 'To leave this screen',
+        }),
+      ),
+    ).toEqual([])
+  })
+
   it('says when a what or a why speaks to the user instead of about them', () => {
     const spoken = Declaration.make('Play', {
       what: 'Plays a title from the last place you listened',
