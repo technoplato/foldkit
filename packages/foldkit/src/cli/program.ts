@@ -1,4 +1,4 @@
-import { Array, Match as M, Option, String, pipe } from 'effect'
+import { Array, Match as M, Option, Order, String, pipe } from 'effect'
 
 import {
   type Availability,
@@ -23,6 +23,7 @@ import { type Frame, frameOf } from '../navigation/frame.js'
 import { Cli } from '../navigation/message.js'
 import { linksOf } from '../renderers/query.js'
 import { renderScreen } from '../renderers/render.js'
+import { namedByTyped } from '../renderers/typed.js'
 import type { UiNode } from '../renderers/types.js'
 import { columnRow, underColumn } from './layout.js'
 import type { CliDaemonFlags, CliDaemonPaintedResult } from './protocol.js'
@@ -622,13 +623,6 @@ const painted = (
   ...(stderr === '' ? {} : { stderr }),
 })
 
-const needsChoiceSentence = (entry: Entry, name: string): string =>
-  Option.match(Array.head(offeredTokensOf(entry)), {
-    onNone: () => `${commandOf(entry.tag)} has nothing to choose right now.`,
-    onSome: first =>
-      `${usageOf(entry)} needs one of: ${Array.join(offeredTokensOf(entry), ', ')}. Try: ${name} ${commandOf(choiceTagOf(entry.tag, first))}`,
-  })
-
 type Command = Readonly<{
   entry: Entry
   tag: string
@@ -683,40 +677,282 @@ const commandFor = <Model, Message>(
     () => openCommandFor(bound.entries(), command),
   )
 
+/**
+ * What a host adds to how commands are answered: its own commands, so an
+ * unknown command can be told the nearest of them too, and the command
+ * that lists every command, `help` unless the host has another.
+ */
+export type ProgramCommandOptions = Readonly<{
+  hostCommands?: ReadonlyArray<HostCommand>
+  listCommand?: string
+}>
+
+const refused = (sentence: string, exitCode = 2): CliDaemonPaintedResult =>
+  painted('', exitCode, sentence)
+
+const shownChoices = 8
+
+/**
+ * Choices as lines to copy: the command for each, then its name, the
+ * first few, and how many more there are.
+ */
+const choiceCommandLines = (
+  name: string,
+  entry: Entry,
+  choices: ReadonlyArray<EntryChoice>,
+): ReadonlyArray<string> => {
+  const shown = Array.take(choices, shownChoices)
+  const commands = Array.map(
+    shown,
+    choice => `${name} ${commandOf(choiceTagOf(entry.tag, choice.token))}`,
+  )
+  const width = widestOf(commands, 0)
+  const more = choices.length - shown.length
+  return [
+    ...Array.map(
+      shown,
+      (choice, index) =>
+        `${indent}${(commands[index] ?? '').padEnd(width)}${choice.title}`,
+    ),
+    ...(more > 0 ? [`${indent}and ${more.toString()} more.`] : []),
+  ]
+}
+
+const withArticle = (noun: string): string =>
+  /^[aeiou]/iu.test(noun) ? `an ${noun}` : `a ${noun}`
+
+const enabledChoicesOf = (entry: Entry): ReadonlyArray<EntryChoice> =>
+  Option.match(entry.maybeChoices, {
+    onNone: () => [],
+    onSome: ({ choices }) =>
+      Array.filter(choices, choice => isEnabled(choice.availability)),
+  })
+
+/**
+ * A command's own usage after a sentence that says what was wrong, with a
+ * few of the choices it takes now to copy.
+ */
+const usageAnswer = (
+  name: string,
+  entry: Entry,
+  sentence: string,
+): CliDaemonPaintedResult => {
+  const offered = enabledChoicesOf(entry)
+  const usage = `Usage: ${name} ${usageOf(entry)}`
+  return refused(
+    Array.join(
+      Array.match(offered, {
+        onEmpty: () => [`${sentence} ${usage}.`],
+        onNonEmpty: choices => [
+          `${sentence} ${usage}, such as:`,
+          ...choiceCommandLines(name, entry, choices),
+        ],
+      }),
+      '\n',
+    ),
+  )
+}
+
+// NEAREST
+
+const editDistance = (first: string, second: string): number => {
+  const firstRow: ReadonlyArray<number> = Array.range(0, second.length)
+  return Option.getOrElse(
+    Array.last(
+      Array.reduce(
+        Array.fromIterable(first),
+        firstRow,
+        (previous, letter, row) =>
+          Array.reduce(
+            Array.fromIterable(second),
+            [row + 1],
+            (current: ReadonlyArray<number>, other, column) => [
+              ...current,
+              Math.min(
+                (previous[column + 1] ?? 0) + 1,
+                (current[column] ?? 0) + 1,
+                (previous[column] ?? 0) + (letter === other ? 0 : 1),
+              ),
+            ],
+          ),
+      ),
+    ),
+    () => second.length,
+  )
+}
+
+const nearestShown = 3
+
+const minimumPartLength = 3
+
+/**
+ * How far a typed word is from a command's word: the letters to change,
+ * or one when either holds the other, as `next` is in `next-chapter`.
+ */
+const farnessOf = (typed: string, word: string): number => {
+  const isPart =
+    Math.min(typed.length, word.length) >= minimumPartLength &&
+    (word.includes(typed) || typed.includes(word))
+  return Math.min(editDistance(typed, word), isPart ? 1 : Infinity)
+}
+
+const firstWordOf = (text: string): string => text.split(' ')[0] ?? ''
+
+/**
+ * The commands nearest what was typed, by spelling: up to three, the
+ * nearest first, from the Program's Actions and the host's own commands.
+ */
+const nearestUsages = (
+  typed: string,
+  usages: ReadonlyArray<string>,
+): ReadonlyArray<string> => {
+  const word = firstWordOf(typed).toLowerCase()
+  const allowed = Math.max(1, Math.floor(word.length / 3))
+  return pipe(
+    Array.map(usages, (usage, index) => ({
+      usage,
+      index,
+      farness: farnessOf(word, firstWordOf(usage)),
+    })),
+    Array.filter(({ farness }) => farness <= allowed),
+    Array.sortWith(
+      ({ farness, index }) => farness * usages.length + index,
+      Order.Number,
+    ),
+    Array.take(nearestShown),
+    Array.map(({ usage }) => usage),
+  )
+}
+
+const unknownAnswer = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  name: string,
+  command: string,
+  options: ProgramCommandOptions,
+): CliDaemonPaintedResult => {
+  const nearest = nearestUsages(command, [
+    ...Array.map(bound.entries(), usageOf),
+    ...Array.map(options.hostCommands ?? [], host => host.command),
+  ])
+  const listing = `\`${name} ${options.listCommand ?? 'help'}\` lists every command.`
+  return refused(
+    Array.match(nearest, {
+      onEmpty: () => `Unknown command "${command}". ${listing}`,
+      onNonEmpty: usages =>
+        `Unknown command "${command}". Nearest: ${Array.join(
+          Array.map(usages, usage => `${name} ${usage}`),
+          ', ',
+        )}. ${listing}`,
+    }),
+  )
+}
+
+// PRESS
+
 const pressCommand = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   command: string,
   press: (tag: string) => boolean,
-): CliDaemonPaintedResult =>
-  Option.match(commandFor(bound, command), {
-    onNone: () =>
-      painted(
-        paintProgram(bound, name),
-        2,
-        `Unknown command "${command}". Try one of: ${Array.map(bound.entries(), usageOf).join(', ')}.`,
-      ),
-    onSome: found =>
-      M.value(found.availability).pipe(
-        M.withReturnType<CliDaemonPaintedResult>(),
-        M.tagsExhaustive({
-          Enabled: () =>
-            press(found.tag) || Option.isNone(found.entry.maybeChoices)
-              ? painted(paintProgram(bound, name))
-              : painted(
-                  paintProgram(bound, name),
-                  2,
-                  needsChoiceSentence(found.entry, name),
-                ),
-          Disabled: ({ because }) =>
-            painted(
-              paintProgram(bound, name),
-              1,
-              `${command} is disabled: ${because}.`,
+  options: ProgramCommandOptions = {},
+): CliDaemonPaintedResult => {
+  const [word = '', ...rest] = command.split(' ')
+  const typed = rest.join(' ')
+  const commandWord = (entry: Entry): string => commandOf(entry.tag)
+  // NOTE: A choice is taken by its word first, `listen the-lantern-keeper`.
+  // What that does not take is read as a person names a choice: its
+  // title or part of it, in any case. One choice named is pressed;
+  // several, or none, are said with the command's own usage.
+  const named = (entry: Entry): CliDaemonPaintedResult => {
+    const choices = Option.match(entry.maybeChoices, {
+      onNone: (): ReadonlyArray<EntryChoice> => [],
+      onSome: held => held.choices,
+    })
+    if (typed === '') {
+      return usageAnswer(
+        name,
+        entry,
+        `${commandWord(entry)} needs ${withArticle(
+          Option.match(entry.maybeChoices, {
+            onNone: () => 'choice',
+            onSome: held =>
+              commandOf(capitalized(held.field)).replaceAll('-', ' '),
+          }),
+        )}.`,
+      )
+    }
+    const matches = namedByTyped(choices, typed, choice => [
+      choice.title,
+      choice.token,
+    ])
+    return Array.match(matches, {
+      onEmpty: () =>
+        usageAnswer(
+          name,
+          entry,
+          `No choice of ${commandWord(entry)} matches "${typed}".`,
+        ),
+      onNonEmpty: found =>
+        found.length === 1
+          ? pressed(
+              {
+                entry,
+                tag: choiceTagOf(entry.tag, Array.headNonEmpty(found).token),
+                availability: Array.headNonEmpty(found).availability,
+              },
+              false,
+            )
+          : refused(
+              Array.join(
+                [
+                  `"${typed}" matches ${found.length.toString()} choices of ${commandWord(entry)}. Say more of the name, or copy one:`,
+                  ...choiceCommandLines(name, entry, found),
+                ],
+                '\n',
+              ),
             ),
-        }),
+    })
+  }
+  const pressed = (
+    found: Command,
+    mayBeNamed: boolean,
+  ): CliDaemonPaintedResult =>
+    M.value(found.availability).pipe(
+      M.withReturnType<CliDaemonPaintedResult>(),
+      M.tagsExhaustive({
+        Enabled: () => {
+          if (press(found.tag) || Option.isNone(found.entry.maybeChoices)) {
+            return painted(paintProgram(bound, name))
+          } else if (mayBeNamed) {
+            return named(found.entry)
+          } else {
+            return usageAnswer(
+              name,
+              found.entry,
+              `${commandWord(found.entry)} could not take "${typed}".`,
+            )
+          }
+        },
+        Disabled: ({ because }) =>
+          refused(`${commandOf(found.tag)} is disabled: ${because}.`, 1),
+      }),
+    )
+  return Option.match(commandFor(bound, command), {
+    onSome: found => pressed(found, true),
+    onNone: () =>
+      Option.match(
+        Array.findFirst(
+          bound.entries(),
+          entry =>
+            commandWord(entry) === word && Option.isSome(entry.maybeChoices),
+        ),
+        {
+          onNone: () => unknownAnswer(bound, name, command, options),
+          onSome: named,
+        },
       ),
   })
+}
 
 const menuMoves: ReadonlyMap<string, string> = new Map([
   ['next', 'ArrowDown'],
@@ -814,6 +1050,7 @@ export const runProgramCommand = <Model, Message>(
   name: string,
   words: ReadonlyArray<string>,
   flags: CliDaemonFlags,
+  options: ProgramCommandOptions = {},
 ): CliDaemonPaintedResult => {
   const [head = 'show', ...rest] = words
   if (head === 'show') {
@@ -838,8 +1075,20 @@ export const runProgramCommand = <Model, Message>(
   } else if (head === 'where') {
     return runWhere(bound)
   } else if (head === 'do') {
-    return pressCommand(bound, name, rest.join(' '), tag => bound.press(tag))
+    return pressCommand(
+      bound,
+      name,
+      rest.join(' '),
+      tag => bound.press(tag),
+      options,
+    )
   } else {
-    return pressCommand(bound, name, words.join(' '), tag => bound.press(tag))
+    return pressCommand(
+      bound,
+      name,
+      words.join(' '),
+      tag => bound.press(tag),
+      options,
+    )
   }
 }

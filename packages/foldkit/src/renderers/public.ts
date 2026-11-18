@@ -64,6 +64,7 @@ export {
   bookmarksInPassage,
   withTranscriptBookmarks,
 } from './transcriptBookmarks.js'
+export { holdsTyped, namedByTyped, typedWordsOf } from './typed.js'
 export {
   type TranscriptEntry,
   transcriptEntriesOf,

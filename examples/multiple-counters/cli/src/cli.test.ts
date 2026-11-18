@@ -78,9 +78,10 @@ describe('counters CLI', () => {
   it('asks which counter with a full command to run', async () => {
     const asked = run(await openCounters(), 'decrement')
     expect(asked.exitCode).toBe(2)
-    expect(asked.stderr).toBe(
-      'decrement <counter-id> needs one of: 1. Try: counters decrement 1',
-    )
+    expect(asked.stderr?.split('\n')).toEqual([
+      'decrement needs a counter id. Usage: counters decrement <counter-id>, such as:',
+      expect.stringMatching(/^ {2}counters decrement 1 {2}\S/),
+    ])
   })
 
   it('opens a counter by its number and a page by its URI', async () => {

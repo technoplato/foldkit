@@ -17,8 +17,8 @@ describe('a command’s choice, typed as a person names it', () => {
 
   it('takes part of the name when one choice holds every word typed, in any order', () => {
     const bound = bindChapters()
-    expect(run(bound, 'jump-to-chapter 12 CHAPTER').exitCode).toBe(0)
-    expect(bound.readModel().playing).toBe(12)
+    expect(run(bound, 'jump-to-chapter 114 CHAP').exitCode).toBe(0)
+    expect(bound.readModel().playing).toBe(114)
   })
 
   it('takes the choice named exactly even when longer names hold the same words', () => {
