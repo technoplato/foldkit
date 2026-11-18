@@ -61,11 +61,8 @@ const usageOf = (entry: Entry): string =>
   Option.match(entry.maybeChoices, {
     onNone: () => commandOf(entry.tag),
     onSome: choices =>
-      `${commandOf(entry.tag)} <${commandOf(capitalized(choices.field))}>`,
+      `${commandOf(entry.tag)} <${choices.noun.replaceAll(' ', '-')}>`,
   })
-
-const capitalized = (word: string): string =>
-  `${word.charAt(0).toUpperCase()}${word.slice(1)}`
 
 const offeredTokensOf = (entry: Entry): ReadonlyArray<string> =>
   Option.match(entry.maybeChoices, {
@@ -718,6 +715,12 @@ const choiceCommandLines = (
   ]
 }
 
+const nounOf = (entry: Entry): string =>
+  Option.match(entry.maybeChoices, {
+    onNone: () => 'choice',
+    onSome: choices => choices.noun,
+  })
+
 const withArticle = (noun: string): string =>
   /^[aeiou]/iu.test(noun) ? `an ${noun}` : `a ${noun}`
 
@@ -872,13 +875,7 @@ const pressCommand = <Model, Message>(
       return usageAnswer(
         name,
         entry,
-        `${commandWord(entry)} needs ${withArticle(
-          Option.match(entry.maybeChoices, {
-            onNone: () => 'choice',
-            onSome: held =>
-              commandOf(capitalized(held.field)).replaceAll('-', ' '),
-          }),
-        )}.`,
+        `${commandWord(entry)} needs ${withArticle(nounOf(entry))}.`,
       )
     }
     const matches = namedByTyped(choices, typed, choice => [
@@ -887,11 +884,7 @@ const pressCommand = <Model, Message>(
     ])
     return Array.match(matches, {
       onEmpty: () =>
-        usageAnswer(
-          name,
-          entry,
-          `No choice of ${commandWord(entry)} matches "${typed}".`,
-        ),
+        usageAnswer(name, entry, `No ${nounOf(entry)} matches "${typed}".`),
       onNonEmpty: found =>
         found.length === 1
           ? pressed(
@@ -905,7 +898,7 @@ const pressCommand = <Model, Message>(
           : refused(
               Array.join(
                 [
-                  `"${typed}" matches ${found.length.toString()} choices of ${commandWord(entry)}. Say more of the name, or copy one:`,
+                  `"${typed}" matches ${found.length.toString()} ${nounOf(entry)}s. Say more of the name, or copy one:`,
                   ...choiceCommandLines(name, entry, found),
                 ],
                 '\n',
