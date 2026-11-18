@@ -4,6 +4,72 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 17th, 2026 at 11:19:23 p.m. EST — `0c8187c29b7c` docs: layout is organization first, style on top (Scribe #2494)
+
+- **Implementation commit:** `0c8187c29b7c16c1a0b1db4ac3a701c3d8e74bab`
+- **Change:** layout is organization first, style on top (Scribe #2494)
+- **Details:**
+  - AGENTS.md's 'Which layer?' section gains his words of 2026-11-17 on layout and the rule they set: screens are built from the layout nodes foldkit/renderers already has (Column, Row, Box, Spacer, Dock, List, and the Sheet and Dialog presentations), which say only how content is arranged; painters map them to their own means and styling goes on top; an arrangement the set lacks is added as a node wi
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:22 p.m. EST — `a753986ea4c8` feat(books): green: books devices, and --device to play on one (Scribe #2494)
+
+- **Implementation commit:** `a753986ea4c823af2930906eba2cb318e8ec73a0`
+- **Change:** green: books devices, and --device to play on one (Scribe #2494)
+- **Details:**
+  - 'books devices' lists this Mac's audio outputs with their numbers and the words to play on one. '--device 4' on a command sets the output for the player that command starts ('books stop' first when one is running), through FOLDKIT_AUDIO_DEVICE; without it Books plays on the Mac's default output as before. books cli: 2 files, 20 tests pass.
+- **Files:**
+  - `examples/books/cli/src/devices.ts` — changed by this commit
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:22 p.m. EST — `04a18a8ce1f3` feat(transcript-player): green: play to a chosen audio output device (Scribe #2494)
+
+- **Implementation commit:** `04a18a8ce1f3e77d5d29db699018a9f7c3918d73`
+- **Change:** green: play to a chosen audio output device (Scribe #2494)
+- **Details:**
+  - ffplayAudioOutput sounds on the system's default output as before, and on the device FOLDKIT_AUDIO_DEVICE names, by number, when it is set: ffplay cannot name a device, so a chosen one plays through ffmpeg's AudioToolbox output in real time, and the place is read from ffmpeg's progress line. A new speed restarts it the same way.
+- **Files:**
+  - `examples/transcript-player/core/src/audio.node.ts` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:22 p.m. EST — `09b3c638bc71` feat(foldkit): green: search, scrub and address the words of any timed transcript (Scribe #2494)
+
+- **Implementation commit:** `09b3c638bc71bb5453db273f210f0402075dece8`
+- **Change:** green: search, scrub and address the words of any timed transcript (Scribe #2494)
+- **Details:**
+  - foldkit/renderers gains Read Along's remaining readings, for any media with a timed transcript and for every Client:
+- **Files:**
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/readAlong.ts` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:21 p.m. EST — `a3d515160528` feat(multiple-counters): counters runs on a Background Processor and follows it (Scribe #2494)
+
+- **Implementation commit:** `a3d5151605288c225f6f98a8e63307e61cfdc563`
+- **Change:** counters runs on a Background Processor and follows it (Scribe #2494)
+- **Details:**
+  - Michael, 2026-11-17: 'I'd like to be able to do books, listen, or counters, follow, or whatever like that.' The Counters CLI was one process per command, each starting the Program and its sync connection. It is now the third program on the Background Processor, after Books and Counter: the entry is a slim view that asks, or follows with 'counters follow', and daemon.ts holds the Program with progr
+- **Files:**
+  - `examples/multiple-counters/cli/src/daemon.ts` — changed by this commit
+  - `examples/multiple-counters/cli/src/entry.ts` — changed by this commit
+  - `examples/multiple-counters/cli/src/inProcess.ts` — changed by this commit
+  - `examples/multiple-counters/cli/src/settings.ts` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 17th, 2026 at 11:05:07 p.m. EST — `5e5d12b76ba8` docs(foldkit): the sync engine interface describes itself, not Instant (Scribe #2494)
 
 - **Implementation commit:** `5e5d12b76ba842bce5ede206389f13be7df95955`
