@@ -202,6 +202,19 @@ export type ActionConfig<Model> = Readonly<{
   triggers?: ReadonlyArray<Readonly<{ name: string }>>
 }>
 
+const touchesUnder = (
+  maybeTouches: Option.Option<Touches>,
+  under: ModelPath<unknown> | undefined,
+): Option.Option<Touches> =>
+  under === undefined
+    ? maybeTouches
+    : Option.map(maybeTouches, touches => ({
+        mutates: Array.map(touches.mutates, path =>
+          Array.join([...segmentsOf(under), path], '.'),
+        ),
+        triggers: touches.triggers,
+      }))
+
 const touchesOf = (
   config: Pick<ActionConfig<unknown>, 'mutates' | 'triggers'>,
 ): Option.Option<Touches> =>
@@ -982,10 +995,14 @@ export const lift = <
 /**
  * How a child Catalog is offered by a parent that holds at most one of
  * the child: where the child's Model is, the sentence while there is none,
- * and when the parent offers the child's Actions at all.
+ * and when the parent offers the child's Actions at all. `under` is the
+ * typed path where the parent keeps the child, so what a child's Action
+ * mutates reads under the parent's key: `count` becomes
+ * `maybeCounter.count`.
  */
 export type WithinConfig<Model, ChildModel> = Readonly<{
   childOf: (model: Model) => Option.Option<ChildModel>
+  under?: ModelPath<unknown>
   nothing: string
   enabled?: (model: Model) => Availability
 }>
@@ -1058,7 +1075,7 @@ export const within = <
       aliases: declaration.aliases,
       parameters: declaration.parameters,
       examples: declaration.examples,
-      maybeTouches: declaration.maybeTouches,
+      maybeTouches: touchesUnder(declaration.maybeTouches, config.under),
       enabled: (model: Model) => {
         const availability = parentEnabled(model)
         return isEnabled(availability)
@@ -1167,9 +1184,16 @@ const changedPathsOf = (
   }
 }
 
+// NOTE: A change is told apart only as deep as plain records go. A list
+// or an Option changes as a whole, so a path declared inside one covers
+// the change of the whole.
 const isUnder = (path: ReadonlyArray<string>, declared: string): boolean => {
   const joined = Array.join(path, '.')
-  return joined === declared || joined.startsWith(`${declared}.`)
+  return (
+    joined === declared ||
+    joined.startsWith(`${declared}.`) ||
+    declared.startsWith(`${joined}.`)
+  )
 }
 
 const messagesFor = <C extends AnyCatalog>(

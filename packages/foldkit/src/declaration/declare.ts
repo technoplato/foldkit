@@ -1,5 +1,6 @@
 import {
   Array,
+  Equal,
   Option,
   Predicate,
   Record,
@@ -15,6 +16,7 @@ import {
   make,
   wordsOf,
 } from './declaration.js'
+import { type ModelPath, segmentsOf } from './modelPath.js'
 import type { Kind, Parameter } from './parameter.js'
 import { type Parsed, type Spelling, declaredSpelling, parse } from './parse.js'
 
@@ -393,4 +395,131 @@ const observablesUnder = (
  */
 export const observablesOf = (
   model: Readonly<{ ast: SchemaAST.AST }>,
-): ReadonlyArray<Observable> => observablesUnder(model.ast, [])
+  computedFields: Readonly<Record<string, Computed<any, unknown>>> = {},
+): ReadonlyArray<Observable> => [
+  ...observablesUnder(model.ast, []),
+  ...Array.map(Record.toEntries(computedFields), ([name, field]) => ({
+    path: [name],
+    what: field.what,
+    why: field.why,
+  })),
+]
+
+// COMPUTED
+
+/**
+ * A value the user cares about that the Model does not store: a pure
+ * function of stored state, declared beside the Model's fields with the
+ * same `what` and `why`, and `from`, the typed paths it is computed
+ * from. The view stays the only place that turns state into display;
+ * this only names a value and says where it comes from.
+ *
+ * @example
+ * ```typescript
+ * const ahead = computed({
+ *   what: 'The count one step on',
+ *   why: 'To see where the count is heading',
+ *   from: [at.count, at.step],
+ *   read: (model: Model) => model.count + model.step,
+ * })
+ * ```
+ */
+export type Computed<Model, A> = Readonly<{
+  what: string
+  why: string
+  from: ReadonlyArray<ModelPath<unknown>>
+  read: (model: Model) => A
+}>
+
+/**
+ * Declares a computed field. `observablesOf(Model, { ahead })` lists it
+ * with the stored state, and {@link undeclaredSources} holds it to the
+ * paths it says it is computed from.
+ *
+ * @example
+ * ```typescript
+ * const ahead = computed({ what: '…', why: '…', from: [at.count], read: model => model.count + 1 })
+ * ```
+ */
+export const computed = <Model, A>(
+  field: Computed<Model, A>,
+): Computed<Model, A> => field
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  Predicate.isObject(value) &&
+  !globalThis.Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype
+
+const valueAt = (value: unknown, path: ReadonlyArray<string>): unknown =>
+  Array.reduce(path, value, (inner, key) =>
+    isRecord(inner) ? inner[key] : undefined,
+  )
+
+const withValueAt = (
+  value: unknown,
+  path: ReadonlyArray<string>,
+  replacement: unknown,
+): unknown =>
+  Array.matchLeft(path, {
+    onEmpty: () => replacement,
+    onNonEmpty: (key, rest) =>
+      isRecord(value)
+        ? { ...value, [key]: withValueAt(value[key], rest, replacement) }
+        : value,
+  })
+
+const topLevelDifferences = (
+  self: unknown,
+  that: unknown,
+): ReadonlyArray<string> =>
+  isRecord(self) && isRecord(that)
+    ? Array.filter(
+        Array.dedupe([...Record.keys(self), ...Record.keys(that)]),
+        key => !Equal.equals(self[key], that[key]),
+      )
+    : []
+
+/**
+ * What a computed field reads that it did not say, a sentence each;
+ * empty when every field is computed only from its `from` paths. For
+ * each pair of sample Models it keeps the first Model's values at the
+ * `from` paths, takes everything else from the second, and reads: the
+ * value must be what the first Model gave, because only other state
+ * changed. A Program's test calls this, so `from` is checked, not
+ * trusted.
+ *
+ * @example
+ * ```typescript
+ * undeclaredSources({ ahead }, [initialModel, laterModel]) // []
+ * // when `ahead` reads `step` and says only `count`:
+ * // ['ahead changed when only step changed, which it does not say it is computed from.']
+ * ```
+ */
+export const undeclaredSources = <Model>(
+  computedFields: Readonly<Record<string, Computed<Model, unknown>>>,
+  models: ReadonlyArray<Model>,
+): ReadonlyArray<string> =>
+  Array.dedupe(
+    Array.flatMap(Record.toEntries(computedFields), ([name, field]) =>
+      Array.flatMap(models, first =>
+        Array.flatMap(models, second => {
+          /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+          const mixed = Array.reduce(
+            field.from,
+            second as unknown,
+            (model, path) =>
+              withValueAt(
+                model,
+                segmentsOf(path),
+                valueAt(first, segmentsOf(path)),
+              ),
+          ) as Model
+          return Equal.equals(field.read(mixed), field.read(first))
+            ? []
+            : [
+                `${name} changed when only ${Array.join(topLevelDifferences(first, mixed), ', ')} changed, which it does not say it is computed from.`,
+              ]
+        }),
+      ),
+    ),
+  )
