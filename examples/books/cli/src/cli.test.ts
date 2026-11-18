@@ -381,6 +381,50 @@ describe('books words', () => {
     ])
   })
 
+  it('follows each word by the clock, between the reports the audio makes', async () => {
+    const reportingOnce = Layer.succeed(AudioOutput, {
+      sound: track =>
+        Stream.concat(
+          Stream.sync(() =>
+            AudioEvent.Advanced({
+              placeMs: Milliseconds.make(track.fromMs),
+              wallClockMs: Date.now(),
+            }),
+          ),
+          Stream.never,
+        ),
+    })
+    const { player } = await openBooks({
+      transcripts: spokenTranscript,
+      audio: reportingOnce,
+    })
+    await run(player, 'listen the-lantern-keeper')
+    await run(player, 'seek-to 5500')
+    const heard = await Effect.runPromise(
+      Stream.runCollect(
+        Stream.take(
+          followOf(player)(
+            'words',
+            { 'each-word': '1', before: '0', after: '0' },
+            Processor.Host.Cli(),
+          ).pipe(
+            Stream.map(text =>
+              Array.filter(text.split('\n'), line => line.startsWith('> ')),
+            ),
+            Stream.filter(Array.isArrayNonEmpty),
+            Stream.changes,
+          ),
+          3,
+        ),
+      ),
+    )
+    expect(Array.map(heard, lines => lines.join(''))).toEqual([
+      '> 0:05 [He] trimmed the wick and waited.',
+      '> 0:05 He [trimmed] the wick and waited.',
+      '> 0:05 He trimmed [the] wick and waited.',
+    ])
+  })
+
   it('follows the screen like any Program, and refuses a topic it does not have', async () => {
     const { player } = await openBooks()
     const [first = ''] = await Effect.runPromise(
