@@ -661,7 +661,12 @@ export const makeBooksPlayer = (
   reporting: TerminalPaintReporting = {},
 ): BooksPlayer => {
   const programSurface = programCliSurface(bound, booksCommandName)
-  const terminal = makeProgramTerminalView(bound, booksCommandName, reporting)
+  const terminal = makeProgramTerminalView(
+    bound,
+    booksCommandName,
+    reporting,
+    () => inkOf(bound),
+  )
   const stopped = Effect.runSync(Deferred.make<void>())
   const brief = (): CliDaemonPaintedResult => ({
     stdout: paintBrief(bound),

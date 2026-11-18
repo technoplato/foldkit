@@ -54,6 +54,7 @@ import {
   showBriefOrUsage,
   showPlayerTui,
   stopPlayer,
+  takesColor,
 } from './view.js'
 
 const hostedOrigin = 'https://books.pisspoursoftware.xyz'
@@ -62,10 +63,7 @@ const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
 
 // NOTE: Whether to paint is this view's to know: its output is a
 // terminal, and color was not refused. The player paints from the theme.
-const paints =
-  process.stdout.isTTY === true &&
-  (process.env['NO_COLOR'] ?? '') === '' &&
-  process.env['TERM'] !== 'dumb'
+const paints = process.stdout.isTTY === true && takesColor(process.env)
 
 const paintedArgv =
   paints && !argv.includes('--json') ? [...argv, '--color', '1'] : argv
