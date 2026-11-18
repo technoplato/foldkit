@@ -6,7 +6,12 @@ import {
   Schema as S,
 } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import type { ListItem, ListNode, UiNode } from 'foldkit/renderers'
+import {
+  type ListItem,
+  type ListNode,
+  type UiNode,
+  transcriptsOf,
+} from 'foldkit/renderers'
 import {
   ReachedPlace,
   ReceivedPassages,
@@ -468,6 +473,35 @@ describe('One bookmark', () => {
         entry => entry.tag === 'UndoRemoveBookmark',
       ).pipe(Option.map(entry => entry.availability._tag)),
     ).toEqual(Option.some('Disabled'))
+  })
+})
+
+describe('The reader', () => {
+  it('carries a mark for each bookmark of the title, on its word, with its note and the press that opens it', () => {
+    const { bound } = playingAt(passageStartMs, shelfWithBookmarks)
+    const base = Option.getOrThrow(
+      Option.flatMap(Navigation.frameOf(bound), frame => nodeOf(frame.base)),
+    )
+    expect(
+      Array.flatMap(transcriptsOf(base), transcript => transcript.marks ?? []),
+    ).toEqual([
+      {
+        startMs: passageStartMs + 10 * wordMs,
+        label: 'Bookmark at 20:34',
+        action: 'OpenBookmark:b-snow',
+      },
+      {
+        startMs: passageStartMs + 60_000 + 9 * wordMs,
+        label: 'Bookmark at 21:33',
+        note: 'the one flat stone',
+        action: 'OpenBookmark:b-stone',
+      },
+      {
+        startMs: 61 * minuteMs,
+        label: 'Bookmark at 1:01:00',
+        action: 'OpenBookmark:b-old',
+      },
+    ])
   })
 })
 

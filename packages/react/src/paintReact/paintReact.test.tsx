@@ -939,3 +939,79 @@ describe('paintTree: list rows in groups, with a badge, found by their lines', (
     ).toBe('The Light3')
   })
 })
+
+describe('a Transcript with marks', () => {
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+  })
+
+  const marked = (onPress = vi.fn()) => {
+    render(
+      paintTree(
+        Transcript({
+          label: 'Transcript',
+          action: 'SeekToWord',
+          emptyText: 'No words yet',
+          passages: [
+            {
+              key: 'p1',
+              label: '20:30',
+              words: [
+                { token: 'w0', text: 'He', startMs: 1_230_000 },
+                { token: 'w1', text: 'trimmed', startMs: 1_230_400 },
+                { token: 'w2', text: 'the', startMs: 1_230_800 },
+                { token: 'w3', text: 'wick', startMs: 1_231_200 },
+              ],
+            },
+          ],
+          marks: [
+            {
+              startMs: 1_231_200,
+              label: 'Bookmark at 20:31',
+              note: 'why the lamp',
+              action: 'OpenBookmark:b-wick',
+            },
+          ],
+        }),
+        { onPress },
+      ),
+    )
+    return onPress
+  }
+
+  it('marks the word that starts on the mark’s millisecond, and no other', () => {
+    marked()
+    expect(
+      globalThis.Array.from(
+        document.querySelectorAll('.fk-word[data-mark]'),
+      ).map(word => word.getAttribute('data-token')),
+    ).toEqual(['w3'])
+  })
+
+  it('puts a named mark beside the word that presses the mark’s action, not the word’s', () => {
+    const onPress = marked()
+    fireEvent.click(screen.getByRole('button', { name: 'Bookmark at 20:31' }))
+    expect(onPress).toHaveBeenCalledTimes(1)
+    expect(onPress.mock.calls[0]?.[0]).toMatchObject({
+      action: 'OpenBookmark:b-wick',
+    })
+  })
+
+  it('shows the note under the paragraph, pressing the same action', () => {
+    const onPress = marked()
+    const note = screen.getByText('why the lamp')
+    expect(note.closest('.fk-passage')).not.toBeNull()
+    fireEvent.click(note)
+    expect(onPress.mock.calls[0]?.[0]).toMatchObject({
+      action: 'OpenBookmark:b-wick',
+    })
+  })
+
+  it('still plays from a marked word when the word itself is pressed', () => {
+    const onPress = marked()
+    fireEvent.click(screen.getByText('wick', { exact: false }))
+    expect(onPress.mock.calls[0]?.[0]).toMatchObject({
+      action: 'SeekToWord:w3',
+    })
+  })
+})

@@ -86,3 +86,23 @@ describe('the look of a list in groups, and of a badge', () => {
     expect(badge).toContain('border-radius: 999px')
   })
 })
+
+describe('the look of a mark in words read along with', () => {
+  it('underlines the marked word in the soft color of a person’s own mark', () => {
+    expect(ruleOf(':where(.fk-word[data-mark])')).toContain(roleVar('MarkSoft'))
+  })
+
+  it('sets the mark in the margin at the word’s own line, as a ribbon', () => {
+    const mark = ruleOf(':where(.fk-word-mark)')
+    expect(mark).toContain('position: absolute')
+    expect(mark).toContain(`background: ${roleVar('Mark')}`)
+    expect(mark).toContain('clip-path: polygon')
+    expect(ruleOf(':where(.fk-passage)')).toContain('position: relative')
+  })
+
+  it('writes the note under its paragraph in the mark’s color', () => {
+    expect(ruleOf(':where(.fk-passage-note)')).toContain(
+      `color: ${roleVar('Mark')}`,
+    )
+  })
+})
