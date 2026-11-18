@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 17th, 2026 at 11:43:16 p.m. EST — `5b934a3ce6a9` feat(foldkit): green: the paragraph being read stands apart, in a wider reading column (Scribe #2494)
+
+- **Implementation commit:** `5b934a3ce6a9ed8f6beab7b845ebd585820648d0`
+- **Change:** the paragraph being read stands apart, in a wider reading column (Scribe #2494)
+- **Details:**
+  - The shared look for words read along with: a reading column up to 960 px, the paragraph being read at full strength on a stronger ground with an accent rule, the others resting, reading size 21 px; the Books site's page container allows 1024 px so the column can use it.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — readingWidth, currentPassageColor, restingWordsColor and their rules
+  - `examples/books/react/src/App.tsx` — the page container allows 1024 px
+- **User context (verbatim):**
+  > Also, we want to highlight the paragraph in a little bit more contrast, and then we can widen this out.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 17th, 2026 at 11:25:11 p.m. EST — `9972680ef7d9` feat(transcript-player): green: a link that opens on one word (Scribe #2494)
 
 - **Implementation commit:** `9972680ef7d94513a11ceaec1bf8615187ae3e5c`
