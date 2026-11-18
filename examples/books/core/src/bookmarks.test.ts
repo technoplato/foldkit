@@ -11,6 +11,7 @@ import {
   type ListNode,
   type UiNode,
   buttonsOf,
+  textsOf,
   transcriptsOf,
 } from 'foldkit/renderers'
 import {
@@ -404,6 +405,10 @@ describe('The Bookmarks panel', () => {
     const { bound } = playingAt(passageStartMs)
     bound.press('ShowBookmarks')
     expect(listsOf(panelOf(bound))).toEqual([])
+    expect(Array.map(textsOf(panelOf(bound)), text => text.content)).toEqual([
+      'No bookmarks yet.',
+      'Press b while you listen to mark the word being read.',
+    ])
   })
 
   it('counts a chapter’s bookmarks on its row in Contents', () => {
