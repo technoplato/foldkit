@@ -19,6 +19,7 @@ import {
   type UiNode,
   currentWordTokenAt,
   filterListItems,
+  groupedItemsOf,
   iconDrawings,
   isClearedOnSubmit,
   isSubmittedOnLeave,
@@ -869,7 +870,14 @@ const ListRowView = memo(
           />
         )}
         <span className="fk-item-body">
-          <span className="fk-item-title">{item.title}</span>
+          <span className="fk-item-title">
+            {item.title}
+            {item.badge === undefined ? null : (
+              <span className="fk-item-badge" aria-label={item.badge.label}>
+                {item.badge.text}
+              </span>
+            )}
+          </span>
           {Array.map(item.lines ?? [], (line, index) => (
             <span key={index} className="fk-item-line">
               {line}
@@ -917,11 +925,12 @@ const ListFrame = ({
 }>): ReactElement => {
   const [typed, setTyped] = useState('')
   const frame = useRef<HTMLDivElement>(null)
-  const items = useMemo(
-    () => filterListItems(list.items, typed),
-    [list.items, typed],
-  )
   const filter = list.filter
+  const isOverLines = filter?.isOverLines === true
+  const items = useMemo(
+    () => filterListItems(list.items, typed, isOverLines),
+    [list.items, typed, isOverLines],
+  )
   return (
     <div className="fk-list-frame" ref={frame}>
       <div className="fk-list-head">
@@ -1089,15 +1098,30 @@ export const paintTree = (
       aria-label={list.label}
       {...dropAttributes(list)}
     >
-      {Array.map(items, item => (
-        <ListRowView
-          key={item.key}
-          item={item}
-          onPress={handlers.onPress}
-          onLink={handlers.onLink}
-          paintChildren={paintChildren}
-        />
-      ))}
+      {Array.flatMap(groupedItemsOf(items), (section, index) => [
+        ...(section.group === undefined
+          ? []
+          : [
+              <li
+                key={`group-${index.toString()}-${section.group}`}
+                className="fk-list-group"
+              >
+                <span className="fk-list-group-name">{section.group}</span>
+                <span className="fk-list-group-count">
+                  {section.items.length}
+                </span>
+              </li>,
+            ]),
+        ...Array.map(section.items, item => (
+          <ListRowView
+            key={item.key}
+            item={item}
+            onPress={handlers.onPress}
+            onLink={handlers.onLink}
+            paintChildren={paintChildren}
+          />
+        )),
+      ])}
     </ul>
   )
   const paintReference = (reference: ReferencePart): ReactElement => {

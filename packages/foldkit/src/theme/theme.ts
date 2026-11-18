@@ -55,6 +55,8 @@ export const Role = S.Literals([
   'SelectedMark',
   'Warning',
   'DeviceBorder',
+  'Mark',
+  'MarkSoft',
   'ReadingGround',
   'ReadingSpoken',
   'ReadingToCome',
@@ -105,6 +107,8 @@ export const defaultTheme: Theme = {
   SelectedMark: { light: '#4f46e5', dark: '#a5b4fc' },
   Warning: { light: '#b45309', dark: '#fbbf24' },
   DeviceBorder: { light: '#3f3f46', dark: '#52525b' },
+  Mark: { light: '#7c3aed', dark: '#c4b5fd' },
+  MarkSoft: { light: '#ede9fe', dark: '#2e2350' },
   ReadingGround: {
     light: 'transparent',
     dark: 'linear-gradient(#12301d, #060907 42%)',

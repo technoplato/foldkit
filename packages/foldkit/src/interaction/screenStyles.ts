@@ -1247,4 +1247,43 @@ ${themeStylesheet(defaultTheme)}
     right: ${px(screenLook.drawerWidth)};
   }
 }
+
+:where(.fk-list-group) {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 8px 5px;
+  border-bottom: 1px solid ${roleVar('Rule')};
+  color: ${roleVar('QuietText')};
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+:where(.fk-list-group:first-child) {
+  margin-top: 0;
+}
+
+:where(.fk-list-group-count) {
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.fk-item-badge) {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: ${roleVar('MarkSoft')};
+  color: ${roleVar('Mark')};
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  vertical-align: 1px;
+}
 `
