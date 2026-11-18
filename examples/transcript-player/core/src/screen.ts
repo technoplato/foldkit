@@ -26,6 +26,7 @@ import {
   BackToPlayhead,
   ClearSearch,
   CloseSearch,
+  CloseWordMenu,
   LeavePlayhead,
   NextMatch,
   NextSection,
@@ -40,6 +41,7 @@ import {
   SetSeekScope,
   ShowMatch,
   ShowSearch,
+  ShowWordMenu,
   SkipBack,
   SkipForward,
 } from './message.js'
@@ -393,6 +395,8 @@ const emptyTextOf = (model: Model): string => {
   }
 }
 
+const playIcon: IconName = 'Play'
+
 const focusTokenOf = (
   model: Model,
   transcript: UiNode,
@@ -421,8 +425,10 @@ const focusTokenOf = (
  * they stay put while the audio plays on, and at a match of a search
  * they are the words around the match, with the match to bring into
  * view. What a search found is marked, the match the person is on apart.
- * `wordActions` are what a word's menu offers besides playing from it,
- * such as a Program's `Copy link to this word`.
+ * A word's menu opens when a painter presses `ShowWordMenu` with the
+ * word; while one is open the Transcript carries it: `Play from here`,
+ * then `wordActions`, what the Program that holds the player adds, such
+ * as `Copy link to this word`, each pressed with the word.
  *
  * @example
  * ```typescript
@@ -498,9 +504,34 @@ export const transcriptOf = (
     clock: playbackClockOf(model),
     isFollowing: isFollowingPlayhead(model),
     leaveAction: LeavePlayhead.tag,
-    ...(options.wordActions === undefined
-      ? {}
-      : { wordActions: options.wordActions }),
+    wordMenuAction: ShowWordMenu.tag,
+    ...Option.match(
+      Option.filter(model.maybeWordMenu, wordId =>
+        Array.some(paragraphs, paragraph =>
+          Array.some(paragraph.words, word => word.token === wordId),
+        ),
+      ),
+      {
+        onNone: () => ({}),
+        onSome: wordId => ({
+          wordMenu: {
+            token: wordId,
+            dismissAction: CloseWordMenu.tag,
+            items: [
+              {
+                action: `${SeekToWord.tag}:${wordId}`,
+                label: 'Play from here',
+                icon: playIcon,
+              },
+              ...Array.map(options.wordActions ?? [], wordAction => ({
+                ...wordAction,
+                action: `${wordAction.action}:${wordId}`,
+              })),
+            ],
+          },
+        }),
+      },
+    ),
   })
   const focused = Option.match(focusTokenOf(model, plain), {
     onNone: () => plain,

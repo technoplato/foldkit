@@ -108,5 +108,6 @@ export type {
   TranscriptWord,
   TranscriptWordAction,
   TranscriptWordMark,
+  TranscriptWordMenu,
   UiNode,
 } from './types.js'

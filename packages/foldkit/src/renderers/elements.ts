@@ -27,7 +27,7 @@ import type {
   TranscriptClock,
   TranscriptNode,
   TranscriptPassage,
-  TranscriptWordAction,
+  TranscriptWordMenu,
   UiNode,
 } from './types.js'
 
@@ -387,7 +387,8 @@ export const Transcript = (
     isFollowing?: boolean
     leaveAction?: string
     focusToken?: string
-    wordActions?: ReadonlyArray<TranscriptWordAction>
+    wordMenuAction?: string
+    wordMenu?: TranscriptWordMenu
   }>,
 ): TranscriptNode => ({
   _tag: 'Transcript',
@@ -403,9 +404,10 @@ export const Transcript = (
     ? {}
     : { leaveAction: props.leaveAction }),
   ...(props.focusToken === undefined ? {} : { focusToken: props.focusToken }),
-  ...(props.wordActions === undefined
+  ...(props.wordMenuAction === undefined
     ? {}
-    : { wordActions: props.wordActions }),
+    : { wordMenuAction: props.wordMenuAction }),
+  ...(props.wordMenu === undefined ? {} : { wordMenu: props.wordMenu }),
 })
 
 /**

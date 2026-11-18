@@ -117,6 +117,7 @@ const stoppedAs = (model: Model, transport: Transport): UpdateReturn =>
 const following = (model: Model): Model => ({
   ...model,
   maybeAway: Option.none(),
+  maybeWordMenu: Option.none(),
 })
 
 const movedTo = (model: Model, placeMs: Milliseconds): UpdateReturn => [
@@ -367,6 +368,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             : model,
         ),
       BackToPlayhead: () => only(following(model)),
+      ShowWordMenu: ({ wordId }) =>
+        only(
+          Option.isSome(wordOf(model, wordId))
+            ? { ...model, maybeWordMenu: Option.some(wordId) }
+            : model,
+        ),
+      CloseWordMenu: () => only({ ...model, maybeWordMenu: Option.none() }),
       ReceivedMatches: ({ query, total, matches }) =>
         receivedMatches(model, query, total, matches),
       FailedSearch: ({ query, reason }) =>

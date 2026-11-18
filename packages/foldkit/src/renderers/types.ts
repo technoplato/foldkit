@@ -258,13 +258,25 @@ export type TranscriptWord = Readonly<{
 }>
 
 /**
- * Something a person can do with one word besides play from it, offered
- * in the word's menu: `Copy link to this word` presses `action` with the
- * word's token, `CopyWordLink:w4012`.
+ * One thing a word's menu offers: its words, the press it sends, such as
+ * `CopyWordLink:w4012`, and an icon where a painter shows one.
  */
 export type TranscriptWordAction = Readonly<{
   readonly action: string
   readonly label: string
+  readonly icon?: IconName
+}>
+
+/**
+ * The menu open on one word of a Transcript: the word's token, what the
+ * menu offers, and the press that closes it, `CloseWordMenu`. Whether a
+ * menu is open, and on which word, is the Program's state: a painter
+ * draws the menu by that word and presses what a person picks.
+ */
+export type TranscriptWordMenu = Readonly<{
+  readonly token: string
+  readonly items: ReadonlyArray<TranscriptWordAction>
+  readonly dismissAction: string
 }>
 
 /**
@@ -312,8 +324,12 @@ export type TranscriptPassage = Readonly<{
  * a painter with a scrolling view presses when a person scrolls the word
  * sounding out of it, `LeavePlayhead`, so the Program knows and can offer
  * the way back. `focusToken` names a word to bring into view when it
- * changes, such as the match a person stepped to. `wordActions` are what
- * a word's menu offers besides playing from it.
+ * changes, such as the match a person stepped to.
+ *
+ * A word has a menu. `wordMenuAction` is what a painter presses with a
+ * word's token when a person asks for that word's menu, with a secondary
+ * click or a long press: `ShowWordMenu:w4012`. `wordMenu` is the menu
+ * while one is open.
  */
 export type TranscriptNode = Readonly<{
   readonly _tag: 'Transcript'
@@ -325,7 +341,8 @@ export type TranscriptNode = Readonly<{
   readonly isFollowing?: boolean
   readonly leaveAction?: string
   readonly focusToken?: string
-  readonly wordActions?: ReadonlyArray<TranscriptWordAction>
+  readonly wordMenuAction?: string
+  readonly wordMenu?: TranscriptWordMenu
 }>
 
 /**

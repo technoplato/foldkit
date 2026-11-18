@@ -170,7 +170,7 @@ export type Away = typeof Away.Type
  * a painter knows the place between reports, see {@link playbackClockOf}.
  * `maybeSearch` is the search while it is open. `maybeAway` says the
  * words on screen are somewhere other than the word sounding; None, they
- * follow it.
+ * follow it. `maybeWordMenu` is the word whose menu is open.
  */
 export const Model = S.Struct({
   media: Media,
@@ -183,6 +183,7 @@ export const Model = S.Struct({
   transcript: Transcript,
   maybeSearch: S.OptionFromOptionalKey(Search),
   maybeAway: S.OptionFromOptionalKey(Away),
+  maybeWordMenu: S.OptionFromOptionalKey(WordId),
 })
 /**
  * A Transcript Player Model value. An interface rather than an alias, so
@@ -221,6 +222,7 @@ export const init = (
   transcript: TranscriptLoading(),
   maybeSearch: Option.none(),
   maybeAway: Option.none(),
+  maybeWordMenu: Option.none(),
 })
 
 /** True while the player is sounding. */

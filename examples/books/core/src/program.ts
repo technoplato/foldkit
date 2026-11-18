@@ -37,6 +37,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       PlayFrom: () => 'Navigation',
       LeavePlayhead: () => 'Navigation',
       BackToPlayhead: () => 'Navigation',
+      ShowWordMenu: () => 'Navigation',
+      CloseWordMenu: () => 'Navigation',
       CopyWordLink: () => 'Navigation',
       ReceivedMatches: () => 'Navigation',
       FailedSearch: () => 'Navigation',

@@ -222,6 +222,8 @@ export const [
   PlayFrom,
   LeavePlayhead,
   BackToPlayhead,
+  ShowWordMenu,
+  CloseWordMenu,
 ] = playerActions.actions
 
 const currentWordChoiceOf = (model: Model) =>
@@ -517,6 +519,8 @@ export const catalog = Catalog.make([
   PlayFrom,
   LeavePlayhead,
   BackToPlayhead,
+  ShowWordMenu,
+  CloseWordMenu,
   CopyWordLink,
   ExpandControls,
   CollapseControls,

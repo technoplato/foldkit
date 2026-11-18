@@ -27,7 +27,7 @@ import {
  * to this word`, which presses `CopyWordLink` with the word.
  */
 export const wordActions: ReadonlyArray<TranscriptWordAction> = [
-  { action: CopyWordLink.tag, label: 'Copy link to this word' },
+  { action: CopyWordLink.tag, label: 'Copy link to this word', icon: 'Link' },
 ]
 
 /**

@@ -399,6 +399,41 @@ export const BackToPlayhead = Catalog.action('BackToPlayhead', {
   meta: { label: 'Back to playhead', keys: [] },
 })
 
+/**
+ * Opens one word's menu, as a secondary click or a long press on the
+ * word does: `ShowWordMenu:w4012`. The menu offers playing from the word
+ * and what the Program that holds the player adds, such as copying a
+ * link to it. It takes any word near the place.
+ */
+export const ShowWordMenu = Catalog.action('ShowWordMenu', {
+  fields: { wordId: WordId },
+  choose: {
+    field: 'wordId',
+    prompt: 'Which word?',
+    token: WordId,
+    choicesOf: () => [],
+    accepts: (model: Model, wordId: WordId) =>
+      Option.isSome(wordOf(model, wordId))
+        ? Catalog.Enabled()
+        : Catalog.Disabled({ because: 'that word is not near the place' }),
+    nothingToChoose: 'there are no words yet',
+  },
+  what: 'Opens the menu of one word',
+  why: 'The person wants to do something with that word',
+  meta: { label: 'Word menu', keys: [], title: 'Open a word’s menu' },
+})
+
+/** Closes the word's menu. */
+export const CloseWordMenu = Catalog.action('CloseWordMenu', {
+  what: 'Closes the word’s menu',
+  why: 'The person picked nothing from it',
+  enabled: (model: Model) =>
+    Option.isSome(model.maybeWordMenu)
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'no word’s menu is open' }),
+  meta: { label: 'Close', keys: [], title: 'Close the word’s menu' },
+})
+
 /** Every Action the Transcript Player offers, in the order surfaces list them. */
 export const catalog = Catalog.make([
   Play,
@@ -423,6 +458,8 @@ export const catalog = Catalog.make([
   PlayFrom,
   LeavePlayhead,
   BackToPlayhead,
+  ShowWordMenu,
+  CloseWordMenu,
 ])
 
 /**
@@ -489,13 +526,15 @@ const searchTags: ReadonlySet<string> = new Set([
   ShowMatch.tag,
   LeavePlayhead.tag,
   BackToPlayhead.tag,
+  ShowWordMenu.tag,
+  CloseWordMenu.tag,
   'ReceivedMatches',
   'FailedSearch',
 ])
 
 /**
  * True for a Message about what one person is looking at: the search,
- * its matches, and whether the words follow the playhead. A Program that
+ * its matches, whether the words follow the playhead, and a word's menu. A Program that
  * shares its player between devices keeps these on the device that sent
  * them, so a search on a phone never moves the words on a desk.
  *

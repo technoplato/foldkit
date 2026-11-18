@@ -748,15 +748,22 @@ const copiedWordLink = (
     ),
     {
       onNone: () => [model, []],
-      onSome: ({ title, word }) => [
-        { ...model, maybeNotice: Option.none() },
-        [
-          CopyLink({
-            path: wordPathOf(title.slug, word.startMs),
-            title: `${title.name}, at ${clockOf(word.startMs)}`,
-          }),
-        ],
-      ],
+      onSome: ({ title, word }) => {
+        const [closed, commands] = playerUpdated(
+          { ...model, maybeNotice: Option.none() },
+          TranscriptPlayer.CloseWordMenu(),
+        )
+        return [
+          closed,
+          [
+            ...commands,
+            CopyLink({
+              path: wordPathOf(title.slug, word.startMs),
+              title: `${title.name}, at ${clockOf(word.startMs)}`,
+            }),
+          ],
+        ]
+      },
     },
   )
 
@@ -837,6 +844,8 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       PlayFrom: message => playerUpdated(model, message),
       LeavePlayhead: message => playerUpdated(model, message),
       BackToPlayhead: message => playerUpdated(model, message),
+      ShowWordMenu: message => playerUpdated(model, message),
+      CloseWordMenu: message => playerUpdated(model, message),
       CopyWordLink: ({ wordId }) => copiedWordLink(model, wordId),
       ExpandControls: () => [{ ...model, controls: 'Expanded' }, []],
       CollapseControls: () => [{ ...model, controls: 'Collapsed' }, []],
