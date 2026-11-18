@@ -36,7 +36,11 @@ const play = {
   'data-hint-keys': 'p k',
 }
 
-const fire = (target: EventTarget, type: string, init: EventInit = {}): void => {
+const fire = (
+  target: EventTarget,
+  type: string,
+  init: EventInit = {},
+): void => {
   target.dispatchEvent(new Event(type, { bubbles: true, ...init }))
 }
 

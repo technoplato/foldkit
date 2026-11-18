@@ -33,6 +33,13 @@ export {
   shortcutOf,
   pickShortcutOf,
   shortcutsOf,
+  controlHintOf,
+  echoOfKey,
+  hintAttributesOf,
+  listenForHints,
+  showEcho,
+  hintShowDelayMs,
+  hintStylesheet,
   isBrowserOwnedChord,
   isHostOwnedKey,
   KeyHost,
@@ -56,6 +63,9 @@ export {
 } from './index.js'
 
 export type {
+  ControlHint,
+  Echo,
+  HintAttributes,
   BindableProgram,
   BoundInteraction,
   MenuHint,

@@ -5,6 +5,8 @@ import {
   type KeyPlatform,
   type MenuView,
   type TextRun,
+  controlHintOf,
+  hintAttributesOf,
   keyPlatformOf,
   pickShortcutOf,
 } from '../interaction/interaction.js'
@@ -18,9 +20,14 @@ import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
 import type { BoxNode, TextPart, UiNode } from './types.js'
 
+const browserKeyPlatform = (): KeyPlatform =>
+  typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
+
 /**
  * Paints a Program screen tree as Foldkit HTML. A Button's Catalog `action`,
- * or its legacy `token`, becomes a click through `toMessage`.
+ * or its legacy `token`, becomes a click through `toMessage`. A Button
+ * carries its hint as attributes: what a press does, its keys, and why it
+ * is unavailable, which `Interaction.listenForHints` shows.
  */
 export const paintHtml = <Message>(
   node: UiNode,
@@ -142,8 +149,17 @@ export const paintHtml = <Message>(
               ? [h.OnClick(message)]
               : []
           const disabled = button.disabled === true ? [h.Disabled(true)] : []
-          const because =
-            button.because === undefined ? [] : [h.Title(button.because)]
+          const hint = Option.match(
+            controlHintOf(button, browserKeyPlatform(), 'Browser'),
+            {
+              onNone: () => [],
+              onSome: found =>
+                Array.map(
+                  Object.entries(hintAttributesOf(found)),
+                  ([name, value]) => h.Attribute(name, value),
+                ),
+            },
+          )
           const keys =
             button.keys === undefined
               ? []
@@ -178,7 +194,7 @@ export const paintHtml = <Message>(
               h.Class('fk-button'),
               ...click,
               ...disabled,
-              ...because,
+              ...hint,
               ...keys,
               ...variant,
               ...iconOnly,
@@ -536,8 +552,7 @@ export const paintMenuHtml = <Message>(
         ? h.mark([h.Class('fk-action-menu-match')], [run.text])
         : run.text,
     )
-  const platform: KeyPlatform =
-    typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
+  const platform = browserKeyPlatform()
   const keys = (keyLabels: ReadonlyArray<string>): ReadonlyArray<Html> =>
     Array.map(keyLabels, key => h.kbd([h.Class('fk-action-menu-key')], [key]))
   const activeDescendant = Option.match(
@@ -584,7 +599,11 @@ export const paintMenuHtml = <Message>(
           onEmpty: () => [],
           onNonEmpty: rowKeys => [
             h.span(
-              [h.Class('fk-action-menu-keys'), h.AriaHidden(true)],
+              [
+                h.Class('fk-action-menu-keys'),
+                h.AriaHidden(true),
+                h.DataAttribute('hint', menu.rowKeysHint),
+              ],
               keys(rowKeys),
             ),
           ],
@@ -623,6 +642,7 @@ export const paintMenuHtml = <Message>(
           h.AriaLabelledBy('fk-action-menu-title'),
           h.Class('fk-action-menu'),
           h.DataAttribute('style', menu.style._tag),
+          h.DataAttribute('keys-live', menu.areRowKeysLive ? 'true' : 'false'),
         ],
         [
           h.h2(
@@ -670,12 +690,15 @@ export const paintMenuHtml = <Message>(
           ),
           h.p(
             [h.Class('fk-action-menu-footer'), h.AriaHidden(true)],
-            Array.map(menu.hints, hint =>
-              h.span(
-                [h.Class('fk-action-menu-hint')],
-                [...keys(hint.keys), hint.does],
+            [
+              ...Array.map(menu.hints, hint =>
+                h.span(
+                  [h.Class('fk-action-menu-hint')],
+                  [...keys(hint.keys), hint.does],
+                ),
               ),
-            ),
+              h.span([h.Class('fk-action-menu-count')], [menu.summary]),
+            ],
           ),
         ],
       ),

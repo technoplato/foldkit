@@ -4,6 +4,7 @@ import { terminalWidth, wrapWords } from '../cli/layout.js'
 import type { BoundInteraction } from './bind.js'
 import {
   type KeyInput,
+  type MenuHint,
   type MenuRow,
   type MenuView,
   type TextRun,
@@ -275,9 +276,28 @@ export const terminalMenuLines = (
   return [
     heading,
     ...rows,
-    lineOf([plain(indent), quiet(hintLineOf(menu.hints))]),
+    ...Array.map(hintLinesOf(menu.hints, width - indent.length), hints =>
+      lineOf([plain(indent), quiet(hints)]),
+    ),
   ]
 }
+
+const hintGap = '  '
+
+const hintLinesOf = (
+  hints: ReadonlyArray<MenuHint>,
+  width: number,
+): ReadonlyArray<string> =>
+  Array.reduce(hints, Array.empty<string>(), (lines, hint) => {
+    const text = hintLineOf([hint])
+    return Option.match(Array.last(lines), {
+      onNone: () => [text],
+      onSome: last =>
+        `${last}${hintGap}${text}`.length <= width
+          ? Array.append(Array.dropRight(lines, 1), `${last}${hintGap}${text}`)
+          : Array.append(lines, text),
+    })
+  })
 
 // FOOTER
 

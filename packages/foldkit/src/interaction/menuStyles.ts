@@ -204,6 +204,10 @@ export const menuStylesheet = `
   gap: 0.25rem;
 }
 
+:where(.fk-action-menu[data-keys-live='false'] .fk-action-menu-keys) {
+  opacity: 0.45;
+}
+
 :where(.fk-action-menu-pick) {
   flex: none;
   min-width: 1.75rem;
@@ -254,5 +258,10 @@ export const menuStylesheet = `
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+:where(.fk-action-menu-count) {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 `

@@ -197,9 +197,9 @@ describe('@foldkit/react/interaction', () => {
     const dialog = screen.getByRole('dialog', { name: 'Actions' })
     expect(dialog.getAttribute('data-keys-live')).toBe('false')
     fireEvent.keyDown(document, { key: 'r' })
-    expect(
-      document.querySelector('.fk-action-menu-count')?.textContent,
-    ).toBe('2 actions match “r”')
+    expect(document.querySelector('.fk-action-menu-count')?.textContent).toBe(
+      '2 actions match “r”',
+    )
     expect(
       document.querySelector('.fk-action-menu-footer')?.textContent,
     ).toContain('search')
@@ -239,9 +239,7 @@ describe('@foldkit/react/interaction', () => {
         ),
       ),
     ).toEqual([['e'], ['e']])
-    expect(screen.getByRole('status').textContent).toBe(
-      '2 actions match “e”',
-    )
+    expect(screen.getByRole('status').textContent).toBe('2 actions match “e”')
     expect(search.getAttribute('aria-activedescendant')).toBe(
       'fk-action-menu-Increment',
     )

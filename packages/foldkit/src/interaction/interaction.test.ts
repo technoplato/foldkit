@@ -254,9 +254,10 @@ describe('shortcutsOf', () => {
       'p',
       'k',
     ])
-    expect(Interaction.shortcutsOf(['Escape', ' '], 'Mac', 'Browser')).toEqual(
-      ['esc', 'space'],
-    )
+    expect(Interaction.shortcutsOf(['Escape', ' '], 'Mac', 'Browser')).toEqual([
+      'esc',
+      'space',
+    ])
     expect(Interaction.shortcutsOf(['['], 'Other', 'Browser')).toEqual(['['])
   })
 

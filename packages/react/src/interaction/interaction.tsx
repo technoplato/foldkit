@@ -131,9 +131,16 @@ export const useMenu = (): Option.Option<Interaction.MenuView> => {
 
 // ACTIONS
 
+const browserKeyPlatform = (): Interaction.KeyPlatform =>
+  typeof navigator === 'undefined'
+    ? 'Other'
+    : Interaction.keyPlatformOf(navigator)
+
 /**
  * One Action as a control. `props` spreads onto a DOM button:
- * `<button {...handle.props}>`. React Native reads `press` and `isEnabled`.
+ * `<button {...handle.props}>`, and carries the Action's hint: what a
+ * press does, its keys, and why it is unavailable. React Native reads
+ * `press` and `isEnabled`.
  */
 export type ActionHandle = Readonly<{
   entry: Catalog.Entry
@@ -143,11 +150,11 @@ export type ActionHandle = Readonly<{
   props: Readonly<{
     type: 'button'
     disabled: boolean
-    title?: string
     'aria-keyshortcuts'?: string
     'data-action': string
     onClick: () => void
-  }>
+  }> &
+    Interaction.HintAttributes
 }>
 
 const handleOf =
@@ -167,10 +174,19 @@ const handleOf =
       props: {
         type: 'button',
         disabled: !isEnabled,
-        ...Option.match(maybeBecause, {
-          onNone: () => ({}),
-          onSome: because => ({ title: because }),
-        }),
+        ...Option.match(
+          Interaction.controlHintOf(
+            {
+              label: entry.label,
+              description: entry.what,
+              keys: entry.keys,
+              because: Option.getOrUndefined(maybeBecause),
+            },
+            browserKeyPlatform(),
+            'Browser',
+          ),
+          { onNone: () => ({}), onSome: Interaction.hintAttributesOf },
+        ),
         ...Array.match(entry.keys, {
           onEmpty: () => ({}),
           onNonEmpty: keys => ({ 'aria-keyshortcuts': keys.join(' ') }),
@@ -451,7 +467,11 @@ const KeyCaps = ({
 
 const MenuRowView = ({
   row,
-}: Readonly<{ row: Interaction.MenuRow }>): ReactElement => {
+  rowKeysHint,
+}: Readonly<{
+  row: Interaction.MenuRow
+  rowKeysHint: string
+}>): ReactElement => {
   const bound = useBound()
   return (
     <li
@@ -482,7 +502,11 @@ const MenuRowView = ({
         ) : null}
       </span>
       {Array.isReadonlyArrayNonEmpty(row.keys) ? (
-        <span className="fk-action-menu-keys" aria-hidden="true">
+        <span
+          className="fk-action-menu-keys"
+          aria-hidden="true"
+          data-hint={rowKeysHint}
+        >
           <KeyCaps keys={row.keys} />
         </span>
       ) : null}
@@ -507,7 +531,8 @@ const MenuRowView = ({
  * One action menu as an accessible combo box over a dimmed backdrop: a
  * search field, a listbox of Catalog rows with the matched letters marked
  * and each row's shortcut, a live summary for screen readers, and a footer
- * of the keys that work right now. All of it, text included, comes from
+ * of the keys that work right now beside the count of rows the search
+ * kept. A row's own key is dimmed while a letter would only type. All of it, text included, comes from
  * the Program's `MenuView`, and the look is `Interaction.menuStylesheet`,
  * which it adds to the document head once. Keys are routed by
  * {@link useKeyBindings}; the input only carries typing. A navigation
@@ -549,6 +574,7 @@ export const ActionMenuPanel = ({
             : `fk-action-menu ${className}`
         }
         data-style={menu.style._tag}
+        data-keys-live={menu.areRowKeysLive}
       >
         <h2 id="fk-action-menu-title" className="fk-action-menu-title">
           {menu.title}
@@ -581,7 +607,11 @@ export const ActionMenuPanel = ({
           className="fk-action-menu-rows"
         >
           {Array.map(menu.rows, row => (
-            <MenuRowView key={row.entry.tag} row={row} />
+            <MenuRowView
+              key={row.entry.tag}
+              row={row}
+              rowKeysHint={menu.rowKeysHint}
+            />
           ))}
         </ul>
         {Array.isReadonlyArrayEmpty(menu.rows) ? (
@@ -597,6 +627,7 @@ export const ActionMenuPanel = ({
               {hint.does}
             </span>
           ))}
+          <span className="fk-action-menu-count">{menu.summary}</span>
         </p>
       </div>
     </div>
@@ -621,11 +652,6 @@ export const ActionMenuDialog = ({
   })
 
 // MENU OPENER
-
-const browserKeyPlatform = (): Interaction.KeyPlatform =>
-  typeof navigator === 'undefined'
-    ? 'Other'
-    : Interaction.keyPlatformOf(navigator)
 
 /**
  * The bound Program's menu opener for this device, `Actions (⌘K)` on a

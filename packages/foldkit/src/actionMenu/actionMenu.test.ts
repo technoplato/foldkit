@@ -374,9 +374,7 @@ describe('filtering', () => {
         menu => menu.summary,
       )
     expect(summaryOf('')).toEqual(Option.some('3 actions'))
-    expect(summaryOf('rst')).toEqual(
-      Option.some('1 action matches “rst”'),
-    )
+    expect(summaryOf('rst')).toEqual(Option.some('1 action matches “rst”'))
     expect(summaryOf('zz')).toEqual(Option.some('No actions match “zz”'))
   })
 

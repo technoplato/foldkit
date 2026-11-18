@@ -407,6 +407,131 @@ export const shortcutsOf = (
         ),
       )
 
+// ECHO
+
+/**
+ * What a key press did, for a Client to show for a moment: the Action it
+ * ran, `Play title`, the keys that were pressed, and a note when it did
+ * nothing, `Unavailable: count is already 0`.
+ */
+export type Echo = Readonly<{
+  title: string
+  maybeNote: Option.Option<string>
+  keys: ReadonlyArray<string>
+}>
+
+// HINT
+
+/**
+ * What a Client says about one control when a pointer rests on it or the
+ * keyboard reaches it: what a press does, the keys that press it here,
+ * and why it is unavailable. `maybeTitle` names a control that shows only
+ * an icon. `spoken` is the same for a screen reader, in one line.
+ */
+export type ControlHint = Readonly<{
+  maybeTitle: Option.Option<string>
+  maybeDescription: Option.Option<string>
+  shortcuts: ReadonlyArray<string>
+  maybeBecause: Option.Option<string>
+  spoken: string
+}>
+
+/**
+ * The hint for one control, from what its Action declares: the
+ * description, the keys this platform and host leave it, and the reason
+ * it is unavailable. None for a control with nothing to add to its label.
+ *
+ * @example
+ * ```typescript
+ * controlHintOf({ label: 'Reset', description: 'Sets the count to 0', keys: ['r'] }, 'Mac', 'Browser')
+ * // Some({ maybeDescription: Some('Sets the count to 0'), shortcuts: ['r'], ... })
+ * controlHintOf({ label: 'Close' }, 'Mac', 'Browser') // None
+ * ```
+ */
+export const controlHintOf = (
+  control: Readonly<{
+    label: string
+    description?: string | undefined
+    keys?: ReadonlyArray<string> | undefined
+    because?: string | undefined
+    isIconOnly?: boolean | undefined
+  }>,
+  platform: KeyPlatform,
+  host: KeyHost,
+): Option.Option<ControlHint> => {
+  const maybeTitle =
+    control.isIconOnly === true ? Option.some(control.label) : Option.none()
+  const maybeDescription = Option.filter(
+    Option.fromNullishOr(control.description),
+    description => description !== '',
+  )
+  const maybeBecause = Option.fromNullishOr(control.because)
+  const shortcuts = shortcutsOf(control.keys ?? [], platform, host)
+  const hasNothingToAdd =
+    Option.isNone(maybeTitle) &&
+    Option.isNone(maybeDescription) &&
+    Option.isNone(maybeBecause) &&
+    Array.isReadonlyArrayEmpty(shortcuts)
+  return hasNothingToAdd
+    ? Option.none()
+    : Option.some({
+        maybeTitle,
+        maybeDescription,
+        shortcuts,
+        maybeBecause,
+        spoken: Array.join(
+          [
+            ...Array.fromOption(maybeDescription),
+            ...Array.fromOption(
+              Option.map(maybeBecause, because => `Unavailable: ${because}`),
+            ),
+          ],
+          '. ',
+        ),
+      })
+}
+
+/** The attributes that carry a control's hint in the DOM. */
+export type HintAttributes = Readonly<{
+  'data-hint'?: string
+  'data-hint-title'?: string
+  'data-hint-keys'?: string
+  'data-hint-because'?: string
+  'aria-description'?: string
+}>
+
+/**
+ * A hint as the attributes every DOM painter puts on its control, which
+ * the document's hint listener reads: `data-hint` is the description,
+ * `data-hint-title` the name of an icon, `data-hint-keys` the keys
+ * separated by spaces, `data-hint-because` the reason it is unavailable,
+ * and `aria-description` the line a screen reader says.
+ *
+ * @example
+ * ```typescript
+ * hintAttributesOf(hint)
+ * // { 'data-hint': 'Sets the count to 0', 'data-hint-keys': 'r', 'aria-description': 'Sets the count to 0' }
+ * ```
+ */
+export const hintAttributesOf = (hint: ControlHint): HintAttributes => ({
+  ...Option.match(hint.maybeDescription, {
+    onNone: () => ({}),
+    onSome: description => ({ 'data-hint': description }),
+  }),
+  ...Option.match(hint.maybeTitle, {
+    onNone: () => ({}),
+    onSome: title => ({ 'data-hint-title': title }),
+  }),
+  ...(Array.isReadonlyArrayEmpty(hint.shortcuts)
+    ? {}
+    : { 'data-hint-keys': Array.join(hint.shortcuts, ' ') }),
+  ...Option.match(hint.maybeBecause, {
+    onNone: () => ({}),
+    onSome: because => ({ 'data-hint-because': because }),
+  }),
+  ...(hint.spoken === '' ? {} : { 'aria-description': hint.spoken }),
+})
+
 const preferredShortcut = (
   keys: ReadonlyArray<KeyInput>,
   platform: KeyPlatform,
@@ -545,9 +670,15 @@ export type MenuRow = Readonly<{
  * by `query`. `filterLabel` names the search field, `Search actions`, and
  * `dismissLabel` the control that closes the menu, `Close actions`.
  * `summary` counts the rows for a screen reader, `3 actions` or
- * `No actions match “zz”`. `hints` are the keys that work right now.
- * `style` says how to present it: a centered dialog on web, a modal on
- * React Native, a boxed prompt in a terminal.
+ * `2 actions match “p”`, or `No actions match “zz”`; a painter also shows
+ * it, so a person sees what a typed letter did. `hints` are the keys that
+ * work right now, the last of them what a letter does: `search` while the
+ * search has the keyboard, `run a row by its key` once a row has it.
+ * `areRowKeysLive` says the same of the key shown beside each row, so a
+ * painter dims those keys while a letter would only type, and
+ * `rowKeysHint` is the sentence it shows on them. `style` says
+ * how to present it: a centered dialog on web, a modal on React Native, a
+ * boxed prompt in a terminal.
  */
 export type MenuView = Readonly<{
   title: string
@@ -555,6 +686,8 @@ export type MenuView = Readonly<{
   dismissLabel: string
   query: string
   isFilterFocused: boolean
+  areRowKeysLive: boolean
+  rowKeysHint: string
   rows: ReadonlyArray<MenuRow>
   summary: string
   hints: ReadonlyArray<MenuHint>
@@ -633,6 +766,78 @@ export const keyedEntryOf = (
     )
   }
 }
+
+const echoOfEntry = (entry: Entry): Echo => ({
+  title: entry.title,
+  maybeNote: M.value(entry.availability).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tagsExhaustive({
+      Enabled: () => Option.none(),
+      Disabled: ({ because }) => Option.some(`Unavailable: ${because}`),
+    }),
+  ),
+  keys: [],
+})
+
+const menuMoveKeys: ReadonlySet<string> = new Set(['j', 'k', 'J', 'K'])
+
+const rowEchoOf = (row: MenuRow): Option.Option<Echo> =>
+  row.isNested && isEnabled(row.entry.availability)
+    ? Option.none()
+    : Option.some(echoOfEntry(row.entry))
+
+const echoInMenu = (
+  menu: MenuView,
+  catalogEntries: ReadonlyArray<Entry>,
+  input: KeyInput,
+): Option.Option<Echo> => {
+  const key = normalizeKey(input.key)
+  if (isChord(input)) {
+    return Option.flatMap(
+      Array.findFirst(menu.rows, row =>
+        Option.contains(row.maybePick, Number(key)),
+      ),
+      rowEchoOf,
+    )
+  } else if (key === 'Enter') {
+    return Option.flatMap(
+      Array.findFirst(menu.rows, row => row.isHighlighted),
+      rowEchoOf,
+    )
+  } else if (menu.areRowKeysLive && !menuMoveKeys.has(key)) {
+    return Option.map(keyedEntryOf(catalogEntries, input), echoOfEntry)
+  } else {
+    return Option.none()
+  }
+}
+
+/**
+ * What one key press is about to do, for a Client to say once it is
+ * done: the Action a declared key runs, `Reset` for `r`, or the row a
+ * number, Enter, or its own key runs from the open menu. An unavailable
+ * Action comes with the reason, `Unavailable: count is already 0`, so a
+ * key that does nothing says why. None for a key that only types, moves,
+ * opens a list of choices, or belongs to no Action. `keys` is left for
+ * the Client to fill with the press as its platform writes it.
+ *
+ * @example
+ * ```typescript
+ * echoOfKey(App.interaction, { count: 3 }, keyInput('r'))
+ * // Some({ title: 'Reset', maybeNote: None, keys: [] })
+ * echoOfKey(App.interaction, { count: 0 }, keyInput('r'))
+ * // Some({ title: 'Reset', maybeNote: Some('Unavailable: count is already 0'), keys: [] })
+ * ```
+ */
+export const echoOfKey = <Model, Message>(
+  interaction: Pick<ProgramInteraction<Model, Message>, 'entries' | 'menu'>,
+  model: Model,
+  input: KeyInput,
+): Option.Option<Echo> =>
+  Option.match(interaction.menu(model), {
+    onNone: () =>
+      Option.map(keyedEntryOf(interaction.entries(model), input), echoOfEntry),
+    onSome: menu => echoInMenu(menu, interaction.entries(model), input),
+  })
 
 /**
  * How a key moves the keyboard between the buttons of a screen presented
