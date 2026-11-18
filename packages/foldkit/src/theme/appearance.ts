@@ -2,7 +2,7 @@ import { Context, Effect, Match as M, Schema as S, Stream } from 'effect'
 
 import * as Catalog from '../catalog/catalog.js'
 import { m } from '../message/index.js'
-import { Appearance, Mode, modeOf } from './theme.js'
+import { Appearance, Contrast, Mode, modeOf } from './theme.js'
 
 // MODEL
 
@@ -15,6 +15,7 @@ import { Appearance, Mode, modeOf } from './theme.js'
 export const AppearanceState = S.Struct({
   appearance: Appearance,
   systemMode: Mode,
+  systemContrast: S.optionalKey(Contrast),
 })
 /** Appearance as a Program holds it. */
 export type AppearanceState = typeof AppearanceState.Type
@@ -28,6 +29,14 @@ export const initialAppearance: AppearanceState = {
 /** The mode a Program is painted in, from its appearance state. */
 export const modeOfState = (state: AppearanceState): Mode =>
   modeOf(state.appearance, state.systemMode)
+
+/**
+ * The contrast a Program is painted with, from its appearance state: what
+ * the system on this device asks for, and the usual contrast for a state
+ * saved before contrast was a part of it.
+ */
+export const contrastOfState = (state: AppearanceState): Contrast =>
+  state.systemContrast ?? 'Standard'
 
 // MESSAGE
 
@@ -67,8 +76,17 @@ export const catalog = Catalog.make([SetAppearance])
 /** The host saw the system in a mode, on this device. */
 export const ObservedSystemMode = m('ObservedSystemMode', { mode: Mode })
 
-/** Every appearance Message: the Action, and the fact from the host. */
-export const Message = S.Union([...catalog.Message.members, ObservedSystemMode])
+/** The host saw the system ask for the usual contrast, or for more. */
+export const ObservedSystemContrast = m('ObservedSystemContrast', {
+  contrast: Contrast,
+})
+
+/** Every appearance Message: the Action, and the facts from the host. */
+export const Message = S.Union([
+  ...catalog.Message.members,
+  ObservedSystemMode,
+  ObservedSystemContrast,
+])
 /** An appearance Message. */
 export type Message = typeof Message.Type
 
@@ -95,6 +113,10 @@ export const update = (
     M.tagsExhaustive({
       SetAppearance: ({ appearance }) => ({ ...state, appearance }),
       ObservedSystemMode: ({ mode }) => ({ ...state, systemMode: mode }),
+      ObservedSystemContrast: ({ contrast }) => ({
+        ...state,
+        systemContrast: contrast,
+      }),
     }),
   )
 
@@ -108,9 +130,15 @@ export const update = (
  * Program.
  */
 export const SystemAppearance = Context.Reference<
-  Readonly<{ modes: Stream.Stream<Mode> }>
+  Readonly<{
+    modes: Stream.Stream<Mode>
+    contrasts?: Stream.Stream<Contrast>
+  }>
 >('foldkit/SystemAppearance', {
-  defaultValue: () => ({ modes: Stream.make('Light') }),
+  defaultValue: () => ({
+    modes: Stream.make('Light'),
+    contrasts: Stream.make('Standard'),
+  }),
 })
 
 /** The host's reports of the system's mode, as Messages. */
@@ -120,3 +148,18 @@ export const systemModeStream: Stream.Stream<typeof ObservedSystemMode.Type> =
       Stream.map(host.modes, mode => ObservedSystemMode({ mode })),
     ),
   )
+
+/**
+ * The host's reports of the contrast the system asks for, as Messages. A
+ * host that reports none is taken to ask for the usual contrast.
+ */
+export const systemContrastStream: Stream.Stream<
+  typeof ObservedSystemContrast.Type
+> = Stream.unwrap(
+  Effect.map(SystemAppearance, host =>
+    Stream.map(
+      host.contrasts ?? Stream.make<[Contrast]>('Standard'),
+      contrast => ObservedSystemContrast({ contrast }),
+    ),
+  ),
+)
