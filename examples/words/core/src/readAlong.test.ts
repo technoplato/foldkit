@@ -149,11 +149,12 @@ describe('a recording, read along with', () => {
   })
 
   it('prints for a terminal as any Transcript does: the paragraph being spoken, with those around it', () => {
-    const lines = transcriptExcerptLines(
+    const lines = Option.match(
       transcriptExcerptOf(transcriptAt(paused(13.6), 1_000_000), {
         leading: 1,
         trailing: 1,
       }),
+      { onNone: () => [], onSome: transcriptExcerptLines },
     )
     expect(lines.join('\n')).toContain('Far out a [bell] answered the lamp.')
     expect(lines.join('\n')).toContain('The keeper lit the lamp at dusk.')
