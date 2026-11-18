@@ -4,6 +4,350 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 4:35:53 p.m. EST — `c29f0c9629c0` feat(books): the made-up page opens in the light or the dark look when asked (Scribe #2494)
+
+- **Implementation commit:** `c29f0c9629c00ff69c407df2041078ee0637b5ba`
+- **Change:** the made-up page opens in the light or the dark look when asked (Scribe #2494)
+- **Details:**
+  - ?look=Dark or ?look=Light presses the Program's own Action once it is ready, so a picture of the site can be taken in either look from made-up content.
+- **Files:**
+  - `examples/books/react/madeUp/main.tsx` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:53 p.m. EST — `4d58be6c3953` fix(foldkit): green: a hint stays while something else on the page scrolls (Scribe #2494, #2518)
+
+- **Implementation commit:** `4d58be6c3953c5d88bd1dcd126e1dc0ac2606899`
+- **Change:** green: a hint stays while something else on the page scrolls (Scribe #2494, #2518)
+- **Details:**
+  - A scroll hides a hint, or stops one that is about to show, only when the page itself scrolled or something that holds its control did. Seen on the Books reader at phone width before the fix: with the words following the voice, a hint under the pointer never showed for one control and vanished after half a second for another. interaction tests 125 of 125; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/interaction/documentHints.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:52 p.m. EST — `60b5f2245888` fix(foldkit): green: a hint's panel is measured from the start edge, and controls are told apart by identity (Scribe #2494, #2518)
+
+- **Implementation commit:** `60b5f2245888ceeba39bcab06f29326e3b7ff3dd`
+- **Change:** green: a hint's panel is measured from the start edge, and controls are told apart by identity (Scribe #2494, #2518)
+- **Details:**
+  - The panel is put back at the page's start edge before it is measured, so it is measured at its full width and placed with its gap from the far edge; at phone width on the Books reader it now stops 8 pixels short of the edge where it used to touch it. Whether the pointer is still on the control whose hint shows is asked by identity, so moving between two controls no longer throws in the page. interaction tests 124 of 124; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/interaction/documentHints.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:52 p.m. EST — `cfcbcfcb674d` feat(foldkit): green: an entry carries its Action's other names, and a command reaches the Action by any of them (Scribe #2494, #2518)
+
+- **Implementation commit:** `cfcbcfcb674d03214a8f916a67287a92f3b2f9a3`
+- **Change:** green: an entry carries its Action's other names, and a command reaches the Action by any of them (Scribe #2494, #2518)
+- **Details:**
+  - Catalog.Entry carries the aliases its Action declares. canonicalCommandOf reads a typed command's first word as the Action's own: the word itself when an Action is called that and takes what follows; else the Action that answers to it as another name, the one that chooses when something follows. The terminal's resolver reads it before anything else. Books' Listen answers to Play and PlayTitle, so books play with a title and books play-title play it, play alone still plays on, and the tag stays Listen. foldkit cli, catalog, interaction, action menu and declaration: 379 tests pass; books cli 62, launcher 13 and books core 285 pass; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/catalog.test.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:52 p.m. EST — `0389a5c2312a` feat(books): the Books site opens on a made-up library, for looking at a change with no account (Scribe #2494)
+
+- **Implementation commit:** `0389a5c2312a262cbf1a33046c230a0eb12db333`
+- **Change:** the Books site opens on a made-up library, for looking at a change with no account (Scribe #2494)
+- **Details:**
+  - dev:made-up serves the same App on the made-up library at every address the site has: three titles nobody wrote, made-up words, no sound, nobody signed in and no real library read. It is how the Remove fix was looked at, and where pictures of the site can be taken from made-up content. It has none of the live site's plugins.
+- **Files:**
+  - `examples/books/react/madeUp/index.html` — changed by this commit
+  - `examples/books/react/madeUp/main.tsx` — changed by this commit
+  - `examples/books/react/madeUp/styles.css` — changed by this commit
+  - `examples/books/react/madeUp/vite.config.ts` — changed by this commit
+  - `examples/books/react/package.json` — changed by this commit
+  - `examples/books/react/tsconfig.json` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:52 p.m. EST — `3920dee7c809` fix(books): green: Remove in an open bookmark's panel asks before deleting (Scribe #2494)
+
+- **Implementation commit:** `3920dee7c809dfa3ba4ac36910a41268a95b56c2`
+- **Change:** green: Remove in an open bookmark's panel asks before deleting (Scribe #2494)
+- **Details:**
+  - The stack holds one panel over the pages, so the question takes the place of a panel beside the page. Asked from that bookmark's own panel it remembers so: Cancel brings the panel back, and Delete removes the bookmark and closes it. books core 285 tests pass; tsc clean. Seen on the Books site on a made-up library: before the fix Remove left the panel as it was; after it the question shows, Cancel returns to the panel, and Delete removes the bookmark.
+- **Files:**
+  - `examples/books/core/src/destination.ts` — changed by this commit
+  - `examples/books/core/src/update.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:52 p.m. EST — `9d340c2eda81` fix(books): green: a command that meets a player started before books was updated says so (Scribe #2494)
+
+- **Implementation commit:** `9d340c2eda81d8efebeb0e3a93e559b47a0f89ae`
+- **Change:** green: a command that meets a player started before books was updated says so (Scribe #2494)
+- **Details:**
+  - A player keeps what it was built from, read once as it starts, and says it to a command that asks. Every command that reaches a running player asks first; when the answer is another build, or the player is too old to know the question, the command says the player was started before books was updated and names books stop, which keeps the place, then goes on. A player of this build hears one question and the person nothing. The launcher test starts a player, makes the built player newer, and reads the sentence from the real command. books cli 61 and launcher 13 tests pass; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/daemon.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/settings.ts` — changed by this commit
+  - `examples/books/cli/src/view.test.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:52 p.m. EST — `86e8c3fe30ce` feat(books): the words in a terminal are laid out to be read, inked for the terminal's own ground (Scribe #2494)
+
+- **Implementation commit:** `86e8c3fe30ce0c0c855f9e9dbf6c55803ad404db`
+- **Change:** the words in a terminal are laid out to be read, inked for the terminal's own ground (Scribe #2494)
+- **Details:**
+  - The words part's heading is the title, strong, then the chapter, the place and whether it plays, quiet; the link is no longer in the frame. The view tells the player the ground its terminal says it has, a fact only the view can read, and the player's ink reads on that ground and assumes none when the terminal is silent; the ink no longer follows the mode the Model holds, which is the site's. The library's terminal view and live following hand the ink the view's flags. Tests: the frame at 60 columns paused and playing, the ink on a dark, a light and an unknown ground with nothing dimmed, and the same through the launcher in a real 60-column terminal. books cli 57, launcher 12, books core and foldkit cli, renderers and theme suites pass; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/declared.ts` — changed by this commit
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/core/src/screen.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/liveFrame.ts` — changed by this commit
+- **User context (verbatim):**
+  > The follow is now working, but let's improve the display and the rendering here so that this looks more presentable. It's all gibberish, clogged up, and light gray on black text. So even though it's the CLI, we can still, or it's the CLI follow command, we can still make it look a little bit better. We don't have to draw any ASCII art here, but we can make it more readable
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:52 p.m. EST — `56eea3da1544` feat(foldkit): green: the live frame is laid out to be read, in ink that reads on a dark and a light ground (Scribe #2494)
+
+- **Implementation commit:** `56eea3da1544628aa7a03241cb43a2160521e562`
+- **Change:** green: the live frame is laid out to be read, in ink that reads on a dark and a light ground (Scribe #2494)
+- **Details:**
+  - liveFrameOf lays a part out to be read: a margin of two columns; words wrapped between words in at most 72 columns; the heading's texts as short lines, strong or quiet, then a blank line; a Transcript as the paragraph being read with a bar down the gutter, its time once and its lines under its first word, the words spoken strong, the word being read in its own role, and those to come plain; a blank line and the last two lines of the paragraph before and the first two of the one after, quiet, with an ellipsis where cut; and after a blank line the commands as they are typed on a line or two, the command that lists the rest named quietly, a command never broken. With few rows the commands go first, then the paragraphs around, then the heading; the line of the word being read stays. The word is in brackets unless the frame is inked. A terminal's ink is chosen for the terminal's ground, which the host says or the terminal says in COLORFGBG, never for the mode a Model holds: a role's colour for that ground; with no ground known, the one of its two colours that reads better on both black and white, and quiet text left plain. Nothing is dimmed; the word being read is underlined as well as coloured. The following derives the commands from the part's Actions and the host's own, as before. Tests whose wrap points I had guessed are set to the real ones. foldkit theme, cli, renderers and interaction: 441 tests pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/cli/followLive.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+  - `packages/foldkit/src/cli/terminalInk.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/liveFrame.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/liveFrame.ts` — changed by this commit
+  - `packages/foldkit/src/theme/terminal.ts` — changed by this commit
+  - `packages/foldkit/src/theme/terminalLine.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > The follow is now working, but let's improve the display and the rendering here so that this looks more presentable. It's all gibberish, clogged up, and light gray on black text. So even though it's the CLI, we can still, or it's the CLI follow command, we can still make it look a little bit better. We don't have to draw any ASCII art here, but we can make it more readable
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:51 p.m. EST — `f7702bb0155e` feat(books): green: books follow moves with the word, in place on a terminal, and says one line on pause (Scribe #2494)
+
+- **Implementation commit:** `f7702bb0155ea9c3a1d683f9614e9774e40de1ea`
+- **Change:** green: books follow moves with the word, in place on a terminal, and says one line on pause (Scribe #2494)
+- **Details:**
+  - The words are a part of the view the Books core names (wordsPartAt): the reader's own Transcript with the word at this moment marked from its clock, the title, chapter, place and state above it, and what the reader's folded controls and bookmark button offer. The player follows it with the library's live following: a terminal gets the frame fitted to its size, repainted in place, with the commands those Actions offer now under it, play while paused and pause while it plays; a pipe gets the core's events, the paragraph, each word with its start and link, one line on pause and on play, a line of JSON for each with --json, and paragraphs alone with --paragraphs. books follow alone follows the words. Each offered command is one line however long its sentence, so a cut line leaves nothing behind. The follow tests pause on a known word and then play, so they are certain however busy the machine is. books cli 41, launcher 9 (one in a real 60-column pty), books core, foldkit cli, renderers, interaction and catalog suites pass; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+  - `examples/books/core/src/screen.ts` — changed by this commit
+  - `packages/foldkit/src/cli/followLive.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+- **User context (verbatim):**
+  > But yeah, word by word is the default for following. Thank you. And why do we need to say books follow words? Why can't we just do books follow? Is words adding any information here?
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:51 p.m. EST — `cb39ece5078c` refactor(foldkit): the Actions a part offers are read beside the other readings of a screen (Scribe #2494)
+
+- **Implementation commit:** `cb39ece5078c140cca51a5a392267f333991debc`
+- **Change:** the Actions a part offers are read beside the other readings of a screen (Scribe #2494)
+- **Details:**
+  - offeredBy moves to the renderers' queries, so a Program's core can say what a part of its view offers without the terminal layer; the terminal layer reads it from there. The live following and its types are part of the cli module's exports. No behaviour changes; live following tests 5 of 5; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/query.ts` — changed by this commit
+- **User context (verbatim):**
+  > The screen continues to append rather than clear the buffer. So let's make sure we clear the buffer and repaint this in the terminal and then show some of the commands that can be run, again, deriving this from what the screen looks like. And let's do this in a generic way where we can reuse this component and this functionality from Fold Kit Core, help me think about the way you would design.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:51 p.m. EST — `b2e3de73650c` feat(foldkit): green: a view that rewrites in place says so, with its size, and asks again when resized (Scribe #2494)
+
+- **Implementation commit:** `b2e3de73650c9cc622389c2537aa61d36d2346b1`
+- **Change:** green: a view that rewrites in place says so, with its size, and asks again when resized (Scribe #2494)
+- **Details:**
+  - With inPlace, writeCliFollow adds to its request that it rewrites in place and the terminal's columns and rows. When the terminal is resized it ends that follow and asks again with the new size, and the next frame is written over the last one. A pipe's request is not touched. follow tests 15 of 15; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > The screen continues to append rather than clear the buffer. So let's make sure we clear the buffer and repaint this in the terminal and then show some of the commands that can be run, again, deriving this from what the screen looks like. And let's do this in a generic way where we can reuse this component and this functionality from Fold Kit Core, help me think about the way you would design.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:51 p.m. EST — `a305a4ed35e3` feat(foldkit): green: following a part of any Program's view, live (Scribe #2494)
+
+- **Implementation commit:** `a305a4ed35e3971a008fc63da957c0326c5c81d6`
+- **Change:** green: following a part of any Program's view, live (Scribe #2494)
+- **Details:**
+  - followLive follows a part of the view: for a view that says its output is a terminal, with its size as facts, it sends the part fitted by liveFrameOf with the commands the part offers now under it, each time the frame differs, after a Message and by the clock for a part that moves between Messages, inked from the theme when the view takes colour; any other view gets what the topic sent before. offeredBy reads the Actions a part offers from its own buttons and paintOffered prints the first few that run now, as the terminal spells them with the catalog's own sentence, then the command that lists the rest, so the commands change with the state. Every Program's screen topic is followed this way. A footer line too long for the columns ends in an ellipsis. foldkit cli and renderers suites pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/cli/followLive.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/liveFrame.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/liveFrame.ts` — changed by this commit
+- **User context (verbatim):**
+  > The screen continues to append rather than clear the buffer. So let's make sure we clear the buffer and repaint this in the terminal and then show some of the commands that can be run, again, deriving this from what the screen looks like. And let's do this in a generic way where we can reuse this component and this functionality from Fold Kit Core, help me think about the way you would design.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:51 p.m. EST — `4374fceedcfc` feat(foldkit): green: a part of the view fitted to a terminal of any size (Scribe #2494)
+
+- **Implementation commit:** `4374fceedcfc067e86c71e14ebbeda8bb6a3e2a9`
+- **Change:** green: a part of the view fitted to a terminal of any size (Scribe #2494)
+- **Details:**
+  - liveFrameOf lays a part of the view out to the columns, which wraps a Transcript between words, keeps as many rows as fit with the line of the word being read a third of the way down, pins a header above and a footer below while the part keeps three rows of its own, and returns lines with the role of each part of each line. It is never wider than the columns nor taller than the rows; the same node and size give the same lines on any Client. anchorRowsOf moves beside it, and the terminal screen reads it from there. Two of my test expectations were wrong and are corrected: the heading holds a time that looks like a passage's, and a short footer line rests over its own length. Fit and terminal screen tests 20 of 20; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/cli/terminalScreen.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/liveFrame.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/liveFrame.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+- **User context (verbatim):**
+  > The screen continues to append rather than clear the buffer. So let's make sure we clear the buffer and repaint this in the terminal and then show some of the commands that can be run, again, deriving this from what the screen looks like. And let's do this in a generic way where we can reuse this component and this functionality from Fold Kit Core, help me think about the way you would design.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:51 p.m. EST — `873da33dd491` feat(books): green: what a follower of the words hears, by the word (Scribe #2494)
+
+- **Implementation commit:** `873da33dd4914e9a2d666170b5089aeab0aeabe9`
+- **Change:** green: what a follower of the words hears, by the word (Scribe #2494)
+- **Details:**
+  - wordsHeardBetween says what a follower hears between two readings of the words: the paragraph and its word when the title or paragraph changed; otherwise one turn when playback paused or plays, never the paragraph again for that, and the word when the word moved; paragraphs alone when asked. A word carries its text, the millisecond it starts, that place as a clock and its link; the header of the words now says the start of the word being spoken. wordsHeardLines prints each for a pipe and WordsHeardJson as a line of JSON. words tests 14 of 14; tsc clean.
+- **Files:**
+  - `examples/books/core/src/words.test.ts` — changed by this commit
+  - `examples/books/core/src/words.ts` — changed by this commit
+- **User context (verbatim):**
+  > the CLI for following the words only updates when a new section is reached, when a new segment is reached. It certainly doesn't update on the word level timestamp, and when I paused, it also updated the following along.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:51 p.m. EST — `610f0add7893` feat(foldkit): green: a followed topic is rewritten in place on a terminal (Scribe #2494)
+
+- **Implementation commit:** `610f0add78930c20d1ec5b7550d3be1bd6864414`
+- **Change:** green: a followed topic is rewritten in place on a terminal (Scribe #2494)
+- **Details:**
+  - writeCliFollow takes inPlace: each text is written over the last, after moving up over the rows the last one took and clearing below, with a wrapped line counted by what shows and not by its colour codes. No key is read and the screen is not taken over; Ctrl-C ends it. Without it every text goes on its own lines, as before. follow tests 13 of 13; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > The screen continues to append rather than clear the buffer. So let's make sure we clear the buffer and repaint this in the terminal and then show some of the commands that can be run, again, deriving this from what the screen looks like. And let's do this in a generic way where we can reuse this component and this functionality from Fold Kit Core, help me think about the way you would design.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:50 p.m. EST — `794b13e23378` fix(books): green: listen plays on when the title named is already in the player (Scribe #2494)
+
+- **Implementation commit:** `794b13e233786db5073a908c8db1cca218d21cb3`
+- **Change:** green: listen plays on when the title named is already in the player (Scribe #2494)
+- **Details:**
+  - books listen with the title that is in the player plays on from where it is, or keeps playing, in place of the sentence that listen is disabled. titlesNamed, in the Books core, is which titles a person names by what they type: a name or part of it in any case, or the slug; a library's search field can read titles with it. The process tests get minutes, since each starts a player. Launcher tests 7 of 7; the titles reading 4 of 4; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/core/src/model.ts` — changed by this commit
+  - `examples/books/core/src/titlesNamed.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:50 p.m. EST — `93670d8144b3` fix(books): green: the launcher opens a made-up library, and a refused command leaves no player behind (Scribe #2494)
+
+- **Implementation commit:** `93670d8144b334890043a3a69cf97aedf0b6d520`
+- **Change:** green: the launcher opens a made-up library, and a refused command leaves no player behind (Scribe #2494)
+- **Details:**
+  - With BOOKS_MADE_UP set, the launcher script and the player open three made-up titles with made-up words that play without a sound: nobody is signed in, no real library is read, its player has a socket of its own and its telemetry a folder of its own. The tests now run that script as a process. When the player could not read a command (an unknown one, or a title that matches nothing) and that command is what started the player, the view stops it again after the answer and says so; a player that was already running is left alone. FORCE_COLOR takes the colour path whatever the output is, as a terminal does. Launcher tests 7 of 7 and view tests 7 of 7 pass; of the main terminal tests 34 of 36 passed in the whole file with the machine's load over 160 and the two that failed, both timed, passed when run alone; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/daemon.ts` — changed by this commit
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/settings.ts` — changed by this commit
+  - `examples/books/cli/src/view.test.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+  - `examples/books/core/src/index.ts` — changed by this commit
+  - `examples/books/core/src/madeUp.ts` — changed by this commit
+  - `examples/books/scripts/books` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:50 p.m. EST — `d14b6401a273` fix(books): green: a refused command prints its sentence alone, and names a title as a title (Scribe #2494)
+
+- **Implementation commit:** `d14b6401a2736590276677607c2734dec19591c0`
+- **Change:** green: a refused command prints its sentence alone, and names a title as a title (Scribe #2494)
+- **Details:**
+  - A Books command that is refused prints its sentence and nothing before it; one that ran prints what the player is doing, as before. The player tells the library its own commands and that books actions lists them all, so an unknown command names the nearest. Choosing a title says title, and a place in a recording says time, so usage reads listen <title> and seek-to <time>, which is what each takes. With the library change before this, books listen and books open take a title as typed, in full or in part, in any case. books cli 42, books core 269 and transcript player core 46 tests pass; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/transcript-player/core/src/message.ts` — changed by this commit
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:50 p.m. EST — `e366c480edfa` fix(foldkit): green: a flag is never folded into the words, wherever it is typed (Scribe #2494)
+
+- **Implementation commit:** `e366c480edfa7e4e0a013f545e5310e33cdfea91`
+- **Change:** green: a flag is never folded into the words, wherever it is typed (Scribe #2494)
+- **Details:**
+  - A flag followed by another flag, or by nothing, is on; it no longer takes the next flag as its value or vanishes at the end of the line. A Program's CLI names its own on or off flags, which never take a word, so each may come before the words. Books names --each-word and writes the colour flag it adds in a terminal with an equals sign. foldkit cli: 87 tests pass; tsc clean.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/settings.ts` — changed by this commit
+  - `packages/foldkit/src/cli/argv.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:50 p.m. EST — `1fb6c67fdaf1` feat(foldkit): green: a choosing Action says what a person calls the thing it takes (Scribe #2494)
+
+- **Implementation commit:** `1fb6c67fdaf1b3682f383e74a3066bdd22855d98`
+- **Change:** green: a choosing Action says what a person calls the thing it takes (Scribe #2494)
+- **Details:**
+  - A Choose may declare a noun, such as title for a field that holds a slug; left out, it is the field in words. An entry's choices carry it, and usage and the sentences about choices use it: listen <title>, No title matches, 6 chapters match, listen needs a title. foldkit cli, catalog, interaction, action menu and renderers: 401 tests pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:35:50 p.m. EST — `3381e51814d2` feat(foldkit): green: a command takes its choice as a person names it, and an unknown command is said in a sentence (Scribe #2494)
+
+- **Implementation commit:** `3381e51814d280afa8d9ebc134404b100d273ca4`
+- **Change:** green: a command takes its choice as a person names it, and an unknown command is said in a sentence (Scribe #2494)
+- **Details:**
+  - A choosing command still takes its choice's word first. What that does not take is read as a person names a choice: its title or part of it, in any case, marks and punctuation aside (namedByTyped, a reading any Client can use). One choice named is pressed; several are listed with the command for each; none, or nothing given, shows the command's own usage and a few it takes now. An unknown command is one sentence with up to three nearest by spelling, the host's own commands among them, and the command that lists them all. A command that is refused paints nothing before its sentence. The counter and counters examples' tests hold the new sentences. foldkit cli, renderers and interaction: 342 tests pass; tsc adds no error.
+- **Files:**
+  - `examples/counter/cli/src/cli.integration.test.ts` — changed by this commit
+  - `examples/multiple-counters/cli/src/cli.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/typedCommands.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/typed.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 9:46:40 a.m. EST — `983701c48c94` feat(foldkit): green: a Transcript says who speaks and holds what sits between its passages (Scribe #2494)
 
 - **Implementation commit:** `983701c48c9477374ec8f82295f7ebdfb53a2b63`
