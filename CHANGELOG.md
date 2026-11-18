@@ -60,6 +60,102 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
 - **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
 
+## November 18th, 2026 at 1:25:09 a.m. EST — `9c316555447b` feat(transcript-player): green: a match set apart in its row, the place of the total, the picked word (Scribe #2494)
+
+- **Implementation commit:** `9c316555447b0a97c504d45474ed7c98a105104c`
+- **Change:** Search results: the match set apart, the place among all matches, the picked word (Scribe #2494)
+- **Details:**
+  - A match's row marks the words found and leads with the last four words before them; the status reads 3 of 132; the word whose menu is open is ringed; the matches take less of a small screen. After the theme was merged, readAlongStyles.ts names roles only; that rewrite is in the merge commit d3d5302ad.
+- **Files:**
+  - `examples/transcript-player/core/src/screen.ts` — the match row and the status
+  - `packages/foldkit/src/interaction/readAlongStyles.ts` — roles of the theme, small screens
+- **User context (verbatim):**
+  > Any media with the text transcript will be recognized word per word and have this words component ... we can search and scrub through both
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-design-find of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:25:09 a.m. EST — `2c22e1952157` feat(react): green: the reader draws marks, follows by state, a word's menu, and where a drag lands (Scribe #2494)
+
+- **Implementation commit:** `2c22e1952157b3f1ac54da2914cfd72a4c599983`
+- **Change:** React painter: marks, following by state, a word's menu, and where a drag lands (Scribe #2494)
+- **Details:**
+  - The reader marks found words, follows the word sounding only while the Program says so, tells the Program when a person scrolls it out of the middle and never pulls the view back by itself, draws the word menu the Program holds, and names where a seek drag will land.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — TranscriptView, PassageView's mark, SeekBar, TextField
+  - `packages/foldkit/src/interaction/readAlongStyles.ts` — the look of Read Along's parts
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-design-find of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:25:09 a.m. EST — `6cb1b0434e27` feat(transcript-player): green: a word's menu is the Program's state, drawn by any Client (Scribe #2494)
+
+- **Implementation commit:** `6cb1b0434e2795edd78b00478b17ceeb2a53556a`
+- **Change:** A word's menu is the Program's state (Scribe #2494)
+- **Details:**
+  - Which word's menu is open is in the Transcript Player's Model; a painter presses ShowWordMenu and draws the menu the Transcript carries; Books adds Copy link to this word.
+- **Files:**
+  - `examples/transcript-player/core/src/screen.ts` — the menu the Transcript carries
+  - `packages/foldkit/src/renderers/types.ts` — wordMenuAction and wordMenu
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-design-find of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:25:09 a.m. EST — `5dbc8bd5939c` feat(books): green: books search prints matches with times and links, and books open takes a word link (Scribe #2494)
+
+- **Implementation commit:** `5dbc8bd5939c866a7ab9958c89b98ee3f40ca9d8`
+- **Change:** Books CLI: books search, and books open with a word link (Scribe #2494)
+- **Details:**
+  - books search <words> prints each match with its time, chapter and link, or one line of JSON with --json, without playing; books open takes a path or the whole address Copy link put in the clipboard.
+- **Files:**
+  - `examples/books/cli/src/player.ts` — the search command, whole addresses for open
+- **User context (verbatim):**
+  > I'd like to be able to link to that word as well
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-design-find of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:25:09 a.m. EST — `7d7faffcde06` feat(books): green: a link to one word, copying it, and searching the book in the player (Scribe #2494)
+
+- **Implementation commit:** `7d7faffcde0633789a94333277941a6d023fe460`
+- **Change:** Books: a link to one word, copying it, and searching the book in the player (Scribe #2494)
+- **Details:**
+  - wordPathOf prints /books/<title>/listen/12m03.45s; the route prints a word's place to the millisecond and whole seconds as before; opening the link lands on the word, paused; CopyWordLink copies it through a clipboard-only LinkSharing.copy; wordLink in follow words --json; bookSearchOf reads matches with time, chapter and link; search and view Messages stay on the device. The Instant source reads a rendition in pages of forty only when a search is made.
+- **Files:**
+  - `examples/books/core/src/links.ts` — wordPathOf
+  - `examples/books/core/src/routes.ts` — a place prints to the millisecond when it names a word
+  - `examples/books/core/src/update.ts` — CopyLink, the address kept until the player gets there
+  - `examples/books/core/src/find.ts` — the reader's parts and the search reading
+  - `examples/books/core/src/instantTranscript.ts` — the words for a search, read when asked
+- **User context (verbatim):**
+  > I'd like to be able to link to that word as well
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-design-find of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:25:09 a.m. EST — `fb0672442c7b` feat(transcript-player): green: search a whole recording, read away from the playhead, scrub by paragraph (Scribe #2494)
+
+- **Implementation commit:** `fb0672442c7ba6ca32e830919c4f39dcae82e9ea`
+- **Change:** Transcript Player: search a whole recording, read away from the playhead, scrub by paragraph (Scribe #2494)
+- **Details:**
+  - Search and the view are state in the Model; Actions ShowSearch (/), SearchFor, NextMatch (n), PreviousMatch (N), ShowMatch, PlayFrom, PreviousParagraph ({), NextParagraph (}), LeavePlayhead, BackToPlayhead. The transcript port gains passagesMatching, asked only when a search is made; only matches enter the Model. Measured on 266 made-up passages, 152,684 words: 13 to 15 ms a whole search.
+- **Files:**
+  - `examples/transcript-player/core/src/model.ts` — search and view state
+  - `examples/transcript-player/core/src/message.ts` — the reader's Actions
+  - `examples/transcript-player/core/src/update.ts` — SearchRecording and the new Messages
+  - `examples/transcript-player/core/src/screen.ts` — marks, landings, the search panel, the reader's buttons
+  - `examples/transcript-player/core/src/search.ts` — matching over a recording's passages
+  - `examples/transcript-player/core/src/transcript.ts` — passagesMatching on the port
+- **User context (verbatim):**
+  > Any media with the text transcript will be recognized word per word and have this words component ... we can search and scrub through both
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-design-find of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:25:09 a.m. EST — `74baee7d4373` feat(foldkit): green: search with context, marks for what it found, match steps, and where a seek drag lands (Scribe #2494)
+
+- **Implementation commit:** `74baee7d4373dbcdce8166935d2a63db905e76fb`
+- **Change:** Read Along: search with context, marks, match steps, and where a seek drag lands (Scribe #2494)
+- **Details:**
+  - matchesIn reads each word once and takes the last word typed as the start of a word; matches carry the words either side and each word found; transcriptWithMatches marks them; matchStepOf steps around the ends; SeekNode.landings with seekLandingAt; TranscriptNode says whether the view follows the word sounding. Measured on 150,000 made-up words: 11 to 16 ms a search.
+- **Files:**
+  - `packages/foldkit/src/renderers/readAlong.ts` — search, marks, match steps, seek landings
+  - `packages/foldkit/src/renderers/types.ts` — optional fields on Seek, Transcript and its words
+- **User context (verbatim):**
+  > Any media with the text transcript will be recognized word per word and have this words component ... we can search and scrub through both
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-design-find of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
 ## November 18th, 2026 at 1:17:44 a.m. EST — `eac7c969870d` feat(books): green: books words paints from the theme on a terminal (Scribe #2494)
 
 - **Implementation commit:** `eac7c969870d0a6a88cb4fca6fed1ebbda917399`

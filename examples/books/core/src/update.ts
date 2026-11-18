@@ -48,7 +48,7 @@ import {
   RemoveBookmark,
   SavePlace,
 } from './library.js'
-import { placePathOf, secondOf } from './links.js'
+import { placePathOf, secondOf, wordPathOf } from './links.js'
 import {
   CompletedCloseUnendedPlays,
   CompletedReportStretch,
@@ -141,6 +141,28 @@ export const ShareLink = Command.define(
     const sharing = yield* LinkSharing
     const how = yield* sharing.share({ path, title })
     return SharedLink({ how })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedShareLink({ reason: error.reason })),
+    ),
+  ),
+)
+
+/**
+ * Puts a link in the clipboard through the host's link sharing, as `Copy
+ * link to this word` promises, where sharing would open a share sheet. A
+ * refusal becomes FailedShareLink with its reason.
+ */
+export const CopyLink = Command.define(
+  'CopyLink',
+  { path: S.String, title: S.String },
+  SharedLink,
+  FailedShareLink,
+)(({ path, title }) =>
+  Effect.gen(function* () {
+    const sharing = yield* LinkSharing
+    yield* sharing.copy({ path, title })
+    return SharedLink({ how: 'Copied' })
   }).pipe(
     Effect.catch(error =>
       Effect.succeed(FailedShareLink({ reason: error.reason })),
@@ -309,7 +331,9 @@ const openedPlayer = (model: Model, slug: TitleSlug): Model => {
  * link back to this moment, and gives a placeless `/listen` its place.
  * Only while the title is on the shelf and in the player, so a link
  * opened before either keeps the place it names until the player gets
- * there.
+ * there. An address that names the very place the player is at stays as
+ * it is, so a link to one word, `…/listen/12m03.45s`, keeps the word
+ * until the audio plays on.
  */
 const withPlayerAddress = (model: Model): Model =>
   Option.match(
@@ -322,9 +346,11 @@ const withPlayerAddress = (model: Model): Model =>
     {
       onNone: () => model,
       onSome: ({ top, title }) => {
-        const atMs = secondOf(placeOfSlug(model, title.slug))
+        const placeMs = placeOfSlug(model, title.slug)
+        const atMs = secondOf(placeMs)
         const isLoaded = Option.contains(loadedSlugOf(model), title.slug)
-        return isPlayerPage(top) && (top.atMs === atMs || !isLoaded)
+        return isPlayerPage(top) &&
+          (top.atMs === atMs || top.atMs === placeMs || !isLoaded)
           ? model
           : withStack(model, {
               ...model.navigation,
@@ -709,6 +735,38 @@ const sharedPlace = (model: Model): UpdateReturn =>
     ],
   })
 
+const copiedWordLink = (
+  model: Model,
+  wordId: TranscriptPlayer.WordId,
+): UpdateReturn =>
+  Option.match(
+    Option.flatMap(loadedTitleOf(model), ({ title, loaded }) =>
+      Option.map(TranscriptPlayer.wordOf(loaded.player, wordId), word => ({
+        title,
+        word,
+      })),
+    ),
+    {
+      onNone: () => [model, []],
+      onSome: ({ title, word }) => {
+        const [closed, commands] = playerUpdated(
+          { ...model, maybeNotice: Option.none() },
+          TranscriptPlayer.CloseWordMenu(),
+        )
+        return [
+          closed,
+          [
+            ...commands,
+            CopyLink({
+              path: wordPathOf(title.slug, word.startMs),
+              title: `${title.name}, at ${clockOf(word.startMs)}`,
+            }),
+          ],
+        ]
+      },
+    },
+  )
+
 const updatedReadAloud = ReadAloud.updateReadAloud<Model, Destination>({
   stack: Navigation.fieldLens<Model, Destination>(),
   place: place => place,
@@ -774,6 +832,21 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       PreviousSection: message => playerUpdated(model, message),
       NextSection: message => playerUpdated(model, message),
       SetSeekScope: message => playerUpdated(model, message),
+      PreviousParagraph: message => playerUpdated(model, message),
+      NextParagraph: message => playerUpdated(model, message),
+      ShowSearch: message => playerUpdated(model, message),
+      CloseSearch: message => playerUpdated(model, message),
+      SearchFor: message => playerUpdated(model, message),
+      ClearSearch: message => playerUpdated(model, message),
+      NextMatch: message => playerUpdated(model, message),
+      PreviousMatch: message => playerUpdated(model, message),
+      ShowMatch: message => playerUpdated(model, message),
+      PlayFrom: message => playerUpdated(model, message),
+      LeavePlayhead: message => playerUpdated(model, message),
+      BackToPlayhead: message => playerUpdated(model, message),
+      ShowWordMenu: message => playerUpdated(model, message),
+      CloseWordMenu: message => playerUpdated(model, message),
+      CopyWordLink: ({ wordId }) => copiedWordLink(model, wordId),
       ExpandControls: () => [{ ...model, controls: 'Expanded' }, []],
       CollapseControls: () => [{ ...model, controls: 'Collapsed' }, []],
       ShowLibrary: () => [
@@ -886,6 +959,8 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       FailedPlayAudio: message => playerUpdated(model, message),
       ReceivedPassages: message => playerUpdated(model, message),
       FailedLoadTranscript: message => playerUpdated(model, message),
+      ReceivedMatches: message => playerUpdated(model, message),
+      FailedSearch: message => playerUpdated(model, message),
       CompletedWriteLibrary: () => [
         { ...model, maybeProblem: Option.none() },
         [],
@@ -949,6 +1024,14 @@ const updated = (model: Model, message: Message): UpdateReturn =>
     }),
   )
 
+/**
+ * True for a fact that carries an address in: a link opened, or a step
+ * back or forward. The address it brings names where the player should
+ * go, so it is left as it is until the player has gone there.
+ */
+const isAddressFact = (message: Message): boolean =>
+  message._tag === 'OpenedUri' || message._tag === 'NavigatedBack'
+
 const movedQuietly = (model: Model, placeMs: Milliseconds): Model =>
   model.listening._tag === 'Loaded'
     ? withLoaded(
@@ -996,5 +1079,5 @@ const openedPlace = (
  */
 export const update = (model: Model, message: Message): UpdateReturn => {
   const [next, commands] = updated(model, message)
-  return [withPlayerAddress(next), commands]
+  return [isAddressFact(message) ? next : withPlayerAddress(next), commands]
 }

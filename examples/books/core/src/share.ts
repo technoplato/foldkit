@@ -21,12 +21,15 @@ export class LinkSharingError extends Data.TaggedError('LinkSharingError')<{
 /**
  * Where a link to a moment goes out: a phone's share sheet, a computer's
  * clipboard, or a terminal's. The host knows its own address, so it turns
- * the path into the full link.
+ * the path into the full link. `share` goes out the way the platform
+ * shares, a sheet where there is one; `copy` always puts the link in the
+ * clipboard, as `Copy link to this word` promises.
  */
 export class LinkSharing extends Context.Service<
   LinkSharing,
   Readonly<{
     share: (link: ShareableLink) => Effect.Effect<SharedHow, LinkSharingError>
+    copy: (link: ShareableLink) => Effect.Effect<void, LinkSharingError>
   }>
 >()('books/LinkSharing') {}
 
@@ -48,5 +51,6 @@ export const makeTestLinkSharing = () =>
           Ref.update(shared, links => [...links, link]),
           copied,
         ),
+      copy: link => Ref.update(shared, links => [...links, link]),
     }),
   }))

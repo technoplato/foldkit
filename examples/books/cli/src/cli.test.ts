@@ -470,6 +470,95 @@ describe('books words', () => {
   })
 })
 
+describe('books search', () => {
+  it('prints each place the words are spoken in the title in the player, with its time, chapter and link', async () => {
+    const { player, bound } = await openBooks({ transcripts: spokenTranscript })
+    await run(player, 'listen the-lantern-keeper')
+    await run(player, 'pause')
+    await eventually(async () =>
+      (await run(player, 'words')).stdout.includes('The Tide'),
+    )
+    const found = await run(player, 'search lamp')
+    expect(found.exitCode).toBe(0)
+    expect(found.stdout.split('\n')).toEqual([
+      '# 1 match for “lamp” in The Lantern Keeper',
+      '0:13 · The Tide · and waited. Far out a bell answered the [lamp.] · /books/the-lantern-keeper/listen/13.5s',
+    ])
+    expect(isSounding(bound)).toBe(false)
+    const phrase = await run(player, 'search the  WICK and')
+    expect(phrase.stdout.split('\n')).toEqual([
+      '# 1 match for “the WICK and” in The Lantern Keeper',
+      '0:06 · The Tide · keeper climbed the stairs at dusk. He trimmed [the wick and] waited. Far out a bell answered the lamp. · /books/the-lantern-keeper/listen/6.5s',
+    ])
+    const none = await run(player, 'search harbour')
+    expect(none.exitCode).toBe(0)
+    expect(none.stdout).toBe('# No matches for “harbour” in The Lantern Keeper')
+  })
+
+  it('prints one line of JSON for --json, each match with its link', async () => {
+    const { player } = await openBooks({ transcripts: spokenTranscript })
+    await run(player, 'listen the-lantern-keeper')
+    await eventually(async () =>
+      (await run(player, 'words')).stdout.includes('The Tide'),
+    )
+    const json = await run(player, 'search lamp', { json: '1' })
+    expect(json.stdout).not.toContain('\n')
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      _tag: 'BookMatches',
+      slug: 'the-lantern-keeper',
+      query: 'lamp',
+      total: 1,
+      matches: [
+        {
+          place: '0:13',
+          placeMs: 13_500,
+          chapter: 'The Tide',
+          text: 'lamp.',
+          link: '/books/the-lantern-keeper/listen/13.5s',
+        },
+      ],
+    })
+  })
+
+  it('says what to do when nothing is in the player or no words are given, with exit code 1', async () => {
+    const { player } = await openBooks()
+    const idle = await run(player, 'search lamp')
+    expect(idle.exitCode).toBe(1)
+    expect(idle.stderr).toBe(
+      'Nothing is in the player. Play a title first, such as: books listen the-lantern-keeper',
+    )
+    const wordless = await run(player, 'search')
+    expect(wordless.exitCode).toBe(1)
+    expect(wordless.stderr).toBe(
+      'Search for what? For example: books search "lit at dusk"',
+    )
+  })
+
+  it('opens the link a search printed on that word, paused, as a path or a whole address', async () => {
+    const { player, bound } = await openBooks({ transcripts: spokenTranscript })
+    const opened = await run(
+      player,
+      'open /books/the-lantern-keeper/listen/13.5s',
+    )
+    expect(opened.exitCode).toBe(0)
+    await eventually(() => placeOf(bound) === 13_500)
+    expect(isSounding(bound)).toBe(false)
+    await eventually(async () =>
+      (await run(player, 'words')).stdout.includes('[lamp.]'),
+    )
+    await run(
+      player,
+      'open https://books.example.invalid/books/the-lantern-keeper/listen/6.5s',
+    )
+    await eventually(() => placeOf(bound) === 6_500)
+    expect(isSounding(bound)).toBe(false)
+    const json = await run(player, 'words', { json: '1' })
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      header: { wordLink: '/books/the-lantern-keeper/listen/6.5s' },
+    })
+  })
+})
+
 describe('books open and books screen', () => {
   it('prints the page a person opened, not the player brief', async () => {
     const { player } = await openBooks()

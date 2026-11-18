@@ -1,4 +1,5 @@
 import { defaultTheme, roleVar, themeStylesheet } from '../theme/theme.js'
+import { readAlongStylesOf } from './readAlongStyles.js'
 
 /**
  * The one look every graphical painter maps, in pixels and hex colors. The
@@ -1294,4 +1295,4 @@ ${themeStylesheet(defaultTheme)}
     right: ${px(screenLook.drawerWidth)};
   }
 }
-`
+${readAlongStylesOf(screenLook)}`

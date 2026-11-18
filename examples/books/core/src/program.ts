@@ -1,6 +1,7 @@
 import { Match as M } from 'effect'
 import { Program } from 'foldkit'
 import * as Theme from 'foldkit/theme'
+import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import * as Audible from './audible/index.js'
 import { init } from './init.js'
@@ -25,6 +26,23 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       PreviousSection: () => 'Navigation',
       NextSection: () => 'Navigation',
       SetSeekScope: () => 'Navigation',
+      PreviousParagraph: () => 'Navigation',
+      NextParagraph: () => 'Navigation',
+      ShowSearch: () => 'Navigation',
+      CloseSearch: () => 'Navigation',
+      SearchFor: () => 'Navigation',
+      ClearSearch: () => 'Navigation',
+      NextMatch: () => 'Navigation',
+      PreviousMatch: () => 'Navigation',
+      ShowMatch: () => 'Navigation',
+      PlayFrom: () => 'Navigation',
+      LeavePlayhead: () => 'Navigation',
+      BackToPlayhead: () => 'Navigation',
+      ShowWordMenu: () => 'Navigation',
+      CloseWordMenu: () => 'Navigation',
+      CopyWordLink: () => 'Navigation',
+      ReceivedMatches: () => 'Navigation',
+      FailedSearch: () => 'Navigation',
       ExpandControls: () => 'Navigation',
       CollapseControls: () => 'Navigation',
       SetAppearance: () => 'Navigation',
@@ -106,6 +124,27 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
   )
 
 /**
+ * True for a Message that stays on the device that sent it and never
+ * reaches the log: the Audible import's, so a pasted sign-in address
+ * never leaves; the look, as the integration branch already kept it;
+ * what one person is looking at in the reader, the search,
+ * its matches, and whether the words follow the playhead, so a search on
+ * a phone never moves the words on a desk; and copying a link, which
+ * goes to this device's clipboard.
+ *
+ * @example
+ * ```typescript
+ * isLocalOnlyMessage(SearchFor({ query })) // true
+ * isLocalOnlyMessage(PlayFrom({ placeMs })) // false: the audio moves on every device that mirrors
+ * ```
+ */
+export const isLocalOnlyMessage = (message: Message): boolean =>
+  Audible.isMessage(message) ||
+  Theme.isMessage(message) ||
+  TranscriptPlayer.isViewMessage(message) ||
+  message._tag === 'CopyWordLink'
+
+/**
  * The Books Program: a library of audiobooks, a page per title and per
  * chapter, and a player, with Read Aloud's picture books at
  * `/books/read-aloud`. The shelf comes from the library store and every
@@ -131,8 +170,7 @@ export const BooksProgram = Program.make({
   synchronization: {
     messageCategory: categoryOf,
     projectDomain: model => ({ library: model.library }),
-    isLocalOnly: message =>
-      Audible.isMessage(message) || Theme.isMessage(message),
+    isLocalOnly: isLocalOnlyMessage,
     keepOnRefold: (current, refolded) => ({
       ...refolded,
       library: current.library,

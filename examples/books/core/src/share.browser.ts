@@ -38,4 +38,13 @@ export const browserLinkSharing = Layer.succeed(LinkSharing, {
             new LinkSharingError({ reason: 'the link could not be copied' }),
         })
   },
+  copy: link =>
+    Effect.tryPromise({
+      try: () =>
+        navigator.clipboard.writeText(
+          new URL(link.path, window.location.origin).toString(),
+        ),
+      catch: () =>
+        new LinkSharingError({ reason: 'the link could not be copied' }),
+    }),
 })

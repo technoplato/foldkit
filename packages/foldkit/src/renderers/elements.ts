@@ -17,6 +17,7 @@ import type {
   ReferencePart,
   RowArrangement,
   RowNode,
+  SeekLanding,
   SeekNode,
   SpacerNode,
   TextEmbed,
@@ -28,6 +29,7 @@ import type {
   TranscriptClock,
   TranscriptNode,
   TranscriptPassage,
+  TranscriptWordMenu,
   UiNode,
 } from './types.js'
 
@@ -249,6 +251,7 @@ export const TextInput = (props: {
   readonly token?: string
   readonly action?: string
   readonly clearAction?: string
+  readonly againAction?: string
   readonly label?: string
   readonly focusToken?: string
   readonly blurToken?: string
@@ -265,6 +268,9 @@ export const TextInput = (props: {
   ...(props.clearAction === undefined
     ? {}
     : { clearAction: props.clearAction }),
+  ...(props.againAction === undefined
+    ? {}
+    : { againAction: props.againAction }),
   ...(props.label === undefined ? {} : { label: props.label }),
   ...(props.focusToken === undefined ? {} : { focusToken: props.focusToken }),
   ...(props.blurToken === undefined ? {} : { blurToken: props.blurToken }),
@@ -418,6 +424,7 @@ export const Seek = (
     label: string
     valueText: string
     disabled?: boolean
+    landings?: ReadonlyArray<SeekLanding>
   }>,
 ): SeekNode => ({
   _tag: 'Seek',
@@ -429,6 +436,7 @@ export const Seek = (
   label: props.label,
   valueText: props.valueText,
   ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
+  ...(props.landings === undefined ? {} : { landings: props.landings }),
 })
 
 /**
@@ -451,6 +459,11 @@ export const Transcript = (
     emptyText: string
     passages: ReadonlyArray<TranscriptPassage>
     clock?: TranscriptClock
+    isFollowing?: boolean
+    leaveAction?: string
+    focusToken?: string
+    wordMenuAction?: string
+    wordMenu?: TranscriptWordMenu
   }>,
 ): TranscriptNode => ({
   _tag: 'Transcript',
@@ -459,6 +472,17 @@ export const Transcript = (
   emptyText: props.emptyText,
   passages: props.passages,
   ...(props.clock === undefined ? {} : { clock: props.clock }),
+  ...(props.isFollowing === undefined
+    ? {}
+    : { isFollowing: props.isFollowing }),
+  ...(props.leaveAction === undefined
+    ? {}
+    : { leaveAction: props.leaveAction }),
+  ...(props.focusToken === undefined ? {} : { focusToken: props.focusToken }),
+  ...(props.wordMenuAction === undefined
+    ? {}
+    : { wordMenuAction: props.wordMenuAction }),
+  ...(props.wordMenu === undefined ? {} : { wordMenu: props.wordMenu }),
 })
 
 /**

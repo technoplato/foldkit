@@ -1,5 +1,5 @@
 import { Schema as S } from 'effect'
-import { PlaceSegment } from 'transcript-player-core-example'
+import { PlaceSegment, WordSegment } from 'transcript-player-core-example'
 
 import { Milliseconds, type TitleSlug } from './ids.js'
 
@@ -31,3 +31,19 @@ export const secondOf = (placeMs: number): Milliseconds =>
  */
 export const placePathOf = (slug: TitleSlug, placeMs: Milliseconds): string =>
   `/books/${slug}/listen/${S.encodeSync(PlaceSegment)(secondOf(placeMs))}`
+
+/**
+ * The path to one word of a title: the time the word starts, to the
+ * millisecond, in the player's own address, so the link opens the title
+ * on that word in the site, in `books open`, and from anywhere a link is
+ * pasted. A word that starts on a whole second prints as the player's
+ * address does.
+ *
+ * @example
+ * ```typescript
+ * wordPathOf(slug, Milliseconds.make(723_450)) // '/books/the-lantern-keeper/listen/12m03.45s'
+ * wordPathOf(slug, Milliseconds.make(723_000)) // '/books/the-lantern-keeper/listen/12m03s'
+ * ```
+ */
+export const wordPathOf = (slug: TitleSlug, startMs: Milliseconds): string =>
+  `/books/${slug}/listen/${S.encodeSync(WordSegment)(startMs)}`
