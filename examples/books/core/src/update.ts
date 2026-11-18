@@ -588,19 +588,46 @@ const playedBookmark = (model: Model, bookmarkId: BookmarkId): UpdateReturn =>
       listened(model, bookmark.slug, Option.some(bookmark.atMs), 'ShowsPlayer'),
   })
 
-const askedToDelete = (model: Model, bookmarkId: BookmarkId): Model =>
-  Option.isSome(bookmarkOf(model, bookmarkId))
-    ? withStack(
-        model,
-        Navigation.pushed(
-          model.navigation,
-          Navigation.presented<Destination>(
-            DeleteBookmarkQuestion({ bookmarkId }),
-            Navigation.Dialog(),
-          ),
-        ),
-      )
-    : model
+// NOTE: The stack holds one panel over the pages, so a question asked
+// from a panel beside the page, such as the bookmark's own, takes that
+// panel's place. Asked from the bookmark's panel it remembers so, and
+// answering no brings the panel back.
+const askedToDelete = (model: Model, bookmarkId: BookmarkId): Model => {
+  if (Option.isNone(bookmarkOf(model, bookmarkId))) {
+    return model
+  }
+  const isFromPanel = Option.contains(openBookmarkOf(model), bookmarkId)
+  return withStack(
+    model,
+    Navigation.pushed(
+      withoutModal(model, isBesidePanel).navigation,
+      Navigation.presented<Destination>(
+        DeleteBookmarkQuestion({
+          bookmarkId,
+          ...(isFromPanel ? { isFromPanel: true } : {}),
+        }),
+        Navigation.Dialog(),
+      ),
+    ),
+  )
+}
+
+const declinedToDelete = (model: Model): Model => {
+  const closed = withoutModal(model, isDeleteBookmarkQuestion)
+  return Option.match(
+    Option.filter(
+      Option.map(model.navigation.maybeModal, modal => modal.destination),
+      isDeleteBookmarkQuestion,
+    ),
+    {
+      onNone: () => closed,
+      onSome: question =>
+        question.isFromPanel === true
+          ? openedBookmark(closed, question.bookmarkId)
+          : closed,
+    },
+  )
+}
 
 /**
  * Asks for the moment a bookmark was wanted, so the word being spoken
@@ -1012,10 +1039,7 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       ],
       ConfirmDeleteBookmark: ({ bookmarkId }) =>
         removedBookmark(model, bookmarkId),
-      CancelDeleteBookmark: () => [
-        withoutModal(model, isDeleteBookmarkQuestion),
-        [],
-      ],
+      CancelDeleteBookmark: () => [declinedToDelete(model), []],
       OpenedPlace: ({ slug, atMs }) => openedPlace(model, slug, atMs),
       ReceivedShelf: ({ shelf }) => [
         { ...model, library: ShelfReady({ shelf }) },
