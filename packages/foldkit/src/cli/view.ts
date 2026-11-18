@@ -17,6 +17,7 @@ export {
   cliDaemonLockPath,
   cliDaemonPidPath,
   cliDaemonSocketPath,
+  cliDaemonSocketPath as backgroundProcessorSocketPath,
   removeCliDaemonFiles,
 } from './paths.js'
 export {
@@ -182,6 +183,18 @@ export const spawnCliViewDaemon = (options: {
   child.unref()
   return child
 }
+
+/**
+ * True when a Background Processor is running on the socket. The name to
+ * use for {@link isCliViewListening}.
+ */
+export const isBackgroundProcessorRunning = isCliViewListening
+
+/**
+ * Starts a Background Processor detached from this command. The name to
+ * use for {@link spawnCliViewDaemon}.
+ */
+export const spawnBackgroundProcessorFromView = spawnCliViewDaemon
 
 const recoverStaleCliDaemonLock = (socketPath: string): void => {
   try {

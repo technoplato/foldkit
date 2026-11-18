@@ -46,8 +46,9 @@ task depends on runtime identity, isolation, replay ownership, or shutdown.
 Decide the layer first; `AGENTS.md` ("Which layer?") has the checklist and a
 worked table.
 
-- Background work, and anything that stays in sync, runs in one Processor
-  held by a CLI daemon: `listenCliDaemon` with `programCliSurface`. A command
+- Background work, and anything that stays in sync, runs in the Background
+  Processor: `listenBackgroundProcessor` (first spelled `listenCliDaemon`)
+  with `programCliSurface`. A command
   is a slim view from `foldkit/cli/view` that asks it (`runCliView`), follows
   it (`writeCliFollow`), or stops it. Do not start another kind of background
   process, and do not put Effect, the sync engine, or the Program in the slim
@@ -55,7 +56,8 @@ worked table.
 - A CLI command is one-shot and scriptable. Nothing waits on a keypress and
   nothing takes over the terminal. Interactive work belongs to the TUI Client
   (`runCliTuiView`).
-- To let a command hear something as it changes, give the daemon a topic.
+- To let a command hear something as it changes, give the Background
+  Processor a topic.
   Every Program has `screen` from `programFollowings(bound)`. Add your own
   beside it with `Interaction.follow(bound, read, isSame)`, where `read` is a
   pure reading the domain core exports, and serve them with `followTopicOf`.

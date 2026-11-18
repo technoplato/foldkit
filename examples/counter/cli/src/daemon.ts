@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * Long-lived Counter CLI Processor on the shared Instant tape. The first
+ * The Counter's Background Processor on the shared Instant tape. The first
  * `counter` command starts it; later commands talk to its socket, so they
  * reuse one Instant connection. Paint stays here.
  */
 import { SyncedCounter } from 'counter-core-example'
 import { Effect } from 'effect'
 import {
-  cliDaemonSocketPath,
-  listenCliDaemon,
+  backgroundProcessorSocketPath,
+  listenBackgroundProcessor,
   programCliSurface,
 } from 'foldkit/cli'
 
@@ -22,8 +22,8 @@ const serve = Effect.gen(function* () {
     openCounterSession({ _tag: 'Instant' }),
   )
   yield* Effect.addFinalizer(() => Effect.promise(session.stop))
-  return yield* listenCliDaemon({
-    socketPath: cliDaemonSocketPath({
+  return yield* listenBackgroundProcessor({
+    socketPath: backgroundProcessorSocketPath({
       programId: counterCliProgramId,
       isolationKey: counterCliIsolationKey,
     }),

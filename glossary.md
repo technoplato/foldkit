@@ -55,6 +55,13 @@ System`. Same person in two tabs = same actor, two `from`s.
   open in Safari, a TUI, and an iPhone is three occurrences with one tape.
 - **Processor**: the running engine of one occurrence that consumes
   Messages and advertises capabilities.
+- **Background Processor**: one long-lived Processor held by a process a CLI
+  starts on its first command and talks to after that, such as the Books
+  player that keeps playing after `books listen a-new-earth` returns. A
+  command asks it, follows it (`books follow words`), or stops it. Its
+  Program and sync engine connection stay warm, which is why a command
+  answers in about 60 ms. First spelled "CLI daemon" in code
+  (`listenCliDaemon`); `listenBackgroundProcessor` is the name to use.
 - **Client**: one complete runnable adapter (browser app, CLI, Expo app).
   One Client can host several Processors.
 - **Host**: the surface that embeds a Client and grants it a carrier

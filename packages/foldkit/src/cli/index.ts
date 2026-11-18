@@ -78,3 +78,5 @@ export {
   terminalPainter,
 } from './terminalScreen.js'
 export { type WatchOptions, paintWatch, runProgramWatch } from './watch.js'
+
+export * from './backgroundProcessor.js'

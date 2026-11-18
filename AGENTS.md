@@ -6,13 +6,13 @@ Repo-local `skills/foldkit`, `skills/generate-program`, and `skills/audit-progra
 
 ## Which layer? Decide before you add code
 
-Michael, typed 2026-11-17 (Scribe #2494): "any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers". And: "Sync engine should be generic, and our implementation just happens to be instant DB, but any kind of sync engine should work there." And: "That's the CLI, nothing interactive. The Tui is the interactive side". And: "the books domain goes in the core books domain, similar to Fold Kit Core".
+Michael, typed 2026-11-17 (Scribe #2494): "any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers". And: "Sync engine should be generic, and our implementation just happens to be instant DB, but any kind of sync engine should work there." And: "That's the CLI, nothing interactive. The Tui is the interactive side". And: "the books domain goes in the core books domain, similar to Fold Kit Core". On the name of the background primitive: "Background processor, that's simpler language. I like that."
 
 Every change lands in exactly one of four layers. Name the layer before you write the first line, and say it in the commit body.
 
 1. **Foldkit core** (`packages/foldkit/src`, except `cli/`). Generic and domain free: the Program (Model, Message, update, Commands, Subscriptions), the Catalog of Actions, Navigation, the screen tree a Program returns (`foldkit/renderers` types and readings), `Interaction` (how any Client drives and follows a Program without knowing its Messages), Session and synchronization, and the sync engine interface `Runtime.SyncEngine`. Nothing here names a terminal, a socket, a process, the DOM, Instant, or a book.
 2. **A domain core** (`examples/<app>/core`, such as `examples/books/core`). Everything true about the domain, modeled once as Model, Message, update, Commands, Subscriptions, and pure readings of the Model. It relates to its Clients the way Foldkit core relates to a domain core. Nothing here names a terminal, React, or a flag.
-3. **Client adapters** (`packages/foldkit/src/cli`, `@foldkit/react`, `examples/<app>/cli`, `examples/<app>/react`, and so on). They paint what the cores say and translate native input into Messages. A terminal adapter owns argv, stdout lines, exit codes, the daemon process, its socket, pid, and lock. The CLI is one-shot and scriptable: nothing waits on a keypress and nothing takes over the terminal. Anything interactive belongs to the TUI Client.
+3. **Client adapters** (`packages/foldkit/src/cli`, `@foldkit/react`, `examples/<app>/cli`, `examples/<app>/react`, and so on). They paint what the cores say and translate native input into Messages. A terminal adapter owns argv, stdout lines, exit codes, and the Background Processor's process, socket, pid, and lock. The CLI is one-shot and scriptable: nothing waits on a keypress and nothing takes over the terminal. Anything interactive belongs to the TUI Client.
 4. **Engine and service adapters** (`@foldkit/instant`, an example's `instant*.ts`, `ffplayAudioOutput`, an HTTP client). They fill the ports a core declares: a `Runtime.SyncEngine`, a `Context.Service`. Instant is the engine every example ships with (see "Sync: Instant only" below); core depends only on the interface, and `Runtime.Memory` implements it for tests.
 
 Worked example, from the Books command line (Scribe #2494). The ask was to play an audiobook in the background and tail the words being read, with the paragraphs before and after, live and non-interactively.
@@ -29,11 +29,13 @@ Worked example, from the Books command line (Scribe #2494). The ask was to play 
 
 The Books CLI adapter added no books logic: it calls `spokenWordsOf` and prints. A second Client (a caption, a status bar, React) gets the same words from the same function.
 
+Sessions sync what happened, and each Client derives what to show. The sync engine carries the facts (played, paused, sought to a place, navigated) and the place a player reports once a second. The word being spoken, the paragraph, and the highlight are never sent: each Client reads them locally from the Transcript's clock and the stored word times, many times a second. That is what keeps the highlight on the word and the log small. Do not add a Message per word, and do not sync derived state.
+
 Before you add code, answer these in order:
 
 1. Would a second Client need this fact or behavior? Then it is core. Put it in the domain core when it names the domain, in Foldkit core when it does not.
 2. Does it name a terminal, a flag, a process, the DOM, a pixel, or an SDK? Then it is an adapter, and the core must not learn of it. Give the core a port (a Service or the sync engine interface) or a pure reading, and let the adapter fill or print it.
-3. Is it background work or anything that stays in sync? It runs in a Processor, one running Program held by a CLI daemon (`listenCliDaemon`). Commands ask it (Show, Do, Read, Run), follow it (Follow), and stop it. Do not start a second kind of background process.
+3. Is it background work or anything that stays in sync? It runs in the Background Processor: one running synced Program held by a process the CLI starts on its first command (`listenBackgroundProcessor`; first spelled `listenCliDaemon`, which still works). Commands ask it (Show, Do, Read, Run), follow it (`follow <topic>`), and stop it. Do not start a second kind of background process.
 4. Is it interactive (keys, a full screen)? It belongs to the TUI Client, never to a CLI command.
 5. Did you find core logic sitting in an adapter, or an adapter concern in a core? Say so, and move it with tests, smallest step first.
 

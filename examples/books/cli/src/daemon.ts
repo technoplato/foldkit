@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * The Books player: one detached process per Instant app on this machine
- * that holds the Program and its ffplay audio, so `books listen
- * a-new-earth` keeps playing after the command returns, and `books pause`,
+ * The Books player, a Background Processor: one detached process per
+ * Instant app on this machine that holds the Program and its ffplay
+ * audio, so `books listen a-new-earth` keeps playing after the command
+ * returns, and `books pause`,
  * `books tui`, and every other command act on the same player through
  * its socket. The first command that needs it starts it. `books stop`,
  * the end of the title, or ten minutes with nothing in the player ends
@@ -26,7 +27,7 @@ import {
 } from 'books-core-example'
 import { Duration, Effect } from 'effect'
 import { Interaction, Processor, Telemetry } from 'foldkit'
-import { listenCliDaemon } from 'foldkit/cli'
+import { listenBackgroundProcessor } from 'foldkit/cli'
 import { fileSink } from 'foldkit/telemetry/node'
 
 import { NodeRuntime } from '@effect/platform-node'
@@ -54,7 +55,7 @@ const serve = Effect.gen(function* () {
   const socketPath = booksPlayerSocketPath()
   const signIn = yield* Effect.promise(signInFromEnv)
   if (signIn._tag === 'Refused') {
-    return yield* listenCliDaemon({
+    return yield* listenBackgroundProcessor({
       socketPath,
       Model: SyncedBooks.Model,
       Message: SyncedBooks.Message,
@@ -92,7 +93,7 @@ const serve = Effect.gen(function* () {
   const player = makeBooksPlayer(bound, writes, {
     onPainted: telemetry.recordRendered,
   })
-  return yield* listenCliDaemon({
+  return yield* listenBackgroundProcessor({
     socketPath,
     Model: SyncedBooks.Model,
     Message: SyncedBooks.Message,
