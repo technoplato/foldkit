@@ -18,7 +18,12 @@ import {
   presentedAddBooks,
   reconnectedAudible,
 } from './addBooks.js'
-import { bookmarkOnWord, bookmarkPlaceAt, excerptAround } from './bookmarks.js'
+import {
+  alreadyBookmarkedNotice,
+  bookmarkOnWord,
+  bookmarkPlaceAt,
+  excerptAround,
+} from './bookmarks.js'
 import { closingsOf } from './closings.js'
 import {
   BookmarkDrawer,
@@ -749,7 +754,7 @@ const bookmarkedAt = (
     return [
       {
         ...model,
-        maybeNotice: Option.some('That word is already bookmarked'),
+        maybeNotice: Option.some(alreadyBookmarkedNotice),
       },
       [],
     ]

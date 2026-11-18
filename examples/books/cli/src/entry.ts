@@ -18,6 +18,8 @@
  *   books words                    the paragraph being read, with those around it
  *   books follow words             the same, again on each new paragraph
  *   books follow words --json      as lines of JSON, for another program
+ *   books bookmark                 mark the word being spoken; words after it are its note
+ *   books bookmarks                this title's bookmarks, a line each; --json for another program
  *   books tui                      the player, live, in this terminal
  *   books stop                     pause, save your place, end the player
  *   books actions                  every command
