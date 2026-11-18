@@ -4,6 +4,7 @@ import type { Entry } from '../catalog/catalog.js'
 import type { IconName } from './icons.js'
 import type {
   BoxLayer,
+  BoxMeasure,
   BoxNode,
   ButtonNode,
   ButtonVariant,
@@ -14,6 +15,7 @@ import type {
   PlainPart,
   ProgressNode,
   ReferencePart,
+  RowArrangement,
   RowNode,
   SeekNode,
   SpacerNode,
@@ -283,14 +285,57 @@ export const Spacer = (rows = 1): SpacerNode => ({
  * ```
  */
 export const Row = (
-  props: Readonly<{ gap?: number; isBoard?: boolean }> = {},
+  props: Readonly<{
+    gap?: number
+    isBoard?: boolean
+    arrange?: RowArrangement
+  }> = {},
   ...children: ReadonlyArray<UiNode>
 ): RowNode => ({
   _tag: 'Row',
   gap: props.gap ?? 1,
   ...(props.isBoard === undefined ? {} : { isBoard: props.isBoard }),
+  ...(props.arrange === undefined ? {} : { arrange: props.arrange }),
   children,
 })
+
+/**
+ * A bar with three places: what starts it, what sits in its centre, and
+ * what ends it. The centre stays in the middle whatever the ends hold, so
+ * a player's Play is under the eye in a wide window. It only organizes;
+ * a stylesheet gives it its look.
+ *
+ * @example
+ * ```typescript
+ * Toolbar({ start: [nowPlaying], center: [back30, play], end: [expand] })
+ * ```
+ */
+export const Toolbar = (
+  places: Readonly<{
+    start?: ReadonlyArray<UiNode>
+    center?: ReadonlyArray<UiNode>
+    end?: ReadonlyArray<UiNode>
+  }>,
+): RowNode =>
+  Row(
+    { arrange: 'Toolbar' },
+    Row({}, ...(places.start ?? [])),
+    Row({}, ...(places.center ?? [])),
+    Row({}, ...(places.end ?? [])),
+  )
+
+/**
+ * Two parts side by side: a side, such as a list of chapters, and the
+ * main part beside it, such as the words. A painter without the room
+ * sets the side above the main part.
+ *
+ * @example
+ * ```typescript
+ * Split(contents, reader)
+ * ```
+ */
+export const Split = (side: UiNode, main: UiNode): RowNode =>
+  Row({ arrange: 'Split' }, side, main)
 
 /** A vertical stack. */
 export const Column = (
@@ -319,6 +364,7 @@ export const Box = (
     padding?: number
     isDock?: boolean
     layer?: BoxLayer
+    measure?: BoxMeasure
   }> = {},
   ...children: ReadonlyArray<UiNode>
 ): BoxNode => ({
@@ -326,8 +372,21 @@ export const Box = (
   padding: props.padding ?? 0,
   ...(props.isDock === undefined ? {} : { isDock: props.isDock }),
   ...(props.layer === undefined ? {} : { layer: props.layer }),
+  ...(props.measure === undefined ? {} : { measure: props.measure }),
   children,
 })
+
+/**
+ * What is read, kept at a readable width however wide the window is. It
+ * only organizes; the stylesheet says how wide readable is.
+ *
+ * @example
+ * ```typescript
+ * ReadingMeasure(heading, chapterPicker, transcript)
+ * ```
+ */
+export const ReadingMeasure = (...children: ReadonlyArray<UiNode>): BoxNode =>
+  Box({ measure: 'Reading' }, ...children)
 
 /**
  * A bar pinned to the bottom of the screen, such as a now-playing bar

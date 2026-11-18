@@ -1073,7 +1073,7 @@ export const paintTree = (
         {paintChildren(box.children)}
       </DockBox>
     ) : (
-      <div className={classFor('Box', 'fk-box')}>
+      <div className={classFor('Box', 'fk-box')} data-measure={box.measure}>
         {paintChildren(box.children)}
       </div>
     )
@@ -1295,6 +1295,7 @@ export const paintTree = (
               'Row',
               row.isBoard === true ? 'fk-row fk-board' : 'fk-row',
             )}
+            data-arrange={row.arrange}
           >
             {paintChildren(row.children)}
           </div>
