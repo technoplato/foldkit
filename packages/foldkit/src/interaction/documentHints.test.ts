@@ -130,6 +130,36 @@ describe('listenForHints', () => {
     )
   })
 
+  it('measures the panel from the page’s start edge each time, so one shown near the far edge before does not push the next against it', () => {
+    listen()
+    const viewWidth = 390
+    vi.stubGlobal('innerWidth', viewWidth)
+    const first = hinted(play)
+    fire(document, 'keydown')
+    fire(first, 'focusin')
+    const panel = tooltip()
+    if (panel === null) {
+      throw new Error('no panel')
+    }
+    // A panel placed by the page shrinks to the room left of the far edge,
+    // as a browser lays it out: 320 wide at most.
+    Object.defineProperty(panel, 'offsetWidth', {
+      configurable: true,
+      get: () =>
+        Math.min(320, viewWidth - Number.parseInt(panel.style.left || '0', 10)),
+    })
+    const near = hinted(play)
+    near.getBoundingClientRect = () => new DOMRect(viewWidth - 60, 700, 50, 40)
+    fire(first, 'focusout')
+    // Where a narrower hint was shown before, part way across.
+    panel.style.left = '86px'
+    fire(near, 'focusin')
+    expect(Number.parseInt(panel.style.left, 10) + 320).toBeLessThanOrEqual(
+      viewWidth - 8,
+    )
+    vi.unstubAllGlobals()
+  })
+
   it('shows nothing for a control without a hint, and nothing once stopped', () => {
     listen()
     const plain = document.createElement('button')
