@@ -101,10 +101,14 @@ export type SeekScope = typeof SeekScope.Type
 /**
  * The Transcript Player: one recording, where it is, whether it sounds,
  * how fast, what the seek bar spans, and the words near the place.
+ * `maybePlacedAtMs` is the wall-clock time the audio last reported the
+ * place while playing; None after a jump until it reports again. With it
+ * a painter knows the place between reports, see {@link playbackClockOf}.
  */
 export const Model = S.Struct({
   media: Media,
   placeMs: Milliseconds,
+  maybePlacedAtMs: S.OptionFromOptionalKey(S.Number),
   transport: Transport,
   nextCue: S.Int,
   speed: Speed,
@@ -133,6 +137,7 @@ export const init = (
 ): Model => ({
   media,
   placeMs: options.placeMs ?? Milliseconds.make(0),
+  maybePlacedAtMs: Option.none(),
   transport: Paused(),
   nextCue: 0,
   speed: options.speed ?? 1,
@@ -145,6 +150,29 @@ export const init = (
 /** True while the player is sounding. */
 export const isSounding = (model: Model): boolean =>
   model.transport._tag === 'Playing'
+
+/**
+ * The player's clock, as a painter reads it: the place, the wall-clock
+ * time the audio reported it, and how fast it moves. It runs at the speed
+ * only while the player sounds and the audio has reported since the last
+ * jump; paused, or just after a seek, it stands still at the place.
+ *
+ * @example
+ * ```typescript
+ * playbackClockOf(playing) // { placeMs: 20000, atMs: 1792350000000, rate: 1.5 }
+ * playbackClockOf(paused) // { placeMs: 20000, atMs: 0, rate: 0 }
+ * ```
+ */
+export const playbackClockOf = (
+  model: Model,
+): Readonly<{ placeMs: number; atMs: number; rate: number }> =>
+  Option.match(
+    Option.filter(model.maybePlacedAtMs, () => isSounding(model)),
+    {
+      onNone: () => ({ placeMs: model.placeMs, atMs: 0, rate: 0 }),
+      onSome: atMs => ({ placeMs: model.placeMs, atMs, rate: model.speed }),
+    },
+  )
 
 /** True when the recording has an audio file to play. */
 export const hasAudio = (model: Model): boolean =>

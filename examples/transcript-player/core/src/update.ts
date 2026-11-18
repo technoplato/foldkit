@@ -48,6 +48,7 @@ const clamped = (model: Model, placeMs: number): Milliseconds =>
 const sounding = (model: Model, placeMs: Milliseconds): Model => ({
   ...model,
   placeMs,
+  maybePlacedAtMs: Option.none(),
   transport: Playing({ cue: model.nextCue }),
   nextCue: model.nextCue + 1,
 })
@@ -99,7 +100,7 @@ const reachedPlace = (
 ): UpdateReturn =>
   isSounding(model)
     ? [
-        { ...model, placeMs },
+        { ...model, placeMs, maybePlacedAtMs: Option.some(wallClockMs) },
         [],
         Option.some(Advanced({ placeMs, wallClockMs })),
       ]

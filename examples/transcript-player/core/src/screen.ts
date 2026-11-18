@@ -33,6 +33,7 @@ import {
   currentWordOf,
   isSounding,
   passagesOf,
+  playbackClockOf,
   sectionAt,
 } from './model.js'
 
@@ -366,7 +367,9 @@ const emptyTextOf = (model: Model): string => {
 /**
  * The words around the place, a passage before and a few after, the one
  * sounding marked. Pressing a word plays from it; pressing a passage's
- * time moves there.
+ * time moves there. It carries the player's clock and each word's start,
+ * so a painter moves the mark on the word between the once-a-second
+ * reports of the place, with `transcriptAt` from `foldkit/renderers`.
  *
  * @example
  * ```typescript
@@ -400,6 +403,7 @@ export const transcriptOf = (model: Model): UiNode => {
         token: word.wordId,
         text: word.text,
         isCurrent: Option.contains(maybeCurrentWordId, word.wordId),
+        startMs: word.startMs,
       })),
     }
   }
@@ -433,6 +437,7 @@ export const transcriptOf = (model: Model): UiNode => {
     action: SeekToWord.tag,
     emptyText: emptyTextOf(model),
     passages: paragraphs,
+    clock: playbackClockOf(model),
   })
 }
 
