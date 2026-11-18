@@ -18,17 +18,20 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 import {
   ConnectAudible,
   DeselectAudibleTitles,
+  GetAudiobookAudio,
   ImportAudibleTitles,
   ReadAudibleLibraryAgain,
   SelectAllAudibleTitles,
   ToggleAudibleTitle,
   TryAudibleSignInAgain,
 } from './message.js'
-import type { AudibleView, SignIn, TitlesRead } from './model.js'
-import { isSelected } from './model.js'
+import type { Audio, AudibleView, SignIn, TitlesRead } from './model.js'
+import { canGetAudioOf, isSelected, readAudioOf } from './model.js'
 import { type AudibleProblem, sentenceOf } from './problem.js'
 import type {
   AudibleTitle,
+  AudioState,
+  AudioStatus,
   ImportProgress,
   ImportSummary,
   LeftOutField,
@@ -341,17 +344,76 @@ const imageOf = (title: AudibleTitle): Pick<ListItem, 'image'> =>
     }),
   })
 
+const hoursWord = (count: number): string => (count === 1 ? 'hour' : 'hours')
+
+/** One book's audio in words, such as "Audio: next in the queue". */
+export const audioLineOf = (state: AudioState): string =>
+  M.value(state).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      NoAudio: () => 'No audio to get',
+      Queued: ({ position }) =>
+        position === 1
+          ? 'Audio: next in the queue'
+          : `Audio: ${position.toString()} in line`,
+      Fetching: () => 'Audio: getting it from Audible',
+      Words: ({ done, total }) =>
+        `Audio: hearing the words, ${done.toString()} of ${total.toString()} ${hoursWord(total)}`,
+      Passages: () => 'Audio: writing the read-along',
+      Done: () => 'Audio and read-along are in',
+      Refused: ({ reason, fix }) =>
+        fix === ''
+          ? `Audible refused the audio: ${reason}`
+          : `Audible refused the audio: ${reason}. ${fix}`,
+      Failed: ({ reason }) => `The audio stopped: ${reason}`,
+    }),
+  )
+
+const audioOfTitle = (
+  audio: Audio,
+  title: AudibleTitle,
+): Option.Option<AudioState> =>
+  Option.flatMap(readAudioOf(audio), read =>
+    Option.map(
+      Array.findFirst(read.status.titles, each => each.asin === title.asin),
+      each => each.state,
+    ),
+  )
+
+const getAudioButtonsOf = (
+  entries: Entries,
+  audio: Audio,
+  title: AudibleTitle,
+): ReadonlyArray<ButtonNode> =>
+  isOffered(entries, GetAudiobookAudio.tag) && canGetAudioOf(audio, title.asin)
+    ? [
+        {
+          _tag: 'Button',
+          label: 'Get audio now',
+          action: `${GetAudiobookAudio.tag}:${title.asin}`,
+          variant: 'Ghost',
+        },
+      ]
+    : []
+
 const titleItemOf = (
   entries: Entries,
   read: TitlesRead,
+  audio: Audio,
   title: AudibleTitle,
 ): ListItem => {
   const toggle = `${ToggleAudibleTitle.tag}:${title.asin}`
   const isOn = isOffered(entries, ToggleAudibleTitle.tag)
+  const trailing = getAudioButtonsOf(entries, audio, title)
   return {
     key: title.asin,
     title: title.name,
-    lines: [Array.join(title.authors, ', '), detailOf(title)],
+    lines: [
+      Array.join(title.authors, ', '),
+      detailOf(title),
+      ...Array.fromOption(Option.map(audioOfTitle(audio, title), audioLineOf)),
+    ],
+    ...(Array.isReadonlyArrayEmpty(trailing) ? {} : { trailing }),
     ...imageOf(title),
     check: {
       isChecked: isSelected(read, title.asin),
@@ -391,7 +453,84 @@ const skippedLines = (
     ),
   )
 
-const listOf = (entries: Entries, read: TitlesRead): ReadonlyArray<UiNode> =>
+const countOf = (
+  status: AudioStatus,
+  tags: ReadonlyArray<AudioState['_tag']>,
+): number =>
+  Array.filter(status.titles, title => Array.contains(tags, title.state._tag))
+    .length
+
+const audioCountsOf = (status: AudioStatus): string =>
+  Array.join(
+    Array.filter(
+      [
+        `${countOf(status, ['Done']).toString()} in`,
+        ...(countOf(status, ['Fetching', 'Words', 'Passages']) > 0
+          ? [`${countOf(status, ['Fetching', 'Words', 'Passages']).toString()} underway`]
+          : []),
+        `${countOf(status, ['Queued']).toString()} queued`,
+        ...(countOf(status, ['Refused']) > 0
+          ? [`${countOf(status, ['Refused']).toString()} refused`]
+          : []),
+        ...(countOf(status, ['Failed']) > 0
+          ? [`${countOf(status, ['Failed']).toString()} stopped`]
+          : []),
+      ],
+      String.isNonEmpty,
+    ),
+    ' · ',
+  )
+
+const nameOfAsin = (status: AudioStatus, asin: string): string =>
+  Option.match(
+    Array.findFirst(status.titles, title => title.asin === asin),
+    { onNone: () => asin, onSome: title => title.name },
+  )
+
+const queueLineOf = (status: AudioStatus): Option.Option<string> => {
+  const parts = [
+    ...(status.running === null
+      ? []
+      : [`Now: ${nameOfAsin(status, status.running)}`]),
+    ...(status.next === null
+      ? []
+      : [`Next: ${nameOfAsin(status, status.next)}`]),
+  ]
+  return Array.isReadonlyArrayEmpty(parts)
+    ? Option.none()
+    : Option.some(Array.join(parts, ' · '))
+}
+
+/**
+ * The owned books' audio above the list: how many are in, underway,
+ * queued, refused, or stopped; which book the queue is on and takes next;
+ * and why the last ask or read failed.
+ */
+const audioLines = (audio: Audio): ReadonlyArray<UiNode> =>
+  M.value(audio).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      AudioUnread: () => [],
+      AudioUnreadable: ({ problem }) => [
+        Text(`Audio: ${sentenceOf(problem)}`, { dim: true }),
+      ],
+      AudioRead: read => [
+        Text(`Audio: ${audioCountsOf(read.status)}`, { dim: true }),
+        ...Array.fromOption(
+          Option.map(queueLineOf(read.status), line =>
+            Text(line, { dim: true }),
+          ),
+        ),
+        ...problemLines(read.maybeProblem),
+      ],
+    }),
+  )
+
+const listOf = (
+  entries: Entries,
+  read: TitlesRead,
+  audio: Audio,
+): ReadonlyArray<UiNode> =>
   Array.match(read.titles, {
     onEmpty: () => [
       Text('Your Audible library has no audiobooks to import.'),
@@ -401,6 +540,7 @@ const listOf = (entries: Entries, read: TitlesRead): ReadonlyArray<UiNode> =>
       Text(countsOf(read), { dim: true }),
       ...skippedLines(read.skipped),
       ...problemLines(read.maybeProblem),
+      ...audioLines(audio),
       Row(
         {},
         ...buttonsOf(
@@ -412,7 +552,9 @@ const listOf = (entries: Entries, read: TitlesRead): ReadonlyArray<UiNode> =>
       Text('Your Audible books', { dim: true }),
       List({
         label: 'Your Audible books',
-        items: Array.map(titles, title => titleItemOf(entries, read, title)),
+        items: Array.map(titles, title =>
+          titleItemOf(entries, read, audio, title),
+        ),
       }),
       Dock(Column({ gap: 1 }, Row({}, ...importButtonsOf(entries, read)))),
     ],
@@ -575,7 +717,7 @@ export const titlesScreen = (
       M.withReturnType<ReadonlyArray<UiNode>>(),
       M.tagsExhaustive({
         TitlesUnread: () => [Text('Reading your library…', { dim: true })],
-        TitlesRead: read => listOf(entries, read),
+        TitlesRead: read => listOf(entries, read, view.audible.audio),
         TitlesImporting: ({ selected, progress }) =>
           importingOf(selected.length, progress),
         TitlesImported: ({ summary, skipped }) =>

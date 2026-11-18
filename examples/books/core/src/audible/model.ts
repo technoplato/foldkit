@@ -169,7 +169,9 @@ export const newAsinsOf = (
   )
 
 /** The owned titles' audio read so far, while there is a status to show. */
-export const readAudioOf = (audio: Audio): Option.Option<AudioRead> =>
+export const readAudioOf = (
+  audio: Audio,
+): Option.Option<typeof AudioRead.Type> =>
   audio._tag === 'AudioRead' ? Option.some(audio) : Option.none()
 
 /**

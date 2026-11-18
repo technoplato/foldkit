@@ -273,6 +273,16 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
           Audible.libraryStream(isReading),
       },
     ),
+    audibleAudio: entry(
+      { isWatching: S.Boolean },
+      {
+        modelToDependencies: model => ({
+          isWatching: Audible.isWatchingAudio(audibleViewOf(model)),
+        }),
+        dependenciesToStream: ({ isWatching }) =>
+          Audible.audioStream(isWatching),
+      },
+    ),
     audibleImport: entry(
       { maybeAsins: S.Option(S.Array(Audible.Asin)) },
       {

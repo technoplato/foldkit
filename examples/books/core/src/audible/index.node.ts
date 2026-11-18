@@ -1,3 +1,4 @@
+export * from './audioQueue.node.js'
 export * from './bridge.node.js'
 export * from './demo.node.js'
 export * from './endpoint.node.js'

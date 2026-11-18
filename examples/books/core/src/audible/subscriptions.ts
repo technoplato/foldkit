@@ -1,13 +1,15 @@
-import { Effect, Match as M, Option, Stream } from 'effect'
+import { Duration, Effect, Match as M, Option, Schedule, Stream } from 'effect'
 
 import {
   AdvancedAudibleImport,
   FailedImportAudibleTitles,
   FailedReadAudibleLibrary,
+  FailedReadAudiobookAudio,
   FailedStartAudibleSignIn,
   ImportedAudibleTitles,
   type Message,
   ReceivedAudibleLibrary,
+  ReceivedAudiobookAudio,
   StartedAudibleSignIn,
 } from './message.js'
 import type { AudibleModel, AudibleView } from './model.js'
@@ -126,3 +128,35 @@ export const importStream = (
         }),
       ),
   })
+
+/** True while the titles page shows: the owned books' audio is read again and again. */
+export const isWatchingAudio = (
+  maybeView: Option.Option<AudibleView>,
+): boolean => Option.exists(maybeView, view => view.page === 'Titles')
+
+/** How often the titles page reads the owned books' audio again. */
+export const audioEvery = Duration.seconds(20)
+
+/**
+ * Reads every owned book's audio while `isWatching`, at once and then
+ * every `audioEvery`, so the page shows the queue as it moves.
+ */
+export const audioStream = (isWatching: boolean): Stream.Stream<Message> =>
+  isWatching
+    ? Stream.unwrap(
+        Effect.gen(function* () {
+          const audible = yield* AudibleImport
+          return Stream.fromEffectSchedule(
+            audible.readAudio.pipe(
+              Effect.map(status => ReceivedAudiobookAudio({ status })),
+              Effect.catch(error =>
+                Effect.succeed(
+                  FailedReadAudiobookAudio({ problem: error.problem }),
+                ),
+              ),
+            ),
+            Schedule.spaced(audioEvery),
+          )
+        }),
+      )
+    : Stream.empty
