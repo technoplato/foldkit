@@ -52,6 +52,26 @@ describe('following a part of any Program’s view, live', () => {
     ])
   })
 
+  it('puts the host’s own commands for the part after the part’s Actions, and names the command that lists all as the host does', async () => {
+    const bound = bindChapters()
+    const following = followLive(
+      bound,
+      () => ({ node: Text('made up'), offers: ['NextChapter'] }),
+      {
+        name: 'chapters',
+        hostOffers: () => [{ command: 'mark', what: 'Marks this place' }],
+        list: { command: 'actions', what: 'Lists all of it' },
+        piped: () => Stream.make('piped'),
+      },
+    )
+    const [frame = ''] = await first(following(terminal(80, 10), Cli()))
+    expect(frame.split('\n').slice(1)).toEqual([
+      '  chapters next-chapter  Plays the next chapter',
+      '  chapters mark          Marks this place',
+      '  chapters actions       Lists all of it',
+    ])
+  })
+
   it('sends the frame again when the Model changes what it shows, and the commands change with it', async () => {
     const bound = bindCounter()
     const heard = first(

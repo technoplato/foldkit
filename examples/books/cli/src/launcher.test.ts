@@ -232,8 +232,64 @@ describe(
       expect(last.length).toBeLessThanOrEqual(18)
       expect(last[0]).toMatch(/^The Lantern Keeper · The Tide/)
       expect(last.some(line => /^›\d+:\d\d {3}.*\[\S+\]/.test(line))).toBe(true)
-      expect(last.at(-1)).toMatch(/^ {2}books actions +Lists every command$/)
+      expect(last.at(-1)).toMatch(/^ {2}books actions +Lists everything/)
+      expect(last.join('\n')).toMatch(/^ {2}books bookmark +Marks the word/m)
+      expect(last.join('\n')).toMatch(/^ {2}books link +Shows the whole link/m)
       expect(last.join('\n')).toMatch(/^ {2}books pause +Pauses and keeps/m)
+    })
+
+    it('prints help read from the declarations, and starts no player to do it', () => {
+      const library = newLibrary()
+      const help = books(library, [])
+      expect(help.status).toBe(0)
+      expect(help.stdout).toMatch(
+        /^ {2}books listen <title> +Plays this book/mu,
+      )
+      expect(help.stdout).toMatch(
+        /^ {2}books follow \[words\|screen\] \[--each-word\]/mu,
+      )
+      const one = books(library, ['help', 'find'])
+      expect(one.stdout.split('\n').at(0)).toBe('books search <words> [--json]')
+      expect(one.stdout).toContain('Also: books find')
+      expect(books(library, ['stop']).stdout).toContain(
+        'Nothing is playing in this terminal’s player.',
+      )
+    })
+
+    it('refuses a flag a command does not take, with the nearest, before any player starts', () => {
+      const library = newLibrary()
+      const refused = books(library, ['follow', 'words', '--each-wrd'])
+      expect(refused.status).toBe(2)
+      expect(refused.stdout).toBe('')
+      expect(refused.stderr.split('\n').filter(line => line !== '')).toEqual([
+        'books follow takes no --each-wrd. Did you mean --each-word?',
+        'Usage: books follow [words|screen] [--each-word] [--paragraphs] [--json] [--before <number>] [--after <number>]',
+      ])
+      const wrongKind = books(library, ['words', '--before', 'two'])
+      expect(wrongKind.status).toBe(2)
+      expect(wrongKind.stderr).toContain(
+        '--before must be a number; got "two".',
+      )
+      expect(books(library, ['stop']).stdout).toContain(
+        'Nothing is playing in this terminal’s player.',
+      )
+    })
+
+    it('says what it can be asked for as tools a program reads', () => {
+      const library = newLibrary()
+      const listed = books(library, ['actions', '--json'])
+      expect(listed.status).toBe(0)
+      const parsed: unknown = JSON.parse(listed.stdout)
+      const tools =
+        typeof parsed === 'object' && parsed !== null && 'tools' in parsed
+          ? parsed.tools
+          : []
+      const names = Array.isArray(tools)
+        ? tools.map((tool: Readonly<{ name: string }>) => tool.name)
+        : []
+      expect(names).toContain('search')
+      expect(names).toContain('listen')
+      expect(names).toContain('pause')
     })
 
     it('answers a command nobody declared in one sentence and leaves no player running', () => {

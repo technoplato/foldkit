@@ -26,6 +26,37 @@ add it here first.
 - **Catalog**: the single ordered value of all Action declarations. Menus,
   keyboard maps, buttons, agent tools, and analytics derive from it. e.g.
   `Catalog.make([Increment, Decrement, Reset])`.
+- **Declaration**: one thing a person or a program can ask for, as plain
+  data that knows no terminal, browser, or application: its name, other
+  names, `what` it does, `why` the user would want that, its parameters,
+  its examples, and what it touches. e.g. `Catalog.declarationOf(Reset)`.
+  Help, a terminal's usage and reader, a hint, an accessible description,
+  and an agent's tool are read from it (`foldkit/declaration`).
+- **what / why**: the two sentences a declaration says, both about the
+  user in the third person and never in one Client's words. e.g. what
+  `Raises the count by one`, why `To count one more`.
+- **Parameter**: one thing a declaration takes, derived from an Effect
+  Schema field and never written beside it: its kind, what it is for, and
+  whether it is required, optional, or has a default. e.g. the field
+  `before: S.optionalKey(Count)` is a Number that may be left out.
+- **Subject**: the one parameter a declaration is about, such as the title
+  to play. A person says it right after the name and a menu asks for it
+  second; every other parameter is given by its own name. e.g. `slug` on
+  `Listen`, shown as `<title>`.
+- **mutates / triggers**: what an Action touches, as typed references and
+  never strings: the state it changes (`mutates: [at.count]`) and the
+  Commands whose side effects it runs (`triggers: [FetchWeather]`).
+  `Catalog.undeclaredTouches` holds `update` to both.
+- **ModelPath**: a typed reference to a field of a Model, written as
+  property access. e.g. `ModelPath.of(Model).count`; a field that is
+  renamed breaks the build.
+- **Observable**: state a Model says `what` and `why` for in its Schema
+  annotations, so a Client may list and show it. e.g.
+  `observablesOf(Model)` gives `count` with `The count`. The same paths an
+  Action mutates.
+- **Terminal command**: the word a terminal takes, `books pause`. It is how
+  a terminal spells a declaration, not a **Command** below: an Action's
+  word comes from its tag, and a host declares what it does itself.
 - **Enabled / Disabled**: the one validity vocabulary on a declaration.
   e.g. Reset at count 0 is `Disabled({ because: 'count is already 0' })`;
   the button disables with it, the menu dims with it, the agent refuses
@@ -37,6 +68,10 @@ add it here first.
   (React, TUI, ASCII) draw it; they never invent product controls.
 - **Command**: a described side effect returned by update. e.g.
   `FetchWeather`, `pushUrl('/counter/c1')`.
+- **m / md (older)**: the first way to document a Message, with `.doc`
+  `what` and `why` and its own keys and tokens (`foldkit/message`), still
+  used by a few older examples. New work declares Actions with
+  `Catalog.action`.
 
 ## Provenance and sync
 

@@ -20,6 +20,7 @@ import { offeredBy } from '../renderers/query.js'
 import type { UiNode } from '../renderers/types.js'
 import { type TerminalInk, inkedLine } from '../theme/terminal.js'
 import {
+  type HostCommand,
   paintOffered,
   paintProgram,
   paintScreen,
@@ -238,7 +239,7 @@ export type CliFollowings = Readonly<Record<string, CliFollowing>>
 export const programFollowings = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name = '',
-  options: Readonly<{ listCommand?: string; inkOf?: () => TerminalInk }> = {},
+  options: Readonly<{ list?: HostCommand; inkOf?: () => TerminalInk }> = {},
 ): CliFollowings => ({
   screen: followLive(
     bound,
@@ -274,12 +275,15 @@ export type LivePart = Readonly<{
 
 /**
  * How a part is followed: the Program's command `name`, for the commands
- * under the part, with the command that lists them all; the ink for a
- * view whose output takes color; and what a pipe gets in place of frames.
+ * under the part; `hostOffers`, the commands the host itself adds for
+ * this part, read when a frame is painted; `list`, the command that lists
+ * them all, `help` unless the host has another; the ink for a view whose
+ * output takes color; and what a pipe gets in place of frames.
  */
 export type FollowLiveOptions = Readonly<{
   name: string
-  listCommand?: string
+  list?: HostCommand
+  hostOffers?: () => ReadonlyArray<HostCommand>
   inkOf?: () => TerminalInk
   piped: CliFollowing
 }>
@@ -338,9 +342,10 @@ export const followLive =
       const frame = liveFrameOf(part.node, size, {
         ...(part.header === undefined ? {} : { header: part.header }),
         footer: paintOffered(bound, options.name, part.offers ?? [], {
-          ...(options.listCommand === undefined
+          ...(options.hostOffers === undefined
             ? {}
-            : { listCommand: options.listCommand }),
+            : { hostCommands: options.hostOffers() }),
+          ...(options.list === undefined ? {} : { list: options.list }),
         }),
       })
       const inkOf = options.inkOf

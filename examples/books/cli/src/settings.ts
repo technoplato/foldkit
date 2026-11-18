@@ -61,10 +61,3 @@ export const booksPlayerSocketPath = (
     programId: booksCommandName,
     isolationKey: playerKeyOf(env),
   })
-
-/**
- * How `books` reads its argv: the flags that are on or off, so each may
- * be typed before or after the words. `--each-word` moves `follow words`
- * with every word.
- */
-export const booksArgv = { switches: ['each-word'] } as const

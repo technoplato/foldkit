@@ -66,6 +66,29 @@ worked table.
   and owns no rule about them: `spokenWordsOf` in `examples/books/core` and
   `transcriptExcerptOf` in `foldkit/renderers` do.
 
+## Help, usage, and refusals are derived
+
+Type no usage line, help table, hint, or command example in a Client. Each
+is read from a declaration; `AGENTS.md` ("Declare once; derive everything")
+has the rule, the derivation path, and four worked pairs.
+
+- A Program's Actions reach a Client as `Catalog.declarationsOf(catalog)`,
+  with no Model. What a host does itself (follow, devices, sign in, stop)
+  is declared in the host with `Declaration.declare(name, { what, why,
+fields, subject })`, its parameters as Effect Schema fields.
+- A terminal spells and reads them with `foldkit/cli/view`: `usageOf`,
+  `exampleOf`, `helpLines`, `commandHelpOf`, `toggleFlagsOf` for the argv
+  reader, and `askedOf`, which answers what was asked or one sentence with
+  the nearest name and the usage. Give each command the host answers a
+  handler typed from its declaration, as `examples/books/cli/src/entry.ts`
+  does, so a command without a handler does not compile.
+- Keep the slim view free of Effect: read the host's declarations as plain
+  data through `cachedDerivation`, which derives them again when the code
+  changes.
+- Add the test that fails on a hand-typed command, as
+  `examples/books/cli/src/declared.test.ts` does, and run every example
+  through the real launcher.
+
 ## Evidence discipline
 
 - Do not reuse one renderer's screenshot as proof of another.

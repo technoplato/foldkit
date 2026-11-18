@@ -18,20 +18,27 @@ describe('books devices', () => {
   })
 
   it('prints them with how to play on one', () => {
-    expect(paintAudioDevices(audioDevicesOf(listing))).toBe(
+    expect(
+      paintAudioDevices(audioDevicesOf(listing), {
+        stop: 'books stop',
+        deviceFlag: '--device',
+      }),
+    ).toBe(
       [
         'Audio outputs on this Mac',
         '  0  Desk Monitor',
         '  1  Made-Up Speakers',
         '',
-        'Play on one: books stop, then books listen <title> --device 1',
+        'Play on one: books stop, then add --device 1 to the command that starts the player.',
         'Without --device, Books plays on the Mac’s default output.',
       ].join('\n'),
     )
   })
 
   it('says so when ffmpeg lists none', () => {
-    expect(paintAudioDevices([])).toBe(
+    expect(
+      paintAudioDevices([], { stop: 'books stop', deviceFlag: '--device' }),
+    ).toBe(
       'No audio outputs were listed. Books plays on the Mac’s default output.',
     )
   })

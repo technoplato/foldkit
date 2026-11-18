@@ -754,11 +754,12 @@ describe('books words', () => {
     expect(await marks).toEqual(['He', 'trimmed', 'the'])
     const [playing = ''] = await heard(player, terminal, 1)
     expect(playing.split('\n')[1]).toMatch(/· playing$/)
-    expect(playing.split('\n').slice(-4)).toEqual([
-      '  books pause         Pauses and keeps your place',
-      '  books skip-back     Goes back 30 seconds',
-      '  books add-bookmark  Saves a bookmark on the word being sp…',
-      '  books actions       Lists every command',
+    expect(playing.split('\n').slice(-5)).toEqual([
+      '  books pause      Pauses and keeps your place',
+      '  books skip-back  Goes back 30 seconds',
+      '  books bookmark   Marks the word being spoken, with a note…',
+      '  books link       Shows the whole link to the word being r…',
+      '  books actions    Lists everything the library can be aske…',
     ])
     await run(player, 'pause')
   })
@@ -933,9 +934,9 @@ describe('books CLI', () => {
       '  books listen the-lantern-keeper',
       '  books listen small-hours',
       '  books listen a-field-guide-to-weather',
-      '  books tui      Opens the live player here',
-      '  books actions  Lists every command',
-      '  books login    Signs in to Cloudflare Access',
+      '  books tui      Opens the player live in this terminal',
+      '  books actions  Lists everything the library can be asked to do',
+      '  books login    Signs the user in to their library',
     ])
   })
 
@@ -958,7 +959,7 @@ describe('books CLI', () => {
     expect(listened.stdout).toMatch(
       /^ {2}books pause +Pauses and keeps your place$/m,
     )
-    expect(listened.stdout).toMatch(/^ {2}books stop +Stops and saves/m)
+    expect(listened.stdout).toMatch(/^ {2}books stop +Pauses, saves the place/m)
     await eventually(() => {
       const model = bound.readModel()
       return (

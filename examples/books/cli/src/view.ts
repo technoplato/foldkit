@@ -10,6 +10,7 @@ import {
   type FollowArgv,
   askCliView,
   cliViewFailed,
+  declaredCommandOf,
   isCliViewListening,
   runCliTuiView,
   runCliView,
@@ -19,14 +20,17 @@ import {
 } from 'foldkit/cli/view'
 import { fileURLToPath } from 'node:url'
 
-import { booksPlayerSocketPath } from './settings.js'
+import { booksCommandName, booksPlayerSocketPath } from './settings.js'
 
 const daemonScriptPath = fileURLToPath(new URL('./daemon.js', import.meta.url))
 
+/** A command of this terminal as typed, its words read from its name. */
+const commandLine = (path: ReadonlyArray<string>): string =>
+  [booksCommandName, declaredCommandOf(path)].join(' ')
+
 const startingSentence = 'Starting the Books player…'
 
-const noPlayerSentence =
-  'Nothing is playing in this terminal’s player. `books listen <title>` starts one.'
+const noPlayerSentence = `Nothing is playing in this terminal’s player. \`${commandLine(['Help'])}\` says how to start one.`
 
 const spawnPlayer = () => spawnCliViewDaemon({ scriptPath: daemonScriptPath })
 
@@ -96,28 +100,6 @@ export const askPlayer = async (
 }
 
 /**
- * What `books` alone prints while no player runs here: how to use it,
- * and which commands start the player. It is plain text this module
- * holds, because printing it must start nothing.
- */
-export const usageText = [
-  'The Books player is not running here, and `books` alone does not start it.',
-  '',
-  '  books listen <title>     Starts the player and plays a title from your place',
-  '  books open /books        Starts the player and prints your library',
-  '  books tui                Starts the player and opens it live in this terminal',
-  '  books search "<words>"   Finds where words are spoken, with links',
-  '  books follow words       Prints the words as they are read',
-  '  books link               Prints the link to the word being read',
-  '  books play-from <link>   Plays from the word a link names, or from a time',
-  '  books devices            Lists the audio outputs, by number',
-  '  books login              Signs in to Cloudflare Access',
-  '  books stop               Pauses, saves your place, and ends the player',
-  '',
-  'While the player runs, `books` says what is playing and what to run next.',
-].join('\n')
-
-/**
  * What {@link showBriefOrUsage} needs from outside: whether a player is
  * listening, a way to ask it, and where to write.
  */
@@ -144,7 +126,8 @@ export const showBriefOrUsage = async (
 ): Promise<void> => {
   const socketPath = booksPlayerSocketPath()
   if (!(await runtime.isListening(socketPath))) {
-    runtime.write({ stdout: usageText, stderr: '', exitCode: 0 })
+    const { usageText } = await import('./help.js')
+    runtime.write({ stdout: usageText(), stderr: '', exitCode: 0 })
     return
   }
   try {
@@ -240,7 +223,7 @@ export const showPlayerTui = async (): Promise<void> => {
   if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
     writeCliViewResult({
       stdout: '',
-      stderr: 'books tui needs a terminal. Run it in one, or use `books`.',
+      stderr: `${commandLine(['Tui'])} needs a terminal. Run it in one, or use \`${booksCommandName}\`.`,
       exitCode: 2,
     })
     return

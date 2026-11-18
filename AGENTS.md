@@ -10,7 +10,7 @@ Michael, typed 2026-11-17 (Scribe #2494): "any core functionality needs to be ex
 
 Every change lands in exactly one of four layers. Name the layer before you write the first line, and say it in the commit body.
 
-1. **Foldkit core** (`packages/foldkit/src`, except `cli/`). Generic and domain free: the Program (Model, Message, update, Commands, Subscriptions), the Catalog of Actions, Navigation, the screen tree a Program returns (`foldkit/renderers` types and readings), `Interaction` (how any Client drives and follows a Program without knowing its Messages), Session and synchronization, and the sync engine interface `Runtime.SyncEngine`. Nothing here names a terminal, a socket, a process, the DOM, Instant, or a book.
+1. **Foldkit core** (`packages/foldkit/src`, except `cli/`). Generic and domain free: the Program (Model, Message, update, Commands, Subscriptions), the Catalog of Actions, the Declaration every Client reads (`foldkit/declaration`), Navigation, the screen tree a Program returns (`foldkit/renderers` types and readings), `Interaction` (how any Client drives and follows a Program without knowing its Messages), Session and synchronization, and the sync engine interface `Runtime.SyncEngine`. Nothing here names a terminal, a socket, a process, the DOM, Instant, or a book.
 2. **A domain core** (`examples/<app>/core`, such as `examples/books/core`). Everything true about the domain, modeled once as Model, Message, update, Commands, Subscriptions, and pure readings of the Model. It relates to its Clients the way Foldkit core relates to a domain core. Nothing here names a terminal, React, or a flag.
 3. **Client adapters** (`packages/foldkit/src/cli`, `@foldkit/react`, `examples/<app>/cli`, `examples/<app>/react`, and so on). They paint what the cores say and translate native input into Messages. A terminal adapter owns argv, stdout lines, exit codes, and the Background Processor's process, socket, pid, and lock. The CLI is one-shot and scriptable: nothing waits on a keypress and nothing takes over the terminal. Anything interactive belongs to the TUI Client.
 4. **Engine and service adapters** (`@foldkit/instant`, an example's `instant*.ts`, `ffplayAudioOutput`, an HTTP client). They fill the ports a core declares: a `Runtime.SyncEngine`, a `Context.Service`. Instant is the engine every example ships with (see "Sync: Instant only" below); core depends only on the interface, and `Runtime.Memory` implements it for tests.
@@ -52,6 +52,45 @@ Before you add code, answer these in order:
 3. Is it background work or anything that stays in sync? It runs in the Background Processor: one running synced Program held by a process the CLI starts on its first command (`listenBackgroundProcessor`; first spelled `listenCliDaemon`, which still works). Commands ask it (Show, Do, Read, Run), follow it (`follow <topic>`), and stop it. Do not start a second kind of background process.
 4. Is it interactive (keys, a full screen)? It belongs to the TUI Client, never to a CLI command.
 5. Did you find core logic sitting in an adapter, or an adapter concern in a core? Say so, and move it with tests, smallest step first.
+
+## Declare once; derive everything
+
+Michael, typed 2026-11-18 (Scribe #2518), after the Books terminal's help named a parameter its command did not take: "I want to make sure that these are being derived from the actual command list and not manually typed out in the CLI program." And: "Every help line hint and example comes from one declaration for an action." And: "it goes at the core action and or sorry core core message and core command level and then increase the emphasis with which we derive functionality we don't bolt on with concrete examples of what that looks like in abstract and concretely". On the declaration itself: "Nothing in it knows about terminals or browsers or applications. It's plain data." On its parameters: "Hopefully that's strongly typed with effect stuff, and then that is used downstream for things like the React hook". On what it touches: "it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings".
+
+In the abstract. A thing a person or a program can ask for is said once, as a declaration in a core. Everything any Client shows or checks about it is computed from that value by a pure function in the layer that needs it. A list, a usage line, a label, or a description typed beside the declaration is a defect, even when it is correct today, because nothing holds it to the code tomorrow.
+
+The derivation path:
+
+```text
+Effect Schema fields ──┐
+what, why, aliases     ├──> Declaration (plain data) ──┬──> the type its handler takes
+mutates, triggers ─────┘                               ├──> parse: the typed value, or one sentence
+                                                       ├──> terminal: usage, help, flags, refusals
+                                                       ├──> menu row, hint, accessible description
+                                                       ├──> agent: tool name, description, input schema
+                                                       └──> React: typed call and form check (not built yet)
+```
+
+Concretely, four pairs. In each, the first is the defect and the second is what to write.
+
+| What                      | Typed by hand (a defect)                                                                                                                                                              | Declared once, then derived                                                                                                                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A usage line              | `'  books listen <title>     Starts the player and plays a title from your place'` in `examples/books/cli/src/view.ts`. It said `<title>` while the command took a slug, and it lied. | `Catalog.action('Listen', { fields: { slug: TitleSlug }, choose: whichTitle(...), what, why })` in the Books core. The terminal prints `usageOf(['Listen'], Catalog.declarationOf(Listen))`, which is `listen <title>` because the chosen field's noun is `title`. |
+| A tooltip                 | `<button title="Sets the count to 0">` in a React component.                                                                                                                          | `what: 'Sets the count to 0'` on `Reset`. `Interaction.controlHintOf` gives every painter the hint, and `hintAttributesOf` puts it on the control.                                                                                                                 |
+| An accessible description | `aria-description="Sets the count to 0"` and `aria-keyshortcuts="r"` written on the element.                                                                                          | The same `what` and `meta.keys`. `hintAttributesOf` writes `aria-description`, and the React handle writes `aria-keyshortcuts` from the keys the Action declares.                                                                                                  |
+| An agent's tool list      | A markdown table of commands in a skill, or a JSON file of tools kept beside the Program.                                                                                             | `toolsOf(declarations)` from `foldkit/declaration`. `books actions --json` prints it: each name, description, input schema and hints come from the declaration.                                                                                                    |
+
+What a declaration says, and how:
+
+- `what` says what it does, and `why` says why the user would want that. Both are about the user, in the third person, and never in one Client's words. Good: what `Raises the count by one`, why `To count one more`. Bad: what `Dispatches Increment`, why `To pipe the count to another program from a terminal`. `Declaration.problemsOf` fails a why that only repeats its what and a sentence that says `you`; `Declaration.clientWordsOf` fails a core declaration that says `terminal`, `flag`, `click`, `browser`, or `JSON`. A host's own declarations may name their host.
+- Parameters are Effect Schema fields and nothing else. `Catalog.action` already takes `fields`; a host declares its own commands with `Declaration.declare(name, { what, why, fields, subject })`. The plain parameters every Client reads (kind, what it is for, required, optional or defaulted) are derived from the Schema by `parametersOfFields`. Do not write a second description of a parameter.
+- The declaration is plain data and its plain modules import nothing at run time, because a terminal's slim view reads it before anything else loads (loading Effect costs about 130 ms here; a refused command answers in about 35 ms). Effect is the layer out: the fields, `parseDeclared`, and the derivation.
+- One reader for every Client: `Declaration.parse(declaration, said)` takes a record of raw values and answers the typed value or one sentence about the first wrong thing: an unknown name with the nearest one, a required parameter left out with an example, a wrong kind, a value outside its set. A terminal, a form and an agent call the same function and differ only in how they spell names.
+- What an Action touches is two relations written as typed references: `mutates: [at.count]`, where `at = ModelPath.of(Model)`, and `triggers: [FetchWeather]`, the Command definition itself. No strings. `Catalog.undeclaredTouches(catalog, update, sampleModels)` runs the pure update and fails when it changes a path or returns a Command the Action did not say, so the declaration is checked, not trusted.
+- State says what and why too. A Model's fields carry them in their Schema annotations with `described({ what, why })`, and `observablesOf(Model)` lists them by path. Those are the same paths an Action mutates. There is no registry beside the Model.
+- A test in each Client holds the rule. `examples/books/cli/src/declared.test.ts` fails when a string in that folder types a command after the program's name, or a comment keeps a table of commands.
+
+Before you add text that tells a person or a program how to use something, find the declaration it should be read from. If the declaration cannot say it yet, extend the declaration.
 
 ## DEATH (temporary house)
 
@@ -95,6 +134,7 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 ## Naming
 
 - Messages are verb-first, past-tense facts: `SubmittedUsernameForm`, `CreatedRoom`, `PressedKey`. Verb prefixes: `Clicked*`, `Updated*`, `Succeeded*` / `Failed*`, `Completed*`, and `Got*` for child Submodel results only.
+- An Action, a Message a person or an agent causes on purpose, is named by the plain verb the user would say, with what it acts on when the verb alone is unclear: `Increment`, `Pause`, `AddBookmark`. A Fact, a Message a Command or a Subscription produces, keeps the past tense above. The glossary has both.
 - Never use `NoOp` Messages. Use descriptive facts even for no-ops: `IgnoredMouseClick`, `SuppressedSpaceScroll`. `Completed*` mirrors the Command name verb-first: `LockScroll` produces `CompletedLockScroll`.
 - Commands are verb-first imperatives: `FetchWeather`, `FocusButton`, `LockScroll`.
 - Mount Definitions are verb-first imperatives like Commands: `AnchorPopover`, `PortalPopoverBackdrop`, `SyncSidebarScroll`.

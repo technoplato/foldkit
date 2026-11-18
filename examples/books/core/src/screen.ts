@@ -1464,15 +1464,16 @@ export type FollowedPart = Readonly<{
  * the reader's own Transcript, with its bookmarks and what a search
  * found, the word being spoken at `nowMs` marked from the Transcript's
  * clock as the site marks it; above it the title, the chapter, the place
- * and whether it plays; and what the reader's folded controls and its
- * bookmark button offer, play or pause, back 30 seconds and a bookmark.
- * With nothing in the player it says so and offers nothing.
+ * and whether it plays; and what the reader's folded controls offer,
+ * play or pause and back 30 seconds. A Client adds its own ways to act
+ * on a word beside them. With nothing in the player it says so and
+ * offers nothing.
  *
  * @example
  * ```typescript
  * wordsPartAt(model, Date.now())
  * // { header: Column(The Lantern Keeper · The Tide, 0:36 of 1:20:00 · playing),
- * //   node: Transcript(…the word at 0:36 marked…), offers: ['Pause', 'SkipBack', 'AddBookmark'], isClocked: true }
+ * //   node: Transcript(…the word at 0:36 marked…), offers: ['Pause', 'SkipBack'], isClocked: true }
  * ```
  */
 export const wordsPartAt = (model: Model, nowMs: number): FollowedPart =>
@@ -1517,7 +1518,6 @@ export const wordsPartAt = (model: Model, nowMs: number): FollowedPart =>
               loaded.player,
               entriesOf(model),
             ),
-            ...buttonsOf(model, [AddBookmark], 'Ghost'),
           ),
         ),
         isClocked: isSounding,

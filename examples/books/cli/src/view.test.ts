@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
+import { usageText } from './help.js'
 import {
   type AskRuntime,
   askPlayer,
   paintsColor,
   showBriefOrUsage,
   takesColor,
-  usageText,
 } from './view.js'
 
 describe('books with no command', () => {
@@ -27,9 +27,9 @@ describe('books with no command', () => {
       },
     )
     expect(started).toEqual([])
-    expect(written).toEqual([usageText])
-    expect(usageText).toContain('books listen <title>')
-    expect(usageText).toContain('does not start it')
+    expect(written).toEqual([usageText()])
+    expect(usageText()).toContain('books listen <title>')
+    expect(usageText()).toContain('does not start it')
   })
 
   it('says what is playing when a player already runs', async () => {
