@@ -11,14 +11,17 @@ import {
 import {
   AcquiredAudioPlayer,
   ClickedCopyWordLink,
+  ClickedWord,
+  ClosedWordMenu,
   type Message,
   ObservedFileUrls,
   ObservedRecording,
+  OpenedWordMenu,
 } from './message.js'
 import type { Model } from './model.js'
 import { playbackClockOf, spokenAt } from './playbackClock.js'
 import { type RecordingDetail, type Section, StoredAudio } from './recording.js'
-import { modelForRoute, update } from './update.js'
+import { modelForRoute, update, wordMenuOf } from './update.js'
 
 const recordingID = '7e0f1b2c-3d4e-4f50-8a6b-7c8d9e0f1a2b'
 
@@ -155,5 +158,48 @@ describe('a link to one word', () => {
     )
     expect(Array.map(commands, command => command.name)).toContain('CopyText')
     expect(JSON.stringify(commands)).toContain('t=7.257')
+  })
+})
+
+const readyOf = (model: Model) => {
+  if (model.playback._tag === 'ReadyPlayback') {
+    return model.playback
+  } else {
+    throw new Error(`Expected ReadyPlayback, got ${model.playback._tag}`)
+  }
+}
+
+const onRecording = (): Model =>
+  opened(SectionRoute({ recordingID, sectionID: out.id, t: Option.none() }))
+
+const menuOpenOn = (seconds: number): Model =>
+  update(onRecording(), OpenedWordMenu({ seconds, x: 120, y: 340 }))[0]
+
+describe('a word’s menu', () => {
+  it('opens on the word that was pressed, where it was pressed, as the Model’s state', () => {
+    expect(wordMenuOf(readyOf(onRecording()))).toEqual(Option.none())
+    expect(
+      Option.map(wordMenuOf(readyOf(menuOpenOn(7.2567))), menu => [
+        menu.word.id,
+        menu.sectionID,
+        menu.x,
+        menu.y,
+      ]),
+    ).toEqual(Option.some(['word-1-1', out.id, 120, 340]))
+  })
+
+  it('does not open where no word starts', () => {
+    expect(wordMenuOf(readyOf(menuOpenOn(99)))).toEqual(Option.none())
+  })
+
+  it('closes when dismissed, when the word is played from, and when its link is copied', () => {
+    const open = menuOpenOn(7.2567)
+    const closedBy = (message: Message) =>
+      wordMenuOf(readyOf(update(open, message)[0]))
+    expect(closedBy(ClosedWordMenu())).toEqual(Option.none())
+    expect(closedBy(ClickedWord({ seconds: 7.2567 }))).toEqual(Option.none())
+    expect(closedBy(ClickedCopyWordLink({ wordID: 'word-1-1' }))).toEqual(
+      Option.none(),
+    )
   })
 })
