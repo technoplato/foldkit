@@ -13,11 +13,16 @@ import { ts } from 'foldkit/schema'
 import {
   ConnectedAudible,
   FailedConnectAudible,
+  FailedQueueAudiobookAudio,
   type Message,
   PastedAddress,
+  QueuedAudiobookAudio,
 } from './message.js'
 import {
   type AudibleModel,
+  type Audio,
+  AudioRead,
+  AudioUnreadable,
   type SignIn,
   SignInConnecting,
   SignInReady,
@@ -29,12 +34,13 @@ import {
   TitlesRead,
   TitlesUnread,
   TitlesUnreadable,
+  canGetAudioOf,
   isSelected,
   newAsinsOf,
 } from './model.js'
 import { AddressMismatch, type AudibleProblem } from './problem.js'
 import { AudibleImport } from './service.js'
-import type { Asin } from './title.js'
+import { Asin, type AudioStatus } from './title.js'
 
 // COMMAND
 
@@ -62,6 +68,28 @@ export const FinishAudibleSignIn = Command.define(
 )
 
 // OUT
+
+/**
+ * Asks the queue on the Books server to bring one owned book's audio in
+ * first, now. A refusal becomes FailedQueueAudiobookAudio with its
+ * problem, shown above the list.
+ */
+export const QueueAudiobookAudio = Command.define(
+  'QueueAudiobookAudio',
+  { asin: Asin },
+  QueuedAudiobookAudio,
+  FailedQueueAudiobookAudio,
+)(({ asin }) =>
+  Effect.gen(function* () {
+    const audible = yield* AudibleImport
+    const status = yield* audible.queueAudio(asin)
+    return QueuedAudiobookAudio({ status })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedQueueAudiobookAudio({ problem: error.problem })),
+    ),
+  ),
+)
 
 /** The titles need an Audible login first: Books shows the sign-in instead. */
 export const NeededSignIn = ts('NeededSignIn')
@@ -99,6 +127,43 @@ const withTitles = (model: AudibleModel, titles: Titles): UpdateReturn => [
   [],
   Option.none(),
 ]
+
+const withAudio = (model: AudibleModel, audio: Audio): UpdateReturn => [
+  { ...model, audio },
+  [],
+  Option.none(),
+]
+
+const receivedAudio = (
+  model: AudibleModel,
+  status: AudioStatus,
+): UpdateReturn =>
+  withAudio(
+    model,
+    model.audio._tag === 'AudioRead'
+      ? AudioRead({ ...model.audio, status })
+      : AudioRead({
+          status,
+          maybeAsking: Option.none(),
+          maybeProblem: Option.none(),
+        }),
+  )
+
+const askedForAudio = (model: AudibleModel, asin: Asin): UpdateReturn =>
+  model.audio._tag === 'AudioRead' && canGetAudioOf(model.audio, asin)
+    ? [
+        {
+          ...model,
+          audio: AudioRead({
+            ...model.audio,
+            maybeAsking: Option.some(asin),
+            maybeProblem: Option.none(),
+          }),
+        },
+        [QueueAudiobookAudio({ asin })],
+        Option.none(),
+      ]
+    : unchanged(model)
 
 const authorizationCodeField = 'openid.oa2.authorization_code='
 
@@ -284,6 +349,7 @@ export const update = (model: AudibleModel, message: Message): UpdateReturn =>
           : unchanged(model),
       ConnectedAudible: () => [
         {
+          ...model,
           signIn: SignInWaiting({ maybeProblem: Option.none() }),
           titles: TitlesUnread(),
         },
@@ -337,6 +403,32 @@ export const update = (model: AudibleModel, message: Message): UpdateReturn =>
             )
           : unchanged(model),
       FailedImportAudibleTitles: ({ problem }) => failedImport(model, problem),
+      GetAudiobookAudio: ({ asin }) => askedForAudio(model, asin),
+      ReceivedAudiobookAudio: ({ status }) => receivedAudio(model, status),
+      FailedReadAudiobookAudio: ({ problem }) =>
+        model.audio._tag === 'AudioRead'
+          ? unchanged(model)
+          : withAudio(model, AudioUnreadable({ problem })),
+      QueuedAudiobookAudio: ({ status }) =>
+        withAudio(
+          model,
+          AudioRead({
+            status,
+            maybeAsking: Option.none(),
+            maybeProblem: Option.none(),
+          }),
+        ),
+      FailedQueueAudiobookAudio: ({ problem }) =>
+        model.audio._tag === 'AudioRead'
+          ? withAudio(
+              model,
+              AudioRead({
+                ...model.audio,
+                maybeAsking: Option.none(),
+                maybeProblem: Option.some(problem),
+              }),
+            )
+          : unchanged(model),
     }),
   )
 
