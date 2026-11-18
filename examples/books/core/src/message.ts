@@ -263,7 +263,7 @@ export const CopyWordLink = Catalog.action('CopyWordLink', {
         : Catalog.Disabled({ because: 'that word is not near the place' }),
     nothingToChoose: 'there are no words yet',
   },
-  what: 'Copies a link that opens the title on one word',
+  what: 'Copies a link that opens this book on the word you pick',
   why: 'The person wants to come back to that word, or send it to someone',
   enabled: whenLoaded,
   meta: {

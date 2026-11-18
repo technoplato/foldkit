@@ -418,7 +418,7 @@ export const ShowWordMenu = Catalog.action('ShowWordMenu', {
         : Catalog.Disabled({ because: 'that word is not near the place' }),
     nothingToChoose: 'there are no words yet',
   },
-  what: 'Opens the menu of one word',
+  what: 'Opens the menu for the word you pick',
   why: 'The person wants to do something with that word',
   meta: { label: 'Word menu', keys: [], title: 'Open a word’s menu' },
 })
