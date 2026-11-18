@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:17:44 a.m. EST — `eac7c969870d` feat(books): green: books words paints from the theme on a terminal (Scribe #2494)
+
+- **Implementation commit:** `eac7c969870d0a6a88cb4fca6fed1ebbda917399`
+- **Change:** green: books words paints from the theme on a terminal (Scribe #2494)
+- **Details:**
+  - When the books command's output is a terminal and color is not refused, the view says so and the player paints 'books words' and 'books follow words' from the theme's roles through Foldkit's inked: what was spoken strong, the word being spoken in its color for the Model's mode, what is to come and the paragraphs around it dim, a section's heading in the reading rule's color. Down a pipe, and with
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:17:44 a.m. EST — `62c05ddf8374` feat(foldkit): green: the theme's roles in a terminal (Scribe #2494)
+
+- **Implementation commit:** `62c05ddf837481ab98188517ecd1997f9091ae5f`
+- **Change:** green: the theme's roles in a terminal (Scribe #2494)
+- **Details:**
+  - foldkit/theme gains the terminal's side: terminalInkOf says whether an output may use color (a terminal, with NO_COLOR unset and TERM not dumb) and carries the mode and the theme; inked(ink, role, text) paints a flat-colored role in its color for that mode, keeps body text in the terminal's own color (strong for Text and ReadingSpoken, dim for QuietText, FaintText and ReadingToCome), and leaves te
+- **Files:**
+  - `packages/foldkit/src/theme/index.ts` — changed by this commit
+  - `packages/foldkit/src/theme/terminal.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 1:12:19 a.m. EST — `9503911b64ff` fix(books): green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
 
 - **Implementation commit:** `9503911b64ffdf87e2edca6295ce3489ad20394d`
