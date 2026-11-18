@@ -144,7 +144,7 @@ describe('following a CLI daemon', () => {
   })
 })
 
-const fakeRuntime = () => {
+const fakeRuntime = (screen: Readonly<{ columns?: number }> = {}) => {
   const written = { stdout: '', stderr: '' }
   const runtime: CliFollowRuntime = {
     stdout: {
@@ -153,6 +153,7 @@ const fakeRuntime = () => {
         return true
       },
       once: () => undefined,
+      ...screen,
     },
     stderr: {
       write: text => {
@@ -178,6 +179,51 @@ describe('following to a pipe', () => {
     expect(written.stdout).toBe('# one\n# two\n> line\n')
     expect(written.stderr).toBe('')
     expect(runtime.exitCode).toBe(0)
+  })
+
+  it('rewrites a topic in place on a terminal: each text over the last, as many rows as the last took', async () => {
+    const socketPath = socketPathFor('in-place')
+    const { runtime, written } = fakeRuntime()
+    await serving(
+      socketPath,
+      surfaceFollowing(() =>
+        Stream.make(
+          '# one\n> The [keeper] climbed',
+          '# one\n> The keeper [climbed]',
+          '# two',
+        ),
+      ),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'words' }, inPlace: true },
+          runtime,
+        ),
+    )
+    expect(written.stdout).toBe(
+      [
+        '# one\n> The [keeper] climbed\n',
+        '\u001b[2A\r\u001b[J# one\n> The keeper [climbed]\n',
+        '\u001b[2A\r\u001b[J# two\n',
+      ].join(''),
+    )
+  })
+
+  it('counts the rows a line wraps over, by what shows and not by its color codes', async () => {
+    const socketPath = socketPathFor('in-place-wrap')
+    const { runtime, written } = fakeRuntime({ columns: 10 })
+    const inked = '\u001b[2m0123456789\u001b[22m'
+    await serving(
+      socketPath,
+      surfaceFollowing(() => Stream.make(`${inked}\n0123456789ab`, 'next')),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'words' }, inPlace: true },
+          runtime,
+        ),
+    )
+    expect(written.stdout).toBe(
+      `${inked}\n0123456789ab\n\u001b[3A\r\u001b[Jnext\n`,
+    )
   })
 
   it('says why on stderr and exits 1 when the topic is refused', async () => {
