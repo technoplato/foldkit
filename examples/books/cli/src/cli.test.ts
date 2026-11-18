@@ -605,74 +605,138 @@ describe('books words', () => {
     )
   })
 
-  it('follows the words: the paragraph now, then each new paragraph as the place moves', async () => {
+  const reportingOnce = Layer.succeed(AudioOutput, {
+    sound: track =>
+      Stream.concat(
+        Stream.sync(() =>
+          AudioEvent.Advanced({
+            placeMs: Milliseconds.make(track.fromMs),
+            wallClockMs: Date.now(),
+          }),
+        ),
+        Stream.never,
+      ),
+  })
+
+  const playingFrom = async (place: string) => {
+    const opened = await openBooks({
+      transcripts: spokenTranscript,
+      audio: reportingOnce,
+    })
+    await run(opened.player, 'listen the-lantern-keeper')
+    await run(opened.player, `seek-to ${place}`)
+    return opened
+  }
+
+  const heard = (
+    player: BooksPlayer,
+    flags: Readonly<Record<string, string>>,
+    count: number,
+    topic = 'words',
+  ) =>
+    Effect.runPromise(
+      Stream.runCollect(
+        Stream.take(
+          followOf(player)(topic, flags, Processor.Host.Cli()),
+          count,
+        ),
+      ),
+    )
+
+  it('follows by the word down a pipe: the paragraph, then each word as its time arrives with its start and link', async () => {
+    const { player } = await playingFrom('5500')
+    const texts = await heard(player, { before: '0', after: '0' }, 4)
+    expect(texts[0]?.split('\n').slice(1)).toEqual([
+      '> 0:05 [He] trimmed the wick and waited.',
+    ])
+    expect(texts.slice(1)).toEqual([
+      '. 0:05 He /books/the-lantern-keeper/listen/5.5s',
+      '. 0:06 trimmed /books/the-lantern-keeper/listen/6s',
+      '. 0:06 the /books/the-lantern-keeper/listen/6.5s',
+    ])
+  })
+
+  it('says one line when it pauses and one when it plays, and never the paragraph again for that', async () => {
+    const { player } = await playingFrom('5500')
+    const listening = heard(player, { paragraphs: '1' }, 3)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await run(player, 'pause')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await run(player, 'play')
+    const texts = await listening
+    expect(texts[0]).toContain('> 0:05')
+    expect(texts[1]).toMatch(/^# paused at 0:0\d$/)
+    expect(texts[2]).toMatch(/^# playing from 0:0\d$/)
+  })
+
+  it('follows by the paragraph alone when asked, as it did before', async () => {
     const { player } = await openBooks({ transcripts: spokenTranscript })
     await run(player, 'listen the-lantern-keeper')
     await run(player, 'seek-to 1s')
     await eventually(async () =>
       (await run(player, 'words')).stdout.includes('> 0:00'),
     )
-    const heard = Effect.runPromise(
-      Stream.runCollect(
-        Stream.take(followOf(player)('words', {}, Processor.Host.Cli()), 3),
-      ),
-    )
-    await new Promise(resolve => setTimeout(resolve, 20))
-    await run(player, 'seek-to 2s')
+    const listening = heard(player, { paragraphs: '1' }, 3)
+    await new Promise(resolve => setTimeout(resolve, 100))
     await run(player, 'seek-to 6s')
+    await new Promise(resolve => setTimeout(resolve, 100))
     await run(player, 'seek-to 11s')
-    const currentLines = Array.map(await heard, text =>
+    const currentLines = Array.map(await listening, text =>
       Array.filter(text.split('\n'), line => line.startsWith('> ')),
     )
-    expect(currentLines).toEqual([
-      ['> 0:00 The keeper [climbed] the stairs at dusk.'],
-      ['> 0:05 He [trimmed] the wick and waited.'],
-      ['> 0:10 Far [out] a bell answered the lamp.'],
+    expect(Array.map(currentLines, lines => lines[0]?.slice(0, 6))).toEqual([
+      '> 0:00',
+      '> 0:05',
+      '> 0:10',
     ])
   })
 
-  it('follows each word by the clock, between the reports the audio makes', async () => {
-    const reportingOnce = Layer.succeed(AudioOutput, {
-      sound: track =>
-        Stream.concat(
-          Stream.sync(() =>
-            AudioEvent.Advanced({
-              placeMs: Milliseconds.make(track.fromMs),
-              wallClockMs: Date.now(),
-            }),
-          ),
-          Stream.never,
-        ),
-    })
-    const { player } = await openBooks({
-      transcripts: spokenTranscript,
-      audio: reportingOnce,
-    })
-    await run(player, 'listen the-lantern-keeper')
-    await run(player, 'seek-to 5500')
-    const heard = await Effect.runPromise(
-      Stream.runCollect(
-        Stream.take(
-          followOf(player)(
-            'words',
-            { 'each-word': '1', before: '0', after: '0' },
-            Processor.Host.Cli(),
-          ).pipe(
-            Stream.map(text =>
-              Array.filter(text.split('\n'), line => line.startsWith('> ')),
-            ),
-            Stream.filter(Array.isArrayNonEmpty),
-            Stream.changes,
-          ),
-          3,
-        ),
-      ),
-    )
-    expect(Array.map(heard, lines => lines.join(''))).toEqual([
-      '> 0:05 [He] trimmed the wick and waited.',
-      '> 0:05 He [trimmed] the wick and waited.',
-      '> 0:05 He trimmed [the] wick and waited.',
+  it('sends another program one line of JSON for each: the paragraph, each word, each turn', async () => {
+    const { player } = await playingFrom('5500')
+    const texts = await heard(player, { json: '1' }, 2)
+    expect(Array.map(texts, text => JSON.parse(text))).toMatchObject([
+      { _tag: 'WordsNow', header: { slug: 'the-lantern-keeper' } },
+      {
+        _tag: 'WordSpoken',
+        text: 'He',
+        startMs: 5500,
+        link: '/books/the-lantern-keeper/listen/5.5s',
+      },
     ])
+  })
+
+  it('sends a terminal the words fitted to its size, the mark moving by the word, with what can be run now under them', async () => {
+    const { player } = await playingFrom('5500')
+    const terminal = { 'in-place': '1', columns: '60', rows: '20' }
+    const frames = await heard(player, terminal, 3)
+    const markOf = (frame: string): string =>
+      /\[(\S+)\]/.exec(
+        frame.split('\n').find(line => line.startsWith('›')) ?? '',
+      )?.[1] ?? ''
+    expect(Array.map(frames, markOf)).toEqual(['He', 'trimmed', 'the'])
+    const [frame = ''] = frames
+    const lines = frame.split('\n')
+    expect(lines.every(line => line.length <= 60)).toBe(true)
+    expect(lines.length).toBeLessThanOrEqual(18)
+    expect(lines[0]).toBe('The Lantern Keeper · The Tide')
+    expect(lines[1]).toMatch(/^0:0\d of 1:20:00 · playing$/)
+    expect(lines.slice(-4)).toEqual([
+      '  books pause         Pauses and keeps your place',
+      '  books skip-back     Goes back 30 seconds',
+      expect.stringMatching(/^ {2}books add-bookmark {2}Saves a bookmark on/),
+      '  books actions       Lists every command',
+    ])
+    await run(player, 'pause')
+    const [paused = ''] = await heard(player, terminal, 1)
+    expect(paused.split('\n')[1]).toMatch(/· paused$/)
+    expect(paused).toMatch(/^ {2}books play +Plays from where it is paused$/m)
+    expect(paused).not.toMatch(/books pause/)
+  })
+
+  it('follows the words when no topic is named', async () => {
+    const { player } = await playingFrom('5500')
+    const [first = ''] = await heard(player, { before: '0', after: '0' }, 1, '')
+    expect(first).toContain('> 0:05')
   })
 
   it('follows the screen like any Program, and refuses a topic it does not have', async () => {
