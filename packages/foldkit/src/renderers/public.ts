@@ -41,6 +41,7 @@ export {
   buttonsOf,
   inputsOf,
   linksOf,
+  offeredBy,
   textsOf,
   transcriptsOf,
 } from './query.js'

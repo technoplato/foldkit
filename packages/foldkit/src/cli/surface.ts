@@ -16,7 +16,7 @@ import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
 import { type Host, Tui } from '../processor/host.js'
 import { Text } from '../renderers/elements.js'
 import { liveFrameOf } from '../renderers/liveFrame.js'
-import { buttonsOf } from '../renderers/query.js'
+import { offeredBy } from '../renderers/query.js'
 import type { UiNode } from '../renderers/types.js'
 import { type TerminalInk, inkedLine } from '../theme/terminal.js'
 import {
@@ -284,26 +284,6 @@ export type FollowLiveOptions = Readonly<{
   piped: CliFollowing
 }>
 
-/**
- * The tags of the Actions a part of the view offers: the ones its own
- * buttons press, in the order they sit, each once.
- *
- * @example
- * ```typescript
- * offeredBy(playerControls) // ['Pause', 'SkipBack', 'SkipForward', 'AddBookmark']
- * ```
- */
-export const offeredBy = (node: UiNode): ReadonlyArray<string> =>
-  Array.dedupe(
-    Array.getSomes(
-      Array.map(buttonsOf(node), button =>
-        button.disabled === true
-          ? Option.none()
-          : Option.fromNullishOr(button.action),
-      ),
-    ),
-  )
-
 const liveFrameEvery = Duration.millis(30)
 
 const fallbackLiveSize = { columns: 80, rows: 24 }
@@ -491,3 +471,5 @@ export const programCliSurface = <Model, Message>(
       ),
   }
 }
+
+export { offeredBy }
