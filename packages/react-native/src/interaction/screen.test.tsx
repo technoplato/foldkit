@@ -1,6 +1,8 @@
-import { Array, Option, Schema as S, pipe } from 'effect'
+import { Array, Option, Schema as S } from 'effect'
 import { Catalog } from 'foldkit'
 import {
+  Box,
+  Button,
   type ButtonNode,
   Column,
   List,
@@ -9,20 +11,30 @@ import {
   TextInput,
   actionButtons,
 } from 'foldkit/renderers'
-import { type ReactElement, isValidElement } from 'react'
+import { defaultTheme } from 'foldkit/theme'
 import { describe, expect, it, vi } from 'vitest'
 
-import { paintTree } from './screen.js'
+import {
+  callProp,
+  firstOf,
+  hostsOf,
+  propsOf,
+  styleOf,
+  wordsOf,
+} from '../test/elements.js'
+import { TextField, TokenField } from './field.js'
+import { Icon } from './icon.js'
+import { lookOf } from './look.js'
+import { screenPartsOf } from './paint.js'
+import { hintOf, paintTree } from './screen.js'
 
-vi.mock('react-native', () => ({
-  Linking: { openURL: vi.fn() },
-  Platform: {
-    select: (choices: Readonly<{ default: unknown }>) => choices.default,
-  },
-  Pressable: 'Pressable',
-  Text: 'Text',
-  View: 'View',
-}))
+vi.mock('react-native', async () => (await import('../test/native.js')).native)
+vi.mock('react-native-svg', async () => (await import('../test/native.js')).svg)
+vi.mock('@foldkit/react/interaction', () => ({}))
+vi.mock('../theme/themed.js', async () => {
+  const { lightLook } = await import('./look.js')
+  return { useLook: () => lightLook }
+})
 
 const Model = S.Struct({ count: S.Number })
 type Model = typeof Model.Type
@@ -46,38 +58,18 @@ const catalog = Catalog.make([Increment, Reset])
 const screenAt = (count: number) =>
   Column(
     {},
-    Text(String(count), { label: `count ${String(count)}` }),
+    Text(String(count), {
+      label: `count ${String(count)}`,
+      emphasis: 'Display',
+    }),
     Row({}, ...actionButtons(Catalog.entries(catalog, { count }))),
   )
 
-type Props = Readonly<Record<string, unknown>>
-
-const propsOf = (element: ReactElement): Props =>
-  typeof element.props === 'object' && element.props !== null
-    ? { ...element.props }
-    : {}
-
-const descendants = (element: ReactElement): ReadonlyArray<ReactElement> =>
-  pipe(
-    Array.ensure(propsOf(element)['children']),
-    Array.filter(isValidElement),
-    Array.flatMap(child => [child, ...descendants(child)]),
+const pressableNamed = (painted: ReturnType<typeof paintTree>, label: string) =>
+  firstOf(
+    hostsOf(painted, 'Pressable'),
+    element => propsOf(element)['accessibilityLabel'] === label,
   )
-
-const hostsOf = (
-  element: ReactElement,
-  type: string,
-): ReadonlyArray<ReactElement> =>
-  Array.filter([element, ...descendants(element)], child => child.type === type)
-
-const pressAll = (elements: ReadonlyArray<ReactElement>): void => {
-  Array.forEach(elements, element => {
-    const onPress = propsOf(element)['onPress']
-    if (typeof onPress === 'function') {
-      onPress()
-    }
-  })
-}
 
 describe('paintTree', () => {
   it('announces a Text label and merges the caller style over the default', () => {
@@ -85,137 +77,181 @@ describe('paintTree', () => {
       onPress: () => {},
       styles: { Text: { fontSize: 72 } },
     })
-    const count = propsOf(
-      Option.getOrThrow(Array.head(hostsOf(painted, 'Text'))),
-    )
-    expect(count['accessibilityLabel']).toBe('count 3')
-    expect(count['children']).toBe('3')
-    expect(count['style']).toEqual([
-      { color: '#111827', fontSize: 16, textAlign: 'center' },
-      { fontSize: 72 },
-    ])
+    const count = Option.getOrThrow(Array.head(hostsOf(painted, 'Text')))
+    expect(propsOf(count)['accessibilityLabel']).toBe('count 3')
+    expect(styleOf(count)['fontSize']).toBe(72)
   })
 
-  it('maps Display, dim, and mono text onto the core look', () => {
-    const painted = paintTree(
-      Column(
-        {},
-        Text('3', { emphasis: 'Display' }),
-        Text('Every device shows the same screen.', { dim: true }),
-        Text('/counter', { mono: true }),
-      ),
-      { onPress: () => {} },
+  it('takes every color from the look it is told, light or dark', () => {
+    const light = paintTree(screenAt(3), { onPress: () => {} })
+    const dark = paintTree(screenAt(3), {
+      onPress: () => {},
+      look: lookOf('Dark'),
+    })
+    const countOf = (painted: ReturnType<typeof paintTree>) =>
+      styleOf(Option.getOrThrow(Array.head(hostsOf(painted, 'Text'))))['color']
+    expect(countOf(light)).toBe(defaultTheme.Text.light)
+    expect(countOf(dark)).toBe(defaultTheme.Text.dark)
+    expect(styleOf(pressableNamed(dark, '+'))['backgroundColor']).toBe(
+      defaultTheme.Button.dark,
     )
-    const [display, dim, mono] = Array.map(
-      hostsOf(painted, 'Text'),
-      text => propsOf(text)['style'],
-    )
-    expect(display).toContainEqual(
-      expect.objectContaining({ fontSize: 72, fontWeight: '600' }),
-    )
-    expect(dim).toContainEqual(
-      expect.objectContaining({ color: '#6b7280', fontSize: 16 }),
-    )
-    expect(mono).toContainEqual({ fontFamily: 'monospace' })
   })
 
   it('reports the pressed Button node with its Catalog action', () => {
     const pressed: Array<ButtonNode> = []
-    const buttons = hostsOf(
-      paintTree(screenAt(2), {
-        onPress: button => {
-          pressed.push(button)
-        },
-      }),
-      'Pressable',
-    )
-    expect(
-      Array.map(buttons, button => propsOf(button)['accessibilityLabel']),
-    ).toEqual(['+', 'Reset'])
-    pressAll(buttons)
-    expect(Array.map(pressed, button => button.action)).toEqual([
-      'Increment',
-      'Reset',
-    ])
+    const painted = paintTree(screenAt(3), {
+      onPress: button => {
+        pressed.push(button)
+      },
+    })
+    callProp(pressableNamed(painted, '+'), 'onPress')
+    expect(Array.map(pressed, button => button.action)).toEqual(['Increment'])
   })
 
-  it('disables a Disabled Action and reads its sentence as the hint', () => {
-    const reset = propsOf(
-      Option.getOrThrow(
-        Array.findFirst(
-          hostsOf(paintTree(screenAt(0), { onPress: () => {} }), 'Pressable'),
-          button => propsOf(button)['accessibilityLabel'] === 'Reset',
-        ),
-      ),
+  it('says what a Button does as its hint, from its Action, with no key on a touch screen', () => {
+    const painted = paintTree(screenAt(3), { onPress: () => {} })
+    expect(propsOf(pressableNamed(painted, '+'))['accessibilityHint']).toBe(
+      'Increments the count by one',
     )
+    expect(hintOf({ _tag: 'Button', label: 'Close' })).toBeUndefined()
+  })
+
+  it('disables a Disabled Action and says why with what it does', () => {
+    const painted = paintTree(screenAt(0), { onPress: () => {} })
+    const reset = propsOf(pressableNamed(painted, 'Reset'))
     expect(reset['disabled']).toBe(true)
-    expect(reset['accessibilityHint']).toBe('count is already 0')
-    expect(reset['accessibilityState']).toEqual({ disabled: true })
+    expect(reset['accessibilityState']).toEqual({
+      disabled: true,
+      selected: false,
+    })
+    expect(reset['accessibilityHint']).toBe(
+      'Sets the count to 0. Unavailable: count is already 0',
+    )
+  })
+
+  it('centers a column that holds the one big figure, and starts others at the edge', () => {
+    const counter = paintTree(screenAt(3), { onPress: () => {} })
+    expect(styleOf(counter)['alignItems']).toBe('center')
+    const library = paintTree(Column({}, Text('Library')), {
+      onPress: () => {},
+    })
+    expect(styleOf(library)['alignItems']).toBe('stretch')
   })
 })
 
-describe('row checks and fields that press', () => {
-  it('paints a row check as a checkbox that reports its own press', () => {
-    const pressed: Array<ButtonNode> = []
+describe('buttons', () => {
+  it('draws an icon from the shared set, alone when the Button says so, and keeps its name for a screen reader', () => {
     const painted = paintTree(
-      List({
-        label: 'Groceries',
-        items: [
-          {
-            key: 'r1',
-            title: 'Oat milk',
-            check: {
-              isChecked: true,
-              label: 'Mark Oat milk not done',
-              action: 'Reopen:r1',
-            },
-          },
-        ],
-      }),
-      {
-        onPress: button => {
-          pressed.push(button)
-        },
-      },
-    )
-    const check = Option.getOrThrow(
-      Array.findFirst(
-        [painted, ...descendants(painted)],
-        element => 'check' in propsOf(element),
-      ),
-    )
-    const render = check.type
-    if (typeof render !== 'function') {
-      throw new Error('the check paints through its own component')
-    }
-    const box: unknown = Reflect.apply(render, undefined, [propsOf(check)])
-    expect(isValidElement(box)).toBe(true)
-    if (isValidElement(box)) {
-      expect(propsOf(box)['accessibilityRole']).toBe('checkbox')
-      expect(propsOf(box)['accessibilityState']).toEqual({
-        checked: true,
-        disabled: false,
-      })
-      pressAll([box])
-    }
-    expect(Array.map(pressed, button => button.action)).toEqual(['Reopen:r1'])
-  })
-
-  it('paints a field that presses as a native text field, and a legacy one as text', () => {
-    const field = paintTree(
-      TextInput({
-        value: '',
-        placeholder: 'New reminder',
-        action: 'AddReminder',
+      Button({
+        label: 'Play',
+        action: 'Play',
+        icon: 'Play',
+        isIconOnly: true,
+        variant: 'Primary',
       }),
       { onPress: () => {} },
     )
-    expect(propsOf(field)['input']).toEqual(
-      expect.objectContaining({ action: 'AddReminder' }),
+    expect(propsOf(painted)['accessibilityLabel']).toBe('Play')
+    expect(
+      Array.map(hostsOf(painted, Icon), icon => propsOf(icon)['name']),
+    ).toEqual(['Play'])
+    expect(hostsOf(painted, 'Text')).toEqual([])
+    expect(styleOf(painted)['borderRadius']).toBe(
+      Number(styleOf(painted)['width']) / 2,
     )
-    const legacy = paintTree(TextInput({ value: 'hello' }), {
+  })
+
+  it('marks the current tab selected and inks it with the accent', () => {
+    const painted = paintTree(
+      Row(
+        {},
+        Button({
+          label: 'Library',
+          action: 'ShowLibrary',
+          variant: 'Tab',
+          isCurrent: true,
+        }),
+        Button({
+          label: 'Profile',
+          action: 'ShowProfile',
+          variant: 'Tab',
+          isCurrent: false,
+        }),
+      ),
+      { onPress: () => {} },
+    )
+    const library = pressableNamed(painted, 'Library')
+    const profile = pressableNamed(painted, 'Profile')
+    expect(propsOf(library)['accessibilityRole']).toBe('tab')
+    expect(propsOf(library)['accessibilityState']).toMatchObject({
+      selected: true,
+    })
+    expect(propsOf(profile)['accessibilityState']).toMatchObject({
+      selected: false,
+    })
+    expect(
+      styleOf(firstOf(hostsOf(library, 'Text'), () => true))['color'],
+    ).toBe(defaultTheme.Accent.light)
+  })
+
+  it('leaves out a Button that only repeats what the platform offers there', () => {
+    const page = Column(
+      {},
+      Row({}, Button({ label: 'Back', action: 'GoBack', variant: 'Ghost' })),
+      Text('The Lantern Keeper'),
+    )
+    const underHeader = paintTree(page, {
+      onPress: () => {},
+      platformActions: ['GoBack'],
+    })
+    expect(hostsOf(underHeader, 'Pressable')).toEqual([])
+    expect(wordsOf(underHeader)).toBe('The Lantern Keeper')
+    const alone = paintTree(page, { onPress: () => {} })
+    expect(hostsOf(alone, 'Pressable')).toHaveLength(1)
+  })
+})
+
+describe('docks', () => {
+  it('lifts a dock out of the body, so it stays at the bottom edge while the body scrolls', () => {
+    const tabs = Box(
+      { isDock: true },
+      Row({}, Button({ label: 'Library', action: 'ShowLibrary' })),
+    )
+    const parts = screenPartsOf(Column({}, Text('Library'), Column({}, tabs)))
+    expect(parts.docks).toEqual([tabs])
+    expect(parts.maybeBody).toEqual(Column({}, Text('Library'), Column({})))
+  })
+
+  it('keeps a screen with no dock whole', () => {
+    const screen = Column({}, Text('Library'))
+    expect(screenPartsOf(screen)).toEqual({ maybeBody: screen, docks: [] })
+  })
+})
+
+describe('fields', () => {
+  it('paints a field that presses as a field that holds a draft, and a keystroke field as one that sends each', () => {
+    const adds = paintTree(
+      TextInput({ value: '', action: 'AddReminder', label: 'New reminder' }),
+      {
+        onPress: () => {},
+      },
+    )
+    expect(adds.type).toBe(TextField)
+    const types = paintTree(TextInput({ value: 're', token: 'menu.q:' }), {
       onPress: () => {},
     })
-    expect(legacy.type).toBe('Text')
+    expect(types.type).toBe(TokenField)
+  })
+
+  it('paints the rows of a list through the row painter', () => {
+    const painted = paintTree(
+      List({
+        label: 'Your books',
+        items: [{ key: 'a', title: 'The Lantern Keeper', action: 'Open:a' }],
+      }),
+      { onPress: () => {} },
+    )
+    expect(propsOf(painted)['accessibilityLabel']).toBe('Your books')
+    expect(wordsOf(painted)).toContain('The Lantern Keeper')
   })
 })

@@ -18,9 +18,16 @@ vi.mock('@foldkit/react/interaction', () => ({
   useMenu: () => presented.get('menu'),
 }))
 
+vi.mock('../theme/themed.js', async () => {
+  const { lightLook } = await import('./look.js')
+  return { useLook: () => lightLook }
+})
+
 vi.mock('react-native', () => ({
   Modal: 'Modal',
+  Platform: { select: () => 'Menlo' },
   Pressable: 'Pressable',
+  StyleSheet: { hairlineWidth: 1 },
   Text: 'Text',
   TextInput: 'TextInput',
   View: 'View',
