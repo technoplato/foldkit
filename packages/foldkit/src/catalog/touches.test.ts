@@ -178,7 +178,10 @@ describe('Catalog.undeclaredTouches', () => {
     expect(
       Catalog.undeclaredTouches(
         resetCatalog,
-        (model: Model) => [{ ...model, count: 0 }, []],
+        (model: Model): readonly [Model, ReadonlyArray<never>] => [
+          { ...model, count: 0 },
+          [],
+        ],
         models,
       ),
     ).toEqual([])

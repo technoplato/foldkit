@@ -1,5 +1,6 @@
 import {
   Array,
+  Equal,
   Option,
   Predicate,
   Record,
@@ -8,6 +9,15 @@ import {
   pipe,
 } from 'effect'
 
+import {
+  type Declaration,
+  type Example,
+  type Parameters,
+  type Touches,
+  make as makeDeclaration,
+} from '../declaration/declaration.js'
+import { parametersOfFields } from '../declaration/declare.js'
+import { type ModelPath, segmentsOf } from '../declaration/modelPath.js'
 import { type CallableTaggedStruct, callableWith, ts } from '../schema/index.js'
 
 // AVAILABILITY
@@ -149,6 +159,10 @@ export type ActionDeclaration<Tag extends string, Model> = Readonly<{
   meta: ActionMeta
   isPayloadFree: boolean
   maybeChoose: Option.Option<ChooseDeclaration<Model>>
+  aliases: ReadonlyArray<string>
+  parameters: Parameters
+  examples: ReadonlyArray<Example>
+  maybeTouches: Option.Option<Touches>
 }>
 
 /**
@@ -167,13 +181,68 @@ export type Action<
   Model,
 > = CallableTaggedStruct<Tag, Fields> & ActionDeclaration<Tag, Model>
 
-/** The semantic and presentation halves of one Action declaration. */
+/**
+ * The semantic and presentation halves of one Action declaration. `what`
+ * says what the Action does and `why` says why the user would want that,
+ * both about the user in the third person and never in one Client's
+ * words. `mutates` names the state it changes, as typed paths of the
+ * Model, and `triggers` the Commands whose side effects it runs, as the
+ * definitions themselves; `Catalog.undeclaredTouches` holds `update` to
+ * both. `aliases` are other names it answers to, and `examples` are ways
+ * it is asked for, as data.
+ */
 export type ActionConfig<Model> = Readonly<{
   what: string
   why: string
   enabled?: (model: Model) => Availability
   meta: ActionMeta
+  aliases?: ReadonlyArray<string>
+  examples?: ReadonlyArray<Example>
+  mutates?: ReadonlyArray<ModelPath<unknown>>
+  triggers?: ReadonlyArray<Readonly<{ name: string }>>
 }>
+
+const touchesOf = (
+  config: Pick<ActionConfig<unknown>, 'mutates' | 'triggers'>,
+): Option.Option<Touches> =>
+  config.mutates === undefined && config.triggers === undefined
+    ? Option.none()
+    : Option.some({
+        mutates: Array.map(config.mutates ?? [], path =>
+          Array.join(segmentsOf(path), '.'),
+        ),
+        triggers: Array.map(config.triggers ?? [], triggered => triggered.name),
+      })
+
+const parametersOf = (
+  fields: S.Struct.Fields,
+  maybeChoose: Option.Option<Choose<any, string, any>>,
+): Parameters =>
+  Option.match(maybeChoose, {
+    onNone: () => parametersOfFields(fields),
+    onSome: choose =>
+      Record.map(parametersOfFields(fields, choose.field), (parameter, name) =>
+        name === choose.field
+          ? {
+              kind:
+                parameter.kind._tag === 'Text' ||
+                parameter.kind._tag === 'Number' ||
+                parameter.kind._tag === 'Structured'
+                  ? {
+                      _tag: 'Named' as const,
+                      noun: choose.noun ?? wordsOfField(choose.field),
+                    }
+                  : parameter.kind,
+              what: choose.prompt,
+              presence:
+                choose.preferredOf === undefined
+                  ? ('Required' as const)
+                  : ('Optional' as const),
+              isSubject: true,
+            }
+          : parameter,
+      ),
+  })
 
 /**
  * Declares one Action: a Message a person, key, menu, or agent can cause on
@@ -235,6 +304,10 @@ export function action(
     meta: config.meta,
     isPayloadFree: Array.isReadonlyArrayEmpty(Object.keys(fields)),
     maybeChoose: Option.map(Option.fromNullishOr(config.choose), chooseOf),
+    aliases: config.aliases ?? [],
+    parameters: parametersOf(fields, Option.fromNullishOr(config.choose)),
+    examples: config.examples ?? [],
+    maybeTouches: touchesOf(config),
   })
 }
 
@@ -877,6 +950,8 @@ export const lift = <
       why: declaration.why,
       ...(config.enabled === undefined ? {} : { enabled: config.enabled }),
       meta: declaration.meta,
+      aliases: declaration.aliases,
+      examples: declaration.examples,
     })
   const actions = Array.map(child.actions, liftOne)
   const childOf = (message: Readonly<{ _tag: string }>) =>
@@ -983,6 +1058,10 @@ export const within = <
       why: declaration.why,
       meta: declaration.meta,
       isPayloadFree: declaration.isPayloadFree,
+      aliases: declaration.aliases,
+      parameters: declaration.parameters,
+      examples: declaration.examples,
+      maybeTouches: declaration.maybeTouches,
       enabled: (model: Model) => {
         const availability = parentEnabled(model)
         return isEnabled(availability)
@@ -1017,3 +1096,169 @@ export const within = <
     childOf,
   }
 }
+
+// DECLARATION
+
+/**
+ * An Action as the plain declaration every Client reads, derived from
+ * what `Catalog.action` was given and nothing else: its tag as the name,
+ * its `what` and `why`, its parameters read from its Effect Schema
+ * fields, with the chosen field as its subject, and what it touches
+ * when it has said. A terminal's usage, a form's check, a hint, and an
+ * agent's tool are read from this value.
+ *
+ * @example
+ * ```typescript
+ * Catalog.declarationOf(Listen)
+ * // { name: 'Listen', what: '…', why: '…',
+ * //   parameters: { slug: { kind: { _tag: 'Named', noun: 'title' }, what: 'Which title?', presence: 'Optional', isSubject: true } }, … }
+ * ```
+ */
+export const declarationOf = (
+  declaration: ActionDeclaration<string, any>,
+): Declaration =>
+  makeDeclaration(declaration.tag, {
+    aliases: declaration.aliases,
+    what: declaration.what,
+    why: declaration.why,
+    ...Option.match(declaration.maybeTouches, {
+      onNone: () => ({}),
+      onSome: touches => ({ touches }),
+    }),
+    parameters: declaration.parameters,
+    examples: declaration.examples,
+  })
+
+/**
+ * Every Action of a Catalog as a plain declaration, in order. It needs
+ * no Model, so a Client lists what a Program takes before it runs.
+ *
+ * @example
+ * ```typescript
+ * Catalog.declarationsOf(catalog).map(declaration => declaration.name)
+ * // ['Increment', 'Decrement', 'Reset']
+ * ```
+ */
+export const declarationsOf = (
+  catalog: AnyCatalog,
+): ReadonlyArray<Declaration> => Array.map(catalog.actions, declarationOf)
+
+// TOUCHES
+
+const isPlainObject = (
+  value: unknown,
+): value is Readonly<Record<string, unknown>> =>
+  Predicate.isObject(value) &&
+  !globalThis.Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype
+
+const changedPathsOf = (
+  before: unknown,
+  after: unknown,
+  path: ReadonlyArray<string>,
+): ReadonlyArray<ReadonlyArray<string>> => {
+  if (Equal.equals(before, after)) {
+    return []
+  } else if (isPlainObject(before) && isPlainObject(after)) {
+    return Array.flatMap(
+      Array.dedupe([...Object.keys(before), ...Object.keys(after)]),
+      key => changedPathsOf(before[key], after[key], [...path, key]),
+    )
+  } else {
+    return [path]
+  }
+}
+
+const isUnder = (path: ReadonlyArray<string>, declared: string): boolean => {
+  const joined = Array.join(path, '.')
+  return joined === declared || joined.startsWith(`${declared}.`)
+}
+
+const messagesFor = <C extends AnyCatalog>(
+  catalog: C,
+  declaration: AnyAction,
+  model: ModelOf<C>,
+): ReadonlyArray<MessageOf<C>> =>
+  Option.match(entryOf(declaration, model).maybeChoices, {
+    onNone: () => Array.fromOption(messageFor(catalog, model, declaration.tag)),
+    onSome: ({ choices }) =>
+      Array.getSomes(
+        Array.map(choices, choice =>
+          messageFor(
+            catalog,
+            model,
+            choiceTagOf(declaration.tag, choice.token),
+          ),
+        ),
+      ),
+  })
+
+/**
+ * What `update` does that an Action did not say, a sentence each; empty
+ * when every Action touches only what it declares. For each sample
+ * Model it sends every Action that is enabled there, a choosing Action
+ * once for each choice, and compares: a path of the Model that changed
+ * must be one the Action says it `mutates`, or inside one, and a Command
+ * returned must be one it says it `triggers`. `update` is pure, so this
+ * sends nothing and runs no side effect. An Action that has not said
+ * what it touches is not asked. A Program's test calls this, so what an
+ * Action says it touches is checked, not trusted.
+ *
+ * @example
+ * ```typescript
+ * Catalog.undeclaredTouches(catalog, update, [initialModel, playingModel]) // []
+ * // after `Increment` also clears the favourite mark:
+ * // ['Increment changed isFavorite, which it does not say it mutates.']
+ * ```
+ */
+export const undeclaredTouches = <C extends AnyCatalog, Model>(
+  catalog: C,
+  update: (
+    model: Model,
+    message: MessageOf<C>,
+  ) => readonly [Model, ReadonlyArray<Readonly<{ name: string }>>],
+  models: ReadonlyArray<Model>,
+): ReadonlyArray<string> =>
+  Array.dedupe(
+    Array.flatMap(models, model =>
+      Array.flatMap(catalog.actions, declaration =>
+        Option.match(declaration.maybeTouches, {
+          onNone: () => [],
+          onSome: touches =>
+            Array.flatMap(
+              /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+              messagesFor(catalog, declaration, model as ModelOf<C>),
+              message => {
+                const [next, commands] = update(model, message)
+                return [
+                  ...pipe(
+                    changedPathsOf(model, next, []),
+                    Array.filter(
+                      path =>
+                        !Array.some(touches.mutates, declared =>
+                          isUnder(path, declared),
+                        ),
+                    ),
+                    Array.map(
+                      path =>
+                        `${declaration.tag} changed ${Array.join(path, '.')}, which it does not say it mutates.`,
+                    ),
+                  ),
+                  ...pipe(
+                    commands,
+                    Array.filter(
+                      command =>
+                        !Array.contains(touches.triggers, command.name),
+                    ),
+                    Array.map(
+                      command =>
+                        `${declaration.tag} triggered ${command.name}, which it does not say it triggers.`,
+                    ),
+                  ),
+                ]
+              },
+            ),
+        }),
+      ),
+    ),
+  )

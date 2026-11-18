@@ -77,22 +77,19 @@ describe('toolOf', () => {
   it('says what a call touches once that is derived, and nothing before', () => {
     expect(toolOf(['Listen'], Listen).annotations).toBeUndefined()
     expect(
-      toolOf(['Follow'], { ...Follow, touches: { state: [], reaches: [] } })
+      toolOf(['Follow'], { ...Follow, touches: { mutates: [], triggers: [] } })
         .annotations,
     ).toEqual({ readOnlyHint: true, openWorldHint: false })
     expect(
       toolOf(['Listen'], {
         ...Listen,
-        touches: { state: ['listening'], reaches: [] },
+        touches: { mutates: ['listening'], triggers: [] },
       }).annotations,
     ).toEqual({ readOnlyHint: false, openWorldHint: false })
     expect(
       toolOf(['SignIn'], {
         ...SignIn,
-        touches: {
-          state: [],
-          reaches: [{ entity: 'sign-in', access: 'Writes', isOutside: true }],
-        },
+        touches: { mutates: [], triggers: ['OpenSignInPage'] },
       }).annotations,
     ).toEqual({ readOnlyHint: false, openWorldHint: true })
   })

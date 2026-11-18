@@ -20,8 +20,8 @@ export type ToolProperty = Readonly<{
 
 /**
  * What a call touches, in the words agent protocols use: `readOnlyHint`
- * is true when nothing changes, and `openWorldHint` when the call
- * reaches past the Program or costs something.
+ * is true when nothing is mutated or triggered, and `openWorldHint`
+ * when a side effect is triggered, which reaches past the Model.
  */
 export type ToolAnnotations = Readonly<{
   readOnlyHint: boolean
@@ -106,7 +106,7 @@ const propertyOf = (parameter: Parameter): ToolProperty => ({
 
 const annotationsOf = (touches: Touches): ToolAnnotations => ({
   readOnlyHint: !changesSomething(touches),
-  openWorldHint: touches.reaches.some(reach => reach.isOutside),
+  openWorldHint: touches.triggers.length > 0,
 })
 
 const titleOf = (path: ReadonlyArray<string>): string => {

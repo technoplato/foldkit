@@ -12,7 +12,6 @@ import {
 import {
   type Declaration,
   type Parameters,
-  type Reach,
   make,
   wordsOf,
 } from './declaration.js'
@@ -209,7 +208,7 @@ export type DeclareConfig<Fields extends S.Struct.Fields> = Readonly<{
   aliases?: ReadonlyArray<string>
   what: string
   why: string
-  reaches?: ReadonlyArray<Reach>
+  triggers?: ReadonlyArray<Readonly<{ name: string }>>
   fields?: Fields
   subject?: keyof Fields & string
   examples?: ReadonlyArray<
@@ -221,18 +220,19 @@ export type DeclareConfig<Fields extends S.Struct.Fields> = Readonly<{
  * Declares one thing a host does itself, with its parameters as Effect
  * Schema fields. `what` says what it does and `why` says why the user
  * would want that, in the third person and never in a Client's words.
- * A host holds no Model, so it touches no state; `reaches` says what it
- * reaches instead, such as a sign-in. A Program's Actions are declared
- * with `Catalog.action`, which gives the same two things.
+ * A host holds no Model, so it mutates no state; `triggers` names the
+ * side effects it runs, each by its own definition, such as a sign-in.
+ * A Program's Actions are declared with `Catalog.action`, which gives
+ * the same two things.
  *
  * @example
  * ```typescript
  * const SignIn = Declaration.declare('SignIn', {
  *   what: 'Signs the user in to the library',
  *   why: 'A request was refused because the sign-in ran out',
- *   reaches: [{ entity: 'sign-in', access: 'Writes', isOutside: true }],
+ *   triggers: [OpenSignInPage],
  * })
- * SignIn.declaration.touches // { state: [], reaches: [{ entity: 'sign-in', … }] }
+ * SignIn.declaration.touches // { mutates: [], triggers: ['OpenSignInPage'] }
  * ```
  */
 export const declare = <
@@ -249,7 +249,10 @@ export const declare = <
       ...(config.aliases === undefined ? {} : { aliases: config.aliases }),
       what: config.what,
       why: config.why,
-      touches: { state: [], reaches: config.reaches ?? [] },
+      touches: {
+        mutates: [],
+        triggers: Array.map(config.triggers ?? [], triggered => triggered.name),
+      },
       parameters: parametersOfFields(fields, config.subject),
       examples: config.examples ?? [],
     }),
@@ -328,3 +331,66 @@ export const parseDeclared = <
     onSome: refined => ({ _tag: 'Refused', ...refined }),
   })
 }
+
+// STATE
+
+const whyKey = 'foldkitWhy'
+
+/**
+ * Annotations that say what a field of the Model is and why the user
+ * cares, the way an Action says its own. State that says both is state
+ * a Client may list and show.
+ *
+ * @example
+ * ```typescript
+ * const Model = S.Struct({
+ *   count: S.Number.annotate(described({ what: 'The count', why: 'It is what the user is counting' })),
+ * })
+ * ```
+ */
+export const described = (
+  said: Readonly<{ what: string; why: string }>,
+): Readonly<Record<string, string>> => ({
+  description: said.what,
+  [whyKey]: said.why,
+})
+
+/** One part of a Model a Client may list and show: where, what, and why. */
+export type Observable = Readonly<{
+  path: ReadonlyArray<string>
+  what: string
+  why: string
+}>
+
+const observablesUnder = (
+  ast: SchemaAST.AST,
+  parents: ReadonlyArray<string>,
+): ReadonlyArray<Observable> =>
+  SchemaAST.isObjects(ast)
+    ? Array.flatMap(ast.propertySignatures, signature => {
+        const path = [...parents, globalThis.String(signature.name)]
+        const what = SchemaAST.resolveAt<unknown>('description')(signature.type)
+        const why = SchemaAST.resolveAt<unknown>(whyKey)(signature.type)
+        return [
+          ...(Predicate.isString(what) && Predicate.isString(why)
+            ? [{ path, what, why }]
+            : []),
+          ...observablesUnder(signature.type, path),
+        ]
+      })
+    : []
+
+/**
+ * The state a Model says what and why for, each by its path, in the
+ * Model's own order. It is read from the Model's Schema, so there is no
+ * list beside the Model to keep in step. These are the same paths an
+ * Action says it mutates.
+ *
+ * @example
+ * ```typescript
+ * observablesOf(Model) // [{ path: ['count'], what: 'The count', why: 'It is what the user is counting' }]
+ * ```
+ */
+export const observablesOf = (
+  model: Readonly<{ ast: SchemaAST.AST }>,
+): ReadonlyArray<Observable> => observablesUnder(model.ast, [])

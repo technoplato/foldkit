@@ -9,54 +9,34 @@ import type { Kind, Parameter, ValueOf } from './parameter.js'
 // TOUCHES
 
 /**
- * One thing outside the Model that asking reaches: an entity in a store
- * or a service, whether it is read or written, and whether it lies
- * outside the Program, such as a sign-in or a download. A Command says
- * this once, because nothing else can know it.
+ * What asking for a declaration touches, in two relations: the state it
+ * `mutates`, as paths of the Model, and the things it `triggers`, as the
+ * names of the Commands whose side effects run. An author never types
+ * these strings: an Action names typed paths and the Command definitions
+ * themselves, a pure check holds `update` to them, and this is the plain
+ * form every Client reads. Both empty means it only looks.
  *
  * @example
  * ```typescript
- * const reach: Declaration.Reach = { entity: 'library', access: 'Writes', isOutside: false }
- * ```
- */
-export type Reach = Readonly<{
-  entity: string
-  access: 'Reads' | 'Writes'
-  isOutside: boolean
-}>
-
-/**
- * What asking for a declaration touches, derived and never labelled:
- * `state` is the paths of the Model its update changes, read by running
- * the pure update, and `reaches` is what its Commands say they reach.
- * Both empty means it only looks. An agent, and any Client that asks
- * before it acts, reads this to tell looking from changing, and to say
- * what would change.
- *
- * @example
- * ```typescript
- * const touches: Declaration.Touches = {
- *   state: ['listening.place'],
- *   reaches: [{ entity: 'library', access: 'Writes', isOutside: false }],
- * }
+ * const touches: Declaration.Touches = { mutates: ['count'], triggers: [] }
  * ```
  */
 export type Touches = Readonly<{
-  state: ReadonlyArray<string>
-  reaches: ReadonlyArray<Reach>
+  mutates: ReadonlyArray<string>
+  triggers: ReadonlyArray<string>
 }>
 
 /**
- * Whether what is touched changes anything: some state, or a write.
+ * Whether what is touched changes anything: some state is mutated, or a
+ * side effect is triggered.
  *
  * @example
  * ```typescript
- * Declaration.changesSomething({ state: [], reaches: [] }) // false
+ * Declaration.changesSomething({ mutates: [], triggers: [] }) // false
  * ```
  */
 export const changesSomething = (touches: Touches): boolean =>
-  touches.state.length > 0 ||
-  touches.reaches.some(reach => reach.access === 'Writes')
+  touches.mutates.length > 0 || touches.triggers.length > 0
 
 // DECLARATION
 

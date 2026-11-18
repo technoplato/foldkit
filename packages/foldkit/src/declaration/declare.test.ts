@@ -37,7 +37,7 @@ const Watch = declare('Watch', {
 const SignIn = declare('SignIn', {
   what: 'Signs the user in to the library',
   why: 'A request was refused because the sign-in ran out',
-  reaches: [{ entity: 'sign-in', access: 'Writes', isOutside: true }],
+  triggers: [{ name: 'OpenSignInPage' }],
 })
 
 const Search = declare('Search', {
@@ -57,7 +57,7 @@ describe('declare', () => {
       aliases: [],
       what: 'Shows a reading each time it changes',
       why: 'To see the words while listening',
-      touches: { state: [], reaches: [] },
+      touches: { mutates: [], triggers: [] },
       parameters: {
         topic: {
           kind: { _tag: 'OneOf', options: ['words', 'screen'] },
@@ -90,10 +90,10 @@ describe('declare', () => {
     expect(problemsOf(Watch.declaration)).toEqual([])
   })
 
-  it('touches no state, and says what a host reaches instead', () => {
+  it('mutates no state, and names the side effects a host triggers', () => {
     expect(SignIn.declaration.touches).toEqual({
-      state: [],
-      reaches: [{ entity: 'sign-in', access: 'Writes', isOutside: true }],
+      mutates: [],
+      triggers: ['OpenSignInPage'],
     })
   })
 
