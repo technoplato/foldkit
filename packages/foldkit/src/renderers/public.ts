@@ -37,6 +37,11 @@ export {
   transcriptsOf,
 } from './query.js'
 export {
+  currentWordTokenAt,
+  transcriptAt,
+  transcriptPlaceAt,
+} from './transcriptClock.js'
+export {
   ExcerptPosition,
   TranscriptExcerpt,
   TranscriptExcerptJson,
@@ -79,6 +84,7 @@ export type {
   TextInputNode,
   TextNode,
   TextPart,
+  TranscriptClock,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWord,

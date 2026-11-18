@@ -224,13 +224,29 @@ export type SeekNode = Readonly<{
 }>
 
 /**
- * One word of a Transcript: its text, the token a press sends, and
- * whether it is the one sounding now.
+ * One word of a Transcript: its text, the token a press sends, whether it
+ * is the one sounding now, and, when the Transcript has a clock, the place
+ * the word starts at on it, `startMs`.
  */
 export type TranscriptWord = Readonly<{
   readonly token: string
   readonly text: string
   readonly isCurrent?: boolean
+  readonly startMs?: number
+}>
+
+/**
+ * The clock a Transcript's words are timed against: the place was
+ * `placeMs` at the wall-clock time `atMs`, and moves `rate` milliseconds
+ * for each millisecond that passes, `1` at normal speed, `1.5` at one and
+ * a half, `0` while paused. A player reports its place about once a
+ * second; with the clock a painter knows the place at any moment between
+ * reports, and so the word being spoken, without another Message.
+ */
+export type TranscriptClock = Readonly<{
+  readonly placeMs: number
+  readonly atMs: number
+  readonly rate: number
 }>
 
 /**
@@ -254,7 +270,9 @@ export type TranscriptPassage = Readonly<{
  * the one sounding marked current. Pressing a word presses `action` with
  * the word's token, `SeekToWord:w4012`. Graphical painters keep the
  * current word in view; a terminal brackets it, `[word]`. `emptyText` is
- * what shows while there are no passages.
+ * what shows while there are no passages. With a `clock` and each word's
+ * `startMs`, the marks say which word was sounding when the Program last
+ * heard the place, and `transcriptAt` says which is sounding now.
  */
 export type TranscriptNode = Readonly<{
   readonly _tag: 'Transcript'
@@ -262,6 +280,7 @@ export type TranscriptNode = Readonly<{
   readonly action: string
   readonly passages: ReadonlyArray<TranscriptPassage>
   readonly emptyText: string
+  readonly clock?: TranscriptClock
 }>
 
 /**
