@@ -102,112 +102,122 @@ afterEach(() => {
   }
 })
 
-describe('the books command a person runs, on the made-up library', () => {
-  it('is built from the source as it is now', () => {
-    const built = statSync(builtEntry).mtimeMs
-    expect(
-      built,
-      'examples/books/cli/dist is older than its source: run `pnpm --filter "books-cli-example..." run build`',
-    ).toBeGreaterThanOrEqual(newestIn(join(here, '.')))
-  })
+// Each test starts processes, a player among them, so it gets minutes,
+// not the few seconds a test of a function gets.
+const processTestMs = 180_000
 
-  it('plays a title typed as its name, in quotes or as words, and by part of it', () => {
-    const library = newLibrary()
-    const quoted = books(library, ['listen', 'The Lantern Keeper'])
-    expect(quoted.status).toBe(0)
-    expect(quoted.stderr).toBe('Starting the Books player…\n')
-    expect(quoted.stdout).toContain('Playing The Lantern Keeper')
-    const words = books(library, ['listen', 'small', 'hours'])
-    expect(words.status).toBe(0)
-    expect(words.stdout).toContain('Playing Small Hours')
-    const part = books(library, ['listen', 'weather'])
-    expect(part.stdout).toContain('Playing A Field Guide to Weather')
-    const slug = books(library, ['listen', 'the-lantern-keeper'])
-    expect(slug.stdout).toContain('Playing The Lantern Keeper')
-    expect(books(library, ['pause']).stdout).toContain('Paused The Lantern')
-    const again = books(library, ['listen', 'The Lantern Keeper'])
-    expect(again.status).toBe(0)
-    expect(again.stderr).toBe('')
-    expect(again.stdout).toContain('Playing The Lantern Keeper')
-  })
+describe(
+  'the books command a person runs, on the made-up library',
+  {
+    timeout: processTestMs,
+  },
+  () => {
+    it('is built from the source as it is now', () => {
+      const built = statSync(builtEntry).mtimeMs
+      expect(
+        built,
+        'examples/books/cli/dist is older than its source: run `pnpm --filter "books-cli-example..." run build`',
+      ).toBeGreaterThanOrEqual(newestIn(join(here, '.')))
+    })
 
-  it('follows the words with flags after and before the topic, down a pipe and with a terminal’s color', async () => {
-    const library = newLibrary()
-    expect(books(library, ['listen', 'lantern']).status).toBe(0)
-    const flagged: ReadonlyArray<ReadonlyArray<string>> = [
-      ['follow', 'words'],
-      ['follow', 'words', '--each-word'],
-      ['follow', '--each-word', 'words'],
-      ['follow', 'words', '--json'],
-      ['follow', '--json', 'words', '--each-word'],
-      ['follow', 'words', '--before', '2', '--after', '1'],
-      ['--before', '2', 'follow', 'words', '--after', '1', '--each-word'],
-    ]
-    for (const words of flagged) {
-      for (const extra of [{}, { FORCE_COLOR: '1' }]) {
-        const first = await firstOf(
-          launcher,
-          words,
-          environmentOf(library, extra),
-        )
-        const typed = `books ${words.join(' ')} ${JSON.stringify(extra)}`
-        expect(first.stderr, typed).not.toContain('Nothing here is called')
-        expect(first.stdout, typed).toMatch(/Lantern Keeper/)
-        if (words.includes('--json')) {
-          expect(first.stdout, typed).toMatch(/^\{"_tag":"Words/)
+    it('plays a title typed as its name, in quotes or as words, and by part of it', () => {
+      const library = newLibrary()
+      const quoted = books(library, ['listen', 'The Lantern Keeper'])
+      expect(quoted.status).toBe(0)
+      expect(quoted.stderr).toBe('Starting the Books player…\n')
+      expect(quoted.stdout).toContain('Playing The Lantern Keeper')
+      const words = books(library, ['listen', 'small', 'hours'])
+      expect(words.status).toBe(0)
+      expect(words.stdout).toContain('Playing Small Hours')
+      const part = books(library, ['listen', 'weather'])
+      expect(part.stdout).toContain('Playing A Field Guide to Weather')
+      const slug = books(library, ['listen', 'the-lantern-keeper'])
+      expect(slug.stdout).toContain('Playing The Lantern Keeper')
+      expect(books(library, ['pause']).stdout).toContain('Paused The Lantern')
+      const again = books(library, ['listen', 'The Lantern Keeper'])
+      expect(again.status).toBe(0)
+      expect(again.stderr).toBe('')
+      expect(again.stdout).toContain('Playing The Lantern Keeper')
+    })
+
+    it('follows the words with flags after and before the topic, down a pipe and with a terminal’s color', async () => {
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      const flagged: ReadonlyArray<ReadonlyArray<string>> = [
+        ['follow', 'words'],
+        ['follow', 'words', '--each-word'],
+        ['follow', '--each-word', 'words'],
+        ['follow', 'words', '--json'],
+        ['follow', '--json', 'words', '--each-word'],
+        ['follow', 'words', '--before', '2', '--after', '1'],
+        ['--before', '2', 'follow', 'words', '--after', '1', '--each-word'],
+      ]
+      for (const words of flagged) {
+        for (const extra of [{}, { FORCE_COLOR: '1' }]) {
+          const first = await firstOf(
+            launcher,
+            words,
+            environmentOf(library, extra),
+          )
+          const typed = `books ${words.join(' ')} ${JSON.stringify(extra)}`
+          expect(first.stderr, typed).not.toContain('Nothing here is called')
+          expect(first.stdout, typed).toMatch(/Lantern Keeper/)
+          if (words.includes('--json')) {
+            expect(first.stdout, typed).toMatch(/^\{"_tag":"Words/)
+          }
         }
       }
-    }
-  })
+    })
 
-  it('follows the words in a real terminal, where the view adds its color flag', async () => {
-    if (process.platform !== 'darwin') {
-      return
-    }
-    const library = newLibrary()
-    expect(books(library, ['listen', 'lantern']).status).toBe(0)
-    const first = await firstOf(
-      'script',
-      ['-q', '/dev/null', launcher, 'follow', 'words', '--each-word'],
-      { ...environmentOf(library), TERM: 'xterm-256color' },
-    )
-    expect(first.stdout).not.toContain('Nothing here is called')
-    expect(first.stdout).toMatch(/Lantern Keeper/)
-  })
+    it('follows the words in a real terminal, where the view adds its color flag', async () => {
+      if (process.platform !== 'darwin') {
+        return
+      }
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      const first = await firstOf(
+        'script',
+        ['-q', '/dev/null', launcher, 'follow', 'words', '--each-word'],
+        { ...environmentOf(library), TERM: 'xterm-256color' },
+      )
+      expect(first.stdout).not.toContain('Nothing here is called')
+      expect(first.stdout).toMatch(/Lantern Keeper/)
+    })
 
-  it('answers a command nobody declared in one sentence and leaves no player running', () => {
-    const library = newLibrary()
-    const unknown = books(library, ['lisen', 'lantern'])
-    expect(unknown.status).toBe(2)
-    expect(unknown.stdout).toBe('')
-    expect(unknown.stderr.split('\n').filter(line => line !== '')).toEqual([
-      'Starting the Books player…',
-      'Unknown command "lisen lantern". Nearest: books listen <title>. `books actions` lists every command.',
-      'The player was started only to read that, and is stopped again.',
-    ])
-    expect(books(library, ['stop']).stdout).toContain(
-      'Nothing is playing in this terminal’s player.',
-    )
-  })
+    it('answers a command nobody declared in one sentence and leaves no player running', () => {
+      const library = newLibrary()
+      const unknown = books(library, ['lisen', 'lantern'])
+      expect(unknown.status).toBe(2)
+      expect(unknown.stdout).toBe('')
+      expect(unknown.stderr.split('\n').filter(line => line !== '')).toEqual([
+        'Starting the Books player…',
+        'Unknown command "lisen lantern". Nearest: books listen <title>. `books actions` lists every command.',
+        'The player was started only to read that, and is stopped again.',
+      ])
+      expect(books(library, ['stop']).stdout).toContain(
+        'Nothing is playing in this terminal’s player.',
+      )
+    })
 
-  it('says no title matches and leaves no player running, when the command started it', () => {
-    const library = newLibrary()
-    const none = books(library, ['listen', 'moby'])
-    expect(none.status).toBe(2)
-    expect(none.stdout).toBe('')
-    expect(none.stderr).toContain('No title matches "moby".')
-    expect(none.stderr).toContain('books listen the-lantern-keeper')
-    expect(books(library, ['stop']).stdout).toContain(
-      'Nothing is playing in this terminal’s player.',
-    )
-  })
+    it('says no title matches and leaves no player running, when the command started it', () => {
+      const library = newLibrary()
+      const none = books(library, ['listen', 'moby'])
+      expect(none.status).toBe(2)
+      expect(none.stdout).toBe('')
+      expect(none.stderr).toContain('No title matches "moby".')
+      expect(none.stderr).toContain('books listen the-lantern-keeper')
+      expect(books(library, ['stop']).stdout).toContain(
+        'Nothing is playing in this terminal’s player.',
+      )
+    })
 
-  it('keeps a player that was already running when a command is refused', () => {
-    const library = newLibrary()
-    expect(books(library, ['listen', 'lantern']).status).toBe(0)
-    expect(books(library, ['lisen']).status).toBe(2)
-    expect(books(library, ['pause']).stdout).toContain(
-      'Paused The Lantern Keeper',
-    )
-  })
-})
+    it('keeps a player that was already running when a command is refused', () => {
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      expect(books(library, ['lisen']).status).toBe(2)
+      expect(books(library, ['pause']).stdout).toContain(
+        'Paused The Lantern Keeper',
+      )
+    })
+  },
+)

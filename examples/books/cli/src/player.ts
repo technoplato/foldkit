@@ -25,6 +25,7 @@ import {
   spokenWordsLines,
   spokenWordsOf,
   suggestedPressesOf,
+  titlesNamed,
   titlesOf,
 } from 'books-core-example'
 import {
@@ -701,6 +702,36 @@ export const makeBooksPlayer = (
     return answered(result, () => paintBrief(bound))
   }
   /**
+   * `books listen <title>`: when the title named is the one already in
+   * the player, it plays on from where it is, or keeps playing; any other
+   * title is the Program's own Listen, which takes the title as typed.
+   */
+  const listened = (
+    words: ReadonlyArray<string>,
+    flags: CliDaemonFlags,
+    client: Processor.Host.Host,
+  ): CliDaemonPaintedResult => {
+    const typed = Array.join(Array.drop(words, 1), ' ')
+    const maybeInPlayer = Option.filter(
+      Option.flatMap(readyOf(bound.readModel()), model =>
+        Option.map(loadedTitleOf(model), ({ title, loaded }) => ({
+          named: titlesNamed(titlesOf(model), typed),
+          title,
+          loaded,
+        })),
+      ),
+      ({ named, title }) =>
+        named.length === 1 && Array.some(named, one => one.slug === title.slug),
+    )
+    return Option.match(maybeInPlayer, {
+      onNone: () => ran(words, flags, client),
+      onSome: ({ loaded }) =>
+        TranscriptPlayer.isSounding(loaded.player)
+          ? brief()
+          : ran(['play'], flags, client),
+    })
+  }
+  /**
    * `books link`: the whole link to the word being read, to paste
    * anywhere, on a line of its own so it pipes to a clipboard.
    */
@@ -852,6 +883,8 @@ export const makeBooksPlayer = (
           return Effect.sync(() =>
             moved(Array.map(words, pathWordOf), flags, client),
           )
+        } else if (head === 'listen') {
+          return Effect.sync(() => listened(words, flags, client))
         } else if (head === 'search') {
           return searchedBook(bound, words, flags, client)
         } else if (head === 'link') {

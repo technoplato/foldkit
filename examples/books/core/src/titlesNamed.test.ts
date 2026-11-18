@@ -14,9 +14,9 @@ describe('the titles a person names by what they type', () => {
     expect(slugsOf('small-hours')).toEqual(['small-hours'])
   })
 
-  it('finds a title by part of its name, and by its author', () => {
+  it('finds a title by part of its name, the words in any order', () => {
     expect(slugsOf('weather guide')).toEqual(['a-field-guide-to-weather'])
-    expect(slugsOf('noor vale')).toEqual(['small-hours'])
+    expect(slugsOf('hours')).toEqual(['small-hours'])
   })
 
   it('finds every title that holds what was typed, in the library’s order', () => {

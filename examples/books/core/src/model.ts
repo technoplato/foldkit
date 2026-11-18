@@ -8,6 +8,7 @@ import {
   pipe,
 } from 'effect'
 import { Navigation } from 'foldkit'
+import { namedByTyped } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
 import { AppearanceState } from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
@@ -252,6 +253,26 @@ export const titlesOf = (model: HasLibrary): ReadonlyArray<Title> =>
     onNone: () => [],
     onSome: shelf => shelf.titles,
   })
+
+/**
+ * The titles a person names by what they typed: a title's name or part of
+ * it, the words in any order and any case, or its slug. One exactly named
+ * is found alone, so `Dune` is not also `Dune Messiah`. They keep the
+ * library's order. One is the title meant, several ask for more of the
+ * name, none means no title goes by that. A terminal's `books listen` and
+ * a library's search field read titles with it.
+ *
+ * @example
+ * ```typescript
+ * titlesNamed(titlesOf(model), 'lantern keeper') // [The Lantern Keeper]
+ * titlesNamed(titlesOf(model), 'a') // every title with an a in its name
+ * ```
+ */
+export const titlesNamed = (
+  titles: ReadonlyArray<Title>,
+  typed: string,
+): ReadonlyArray<Title> =>
+  namedByTyped(titles, typed, title => [title.name, title.slug])
 
 /** The title `slug` names, while it is on the shelf. */
 export const titleOf = (
