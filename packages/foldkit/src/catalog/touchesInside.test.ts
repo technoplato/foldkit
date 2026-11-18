@@ -113,6 +113,66 @@ describe('ModelPath.of', () => {
   })
 })
 
+describe('ModelPath.of, at a state that is one of several', () => {
+  const Search = S.Union([
+    S.TaggedStruct('Idle', {}),
+    S.TaggedStruct('Found', { total: S.Number, selected: S.Number }),
+  ])
+  const Finder = S.Struct({ maybeSearch: S.Option(Search) })
+  const inFinder = ModelPath.of(Finder)
+
+  it('names a field only one of them has', () => {
+    expect(ModelPath.segmentsOf(inFinder.maybeSearch.selected)).toEqual([
+      'maybeSearch',
+      'selected',
+    ])
+    // @ts-expect-error none of them has `chosen`
+    expect(ModelPath.segmentsOf(inFinder.maybeSearch.chosen)).toEqual([
+      'maybeSearch',
+      'chosen',
+    ])
+  })
+
+  it('is held to that field: becoming another of them is a change of the whole', () => {
+    type Finder = typeof Finder.Type
+    const SelectNext = Catalog.action('SelectNext', {
+      what: 'Selects the next place found',
+      why: 'To look at one place among those found',
+      mutates: [inFinder.maybeSearch.selected],
+      meta: { label: 'Next', keys: ['n'] },
+    })
+    const finderCatalog = Catalog.make([SelectNext])
+    const found: Finder = {
+      maybeSearch: Option.some({ _tag: 'Found', total: 3, selected: 0 }),
+    }
+    expect(
+      Catalog.undeclaredTouches(
+        finderCatalog,
+        (): readonly [Finder, ReadonlyArray<never>] => [
+          {
+            maybeSearch: Option.some({ _tag: 'Found', total: 3, selected: 1 }),
+          },
+          [],
+        ],
+        [found],
+      ),
+    ).toEqual([])
+    expect(
+      Catalog.undeclaredTouches(
+        finderCatalog,
+        (): readonly [Finder, ReadonlyArray<never>] => [
+          { maybeSearch: Option.some({ _tag: 'Idle' }) },
+          [],
+        ],
+        [found],
+      ),
+    ).toEqual([
+      'SelectNext changed maybeSearch._tag, which it does not say it mutates.',
+      'SelectNext changed maybeSearch.total, which it does not say it mutates.',
+    ])
+  })
+})
+
 describe('Catalog.undeclaredTouches, inside an Option and a list', () => {
   it('finds nothing when update changes only the field named inside', () => {
     expect(Catalog.undeclaredTouches(catalog, update, models, notes)).toEqual(
