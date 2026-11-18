@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { App } from './app.js'
 import { SetAppearance, catalog } from './message.js'
 import { BooksProgram } from './program.js'
+import { subscriptions } from './subscriptions.js'
 
 const started = () => App.init()[0]
 
@@ -44,6 +45,37 @@ describe('the look of Books', () => {
     )[0]
     expect(choseLight.appearance.appearance).toBe('Light')
     expect(modeOf(choseLight)).toBe('Light')
+  })
+
+  it('hears More Contrast from the host as it hears the mode, and is painted in it', () => {
+    expect(Theme.contrastOfState(started().appearance)).toBe('Standard')
+    const asked = App.update(
+      started(),
+      Theme.ObservedSystemContrast({ contrast: 'More' }),
+    )[0]
+    expect(Theme.contrastOfState(asked.appearance)).toBe('More')
+    expect(modeOf(asked)).toBe(modeOf(started()))
+    const back = App.update(
+      asked,
+      Theme.ObservedSystemContrast({ contrast: 'Standard' }),
+    )[0]
+    expect(Theme.contrastOfState(back.appearance)).toBe('Standard')
+  })
+
+  it('listens for the system’s contrast for as long as it runs, beside its mode', () => {
+    expect(Object.keys(subscriptions)).toContain('systemMode')
+    expect(Object.keys(subscriptions)).toContain('systemContrast')
+  })
+
+  it('keeps the contrast on this device, as it keeps the mode', () => {
+    const synchronization = Option.getOrThrow(
+      Option.fromNullishOr(BooksProgram.synchronization),
+    )
+    expect(
+      synchronization.isLocalOnly?.(
+        Theme.ObservedSystemContrast({ contrast: 'More' }),
+      ),
+    ).toBe(true)
   })
 
   it('stays on this device for now: its Messages never reach the log, and a refold keeps it', () => {

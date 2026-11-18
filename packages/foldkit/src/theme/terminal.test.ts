@@ -109,6 +109,29 @@ describe('the theme in a terminal', () => {
     }
   })
 
+  it('takes a role’s stronger color when it is told the contrast is More', () => {
+    const more = terminalInkOf({
+      isTerminal: true,
+      env: {},
+      ground: 'Light',
+      contrast: 'More',
+    })
+    expect(terminalColorOf(more, 'Accent')).toBe(defaultTheme.Accent.lightMore)
+    expect(terminalColorOf(more, 'QuietText')).toBe(
+      defaultTheme.QuietText.lightMore,
+    )
+    expect(terminalColorOf(onLight, 'Accent')).toBe(defaultTheme.Accent.light)
+    const darkMore = terminalInkOf({
+      isTerminal: true,
+      env: {},
+      ground: 'Dark',
+      contrast: 'More',
+    })
+    expect(terminalColorOf(darkMore, 'QuietText')).toBe(
+      defaultTheme.QuietText.darkMore,
+    )
+  })
+
   it('leaves text alone for a role that is not one flat color', () => {
     expect(inked(onDark, 'ReadingGround', 'words')).toBe('words')
   })
