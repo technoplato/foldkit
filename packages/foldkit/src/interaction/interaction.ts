@@ -230,34 +230,6 @@ export const shortcutOf = (key: KeyInput, platform: KeyPlatform): string => {
   }
 }
 
-/**
- * How a menu row's number reads on a platform: `⌘3` on a Mac, `Ctrl+3`
- * elsewhere, and None on a touch screen.
- *
- * @example
- * ```typescript
- * pickShortcutOf(3, 'Mac') // Some('⌘3')
- * pickShortcutOf(3, 'Touch') // None
- * ```
- */
-export const pickShortcutOf = (
-  pick: number,
-  platform: KeyPlatform,
-): Option.Option<string> =>
-  M.value(platform).pipe(
-    M.withReturnType<Option.Option<string>>(),
-    M.when('Mac', () =>
-      Option.some(shortcutOf(keyInput(String(pick), { isMeta: true }), 'Mac')),
-    ),
-    M.when('Other', () =>
-      Option.some(
-        shortcutOf(keyInput(String(pick), { isControl: true }), 'Other'),
-      ),
-    ),
-    M.when('Touch', () => Option.none()),
-    M.exhaustive,
-  )
-
 const browserOwnedChordKeys: ReadonlySet<string> = new Set([
   '+',
   '=',
@@ -290,8 +262,8 @@ const browserOwnedChordKeys: ReadonlySet<string> = new Set([
  * True for a chord the browser already owns: zoom (`⌘+`, `⌘-`, `⌘0`),
  * reload, tabs and windows, the address bar, find, print, save,
  * bookmarks, history, editing, and back and forward. A Program never
- * takes one, so `⌘-` always zooms out. `⌘1` to `⌘9` switch tabs too; only
- * the open action menu takes them, to pick a row.
+ * takes one, so `⌘-` always zooms out. The chord that switches tabs
+ * depends on the platform; {@link isHostOwnedKey} adds it.
  *
  * @example
  * ```typescript
@@ -303,6 +275,137 @@ const browserOwnedChordKeys: ReadonlySet<string> = new Set([
 export const isBrowserOwnedChord = (input: KeyInput): boolean =>
   isChord(input) &&
   browserOwnedChordKeys.has(normalizeKey(input.key).toLowerCase())
+
+// HOST
+
+/**
+ * Who shares the keyboard with a Program. A browser takes its own chords
+ * before a page hears them: `⌘2` switches to the second tab in Safari
+ * whatever the page does. A native window passes every key on, and a
+ * terminal never passes Command on. A Program declares the keys it
+ * prefers; each Client names its host, shows only the keys that host
+ * leaves, and refuses the rest.
+ */
+export const KeyHost = S.Literals(['Browser', 'Native', 'Terminal'])
+/** Who shares the keyboard with a Program. */
+export type KeyHost = typeof KeyHost.Type
+
+const tabDigitPattern = /^[1-9]$/
+
+const isBrowserTabChord = (platform: KeyPlatform, input: KeyInput): boolean =>
+  tabDigitPattern.test(normalizeKey(input.key)) &&
+  (platform === 'Mac' ? input.isMeta : input.isControl)
+
+/**
+ * True for a key press the host keeps for itself, so a Program must not
+ * take it or show it. A browser keeps its chords ({@link
+ * isBrowserOwnedChord}) and the chord that switches tabs: `⌘1` to `⌘9` on
+ * a Mac, `Ctrl+1` to `Ctrl+9` elsewhere. On a Mac it leaves `⌃1` to `⌃9`.
+ * A native window keeps nothing. A terminal keeps every Command chord.
+ *
+ * @example
+ * ```typescript
+ * isHostOwnedKey('Browser', 'Mac', keyInput('2', { isMeta: true })) // true
+ * isHostOwnedKey('Browser', 'Mac', keyInput('2', { isControl: true })) // false
+ * isHostOwnedKey('Native', 'Mac', keyInput('2', { isMeta: true })) // false
+ * ```
+ */
+export const isHostOwnedKey = (
+  host: KeyHost,
+  platform: KeyPlatform,
+  input: KeyInput,
+): boolean =>
+  M.value(host).pipe(
+    M.withReturnType<boolean>(),
+    M.when(
+      'Browser',
+      () => isBrowserOwnedChord(input) || isBrowserTabChord(platform, input),
+    ),
+    M.when('Native', () => false),
+    M.when('Terminal', () => input.isMeta),
+    M.exhaustive,
+  )
+
+const pickChordsOf = (
+  pick: number,
+  platform: KeyPlatform,
+): ReadonlyArray<KeyInput> =>
+  M.value(platform).pipe(
+    M.withReturnType<ReadonlyArray<KeyInput>>(),
+    M.when('Mac', () => [
+      keyInput(String(pick), { isMeta: true }),
+      keyInput(String(pick), { isControl: true }),
+    ]),
+    M.when('Other', () => [keyInput(String(pick), { isControl: true })]),
+    M.when('Touch', () => []),
+    M.exhaustive,
+  )
+
+/**
+ * How a menu row's number reads: the first chord for it the host leaves
+ * to the Program. A native Mac window shows `⌘3`. A browser on a Mac shows
+ * `⌃3`, because `⌘3` switches tabs there. None where the host keeps every
+ * chord, such as a browser off a Mac, and on a touch screen.
+ *
+ * @example
+ * ```typescript
+ * pickShortcutOf(3, 'Mac', 'Native') // Some('⌘3')
+ * pickShortcutOf(3, 'Mac', 'Browser') // Some('⌃3')
+ * pickShortcutOf(3, 'Touch', 'Browser') // None
+ * ```
+ */
+export const pickShortcutOf = (
+  pick: number,
+  platform: KeyPlatform,
+  host: KeyHost,
+): Option.Option<string> =>
+  Option.map(
+    Array.findFirst(
+      pickChordsOf(pick, platform),
+      chord => !isHostOwnedKey(host, platform, chord),
+    ),
+    chord => shortcutOf(chord, platform),
+  )
+
+const keyNames: ReadonlyMap<string, string> = new Map([
+  ['Escape', 'esc'],
+  [' ', 'space'],
+  ['Enter', '↵'],
+  ['ArrowUp', '↑'],
+  ['ArrowDown', '↓'],
+  ['ArrowLeft', '←'],
+  ['ArrowRight', '→'],
+  ['Backspace', '⌫'],
+  ['Tab', 'tab'],
+])
+
+/**
+ * The keys an Action declares, as a person on this platform and host
+ * reads them, without any the host keeps: `p` stays `p`, `Escape` reads
+ * `esc`, a space reads `space`. Empty on a touch screen.
+ *
+ * @example
+ * ```typescript
+ * shortcutsOf(['p', 'k'], 'Mac', 'Browser') // ['p', 'k']
+ * shortcutsOf(['Escape'], 'Mac', 'Browser') // ['esc']
+ * shortcutsOf(['p'], 'Touch', 'Browser') // []
+ * ```
+ */
+export const shortcutsOf = (
+  keys: ReadonlyArray<string>,
+  platform: KeyPlatform,
+  host: KeyHost,
+): ReadonlyArray<string> =>
+  platform === 'Touch'
+    ? []
+    : pipe(
+        keys,
+        Array.map(normalizeKey),
+        Array.filter(key => !isHostOwnedKey(host, platform, keyInput(key))),
+        Array.map(key =>
+          Option.getOrElse(Option.fromNullishOr(keyNames.get(key)), () => key),
+        ),
+      )
 
 const preferredShortcut = (
   keys: ReadonlyArray<KeyInput>,

@@ -592,7 +592,7 @@ export const paintMenuHtml = <Message>(
         ...Array.fromOption(
           Option.map(
             Option.flatMap(row.maybePick, pick =>
-              pickShortcutOf(pick, platform),
+              pickShortcutOf(pick, platform, 'Browser'),
             ),
             shortcut =>
               h.kbd(

@@ -488,7 +488,7 @@ const MenuRowView = ({
       ) : null}
       {Option.match(
         Option.flatMap(row.maybePick, pick =>
-          Interaction.pickShortcutOf(pick, browserKeyPlatform()),
+          Interaction.pickShortcutOf(pick, browserKeyPlatform(), 'Browser'),
         ),
         {
           onNone: () => null,
