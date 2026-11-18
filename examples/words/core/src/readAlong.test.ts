@@ -1,7 +1,9 @@
 import { Array, Option } from 'effect'
 import {
+  renderScreen,
   searchTranscript,
   transcriptAt,
+  transcriptEntriesOf,
   transcriptExcerptLines,
   transcriptExcerptOf,
   wordAddressOf,
@@ -10,7 +12,7 @@ import {
 } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
-import { readAlongOf } from './readAlong.js'
+import { readAlongOf, timelineReadAlongOf } from './readAlong.js'
 import type { Section } from './recording.js'
 import { sectionAt, wordAt } from './transcript.js'
 
@@ -176,5 +178,105 @@ describe('a recording, read along with', () => {
     expect(Array.last(transcript.passages)).toEqual(
       Option.some({ key: 'held', label: '1:30', words: [] }),
     )
+  })
+})
+
+describe('a recording’s whole timeline, as the shared Transcript', () => {
+  const spoken = (section: Section, speakerID: number): Section => ({
+    ...section,
+    maybeSpeakerID: Option.some(speakerID),
+  })
+  const [dusk, bell, fog] = sections
+  const timeline = () =>
+    timelineReadAlongOf(
+      {
+        sections: [
+          ...(dusk === undefined ? [] : [spoken(dusk, 1)]),
+          ...(bell === undefined ? [] : [spoken(bell, 1)]),
+          ...(fog === undefined ? [] : [spoken(fog, 2)]),
+        ],
+        speakers: [{ id: 1, label: 'Keeper' }],
+        clipboard: [
+          { id: 'copy-late', timestampSeconds: 90, text: 'the tide' },
+          { id: 'copy-early', timestampSeconds: 8, text: 'a bell answered' },
+        ],
+        images: [{ id: 'picture', timestampSeconds: 40, fileID: 'file-1' }],
+      },
+      {
+        positionSeconds: 13,
+        isPlaying: false,
+        reportedAtMs: 1_000_000,
+        rate: 1,
+      },
+      {
+        pictureOf: image =>
+          image.fileID === 'file-1'
+            ? Option.some({ src: 'made-up://lamp-room', width: 4, height: 3 })
+            : Option.none(),
+      },
+    )
+
+  it('names who speaks once per run, by the label the iPhone shows, or by number', () => {
+    expect(
+      Array.map(timeline().passages, passage => passage.speaker ?? ''),
+    ).toEqual(['Keeper', '', 'Speaker 2'])
+  })
+
+  it('holds what was copied and the pictures taken as items, each before the section that follows it in time', () => {
+    expect(
+      Array.map(transcriptEntriesOf(timeline()), entry =>
+        entry._tag === 'PassageEntry'
+          ? entry.passage.key
+          : `${entry.item.key} at ${entry.item.label}`,
+      ),
+    ).toEqual([
+      'dusk',
+      'copy-early at 0:08',
+      'bell',
+      'picture at 0:40',
+      'fog',
+      'copy-late at 1:30',
+    ])
+  })
+
+  it('shows a copy as its text, to copy again, and a picture as the picture once its address is known', () => {
+    const nodes = Object.fromEntries(
+      Array.map(timeline().items ?? [], item => [item.key, item.node]),
+    )
+    expect(nodes['copy-early']).toMatchObject({
+      _tag: 'Text',
+      content: 'a bell answered',
+      copyable: true,
+    })
+    expect(nodes['picture']).toMatchObject({
+      _tag: 'Text',
+      image: { src: 'made-up://lamp-room', width: 4, height: 3 },
+    })
+  })
+
+  it('reads the same words as the words alone, so every shared reading still answers', () => {
+    expect(timeline().passages.map(passage => passage.words)).toEqual(
+      paused(13).passages.map(passage => passage.words),
+    )
+    expect(transcriptAt(timeline(), 1_000_000).passages[1]?.isCurrent).toBe(
+      true,
+    )
+  })
+
+  it('prints for a terminal with the speakers and the items in place', () => {
+    expect(
+      renderScreen(transcriptAt(timeline(), 1_000_000), 70)
+        .split('\n')
+        .map(line => line.trimEnd()),
+    ).toEqual([
+      '        Keeper',
+      ' 0:05   The keeper lit the lamp at dusk.',
+      ' 0:08   a bell answered',
+      '›0:12   Far out [a] bell answered the lamp.',
+      ' 0:40   Picture',
+      '        Speaker 2',
+      ' 1:10   Then the fog came in.',
+      ' 1:30   the tide',
+    ])
   })
 })
