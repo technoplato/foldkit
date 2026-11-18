@@ -172,8 +172,18 @@ export type RowNode = Readonly<{
   readonly _tag: 'Row'
   readonly gap: number
   readonly isBoard?: boolean
+  readonly arrange?: RowArrangement
   readonly children: ReadonlyArray<UiNode>
 }>
+
+/**
+ * A named way a Row arranges its children, beyond one after another. A
+ * `Toolbar` has three children, a start, a centre and an end, with the
+ * centre held in the middle whatever the ends hold. A `Split` has two, a
+ * side and the main part beside it. A painter with room lays them out so;
+ * one without, such as a terminal line, sets them one after another.
+ */
+export type RowArrangement = 'Toolbar' | 'Split'
 
 /** A vertical stack. */
 export type ColumnNode = Readonly<{
@@ -200,11 +210,18 @@ export type BoxLayer = Readonly<{
  * the page and leave room for it, and a terminal draws it last. `layer`
  * shows it above the page instead.
  */
+/**
+ * How wide a Box keeps what it holds. `Reading` is the width words are
+ * comfortably read at, however wide the window is.
+ */
+export type BoxMeasure = 'Reading'
+
 export type BoxNode = Readonly<{
   readonly _tag: 'Box'
   readonly padding: number
   readonly isDock?: boolean
   readonly layer?: BoxLayer
+  readonly measure?: BoxMeasure
   readonly children: ReadonlyArray<UiNode>
 }>
 
