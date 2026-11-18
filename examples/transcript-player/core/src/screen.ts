@@ -14,6 +14,7 @@ import {
   Transcript,
   type TranscriptPassage,
   type TranscriptWordAction,
+  type TranscriptWordMark,
   type UiNode,
   actionButtons,
   transcriptWithMatches,
@@ -397,6 +398,8 @@ const emptyTextOf = (model: Model): string => {
 
 const playIcon: IconName = 'Play'
 
+const picked: TranscriptWordMark = 'Picked'
+
 const focusTokenOf = (
   model: Model,
   transcript: UiNode,
@@ -537,7 +540,7 @@ export const transcriptOf = (
     onNone: () => plain,
     onSome: focusToken => ({ ...plain, focusToken }),
   })
-  return Option.match(searchQueryOf(model), {
+  const searched = Option.match(searchQueryOf(model), {
     onNone: () => focused,
     onSome: query =>
       transcriptWithMatches(
@@ -547,6 +550,22 @@ export const transcriptOf = (
           Option.map(selectedMatchOf(model), match => match.startMs),
         ),
       ),
+  })
+  return Option.match(Option.fromNullishOr(searched.wordMenu), {
+    onNone: () => searched,
+    onSome: menu => ({
+      ...searched,
+      passages: Array.map(searched.passages, passage =>
+        Array.some(passage.words, word => word.token === menu.token)
+          ? {
+              ...passage,
+              words: Array.map(passage.words, word =>
+                word.token === menu.token ? { ...word, mark: picked } : word,
+              ),
+            }
+          : passage,
+      ),
+    }),
   })
 }
 
@@ -558,15 +577,32 @@ const matchTitleOf = (match: Match): string =>
     ' ',
   )
 
+const rowWordsBefore = 4
+
+/**
+ * The words before a match as a row shows them: the last few, so the
+ * match stands near the start of the row and stays in view on a narrow
+ * screen, with `…` where words were left off.
+ */
+const rowLeadOf = (before: string): string => {
+  const words = Array.filter(before.split(' '), word => word !== '')
+  return words.length > rowWordsBefore
+    ? `… ${Array.join(Array.takeRight(words, rowWordsBefore), ' ')}`
+    : before
+}
+
 const matchItemOf = (
   model: Model,
   entries: ReadonlyArray<Catalog.Entry>,
   match: Match,
 ): ListItem => {
   const token = match.startMs.toString()
+  const lead = rowLeadOf(match.before)
+  const markStart = lead === '' ? 0 : lead.length + 1
   return {
     key: token,
-    title: matchTitleOf(match),
+    title: matchTitleOf({ ...match, before: lead }),
+    titleMark: { start: markStart, end: markStart + match.text.length },
     lines: [
       Array.join(
         [
@@ -617,8 +653,6 @@ const foundTextOf = (
   )
   if (search.total === 0) {
     return `No matches for “${search.query}”`
-  } else if (search.total > search.matches.length) {
-    return `The first ${countOf(search.matches.length)} of ${countOf(search.total)} matches. Add a word to narrow it.`
   } else {
     return Option.match(maybePosition, {
       onNone: () =>
@@ -692,6 +726,14 @@ export const searchPanelOf = (
                   matchItemOf(model, entries, match),
                 ),
               }),
+              ...(search.total > search.matches.length
+                ? [
+                    Text(
+                      `Showing the first ${countOf(search.matches.length)} of ${countOf(search.total)}. Add a word to narrow it.`,
+                      { dim: true },
+                    ),
+                  ]
+                : []),
             ]
           : []),
       ),

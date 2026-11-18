@@ -26,6 +26,14 @@ describe('the look of what a search found', () => {
   })
 })
 
+describe('the look of the word whose menu is open', () => {
+  it('rings the word, so the menu is seen to belong to it', () => {
+    expect(ruleOf(":where(.fk-word[data-mark='Picked'])")).toContain(
+      'box-shadow: 0 0 0 2px var(--fk-reading-rest)',
+    )
+  })
+})
+
 describe('the look of the reader’s own buttons', () => {
   it('makes Back to playhead and Search pills that sit centered above the controls', () => {
     const pill = ruleOf(":where(.fk-button[data-variant='Pill'])")
@@ -42,6 +50,13 @@ describe('the look of a search by the words', () => {
     const matches = ruleOf(':where(.fk-dock .fk-column > .fk-list)')
     expect(matches).toContain('max-height: 34dvh')
     expect(matches).toContain('overflow-y: auto')
+  })
+
+  it('lets a match run to two lines, and takes less of a small screen', () => {
+    expect(
+      ruleOf(':where(.fk-dock .fk-column > .fk-list .fk-item-title)'),
+    ).toContain('-webkit-line-clamp: 2')
+    expect(screenStylesheet).toContain('max-height: 24dvh')
   })
 
   it('gives the field the room in its row', () => {

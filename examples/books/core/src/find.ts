@@ -82,7 +82,8 @@ export const currentWordLinkOf = (model: Model): Option.Option<string> =>
 
 /**
  * `Copy link to this word` for the word being read, as a button for the
- * player's controls. Nothing while no word near the place is known.
+ * player's controls, labelled `Word link` to sit beside `Share` and
+ * `Bookmark`. Nothing while no word near the place is known.
  */
 export const currentWordLinkButtonOf = (
   model: Model,
@@ -100,7 +101,7 @@ export const currentWordLinkButtonOf = (
         ),
         button => ({
           ...button,
-          label: 'Copy link to this word',
+          label: 'Word link',
           icon: 'Link',
           variant: 'Ghost',
         }),

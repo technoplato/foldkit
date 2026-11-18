@@ -27,6 +27,11 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
   box-shadow: 0 0 0 2px var(--fk-reading-rule);
 }
 
+:where(.fk-word[data-mark='Picked']) {
+  background: var(--fk-reading-current-ground);
+  box-shadow: 0 0 0 2px var(--fk-reading-rest);
+}
+
 :where(.fk-button[data-variant='Pill']) {
   height: 38px;
   min-width: 0;
@@ -54,6 +59,10 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
   justify-content: center;
   gap: 8px;
   padding: 8px 16px;
+}
+
+:where(.fk-dock .fk-row > .fk-button[data-variant='Ghost']) {
+  white-space: nowrap;
 }
 
 :where(.fk-dock .fk-row:has(.fk-text-input)) {
@@ -86,6 +95,29 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
   overflow-y: auto;
   overscroll-behavior: contain;
   border-top: 1px solid ${look.trackColor};
+}
+
+:where(.fk-dock .fk-column > .fk-list .fk-item-title) {
+  -webkit-line-clamp: 2;
+  font-weight: 400;
+}
+
+@media (max-width: 560px) {
+  :where(.fk-dock .fk-column > .fk-list) {
+    max-height: 24dvh;
+  }
+}
+
+:where(.fk-item-mark) {
+  background: none;
+  color: inherit;
+  font-weight: 700;
+}
+
+:where(.fk-dock .fk-column > .fk-list + .fk-text) {
+  padding: 0 20px;
+  font-size: 13px;
+  text-align: left;
 }
 
 :where(.fk-word-menu-backdrop) {

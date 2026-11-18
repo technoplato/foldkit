@@ -342,6 +342,15 @@ describe('searching a recording', () => {
       Option.some(152),
     )
     expect(startsOf(found).length).toBe(100)
+    const [panel] = searchPanelOf(found, Catalog.entries(catalog, found))
+    const painted = renderScreen(
+      Option.getOrThrow(Option.fromNullishOr(panel)),
+      100,
+    )
+    expect(painted).toContain('1 of 152')
+    expect(painted).toContain(
+      'Showing the first 100 of 152. Add a word to narrow it.',
+    )
     const phrase = await searched(loaded(), 'the lamp at dusk')
     expect(startsOf(phrase)).toEqual([lampAtDuskMs - wordEveryMs])
   })
@@ -470,9 +479,23 @@ describe('searching a recording', () => {
     expect(painted).toContain('2 of 4')
     expect(painted).toContain('0:16 · The Light')
     expect(painted).toContain('3:00:02 · The Tide')
-    expect(painted).toContain(
-      'the lamp at dusk. Gulls settled on the lamp rail.',
+    expect(painted).toContain('… Gulls settled on the lamp rail.')
+    const rows = Array.flatMap(
+      searchPanelOf(found, Catalog.entries(catalog, found)),
+      node =>
+        node._tag === 'Column'
+          ? Array.flatMap(node.children, child =>
+              child._tag === 'List' ? child.items : [],
+            )
+          : [],
     )
+    expect(
+      Array.map(rows, row =>
+        row.titleMark === undefined
+          ? ''
+          : row.title.slice(row.titleMark.start, row.titleMark.end),
+      ),
+    ).toEqual(['lamp', 'lamp', 'lamp.', 'lamps'])
     expect(searchPanelOf(loaded(), Catalog.entries(catalog, loaded()))).toEqual(
       [],
     )
@@ -543,6 +566,13 @@ describe('a word’s menu', () => {
         ],
       }),
     )
+    expect(
+      Array.flatMap(withCopy?.passages ?? [], passage =>
+        Array.flatMap(passage.words, word =>
+          word.mark === undefined ? [] : [[word.token, word.mark]],
+        ),
+      ),
+    ).toEqual([['dusk.4', 'Picked']])
     expect(withCopy?.wordMenu).toEqual({
       token: 'dusk.4',
       dismissAction: 'CloseWordMenu',

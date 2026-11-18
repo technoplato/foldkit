@@ -243,10 +243,11 @@ export type SeekNode = Readonly<{
 }>
 
 /**
- * How a search marks a word of a Transcript: `Found` for a word it
- * found, `Selected` for a word of the match a person is on.
+ * How a word of a Transcript is set apart besides sounding: `Found` for
+ * a word a search found, `Selected` for a word of the match a person is
+ * on, and `Picked` for the word whose menu is open.
  */
-export type TranscriptWordMark = 'Found' | 'Selected'
+export type TranscriptWordMark = 'Found' | 'Selected' | 'Picked'
 
 /**
  * One word of a Transcript: its text, the token a press sends, whether it
@@ -395,11 +396,17 @@ export type ItemCheck = Readonly<{
  * at the row's end that line up down the list, such as when a chapter
  * starts and how long it runs, `['20:00', '7:33']`; a painter that cannot
  * line them up reads them as one more line, as `itemLinesOf` says.
+ * `titleMark` names the part of the title to set apart, from the
+ * character at `start` up to `end`, such as the words a search found.
  */
 export type ListItem = Readonly<{
   readonly key: string
   readonly href?: string
   readonly title: string
+  readonly titleMark?: Readonly<{
+    readonly start: number
+    readonly end: number
+  }>
   readonly lines?: ReadonlyArray<string>
   readonly columns?: ReadonlyArray<string>
   readonly check?: ItemCheck

@@ -1187,7 +1187,19 @@ const ListRowView = memo(
           />
         )}
         <span className="fk-item-body">
-          <span className="fk-item-title">{item.title}</span>
+          <span className="fk-item-title">
+            {item.titleMark === undefined ? (
+              item.title
+            ) : (
+              <>
+                {item.title.slice(0, item.titleMark.start)}
+                <mark className="fk-item-mark">
+                  {item.title.slice(item.titleMark.start, item.titleMark.end)}
+                </mark>
+                {item.title.slice(item.titleMark.end)}
+              </>
+            )}
+          </span>
           {Array.map(item.lines ?? [], (line, index) => (
             <span key={index} className="fk-item-line">
               {line}

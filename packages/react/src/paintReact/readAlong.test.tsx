@@ -1,5 +1,6 @@
 import {
   type ButtonNode,
+  List,
   Seek,
   TextInput,
   Transcript,
@@ -303,6 +304,31 @@ describe('dragging the seek bar', () => {
     )
     fireEvent.input(screen.getByRole('slider'), { target: { value: '20000' } })
     expect(container.querySelector('.fk-seek-landing')).toBeNull()
+  })
+})
+
+describe('a match in a list', () => {
+  it('sets the words found apart inside the row’s title', () => {
+    const { container } = render(
+      paintTree(
+        List({
+          label: 'Matches',
+          items: [
+            {
+              key: '11600',
+              title: 'The keeper lit the lamp at dusk.',
+              titleMark: { start: 19, end: 23 },
+              lines: ['0:11 · The Light'],
+              action: 'ShowMatch:11600',
+            },
+          ],
+        }),
+        { onPress: pressed() },
+      ),
+    )
+    const title = container.querySelector('.fk-item-title')
+    expect(title?.textContent).toBe('The keeper lit the lamp at dusk.')
+    expect(container.querySelector('.fk-item-mark')?.textContent).toBe('lamp')
   })
 })
 
