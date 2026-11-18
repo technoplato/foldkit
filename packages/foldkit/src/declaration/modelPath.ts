@@ -1,3 +1,5 @@
+import type { Option } from 'effect'
+
 // MODEL PATH
 
 const segmentsKey: unique symbol = Symbol.for('foldkit/ModelPath')
@@ -6,23 +8,30 @@ const segmentsKey: unique symbol = Symbol.for('foldkit/ModelPath')
  * A typed reference to one part of a Model: a field, or a field inside
  * one. It is written as property access, `at.listening.placeMs`, so a
  * field that is renamed or removed breaks the build, and nothing is
- * matched by text.
+ * matched by text. An Option and a list are looked through: a field
+ * after one is that field of what the Option holds, or of every row, so
+ * `at.maybeCounter.count` and `at.counters.count` are both `count`.
  *
  * @example
  * ```typescript
  * const at = ModelPath.of(Model)
  * at.count // ModelPath<number>
  * ModelPath.segmentsOf(at.count) // ['count']
+ * ModelPath.segmentsOf(at.maybeCounter.count) // ['maybeCounter', 'count']
  * ```
  */
 export type ModelPath<A> = Readonly<{
   [segmentsKey]: ReadonlyArray<string>
 }> &
-  (A extends ReadonlyArray<unknown>
-    ? unknown
+  Inside<A>
+
+type Inside<A> = [A] extends [Option.Option<infer Held>]
+  ? Inside<Held>
+  : A extends ReadonlyArray<infer Row>
+    ? Inside<Row>
     : A extends object
       ? { readonly [Key in keyof A]-?: ModelPath<A[Key]> }
-      : unknown)
+      : unknown
 
 const pathAt = (segments: ReadonlyArray<string>): unknown =>
   new Proxy(
