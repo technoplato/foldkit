@@ -2,7 +2,7 @@
   "name": "books-expo-example",
   "private": true,
   "version": "0.0.0",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "ios": "expo start --ios --port 8097",
     "prestart": "pnpm run prepare-cores",
