@@ -281,7 +281,10 @@ const markedPlaceOf = (
 ): Option.Option<Milliseconds> =>
   isStarted(model, title) ? Option.some(placeFor(model, title)) : Option.none()
 
-type PanelTab = 'Contents' | 'Bookmarks'
+type PanelTab = 'Contents' | 'Bookmarks' | 'OneBookmark'
+
+/** How a tab stands: its list is showing, something within it is, or neither. */
+type TabStanding = 'Showing' | 'Within' | 'Other'
 
 const currentTab = (label: string): ButtonNode => ({
   _tag: 'Button',
@@ -294,30 +297,47 @@ const tabOf = (
   model: Model,
   action: AnyAction,
   label: string,
-  isCurrent: boolean,
+  standing: TabStanding,
 ): ReadonlyArray<ButtonNode> =>
-  isCurrent
+  standing === 'Showing'
     ? [currentTab(label)]
     : Array.map(buttonsOf(model, [action], 'Tab'), button => ({
         ...button,
         label,
+        ...(standing === 'Within' ? { isCurrent: true } : {}),
       }))
+
+const bookmarksStandingOf = (current: PanelTab): TabStanding => {
+  if (current === 'Bookmarks') {
+    return 'Showing'
+  } else if (current === 'OneBookmark') {
+    return 'Within'
+  } else {
+    return 'Other'
+  }
+}
 
 /**
  * The tabs that head the panel beside a title's page: Contents, and
- * Bookmarks with how many there are. The one showing is marked and does
- * nothing when pressed; the other switches to its list.
+ * Bookmarks with how many there are. The one whose list is showing is
+ * marked and does nothing when pressed; the other switches to its list.
+ * On one bookmark, Bookmarks is marked and goes back to the list.
  */
 const panelTabsOf = (model: Model, title: Title, current: PanelTab): UiNode => {
   const count = bookmarksOf(model, title.slug).length
   return Row(
     {},
-    ...tabOf(model, ShowContents, 'Contents', current === 'Contents'),
+    ...tabOf(
+      model,
+      ShowContents,
+      'Contents',
+      current === 'Contents' ? 'Showing' : 'Other',
+    ),
     ...tabOf(
       model,
       ShowBookmarks,
       count === 0 ? 'Bookmarks' : `Bookmarks ${count.toString()}`,
-      current === 'Bookmarks',
+      bookmarksStandingOf(current),
     ),
   )
 }
@@ -1181,9 +1201,9 @@ const bookmarkPlaceLineOf = (
   )
 
 /**
- * One bookmark beside the page: its words, where it is as a link to its
- * word, a field for its note, playing from it, removing it, and the way
- * back to the list.
+ * One bookmark beside the page, under the panel's tabs: its words, where
+ * it is as a link to its word, a field for its note, playing from it and
+ * removing it. The Bookmarks tab goes back to the list.
  */
 export const bookmarkScreen = (model: Model, bookmarkId: BookmarkId): UiNode =>
   Option.match(
@@ -1196,32 +1216,12 @@ export const bookmarkScreen = (model: Model, bookmarkId: BookmarkId): UiNode =>
           { gap: 1 },
           Text('That bookmark is gone.', { dim: true }),
           ...undoLines(model),
-          Row(
-            {},
-            ...withIcon(
-              Array.map(buttonsOf(model, [ShowBookmarks], 'Ghost'), button => ({
-                ...button,
-                label: 'All bookmarks',
-              })),
-              'Back',
-              false,
-            ),
-          ),
+          Row({}, ...buttonsOf(model, [ShowBookmarks], 'Ghost')),
         ),
       onSome: ({ bookmark, title }) =>
         Column(
           { gap: 1 },
-          Row(
-            {},
-            ...withIcon(
-              Array.map(buttonsOf(model, [ShowBookmarks], 'Ghost'), button => ({
-                ...button,
-                label: 'All bookmarks',
-              })),
-              'Back',
-              false,
-            ),
-          ),
+          panelTabsOf(model, title, 'OneBookmark'),
           Text(bookmarkTitleOf(bookmark), {
             label: `Bookmark: ${bookmarkTitleOf(bookmark)}`,
           }),
