@@ -24,11 +24,14 @@ import {
   RecordingWindow,
   Share,
   type SpokenSection,
+  bringsIntoView,
   clockPlaceAt,
   formatClock,
   progressFractionOf,
   spokenAt,
 } from 'words-core-example'
+
+import { scrollSectionElementTo } from './browser.js'
 
 const TOP_BAR_CLEARANCE_PX = 64
 const BOTTOM_CONTROLS_CLEARANCE_PX = 168
@@ -795,6 +798,7 @@ const clockOfElement = (element: Element): PlaybackClock => ({
   rate: Number(element.getAttribute('data-clock-rate') ?? '0'),
   durationSeconds: Number(element.getAttribute('data-clock-duration') ?? '0'),
   isMarking: element.getAttribute('data-clock-marking') !== 'false',
+  keepsInView: element.getAttribute('data-clock-follow') === 'true',
 })
 
 const CLOCK_ATTRIBUTES: ReadonlyArray<string> = [
@@ -802,6 +806,7 @@ const CLOCK_ATTRIBUTES: ReadonlyArray<string> = [
   'data-clock-rate',
   'data-clock-duration',
   'data-clock-marking',
+  'data-clock-follow',
 ]
 
 /** The spoken word is painted at most this often: it is never marked later than this. */
@@ -947,10 +952,14 @@ export const RunSpokenWord = Mount.define(
     maybeElements: SpokenElements | undefined
     maybeSection: Element | undefined
     maybeWord: Element | undefined
+    maybeSectionIndex: Option.Option<number>
+    hasLooked: boolean
   } = {
     maybeElements: undefined,
     maybeSection: undefined,
     maybeWord: undefined,
+    maybeSectionIndex: Option.none(),
+    hasLooked: false,
   }
   const paint = (clock: PlaybackClock, placeSeconds: number): void => {
     const elements = state.maybeElements ?? spokenElementsOf(element)
@@ -975,6 +984,20 @@ export const RunSpokenWord = Mount.define(
           )
     moveMark(state.maybeSection, maybeSection, SECTION_CURRENT)
     moveMark(state.maybeWord, maybeWord, WORD_CURRENT)
+    // NOTE: the spoken section is brought into view here, at the moment
+    // the mark crosses into it, not when the Model next hears the place.
+    // The first look only marks: where the page opens is the Model's to
+    // say. Once the listener scrolls away the clock says so, and nothing
+    // is moved.
+    if (
+      state.hasLooked &&
+      maybeSection instanceof HTMLElement &&
+      bringsIntoView(clock, state.maybeSectionIndex, spoken.maybeSection)
+    ) {
+      scrollSectionElementTo(maybeSection, 'Center')
+    }
+    state.hasLooked = true
+    state.maybeSectionIndex = spoken.maybeSection
     state.maybeSection = maybeSection
     state.maybeWord = maybeWord
   }

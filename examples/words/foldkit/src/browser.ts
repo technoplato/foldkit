@@ -213,6 +213,21 @@ const scrollDeltaOf = (
 // recording list and land in the transcript.
 
 /**
+ * Scrolls the window so a section's element sits where `placement` puts
+ * it, gliding unless Reduce Motion is on. The scroller service uses it
+ * after a render, and the edge when the mark crosses into a section.
+ */
+export const scrollSectionElementTo = (
+  element: HTMLElement,
+  placement: SectionPlacement,
+): void => {
+  window.scrollTo({
+    top: window.scrollY + scrollDeltaOf(element, placement),
+    behavior: scrollBehavior(),
+  })
+}
+
+/**
  * Scrolls a transcript section into view after the render that shows it: to
  * the middle of the window during playback, or with its last line above the
  * controls at the live edge. Reduce Motion jumps instead of gliding.
@@ -224,10 +239,7 @@ export const browserTranscriptScroller = Layer.succeed(TranscriptScroller, {
         Effect.sync(() => {
           const element = document.getElementById(sectionElementIDOf(sectionID))
           if (element !== null) {
-            window.scrollTo({
-              top: window.scrollY + scrollDeltaOf(element, placement),
-              behavior: scrollBehavior(),
-            })
+            scrollSectionElementTo(element, placement)
           }
         }),
       ),

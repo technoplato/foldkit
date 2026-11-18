@@ -22,13 +22,17 @@ export const positionReportIntervalMs = 1000
  * seconds, how fast it moves (`1` while playing, `0` while paused or while
  * the listener drags the scrubber), the recording's length, and whether a
  * word is marked at all, which it is not while the page follows the live
- * edge of a recording in progress.
+ * edge of a recording in progress. `keepsInView` says the page follows
+ * the voice, so the spoken section is brought into view as the mark
+ * crosses into it; it is false once the listener has scrolled away, and
+ * at the live edge, where the Model keeps the newest line in view.
  */
 export type PlaybackClock = Readonly<{
   placeSeconds: number
   rate: number
   durationSeconds: number
   isMarking: boolean
+  keepsInView: boolean
 }>
 
 /**
@@ -36,7 +40,7 @@ export type PlaybackClock = Readonly<{
  *
  * @example
  * ```typescript
- * playbackClockOf(ready) // { placeSeconds: 12, rate: 1, durationSeconds: 60, isMarking: true }
+ * playbackClockOf(ready) // { placeSeconds: 12, rate: 1, durationSeconds: 60, isMarking: true, keepsInView: true }
  * ```
  */
 export const playbackClockOf = (ready: ReadyPlayback): PlaybackClock => ({
@@ -47,6 +51,7 @@ export const playbackClockOf = (ready: ReadyPlayback): PlaybackClock => ({
       : 0,
   durationSeconds: durationOf(ready),
   isMarking: !isFollowingLiveEdgeOf(ready),
+  keepsInView: ready.follow === 'Following' && !isFollowingLiveEdgeOf(ready),
 })
 
 /**
@@ -57,7 +62,7 @@ export const playbackClockOf = (ready: ReadyPlayback): PlaybackClock => ({
  *
  * @example
  * ```typescript
- * clockPlaceAt({ placeSeconds: 12, rate: 1, durationSeconds: 60, isMarking: true }, 1_000, 1_450) // 12.45
+ * clockPlaceAt(clock, 1_000, 1_450) // 12.45, for a clock told 12 seconds and running
  * ```
  */
 export const clockPlaceAt = (
@@ -129,3 +134,27 @@ export const spokenAt = (
     ),
   }
 }
+
+const isSameSection = Option.makeEquivalence<number>(
+  (self, that) => self === that,
+)
+
+/**
+ * Whether the edge brings the spoken section into view now: the page
+ * follows the voice, and the mark has just crossed into a section it was
+ * not in. Not once the listener has scrolled away, and not when the mark
+ * leaves every section.
+ *
+ * @example
+ * ```typescript
+ * bringsIntoView(clock, Option.some(1), Option.some(2)) // true while the page follows the voice
+ * ```
+ */
+export const bringsIntoView = (
+  clock: PlaybackClock,
+  maybeFrom: Option.Option<number>,
+  maybeTo: Option.Option<number>,
+): boolean =>
+  clock.keepsInView &&
+  Option.isSome(maybeTo) &&
+  !isSameSection(maybeFrom, maybeTo)
