@@ -31,6 +31,12 @@ The Books CLI adapter added no books logic: it calls `spokenWordsOf` and prints.
 
 Sessions sync what happened, and each Client derives what to show. The sync engine carries the facts (played, paused, sought to a place, navigated) and the place a player reports once a second. The word being spoken, the paragraph, and the highlight are never sent: each Client reads them locally from the Transcript's clock and the stored word times, many times a second. That is what keeps the highlight on the word and the log small. Do not add a Message per word, and do not sync derived state.
 
+Layout is organization first, style on top. Michael, typed 2026-11-17: "start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content and then we can apply the styling on top of that very compositionally very functionally".
+
+- A screen is built from layout nodes in `foldkit/renderers` that say only how content is arranged: `Column` and `Row` with a `gap`, `Box` with `padding`, `Spacer`, `Dock` (kept in view at the edge), `List` (rows picked as a whole), and the navigation presentations `Sheet` and `Dialog`. They carry no color, font, or pixel width.
+- Each painter maps a layout node to its own means: the HTML and React painters to elements with `fk-` class names, a terminal to lines and columns. Styling is applied on top by the painter's stylesheet and the `classNames` a host passes, never inside a Program's screen.
+- When a screen needs an arrangement the set lacks, such as a reading measure (a column that fills the window up to a readable width), a toolbar, or a split, add it as a layout node with a painter for every Client, then style it. Do not reach for a class name or a one-off element in a Client to get there.
+
 Before you add code, answer these in order:
 
 1. Would a second Client need this fact or behavior? Then it is core. Put it in the domain core when it names the domain, in Foldkit core when it does not.
