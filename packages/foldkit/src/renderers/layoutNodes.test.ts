@@ -58,4 +58,14 @@ describe('layout that only organizes', () => {
       `width: min(100%, ${screenLook.readingWidth.toString()}px)`,
     )
   })
+
+  it('leave every value of the stylesheet well formed', () => {
+    const unbalanced = screenStylesheet
+      .split('\n')
+      .filter(
+        line =>
+          (line.match(/\(/g) ?? []).length !== (line.match(/\)/g) ?? []).length,
+      )
+    expect(unbalanced).toEqual([])
+  })
 })

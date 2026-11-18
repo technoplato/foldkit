@@ -439,12 +439,12 @@ ${themeStylesheet(defaultTheme)}
   width: 100%;
 }
 
-:where(.fk-row[data-arrange="Toolbar"] > :first-child) {
+:where(.fk-row[data-arrange="Toolbar"] > .fk-row:first-child) {
   justify-content: flex-start;
   min-width: 0;
 }
 
-:where(.fk-row[data-arrange="Toolbar"] > :last-child) {
+:where(.fk-row[data-arrange="Toolbar"] > .fk-row:last-child) {
   justify-content: flex-end;
 }
 
@@ -479,12 +479,12 @@ ${themeStylesheet(defaultTheme)}
 }
 
 :where(.fk-dock > *) {
-  width: min(100%, ${px(screenLook.listWidth)}
+  width: min(100%, ${px(screenLook.listWidth)});
+  margin: 0 auto;
+}
 
 :where(.fk-dock > .fk-row[data-arrange="Toolbar"]) {
   width: min(100%, ${px(screenLook.readingWidth)});
-});
-  margin: 0 auto;
 }
 
 :where(.fk-dock .fk-row) {
