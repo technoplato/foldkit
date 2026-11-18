@@ -74,10 +74,18 @@ const segmentAt = (startMs: number, text: string) => ({
   ]),
 })
 
-const settle = (): Promise<void> =>
-  new Promise(resolve => {
-    setTimeout(resolve, 0)
-  })
+/** Waits until `isSo` holds, looking every few milliseconds, a second at most. */
+const until = async (isSo: () => boolean): Promise<void> => {
+  const tries = Array.range(1, 200)
+  for (const _ of tries) {
+    if (isSo()) {
+      return
+    }
+    await new Promise(resolve => {
+      setTimeout(resolve, 5)
+    })
+  }
+}
 
 const sourceOf = (database: unknown, now: () => number = () => 0) =>
   instantTranscriptSource(
@@ -121,7 +129,7 @@ describe('the words for a search, from Instant, in parts', () => {
     const words = sourceOf(database)
     const seen: Array<SearchReading> = []
     const fiber = reading(words, seen)
-    await settle()
+    await until(() => asked.length === 7 && seen.length === 1)
     expect(asked.length).toBe(7)
     expect(Array.map(asked, each => Option.isSome(each.maybeToMs))).toEqual([
       true,
@@ -139,13 +147,13 @@ describe('the words for a search, from Instant, in parts', () => {
       partsTotal: 7,
     })
     asked[4]?.answer([segmentAt(asked[4].fromMs + 1_000, 'lamp')])
-    await settle()
+    await until(() => seen.length === 2)
     expect(seen).toEqual([
       { partsRead: 0, partsTotal: 7 },
       { partsRead: 1, partsTotal: 7 },
     ])
     asked[0]?.answer([segmentAt(2_000, 'dusk')])
-    await settle()
+    await until(() => seen.length === 3)
     const some = await held(words)
     expect(some.partsRead).toBe(2)
     expect(
@@ -158,7 +166,7 @@ describe('the words for a search, from Instant, in parts', () => {
         each.answer([])
       }
     })
-    await settle()
+    await until(() => seen.length === 8)
     expect(Array.last(seen)).toEqual(
       Option.some({ partsRead: 7, partsTotal: 7 }),
     )
@@ -171,16 +179,16 @@ describe('the words for a search, from Instant, in parts', () => {
     const words = sourceOf(database, () => clock.nowMs)
     const first: Array<SearchReading> = []
     const fiber = reading(words, first)
-    await settle()
+    await until(() => asked.length === 7)
     Array.forEach(asked, each => {
       each.answer([])
     })
-    await settle()
+    await until(() => first.length === 8)
     await Effect.runPromise(Fiber.interrupt(fiber))
     clock.nowMs = 9 * 60_000
     const second: Array<SearchReading> = []
     const again = reading(words, second)
-    await settle()
+    await until(() => second.length === 1)
     expect(asked.length).toBe(7)
     expect(second).toEqual([{ partsRead: 7, partsTotal: 7 }])
     await Effect.runPromise(Fiber.interrupt(again))
@@ -188,7 +196,7 @@ describe('the words for a search, from Instant, in parts', () => {
     expect((await held(words)).partsTotal).toBe(0)
     const third: Array<SearchReading> = []
     const later = reading(words, third)
-    await settle()
+    await until(() => third.length === 1 && asked.length === 14)
     expect(asked.length).toBe(14)
     expect(third).toEqual([{ partsRead: 0, partsTotal: 7 }])
     await Effect.runPromise(Fiber.interrupt(later))
@@ -197,15 +205,16 @@ describe('the words for a search, from Instant, in parts', () => {
   it('keeps the parts that landed when the search closes, and asks only for the rest next time', async () => {
     const { asked, database } = heldInstant()
     const words = sourceOf(database)
-    const fiber = reading(words, [])
-    await settle()
+    const before: Array<SearchReading> = []
+    const fiber = reading(words, before)
+    await until(() => asked.length === 7)
     asked[0]?.answer([segmentAt(2_000, 'dusk')])
     asked[1]?.answer([])
-    await settle()
+    await until(() => before.length === 3)
     await Effect.runPromise(Fiber.interrupt(fiber))
     const seen: Array<SearchReading> = []
     const again = reading(words, seen)
-    await settle()
+    await until(() => seen.length === 1 && asked.length === 12)
     expect(seen).toEqual([{ partsRead: 2, partsTotal: 7 }])
     expect(asked.length).toBe(7 + 5)
     await Effect.runPromise(Fiber.interrupt(again))
@@ -222,7 +231,7 @@ describe('the words for a search, from Instant, in parts', () => {
         )
       }).pipe(Effect.provide(words)),
     )
-    await settle()
+    await until(() => asked.length === 7)
     asked[2]?.refuse()
     expect((await outcome).reason).toBe('the transcript could not be read')
   })
