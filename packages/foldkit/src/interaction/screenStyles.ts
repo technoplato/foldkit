@@ -48,6 +48,9 @@ export type ScreenLook = Readonly<{
   trackColor: string
   rowHoverColor: string
   listWidth: number
+  readingWidth: number
+  currentPassageColor: string
+  restingWordsColor: string
   itemImageSize: number
   ghostBorderColor: string
   destructiveColor: string
@@ -96,10 +99,13 @@ export const screenLook: ScreenLook = {
   trackColor: '#e5e7eb',
   rowHoverColor: '#f3f4f6',
   listWidth: 680,
+  readingWidth: 960,
+  currentPassageColor: '#e8ecf2',
+  restingWordsColor: '#6b7280',
   itemImageSize: 56,
   ghostBorderColor: '#d1d5db',
   destructiveColor: '#b91c1c',
-  readingSize: 19,
+  readingSize: 21,
   fieldHeight: 44,
   fieldColor: '#f9fafb',
   checkSize: 24,
@@ -616,7 +622,7 @@ export const screenStylesheet = `
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: min(100%, ${px(screenLook.listWidth)});
+  width: min(100%, ${px(screenLook.readingWidth)});
   max-height: min(58vh, 640px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -641,7 +647,8 @@ export const screenStylesheet = `
 }
 
 :where(.fk-passage[data-current]) {
-  background: ${screenLook.rowHoverColor};
+  background: ${screenLook.currentPassageColor};
+  box-shadow: inset 3px 0 0 ${screenLook.accentColor};
 }
 
 :where(.fk-passage-heading) {
@@ -676,9 +683,14 @@ export const screenStylesheet = `
 
 :where(.fk-passage-words) {
   margin: 0;
-  color: ${screenLook.textColor};
+  color: ${screenLook.restingWordsColor};
   font-size: ${px(screenLook.readingSize)};
   line-height: 1.7;
+  transition: color 0.2s;
+}
+
+:where(.fk-passage[data-current] .fk-passage-words) {
+  color: ${screenLook.textColor};
 }
 
 :where(.fk-word) {
