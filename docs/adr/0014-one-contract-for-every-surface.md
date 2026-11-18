@@ -2,7 +2,7 @@
 
 Date: 2026-10-05
 
-Status: Accepted. Decision 3 is implemented (`d8858c683`, `e3e20e439`, `e21b4d469`, `87649e3aa`). Decision 4 lists the fixes made on 2026-10-04. Decisions 1 and 2 are in progress.
+Status: Accepted, amended 2026-11-17 (see Amendment 1: decision 4's "Terminals keep their own navigation under Mirror" is superseded for Books). Decision 3 is implemented (`d8858c683`, `e3e20e439`, `e21b4d469`, `87649e3aa`). Decision 4 lists the fixes made on 2026-10-04. Decisions 1 and 2 are in progress.
 
 ## Context
 
@@ -90,3 +90,19 @@ Foldkit promises that a Program written once runs on every surface. Only the web
 - Terminal apps lose their bespoke daemon and entry code; a new terminal app is one call.
 - Hosts and painters cost more to add, because each must pass the suite. That cost is the point.
 - `@foldkit/instant`'s Node client still defines a global `window`. Every package check now asks for the capability, so the stand-in is harmless; narrowing the stand-in itself stays open.
+
+## Amendment 1 | Terminals follow the session's navigation (2026-11-17)
+
+Decision 4's line "Terminals keep their own navigation under Mirror (`ownNavigationHosts`)" is superseded for Books. The text above is kept as it was decided.
+
+Michael, typed 2026-11-17 (Scribe #2494): "I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. And I think by default I'd like it following just because that'd be fun to drive from the CLI the web app and stuff".
+
+What changed:
+
+- Books no longer names the terminal Hosts in `Session.compose`'s `ownNavigationHosts`. A terminal Processor is one more session: while the session mirrors, `books open /books/a-new-earth` moves every browser and phone that mirrors, and a browser's move lands on the terminal. `books mirror-navigation` and `books keep-navigation-local` are the session setting, the same Actions the web and mobile apps offer.
+- `ownNavigationHosts` stays in `Session.compose` for a Program that needs a Host held apart. Books passes none.
+- The failure that led to decision 4, a terminal left on `/books/contents` with no title under it, is still prevented by the other half of that decision: Session trims any folded stack to what the navigation allows.
+
+What it costs: under Mirror a terminal's player loads and plays what a browser plays, as a second browser tab does, so two devices can sound at once. Keep navigation local ends that.
+
+Proof: `examples/books/core/src/navigationFollow.test.ts` runs a browser and a terminal Processor on one log, on `Runtime.Memory` and on a second sync engine written for the test, and checks both directions under Mirror and neither under Keep navigation local.

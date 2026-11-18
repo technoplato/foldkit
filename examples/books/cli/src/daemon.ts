@@ -7,9 +7,10 @@
  * its socket. The first command that needs it starts it. `books stop`,
  * the end of the title, or ten minutes with nothing in the player ends
  * it, after its place saves through the same Messages the web saves with.
- * It keeps its own screen and player even while the session mirrors
- * navigation, so a browser never moves it. Its telemetry, every Message,
- * Command, and terminal frame, goes to
+ * It follows the session's navigation like a browser: while the session
+ * mirrors, a browser's move lands on it and its own moves land on the
+ * browsers, and `books keep-navigation-local` gives each its own again.
+ * Its telemetry, every Message, Command, and terminal frame, goes to
  * `~/Library/Logs/foldkit/telemetry/books-terminal-cli.ndjson` with
  * `"role":"daemon"` on every line. What a `books tui` view's keys cause
  * there records `"surface":"terminal-tui"`, and what a one-shot command
