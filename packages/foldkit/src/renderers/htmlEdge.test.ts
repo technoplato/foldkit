@@ -1,8 +1,13 @@
+import { Effect, Fiber, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { Transcript } from './elements.js'
 import { paintHtml } from './html.js'
-import { markSpokenWord, transcriptClockMountName } from './htmlEdge.js'
+import {
+  markSpokenWord,
+  transcriptClockMount,
+  transcriptClockMountName,
+} from './htmlEdge.js'
 
 const painted = (node: Parameters<typeof paintHtml>[0]): string =>
   JSON.stringify(paintHtml(node, tag => tag))
@@ -143,5 +148,57 @@ describe('the word being spoken, moved on at the edge', () => {
     root.removeAttribute('data-clock-at-ms')
     markSpokenWord(root, 51_100)
     expect(currentTokens(root)).toEqual(['w2'])
+  })
+})
+
+/** Waits until `isSo` holds, looking every few milliseconds, two seconds at most. */
+const until = async (isSo: () => boolean): Promise<void> => {
+  const tries = Array.from({ length: 400 })
+  for (const _ of tries) {
+    if (isSo()) {
+      return
+    }
+    await new Promise(resolve => {
+      setTimeout(resolve, 5)
+    })
+  }
+}
+
+describe('the mount on a painted Transcript', () => {
+  it('moves the mark on by itself while the clock runs, tells the Program nothing, and stops when unmounted', async () => {
+    const root = page(1)
+    root.setAttribute('data-clock-at-ms', Date.now().toString())
+    document.body.append(root)
+    const told: Array<unknown> = []
+    const fiber = Effect.runFork(
+      Stream.runForEach(transcriptClockMount<unknown>().f(root), message =>
+        Effect.sync(() => told.push(message)),
+      ),
+    )
+    await until(() => currentTokens(root)[0] === 'w3')
+    expect(currentTokens(root)).toEqual(['w3'])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    root.setAttribute('data-clock-place-ms', '2600')
+    await new Promise(resolve => {
+      setTimeout(resolve, 150)
+    })
+    expect(currentTokens(root)).toEqual(['w3'])
+    expect(told).toEqual([])
+    root.remove()
+  })
+
+  it('marks once when told a new place while paused', async () => {
+    const root = page(0)
+    document.body.append(root)
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptClockMount<unknown>().f(root)),
+    )
+    await until(() => currentTokens(root)[0] === 'w2')
+    root.setAttribute('data-clock-place-ms', '2600')
+    await until(() => currentTokens(root)[0] === 'w5')
+    expect(currentTokens(root)).toEqual(['w5'])
+    expect(currentPassages(root)).toBe(1)
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    root.remove()
   })
 })

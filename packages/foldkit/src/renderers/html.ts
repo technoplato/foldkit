@@ -15,6 +15,7 @@ import { screenStylesheet } from '../interaction/screenStyles.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
+import { transcriptClockMount } from './htmlEdge.js'
 import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
@@ -402,7 +403,29 @@ export const paintHtml = <Message>(
         },
         Transcript: transcript =>
           h.section(
-            [h.Class('fk-transcript'), h.AriaLabel(transcript.label)],
+            [
+              h.Class('fk-transcript'),
+              h.AriaLabel(transcript.label),
+              // NOTE: the view says the clock; the edge reads on from it
+              // and moves the mark on the word between reports.
+              ...(transcript.clock === undefined
+                ? []
+                : [
+                    h.DataAttribute(
+                      'clock-place-ms',
+                      transcript.clock.placeMs.toString(),
+                    ),
+                    h.DataAttribute(
+                      'clock-at-ms',
+                      transcript.clock.atMs.toString(),
+                    ),
+                    h.DataAttribute(
+                      'clock-rate',
+                      transcript.clock.rate.toString(),
+                    ),
+                    h.OnMount(transcriptClockMount<Message>()),
+                  ]),
+            ],
             Array.match(transcript.passages, {
               onEmpty: () => [
                 h.p([h.Class('fk-transcript-empty')], [transcript.emptyText]),
@@ -436,6 +459,14 @@ export const paintHtml = <Message>(
                             [
                               h.Class('fk-word'),
                               h.DataAttribute('token', word.token),
+                              ...(word.startMs === undefined
+                                ? []
+                                : [
+                                    h.DataAttribute(
+                                      'start-ms',
+                                      word.startMs.toString(),
+                                    ),
+                                  ]),
                               ...(word.isCurrent === true
                                 ? [h.DataAttribute('current', 'true')]
                                 : []),
