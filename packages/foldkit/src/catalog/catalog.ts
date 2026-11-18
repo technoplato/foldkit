@@ -18,6 +18,7 @@ import {
 } from '../declaration/declaration.js'
 import { parametersOfFields } from '../declaration/declare.js'
 import { type ModelPath, segmentsOf } from '../declaration/modelPath.js'
+import { namedByTyped } from '../renderers/typed.js'
 import { type CallableTaggedStruct, callableWith, ts } from '../schema/index.js'
 
 // AVAILABILITY
@@ -823,6 +824,74 @@ export const tagFor = (
         choiceTagOf(declaration.tag, token),
       ),
   })
+
+// NAMED
+
+/**
+ * What typed words name among the choices an entry offers: the one
+ * choice, with the tag that asks for it, or a sentence about why none
+ * is taken and the choices the words did match.
+ */
+export type NamedChoice =
+  | Readonly<{ _tag: 'Named'; tag: string; choice: EntryChoice }>
+  | Readonly<{
+      _tag: 'NotNamed'
+      sentence: string
+      matches: ReadonlyArray<EntryChoice>
+    }>
+
+/**
+ * The choice a person names for an entry, as they would say it: its own
+ * token, or its title or part of it, in any case. One choice named
+ * answers with the tag that asks for it. None, or several, answers with
+ * one sentence that says what the entry chooses, and the choices that
+ * matched. Every Client reads a name through this, so a terminal, a
+ * form, and an agent give the same answer.
+ *
+ * @example
+ * ```typescript
+ * Catalog.choiceNamed(listen, 'small hours') // { _tag: 'Named', tag: 'Listen:small-hours', choice }
+ * Catalog.choiceNamed(listen, 'moby') // { _tag: 'NotNamed', sentence: 'No title matches "moby".', matches: [] }
+ * Catalog.choiceNamed(listen, 'lantern') // { _tag: 'NotNamed', sentence: '"lantern" matches 2 titles.', matches }
+ * ```
+ */
+export const choiceNamed = (entry: Entry, typed: string): NamedChoice => {
+  const choices = Option.match(entry.maybeChoices, {
+    onNone: (): ReadonlyArray<EntryChoice> => [],
+    onSome: held => held.choices,
+  })
+  const noun = Option.match(entry.maybeChoices, {
+    onNone: () => 'choice',
+    onSome: held => held.noun,
+  })
+  const matches = Option.match(
+    Array.findFirst(choices, choice => choice.token === typed),
+    {
+      onSome: exact => [exact],
+      onNone: () =>
+        namedByTyped(choices, typed, choice => [choice.title, choice.token]),
+    },
+  )
+  return Array.match(matches, {
+    onEmpty: (): NamedChoice => ({
+      _tag: 'NotNamed',
+      sentence: `No ${noun} matches "${typed}".`,
+      matches: [],
+    }),
+    onNonEmpty: (found): NamedChoice =>
+      found.length === 1
+        ? {
+            _tag: 'Named',
+            tag: choiceTagOf(entry.tag, Array.headNonEmpty(found).token),
+            choice: Array.headNonEmpty(found),
+          }
+        : {
+            _tag: 'NotNamed',
+            sentence: `"${typed}" matches ${found.length.toString()} ${noun}s.`,
+            matches: found,
+          },
+  })
+}
 
 // TITLE
 

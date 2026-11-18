@@ -4,6 +4,7 @@ import {
   type Availability,
   type Entry,
   type EntryChoice,
+  choiceNamed,
   choiceTagOf,
   commandOf,
   isEnabled,
@@ -24,7 +25,6 @@ import { type Frame, frameOf } from '../navigation/frame.js'
 import { Cli } from '../navigation/message.js'
 import { linksOf } from '../renderers/query.js'
 import { renderScreen } from '../renderers/render.js'
-import { namedByTyped } from '../renderers/typed.js'
 import type { UiNode } from '../renderers/types.js'
 import {
   ChooseFromMenu,
@@ -1011,10 +1011,6 @@ const pressCanonical = <Model, Message>(
   // title or part of it, in any case. One choice named is pressed;
   // several, or none, are said with the command's own usage.
   const named = (entry: Entry): CliDaemonPaintedResult => {
-    const choices = Option.match(entry.maybeChoices, {
-      onNone: (): ReadonlyArray<EntryChoice> => [],
-      onSome: held => held.choices,
-    })
     if (typed === '') {
       return usageAnswer(
         name,
@@ -1022,33 +1018,25 @@ const pressCanonical = <Model, Message>(
         `${saidWord(entry)} needs ${withArticle(nounOf(entry))}.`,
       )
     }
-    const matches = namedByTyped(choices, typed, choice => [
-      choice.title,
-      choice.token,
-    ])
-    return Array.match(matches, {
-      onEmpty: () =>
-        usageAnswer(name, entry, `No ${nounOf(entry)} matches "${typed}".`),
-      onNonEmpty: found =>
-        found.length === 1
-          ? pressed(
-              {
-                entry,
-                tag: choiceTagOf(entry.tag, Array.headNonEmpty(found).token),
-                availability: Array.headNonEmpty(found).availability,
-              },
-              false,
-            )
-          : refused(
-              Array.join(
-                [
-                  `"${typed}" matches ${found.length.toString()} ${nounOf(entry)}s. Say more of the name, or copy one:`,
-                  ...choiceCommandLines(name, entry, found),
-                ],
-                '\n',
-              ),
-            ),
-    })
+    const found = choiceNamed(entry, typed)
+    if (found._tag === 'Named') {
+      return pressed(
+        { entry, tag: found.tag, availability: found.choice.availability },
+        false,
+      )
+    } else if (Array.isReadonlyArrayEmpty(found.matches)) {
+      return usageAnswer(name, entry, found.sentence)
+    } else {
+      return refused(
+        Array.join(
+          [
+            `${found.sentence} Say more of the name, or copy one:`,
+            ...choiceCommandLines(name, entry, found.matches),
+          ],
+          '\n',
+        ),
+      )
+    }
   }
   const pressed = (
     found: Command,
