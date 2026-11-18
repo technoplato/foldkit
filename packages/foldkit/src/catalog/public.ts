@@ -21,6 +21,7 @@ export {
   choicesAsEntries,
   entriesFor,
   parseChoiceTag,
+  tagFor,
   titleOf,
   within,
   withTouches,

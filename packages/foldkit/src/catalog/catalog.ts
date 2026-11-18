@@ -173,6 +173,7 @@ export type ChooseDeclaration<Model> = Readonly<{
   choicesOf: (model: Model) => ReadonlyArray<EntryChoice>
   preferredOf: (model: Model) => Option.Option<string>
   valueOf: (token: string) => Option.Option<unknown>
+  tokenOf: (value: unknown) => Option.Option<string>
   isOpen: boolean
   acceptsOf: (model: Model, token: string) => Option.Option<Availability>
 }>
@@ -432,6 +433,7 @@ const chooseOf = <Model, Value>(
         printToken,
       ),
     valueOf: S.decodeUnknownOption(choose.token),
+    tokenOf: S.encodeUnknownOption(choose.token),
     isOpen: choose.accepts !== undefined,
     acceptsOf: (model, token) =>
       Option.flatMap(Option.fromNullishOr(choose.accepts), accepts =>
@@ -787,6 +789,34 @@ export const messageFor = <C extends AnyCatalog>(
     ),
     () => choiceMessageFor(catalog, model, tag),
   )
+
+/**
+ * The tag that asks for an Action with typed fields, the one every
+ * Client presses: the bare tag for an Action that takes nothing, a choice
+ * tag for one that chooses, its chosen field printed as the Action's own
+ * token. None when the chosen field is missing or not of its kind, and
+ * for an Action whose fields nothing chooses. A typed Client hands the
+ * result to the same `messageFor` a menu and a terminal use, so the
+ * Action's rule decides once.
+ *
+ * @example
+ * ```typescript
+ * Catalog.tagFor(SeekTo, { placeMs: 723_000 }) // Some('SeekTo:723000')
+ * Catalog.tagFor(Reset, {}) // Some('Reset')
+ * ```
+ */
+export const tagFor = (
+  declaration: ActionDeclaration<string, any>,
+  input: Readonly<Record<string, unknown>>,
+): Option.Option<string> =>
+  Option.match(declaration.maybeChoose, {
+    onNone: () =>
+      declaration.isPayloadFree ? Option.some(declaration.tag) : Option.none(),
+    onSome: choose =>
+      Option.map(choose.tokenOf(input[choose.field]), token =>
+        choiceTagOf(declaration.tag, token),
+      ),
+  })
 
 // TITLE
 
