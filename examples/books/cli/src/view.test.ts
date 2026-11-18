@@ -4,7 +4,9 @@ import { usageText } from './help.js'
 import {
   type AskRuntime,
   askPlayer,
+  olderPlayerSentence,
   paintsColor,
+  saidWhenPlayerIsOlder,
   showBriefOrUsage,
   takesColor,
 } from './view.js'
@@ -126,5 +128,61 @@ describe('a command the player could not read', () => {
     const disabled = runtimeOf(false, 1)
     await askPlayer(lisen, disabled.runtime)
     expect(disabled.happened).not.toContain('asked stop')
+  })
+})
+
+describe('a command that meets a player started before books was updated', () => {
+  const meeting = (
+    isRunning: boolean,
+    answer: Readonly<{ stdout: string; exitCode: number }>,
+  ) => {
+    const happened: Array<string> = []
+    return {
+      happened,
+      runtime: {
+        isListening: () => Promise.resolve(isRunning),
+        ask: (
+          _socketPath: string,
+          request: { _tag: string; token?: string },
+        ) => {
+          happened.push(`asked ${request.token ?? request._tag}`)
+          return Promise.resolve({ ...answer, stderr: '' })
+        },
+        builtNow: () => 'build-2',
+        say: (sentence: string) => {
+          happened.push(`said ${sentence}`)
+        },
+      },
+    }
+  }
+
+  it('says so, and the one command that ends the old player and keeps the place', async () => {
+    const { happened, runtime } = meeting(true, {
+      stdout: 'build-1',
+      exitCode: 0,
+    })
+    expect(await saidWhenPlayerIsOlder('/socket', runtime)).toBe(true)
+    expect(happened).toEqual([
+      'asked player-build',
+      `said ${olderPlayerSentence}`,
+    ])
+    expect(olderPlayerSentence).toBe(
+      'The Books player running here was started before `books` was updated, so it answers the old way. Run `books stop` (it keeps the place); the next command starts the new one.',
+    )
+  })
+
+  it('says so for a player too old to know what it was built from', async () => {
+    const { happened, runtime } = meeting(true, { stdout: '', exitCode: 2 })
+    expect(await saidWhenPlayerIsOlder('/socket', runtime)).toBe(true)
+    expect(happened).toHaveLength(2)
+  })
+
+  it('says nothing to a player of this build, and asks nothing when none is running', async () => {
+    const same = meeting(true, { stdout: 'build-2', exitCode: 0 })
+    expect(await saidWhenPlayerIsOlder('/socket', same.runtime)).toBe(false)
+    expect(same.happened).toEqual(['asked player-build'])
+    const none = meeting(false, { stdout: '', exitCode: 0 })
+    expect(await saidWhenPlayerIsOlder('/socket', none.runtime)).toBe(false)
+    expect(none.happened).toEqual([])
   })
 })

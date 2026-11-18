@@ -376,6 +376,15 @@ describe('books listen and books open take a title as a person types it', () => 
   })
 })
 
+describe('what a player was built from', () => {
+  it('is said to a command that asks, so a newer command can tell an older player', async () => {
+    const { bound } = await openBooks()
+    const player = makeBooksPlayer(bound, trackLibraryWrites(), {}, 'build-7')
+    const said = await run(player, 'player-build')
+    expect(said).toEqual({ stdout: 'build-7', exitCode: 0 })
+  })
+})
+
 describe('the live player paints from the theme', () => {
   const showOf = (player: BooksPlayer) =>
     Option.getOrThrow(Option.fromNullishOr(player.surface.show))

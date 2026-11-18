@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { readdirSync, statSync } from 'node:fs'
+import { readdirSync, statSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -292,6 +292,27 @@ describe(
       expect(names).toContain('search')
       expect(names).toContain('listen')
       expect(names).toContain('pause')
+    })
+
+    it('tells a person when the player running was started before books was updated, with the one command to run', () => {
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).stderr).toBe(
+        'Starting the Books player…\n',
+      )
+      expect(books(library, ['pause']).stderr).toBe('')
+      const now = new Date()
+      utimesSync(join(here, '../dist/daemon.js'), now, now)
+      const met = books(library, ['play'])
+      expect(met.status).toBe(0)
+      expect(met.stdout).toContain('Playing The Lantern Keeper')
+      expect(met.stderr).toBe(
+        'The Books player running here was started before `books` was updated, so it answers the old way. Run `books stop` (it keeps the place); the next command starts the new one.\n',
+      )
+      expect(books(library, ['stop']).status).toBe(0)
+      expect(books(library, ['listen', 'lantern']).stderr).toBe(
+        'Starting the Books player…\n',
+      )
+      expect(books(library, ['pause']).stderr).toBe('')
     })
 
     it('answers a command nobody declared in one sentence and leaves no player running', () => {
