@@ -314,6 +314,22 @@ describe('books listen and books open take a title as a person types it', () => 
     await run(player, 'pause')
   })
 
+  it('plays on when the title named is the one already in the player, paused or playing', async () => {
+    const { player, bound } = await openBooks()
+    await run(player, 'listen the lantern keeper')
+    await run(player, 'pause')
+    expect(isSounding(bound)).toBe(false)
+    const again = await run(player, 'listen The Lantern Keeper')
+    expect(again.exitCode).toBe(0)
+    expect(again.stdout).toContain('Playing The Lantern Keeper')
+    expect(isSounding(bound)).toBe(true)
+    const still = await run(player, 'listen lantern')
+    expect(still.exitCode).toBe(0)
+    expect(still.stdout).toContain('Playing The Lantern Keeper')
+    expect(isSounding(bound)).toBe(true)
+    await run(player, 'pause')
+  })
+
   it('lists the titles that match when there are several, with the command for each, and plays nothing', async () => {
     const { player, bound } = await openBooks()
     const vague = await run(player, 'listen a')

@@ -124,6 +124,11 @@ describe('the books command a person runs, on the made-up library', () => {
     expect(part.stdout).toContain('Playing A Field Guide to Weather')
     const slug = books(library, ['listen', 'the-lantern-keeper'])
     expect(slug.stdout).toContain('Playing The Lantern Keeper')
+    expect(books(library, ['pause']).stdout).toContain('Paused The Lantern')
+    const again = books(library, ['listen', 'The Lantern Keeper'])
+    expect(again.status).toBe(0)
+    expect(again.stderr).toBe('')
+    expect(again.stdout).toContain('Playing The Lantern Keeper')
   })
 
   it('follows the words with flags after and before the topic, down a pipe and with a terminal’s color', async () => {
