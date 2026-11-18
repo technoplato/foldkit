@@ -479,7 +479,7 @@ describe('searching a recording', () => {
     expect(painted).toContain('2 of 4')
     expect(painted).toContain('0:16 · The Light')
     expect(painted).toContain('3:00:02 · The Tide')
-    expect(painted).toContain('… Gulls settled on the lamp rail.')
+    expect(painted).toContain('… Gulls settled on the ‹lamp› rail.')
     const rows = Array.flatMap(
       searchPanelOf(found, Catalog.entries(catalog, found)),
       node =>

@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:59:24 a.m. EST — `cbff3e6988a0` test(transcript-player): the painted search shows the found words set apart in a terminal (Scribe #2494)
+
+- **Implementation commit:** `cbff3e6988a0e0d26b85b2febcdb3feff43cb050`
+- **Change:** the painted search shows the found words set apart in a terminal (Scribe #2494)
+- **Details:**
+  - The text screen now sets the found part of each match row in single marks, so the test of the painted search expects them. transcript-player core: 37 tests pass.
+- **Files:**
+  - `examples/transcript-player/core/src/search.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:59:24 a.m. EST — `8063d13cdd41` feat(foldkit): green: a terminal shows what a search found, in the words and in a row's title (Scribe #2494)
+
+- **Implementation commit:** `8063d13cdd4193b36a953426757e19e770e119e0`
+- **Change:** green: a terminal shows what a search found, in the words and in a row's title (Scribe #2494)
+- **Details:**
+  - The terminal layout reads the marks a search sets. A found word sits in single marks, the match a person is on (and a word whose menu is open) in double marks, and the word being read keeps its brackets outside them. A match row's title sets its found part in single marks, since text has no bold. foldkit renderers, cli and interaction: 264 tests pass; tsc adds no error.
+- **Files:**
+  - `packages/foldkit/src/renderers/layout.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 1:51:52 a.m. EST — `cff564e13a13` fix(books): green: books with no command prints how to use it and starts no player (Scribe #2494)
 
 - **Implementation commit:** `cff564e13a13e28e2d8b21c837dce3f0cc153a81`

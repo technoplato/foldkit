@@ -165,13 +165,24 @@ const checkGlyph = (check: ItemCheck): string =>
 
 const checkGap = 1
 
+// NOTE: Text has no bold to set words apart with, so a part of a title a
+// search found sits in single marks, as a found word does in the words.
+const markedTitleOf = (item: ListItem): string =>
+  item.titleMark === undefined
+    ? item.title
+    : `${item.title.slice(0, item.titleMark.start)}‹${item.title.slice(
+        item.titleMark.start,
+        item.titleMark.end,
+      )}›${item.title.slice(item.titleMark.end)}`
+
 const itemTitleGlyph = (item: ListItem): string => {
+  const title = markedTitleOf(item)
   if (item.focused === true) {
-    return `› ${item.title}`
+    return `› ${title}`
   } else if (item.isCurrent === true) {
-    return `• ${item.title}`
+    return `• ${title}`
   } else {
-    return `  ${item.title}`
+    return `  ${title}`
   }
 }
 
@@ -179,8 +190,19 @@ const passageLabelWidth = 8
 
 const bookmarkGlyph = '*'
 
+// NOTE: In text a word a search found sits in single marks, and the match
+// a person is on, or the word whose menu is open, in double marks; the
+// word being read keeps its brackets outside them.
+const markedWordOf = (word: TranscriptWord): string =>
+  word.mark === undefined
+    ? word.text
+    : word.mark === 'Found'
+      ? `‹${word.text}›`
+      : `«${word.text}»`
+
 const wordGlyph = (word: TranscriptWord, isBookmarked: boolean): string => {
-  const glyph = word.isCurrent === true ? `[${word.text}]` : word.text
+  const glyph =
+    word.isCurrent === true ? `[${markedWordOf(word)}]` : markedWordOf(word)
   return isBookmarked ? `${bookmarkGlyph}${glyph}` : glyph
 }
 
