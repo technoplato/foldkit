@@ -1,13 +1,47 @@
 import { Array, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import * as Catalog from '../catalog/catalog.js'
 import { wrapDevice } from './devices/devices.js'
-import { Button, Column, Row, Text, TextInput } from './elements.js'
+import {
+  Box,
+  Button,
+  Column,
+  List,
+  Plain,
+  Reference,
+  RichText,
+  Row,
+  Seek,
+  Text,
+  TextInput,
+  Transcript,
+  actionButtons,
+} from './elements.js'
 import { Host } from './host.js'
 import { paintHtml, paintMobile, paintStatusHtml } from './html.js'
 import { padOf } from './pad.js'
 import { buttonsOf, inputsOf, textsOf } from './query.js'
 import { renderAscii, renderScreen } from './render.js'
+
+describe('a board', () => {
+  const columns = Array.makeBy(14, index =>
+    Column({}, Text(`Column ${index.toString()}`)),
+  )
+
+  it('stacks its columns in a terminal, so none is cut off', () => {
+    const { lines } = renderAscii(Row({ isBoard: true }, ...columns))
+    Array.forEach(columns, (_, index) => {
+      expect(lines.join('\n')).toContain(`Column ${index.toString()}`)
+    })
+  })
+
+  it('paints as a board in HTML', () => {
+    expect(
+      JSON.stringify(paintHtml(Row({ isBoard: true }, ...columns), tag => tag)),
+    ).toContain('fk-board')
+  })
+})
 
 describe('atoms', () => {
   it('builds a Column of Text and a Row of Buttons', () => {
@@ -74,6 +108,74 @@ describe('atoms', () => {
   })
 })
 
+describe('row checks and fields that press', () => {
+  const reminders = List({
+    label: 'Groceries',
+    items: [
+      {
+        key: 'r1',
+        title: 'Oat milk',
+        check: {
+          isChecked: false,
+          label: 'Mark Oat milk done',
+          action: 'Complete:r1',
+        },
+        action: 'OpenReminder:r1',
+      },
+      {
+        key: 'r2',
+        title: 'Olive oil',
+        check: { isChecked: true, label: 'Mark Olive oil not done' },
+      },
+    ],
+  })
+
+  it('paints a row check as its own pressable box before the title', () => {
+    const frame = renderAscii(reminders)
+    expect(frame.lines.join('\n')).toContain(' [ ] ')
+    expect(frame.lines.join('\n')).toContain(' [x] ')
+    expect(Array.map(frame.hotspots, hotspot => hotspot.action.id)).toEqual([
+      'Complete:r1',
+      'OpenReminder:r1',
+    ])
+  })
+
+  it('paints a field that presses as a bracketed field with its label', () => {
+    const screen = renderScreen(
+      TextInput({
+        value: '',
+        placeholder: 'New reminder',
+        action: 'AddReminder',
+        label: 'New reminder in Groceries',
+      }),
+    )
+    expect(screen).toContain('[ New reminder ]')
+  })
+
+  it('paints a row check in HTML as a checkbox that presses its action', () => {
+    const painted = JSON.stringify(paintHtml(reminders, tag => tag))
+    expect(painted).toContain('fk-item-check')
+    expect(painted).toContain('"role":"checkbox"')
+    expect(painted).toContain('Mark Oat milk done')
+  })
+
+  it('paints a field that presses in HTML with its label', () => {
+    const painted = JSON.stringify(
+      paintHtml(
+        TextInput({
+          value: '',
+          placeholder: 'New reminder',
+          action: 'AddReminder',
+          label: 'New reminder in Groceries',
+        }),
+        tag => tag,
+      ),
+    )
+    expect(painted).toContain('New reminder in Groceries')
+    expect(painted).toContain('fk-text-input')
+  })
+})
+
 describe('paintHtml', () => {
   it('paints Button labels and keeps the token as the click Message', () => {
     const tree = Column(
@@ -95,6 +197,23 @@ describe('paintHtml', () => {
 
     expect(JSON.stringify(vnode)).toContain(href)
     expect(JSON.stringify(vnode)).toContain('fk-text-link')
+  })
+
+  it('paints a Text image as an img with its words as alt text', () => {
+    const vnode = paintHtml(
+      Text('A cover', {
+        image: {
+          src: 'https://files.example/cover.jpg',
+          width: 120,
+          height: 180,
+        },
+      }),
+      token => token,
+    )
+    const painted = JSON.stringify(vnode)
+    expect(painted).toContain('"sel":"img"')
+    expect(painted).toContain('https://files.example/cover.jpg')
+    expect(painted).toContain('A cover')
   })
 
   it('paints a TextInput as an input bound to its token', () => {
@@ -216,5 +335,156 @@ describe('text emphasis and status', () => {
     const painted = JSON.stringify(paintStatusHtml('Starting Counter…'))
     expect(painted).toContain('fk-status')
     expect(painted).toContain('Starting Counter…')
+  })
+})
+
+describe('a seek bar and a transcript in a terminal', () => {
+  it('draws the place on the bar with how it reads', () => {
+    expect(
+      renderScreen(
+        Seek({
+          value: 30,
+          max: 60,
+          action: 'SeekTo',
+          label: 'Place',
+          valueText: '0:30 of 1:00',
+        }),
+        30,
+      ),
+    ).toBe('━━━━━━━━●──────── 0:30 of 1:00')
+  })
+
+  it('wraps each passage under its time and brackets the word sounding', () => {
+    const painted = renderScreen(
+      Transcript({
+        label: 'Transcript',
+        action: 'SeekToWord',
+        emptyText: 'No transcript yet',
+        passages: [
+          {
+            key: 's1',
+            label: '0:19',
+            isCurrent: true,
+            words: Array.map(
+              ['Evocation', 'Earth,', '114', 'million', 'years', 'ago'],
+              (text, index) => ({
+                token: `w${index.toString()}`,
+                text,
+                isCurrent: index === 2,
+              }),
+            ),
+          },
+        ],
+      }),
+      30,
+    )
+    expect(painted.split('\n')).toEqual([
+      '›0:19   Evocation Earth, [114]',
+      '        million years ago     ',
+    ])
+    expect(
+      renderScreen(
+        Transcript({
+          label: 'Transcript',
+          action: 'SeekToWord',
+          emptyText: 'No transcript yet',
+          passages: [],
+        }),
+      ),
+    ).toBe('No transcript yet')
+  })
+})
+
+describe('a Text made of parts and a Box shown as a layer', () => {
+  const fixedBy = RichText([
+    Plain('Fixed by '),
+    Reference({
+      label: '#1358',
+      title: 'issues CLI burns CPU',
+      state: 'PartiallyDone',
+      kind: 'Issue',
+      href: '/issues/1358',
+      detail: ['Filed 2026-10-29', 'Area: Issues CLI / performance'],
+    }),
+    Plain(' in build 218.'),
+  ])
+
+  it('keeps the parts and makes their words the content every painter can draw', () => {
+    expect(fixedBy.content).toBe(
+      'Fixed by #1358 issues CLI burns CPU [PartiallyDone] in build 218.',
+    )
+    expect(fixedBy.parts?.length).toBe(3)
+  })
+
+  it('draws a reference in a terminal as its label, title and state', () => {
+    expect(renderScreen(fixedBy, 80)).toContain(
+      'Fixed by #1358 issues CLI burns CPU [PartiallyDone] in build 218.',
+    )
+  })
+
+  it('paints a reference in HTML as a link with its kind, state and hover', () => {
+    const painted = JSON.stringify(paintHtml(fixedBy, token => token))
+    expect(painted).toContain('/issues/1358')
+    expect(painted).toContain('fk-ref')
+    expect(painted).toContain('"data-kind":"Issue"')
+    expect(painted).toContain('"data-state":"PartiallyDone"')
+    expect(painted).toContain(
+      'Filed 2026-10-29\\nArea: Issues CLI / performance',
+    )
+  })
+
+  it('keeps a layer on a Box and draws it in place in a terminal', () => {
+    const palette = Box(
+      {
+        layer: {
+          kind: 'Dialog',
+          label: 'Command palette',
+          dismissToken: 'palette-close',
+        },
+      },
+      Text('Go to backlog'),
+    )
+    expect(palette.layer?.kind).toBe('Dialog')
+    expect(renderScreen(palette, 40)).toContain('Go to backlog')
+  })
+})
+
+describe('actionButtons', () => {
+  const Reset = Catalog.action('Reset', {
+    what: 'Sets the count to 0',
+    why: 'The person wants to start over',
+    enabled: (count: number) =>
+      count === 0
+        ? Catalog.Disabled({ because: 'count is already 0' })
+        : Catalog.Enabled(),
+    meta: { label: 'Reset', keys: ['r'] },
+  })
+  const catalog = Catalog.make([Reset])
+
+  it('gives each Button the description its Action declares once, in the Catalog', () => {
+    expect(
+      Array.map(
+        actionButtons(Catalog.entries(catalog, 3)),
+        button => button.description,
+      ),
+    ).toEqual(['Sets the count to 0'])
+    expect(
+      Array.map(actionButtons(Catalog.entries(catalog, 0)), button => [
+        button.description,
+        button.because,
+      ]),
+    ).toEqual([['Sets the count to 0', 'count is already 0']])
+  })
+
+  it('paints the description, the keys, and the reason as a hint on the HTML control', () => {
+    const painted = JSON.stringify(
+      paintHtml(
+        Row({}, ...actionButtons(Catalog.entries(catalog, 0))),
+        tag => tag,
+      ),
+    )
+    expect(painted).toContain('Sets the count to 0')
+    expect(painted).toContain('hint-because')
+    expect(painted).toContain('hint-keys')
   })
 })

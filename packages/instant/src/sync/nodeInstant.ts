@@ -12,7 +12,7 @@ import {
 } from './fromTransport.js'
 
 export {
-  FoldkitCounterV01,
+  SharedInstantProject,
   engineProcessorId,
   fromTransport,
   instantCauseString,
@@ -41,17 +41,22 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
   if (options.transport !== undefined) {
     return fromTransport(options.transport, processor)
   }
-  if (options.database !== undefined) {
+  if (options.programLog !== undefined && options.database !== undefined) {
     return fromTransport(
-      options.programLog === undefined
-        ? makeInstantCoreSnapshotLogTransport(
-            options.database,
-            options.selectCountId ?? options.countId,
-          )
-        : makeInstantCoreProgramLogTransport(
-            options.database,
-            options.programLog,
-          ),
+      makeInstantCoreProgramLogTransport(
+        options.database,
+        options.programLog,
+        options.owner === undefined ? {} : { owner: options.owner },
+      ),
+      processor,
+    )
+  }
+  if (options.programLog === undefined && options.database !== undefined) {
+    return fromTransport(
+      makeInstantCoreSnapshotLogTransport(
+        options.database,
+        options.selectCountId ?? options.countId,
+      ),
       processor,
     )
   }

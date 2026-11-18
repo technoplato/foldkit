@@ -1,0 +1,163 @@
+import { Schema as S } from 'effect'
+import { Navigation } from 'foldkit'
+import { ts } from 'foldkit/schema'
+import * as ReadAloud from 'read-aloud-core-example'
+
+import { AudibleConnectPage, AudibleTitlesPage } from './audible/destination.js'
+import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
+
+// DESTINATION
+
+/** The library: every title, and the one to continue. The root. */
+export const LibraryPage = ts('LibraryPage')
+/** The library. */
+export type LibraryPage = typeof LibraryPage.Type
+
+/**
+ * Who is signed in, and how their library stands, above the library:
+ * `/books/profile`.
+ */
+export const ProfilePage = ts('ProfilePage')
+/** Who is signed in. */
+export type ProfilePage = typeof ProfilePage.Type
+
+/**
+ * One title's page, pushed above the library:
+ * `/books/the-lantern-keeper`.
+ */
+export const TitlePage = ts('TitlePage', { slug: TitleSlug })
+/** One title's page. */
+export type TitlePage = typeof TitlePage.Type
+
+/**
+ * The player for the title beneath, at a place, so its address names the
+ * book and the second being heard: `/books/the-lantern-keeper/listen/12:03`.
+ * The place follows the player as it plays, so the address is always a
+ * link back to this moment.
+ */
+export const PlayerPage = ts('PlayerPage', { atMs: Milliseconds })
+/** The player, at a place. */
+export type PlayerPage = typeof PlayerPage.Type
+
+/**
+ * The player for the title beneath, with no place in its address:
+ * `/books/the-lantern-keeper/listen`, as older links read. It opens on
+ * the listener's place and becomes a PlayerPage at once.
+ */
+export const ListenPage = ts('ListenPage')
+/** The player with no place in its address. */
+export type ListenPage = typeof ListenPage.Type
+
+/**
+ * The chapters of the title beneath, or of the one in the player, at
+ * `…/contents`: a Drawer from the left, beside the page where a window has
+ * the room. The name is from when it was a Sheet; it stays, because the
+ * log and every saved stack spell it this way.
+ */
+export const ContentsSheet = ts('ContentsSheet')
+/** The chapters of the title beneath. */
+export type ContentsSheet = typeof ContentsSheet.Type
+
+/** The speeds to choose from, a Sheet over the player at `…/speed`. */
+export const SpeedSheet = ts('SpeedSheet')
+/** The speeds to choose from. */
+export type SpeedSheet = typeof SpeedSheet.Type
+
+/**
+ * The question "Delete the bookmark at 12:03?", a Dialog. It names the
+ * bookmark it asks about, so answering can only delete that one.
+ */
+export const DeleteBookmarkQuestion = ts('DeleteBookmarkQuestion', {
+  bookmarkId: BookmarkId,
+})
+/** The question "Delete the bookmark at 12:03?". */
+export type DeleteBookmarkQuestion = typeof DeleteBookmarkQuestion.Type
+
+/**
+ * Where more books can come from, a Sheet over the library at
+ * `/books/add`: one row per source, Audible today.
+ */
+export const AddBooksSheet = ts('AddBooksSheet')
+/** Where more books can come from. */
+export type AddBooksSheet = typeof AddBooksSheet.Type
+
+/**
+ * One person's page in one role, above the library:
+ * `/books/authors/ada-quill` is Ada Quill as an author, with the books she
+ * wrote; `/books/illustrators/ada-quill` the books she illustrated.
+ */
+export const ContributorPage = ts('ContributorPage', {
+  role: ReadAloud.CreditRole,
+  contributor: ReadAloud.ContributorKey,
+})
+/** One person's page in one role. */
+export type ContributorPage = typeof ContributorPage.Type
+
+/**
+ * One publisher's page, above the library, with the books it published:
+ * `/books/publishers/harbor-house`.
+ */
+export const PublisherPage = ts('PublisherPage', {
+  publisher: ReadAloud.PublisherKey,
+})
+/** One publisher's page. */
+export type PublisherPage = typeof PublisherPage.Type
+
+/**
+ * Every place Books can show, and the URI no route matched. A stack holds
+ * only these. Read Aloud's places sit above the library:
+ * `/books/read-aloud` and `/books/read-aloud/9780063342705/page/4`, and so
+ * do the pages of the people and publishers books credit:
+ * `/books/authors/ada-quill` and `/books/publishers/harbor-house`. The
+ * Audible import's pages sit above the library or the profile:
+ * `/books/audible` and `/books/profile/audible/connect`.
+ */
+export const Destination = S.Union([
+  LibraryPage,
+  ProfilePage,
+  TitlePage,
+  PlayerPage,
+  ListenPage,
+  ContentsSheet,
+  SpeedSheet,
+  DeleteBookmarkQuestion,
+  AddBooksSheet,
+  AudibleConnectPage,
+  AudibleTitlesPage,
+  ReadAloud.ReadAloudShelf,
+  ReadAloud.ReadAloudPage,
+  ReadAloud.ReadAloudBook,
+  ContributorPage,
+  PublisherPage,
+  Navigation.NotFound,
+])
+/** Every place Books can show. */
+export type Destination = typeof Destination.Type
+
+/** True for the library. */
+export const isLibraryPage = S.is(LibraryPage)
+/** True for the profile. */
+export const isProfilePage = S.is(ProfilePage)
+/** True for a title's page. */
+export const isTitlePage = S.is(TitlePage)
+/** True for the player at a place. */
+export const isPlayerPage = S.is(PlayerPage)
+/** True for the player with no place in its address. */
+export const isListenPage = S.is(ListenPage)
+/** True for either way of showing the player. */
+export const isPlayerScreen = (destination: unknown): boolean =>
+  isPlayerPage(destination) || isListenPage(destination)
+/** True for a title's contents. */
+export const isContentsSheet = S.is(ContentsSheet)
+/** True for the speeds. */
+export const isSpeedSheet = S.is(SpeedSheet)
+/** True for the delete-bookmark question. */
+export const isDeleteBookmarkQuestion = S.is(DeleteBookmarkQuestion)
+/** True for the Sheet of places more books can come from. */
+export const isAddBooksSheet = S.is(AddBooksSheet)
+/** True for any of Read Aloud's places: the shelf, a book, or a page. */
+export const isReadAloudPlace = S.is(ReadAloud.ReadAloudPlace)
+/** True for a person's page in one role. */
+export const isContributorPage = S.is(ContributorPage)
+/** True for a publisher's page. */
+export const isPublisherPage = S.is(PublisherPage)

@@ -346,6 +346,7 @@ describe('planOf', () => {
         entries: [
           {
             key: '/counter',
+            identity: '/counter',
             uri: '/counter',
             destination: Counter(),
             maybeStyle: Option.none(),
@@ -353,6 +354,7 @@ describe('planOf', () => {
           },
           {
             key: '/counter/session',
+            identity: '/counter/session',
             uri: '/counter/session',
             destination: SessionSettings(),
             maybeStyle: Option.some(Push()),
@@ -360,6 +362,7 @@ describe('planOf', () => {
           },
           {
             key: '/counter/session/menu',
+            identity: '/counter/session/menu',
             uri: '/counter/session/menu?menu.q=re',
             destination: menu('re'),
             maybeStyle: Option.some(Dialog()),

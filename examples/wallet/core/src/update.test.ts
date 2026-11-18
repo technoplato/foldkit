@@ -290,11 +290,18 @@ describe('wallet update', () => {
       ChangedTransferAmount.make({ value: '0.000000001' }),
     )
     const [fundingModel] = update(amountModel, RequestedTestFunding.make({}))
-    const [restoredModel, restoreCommands] = restore(fundingModel)
+    const [profileRestoreModel, restoreCommands] = restore(fundingModel)
+    const [restoredModel, profileCommands] = update(
+      profileRestoreModel,
+      SucceededLoadWalletProfiles.make({ wallets: [] }),
+    )
 
     expect(fundingModel.testFunding._tag).toBe('RequestingTestFunding')
+    expect(restoreCommands.map(command => command.name)).toEqual([
+      'LoadWalletProfiles',
+    ])
     expect(restoredModel.portfolio._tag).toBe('LoadingPortfolio')
-    expect(restoreCommands.map(command => command.name)).toEqual(['LoadWallet'])
+    expect(profileCommands.map(command => command.name)).toEqual(['LoadWallet'])
     if (restoredModel.portfolio._tag !== 'LoadingPortfolio') {
       throw new Error('Expected restored portfolio hydration')
     }

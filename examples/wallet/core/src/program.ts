@@ -11,7 +11,7 @@ import type { WalletResources } from './walletClient.js'
 export const WalletProgram: Program.Program<Model, Message, WalletResources> =
   Program.make({
     id: 'wallet',
-    version: 11,
+    version: 12,
     Model,
     Message,
     init,

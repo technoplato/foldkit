@@ -250,3 +250,130 @@ describe('choosing Actions', () => {
     expect(Catalog.commandOf('ResetCounter:2')).toBe('reset-counter 2')
   })
 })
+
+const PlaceMs = S.Int.check(S.isGreaterThanOrEqualTo(0))
+const PlaceMsToken = S.NumberFromString.pipe(S.decodeTo(PlaceMs))
+
+const Player = S.Struct({ placeMs: S.Number, durationMs: S.Number })
+type Player = typeof Player.Type
+
+const SeekTo = Catalog.action('SeekTo', {
+  fields: { placeMs: PlaceMs },
+  choose: {
+    field: 'placeMs',
+    prompt: 'Where to?',
+    token: PlaceMsToken,
+    choicesOf: (player: Player) => [
+      { value: 0, title: 'The start' },
+      { value: player.durationMs / 2, title: 'Halfway' },
+    ],
+    accepts: (player: Player, placeMs: number) =>
+      placeMs <= player.durationMs
+        ? Catalog.Enabled()
+        : Catalog.Disabled({ because: 'that is past the end' }),
+    nothingToChoose: 'there is nothing to seek',
+  },
+  what: 'Moves the player to a place',
+  why: 'The person wants to hear another part',
+  meta: { label: 'Seek', keys: [] },
+})
+
+const Rewind = Catalog.action('Rewind', {
+  what: 'Moves the player to the start',
+  why: 'The person wants to hear it again',
+  enabled: (player: Player) =>
+    player.placeMs === 0
+      ? Catalog.Disabled({ because: 'it is at the start' })
+      : Catalog.Enabled(),
+  meta: { label: 'Rewind', keys: ['w'] },
+})
+
+const playerCatalog = Catalog.make([Rewind, SeekTo])
+
+describe('open choices', () => {
+  const player: Player = { placeMs: 5_000, durationMs: 60_000 }
+
+  it('takes a value no choice lists, while the rule allows it', () => {
+    expect(Catalog.messageFor(playerCatalog, player, 'SeekTo:42000')).toEqual(
+      Option.some(SeekTo({ placeMs: 42_000 })),
+    )
+    expect(Catalog.messageFor(playerCatalog, player, 'SeekTo:30000')).toEqual(
+      Option.some(SeekTo({ placeMs: 30_000 })),
+    )
+    expect(Catalog.messageFor(playerCatalog, player, 'SeekTo:90000')).toEqual(
+      Option.none(),
+    )
+    expect(Catalog.messageFor(playerCatalog, player, 'SeekTo:soon')).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('is Enabled with no choices listed, and says it is open', () => {
+    const [, seekEntry] = Catalog.entries(playerCatalog, player)
+    expect(seekEntry?.availability).toEqual(Catalog.Enabled())
+    expect(
+      Option.map(seekEntry?.maybeChoices ?? Option.none(), choices => [
+        choices.isOpen,
+        choices.choices.length,
+      ]),
+    ).toEqual(Option.some([true, 2]))
+  })
+})
+
+type Library = Readonly<{ maybePlayer: Option.Option<Player> }>
+
+const playerActions = Catalog.within(playerCatalog, {
+  childOf: (library: Library) => library.maybePlayer,
+  nothing: 'nothing is in the player',
+})
+
+const libraryCatalog = Catalog.make(playerActions.actions)
+
+describe('Catalog.within', () => {
+  const loaded: Library = {
+    maybePlayer: Option.some({ placeMs: 5_000, durationMs: 60_000 }),
+  }
+  const idle: Library = { maybePlayer: Option.none() }
+
+  it('offers the child Actions with their tags, keys, rules, and choices', () => {
+    expect(
+      Catalog.entries(libraryCatalog, loaded).map(entry => [
+        entry.tag,
+        entry.keys,
+        entry.availability._tag,
+      ]),
+    ).toEqual([
+      ['Rewind', ['w'], 'Enabled'],
+      ['SeekTo', [], 'Enabled'],
+    ])
+    expect(Catalog.messageFor(libraryCatalog, loaded, 'SeekTo:42000')).toEqual(
+      Option.some(SeekTo({ placeMs: 42_000 })),
+    )
+    expect(
+      Catalog.messageFor(
+        libraryCatalog,
+        { maybePlayer: Option.some({ placeMs: 0, durationMs: 60_000 }) },
+        'Rewind',
+      ),
+    ).toEqual(Option.none())
+  })
+
+  it('says nothing is there while there is no child, and sends nothing', () => {
+    expect(
+      Catalog.entries(libraryCatalog, idle).map(entry => entry.availability),
+    ).toEqual([
+      Catalog.Disabled({ because: 'nothing is in the player' }),
+      Catalog.Disabled({ because: 'nothing is in the player' }),
+    ])
+    expect(Catalog.messageFor(libraryCatalog, idle, 'SeekTo:42000')).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('reads a parent Message back as the child’s own', () => {
+    expect(playerActions.childOf(SeekTo({ placeMs: 1_000 }))).toEqual(
+      Option.some(SeekTo({ placeMs: 1_000 })),
+    )
+    expect(playerActions.childOf({ _tag: 'Open' })).toEqual(Option.none())
+  })
+})

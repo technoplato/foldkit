@@ -2,13 +2,28 @@ export {
   Box,
   Button,
   Column,
+  Dock,
+  List,
+  Plain,
+  Progress,
+  Reference,
+  RichText,
+  ReadingMeasure,
   Row,
+  Seek,
   Spacer,
   Text,
   TextInput,
+  Toolbar,
+  Transcript,
   actionButtons,
+  partWords,
 } from './elements.js'
 export { Host } from './host.js'
+export { IconName, iconDrawings, iconGlyphs } from './icons.js'
+export type { IconDrawing } from './icons.js'
+export { progressLineOf, seekLineOf } from './layout.js'
+export { filterListItems, itemLinesOf } from './listRows.js'
 export { padOf } from './pad.js'
 export type {
   MobilePad,
@@ -16,21 +31,78 @@ export type {
   PressableButton,
   PressableKey,
 } from './pad.js'
-export { buttonsOf, inputsOf, textsOf } from './query.js'
+export {
+  type ScreenLink,
+  buttonsOf,
+  inputsOf,
+  linksOf,
+  textsOf,
+  transcriptsOf,
+} from './query.js'
+export {
+  type ScrubDirection,
+  type ScrubUnit,
+  type TranscriptMatch,
+  searchTranscript,
+  transcriptDefectOf,
+  wordAddressOf,
+  wordAtAddress,
+  wordStepOf,
+} from './readAlong.js'
+export {
+  currentWordTokenAt,
+  transcriptAt,
+  transcriptPlaceAt,
+} from './transcriptClock.js'
+export {
+  ExcerptPosition,
+  TranscriptExcerpt,
+  TranscriptExcerptJson,
+  type TranscriptExcerptOptions,
+  TranscriptExcerptParagraph,
+  TranscriptExcerptWire,
+  transcriptExcerptLines,
+  transcriptExcerptOf,
+} from './transcriptExcerpt.js'
+export {
+  isClearedOnSubmit,
+  isSubmittedOnLeave,
+  submittedTagOf,
+} from './textInput.js'
 export { renderAscii, renderScreen } from './render.js'
 export type {
   AsciiFrame,
   AsciiHotspot,
+  BoxLayer,
+  BoxMeasure,
   BoxNode,
   ButtonNode,
+  ButtonVariant,
   ColumnNode,
   DeviceShellNode,
   HotspotAction,
+  ItemCheck,
+  ItemImage,
   LayoutBox,
+  ListFilter,
+  ListItem,
+  ListNode,
+  PlainPart,
+  ProgressNode,
+  ReferencePart,
+  RowArrangement,
   RowNode,
+  SeekNode,
   SpacerNode,
+  TextEmbed,
   TextEmphasis,
+  TextImage,
   TextInputNode,
   TextNode,
+  TextPart,
+  TranscriptClock,
+  TranscriptNode,
+  TranscriptPassage,
+  TranscriptWord,
   UiNode,
 } from './types.js'

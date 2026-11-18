@@ -1,9 +1,30 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import type { ButtonNode, TextNode, UiNode } from 'foldkit/renderers'
-import { Fragment, type ReactElement, useMemo } from 'react'
 import {
+  type ButtonNode,
+  type ItemCheck,
+  type ProgressNode,
+  type TextInputNode,
+  type TextNode,
+  type UiNode,
+  iconGlyphs,
+  isClearedOnSubmit,
+  isSubmittedOnLeave,
+  itemLinesOf,
+  submittedTagOf,
+} from 'foldkit/renderers'
+import {
+  Fragment,
+  type ReactElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import {
+  Image,
   Linking,
+  TextInput as NativeTextInput,
   Platform,
   Pressable,
   Text,
@@ -33,6 +54,10 @@ export type PaintStyles = Readonly<{
   Row?: ViewStyle
   Column?: ViewStyle
   Box?: ViewStyle
+  Progress?: ViewStyle
+  List?: ViewStyle
+  Seek?: ViewStyle
+  Transcript?: ViewStyle
   DeviceShell?: ViewStyle
 }>
 
@@ -140,9 +165,230 @@ const rowStyle: ViewStyle = {
 
 const columnStyle: ViewStyle = { alignItems: 'center', gap: look.columnGap }
 
+const headlineTextStyle: TextStyle = {
+  fontSize: look.headlineSize,
+  fontWeight: '700',
+}
+
+const trackStyle: ViewStyle = {
+  alignSelf: 'stretch',
+  backgroundColor: look.trackColor,
+  borderRadius: 999,
+  height: 4,
+  overflow: 'hidden',
+}
+
+const fillStyleOf = (value: number, max: number): ViewStyle => ({
+  backgroundColor: look.accentColor,
+  height: 4,
+  width: `${(max > 0 ? Math.min(1, Math.max(0, value / max)) : 0) * 100}%`,
+})
+
+const listStyle: ViewStyle = { alignSelf: 'stretch' }
+
+const itemStyle: ViewStyle = {
+  alignItems: 'center',
+  borderBottomColor: look.trackColor,
+  borderBottomWidth: 1,
+  flexDirection: 'row',
+  gap: look.rowGap,
+  paddingVertical: 10,
+}
+
+const itemTitleStyle: TextStyle = {
+  color: look.textColor,
+  fontSize: look.bodySize,
+  fontWeight: '600',
+}
+
+const itemLineStyle: TextStyle = { color: look.dimColor, fontSize: 14 }
+
+const fieldStyle: TextStyle = {
+  alignSelf: 'stretch',
+  backgroundColor: look.fieldColor,
+  borderColor: look.ghostBorderColor,
+  borderRadius: 12,
+  borderWidth: 1,
+  color: look.textColor,
+  fontSize: look.bodySize,
+  height: look.fieldHeight,
+  paddingHorizontal: 14,
+}
+
+const checkStyle: ViewStyle = {
+  borderColor: look.checkBorderColor,
+  borderRadius: look.checkSize / 2,
+  borderWidth: 2,
+  height: look.checkSize,
+  marginLeft: 8,
+  width: look.checkSize,
+}
+
+const checkedStyle: ViewStyle = {
+  alignItems: 'center',
+  backgroundColor: look.accentColor,
+  borderColor: look.accentColor,
+  justifyContent: 'center',
+}
+
+const checkMarkStyle: TextStyle = {
+  color: look.panelColor,
+  fontSize: 13,
+  fontWeight: '700',
+}
+
+/**
+ * A text field that presses its Action when it is submitted: on the
+ * keyboard's return key, and for a field that edits, such as a title,
+ * when editing ends after a change. It holds what is typed until then.
+ */
+const TextField = ({
+  input,
+  style,
+  onPress,
+}: Readonly<{
+  input: TextInputNode
+  style: TextStyle | undefined
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const [draft, setDraft] = useState(input.value)
+  const lastSubmitted = useRef<Option.Option<string>>(Option.none())
+  useEffect(() => {
+    setDraft(input.value)
+  }, [input.value])
+  const submit = (): void => {
+    if (Option.contains(lastSubmitted.current, draft)) {
+      return
+    }
+    const maybeTag = submittedTagOf(input, draft)
+    if (Option.isSome(maybeTag)) {
+      lastSubmitted.current = Option.some(draft)
+      onPress({
+        _tag: 'Button',
+        label: input.label ?? input.placeholder ?? draft,
+        action: maybeTag.value,
+      })
+    }
+    if (isClearedOnSubmit(input)) {
+      lastSubmitted.current = Option.none()
+      setDraft('')
+    }
+  }
+  return (
+    <NativeTextInput
+      accessibilityLabel={input.label}
+      autoFocus={input.focused === true}
+      onChangeText={text => {
+        lastSubmitted.current = Option.none()
+        setDraft(text)
+      }}
+      onEndEditing={() => {
+        if (isSubmittedOnLeave(input)) {
+          submit()
+        }
+      }}
+      onSubmitEditing={submit}
+      placeholder={input.placeholder}
+      placeholderTextColor={look.dimColor}
+      returnKeyType="done"
+      style={[fieldStyle, style]}
+      value={draft}
+    />
+  )
+}
+
+/** The round box at the start of a list row a person ticks. */
+const CheckBox = ({
+  check,
+  onPress,
+}: Readonly<{
+  check: ItemCheck
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const action = check.action
+  return (
+    <Pressable
+      accessibilityLabel={check.label}
+      accessibilityRole="checkbox"
+      accessibilityState={{
+        checked: check.isChecked,
+        disabled: action === undefined,
+      }}
+      disabled={action === undefined}
+      hitSlop={10}
+      onPress={() => {
+        if (action !== undefined) {
+          onPress({ _tag: 'Button', label: check.label, action })
+        }
+      }}
+      style={[checkStyle, check.isChecked ? checkedStyle : undefined]}
+    >
+      {check.isChecked ? <Text style={checkMarkStyle}>✓</Text> : null}
+    </Pressable>
+  )
+}
+
+const passageStyle: ViewStyle = {
+  alignSelf: 'stretch',
+  borderRadius: 14,
+  flexDirection: 'row',
+  gap: 8,
+  padding: 8,
+}
+
+const passageHeadingStyle: TextStyle = {
+  color: look.textColor,
+  fontSize: 13,
+  fontWeight: '700',
+  letterSpacing: 0.8,
+  width: '100%',
+}
+
+const passageLabelStyle: TextStyle = {
+  color: look.dimColor,
+  fontFamily: monoFamily,
+  fontSize: 12,
+  paddingTop: 5,
+  width: 48,
+}
+
+const passageWordsStyle: TextStyle = {
+  color: look.textColor,
+  flex: 1,
+  fontSize: look.readingSize,
+  lineHeight: look.readingSize * 1.6,
+}
+
+const currentWordStyle: TextStyle = {
+  backgroundColor: look.accentSoftColor,
+  color: '#9a3412',
+}
+
+const labelOfButton = (button: ButtonNode): string => {
+  const glyph = button.icon === undefined ? undefined : iconGlyphs[button.icon]
+  if (glyph === undefined) {
+    return button.label
+  } else if (button.isIconOnly === true) {
+    return glyph
+  } else {
+    return `${glyph} ${button.label}`
+  }
+}
+
+const Bar = ({
+  progress,
+}: Readonly<{
+  progress: Pick<ProgressNode, 'value' | 'max'>
+}>): ReactElement => (
+  <View style={trackStyle}>
+    <View style={fillStyleOf(progress.value, progress.max)} />
+  </View>
+)
+
 const styleOfText = (text: TextNode): ReadonlyArray<TextStyle> => [
   textStyle,
   ...(text.emphasis === 'Display' ? [displayTextStyle] : []),
+  ...(text.emphasis === 'Headline' ? [headlineTextStyle] : []),
   ...(text.dim === true ? [dimTextStyle] : []),
   ...(text.mono === true ? [monoTextStyle] : []),
 ]
@@ -182,6 +428,38 @@ export const paintTree = (
       M.tagsExhaustive({
         Text: text => {
           const href = text.href
+          const image = text.image
+          if (image !== undefined) {
+            const picture = (
+              <Image
+                accessibilityLabel={text.content}
+                source={{ uri: image.src }}
+                style={{
+                  alignSelf: 'center',
+                  borderRadius: 6,
+                  height: image.height,
+                  width: image.width,
+                }}
+              />
+            )
+            return href === undefined ? (
+              picture
+            ) : (
+              <Pressable
+                accessibilityLabel={text.content}
+                accessibilityRole="link"
+                onPress={() => {
+                  if (handlers.onLink === undefined) {
+                    void Linking.openURL(href)
+                  } else {
+                    handlers.onLink(href)
+                  }
+                }}
+              >
+                {picture}
+              </Pressable>
+            )
+          }
           if (href === undefined) {
             return (
               <Text
@@ -229,14 +507,21 @@ export const paintTree = (
               ]}
             >
               <Text style={[buttonLabelStyle, styles.ButtonLabel]}>
-                {button.label}
+                {labelOfButton(button)}
               </Text>
             </Pressable>
           )
         },
-        TextInput: input => (
-          <Text style={[textStyle, styles.TextInput]}>{input.value}</Text>
-        ),
+        TextInput: input =>
+          input.action === undefined && input.clearAction === undefined ? (
+            <Text style={[textStyle, styles.TextInput]}>{input.value}</Text>
+          ) : (
+            <TextField
+              input={input}
+              style={styles.TextInput}
+              onPress={handlers.onPress}
+            />
+          ),
         Spacer: () => <View style={styles.Spacer} />,
         Row: row => (
           <View style={[rowStyle, styles.Row]}>
@@ -251,6 +536,164 @@ export const paintTree = (
         Box: box => (
           <View style={[{ padding: box.padding }, styles.Box]}>
             {paintChildren(box.children)}
+          </View>
+        ),
+        Progress: progress => (
+          <View
+            accessibilityLabel={progress.label}
+            accessibilityRole="progressbar"
+            style={[listStyle, styles.Progress]}
+          >
+            <Bar progress={progress} />
+          </View>
+        ),
+        List: list => (
+          <View
+            accessibilityLabel={list.label}
+            style={[listStyle, styles.List]}
+          >
+            {Array.map(list.items, item => {
+              const action = item.action
+              const href = item.href
+              return (
+                <View key={item.key} style={itemStyle}>
+                  {item.check === undefined ? null : (
+                    <CheckBox check={item.check} onPress={handlers.onPress} />
+                  )}
+                  <Pressable
+                    accessibilityLabel={item.title}
+                    accessibilityRole={href === undefined ? 'button' : 'link'}
+                    disabled={action === undefined && href === undefined}
+                    onPress={() => {
+                      if (href !== undefined) {
+                        if (handlers.onLink === undefined) {
+                          void Linking.openURL(href)
+                        } else {
+                          handlers.onLink(href)
+                        }
+                      } else if (action !== undefined) {
+                        handlers.onPress({
+                          _tag: 'Button',
+                          label: item.title,
+                          action,
+                        })
+                      }
+                    }}
+                    style={{
+                      alignItems: 'center',
+                      flex: 1,
+                      flexDirection: 'row',
+                      gap: 14,
+                    }}
+                  >
+                    {item.image === undefined ? null : (
+                      <Image
+                        accessibilityLabel={item.image.alt}
+                        source={{ uri: item.image.src }}
+                        style={{
+                          borderRadius: 6,
+                          height: look.itemImageSize,
+                          width: look.itemImageSize,
+                        }}
+                      />
+                    )}
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          itemTitleStyle,
+                          item.isCurrent === true
+                            ? { color: look.accentColor }
+                            : undefined,
+                          item.check?.isChecked === true
+                            ? { color: look.dimColor, fontWeight: '500' }
+                            : undefined,
+                        ]}
+                      >
+                        {item.title}
+                      </Text>
+                      {Array.map(itemLinesOf(item), (line, index) => (
+                        <Text
+                          key={index}
+                          numberOfLines={1}
+                          style={itemLineStyle}
+                        >
+                          {line}
+                        </Text>
+                      ))}
+                      {item.progress === undefined ? null : (
+                        <Bar progress={item.progress} />
+                      )}
+                    </View>
+                  </Pressable>
+                  {paintChildren(item.trailing ?? [])}
+                </View>
+              )
+            })}
+          </View>
+        ),
+        Seek: seek => (
+          <View
+            accessibilityLabel={seek.label}
+            accessibilityValue={{ text: seek.valueText }}
+            style={[listStyle, { gap: 6 }, styles.Seek]}
+          >
+            <Bar progress={{ value: seek.value, max: seek.max }} />
+            <Text style={[textStyle, dimTextStyle]}>{seek.valueText}</Text>
+          </View>
+        ),
+        Transcript: transcript => (
+          <View
+            accessibilityLabel={transcript.label}
+            style={[listStyle, styles.Transcript]}
+          >
+            {Array.match(transcript.passages, {
+              onEmpty: () => (
+                <Text style={[textStyle, dimTextStyle]}>
+                  {transcript.emptyText}
+                </Text>
+              ),
+              onNonEmpty: passages =>
+                Array.map(passages, passage => (
+                  <View
+                    key={passage.key}
+                    style={[
+                      passageStyle,
+                      passage.isCurrent === true
+                        ? { backgroundColor: look.rowHoverColor }
+                        : undefined,
+                    ]}
+                  >
+                    {passage.heading === undefined ? null : (
+                      <Text style={passageHeadingStyle}>
+                        {passage.heading.toUpperCase()}
+                      </Text>
+                    )}
+                    <Text style={passageLabelStyle}>{passage.label}</Text>
+                    <Text style={passageWordsStyle}>
+                      {Array.map(passage.words, word => (
+                        <Text
+                          key={word.token}
+                          onPress={() => {
+                            handlers.onPress({
+                              _tag: 'Button',
+                              label: word.text,
+                              action: `${transcript.action}:${word.token}`,
+                            })
+                          }}
+                          style={
+                            word.isCurrent === true
+                              ? currentWordStyle
+                              : undefined
+                          }
+                        >
+                          {`${word.text} `}
+                        </Text>
+                      ))}
+                    </Text>
+                  </View>
+                )),
+            })}
           </View>
         ),
         DeviceShell: shell => (

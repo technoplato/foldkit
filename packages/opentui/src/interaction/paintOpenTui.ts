@@ -1,6 +1,18 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, type Navigation } from 'foldkit'
-import { type ButtonNode, type TextNode, type UiNode } from 'foldkit/renderers'
+import {
+  type ButtonNode,
+  type ItemCheck,
+  type ListItem,
+  type TextInputNode,
+  type TextNode,
+  type TranscriptPassage,
+  type UiNode,
+  iconGlyphs,
+  itemLinesOf,
+  progressLineOf,
+  seekLineOf,
+} from 'foldkit/renderers'
 
 import {
   BoxRenderable,
@@ -9,6 +21,7 @@ import {
   StyledText,
   type TextChunk,
   TextRenderable,
+  bg,
   bold,
   dim,
   fg,
@@ -22,10 +35,21 @@ const buttonPaddingX = 1
 const textContentOf = (text: TextNode): StyledText => {
   if (text.dim === true) {
     return t`${dim(text.content)}`
-  } else if (text.emphasis === 'Display') {
+  } else if (text.emphasis === 'Display' || text.emphasis === 'Headline') {
     return t`${bold(text.content)}`
   } else {
     return stringToStyledText(text.content)
+  }
+}
+
+const buttonLabelOf = (button: ButtonNode): string => {
+  const glyph = button.icon === undefined ? undefined : iconGlyphs[button.icon]
+  if (glyph === undefined) {
+    return button.label
+  } else if (button.isIconOnly === true) {
+    return glyph
+  } else {
+    return `${glyph} ${button.label}`
   }
 }
 
@@ -39,6 +63,165 @@ export type PaintOpenTuiMenuOptions = Readonly<{
   onChoose: (tag: string) => void
   onDismiss: () => void
 }>
+
+const barWidth = 60
+
+const passageLabelWidth = 8
+
+const currentWordColor = '#9a3412'
+
+const currentWordBackground = '#fed7aa'
+
+const pressOf = (action: string, label: string): ButtonNode => ({
+  _tag: 'Button',
+  label,
+  action,
+})
+
+const checkContentOf = (check: ItemCheck): StyledText => {
+  const box = check.isChecked ? '[x]' : '[ ]'
+  return check.focused === true
+    ? t`${bold(fg(matchColor)(box))}`
+    : stringToStyledText(box)
+}
+
+const paintCheck = (
+  ctx: RenderContext,
+  check: ItemCheck,
+  options: PaintOpenTuiOptions,
+): Renderable => {
+  const checkAction = check.action
+  const box = new BoxRenderable(ctx, {
+    ...(checkAction === undefined
+      ? {}
+      : {
+          onMouseDown: () => {
+            options.onPress(pressOf(checkAction, check.label))
+          },
+        }),
+  })
+  box.add(new TextRenderable(ctx, { content: checkContentOf(check) }))
+  return box
+}
+
+const inputContentOf = (input: TextInputNode): StyledText => {
+  const shown = input.value.length > 0 ? input.value : (input.placeholder ?? '')
+  if (input.action === undefined) {
+    return stringToStyledText(input.value)
+  } else if (input.value.length > 0) {
+    return t`[ ${shown} ]`
+  } else {
+    return t`[ ${dim(shown)} ]`
+  }
+}
+
+const paintItem = (
+  ctx: RenderContext,
+  item: ListItem,
+  options: PaintOpenTuiOptions,
+): Renderable => {
+  const action = item.action ?? item.href
+  const row = new BoxRenderable(ctx, {
+    flexDirection: 'row',
+    columnGap: 2,
+    ...(item.focused === true ? { backgroundColor: focusColor } : {}),
+  })
+  if (item.check !== undefined) {
+    row.add(paintCheck(ctx, item.check, options))
+  }
+  const title = new BoxRenderable(ctx, {
+    ...(action === undefined
+      ? {}
+      : {
+          onMouseDown: () => {
+            options.onPress(pressOf(action, item.title))
+          },
+        }),
+  })
+  title.add(
+    new TextRenderable(ctx, {
+      content:
+        item.isCurrent === true
+          ? t`${bold(fg(matchColor)(`• ${item.title}`))}`
+          : t`${bold(`  ${item.title}`)}`,
+    }),
+  )
+  row.add(title)
+  Array.match(itemLinesOf(item), {
+    onEmpty: () => undefined,
+    onNonEmpty: lines => {
+      row.add(
+        new TextRenderable(ctx, {
+          content: t`${dim(Array.join(lines, ' · '))}`,
+        }),
+      )
+    },
+  })
+  return addChildren(ctx, row, item.trailing ?? [], options)
+}
+
+const paintPassage = (
+  ctx: RenderContext,
+  passage: TranscriptPassage,
+  options: PaintOpenTuiOptions,
+): Renderable => {
+  const row = new BoxRenderable(ctx, { flexDirection: 'row' })
+  const labelAction = passage.labelAction
+  if (passage.heading !== undefined) {
+    const column = new BoxRenderable(ctx, { flexDirection: 'column' })
+    column.add(
+      new TextRenderable(ctx, {
+        content: t`${bold(passage.heading.toUpperCase())}`,
+      }),
+    )
+    column.add(row)
+    fillPassageRow(ctx, row, passage, labelAction, options)
+    return column
+  }
+  fillPassageRow(ctx, row, passage, labelAction, options)
+  return row
+}
+
+const fillPassageRow = (
+  ctx: RenderContext,
+  row: BoxRenderable,
+  passage: TranscriptPassage,
+  labelAction: string | undefined,
+  options: PaintOpenTuiOptions,
+): void => {
+  const label = new BoxRenderable(ctx, {
+    width: passageLabelWidth,
+    ...(labelAction === undefined
+      ? {}
+      : {
+          onMouseDown: () => {
+            options.onPress(pressOf(labelAction, passage.label))
+          },
+        }),
+  })
+  label.add(
+    new TextRenderable(ctx, {
+      content:
+        passage.isCurrent === true
+          ? t`${bold(`›${passage.label}`)}`
+          : t`${dim(` ${passage.label}`)}`,
+    }),
+  )
+  row.add(label)
+  const chunks = Array.flatMap(passage.words, (word, index) => [
+    ...(index === 0 ? [] : stringToStyledText(' ').chunks),
+    ...(word.isCurrent === true
+      ? [bg(currentWordBackground)(fg(currentWordColor)(bold(word.text)))]
+      : stringToStyledText(word.text).chunks),
+  ])
+  const words = new TextRenderable(ctx, {
+    content: new StyledText([...chunks]),
+    wrapMode: 'word',
+    flexGrow: 1,
+    flexShrink: 1,
+  })
+  row.add(words)
+}
 
 const addChildren = (
   ctx: RenderContext,
@@ -84,7 +267,7 @@ export const paintOpenTui = (
               }
             : {}),
         })
-        const label = button.label
+        const label = buttonLabelOf(button)
         box.add(
           new TextRenderable(ctx, {
             content: isPressable ? t`${bold(label)}` : t`${dim(label)}`,
@@ -92,7 +275,8 @@ export const paintOpenTui = (
         )
         return box
       },
-      TextInput: input => new TextRenderable(ctx, { content: input.value }),
+      TextInput: input =>
+        new TextRenderable(ctx, { content: inputContentOf(input) }),
       Spacer: spacer => new BoxRenderable(ctx, { height: spacer.rows }),
       Row: row =>
         addChildren(
@@ -121,6 +305,40 @@ export const paintOpenTui = (
           box.children,
           options,
         ),
+      Progress: progress =>
+        new TextRenderable(ctx, {
+          content: t`${dim(progressLineOf(progress, barWidth))}`,
+        }),
+      List: list => {
+        const column = new BoxRenderable(ctx, { flexDirection: 'column' })
+        Array.forEach(list.items, item => {
+          column.add(paintItem(ctx, item, options))
+        })
+        return column
+      },
+      Seek: seek =>
+        new TextRenderable(ctx, { content: seekLineOf(seek, barWidth) }),
+      Transcript: transcript => {
+        const column = new BoxRenderable(ctx, {
+          flexDirection: 'column',
+          rowGap: 1,
+        })
+        Array.match(transcript.passages, {
+          onEmpty: () => {
+            column.add(
+              new TextRenderable(ctx, {
+                content: t`${dim(transcript.emptyText)}`,
+              }),
+            )
+          },
+          onNonEmpty: passages => {
+            Array.forEach(passages, passage => {
+              column.add(paintPassage(ctx, passage, options))
+            })
+          },
+        })
+        return column
+      },
       DeviceShell: shell =>
         addChildren(
           ctx,

@@ -9,7 +9,11 @@ import {
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { init } from '@instantdb/core'
+import {
+  type InstantCoreDatabase,
+  type InstantUnknownSchema,
+  init,
+} from '@instantdb/core'
 import {
   StoreInterface,
   type StoreInterfaceClass,
@@ -121,15 +125,54 @@ export class NodeInstantNetworkListener {
   }
 }
 
+const runInstantClientInNode = (): void => {
+  // NOTE: @instantdb/core starts its client only where `window` exists
+  // (Reactor's isClient) and leaves its storage unset otherwise, so sign-in
+  // and queries throw in Node. Every later use of `window` it makes is
+  // guarded by `window.location`, so an empty object turns the client on
+  // and nothing else.
+  if (!Reflect.has(globalThis, 'window')) {
+    Reflect.defineProperty(globalThis, 'window', {
+      value: {},
+      configurable: true,
+    })
+  }
+}
+
 /** Initializes Instant core with a file-backed store for one Node Client. */
 export const makeNodeInstantProgramDatabase = (
   appId: string,
   stateDirectory: string,
-): InstantProgramDatabase =>
-  init(
+): InstantProgramDatabase => {
+  runInstantClientInNode()
+  return init(
     { appId, schema: InstantProgramSchema },
     makeNodeInstantStoreClass(stateDirectory),
     NodeInstantNetworkListener,
   )
+}
+
+/**
+ * Initializes Instant core with no schema and a file-backed store, for a
+ * Node Client of an app whose schema lives elsewhere, such as a terminal
+ * reading a shared library. Its session is kept under `stateDirectory`,
+ * so the next run is still signed in.
+ *
+ * @example
+ * ```typescript
+ * const database = makeNodeInstantDatabase(appId, '/Users/me/.cache/foldkit/books')
+ * ```
+ */
+export const makeNodeInstantDatabase = (
+  appId: string,
+  stateDirectory: string,
+): InstantCoreDatabase<InstantUnknownSchema, false> => {
+  runInstantClientInNode()
+  return init(
+    { appId },
+    makeNodeInstantStoreClass(stateDirectory),
+    NodeInstantNetworkListener,
+  )
+}
 
 export type { InstantProgramDatabase }

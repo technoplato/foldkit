@@ -60,6 +60,29 @@ describe('NavigationFrame', () => {
     ).not.toBeNull()
   })
 
+  it('closes the Sheet on a click on the backdrop, not on the sheet itself', () => {
+    const bound = bindRouted()
+    const { container } = renderWith(bound)
+    act(() => {
+      bound.press('OpenSessionSettings')
+    })
+    act(() => {
+      fireEvent.click(screen.getByText('Every device shows the same screen.'))
+    })
+    expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
+      Option.some('/counter/session'),
+    )
+    const backdrop = container.querySelector('.fk-overlay[data-style="Sheet"]')
+    act(() => {
+      if (backdrop !== null) {
+        fireEvent.click(backdrop)
+      }
+    })
+    expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
+      Option.some('/counter'),
+    )
+  })
+
   it('opens an in-app link in the Program instead of loading the page', () => {
     const bound = bindRouted()
     renderWith(bound)

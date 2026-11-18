@@ -1,15 +1,17 @@
 import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { Cli } from '../processor/host.js'
 import { bindCounter } from '../test/apps/catalogCounter.js'
 import { bindApp, uriOf } from '../test/apps/navigableCounter.js'
 import { terminalWidth } from './layout.js'
 import {
+  paintCommands,
   paintProgram,
-  programCliSurface,
   programUsage,
   runProgramCommand,
 } from './program.js'
+import { programCliSurface } from './surface.js'
 
 const countOf = (bound: ReturnType<typeof bindCounter>): number =>
   bound.readModel().count
@@ -118,13 +120,44 @@ describe('runProgramCommand', () => {
   })
 })
 
+describe('paintCommands', () => {
+  it('lists the presses that run now, then the host commands, one per line', () => {
+    expect(
+      paintCommands(
+        bindCounter(),
+        'counter',
+        ['Increment', 'Reset', 'Explode'],
+        [{ command: 'tui', what: 'Opens the count in this terminal' }],
+      ),
+    ).toEqual([
+      '  counter increment  Increments the count by one',
+      '  counter tui        Opens the count in this terminal',
+    ])
+  })
+
+  it('puts what a long command does on the next line, under the column', () => {
+    expect(
+      paintCommands(
+        bindCounter(),
+        'counter',
+        ['Increment'],
+        [{ command: 'listen-to-twenty-one-lessons', what: 'Plays it' }],
+      ),
+    ).toEqual([
+      '  counter increment             Increments the count by one',
+      '  counter listen-to-twenty-one-lessons',
+      '                                Plays it',
+    ])
+  })
+})
+
 describe('programCliSurface', () => {
   it('splits the daemon token into words', () => {
     const bound = bindCounter()
     const runWords = Option.getOrThrow(
       Option.fromNullishOr(programCliSurface(bound, 'counter').do),
     )
-    const result = Effect.runSync(runWords('menu  type  re', {}))
+    const result = Effect.runSync(runWords('menu  type  re', {}, Cli()))
     expect(result.exitCode).toBe(0)
     expect(Option.map(bound.menu(), menu => menu.query)).toEqual(
       Option.some('re'),

@@ -1,6 +1,6 @@
 import { type Processor, Runtime } from 'foldkit'
 
-import { FoldkitCounterV01, Instant } from '@foldkit/instant/browser'
+import { SharedInstantProject, Instant } from '@foldkit/instant/browser'
 
 import {
   type CounterHandle,
@@ -10,7 +10,7 @@ import {
 import { SyncedCounter } from './synced.js'
 
 export {
-  FoldkitCounterV01,
+  SharedInstantProject,
   InstantSnapshotLogSchema,
 } from '@foldkit/instant/browser'
 
@@ -19,14 +19,14 @@ const engineFor = (config: StartCounterConfig): Runtime.SyncEngine => {
     return Runtime.Memory({ processor: `memory-${config.instance}` })
   } else if (config.database !== undefined) {
     return Instant({
-      app: FoldkitCounterV01,
+      app: SharedInstantProject,
       processor: config.host,
       instance: config.instance,
       database: config.database,
     })
   } else {
     return Instant({
-      app: FoldkitCounterV01,
+      app: SharedInstantProject,
       processor: config.host,
       instance: config.instance,
     })

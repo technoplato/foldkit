@@ -1,19 +1,73 @@
-import { Data, Effect, Layer, Option, String } from 'effect'
 import {
-  IssueIdentity,
+  Array,
+  Data,
+  Effect,
+  Option,
+  Result,
+  Schema as S,
+  Schedule,
+  String,
+} from 'effect'
+import {
   StaticIssueTrackerResources,
   makeLiveIssueTrackerResources,
 } from 'issues-core-example'
-import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import {
-  type InstantToolsDatabase,
-  InstantToolsSchema,
+  type InstantEntityStoreError,
+  type InstantIssueRecord,
+  type InstantToolsDatabaseWithFiles,
+  InstantToolsSchemaWithFiles,
+  makeInstantEntityStore,
+  makeInstantIssueRecord,
 } from '@foldkit/instant-tools/instant'
-import { init as initAdmin, lookup } from '@instantdb/admin'
+import {
+  IssueQuery,
+  type IssueStatus,
+  type IssueTrackerError,
+  type IssueTrackerService,
+  describeIssueTrackerCause,
+} from '@foldkit/instant-tools/issues'
+import { InstantAPIError, init as initAdmin, lookup } from '@instantdb/admin'
+
+import {
+  type IssueAgentsReader,
+  type RecordingIssuesReader,
+  UnavailableIssueAgents,
+  UnavailableRecordingIssues,
+  readIssueAgents,
+  readRecordingIssues,
+} from './agents.js'
+import {
+  type BuildJobsReader,
+  type ScribeQuery,
+  UnavailableBuildJobs,
+  readBuildJobs,
+} from './builds.js'
+import { type IssueFilesService } from './commands.js'
+import {
+  type IssueChildrenReader,
+  UnavailableIssueChildren,
+  readIssueChildren,
+} from './family.js'
+import {
+  type LandingReader,
+  UnavailableLanding,
+  readLanding,
+} from './landing.js'
+import {
+  type IssueRecordingsReader,
+  UnavailableIssueRecordings,
+  readIssueRecordings,
+} from './recordings.js'
+import {
+  type IssueReferencesReader,
+  UnavailableIssueReferences,
+  readIssueReferences,
+} from './references.js'
 
 /** Instant Tools env documented by the issues example and listener. */
 export const documentedInstantEnvPath = join(
@@ -41,22 +95,36 @@ const unquote = (value: string): string => {
   return value
 }
 
-const applyLine = (line: string): void => {
+type EnvEntry = Readonly<{ key: string; value: string }>
+
+const exportPrefix = /^export\s+/
+
+const envEntryOf = (line: string): Option.Option<EnvEntry> => {
   const trimmed = line.trim()
   if (trimmed === '' || trimmed.startsWith('#')) {
-    return
+    return Option.none()
   }
-  const maybeSeparator = String.indexOf('=')(trimmed)
-  if (Option.isNone(maybeSeparator)) {
-    return
-  }
-  const key = trimmed.slice(0, maybeSeparator.value)
-  const value = unquote(trimmed.slice(maybeSeparator.value + 1))
-  if (key === '' || process.env[key] !== undefined) {
-    return
-  }
-  process.env[key] = value
+  return Option.flatMap(String.indexOf('=')(trimmed), separator => {
+    const key = trimmed.slice(0, separator).replace(exportPrefix, '')
+    if (key === '') {
+      return Option.none()
+    } else {
+      return Option.some({
+        key,
+        value: unquote(trimmed.slice(separator + 1)),
+      })
+    }
+  })
 }
+
+/**
+ * The `KEY=value` lines of an env file, in order: blank lines and `#`
+ * comments are skipped, and an `export ` prefix and one pair of quotes around
+ * the value are removed, so `export SCRIBE_MAIN_INSTANT_APP_ID='abc'` reads
+ * as `SCRIBE_MAIN_INSTANT_APP_ID` = `abc`.
+ */
+export const envFileEntries = (text: string): ReadonlyArray<EnvEntry> =>
+  Array.getSomes(Array.map(text.split('\n'), envEntryOf))
 
 /** Fills missing Instant keys from the documented Instant Tools env file. */
 export const loadDocumentedInstantEnv = (): void => {
@@ -68,9 +136,10 @@ export const loadDocumentedInstantEnv = (): void => {
   if (!existsSync(path)) {
     return
   }
-  const lines = readFileSync(path, 'utf8').split('\n')
-  for (const fileLine of lines) {
-    applyLine(fileLine)
+  for (const { key, value } of envFileEntries(readFileSync(path, 'utf8'))) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value
+    }
   }
 }
 
@@ -88,53 +157,134 @@ const instantAppId = (): string | undefined =>
   envValue('VITE_INSTANT_APP_ID')
 
 const instantAdminToken = (): string | undefined =>
-  envValue('INSTANT_APP_ADMIN_TOKEN')
+  envValue('INSTANT_APP_ADMIN_TOKEN') ?? envValue('INSTANT_ADMIN_TOKEN')
 
 const instantApiUri = (): string | undefined =>
   envValue('INSTANT_API_URI') ??
   envValue('INSTANT_API_URL') ??
   envValue('VITE_INSTANT_API_URI')
 
-const adminPollMs = 1_000
+const RATE_LIMITED_STATUS = 429
 
-/** Instant core refuses Node; admin query/transact is the Node Instant surface. */
-const adminAsInstantToolsDatabase = (
-  admin: ReturnType<typeof initAdmin>,
-): InstantToolsDatabase =>
+const rateLimitWording = /rate limit/i
+
+/**
+ * Whether Instant turned a request away for coming too fast: HTTP 429, type
+ * `rate-limited`, or its wording, "Your request exceeded the rate limit." A
+ * rate-limited request was not applied, so sending it again is safe.
+ */
+export const isRateLimited = (cause: unknown): boolean => {
+  if (cause instanceof InstantAPIError) {
+    return (
+      cause.status === RATE_LIMITED_STATUS ||
+      cause.body?.type === 'rate-limited' ||
+      rateLimitWording.test(cause.message)
+    )
+  }
+  return cause instanceof Error && rateLimitWording.test(cause.message)
+}
+
+/**
+ * How a rate-limited request is sent again: after about 500 ms, then twice as
+ * long each time, jittered so agents that met the limit together spread out,
+ * five times (about 15 s in all). Instant asks for 1 s (#1329).
+ */
+export const rateLimitRetry: Schedule.Schedule<unknown, unknown> =
+  Schedule.exponential('500 millis').pipe(
+    Schedule.jittered,
+    Schedule.upTo({ times: 5 }),
+  )
+
+const sendRetryingRateLimits = <A>(
+  request: () => Promise<A>,
+  retry: Schedule.Schedule<unknown, unknown>,
+): Promise<A> =>
+  Effect.runPromise(
+    Effect.retry(Effect.tryPromise({ try: request, catch: cause => cause }), {
+      schedule: retry,
+      while: isRateLimited,
+    }),
+  )
+
+/** The admin client surface the adapter uses. */
+export type InstantAdminClient = Readonly<{
+  asUser?: (
+    options: Readonly<{ email: string }>,
+  ) => Readonly<{ transact: (ops: never) => Promise<unknown> }>
+  query: (query: never) => Promise<unknown>
+  transact: (ops: never) => Promise<unknown>
+  tx: object
+}>
+
+const ownerEmailName = 'INSTANT_TOOLS_OWNER_EMAIL'
+
+/**
+ * Whom the CLI writes the tracker as: the owner's email in
+ * `INSTANT_TOOLS_OWNER_EMAIL`, from the environment or the Instant Tools env
+ * file, never from the repository. Writing as the owner (`asUser`) runs the
+ * tracker's rules, so an Issue write based on a stale read is refused; an
+ * admin token bypasses them.
+ */
+export const writerOf = (
+  environment: Readonly<Record<string, string | undefined>>,
+): Option.Option<string> =>
+  Option.filter(
+    Option.map(Option.fromNullishOr(environment[ownerEmailName]), String.trim),
+    String.isNonEmpty,
+  )
+
+/**
+ * The read-once adapter behind `adminAsInstantToolsDatabase`: one command
+ * reads the catalog (18.6 MB on 2026-10-29) once, not once for the first snapshot and again for
+ * the subscription, and every write forgets what was read, so a check after a
+ * write reads the store again.
+ */
+const adminDatabase = (
+  admin: InstantAdminClient,
+  readOnce: (query: unknown) => Promise<unknown>,
+  write: (ops: unknown) => Promise<unknown>,
+  forgetReads: () => void,
+): InstantToolsDatabaseWithFiles =>
+  // NOTE: a structural adapter: the admin client lacks core's typings.
+  // oxlint-disable-next-line typescript/consistent-type-assertions
   ({
     queryOnce: async (
-      query: Parameters<InstantToolsDatabase['queryOnce']>[0],
+      query: Parameters<InstantToolsDatabaseWithFiles['queryOnce']>[0],
     ) => {
-      const data = await admin.query(query)
+      const data = await readOnce(query)
       return { data }
     },
     subscribeQuery: (
-      query: Parameters<InstantToolsDatabase['subscribeQuery']>[0],
-      onResponse: Parameters<InstantToolsDatabase['subscribeQuery']>[1],
+      query: Parameters<InstantToolsDatabaseWithFiles['subscribeQuery']>[0],
+      onResponse: Parameters<
+        InstantToolsDatabaseWithFiles['subscribeQuery']
+      >[1],
     ) => {
-      let isRunning = true
-      const tick = (): void => {
-        void admin.query(query).then(
-          data => {
-            if (isRunning) {
-              onResponse({ data } as never)
-              setTimeout(tick, adminPollMs)
-            }
-          },
-          error => {
-            if (isRunning) {
-              onResponse({ error } as never)
-            }
-          },
-        )
-      }
-      tick()
+      const subscription = { isRunning: true }
+      void readOnce(query).then(
+        data => {
+          if (subscription.isRunning) {
+            // oxlint-disable-next-line typescript/consistent-type-assertions
+            onResponse({ data } as never)
+          }
+        },
+        error => {
+          if (subscription.isRunning) {
+            // oxlint-disable-next-line typescript/consistent-type-assertions
+            onResponse({ error } as never)
+          }
+        },
+      )
       return () => {
-        isRunning = false
+        subscription.isRunning = false
       }
     },
-    transact: (ops: Parameters<InstantToolsDatabase['transact']>[0]) =>
-      admin.transact(ops as never),
+    transact: (
+      ops: Parameters<InstantToolsDatabaseWithFiles['transact']>[0],
+    ) => {
+      forgetReads()
+      return write(ops).finally(forgetReads)
+    },
     tx: new Proxy(admin.tx, {
       get(target, property, receiver) {
         const value = Reflect.get(target, property, receiver)
@@ -152,76 +302,543 @@ const adminAsInstantToolsDatabase = (
         })
       },
     }),
-  }) as unknown as InstantToolsDatabase
+    // oxlint-disable-next-line typescript/consistent-type-assertions
+  }) as unknown as InstantToolsDatabaseWithFiles
 
-let cachedDatabase: InstantToolsDatabase | undefined
+/**
+ * Adapts Instant's admin client to the client surface the tracker reads.
+ * Instant core refuses Node, and the admin client has no live queries, so a
+ * subscription answers with one snapshot. A one-shot command patches its
+ * Model from each Command's result, so it never needs a second snapshot, and
+ * no timer is left to hold the process open. Every read and write that meets
+ * Instant's rate limit is sent again on `retry`, so a command never fails
+ * for having come too fast. With `maybeOwnerEmail`, writes go through the
+ * app's rules as that owner (`asUser`), so a stale Issue write is refused;
+ * reads stay the admin's.
+ */
+export const adminAsInstantToolsDatabase = (
+  admin: InstantAdminClient,
+  retry: Schedule.Schedule<unknown, unknown> = rateLimitRetry,
+  maybeOwnerEmail: Option.Option<string> = Option.none(),
+): InstantToolsDatabaseWithFiles => {
+  const answers = new Map<string, Promise<unknown>>()
+  const readOnce = (query: unknown): Promise<unknown> => {
+    const key = JSON.stringify(query)
+    const answer =
+      answers.get(key) ??
+      sendRetryingRateLimits(
+        // oxlint-disable-next-line typescript/consistent-type-assertions
+        () => admin.query(query as never),
+        retry,
+      )
+    answers.set(key, answer)
+    answer.catch(() => answers.delete(key))
+    return answer
+  }
+  const writer = Option.match(
+    Option.flatMap(maybeOwnerEmail, email =>
+      Option.map(Option.fromNullishOr(admin.asUser), asUser =>
+        asUser({ email }),
+      ),
+    ),
+    { onNone: () => admin, onSome: owner => owner },
+  )
+  return adminDatabase(
+    admin,
+    readOnce,
+    ops =>
+      sendRetryingRateLimits(
+        // oxlint-disable-next-line typescript/consistent-type-assertions
+        () => writer.transact(ops as never),
+        retry,
+      ),
+    () => answers.clear(),
+  )
+}
 
-const issuesDatabase = (): InstantToolsDatabase | IssuesInstantConfigError => {
+/**
+ * The stored records behind Issues, read without decoding them: the numbers
+ * in use, to account for every stored Issue, and one number's raw records, to
+ * back them up before a delete.
+ */
+export type IssueRecordsService = Readonly<{
+  fetchIssueIds: (
+    statuses: ReadonlyArray<IssueStatus>,
+  ) => Effect.Effect<
+    ReadonlyArray<string>,
+    InstantEntityStoreError | IssueTrackerError
+  >
+  fetchIssueRecordsById: (
+    issueId: string,
+  ) => Effect.Effect<
+    ReadonlyArray<InstantIssueRecord>,
+    InstantEntityStoreError | IssueTrackerError
+  >
+}>
+
+/** Every live resource the one-shot command needs. */
+export type LiveIssueHostServices = Readonly<{
+  agents: IssueAgentsReader
+  buildJobs: BuildJobsReader
+  children: IssueChildrenReader
+  landing: LandingReader
+  recordingIssues: RecordingIssuesReader
+  recordings: IssueRecordingsReader
+  references: IssueReferencesReader
+  credentials: ReadonlyArray<string>
+  files: IssueFilesService
+  records: IssueRecordsService
+  resources: ReturnType<typeof makeLiveIssueTrackerResources>
+}>
+
+/**
+ * The env file of Scribe's main Instant app, where `issues show` reads an
+ * Issue's build jobs (Scribe #1412): `SCRIBE_MAIN_INSTANT_APP_ID` and
+ * `SCRIBE_MAIN_INSTANT_ADMIN_TOKEN`.
+ */
+export const scribeMainEnvPath = join(
+  homedir(),
+  '.config',
+  'instant-tools',
+  'scribe-main.env',
+)
+
+const scribeAppIdName = 'SCRIBE_MAIN_INSTANT_APP_ID'
+const scribeAdminTokenName = 'SCRIBE_MAIN_INSTANT_ADMIN_TOKEN'
+
+/** The app id and admin token of Scribe's main Instant app. */
+export const ScribeCredentials = S.Struct({
+  adminToken: S.String,
+  appId: S.String,
+})
+/** The app id and admin token of Scribe's main Instant app. */
+export type ScribeCredentials = typeof ScribeCredentials.Type
+
+const nonEmpty = (value: string | undefined): Option.Option<string> =>
+  Option.filter(Option.fromNullishOr(value), String.isNonEmpty)
+
+/**
+ * Scribe's main app credentials: each from `environment`, else from
+ * `scribe-main.env` (`envFile`: its text, or why it could not be read). The
+ * tracker's own `INSTANT_APP_ID` is never read, so `issues show` cannot ask
+ * the tracker's app for Scribe's jobs. A failure names what is missing and
+ * where it looked, never a value.
+ */
+export const scribeCredentialsOf = (
+  environment: Readonly<Record<string, string | undefined>>,
+  envFile: Result.Result<string, string>,
+): Result.Result<ScribeCredentials, string> => {
+  const fileEntries = Result.getOrElse(
+    Result.map(envFile, envFileEntries),
+    () => [],
+  )
+  const credentialOf = (name: string): Option.Option<string> =>
+    Option.orElse(nonEmpty(environment[name]), () =>
+      Option.flatMap(
+        Array.findFirst(fileEntries, entry => entry.key === name),
+        entry => nonEmpty(entry.value),
+      ),
+    )
+  const maybeAppId = credentialOf(scribeAppIdName)
+  const maybeAdminToken = credentialOf(scribeAdminTokenName)
+  if (Option.isSome(maybeAppId) && Option.isSome(maybeAdminToken)) {
+    return Result.succeed(
+      ScribeCredentials.make({
+        adminToken: maybeAdminToken.value,
+        appId: maybeAppId.value,
+      }),
+    )
+  }
+  const missing = Array.join(
+    [
+      ...(Option.isNone(maybeAppId) ? [scribeAppIdName] : []),
+      ...(Option.isNone(maybeAdminToken) ? [scribeAdminTokenName] : []),
+    ],
+    ' and ',
+  )
+  return Result.fail(
+    Result.match(envFile, {
+      onFailure: why =>
+        `the environment does not set ${missing}, and ${scribeMainEnvPath} could not be read (${why})`,
+      onSuccess: () =>
+        `neither the environment nor ${scribeMainEnvPath} sets ${missing}`,
+    }),
+  )
+}
+
+/**
+ * A query to Scribe's app that is sent again when Instant rate-limits it, by
+ * `retry` (about 500 ms, then twice as long), and never for another refusal
+ * (Scribe #2348): `issues show` asks Scribe's app seven questions at once, and
+ * one of them met the limit on 2026-11-13. The reader's 5-second bound still
+ * ends the wait.
+ */
+export const retryingScribeQuery =
+  (
+    send: ScribeQuery,
+    retry: Schedule.Schedule<unknown, unknown> = rateLimitRetry,
+  ): ScribeQuery =>
+  (query, signal) =>
+    sendRetryingRateLimits(() => Promise.resolve(send(query, signal)), retry)
+
+/**
+ * Sends InstaQL to Scribe's main Instant app as its admin, with no schema, so
+ * rows come back as stored, sending it again when Instant rate-limits it.
+ * Aborting the signal abandons the request.
+ */
+export const adminScribeQuery = (credentials: ScribeCredentials): ScribeQuery =>
+  retryingScribeQuery((query, signal) =>
+    initAdmin({
+      adminToken: credentials.adminToken,
+      appId: credentials.appId,
+      disableValidation: true,
+    }).query(
+      // oxlint-disable-next-line typescript/consistent-type-assertions
+      query as never,
+      { fetchOpts: { signal } },
+    ),
+  )
+
+/**
+ * Reads an Issue's build jobs from Scribe's main Instant app, a second app
+ * beside the tracker's (Scribe #1412), with `queryFor`'s client. Without
+ * credentials every read answers `UnavailableBuildJobs` naming what is
+ * missing, and nothing is sent.
+ */
+export const scribeBuildJobsReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): BuildJobsReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableBuildJobs.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readBuildJobs(send, issueNumber)
+    },
+  })
+
+/**
+ * Reads where an Issue landed from Scribe's main Instant app with `queryFor`'s
+ * client. Without credentials every read answers `UnavailableLanding` naming
+ * what is missing, and nothing is sent.
+ */
+export const scribeLandingReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): LandingReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableLanding.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readLanding(send, issueNumber)
+    },
+  })
+
+/**
+ * Reads the recordings that mention an Issue from Scribe's main Instant app
+ * with `queryFor`'s client (Scribe #2248). Without credentials every read
+ * answers `UnavailableIssueRecordings` naming what is missing, and nothing is
+ * sent.
+ */
+export const scribeIssueRecordingsReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): IssueRecordingsReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableIssueRecordings.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readIssueRecordings(send, issueNumber)
+    },
+  })
+
+/**
+ * Reads the agents started for Issues from Scribe's main Instant app with
+ * `queryFor`'s client (Scribe #2303). Without credentials every read answers
+ * `UnavailableIssueAgents` naming what is missing, and nothing is sent.
+ */
+export const scribeIssueAgentsReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): IssueAgentsReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableIssueAgents.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumbers => readIssueAgents(send, issueNumbers)
+    },
+  })
+
+/**
+ * Reads the Issues under an Issue from Scribe's main Instant app with
+ * `queryFor`'s client (Scribe #2348). Without credentials every read answers
+ * `UnavailableIssueChildren` naming what is missing, and nothing is sent.
+ */
+export const scribeIssueChildrenReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): IssueChildrenReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableIssueChildren.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readIssueChildren(send, issueNumber)
+    },
+  })
+
+/**
+ * Reads where an Issue is named from Scribe's main Instant app with
+ * `queryFor`'s client (Scribe #2348). Without credentials every read answers
+ * `UnavailableIssueReferences` naming what is missing, and nothing is sent.
+ */
+export const scribeIssueReferencesReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): IssueReferencesReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableIssueReferences.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return issueNumber => readIssueReferences(send, issueNumber)
+    },
+  })
+
+/**
+ * Reads the Issues a recording's lines mention from Scribe's main Instant app
+ * with `queryFor`'s client (Scribe #2303). Without credentials every read
+ * answers `UnavailableRecordingIssues` naming what is missing.
+ */
+export const scribeRecordingIssuesReader = (
+  credentials: Result.Result<ScribeCredentials, string>,
+  queryFor: (credentials: ScribeCredentials) => ScribeQuery = adminScribeQuery,
+): RecordingIssuesReader =>
+  Result.match(credentials, {
+    onFailure: why => () =>
+      Effect.succeed(
+        UnavailableRecordingIssues.make({
+          reason: `no Scribe Instant credentials: ${why}.`,
+        }),
+      ),
+    onSuccess: found => {
+      const send = queryFor(found)
+      return recordingId => readRecordingIssues(send, recordingId)
+    },
+  })
+
+const scribeMainEnvText = (): Result.Result<string, string> => {
+  if (!existsSync(scribeMainEnvPath)) {
+    return Result.fail('no such file')
+  }
+  return Result.try({
+    try: () => readFileSync(scribeMainEnvPath, 'utf8'),
+    catch: describeIssueTrackerCause,
+  })
+}
+
+const contentDispositionFor = (fileName: string): string =>
+  `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
+
+/**
+ * Instant storage through an admin client initialized without a schema: the
+ * shared schema links `instantToolsIssues.files` to `$files`, which the Issue
+ * Tracker's own schema does not declare.
+ */
+const liveIssueFiles = (
+  files: ReturnType<typeof initAdmin>,
+): IssueFilesService => ({
+  download: path =>
+    Effect.tryPromise(async () => {
+      const response = await files.query({ $files: { $: { where: { path } } } })
+      const [stored] = response.$files
+      if (stored === undefined) {
+        throw new Error(`No stored file ${path}.`)
+      }
+      const url = stored['url']
+      if (typeof url !== 'string') {
+        throw new Error(`Instant holds no download address for ${path}.`)
+      }
+      const fetched = await fetch(url)
+      if (!fetched.ok) {
+        throw new Error(
+          `${path}: HTTP ${fetched.status.toString()} ${fetched.statusText}`,
+        )
+      }
+      return new Uint8Array(await fetched.arrayBuffer())
+    }),
+  link: ({ entityId, fileId }) =>
+    Effect.tryPromise(() =>
+      files
+        .transact(
+          files.tx['instantToolsIssues']?.[entityId]?.link({ files: fileId }) ??
+            [],
+        )
+        .then(() => undefined),
+    ),
+  remove: ({ fileId, path }) =>
+    Effect.tryPromise(async () => {
+      try {
+        await files.transact(files.tx['$files']?.[fileId]?.delete() ?? [])
+      } catch {
+        await files.storage.delete(path)
+      }
+    }),
+  upload: ({ bytes, contentType, fileName, path }) =>
+    Effect.tryPromise(async () => {
+      const response = await files.storage.uploadFile(path, bytes, {
+        contentDisposition: contentDispositionFor(fileName),
+        contentType,
+        fileSize: bytes.byteLength,
+      })
+      const fileId = response.data?.id
+      if (typeof fileId !== 'string') {
+        throw new Error(`Instant returned no file id for ${path}.`)
+      }
+      return fileId
+    }),
+})
+
+/** Who the CLI writes as: `$SCRIBE_AGENT`, or `claude-code` when it is unset. */
+export const defaultIssuesAgent = (): string => {
+  const value = process.env['SCRIBE_AGENT']
+  return value === undefined || value === '' ? 'claude-code' : value
+}
+
+/** Live Instant resources for the one-shot CLI, or a missing-config error. */
+export const liveIssueHostServices = ():
+  | LiveIssueHostServices
+  | IssuesInstantConfigError => {
+  loadDocumentedInstantEnv()
   const appId = instantAppId()
   if (appId === undefined) {
     return new IssuesInstantConfigError({
-      message: `Missing INSTANT_APP_ID. Expected ${documentedInstantEnvPath} (the Instant Tools env documented by the issues example) or INSTANT_APP_ID in the process environment.`,
+      message: `Missing INSTANT_APP_ID. Expected ${documentedInstantEnvPath} (the Instant Tools env) or INSTANT_APP_ID in the process environment.`,
     })
   }
   const adminToken = instantAdminToken()
   if (adminToken === undefined) {
     return new IssuesInstantConfigError({
-      message: `Missing INSTANT_APP_ADMIN_TOKEN. Expected ${documentedInstantEnvPath} (the Instant Tools env documented by the issues example). Instant core cannot observe or transact from Node.`,
+      message: `Missing INSTANT_APP_ADMIN_TOKEN. Expected ${documentedInstantEnvPath} (the Instant Tools env).`,
     })
   }
-  if (cachedDatabase === undefined) {
-    const apiURI = instantApiUri()
-    const admin = initAdmin({
+  const apiURI = instantApiUri()
+  const admin = initAdmin({
+    adminToken,
+    appId,
+    disableValidation: true,
+    schema: InstantToolsSchemaWithFiles,
+    ...(apiURI === undefined ? {} : { apiURI }),
+  })
+  const database = adminAsInstantToolsDatabase(
+    admin,
+    rateLimitRetry,
+    writerOf(process.env),
+  )
+  const store = makeInstantEntityStore(database)
+  const scribeCredentials = scribeCredentialsOf(
+    process.env,
+    scribeMainEnvText(),
+  )
+  return {
+    agents: scribeIssueAgentsReader(scribeCredentials),
+    buildJobs: scribeBuildJobsReader(scribeCredentials),
+    children: scribeIssueChildrenReader(scribeCredentials),
+    landing: scribeLandingReader(scribeCredentials),
+    recordingIssues: scribeRecordingIssuesReader(scribeCredentials),
+    recordings: scribeIssueRecordingsReader(scribeCredentials),
+    references: scribeIssueReferencesReader(scribeCredentials),
+    credentials: [
       adminToken,
-      appId,
-      disableValidation: true,
-      schema: InstantToolsSchema,
-      ...(apiURI === undefined ? {} : { apiURI }),
-    })
-    cachedAdmin = admin
-    cachedDatabase = adminAsInstantToolsDatabase(admin)
+      ...Result.match(scribeCredentials, {
+        onFailure: () => [],
+        onSuccess: found => [found.adminToken],
+      }),
+    ],
+    files: liveIssueFiles(
+      initAdmin({
+        adminToken,
+        appId,
+        ...(apiURI === undefined ? {} : { apiURI }),
+      }),
+    ),
+    records: {
+      fetchIssueIds: store.fetchIssueIds,
+      fetchIssueRecordsById: store.fetchIssueRecordsById,
+    },
+    resources: makeLiveIssueTrackerResources(
+      database,
+      Effect.sync(defaultIssuesAgent),
+    ),
   }
-  return cachedDatabase
 }
 
-const nextNumericIssueId = (
-  admin: ReturnType<typeof initAdmin>,
-): Effect.Effect<string> =>
-  Effect.promise(async () => {
-    try {
-      const data = await admin.query({ instantToolsIssues: {} })
-      const max = data.instantToolsIssues.reduce((current, record) => {
-        const parsed = Number.parseInt(globalThis.String(record['issueID']), 10)
-        return Number.isFinite(parsed) && parsed > current ? parsed : current
-      }, 0)
-      return globalThis.String(max + 1).padStart(3, '0')
-    } catch {
-      return randomUUID()
-    }
-  })
+const everyIssue = IssueQuery.make({
+  limit: Number.MAX_SAFE_INTEGER,
+  productId: Option.none(),
+  projectId: Option.none(),
+  statuses: [],
+})
 
-let cachedAdmin: ReturnType<typeof initAdmin> | undefined
+/** Stored records read through an in-memory tracker, for tests and previews. */
+export const memoryIssueRecords = (
+  tracker: IssueTrackerService,
+): IssueRecordsService => ({
+  fetchIssueIds: statuses =>
+    tracker
+      .fetch(IssueQuery.make({ ...everyIssue, statuses }))
+      .pipe(Effect.map(issues => Array.map(issues, issue => issue.id))),
+  fetchIssueRecordsById: issueId =>
+    tracker.fetchIssue(issueId).pipe(
+      Effect.map(maybeIssue =>
+        Option.match(maybeIssue, {
+          onNone: () => [],
+          onSome: issue => [
+            {
+              ...makeInstantIssueRecord(issue),
+              id: `memory-${issue.id}`,
+            },
+          ],
+        }),
+      ),
+    ),
+})
 
-/** Live Instant resources for the one-shot CLI, or a missing-config error. */
+/** Live layer used by the screen runner (`issues run`). */
 export const liveIssueTrackerResources = () => {
-  loadDocumentedInstantEnv()
-  const database = issuesDatabase()
-  if (database instanceof IssuesInstantConfigError) {
-    return database
+  const services = liveIssueHostServices()
+  if (services instanceof IssuesInstantConfigError) {
+    return services
   }
-  const identity = {
-    next: Effect.gen(function* () {
-      const id =
-        cachedAdmin === undefined
-          ? randomUUID()
-          : yield* nextNumericIssueId(cachedAdmin)
-      return { id, nowMs: Date.now() }
-    }),
-  }
-  return Layer.merge(
-    makeLiveIssueTrackerResources(database),
-    Layer.succeed(IssueIdentity, identity),
-  )
+  return services.resources
 }
 
 export { StaticIssueTrackerResources }

@@ -1,0 +1,935 @@
+import { Array, Match as M, Option, pipe } from 'effect'
+import { Plain, Reference, type TextPart } from 'foldkit/renderers'
+
+import { type Issue } from '@foldkit/instant-tools/issues'
+
+import { localTimeLabel, recordingClockLabel, whenLabel } from './clock.js'
+import { type DecisionRow } from './decisionFacts.js'
+import { type RecordingNumbers, recordingNumbersOf } from './entityGraph.js'
+import {
+  type ChipClock,
+  agentChipOfHandle,
+  featureChip,
+  productChip,
+} from './graphChips.js'
+import {
+  type AgentRunChip,
+  type FeatureChip,
+  agentNameOfHandle,
+} from './graphFacts.js'
+import {
+  type LandedBuild,
+  type LandedCommit,
+  isOnTestflight,
+} from './issueLandings.js'
+import { type Model } from './model.js'
+import { type QuestionRow } from './questionFacts.js'
+import { type ReminderRow } from './reminderFacts.js'
+import {
+  decisionChip,
+  decisionChipOf,
+  questionChip,
+  questionChipOf,
+  reminderChip,
+  reminderChipOf,
+  shortened,
+} from './rowChips.js'
+import {
+  type TextPiece,
+  type TextReference,
+  Words,
+  readTextReferences,
+} from './textReferences.js'
+
+const WORDS_ORIGIN = 'https://words.pisspoursoftware.xyz'
+const MENTION_PREFIX =
+  /^Recording 0*(\d+)(?: \(([0-9a-f-]{36})\))? #(\d+)(?:-(\d+))?:?\s*/i
+const SECTION_IN_LINK =
+  /\/recording\/([0-9a-f-]{36})\/section\/([0-9a-f-]{36})/i
+const SHORT_ID_LENGTH = 8
+const SHORT_SHA_LENGTH = 9
+const TITLE_LIMIT = 80
+const QUOTE_LIMIT = 240
+const LINK_LABEL_LIMIT = 48
+
+/** One line he said, as a mention kept it: his words, when, and its Recording. */
+type SaidLine = Readonly<{
+  quote: string
+  maybeAtMs: Option.Option<number>
+  recordingId: string
+  maybeLine: Option.Option<number>
+}>
+
+/** What the catalog's mentions say about Recording lines, derived once per catalog. */
+type LineIndex = Readonly<{
+  linkOfLine: ReadonlyMap<string, string>
+  saidOfSegment: ReadonlyMap<string, SaidLine>
+}>
+
+/**
+ * What a chip needs to know beyond the text: every Issue by number, which
+ * Recording number is which id, the words of each line a mention kept, and
+ * the reader's clock.
+ */
+export type ChipContext = Readonly<{
+  agentsByHandle: ReadonlyMap<string, AgentRunChip>
+  buildsByNumber: ReadonlyMap<number, LandedBuild>
+  commits: ReadonlyArray<LandedCommit>
+  decisionsByShortId: ReadonlyMap<string, DecisionRow>
+  isEveryQuestionRead: boolean
+  isEveryReminderRead: boolean
+  questionsByShortId: ReadonlyMap<string, QuestionRow>
+  remindersByShortId: ReadonlyMap<string, ReminderRow>
+  featuresByNumber: ReadonlyMap<number, FeatureChip>
+  featuresBySlug: ReadonlyMap<string, FeatureChip>
+  issuesById: ReadonlyMap<string, Issue>
+  productsById: ReadonlyMap<string, Issue['product']>
+  numbers: RecordingNumbers
+  lines: LineIndex
+  nowMs: number
+  timeZone: string
+}>
+
+/** A line number as the open Issue's words meant it, from Scribe's edges. */
+export type NumberedFeature = readonly [number, FeatureChip]
+
+/**
+ * What Scribe's rows add to a chip: the runs the page names, every build the
+ * page knows, the commits of the open Issue, every feature line, and what the
+ * open Issue's own words meant by a line's number.
+ */
+export type ChipFacts = Readonly<{
+  agents: ReadonlyArray<AgentRunChip>
+  builds: ReadonlyArray<LandedBuild>
+  commits: ReadonlyArray<LandedCommit>
+  decisions?: ReadonlyArray<DecisionRow>
+  features: ReadonlyArray<FeatureChip>
+  isEveryQuestionRead?: boolean
+  isEveryReminderRead?: boolean
+  numberedOnPage?: ReadonlyArray<NumberedFeature>
+  questions?: ReadonlyArray<QuestionRow>
+  reminders?: ReadonlyArray<ReminderRow>
+}>
+
+/** A host with no graph: chips show what the text says. */
+export const noChipFacts: ChipFacts = {
+  agents: [],
+  builds: [],
+  commits: [],
+  features: [],
+}
+
+/** What Scribe's rows add to the chips of the page open. */
+export const chipFactsOf = (model: Model): ChipFacts => ({
+  agents: model.knownAgents,
+  builds: model.knownBuilds,
+  commits:
+    model.issueLanding._tag === 'LoadedIssueLanding'
+      ? model.issueLanding.landing.commits
+      : [],
+  decisions: decisionsIn(model),
+  isEveryQuestionRead: model.questionsList._tag === 'LoadedQuestions',
+  isEveryReminderRead: model.remindersList._tag === 'LoadedReminders',
+  questions: questionsIn(model),
+  reminders: remindersIn(model),
+  features: model.knownFeatures,
+  numberedOnPage:
+    model.issueGraph._tag === 'LoadedIssueGraph'
+      ? Array.flatMap(
+          model.issueGraph.graph.features,
+          ({ feature, namedNumbers }) =>
+            Array.map(
+              namedNumbers,
+              (number): NumberedFeature => [number, feature],
+            ),
+        )
+      : [],
+})
+
+const NO_DECISIONS: ReadonlyArray<DecisionRow> = []
+
+/** Every decision the page has read, the newest first. */
+export const decisionsIn = (model: Model): ReadonlyArray<DecisionRow> =>
+  model.knownDecisions._tag === 'LoadedDecisions'
+    ? model.knownDecisions.decisions
+    : NO_DECISIONS
+
+const NO_QUESTIONS: ReadonlyArray<QuestionRow> = []
+
+/**
+ * Every question the page has read: all of them once the list is read, else
+ * those that name the open Issue.
+ */
+export const questionsIn = (model: Model): ReadonlyArray<QuestionRow> => {
+  if (model.questionsList._tag === 'LoadedQuestions') {
+    return model.questionsList.questions
+  } else if (model.issueGraph._tag === 'LoadedIssueGraph') {
+    return model.issueGraph.graph.questions
+  }
+  return NO_QUESTIONS
+}
+
+const NO_REMINDERS: ReadonlyArray<ReminderRow> = []
+
+/**
+ * Every reminder the page has read: all of them once the list is read, else
+ * those whose link is the open Issue's page.
+ */
+export const remindersIn = (model: Model): ReadonlyArray<ReminderRow> => {
+  if (model.remindersList._tag === 'LoadedReminders') {
+    return model.remindersList.reminders
+  } else if (model.issueGraph._tag === 'LoadedIssueGraph') {
+    return model.issueGraph.graph.reminders
+  }
+  return NO_REMINDERS
+}
+
+const lineKey = (recordingId: string, line: number): string =>
+  `${recordingId}#${line.toString()}`
+
+/** The lines one Issue's mentions name: each line's words link and words. */
+type IssueLines = Readonly<{
+  links: ReadonlyArray<Readonly<{ key: string; url: string }>>
+  said: ReadonlyArray<Readonly<{ segmentId: string; line: SaidLine }>>
+}>
+
+const issueLinesMemo = new WeakMap<Issue, IssueLines>()
+
+const issueLinesOf = (issue: Issue): IssueLines =>
+  Option.getOrElse(Option.fromUndefinedOr(issueLinesMemo.get(issue)), () => {
+    const links: Array<Readonly<{ key: string; url: string }>> = []
+    const said: Array<Readonly<{ segmentId: string; line: SaidLine }>> = []
+    for (const mention of issue.mentions) {
+      const words = Option.getOrElse(mention.directQuote, () => '')
+      const prefix = MENTION_PREFIX.exec(words)
+      const wordsLinks = Array.flatMap(mention.related, reference =>
+        reference._tag === 'Uri' ? [reference.value] : [],
+      )
+      for (const link of wordsLinks) {
+        const section = SECTION_IN_LINK.exec(link)
+        if (section === null) {
+          continue
+        }
+        const recordingId = (section[1] ?? '').toLowerCase()
+        const segmentId = (section[2] ?? '').toLowerCase()
+        const maybeLine = Option.map(Option.fromNullishOr(prefix?.[3]), Number)
+        const url = link.replace(
+          /^https?:\/\/words\.knophy\.com/i,
+          WORDS_ORIGIN,
+        )
+        Option.match(maybeLine, {
+          onNone: () => undefined,
+          onSome: line => links.push({ key: lineKey(recordingId, line), url }),
+        })
+        said.push({
+          segmentId,
+          line: {
+            quote: prefix === null ? words : words.slice(prefix[0].length),
+            maybeAtMs: mention.capturedAtMs,
+            recordingId,
+            maybeLine,
+          },
+        })
+      }
+    }
+    const lines = { links, said }
+    issueLinesMemo.set(issue, lines)
+    return lines
+  })
+
+const lineIndexMemo = new WeakMap<ReadonlyArray<Issue>, LineIndex>()
+
+const lineIndexOf = (issues: ReadonlyArray<Issue>): LineIndex =>
+  Option.getOrElse(Option.fromUndefinedOr(lineIndexMemo.get(issues)), () => {
+    const linkOfLine = new Map<string, string>()
+    const saidOfSegment = new Map<string, SaidLine>()
+    for (const issue of issues) {
+      const { links, said } = issueLinesOf(issue)
+      for (const { key, url } of links) {
+        linkOfLine.set(key, url)
+      }
+      for (const { segmentId, line } of said) {
+        saidOfSegment.set(segmentId, line)
+      }
+    }
+    const index = { linkOfLine, saidOfSegment }
+    lineIndexMemo.set(issues, index)
+    return index
+  })
+
+const issuesByIdMemo = new WeakMap<
+  ReadonlyArray<Issue>,
+  ReadonlyMap<string, Issue>
+>()
+
+const issuesByIdOf = (
+  issues: ReadonlyArray<Issue>,
+): ReadonlyMap<string, Issue> =>
+  Option.getOrElse(Option.fromUndefinedOr(issuesByIdMemo.get(issues)), () => {
+    const byId = new Map(Array.map(issues, issue => [issue.id, issue]))
+    issuesByIdMemo.set(issues, byId)
+    return byId
+  })
+
+const buildsByNumberMemo = new WeakMap<
+  ReadonlyArray<LandedBuild>,
+  ReadonlyMap<number, LandedBuild>
+>()
+
+const buildsByNumberOf = (
+  builds: ReadonlyArray<LandedBuild>,
+): ReadonlyMap<number, LandedBuild> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(buildsByNumberMemo.get(builds)),
+    () => {
+      const byNumber = new Map(
+        Array.map(builds, build => [build.number, build]),
+      )
+      buildsByNumberMemo.set(builds, byNumber)
+      return byNumber
+    },
+  )
+
+/**
+ * The FEATURES lines by number and by slug. A number two lines hold, such as
+ * 36, names neither, unless an Issue's own edges say which it means.
+ */
+type FeatureIndex = Readonly<{
+  byNumber: ReadonlyMap<number, FeatureChip>
+  bySlug: ReadonlyMap<string, FeatureChip>
+}>
+
+const featureIndexMemo = new WeakMap<ReadonlyArray<FeatureChip>, FeatureIndex>()
+
+const featureIndexOf = (features: ReadonlyArray<FeatureChip>): FeatureIndex =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(featureIndexMemo.get(features)),
+    () => {
+      const numbered = Array.flatMap(features, feature =>
+        Array.map(
+          Option.toArray(feature.maybeNumber),
+          (number): NumberedFeature => [number, feature],
+        ),
+      )
+      const linesPerNumber = new Map<number, number>()
+      for (const [number] of numbered) {
+        linesPerNumber.set(number, (linesPerNumber.get(number) ?? 0) + 1)
+      }
+      const index = {
+        byNumber: new Map(
+          Array.filter(numbered, ([number]) => linesPerNumber.get(number) === 1),
+        ),
+        bySlug: new Map(
+          Array.map(features, feature => [feature.slug, feature]),
+        ),
+      }
+      featureIndexMemo.set(features, index)
+      return index
+    },
+  )
+
+const productsByIdMemo = new WeakMap<
+  ReadonlyArray<Issue>,
+  ReadonlyMap<string, Issue['product']>
+>()
+
+const productsByIdOf = (
+  issues: ReadonlyArray<Issue>,
+): ReadonlyMap<string, Issue['product']> =>
+  Option.getOrElse(Option.fromUndefinedOr(productsByIdMemo.get(issues)), () => {
+    const byId = new Map<string, Issue['product']>()
+    for (const issue of issues) {
+      if (!byId.has(issue.product.id)) {
+        byId.set(issue.product.id, issue.product)
+      }
+    }
+    productsByIdMemo.set(issues, byId)
+    return byId
+  })
+
+const agentsByHandleMemo = new WeakMap<
+  ReadonlyArray<AgentRunChip>,
+  ReadonlyMap<string, AgentRunChip>
+>()
+
+const startedAtOf = (run: AgentRunChip): number =>
+  Option.getOrElse(run.maybeStartedAtMs, () => 0)
+
+const agentsByHandleOf = (
+  runs: ReadonlyArray<AgentRunChip>,
+): ReadonlyMap<string, AgentRunChip> =>
+  Option.getOrElse(Option.fromUndefinedOr(agentsByHandleMemo.get(runs)), () => {
+    const byHandle = new Map<string, AgentRunChip>()
+    for (const run of runs) {
+      for (const key of [run.agentId, run.name]) {
+        const held = byHandle.get(key)
+        if (held === undefined || startedAtOf(held) <= startedAtOf(run)) {
+          byHandle.set(key, run)
+        }
+      }
+    }
+    agentsByHandleMemo.set(runs, byHandle)
+    return byHandle
+  })
+
+const decisionsByShortIdMemo = new WeakMap<
+  ReadonlyArray<DecisionRow>,
+  ReadonlyMap<string, DecisionRow>
+>()
+
+const decisionsByShortIdOf = (
+  decisions: ReadonlyArray<DecisionRow>,
+): ReadonlyMap<string, DecisionRow> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(decisionsByShortIdMemo.get(decisions)),
+    () => {
+      const byShortId = new Map(
+        Array.map(decisions, decision => [
+          decision.decisionId.slice(0, SHORT_ID_LENGTH),
+          decision,
+        ]),
+      )
+      decisionsByShortIdMemo.set(decisions, byShortId)
+      return byShortId
+    },
+  )
+
+const questionsByShortIdMemo = new WeakMap<
+  ReadonlyArray<QuestionRow>,
+  ReadonlyMap<string, QuestionRow>
+>()
+
+const questionsByShortIdOf = (
+  questions: ReadonlyArray<QuestionRow>,
+): ReadonlyMap<string, QuestionRow> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(questionsByShortIdMemo.get(questions)),
+    () => {
+      const byShortId = new Map(
+        Array.map(questions, question => [
+          question.questionId.slice(0, SHORT_ID_LENGTH),
+          question,
+        ]),
+      )
+      questionsByShortIdMemo.set(questions, byShortId)
+      return byShortId
+    },
+  )
+
+const remindersByShortIdMemo = new WeakMap<
+  ReadonlyArray<ReminderRow>,
+  ReadonlyMap<string, ReminderRow>
+>()
+
+const remindersByShortIdOf = (
+  reminders: ReadonlyArray<ReminderRow>,
+): ReadonlyMap<string, ReminderRow> =>
+  Option.getOrElse(
+    Option.fromUndefinedOr(remindersByShortIdMemo.get(reminders)),
+    () => {
+      const byShortId = new Map(
+        Array.map(reminders, reminder => [
+          reminder.reminderId.slice(0, SHORT_ID_LENGTH),
+          reminder,
+        ]),
+      )
+      remindersByShortIdMemo.set(reminders, byShortId)
+      return byShortId
+    },
+  )
+
+/**
+ * The context chips read from: the loaded catalog's indexes, built once per
+ * snapshot, the reader's clock, and what Scribe's rows add.
+ */
+export const chipContextOf = (
+  issues: ReadonlyArray<Issue>,
+  nowMs: number,
+  timeZone: string,
+  facts: ChipFacts = noChipFacts,
+): ChipContext => {
+  const features = featureIndexOf(facts.features)
+  const numberedOnPage = facts.numberedOnPage ?? []
+  return {
+    agentsByHandle: agentsByHandleOf(facts.agents),
+    buildsByNumber: buildsByNumberOf(facts.builds),
+    commits: facts.commits,
+    decisionsByShortId: decisionsByShortIdOf(facts.decisions ?? NO_DECISIONS),
+    isEveryQuestionRead: facts.isEveryQuestionRead ?? false,
+    isEveryReminderRead: facts.isEveryReminderRead ?? false,
+    questionsByShortId: questionsByShortIdOf(facts.questions ?? NO_QUESTIONS),
+    remindersByShortId: remindersByShortIdOf(facts.reminders ?? NO_REMINDERS),
+    featuresByNumber: Array.isReadonlyArrayEmpty(numberedOnPage)
+      ? features.byNumber
+      : new Map([...features.byNumber, ...numberedOnPage]),
+    featuresBySlug: features.bySlug,
+    issuesById: issuesByIdOf(issues),
+    lines: lineIndexOf(issues),
+    nowMs,
+    numbers: recordingNumbersOf(issues),
+    timeZone,
+    productsById: productsByIdOf(issues),
+  }
+}
+
+const recordingLabel = (
+  maybeNumber: Option.Option<number>,
+  recordingId: string,
+): string =>
+  Option.match(maybeNumber, {
+    onNone: () => `Recording ${recordingId.slice(0, SHORT_ID_LENGTH)}`,
+    onSome: recordingNumber => `Recording ${recordingNumber.toString()}`,
+  })
+
+const lineRangeLabel = (first: number, last: number): string =>
+  first === last
+    ? `#${first.toString()}`
+    : `#${first.toString()}-${last.toString()}`
+
+const saidDetail = (
+  maybeSaid: Option.Option<SaidLine>,
+  context: ChipContext,
+): ReadonlyArray<string> =>
+  Option.match(maybeSaid, {
+    onNone: () => [],
+    onSome: said => [
+      shortened(said.quote, QUOTE_LIMIT),
+      ...Option.toArray(
+        Option.map(said.maybeAtMs, atMs =>
+          localTimeLabel(atMs, context.timeZone),
+        ),
+      ),
+    ],
+  })
+
+const issueChip = (
+  piece: TextPiece,
+  issueId: string,
+  context: ChipContext,
+): TextPart =>
+  Option.match(Option.fromUndefinedOr(context.issuesById.get(issueId)), {
+    onNone: () => Plain(piece.text),
+    onSome: issue =>
+      Reference({
+        label: `#${issue.id}`,
+        title: shortened(issue.title, TITLE_LIMIT),
+        state: issue.status,
+        kind: 'Issue',
+        href: `/issues/${issue.id}`,
+        detail: [
+          `${issue.priority}${Option.match(issue.issueType, {
+            onNone: () => '',
+            onSome: issueType => ` ${issueType}`,
+          })} in ${issue.product.name}, updated ${whenLabel(
+            issue.updatedAtMs,
+            context.nowMs,
+            context.timeZone,
+          )}`,
+          shortened(issue.title, QUOTE_LIMIT),
+        ],
+      }),
+  })
+
+/**
+ * The chip of an Issue known to be one, such as a linked Issue: its title and
+ * state when the catalog holds it, else just `#240` linking to its page.
+ */
+export const issueChipOf = (issueId: string, context: ChipContext): TextPart =>
+  Option.match(Option.fromUndefinedOr(context.issuesById.get(issueId)), {
+    onNone: () =>
+      Reference({
+        label: `#${issueId}`,
+        kind: 'Issue',
+        href: `/issues/${issueId}`,
+      }),
+    onSome: () =>
+      issueChip(Words.make({ text: `#${issueId}` }), issueId, context),
+  })
+
+const linkLabel = (url: string): string =>
+  shortened(
+    url
+      .replace(/^https?:\/\/(?:www\.)?/, '')
+      .replace(/[?#].*$/, '')
+      .replace(/\/$/, ''),
+    LINK_LABEL_LIMIT,
+  )
+
+const fileLabel = (path: string): string =>
+  Array.join(Array.takeRight(path.split('/'), 2), '/')
+
+const buildDetail = (
+  build: LandedBuild,
+  context: ChipContext,
+): ReadonlyArray<string> => [
+  `Built ${localTimeLabel(build.builtAtMs, context.timeZone)}`,
+  ...Option.toArray(Option.map(build.maybeTag, tag => `Tag ${tag}`)),
+  ...(isOnTestflight(build)
+    ? [
+        `On TestFlight ${Option.getOrElse(build.maybeTestflightVersion, () => build.number.toString())}`,
+      ]
+    : []),
+]
+
+const decisionOfId = (
+  id: string,
+  context: ChipContext,
+): Option.Option<DecisionRow> =>
+  Option.fromUndefinedOr(
+    context.decisionsByShortId.get(id.slice(0, SHORT_ID_LENGTH)),
+  )
+
+const questionOfId = (
+  id: string,
+  context: ChipContext,
+): Option.Option<QuestionRow> =>
+  Option.fromUndefinedOr(
+    context.questionsByShortId.get(id.slice(0, SHORT_ID_LENGTH)),
+  )
+
+const reminderOfId = (
+  id: string,
+  context: ChipContext,
+): Option.Option<ReminderRow> =>
+  Option.fromUndefinedOr(
+    context.remindersByShortId.get(id.slice(0, SHORT_ID_LENGTH)),
+  )
+
+const clockOf = (context: ChipContext): ChipClock => ({
+  nowMs: context.nowMs,
+  timeZone: context.timeZone,
+})
+
+const rawIdChip = (id: string): TextPart =>
+  Reference({
+    label: id.slice(0, SHORT_ID_LENGTH),
+    kind: 'Id',
+    detail: [id],
+  })
+
+/** The chip of the row an id names, when the page has read one. */
+const rowChipOfId = (
+  id: string,
+  context: ChipContext,
+): Option.Option<TextPart> =>
+  pipe(
+    decisionOfId(id, context),
+    Option.map(decision => decisionChip(decision, clockOf(context))),
+    Option.orElse(() =>
+      Option.map(questionOfId(id, context), question =>
+        questionChip(question, clockOf(context)),
+      ),
+    ),
+    Option.orElse(() =>
+      Option.map(reminderOfId(id, context), reminder =>
+        reminderChip(reminder, clockOf(context)),
+      ),
+    ),
+  )
+
+const referenceChip = (
+  piece: TextPiece & { readonly _tag: 'Referenced' },
+  context: ChipContext,
+): TextPart =>
+  M.value<TextReference>(piece.reference).pipe(
+    M.withReturnType<TextPart>(),
+    M.tagsExhaustive({
+      IssueNumber: ({ issueId }) => issueChip(piece, issueId, context),
+      RecordingLines: ({
+        recordingNumber,
+        maybeRecordingId,
+        maybeLineRange,
+      }) => {
+        const maybeId = Option.orElse(maybeRecordingId, () =>
+          Option.fromUndefinedOr(
+            context.numbers.idOfNumber.get(recordingNumber),
+          ),
+        )
+        const label = `Recording ${recordingNumber.toString()}${Option.match(
+          maybeLineRange,
+          {
+            onNone: () => '',
+            onSome: ({ first, last }) => ` ${lineRangeLabel(first, last)}`,
+          },
+        )}`
+        const maybeLineLink = Option.flatMap(maybeId, recordingId =>
+          Option.flatMap(maybeLineRange, ({ first }) =>
+            Option.fromUndefinedOr(
+              context.lines.linkOfLine.get(lineKey(recordingId, first)),
+            ),
+          ),
+        )
+        const recordingPage = Option.match(maybeId, {
+          onNone: () => `/recordings/${recordingNumber.toString()}`,
+          onSome: recordingId => `/recordings/${recordingId}`,
+        })
+        return Reference({
+          label,
+          kind: Option.isSome(maybeLineRange) ? 'Segment' : 'Recording',
+          href: Option.getOrElse(maybeLineLink, () => recordingPage),
+          detail: Option.isSome(maybeLineLink)
+            ? ['Opens his words at this line']
+            : [`Every Issue from Recording ${recordingNumber.toString()}`],
+        })
+      },
+      RecordingId: ({ recordingId }) =>
+        Reference({
+          label: recordingLabel(
+            Option.fromUndefinedOr(context.numbers.numberOfId.get(recordingId)),
+            recordingId,
+          ),
+          kind: 'Recording',
+          href: `/recordings/${recordingId}`,
+          detail: [`Recording ${recordingId}`],
+        }),
+      SegmentId: ({
+        segmentId,
+        maybeLine,
+        maybeRecordingId,
+        maybeRecordingNumber,
+      }) => {
+        const maybeSaid = Option.fromUndefinedOr(
+          context.lines.saidOfSegment.get(segmentId),
+        )
+        const maybeId = pipe(
+          maybeRecordingId,
+          Option.orElse(() =>
+            Option.flatMap(maybeRecordingNumber, recordingNumber =>
+              Option.fromUndefinedOr(
+                context.numbers.idOfNumber.get(recordingNumber),
+              ),
+            ),
+          ),
+          Option.orElse(() => Option.map(maybeSaid, said => said.recordingId)),
+        )
+        const recording = Option.match(maybeRecordingNumber, {
+          onNone: () =>
+            Option.match(maybeId, {
+              onNone: () => 'Line',
+              onSome: recordingId =>
+                recordingLabel(
+                  Option.fromUndefinedOr(
+                    context.numbers.numberOfId.get(recordingId),
+                  ),
+                  recordingId,
+                ),
+            }),
+          onSome: recordingNumber => `Recording ${recordingNumber.toString()}`,
+        })
+        return Reference({
+          label: Option.match(maybeLine, {
+            onNone: () => `${recording} line`,
+            onSome: line => `${recording} #${line.toString()}`,
+          }),
+          kind: 'Segment',
+          ...Option.match(maybeId, {
+            onNone: () => ({}),
+            onSome: recordingId => ({
+              href: `${WORDS_ORIGIN}/recording/${recordingId}/section/${segmentId}`,
+            }),
+          }),
+          detail: [...saidDetail(maybeSaid, context), `Line ${segmentId}`],
+        })
+      },
+      WordsLink: ({ url, recordingId, maybeSectionId, maybeAtSeconds }) => {
+        const recording = recordingLabel(
+          Option.fromUndefinedOr(context.numbers.numberOfId.get(recordingId)),
+          recordingId,
+        )
+        const label = Option.getOrElse(piece.maybeLabel, () =>
+          Option.match(maybeAtSeconds, {
+            onNone: () => recording,
+            onSome: atSeconds =>
+              `${recording} at ${recordingClockLabel(atSeconds)}`,
+          }),
+        )
+        return Reference({
+          label,
+          kind: 'Segment',
+          href: url,
+          detail: [
+            ...saidDetail(
+              Option.flatMap(maybeSectionId, segmentId =>
+                Option.fromUndefinedOr(
+                  context.lines.saidOfSegment.get(segmentId),
+                ),
+              ),
+              context,
+            ),
+            'Opens his words at this moment',
+          ],
+        })
+      },
+      CommitSha: ({ sha }) => {
+        const label = sha.slice(0, SHORT_SHA_LENGTH)
+        const href = `/commits/${sha}`
+        return Option.match(
+          Array.findFirst(context.commits, commit =>
+            commit.sha.startsWith(sha.toLowerCase()),
+          ),
+          {
+            onNone: () =>
+              Reference({
+                label,
+                kind: 'Commit',
+                href,
+                detail: [`Commit ${sha}`],
+              }),
+            onSome: commit =>
+              Reference({
+                label,
+                title: shortened(commit.subject, TITLE_LIMIT),
+                kind: 'Commit',
+                href,
+                detail: [`${commit.repo} ${commit.sha}`],
+              }),
+          },
+        )
+      },
+      AgentName: ({ agentId }) =>
+        agentChipOfHandle(
+          agentId,
+          Option.fromUndefinedOr(
+            context.agentsByHandle.get(agentId) ??
+              context.agentsByHandle.get(agentNameOfHandle(agentId)),
+          ),
+          { nowMs: context.nowMs, timeZone: context.timeZone },
+        ),
+      BuildNumber: ({ maybeApp, maybeVersion, number }) => {
+        const label = Option.match(Option.all([maybeApp, maybeVersion]), {
+          onNone: () => `Build ${number}`,
+          onSome: ([app, version]) => `${app} ${version} (${number})`,
+        })
+        const href = `/builds/${number}`
+        return Option.match(
+          Option.fromUndefinedOr(
+            context.buildsByNumber.get(Number.parseInt(number, 10)),
+          ),
+          {
+            onNone: () =>
+              Reference({
+                label,
+                kind: 'Build',
+                href,
+                detail: [`Build ${number}`],
+              }),
+            onSome: build =>
+              Reference({
+                label,
+                title: `Scribe ${build.marketingVersion}`,
+                state: build.status,
+                kind: 'Build',
+                href,
+                detail: buildDetail(build, context),
+              }),
+          },
+        )
+      },
+      Timestamp: ({ atMs }) =>
+        Reference({
+          label: whenLabel(atMs, context.nowMs, context.timeZone),
+          kind: 'Time',
+          detail: [localTimeLabel(atMs, context.timeZone)],
+        }),
+      ChatSession: ({ sessionId, maybeUrl }) =>
+        Reference({
+          label: sessionId.startsWith('session_')
+            ? 'Claude session'
+            : sessionId.slice(0, SHORT_ID_LENGTH),
+          kind: 'Session',
+          href: Option.getOrElse(maybeUrl, () => `/sessions/${sessionId}`),
+          detail: [`Session ${sessionId}`],
+        }),
+      ProductName: ({ productId }) =>
+        Option.match(
+          Option.fromUndefinedOr(context.productsById.get(productId)),
+          {
+            onNone: () => productChip(productId, productId, Option.none()),
+            onSome: product =>
+              productChip(productId, product.name, Option.some(product._tag)),
+          },
+        ),
+      FeatureName: ({ slug }) =>
+        Option.match(Option.fromUndefinedOr(context.featuresBySlug.get(slug)), {
+          onNone: () =>
+            Reference({
+              label: slug,
+              kind: 'Feature',
+              href: `/features/${slug}`,
+              detail: [`Feature ${slug}`],
+            }),
+          onSome: featureChip,
+        }),
+      FeatureLineNumber: ({ number }) =>
+        Option.match(
+          Option.fromUndefinedOr(context.featuresByNumber.get(number)),
+          {
+            onNone: () => Plain(piece.text),
+            onSome: feature =>
+              Reference({
+                label: piece.text,
+                title: feature.name,
+                state: feature.isDraft ? 'draft' : feature.status,
+                kind: 'Feature',
+                href: `/features/${feature.slug}`,
+                detail: [
+                  `FEATURES ${number.toString()} of ${feature.productId}`,
+                ],
+              }),
+          },
+        ),
+      FindingId: ({ findingId }) =>
+        Reference({
+          label: `Finding ${findingId.slice(0, SHORT_ID_LENGTH)}`,
+          kind: 'Finding',
+          href: `/findings/${findingId}`,
+          detail: [`Finding ${findingId}`],
+        }),
+      DecisionId: ({ decisionId }) =>
+        Option.match(decisionOfId(decisionId, context), {
+          onNone: () => decisionChipOf(decisionId),
+          onSome: decision => decisionChip(decision, clockOf(context)),
+        }),
+      QuestionId: ({ questionId }) =>
+        Option.match(questionOfId(questionId, context), {
+          onNone: () =>
+            context.isEveryQuestionRead
+              ? rawIdChip(questionId)
+              : questionChipOf(questionId),
+          onSome: question => questionChip(question, clockOf(context)),
+        }),
+      ReminderId: ({ reminderId }) =>
+        Option.match(reminderOfId(reminderId, context), {
+          onNone: () =>
+            context.isEveryReminderRead
+              ? rawIdChip(reminderId)
+              : reminderChipOf(reminderId),
+          onSome: reminder => reminderChip(reminder, clockOf(context)),
+        }),
+      RawId: ({ id }) =>
+        Option.getOrElse(rowChipOfId(id, context), () => rawIdChip(id)),
+      FilePath: ({ path }) =>
+        Reference({ label: fileLabel(path), kind: 'File', detail: [path] }),
+      WebLink: ({ url }) =>
+        Reference({
+          label: linkLabel(url),
+          kind: 'Link',
+          href: url,
+          detail: [url],
+        }),
+    }),
+  )
+
+/**
+ * Issue text as chip parts: plain words stay words, and each reference
+ * becomes a chip with its label, title, state and link, derived from the
+ * text and the catalog each time it is shown. `Fixed by #1358` shows the
+ * words `Fixed by ` and the chip `#1358 issues CLI burns CPU [PartiallyDone]`.
+ */
+export const partsOfText = (
+  text: string,
+  context: ChipContext,
+): ReadonlyArray<TextPart> =>
+  Array.map(readTextReferences(text), piece =>
+    piece._tag === 'Words' ? Plain(piece.text) : referenceChip(piece, context),
+  )

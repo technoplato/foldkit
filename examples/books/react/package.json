@@ -5,26 +5,37 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",
-    "dev": "vite --port 5183",
-    "prebuild": "pnpm --filter books-react-bindings-example build",
-    "predev": "pnpm --filter books-react-bindings-example build",
-    "pretypecheck": "pnpm --filter books-react-bindings-example build",
-    "typecheck": "tsc --noEmit"
+    "dev": "../scripts/with-books-env vite --port 5183 --strictPort",
+    "prebuild": "pnpm --filter @foldkit/react build && pnpm --filter read-aloud-core-example build && pnpm --filter read-aloud-react-bindings-example build && pnpm --filter books-core-example build",
+    "predev": "pnpm --filter @foldkit/react build && pnpm --filter read-aloud-core-example build && pnpm --filter read-aloud-react-bindings-example build && pnpm --filter books-core-example build",
+    "start": "pnpm run dev",
+    "typecheck": "tsc --noEmit",
+    "build:live": "../scripts/with-books-env sh -c \"tsc --noEmit && vite build\"",
+    "serve:live": "../scripts/with-books-env vite preview --host 127.0.0.1 --port 5200 --strictPort"
   },
   "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@foldkit/react": "workspace:*",
     "books-core-example": "workspace:*",
-    "books-react-bindings-example": "workspace:*",
+    "read-aloud-core-example": "workspace:*",
+    "read-aloud-react-bindings-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^25.9.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
   }
 }

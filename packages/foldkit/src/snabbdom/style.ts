@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/consistent-type-assertions */
+import { Option } from 'effect'
+
+import { maybePage } from '../environment/environment.js'
 import type { Module } from './module.js'
 import { type VNode, type VNodeData, VNodeDataMask } from './vnode.js'
 
@@ -12,11 +15,13 @@ export type VNodeStyle = ElementStyle &
   }
 
 // Binding `requestAnimationFrame` like this fixes a bug in IE/Edge. See #360 and #409.
-const raf =
-  typeof window !== 'undefined' &&
-  typeof window.requestAnimationFrame === 'function'
-    ? window.requestAnimationFrame.bind(window)
-    : setTimeout
+const raf = Option.match(maybePage(), {
+  onNone: () => setTimeout,
+  onSome: ({ window: pageWindow }) =>
+    typeof pageWindow.requestAnimationFrame === 'function'
+      ? pageWindow.requestAnimationFrame.bind(pageWindow)
+      : setTimeout,
+})
 const nextFrame = function (fn: () => void) {
   raf(function () {
     raf(fn)

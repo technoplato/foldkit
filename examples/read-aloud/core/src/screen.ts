@@ -1,0 +1,739 @@
+import { Array, Match as M, Option, Schema as S } from 'effect'
+import type { Catalog } from 'foldkit'
+import {
+  type ButtonNode,
+  Column,
+  type IconName,
+  List,
+  type ListItem,
+  Progress,
+  Row,
+  Text,
+  type UiNode,
+  actionButtons,
+} from 'foldkit/renderers'
+
+import {
+  type BookKey,
+  type ContributorKey,
+  Isbn13,
+  type PageNumber,
+  type PublisherKey,
+} from './ids.js'
+import {
+  FollowReading,
+  NextPage,
+  OpenBook,
+  PreviousPage,
+  SharePage,
+} from './message.js'
+import {
+  type Book,
+  type CreditRole,
+  type GooglePreview,
+  type Moment,
+  type PageTurn,
+  type PreviewCheck,
+  type ReadAloudView,
+  type Sitting,
+  booksOf,
+  bylineOf,
+  liveTurnOf,
+  momentLabelOf,
+  momentUrlOf,
+  nameOfBookKey,
+  newestTurnOf,
+  previewCheckOf,
+  sittingsOfBook,
+  storiesOf,
+  storyOfPage,
+  turnsOfPage,
+} from './model.js'
+import { pagePathOf } from './routes.js'
+import { shownBookOf } from './stack.js'
+
+// VIEW
+
+type AnyAction = Readonly<{ tag: string }>
+
+type Variant = ButtonNode['variant']
+
+type Entries = ReadonlyArray<Catalog.Entry>
+
+const thumbnailSize = 112
+
+const coverWidth = 180
+
+const coverHeight = 180
+
+const previewWidth = 640
+
+const previewHeight = 640
+
+const linksShown = 3
+
+/** The embed kind a host draws as Google Books' Embedded Viewer. */
+export const googleBooksPreviewKind = 'GoogleBooksPreview'
+
+const withVariant = (
+  buttons: ReadonlyArray<ButtonNode>,
+  variant: Variant,
+): ReadonlyArray<ButtonNode> =>
+  Array.map(buttons, button =>
+    variant === undefined ? button : { ...button, variant },
+  )
+
+const buttonsOf = (
+  entries: Entries,
+  actions: ReadonlyArray<AnyAction>,
+  variant: Variant,
+): ReadonlyArray<ButtonNode> =>
+  withVariant(
+    actionButtons(
+      Array.filter(entries, entry =>
+        Array.some(actions, action => action.tag === entry.tag),
+      ),
+    ),
+    variant,
+  )
+
+const offeredButtonsOf = (
+  entries: Entries,
+  actions: ReadonlyArray<AnyAction>,
+  variant: Variant,
+): ReadonlyArray<ButtonNode> =>
+  Array.filter(
+    buttonsOf(entries, actions, variant),
+    button => button.disabled !== true,
+  )
+
+const ofPagesText = (book: Book): string =>
+  Option.match(book.maybePageCount, {
+    onNone: () => '',
+    onSome: count => ` of ${count.toString()}`,
+  })
+
+const statusOf = (model: ReadAloudView, book: Book): string =>
+  Option.match(newestTurnOf(model, book), {
+    onNone: () => 'Read aloud',
+    onSome: turn =>
+      turn.isOngoing
+        ? `Reading now · page ${turn.page.toString()}${ofPagesText(book)}`
+        : `Read to page ${turn.page.toString()}${ofPagesText(book)}`,
+  })
+
+const thumbnailOf = (book: Book): Pick<ListItem, 'image'> =>
+  Option.match(book.maybeCoverUrl, {
+    onNone: () => ({}),
+    onSome: src => ({
+      image: {
+        src,
+        width: thumbnailSize,
+        height: thumbnailSize,
+        alt: `${book.title} cover`,
+      },
+    }),
+  })
+
+const progressOf = (
+  model: ReadAloudView,
+  book: Book,
+): Pick<ListItem, 'progress'> =>
+  Option.match(
+    Option.all({
+      turn: newestTurnOf(model, book),
+      count: book.maybePageCount,
+    }),
+    {
+      onNone: () => ({}),
+      onSome: ({ turn, count }) => ({
+        progress: { value: Math.min(turn.page, count), max: count },
+      }),
+    },
+  )
+
+const isLive = (model: ReadAloudView, book: Book): boolean =>
+  Option.exists(liveTurnOf(model), live => live.book.bookId === book.bookId)
+
+/**
+ * One book read aloud as a row: its cover, who wrote it, how far the
+ * reading got, and marked while it is being read. It has no press of its
+ * own: the shelf's row opens the book, and a holder showing it elsewhere,
+ * such as Books' library, gives it its own.
+ *
+ * @example
+ * ```typescript
+ * bookRowOf(model, book)
+ * // { key: '9780063342705', title: 'Little Blue Truck Feeling Happy', lines: ['Alice Schertle · 2024', 'Reading now · page 4 of 14'], isCurrent: true, ... }
+ * ```
+ */
+export const bookRowOf = (model: ReadAloudView, book: Book): ListItem => ({
+  key: book.key,
+  title: book.title,
+  lines: [bylineOf(book), statusOf(model, book)],
+  ...thumbnailOf(book),
+  ...progressOf(model, book),
+  isCurrent: isLive(model, book),
+})
+
+const liveLines = (
+  model: ReadAloudView,
+  entries: Entries,
+): ReadonlyArray<UiNode> =>
+  Option.match(liveTurnOf(model), {
+    onNone: () => [],
+    onSome: ({ book, turn }) => [
+      Text(
+        `Reading now: ${book.title}, page ${turn.page.toString()}${ofPagesText(book)}.`,
+        { dim: true },
+      ),
+      Row({ gap: 1 }, ...offeredButtonsOf(entries, [FollowReading], 'Primary')),
+    ],
+  })
+
+/**
+ * The books read aloud, the one being read now marked, each with who
+ * wrote it, how far the reading got, and its cover. Pressing a book opens
+ * it at the page being read, or its first page. Its buttons come from
+ * `entries`, the holder's own Catalog entries, so the holder's rules hold.
+ *
+ * @example
+ * ```typescript
+ * shelfScreen(model, Catalog.entries(catalog, model))
+ * // Column: Read aloud, Reading now: Little Blue Truck Feeling Happy, page 4 of 14., [Follow the reading], List('Books read aloud')
+ * ```
+ */
+export const shelfScreen = (model: ReadAloudView, entries: Entries): UiNode =>
+  Column(
+    { gap: 1 },
+    Text('Read aloud', { emphasis: 'Headline' }),
+    ...M.value(model.readings).pipe(
+      M.withReturnType<ReadonlyArray<UiNode>>(),
+      M.tagsExhaustive({
+        ReadingsLoading: () => [
+          Text('Opening the books you read aloud…', { dim: true }),
+        ],
+        ReadingsUnavailable: ({ reason }) => [
+          Text(`The books you read aloud could not be opened: ${reason}`),
+        ],
+        ReadingsReady: () =>
+          Array.match(booksOf(model), {
+            onEmpty: () => [
+              Text(
+                'No books yet. When Scribe hears you read a book aloud, it shows here, and its page turns as you read.',
+                { dim: true },
+              ),
+            ],
+            onNonEmpty: books => [
+              ...liveLines(model, entries),
+              List({
+                label: 'Books read aloud',
+                items: Array.map(books, book => ({
+                  ...bookRowOf(model, book),
+                  action: `${OpenBook.tag}:${book.key}`,
+                })),
+              }),
+            ],
+          }),
+      }),
+    ),
+  )
+
+const detailsOf = (book: Book): ReadonlyArray<string> =>
+  Option.toArray(
+    Option.liftPredicate(
+      Array.join(
+        [
+          ...Array.map(
+            Array.take(book.publishedBy, 1),
+            publisher => publisher.name,
+          ),
+          ...Option.toArray(
+            Option.map(
+              book.maybePageCount,
+              count => `${count.toString()} pages`,
+            ),
+          ),
+        ],
+        ' · ',
+      ),
+      details => details !== '',
+    ),
+  )
+
+const bookHeaderOf = (book: Book): UiNode =>
+  List({
+    label: 'Book',
+    items: [
+      {
+        key: book.key,
+        title: book.title,
+        lines: [bylineOf(book), ...detailsOf(book)],
+        ...thumbnailOf(book),
+      },
+    ],
+  })
+
+const unknownHeaderOf = (model: ReadAloudView, key: BookKey): UiNode =>
+  List({
+    label: 'Book',
+    items: [
+      {
+        key,
+        title: nameOfBookKey(model, key),
+        lines: ['Not among the books you have read aloud'],
+      },
+    ],
+  })
+
+const pageLineOf = (maybeBook: Option.Option<Book>, page: PageNumber): UiNode =>
+  Row(
+    { gap: 1 },
+    Text(`Page ${page.toString()}`, { emphasis: 'Display' }),
+    ...Array.fromOption(
+      Option.map(
+        Option.flatMap(maybeBook, book => book.maybePageCount),
+        count => Text(`of ${count.toString()}`, { dim: true }),
+      ),
+    ),
+  )
+
+const pageProgressOf = (
+  maybeBook: Option.Option<Book>,
+  page: PageNumber,
+): ReadonlyArray<UiNode> =>
+  Array.fromOption(
+    Option.map(
+      Option.flatMap(maybeBook, book => book.maybePageCount),
+      count =>
+        Progress({
+          value: Math.min(page, count),
+          max: count,
+          label: `Page ${page.toString()} of ${count.toString()}`,
+        }),
+    ),
+  )
+
+const followWordsOf = (
+  model: ReadAloudView,
+  key: BookKey,
+  page: PageNumber,
+): string =>
+  Option.match(liveTurnOf(model), {
+    onNone: () =>
+      'Not being read aloud right now. When Scribe hears you read this book, its page turns here as you turn yours.',
+    onSome: ({ book, turn }) => {
+      if (book.key !== key) {
+        return `Scribe hears ${book.title} being read now, at page ${turn.page.toString()}.`
+      } else if (turn.page === page) {
+        return 'Following along. The page turns here when Scribe hears you turn it.'
+      } else {
+        return `Scribe heard page ${turn.page.toString()}. The page turns again at the next page Scribe hears.`
+      }
+    },
+  })
+
+const googleUrlOf = (preview: GooglePreview, page: PageNumber): string =>
+  `https://books.google.com/books?id=${preview.volumeId}&pg=PA${page.toString()}`
+
+const embeddedPreviewOf = (
+  title: string,
+  isbn13: Isbn13,
+  preview: GooglePreview,
+  page: PageNumber,
+): UiNode =>
+  Column(
+    {},
+    Text(`${title}, page ${page.toString()}, in Google Books`, {
+      href: googleUrlOf(preview, page),
+      embed: {
+        kind: googleBooksPreviewKind,
+        params: {
+          volume: `ISBN:${isbn13}`,
+          page: page.toString(),
+          missingPage: `Google's preview has no page ${page.toString()}. Its own arrows move through the pages it has.`,
+          unavailable: `The preview did not open here. Open ${title} in Google Books.`,
+        },
+        width: previewWidth,
+        height: previewHeight,
+      },
+    }),
+    Text(
+      preview.extent === 'Full'
+        ? 'Preview from Google Books.'
+        : 'Preview from Google Books, of the pages the publisher allows.',
+      { dim: true },
+    ),
+  )
+
+const linkRowOf = (book: Book): ReadonlyArray<UiNode> =>
+  Array.match(
+    Array.take(
+      Array.filter(book.links, link => link.isVerified),
+      linksShown,
+    ),
+    {
+      onEmpty: () => [],
+      onNonEmpty: links => [
+        Row(
+          { gap: 1 },
+          ...Array.map(links, link => Text(link.label, { href: link.url })),
+        ),
+      ],
+    },
+  )
+
+const largeCoverOf = (book: Book): ReadonlyArray<UiNode> =>
+  Array.fromOption(
+    Option.map(book.maybeCoverUrl, src =>
+      Text(`${book.title} cover`, {
+        image: { src, width: coverWidth, height: coverHeight },
+      }),
+    ),
+  )
+
+const noPreviewOf = (maybeBook: Option.Option<Book>): UiNode =>
+  Column(
+    { gap: 1 },
+    ...Option.match(maybeBook, {
+      onNone: () => [],
+      onSome: largeCoverOf,
+    }),
+    Text('No preview available', { emphasis: 'Headline' }),
+    Text(
+      'The publisher allows no preview of this edition that another site may show, so only its cover and details are here.',
+      { dim: true },
+    ),
+    ...Option.match(maybeBook, {
+      onNone: () => [],
+      onSome: linkRowOf,
+    }),
+  )
+
+const checkedPreviewOf = (
+  maybeBook: Option.Option<Book>,
+  isbn13: Isbn13,
+  title: string,
+  page: PageNumber,
+) =>
+  M.type<PreviewCheck>().pipe(
+    M.withReturnType<UiNode>(),
+    M.tagsExhaustive({
+      PreviewChecked: ({ preview }) =>
+        M.value(preview).pipe(
+          M.withReturnType<UiNode>(),
+          M.tagsExhaustive({
+            GooglePreview: googlePreview =>
+              embeddedPreviewOf(title, isbn13, googlePreview, page),
+            NoPreview: () => noPreviewOf(maybeBook),
+          }),
+        ),
+      PreviewUnchecked: ({ reason }) =>
+        Text(`Could not look for a preview: ${reason}`, { dim: true }),
+    }),
+  )
+
+const previewSectionOf = (
+  model: ReadAloudView,
+  maybeBook: Option.Option<Book>,
+  maybeIsbn13: Option.Option<Isbn13>,
+  title: string,
+  page: PageNumber,
+): UiNode =>
+  Option.match(maybeIsbn13, {
+    onNone: () => noPreviewOf(maybeBook),
+    onSome: isbn13 =>
+      Option.match(previewCheckOf(model, isbn13), {
+        onNone: () => Text('Looking for a preview…', { dim: true }),
+        onSome: checkedPreviewOf(maybeBook, isbn13, title, page),
+      }),
+  })
+
+/**
+ * Where the Program that holds Read Aloud keeps a page for each credit: the
+ * address of a person's page in one role, and of a publisher's page. Books
+ * keeps them at `/books/authors/ada-quill` and
+ * `/books/publishers/harbor-house`; Read Aloud on its own keeps none, so
+ * its credits are names, `noCreditLinks`.
+ */
+export type CreditLinks = Readonly<{
+  contributorPathOf: (
+    role: CreditRole,
+    contributor: ContributorKey,
+  ) => Option.Option<string>
+  publisherPathOf: (publisher: PublisherKey) => Option.Option<string>
+}>
+
+/** No page for any credit: a book's credits are names, not links. */
+export const noCreditLinks: CreditLinks = {
+  contributorPathOf: () => Option.none(),
+  publisherPathOf: () => Option.none(),
+}
+
+const publisherLine = 'Publisher'
+
+const hrefOf = (maybePath: Option.Option<string>): Pick<ListItem, 'href'> =>
+  Option.match(maybePath, {
+    onNone: () => ({}),
+    onSome: href => ({ href }),
+  })
+
+/**
+ * A book's credits as rows, in the order its credits list them, its
+ * publisher last: each person's name with their role, and the publisher's
+ * name, each a link to its page where the holder keeps one.
+ *
+ * @example
+ * ```typescript
+ * creditItemsOf(book, links)
+ * // [{ title: 'Ada Quill', lines: ['Author'], href: '/books/authors/ada-quill' }, …, { title: 'Harbor House', lines: ['Publisher'], href: '/books/publishers/harbor-house' }]
+ * ```
+ */
+export const creditItemsOf = (
+  book: Book,
+  links: CreditLinks,
+): ReadonlyArray<ListItem> => [
+  ...Array.map(book.credits, credit => ({
+    key: `${credit.role}-${credit.contributor.key}`,
+    title: credit.contributor.name,
+    lines: [credit.role],
+    ...hrefOf(links.contributorPathOf(credit.role, credit.contributor.key)),
+  })),
+  ...Array.map(book.publishedBy, publisher => ({
+    key: `${publisherLine}-${publisher.key}`,
+    title: publisher.name,
+    lines: [publisherLine],
+    ...hrefOf(links.publisherPathOf(publisher.key)),
+  })),
+]
+
+const creditsOf = (
+  maybeBook: Option.Option<Book>,
+  links: CreditLinks,
+): ReadonlyArray<UiNode> =>
+  Array.match(
+    Option.match(maybeBook, {
+      onNone: () => [],
+      onSome: book => creditItemsOf(book, links),
+    }),
+    {
+      onEmpty: () => [],
+      onNonEmpty: items => [
+        Text('Credits', { dim: true }),
+        List({ label: 'Credits', items }),
+      ],
+    },
+  )
+
+const pagesWordsOf = (
+  first: PageNumber,
+  maybeLast: Option.Option<PageNumber>,
+): string =>
+  Option.match(
+    Option.filter(maybeLast, last => last !== first),
+    {
+      onNone: () =>
+        Option.isSome(maybeLast)
+          ? `page ${first.toString()}`
+          : `from page ${first.toString()}`,
+      onSome: last => `pages ${first.toString()}–${last.toString()}`,
+    },
+  )
+
+const storyLineOf = (
+  maybeBook: Option.Option<Book>,
+  page: PageNumber,
+): ReadonlyArray<UiNode> =>
+  Array.fromOption(
+    Option.map(
+      Option.flatMap(maybeBook, book => storyOfPage(book, page)),
+      story =>
+        Text(
+          `${story.chapter.title} · ${pagesWordsOf(story.chapter.firstPage, story.maybeLastPage)}`,
+          { dim: true },
+        ),
+    ),
+  )
+
+const hereLine = 'You are here'
+
+const contentsItemsOf = (
+  book: Book,
+  page: PageNumber,
+): ReadonlyArray<ListItem> =>
+  Array.map(storiesOf(book), story => {
+    const isHere = Option.exists(
+      storyOfPage(book, page),
+      here => here.chapter.firstPage === story.chapter.firstPage,
+    )
+    return {
+      key: `story-${story.chapter.firstPage.toString()}`,
+      title: story.chapter.title,
+      lines: [
+        pagesWordsOf(story.chapter.firstPage, story.maybeLastPage),
+        ...(isHere ? [hereLine] : []),
+      ],
+      ...(isHere ? { isCurrent: true } : {}),
+      ...hrefOf(pagePathOf(book.key, story.chapter.firstPage)),
+    }
+  })
+
+const titledList = (
+  label: string,
+  items: ReadonlyArray<ListItem>,
+): ReadonlyArray<UiNode> =>
+  Array.match(items, {
+    onEmpty: () => [],
+    onNonEmpty: nonEmpty => [
+      Text(label, { dim: true }),
+      List({ label, items: nonEmpty }),
+    ],
+  })
+
+const recordingWordsOf = (
+  maybeMoment: Option.Option<Moment>,
+): Option.Option<string> =>
+  Option.map(
+    Option.flatMap(maybeMoment, moment => moment.maybeRecordingNumber),
+    number => `Recording ${number}`,
+  )
+
+const momentHrefOf = (
+  maybeMoment: Option.Option<Moment>,
+): Pick<ListItem, 'href'> => hrefOf(Option.map(maybeMoment, momentUrlOf))
+
+const readingNowLine = 'Reading now'
+
+const sittingItemOf = (sitting: Sitting): ListItem => ({
+  key: sitting.readingId,
+  title: momentLabelOf(sitting.startedAtMs),
+  lines: [
+    Array.join(
+      [
+        ...Option.toArray(recordingWordsOf(sitting.maybeMoment)),
+        ...Option.toArray(
+          Option.map(sitting.maybeFirstPage, first =>
+            pagesWordsOf(
+              first,
+              Option.orElse(sitting.maybeLastPage, () => Option.some(first)),
+            ),
+          ),
+        ),
+      ],
+      ' · ',
+    ),
+    ...(sitting.isOngoing ? [readingNowLine] : []),
+  ],
+  ...momentHrefOf(sitting.maybeMoment),
+})
+
+const turnItemOf = (turn: PageTurn): ListItem => ({
+  key: turn.turnId,
+  title: momentLabelOf(turn.turnedAtMs),
+  lines: Option.toArray(recordingWordsOf(turn.maybeMoment)),
+  ...momentHrefOf(turn.maybeMoment),
+})
+
+/**
+ * Where the book on screen meets Michael's recordings: each time the page
+ * on screen was read, its Contents with each story's pages, and every
+ * sitting with the book, each a link to the moment in the recording.
+ * Dates, numbers and links only, never the words read (ADR 0048 section 8).
+ */
+const crossReferencesOf = (
+  model: ReadAloudView,
+  maybeBook: Option.Option<Book>,
+  page: PageNumber,
+): ReadonlyArray<UiNode> =>
+  Option.match(maybeBook, {
+    onNone: () => [],
+    onSome: book => [
+      ...titledList(
+        'This page',
+        Array.map(turnsOfPage(model, book, page), turnItemOf),
+      ),
+      ...titledList('Contents', contentsItemsOf(book, page)),
+      ...titledList(
+        'Read aloud',
+        Array.map(sittingsOfBook(model, book), sittingItemOf),
+      ),
+    ],
+  })
+
+const shareIcon: IconName = 'Share'
+
+const shareRowOf = (entries: Entries): ReadonlyArray<UiNode> =>
+  Array.match(
+    Array.map(buttonsOf(entries, [SharePage], 'Ghost'), button => ({
+      ...button,
+      icon: shareIcon,
+    })),
+    {
+      onEmpty: () => [],
+      onNonEmpty: buttons => [Row({ gap: 1 }, ...buttons)],
+    },
+  )
+
+/**
+ * One book open at one page: the book, the page in large type, the story
+ * the page is in, whether the screen is following the reading, Previous
+ * and Next page, the preview turned to the page, or a clear "No preview
+ * available" with the cover and where to find the book, each time the
+ * page was read, the book's Contents, every sitting with it, each linked
+ * to its moment in Michael's recordings (Scribe #2182), the book's credits,
+ * and Share where the holder shares links. Its buttons come from `entries`, the holder's
+ * own Catalog entries, so a holder that cannot share shows no Share
+ * button, and its credits link where `links` names a page.
+ *
+ * @example
+ * ```typescript
+ * pageScreen(model, key, page, Catalog.entries(catalog, model), links)
+ * // Column: List(book), Page 4 of 14, Following along., [Previous page] [Next page], No preview available, Credits, [Share]
+ * ```
+ */
+export const pageScreen = (
+  model: ReadAloudView,
+  key: BookKey,
+  page: PageNumber,
+  entries: Entries,
+  links: CreditLinks,
+): UiNode => {
+  const maybeBook = shownBookOf(model)
+  const maybeIsbn13 = Option.orElse(
+    Option.flatMap(maybeBook, book => book.maybeIsbn13),
+    () => S.decodeUnknownOption(Isbn13)(key),
+  )
+  return Column(
+    { gap: 1 },
+    Option.match(maybeBook, {
+      onNone: () => unknownHeaderOf(model, key),
+      onSome: bookHeaderOf,
+    }),
+    pageLineOf(maybeBook, page),
+    ...pageProgressOf(maybeBook, page),
+    ...storyLineOf(maybeBook, page),
+    Text(followWordsOf(model, key, page), { dim: true }),
+    Row(
+      { gap: 1 },
+      ...buttonsOf(entries, [PreviousPage, NextPage], 'Ghost'),
+      ...offeredButtonsOf(entries, [FollowReading], 'Primary'),
+    ),
+    previewSectionOf(
+      model,
+      maybeBook,
+      maybeIsbn13,
+      nameOfBookKey(model, key),
+      page,
+    ),
+    ...crossReferencesOf(model, maybeBook, page),
+    ...creditsOf(maybeBook, links),
+    ...shareRowOf(entries),
+  )
+}
+
+/**
+ * A book on its way: the readings have not arrived, or its address names
+ * no page yet.
+ */
+export const openingScreen = (): UiNode =>
+  Column({}, Text('Opening the book…', { dim: true }))

@@ -5,6 +5,8 @@ import {
   type KeyPlatform,
   type MenuView,
   type TextRun,
+  controlHintOf,
+  hintAttributesOf,
   keyPlatformOf,
   pickShortcutOf,
 } from '../interaction/interaction.js'
@@ -13,18 +15,92 @@ import { screenStylesheet } from '../interaction/screenStyles.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
+import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
-import type { UiNode } from './types.js'
+import { submittedTagOf } from './textInput.js'
+import type { BoxNode, TextPart, UiNode } from './types.js'
+
+const browserKeyPlatform = (): KeyPlatform =>
+  typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
 
 /**
  * Paints a Program screen tree as Foldkit HTML. A Button's Catalog `action`,
- * or its legacy `token`, becomes a click through `toMessage`.
+ * or its legacy `token`, becomes a click through `toMessage`. A Button
+ * carries its hint as attributes: what a press does, its keys, and why it
+ * is unavailable, which `Interaction.listenForHints` shows.
  */
 export const paintHtml = <Message>(
   node: UiNode,
   toMessage: (token: string) => Message | undefined,
 ): Html => {
   const h = html<Message>()
+  const paintPart = (part: TextPart): Html | string =>
+    M.value(part).pipe(
+      M.withReturnType<Html | string>(),
+      M.tagsExhaustive({
+        Plain: ({ text }) => text,
+        Reference: reference => {
+          const attributes = [
+            h.Class('fk-ref'),
+            ...(reference.kind === undefined
+              ? []
+              : [h.DataAttribute('kind', reference.kind)]),
+            ...(reference.state === undefined
+              ? []
+              : [h.DataAttribute('state', reference.state)]),
+            ...(reference.detail === undefined
+              ? []
+              : [h.Title(Array.join(reference.detail, '\n'))]),
+          ]
+          const children = [
+            h.span([h.Class('fk-ref-label')], [reference.label]),
+            ...(reference.title === undefined
+              ? []
+              : [h.span([h.Class('fk-ref-title')], [reference.title])]),
+            ...(reference.state === undefined
+              ? []
+              : [h.span([h.Class('fk-ref-state')], [reference.state])]),
+          ]
+          return reference.href === undefined
+            ? h.span(attributes, children)
+            : h.a([h.Href(reference.href), ...attributes], children)
+        },
+      }),
+    )
+  const paintLayer = (
+    box: BoxNode,
+    layer: NonNullable<BoxNode['layer']>,
+  ): Html => {
+    const maybeDismiss = Option.fromUndefinedOr(
+      layer.dismissToken === undefined
+        ? undefined
+        : toMessage(layer.dismissToken),
+    )
+    return h.div(
+      [h.Class('fk-layer'), h.DataAttribute('layer', layer.kind)],
+      [
+        h.div(
+          [
+            h.Class('fk-layer-backdrop'),
+            ...Option.match(maybeDismiss, {
+              onNone: () => [],
+              onSome: message => [h.OnClick(message)],
+            }),
+          ],
+          [],
+        ),
+        h.div(
+          [
+            h.Class('fk-layer-surface'),
+            h.Role('dialog'),
+            h.AriaModal(layer.kind === 'Dialog'),
+            h.AriaLabel(layer.label),
+          ],
+          Array.map(box.children, paint),
+        ),
+      ],
+    )
+  }
   const paint = (current: UiNode): Html =>
     M.value(current).pipe(
       M.withReturnType<Html>(),
@@ -42,15 +118,27 @@ export const paintHtml = <Message>(
               ? [h.DataAttribute('copyable', 'true')]
               : []),
           ]
+          const inner =
+            text.image === undefined
+              ? text.content
+              : h.img([
+                  h.Class('fk-image'),
+                  h.Src(text.image.src),
+                  h.Alt(text.content),
+                  h.Width(text.image.width.toString()),
+                  h.Height(text.image.height.toString()),
+                ])
           if (text.copyable === true) {
             return h.div(attributes, [
               h.span([h.Class('fk-copyable-text')], [text.content]),
             ])
+          } else if (text.parts !== undefined && text.image === undefined) {
+            return h.div(attributes, Array.map(text.parts, paintPart))
           } else if (text.href === undefined) {
-            return h.div(attributes, [text.content])
+            return h.div(attributes, [inner])
           }
           return h.div(attributes, [
-            h.a([h.Href(text.href), h.Class('fk-text-link')], [text.content]),
+            h.a([h.Href(text.href), h.Class('fk-text-link')], [inner]),
           ])
         },
         Button: button => {
@@ -61,22 +149,58 @@ export const paintHtml = <Message>(
               ? [h.OnClick(message)]
               : []
           const disabled = button.disabled === true ? [h.Disabled(true)] : []
-          const because =
-            button.because === undefined ? [] : [h.Title(button.because)]
+          const hint = Option.match(
+            controlHintOf(button, browserKeyPlatform(), 'Browser'),
+            {
+              onNone: () => [],
+              onSome: found =>
+                Array.map(
+                  Object.entries(hintAttributesOf(found)),
+                  ([name, value]) => h.Attribute(name, value),
+                ),
+            },
+          )
           const keys =
             button.keys === undefined
               ? []
               : [h.DataAttribute('keys', button.keys.join(' '))]
+          const variant =
+            button.variant === undefined
+              ? []
+              : [h.DataAttribute('variant', button.variant)]
+          const iconOnly =
+            button.isIconOnly === true
+              ? [
+                  h.DataAttribute('icon-only', 'true'),
+                  h.AriaLabel(button.label),
+                ]
+              : []
+          const current =
+            button.isCurrent === true
+              ? [h.DataAttribute('current', 'true')]
+              : []
+          const glyph =
+            button.icon === undefined
+              ? []
+              : [
+                  h.span(
+                    [h.Class('fk-icon'), h.AriaHidden(true)],
+                    [iconGlyphs[button.icon]],
+                  ),
+                ]
           return h.button(
             [
               h.Type('button'),
               h.Class('fk-button'),
               ...click,
               ...disabled,
-              ...because,
+              ...hint,
               ...keys,
+              ...variant,
+              ...iconOnly,
+              ...current,
             ],
-            [button.label],
+            [...glyph, ...(button.isIconOnly === true ? [] : [button.label])],
           )
         },
         TextInput: input => {
@@ -88,6 +212,13 @@ export const paintHtml = <Message>(
             }
             throw new Error(`unknown screen token: ${nextToken}`)
           }
+          const submittedMessage = (value: string): Message =>
+            Option.getOrThrowWith(
+              Option.flatMap(submittedTagOf(input, value), tag =>
+                Option.fromNullishOr(toMessage(tag)),
+              ),
+              () => new Error(`nothing to submit: ${input.action ?? ''}`),
+            )
           const attrs = [
             h.Type('text'),
             h.Class('fk-text-input'),
@@ -95,18 +226,214 @@ export const paintHtml = <Message>(
             ...(input.placeholder === undefined
               ? []
               : [h.Placeholder(input.placeholder)]),
+            ...(input.label === undefined ? [] : [h.AriaLabel(input.label)]),
             ...(input.focused === true ? [h.Autofocus(true)] : []),
             ...(token === undefined
               ? []
               : [h.OnInput(value => messageFromToken(`${token}${value}`))]),
+            ...(input.action === undefined
+              ? []
+              : [h.EnterKeyHint('done'), h.OnChange(submittedMessage)]),
           ]
           return h.input(attrs)
         },
         Spacer: () => h.div([h.Class('fk-spacer')], []),
-        Row: row => h.div([h.Class('fk-row')], Array.map(row.children, paint)),
+        Row: row =>
+          h.div(
+            [
+              h.Class(row.isBoard === true ? 'fk-row fk-board' : 'fk-row'),
+              ...(row.arrange === undefined
+                ? []
+                : [h.DataAttribute('arrange', row.arrange)]),
+            ],
+            Array.map(row.children, paint),
+          ),
         Column: column =>
           h.div([h.Class('fk-column')], Array.map(column.children, paint)),
-        Box: box => h.div([h.Class('fk-box')], Array.map(box.children, paint)),
+        Box: box =>
+          box.layer === undefined
+            ? h.div(
+                [
+                  h.Class(box.isDock === true ? 'fk-dock' : 'fk-box'),
+                  ...(box.measure === undefined
+                    ? []
+                    : [h.DataAttribute('measure', box.measure)]),
+                ],
+                Array.map(box.children, paint),
+              )
+            : paintLayer(box, box.layer),
+        Progress: progress =>
+          h.progress(
+            [
+              h.Class('fk-progress'),
+              h.Max(progress.max.toString()),
+              h.Value(progress.value.toString()),
+              h.AriaLabel(progress.label),
+            ],
+            [],
+          ),
+        List: list =>
+          h.ul(
+            [h.Class('fk-list'), h.AriaLabel(list.label)],
+            Array.map(list.items, item => {
+              const message =
+                item.action === undefined ? undefined : toMessage(item.action)
+              const pressAttributes =
+                item.href === undefined
+                  ? [
+                      h.Type('button'),
+                      h.Class('fk-item-press'),
+                      ...(message === undefined
+                        ? [h.Disabled(true)]
+                        : [h.OnClick(message)]),
+                    ]
+                  : [h.Class('fk-item-press'), h.Href(item.href)]
+              const press = item.href === undefined ? h.button : h.a
+              return h.li(
+                [
+                  h.Class('fk-item'),
+                  ...(item.isCurrent === true
+                    ? [h.DataAttribute('current', 'true')]
+                    : []),
+                ],
+                [
+                  ...Array.map(Array.fromNullishOr(item.check), check => {
+                    const checkMessage =
+                      check.action === undefined
+                        ? undefined
+                        : toMessage(check.action)
+                    return h.button(
+                      [
+                        h.Type('button'),
+                        h.Class('fk-item-check'),
+                        h.Role('checkbox'),
+                        h.AriaChecked(check.isChecked),
+                        h.AriaLabel(check.label),
+                        ...(check.isChecked
+                          ? [h.DataAttribute('checked', 'true')]
+                          : []),
+                        ...(checkMessage === undefined
+                          ? [h.Disabled(true)]
+                          : [h.OnClick(checkMessage)]),
+                      ],
+                      [],
+                    )
+                  }),
+                  press(pressAttributes, [
+                    ...(item.image === undefined
+                      ? []
+                      : [
+                          h.img([
+                            h.Class('fk-item-image'),
+                            h.Src(item.image.src),
+                            h.Alt(item.image.alt),
+                            h.Width(item.image.width.toString()),
+                            h.Height(item.image.height.toString()),
+                          ]),
+                        ]),
+                    h.span(
+                      [h.Class('fk-item-body')],
+                      [
+                        h.span([h.Class('fk-item-title')], [item.title]),
+                        ...Array.map(item.lines ?? [], line =>
+                          h.span([h.Class('fk-item-line')], [line]),
+                        ),
+                        ...(item.progress === undefined
+                          ? []
+                          : [
+                              h.progress(
+                                [
+                                  h.Class('fk-progress'),
+                                  h.Max(item.progress.max.toString()),
+                                  h.Value(item.progress.value.toString()),
+                                ],
+                                [],
+                              ),
+                            ]),
+                      ],
+                    ),
+                    ...Array.map(item.columns ?? [], column =>
+                      h.span([h.Class('fk-item-column')], [column]),
+                    ),
+                  ]),
+                  ...Array.map(item.trailing ?? [], paint),
+                ],
+              )
+            }),
+          ),
+        Seek: seek => {
+          const messageAt = (value: string): Message => {
+            const message = toMessage(`${seek.action}:${value}`)
+            if (message !== undefined) {
+              return message
+            }
+            throw new Error(`unknown seek: ${seek.action}:${value}`)
+          }
+          return h.input([
+            h.Type('range'),
+            h.Class('fk-seek'),
+            h.Min((seek.min ?? 0).toString()),
+            h.Max(seek.max.toString()),
+            h.Step(seek.step.toString()),
+            h.Value(seek.value.toString()),
+            h.AriaLabel(seek.label),
+            h.AriaValuetext(seek.valueText),
+            ...(seek.disabled === true
+              ? [h.Disabled(true)]
+              : [h.OnChange(messageAt)]),
+          ])
+        },
+        Transcript: transcript =>
+          h.section(
+            [h.Class('fk-transcript'), h.AriaLabel(transcript.label)],
+            Array.match(transcript.passages, {
+              onEmpty: () => [
+                h.p([h.Class('fk-transcript-empty')], [transcript.emptyText]),
+              ],
+              onNonEmpty: passages =>
+                Array.map(passages, passage =>
+                  h.article(
+                    [
+                      h.Class('fk-passage'),
+                      ...(passage.isCurrent === true
+                        ? [h.DataAttribute('current', 'true')]
+                        : []),
+                    ],
+                    [
+                      ...(passage.heading === undefined
+                        ? []
+                        : [
+                            h.h3(
+                              [h.Class('fk-passage-heading')],
+                              [passage.heading],
+                            ),
+                          ]),
+                      h.span([h.Class('fk-passage-label')], [passage.label]),
+                      h.p(
+                        [h.Class('fk-passage-words')],
+                        Array.map(passage.words, word => {
+                          const message = toMessage(
+                            `${transcript.action}:${word.token}`,
+                          )
+                          return h.span(
+                            [
+                              h.Class('fk-word'),
+                              ...(word.isCurrent === true
+                                ? [h.DataAttribute('current', 'true')]
+                                : []),
+                              ...(message === undefined
+                                ? []
+                                : [h.OnClick(message)]),
+                            ],
+                            [`${word.text} `],
+                          )
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+            }),
+          ),
         DeviceShell: shell =>
           h.div(
             [h.Class(`fk-device fk-device-${shell.device}`)],
@@ -238,8 +565,7 @@ export const paintMenuHtml = <Message>(
         ? h.mark([h.Class('fk-action-menu-match')], [run.text])
         : run.text,
     )
-  const platform: KeyPlatform =
-    typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
+  const platform = browserKeyPlatform()
   const keys = (keyLabels: ReadonlyArray<string>): ReadonlyArray<Html> =>
     Array.map(keyLabels, key => h.kbd([h.Class('fk-action-menu-key')], [key]))
   const activeDescendant = Option.match(
@@ -286,7 +612,11 @@ export const paintMenuHtml = <Message>(
           onEmpty: () => [],
           onNonEmpty: rowKeys => [
             h.span(
-              [h.Class('fk-action-menu-keys'), h.AriaHidden(true)],
+              [
+                h.Class('fk-action-menu-keys'),
+                h.AriaHidden(true),
+                h.DataAttribute('hint', menu.rowKeysHint),
+              ],
               keys(rowKeys),
             ),
           ],
@@ -294,7 +624,7 @@ export const paintMenuHtml = <Message>(
         ...Array.fromOption(
           Option.map(
             Option.flatMap(row.maybePick, pick =>
-              pickShortcutOf(pick, platform),
+              pickShortcutOf(pick, platform, 'Browser'),
             ),
             shortcut =>
               h.kbd(
@@ -325,6 +655,7 @@ export const paintMenuHtml = <Message>(
           h.AriaLabelledBy('fk-action-menu-title'),
           h.Class('fk-action-menu'),
           h.DataAttribute('style', menu.style._tag),
+          h.DataAttribute('keys-live', menu.areRowKeysLive ? 'true' : 'false'),
         ],
         [
           h.h2(
@@ -372,12 +703,15 @@ export const paintMenuHtml = <Message>(
           ),
           h.p(
             [h.Class('fk-action-menu-footer'), h.AriaHidden(true)],
-            Array.map(menu.hints, hint =>
-              h.span(
-                [h.Class('fk-action-menu-hint')],
-                [...keys(hint.keys), hint.does],
+            [
+              ...Array.map(menu.hints, hint =>
+                h.span(
+                  [h.Class('fk-action-menu-hint')],
+                  [...keys(hint.keys), hint.does],
+                ),
               ),
-            ),
+              h.span([h.Class('fk-action-menu-count')], [menu.summary]),
+            ],
           ),
         ],
       ),

@@ -1,11 +1,17 @@
 import { Array as Array_, Effect, Layer, Option, Schema as S } from 'effect'
-import { WalletCrypto, WalletSigner, WalletVault } from 'wallet-core-example'
+import {
+  WalletCrypto,
+  WalletSigner,
+  WalletVault,
+  type WalletVaultError,
+} from 'wallet-core-example'
 import {
   WalletVaultOwnerKey,
   type WalletVaultStorage,
   WalletVaultStorageCustody,
   WalletVaultStorageError,
   localWalletVaultOwnerKey,
+  makeOwnerScopedLocalWalletResources,
   makePersistentLocalWalletResources,
   makePersistentLocalWalletVault,
   walletIdForStoredWalletRecord,
@@ -734,3 +740,46 @@ export const BrowserWalletResources: Layer.Layer<
     globalThis.crypto,
   ),
 )
+
+const browserRandomBytes = (byteCount: number): Uint8Array =>
+  globalThis.crypto.getRandomValues(new Uint8Array(byteCount))
+
+const requestPersistentStorage: Effect.Effect<void> = Effect.tryPromise(() =>
+  globalThis.navigator.storage.persist(),
+).pipe(Effect.ignore)
+
+const keptOnceSaved = (storage: WalletVaultStorage): WalletVaultStorage => ({
+  ...storage,
+  commitPreparedRecord: (walletId, record) =>
+    Effect.tap(
+      storage.commitPreparedRecord(walletId, record),
+      () => requestPersistentStorage,
+    ),
+})
+
+/**
+ * Encrypted Wallet custody in this browser for one signed-in person.
+ * `loadOwnerKey` asks the host whose device this is, and only that
+ * person's IndexedDB database opens: `foldkit-wallet-vault-<ownerKey>`.
+ * Once a wallet is saved, the browser is asked to keep that storage
+ * rather than clear it under pressure.
+ *
+ * @example
+ * ```typescript
+ * makeOwnerScopedBrowserWalletResources(loadOwnerKeyFromOrigin)
+ * ```
+ */
+export const makeOwnerScopedBrowserWalletResources = (
+  loadOwnerKey: Effect.Effect<WalletVaultOwnerKey, WalletVaultError>,
+): Layer.Layer<WalletVault | WalletSigner | WalletCrypto> =>
+  makeOwnerScopedLocalWalletResources(
+    browserRandomBytes,
+    loadOwnerKey,
+    ownerKey =>
+      keptOnceSaved(
+        makeBrowserWalletVaultStorage(
+          makeIndexedDbWalletVaultDatabase(ownerKey),
+          globalThis.crypto,
+        ),
+      ),
+  )

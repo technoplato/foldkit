@@ -1,0 +1,35 @@
+{
+  "name": "reminders-react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "../scripts/with-reminders-env vite --port 5223 --strictPort",
+    "fixture": "vite --port 5224 --strictPort --open /fixture/",
+    "prebuild": "pnpm --filter @foldkit/react build && pnpm --filter reminders-core-example build",
+    "predev": "pnpm --filter @foldkit/react build && pnpm --filter reminders-core-example build",
+    "prefixture": "pnpm --filter @foldkit/react build && pnpm --filter reminders-core-example build",
+    "start": "pnpm run dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@foldkit/react": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "reminders-core-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "playwright": "^1.61.0",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}

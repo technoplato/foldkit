@@ -163,14 +163,22 @@ describe('wallet creation update', () => {
     expect(staleModel).toBe(failedModel)
   })
 
-  it('restarts creation and portfolio loading from restored finite state', () => {
+  it('restarts creation once the vault has answered with its wallets', () => {
     const creatingModel = {
       ...readyModel,
       portfolio: LoadingPortfolio.make({ requestId: 'portfolio-restored' }),
       walletCreation: CreatingWallet.make({ request }),
     }
-    const [, commands] = restore(creatingModel)
+    const [restoredModel, commands] = restore(creatingModel)
+    const [, profileCommands] = update(
+      restoredModel,
+      SucceededLoadWalletProfiles.make({ wallets: [] }),
+    )
 
-    expect(commandNames(commands)).toStrictEqual(['CreateWallet', 'LoadWallet'])
+    expect(commandNames(commands)).toStrictEqual(['LoadWalletProfiles'])
+    expect(commandNames(profileCommands)).toStrictEqual([
+      'LoadWallet',
+      'CreateWallet',
+    ])
   })
 })

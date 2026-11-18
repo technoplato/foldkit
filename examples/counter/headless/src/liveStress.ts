@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { FoldkitCounterV01, Increment } from 'counter-core-example'
+import { SharedInstantProject, Increment } from 'counter-core-example'
 import { Array, Effect, Option } from 'effect'
 import { Processor } from 'foldkit'
 import { execFile } from 'node:child_process'
@@ -387,7 +387,7 @@ export const runLiveCrossSurfaceBurst = async (
   }>
 > => {
   const transport = makeAdminSnapshotLogTransport(
-    FoldkitCounterV01.id,
+    SharedInstantProject.id,
     adminToken(),
   )
   const writer = startCounterOnTransport(

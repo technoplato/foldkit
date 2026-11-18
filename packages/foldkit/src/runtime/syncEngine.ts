@@ -16,7 +16,7 @@ export type SyncWriteResult = Readonly<{
   link: SyncLink
 }>
 
-/** Current Instant rows. Messages are used only to skip echoes at boot. */
+/** The rows a sync engine holds now. Messages are used only to skip echoes at boot. */
 export type SyncRead = Readonly<{
   snapshot: unknown | undefined
   messages: ReadonlyArray<unknown>
@@ -33,12 +33,12 @@ export type SyncPage = Readonly<{
   maybeCursor: Option.Option<string>
 }>
 
-/** One live Instant event. */
+/** One live event from a sync engine. */
 export type SyncEvent =
   | Readonly<{ readonly _tag: 'Snapshot'; readonly row: unknown }>
   | Readonly<{ readonly _tag: 'Message'; readonly row: unknown }>
 
-/** Instant read, write, or observe failed. `cause` is Instant's sentence. */
+/** A sync engine's read, write, or observe failed. `cause` is the engine's sentence. */
 export class SyncTransportError extends Data.TaggedError('SyncTransportError')<{
   readonly cause: string
   readonly operation: 'Decode' | 'Observe' | 'Read' | 'Write'
@@ -46,8 +46,12 @@ export class SyncTransportError extends Data.TaggedError('SyncTransportError')<{
 }> {}
 
 /**
- * Instant I/O surface. Instant() and Memory() implement this.
- * Instant has no Model.
+ * What Foldkit needs of a sync engine, and all it knows of one: read the
+ * rows, write a snapshot row and a Message row, and hear rows as they
+ * arrive. Any engine that does these carries a synced Program. `Memory()`
+ * here implements it for tests, `Instant()` in `@foldkit/instant` for the
+ * examples, and a test may write its own in a few lines. An engine has no
+ * Model: every Processor folds its own from the rows.
  */
 export type SyncEngine = Readonly<{
   processor: string
@@ -70,7 +74,7 @@ export type MemoryStore = {
   listeners: Set<(event: SyncEvent) => void>
 }
 
-/** Memory engine with test hooks. Memory is a fake Instant. */
+/** Memory engine with test hooks, a stand-in for a real sync engine. */
 export type MemoryEngine = SyncEngine &
   Readonly<{
     readSince: NonNullable<SyncEngine['readSince']>
@@ -101,7 +105,7 @@ const processorOf = (processor: Host | string | undefined): string => {
 }
 
 /**
- * In-process Instant fake. Not a product store.
+ * An in-process sync engine for tests. Not a product store.
  *
  * Isolated Memory (no shared store) reports `link: 'offline'`.
  * A shared store reports `link: 'delivered'`.
@@ -250,11 +254,11 @@ export const Memory = (options?: {
   }
 }
 
-/** Reads a string field from an Instant row. */
+/** Reads a string field from a sync engine row. */
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** Reads a string field from an Instant row. */
+/** Reads a string field from a sync engine row. */
 export const readRowString = (
   row: unknown,
   key: string,
@@ -272,7 +276,7 @@ export const readRowString = (
   return Option.some(value)
 }
 
-/** Reads a number field from an Instant row. */
+/** Reads a number field from a sync engine row. */
 export const readRowNumber = (
   row: unknown,
   key: string,
@@ -369,7 +373,7 @@ export const maxRowOrder = (
     return newest
   })
 
-/** True when Instant has no snapshot row yet. */
+/** True when the sync engine has no snapshot row yet. */
 export const isEmptySnapshot = (snapshot: unknown): boolean => {
   if (snapshot === undefined || snapshot === null) {
     return true

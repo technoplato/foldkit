@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Option } from 'effect'
-  import { Interaction, Navigation } from 'foldkit'
+  import { Environment, Interaction, Navigation } from 'foldkit'
   import type { ButtonNode } from 'foldkit/renderers'
 
   import ActionMenuDialog from './ActionMenuDialog.svelte'
@@ -23,9 +23,22 @@
     }
   }
 
+  const dismissOnBackdrop = (event: MouseEvent): void => {
+    if (event.target === event.currentTarget) {
+      Navigation.backOneEntry(program.bound)
+    }
+  }
+
   const followLink = (href: string): boolean =>
-    typeof window !== 'undefined' &&
-    Navigation.followLink(window, program.bound, href, 'ProgramOnly', 'Push')
+    Option.exists(Environment.maybePage(), page =>
+      Navigation.followLink(
+        page.window,
+        program.bound,
+        href,
+        'ProgramOnly',
+        'Push',
+      ),
+    )
 
   const stylesheet = `<style id="foldkit-screen">${Interaction.screenStylesheet}</style>`
 
@@ -46,13 +59,15 @@
       onPress={press}
     />
   {/if}
-  {#each frame.overlays as layer (layer.key)}
+  {#each frame.overlays as layer (layer.identity)}
     {#if layer.view._tag === 'Screen'}
+      <!-- svelte-ignore a11y_interactive_supports_focus, a11y_click_events_have_key_events -->
       <div
         aria-modal="true"
         class="fk-overlay"
         data-key={layer.key}
         data-style={Navigation.styleTagOf(layer)}
+        onclick={dismissOnBackdrop}
         role="dialog"
         use:presentedFocus
       >

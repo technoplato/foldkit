@@ -1,0 +1,153 @@
+@import 'tailwindcss';
+
+/* The chart chrome and ink of the dataviz reference palette, light and dark: one series hue (slot 1, blue), the status
+   colors for budget lines and evidence (always beside an icon and a word), hairline axes. */
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --plane: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-secondary: #52514e;
+  --ink-muted: #6f6d68;
+  --hairline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --series: #2a78d6;
+  --good: #0ca30c;
+  --good-text: #006300;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --critical-text: #b42727;
+  --border: rgba(11, 11, 11, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #f0efec;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #9a9890;
+    --hairline: #2c2c2a;
+    --baseline: #383835;
+    --series: #3987e5;
+    --good-text: #0ca30c;
+    --critical-text: #e66767;
+    --border: rgba(255, 255, 255, 0.1);
+  }
+}
+
+body {
+  background: var(--plane);
+  color: var(--ink);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.ink-secondary {
+  color: var(--ink-secondary);
+}
+
+.ink-muted {
+  color: var(--ink-muted);
+}
+
+.text-good {
+  color: var(--good-text);
+}
+
+.text-critical {
+  color: var(--critical-text);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+a.link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--baseline);
+  text-underline-offset: 3px;
+}
+
+a.link:hover {
+  text-decoration-color: var(--ink);
+}
+
+.chart-baseline,
+.chart-tick {
+  stroke: var(--baseline);
+  stroke-width: 1;
+}
+
+.chart-target {
+  stroke: var(--good);
+  stroke-width: 1;
+}
+
+.chart-fail {
+  stroke: var(--critical);
+  stroke-width: 1;
+}
+
+.chart-crosshair {
+  stroke: var(--ink-secondary);
+  stroke-width: 1;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-point {
+  fill: var(--series);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.chart-point-few {
+  fill: var(--surface);
+  stroke: var(--series);
+  stroke-width: 1.5;
+}
+
+.chart-label {
+  fill: var(--ink-muted);
+  font-size: 10px;
+}
+
+.chart-value {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chart-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.status-dot-good {
+  color: var(--good);
+}
+
+.status-dot-warning {
+  color: var(--warning);
+}
+
+.status-dot-critical {
+  color: var(--critical);
+}

@@ -1,0 +1,24 @@
+#!/bin/sh
+# Runs a terminal Reminders as your Cloudflare Access login, on the Instant
+# app the env file names. Only the app id comes from that file, so a
+# terminal never holds the admin token. There is no default app: point
+# REMINDERS_ENV_FILE at the env file of an Instant app with the Reminders
+# V3 schema, or set REMINDERS_INSTANT_APP_ID. The Access token is the one
+# cloudflared keeps for the web Reminders; on this machine, the local web
+# Reminders mints without one.
+ENV_FILE="${REMINDERS_ENV_FILE:-$HOME/.config/reminders-knophy/instant.env}"
+if [ -z "${REMINDERS_INSTANT_APP_ID:-}" ] && [ -f "$ENV_FILE" ]; then
+  REMINDERS_INSTANT_APP_ID="$(sed -n 's/^INSTANT_APP_ID=//p' "$ENV_FILE" | head -n 1 | tr -d "\"'")"
+fi
+export REMINDERS_INSTANT_APP_ID
+export FOLDKIT_HOSTED_IDENTITY_ORIGIN="${FOLDKIT_HOSTED_IDENTITY_ORIGIN:-https://reminders.knophy.com}"
+case "$FOLDKIT_HOSTED_IDENTITY_ORIGIN" in
+  http://localhost* | http://127.0.0.1*) ;;
+  *)
+    if [ -z "${CF_AUTHORIZATION:-}" ] && command -v cloudflared >/dev/null 2>&1; then
+      CF_AUTHORIZATION="$(cloudflared access token -app="$FOLDKIT_HOSTED_IDENTITY_ORIGIN" 2>/dev/null || true)"
+      export CF_AUTHORIZATION
+    fi
+    ;;
+esac
+exec "$@"

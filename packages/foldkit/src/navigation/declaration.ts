@@ -38,7 +38,9 @@ export type Placement = typeof Placement.Type
  * the Destination, so one key always keeps one presentation.
  * `isAllowedAbove` reads every Destination beneath, root first, so a page
  * can appear once: the Session route refuses a stack that already holds
- * Session settings.
+ * Session settings. `identityOf` resets the fields that pass while the
+ * page stays the same page, such as a player's place: see
+ * {@link ScreenOptions}.
  */
 export type DestinationRoute<Destination> = Readonly<{
   routeCase: Route.RouteCase<Destination, any>
@@ -46,6 +48,7 @@ export type DestinationRoute<Destination> = Readonly<{
   styleOf: (destination: Destination) => PresentationStyle
   isAllowedAbove: (beneath: Array.NonEmptyReadonlyArray<Destination>) => boolean
   maybeTitleOf: (destination: Destination) => Option.Option<string>
+  identityOf: (destination: Destination) => Destination
 }>
 
 /** Options shared by the route constructors. */
@@ -54,6 +57,7 @@ export type RouteOptions<Destination> = Readonly<{
     beneath: Array.NonEmptyReadonlyArray<Destination>,
   ) => boolean
   title?: (destination: Destination) => string
+  identityOf?: (destination: Destination) => Destination
 }>
 
 const titledBy =
@@ -66,6 +70,9 @@ const titledBy =
       : Option.some(options.title(destination))
 
 const anywhere = (): boolean => true
+
+const itself = <Destination>(destination: Destination): Destination =>
+  destination
 
 /**
  * Declares the Destination a stack starts from.
@@ -87,6 +94,7 @@ export const rootRoute = <Destination, Value>(
   styleOf: () => Push(),
   isAllowedAbove: () => false,
   maybeTitleOf: titledBy(options),
+  identityOf: itself,
 })
 
 /**
@@ -109,6 +117,7 @@ export const pushRoute = <Destination, Value>(
   styleOf: () => Push(),
   isAllowedAbove: options?.isAllowedAbove ?? anywhere,
   maybeTitleOf: titledBy(options),
+  identityOf: options?.identityOf ?? itself,
 })
 
 /**
@@ -130,6 +139,7 @@ export const presentRoute = <Destination, Value>(
   styleOf: () => style,
   isAllowedAbove: options?.isAllowedAbove ?? anywhere,
   maybeTitleOf: titledBy(options),
+  identityOf: options?.identityOf ?? itself,
 })
 
 /**
@@ -170,6 +180,11 @@ export const liftRoute = <Child extends Parent, Parent>(
     }),
   maybeTitleOf: destination =>
     Option.flatMap(narrow(destination), route.maybeTitleOf),
+  identityOf: destination =>
+    Option.match(narrow(destination), {
+      onNone: () => destination,
+      onSome: route.identityOf,
+    }),
 })
 
 /**
@@ -227,6 +242,7 @@ export const notFoundRoute = <Destination>(
   styleOf: () => Push(),
   isAllowedAbove: anywhere,
   maybeTitleOf: () => Option.some('Not found'),
+  identityOf: itself,
 })
 
 // DECLARATION
@@ -289,7 +305,8 @@ export const NavigationTypeId = '~foldkit/navigation'
  * - `historyOf` replaces instead of recording while following someone.
  * - `adoptsLaunch` is false while a launch URI should not move the stack,
  *   such as while navigation is mirrored and the newcomer joins the
- *   shared stack.
+ *   shared stack. It reads the launch URI too, so a link to somewhere in
+ *   particular can still be followed.
  *
  * @example
  * ```typescript
@@ -310,7 +327,7 @@ export type ProgramNavigation<Model, Destination> = Readonly<{
   viewOf?: (model: Model, destination: Destination) => Option.Option<EntryView>
   settleEntry?: (model: Model, destination: Destination) => Destination
   historyOf?: (model: Model) => HistoryMode
-  adoptsLaunch?: (model: Model) => boolean
+  adoptsLaunch?: (model: Model, uri: string) => boolean
 }>
 
 /**
@@ -405,10 +422,10 @@ export const focusModel = <Model, ChildModel, Destination>(
     ...(adoptsLaunch === undefined
       ? {}
       : {
-          adoptsLaunch: (model: Model) =>
+          adoptsLaunch: (model: Model, uri: string) =>
             Option.match(focus.childOf(model), {
               onNone: () => true,
-              onSome: adoptsLaunch,
+              onSome: child => adoptsLaunch(child, uri),
             }),
         }),
   }
@@ -527,6 +544,23 @@ export type ScreenDestination<Destination extends TaggedDestination> =
 export type Screen<Destination> = Readonly<{
   Destination: ProgramSchema<Destination>
   route: DestinationRoute<Destination>
+  isAllowedAbove: (beneath: Array.NonEmptyReadonlyArray<unknown>) => boolean
+}>
+
+/**
+ * How a screen titles itself, where it may sit, and what makes it the same
+ * page. `isAllowedAbove` reads every screen beneath, root first, of any
+ * kind the declaration lists: a player that sits only on the library or a
+ * title's page refuses `/books/the-lantern-keeper/chapter/2/listen`.
+ * `identityOf` resets the fields that pass while the page stays put, so a
+ * painter keeps its DOM, scroll, and images: a player whose address
+ * follows its place, `/books/a-new-earth/listen/1h41m05s`, stays one page
+ * when `identityOf` resets `atMs`.
+ */
+export type ScreenOptions<Destination> = Readonly<{
+  isAllowedAbove?: (beneath: Array.NonEmptyReadonlyArray<unknown>) => boolean
+  title?: (destination: Destination) => string
+  identityOf?: (destination: Destination) => Destination
 }>
 
 /** The screen every stack starts from: a Destination with no fields. */
@@ -559,6 +593,7 @@ export const rootScreen = <Destination extends TaggedDestination>(
 ): RootScreen<Destination> => ({
   Destination: destination,
   root: destination(),
+  isAllowedAbove: () => false,
   route: rootRoute(
     Route.caseOf(
       parser,
@@ -582,10 +617,11 @@ export const rootScreen = <Destination extends TaggedDestination>(
 export const pushScreen = <Destination extends TaggedDestination>(
   destination: ScreenDestination<Destination>,
   parser: Route.Biparser<Omit<Destination, '_tag'>>,
-  options?: RouteOptions<Destination>,
+  options?: ScreenOptions<Destination>,
 ): Screen<Destination> => ({
   Destination: destination,
   route: pushRoute(Route.caseOf(parser, fieldsCase(destination)), options),
+  isAllowedAbove: options?.isAllowedAbove ?? anywhere,
 })
 
 /**
@@ -601,7 +637,7 @@ export const presentScreen = <Destination extends TaggedDestination>(
   destination: ScreenDestination<Destination>,
   parser: Route.Biparser<Omit<Destination, '_tag'>>,
   style: PresentationStyle,
-  options?: RouteOptions<Destination>,
+  options?: ScreenOptions<Destination>,
 ): Screen<Destination> => ({
   Destination: destination,
   route: presentRoute(
@@ -609,6 +645,7 @@ export const presentScreen = <Destination extends TaggedDestination>(
     style,
     options,
   ),
+  isAllowedAbove: options?.isAllowedAbove ?? anywhere,
 })
 
 /** The Destination a list of screens declares. */
@@ -663,12 +700,13 @@ export const screens = <
         config.root.route,
         narrowTo(config.root.Destination),
       ),
-      ...Array.map(others, screen =>
-        liftRoute<DestinationOfScreens<Others>, Destination>(
+      ...Array.map(others, screen => ({
+        ...liftRoute<DestinationOfScreens<Others>, Destination>(
           screen.route,
           narrowTo(screen.Destination),
         ),
-      ),
+        isAllowedAbove: screen.isAllowedAbove,
+      })),
     ],
   })
 }

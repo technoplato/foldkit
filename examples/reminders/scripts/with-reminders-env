@@ -1,0 +1,18 @@
+#!/bin/sh
+# Runs a command against the Instant app the env file names. There is no
+# default app: point REMINDERS_ENV_FILE at a file holding INSTANT_APP_ID and
+# INSTANT_ADMIN_TOKEN for an app that has the Reminders V3 schema, such as
+# a throwaway dev app. Never point it at production for development.
+ENV_FILE="${REMINDERS_ENV_FILE:-$HOME/.config/reminders-knophy/instant.env}"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Missing $ENV_FILE. Set REMINDERS_ENV_FILE to the env file of an Instant app with the Reminders V3 schema." >&2
+  exit 1
+fi
+set -a
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+set +a
+unset INSTANT_CLI_AUTH_TOKEN
+export INSTANT_APP_ADMIN_TOKEN="${INSTANT_APP_ADMIN_TOKEN:-$INSTANT_ADMIN_TOKEN}"
+export VITE_INSTANT_APP_ID="${VITE_INSTANT_APP_ID:-$INSTANT_APP_ID}"
+exec "$@"

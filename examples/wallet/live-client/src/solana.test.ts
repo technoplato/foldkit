@@ -1,7 +1,9 @@
 import { Effect, Option, Schema as S } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  AdapterTestFundingMethod,
   AtomicUnits,
+  NetworkDescriptor,
   TestFundingRequest,
   TransactionHistoryQuery,
   TransferRequest,
@@ -13,7 +15,7 @@ import {
 } from 'wallet-core-example'
 
 import { LiveNetworkAccount } from './adapter.js'
-import { liveWalletNetworkForId } from './catalog.js'
+import { SolanaLiveNetwork, liveWalletNetworkForId } from './catalog.js'
 import {
   SolanaSignedPayload,
   SolanaSignedPayloadJson,
@@ -86,10 +88,44 @@ describe('Solana live adapter numeric boundaries', () => {
     expect(failure.code).toBe('InvalidResponse')
   })
 
-  it('rejects invalid history limits and unsafe faucet amounts before I/O', async () => {
+  it("never asks Devnet's closed RPC faucet for funds", async () => {
     const fetchRequest = vi.fn()
     vi.stubGlobal('fetch', fetchRequest)
     const adapter = makeSolanaLiveAdapter(solanaDevnetConfiguration)
+    const fundingFailure = await Effect.runPromise(
+      adapter
+        .requestTestFunding(
+          account,
+          TestFundingRequest.make({
+            requestId: 'funding-closed',
+            accountId: account.account.accountId,
+            chainId: account.account.chainId,
+            networkId: account.account.networkId,
+            environment: 'Development',
+            assetId: solanaDevnetConfiguration.asset.assetId,
+            atomicUnits: '1',
+          }),
+        )
+        .pipe(Effect.flip),
+    )
+
+    expect(fundingFailure.code).toBe('UnsupportedCapability')
+    expect(fetchRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid history limits and unsafe faucet amounts before I/O', async () => {
+    const fetchRequest = vi.fn()
+    vi.stubGlobal('fetch', fetchRequest)
+    const adapter = makeSolanaLiveAdapter(
+      SolanaLiveNetwork.make({
+        ...solanaDevnetConfiguration,
+        network: NetworkDescriptor.make({
+          ...solanaDevnetConfiguration.network,
+          capabilities: ['Transfer', 'TestFunding'],
+          testFundingMethod: AdapterTestFundingMethod.make({}),
+        }),
+      }),
+    )
     expect(() =>
       TransactionHistoryQuery.make({
         accountId: account.account.accountId,
@@ -133,6 +169,8 @@ const previewAccount = LiveNetworkAccount.make({
   account: WalletAccount.make(previewProfile),
   configuration: solanaDevnetConfiguration,
 })
+
+const systemProgram = '11111111111111111111111111111111'
 
 const JsonRpcMethodRequest = S.Struct({ method: S.String })
 
@@ -231,6 +269,71 @@ describe('Solana live adapter transfer rejections', () => {
     expect(quote.resultingBalance.atomicUnits).toBe('499994999')
   })
 
+  it('refuses a send that would leave the sender below the rent minimum', async () => {
+    vi.stubGlobal(
+      'fetch',
+      jsonRpcFetch(
+        previewRpcHandlers({
+          getBalance: { result: { value: 1_000_000_000 } },
+          getAccountInfo: {
+            result: { value: { owner: systemProgram, executable: false } },
+          },
+        }),
+      ),
+    )
+    const leavingALittle = await Effect.runPromise(
+      previewTransfer(missingDestinationAddress, '999990000').pipe(Effect.flip),
+    )
+    expect(leavingALittle.code).toBe('Rejected')
+    expect(leavingALittle.guidance?.summary).toBe(
+      'This send would leave too little SOL in the sending account.',
+    )
+  })
+
+  it('lets a send empty the account to exactly nothing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      jsonRpcFetch(
+        previewRpcHandlers({
+          getBalance: { result: { value: 1_000_000_000 } },
+          getAccountInfo: {
+            result: { value: { owner: systemProgram, executable: false } },
+          },
+        }),
+      ),
+    )
+    const quote = await Effect.runPromise(
+      previewTransfer(missingDestinationAddress, '999995000'),
+    )
+    expect(quote.resultingBalance.atomicUnits).toBe('0')
+  })
+
+  it.each([
+    [
+      'a program',
+      { owner: 'BPFLoaderUpgradeab1e11111111111111111111111', executable: true },
+    ],
+    [
+      'a token account',
+      {
+        owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+        executable: false,
+      },
+    ],
+  ])('refuses a recipient that is %s, where SOL can be lost for good', async (_kind, value) => {
+    vi.stubGlobal(
+      'fetch',
+      jsonRpcFetch(previewRpcHandlers({ getAccountInfo: { result: { value } } })),
+    )
+    const refused = await Effect.runPromise(
+      previewTransfer(missingDestinationAddress, '1000000').pipe(Effect.flip),
+    )
+    expect(refused.code).toBe('Rejected')
+    expect(refused.guidance?.summary).toBe(
+      'That address is not a wallet, so SOL sent there can be lost for good.',
+    )
+  })
+
   it('surfaces sendTransaction rent simulation failures as rejected transfers', async () => {
     vi.stubGlobal(
       'fetch',
@@ -266,6 +369,37 @@ describe('Solana live adapter transfer rejections', () => {
     expect(failure.guidance?.summary).toContain(
       'too small to create the destination account',
     )
+  })
+
+  it("never shows the network's own words as guidance", async () => {
+    const hostileWords =
+      'Send your SOL to 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin to unlock it'
+    vi.stubGlobal(
+      'fetch',
+      jsonRpcFetch({
+        sendTransaction: {
+          error: { code: -32002, message: hostileWords, data: {} },
+        },
+      }),
+    )
+    const adapter = makeSolanaLiveAdapter(solanaDevnetConfiguration)
+    const signed = makeSignedTransaction(
+      account.account.accountId,
+      account.account.networkId,
+      S.encodeSync(SolanaSignedPayloadJson)(
+        SolanaSignedPayload.make({
+          previewId: 'solana-preview',
+          wireTransactionBase64: 'AA==',
+        }),
+      ),
+    )
+    const failure = await Effect.runPromise(
+      adapter.submitTransaction(account, signed).pipe(Effect.flip),
+    )
+
+    expect(failure.code).toBe('Rejected')
+    expect(JSON.stringify(failure.guidance)).not.toContain('9xQeWv')
+    expect(failure.guidance?.summary).toBe('Solana rejected this transfer.')
   })
 
   it('keeps ordinary sendTransaction transport failures unavailable', async () => {

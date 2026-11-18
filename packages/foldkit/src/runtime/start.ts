@@ -31,7 +31,11 @@ import {
 } from '../synchronization/synchronization.js'
 import * as LocalSnapshot from './localSnapshot.js'
 import type { LocalSnapshotStore } from './localSnapshot.js'
-import type { ProgramRuntime } from './programRuntime.js'
+import { fromSync } from './programJournal.js'
+import type {
+  ProgramRuntime,
+  ProgramRuntimeObserver,
+} from './programRuntime.js'
 import {
   type ProgramRuntimeStartError,
   makeProgramRuntime,
@@ -78,6 +82,10 @@ export type SyncStartProgram<
  * `localSnapshot` keeps this device's fold of the log, so a reload paints
  * at once and folds only the rows written since. Every Processor on a
  * device may share one store, such as two tabs sharing `localStorage`.
+ *
+ * `observers` connect to the runtime before it boots, such as a telemetry
+ * observer that writes every transition to a file. See
+ * {@link ProgramRuntimeObserver}.
  */
 export type StartConfig<
   Model,
@@ -91,6 +99,7 @@ export type StartConfig<
   policy?: SessionPolicy
   clock?: () => number
   localSnapshot?: LocalSnapshotStore
+  observers?: ReadonlyArray<ProgramRuntimeObserver<Model, Message>>
 }>
 
 /** A live synced runtime. `lastWrite` is the last Instant write result. */
@@ -308,17 +317,27 @@ export function start<
         ? 'Domain'
         : childSynchronization.messageCategory(message)
 
+    const isLocalOnlyFromLog = (message: unknown): boolean =>
+      childSynchronization?.isLocalOnly?.(message) ?? false
+
+    const keepsOwnNavigation =
+      childSynchronization?.keepsOwnNavigation ?? ((): boolean => false)
+
     const appliesTo = (
       policy: SessionPolicy,
       message: unknown,
       originatingProcessor: string,
       processor: string,
     ): boolean => {
-      const decision = resolveAudience(
-        policy,
-        categoryOf(message),
-        originatingProcessor,
-      )
+      const category = categoryOf(message)
+      if (
+        category === 'Navigation' &&
+        (keepsOwnNavigation(originatingProcessor) ||
+          keepsOwnNavigation(processor))
+      ) {
+        return originatingProcessor === processor
+      }
+      const decision = resolveAudience(policy, category, originatingProcessor)
       return (
         decision._tag !== 'ReadOnlyFollowerRejected' &&
         includesProcessor(decision, processor)
@@ -365,8 +384,15 @@ export function start<
     const runtime = yield* makeProgramRuntime({
       program,
       resources: (config.resources ?? Layer.empty) as Layer.Layer<Resources>,
+      ...(config.observers === undefined
+        ? {}
+        : { observers: config.observers }),
     })
     yield* runtime.initialization
+
+    const sendFromSync = (message: Message): void => {
+      runtime.send(message, { source: fromSync() })
+    }
 
     const currentPolicy = (): SessionPolicy => {
       const model = runtime.readModel() as SyncedModel<ChildModel, Message>
@@ -379,6 +405,10 @@ export function start<
     const isRejectedLocally = (message: Message): boolean =>
       isChildMessage(message) &&
       !appliesTo(currentPolicy(), message, engine.processor, engine.processor)
+
+    const isLocalOnly = (message: Message): boolean =>
+      isChildMessage(message) &&
+      (childSynchronization?.isLocalOnly?.(message) ?? false)
 
     const learnTime = (row: unknown): void => {
       const createdAtMs = readRowNumber(row, 'createdAtMs')
@@ -456,6 +486,7 @@ export function start<
         const decoded = decodeUnknown(program.message, entry.row)
         if (
           Option.isNone(decoded) ||
+          isLocalOnlyFromLog(decoded.value) ||
           !appliesTo(
             policyOf(folded),
             decoded.value,
@@ -679,7 +710,7 @@ export function start<
     })
 
     const sendRefolded = (model: ChildModel): void => {
-      runtime.send(asMessage<Message>({ _tag: 'LogRefolded', model }))
+      sendFromSync(asMessage<Message>({ _tag: 'LogRefolded', model }))
     }
 
     /**
@@ -725,7 +756,7 @@ export function start<
         const { _tag: _readyTag, ...childModel } = model
         const encodedSnapshot = encodeUnknown(program.snapshot, childModel)
         if (Result.isFailure(encodedSnapshot)) {
-          runtime.send(
+          sendFromSync(
             asMessage<Message>(
               decodeFailed({
                 what: 'This Processor could not encode the snapshot.',
@@ -741,7 +772,7 @@ export function start<
         }
         const encodedMessage = encodeUnknown(program.message, message)
         if (Result.isFailure(encodedMessage)) {
-          runtime.send(
+          sendFromSync(
             asMessage<Message>(
               decodeFailed({
                 what: 'This Processor could not encode the Message.',
@@ -783,13 +814,13 @@ export function start<
         if (Result.isFailure(written)) {
           outbox.push(write)
           lastWrite = Option.some({ link: 'queued' })
-          runtime.send(
+          sendFromSync(
             asMessage<Message>(
               transportFailed({
-                what: 'Instant did not accept this Message.',
+                what: 'The sync engine did not accept this Message.',
                 meaning:
-                  'The local Model is Ready. Instant rejected the write or the network is down.',
-                fix: 'Keep the local number. Retry the same Message id when Instant is back.',
+                  'The local Model is Ready. The sync engine rejected the write or the network is down.',
+                fix: 'Keep the local number. Retry the same Message id when the sync engine is back.',
                 sent: message,
                 cause: written.failure.cause,
                 raw: write,
@@ -834,7 +865,7 @@ export function start<
       maybeCursor = local.maybeCursor
       const newest = Array.lastNonEmpty(local.snapshots)
       lastApplied = Option.some(newest.watermark.position)
-      runtime.send(
+      sendFromSync(
         asMessage<Message>({ _tag: 'SnapshotReceived', model: newest.model }),
       )
     }
@@ -848,10 +879,10 @@ export function start<
     const applyRemoteRow = (row: unknown): void => {
       const decoded = decodeUnknown(program.message, row)
       if (Option.isNone(decoded)) {
-        runtime.send(
+        sendFromSync(
           asMessage<Message>(
             decodeFailed({
-              what: 'Instant sent a Message this Program cannot read.',
+              what: 'The sync engine sent a Message this Program cannot read.',
               meaning: 'The row did not match the Message Schema.',
               fix: 'Keep the current count. Check the Message Schema.',
               cause: 'Message Schema decode failed.',
@@ -862,8 +893,11 @@ export function start<
         return
       }
       Option.map(rowOrderOf(row), bumpLastApplied)
+      if (isLocalOnlyFromLog(decoded.value)) {
+        return
+      }
       if (appliesHere(currentPolicy(), decoded.value, row)) {
-        runtime.send(
+        sendFromSync(
           asMessage<Message>({
             _tag: 'RemoteMessageReceived',
             message: decoded.value,
@@ -1028,12 +1062,12 @@ export function start<
       const knownBefore = knownRows.size
       const maybeReadFailure = yield* readUnseen
       if (Option.isSome(maybeReadFailure)) {
-        runtime.send(
+        sendFromSync(
           asMessage<Message>(
             transportFailed({
-              what: 'Instant did not return the Message log.',
-              meaning: 'This Processor could not start from Instant.',
-              fix: 'Check the Instant app and try again.',
+              what: 'The sync engine did not return the Message log.',
+              meaning: 'This Processor could not start from the sync engine.',
+              fix: 'Check the sync engine and try again.',
               cause: maybeReadFailure.value.cause,
               raw: maybeReadFailure.value.raw,
             }),
@@ -1047,7 +1081,7 @@ export function start<
         Option.map(maybeFolded, folded => {
           lastApplied = folded.maxOrder
           if (Option.isNone(maybeLocalState)) {
-            runtime.send(
+            sendFromSync(
               asMessage<Message>({
                 _tag: 'SnapshotReceived',
                 model: folded.model,
@@ -1093,14 +1127,21 @@ export function start<
           return
         }
         runtime.send(message, options)
-        Effect.runFork(persist(message))
+        if (!isLocalOnly(message)) {
+          Effect.runFork(persist(message))
+        }
       },
-      run: (message: Message, options) =>
-        isRejectedLocally(message)
-          ? Effect.sync(() => runtime.readModel())
-          : runtime
-              .run(message, options)
-              .pipe(Effect.tap(() => persist(message))),
+      run: (message: Message, options) => {
+        if (isRejectedLocally(message)) {
+          return Effect.sync(() => runtime.readModel())
+        } else if (isLocalOnly(message)) {
+          return runtime.run(message, options)
+        } else {
+          return runtime
+            .run(message, options)
+            .pipe(Effect.tap(() => persist(message)))
+        }
+      },
       lastWrite: () => lastWrite,
     }
   })

@@ -2,10 +2,13 @@ import {
   Array,
   Console,
   Data,
+  Duration,
   Effect,
+  Layer,
   Match as M,
   Option,
-  Schema as S,
+  Scope,
+  Stream,
 } from 'effect'
 import { Runtime } from 'foldkit'
 import {
@@ -17,25 +20,35 @@ import {
   type Model,
   type Navigation,
   ObservedProducts,
-  SelectedIssuePriority,
-  SelectedIssueProduct,
+  type IssueTrackerResources as ProgramResources,
   StaticIssueTrackerResources,
-  UpdatedIssueDetails,
-  UpdatedIssueTitle,
+  askFlowOf,
   catalogIssueRefsOf,
   destinationForModel,
+  entityTitle,
+  inboxItemsOf,
   interactionsForModel,
+  issuesOfPage,
   issuesScreen,
+  laneHeading,
   leftoverKindOf,
   leftoverStatusOf,
   messageForScreenToken,
+  millisecondsLabel,
   modelForNavigation,
   newestWorkLog,
+  productFilterOf,
+  sectionHeading,
+  timelineStepWords,
 } from 'issues-core-example'
 
 import {
   ApplicationProduct,
-  IssuePriority,
+  type Issue,
+  IssueQuery,
+  type IssueStatus,
+  IssueTracker,
+  type IssueTrackerService,
   LibraryProduct,
   ProductCatalogEntry,
 } from '@foldkit/instant-tools/issues'
@@ -51,6 +64,14 @@ export class IssuesCliError extends Data.TaggedError('IssuesCliError')<{
   readonly message: string
 }> {}
 
+/** A command could not do what it was asked; `exitCode` says how. */
+export class IssuesCommandFailure extends Data.TaggedError(
+  'IssuesCommandFailure',
+)<{
+  readonly exitCode: number
+  readonly message: string
+}> {}
+
 /** The state transition evidence from one CLI action sequence. */
 export type IssuesCliExecution = Readonly<{
   finalModel: Model
@@ -58,7 +79,7 @@ export type IssuesCliExecution = Readonly<{
   messages: ReadonlyArray<Message>
 }>
 
-type IssueTrackerResources = typeof StaticIssueTrackerResources
+type IssueTrackerResources = Layer.Layer<ProgramResources>
 
 const fallbackProducts = [
   ProductCatalogEntry.make({
@@ -109,11 +130,64 @@ const ensureFilingCatalog = (
   })
 }
 
-const hasSettledObservations = (model: Model): boolean =>
+/**
+ * Whether a destination reads the Issue catalog. One Issue's page reads that
+ * Issue alone: `issues show 1358` needs Issue 1358, not all 1,356 Issues
+ * (18.6 MB, 1.2 s of CPU on 2026-10-29, #1358).
+ */
+const readsCatalog = (navigation: Navigation): boolean =>
+  navigation._tag !== 'IssueDetail'
+
+const withTracker = (
+  resources: IssueTrackerResources,
+  change: (tracker: IssueTrackerService) => IssueTrackerService,
+): IssueTrackerResources =>
+  Layer.merge(
+    resources,
+    Layer.effect(IssueTracker, Effect.map(IssueTracker, change)).pipe(
+      Layer.provide(resources),
+    ),
+  )
+
+/**
+ * The resources with a tracker whose catalog stream stays silent, for a
+ * command on one Issue: nothing downloads or decodes the catalog, and the
+ * command waits only for that Issue.
+ */
+const withoutCatalog = (
+  resources: IssueTrackerResources,
+): IssueTrackerResources =>
+  withTracker(resources, tracker => ({
+    ...tracker,
+    observe: () => Stream.never,
+  }))
+
+/**
+ * The resources with the catalog narrowed to `statuses`, or whole when it is
+ * empty: `issues list --status Open,InProgress` reads only those Issues.
+ */
+export const withCatalogStatuses = (
+  resources: IssueTrackerResources,
+  statuses: ReadonlyArray<IssueStatus>,
+): IssueTrackerResources => {
+  if (Array.isReadonlyArrayEmpty(statuses)) {
+    return resources
+  }
+  return withTracker(resources, tracker => ({
+    ...tracker,
+    observe: query => tracker.observe(IssueQuery.make({ ...query, statuses })),
+  }))
+}
+
+const hasSettledObservations = (
+  model: Model,
+  isObservingCatalog: boolean,
+): boolean =>
   (model.navigation._tag !== 'FileIssue' ||
     model.draftState._tag !== 'SavingIssueDraft') &&
   model.issueMutation._tag !== 'SavingIssueMutation' &&
-  model.issues._tag !== 'LoadingIssues' &&
+  model.productAddition._tag !== 'SavingProductAddition' &&
+  (!isObservingCatalog || model.issues._tag !== 'LoadingIssues') &&
   model.products._tag !== 'LoadingProducts' &&
   (model.navigation._tag !== 'IssueDetail' ||
     model.issueDetail._tag === 'LoadedIssue' ||
@@ -123,56 +197,144 @@ const awaitObservations = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   timeout: '2 seconds' | '20 seconds',
 ): Effect.Effect<Model> =>
-  hasSettledObservations(runtime.readModel())
+  hasSettledObservations(runtime.readModel(), true)
     ? Effect.succeed(runtime.readModel())
     : Effect.callback<Model>(resume => {
         const observedModel = (model: Model) => {
-          if (hasSettledObservations(model)) resume(Effect.succeed(model))
+          if (hasSettledObservations(model, true)) {
+            resume(Effect.succeed(model))
+          }
         }
         const stop = runtime.observeModel(observedModel)
         observedModel(runtime.readModel())
         return Effect.sync(stop)
       }).pipe(Effect.timeout(timeout), Effect.orDie)
 
-const prefixedValue = (token: string, prefix: string): Option.Option<string> =>
-  token.startsWith(prefix)
-    ? Option.some(token.slice(prefix.length))
-    : Option.none()
+const pendingWork = (model: Model, isObservingCatalog: boolean): string =>
+  Array.join(
+    Array.filter(
+      [
+        isObservingCatalog && model.issues._tag === 'LoadingIssues'
+          ? 'the Issue list'
+          : '',
+        model.products._tag === 'LoadingProducts' ? 'the product catalog' : '',
+        model.navigation._tag === 'IssueDetail' &&
+        model.issueDetail._tag === 'LoadingIssue'
+          ? `Issue ${model.navigation.issueId}`
+          : '',
+        model.issueMutation._tag === 'SavingIssueMutation' ? 'a change' : '',
+        model.productAddition._tag === 'SavingProductAddition'
+          ? 'the new product'
+          : '',
+        model.navigation._tag === 'FileIssue' &&
+        model.draftState._tag === 'SavingIssueDraft'
+          ? 'the new Issue'
+          : '',
+      ],
+      label => label !== '',
+    ),
+    ', ',
+  )
 
-const messageForCliToken = (
-  model: Model,
-  token: string,
-): Option.Option<Message> => {
-  const known = messageForScreenToken(model, token)
-  if (Option.isSome(known)) {
-    return known
-  }
-  if (model.navigation._tag !== 'FileIssue') {
-    return Option.none()
-  }
-  const maybeTitle = prefixedValue(token, 'title:')
-  if (Option.isSome(maybeTitle)) {
-    return Option.some(UpdatedIssueTitle.make({ value: maybeTitle.value }))
-  }
-  const maybeDetails = prefixedValue(token, 'details:')
-  if (Option.isSome(maybeDetails)) {
-    return Option.some(UpdatedIssueDetails.make({ value: maybeDetails.value }))
-  }
-  const maybeProduct = prefixedValue(token, 'product:')
-  if (Option.isSome(maybeProduct)) {
-    return Option.some(
-      SelectedIssueProduct.make({ productId: maybeProduct.value }),
-    )
-  }
-  const maybePriority = prefixedValue(token, 'priority:')
-  if (Option.isSome(maybePriority)) {
-    return Option.map(
-      S.decodeUnknownOption(IssuePriority)(maybePriority.value),
-      priority => SelectedIssuePriority.make({ priority }),
-    )
-  }
-  return Option.none()
+const awaitSettled = (
+  runtime: Runtime.ProgramRuntime<Model, Message>,
+  timeout: Duration.Input,
+  isObservingCatalog: boolean,
+): Effect.Effect<Model, IssuesCommandFailure> =>
+  hasSettledObservations(runtime.readModel(), isObservingCatalog)
+    ? Effect.succeed(runtime.readModel())
+    : Effect.callback<Model>(resume => {
+        const observedModel = (model: Model) => {
+          if (hasSettledObservations(model, isObservingCatalog)) {
+            resume(Effect.succeed(model))
+          }
+        }
+        const stop = runtime.observeModel(observedModel)
+        observedModel(runtime.readModel())
+        return Effect.sync(stop)
+      }).pipe(
+        Effect.timeoutOrElse({
+          duration: timeout,
+          orElse: () =>
+            Effect.fail(
+              new IssuesCommandFailure({
+                exitCode: 1,
+                message: `the tracker did not answer within ${Duration.format(Duration.fromInputUnsafe(timeout))} (waiting for ${pendingWork(runtime.readModel(), isObservingCatalog)})`,
+              }),
+            ),
+        }),
+      )
+
+const isTracing = (): boolean => {
+  const value = process.env['ISSUES_TRACE']
+  return value !== undefined && value !== '' && value !== '0'
 }
+
+/**
+ * With `ISSUES_TRACE=1`, prints each Message the Program applies, with the
+ * milliseconds since the command started, on standard error.
+ */
+const traceTransitions = (
+  runtime: Runtime.ProgramRuntime<Model, Message>,
+): Effect.Effect<void, never, Scope.Scope> => {
+  if (!isTracing()) {
+    return Effect.void
+  }
+  const startedAtMs = Date.now()
+  return Effect.acquireRelease(
+    Effect.sync(() =>
+      runtime.journal.observe(transition => {
+        process.stderr.write(
+          `issues trace +${(Date.now() - startedAtMs).toString()} ms ${transition.message._tag}\n`,
+        )
+      }),
+    ),
+    stop => Effect.sync(stop),
+  ).pipe(Effect.asVoid)
+}
+
+/**
+ * Runs typed Messages through the renderer-free Program runtime, one at a
+ * time, waiting for each to settle. `messagesFor` reads the settled starting
+ * Model, so a command can refuse before it changes anything: `issues log 404`
+ * stops when Issue 404 reads back as missing.
+ */
+export const executeMessages = (
+  navigation: Navigation,
+  messagesFor: (
+    settled: Model,
+  ) => Effect.Effect<ReadonlyArray<Message>, IssuesCommandFailure>,
+  resources: IssueTrackerResources,
+  timeout: Duration.Input = '30 seconds',
+): Effect.Effect<Model, IssuesCommandFailure> =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const isObservingCatalog = readsCatalog(navigation)
+      const runtime = yield* Effect.orDie(
+        Runtime.makeProgramRuntime({
+          program: IssueTrackerProgram,
+          resources: isObservingCatalog ? resources : withoutCatalog(resources),
+          start: Runtime.fromModel(modelForNavigation(navigation)),
+        }),
+      )
+      yield* traceTransitions(runtime)
+      yield* runtime.initialization
+      const observedModel = yield* awaitSettled(
+        runtime,
+        timeout,
+        isObservingCatalog,
+      )
+      const settledModel = yield* ensureFilingCatalog(runtime, observedModel)
+      const messages = yield* messagesFor(settledModel)
+      for (const message of messages) {
+        yield* runtime.run(message)
+        yield* awaitSettled(runtime, timeout, isObservingCatalog)
+      }
+      const finalModel = runtime.readModel()
+      yield* runtime.shutdown
+      return finalModel
+    }),
+  )
 
 const runTokens = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
@@ -187,7 +349,7 @@ const runTokens = (
     let nextModel = initialModel
     let messages: ReadonlyArray<Message> = []
     for (const token of tokens) {
-      const maybeMessage = messageForCliToken(nextModel, token)
+      const maybeMessage = messageForScreenToken(nextModel, token)
       if (Option.isNone(maybeMessage)) {
         const validTokens = Array.join(
           Array.map(
@@ -205,6 +367,16 @@ const runTokens = (
               ', log:<text>, comment:<text>, link:<id>, status:Open|Blocked|Closed',
             IssueList: () => '',
             TriageInbox: () => '',
+            Backlog: () => '',
+            AskFlow: () => '',
+            Inbox: () => '',
+            EntityPage: () => '',
+            Findings: () => '',
+            Decisions: () => '',
+            Questions: () => '',
+            Reminders: () => '',
+            Features: () => '',
+            Products: () => '',
           }),
         )
         return yield* Effect.fail(
@@ -257,6 +429,9 @@ const viewerUrlLine = (url: Option.Option<string>): ReadonlyArray<string> =>
     onSome: value => (value === '' ? [] : [value]),
   })
 
+const destinationIssueLine = (issue: Issue): string =>
+  `${issue.id}  ${issue.priority}  ${issue.title}  [${issue.product.name}]`
+
 /** Formats one host-neutral destination as plain terminal lines. */
 export const formatDestination = (
   destination: Destination,
@@ -272,11 +447,7 @@ export const formatDestination = (
             FailedIssues: ({ reason }) => ['Issues unavailable', reason],
             LoadedIssues: ({ issues }) => [
               'Issues',
-              ...Array.map(
-                issues,
-                issue =>
-                  `${issue.id}  ${issue.priority}  ${issue.title}  [${issue.product.name}]`,
-              ),
+              ...Array.map(issues, destinationIssueLine),
             ],
           }),
         ),
@@ -332,6 +503,124 @@ export const formatDestination = (
         ...(draftState._tag === 'FailedIssueDraft' ? [draftState.reason] : []),
         `Catalog: ${products._tag}`,
       ],
+      BacklogDestination: ({ state }) =>
+        M.value(state).pipe(
+          M.withReturnType<ReadonlyArray<string>>(),
+          M.tagsExhaustive({
+            LoadingIssues: () => ['Backlog', 'Observing…'],
+            FailedIssues: ({ reason }) => ['Backlog unavailable', reason],
+            LoadedBacklog: ({ backlog }) => [
+              'Backlog',
+              ...Array.flatMap(backlog.lanes, lane => [
+                laneHeading(lane),
+                ...Array.map(lane.issues, destinationIssueLine),
+              ]),
+              ...Array.flatMap(backlog.sections, section => [
+                sectionHeading(section),
+                ...Array.map(section.issues, destinationIssueLine),
+              ]),
+            ],
+          }),
+        ),
+      InboxDestination: ({ state }) =>
+        M.value(state).pipe(
+          M.withReturnType<ReadonlyArray<string>>(),
+          M.tagsExhaustive({
+            LoadingIssues: () => ['Inbox', 'Observing…'],
+            FailedIssues: ({ reason }) => ['Inbox unavailable', reason],
+            LoadedIssues: ({ issues }) => [
+              'Inbox',
+              ...Array.map(
+                inboxItemsOf(issues),
+                item =>
+                  `${new Date(item.atMs).toISOString()}  #${item.issue.id}  ${item.kind}  ${item.words}`,
+              ),
+            ],
+          }),
+        ),
+      AskFlowDestination: ({ state }) =>
+        state._tag === 'LoadedIssues'
+          ? [
+              'How long asks take',
+              ...Array.map(
+                askFlowOf(state.issues),
+                step =>
+                  `${timelineStepWords(step.name)}  median ${millisecondsLabel(step.medianMs)}  ${step.count.toString()} Issues`,
+              ),
+            ]
+          : ['How long asks take', state._tag],
+      EntityPageDestination: ({ entity, state }) =>
+        state._tag === 'LoadedIssues'
+          ? [
+              entityTitle(entity, state.issues),
+              ...Array.map(
+                issuesOfPage(state.issues, entity),
+                destinationIssueLine,
+              ),
+            ]
+          : [entityTitle(entity, []), state._tag],
+      FindingsDestination: ({ state }) =>
+        state._tag === 'LoadedFindings'
+          ? [
+              'Findings',
+              ...Array.map(
+                state.findings,
+                finding =>
+                  `${finding.kind}  ${finding.status}  ${finding.quote}`,
+              ),
+            ]
+          : ['Findings', state._tag],
+      DecisionsDestination: ({ state }) =>
+        state._tag === 'LoadedDecisions'
+          ? [
+              'Decisions',
+              ...Array.map(
+                state.decisions,
+                decision => `${decision.status}  ${decision.text}`,
+              ),
+            ]
+          : ['Decisions', state._tag],
+      QuestionsDestination: ({ state }) =>
+        state._tag === 'LoadedQuestions'
+          ? [
+              'Questions',
+              ...Array.map(
+                state.questions,
+                question => `${question.status}  ${question.text}`,
+              ),
+            ]
+          : ['Questions', state._tag],
+      RemindersDestination: ({ state }) =>
+        state._tag === 'LoadedReminders'
+          ? [
+              'Reminders',
+              ...Array.map(
+                state.reminders,
+                reminder => `${reminder.state}  ${reminder.title}`,
+              ),
+            ]
+          : ['Reminders', state._tag],
+      FeaturesDestination: ({ state }) =>
+        state._tag === 'LoadedFeatures'
+          ? [
+              'Features',
+              ...Array.map(
+                state.features,
+                feature => `${feature.name}  ${feature.status}`,
+              ),
+            ]
+          : ['Features', state._tag],
+      ProductsDestination: ({ products }) =>
+        products._tag === 'LoadedProducts'
+          ? [
+              'Products',
+              ...Array.map(
+                products.products,
+                ({ product }) =>
+                  `${product.id}  ${product.name}  ${product._tag}`,
+              ),
+            ]
+          : ['Products', products._tag],
       TriageInboxDestination: ({ state }) =>
         state._tag === 'LoadedTriageCandidates'
           ? [
@@ -365,10 +654,9 @@ export const formatModel = (model: Model): ReadonlyArray<string> => {
   ) {
     return formatDestination(destination)
   }
+  const productFilter = productFilterOf(model)
   const selected =
-    model.productFilter._tag === 'OneProduct'
-      ? model.productFilter.productId
-      : 'all'
+    productFilter._tag === 'OneProduct' ? productFilter.productId : 'all'
   const chips = Array.filter(interactionsForModel(model), interaction =>
     interaction.token.startsWith('product:'),
   )
@@ -398,7 +686,7 @@ const resolveLiveResources = (): Effect.Effect<
   if (resources instanceof IssuesInstantConfigError) {
     return Effect.fail(resources)
   }
-  return Effect.succeed(resources as IssueTrackerResources)
+  return Effect.succeed(resources)
 }
 
 /** Prints the final screen and optionally the Messages valid in that state. */
@@ -416,7 +704,7 @@ export const runIssues = (
       '20 seconds',
     )
     const painting = paintCli(issuesScreen(execution.finalModel), {
-      binaryName: 'foldkit-issues',
+      binaryName: 'issues',
       whatFor: token => token,
     })
     yield* Console.log(painting.screen)

@@ -14,3 +14,4 @@ packages/oxlint-plugin-foldkit/test/integration/fixtures/
 **/.gradle/
 **/.look/chrome-profile/
 examples/slides-qanda/answers/*.md
+examples/books/core/src/audibleImport.node.ts

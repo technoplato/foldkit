@@ -1,0 +1,39 @@
+{
+  "name": "brandon-server-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "brandon": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "bundle": "pnpm run build && esbuild dist/main.js dist/cli.js dist/watch.js dist/claims.js --bundle --platform=node --format=esm --packages=bundle --out-extension:.js=.mjs --outdir=bundle --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "clean": "rimraf dist",
+    "prebuild": "pnpm --filter brandon-core-example build",
+    "pretest": "pnpm --filter brandon-core-example build",
+    "pretypecheck": "pnpm --filter brandon-core-example build",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@foldkit/markdown": "workspace:*",
+    "@instantdb/admin": "1.0.65",
+    "@nuintun/qrcode": "5.0.3",
+    "brandon-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "wallet-core-example": "workspace:*",
+    "wallet-live-client-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "esbuild": "^0.28.1",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

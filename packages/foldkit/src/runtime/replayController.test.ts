@@ -307,4 +307,68 @@ describe('makeReplayController', () => {
         }),
       ),
   )
+
+  it.effect(
+    'reads a live snapshot at the same cost however long the journal behind it',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Program = make({
+            id: 'long-journal',
+            version: 1,
+            Model,
+            Message,
+            init: () => [Model.make({ count: 0, status: 'Ready' }), []],
+            update: (model, message) =>
+              M.value(message).pipe(
+                M.withReturnType<
+                  readonly [Model, ReadonlyArray<Command.Command<Message>>]
+                >(),
+                M.tagsExhaustive({
+                  RequestedSave: () => [model, []],
+                  CompletedSave: () => [
+                    Model.make({ count: model.count + 1, status: 'Ready' }),
+                    [],
+                  ],
+                }),
+              ),
+          })
+          const journal = makeProgramJournal({
+            program: Program,
+            initialModel: Model.make({ count: 0, status: 'Ready' }),
+          })
+          const controller = yield* makeReplayController({
+            program: Program,
+            resources: Layer.empty,
+            route: replay(fromJournal(Program, journal.read())),
+          })
+          const fastestReadMs = (): number => {
+            let fastest = Number.POSITIVE_INFINITY
+            for (let run = 0; run < 40; run += 1) {
+              const startedAt = performance.now()
+              controller.read()
+              fastest = Math.min(fastest, performance.now() - startedAt)
+            }
+            return fastest
+          }
+          const sendSaves = (count: number) =>
+            Effect.forEach(
+              Array.from({ length: count }),
+              () => controller.run(CompletedSave()),
+              { discard: true },
+            )
+
+          yield* sendSaves(100)
+          expect(controller.read().mode).toBe('Live')
+          const shortJournalMs = fastestReadMs()
+          yield* sendSaves(4_000)
+          const longJournalMs = fastestReadMs()
+
+          expect(controller.read().frame).toBeGreaterThanOrEqual(4_100)
+          expect(longJournalMs).toBeLessThan(Math.max(shortJournalMs * 4, 0.05))
+        }),
+      ),
+    60_000,
+  )
 })
+

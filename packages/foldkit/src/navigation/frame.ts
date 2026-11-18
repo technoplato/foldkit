@@ -6,9 +6,14 @@ import type { PresentationStyle } from './structure.js'
 
 // FRAME
 
-/** One painted entry: its key, how it is presented, and its view. */
+/**
+ * One painted entry: its key, its identity, how it is presented, and its
+ * view. A painter keys the layer by `identity`, so a page whose address
+ * follows a moving place keeps its DOM, and reads its view by `key`.
+ */
 export type FrameLayer = Readonly<{
   key: string
+  identity: string
   maybeStyle: Option.Option<PresentationStyle>
   view: EntryView
 }>
@@ -30,6 +35,24 @@ export const styleTagOf = (
     onNone: () => 'Root',
     onSome: style => style._tag,
   })
+
+/**
+ * The edge a painter marks a drawer with, so a stylesheet can place it at
+ * that side of the window: `Left` or `Right`. None for any layer that is
+ * not a drawer.
+ *
+ * @example
+ * ```typescript
+ * sideTagOf(contentsLayer) // Some('Left')
+ * sideTagOf(sessionSheetLayer) // None
+ * ```
+ */
+export const sideTagOf = (
+  layer: Readonly<{ maybeStyle: Option.Option<PresentationStyle> }>,
+): Option.Option<string> =>
+  Option.flatMap(layer.maybeStyle, style =>
+    style._tag === 'Drawer' ? Option.some(style.from) : Option.none(),
+  )
 
 /**
  * Everything a host with one surface paints: where the Program is, the
@@ -75,6 +98,7 @@ export const frameOf = (source: FrameSource): Option.Option<Frame> =>
     const layerOf = (entry: typeof base): Option.Option<FrameLayer> =>
       Option.map(source.viewAt(entry.key), view => ({
         key: entry.key,
+        identity: entry.identity,
         maybeStyle: entry.maybeStyle,
         view,
       }))

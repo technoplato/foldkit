@@ -1,0 +1,159 @@
+import {
+  BrandonServer,
+  Games,
+  HeldAccounts,
+  type HeldClaimRequest,
+  Page,
+  type SectionKey,
+  type SentTransaction,
+  WalletActivity,
+  WalletAddresses,
+  type WalletPublicAccount,
+  heldClaimPathOf,
+  sentTransactionPathOf,
+} from 'brandon-core-example'
+import { Effect, Layer, Schema as S } from 'effect'
+import { WalletVaultError } from 'wallet-core-example'
+import {
+  type WalletVaultOwnerKey,
+  makeWalletVaultOwnerPartitionKey,
+} from 'wallet-local-vault-example'
+
+// SERVER
+
+const notAllowed = 'You are not signed in for this page.'
+const unanswered = 'The page did not answer in time.'
+const answerWithin = '5 seconds'
+
+const readJson = <A>(
+  path: string,
+  decode: (value: unknown) => A,
+): Effect.Effect<A, string> =>
+  Effect.tryPromise({
+    try: async signal => {
+      const response = await fetch(path, { cache: 'no-store', signal })
+      if (!response.ok) {
+        throw new Error(notAllowed)
+      }
+      return decode(await response.json())
+    },
+    catch: cause => (cause instanceof Error ? cause.message : String(cause)),
+  }).pipe(
+    Effect.timeoutOrElse({
+      duration: answerWithin,
+      orElse: () => Effect.fail(unanswered),
+    }),
+  )
+
+const accountPathOf = ({ networkId, address }: WalletPublicAccount): string =>
+  `/api/wallet/accounts/${encodeURIComponent(networkId)}/${encodeURIComponent(address)}`
+
+const putNoBody = (path: string): Effect.Effect<void, string> =>
+  Effect.tryPromise({
+    try: async signal => {
+      const response = await fetch(path, {
+        method: 'PUT',
+        cache: 'no-store',
+        signal,
+      })
+      if (!response.ok) {
+        throw new Error(notAllowed)
+      }
+    },
+    catch: cause => (cause instanceof Error ? cause.message : String(cause)),
+  }).pipe(
+    Effect.timeoutOrElse({
+      duration: answerWithin,
+      orElse: () => Effect.fail(unanswered),
+    }),
+  )
+
+const refusalWithin = 200
+
+/**
+ * A PUT with no body whose refusal says the origin's own words, so the
+ * page can say why a move of held money was not taken.
+ */
+const putNoBodySaying = (path: string): Effect.Effect<void, string> =>
+  Effect.tryPromise({
+    try: async signal => {
+      const response = await fetch(path, {
+        method: 'PUT',
+        cache: 'no-store',
+        signal,
+      })
+      if (!response.ok) {
+        const said = (await response.text()).trim().slice(0, refusalWithin)
+        throw new Error(said === '' ? notAllowed : said)
+      }
+    },
+    catch: cause => (cause instanceof Error ? cause.message : String(cause)),
+  }).pipe(
+    Effect.timeoutOrElse({
+      duration: answerWithin,
+      orElse: () => Effect.fail(unanswered),
+    }),
+  )
+
+const fileHeldClaim = (
+  request: HeldClaimRequest,
+): Effect.Effect<void, string> => putNoBodySaying(heldClaimPathOf(request))
+
+const followAccount = (
+  account: WalletPublicAccount,
+): Effect.Effect<void, string> => putNoBody(accountPathOf(account))
+
+const reportSentTransaction = (
+  sent: SentTransaction,
+): Effect.Effect<void, string> => putNoBody(sentTransactionPathOf(sent))
+
+const OwnerAnswer = S.Struct({ ownerKey: S.String })
+
+/**
+ * Asks the origin whose wallet this page may open. It answers only a
+ * signed-in person with the wallet flag, and only with their own owner
+ * key, so the page opens no one else's partition.
+ */
+export const loadWalletOwnerKey: Effect.Effect<
+  WalletVaultOwnerKey,
+  WalletVaultError
+> = readJson('/api/wallet/owner', S.decodeUnknownSync(OwnerAnswer)).pipe(
+  Effect.flatMap(({ ownerKey }) =>
+    Effect.try(() => makeWalletVaultOwnerPartitionKey(ownerKey)),
+  ),
+  Effect.mapError(() => new WalletVaultError({ code: 'Unavailable' })),
+)
+
+const scrollToSection = (sectionKey: SectionKey): Effect.Effect<void> =>
+  Effect.sync(() => {
+    document
+      .getElementById(sectionKey)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+
+/** Brandon dot's origin, same-origin, through Cloudflare Access. */
+export const liveBrandonServer: Layer.Layer<BrandonServer> = Layer.succeed(
+  BrandonServer,
+  {
+    loadPage: readJson('/api/page', S.decodeUnknownSync(Page)),
+    loadFootball: readJson('/api/football', S.decodeUnknownSync(Games)),
+    loadWallets: readJson('/api/wallets', S.decodeUnknownSync(WalletAddresses)),
+    loadWalletActivity: readJson(
+      '/api/wallet/activity',
+      S.decodeUnknownSync(WalletActivity),
+    ),
+    loadHeldAccounts: readJson(
+      '/api/wallet/held',
+      S.decodeUnknownSync(HeldAccounts),
+    ),
+    fileHeldClaim,
+    watchWalletAccounts: accounts =>
+      Effect.forEach(accounts, followAccount, { discard: true }),
+    reportSentTransaction,
+    scrollToSection,
+    reloadPage: Effect.sync(() => {
+      window.location.reload()
+    }),
+    nowMs: Effect.sync(() => Date.now()),
+  },
+)

@@ -9,6 +9,17 @@ const lines = (...sourceLines: ReadonlyArray<string>): string =>
   sourceLines.join('\n')
 
 describe('parseMarkdown', () => {
+  it('keeps a colon in prose as text, such as a time of day', () => {
+    const [paragraph] = parseMarkdown('Between 19:34 and 19:36 today.').blocks
+    expect(
+      paragraph?._tag === 'Paragraph'
+        ? paragraph.content.map(inline =>
+            inline._tag === 'Text' ? inline.value : '',
+          )
+        : [],
+    ).toStrictEqual(['Between 19', ':34', ' and 19', ':36', ' today.'])
+  })
+
   it('parses the core block vocabulary in document order', () => {
     const document = parseMarkdown(
       lines(

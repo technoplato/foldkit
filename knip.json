@@ -86,7 +86,13 @@
       "ignoreDependencies": ["prettier"]
     },
     "examples/counter/react": {
-      "ignoreDependencies": ["prettier", "tailwindcss"]
+      "ignoreDependencies": ["prettier", "tailwindcss"],
+      "entry": [
+        "index.html",
+        "trial/main.tsx",
+        "trial/vite.config.ts",
+        "src/**/*.test.tsx"
+      ]
     },
     "examples/react-native-showcase": {
       "entry": ["App.tsx"],
@@ -273,7 +279,6 @@
         "react-native-get-random-values"
       ]
     },
-
     "examples/conversations/core": {
       "entry": ["src/index.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
@@ -447,6 +452,23 @@
         "prettier",
         "tailwindcss"
       ]
+    },
+    "examples/read-aloud/core": {
+      "entry": [
+        "src/index.node.ts",
+        "src/index.browser.ts",
+        "src/endpoint.node.ts",
+        "src/**/*.test.ts",
+        "scripts/*.mjs"
+      ],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/read-aloud/react-bindings": {
+      "entry": ["src/index.ts", "src/**/*.test.tsx"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/read-aloud/react": {
+      "ignoreDependencies": ["prettier", "tailwindcss"]
     },
     "comparisons/*": {
       "ignoreDependencies": ["tailwindcss"]

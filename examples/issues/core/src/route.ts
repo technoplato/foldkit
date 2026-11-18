@@ -1,23 +1,310 @@
-import { Match as M, Option, Schema as S, pipe } from 'effect'
+import {
+  Array,
+  Effect,
+  Match as M,
+  Option,
+  Schema as S,
+  String,
+  pipe,
+} from 'effect'
 import { Route } from 'foldkit'
-import { literal, r, slash, string } from 'foldkit/route'
+import {
+  ParseError,
+  literal,
+  param,
+  query,
+  r,
+  slash,
+  string,
+} from 'foldkit/route'
 import { type Url, fromString } from 'foldkit/url'
 
+import { IssuePriority, IssueStatus } from '@foldkit/instant-tools/issues'
+
 import {
+  AgentEntity,
+  BuildEntity,
+  CommitEntity,
+  DecisionEntity,
+  FeatureEntity,
+  FindingEntity,
+  type PageEntity,
+  ProductEntity,
+  QuestionEntity,
+  RecordingEntity,
+  RecordingNumberEntity,
+  ReminderEntity,
+  SegmentEntity,
+  SessionEntity,
+} from './entityGraph.js'
+import { InboxFilter } from './inbox.js'
+import {
+  AnyClaimant,
+  type ClaimantFilter,
+  IssueGrouping,
+  IssueLayout,
+  IssueSort,
+  type IssueView,
+  OneClaimant,
+  Unclaimed,
+} from './issueView.js'
+import {
+  AllWork,
+  CloseToLanding,
+  type LandingFilter,
+  WorkingNow,
+} from './landing.js'
+import { AllProducts, OneProduct, type ProductFilter } from './leftover.js'
+import {
+  AskFlow,
+  Backlog,
+  DecisionFilter,
+  Decisions,
+  EntityPage,
+  Features,
   FileIssue,
+  FindingFilter,
+  Findings,
+  Inbox,
   IssueDetail,
   IssueList,
   type Navigation,
+  Products,
+  QuestionFilter,
+  Questions,
+  ReminderFilter,
+  Reminders,
   TriageInbox,
 } from './model.js'
 
-const IssueListRoute = r('IssueListRoute')
+/**
+ * The list's view as its URL's query, so a view is a link:
+ * `/issues?q=heart+rate&product=foldkit&landing=close&status=Open%2CBlocked`.
+ * A parameter it does not know, or a value that names nothing, is left out.
+ */
+const IssueViewQuery = S.Struct({
+  q: S.OptionFromOptional(S.String),
+  product: S.OptionFromOptional(S.String),
+  landing: S.OptionFromOptional(S.String),
+  status: S.OptionFromOptional(S.String),
+  priority: S.OptionFromOptional(S.String),
+  claimant: S.OptionFromOptional(S.String),
+  sort: S.OptionFromOptional(S.String),
+  group: S.OptionFromOptional(S.String),
+  view: S.OptionFromOptional(S.String),
+})
+
+const BacklogQuery = S.Struct({ product: S.OptionFromOptional(S.String) })
+
+const FindingsQuery = S.Struct({
+  kind: S.OptionFromOptional(S.String),
+  source: S.OptionFromOptional(S.String),
+  status: S.OptionFromOptional(S.String),
+})
+const InboxQuery = S.Struct({ kind: S.OptionFromOptional(S.String) })
+const DecisionsQuery = S.Struct({ status: S.OptionFromOptional(S.String) })
+const RemindersQuery = S.Struct({ status: S.OptionFromOptional(S.String) })
+const QuestionsQuery = S.Struct({
+  status: S.OptionFromOptional(S.String),
+  learning: S.OptionFromOptional(S.String),
+})
+
+const IssueListRoute = r('IssueListRoute', {
+  q: S.Option(S.String),
+  product: S.Option(S.String),
+  landing: S.Option(S.String),
+  status: S.Option(S.String),
+  priority: S.Option(S.String),
+  claimant: S.Option(S.String),
+  sort: S.Option(S.String),
+  group: S.Option(S.String),
+  view: S.Option(S.String),
+})
 const IssueDetailRoute = r('IssueDetailRoute', { issueId: S.String })
 const FileIssueRoute = r('FileIssueRoute')
 const TriageInboxRoute = r('TriageInboxRoute')
+const BacklogRoute = r('BacklogRoute', { product: S.Option(S.String) })
+const AskFlowRoute = r('AskFlowRoute')
+const InboxRoute = r('InboxRoute', { kind: S.Option(S.String) })
+const RecordingRoute = r('RecordingRoute', { recording: S.String })
+const SegmentRoute = r('SegmentRoute', { segmentId: S.String })
+const AgentRoute = r('AgentRoute', { agentId: S.String })
+const SessionRoute = r('SessionRoute', { sessionId: S.String })
+const FindingRoute = r('FindingRoute', { findingId: S.String })
+const FindingsRoute = r('FindingsRoute', {
+  kind: S.Option(S.String),
+  source: S.Option(S.String),
+  status: S.Option(S.String),
+})
+const DecisionRoute = r('DecisionRoute', { decisionId: S.String })
+const DecisionsRoute = r('DecisionsRoute', { status: S.Option(S.String) })
+const QuestionRoute = r('QuestionRoute', { questionId: S.String })
+const QuestionsRoute = r('QuestionsRoute', {
+  status: S.Option(S.String),
+  learning: S.Option(S.String),
+})
+const ReminderRoute = r('ReminderRoute', { reminderId: S.String })
+const RemindersRoute = r('RemindersRoute', { status: S.Option(S.String) })
+const CommitRoute = r('CommitRoute', { sha: S.String })
+const BuildRoute = r('BuildRoute', { number: S.String })
+const ProductRoute = r('ProductRoute', { productId: S.String })
+const ProductsRoute = r('ProductsRoute')
+const FeatureRoute = r('FeatureRoute', { slug: S.String })
+const FeaturesRoute = r('FeaturesRoute')
 const NotFoundRoute = r('NotFoundRoute', { path: S.String })
 
-const issueListRouter = pipe(literal('issues'), Route.mapTo(IssueListRoute))
+const decodedSegment = (
+  label: string,
+  segment: string,
+): Effect.Effect<string, ParseError> =>
+  Effect.try({
+    try: () => decodeURIComponent(segment),
+    catch: () =>
+      new ParseError({
+        message: `Expected an encoded ${label}`,
+        expected: label,
+        actual: segment,
+      }),
+  })
+
+const agentIdSegment = param(
+  'agent id',
+  segment =>
+    Effect.map(decodedSegment('agent id', segment), agentId => ({ agentId })),
+  ({ agentId }: Readonly<{ agentId: string }>) => encodeURIComponent(agentId),
+)
+
+const ALL_DIGITS = /^\d+$/
+
+const issueListRouter = pipe(
+  literal('issues'),
+  query(IssueViewQuery),
+  Route.mapTo(IssueListRoute),
+)
+
+const LIST_SEPARATOR = ','
+const CLOSE_TO_LANDING_WORD = 'close'
+const WORKING_NOW_WORD = 'working'
+const UNCLAIMED_WORD = 'unclaimed'
+const LEARNING_WORD = 'yes'
+
+const productFilterOfWord = (maybeWord: Option.Option<string>): ProductFilter =>
+  Option.match(maybeWord, {
+    onNone: () => AllProducts.make({}),
+    onSome: productId => OneProduct.make({ productId }),
+  })
+
+const wordOfProductFilter = (filter: ProductFilter): Option.Option<string> =>
+  filter._tag === 'OneProduct' ? Option.some(filter.productId) : Option.none()
+
+const landingFilterOfWord = (maybeWord: Option.Option<string>): LandingFilter =>
+  M.value(Option.getOrElse(maybeWord, () => '')).pipe(
+    M.withReturnType<LandingFilter>(),
+    M.when(CLOSE_TO_LANDING_WORD, () => CloseToLanding.make({})),
+    M.when(WORKING_NOW_WORD, () => WorkingNow.make({})),
+    M.orElse(() => AllWork.make({})),
+  )
+
+const wordOfLandingFilter = (filter: LandingFilter): Option.Option<string> =>
+  M.value(filter).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tagsExhaustive({
+      AllWork: () => Option.none(),
+      CloseToLanding: () => Option.some(CLOSE_TO_LANDING_WORD),
+      WorkingNow: () => Option.some(WORKING_NOW_WORD),
+    }),
+  )
+
+const claimantFilterOfWord = (
+  maybeWord: Option.Option<string>,
+): ClaimantFilter =>
+  Option.match(maybeWord, {
+    onNone: () => AnyClaimant.make({}),
+    onSome: word =>
+      word === UNCLAIMED_WORD
+        ? Unclaimed.make({})
+        : OneClaimant.make({ claimantId: word }),
+  })
+
+const wordOfClaimantFilter = (filter: ClaimantFilter): Option.Option<string> =>
+  M.value(filter).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tagsExhaustive({
+      AnyClaimant: () => Option.none(),
+      Unclaimed: () => Option.some(UNCLAIMED_WORD),
+      OneClaimant: ({ claimantId }) => Option.some(claimantId),
+    }),
+  )
+
+const namedIn = <Literal extends string>(
+  literals: ReadonlyArray<Literal>,
+  maybeWords: Option.Option<string>,
+): ReadonlyArray<Literal> =>
+  Array.filter(literals, literal =>
+    Option.exists(maybeWords, words =>
+      Array.contains(words.split(LIST_SEPARATOR), literal),
+    ),
+  )
+
+const inOrderTyped = <Literal extends string>(
+  literals: ReadonlyArray<Literal>,
+  maybeWords: Option.Option<string>,
+): ReadonlyArray<Literal> => {
+  const named = namedIn(literals, maybeWords)
+  return Option.match(maybeWords, {
+    onNone: () => [],
+    onSome: words =>
+      Array.flatMap(words.split(LIST_SEPARATOR), word =>
+        Array.filter(named, literal => literal === word),
+      ),
+  })
+}
+
+const wordsOf = (words: ReadonlyArray<string>): Option.Option<string> =>
+  Option.liftPredicate(Array.join(words, LIST_SEPARATOR), String.isNonEmpty)
+
+const literalOfWord = <Literal extends string>(
+  literals: ReadonlyArray<Literal>,
+  fallback: Literal,
+  maybeWord: Option.Option<string>,
+): Literal =>
+  Option.getOrElse(
+    Option.flatMap(maybeWord, word =>
+      Array.findFirst(literals, literal => literal.toLowerCase() === word),
+    ),
+    () => fallback,
+  )
+
+const wordOfLiteral = <Literal extends string>(
+  literal: Literal,
+  fallback: Literal,
+): Option.Option<string> =>
+  literal === fallback ? Option.none() : Option.some(literal.toLowerCase())
+
+const viewOfQuery = (fields: typeof IssueViewQuery.Type): IssueView => ({
+  claimant: claimantFilterOfWord(fields.claimant),
+  grouping: literalOfWord(IssueGrouping.literals, 'None', fields.group),
+  landing: landingFilterOfWord(fields.landing),
+  layout: literalOfWord(IssueLayout.literals, 'List', fields.view),
+  priorities: inOrderTyped(IssuePriority.literals, fields.priority),
+  product: productFilterOfWord(fields.product),
+  query: Option.getOrElse(fields.q, () => ''),
+  sort: literalOfWord(IssueSort.literals, 'Created', fields.sort),
+  statuses: inOrderTyped(IssueStatus.literals, fields.status),
+})
+
+const queryOfView = (view: IssueView): typeof IssueViewQuery.Type => ({
+  q: Option.liftPredicate(view.query, String.isNonEmpty),
+  product: wordOfProductFilter(view.product),
+  landing: wordOfLandingFilter(view.landing),
+  status: wordsOf(view.statuses),
+  priority: wordsOf(view.priorities),
+  claimant: wordOfClaimantFilter(view.claimant),
+  sort: wordOfLiteral(view.sort, 'Created'),
+  group: wordOfLiteral(view.grouping, 'None'),
+  view: wordOfLiteral(view.layout, 'List'),
+})
+
 const issueDetailRouter = pipe(
   literal('issues'),
   slash(string('issueId')),
@@ -34,11 +321,128 @@ const triageInboxRouter = pipe(
   Route.mapTo(TriageInboxRoute),
 )
 
+const askFlowRouter = pipe(literal('asks'), Route.mapTo(AskFlowRoute))
+const inboxRouter = pipe(
+  literal('inbox'),
+  query(InboxQuery),
+  Route.mapTo(InboxRoute),
+)
+const backlogRouter = pipe(
+  literal('issues'),
+  slash(literal('backlog')),
+  query(BacklogQuery),
+  Route.mapTo(BacklogRoute),
+)
+
+const recordingRouter = pipe(
+  literal('recordings'),
+  slash(string('recording')),
+  Route.mapTo(RecordingRoute),
+)
+const segmentRouter = pipe(
+  literal('segments'),
+  slash(string('segmentId')),
+  Route.mapTo(SegmentRoute),
+)
+const agentRouter = pipe(
+  literal('agents'),
+  slash(agentIdSegment),
+  Route.mapTo(AgentRoute),
+)
+const sessionRouter = pipe(
+  literal('sessions'),
+  slash(string('sessionId')),
+  Route.mapTo(SessionRoute),
+)
+const findingRouter = pipe(
+  literal('findings'),
+  slash(string('findingId')),
+  Route.mapTo(FindingRoute),
+)
+const findingsRouter = pipe(
+  literal('findings'),
+  query(FindingsQuery),
+  Route.mapTo(FindingsRoute),
+)
+const decisionRouter = pipe(
+  literal('decisions'),
+  slash(string('decisionId')),
+  Route.mapTo(DecisionRoute),
+)
+const decisionsRouter = pipe(
+  literal('decisions'),
+  query(DecisionsQuery),
+  Route.mapTo(DecisionsRoute),
+)
+const questionRouter = pipe(
+  literal('questions'),
+  slash(string('questionId')),
+  Route.mapTo(QuestionRoute),
+)
+const questionsRouter = pipe(
+  literal('questions'),
+  query(QuestionsQuery),
+  Route.mapTo(QuestionsRoute),
+)
+const reminderRouter = pipe(
+  literal('reminders'),
+  slash(string('reminderId')),
+  Route.mapTo(ReminderRoute),
+)
+const remindersRouter = pipe(
+  literal('reminders'),
+  query(RemindersQuery),
+  Route.mapTo(RemindersRoute),
+)
+const commitRouter = pipe(
+  literal('commits'),
+  slash(string('sha')),
+  Route.mapTo(CommitRoute),
+)
+const buildRouter = pipe(
+  literal('builds'),
+  slash(string('number')),
+  Route.mapTo(BuildRoute),
+)
+const productRouter = pipe(
+  literal('products'),
+  slash(string('productId')),
+  Route.mapTo(ProductRoute),
+)
+const productsRouter = pipe(literal('products'), Route.mapTo(ProductsRoute))
+const featureRouter = pipe(
+  literal('features'),
+  slash(string('slug')),
+  Route.mapTo(FeatureRoute),
+)
+const featuresRouter = pipe(literal('features'), Route.mapTo(FeaturesRoute))
+
 const routeParser = Route.oneOf(
   fileIssueRouter,
   triageInboxRouter,
+  backlogRouter,
+  askFlowRouter,
+  inboxRouter,
   issueDetailRouter,
   issueListRouter,
+  recordingRouter,
+  segmentRouter,
+  agentRouter,
+  sessionRouter,
+  findingRouter,
+  findingsRouter,
+  decisionRouter,
+  decisionsRouter,
+  questionRouter,
+  questionsRouter,
+  reminderRouter,
+  remindersRouter,
+  featureRouter,
+  featuresRouter,
+  commitRouter,
+  buildRouter,
+  productRouter,
+  productsRouter,
 )
 const urlToRoute = Route.parseUrlWithFallback(routeParser, NotFoundRoute)
 
@@ -47,10 +451,78 @@ export const urlToNavigation = (url: Url): Navigation =>
   M.value(urlToRoute(url)).pipe(
     M.withReturnType<Navigation>(),
     M.tagsExhaustive({
-      IssueListRoute: () => IssueList.make({}),
+      IssueListRoute: route => IssueList.make({ view: viewOfQuery(route) }),
       IssueDetailRoute: ({ issueId }) => IssueDetail.make({ issueId }),
       FileIssueRoute: () => FileIssue.make({}),
       TriageInboxRoute: () => TriageInbox.make({}),
+      BacklogRoute: ({ product }) =>
+        Backlog.make({ product: productFilterOfWord(product) }),
+      AskFlowRoute: () => AskFlow.make({}),
+      InboxRoute: ({ kind }) =>
+        Inbox.make({ kind: literalOfWord(InboxFilter.literals, 'All', kind) }),
+      RecordingRoute: ({ recording }) =>
+        EntityPage.make({
+          entity: ALL_DIGITS.test(recording)
+            ? RecordingNumberEntity.make({ recordingNumber: Number(recording) })
+            : RecordingEntity.make({ recordingId: recording.toLowerCase() }),
+        }),
+      SegmentRoute: ({ segmentId }) =>
+        EntityPage.make({
+          entity: SegmentEntity.make({ segmentId: segmentId.toLowerCase() }),
+        }),
+      AgentRoute: ({ agentId }) =>
+        EntityPage.make({ entity: AgentEntity.make({ agentId }) }),
+      SessionRoute: ({ sessionId }) =>
+        EntityPage.make({ entity: SessionEntity.make({ sessionId }) }),
+      FindingRoute: ({ findingId }) =>
+        EntityPage.make({ entity: FindingEntity.make({ findingId }) }),
+      FindingsRoute: ({ kind, source, status }) =>
+        Findings.make({
+          filter: FindingFilter.make({
+            maybeKind: kind,
+            maybeSource: source,
+            maybeStatus: status,
+          }),
+        }),
+      DecisionRoute: ({ decisionId }) =>
+        EntityPage.make({
+          entity: DecisionEntity.make({ decisionId: decisionId.toLowerCase() }),
+        }),
+      DecisionsRoute: ({ status }) =>
+        Decisions.make({
+          filter: DecisionFilter.make({ maybeStatus: status }),
+        }),
+      QuestionRoute: ({ questionId }) =>
+        EntityPage.make({
+          entity: QuestionEntity.make({ questionId: questionId.toLowerCase() }),
+        }),
+      QuestionsRoute: ({ status, learning }) =>
+        Questions.make({
+          filter: QuestionFilter.make({
+            isLearningOnly: Option.contains(learning, LEARNING_WORD),
+            maybeStatus: status,
+          }),
+        }),
+      ReminderRoute: ({ reminderId }) =>
+        EntityPage.make({
+          entity: ReminderEntity.make({ reminderId: reminderId.toLowerCase() }),
+        }),
+      RemindersRoute: ({ status }) =>
+        Reminders.make({
+          filter: ReminderFilter.make({ maybeStatus: status }),
+        }),
+      CommitRoute: ({ sha }) =>
+        EntityPage.make({
+          entity: CommitEntity.make({ sha: sha.toLowerCase() }),
+        }),
+      BuildRoute: ({ number }) =>
+        EntityPage.make({ entity: BuildEntity.make({ number }) }),
+      ProductRoute: ({ productId }) =>
+        EntityPage.make({ entity: ProductEntity.make({ productId }) }),
+      ProductsRoute: () => Products.make({}),
+      FeatureRoute: ({ slug }) =>
+        EntityPage.make({ entity: FeatureEntity.make({ slug }) }),
+      FeaturesRoute: () => Features.make({}),
       NotFoundRoute: () => IssueList.make({}),
     }),
   )
@@ -66,14 +538,70 @@ export const pathToNavigation = (pathOrCarrier: string): Navigation => {
     : IssueList.make({})
 }
 
+const entityPagePath = (entity: PageEntity): string =>
+  M.value(entity).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      RecordingEntity: ({ recordingId }) =>
+        recordingRouter({ recording: recordingId }),
+      RecordingNumberEntity: ({ recordingNumber }) =>
+        recordingRouter({ recording: recordingNumber.toString() }),
+      SegmentEntity: ({ segmentId }) => segmentRouter({ segmentId }),
+      AgentEntity: ({ agentId }) => agentRouter({ agentId }),
+      SessionEntity: ({ sessionId }) => sessionRouter({ sessionId }),
+      FindingEntity: ({ findingId }) => findingRouter({ findingId }),
+      FeatureEntity: ({ slug }) => featureRouter({ slug }),
+      CommitEntity: ({ sha }) => commitRouter({ sha }),
+      BuildEntity: ({ number }) => buildRouter({ number }),
+      ProductEntity: ({ productId }) => productRouter({ productId }),
+      DecisionEntity: ({ decisionId }) => decisionRouter({ decisionId }),
+      QuestionEntity: ({ questionId }) => questionRouter({ questionId }),
+      ReminderEntity: ({ reminderId }) => reminderRouter({ reminderId }),
+    }),
+  )
+
+const LIST_PATH = '/issues'
+
+/** The list's URL search string of a view: `?landing=close`, or `` for all. */
+export const searchOfView = (view: IssueView): string =>
+  issueListRouter(queryOfView(view)).slice(LIST_PATH.length)
+
+/** The list's link with a search string: `/issues?landing=close`. */
+export const listPathOfSearch = (search: string): string =>
+  `${LIST_PATH}${search}`
+
 /** Prints Issue Tracker navigation state as one canonical portable path. */
 export const navigationToPath = (navigation: Navigation): string =>
   M.value(navigation).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      IssueList: () => issueListRouter(),
+      IssueList: ({ view }) => issueListRouter(queryOfView(view)),
       IssueDetail: ({ issueId }) => issueDetailRouter({ issueId }),
       FileIssue: () => fileIssueRouter(),
       TriageInbox: () => triageInboxRouter(),
+      Backlog: ({ product }) =>
+        backlogRouter({ product: wordOfProductFilter(product) }),
+      AskFlow: () => askFlowRouter(),
+      Inbox: ({ kind }) => inboxRouter({ kind: wordOfLiteral(kind, 'All') }),
+      EntityPage: ({ entity }) => entityPagePath(entity),
+      Findings: ({ filter }) =>
+        findingsRouter({
+          kind: filter.maybeKind,
+          source: filter.maybeSource,
+          status: filter.maybeStatus,
+        }),
+      Decisions: ({ filter }) =>
+        decisionsRouter({ status: filter.maybeStatus }),
+      Questions: ({ filter }) =>
+        questionsRouter({
+          status: filter.maybeStatus,
+          learning: filter.isLearningOnly
+            ? Option.some(LEARNING_WORD)
+            : Option.none(),
+        }),
+      Reminders: ({ filter }) =>
+        remindersRouter({ status: filter.maybeStatus }),
+      Features: () => featuresRouter(),
+      Products: () => productsRouter(),
     }),
   )

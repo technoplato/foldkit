@@ -24,6 +24,17 @@ export {
   useScreen,
 } from './hooks/index.js'
 export type { ProgramHooks } from './hooks/index.js'
-export { paintReact, paintTree } from './paintReact/index.js'
-export type { PaintClassNames, PaintHandlers } from './paintReact/index.js'
+export {
+  EmbedPaintersProvider,
+  ScreenStyles,
+  moveKeyboardOffControl,
+  paintReact,
+  paintTree,
+} from './paintReact/index.js'
+export type {
+  EmbedPainters,
+  EmbedProps,
+  PaintClassNames,
+  PaintHandlers,
+} from './paintReact/index.js'
 export { ProgramKeyBindings } from './keyBindings/index.js'

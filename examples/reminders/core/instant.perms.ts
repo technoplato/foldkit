@@ -1,1 +1,1 @@
-export { default } from './src/instantPerms.ts'
+export { rules as default } from './src/instantPerms.ts'

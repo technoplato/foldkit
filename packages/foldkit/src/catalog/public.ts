@@ -18,6 +18,7 @@ export {
   entriesFor,
   parseChoiceTag,
   titleOf,
+  within,
 } from './index.js'
 
 export type {
@@ -44,4 +45,7 @@ export type {
   LiftedActions,
   LiftedRow,
   TagOf,
+  WithinAction,
+  WithinActions,
+  WithinConfig,
 } from './index.js'

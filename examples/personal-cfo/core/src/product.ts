@@ -116,7 +116,7 @@ const moreView = (model: Model): UiNode =>
 const signInView = (): UiNode =>
   Column(
     {},
-    Text('CFO Silvia clone — read-only net-worth OS'),
+    Text('Personal CFO: a read-only net-worth OS'),
     Text('Sign in with email. No password. No money movement.'),
   )
 

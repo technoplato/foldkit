@@ -41,6 +41,31 @@ task depends on runtime identity, isolation, replay ownership, or shutdown.
    carrier, lifecycle, and rendering seam. Capture evidence separately for each
    claimed Client.
 
+## Background work and following from a CLI
+
+Decide the layer first; `AGENTS.md` ("Which layer?") has the checklist and a
+worked table.
+
+- Background work, and anything that stays in sync, runs in the Background
+  Processor: `listenBackgroundProcessor` (first spelled `listenCliDaemon`)
+  with `programCliSurface`. A command
+  is a slim view from `foldkit/cli/view` that asks it (`runCliView`), follows
+  it (`writeCliFollow`), or stops it. Do not start another kind of background
+  process, and do not put Effect, the sync engine, or the Program in the slim
+  view.
+- A CLI command is one-shot and scriptable. Nothing waits on a keypress and
+  nothing takes over the terminal. Interactive work belongs to the TUI Client
+  (`runCliTuiView`).
+- To let a command hear something as it changes, give the Background
+  Processor a topic.
+  Every Program has `screen` from `programFollowings(bound)`. Add your own
+  beside it with `Interaction.follow(bound, read, isSame)`, where `read` is a
+  pure reading the domain core exports, and serve them with `followTopicOf`.
+  `counter follow` and `books follow words --json` are the same code path.
+- Keep the fact in a core. `examples/books/cli` prints the words being read
+  and owns no rule about them: `spokenWordsOf` in `examples/books/core` and
+  `transcriptExcerptOf` in `foldkit/renderers` do.
+
 ## Evidence discipline
 
 - Do not reuse one renderer's screenshot as proof of another.

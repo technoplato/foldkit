@@ -3,8 +3,10 @@ import { Catalog } from 'foldkit'
 import {
   type ButtonNode,
   Column,
+  List,
   Row,
   Text,
+  TextInput,
   actionButtons,
 } from 'foldkit/renderers'
 import { type ReactElement, isValidElement } from 'react'
@@ -149,5 +151,71 @@ describe('paintTree', () => {
     expect(reset['disabled']).toBe(true)
     expect(reset['accessibilityHint']).toBe('count is already 0')
     expect(reset['accessibilityState']).toEqual({ disabled: true })
+  })
+})
+
+describe('row checks and fields that press', () => {
+  it('paints a row check as a checkbox that reports its own press', () => {
+    const pressed: Array<ButtonNode> = []
+    const painted = paintTree(
+      List({
+        label: 'Groceries',
+        items: [
+          {
+            key: 'r1',
+            title: 'Oat milk',
+            check: {
+              isChecked: true,
+              label: 'Mark Oat milk not done',
+              action: 'Reopen:r1',
+            },
+          },
+        ],
+      }),
+      {
+        onPress: button => {
+          pressed.push(button)
+        },
+      },
+    )
+    const check = Option.getOrThrow(
+      Array.findFirst(
+        [painted, ...descendants(painted)],
+        element => 'check' in propsOf(element),
+      ),
+    )
+    const render = check.type
+    if (typeof render !== 'function') {
+      throw new Error('the check paints through its own component')
+    }
+    const box: unknown = Reflect.apply(render, undefined, [propsOf(check)])
+    expect(isValidElement(box)).toBe(true)
+    if (isValidElement(box)) {
+      expect(propsOf(box)['accessibilityRole']).toBe('checkbox')
+      expect(propsOf(box)['accessibilityState']).toEqual({
+        checked: true,
+        disabled: false,
+      })
+      pressAll([box])
+    }
+    expect(Array.map(pressed, button => button.action)).toEqual(['Reopen:r1'])
+  })
+
+  it('paints a field that presses as a native text field, and a legacy one as text', () => {
+    const field = paintTree(
+      TextInput({
+        value: '',
+        placeholder: 'New reminder',
+        action: 'AddReminder',
+      }),
+      { onPress: () => {} },
+    )
+    expect(propsOf(field)['input']).toEqual(
+      expect.objectContaining({ action: 'AddReminder' }),
+    )
+    const legacy = paintTree(TextInput({ value: 'hello' }), {
+      onPress: () => {},
+    })
+    expect(legacy.type).toBe('Text')
   })
 })

@@ -70,6 +70,7 @@ import { makePreserveScheduler } from './preserveScheduler.js'
 import type { TransitionSource } from './programJournal.js'
 import {
   type ProgramRuntimeJournalConfig,
+  type ProgramRuntimeObserver,
   type ProgramRuntimeScheduling,
   type ProgramStart,
   fromModel,
@@ -1407,6 +1408,8 @@ export type FoldkitApplicationConfig<
   preserveScroll?: boolean
   /** Receives the initial Model and each changed Model for host-level synchronization. */
   onModel?: (model: Model) => void
+  /** Observers connected to the Program runtime before it boots, such as telemetry. */
+  observers?: ReadonlyArray<ProgramRuntimeObserver<Model, Message>>
 }>
 
 type ProgramRendererConfig<
@@ -1536,6 +1539,9 @@ const makeProgramRenderer = <
           scheduling: browserProgramRuntimeScheduling,
           ...(programStart === undefined ? {} : { start: programStart }),
           ...(config.journal === undefined ? {} : { journal: config.journal }),
+          ...(config.observers === undefined
+            ? {}
+            : { observers: config.observers }),
         }).pipe(Effect.orDie)
         yield* Option.match(maybePortHandleBridge, {
           onNone: () => Effect.void,

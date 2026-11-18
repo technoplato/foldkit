@@ -1,5 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
-import { Interaction, Navigation } from 'foldkit'
+import { Environment, Interaction, Navigation } from 'foldkit'
 import type { ButtonNode } from 'foldkit/renderers'
 import {
   type ReactElement,
@@ -111,11 +111,13 @@ export const HostPagesProvider = HostPagesContext.Provider
 const followLinkOf =
   (bound: AnyBound, hostPages: Navigation.HostPages) =>
   (href: string): boolean =>
-    typeof window !== 'undefined' &&
-    Navigation.followLink(window, bound, href, hostPages, 'Push')
+    Option.exists(Environment.maybePage(), page =>
+      Navigation.followLink(page.window, bound, href, hostPages, 'Push'),
+    )
 
 type LayerShape = Readonly<{
   key: string
+  identity: string
   maybeStyle: Option.Option<Navigation.PresentationStyle>
   kind: Navigation.EntryView['_tag']
 }>
@@ -128,6 +130,7 @@ type FrameShape = Readonly<{
 
 const shapeOf = (layer: Navigation.FrameLayer): LayerShape => ({
   key: layer.key,
+  identity: layer.identity,
   maybeStyle: layer.maybeStyle,
   kind: layer.view._tag,
 })
@@ -186,6 +189,61 @@ const enabledButtonsOf = (
     root.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
   )
 
+const openingButtonOf = (
+  buttons: ReadonlyArray<HTMLButtonElement>,
+): Option.Option<HTMLButtonElement> =>
+  Option.orElse(
+    Array.findFirst(
+      buttons,
+      button => button.closest('[data-current]') !== null,
+    ),
+    () => Array.head(buttons),
+  )
+
+const keyboardAtHandQuery = '(hover: hover) and (pointer: fine)'
+
+/**
+ * True on a page whose pointer hovers and is fine, a mouse or trackpad,
+ * which comes with a keyboard: a phone or tablet would raise its
+ * on-screen keyboard over the list if a field took the focus there.
+ */
+const hasKeyboardAtHand = (): boolean =>
+  Option.exists(
+    Environment.maybePage(),
+    page =>
+      typeof page.window.matchMedia === 'function' &&
+      page.window.matchMedia(keyboardAtHandQuery).matches,
+  )
+
+/**
+ * What takes the keyboard when a presented screen opens: a field that asks
+ * for it, such as the one that narrows a long list, where there is a
+ * keyboard to type on, else the current row's button, else the first.
+ */
+const openingFocusOf = (root: HTMLElement): Option.Option<HTMLElement> =>
+  Option.orElse(
+    Option.filter(
+      Option.fromNullishOr(
+        root.querySelector<HTMLElement>('[data-takes-focus]'),
+      ),
+      () => hasKeyboardAtHand(),
+    ),
+    () => openingButtonOf(enabledButtonsOf(root)),
+  )
+
+const caretKeys: ReadonlySet<string> = new Set(['ArrowLeft', 'ArrowRight'])
+
+/**
+ * True for the left and right arrows inside a text field, where they move
+ * the caret and must not move the keyboard to another button.
+ */
+const isCaretKeyInField = (
+  event: Readonly<{ key: string; target: EventTarget }>,
+): boolean =>
+  caretKeys.has(event.key) &&
+  (event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement)
+
 const steppedIndex = (
   maybeCurrent: Option.Option<number>,
   move: 'Next' | 'Previous',
@@ -199,9 +257,12 @@ const steppedIndex = (
 
 /**
  * A screen presented over the page, such as "Delete Counter 3?". It takes
- * the keyboard when it opens, on its first button, and keeps it: Tab and
- * the arrows move between its buttons as `Interaction.presentedFocusMoveOf`
- * decides, Enter presses, and Escape goes back through the Program.
+ * the keyboard when it opens, on its current row's button or else its
+ * first, without scrolling, and keeps it: Tab and the arrows move between
+ * its buttons as `Interaction.presentedFocusMoveOf` decides, Enter
+ * presses, and Escape goes back through the Program. A
+ * click on the dimmed backdrop around it goes back one entry too, so the
+ * sheet or question closes as if dismissed.
  */
 const PresentedScreen = ({
   layer,
@@ -210,12 +271,14 @@ const PresentedScreen = ({
   layer: LayerShape
   classNames: PaintClassNames
 }>): ReactElement => {
+  const bound = useBound()
   const ref = useRef<HTMLDivElement>(null)
+  const maybeSide = Navigation.sideTagOf(layer)
   useEffect(() => {
     const root = ref.current
     if (root !== null) {
-      Option.map(Array.head(enabledButtonsOf(root)), button => {
-        button.focus()
+      Option.map(openingFocusOf(root), control => {
+        control.focus({ preventScroll: true })
       })
     }
   }, [])
@@ -223,10 +286,16 @@ const PresentedScreen = ({
     <div
       ref={ref}
       role="dialog"
-      aria-modal="true"
+      aria-modal={Option.isNone(maybeSide)}
       className="fk-overlay"
       data-style={Navigation.styleTagOf(layer)}
+      data-side={Option.getOrUndefined(maybeSide)}
       data-key={layer.key}
+      onClick={event => {
+        if (event.target === event.currentTarget) {
+          Navigation.backOneEntry(bound)
+        }
+      }}
       onKeyDown={event => {
         const root = ref.current
         const maybeMove = Interaction.presentedFocusMoveOf(
@@ -236,7 +305,11 @@ const PresentedScreen = ({
             isShift: event.shiftKey,
           }),
         )
-        if (root !== null && Option.isSome(maybeMove)) {
+        if (
+          root !== null &&
+          Option.isSome(maybeMove) &&
+          !isCaretKeyInField(event)
+        ) {
           const buttons = enabledButtonsOf(root)
           Option.map(
             Array.get(
@@ -296,8 +369,9 @@ export const useDocumentTitle = (): void => {
   const bound = useBound()
   const title = useBoundRead(bound, bound.windowTitle)
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.title = title
+    const maybeCurrentPage = Environment.maybePage()
+    if (Option.isSome(maybeCurrentPage)) {
+      maybeCurrentPage.value.document.title = title
     }
   }, [title])
 }
@@ -335,13 +409,13 @@ export const NavigationFrame = ({
     onSome: frame => (
       <div className="fk-frame" data-uri={frame.uri}>
         <ScreenView
-          key={frame.base.key}
+          key={frame.base.identity}
           entryKey={frame.base.key}
           classNames={resolvedClassNames}
         />
         {Array.map(frame.overlays, layer => (
           <OverlayView
-            key={layer.key}
+            key={layer.identity}
             layer={layer}
             classNames={resolvedClassNames}
           />
@@ -383,14 +457,16 @@ export const useBrowserHistory = (
   const onDiagnostic = useRef(options.onDiagnostic)
   onDiagnostic.current = options.onDiagnostic
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    const maybeCurrentPage = Environment.maybePage()
+    if (Option.isNone(maybeCurrentPage)) {
       return undefined
     }
+    const pageWindow = maybeCurrentPage.value.window
     return Navigation.runCarrier(
       bound,
-      Navigation.browserHistoryDriver(window),
+      Navigation.browserHistoryDriver(pageWindow),
       {
-        launchUri: Option.some(Navigation.windowUri(window)),
+        launchUri: Option.some(Navigation.windowUri(pageWindow)),
         ...(isCarried === undefined ? {} : { isCarried }),
         ...(expectationTimeoutMs === undefined ? {} : { expectationTimeoutMs }),
         ...(reportTimeoutMs === undefined ? {} : { reportTimeoutMs }),

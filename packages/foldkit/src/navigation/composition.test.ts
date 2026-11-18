@@ -167,7 +167,14 @@ describe('a composed App', () => {
             {},
             Row(
               {},
-              Button({ label: 'Back', action: 'GoBack', keys: ['Escape'] }),
+              Button({
+                label: 'Back',
+                action: 'GoBack',
+                keys: ['Escape'],
+                description: 'Returns to the screen beneath this one',
+                variant: 'Ghost',
+                icon: 'Back',
+              }),
             ),
             notFoundScreen(Declaration.NotFound({ segments: ['nope'] })),
           ),
@@ -194,6 +201,8 @@ describe('a composed App', () => {
                 label: 'Session settings',
                 action: 'OpenSessionSettings',
                 keys: ['s'],
+                description: 'Shows how this session shares navigation',
+                variant: 'Ghost',
               }),
             ),
           ),
@@ -205,11 +214,18 @@ describe('a composed App', () => {
     expect(tagAt('/counter/elsewhere')).toEqual(Option.none())
   })
 
-  it('ignores a launch while mirrored and adopts it once navigation is local', () => {
+  it('joins the shared stack on a launch at the home while mirrored, and follows a link', () => {
     const bound = bindApp()
-    bound.openUri('/counter/session', Launch())
-    expect(uriOf(bound)).toBe('/counter')
+    bound.press('OpenSessionSettings')
+    bound.openUri('/counter', Launch())
+    expect(uriOf(bound)).toBe('/counter/session')
     bound.press('KeepNavigationLocal')
+    bound.openUri('/counter', Launch())
+    expect(uriOf(bound)).toBe('/counter')
+  })
+
+  it('follows a launch link to a page while mirrored, so a shared link opens', () => {
+    const bound = bindApp()
     bound.openUri('/counter/session', Launch())
     expect(uriOf(bound)).toBe('/counter/session')
   })

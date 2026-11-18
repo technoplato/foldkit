@@ -233,6 +233,51 @@ describe('Runtime.start synchronization modes', () => {
     )
   })
 
+  it('keeps a terminal Processor on its own screen while the session mirrors', async () => {
+    const TerminalAwareApp = ActionMenu.compose({
+      of: make({
+        ...CounterProgram,
+        id: 'sync-modes-terminal-counter',
+        synchronization: {
+          messageCategory: () => 'Domain',
+          projectDomain: model => model,
+          keepsOwnNavigation: processorId => processorId.startsWith('cli-'),
+        },
+      }),
+    })
+    const TerminalAwareSynced = compose.sync({
+      of: TerminalAwareApp,
+      snapshot: AppSnapshot,
+      message: MessageWire,
+    })
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          const browser = yield* start({
+            program: TerminalAwareSynced,
+            sync: Memory({ processor: 'react-ad55df2e', store }),
+          })
+          const terminal = yield* start({
+            program: TerminalAwareSynced,
+            sync: Memory({ processor: 'cli-4f2a9c1e', store }),
+          })
+          yield* browser.run(ActionMenu.OpenedActionMenu())
+          expect(isMenuOpen(browser.readModel())).toBe(true)
+          expect(isMenuOpen(terminal.readModel())).toBe(false)
+          yield* terminal.run(ActionMenu.OpenedActionMenu())
+          yield* terminal.run(ActionMenu.DismissedActionMenu())
+          expect(isMenuOpen(terminal.readModel())).toBe(false)
+          expect(isMenuOpen(browser.readModel())).toBe(true)
+          yield* browser.run(Increment())
+          expect(readyApp(terminal.readModel()).count).toBe(1)
+          yield* terminal.run(Increment())
+          expect(readyApp(browser.readModel()).count).toBe(2)
+        }),
+      ),
+    )
+  })
+
   it('refuses SharedDomain for a Program without a Message classifier', async () => {
     const Plain = compose.sync({
       of: CounterProgram,

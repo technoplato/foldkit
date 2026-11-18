@@ -378,7 +378,18 @@ export const sync = <Child extends SyncChild>(config: {
 
     if (readTag(message) === 'LogRefolded') {
       const refolded = message as LogRefolded<ChildModel>
-      return [toReady(refolded.model), []]
+      const keepOnRefold = child.synchronization?.keepOnRefold
+      return [
+        toReady(
+          readTag(model) === 'Ready' && keepOnRefold !== undefined
+            ? (keepOnRefold(
+                stripReady(model) as ChildModel,
+                refolded.model,
+              ) as ChildModel)
+            : refolded.model,
+        ),
+        [],
+      ]
     }
 
     if (readTag(message) === 'SyncFailed') {
@@ -559,8 +570,6 @@ export const sync = <Child extends SyncChild>(config: {
           withChild: (_model, childModel) => toReady(childModel),
         })
 
-  const startingChild = child.init()[0] as ChildModel
-
   const program = make({
     id: config.id ?? `sync:${child.id}`,
     version: config.version ?? child.version,
@@ -578,8 +587,8 @@ export const sync = <Child extends SyncChild>(config: {
     ...(navigation === undefined ? {} : { navigation }),
     ...liftEffects(child, (model: Model) =>
       model._tag === 'Ready'
-        ? (stripReady(model) as ChildModel)
-        : startingChild,
+        ? Option.some(stripReady(model) as ChildModel)
+        : Option.none(),
     ),
   })
 

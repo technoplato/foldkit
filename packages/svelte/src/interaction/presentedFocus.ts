@@ -8,6 +8,17 @@ const enabledButtonsOf = (
     root.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
   )
 
+const openingButtonOf = (
+  buttons: ReadonlyArray<HTMLButtonElement>,
+): Option.Option<HTMLButtonElement> =>
+  Option.orElse(
+    Array.findFirst(
+      buttons,
+      button => button.closest('[data-current]') !== null,
+    ),
+    () => Array.head(buttons),
+  )
+
 const steppedIndex = (
   maybeCurrent: Option.Option<number>,
   move: 'Next' | 'Previous',
@@ -21,8 +32,9 @@ const steppedIndex = (
 
 /**
  * A Svelte action for a screen presented over the page, such as "Delete
- * Counter 3?". It takes the keyboard when the screen opens, on its first
- * button, and keeps it: Tab and the arrows move between its buttons as
+ * Counter 3?". It takes the keyboard when the screen opens, on its
+ * current row's button or else its first, without scrolling, and keeps
+ * it: Tab and the arrows move between its buttons as
  * `Interaction.presentedFocusMoveOf` decides, Enter presses, and Escape
  * goes back through the Program.
  *
@@ -34,8 +46,8 @@ const steppedIndex = (
 export const presentedFocus = (
   root: HTMLElement,
 ): Readonly<{ destroy: () => void }> => {
-  Option.map(Array.head(enabledButtonsOf(root)), button => {
-    button.focus()
+  Option.map(openingButtonOf(enabledButtonsOf(root)), button => {
+    button.focus({ preventScroll: true })
   })
   const onKeyDown = (event: KeyboardEvent): void => {
     Option.map(

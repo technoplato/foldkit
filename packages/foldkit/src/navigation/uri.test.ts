@@ -26,6 +26,7 @@ import {
   stackWithEntries,
 } from './structure.js'
 import {
+  allowedStackOf,
   canonicalUri,
   defaultUri,
   ownsUri,
@@ -350,5 +351,24 @@ describe('screens', () => {
       // @ts-expect-error the route parses no `q`, which Search needs
       Declaration.pushScreen(Search, Route.literal('search'))
     expect(dropsQuery).toBeInstanceOf(Function)
+  })
+})
+
+describe('allowedStackOf', () => {
+  it('keeps a stack its routes allow as it is', () => {
+    const stack = stackWithEntries<Destination>(Counter(), [
+      sessionEntry,
+      menuEntry('re'),
+    ])
+    expect(allowedStackOf(navigation, stack)).toBe(stack)
+  })
+
+  it('drops the first entry its route refuses, and everything above it', () => {
+    const stack = stackWithEntries<Destination>(Counter(), [
+      sessionEntry,
+      sessionEntry,
+      menuEntry('re'),
+    ])
+    expect(entriesOf(allowedStackOf(navigation, stack))).toEqual([sessionEntry])
   })
 })

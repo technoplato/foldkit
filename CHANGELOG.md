@@ -4,6 +4,3437 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:31:16 a.m. EST — `edad8c4f1740` feat(foldkit): on a narrow window a toolbar gives its start the room (Scribe #2494)
+
+- **Implementation commit:** `edad8c4f1740e6fa05f49255882b7a80e7bcead8`
+- **Change:** on a narrow window a toolbar gives its start the room (Scribe #2494)
+- **Details:**
+  - At 560 px and narrower a toolbar's start takes the width that is left and its centre and end sit to the side, so a phone's player bar shows what is playing in full with the controls beside it. Wider, the centre stays in the middle. Measured in the real app: at 1440 px the bar spans 120 to 1320 with the transport's centre at 720; at 390 px the start has the room. foldkit renderers, interaction and
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/layoutNodes.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:31:16 a.m. EST — `2a717a932358` feat(books): the player's controls are a toolbar across the reader (Scribe #2494)
+
+- **Implementation commit:** `2a717a932358a1a623f1c575a2fe1d1750782f11`
+- **Change:** the player's controls are a toolbar across the reader (Scribe #2494)
+- **Details:**
+  - On the player page the collapsed controls are Foldkit's Toolbar: what is playing with its progress at the start, back 30 seconds and Play or Pause in the centre, and the control that opens the full player at the end. Under a wide reader the bar is as wide as the reading column and Play sits in the middle, under the words, instead of at the end of a narrow strip. The same Actions are offered, and a
+- **Files:**
+  - `examples/books/core/src/playerControls.test.ts` — changed by this commit
+  - `examples/books/core/src/screen.ts` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:31:16 a.m. EST — `7bb76c8306f2` fix(foldkit): the dock's width rule is whole again, and a test keeps every value well formed (Scribe #2494)
+
+- **Implementation commit:** `7bb76c8306f22a3865250310519729b1ac843293`
+- **Change:** the dock's width rule is whole again, and a test keeps every value well formed (Scribe #2494)
+- **Details:**
+  - The commit before this one put the toolbar's dock rule in the middle of the dock's own width rule, leaving 'min(100%, 680px' unclosed; a page would have dropped that rule and ten @foldkit/react tests failed on it, which that commit's message wrongly said passed. The two rules are separate again, the toolbar's regions are selected as rows, and a test fails on any stylesheet line whose parentheses d
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/layoutNodes.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:31:16 a.m. EST — `cf5264f3b05f` feat(foldkit): green: a toolbar, a split and a reading measure that only organize (Scribe #2494)
+
+- **Implementation commit:** `cf5264f3b05f6decbd17e1045f01db4e6e537c56`
+- **Change:** green: a toolbar, a split and a reading measure that only organize (Scribe #2494)
+- **Details:**
+  - foldkit/renderers gains three layout pieces, each a named arrangement of the Row and Box every painter already draws, with no color, font or pixel of their own:
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/elements.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/types.ts` — changed by this commit
+  - `packages/react/src/paintReact/paintReact.tsx` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:17:44 a.m. EST — `eac7c969870d` feat(books): green: books words paints from the theme on a terminal (Scribe #2494)
+
+- **Implementation commit:** `eac7c969870d0a6a88cb4fca6fed1ebbda917399`
+- **Change:** green: books words paints from the theme on a terminal (Scribe #2494)
+- **Details:**
+  - When the books command's output is a terminal and color is not refused, the view says so and the player paints 'books words' and 'books follow words' from the theme's roles through Foldkit's inked: what was spoken strong, the word being spoken in its color for the Model's mode, what is to come and the paragraphs around it dim, a section's heading in the reading rule's color. Down a pipe, and with
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:17:44 a.m. EST — `62c05ddf8374` feat(foldkit): green: the theme's roles in a terminal (Scribe #2494)
+
+- **Implementation commit:** `62c05ddf837481ab98188517ecd1997f9091ae5f`
+- **Change:** green: the theme's roles in a terminal (Scribe #2494)
+- **Details:**
+  - foldkit/theme gains the terminal's side: terminalInkOf says whether an output may use color (a terminal, with NO_COLOR unset and TERM not dumb) and carries the mode and the theme; inked(ink, role, text) paints a flat-colored role in its color for that mode, keeps body text in the terminal's own color (strong for Text and ReadingSpoken, dim for QuietText, FaintText and ReadingToCome), and leaves te
+- **Files:**
+  - `packages/foldkit/src/theme/index.ts` — changed by this commit
+  - `packages/foldkit/src/theme/terminal.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `9503911b64ff` fix(books): green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
+
+- **Implementation commit:** `9503911b64ffdf87e2edca6295ce3489ad20394d`
+- **Change:** green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
+- **Details:**
+  - contentsOf works out the Catalog's entries once and hands them to every chapter row, where it worked them out again for each of the 114 rows. The count of shelf reads while Contents paints is now the same for 4 chapters and for 120. The terminal UI test that asks every key to answer within 250 ms, which failed about one run in two, passed three whole-file runs in a row at a load of 7: its limit wa
+- **Files:**
+  - `examples/books/core/src/screen.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `817aa8b5c8e1` feat(foldkit): green: a sync failure names the sync engine, not one product (Scribe #2494)
+
+- **Implementation commit:** `817aa8b5c8e1e9573f93e9001c2b2c8075651c14`
+- **Change:** green: a sync failure names the sync engine, not one product (Scribe #2494)
+- **Details:**
+  - The seven sentences the runtime shows when a write is refused, a row cannot be read, or the log cannot be fetched say 'the sync engine' where they said Instant, since the runtime carries any engine. What happened, what it means and what to do read as before. foldkit runtime and program: 269 tests pass; the 4 that fail are the crash-view tests that fail on the base commit too.
+- **Files:**
+  - `packages/foldkit/src/runtime/start.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `707fb1710cf4` feat(foldkit): green: the reading ground runs edge to edge on a narrow window (Scribe #2494)
+
+- **Implementation commit:** `707fb1710cf49251e780bf8e04f9d86a864c62cb`
+- **Change:** green: the reading ground runs edge to edge on a narrow window (Scribe #2494)
+- **Details:**
+  - At 560 px and narrower the Transcript is as wide as the window, with no rounded corners, so on a phone the reading ground meets both edges and the words are not a card inside the page. Wider windows keep the 1200 px column. Checked at 390 by 844 in light and dark: the ground spans 0 to 390 with no sideways scroll, and the chapter bar and the mini player sit clear of it. foldkit interaction and the
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:03 a.m. EST — `6b996de189f0` docs: state drives and the components at the edge are told; the time label sits within its line (Scribe #2494)
+
+- **Implementation commit:** `6b996de189f02de9be8fdd69cc3a67457bd09a4e`
+- **Change:** state drives and the components at the edge are told; the time label sits within its line (Scribe #2494)
+- **Details:**
+  - AGENTS.md's 'Which layer?' section gains his words of 2026-11-18 and the rule they set: everything a component shows is state in a core, facts from outside arrive as Messages, colors are theme roles, tests fail on a raw color or a painter that asks the system, and the one exception, the first paint's mirror, is described with its single writer and single reader.
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:03 a.m. EST — `83a7bf34154d` feat(books): the look of Books is state: light, dark, or following the system (Scribe #2494)
+
+- **Implementation commit:** `83a7bf34154dc35993dd652e31381132a548e342`
+- **Change:** the look of Books is state: light, dark, or following the system (Scribe #2494)
+- **Details:**
+  - Books holds Foldkit's appearance in its Model (the choice and the system's mode on this device) and takes Foldkit's SetAppearance Action into its Catalog, so 'Appearance' is in the action menu with its three named looks and 'books set-appearance dark' sets it. The system's mode arrives as ObservedSystemMode from a Subscription on Foldkit's SystemAppearance; the browser host provides the browser's
+- **Files:**
+  - `examples/books/core/src/appearance.test.ts` — changed by this commit
+  - `examples/books/core/src/init.ts` — changed by this commit
+  - `examples/books/core/src/live.browser.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/books/core/src/model.ts` — changed by this commit
+  - `examples/books/core/src/program.ts` — changed by this commit
+  - `examples/books/core/src/siteLook.test.ts` — changed by this commit
+  - `examples/books/core/src/subscriptions.ts` — changed by this commit
+  - `examples/books/core/src/update.ts` — changed by this commit
+  - `examples/books/react/index.html` — changed by this commit
+  - `examples/books/react/src/App.tsx` — changed by this commit
+  - `examples/books/react/src/main.tsx` — changed by this commit
+  - `examples/books/react/src/styles.css` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:03 a.m. EST — `c68b11cec7dd` feat(foldkit): green: the page is told its mode, and the first paint reads only a mirror (Scribe #2494)
+
+- **Implementation commit:** `c68b11cec7ddf31dffcfdfeb8c355c41253f4bca`
+- **Change:** green: the page is told its mode, and the first paint reads only a mirror (Scribe #2494)
+- **Details:**
+  - foldkit/theme's browser side: paintModeOnPage(mode, page) sets the mode the Program resolved on the page's root, where the theme's stylesheet reads it, and mirrors it; firstPaintScript() is the script a page runs before its first paint, which reads that mirror and sets the same attribute so the page does not open in the wrong mode. The mirror has one writer, the host acting on the Model's mode, an
+- **Files:**
+  - `packages/foldkit/src/theme/browser.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:02 a.m. EST — `82a089a3d613` feat(foldkit): green: appearance is state, and the components at the edge are told (Scribe #2494)
+
+- **Implementation commit:** `82a089a3d613d2fc446b21c2109efca0ed31d4c1`
+- **Change:** green: appearance is state, and the components at the edge are told (Scribe #2494)
+- **Details:**
+  - foldkit/theme gains appearance as a Program holds it:
+- **Files:**
+  - `packages/foldkit/src/theme/appearance.test.ts` — changed by this commit
+  - `packages/foldkit/src/theme/appearance.ts` — changed by this commit
+  - `packages/foldkit/src/theme/browser.ts` — changed by this commit
+  - `packages/foldkit/src/theme/index.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:02 a.m. EST — `3655d1a5ee3c` feat(foldkit): green: the shared look names roles, never a color, and never asks the system (Scribe #2494)
+
+- **Implementation commit:** `3655d1a5ee3cc07b2e2596c66143cb1b7d767666`
+- **Change:** green: the shared look names roles, never a color, and never asks the system (Scribe #2494)
+- **Details:**
+  - The screen and menu stylesheets are written in the theme's roles. The screen stylesheet opens with the theme's declarations (every role as a CSS variable, light by default, dark under data-fk-mode="Dark") and every rule after that names a role with roleVar; no hex, rgb, hsl or named color remains in either sheet, and no prefers-color-scheme: the reader's own dark rule is gone, its colors are the R
+- **Files:**
+  - `packages/foldkit/src/interaction/menuStyles.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.lists.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/theme/noRawColors.test.ts` — changed by this commit
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:03:02 a.m. EST — `c7a5b0611415` feat(foldkit): green: a theme of roles, each light and dark (Scribe #2494)
+
+- **Implementation commit:** `c7a5b0611415bb1e889da80fbc2b112a6a202c67`
+- **Change:** green: a theme of roles, each light and dark (Scribe #2494)
+- **Details:**
+  - foldkit/theme (Theme in the foldkit barrel) is appearance as core data:
+- **Files:**
+  - `packages/foldkit/package.json` — changed by this commit
+  - `packages/foldkit/src/index.ts` — changed by this commit
+  - `packages/foldkit/src/theme/index.ts` — changed by this commit
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style ... All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 12:14:34 a.m. EST — `2b3eda200151` feat(foldkit): green: the reader closer to Scribe Playback (Scribe #2494)
+
+- **Implementation commit:** `2b3eda200151b57de9f2ff072b489aa19037352f`
+- **Change:** the reader closer to Scribe Playback (Scribe #2494)
+- **Details:**
+  - Serif reading text at 24 px in a column up to 1200 px, the time at the start of its paragraph, words already spoken at full strength and those to come resting, the spoken word colored, a rule at a section's left, and a dark stage when the system appearance is dark; the Books page container allows 1280 px.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — reading variables, serif, dark appearance
+  - `examples/books/react/src/App.tsx` — the page container allows 1280 px
+- **User context (verbatim):**
+  > Closer and fire off subagents and organize them to accomplish or other design objectives
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:43:16 p.m. EST — `5b934a3ce6a9` feat(foldkit): green: the paragraph being read stands apart, in a wider reading column (Scribe #2494)
+
+- **Implementation commit:** `5b934a3ce6a9ed8f6beab7b845ebd585820648d0`
+- **Change:** the paragraph being read stands apart, in a wider reading column (Scribe #2494)
+- **Details:**
+  - The shared look for words read along with: a reading column up to 960 px, the paragraph being read at full strength on a stronger ground with an accent rule, the others resting, reading size 21 px; the Books site's page container allows 1024 px so the column can use it.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — readingWidth, currentPassageColor, restingWordsColor and their rules
+  - `examples/books/react/src/App.tsx` — the page container allows 1024 px
+- **User context (verbatim):**
+  > Also, we want to highlight the paragraph in a little bit more contrast, and then we can widen this out.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:25:11 p.m. EST — `9972680ef7d9` feat(transcript-player): green: a link that opens on one word (Scribe #2494)
+
+- **Implementation commit:** `9972680ef7d94513a11ceaec1bf8615187ae3e5c`
+- **Change:** a link that opens on one word (Scribe #2494)
+- **Details:**
+  - A place in an address reads to the millisecond beside every whole-second form, and WordSegment prints the time a word starts that way; PlaceSegment still prints whole seconds, so no existing link or printed address changes.
+- **Files:**
+  - `examples/transcript-player/core/src/ids.ts` — fractional seconds read, WordSegment
+- **User context (verbatim):**
+  > the site highlights it and I'd like to be able to link to that word as well
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:23 p.m. EST — `0c8187c29b7c` docs: layout is organization first, style on top (Scribe #2494)
+
+- **Implementation commit:** `0c8187c29b7c16c1a0b1db4ac3a701c3d8e74bab`
+- **Change:** layout is organization first, style on top (Scribe #2494)
+- **Details:**
+  - AGENTS.md's 'Which layer?' section gains his words of 2026-11-17 on layout and the rule they set: screens are built from the layout nodes foldkit/renderers already has (Column, Row, Box, Spacer, Dock, List, and the Sheet and Dialog presentations), which say only how content is arranged; painters map them to their own means and styling goes on top; an arrangement the set lacks is added as a node wi
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:22 p.m. EST — `a753986ea4c8` feat(books): green: books devices, and --device to play on one (Scribe #2494)
+
+- **Implementation commit:** `a753986ea4c823af2930906eba2cb318e8ec73a0`
+- **Change:** green: books devices, and --device to play on one (Scribe #2494)
+- **Details:**
+  - 'books devices' lists this Mac's audio outputs with their numbers and the words to play on one. '--device 4' on a command sets the output for the player that command starts ('books stop' first when one is running), through FOLDKIT_AUDIO_DEVICE; without it Books plays on the Mac's default output as before. books cli: 2 files, 20 tests pass.
+- **Files:**
+  - `examples/books/cli/src/devices.ts` — changed by this commit
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:22 p.m. EST — `04a18a8ce1f3` feat(transcript-player): green: play to a chosen audio output device (Scribe #2494)
+
+- **Implementation commit:** `04a18a8ce1f3e77d5d29db699018a9f7c3918d73`
+- **Change:** green: play to a chosen audio output device (Scribe #2494)
+- **Details:**
+  - ffplayAudioOutput sounds on the system's default output as before, and on the device FOLDKIT_AUDIO_DEVICE names, by number, when it is set: ffplay cannot name a device, so a chosen one plays through ffmpeg's AudioToolbox output in real time, and the place is read from ffmpeg's progress line. A new speed restarts it the same way.
+- **Files:**
+  - `examples/transcript-player/core/src/audio.node.ts` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:22 p.m. EST — `09b3c638bc71` feat(foldkit): green: search, scrub and address the words of any timed transcript (Scribe #2494)
+
+- **Implementation commit:** `09b3c638bc71bb5453db273f210f0402075dece8`
+- **Change:** green: search, scrub and address the words of any timed transcript (Scribe #2494)
+- **Details:**
+  - foldkit/renderers gains Read Along's remaining readings, for any media with a timed transcript and for every Client:
+- **Files:**
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/readAlong.ts` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:19:21 p.m. EST — `a3d515160528` feat(multiple-counters): counters runs on a Background Processor and follows it (Scribe #2494)
+
+- **Implementation commit:** `a3d5151605288c225f6f98a8e63307e61cfdc563`
+- **Change:** counters runs on a Background Processor and follows it (Scribe #2494)
+- **Details:**
+  - Michael, 2026-11-17: 'I'd like to be able to do books, listen, or counters, follow, or whatever like that.' The Counters CLI was one process per command, each starting the Program and its sync connection. It is now the third program on the Background Processor, after Books and Counter: the entry is a slim view that asks, or follows with 'counters follow', and daemon.ts holds the Program with progr
+- **Files:**
+  - `examples/multiple-counters/cli/src/daemon.ts` — changed by this commit
+  - `examples/multiple-counters/cli/src/entry.ts` — changed by this commit
+  - `examples/multiple-counters/cli/src/inProcess.ts` — changed by this commit
+  - `examples/multiple-counters/cli/src/settings.ts` — changed by this commit
+- **User context (verbatim):**
+  > the components that we use to build the following the voice need to be generic in fold kit so that any audio with text Any media with the text transcript will be recognized word per word ... I'd like to be able to do books, listen, or counters, follow, or whatever like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `5e5d12b76ba8` docs(foldkit): the sync engine interface describes itself, not Instant (Scribe #2494)
+
+- **Implementation commit:** `5e5d12b76ba842bce5ede206389f13be7df95955`
+- **Change:** the sync engine interface describes itself, not Instant (Scribe #2494)
+- **Details:**
+  - Michael, 2026-11-17: 'Sync engine should be generic, and our implementation just happens to be instant DB, but any kind of sync engine should work there.' Runtime.SyncEngine was already that in code; its TSDoc called it the Instant I/O surface and Memory a fake Instant. The comments now say what the interface asks of any engine and name Memory, Instant and a test's own engine as implementations. N
+- **Files:**
+  - `packages/foldkit/src/runtime/syncEngine.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `684e0df6fa7f` feat(books): green: the books core's domain entry names no sync engine (Scribe #2494)
+
+- **Implementation commit:** `684e0df6fa7f2164d9ef6cdb328732b179d7c672`
+- **Change:** green: the books core's domain entry names no sync engine (Scribe #2494)
+- **Details:**
+  - The Instant library store, transcript source and timeline are exported from index.node.ts and index.browser.ts, the two host entries, and no longer from index.ts, the domain every host shares. Importers of 'books-core-example' get the same names from either host entry, so none changes. books core: 27 files, 185 tests pass; the core, the CLI and the site typecheck.
+- **Files:**
+  - `examples/books/core/src/index.browser.ts` — changed by this commit
+  - `examples/books/core/src/index.node.ts` — changed by this commit
+  - `examples/books/core/src/index.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `8b80a59f094f` feat(foldkit): green: the Background Processor is the name of the CLI daemon (Scribe #2494)
+
+- **Implementation commit:** `8b80a59f094fec271b4897a1182a0c21b50b1dbc`
+- **Change:** green: the Background Processor is the name of the CLI daemon (Scribe #2494)
+- **Details:**
+  - foldkit/cli exports the primitive under the name he chose: listenBackgroundProcessor, startBackgroundProcessorServer, backgroundProcessorSocketPath, ask, ensure, spawn, stop and isBackgroundProcessorListening, BackgroundProcessorError and the Surface, Flags, Painted and Following types; the slim view exports backgroundProcessorSocketPath, isBackgroundProcessorRunning and spawnBackgroundProcessorFr
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+  - `examples/books/cli/src/daemon.ts` — changed by this commit
+  - `examples/counter/cli/src/daemon.ts` — changed by this commit
+  - `glossary.md` — changed by this commit
+  - `packages/foldkit/src/cli/backgroundProcessor.ts` — changed by this commit
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+  - `skills/foldkit-client-hosts/SKILL.md` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `ee2ea40c382b` feat(foldkit): green: follow with no topic follows the only one, or asks which (Scribe #2494)
+
+- **Implementation commit:** `ee2ea40c382bbd2c06ff66b33cae92ba4c790641`
+- **Change:** green: follow with no topic follows the only one, or asks which (Scribe #2494)
+- **Details:**
+  - followArgvOf names no topic when none is given, and followTopicOf then follows the only topic when there is one ('counter follow' follows the screen) and otherwise answers 'Follow what? Name one of: screen, words. For example: follow screen' with exit code 1, the same way it names the topics for one it does not have. foldkit/src/cli: 9 files, 64 tests pass.
+- **Files:**
+  - `packages/foldkit/src/cli/argv.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `a655bd74999b` feat(books): green: a terminal follows the session's navigation like a browser (Scribe #2494)
+
+- **Implementation commit:** `a655bd74999b48e91c9c57e3440368a66e032628`
+- **Change:** green: a terminal follows the session's navigation like a browser (Scribe #2494)
+- **Details:**
+  - Books no longer passes the terminal Hosts as ownNavigationHosts, so a terminal Processor follows the session's navigation exactly as the web and mobile apps do: while the session mirrors, each moves the others; Keep navigation local gives each its own. The Session feature itself is unchanged and still tested in Foldkit; Books simply names no Host.
+- **Files:**
+  - `docs/adr/0014-one-contract-for-every-surface.md` — changed by this commit
+  - `examples/books/cli/src/daemon.ts` — changed by this commit
+  - `examples/books/core/src/app.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `29823340ac8d` feat(books): green: follow words --each-word moves by the clock (Scribe #2494)
+
+- **Implementation commit:** `29823340ac8dd8654b20b56e1f7855b20507ee77`
+- **Change:** green: follow words --each-word moves by the clock (Scribe #2494)
+- **Details:**
+  - The terminal adapter asks the books core for the words at this moment (spokenWordsOf with Date.now()), so 'books words' marks the word being spoken now, and 'books follow words --each-word' reads it twenty times a second and prints when the text changes. The paragraph-by-paragraph follow is unchanged. books cli: 17 of 17 tests pass.
+- **Files:**
+  - `examples/books/cli/src/player.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `6eaba8c0fb7b` feat(react): green: the mark moves on the word between the reports of the place (Scribe #2494)
+
+- **Implementation commit:** `6eaba8c0fb7b9a011a482481780d7803b08d3fc8`
+- **Change:** green: the mark moves on the word between the reports of the place (Scribe #2494)
+- **Details:**
+  - The React painter's TranscriptView reads the word being spoken from the Transcript's clock every 50 ms while the clock runs (Foldkit's currentWordTokenAt) and marks the Transcript again only when the word changes (transcriptAt), so the highlight and the scroll that follows it move on the word. A Transcript with no clock, or one standing still, is painted as the Program marked it. Only the two pass
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `2242084bb7b9` feat(books): green: the word being spoken at a moment between the player's reports (Scribe #2494)
+
+- **Implementation commit:** `2242084bb7b9e814bb00c4754408d873aca332a9`
+- **Change:** green: the word being spoken at a moment between the player's reports (Scribe #2494)
+- **Details:**
+  - spokenWordsOf takes an optional wall-clock time and marks the word being spoken then, through Foldkit's transcriptAt on the player's own transcript; without one it marks the word at the last reported place, as before. books core: 25 files, 180 tests pass; tsc is clean.
+- **Files:**
+  - `examples/books/core/src/words.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:07 p.m. EST — `e356b93c4f8b` feat(transcript-player): green: the player's transcript carries its clock and each word's start (Scribe #2494)
+
+- **Implementation commit:** `e356b93c4f8b871794283c42556ca578f307514a`
+- **Change:** green: the player's transcript carries its clock and each word's start (Scribe #2494)
+- **Details:**
+  - The player keeps the wall-clock time its audio last reported the place (maybePlacedAtMs, absent in older snapshots and after a jump until the audio reports again). playbackClockOf reads its clock: the place, that time, and the speed while it sounds, standing still when paused or just after a seek. transcriptOf puts the clock and each word's start on its Transcript, so a painter moves the mark on t
+- **Files:**
+  - `examples/transcript-player/core/src/model.ts` — changed by this commit
+  - `examples/transcript-player/core/src/screen.ts` — changed by this commit
+  - `examples/transcript-player/core/src/update.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 11:05:06 p.m. EST — `f0c1b1f71af9` feat(foldkit): green: the word being spoken at a moment, from a Transcript's clock (Scribe #2494)
+
+- **Implementation commit:** `f0c1b1f71af9887896e42bb1fb405280ffcd231e`
+- **Change:** green: the word being spoken at a moment, from a Transcript's clock (Scribe #2494)
+- **Details:**
+  - foldkit/renderers: a Transcript may carry a clock, the place, the wall-clock time it was reported, and its rate (0 while paused), and each word the place it starts at.
+- **Files:**
+  - `packages/foldkit/src/renderers/elements.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptClock.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/types.ts` — changed by this commit
+- **User context (verbatim):**
+  > What does follow do? ... I want the navigational stuff to follow exactly what we're doing in the web and mobile apps, where it's a session setting, and one session can choose to follow or have its own navigation. ... Background processor, that's simpler language. I like that.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:50:50 p.m. EST — `c05de40298cc` refactor(foldkit): writeCliFollow names what it needs of a process (Scribe #2494)
+
+- **Implementation commit:** `c05de40298cc8bb4687fb3e8b95e7a15268d6bfb`
+- **Change:** writeCliFollow names what it needs of a process (Scribe #2494)
+- **Details:**
+  - writeCliFollow takes a CliFollowRuntime that process satisfies, so its test passes a typed stand-in; the type assertions lint reported in follow.test.ts are gone.
+- **Files:**
+  - `packages/foldkit/src/cli/view.ts` — CliFollowRuntime and writeCliFollow's parameter
+  - `packages/foldkit/src/cli/follow.test.ts` — a typed stand-in and real Schemas
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `edd80a654706` feat(counter): counter follow prints the daemon's screen each time it changes (Scribe #2494)
+
+- **Implementation commit:** `edd80a654706de3776697927807d9b19182930ae`
+- **Change:** counter follow prints the daemon's screen each time it changes (Scribe #2494)
+- **Details:**
+  - The Counter CLI's entry reads 'follow [topic]' with Foldkit's followArgvOf and writes it with writeCliFollow, on its Instant daemon. It needed nothing else: the screen topic comes from programCliSurface, which the daemon already serves. This is the second user of the Follow request after Books.
+- **Files:**
+  - `examples/counter/cli/src/entry.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `7d874b343578` feat(books): take a command's last word from stdin, for the pasted sign-in address (Scribe #2494)
+
+- **Implementation commit:** `7d874b34357815b176d2990ce27bd1ddb36cf37c`
+- **Change:** take a command's last word from stdin, for the pasted sign-in address (Scribe #2494)
+- **Details:**
+  - The books entry passes its argv through Foldkit's withStdinWord, so 'pbpaste | books connect-audible -' connects with the address on stdin and nothing secret is typed as an argument. Checked against the demo reader: a wrong paste shows the page's own sentence, the demo's landing address connects and lands on the titles.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `9a7c1eb4fd0d` feat(foldkit): green: a command's last word may come from stdin (Scribe #2494)
+
+- **Implementation commit:** `9a7c1eb4fd0d18730e0ca8e6517c7681021b2cff`
+- **Change:** green: a command's last word may come from stdin (Scribe #2494)
+- **Details:**
+  - foldkit/cli/view: withStdinWord replaces a trailing lone dash in argv with stdin's text, trimmed, and readStdinText reads it, so an open choice that is a secret, such as a pasted sign-in address, stays out of the shell's history and the process list: 'pbpaste | books connect-audible -'. Both import no Effect.
+- **Files:**
+  - `packages/foldkit/src/cli/argv.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `695c04d33544` feat(books): green: books open prints the page it opened, books screen the page it is on (Scribe #2494)
+
+- **Implementation commit:** `695c04d33544f3734be12e7cfaca0f335c9838e4`
+- **Change:** green: books open prints the page it opened, books screen the page it is on (Scribe #2494)
+- **Details:**
+  - In the Books terminal adapter, 'open <uri>' and 'back' answer with Foldkit's paintScreen of where the player now is, and 'screen' prints it on request: where it is, what the page shows, and the addresses that leave the Program, without the Action list. Every other command still answers with the player brief. A place that cannot be opened says why on stderr with exit code 1, as before.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `686970042b8a` feat(books): green: a terminal gets a sign-in address it can open (Scribe #2494)
+
+- **Implementation commit:** `686970042b8a631c873db419a6297f0e6f2793c0`
+- **Change:** green: a terminal gets a sign-in address it can open (Scribe #2494)
+- **Details:**
+  - httpAudibleImport's startSignIn resolves an address without an origin on the server it asked, when the host names that server: a terminal on the demo reader gets http://127.0.0.1:5183/__books/audible-demo/landing. A browser on the same origin keeps the address as it came, and an address with its own origin, Amazon's, is never changed. This is the HTTP adapter's knowledge, so the Audible Model and
+- **Files:**
+  - `examples/books/core/src/audible/http.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `655e967567b9` feat(foldkit): green: a terminal prints the addresses that leave the Program (Scribe #2494)
+
+- **Implementation commit:** `655e967567b9b54c9ca662d0e99f6e3130852248`
+- **Change:** green: a terminal prints the addresses that leave the Program (Scribe #2494)
+- **Details:**
+  - Terminal text cuts a row to the width and cannot be clicked, so a row that links out could not be opened from a terminal.
+- **Files:**
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/query.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `9cfe85aa1b04` docs: say which layer a change belongs to, with the Books CLI as the worked example (Scribe #2494)
+
+- **Implementation commit:** `9cfe85aa1b041f74432ec550a46d0d948ea56ab9`
+- **Change:** say which layer a change belongs to, with the Books CLI as the worked example (Scribe #2494)
+- **Details:**
+  - AGENTS.md opens with 'Which layer? Decide before you add code': his words of 2026-11-17, the four layers (Foldkit core, a domain core, Client adapters, engine and service adapters) with what each may and may not name, a table that places every piece of the words tail and background playback in its layer, and five questions to answer before adding code. Nothing that was there is changed.
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+  - `PRINCIPLES.md` — changed by this commit
+  - `skills/foldkit-client-hosts/SKILL.md` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `2fa3ee2e06cb` feat(books): green: books words, once or followed, from the player (Scribe #2494)
+
+- **Implementation commit:** `2fa3ee2e06cb011be9b809000cf93259d86e577d`
+- **Change:** green: books words, once or followed, from the player (Scribe #2494)
+- **Details:**
+  - The terminal adapter prints what the books core says is being read and adds nothing of its own:
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `7e37cfa60824` feat(foldkit): green: follow <topic> on the command line, written to a pipe (Scribe #2494)
+
+- **Implementation commit:** `7e37cfa608244b365352f2743240672fd1ac6f40`
+- **Change:** green: follow <topic> on the command line, written to a pipe (Scribe #2494)
+- **Details:**
+  - The slim CLI view reads and serves 'follow <topic>' for any Program:
+- **Files:**
+  - `packages/foldkit/src/cli/argv.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `93921e4f1bc4` feat(books): green: the words being read, as the books core says them (Scribe #2494)
+
+- **Implementation commit:** `93921e4f1bc42c2cbc03b5080f51056986c3f886`
+- **Change:** green: the words being read, as the books core says them (Scribe #2494)
+- **Details:**
+  - core/src/words.ts reads the words being read from the Model alone, whatever page is showing, so every Client says the same thing:
+- **Files:**
+  - `examples/books/core/src/index.ts` — changed by this commit
+  - `examples/books/core/src/words.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:47 p.m. EST — `eebe1076cbe7` feat(foldkit): export an excerpt's wire form for a Program's own Schemas (Scribe #2494)
+
+- **Implementation commit:** `eebe1076cbe72a6f489ee3dc0cb9a2835c7a4f98`
+- **Change:** export an excerpt's wire form for a Program's own Schemas (Scribe #2494)
+- **Details:**
+  - TranscriptExcerptWire is the excerpt with heading, currentWord and currentWordIndex as its encoded keys, the Schema TranscriptExcerptJson is built from, so a Program that sends an excerpt inside a larger value, such as the title and place it belongs to, reuses it instead of naming the keys again. The excerpt test checks the JSON line against it.
+- **Files:**
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptExcerpt.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptExcerpt.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:46 p.m. EST — `62ac4c59f5d7` feat(foldkit): green: the paragraph being read, with those around it (Scribe #2494)
+
+- **Implementation commit:** `62ac4c59f5d7f218e4982868231b2429521c9879`
+- **Change:** green: the paragraph being read, with those around it (Scribe #2494)
+- **Details:**
+  - foldkit/renderers gains a reading of a Transcript for surfaces that show only the words being read:
+- **Files:**
+  - `packages/foldkit/src/renderers/index.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/query.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/transcriptExcerpt.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 17th, 2026 at 5:47:46 p.m. EST — `b8ef1630ebe8` feat(foldkit): green: follow a CLI daemon's topic until it ends (Scribe #2494)
+
+- **Implementation commit:** `b8ef1630ebe8d9f18f4e12f68e810f1b20c9bc35`
+- **Change:** green: follow a CLI daemon's topic until it ends (Scribe #2494)
+- **Details:**
+  - A view can keep one connection open on a topic of a daemon's Program and hear each new text as it changes, so an import's progress, a player's place, or the words being read need no polling and take over no terminal.
+- **Files:**
+  - `packages/foldkit/src/cli/follow.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/index.ts` — changed by this commit
+  - `packages/foldkit/src/cli/listen.ts` — changed by this commit
+  - `packages/foldkit/src/cli/protocol.ts` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/cli/surface.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/follow.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/index.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/public.ts` — changed by this commit
+- **User context (verbatim):**
+  > And for funsies, since this should work through the CLI, use it through the CLI and make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 13th, 2026 at 11:39:57 a.m. EST — `e517a3f18c03` fix(issues): a query to Scribe's app is sent again when Instant rate-limits it (Scribe #2348)
+
+- **Implementation commit:** `e517a3f18c03ded1f56aef78bc53141f6b094ac9`
+- **Change:** Issue tracker: a query to Scribe's app is sent again when Instant rate-limits it (Scribe #2348)
+- **Details:**
+  - issues show asks Scribe's app seven questions at once; on the installed 1.23.0 one met Instant's rate limit and printed Children not shown. adminScribeQuery now retries a rate-limited query by rateLimitRetry, never another refusal, inside each reader's 5-second bound.
+- **Files:**
+  - `examples/issues/cli/src/resources.ts` — retryingScribeQuery wraps adminScribeQuery
+  - `examples/issues/cli/src/resources.test.ts` — rate limits retried, refusals not
+- **User context (verbatim):**
+  > And do we have true epic labels on issues? Like, is it actually an epic, or have you just called it an epic and then linked these items? And then, are the issues themselves linked into all the recordings that mention them, etc. And all the sessions in Claude that mention them, etc.
+- **SpecStory:** unavailable — unavailable — Claude Code sub-agent tracker-epics-2348-foldkit of session https://claude.ai/code/session_01Q9pVPUaAmXDyH2rhhTBiFn (account pp); no SpecStory capture for sub-agents
+
+## November 13th, 2026 at 11:34:04 a.m. EST — `391d5d700572` feat(issues): green: true epics, and where an Issue is named (Scribe #2348)
+
+- **Implementation commit:** `391d5d7005727c3c4e8baf3d92a9dce203e02302`
+- **Change:** Issue tracker: true epics (a parent and an epic type), and the recordings and Claude sessions that name an Issue, from Scribe's rows (Scribe #2348)
+- **Details:**
+  - Issue.parentIssueId and the epic type; issues parent <n> <epic>|--clear and issues file --parent refuse a missing Issue (exit 3), a parent that is not an epic, the Issue itself and a cycle (exit 2), each write read back; issues subtask remove. core's issueFamily (issueChildrenQuery: issues where parentNumber) and issueReferences (issueReferencesQuery: issueReferences where issueNumber, newest first, then recordings' titles) are read by issues show (Parent, Children, Named in recordings, Sessions; '<X> not shown: <reason>' when unreadable), its --json and the Issue page. Matching is by number only.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Issue.parentIssueId
+  - `examples/issues/core/src/issueFamily.ts` — the children query and their reading
+  - `examples/issues/core/src/issueReferences.ts` — the places query and its grouping
+  - `examples/issues/core/src/update.ts` — SetIssueParent, RemoveIssueSubtasks, the page's observations
+  - `examples/issues/core/src/issuePage.ts` — Parent, Children, Named in recordings, Sessions
+  - `examples/issues/core/src/graphRows.ts` — the live reads
+  - `examples/issues/core/src/subscription.ts` — the page reads them while an Issue is open
+  - `examples/issues/core/src/message.ts` — the new Messages
+  - `examples/issues/core/src/model.ts` — the page's states and the draft's parent
+  - `examples/issues/cli/src/family.ts` — the children reader, section and JSON
+  - `examples/issues/cli/src/references.ts` — the places reader, sections and JSON
+  - `examples/issues/cli/src/commands.ts` — parent, subtask remove, file --parent, show
+  - `examples/issues/cli/src/entry.ts` — the parent and subtask remove commands
+  - `examples/issues/cli/src/resources.ts` — the live readers
+  - `examples/issues/README.md` — epics and where an Issue is named
+- **User context (verbatim):**
+  > And do we have true epic labels on issues? Like, is it actually an epic, or have you just called it an epic and then linked these items? And then, are the issues themselves linked into all the recordings that mention them, etc. And all the sessions in Claude that mention them, etc.
+- **SpecStory:** unavailable — unavailable — Claude Code sub-agent tracker-epics-2348-foldkit of session https://claude.ai/code/session_01Q9pVPUaAmXDyH2rhhTBiFn (account pp); no SpecStory capture for sub-agents
+
+## November 13th, 2026 at 11:34:04 a.m. EST — `3df1fe88f6a8` test(issues): red: true epics, and where an Issue is named (Scribe #2348)
+
+- **Implementation commit:** `3df1fe88f6a8d1e4f48366ec7802380264af420b`
+- **Change:** Issue tracker: red tests: true epics, and where an Issue is named (Scribe #2348)
+- **Details:**
+  - Tests first for Issue.parentIssueId, the epic type, issues file --parent, issues parent <n> <epic>|--clear and its refusals, issues subtask remove, an epic's children read from Scribe's issues rows by parentNumber, and the recordings and Claude sessions that name an Issue read from Scribe's issueReferences rows, in instant-tools, core, the command and the Issue page; they fail: the modules do not exist and the Issue has no parentIssueId.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.test.ts` — parentIssueId reads, writes and defaults
+  - `examples/issues/core/src/issueFamily.test.ts` — the children query and their order
+  - `examples/issues/core/src/issueReferences.test.ts` — the places query, recordings and sessions
+  - `examples/issues/core/src/issueFamilyPage.test.ts` — the Issue page's Parent, Children, Named in recordings and Sessions
+  - `examples/issues/cli/src/commands.test.ts` — the commands and show
+  - `examples/issues/cli/src/references.test.ts` — the readers
+- **User context (verbatim):**
+  > And do we have true epic labels on issues? Like, is it actually an epic, or have you just called it an epic and then linked these items? And then, are the issues themselves linked into all the recordings that mention them, etc. And all the sessions in Claude that mention them, etc.
+- **SpecStory:** unavailable — unavailable — Claude Code sub-agent tracker-epics-2348-foldkit of session https://claude.ai/code/session_01Q9pVPUaAmXDyH2rhhTBiFn (account pp); no SpecStory capture for sub-agents
+
+## November 12th, 2026 at 10:20:28 a.m. EST — `c924c9d6a014` feat(issues): green: an Issue's agents, and a recording's (Scribe #2303)
+
+- **Implementation commit:** `c924c9d6a0145c6345f91a7c13f7a0bada958771`
+- **Change:** Issue tracker: an Issue's agents, and a recording's, from one query on Scribe's rows (Scribe #2303)
+- **Details:**
+  - core's issueAgents asks agentRuns where issueNumber is in the Issues asked for, newest first, with each run's sessions, its subagents that name no Issue of their own, and its parent, and reads each agent's state, times, account, handle, claude.ai link or why it has none, and the app link that opens its chat; a recording's Issues come from its issueMentions. issues show prints an Agents section and gives agents in --json; issues recording <number|id> [--json] lists a recording's Issues with their agents; the Issue page's Runs section lists them from the same query. Nothing is written; no attribute or link is added.
+- **Files:**
+  - `examples/issues/core/src/issueAgents.ts` — the one query, its reading and a recording's Issues
+  - `examples/issues/core/src/issuePage.ts` — the Runs section
+  - `examples/issues/core/src/graphRows.ts` — the live read
+  - `examples/issues/core/src/subscription.ts` — the page reads it while an Issue is open
+  - `examples/issues/core/src/message.ts` — ObservedIssueAgents
+  - `examples/issues/core/src/model.ts` — the page's agents state
+  - `examples/issues/core/src/update.ts` — the agents state
+  - `examples/issues/cli/src/agents.ts` — the readers, the section and the JSON
+  - `examples/issues/cli/src/commands.ts` — show and the recording command
+  - `examples/issues/cli/src/entry.ts` — the recording command
+  - `examples/issues/cli/src/resources.ts` — the live readers
+  - `examples/issues/README.md` — the Agents section and the recording command
+- **User context (verbatim):**
+  > Displayed in the issue they’re working in which should be queryable from all recordings in which the issue they were spawned for is being worked on
+- **SpecStory:** unavailable — Claude Code session 9d9309b0-8306-45e0-9957-9da2f4f538fb (a headless agent-run run, issue-agents-2303); no SpecStory capture for headless runs
+
+## November 12th, 2026 at 10:20:28 a.m. EST — `c4e0dad19e59` test(issues): red: an Issue's agents, and a recording's (Scribe #2303)
+
+- **Implementation commit:** `c4e0dad19e59b3d5652180bac2cb58191b7828ed`
+- **Change:** Issue tracker: red tests: an Issue's agents, and a recording's (Scribe #2303)
+- **Details:**
+  - Tests first for the agents started for an Issue (state, times, account, handle, claude.ai link or why none, chat link, sessions, subagents) and for a recording's Issues with theirs, in core, the command (show's Agents section and --json, the new recording command) and the Issue page; they fail: core's issueAgents and the command's agents module do not exist.
+- **Files:**
+  - `examples/issues/core/src/issueAgents.test.ts` — the one query and its reading
+  - `examples/issues/core/src/issueAgentsPage.test.ts` — the Issue page's Runs section
+  - `examples/issues/cli/src/agents.test.ts` — the readers, the section and the JSON
+  - `examples/issues/cli/src/commands.test.ts` — show and the recording command
+- **User context (verbatim):**
+  > Displayed in the issue they’re working in which should be queryable from all recordings in which the issue they were spawned for is being worked on
+- **SpecStory:** unavailable — Claude Code session 9d9309b0-8306-45e0-9957-9da2f4f538fb (a headless agent-run run, issue-agents-2303); no SpecStory capture for headless runs
+
+## November 11th, 2026 at 2:09:58 p.m. EST — `7a2b7870e481` feat(issues): green: a released claim goes back to the agent still running on the Issue (Scribe #2264)
+
+- **Implementation commit:** `7a2b7870e481600034cf74d84316fafcb7a0f029`
+- **Change:** Issue tracker: a released claim goes back to the agent still running on the Issue, and to nobody only when none runs there (Scribe #2264)
+- **Details:**
+  - When a claimant's run ended, the sync released its claim to nobody, though its text said no agent was running without looking: on 2026-11-11 a resumed, replaced run claimed an Issue from the agent at work on it, stopped ten seconds later, and left the Issue claimed by nobody, three times. A release now hands the claim to an agent still running on the Issue, the latest of them to claim it, else the newest to start, in one released entry naming both; the agent is looked for only when a claim is released.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.ts` — heirOf and releasedClaim
+- **User context (verbatim):**
+  > fix each delay at its cause (Scribe's guide, commandment 10)
+- **SpecStory:** unavailable — Claude Code session c90774b6-e0ae-402e-b18c-cc796676d5b9 (a headless agent-run run, resume-guard-2264); no SpecStory capture for headless runs
+
+## November 11th, 2026 at 2:09:57 p.m. EST — `febc5eea3135` test(issues): red: a released claim goes back to the agent still running on the Issue (Scribe #2264)
+
+- **Implementation commit:** `febc5eea313515e6581aa9305565391e24a3fc2a`
+- **Change:** Issue tracker: red tests: a released claim goes back to the agent still running on the Issue (Scribe #2264)
+- **Details:**
+  - Two tests fail: the claim of a run that ended goes to nobody, though an earlier claimant, or another agent, still runs on the Issue.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.test.ts` — the newest earlier claimant still running, else the newest to start
+- **User context (verbatim):**
+  > fix each delay at its cause (Scribe's guide, commandment 10)
+- **SpecStory:** unavailable — Claude Code session c90774b6-e0ae-402e-b18c-cc796676d5b9 (a headless agent-run run, resume-guard-2264); no SpecStory capture for headless runs
+
+## November 11th, 2026 at 1:21:42 p.m. EST — `baa75cea699d` feat(issues): NeedsUserInput, a status for an Issue that waits on its owner's answer (Scribe #2263)
+
+- **Implementation commit:** `baa75cea699d0f79ce3480566485ed429409c147`
+- **Change:** Issue tracker: NeedsUserInput, a status for an Issue that waits on its owner's answer, with its question shown in the list, show and the page (Scribe #2263)
+- **Details:**
+  - IssueStatus gains NeedsUserInput (the work cannot go further, or a choice is the owner's, until they answer; FeedbackRequested stays for a reaction wanted on shipped work). The set-status menu comes from the order work moves and a record of keys the compiler holds to every status; tests hold the workflow order and a product page's order to the declaration. A question is a work-log entry with state question: issues list prints the open ones under the Issue, list --json gives openQuestions, show and the page lead with a Needs user input block. The backlog leaves such an Issue out of queued work.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — the one declaration
+  - `examples/issues/core/src/needsUserInput.ts` — the open questions and their block
+  - `examples/issues/core/src/choices.ts` — the set-status menu from the workflow order and a record of keys
+  - `examples/issues/core/src/issueView.ts` — the order work moves
+  - `examples/issues/core/src/entityGraph.ts` — a product page lists them first
+  - `examples/issues/core/src/backlog.ts` — not queued work
+  - `examples/issues/core/src/issuePage.ts` — the page's block
+  - `examples/issues/cli/src/commands.ts` — list, list --json and show
+  - `examples/issues/README.md` — the status and the question entry
+- **User context (verbatim):**
+  > Just make sure all the open questions are documented in their issues appropriately, and the issue is labeled with needs user input as an enumerated status on those things. (typed 2026-11-11 12:44 EST)
+- **SpecStory:** unavailable — Claude Code session 31fca551-6899-4522-8a23-f4da08f0d6f2 (a subagent, needs-input-2263); no SpecStory capture for subagent runs
+
+## November 11th, 2026 at 1:21:42 p.m. EST — `ead2c49ad684` test(issues): red: a status for an Issue that waits on its owner's answer (Scribe #2263)
+
+- **Implementation commit:** `ead2c49ad68484db297b74dd6ff30cf19164fd26`
+- **Change:** Issue tracker: red tests for a status that says an Issue waits on its owner's answer (Scribe #2263)
+- **Details:**
+  - Nine tests fail: the domain refuses NeedsUserInput; the order work moves, the set-status menu, the filter's link, the board and a product's page do not hold it; the backlog still queues such an Issue; no list line, show section or page section carries the question its work log holds.
+- **Files:**
+  - `examples/issues/core/src/statuses.test.ts` — every list of statuses held to the one declaration
+  - `examples/issues/core/src/needsUserInput.test.ts` — the questions an Issue waits on
+  - `examples/issues/cli/src/commands.test.ts` — list, list --json and show carry the question
+  - `examples/issues/core/src/issuePage.test.ts` — the page leads with the question
+  - `examples/issues/core/src/backlog.test.ts` — the backlog leaves such an Issue out
+  - `examples/issues/core/src/board.test.ts` — the board has its column
+  - `packages/instant-tools/src/issues/domain.test.ts` — the status decodes
+- **User context (verbatim):**
+  > the issue is labeled with needs user input as an enumerated status on those things. (typed 2026-11-11 12:44 EST)
+- **SpecStory:** unavailable — Claude Code session 31fca551-6899-4522-8a23-f4da08f0d6f2 (a subagent, needs-input-2263); no SpecStory capture for subagent runs
+
+## November 11th, 2026 at 10:29:58 a.m. EST — `e2235a65f50d` feat(read-aloud): green: the book in full, cross-referenced (Scribe #2182)
+
+- **Implementation commit:** `e2235a65f50d9a6e92a9f773b77d047a66886a53`
+- **Change:** Read Aloud: the book in full, cross-referenced (Scribe #2182)
+- **Details:**
+  - A book's page names the story the page is in, lists its Contents with each story's pages, a link to its first page and You are here, every sitting with its date, recording number and pages, and each time the page was read, each linked to its line in the recording. Dates, numbers and links only.
+- **Files:**
+  - `examples/read-aloud/core/src/model.ts` — Chapter, Moment, Sitting and their readers
+  - `examples/read-aloud/core/src/scribe.ts` — Contents, sittings and moments from Scribe's rows
+  - `examples/read-aloud/core/src/local.node.ts` — recording numbers from the folders beside the logs
+  - `examples/read-aloud/core/src/screen.ts` — This page, Contents and Read aloud sections
+- **User context (verbatim):**
+  > so that recordings and pages and chapters and things are all cross-referenced. (Scribe Recording 410 #884)
+- **SpecStory:** unavailable — Headless Claude Code run books-2182 (session 222bede6-cd1f-446f-acc4-f3111c2b8bd4); headless claude -p runs have no SpecStory capture
+
+## November 11th, 2026 at 10:29:56 a.m. EST — `c2a0697c24be` feat(books): green: a book kept just now answers at once (Scribe #2182)
+
+- **Implementation commit:** `c2a0697c24be82d60a7d3c3bdd5d16dcd0d3f714`
+- **Change:** Books: a book kept just now answers at once (Scribe #2182)
+- **Details:**
+  - A link to a book the cached list lacks reads the books read aloud again, at most once in three seconds, so the watcher's card for a just-kept book never meets Not found.
+- **Files:**
+  - `examples/books/core/src/linkPreviews.node.ts` — reload on a miss
+  - `examples/books/core/src/linkPreviews.node.test.ts` — the reload test
+- **User context (verbatim):**
+  > I need an automated process for recognizing the playback of the book, ingesting a new book. (Scribe Recording 410 #881)
+- **SpecStory:** unavailable — Headless Claude Code run books-2182 (session 222bede6-cd1f-446f-acc4-f3111c2b8bd4); headless claude -p runs have no SpecStory capture
+
+## November 11th, 2026 at 10:29:54 a.m. EST — `129c9876e02c` feat(read-aloud): green: one book under all its names (Scribe #2182)
+
+- **Implementation commit:** `129c9876e02cf4ad9b6ea7fd3ecb56ac8a64ef80`
+- **Change:** Read Aloud: one book under every name it is kept by, and a kept book's page always answers (Scribe #2182)
+- **Details:**
+  - Rows that share a key, an ISBN-13 or an Open Library work are one book named by the newest-read row with an ISBN; the others' ids, ISBN-10s and work become aliases and fill what the book lacks. A link preview no longer needs an author or a cover and names the canonical address. Recording 410: 5-Minute Halloween Stories answered Not found because its edition names no author.
+- **Files:**
+  - `examples/read-aloud/core/src/scribe.ts` — groups rows into one book
+  - `examples/read-aloud/core/src/model.ts` — aliases and lookup by any name
+  - `examples/read-aloud/core/src/linkPreview.ts` — author and cover optional, canonical path
+  - `examples/books/core/src/linkPreviews.node.ts` — description without an author, canonical url
+- **User context (verbatim):**
+  > Whoa, so it sent a picture in the frame, but that's still not a recognized thing. So that's cheating. (Scribe Recording 410 #936-937)
+- **SpecStory:** unavailable — Headless Claude Code run books-2182 (session 222bede6-cd1f-446f-acc4-f3111c2b8bd4); headless claude -p runs have no SpecStory capture
+
+## November 11th, 2026 at 10:11:42 a.m. EST — `f7b76145a666` feat(issues): which recordings mention an Issue, from Scribe's rows (Scribe #2248)
+
+- **Implementation commit:** `f7b76145a666c6acbd2313b08d64235c6d494fb5`
+- **Change:** feat(issues): which recordings mention an Issue, from Scribe's rows (Scribe #2248)
+- **Details:**
+  - Scribe's issueMentions rows link the recording each mention came from, so one query (issueRecordingsQuery) reads every recording that mentions an Issue, each with its mentions of it; a recording's count is their number. issues show prints a Recordings block above the mentions with a deep link per mention and a line when the tracker lists more recording mentions than the rows reach; show --json gives recordings with mentionCount, or recordingsNotShown; list --json carries every Issue's mentionCount. Measured: core 4 of 4, CLI 109 of 109; test-all.sh instant-tools 101, core 658 of 660 (two pageCost timing budgets at load 140; 17 of 17 alone, twice), react 26.
+- **Files:**
+  - `examples/issues/core/src/issueRecordings.ts` — the query and its decoder
+  - `examples/issues/core/src/index.ts` — export
+  - `examples/issues/cli/src/recordings.ts` — the reader, the block and its JSON
+  - `examples/issues/cli/src/commands.ts` — show and list --json
+  - `examples/issues/cli/src/resources.ts` — the live reader
+  - `examples/issues/cli/src/entry.ts` — the host
+  - `examples/issues/cli/src/mentions.ts` — one link shape
+  - `examples/issues/README.md` — the query and the block
+- **User context (verbatim):**
+  > Make sure our issue track is / is sure to record every / recording that mentions the issue. / with a static count that's incremented with a new / mention is made, even if multiple multiple are made in a single recording. / Let's make that a part of the schema that we can query against.
+- **SpecStory:** unavailable — unavailable — Claude Code headless session for Scribe #2248 (agent mentions-2248, claude -p); its transcript path is logged on that issue
+
+## November 11th, 2026 at 10:11:41 a.m. EST — `027a69594de8` test(issues): red: the recordings that mention an Issue (Scribe #2248)
+
+- **Implementation commit:** `027a69594de800aada74ceba7262395c9184f79f`
+- **Change:** test(issues): red: the recordings that mention an Issue (Scribe #2248)
+- **Details:**
+  - Tests first: the core query and its decoder (each recording with the Issue's mentions; two in one recording count twice), the Recordings block and its JSON, and list --json's mentionCount. Red: the core module did not exist; three command tests failed.
+- **Files:**
+  - `examples/issues/core/src/issueRecordings.test.ts` — the query and its decoder
+  - `examples/issues/cli/src/recordings.test.ts` — the block, its JSON and its reader
+  - `examples/issues/cli/src/commands.test.ts` — show and list --json
+- **User context (verbatim):**
+  > Make sure our issue track is / is sure to record every / recording that mentions the issue. / with a static count that's incremented with a new / mention is made, even if multiple multiple are made in a single recording. / Let's make that a part of the schema that we can query against.
+- **SpecStory:** unavailable — unavailable — Claude Code headless session for Scribe #2248 (agent mentions-2248, claude -p); its transcript path is logged on that issue
+
+## November 10th, 2026 at 11:50:55 p.m. EST — `62658cf85b47` feat: green: held money never moves to a look-alike or twice (Scribe #2134)
+
+- **Implementation commit:** `62658cf85b471d9af918e15582046179949f9101`
+- **Change:** feat: green: held money never moves to a look-alike or twice (Scribe #2134)
+- **Details:**
+  - A review of the claim path as an attacker found four gaps, each closed test-first (388051ae2, 4258333a1). A destination that shares its first or last three characters with a held account, as an address-poisoning copy does, is refused by the origin and by the worker, which also refuses any account its held list names. The same move asked for twice at once files one claim, and the worker never starts a second claim on a held account while an older one is unsettled. One claims worker holds a lock beside the held list. The card names the destination address in full before the tap.
+  - Measured: core 55 of 55, origin and worker 177 of 177, page 27 of 27; typechecks, oxlint, prettier, bundles and the page build pass; the worker's end-to-end run on solana-test-validator passes 11 of 11 checks.
+- **Files:**
+  - `examples/brandon/server/src/lookAlike.ts` — what a look-alike address is
+  - `examples/brandon/server/src/workerLock.ts` — one claims worker at a time
+  - `examples/brandon/server/src/held.ts` — RefusedLookAlike
+  - `examples/brandon/server/src/handler.ts` — one claim filed at a time, and the look-alike refusal in words
+  - `examples/brandon/server/src/heldClaims.ts` — the worker's destination checks and the per-account order of its queue
+  - `examples/brandon/server/src/claims.ts` — takes the lock before it follows claims
+  - `examples/brandon/foldkit/src/view.ts` — the destination address on the card
+- **User context (verbatim):**
+  > I'm going to put the money in the app for your email. And if you log in and grab it uh that's great
+- **SpecStory:** unavailable — Claude Code session for Scribe #2134 (agents sol-held-2134 and sol-held-2134b); its transcript path is logged on that issue
+
+## November 10th, 2026 at 11:50:54 p.m. EST — `6589f41c9ebc` wip: green code for held money, written and not yet run (Scribe #2134)
+
+- **Implementation commit:** `6589f41c9ebc682e1a39d5efa4e8fe6a3aba5223`
+- **Change:** wip: green code for held money, written and not yet run (Scribe #2134)
+- **Details:**
+  - The page example: money Scribe holds for a person. The origin answers GET /api/wallet/held with the signed-in person's own held accounts and their chain balances, and PUT /api/wallet/claim/<network>/<held>/<their own address> files a walletClaims row, Requested. The claims worker on the Mac that has the held keys pays each claim with scribe-wallet send --all under the claim's own send id, only from an account its held list names for that person. The page shows a Held for you card and Move it to my wallet. The page's command lists an account as held. Written before it was run; it ran green as written in 62658cf85's check. Tests came first in be952f97e, a32970fcc, 14b94fe66, 0a6a533db and 3475c8c9c.
+- **Files:**
+  - `examples/brandon/server/src/handler.ts` — the held read and the claim request, each for the signed-in person alone
+  - `examples/brandon/server/src/held.ts` — what the origin does with a move a person asked for
+  - `examples/brandon/server/src/heldClaims.ts` — the worker's checks before it signs, the signer's outcomes, the queue
+  - `examples/brandon/server/src/claims.ts` — the worker's process
+  - `examples/brandon/server/src/hold.ts` — the command that holds an account for a person
+  - `examples/brandon/core/src/held.ts` — the page's held accounts and the move it may ask for
+  - `examples/brandon/foldkit/src/view.ts` — the Held for you card
+- **User context (verbatim):**
+  > I'm going to put the money in the app for your email. And if you log in and grab it uh that's great
+- **SpecStory:** unavailable — Claude Code session for Scribe #2134 (agents sol-held-2134 and sol-held-2134b); its transcript path is logged on that issue
+
+## November 8th, 2026 at 12:23:10 a.m. EST — `1d0d9befd95b` feat(me): green: Scribe #2002's origin answers the header sweep on this Mac
+
+- **Implementation commit:** `1d0d9befd95ba5e64e0a200038d6c20fe8e30193`
+- **Change:** feat(me): green: Scribe #2002's origin answers the header sweep on this Mac
+- **Details:**
+  - /source asked on this Mac (isLocalDevelopmentRequest: loopback, a loopback Host, no proxy header) answers the built page's source header alone, no-store, so Scribe's #1547 sweep can prove where the page's code lives; everything else still needs a verified login, on this Mac too. Tests came first in 5719f8a48.
+- **Files:**
+  - `examples/me/src/server/origin.ts` — /source on loopback: the built index.html's source header alone
+  - `examples/me/README.md` — links back to https://me.pisspoursoftware.xyz and shows the same source location (#1547)
+- **User context (verbatim):**
+  > Why is understanding on performance? I think it should be me.pisspour… and generalizable to every logged in user
+- **SpecStory:** unavailable — headless Claude Code run started by tools/agent-run for Scribe #2002; its transcript path is logged on that issue
+
+## November 8th, 2026 at 12:09:02 a.m. EST — `6bc9bd09b2cd` feat(me): green: Scribe #2002's page for each signed-in user
+
+- **Implementation commit:** `6bc9bd09b2cdd0954c79076b57fb17bf4bb75558`
+- **Change:** feat(me): green: Scribe #2002's page for each signed-in user
+- **Details:**
+  - examples/me is me.pisspoursoftware.xyz: each signed-in user's own page. The origin takes who is signed in only from a Cloudflare Access login that makeAccessVerifier checks again (the issues site's verifier); no login, a forged one, a failing verifier and the email header alone get the same Not found for every path. Tests came first in 59b9e56e2.
+  - A user's data is only their own folder, named by the SHA-256 of the lowercased email (the Scribe exporter's key); /data/me.json is the origin's own answer and /data/<name>.json a file of that folder by a strict name; per-user answers are private, no-store.
+  - examples/performance loses its understanding page, data, command and Message pair; /understanding answers a 302 to https://me.pisspoursoftware.xyz/understanding for an admitted visitor and the same Not found as every path for anyone else; home and the nav link there.
+- **Files:**
+  - `examples/me/src/server/origin.ts` — the per-user origin: verified login only, one folder per user
+  - `examples/me/src/server/main.ts` — the origin's process: Access audience, site and users folders, build provenance
+  - `examples/me/src/update.ts` — the page: who is signed in, then their understanding profile or plainly none yet
+  - `examples/me/src/view/understanding.ts` — the understanding page, moved whole from examples/performance
+  - `examples/me/README.md` — who sees what, where the data comes from, how to run it
+  - `examples/performance/src/server/origin.ts` — /understanding redirects to the new page
+  - `examples/performance/src/moved.ts` — the new page's address, one constant for the origin, router and links
+  - `.changeset/config.json` — ignores the private me-example package
+- **User context (verbatim):**
+  > Why is understanding on performance? I think it should be me.pisspour… and generalizable to every logged in user
+- **SpecStory:** unavailable — headless Claude Code run started by tools/agent-run for Scribe #2002; its transcript path is logged on that issue
+
+## November 7th, 2026 at 3:07:05 a.m. EST — `5c45dadab075` feat(performance): green: Scribe #1968's understanding page
+
+- **Implementation commit:** `5c45dadab07549dd12b518b3362b9a6a891b0a3d`
+- **Change:** feat(performance): green: Scribe #1968's understanding page
+- **Details:**
+  - examples/performance: /understanding reads understanding.json beside the index: the areas at proficient now and after each rating, every area by its newest rating with links to the words behind it, how the count is made, and why when nothing was measured. Home links to it in one line, and Reload fetches it again with the index.
+  - Data: written by the Scribe exporter (scripts/perf/performance_export.py) from a profile kept on the owner's laptop, never in a repository; served by the origin only to the owner's login. The tests' fixtures are made up. Tests came first in 66bf15c27.
+- **Files:**
+  - `examples/performance/src/data.ts` — the schema of understanding.json
+  - `examples/performance/src/command.ts` — FetchUnderstanding, beside FetchIndex
+  - `examples/performance/src/update.ts` — the profile's loading, failure and reload
+  - `examples/performance/src/route.ts` — /understanding as one parse and print pair
+  - `examples/performance/src/view/understanding.ts` — the page and home's one line
+- **User context (verbatim):**
+  > And let's make that another metric that we measure.
+- **SpecStory:** unavailable — headless Claude Code run started by tools/agent-run for Scribe #1968; its transcript path is logged on that issue
+
+## November 6th, 2026 at 12:40:44 p.m. EST — `9c9d6d61df85` feat(performance): green: Scribe #1932's page, charts per build, evidence
+
+- **Implementation commit:** `9c9d6d61df850159cf80b901c778f66c40041e4d`
+- **Change:** feat(performance): green: Scribe #1932's page, charts per build, evidence (merged to main as c6e56156e)
+- **Details:**
+  - examples/performance: a Foldkit page with one entry per app, Scribe first; a small multiple per metric across builds with the budget's target and fail lines drawn in and named, a baseline tick for a build nobody measured and a hollow point under 5 minutes; the builds with what each changed, its GitHub commit, release and pinned instant-data-swift; each issue the performance work names as proven on a device, disproved, landed but not proven, or in progress.
+  - Data: the Scribe exporter's files (scripts/perf/performance_export.py in the Scribe repository), decoded with Effect Schema against schemaVersion 1; a contract test decodes a real export when PERFORMANCE_DATA_DIR names one. Tests came first in 36621d3b2.
+  - The origin (src/server): serves the built page and the data from separate folders, verifies the Cloudflare Access login (signature, issuer, expiry, audience) and then checks its email against PERFORMANCE_ALLOWED_EMAILS; anyone else gets Not found for every path. Deployed on the owner's laptop on 127.0.0.1:5262 behind the Mac mini router.
+- **Files:**
+  - `examples/performance/src/data.ts` — the schema of the exporter's files
+  - `examples/performance/src/route.ts` — destinations and URLs as one parse and print pair
+  - `examples/performance/src/chart.ts` — small-multiple geometry: gaps, budget lines, round axes
+  - `examples/performance/src/view/view.ts` — the page shell and its pages
+  - `examples/performance/src/server/origin.ts` — the origin that admits only the allowed Access login
+- **User context (verbatim):**
+  > If you could put up dashboard.pisspoorsoftware.xyz and then link performance-based builds and metrics and charts and things of our improvements, and as well as the issues we've linked to and we're allegedly fixing in there, I would appreciate it.
+- **SpecStory:** unavailable — headless Claude Code run started by tools/agent-run for Scribe #1932; its transcript path is logged on that issue
+
+## November 2nd, 2026 at 9:17:51 p.m. EST — `c159c8057bec` fix(issues): release a claim whose agent is gone and silent for a week
+
+- **Implementation commit:** `c159c8057bec62d8d5c8d96f3ec9d76507679c4a`
+- **Change:** A claim whose agent is gone and silent for a week is released
+- **Details:**
+  - After the first full sweep, 439 of the 453 claims on unfinished Issues belonged to agents that were not running and had written nothing on their Issue for over a week; they read as an agent still on the work. They are released with a line naming the claimant's last entry; status and work in progress stay (red test e326f7154).
+  - Measured as a dry run on the live catalog: 439 releases, 3.2 s CPU for the hourly sweep.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.ts` — the week-silent release and its reason
+  - `examples/issues/cli/src/commands.test.ts` — the sweep test's claimant writes within the week
+- **User context (verbatim):**
+  > Michael, Recording 349 #60-63 (2026-11-02 20:22): "a lot of these have been already done, so something's wrong with our issue tracking."
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (p-1618-hj); no SpecStory capture exists for headless runs.
+
+## November 2nd, 2026 at 8:49:10 p.m. EST — `a8f4fd0ed40c` fix(issues): the working sync stops saying agents run when none do
+
+- **Implementation commit:** `a8f4fd0ed40c371292f5dfd49784276664a3b023`
+- **Change:** The working sync stops saying agents run when none do
+- **Details:**
+  - The hourly sweep reads every Issue, whatever its status: 22 Issues read running for runs that had ended, because an agent claims Issues besides its run's and the sweep read only InProgress and Addressing.
+  - A claim on a finished Issue (Closed, Fixed, Resolved, Verified) is released once no agent of that name runs, with a work-log entry saying why.
+  - A claim made after the landing record keeps the Issue InProgress: the sync had moved 5 freshly claimed Issues back to VerificationNeeded from the previous run's record.
+  - Measured: a dry run of the new sweep on the live catalog checks 1,620 Issues (9.3 s, 3.4 s CPU, 347 MB peak; was 108 Issues, 2.0 s, 0.7 s CPU, 189 MB) and would correct all 22 stale running agents, release 300 claims and mark 312 stale.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.ts` — finished claims are released; a fresh claim keeps the Issue InProgress
+  - `examples/issues/cli/src/commands.ts` — the sweep reads every Issue; a release prints its own reason
+  - `examples/issues/core/src/backlog.ts` — FINISHED_STATUSES is shared
+  - `examples/issues/cli/src/entry.ts` — --sweep says what it reads
+  - `examples/issues/README.md` — what the working sync does now
+- **User context (verbatim):**
+  > Michael, Recording 349 #60-63 (2026-11-02 20:22): "a lot of these have been already done, so something's wrong with our issue tracking."
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (p-1618-hj); no SpecStory capture exists for headless runs.
+
+## November 2nd, 2026 at 5:37:15 a.m. EST — `f1d09d48c7da` fix(issues): green: a quoted line's link goes out on og
+
+- **Implementation commit:** `f1d09d48c7dae650768e110d990ac5eb1c3fbff5`
+- **Change:** A quoted line's link goes out on og
+- **Details:**
+  - lineDeepLink builds a line's link on og.pisspoursoftware.xyz at the words page's own path, so a line quoted into an Issue previews outside Cloudflare Access with no word of the line and leads to the same page, where Access still decides. It waited for the Scribe build that opens og links inside the app (224), which is now installed.
+- **Files:**
+  - `examples/issues/cli/src/mentions.ts` — a quoted line's link is built on og
+- **User context (verbatim):**
+  > Michael, typed 2026-11-01: "Then make sure all deep links securely go through it so we can get rich previews outside our protected realm"
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (og-flip-1530); no SpecStory capture exists for headless runs.
+
+## November 1st, 2026 at 6:19:19 p.m. EST — `e493ad7b92a7` fix(issues): a link to a number the catalog lacks is still written; README
+
+- **Implementation commit:** `e493ad7b92a704822a36b8a3a125177f7207df3d`
+- **Change:** A link to a number the catalog lacks is still written, and the issues README says what the site does now.
+- **Details:**
+  - The link check refuses only words and the Issue itself.
+  - The README lists the site's views, every key, how writes name the read they were based on, and what it reads of Scribe's rows.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — The link check refuses words and the Issue itself, nothing more.
+  - `examples/issues/README.md` — Views, keys, writes and Scribe's rows on the issues site.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 6:13:25 p.m. EST — `847bd697d2c5` fix(issues): keys write where he is, small faults, the kept catalog, one row
+
+- **Implementation commit:** `847bd697d2c502d77a9c88ea34afa414d9706426`
+- **Change:** Keys write where he is, the review's small faults are fixed, the kept catalog cannot hide a change, and a live Recording's length restates one row.
+- **Details:**
+  - c opens the form with Title holding the keyboard; Enter and Cmd+Enter submit from the field written in.
+  - Links name Issues the catalog holds; Scribe sign-in is retried; a peek reads its landing and graph; Shift+L, inbox keys and shared FEATURES numbers behave.
+  - The kept catalog is read for two seconds at most, and a change it could not keep forces a full read.
+  - A Recording's row and its moments are two queries.
+- **Files:**
+  - `examples/issues/core/src/keys.ts` — Enter and Cmd+Enter submit from the writing field that holds the keyboard.
+  - `examples/issues/core/src/update.ts` — Link targets checked, cards moved with their selection, Esc back to the page an Issue was opened from.
+  - `examples/issues/react/src/scribeDatabase.ts` — A failed sign-in is forgotten and tried again.
+  - `examples/issues/react/src/issueCatalogCache.ts` — A failed write forgets the full-read mark.
+  - `examples/issues/core/src/issueLandings.ts` — A Recording's row and moments as two live queries.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 5:42:56 p.m. EST — `d8139f4437ed` fix(issues): live changes cost what changed; times, links and asks say true
+
+- **Implementation commit:** `d8139f4437edb473424541b7786b49060cbc68e4`
+- **Change:** Live changes cost what changed, and times, links and asks say what is true: lazy journal diffs, an incremental /asks, dates in their own day's offset, line lists that stay lines, and asks from the moment rows.
+- **Details:**
+  - foldkit: a transition's diff is worked out only when read, and a live replay snapshot no longer copies the journal; a filed Issue keeps 0.03 MB, was 20.8.
+  - /asks after a live change works out only the changed Issue.
+  - Times read in the offset their own day had; October no longer reads an hour early.
+  - Recording line lists and 'line #N' are never Issues; a shared Recording number is no id.
+  - Merged needs words that put work on main; Asked is the earliest mention up to filing; a seen line reads 'Heard in'.
+- **Files:**
+  - `packages/foldkit/src/runtime/programJournal.ts` — A transition's diff is worked out the first time something reads it.
+  - `packages/foldkit/src/runtime/replayController.ts` — A live snapshot reads the journal's length and the timeline, not a rebuilt tape.
+  - `examples/issues/core/src/askFlow.ts` — Each step's asks kept sorted across snapshots, changed one Issue at a time.
+  - `examples/issues/core/src/clock.ts` — A time in the offset its own day had in the reader's zone.
+  - `examples/issues/core/src/textReferences.ts` — Line lists after a Recording and 'line #N' read as lines.
+  - `examples/issues/core/src/timeline.ts` — Merged and Asked read only what the entries say.
+  - `examples/issues/core/src/issuePage.ts` — The Asked line follows the moment rows' kind.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Realtime means realtime I'm not batching or delaying. We fix issues at source
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 5:00:19 p.m. EST — `12daec739749` fix(issues): writes keep what they hold and land only on their own Issue
+
+- **Implementation commit:** `12daec7397496e697c45f010fff9ad4ddac616bf`
+- **Change:** Writes keep what they hold and land only on their own Issue: list items keep unmodeled keys, the list reads every Issue, a dialog holds the keyboard and its subject, a filing answers to its own save, and claims say who.
+- **Details:**
+  - Each criterion, mention and entry is written over the stored item with its id; all 1,572 stored Issues round-trip unchanged.
+  - A layer takes the keyboard and gives it back; a key the page takes moves the keyboard off a clicked button; a menu holds the Issues it named.
+  - The filing has its own results; Submit is disabled while filing; comment and link boxes keep their text until the write lands.
+  - A claim names who claimed it for whom and writes its status line; a change that changes nothing writes nothing.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — List items keep unmodeled keys; a change that changes nothing writes nothing.
+  - `examples/issues/core/src/issueQuery.ts` — The catalog query reads every Issue.
+  - `packages/react/src/paintReact/paintReact.tsx` — A layer takes the keyboard and gives it back; moveKeyboardOffControl.
+  - `examples/issues/react/src/issueKeys.ts` — A key the page takes moves the keyboard off a control.
+  - `examples/issues/core/src/update.ts` — The filing's own results, the Submit guard, boxes kept until success, claims and releases that say who.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Never lose a work log, quote or link.
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 4:26:48 p.m. EST — `534a238ac9c2` fix(issues): two writers on one Issue keep both entries
+
+- **Implementation commit:** `534a238ac9c2851edbbabf08e42738194a5ac9db`
+- **Change:** Two writers on one Issue keep both entries: an Issue write names the read it was based on, and a stale or overwritten write is applied again.
+- **Details:**
+  - The tracker's rule refuses an Issue write whose read went stale; the writer reads again from the server and reapplies, up to 12 times with jitter.
+  - A write waits 300 ms and reads again, because Instant judges rules without a lock and two overlapping transactions both pass.
+  - updatedAtMs moves past the stored value on every write; a refused current read or a write only queued offline fails naming the Issue.
+  - Two entries logged in one millisecond no longer share an id.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — The compare-and-set write, its settle read, and the server read before it.
+  - `packages/instant-tools/src/instant/perms.ts` — The isCurrent rule on Issue updates.
+  - `examples/issues/cli/src/resources.ts` — The CLI writes as the owner the environment names, so the rule runs.
+  - `examples/issues/core/src/update.ts` — An entry is found by what it says and takes the next free id.
+- **User context (verbatim):**
+  > Never lose a work log, quote or link.
+  > Think about how to clean up issues data model
+- **SpecStory:** unavailable — Headless Claude Code run issues-fixes-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 3:52:22 p.m. EST — `d30b22201f5a` feat(issues): Recordings list their Issues; decisions, questions, reminders
+
+- **Implementation commit:** `d30b22201f5acae2c929842bca25bb012afca8f9`
+- **Change:** A Recording lists the Issues that came from it; decisions, questions and reminders are entities on the issues site.
+- **Details:**
+  - Recording and line pages read sourceMoments rows and tell came-from, also-came-up and mentions apart; a seen moment is never called his words.
+  - Decisions, questions and reminders have pages, chips and Issue page sections from Scribe's rows.
+  - Issue rows and board cards use content-visibility at 720 px and wider.
+- **Files:**
+  - `examples/issues/core/src/reminderPage.ts` — A reminder's page from Scribe's rows.
+  - `examples/issues/core/src/rowChips.ts` — Chips for decisions, questions and reminders in text.
+- **User context (verbatim):**
+  > I want the recordings to list the issues created from them
+- **SpecStory:** unavailable — Headless Claude Code run issues-linear-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 2:23:15 p.m. EST — `c6b36e818306` feat(issues): a board, saved views, inbox, fields and graph pages
+
+- **Implementation commit:** `c6b36e8183066021d3f35474841bf1f08a53416f`
+- **Change:** The issues site gains a board, saved views, an inbox, field menus and pages for agents, findings, features and products.
+- **Details:**
+  - Bulk selection writes one row at a time and a failed write names its row.
+  - Status, priority, claim and product change from the Issue header and each row; a status move from any client keeps a work-log entry.
+  - Agent runs, sessions, findings, features and products read Scribe's rows; products' surfaces and modules read the products map from the site's server.
+- **Files:**
+  - `examples/issues/core/src/rowEdit.ts` — One change to one Issue, shown at once and written in its turn.
+  - `examples/issues/core/src/rowSelection.ts` — Selection across rows, with Shift extending a run.
+  - `examples/issues/core/src/board.ts` — The board view by status or the set grouping.
+  - `examples/issues/core/src/inbox.ts` — Every status change, claim and mention, newest first, derived at read time.
+  - `examples/issues/core/src/graphRows.ts` — The service that reads Scribe's agent, finding, feature and product rows.
+  - `examples/issues/react/productsMapRoute.ts` — Serves the products map from git to the site's own page.
+  - `packages/foldkit/src/renderers/types.ts` — Board rows, draggable items and a list's drop action.
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Entities should also be rich links to each other not just dumped on text
+- **SpecStory:** unavailable — Headless Claude Code run issues-linear-1538 for #1538; SpecStory does not capture headless runs.
+
+## November 1st, 2026 at 2:15:49 p.m. EST — `bc1bb195633e` fix(wallet): green: every failure on screen is in words
+
+- **Implementation commit:** `bc1bb195633ef05c47376194efda9d80ccafb0a2`
+- **Change:** Foldkit's example wallet composed into Brandon dot, audited for Mainnet, with chain listeners on the mini
+- **Details:**
+  - The wallet is a Submodel of Brandon dot: its update inside GotWalletMessage, its Subscriptions lifted, its view through h.submodel, and no wallet code of its own there. The wallet flag turns it on, and the origin enforces that.
+  - Keys stay in IndexedDB on each person's device, in a partition the origin names from the verified login. A Mainnet key is never a test network's key. The origin reads no request body on any path.
+  - Audit fixes, red then green: restore and refresh never sign, Confirm signs only what it shows, the signed Ethereum fee cannot pass the previewed one, a strict content security policy, a log that decodes only its own facts, and every failure on screen in words.
+  - Two modes, Devnet (Solana Devnet and Sepolia) and Mainnet, with a banner on every screen, a red Mainnet send, and balances read fresh on every switch.
+  - watch.ts listens to each public address over WebSockets, backfills on reconnect, and follows each row to Final. A reorg sends a row back to Pending, and a send that never landed fails in words: 3 minutes on Solana, an hour on Ethereum.
+  - A send shows Pending at broadcast through a bodyless PUT, then moves by itself. The full record of findings and proofs is Scribe's audits/2026-11-01-brandon-wallet-1534.md.
+- **Files:**
+  - `examples/wallet/core/src/presentation.ts` — every failure in words, and whether anything was sent
+  - `examples/wallet/foldkit/src/view.ts` — the screen reads those words, never an operation and a code
+- **User context (verbatim):**
+  > Give Brandon the wallet too and I want to be clear I want the foldkit example wallet added composed to Brandon dot
+  > Main net and deb net on both
+  > We also want the realtime syncing functionality for transactions sent pending received etc
+  > For realtime sync I also meant at the blockchain level through websocket listeners
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (brandon-wallet-1534); no SpecStory capture exists for headless runs.
+
+## November 1st, 2026 at 12:52:50 p.m. EST — `21d9f1f0287a` fix(issues): green: an og link reads as its words or Issue link
+
+- **Implementation commit:** `21d9f1f0287a72d2e491506a29faeea892f710f3`
+- **Change:** An og link reads as its words or Issue link
+- **Details:**
+  - textReferences and mentionedIn read og.pisspoursoftware.xyz as the words or Issue link it stands for, as they read the retired words.knophy.com.
+- **Files:**
+  - `examples/issues/core/src/textReferences.ts` — og links are the same words or Issue link
+  - `examples/issues/core/src/mentionedIn.ts` — a mention's line link on og opens its words page
+- **User context (verbatim):**
+  > Michael, typed 2026-11-01: "Then make sure all deep links securely go through it so we can get rich previews outside our protected realm"
+- **SpecStory:** unavailable — Headless claude -p run of tools/agent-run (og-links-1530); no SpecStory capture exists for headless runs.
+
+## November 1st, 2026 at 12:12:30 p.m. EST — `3a7e341dda0c` feat(issues): rich links, entity pages, landings, search, keys, palette
+
+- **Implementation commit:** `3a7e341dda0c1747fb6f950c21fc1f075ba93840`
+- **Change:** feat(issues): rich links, entity pages, landings, search, keys, palette
+- **Details:**
+  - Every entity in Issue text is a chip with its title and state, read at read time, with a page listing what points at it.
+  - An Issue's page and issues show say where it landed and how to get that build, from Scribe's rows; /asks has each step's median and slowest asks.
+  - A live change costs the Issues it changed (300 Issues, real server: 4,730 KB to 32-48 KB per write); a reload reads only what changed (4,751 KB to 139 KB).
+- **Files:**
+  - `examples/issues/core/src/chips.ts` — chips for every entity in text
+  - `examples/issues/core/src/issueLandings.ts` — where an Issue landed, and build, commit, Recording and line pages, from Scribe's rows
+  - `examples/issues/cli/src/landing.ts` — issues show prints the landing
+  - `examples/issues/react/src/issueCatalogCache.ts` — the catalog kept between visits
+  - `packages/instant-tools/src/instant/instant.ts` — the live window of changed rows; each save marks its row now
+  - `packages/instant/src/hostedIdentity/vite.ts` — a mint for a second Instant app on its own path
+- **User context (verbatim):**
+  > Also audit foldkit issues site and make it much more usable like linear
+  > Entities should also be rich links to each other not just dumped on text
+- **SpecStory:** unavailable — This task ran headless under tools/agent-run, for which SpecStory does not capture sessions.
+
+## November 1st, 2026 at 1:30 a.m. EDT — feat(brandon): Brandon dot on Foldkit's Instant sync
+
+- **Change:** `examples/brandon`, the page at brandon.pisspoursoftware.xyz, for Scribe issues #1531, #1525, and #1530
+- **Details:**
+  - The log carries points, pointers, and change notices; each section's words stay on an origin that verifies the Cloudflare Access JWT and sends only what an account's flags allow.
+  - `Instant()` takes `owner` beside `programLog`, so Books and Reminders no longer build a transport by hand.
+  - `FoldkitCounterV01` is now `SharedInstantProject`, the name for the one project every example shares.
+  - `@foldkit/markdown` keeps a time of day in prose as text instead of refusing it as a directive.
+- **Files:**
+  - `examples/brandon/core`, `examples/brandon/foldkit`, `examples/brandon/server` — the Program, the page, and the origin with the `brandon` command
+  - `packages/instant/src/sync` — the `owner` option and the union of `InstantOptions`
+  - `packages/markdown/src/vite/normalize.ts` — colons in prose
+
+## October 30th, 2026 at 12:58:40 p.m. EDT — `7105e39ba422` feat(issues): green: issues show lists the Issue's build jobs
+
+- **Implementation commit:** `7105e39ba4227c6f4a4242d5d99a4aea873de5fe`
+- **Change:** issues show lists the Issue's newest build jobs from Scribe's buildJobs, for Scribe issue #1412
+- **Details:**
+  - issues show reads the Issue's newest 10 buildJobs rows from Scribe's main Instant app alongside the Issue (a second admin query with Scribe's own credentials, from the environment or scribe-main.env, abandoned after 5 seconds) and prints them after Now working and Work in progress, newest first, one aligned line each: queued time in the Mac's time zone, state, machine and slot (warm or cold), label, exit code, how long it ran and waited, a running job's heartbeat when older than 3 minutes, and its agent. --json adds builds (or buildsNotShown); issues --help says show prints them. A missing credential, a refused or failed query, or no answer prints one Builds not shown line and the command still succeeds. Red da1d034ac, green 7105e39ba. CLI tests 91/91 (65 before), tsc and oxlint clean.
+- **Files:**
+  - `examples/issues/cli/src/builds.ts` — the buildJobs read, bounded at 5 seconds, and the Builds section and JSON keys
+  - `examples/issues/cli/src/resources.ts` — Scribe's credentials and the live reader; the env file parser shared with the tracker's
+  - `examples/issues/cli/src/commands.ts` — issues show reads the jobs with the Issue and prints them after Work in progress
+  - `examples/issues/cli/src/entry.ts` — the live host's build-job reader and time zone, and the show help text
+  - `examples/issues/cli/src/builds.test.ts` — a request that cannot be sent, and a time zone the Mac cannot name
+  - `examples/issues/README.md` — the Builds section and Scribe's credentials
+- **User context (verbatim):**
+  > I like the idea of having the issues add this kind of build information to the schema for Scribe so that we can always query it with one tool. (the owner, typed in the Claude chat 2026-10-30, Scribe #1412)
+- **SpecStory:** unavailable — Claude Code headless sub-agent of claude-code/build-sh-1412, started by its parent session; no SpecStory capture.
+
+## October 29th, 2026 at 7:38:55 p.m. EDT — `867f9230cba5` fix(issues): green: a recount replaces the stored count and its time
+
+- **Implementation commit:** `867f9230cba5adccfe09ef76d8ecd906de3c3952`
+- **Change:** A recount replaces the stored file count and its time, for Scribe issue #1374
+- **Details:**
+  - Measured on the LaunchAgent's runs: a recount that found the same files kept the old count and time, so every two-minute sync ran git in all 17 worktrees again (12 s of CPU a run). A quick run now costs 3.8 s of CPU under launchd. Red 77cb9d1ad.
+- **Files:**
+  - `examples/issues/core/src/nowWorking.ts` — a recount replaces the count
+- **User context (verbatim):**
+  > Can you make sure each of these issues is logged? And do we have a way to indicate that things are in progress or currently being worked on and which agent is working on them, what file they're working in, what work tree they're working in, what branch they're working in, etc. (the owner, Recording 322 #2223-2224, 2026-10-29 18:10, Scribe #1374)
+- **SpecStory:** unavailable — unavailable — Claude Code headless run claude-code/issue-wip-1374 started by tools/agent-run; no SpecStory capture.
+
+## October 29th, 2026 at 7:38:55 p.m. EDT — `0682c88c14fe` fix(issues): green: the quick sync skips old runs, shared worktrees, fresh counts
+
+- **Implementation commit:** `0682c88c14feb8e4133b31a01bab6b5395810d59`
+- **Change:** issues working sync reads only recent runs, skips shared worktrees, and counts a worktree at most every ten minutes, for Scribe issue #1374
+- **Details:**
+  - Measured on live data: registry rows with no end time were read on every sync, and the git count ran once per agent (about 0.65 s of CPU per Scribe worktree, 17 worktrees). A run's time falls back to its start, a dead run's to its last sign of life; a worktree several running agents share is not counted; a count younger than ten minutes is kept. Red 905b5a621 and 7fa346a80.
+- **Files:**
+  - `examples/issues/cli/src/working.ts` — issueIdsToCheck and the main line
+  - `examples/issues/cli/src/commands.ts` — shared worktrees and the recount interval
+- **User context (verbatim):**
+  > Can you make sure each of these issues is logged? And do we have a way to indicate that things are in progress or currently being worked on and which agent is working on them, what file they're working in, what work tree they're working in, what branch they're working in, etc. (the owner, Recording 322 #2223-2224, 2026-10-29 18:10, Scribe #1374)
+- **SpecStory:** unavailable — unavailable — Claude Code headless run claude-code/issue-wip-1374 started by tools/agent-run; no SpecStory capture.
+
+## October 29th, 2026 at 7:38:44 p.m. EDT — `f8ebd2d0caac` feat(issues): green: show who works on each Issue now, release ended claims
+
+- **Implementation commit:** `f8ebd2d0caac7cb4b85906f0596d03f9a216d2b5`
+- **Change:** Each Issue shows who works on it now: a Now working block, a Working now filter, issues list --working, and issues working sync, for Scribe issue #1374
+- **Details:**
+  - An Issue carries agentPresence in its stored JSON (agent id and account; Running, Ended with how, or Stale; branch; worktree; files touched from git numstat against the nearest main line). No Instant schema change: all 1,369 stored payloads read with the installed and the new schema, re-encode as before plus agentPresence null, and keep every key through a save. issues working sync reads tools/agent-progress-check --json and agents-registry.json, releases claims of runs that ended, marks claims quiet for 12 h stale, and moves InProgress or Addressing work recorded Merged or Shipped to VerificationNeeded. issues wip names the claimant when no agent is given. Red 97f50a1dd, green f8ebd2d0c. Program version 11 (f06513235).
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — IssueAgentPresence, IssueTouchedFiles, isWorkingNow
+  - `examples/issues/core/src/nowWorking.ts` — observedIssue, nowWorkingLines, statusFollowingLanding
+  - `examples/issues/core/src/product.ts` — the Now working section and the Working now choice
+  - `examples/issues/cli/src/working.ts` — the survey and the git count
+  - `examples/issues/cli/src/commands.ts` — issues working sync, list --working, show's block
+- **User context (verbatim):**
+  > Can you make sure each of these issues is logged? And do we have a way to indicate that things are in progress or currently being worked on and which agent is working on them, what file they're working in, what work tree they're working in, what branch they're working in, etc. (the owner, Recording 322 #2223-2224, 2026-10-29 18:10, Scribe #1374)
+- **SpecStory:** unavailable — unavailable — Claude Code headless run claude-code/issue-wip-1374 started by tools/agent-run; no SpecStory capture.
+
+## October 29th, 2026 at 12:07:36 p.m. EDT — `8f6dd4e3896f` feat(issues): green: an Issue's page draws its stored pictures
+
+- **Implementation commit:** `8f6dd4e3896f2067057a773ba80e653fb6f4df5d`
+- **Change:** An Issue's page draws the pictures stored with it in Instant, for Scribe issue #1345
+- **Details:**
+  - InstantToolsSchemaWithFiles adds $files and the issueFiles link as the tracker's server holds them; core gains an IssueFiles service, an issueFiles state and a selectedIssueFiles subscription; pictures draw at 240 by 520 linked to their signed address, other stored files are links, and a failed read says why. Program version 10. Red 9a1677fee, green 8f6dd4e38. instant-tools 66, core 77, CLI 54, React 8 tests pass (after rebase on f9ac958b0).
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — InstantToolsSchemaWithFiles
+  - `examples/issues/core/src/issueFiles.ts` — the IssueFiles service
+  - `examples/issues/core/src/product.ts` — the attachment section draws pictures
+  - `examples/issues/react/src/client.ts` — the site reads with the files schema
+- **User context (verbatim):**
+  > especially when we're talking about design (the owner, Scribe #1345)
+- **SpecStory:** unavailable — Claude Code headless run claude-code/issue-images-1345 started by tools/agent-run; no SpecStory capture.
+
+## October 29th, 2026 at 12:07:35 p.m. EDT — `b9da38be47ff` feat(issues): green: --said attaches the screenshots and screen frames of its lines
+
+- **Implementation commit:** `b9da38be47ff78f4304c3d8f4b81d8fbaf68316f`
+- **Change:** issues file and issues mention --said attach the screenshots and screen frames of the quoted lines; --image and --no-images, for Scribe issue #1345
+- **Details:**
+  - Screenshots from 60 s before to 10 s after the lines and up to six evenly spread screen frames from 10 s before to 5 s after, on the wall clock (closed capture.gap rows), from images.jsonl; camera photos, pastes, drops and unlabelled pictures are never taken. Each picture once, by bytes and against the Issue's stored ones; one batch upload, link and change; a failure removes the uploads and names the picture and the retry command. Red 156c5edee, green b9da38be4. CLI 54 tests pass after rebase on f9ac958b0.
+- **Files:**
+  - `examples/issues/cli/src/mentions.ts` — resolveSaid and the picture choice
+  - `examples/issues/cli/src/commands.ts` — attaching pictures on file and mention
+  - `examples/issues/cli/src/entry.ts` — --image and --no-images
+- **User context (verbatim):**
+  > especially when we're talking about design (the owner, Scribe #1345)
+- **SpecStory:** unavailable — Claude Code headless run claude-code/issue-images-1345 started by tools/agent-run; no SpecStory capture.
+
+## October 21st, 2026 at 12:44:58 p.m. EDT — `ce9a8f755897` feat(issues): a Backlog page, issues list --backlog, and issues rank
+
+- **Implementation commit:** `ce9a8f755897fdf8453d3bae6f272f3ab7a45e14`
+- **Change:** A Backlog page and issues list --backlog ordered by build lane, priority, rank, and age, and issues rank to order an Issue within its priority, for Scribe issue #971
+- **Details:**
+  - The next build is the lowest target build above every build that shipped work (with 110 shipped and work for 107, 111, and 112 open, it is 111). Lanes list unfinished, unshipped, unabandoned work per upcoming build; priority sections hold the rest, leaving out Closed, Fixed, Resolved, Verified, and VerificationNeeded. backlogRank lives in the Issue's stored JSON on the createdAtMs axis, so one rank writes one Issue and the Instant schema does not change. Program version 9. Red 2b40a496a, green ce9a8f755. instant-tools 66, core 75, CLI 39, React 8, React Native 2 tests pass.
+- **Files:**
+  - `examples/issues/core/src/backlog.ts` — the order, the next build, the lanes and sections, and the rank math
+  - `examples/issues/core/src/route.ts` — /issues/backlog
+  - `examples/issues/core/src/product.ts` — the Backlog page
+  - `examples/issues/core/src/update.ts` — RankIssue
+  - `examples/issues/cli/src/commands.ts` — list --backlog and rank
+  - `packages/instant-tools/src/issues/domain.ts` — backlogRank on Issue
+  - `examples/issues/README.md` — the commands and the page
+- **User context (verbatim):**
+  > How are these different uh priorities organized? Um is there prioritization in the issues dot pissport software dot xyz for our backlog? (the owner, typed 2026-10-21)
+- **SpecStory:** unavailable — Claude Code side session started by session local_9ac5f846; no SpecStory capture.
+
+## October 19th, 2026 at 6:24:15 p.m. EDT — `87287953848c` feat(issues): an Issue's page lists the recordings that mentioned it
+
+- **Implementation commit:** `87287953848cdc36744ebc31522488e7808cd700`
+- **Change:** An Issue's page lists every recording and line that mentioned it (Mentioned in), for Scribe issue #721 criterion 4
+- **Details:**
+  - mentionedIn groups the tracker's Recording Mentions by recording, newest first, with each line range linked to its words page; a Mention found only by the recording clock says no line link. Red 2d3a4dd86 (the tests, the page test in screen.test.ts, and the owner's words in plans/user-messages/2026-10-19-issues-mentioned-in.md), green 872879538. Core tests 63 of 63.
+- **Files:**
+  - `examples/issues/core/src/mentionedIn.ts` — the pure grouping and parsing
+  - `examples/issues/core/src/product.ts` — the Mentioned in section above Mentions
+  - `examples/issues/core/src/mentionedIn.test.ts` — the behaviors
+  - `examples/issues/README.md` — the site's behavior list
+- **User context (verbatim):**
+  > we should probably have a link where I can look and see where, at the schema level, where an issue came from or where it's been mentioned in various different recordings (the owner, typed 2026-10-16 ~18:10)
+  > And then also get the functionality built in. (the owner, typed 2026-10-19 17:10)
+- **SpecStory:** unavailable — Headless claude -p run (claude-code/topics-721); no SpecStory capture for this session.
+
+## October 18th, 2026 at 5:14:22 p.m. EDT — `8041dabfd318` fix(books): judge a recording live by its heartbeat; write only missing timeline rows (#20)
+
+- **Implementation commit:** `8041dabfd3185a22d06ac6069bc11f9e36d186c8`
+- **Change:** Judge a recording live by its heartbeat; write only missing timeline rows (PR #20, red 4ca3d3e24; issue #842)
+- **Details:**
+  - A recording counts as capturing until 15 s after the wall time its duration last reached (Scribe's RecordingLiveness.liveWindow; the recording device writes the duration every 5 s). Its activityKind stamp no longer counts: a crash leaves active behind, and a playback on another device writes over it.
+  - A report reads which of its rows Instant already has, places an end from the start already there, and writes only the missing rows, so a retry is never refused after the recording's clock moved. Found by the throwaway-app rules proof (a retried end was refused); proof 16/16 after. books core 170 tests. Deployed 17:04.
+- **Files:**
+  - `examples/books/core/src/scribeTimeline.ts` — heartbeatWindowMs and liveUntilMsOf; RecordingStatus is Listed or RecentlyDeleted
+  - `examples/books/core/src/instantScribeTimeline.ts` — writtenRowsOf: write only what Instant lacks
+- **User context (verbatim):**
+  > And then also make it so when I listen to a book in books.pisspoorsoftware.xyz, it automatically reports into the scribe timeline exactly the same as the video application does. (Michael, typed in a Claude chat, 2026-10-18 15:05 EDT, issue #842 criterion 3)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p), session 6309ddf0-add5-402f-9101-765f3da32df2, started by the Scribe listener for issue #842; no SpecStory capture.
+
+## October 18th, 2026 at 5:14:21 p.m. EDT — `eff711608bc4` feat(books): end a stretch a closed page left open (#19)
+
+- **Implementation commit:** `eff711608bc4587b5d05957b361bcf6fb529aa04`
+- **Change:** End a stretch a closed page left open (PR #19, red 9be7cb5c4; issue #842)
+- **Details:**
+  - Every 10 minutes from when the shelf arrives, Books asks Scribe's timeline for its plays with a start and no end on the account's recordings of the last 36 h, and ends each at the title's last save as the page closing (appClosed; Scribe reads 'Books closed'), in the start's own words.
+  - It leaves the play this page is playing and any title saved in the last minute, and claims only the first 3 s when no save came after the play or a later play of the title began (a start on a recording begun later that continues the same stretch is not a later play). An end another device already wrote is not written again.
+  - Proved on the throwaway Instant app bd40c50a under Scribe main's instant.perms.ts through the debug endpoints, with made-up people. books core 168 tests. Deployed 16:55.
+- **Files:**
+  - `examples/books/core/src/closings.ts` — closingsOf decides how each unended play ends
+  - `examples/books/core/src/scribeTimeline.ts` — UnendedPlay, PlayClosing, unendedPlaysOf, closingRowOf, and the service's unendedPlays and closePlays
+  - `examples/books/core/src/instantScribeTimeline.ts` — the Instant unendedPlays and closePlays
+  - `examples/books/core/src/subscriptions.ts` — the check every 10 minutes once the shelf is here
+  - `examples/books/core/src/update.ts` — CloseUnendedPlays and ReceivedUnendedPlays
+  - `examples/books/core/src/message.ts` — ReceivedUnendedPlays and the close results
+- **User context (verbatim):**
+  > And then also make it so when I listen to a book in books.pisspoorsoftware.xyz, it automatically reports into the scribe timeline exactly the same as the video application does. (Michael, typed in a Claude chat, 2026-10-18 15:05 EDT, issue #842 criterion 3)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p), session 6309ddf0-add5-402f-9101-765f3da32df2, started by the Scribe listener for issue #842; no SpecStory capture.
+
+## October 18th, 2026 at 4:34:56 p.m. EDT — `6261698c577f` feat(books): report each played stretch to Scribe's timeline
+
+- **Implementation commit:** `6261698c577f8811e1dd70243407fef38e5e3f9d`
+- **Change:** Report each played stretch to Scribe's timeline as Scribe Videos does (red 720e8a953, green 6261698c5; issue #842)
+- **Details:**
+  - transcript-player: ReachedPlace and Advanced carry wallClockMs, stamped when the audio reached the second (browser, ffplay, counted output).
+  - books: the loaded title keeps its stretch (Quiet, Starting, Begun); it opens at the first second heard, begins at 3 s, and ends at a pause, a failed file, a seek or a jump of more than 2 s, a new speed, another title, or the end. Each begin and end is a ReportStretch Command to the ScribeTimeline service; a refusal shows under the player.
+  - The Instant timeline places the stretch on every recording of the person's account link that was live while it played, through its capture gaps (the YouTube companion's clock.ts, case for case), and writes Scribe Videos' two mediaPlay runtime events per recording, owned by the recording's sign-in: stable ids (ADR 0048), the payload byte for byte Scribe's shared fixture (copied in the red commit), kind audiobook, the book's authors, its public cover, and a link to the second. No schema or rules change.
+  - Proved on the throwaway Instant app bd40c50a under Scribe main's instant.perms.ts through the debug endpoints, with made-up people: the email sign-in writes start and end on the Apple sign-in's live recording, a retry lands on the same rows, a stranger is refused. Tests: books core 155, transcript-player 12.
+- **Files:**
+  - `examples/books/core/src/stretch.ts` — the stretch recorder
+  - `examples/books/core/src/scribeTimeline.ts` — ids, payload, placement, rows, and the ScribeTimeline service
+  - `examples/books/core/src/instantScribeTimeline.ts` — the Instant reporter
+  - `examples/books/core/src/recordingClock.ts` — a recording's clock against the wall clock
+  - `examples/books/core/src/stableId.ts` — SHA-256 and the version-5 stable UUID
+  - `examples/books/core/src/update.ts` — ReportStretch, the recorder in playerUpdated, the speed and title switches
+  - `examples/books/core/src/live.browser.ts` — the browser provides the Instant timeline
+  - `examples/books/core/src/live.ts` — the terminal provides the Instant timeline
+  - `examples/books/core/src/screen.ts` — a refusal shows under the player
+  - `examples/transcript-player/core/src/audio.ts` — Advanced carries wallClockMs; the counted output stamps it with Clock
+  - `examples/transcript-player/core/src/message.ts` — ReachedPlace carries wallClockMs
+- **User context (verbatim):**
+  > And then also make it so when I listen to a book in books.pisspoorsoftware.xyz, it automatically reports into the scribe timeline exactly the same as the video application does. (Michael, typed in a Claude chat, 2026-10-18 15:05 EDT, issue #842 criterion 3)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p), session 6309ddf0-add5-402f-9101-765f3da32df2, started by the Scribe listener for issue #842; no SpecStory capture.
+
+## October 18th, 2026 at 4:34:46 p.m. EDT — `9e086e9410e9` feat(books): send a stretch Scribe's timeline refused again
+
+- **Implementation commit:** `9e086e9410e9788e31c6125954e34d25cb1738b5`
+- **Change:** Send a stretch Scribe's timeline refused again (issue #842)
+- **Details:**
+  - A report that fails, offline or at Instant's 30 s query timeout, stays on the Model and goes out again, oldest first, with the next report or as soon as one lands, as Scribe Videos does with its waiting stretches. FailedReportStretch carries the report. Red first: the two new timeline.test.ts cases failed before the change; books core 157/157 after.
+- **Files:**
+  - `examples/books/core/src/update.ts` — withReportsSent and sentReports; FailedReportStretch keeps the report, CompletedReportStretch sends what waits
+  - `examples/books/core/src/model.ts` — StretchReport and the Model's unsentReports
+  - `examples/books/core/src/message.ts` — FailedReportStretch carries the report
+  - `examples/books/core/src/timeline.test.ts` — resend cases
+- **User context (verbatim):**
+  > And then also make it so when I listen to a book in books.pisspoorsoftware.xyz, it automatically reports into the scribe timeline exactly the same as the video application does. (Michael, typed in a Claude chat, 2026-10-18 15:05 EDT, issue #842 criterion 3)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p), session 6309ddf0-add5-402f-9101-765f3da32df2, started by the Scribe listener for issue #842; no SpecStory capture.
+
+## October 17th, 2026 at 1:46:19 p.m. EDT — `0fbccc551561` feat(issues): add issues subtask, issues wip, and the close-to-landing view
+
+- **Implementation commit:** `0fbccc551561a5f30dff3102f58e0d884b8a88ad`
+- **Change:** Add issues subtask, issues wip, and the close-to-landing view (red cb4c43de9, green 0fbccc551; issues #835)
+- **Details:**
+  - issues subtask add, check, and uncheck keep an Issue's checklist; issues wip records where its work is, changing only the flags given, prints it with no flag, and clears it with --clear; issues show prints both; issues list --landing, --wip, --stuck, and --target-build 106 list the matching work with where it is and its branch. The Program gains SubmittedIssueSubtasks, SubmittedSubtaskMarks, SubmittedIssueWorkInProgress, ClearedIssueWorkInProgress, and SelectedLandingFilter, and is version 8. Tests: instant-tools 66, issues core 56, issues CLI 36, issues React host 8; tsc, oxlint, and prettier clean.
+  - End to end on a throwaway ephemeral Instant app (84a05333) with the Instant Tools schema pushed: file, subtask add (and again, one new), check by position and id, uncheck, an unknown subtask (exit 2), wip none, record, pushed keeping the rest, print, stuck, abandoned, every list filter, show, clear, and --clear with a change (exit 2). The installed 1.4.0 CLI's log, status, edit, and criterion on that Issue kept its subtasks and work in progress.
+  - The site shows an Issue's work in progress and subtasks on its page, the landing state beside each Issue in the list, and a Close to landing choice.
+- **Files:**
+  - `examples/issues/core/src/landing.ts` — LandingFilter, issuesForLandingFilter, and the shared landing and work-in-progress wording
+  - `examples/issues/core/src/update.ts` — AddIssueSubtasks, MarkIssueSubtasks, RecordIssueWorkInProgress, ClearIssueWorkInProgress, and their Messages
+  - `examples/issues/core/src/model.ts` — WorkInProgressEdit, SubtaskMark, and the Model's landingFilter
+  - `examples/issues/core/src/message.ts` — the five new Messages
+  - `examples/issues/core/src/presentation.ts` — listedIssues and the landing:all and landing:close interactions
+  - `examples/issues/core/src/product.ts` — the Work in progress and Subtasks sections, the list's landing state, and the Close to landing choice
+  - `examples/issues/core/src/init.ts` — landingFilter starts at AllWork
+  - `examples/issues/core/src/program.ts` — version 8
+  - `examples/issues/cli/src/commands.ts` — addSubtasksCommand, markSubtasksCommand, workInProgressCommand, the list filters, and show's new sections
+  - `examples/issues/cli/src/entry.ts` — issues subtask add, check, uncheck; issues wip; issues list --landing, --wip, --stuck, --target-build
+  - `examples/issues/README.md` — documents the new commands and the site's view
+- **User context (verbatim):**
+  > Also, I want you to audit all the work in progress. that isn't going into this next build and I want to modify issues so that you can do this work. um so that we can track in-progress work um and like the subtask list and stuff like that so we can get an idea of what work is close to landing but hasn't landed yet. (Michael, Recording 243 #2285-2289, 2026-10-17 13:19, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/263930ff-7694-4221-9f4c-f55815deebf5?t=14406.42)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 4a5e56c2-cf9c-4ee0-b5a1-43be7d467d97, started by the Scribe listener for issue #835; no SpecStory capture.
+
+## October 17th, 2026 at 1:46:18 p.m. EDT — `f12651d55668` feat(instant-tools): record subtasks and work in progress on an Issue
+
+- **Implementation commit:** `f12651d5566862e31468d0761c921b508edf7ae5`
+- **Change:** Record subtasks and work in progress on an Issue (red 1a2e15ef8, green f12651d55; issues #835)
+- **Details:**
+  - An Issue gains subtasks (each Unchecked, or Checked at a time) and workInProgress: branch, repository, worktree, commit, target build, landing state (Exploring, Red, Green, Pushed, Merged, Shipped), last step, the agent that recorded it, and whether the work is Active, Stuck, or Abandoned with the reason. isCloseToLanding is true while the work is Green or Pushed and not abandoned.
+  - Both live in the Issue's stored JSON, so the tracker's Instant schema does not change. Proved on a backup of all 833 stored Issues of the tracker app 28c98cc4: each reads with the old and the new schema, re-encodes exactly as before plus subtasks [] and workInProgress null, and a save over the stored payload keeps every stored key.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — IssueSubtask, IssueLandingState, IssueWorkActivity, IssueWorkInProgress, the Issue's subtasks and workInProgress, and isCloseToLanding
+- **User context (verbatim):**
+  > Also, I want you to audit all the work in progress. that isn't going into this next build and I want to modify issues so that you can do this work. um so that we can track in-progress work um and like the subtask list and stuff like that so we can get an idea of what work is close to landing but hasn't landed yet. (Michael, Recording 243 #2285-2289, 2026-10-17 13:19, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/263930ff-7694-4221-9f4c-f55815deebf5?t=14406.42)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 4a5e56c2-cf9c-4ee0-b5a1-43be7d467d97, started by the Scribe listener for issue #835; no SpecStory capture.
+
+## October 17th, 2026 at 11:50:08 a.m. EDT — `092077fa9fe2` fix(read-aloud): say a book was read aloud when no page of it was heard
+
+- **Implementation commit:** `092077fa9fe21758a8d9a42278a69f4c20a5f5de`
+- **Change:** Say a book was read aloud when no page of it was heard (red 5abfb95e2, green 092077fa9; issues #798)
+- **Details:**
+  - A shelf row with no page turn said Not read aloud yet, though every book on the shelf came from a reading; it showed under Books read aloud on an author's page. Such a row now says Read aloud.
+- **Files:**
+  - `examples/read-aloud/core/src/screen.ts` — statusOf's words for a book with no page turn.
+- **User context (verbatim):**
+  > We want all that uh richly represented Ed at books.pisportsoftware.xyz and all those should be linkable to different pages.
+- **SpecStory:** unavailable — headless Claude Code session 999281c9-0e3d-4994-9f41-f6621894bb79 on the second Claude account, started by the Scribe listener for issue #798; no SpecStory URI was captured
+
+## October 17th, 2026 at 11:50:07 a.m. EDT — `9af2ebcbb696` feat(books): give each author, illustrator, editor, and publisher a page
+
+- **Implementation commit:** `9af2ebcbb696bff1e9f2c95e6a90cc1882dd5d39`
+- **Change:** Give each author, illustrator, editor, and publisher a page in Books (red 9cd9d0ceb, green 9af2ebcbb; plan 12; issues #798)
+- **Details:**
+  - A book read aloud lists its credits, each a link above the library: /books/authors/<name-tag>, /books/illustrators/…, /books/editors/…, /books/publishers/….
+  - A person's page lists the books read aloud crediting them in that role, links their other roles, and for an author, their library audiobooks; library titles link their authors there too.
+  - Read Aloud reads credits from Scribe's things graph (graph/things.jsonl, graph/relations.jsonl): authorOf, illustratorOf, contributedTo role editor, publisherOf; never retracted, rejected, candidate, or personal rows; the catalog fills only what the graph lacks.
+  - Book carries credits and publishedBy in place of authors and publishers, both decoding to none from older log rows and kept snapshots.
+  - Link previews of credit pages give the name and role only, never the books.
+- **Files:**
+  - `examples/read-aloud/core/src/ids.ts` — ContributorKey, PublisherKey, and the name tags addresses use.
+  - `examples/read-aloud/core/src/model.ts` — CreditRole, Contributor, Credit, Publisher; the Book's credits and publishedBy; lookups by tag.
+  - `examples/read-aloud/core/src/scribe.ts` — RelationRow and the graph credits with the catalog fallback.
+  - `examples/read-aloud/core/src/local.node.ts` — Reads and watches the graph folder beside the books.
+  - `examples/read-aloud/core/src/screen.ts` — The Credits list and CreditLinks; navigation.ts, routes.ts, and linkPreview.ts pass the links, print bookPathOf, and take the author from credits.
+  - `examples/books/core/src/routes.ts` — The route table moved from navigation.ts, the credit pages, and their printers.
+  - `examples/books/core/src/screen.ts` — The contributor and publisher pages and linked authors on a title; destination.ts, ids.ts, and navigation.ts add ContributorPage, PublisherPage, and the role word.
+  - `examples/books/core/src/linkPreviews.node.ts` — Name-and-role previews for credit pages.
+- **User context (verbatim):**
+  > So books and then slash authors slash author ID.
+- **SpecStory:** unavailable — headless Claude Code session 999281c9-0e3d-4994-9f41-f6621894bb79 on the second Claude account, started by the Scribe listener for issue #798; no SpecStory URI was captured
+
+## October 17th, 2026 at 10:46:22 a.m. EDT — `ad2052762d6b` feat(issues): add a product with issues products add
+
+- **Implementation commit:** `ad2052762d6b53cfef11e25a971354cc7e853b71`
+- **Change:** Add a product with issues products add (red 29f329839, green ad2052762; issues #790)
+- **Details:**
+  - The CLI sends SubmittedProduct; the Program refuses a malformed id, a blank name, or an id or name another product holds (exit 2), changes nothing for a product already there as given, and otherwise runs SaveProduct, which counts the product saved only once a catalog fetch returns it (exit 1 with the real cause otherwise). Program version 7. Tests: instant-tools 62, issues core 50, issues CLI 32, issues React host 8; tsc and oxlint clean on every changed file.
+  - End to end on a throwaway ephemeral Instant app (5648d22d) with the Instant Tools schema pushed: products add, products, the same add again (nothing changed), both refusals, file --product acaga, edit 002 --product ACAGA, and list --product acaga all behaved as pinned; the stored row is a07f9008-c1d6-5f59-a814-5d0d9ccfde0e with productId acaga. Without the schema, Instant refuses the write (Attributes are missing in your schema), so the tracker app needs instantToolsProducts pushed before its first product.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — SaveProduct and the refusals for a new product
+  - `examples/issues/core/src/model.ts` — productAddition, every phase of adding a product
+  - `examples/issues/core/src/message.ts` — SubmittedProduct, SucceededSaveProduct, FailedSaveProduct
+  - `examples/issues/core/src/init.ts` — productAddition starts Idle
+  - `examples/issues/core/src/program.ts` — version 7 for the new Message and Model field
+  - `examples/issues/core/src/resources.ts` — makeMemoryProductCatalog backs the static resources
+  - `examples/issues/cli/src/commands.ts` — addProductCommand and its exit codes
+  - `examples/issues/cli/src/entry.ts` — issues products add, with issues products still listing
+  - `examples/issues/cli/src/host.ts` — waits for a product save to settle and names it when it does not
+  - `examples/issues/README.md` — documents products add
+- **User context (verbatim):**
+  > Akaga is a project though, not its own. idea root it's a project um it should have its own project in uh in our issues application and ideas that talk about it should be linked to it. (Michael, Recording 243 #534-537, 2026-10-17 10:15, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/66f2e1e3-c278-42d3-b8f7-cbc2a8c6483b?t=3420.12)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 1f72c106-d9c6-41ce-91de-2712b1879e88, started by the Scribe listener for issue #790; no SpecStory capture.
+
+## October 17th, 2026 at 10:33:37 a.m. EDT — `728199441841` fix(instant-tools): save each product under a UUID row with its product id
+
+- **Implementation commit:** `7281994418413162dc408d9b8965c453d80f4dc3`
+- **Change:** Save each product under a UUID row with its product id (red c5be101ce, green 728199441; issues #790)
+- **Details:**
+  - Instant takes only UUIDs as row ids, so ProductCatalog.save (instantToolsProducts[<product id>]) never stored a product: the tracker app 28c98cc4 had 0 product rows, and its 16 listed products came from Issues' own product fields. A product now lives under makeInstantProductID(id), a UUID v5 of instantToolsProducts/<id>, with its id in a new productId attribute (unique, indexed).
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — UUID row ids for products, the productId attribute, and decoding the product id from it
+- **User context (verbatim):**
+  > Akaga is a project though, not its own. idea root it's a project um it should have its own project in uh in our issues application (Michael, Recording 243 #534-536, 2026-10-17 10:15, https://words.pisspoursoftware.xyz/recording/77314e54-340e-446d-a0c4-94c1117f94eb/section/66f2e1e3-c278-42d3-b8f7-cbc2a8c6483b?t=3420.12)
+- **SpecStory:** unavailable — Headless Claude Code run (claude -p) on the second Claude account, session 1f72c106-d9c6-41ce-91de-2712b1879e88, started by the Scribe listener for issue #790; no SpecStory capture.
+
+## October 15th, 2026 at 12:01:13 a.m. EDT — `6ad3820ab5bd` chore: remove client names from the examples
+
+- **Implementation commit:** `6ad3820ab5bd0fd5e2aebb90910d276e8b5096ef`
+- **Change:** Remove client names from the examples (the Personal CFO CLI's one-off screen dump script, whose file name named a client, is deleted; names dropped from Personal CFO text and two issues .look reports)
+- **Details:**
+  - No history rewrite: older commits still hold the file and the names; what a rewrite would take is in /Users/laptop/Scribe/handoff.md for Michael to decide.
+- **Files:**
+  - `examples/personal-cfo/README.md` — client name removed from the title
+  - `examples/personal-cfo/core/src/domain.ts` — client name removed from the AccountKind docs
+  - `examples/personal-cfo/core/src/product.ts` — sign-in line no longer names the client
+  - `examples/personal-cfo/docs/s0-ask.md` — client name removed
+  - `examples/issues/.look/GROK-REPORT.md` — client product name removed
+  - `examples/issues/.look/PAINT-FOLDKIT-FILTER.txt` — client product name removed
+- **User context (verbatim):**
+  > Should I allow site writes and restrict reads to your email (both together), and remove the client-named file from FoldKit main? (answered: Yes, typed 2026-10-14 ~23:20 EDT)
+- **SpecStory:** unavailable — Headless Claude Code run on the second account; no SpecStory capture.
+
+## October 14th, 2026 at 11:46:37 p.m. EDT — `700b8c5f5ff5` feat(issues): Instant rules that keep the tracker to its owners
+
+- **Implementation commit:** `700b8c5f5ff529fc11395f51c5f96555f1da0a8d`
+- **Change:** Instant rules that keep the issue tracker to its owners (red 8bff10e87 adds perms.test.ts and the export, green 700b8c5f5)
+- **Details:**
+  - instantToolsOwnerRules gates every Instant Tools entity and $files on auth.email being an owner; pushed to the tracker app 28c98cc4 with only the owner's sign-in email, after a rules matrix on an ephemeral app (audit: /Users/laptop/Sync/audit/issues-site-2026-10-14/perms/).
+- **Files:**
+  - `packages/instant-tools/src/instant/perms.ts` — the rules builder and OwnerEmail
+- **User context (verbatim):**
+  > Should I allow site writes and restrict reads to your email (both together), and remove the client-named file from FoldKit main? (answered: Yes, typed 2026-10-14 ~23:20 EDT)
+- **SpecStory:** unavailable — Headless Claude Code run on the second account; no SpecStory capture.
+
+## October 14th, 2026 at 10:41:32 p.m. EDT — `25139adf66d1` fix(ci): allow sharp's install script so CI installs again
+
+- **Implementation commit:** `25139adf66d13554d06bc5f2234df94c8c24d34e`
+- **Change:** Allow sharp's install script so CI installs again
+- **Details:**
+  - PR technoplato/foldkit#5, squash 25139adf6 (bonus for #695): every CI, Release, Deploy Website, and Examples E2E run since 2026-10-10 stopped at Install dependencies with ERR_PNPM_IGNORED_BUILDS for sharp@0.34.5 (from next@15.5.23). allowBuilds now names sharp; its script only checks whether to build from source. CI then installs and fails on older work already on main: prettier --check finds 20 unformatted files, and the website build that Examples E2E runs fails.
+- **Files:**
+  - `pnpm-workspace.yaml` — allowBuilds: sharp: true.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:36:41 p.m. EDT — `99c10664a2ec` refactor(issues): name the Issue page's Mention and attachment sections
+
+- **Implementation commit:** `99c10664a2ec7a867b75be857b3794c279c13482`
+- **Change:** Name the Issue page's Mention and attachment sections
+- **Details:**
+  - (#695) mentionsNodes and mentionNodes differed by one letter; the section builders are now mentionSectionNodes and attachmentSectionNodes. No behavior change; core 46/46.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — Renamed section builders.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:35:41 p.m. EDT — `d7149a36439d` docs(issues): describe the site, its links, and its write permissions
+
+- **Implementation commit:** `d7149a36439d0cc06238ba602eee9d1e142cf63c`
+- **Change:** Describe the site, its links, and its write permissions
+- **Details:**
+  - (#695) README section for the site: the list, the Issue page, the File form, the viewer links, comment authorship, and that the live tracker's Instant rules allow no create or update of instantToolsIssues (checked with a dry run that commits nothing), so only the issues command writes.
+- **Files:**
+  - `examples/issues/README.md` — The site section.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:34:58 p.m. EDT — `a5a0f08d549e` fix(issues): give the site an icon so browsers stop asking for one
+
+- **Implementation commit:** `a5a0f08d549e37885a5babab0dc943b2627674a3`
+- **Change:** Give the site an icon so browsers stop asking for one
+- **Details:**
+  - (#695) Every page load logged a 404 for /favicon.ico; the page declares an inline SVG icon.
+- **Files:**
+  - `examples/issues/react/index.html` — Inline SVG icon.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:34:58 p.m. EDT — `41f45707a363` fix(issues): show the logs tagged with an Issue on its page
+
+- **Implementation commit:** `41f45707a363efa665ca5323994d3f00d0a3f1a0`
+- **Change:** Show the logs tagged with an Issue on its page
+- **Details:**
+  - Red ae94124b4 (examples/issues/core/src/screen.test.ts), green 41f45707a (#695): the Model observed each open Issue's tagged logs, but the shared screen never painted them, so the site showed none of the 715 tagged logs (164 on #041). The page now has a Tagged logs section.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — Tagged logs section.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:32:37 p.m. EDT — `87bcff5d1466` fix(issues): name a bare-name reporter without JSON quotes
+
+- **Implementation commit:** `87bcff5d14661d5004bb2a4f000b1a687776d427`
+- **Change:** Name a bare-name reporter without JSON quotes
+- **Details:**
+  - Red 935d11cfd (examples/issues/core/src/reference.test.ts), green 87bcff5d1 (#695): a reporter stored as the bare string "Michael" read as reported by "Michael"; it now reads Michael on the Issue page and in issues show.
+- **Files:**
+  - `examples/issues/core/src/reference.ts` — Unrecognized string values print as themselves.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:32:37 p.m. EDT — `401c625a118a` fix(issues): mark the chosen product, priority, and status on the site
+
+- **Implementation commit:** `401c625a118a2c097cd99a747f9e8afa51bd31d6`
+- **Change:** Mark the chosen product, priority, and status on the site
+- **Details:**
+  - (#695) The site's .fk-button rule styled every button alike, so the File form's chosen product and priority, the Issue's own status, and Submit issue were not marked. Primary buttons are amber; links in text are amber and wrap. Checked in headless Chrome against the throwaway app bd40c50a (/Users/laptop/Sync/audit/issues-site-2026-10-14/probe/form-bd40c50a-styled).
+- **Files:**
+  - `examples/issues/react/src/styles.css` — Primary buttons and text links.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:25:16 p.m. EDT — `cea80e5ec8cf` fix(issues): store a comment under the person or agent who wrote it
+
+- **Implementation commit:** `cea80e5ec8cf96cfd3602ca7d27357c1e1363c48`
+- **Change:** Store a comment under the person or agent who wrote it
+- **Details:**
+  - Red b4fd980f1 (examples/issues/core/src/program.test.ts), green cea80e5ec (#695): web comments and work-log lines were stored under issues-245-grok whoever wrote them. IssueIdentity now carries the author; the web hosts write as the email Access signed in to Instant (or issues.pisspoursoftware.xyz), and the CLI as $SCRIBE_AGENT or claude-code.
+- **Files:**
+  - `examples/issues/core/src/issueIdentity.ts` — IssueIdentityService.author and liveIssueIdentity(author).
+  - `examples/issues/core/src/resources.ts` — signedInAuthor and makeLiveIssueTrackerResources(database, author).
+  - `examples/issues/core/src/update.ts` — CommentOnIssue and SaveIssueWorkLog write as the author.
+  - `examples/issues/react/src/client.ts` — The site writes as signedInAuthor(database).
+  - `examples/issues/foldkit/src/entry.ts` — The Foldkit web host writes as signedInAuthor(database).
+  - `examples/issues/cli/src/resources.ts` — defaultIssuesAgent and the CLI's author.
+  - `examples/issues/cli/src/entry.ts` — The --agent default reads defaultIssuesAgent.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:21:28 p.m. EDT — `fef14728ee83` fix(issues): show an Issue on the site as it is stored
+
+- **Implementation commit:** `fef14728ee835b1b631d9933914bf577ca88663a`
+- **Change:** Show an Issue on the site as it is stored
+- **Details:**
+  - Red 90a5f9350 (examples/issues/core/src/screen.test.ts), green fef14728e (#695): the list and the page show the stored status (VerificationNeeded, InProgress, ...) instead of Open, Blocked, or Closed; the page adds the type, area, claimant, report date, times, every Mention with its words, source, reporter, and links, and the attachments. Only http and https values become links. The page links to itself on issues.pisspoursoftware.xyz. describeIssueReference moved from the CLI into the core so issues show and the site describe a source the same way.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — The stored status in the list and on the page, metadata, Mentions, attachments, the page link.
+  - `examples/issues/core/src/reference.ts` — describeIssueReference and the web-link checks.
+  - `examples/issues/core/src/index.ts` — Exports reference.ts.
+  - `examples/issues/cli/src/commands.ts` — Uses describeIssueReference from the core.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:18:00 p.m. EDT — `525b1d0a84c6` fix(issues): let a person file an Issue from the site's File form
+
+- **Implementation commit:** `525b1d0a84c642b0f40ea9f88e6db167732c7823`
+- **Change:** Let a person file an Issue from the site's File form
+- **Details:**
+  - Red 200e1e30f (examples/issues/core/src/screen.test.ts), green 525b1d0a8 (#695): the site's File form had no field to type into, so only the CLI could file. It now has Title and Details fields, product and priority choices, one Submit issue button, and its state in words (Filing…, or Not filed: <the real cause>). A filed Issue empties the form and keeps its product. The form's tokens moved from the CLI host into the shared presentation.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — The File form's fields, choices, submit button, and state.
+  - `examples/issues/core/src/presentation.ts` — title:, details:, product:, priority: tokens and the form's interactions.
+  - `examples/issues/core/src/update.ts` — A filed Issue empties the form.
+  - `examples/issues/core/src/init.ts` — emptyIssueDraft.
+  - `examples/issues/cli/src/host.ts` — Reads the form's tokens through messageForScreenToken.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 10:15:00 p.m. EDT — `654cc73d1d55` fix: link new Issues to issues.pisspoursoftware.xyz
+
+- **Implementation commit:** `654cc73d1d553c1a34d9b71d0d4472f4455e929d`
+- **Change:** Link new Issues to issues.pisspoursoftware.xyz
+- **Details:**
+  - Red 391384c31, green 654cc73d1 (#695): new Issues, their tagged-log queries, inferred log evidence, the leftover presence origin, the CLI's printed link, and the listener's default share link all name https://issues.pisspoursoftware.xyz, the name the site is served under (issues.knophy.com page loads redirect there). One constant and one function in instant-tools replace three copies.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — ISSUE_VIEWER_ORIGIN and issueViewerUrl.
+  - `packages/instant-tools/src/logging/domain.ts` — Inferred Issue links on log events use issueViewerUrl.
+  - `examples/issues/core/src/update.ts` — Filing, triage promotion, the tagged-log query, and presence use the shared host.
+  - `examples/issues/core/src/resources.ts` — Static preview data links to the shared host.
+  - `examples/issues/cli/src/commands.ts` — issueUrl is issueViewerUrl.
+  - `examples/issues/listener/src/entry.ts` — The default share link is the shared host.
+- **User context (verbatim):**
+  > Fix all the issues stuff with the site
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:47:57 p.m. EDT — `792837c20caa` docs(issues): describe the read-back message and refused links
+
+- **Implementation commit:** `792837c20caa4ba852c62de4a305bc4e4f14ec1c`
+- **Change:** Describe the read-back message and refused links
+- **Details:**
+  - README lines for 154f5df7c and 503c7824c (#692).
+- **Files:**
+  - `examples/issues/README.md` — Two behavior lines.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:46:37 p.m. EDT — `503c7824c60d` fix(issues): refuse links to Issues that do not exist
+
+- **Implementation commit:** `503c7824c60d6a0c329aebd3d11d3c5e89f3a680`
+- **Change:** Refuse links to Issues that do not exist
+- **Details:**
+  - Red 01813967f, green 503c7824c (#692). Found on the throwaway Instant app bd40c50a: issues link 1 999 exited 0 and stored a link to no Issue. link and file --related now exit 3 naming the missing numbers and write nothing.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — requireExistingIssues before link and file.
+  - `examples/issues/cli/src/commands.test.ts` — Two older tests seed the Issues they link.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:44:06 p.m. EDT — `154f5df7ce5c` fix(instant-tools): say a filed Issue exists when its read-back fails
+
+- **Implementation commit:** `154f5df7ce5c75e8bd1ad331a49aa5f461882b3e`
+- **Change:** Say a filed Issue exists when its read-back fails
+- **Details:**
+  - Red bbe2a1d4b (instant.test.ts), green 154f5df7c (#692). Found by filing five Issues at once on the throwaway Instant app bd40c50a: two filed (#002, #003: the race took the next number), three hit Instant's rate limit before writing anything. A rate limit after the create would have hidden that the Issue was filed.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — fileIssue names the created number and entity when the read-back fails.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:39:57 p.m. EDT — `5406da320cf9` fix(issues): redact the admin token from everything the command prints
+
+- **Implementation commit:** `5406da320cf9b10aa527859387d2fda23be1f0ff`
+- **Change:** Redact the admin token from everything the issues command prints
+- **Details:**
+  - Red f182ed377 (commands.test.ts), green 5406da320 (#692): every live subcommand's output passes through redactCredentials with the admin token the host loaded, so no failure shape can print it.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — redactCredentials.
+  - `examples/issues/cli/src/entry.ts` — withLiveHost redacts before printing.
+  - `examples/issues/cli/src/resources.ts` — liveIssueHostServices returns its credentials.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 8:39:57 p.m. EDT — `c1e1150010e3` fix(instant-tools): redact credential fields Instant echoes in a hint
+
+- **Implementation commit:** `c1e1150010e39f8b6a1afa1aeab0578c21ed2dce`
+- **Change:** Redact credential fields Instant echoes in a hint
+- **Details:**
+  - Red 1ca54efc9 (instant.test.ts, the live refusal's shape), green c1e115001 (#692): Instant refuses a bad admin token by echoing the token in its hint, and describeIssueTrackerCause printed the hint whole. Found while verifying that a failed save prints its real cause.
+- **Files:**
+  - `packages/instant-tools/src/issues/issueTracker.ts` — describeBody stringifies a copy of the hint with credential-named fields redacted.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent a07b4431db4805d14 of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:51:59 p.m. EDT — `86323ed4027e` fix(issues): number an added criterion after the ones already there
+
+- **Implementation commit:** `86323ed4027e2ce8ee1f69571f24d6b2f90afcc0`
+- **Change:** Number an added criterion after the ones already there
+- **Details:**
+  - Red e628cc19d, green 86323ed40 (#692).
+- **Files:**
+  - `examples/issues/core/src/update.ts` — nextChildId starts after the existing children.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:50:30 p.m. EDT — `ffe6c0003f9d` feat(issues): edit fields, add and mark criteria, and add Mentions
+
+- **Implementation commit:** `ffe6c0003f9de7649456bbb96d61909092250b36`
+- **Change:** Edit fields, add and mark criteria, and add Mentions
+- **Details:**
+  - Red ef343ef15, green ffe6c0003 (#692): issues edit, criterion, satisfy, mention through Program Messages and the checked update.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — EditIssue, AddIssueSuccessCriterion, MarkIssueSuccessCriteria, AddIssueMention.
+  - `examples/issues/core/src/message.ts` — Their Messages.
+  - `examples/issues/cli/src/commands.ts` — editIssueCommand, addCriterionCommand, markCriteriaCommand, addMentionCommand.
+  - `examples/issues/cli/src/entry.ts` — The four subcommands.
+  - `examples/issues/cli/src/host.test.ts` — The subcommand set.
+  - `examples/issues/README.md` — The four subcommands.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:36:04 p.m. EDT — `e744f7552e5c` feat(issues): one issues command to file, read, and change Issues
+
+- **Implementation commit:** `e744f7552e5c6f565041df7f9d18676f63cc69bb`
+- **Change:** One issues command to file, read, and change Issues
+- **Details:**
+  - Red aa3af182d, 8282506eb, fa8504941; green e744f7552 (#692). Verified on the real tracker 2026-10-14 19:31-19:35 EDT with throwaway #695 (filed with every field, shown, logged, claimed, status, linked, attached, downloaded, deleted after a backup; Instant refused a second record for 695). The old save failure: Instant refuses a lookup-keyed write that sets the unique issueID of an Issue that does not exist yet.
+- **Files:**
+  - `examples/issues/cli/src/commands.ts` — file, show, list, log, claim, status, link, attach, download, delete, products, with exit codes and real causes.
+  - `examples/issues/cli/src/mentions.ts` — --said lines from the Scribe mirror, typed-chat Mentions.
+  - `examples/issues/cli/src/entry.ts` — The issues command and its subcommands.
+  - `examples/issues/cli/src/host.ts` — executeMessages, IssuesCommandFailure, ISSUES_TRACE.
+  - `examples/issues/cli/src/resources.ts` — Snapshot admin adapter that reuses reads until a write, stored-record reads, Instant storage.
+  - `examples/issues/cli/src/host.test.ts` — The new subcommand set.
+  - `examples/issues/cli/package.json` — The bin is issues.
+  - `examples/issues/core/src/update.ts` — AppendIssueAttachment, product catalog by most common shape, catalog merge order.
+  - `examples/issues/core/src/message.ts` — SubmittedIssueAttachment.
+  - `examples/issues/core/src/resources.ts` — The memory tracker lists newest first.
+  - `examples/issues/README.md` — How agents use issues.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:12:01 p.m. EDT — `c25a181dbc07` feat(issues): file every field, log checked work, set any status, delete
+
+- **Implementation commit:** `c25a181dbc07988237de38c6d6a24b27a2587784`
+- **Change:** File every field, log checked work, set any status, delete
+- **Details:**
+  - Red 7ebc71cfd, green c25a181db (#692): the Issue Tracker Program files a composed draft (type, area, status, claimant, related Issues, criteria, recording and typed-chat Mentions, initial work log) under the next free number, reads a product by id or name, appends checked work-log entries with state, agent, commit, claim, and status, sets any status, links relatedIssueIds, and deletes; failures name the operation and the real cause.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — SaveIssue through the tracker's file, AppendIssueWorkLogEntry, SetIssueStatus, DeleteIssue, product by id or name, checked updates for comment, log, link, status, retarget.
+  - `examples/issues/core/src/model.ts` — Draft fields, DraftMention, DraftSuccessCriterion, DraftWorkLogEntry, SavedIssueMutation, DeletedIssueMutation.
+  - `examples/issues/core/src/message.ts` — ComposedIssueDraft, SubmittedIssueWorkLogEntry, SelectedIssueStatus, ConfirmedIssueDeletion and their results.
+  - `examples/issues/core/src/resources.ts` — makeMemoryIssueTracker for previews and tests.
+  - `examples/issues/core/src/subscription.ts` — Real failure reasons.
+  - `examples/issues/core/src/leftover.ts` — relatedIssueIds count as links.
+  - `examples/issues/core/src/program.ts` — Program version 6.
+  - `examples/issues/core/src/program.test.ts` — Existing trackers carry the new operations.
+  - `packages/instant-tools/src/instant/instant.ts` — A typed accumulator instead of a type assertion.
+- **User context (verbatim):**
+  > Fix the error as well in the issues thing.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 14th, 2026 at 7:01:27 p.m. EDT — `e27b023ea7e5` feat(instant-tools): file Issues under a free number and read every change back
+
+- **Implementation commit:** `e27b023ea7e5cb2ff91b440334f0c7240d80fc4d`
+- **Change:** File Issues under a free number and read every change back
+- **Details:**
+  - Red 33e0a5d44 (tests in instant.test.ts and domain.test.ts), green e27b023ea (#692): file, fetchIssue, update, delete on the Issue tracker; numbering never writes over a stored Issue (#502's class); errors name the operation and the real cause.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — Store primitives (fetchIssueIds, fetchIssueRecordsById, createIssue, deleteIssue) and the tracker's file, fetchIssue, update, delete.
+  - `packages/instant-tools/src/issues/issueTracker.ts` — IssueChange, the new service operations, describeIssueTrackerError.
+  - `packages/instant-tools/src/issues/domain.ts` — normalizeIssueId, nextIssueId, ConversationReference, relatedIssueIds.
+  - `packages/instant-tools/src/instant/instant.test.ts` — An unmodeled-key example now that relatedIssueIds is modeled.
+- **User context (verbatim):**
+  > Make sure there's only one script and only one way to file issues.
+- **SpecStory:** unavailable — Claude Code sub-agent of session f1283b96-9557-4e93-9d2c-1045da2562ca; no SpecStory URI was captured.
+
+## October 10th, 2026 at 12:32:38 p.m. EDT — `5daaad9b6e50` feat(books): read a title's chapters when it is opened, not with the shelf
+
+- **Implementation commit:** `5daaad9b6e50d2342896f1b53109f1b5ea6b5ec8`
+- **Change:** Read a title's chapters when it is opened, not with the shelf
+- **Details:**
+  - The shelf query is the titles (people, cover, audio) and the listener's progress and bookmarks; a Title no longer carries chapters. 107 titles answer in under 2 s.
+  - The library store's `chapters(slug)` is one small reactive query per book (about 100 ms); a subscription asks for the titles on screen, in the player, and in progress. The Model keeps them by slug (`ChaptersReady` / `ChaptersUnavailable`); the contents sheet says "Loading the chapters…" meanwhile; a player loaded first takes the chapters as sections when they arrive.
+  - The chapter rows' `book` link is neither asked for nor decoded: the browser's Instant store does not return a link as a field, which made the earlier flat chapters query decode no chapters in a browser.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — The shelf query, `chaptersQueryOf`, `decodeChapters`, and the store's `chapters(slug)`.
+  - `examples/books/core/src/model.ts` — Title without chapters; `TitleChapters`, `chaptersOf`, `chapterAt`, `chapterNameAt`, `wholeBookChapters`.
+  - `examples/books/core/src/subscriptions.ts` — `wantedChapterSlugsOf` and the chapters subscription.
+  - `examples/books/core/src/update.ts` — ReceivedChapters and FailedReadChapters; the player takes sections late.
+  - `examples/books/core/src/screen.ts`, `brief.ts`, `message.ts` — Chapter names from the Model's chapters; the contents sheet's loading state.
+  - `examples/books/core/src/sample.ts` — `sampleChapters` and the test store's `chapters`.
+- **User context (verbatim):**
+  > You don't need all the chapters in the root query. You need all the books and the progress and stuff.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 10th, 2026 at 12:00:03 p.m. EDT — `b6b271582663` fix(books): read the library in three queries, the chapters flat
+
+- **Implementation commit:** `b6b271582663e0d925e697349331486d1fd31c14`
+- **Change:** Read the library in three queries, the chapters flat
+- **Details:**
+  - Root cause: Instant fails a reactive query it cannot answer within 5 s ("Operation timed out: handle-receive"), and the one library query joined every chapter through each item's book; after the Audible import (107 titles, 4,665 chapters) that join took Instant 11 s, where the flat `libraryChapters` table takes 2 s. The store replaced the error with a fixed reason, so the Library screen said only "the library could not be read".
+  - The shelf, the chapters (flat, each naming its book, five fields), and the marks are now three subscriptions, each with its own 5 s; the decoder joins chapters to titles by book id; an error keeps Instant's message.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — The three queries, the flat chapter decode, and the merged subscription.
+  - `examples/books/core/src/instantLibrary.test.ts` — Flat chapters in the real row shape; the store's three queries and Instant's error words.
+- **User context (verbatim):**
+  > See, I'm getting library cannot be read. Can you dispatch that off? Start an agent on my machine. … And have it root caused.
+
+## October 5th, 2026 at 9:06:56 a.m. EDT — `eef68d29acae` docs(foldkit): record why terminal Books broke, in ADR 0014
+
+- **Implementation commit:** `eef68d29acae4c5d093d730d999e6547ada3339a`
+- **Change:** Record why terminal Books broke, in ADR 0014
+- **Details:**
+  - Five whys to core, and three decisions: one terminal host, a conformance suite, Environment.maybePage.
+- **Files:**
+  - `docs/adr/0014-one-contract-for-every-surface.md` — The record.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 9:06:56 a.m. EDT — `87649e3aaf6f` feat(oxlint-plugin): forbid raw typeof window and document checks
+
+- **Implementation commit:** `87649e3aaf6fbdb669a752cfb1b99db798f3e2b9`
+- **Change:** Forbid raw typeof window and document checks
+- **Details:**
+  - no-raw-page-check reports them outside the environment module.
+- **Files:**
+  - `packages/oxlint-plugin-foldkit/src/rules/no-raw-page-check.ts` — The rule.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 9:06:56 a.m. EDT — `e21b4d469419` fix(svelte): check for a page with Environment.maybePage
+
+- **Implementation commit:** `e21b4d4694190334f2b87eac5f44e768a04d8134`
+- **Change:** Check for a page with Environment.maybePage
+- **Details:**
+  - Svelte links and dock height stop testing typeof window or document.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — Dock page check.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 9:06:55 a.m. EDT — `e3e20e439898` fix(react): check for a page with Environment.maybePage
+
+- **Implementation commit:** `e3e20e43989809fc0e490c4394c2eb6137bfa6fb`
+- **Change:** Check for a page with Environment.maybePage
+- **Details:**
+  - React navigation, title, key bindings, and router stop testing typeof window.
+- **Files:**
+  - `packages/react/src/navigation/navigation.tsx` — Page checks.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 9:06:55 a.m. EDT — `d8858c6834c9` feat(foldkit): tell a real page from a terminal with Environment.maybePage
+
+- **Implementation commit:** `d8858c6834c97c0e847d9108c13974d6835444c5`
+- **Change:** Tell a real page from a terminal with Environment.maybePage
+- **Details:**
+  - A bare typeof window check took a terminal with Instant's stand-in window for a browser and silenced telemetry.
+- **Files:**
+  - `packages/foldkit/src/environment/environment.ts` — maybePage and isPage.
+  - `packages/foldkit/src/telemetry/attach.ts` — Uses maybePage.
+- **User context (verbatim):**
+  > were cli/tui fixed? they shouldn't have b roken in the first place if they worked on web is supposed to be the point of this abstraction so perform 5 why's analysis on root cause down to library core code and apply fixes
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 8:02:42 a.m. EDT — `63efccae9f2b` fix(instant-tools): keep stored payload keys the Issue schema does not model on save
+
+- **Implementation commit:** `63efccae9f2b5b4dfa8a864ad686cd6bbd4e2066`
+- **Change:** Keep stored payload keys the Issue schema does not model on save
+- **Details:**
+  - A save from a Client re-encoded the whole payload and dropped relatedIssueIds (257 stored Issues) and files (153); the tracker now writes the encoded Issue over the stored payload (#591).
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — makeInstantIssueRecordOver and the reading save.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Pins that a save keeps relatedIssueIds and files.
+- **User context (verbatim):**
+  > So let's make sure we get that up and working.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 5th, 2026 at 7:31:50 a.m. EDT — `e5587c2e1c16` fix(instant-tools): read every stored Issue and list the newest first
+
+- **Implementation commit:** `e5587c2e1c16c786d1faa26f62f40002158de4bf`
+- **Change:** Read every stored Issue and list the newest first
+- **Details:**
+  - The hosted tracker painted 500 Issues oldest first and hid everything after #522 (#591); it now sorts newest first before the limit (2,000) and reads the stored shapes it used to reject, keeping unmodeled references verbatim.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Tolerant reader: Unrecognized references, optional capture time, Mention note, legacy work-log keys, Complex, IssueNewestFirst.
+  - `packages/instant-tools/src/instant/instant.ts` — Sort before the query limit.
+  - `examples/issues/core/src/issueQuery.ts` — One catalog query with the raised limit.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Pins each stored shape and the verbatim write-back.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Pins newest-first ordering before the limit.
+- **User context (verbatim):**
+  > So let's make sure we get that up and working.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:20:52 p.m. EDT — `6f0ec384aeff` feat(books): say why the Audible import skips each title
+
+- **Implementation commit:** `6f0ec384aeffad5892c923105f9cac52d6f92605`
+- **Change:** Say why the Audible import skips each title
+- **Details:**
+  - The summary names podcasts, Plus loans, free and explicit titles, and fields not kept.
+- **Files:**
+  - `examples/books/core/src/audible/screen.ts` — Skip reasons in the summary.
+- **User context (verbatim):**
+  > Can you just get that working in the application so I can import my Audible library from the app instead of having these two separate steps?
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:20:52 p.m. EDT — `76292b3e3e34` feat(books): import the books you own from Audible
+
+- **Implementation commit:** `76292b3e3e34ddccbc2f7b7a804617f3bb04571b`
+- **Change:** Import the books you own from Audible
+- **Details:**
+  - Empty-library, Add more of your books, and Profile entry points; Amazon sign-in through the toolshed bridge; a checklist, progress, and summary; encrypted per-member logins.
+- **Files:**
+  - `examples/books/core/src/addBooks.ts` — The Add your books Sheet and its sources.
+  - `examples/books/core/src/audible/endpoint.node.ts` — Server endpoints behind the login.
+  - `examples/books/core/src/audible/bridge.node.ts` — Runs the private toolshed bridge.
+- **User context (verbatim):**
+  > Add more Of your books, which maybe opens a modal that lets you select Audible if there are multiple options, but for now, just the one.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:20:29 p.m. EDT — `5ad204c0844f` chore(books): vendor the Scribe repository's Audible importer
+
+- **Implementation commit:** `5ad204c0844fc3a114c22b63d80087e06fda0284`
+- **Change:** Vendor the Scribe repository's Audible importer
+- **Details:**
+  - audibleImport.node.ts is the Scribe importer, byte-identical, for plan, apply, and rollback.
+- **Files:**
+  - `examples/books/core/src/audibleImport.node.ts` — Vendored importer.
+- **User context (verbatim):**
+  > I'd like to import my library, please, with this with this tool.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:20:29 p.m. EDT — `1b72be6fbf44` feat(books): read a title without chapters as one section
+
+- **Implementation commit:** `1b72be6fbf449c1bf325837af94f959c665987e2`
+- **Change:** Read a title without chapters as one section
+- **Details:**
+  - Imported titles Audible gives no chapters for show as one section spanning the runtime.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — One-section fallback.
+- **User context (verbatim):**
+  > I'd like to import my library, please, with this with this tool.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:20:28 p.m. EDT — `62ab57aa66b1` feat(foldkit): keep a Program's local-only Messages off the shared log
+
+- **Implementation commit:** `62ab57aa66b1525385ef9404d16ca3dc72291796`
+- **Change:** Keep a Program's local-only Messages off the shared log
+- **Details:**
+  - synchronization.isLocalOnly keeps chosen Messages, such as a pasted Amazon sign-in address, on the device.
+- **Files:**
+  - `packages/foldkit/src/program/localOnly.test.ts` — The guard.
+- **User context (verbatim):**
+  > Can you just get that working in the application so I can import my Audible library from the app instead of having these two separate steps?
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `3c00b697722d` feat(books): record each terminal client on its own surface
+
+- **Implementation commit:** `3c00b697722d8fa5768b8a4e3dec03d563cfb732`
+- **Change:** Record each terminal client on its own surface
+- **Details:**
+  - The player daemon's lines say role daemon, a books tui key's events say terminal-tui, and a one-shot command's say terminal-cli, all in the daemon's session.
+- **Files:**
+  - `examples/books/cli/src/daemon.ts` — Attaches telemetry with role daemon.
+  - `examples/books/cli/src/player.ts` — Sends each command and key for the client that asked.
+- **User context (verbatim):**
+  > role: 'daemon' for the Books daemon. Wire it in examples/books/cli where the daemon calls Telemetry.attach.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `85d8a7d07f9c` feat(foldkit): write SessionStopped when Ctrl-C ends a Node process
+
+- **Implementation commit:** `85d8a7d07f9c996b4eaf66cfd3aaf6b5269a80b5`
+- **Change:** Write SessionStopped when Ctrl-C ends a Node process
+- **Details:**
+  - When nothing else handles SIGINT or SIGTERM, telemetry ends every session, waits up to a second for the sinks, and re-sends the signal; a host that handles the signal owns its shutdown.
+- **Files:**
+  - `packages/foldkit/src/telemetry/processEnding.ts` — Stands in for Node's default exit.
+  - `packages/foldkit/src/telemetry/attach.ts` — Ends the session on SIGINT and SIGTERM.
+- **User context (verbatim):**
+  > Write SessionStopped on SIGINT and SIGTERM (Ctrl-C) in Node hosts, then flush.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `f5f7942e258b` feat(foldkit): record what another Host's client causes on its surface
+
+- **Implementation commit:** `f5f7942e258ba704ad6ac645e88be52af39954d5`
+- **Change:** Record what another Host's client causes on its surface
+- **Details:**
+  - A transition sent for a client, the Commands its operation returned, their results, and the frames painted for it record the client's surface beside the daemon's session and role.
+  - An Action is a Message with the source Host, and a first-release line that labeled a sync Message Host reads as Sync.
+- **Files:**
+  - `packages/foldkit/src/telemetry/recorder.ts` — Gives each event the surface of the client that caused it.
+  - `packages/foldkit/src/telemetry/summary.ts` — Counts only Host Messages as Actions.
+- **User context (verbatim):**
+  > Events caused by that request then record the client's surface, alongside the daemon's session and role.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `0f3f99846439` feat(foldkit)!: record which client or sync runtime sent each Message
+
+- **Implementation commit:** `0f3f998464398e58c56d4b0e5f42087e9935c000`
+- **Change:** Record which client or sync runtime sent each Message
+- **Details:**
+  - The sync runtime's own Messages have the source Sync, and a Host source may name the clientHost a Message was sent for.
+  - A synced handle's onBehalfOf and Interaction.onBehalfOf send for a client; Command spans carry their runtime operation.
+  - CLI daemon Show and Do requests carry the client's Host, and the daemon surface sends a view's keys and commands on its behalf.
+- **Files:**
+  - `packages/foldkit/src/runtime/programJournal.ts` — Sync and client provenance.
+  - `packages/foldkit/src/runtime/start.ts` — Sends the sync runtime's Messages from Sync.
+  - `packages/foldkit/src/runtime/handle.ts` — onBehalfOf.
+  - `packages/foldkit/src/runtime/commandTracing.ts` — CommandOperation on Command spans.
+  - `packages/foldkit/src/cli/listen.ts` — Hears each request's client.
+  - `packages/foldkit/src/cli/surface.ts` — Sends a view's keys and commands on its behalf.
+- **User context (verbatim):**
+  > SnapshotReceived is labeled with source Host, but the sync runtime sends it itself. Give it an accurate source, such as Sync, if the journal can tell.
+  > Let a daemon request carry its client's surface: terminal-tui for a TUI view, terminal-cli for a one-shot command.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:44 p.m. EDT — `fa5c691d3d49` feat(instant): keep the surface a page declares in its telemetry file
+
+- **Implementation commit:** `fa5c691d3d49a5ff63fbbee82d84dd7fc8935f49`
+- **Change:** Keep the surface a page declares in its telemetry file
+- **Details:**
+  - A browser batch is { app, surface, role, events } and lands in the file for its app and surface; an unknown surface or a mismatched event is refused with 400.
+- **Files:**
+  - `packages/instant/src/hostedIdentity/telemetryEndpoint.ts` — Refuses unknown surfaces and mixed origins.
+  - `packages/instant/src/hostedIdentity/vite.ts` — Appends to the app and surface's file.
+- **User context (verbatim):**
+  > Update the browser endpoint so web events keep the surface the browser declared. Reject a surface value that isn't in the vocabulary.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 8:09:43 p.m. EDT — `489c9f60788c` feat(foldkit)!: name each telemetry session's surface from its Host
+
+- **Implementation commit:** `489c9f60788c6b1dc65945ac8c93258412d2a42d`
+- **Change:** Name each telemetry session's surface from its Host
+- **Details:**
+  - An exhaustive Match maps every Processor Host to a surface, such as Tui to terminal-tui, and an optional role names a daemon.
+  - Every line carries app, surface, and role, files are named for app and surface, and attach reads the Host from the handle, so a handle without one is a type error.
+  - foldkit telemetry books reads every surface's file and the app's files from before surfaces, and prints one section per surface.
+- **Files:**
+  - `packages/foldkit/src/telemetry/surface.ts` — The surface vocabulary and the Host mapping.
+  - `packages/foldkit/src/telemetry/attach.ts` — Reads the surface from the handle's Host.
+  - `packages/foldkit/src/runtime/handle.ts` — Carries the start's host in the handle's type.
+  - `packages/foldkit/src/telemetry/command.ts` — Reads an app's surfaces and earlier files.
+  - `packages/foldkit/src/telemetry/summary.ts` — One section per surface.
+  - `packages/foldkit/src/telemetry/lines.ts` — Reads first-release lines.
+- **User context (verbatim):**
+  > I want every session to declare its surface, you know, terminal [TUI], terminal CLI, web react, web fold kit, etc., along with all of its telemetry.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `3495e37e55a4` test(books): type the live test's player helper so the core typechecks
+
+- **Implementation commit:** `3495e37e55a4d497a69126299ea60a56f0202c62`
+- **Change:** Type the live test's player helper so the Books core typechecks
+- **Details:**
+  - loadedSlugOf read the Model from ReturnType<typeof Runtime.startHandle>, whose Model is an index signature, so tsc failed on model.listening; it reads the bound Books instead.
+- **Files:**
+  - `examples/books/core/src/live.test.ts` — Reads the typed bound Books.
+- **User context (verbatim):**
+  > The command one gets overtaken by Safari to go to the first tab.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `bfd770ac6307` fix(foldkit): record telemetry in a terminal that syncs through Instant
+
+- **Implementation commit:** `bfd770ac630728af5af3086c8cb4dc3e13e07e13`
+- **Change:** Record telemetry in a terminal that syncs through Instant
+- **Details:**
+  - The real Books player wrote no telemetry: @foldkit/instant's Node client defines window as an empty object, and Telemetry.attach called its missing addEventListener, so the observer failed for the whole session.
+  - attach now watches for the page going away only where window takes listeners.
+- **Files:**
+  - `packages/foldkit/src/telemetry/attach.ts` — A page is a window that takes listeners.
+  - `packages/foldkit/src/telemetry/attach.test.ts` — A CLI handle under window = {} records its session.
+  - `.changeset/telemetry-node-window.md` — Release note.
+- **User context (verbatim):**
+  > in the TUI no buttons are responsive
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `e4e2da684adb` feat(books): record each terminal player's telemetry
+
+- **Implementation commit:** `e4e2da684adbec4f51e2912846bbf99dfb4533bf`
+- **Change:** Record each terminal player's telemetry
+- **Details:**
+  - The player daemon, books watch, and Books on OpenTUI attach telemetry on the line after startBooks; the daemon and watch write books-cli.ndjson and OpenTUI books-opentui.ndjson.
+  - The daemon and OpenTUI report every frame they paint, so foldkit telemetry books-cli shows each books tui key's update and render time.
+  - The daemon still needs role: 'daemon' once telemetry has it.
+- **Files:**
+  - `examples/books/cli/src/daemon.ts` — Attaches telemetry and reports paints.
+  - `examples/books/cli/src/inProcess.ts` — books watch attaches telemetry.
+  - `examples/books/cli/src/player.ts` — makeBooksPlayer takes onPainted.
+  - `examples/books/cli/src/cli.test.ts` — Key Messages and frames read back from telemetry.
+  - `examples/books/opentui/src/entry.ts` — Attaches telemetry and reports paints.
+- **User context (verbatim):**
+  > in the TUI no buttons are responsive
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `b2c82fa23b93` feat(opentui): report how long each frame takes to build
+
+- **Implementation commit:** `b2c82fa23b932578df4d4df18c1bf312a3d55144`
+- **Change:** Report how long each OpenTUI frame takes to build
+- **Details:**
+  - runOpenTui takes onPainted and reports painter OpenTUI with each frame's build time and phase: mount, update, or key.
+- **Files:**
+  - `packages/opentui/src/interaction/runOpenTui.ts` — onPainted and paint phases.
+  - `packages/opentui/src/interaction/runOpenTui.test.ts` — A key press reports mount, key, and update.
+  - `.changeset/opentui-paint-reports.md` — Release note.
+- **User context (verbatim):**
+  > in the TUI no buttons are responsive
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `aa1da7f30401` feat(foldkit): report how long each terminal frame takes to paint
+
+- **Implementation commit:** `aa1da7f30401efbbadb91c25edecb53432205db8`
+- **Change:** Report how long each terminal frame takes to paint
+- **Details:**
+  - runProgramTui, makeProgramTerminalView, and programCliSurface take onPainted and call it after every frame with painter Terminal, its duration, and its phase: mount, update, key, or refresh.
+  - Passing a telemetry attachment's recordRendered puts terminal render durations in the session's file.
+- **Files:**
+  - `packages/foldkit/src/cli/terminalScreen.ts` — TerminalPaintReporting and paintTerminalReported.
+  - `packages/foldkit/src/cli/tui.ts` — Reports mount, update, and key paints.
+  - `packages/foldkit/src/cli/surface.ts` — Reports mount, refresh, and key paints per view.
+  - `packages/foldkit/src/cli/index.ts` — Exports the reporting types.
+  - `packages/foldkit/src/cli/public.ts` — Exports the reporting types.
+  - `packages/foldkit/src/cli/tui.test.ts` — Phases in order with durations.
+  - `packages/foldkit/src/cli/surface.test.ts` — Mount, refresh, key, and a second view.
+  - `.changeset/terminal-paint-reports.md` — Release note.
+- **User context (verbatim):**
+  > I got this to play back very briefly in the [TUI] but it froze. Um, and I can't press anything.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `effa39cf4bda` fix(books): print a brief line longer than the terminal in full
+
+- **Implementation commit:** `effa39cf4bda8eb6da6b2fbf2f0554274b692146`
+- **Change:** Print a brief line longer than the terminal in full
+- **Details:**
+  - The brief was painted 80 columns wide, which cut the Continue line to 7h 31m l; it is now painted wide enough for its longest line and the terminal wraps it.
+- **Files:**
+  - `examples/books/cli/src/player.ts` — Paints the brief wide.
+  - `examples/books/cli/src/cli.test.ts` — A Continue line longer than 80 columns prints whole.
+- **User context (verbatim):**
+  > Maybe we don't show the whole list of commands and just show the state.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `2df8aa645911` fix(foldkit): keep a CLI daemon answering after a client checks it
+
+- **Implementation commit:** `2df8aa645911036f1b9b033cbef2bbc9d2cb2797`
+- **Change:** Keep a CLI daemon answering after a client checks it
+- **Details:**
+  - A client checks that a daemon listens by connecting and closing at once; if that check arrived while the daemon answered an earlier command, its read started too late, never ended, and every later command hung.
+  - The daemon now reads each request as soon as its connection arrives and answers them in order.
+- **Files:**
+  - `packages/foldkit/src/cli/listen.ts` — Reads each request when its connection arrives.
+  - `packages/foldkit/src/cli/surface.test.ts` — A check during a slow command, then another command.
+  - `.changeset/cli-daemon-answers-after-probe.md` — Release note.
+- **User context (verbatim):**
+  > in the TUI no buttons are responsive
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `9cac7a92140b` feat(books): play in the background from short books commands
+
+- **Implementation commit:** `9cac7a92140b58e627b45f18dfccb89c530fc0aa`
+- **Change:** Play in the background from short books commands
+- **Details:**
+  - scripts/install-books-command puts a books launcher on PATH that picks http://127.0.0.1:5200 when it answers, else the hosted reader with the cloudflared token; books login runs cloudflared.
+  - The first command starts a detached player daemon holding the Program and ffplay; every command acts on it and prints the brief; it saves through the same Messages as the web and ends after books stop, SIGTERM, the end of the title, or ten idle minutes.
+  - books tui is a live view of that player, so q closes it and the title plays on.
+- **Files:**
+  - `examples/books/scripts/install-books-command` — Installs the launcher.
+  - `examples/books/scripts/books` — The launcher.
+  - `examples/books/cli/src/daemon.ts` — The player daemon.
+  - `examples/books/cli/src/player.ts` — Player surface, brief, writes, stop.
+  - `examples/books/cli/src/view.ts` — Commands reach the player.
+  - `examples/books/cli/src/entry.ts` — The books command.
+  - `examples/books/cli/src/tui.ts` — books-tui runs the live view.
+  - `examples/books/cli/src/cli.test.ts` — Commands, daemon, and TUI latency tests.
+- **User context (verbatim):**
+  > Can we just make this books login and books C L I and Books T U I and if I go books help or just books can you um Print out the actual things I can run that I can just copy and paste.
+  > for the CLI version, we need background playback, obviously.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `aa936c5162be` fix(books): keep terminals on their own player and say what plays
+
+- **Implementation commit:** `aa936c5162be4e194a9f98b2b9835f8b11bc5d89`
+- **Change:** Keep terminals on their own player and say what plays
+- **Details:**
+  - App keeps the CLI, TUI, and OpenTUI Hosts' navigation their own, so a browser never moves a terminal and books listen plays what it names.
+  - briefScreen and suggestedPressesOf give the brief and the presses that matter now.
+  - startBooks takes a library store wrapper so a player can wait for its place to save; sign-in sentences point at books and books login.
+  - Contents computes Catalog entries once: 18 ms instead of 96 ms for 114 chapters.
+- **Files:**
+  - `examples/books/core/src/app.ts` — terminalHosts keep their own navigation.
+  - `examples/books/core/src/brief.ts` — briefScreen and suggestedPressesOf.
+  - `examples/books/core/src/live.ts` — Library wrapper and sentences.
+  - `examples/books/core/src/screen.ts` — Entries computed once for contents.
+  - `examples/books/core/src/live.test.ts` — Browser and terminal under Mirror.
+  - `examples/books/core/src/app.test.ts` — A folded ShowContents stays on /books.
+- **User context (verbatim):**
+  > The command one gets overtaken by Safari to go to the first tab.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `832d0e377e80` feat(transcript-player): seek to a typed place and quote the words
+
+- **Implementation commit:** `832d0e377e80357fd6429e021ff2fc8599ddc3f6`
+- **Change:** Seek to a typed place and quote the words being spoken
+- **Details:**
+  - PlaceToken reads 723000, 1h00m00s, or 12:03 and prints milliseconds; SeekTo uses it, so books seek-to 1h00m00s works and SeekTo:723000 tags keep their shape.
+  - spokenLineOf gives the words around the one sounding as one short line.
+- **Files:**
+  - `examples/transcript-player/core/src/ids.ts` — PlaceToken.
+  - `examples/transcript-player/core/src/message.ts` — SeekTo takes a typed place.
+  - `examples/transcript-player/core/src/screen.ts` — spokenLineOf.
+  - `examples/transcript-player/core/src/player.test.ts` — Typed places and the spoken line.
+- **User context (verbatim):**
+  > audio did work, but only through the TUI, I couldn't get the thing to actually play in the terminal
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `2c3f5eacaebd` fix(foldkit): keep a player's words in view and each TUI view its own
+
+- **Implementation commit:** `2c3f5eacaebde7cfc0c7f2bc8515af5ed5a8e0fd`
+- **Change:** Keep a player's words in view and each TUI view its own
+- **Details:**
+  - A pushed page that follows a Transcript's current passage highlights nothing until the first arrow, so the player shows the words instead of its Back button.
+  - The daemon keeps highlight and scroll per viewId, so each books tui starts fresh.
+  - paintCommands caps its column at 30 and drops a choice's title when it only repeats the command.
+- **Files:**
+  - `packages/foldkit/src/interaction/terminalFocus.ts` — Following pages do not highlight at once.
+  - `packages/foldkit/src/cli/surface.ts` — Per-view terminal state.
+  - `packages/foldkit/src/cli/view.ts` — Sends a viewId.
+  - `packages/foldkit/src/cli/program.ts` — Command column and redundant titles.
+  - `.changeset/terminal-player-follows-words.md` — Release note.
+- **User context (verbatim):**
+  > Maybe we don't show the whole list of commands and just show the state.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `1ff2b5ef27a7` feat(foldkit): run a terminal UI from a CLI daemon and stop on cue
+
+- **Implementation commit:** `1ff2b5ef27a70b8848f433d1b9fbe290ef50764a`
+- **Change:** Run a terminal UI from a CLI daemon and stop on cue
+- **Details:**
+  - runCliTuiView paints the daemon's frame on the terminal's own screen, sends keys, refreshes twice a second, and leaves the Program running after q.
+  - programCliSurface serves those requests through makeProgramTerminalView; Painted replies carry flags such as outcome Quit.
+  - listenCliDaemon takes until; askCliView asks a listening daemon without starting one; paintCommands prints the commands to copy for this moment.
+  - programCliSurface moved to its own module, so the telemetry test imports it from there.
+- **Files:**
+  - `packages/foldkit/src/cli/view.ts` — runCliTuiView and askCliView.
+  - `packages/foldkit/src/cli/surface.ts` — programCliSurface with the terminal view.
+  - `packages/foldkit/src/cli/listen.ts` — until, and Painted flags.
+  - `packages/foldkit/src/cli/protocol.ts` — Painted flags.
+  - `packages/foldkit/src/cli/program.ts` — paintCommands.
+  - `packages/foldkit/src/telemetry/attach.test.ts` — Imports programCliSurface from its new module.
+  - `.changeset/cli-daemon-terminal-view.md` — Release note.
+- **User context (verbatim):**
+  > for the CLI version, we need background playback, obviously.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `bcd287b9799a` feat(foldkit): let terminals keep their own navigation under Mirror
+
+- **Implementation commit:** `bcd287b9799a472c5600180b6b781a03e099bde0`
+- **Change:** Let terminals keep their own navigation under Mirror
+- **Details:**
+  - Session.compose takes ownNavigationHosts; through ProgramSynchronization.keepsOwnNavigation a Processor whose from names one of them applies only its own Navigation Messages, and no other Processor applies them.
+  - Session trims the stack after every child update to what navigation allows, with Navigation.allowedStackOf, so a folded ShowContents over a page this device never opened can no longer leave /books/contents.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — ownNavigationHosts and the allowed-stack guard.
+  - `packages/foldkit/src/runtime/start.ts` — Audience check honors keepsOwnNavigation.
+  - `packages/foldkit/src/program/program.ts` — ProgramSynchronization.keepsOwnNavigation.
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Passes keepsOwnNavigation through.
+  - `packages/foldkit/src/navigation/uri.ts` — allowedStackOf.
+  - `packages/foldkit/src/runtime/syncModes.test.ts` — Browser and terminal Processors under Mirror.
+  - `.changeset/terminals-keep-own-navigation.md` — Release note.
+- **User context (verbatim):**
+  > The command one gets overtaken by Safari to go to the first tab.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `99b9eb305b44` feat(foldkit): fit terminal UIs to the terminal and keep keys working
+
+- **Implementation commit:** `99b9eb305b444b9f315f00989e76883b2e8877e6`
+- **Change:** Fit terminal UIs to the terminal and keep keys working
+- **Details:**
+  - Escape from Node's readline arrives with Meta held; terminalKeyInput now reads it as plain Escape, so a TUI can close Contents and go back.
+  - Terminal focus is kept by a layer's identity, so a player whose address moves every second keeps its highlight; a Sheet opens on its current row or the next that presses.
+  - paintTerminal paints exactly the terminal's rows: a header, a body scrolled to the highlight or to what is current, more-lines markers, then the docks and key hints.
+  - runProgramTui keeps one repaint pending, skips identical frames, and uses the alternate screen; paintAscii is about 12 times faster (2.6 ms for 650 lines).
+- **Files:**
+  - `packages/foldkit/src/interaction/interaction.ts` — terminalKeyInput reads Escape as plain Escape.
+  - `packages/foldkit/src/interaction/terminalFocus.ts` — Focus by identity; sheets open near the current row.
+  - `packages/foldkit/src/cli/terminalScreen.ts` — New viewport painter, paintTerminal.
+  - `packages/foldkit/src/cli/tui.ts` — Paints with paintTerminal; coalesced repaints.
+  - `packages/foldkit/src/renderers/layout.ts` — Marks current rows; linear transcript wrapping.
+  - `packages/foldkit/src/renderers/paint.ts` — Composes rows from runs instead of a HashMap.
+  - `packages/foldkit/src/renderers/types.ts` — LayoutBox.isCurrent.
+  - `packages/foldkit/src/test/apps/chapterContents.ts` — 114-chapter test Program.
+  - `.changeset/responsive-terminal-screens.md` — Release note.
+- **User context (verbatim):**
+  > I got this to play back very briefly in the [TUI] but it froze. Um, and I can't press anything.
+  > in the TUI no buttons are responsive
+  > And we need to make this a little bit easier to scroll.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 5:57:16 p.m. EDT — `ed824dbbd910` test(foldkit): measure telemetry overhead in interleaved rounds
+
+- **Implementation commit:** `ed824dbbd9105e93f6a5117c0bf805f7706b6784`
+- **Change:** Measure telemetry overhead in interleaved rounds
+- **Details:**
+  - The benchmark samples every variant once per round so machine drift spreads across all of them.
+- **Files:**
+  - `packages/foldkit/src/telemetry/telemetryBench.test.ts` — Interleaved rounds.
+- **User context (verbatim):**
+  > Keep overhead negligible. Measure dispatch with telemetry on and off
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 5:57:16 p.m. EDT — `d966a24f1605` feat(books): write the React host's telemetry to books-react.ndjson
+
+- **Implementation commit:** `d966a24f1605b29333e6902de5ccb18c44447c58`
+- **Change:** Write the React host's telemetry to books-react.ndjson
+- **Details:**
+  - Books attaches telemetry to its handle with the browser sink, serves the endpoint, and reports React commits as paints.
+- **Files:**
+  - `examples/books/react/src/main.tsx` — Telemetry.attach and the Profiler.
+  - `examples/books/react/vite.config.ts` — foldkitTelemetry().
+- **User context (verbatim):**
+  > so a local run writes ~/Library/Logs/foldkit/telemetry/books-react.ndjson
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 5:57:15 p.m. EDT — `cbf4a9284b17` feat(instant): serve browser telemetry to the local file sink
+
+- **Implementation commit:** `cbf4a9284b1783d464ec3aa70623ca2c10970c18`
+- **Change:** Serve browser telemetry to the local file sink
+- **Details:**
+  - foldkitTelemetry() serves `POST /__foldkit/telemetry` in Vite dev and preview and appends each batch to the app and host's file.
+  - It answers only local development and verified Access logins through guardHostedRequest; anyone else gets 404.
+- **Files:**
+  - `packages/instant/src/hostedIdentity/telemetryEndpoint.ts` — How the endpoint answers.
+  - `packages/instant/src/hostedIdentity/vite.ts` — foldkitTelemetry and makeTelemetryMiddleware.
+- **User context (verbatim):**
+  > Browser hosts can't write files.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 5:57:15 p.m. EDT — `57af0217d953` feat(foldkit): record a running Program's telemetry to a local file
+
+- **Implementation commit:** `57af0217d9535b86789396082ecb0f011e8da4f7`
+- **Change:** Record a running Program's telemetry to a local file
+- **Details:**
+  - Telemetry.attach and Telemetry.observer record transitions, Command spans, diagnostics, crashes, paints, and session start and stop as NDJSON.
+  - The Node file sink rotates at 10 MB, keeps three rotated files, caps the folder at 200 MB, and scrubs environment values; foldkit telemetry summarizes a file.
+  - The runtime adds programId, programVersion, installCommandTracer, pre-boot observers, and updateDurationMs; startHandle adds observeRuntime.
+- **Files:**
+  - `packages/foldkit/src/telemetry/recorder.ts` — Turns runtime facts into events.
+  - `packages/foldkit/src/telemetry/fileSink.ts` — Capped, rotating file sink.
+  - `packages/foldkit/src/telemetry/summary.ts` — The reader's analytics.
+  - `packages/foldkit/src/runtime/programRuntime.ts` — Observers, Command tracer, update duration.
+  - `packages/foldkit/src/runtime/handle.ts` — observeRuntime.
+- **User context (verbatim):**
+  > I want higher-order telemetry, analytics, performance.
+  > make sure that all of our actions, state transitions, etc., are logged with a controlled resource. And we can just print that to a file locally here.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:45:34 p.m. EDT — `6dd72492f150` fix(books): sign terminals in and share links on books.pisspoursoftware.xyz
+
+- **Implementation commit:** `6dd72492f150661f9562ccc3c0f1aad0ded228e5`
+- **Change:** Sign terminals in and share links on books.pisspoursoftware.xyz
+- **Details:**
+  - login, with-books-access, and defaultBooksOrigin now use the main address.
+- **Files:**
+  - `examples/books/scripts/with-books-access` — Default origin.
+  - `examples/books/core/src/live.ts` — defaultBooksOrigin.
+- **User context (verbatim):**
+  > and can i use books from tui/cli yet?
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `f6e0a966f36c` fix(foldkit): keep screen text from leaving one word on its last line
+
+- **Implementation commit:** `f6e0a966f36c5fb470ffc82c5700735c21c59728`
+- **Change:** Keep screen text from leaving one word on its last line
+- **Details:**
+  - Screen text uses text-wrap: pretty.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — .fk-text.
+- **User context (verbatim):**
+  > you need to look at how these things look before you tell me they're ready
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `0cc2e90c0e0a` fix(books): keep a book read aloud one page while its pages turn
+
+- **Implementation commit:** `0cc2e90c0e0aeace2cc1514743c286de06ab2eae`
+- **Change:** Keep a book read aloud one page while its pages turn
+- **Details:**
+  - Books declares the same identity for its Read Aloud page screen.
+- **Files:**
+  - `examples/books/core/src/navigation.ts` — identityOf on the page.
+- **User context (verbatim):**
+  > Um, you're going to deduce Switch page with the deep link.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `abef28e031b0` fix(read-aloud): keep a book one page while its pages turn
+
+- **Implementation commit:** `abef28e031b0fef994575cd9316270a4072c663f`
+- **Change:** Keep a book one page while its pages turn
+- **Details:**
+  - pageIdentityOf resets the page, so the screen and the Google viewer stay mounted across turns.
+- **Files:**
+  - `examples/read-aloud/core/src/routes.ts` — pageIdentityOf.
+- **User context (verbatim):**
+  > Um, you're going to deduce Switch page with the deep link.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `5b6cca743c96` feat(books): follow picture books read aloud at /books/read-aloud
+
+- **Implementation commit:** `5b6cca743c96465f3c502d439fde82f70bd5c924`
+- **Change:** Follow picture books read aloud at /books/read-aloud
+- **Details:**
+  - Books mounts Read Aloud with a library row, Dock and tabs, and page link previews on the public routes.
+- **Files:**
+  - `examples/books/core/src/navigation.ts` — Read Aloud screens.
+  - `examples/books/core/src/linkPreviews.node.ts` — Read Aloud page previews.
+- **User context (verbatim):**
+  > Um, you're going to deduce Switch page with the deep link.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `0a612f81b94b` feat(read-aloud): let another Program hold it, share pages, preview links
+
+- **Implementation commit:** `0a612f81b94b2844cbbbfe1e98c8df713cd2eaf4`
+- **Change:** Let another Program hold Read Aloud, share its pages, and preview their links
+- **Details:**
+  - Read Aloud mounts inside a host stack, shares a page link, and readAloudLinkMetadataOf gives the public metadata for a page.
+- **Files:**
+  - `examples/read-aloud/core/src/linkPreview.ts` — readAloudLinkMetadataOf.
+- **User context (verbatim):**
+  > And obviously, we want to show Rich previews that are clickable to books.pissportsoftware.xyz.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:10 p.m. EDT — `b7fe5b98c8f9` feat(read-aloud): follow a picture book read aloud, page by page
+
+- **Implementation commit:** `b7fe5b98c8f9e31c95df0ae103cdf636b4095f64`
+- **Change:** Follow a picture book read aloud, page by page
+- **Details:**
+  - Read Aloud reads Scribe's page turns from local files, shows book details and the Google Books preview at the page, and gives each page a link.
+- **Files:**
+  - `examples/read-aloud/core/src/update.ts` — Following the reading.
+  - `examples/read-aloud/react-bindings/src/googleBooksPreview.tsx` — The Google Books viewer.
+- **User context (verbatim):**
+  > Okay, so, Quad, we want to, on books, start, uh, pissport software.xyz, have previews of these embedded as we read through the pages.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:10 p.m. EDT — `70bbf6850d9f` feat(react): paint a Text's embed with the view its host gives
+
+- **Implementation commit:** `70bbf6850d9fde32e7b8480723a2642463fbf196`
+- **Change:** Paint a Text's embed with the view its host gives
+- **Details:**
+  - EmbedPaintersProvider maps embed kinds to React views; the view stays mounted across repaints.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — Embed painting.
+- **User context (verbatim):**
+  > Okay, so, Quad, we want to, on books, start, uh, pissport software.xyz, have previews of these embedded as we read through the pages.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:10 p.m. EDT — `c57e8a6bc56b` feat(foldkit): let a Text show a live embed where the host draws one
+
+- **Implementation commit:** `c57e8a6bc56b81672745143e9bb2e5ded42814f5`
+- **Change:** Let a Text show a live embed where the host draws one
+- **Details:**
+  - Text takes an optional embed (kind, params, size); painters without a view for it show the words, as a link where they can.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — TextEmbed.
+- **User context (verbatim):**
+  > Okay, so, Quad, we want to, on books, start, uh, pissport software.xyz, have previews of these embedded as we read through the pages.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:34:44 p.m. EDT — `8d69860df056` test(react-native): expect a deep launch link to open while mirrored
+
+- **Implementation commit:** `8d69860df056766c030abe051e1ea718194de647`
+- **Change:** Expect a deep launch link to open while mirrored
+- **Details:**
+  - The Expo Router test follows the launch rule: a mirrored session opens a deep link to a page.
+- **Files:**
+  - `packages/react-native/src/expoRouter/routerStack.test.ts` — Updated expectation.
+- **User context (verbatim):**
+  > I want deep linking to work.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:19:08 p.m. EDT — `f840d7a60263` docs(reminders): describe Reminders on the V3 rows, its addresses, and its hosts
+
+- **Implementation commit:** `f840d7a602635fc391623218da135abd8b28fd29`
+- **Change:** Describe Reminders on the V3 rows, its addresses, and its hosts
+- **Details:**
+  - The README maps the V3 entities to the Program, lists every address, and says how to run the fixture, the live app on a dev Instant app with the V3 schema, and the terminal hosts.
+- **Files:**
+  - `examples/reminders/README.md` — Rewritten for the V3 example.
+- **User context (verbatim):**
+  > It's probably got a pretty decent schema, but we actually want to embed that inscribe.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:19:08 p.m. EDT — `93d81001ff2a` feat(reminders): add the CLI, TUI, and OpenTUI
+
+- **Implementation commit:** `93d81001ff2adf2f9890b72bb1da9e2c6be262dc`
+- **Change:** Add the CLI, TUI, and OpenTUI
+- **Details:**
+  - The terminal hosts run the same Program through the generic Foldkit surfaces. --at opens an address first so a one-shot command acts on that page, reminders --at /reminders/lists/<id> add-reminder Buy milk; the TUI and OpenTUI tick with x, flag with f, and copy a link with c. Each signs in as the Access member and names no app by default.
+- **Files:**
+  - `examples/reminders/cli/src/entry.ts` — One-shot commands, watch, tail, and --at.
+  - `examples/reminders/cli/src/tui.ts` — The TUI.
+  - `examples/reminders/opentui/src/entry.ts` — OpenTUI.
+  - `examples/reminders/scripts/with-reminders-access` — Reads only the app id.
+- **User context (verbatim):**
+  > And again, follow the canonical example encounters, and now I imagine books is pretty good.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:19:08 p.m. EDT — `e9c559662c7c` feat(reminders): add the React host, with a fixture and screenshots of every screen
+
+- **Implementation commit:** `e9c559662c7c3ef90966bc25c750d414ae5b3564`
+- **Change:** Add the React host, with a fixture and screenshots of every screen
+- **Details:**
+  - The React window paints every page, Sheet, and question on Instant only, in an iOS-style grouped look: smart lists as cards, lists as cards with inset separators, tags as chips, values on one line, color swatches, and the current choice checked. A fixture runs the same App on the made-up board in memory, and the screenshot script checks the interactions at 1280 and 390 wide.
+- **Files:**
+  - `examples/reminders/react/src/App.tsx` — The window.
+  - `examples/reminders/react/src/styles.css` — The look.
+  - `examples/reminders/react/fixture/main.tsx` — The in-memory review fixture.
+  - `examples/reminders/react/scripts/screenshots.mjs` — Screens and interaction checks.
+- **User context (verbatim):**
+  > Um, because it needs to look good.
+  > not just a static list of buttons.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:18:56 p.m. EDT — `99b191f390d4` feat(reminders): link every row to its page, add Lists and Profile tabs, and share any page
+
+- **Implementation commit:** `99b191f390d440eb30e8e22a7b15c4d50c706014`
+- **Change:** Link every row to its page, add Lists and Profile tabs, and share any page
+- **Details:**
+  - Every row is a link to the page it opens at the address the address bar shows there, and a reminder's Due, Priority, and List rows link to their Sheets; a terminal presses the same rows' Actions. Home and the profile share a dock with the Lists and Profile tabs, the profile with no Back. SharePage, c, shares the page on screen through the share sheet or the clipboard and says Link copied until the screen changes. Due dates read as dates and mark the one set; Move to offers only lists the person may change.
+- **Files:**
+  - `examples/reminders/core/src/links.ts` — Paths printed through the routes for rows and Sheets.
+  - `examples/reminders/core/src/routes.ts` — The screens, moved out so links never import the views.
+  - `examples/reminders/core/src/screen.ts` — Link rows, the dock, and compact detail rows.
+  - `examples/reminders/core/src/share.ts` — LinkSharing, as in Books.
+  - `examples/reminders/core/src/message.ts` — ShowLists, ShowProfile, SharePage, ShowMoveOptions.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:18:36 p.m. EDT — `ef4471b9ba7e` fix(foldkit): keep link rows plain
+
+- **Implementation commit:** `ef4471b9ba7ee0f087bd8325a9273019c01a3d72`
+- **Change:** Keep link rows plain
+- **Details:**
+  - A list row that is a link, such as a bookmark's moment or a reminder, no longer underlines its title and lines on the web.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — text-decoration on .fk-item-press.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:18:36 p.m. EDT — `663228da08c1` feat(reminders): rebuild Reminders on the Reminders V3 schema
+
+- **Implementation commit:** `663228da08c1e1f07b94d522727eb4e2ac0cbae3`
+- **Change:** Rebuild Reminders on the Reminders V3 schema
+- **Details:**
+  - The core is a Program in the shape of Books on Reminders V3's own rows: remindersLists, reminders, tags, v3_shares, and v3_share_memberships on $users, written the way the Swift Messages write them, with the schema and rules mirrored and pinned by a contract test beside the owner-scoped programMessage log. Home, smart lists, lists, tags, search, a page per reminder, and Sheets for due dates, priorities, moving, ordering, list details, and sharing, each at its own address and closing on a choice.
+- **Files:**
+  - `examples/reminders/core/src/instantSchema.ts` — Reminders V3 entities and links, plus programMessage.
+  - `examples/reminders/core/src/instantPerms.ts` — Reminders V3 rules, plus an owner-only programMessage.
+  - `examples/reminders/core/src/instantStore.ts` — Reads the board and writes each change as V3 does.
+  - `examples/reminders/core/src/message.ts` — The Catalog Actions.
+  - `examples/reminders/core/src/update.ts` — WriteReminders and the stack rules.
+- **User context (verbatim):**
+  > Whatever example is in FoldKit right now, bring it towards Reminders V3, because I think Reminders V3 is going to be more mature, but if there's anything interesting in the example, keep it and merge the two.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:18:35 p.m. EDT — `a89010723f55` feat(foldkit): let a field press an Action and a list row carry a check
+
+- **Implementation commit:** `a89010723f5593c6a3ec71e86bf30d5fd1f9bf95`
+- **Change:** Let a field press an Action and a list row carry a check
+- **Details:**
+  - A TextInput with an action presses it with the trimmed text as the choice, AddReminder:Buy milk; a field that edits also submits when a person leaves it and presses its clearAction when emptied. A ListItem check is a box at the row's start, such as a reminder's completion circle, that presses its own Action. React, Svelte, React Native, the HTML painter, the terminal, and OpenTUI draw both.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — TextInput action, clearAction, and label; ItemCheck on ListItem.
+  - `packages/foldkit/src/renderers/textInput.ts` — submittedTagOf, the one rule for what a submission presses.
+  - `packages/react/src/paintReact/paintReact.tsx` — TextField and CheckButton.
+  - `packages/foldkit/src/interaction/screenStyles.ts` — The field and round check look.
+- **User context (verbatim):**
+  > You know, we need lists and we need, uh, scrolling and we need, uh, things, you know, all the things we need for a reminder's application, you know what they are.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:49 p.m. EDT — `31862a7d0387` fix(books): stop the player rebuilding every second as its link moves
+
+- **Implementation commit:** `31862a7d0387c4391f192cc39081c18939b7de1f`
+- **Change:** Stop the player rebuilding every second as its link moves
+- **Details:**
+  - The player's identity resets its place; 10 rebuilds in 10 s before, none after.
+- **Files:**
+  - `examples/books/core/src/navigation.ts` — identityOf on the player.
+- **User context (verbatim):**
+  > Anyway, for the book, every time the, uh, word, the highlighted word moves, the whole page jumps around and it's very stuttery and it reloads everything.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:49 p.m. EDT — `e649de4f01fd` fix(svelte): keep an overlay's DOM while its address moves
+
+- **Implementation commit:** `e649de4f01fde0b09755df808f239c40608d63b7`
+- **Change:** Keep an overlay's DOM while its address moves
+- **Details:**
+  - Svelte overlays are keyed by identity.
+- **Files:**
+  - `packages/svelte/src/interaction/NavigationFrame.svelte` — Overlay keys.
+- **User context (verbatim):**
+  > Anyway, for the book, every time the, uh, word, the highlighted word moves, the whole page jumps around and it's very stuttery and it reloads everything.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:49 p.m. EDT — `d5f0516db268` fix(react): keep a page's DOM while its address follows a moving place
+
+- **Implementation commit:** `d5f0516db268e614820d04619bdadbdab6e78d4d`
+- **Change:** Keep a page's DOM while its address follows a moving place
+- **Details:**
+  - The React frame keys layers by identity.
+- **Files:**
+  - `packages/react/src/navigation/navigation.tsx` — Layer keys.
+- **User context (verbatim):**
+  > Anyway, for the book, every time the, uh, word, the highlighted word moves, the whole page jumps around and it's very stuttery and it reloads everything.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:48 p.m. EDT — `9eb5ddd184f2` feat(foldkit): keep a screen's identity while a passing field moves it
+
+- **Implementation commit:** `9eb5ddd184f21de05054782bb5acd4a0caa8f7bf`
+- **Change:** Keep a screen's identity while a passing field moves it
+- **Details:**
+  - identityOf resets passing fields; carrier entries and frame layers carry an identity printed from them.
+- **Files:**
+  - `packages/foldkit/src/navigation/carrier.ts` — identity per entry.
+  - `packages/foldkit/src/navigation/declaration.ts` — identityOf on routes and screens.
+- **User context (verbatim):**
+  > Anyway, for the book, every time the, uh, word, the highlighted word moves, the whole page jumps around and it's very stuttery and it reloads everything.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:47 p.m. EDT — `8359628e6f71` fix(foldkit): show the current row's accent over the plain title style
+
+- **Implementation commit:** `8359628e6f714050e12f49f3e71e8afab2546e4c`
+- **Change:** Show the current row's accent over the plain title style
+- **Details:**
+  - The current-row title rule now comes after the plain title rules.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — Rule order.
+- **User context (verbatim):**
+  > you need to look at how these things look before you tell me they're ready
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 11:24:17 a.m. EDT — `bb5fddfe2274` feat(books): preview title and moment links for anyone they are sent to
+
+- **Implementation commit:** `bb5fddfe22741bf5f535c929593bdf178cb454f8`
+- **Change:** Preview title and moment links for anyone they are sent to
+- **Details:**
+  - Title and moment links answer anonymous visitors with the title, authors, the moment's time, and the cover; every other path stays private.
+- **Files:**
+  - `examples/books/core/src/linkPreview.ts` — booksLinkOf and previewLineOf.
+  - `examples/books/core/src/linkPreviews.node.ts` — booksLinkPreviews and instantTitlesLoader.
+  - `examples/books/react/vite.config.ts` — Wires the previews into hostedIdentity.
+- **User context (verbatim):**
+  > And obviously, we want to show Rich previews that are clickable to books.pissportsoftware.xyz.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 11:24:16 a.m. EDT — `33e9ae8234eb` feat(instant): answer anonymous visitors only from declared public routes
+
+- **Implementation commit:** `33e9ae8234eb25e76ab540a1a6737075a40803d8`
+- **Change:** Answer anonymous visitors only from declared public routes
+- **Details:**
+  - hostedIdentity takes publicRoutes: verified logins reach the app, everyone else gets only declared public answers or 404; sign-in keeps the checked login in the origin's cookie; linkPreviewAnswer builds Open Graph pages.
+- **Files:**
+  - `packages/instant/src/hostedIdentity/publicRoutes.ts` — The gate, plain paths, sign-in, and link preview pages.
+  - `packages/instant/src/hostedIdentity/vite.ts` — publicRoutes option.
+- **User context (verbatim):**
+  > So, yeah, we need to make that, uh, we need to have a shared mechanism on all of our subdomains for making certain routes public.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:47 a.m. EDT — `0e21e6c24aeb` feat(books): continue listening home, tabs, and an expanding mini player
+
+- **Implementation commit:** `0e21e6c24aeb17d3bf8c87399531752e11a7eda4`
+- **Change:** Continue listening home, tabs, and an expanding mini player
+- **Details:**
+  - The home leads with books to continue; tabs and the now-playing bar sit in a dock; Profile shows who is signed in; the player's controls fold into a bar that expands.
+- **Files:**
+  - `examples/books/core/src/screen.ts` — Library, Profile, dock, and player controls.
+  - `examples/books/core/src/message.ts` — ExpandControls, CollapseControls, ShowLibrary, ShowProfile, ReceivedMember.
+- **User context (verbatim):**
+  > So I can, by default, it's kind of collapsed and I get this like, this information down here.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `9f6ea61857e6` feat(svelte): open sheets on their current row and size the page to the dock
+
+- **Implementation commit:** `9f6ea61857e6629d4140f800c8c869ed30c9299e`
+- **Change:** Open sheets on their current row and size the page to the dock
+- **Details:**
+  - The Svelte painter matches React: current rows scroll into view and sheets focus them without scrolling.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — scrollWhenCurrent.
+  - `packages/svelte/src/interaction/presentedFocus.ts` — Opening focus.
+- **User context (verbatim):**
+  > and if I click outside of a modal, it doesn't dismiss
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `8b2a5ed98ad1` feat(react): open sheets on their current row and size the page to the dock
+
+- **Implementation commit:** `8b2a5ed98ad1a0c2c54ed373c73650a573e56c7e`
+- **Change:** Open sheets on their current row and size the page to the dock
+- **Details:**
+  - A current list row scrolls to the middle on first paint; a presented screen focuses its current row without scrolling.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — ListRow.
+  - `packages/react/src/navigation/navigation.tsx` — Opening focus.
+- **User context (verbatim):**
+  > and if I click outside of a modal, it doesn't dismiss
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `8ae47708c4d3` feat(foldkit): drop Back on tab pages and let sheets close on a tap
+
+- **Implementation commit:** `8ae47708c4d3b07d4d9bd169bff324894891dccf`
+- **Change:** Drop Back on tab pages and let sheets close on a tap
+- **Details:**
+  - Session.compose takes isTab; Back shows a chevron at the top left; sheets leave a strip to tap and open on their current row; Ghost rows with a current button paint as segmented controls; dock rows stack labeled icons and spread text.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — isTab and the Back icon.
+  - `packages/foldkit/src/interaction/screenStyles.ts` — Sheet, dock, segmented, and list heading styles.
+- **User context (verbatim):**
+  > But I really just need library and profile.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `7cfb40f9bab6` feat(transcript-player): scrub a chapter or the whole recording
+
+- **Implementation commit:** `7cfb40f9bab6e90083d83666a5f46c57cfb7c14a`
+- **Change:** Scrub a chapter or the whole recording
+- **Details:**
+  - The seek bar spans the section being heard by default; Previous and Next chapter step between sections; the transport is icons.
+- **Files:**
+  - `examples/transcript-player/core/src/screen.ts` — seekBarOf, timesOf, seekScopeOf, transportOf.
+  - `examples/transcript-player/core/src/message.ts` — SetSeekScope, PreviousSection, NextSection.
+- **User context (verbatim):**
+  > Um, but it would be nice to be able to change whether I'm navigating between a chapter or the entire book uh, and the drag bar and stuff like that.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `0e5d73d24cd4` feat(opentui): paint icon glyphs on buttons
+
+- **Implementation commit:** `0e5d73d24cd4387063ffa86badc0290926e6dd27`
+- **Change:** Paint icon glyphs on buttons in OpenTUI
+- **Details:**
+  - OpenTUI labels buttons with the terminal glyphs.
+- **Files:**
+  - `packages/opentui/src/interaction/paintOpenTui.ts` — buttonLabelOf.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `745221be9694` feat(react-native): paint icon glyphs on buttons
+
+- **Implementation commit:** `745221be96942ff2c8712a7c9395edac783eedfb`
+- **Change:** Paint icon glyphs on buttons in React Native
+- **Details:**
+  - React Native labels buttons with the terminal glyphs.
+- **Files:**
+  - `packages/react-native/src/interaction/screen.tsx` — labelOfButton.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `3e444d52799f` feat(svelte): paint icons, tabs, the dock, and chapter seek bars
+
+- **Implementation commit:** `3e444d52799f7787a8376ece744040ac54cae750`
+- **Change:** Paint icons, tabs, the dock, and chapter seek bars in Svelte
+- **Details:**
+  - Svelte draws the same icons, tabs, dock, and seek bars as React.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — Tabs, dock, and icons.
+  - `packages/svelte/src/interaction/Icon.svelte` — Icon drawing.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:45 a.m. EDT — `eb38a02a67f7` feat(react): paint icons, tabs, the dock, and chapter seek bars
+
+- **Implementation commit:** `eb38a02a67f7b3a52d5ea0fd233bc290984b5a62`
+- **Change:** Paint icons, tabs, the dock, and chapter seek bars in React
+- **Details:**
+  - React draws icon SVGs, tab buttons, the fixed dock, and seek bars with a min.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — Icon, DockBox, and Button attributes.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:45 a.m. EDT — `0a1c31c46ec7` feat(foldkit): add icons, tabs, a bottom dock, and chapter seek bars to screens
+
+- **Implementation commit:** `0a1c31c46ec78f852681c7ad334966471a7edd82`
+- **Change:** Add icons, tabs, a bottom dock, and chapter seek bars to screens
+- **Details:**
+  - Buttons take a shared icon set, a Tab variant marks places, Dock pins children to the bottom, and Seek can start at a min.
+- **Files:**
+  - `packages/foldkit/src/renderers/icons.ts` — Icon drawings and glyphs.
+  - `packages/foldkit/src/renderers/types.ts` — icon, isIconOnly, isCurrent, isDock, min.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:36:46 a.m. EDT — `9f6da8afd7db` fix(foldkit): follow a launch link to a page while navigation is mirrored
+
+- **Implementation commit:** `9f6da8afd7dbefc9c1033c19dd871b65298a8dbd`
+- **Change:** Follow a launch link to a page while navigation is mirrored
+- **Details:**
+  - A launch at the home joins the shared stack; a launch to a page moves it there, so shared links open what they name.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — isBeyondHome.
+  - `packages/foldkit/src/navigation/transition.ts` — The URI reaches the rule.
+- **User context (verbatim):**
+  > I want the where I am in the book to constantly update with the words. So I could copy the link at any time.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:38 a.m. EDT — `dd88f3d23dd6` feat(books): keep the player's address on the moment, share it, and play chapters on the player
+
+- **Implementation commit:** `dd88f3d23dd6fc9a13147ddf4203d4466b12a194`
+- **Change:** Keep the player's address on the moment, share it, and play chapters on the player
+- **Details:**
+  - The address names the second being heard; links open there paused without saving; Share sends it; bookmarks are links; chapters play on the player and close the contents; the chapter page is gone.
+- **Files:**
+  - `examples/books/core/src/update.ts` — The address both ways.
+  - `examples/books/core/src/share.ts` — Link sharing.
+  - `examples/books/core/src/subscriptions.ts` — The address cue.
+- **User context (verbatim):**
+  > I want the where I am in the book to constantly update with the words. So I could copy the link at any time.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:37 a.m. EDT — `154d948e7a71` feat(transcript-player): give recordings sections and places a link segment
+
+- **Implementation commit:** `154d948e7a71160efd51ed8cb70283ccfd70ceb7`
+- **Change:** Give recordings sections and places a link segment
+- **Details:**
+  - Media carries sections; paragraphs break at each and are headed by its title; PlaceSegment prints 12m03s and reads clocks.
+- **Files:**
+  - `examples/transcript-player/core/src/ids.ts` — PlaceSegment.
+  - `examples/transcript-player/core/src/screen.ts` — Headed paragraphs.
+- **User context (verbatim):**
+  > Also, we probably want to label chapter headers.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:36 a.m. EDT — `877a512fa852` feat(opentui): open link rows and paint transcript headings
+
+- **Implementation commit:** `877a512fa852118b0fd0fab45b9e13974d6ad499`
+- **Change:** Open link rows and paint transcript headings
+- **Details:**
+  - OpenTUI opens link rows on a click and paints headings.
+- **Files:**
+  - `packages/opentui/src/interaction/runOpenTui.ts` — Opening links.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:35 a.m. EDT — `02eab975f45b` feat(react-native): paint link rows and transcript headings
+
+- **Implementation commit:** `02eab975f45b2f9cd734b7d02e25414244fe987a`
+- **Change:** Paint link rows and transcript headings
+- **Details:**
+  - React Native opens link rows and shows headings.
+- **Files:**
+  - `packages/react-native/src/interaction/screen.tsx` — Link rows.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:33 a.m. EDT — `7277903d8ed6` feat(svelte): paint link rows and transcript headings
+
+- **Implementation commit:** `7277903d8ed61112508a25dd08f444470e7e2226`
+- **Change:** Paint link rows and transcript headings
+- **Details:**
+  - Svelte paints link rows as anchors and headings above their passage.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — Link rows.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:31 a.m. EDT — `962b0f2ec347` feat(react): paint link rows and transcript headings
+
+- **Implementation commit:** `962b0f2ec347019ca42b18222cddd5ddb1b590b0`
+- **Change:** Paint link rows and transcript headings
+- **Details:**
+  - React paints link rows as anchors and headings above their passage.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — ItemPress.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:29 a.m. EDT — `6fd2f721f16e` feat(foldkit): let list rows be links and transcript passages carry headings
+
+- **Implementation commit:** `6fd2f721f16ef3479f10ce62ce50a662feff6d18`
+- **Change:** Let list rows be links and transcript passages carry headings
+- **Details:**
+  - A list row with `href` is a link every Client paints as one; a transcript passage can carry a `heading`.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — href and heading.
+  - `packages/foldkit/src/interaction/terminalFocus.ts` — Enter opens a link row.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:28 a.m. EDT — `9aebe8e1cb80` fix(foldkit): keep the action menu's search at 16px so iPhone does not zoom
+
+- **Implementation commit:** `9aebe8e1cb80c25276323ac4d445282a5ab1252b`
+- **Change:** Keep the action menu's search at 16px so iPhone does not zoom
+- **Details:**
+  - The search field stays at least 16px, so iPhone Safari no longer zooms the page when it takes focus.
+- **Files:**
+  - `packages/foldkit/src/interaction/menuStyles.ts` — The 16px floor.
+- **User context (verbatim):**
+  > The actions are very cool. Um, but when I click it, it zooms in weird on the on the mobile website.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:10:09 a.m. EDT — `d033d80bb33e` test(books): run the books CLI's commands on a made-up library
+
+- **Implementation commit:** `d033d80bb33e03ce4a847f3d47337df78de7d31d`
+- **Change:** Run the books CLI's commands on a made-up library
+- **Details:**
+  - The CLI lists the library and every Action, plays a title, and seeks by command.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — The CLI test.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:10:06 a.m. EDT — `2a6d7be2a71c` fix(foldkit): let a CLI command carry an open value
+
+- **Implementation commit:** `2a6d7be2a71cedd42b5e24fd77ed82fd2a066bf4`
+- **Change:** Let a CLI command carry an open value
+- **Details:**
+  - `books seek-to 723000` presses `SeekTo:723000`; the Action's `accepts` rule decides.
+- **Files:**
+  - `packages/foldkit/src/cli/program.ts` — openCommandFor.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:03:17 a.m. EDT — `009cd528e89b` feat(books): add the books CLI, TUI, and OpenTUI
+
+- **Implementation commit:** `009cd528e89b04be41946b85e831bce1c5908c4c`
+- **Change:** Add the books CLI, TUI, and OpenTUI
+- **Details:**
+  - `books`, `books-tui`, and `books-opentui`, all from the Program with no title, Action, or route in the hosts.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — The CLI.
+  - `examples/books/cli/src/tui.ts` — The TUI.
+  - `examples/books/opentui/src/entry.ts` — OpenTUI.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:03:17 a.m. EDT — `ccc668ee287f` feat(books): start Books in a terminal as the Access member
+
+- **Implementation commit:** `ccc668ee287f242912b014a4b55b20591635c88c`
+- **Change:** Start Books in a terminal as the Access member
+- **Details:**
+  - A terminal signs in through the reader's mint with cloudflared's Access token, or the local reader's mint, keeps its Instant session in a file, plays through ffplay, and reads the words from Instant; only the app id comes from the env file.
+- **Files:**
+  - `examples/books/core/src/live.ts` — The terminal start.
+  - `examples/books/scripts/with-books-access` — The wrapper.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:03:17 a.m. EDT — `1ecbb629f109` test(transcript-player): cover the ffplay output with a silent stand-in, and space screens for terminals
+
+- **Implementation commit:** `1ecbb629f109bb43c9f1dc076f3074f54e2bb8bf`
+- **Change:** Cover the ffplay output with a silent stand-in, and space screens for terminals
+- **Details:**
+  - A stand-in ffplay prints its clock lines, so the test checks seconds, the end, and both failures without sound; screen gaps are one row, since terminals read them as rows.
+- **Files:**
+  - `examples/transcript-player/core/src/audio.node.test.ts` — The ffplay test.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:03:16 a.m. EDT — `8fb01906f853` feat(instant): sign Node Clients in through a local mint and run Instant core in Node
+
+- **Implementation commit:** `8fb01906f85376f31f5361103eaacc534b6b3d0e`
+- **Change:** Sign Node Clients in through a local mint and run Instant core in Node
+- **Details:**
+  - `makeNodeInstantDatabase` opens Instant core in Node with a file-backed session, turning on its client, which starts only where `window` exists; a loopback mint is asked without an Access token.
+- **Files:**
+  - `packages/instant/src/nodeDatabase/nodeDatabase.ts` — The Node database.
+  - `packages/instant/src/hostedIdentity/hostedIdentity.ts` — The loopback mint rule.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:09 a.m. EDT — `9b3f0ac99351` feat(books): play through the Transcript Player, with the words to read along
+
+- **Implementation commit:** `9b3f0ac993514b48f47bd1f4592f76eb26ca0c1f`
+- **Change:** Play through the Transcript Player, with the words to read along
+- **Details:**
+  - Books holds one Transcript Player for the loaded title, offers its Actions with Catalog.within, saves the place from its reports, reads each title's words from its rendition's librarySegments, and redraws the library, title page, contents, and player.
+- **Files:**
+  - `examples/books/core/src/update.ts` — The player in Books.
+  - `examples/books/core/src/instantTranscript.ts` — Words from Instant.
+  - `examples/books/core/src/screen.ts` — The redesign.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `b02894762dc5` feat(transcript-player): read each passage as paragraphs with their own times
+
+- **Implementation commit:** `b02894762dc5fddca5ed9e41418ed56daf57d451`
+- **Change:** Read each passage as paragraphs with their own times
+- **Details:**
+  - A paragraph ends at a pause of a second and a half, or at a sentence end once it has 70 words, and its time moves the player there.
+- **Files:**
+  - `examples/transcript-player/core/src/screen.ts` — paragraphsOf.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `6365f7cc7f4c` fix(svelte): follow the sounding word inside the transcript's scroll area
+
+- **Implementation commit:** `6365f7cc7f4cde64697a5e2ac96dd9999b528781`
+- **Change:** Follow the sounding word inside the transcript's scroll area
+- **Details:**
+  - Svelte centers the sounding word inside the transcript's scroll area.
+- **Files:**
+  - `packages/svelte/src/interaction/TranscriptView.svelte` — The follow effect.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `48b734b0452e` fix(react): follow the sounding word inside the transcript's scroll area
+
+- **Implementation commit:** `48b734b0452ebead0ba86e9225c09b10b0a9ae8a`
+- **Change:** Follow the sounding word inside the transcript's scroll area
+- **Details:**
+  - React centers the sounding word inside the transcript's scroll area, so the controls stay on screen.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — followWord.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `13bd73b71bf3` style(foldkit): quiet Session chrome and keep the transcript in its own scroll area
+
+- **Implementation commit:** `13bd73b71bf35ce625b4c062fa10507cd3c39a01`
+- **Change:** Quiet Session chrome and keep the transcript in its own scroll area
+- **Details:**
+  - Session's Back and settings buttons are Ghost pills, nested columns fill their parent, rows center, and the transcript scrolls in its own area.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — Ghost chrome.
+  - `packages/foldkit/src/interaction/screenStyles.ts` — Layout.
+- **User context (verbatim):**
+  > you also need to look at this, it just doesn't look good. But I know it's complicated, so I'm not judging you here, but uh, we need to actually make it useful
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `88064f86777e` fix(foldkit): type offered child Actions from their struct and give shared keys to the offered one
+
+- **Implementation commit:** `88064f86777eaf05a36573af4a73082d176002ee`
+- **Change:** Type offered child Actions from their struct and give shared keys to the offered one
+- **Details:**
+  - `Catalog.within` Actions keep the child's Message type, and a shared key reaches the Action whose preferred choice is offered.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — WithinAction.
+  - `packages/foldkit/src/interaction/interaction.ts` — Key resolution.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:31 a.m. EDT — `9af5953b21d8` feat(transcript-player): add a shareable player for any audio with a transcript
+
+- **Implementation commit:** `9af5953b21d88687e648c9bee777ee3c87a94355`
+- **Change:** Add a shareable player for any audio with a transcript
+- **Details:**
+  - A core Program for one recording: play, pause, skip, seek, play from a word, and speed, with words read window by window from a TranscriptSource, browser and ffplay audio, and OutMessages for the Program holding it.
+- **Files:**
+  - `examples/transcript-player/core/src/update.ts` — The player's update.
+  - `examples/transcript-player/core/src/screen.ts` — Its seek bar, transport, and transcript.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:19 a.m. EDT — `da1109fa0a01` refactor: paint the new screen nodes in the example terminals and phones
+
+- **Implementation commit:** `da1109fa0a016552ab8d6623014f88fd921e1d7c`
+- **Change:** Paint the new screen nodes in the example terminals and phones
+- **Details:**
+  - Every example painter that matches each screen node handles List, Progress, Seek, and Transcript.
+- **Files:**
+  - `examples/gate/cli/src/paintCli.ts` — One of 26 example painters.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:18 a.m. EDT — `b8974073cf3a` feat(opentui): paint lists, progress, seek bars, and transcripts
+
+- **Implementation commit:** `b8974073cf3a9e9a3fcc399c8653ff91c2bea7aa`
+- **Change:** Paint lists, progress, seek bars, and transcripts
+- **Details:**
+  - OpenTUI paints the four nodes, with the current word highlighted.
+- **Files:**
+  - `packages/opentui/src/interaction/paintOpenTui.ts` — The OpenTUI painter.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:17 a.m. EDT — `d0f2b19471c9` feat(react-native): paint lists, progress, seek bars, and transcripts
+
+- **Implementation commit:** `d0f2b19471c9deb56df57ed2803dc9c436807012`
+- **Change:** Paint lists, progress, seek bars, and transcripts
+- **Details:**
+  - React Native paints the four nodes.
+- **Files:**
+  - `packages/react-native/src/interaction/screen.tsx` — The phone painter.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:14 a.m. EDT — `79d59437d560` feat(svelte): paint lists, progress, seek bars, and transcripts
+
+- **Implementation commit:** `79d59437d5606f632cf6f81fc215122bff4ea332`
+- **Change:** Paint lists, progress, seek bars, and transcripts
+- **Details:**
+  - Svelte paints the four nodes with a seek bar and transcript component.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — The Svelte painter.
+  - `packages/svelte/src/interaction/TranscriptView.svelte` — The transcript.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:12 a.m. EDT — `eedc4c009c0f` feat(react): paint lists, progress, seek bars, and transcripts
+
+- **Implementation commit:** `eedc4c009c0f8db7d525fae9ae88afef20e72ff8`
+- **Change:** Paint lists, progress, seek bars, and transcripts
+- **Details:**
+  - React paints the four nodes; the seek bar presses once on release, and the transcript keeps the sounding word in view.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — The React painter.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:11 a.m. EDT — `11dc56e3937c` feat(foldkit): add list, progress, seek bar, and transcript screen nodes
+
+- **Implementation commit:** `11dc56e3937cb3b07ce31dcec5f17264e8991ced`
+- **Change:** Add list, progress, seek bar, and transcript screen nodes
+- **Details:**
+  - New List, Progress, Seek, and Transcript nodes, a Headline emphasis, painted button variants, terminal layouts, and web styles.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — The nodes.
+  - `packages/foldkit/src/renderers/layout.ts` — Terminal lines.
+  - `packages/foldkit/src/interaction/screenStyles.ts` — The web look.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:10 a.m. EDT — `de3f6cdec0b5` feat(foldkit): let Actions take open values and offer a single child's Actions
+
+- **Implementation commit:** `de3f6cdec0b5134bf3ec362de9faf54231bb1086`
+- **Change:** Let Actions take open values and offer a single child's Actions
+- **Details:**
+  - A Choose with `accepts` takes any value its rule allows, such as any place on a seek bar; `Catalog.within` offers a child Program's Actions from a parent holding at most one child; two Actions may share a key when only one is offered.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — Open choices and within.
+  - `packages/foldkit/src/interaction/interaction.ts` — Shared keys.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:43:41 a.m. EDT — `54ee6c5fe332` feat(books): name the book in the player's address
+
+- **Implementation commit:** `54ee6c5fe332d841908b93c01d3db0bde1df924c`
+- **Change:** Name the book in the player's address
+- **Details:**
+  - The player sits only above its title's page, so its address is `/books/<slug>/listen`; a shared player link opens on that book, ready to play from the listener's place.
+- **Files:**
+  - `examples/books/core/src/navigation.ts` — The player's screen rule.
+  - `examples/books/core/src/update.ts` — Opening the player above its title.
+- **User context (verbatim):**
+  > books/slash/listen doesn't have any ID IDs in the URL. Um so how Um yeah, the books the books IDs should be in the URL somewhere.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:43:41 a.m. EDT — `04ff46eea7a5` fix(react): close a presented screen on a click on its backdrop
+
+- **Implementation commit:** `04ff46eea7a58e708751dd792da0b809c98bff82`
+- **Change:** Close a presented screen on a click on its backdrop
+- **Details:**
+  - A click on the dimmed backdrop around a Sheet or Dialog goes back one entry, the same as Escape, in React and Svelte; a click inside the panel does nothing to it.
+- **Files:**
+  - `packages/react/src/navigation/navigation.tsx` — The React backdrop.
+  - `packages/svelte/src/interaction/NavigationFrame.svelte` — The Svelte backdrop.
+- **User context (verbatim):**
+  > if I click outside of a modal, it doesn't dismiss
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:58:34 p.m. EDT — `b0bf2f234711` fix(books): pause and say why when a title's audio will not play
+
+- **Implementation commit:** `b0bf2f234711eb4920a481604470d628b89b0ded`
+- **Change:** Pause and say why when a title's audio will not play
+- **Details:**
+  - The browser player reports a failed download, an undecodable file, or a refusal to play without a press. The player stops as Unplayable with the reason, saves the place it reached, and Play tries again. Before this, a file that failed left the player showing Pause with no sound.
+- **Files:**
+  - `examples/books/core/src/audio.browser.ts` — Reports the failure.
+  - `examples/books/core/src/model.ts` — The Unplayable transport.
+  - `examples/books/core/src/update.ts` — Stops and saves the place.
+  - `examples/books/core/src/screen.ts` — The player says why.
+- **User context (verbatim):**
+  > I want an audible clone with my actual books with Progress
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:30:44 p.m. EDT — `3e8902fc87cc` fix(books): play only titles whose audio is in the library
+
+- **Implementation commit:** `3e8902fc87cc2d88295f22fd6e8af1e97ec01151`
+- **Change:** Play only titles whose audio is in the library
+- **Details:**
+  - Play, a chapter jump, and a bookmark are unavailable with the sentence "its audio is not in the library yet" while a title has no audio file, so the reader never counts silently and saves a made-up place over a real one.
+- **Files:**
+  - `examples/books/core/src/message.ts` — The three Actions check for audio.
+  - `examples/books/core/src/update.ts` — The handlers refuse too.
+  - `examples/books/core/src/app.test.ts` — A title without audio never plays.
+- **User context (verbatim):**
+  > I want an audible clone with my actual books with Progress
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:25:43 p.m. EDT — `39e23b1bdc1b` feat(books): build and serve the reader for whichever Instant app is named
+
+- **Implementation commit:** `39e23b1bdc1b3c37846d5876510eac8d9cf8cda6`
+- **Change:** Build and serve the reader for whichever Instant app is named
+- **Details:**
+  - One wrapper reads the env file it is pointed at, so the same scripts build the dev reader and the production one; `serve:live` previews on 127.0.0.1:5200 for both books hosts, and the dev seed refuses any app but the throwaway one.
+- **Files:**
+  - `examples/books/scripts/with-books-env` — Reads the named env file.
+  - `examples/books/react/package.json` — `build:live` and `serve:live`.
+  - `examples/books/react/vite.config.ts` — Both hosts allowed.
+  - `examples/books/core/scripts/seedDev.mjs` — The seed guard.
+- **User context (verbatim):**
+  > And put books on pisspoorsoftware.com. P-I-S-S, P-O-U-R, software, or.x-Y-Z is the domain
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:18:33 p.m. EDT — `9352626c0dbe` fix(books): write the library's lowercase kinds and read either case
+
+- **Implementation commit:** `9352626c0dbe5d761711196c5fc9d43e5fb5f304`
+- **Change:** Write the library's lowercase kinds and read either case
+- **Details:**
+  - Progress and bookmark rows use the kinds the imported library already uses, and a finished title reads as finished in either case.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — Lowercase kinds.
+  - `examples/books/core/src/instantLibrary.test.ts` — Either case decodes.
+  - `examples/books/core/scripts/seedDev.mjs` — The seed matches.
+- **User context (verbatim):**
+  > Booksport user real, yes, your library, keep the audible import
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:14:49 p.m. EDT — `7be211179ba7` feat(books): show each title's cover from Instant storage
+
+- **Implementation commit:** `7be211179ba70cdf2ab0012791dc8bfc0ab264ad`
+- **Change:** Show each title's cover from Instant storage
+- **Details:**
+  - The library rows, title page, and player show the cover linked from the book to its file in storage; the dev seed uploads made-up covers under the member path.
+- **Files:**
+  - `examples/books/core/src/screen.ts` — Covers on three screens.
+  - `examples/books/core/scripts/seedDev.mjs` — Made-up covers in storage.
+- **User context (verbatim):**
+  > the cover image should come from InstantDB
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:14:49 p.m. EDT — `055d4a945a12` feat(foldkit): let a Text show a picture, with its words as alt text
+
+- **Implementation commit:** `055d4a945a121492f80793f025e7ae8ea928db94`
+- **Change:** Let a Text show a picture, with its words as alt text
+- **Details:**
+  - Text takes an image with source and size; React, Svelte, the HTML renderer, and React Native paint it, and terminals show the words.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — TextImage.
+  - `packages/react/src/paintReact/paintReact.tsx` — The React picture.
+  - `packages/svelte/src/interaction/PaintTree.svelte` — The Svelte picture.
+- **User context (verbatim):**
+  > the cover image should come from InstantDB
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 9:35:59 p.m. EDT — `99e079887be8` feat(books): read and save the library in Instant, and play it in React
+
+- **Implementation commit:** `99e079887be818c1279344e01c84c5551fdd9ee3`
+- **Change:** Read and save the library in Instant, and play it in React
+- **Details:**
+  - Books reads titles, chapters, covers, audio, progress, and bookmarks from the shared library schema in one bounded query decoded by Effect Schema, saves each change as one member-owned transaction, writes its program log as the member, and runs in the generic React window with the hosted-identity mint and an Audio element.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — The Instant library store.
+  - `examples/books/core/src/live.browser.ts` — The browser start.
+  - `examples/books/core/src/audio.browser.ts` — The browser audio output.
+  - `examples/books/react/src/App.tsx` — The generic React window.
+- **User context (verbatim):**
+  > Again, I want an audible clone with my actual books with Progress and carry the login over with an authentication port adapter from Cloudflare
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 9:15:56 p.m. EDT — `b025cca4c8c8` feat(instant): let a program log run on any Instant app, owned by its member
+
+- **Implementation commit:** `b025cca4c8c8dbf0d5d19d8e9b21238e2d1b17be`
+- **Change:** Let a program log run on any Instant app, owned by its member
+- **Details:**
+  - makeInstantCoreProgramLogTransport takes any Instant core client and, with owner SignedInUser, stamps each row with the member id, failing instead of writing an ownerless row.
+- **Files:**
+  - `packages/instant/src/programLog/core.ts` — Any client, owner-stamped rows.
+  - `packages/instant/src/programLog/core.test.ts` — Owned and open writes.
+- **User context (verbatim):**
+  > whoever's got Cloudflare access, that's their identity in this um in this network on instant db
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 9:11:35 p.m. EDT — `a9ac4ac3e605` feat(books): start Books over as an audiobook player on the counters architecture
+
+- **Implementation commit:** `a9ac4ac3e60549504fa64c4a259d3c7aab196951`
+- **Change:** Start Books over as an audiobook player on the counters architecture
+- **Details:**
+  - The old Books hosts, separate Instant app, and committed audio excerpts are removed; the new core is one Program with Catalog Actions, a navigation stack of library, title, player, and chapter pages with Contents and Speed sheets and a delete-bookmark Dialog, a LibraryStore service for the shelf and writes, and an AudioOutput service for the player clock.
+- **Files:**
+  - `examples/books/core/src/message.ts` — Every Books Action.
+  - `examples/books/core/src/navigation.ts` — The screens and routes, deep links to chapters included.
+  - `examples/books/core/src/update.ts` — The update and its WriteLibrary Command.
+  - `examples/books/core/src/subscriptions.ts` — The shelf feed and the player clock.
+- **User context (verbatim):**
+  > I want an audible clone with my actual books with Progress
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 9:11:16 p.m. EDT — `5bab318224d0` fix(foldkit): let a screen's rule read every kind of screen beneath it
+
+- **Implementation commit:** `5bab318224d0c3964826a62a26c58673c4b4258c`
+- **Change:** Let a screen's rule read every kind of screen beneath it
+- **Details:**
+  - Navigation.screens narrowed each rule to screens of its own kind, so a player allowed only above the library or a title page allowed itself anywhere; each screen now receives every screen beneath it.
+- **Files:**
+  - `packages/foldkit/src/navigation/declaration.ts` — Screen rules read every screen beneath.
+  - `packages/foldkit/src/navigation/screens.test.ts` — A rule that reads another kind beneath.
+- **User context (verbatim):**
+  > follow our navigational precedent set and counters here
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 8:46:09 p.m. EDT — `7acdcfbfeec6` feat(foldkit): keep a synced Program's outside state across refolds
+
+- **Implementation commit:** `7acdcfbfeec6d9bfad6491cb49e7eacf7ba31aae`
+- **Change:** Keep a synced Program's outside state across refolds
+- **Details:**
+  - synchronization.keepOnRefold carries state that never came from the log, such as a library and a player position, across a refold; a child's Subscriptions and ManagedResources under compose.sync wait for Ready.
+- **Files:**
+  - `packages/foldkit/src/program/sync.ts` — keepOnRefold on LogRefolded.
+  - `packages/foldkit/src/program/liftEffects.ts` — Effects wait for Ready.
+- **User context (verbatim):**
+  > port audible into the books example and follow our navigational precedent set and counters here
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
 ## November 7th, 2026 at 5:14:37 a.m. EST — `7392417f424a` feat(words): green: Scribe #1990's typed questions on the page
 
 - **Implementation commit:** `7392417f424a18c2477c94e2f6a9a93ac705210b`

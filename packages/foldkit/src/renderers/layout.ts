@@ -1,8 +1,22 @@
-import { Array, Match as M } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 
 import type { Device } from './device.js'
-import { Column } from './elements.js'
-import type { HotspotAction, LayoutBox, UiNode } from './types.js'
+import { Column, Row, Text } from './elements.js'
+import { iconGlyphs } from './icons.js'
+import { itemLinesOf } from './listRows.js'
+import type {
+  ButtonNode,
+  HotspotAction,
+  ItemCheck,
+  LayoutBox,
+  ListItem,
+  ProgressNode,
+  SeekNode,
+  TranscriptNode,
+  TranscriptPassage,
+  TranscriptWord,
+  UiNode,
+} from './types.js'
 
 const WATCH_INNER = 16
 const PHONE_INNER = 22
@@ -58,10 +72,180 @@ const fit = (content: string, width: number): string => {
   return content.padEnd(width, ' ')
 }
 
-const buttonGlyph = (
-  button: Readonly<{ label: string; focused?: boolean }>,
-): string =>
-  button.focused === true ? `[>${button.label}<]` : `[ ${button.label} ]`
+const buttonText = (button: ButtonNode): string => {
+  const glyph = button.icon === undefined ? undefined : iconGlyphs[button.icon]
+  if (glyph === undefined) {
+    return button.label
+  } else if (button.isIconOnly === true) {
+    return glyph
+  } else {
+    return `${glyph} ${button.label}`
+  }
+}
+
+const buttonGlyph = (button: ButtonNode): string => {
+  const text = buttonText(button)
+  if (button.focused === true) {
+    return `[>${text}<]`
+  } else if (button.isCurrent === true) {
+    return `[*${text}*]`
+  } else {
+    return `[ ${text} ]`
+  }
+}
+
+const seekBarWidth = 40
+
+const seekFilled = '━'
+
+const seekRest = '─'
+
+const seekMarker = '●'
+
+/**
+ * A seek bar as one terminal line that fits `availableW`: the bar, the
+ * marker at the place, and how the place reads.
+ *
+ * @example
+ * ```typescript
+ * seekLineOf(seek, 30) // '━━━━━━━━●──────── 0:30 of 1:00'
+ * ```
+ */
+export const seekLineOf = (seek: SeekNode, availableW: number): string => {
+  const barWidth = Math.max(
+    0,
+    Math.min(seekBarWidth, availableW - seek.valueText.length - 1),
+  )
+  const min = seek.min ?? 0
+  const span = seek.max - min
+  const fraction =
+    span > 0 ? Math.min(1, Math.max(0, (seek.value - min) / span)) : 0
+  const filled = Math.min(
+    Math.max(0, barWidth - 1),
+    Math.round(fraction * (barWidth - 1)),
+  )
+  const bar =
+    barWidth === 0
+      ? ''
+      : `${seekFilled.repeat(filled)}${seekMarker}${seekRest.repeat(Math.max(0, barWidth - filled - 1))}`
+  return `${bar} ${seek.valueText}`.trimStart()
+}
+
+const progressBarWidth = 20
+
+/**
+ * A progress bar as one terminal line that fits `availableW`, then its
+ * label.
+ *
+ * @example
+ * ```typescript
+ * progressLineOf(progress, 40) // '█████░░░░░░░░░░░░░░░ 9:09:44 left'
+ * ```
+ */
+export const progressLineOf = (
+  progress: ProgressNode,
+  availableW: number,
+): string => {
+  const barWidth = Math.max(
+    0,
+    Math.min(progressBarWidth, availableW - progress.label.length - 1),
+  )
+  const fraction =
+    progress.max > 0
+      ? Math.min(1, Math.max(0, progress.value / progress.max))
+      : 0
+  const filled = Math.round(fraction * barWidth)
+  return `${'█'.repeat(filled)}${'░'.repeat(barWidth - filled)} ${progress.label}`.trimStart()
+}
+
+const checkGlyph = (check: ItemCheck): string =>
+  `${check.focused === true ? '›' : ' '}[${check.isChecked ? 'x' : ' '}]`
+
+const checkGap = 1
+
+const itemTitleGlyph = (item: ListItem): string => {
+  if (item.focused === true) {
+    return `› ${item.title}`
+  } else if (item.isCurrent === true) {
+    return `• ${item.title}`
+  } else {
+    return `  ${item.title}`
+  }
+}
+
+const passageLabelWidth = 8
+
+const wordGlyph = (word: TranscriptWord): string =>
+  word.isCurrent === true ? `[${word.text}]` : word.text
+
+type TranscriptLine = Readonly<{ text: string; isCurrent: boolean }>
+
+const plainLine = (text: string): TranscriptLine => ({ text, isCurrent: false })
+
+type Wrapped = Readonly<{
+  lines: ReadonlyArray<TranscriptLine>
+  maybeOpen: Option.Option<TranscriptLine>
+}>
+
+const nothingWrapped: Wrapped = { lines: [], maybeOpen: Option.none() }
+
+const wrappedWords = (
+  words: ReadonlyArray<TranscriptWord>,
+  width: number,
+): ReadonlyArray<TranscriptLine> => {
+  const wrapped = Array.reduce(words, nothingWrapped, (state, word) => {
+    const glyph = wordGlyph(word)
+    const isCurrent = word.isCurrent === true
+    return Option.match(state.maybeOpen, {
+      onNone: () => ({
+        lines: state.lines,
+        maybeOpen: Option.some({ text: glyph, isCurrent }),
+      }),
+      onSome: open =>
+        open.text.length + 1 + glyph.length <= width
+          ? {
+              lines: state.lines,
+              maybeOpen: Option.some({
+                text: `${open.text} ${glyph}`,
+                isCurrent: open.isCurrent || isCurrent,
+              }),
+            }
+          : {
+              lines: Array.append(state.lines, open),
+              maybeOpen: Option.some({ text: glyph, isCurrent }),
+            },
+    })
+  })
+  return [...wrapped.lines, ...Option.toArray(wrapped.maybeOpen)]
+}
+
+const passageLines = (
+  passage: TranscriptPassage,
+  availableW: number,
+): ReadonlyArray<TranscriptLine> => {
+  const marker = passage.isCurrent === true ? '›' : ' '
+  const label = `${marker}${passage.label}`.padEnd(passageLabelWidth, ' ')
+  const textWidth = Math.max(1, availableW - passageLabelWidth)
+  return [
+    ...(passage.heading === undefined
+      ? []
+      : [plainLine(''), plainLine(passage.heading.toUpperCase())]),
+    ...Array.map(wrappedWords(passage.words, textWidth), (line, index) => ({
+      text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,
+      isCurrent: line.isCurrent,
+    })),
+  ]
+}
+
+const transcriptLines = (
+  transcript: TranscriptNode,
+  availableW: number,
+): ReadonlyArray<TranscriptLine> =>
+  Array.match(transcript.passages, {
+    onEmpty: () => [plainLine(transcript.emptyText)],
+    onNonEmpty: passages =>
+      Array.flatMap(passages, passage => passageLines(passage, availableW)),
+  })
 
 const layoutNode = (
   node: UiNode,
@@ -112,7 +296,8 @@ const layoutNode = (
         const width = Math.min(input.width ?? availableW, availableW)
         const body =
           input.value.length > 0 ? input.value : (input.placeholder ?? '')
-        const shown = input.focused === true ? `${body}▌` : body
+        const typed = input.focused === true ? `${body}▌` : body
+        const shown = input.action === undefined ? typed : `[ ${typed} ]`
         const action: HotspotAction | undefined =
           input.token === undefined
             ? undefined
@@ -125,7 +310,7 @@ const layoutNode = (
           h: 1,
           kind: 'TextInput',
           text: fit(shown, width),
-          label: 'input',
+          label: input.label ?? 'input',
           ...(action === undefined ? {} : { action }),
           children: [],
         }
@@ -140,6 +325,15 @@ const layoutNode = (
         children: [],
       }),
       Row: row => {
+        if (row.isBoard === true) {
+          return layoutNode(
+            Column({ gap: row.gap }, ...row.children),
+            x,
+            y,
+            availableW,
+            ids,
+          )
+        }
         const laid = Array.reduce(
           row.children,
           {
@@ -199,7 +393,13 @@ const layoutNode = (
       },
       Box: box => {
         const inner = layoutNode(
-          Column({ gap: 0 }, ...box.children),
+          Column(
+            { gap: 0 },
+            ...(box.isDock === true
+              ? [Text('─'.repeat(Math.max(0, availableW)), { dim: true })]
+              : []),
+            ...box.children,
+          ),
           x + box.padding,
           y + box.padding,
           Math.max(0, availableW - box.padding * 2),
@@ -213,6 +413,138 @@ const layoutNode = (
           h: inner.h + box.padding * 2,
           kind: 'Box',
           children: [inner],
+        }
+      },
+      Progress: progress => {
+        const line = progressLineOf(progress, availableW)
+        const w = measureText(line, availableW)
+        return {
+          id: ids.next('progress'),
+          x,
+          y,
+          w,
+          h: 1,
+          kind: 'Progress',
+          text: fit(line, w),
+          label: progress.label,
+          children: [],
+        }
+      },
+      List: list => {
+        const rows = Array.map(list.items, (item, index) => {
+          const checkBoxes: ReadonlyArray<LayoutBox> =
+            item.check === undefined
+              ? []
+              : [
+                  {
+                    id: ids.next('check'),
+                    x,
+                    y: y + index,
+                    w: checkGlyph(item.check).length,
+                    h: 1,
+                    kind: 'Button',
+                    text: checkGlyph(item.check),
+                    label: item.check.label,
+                    ...(item.check.action === undefined
+                      ? {}
+                      : { action: { _tag: 'custom', id: item.check.action } }),
+                    children: [],
+                  },
+                ]
+          const titleX = Array.match(checkBoxes, {
+            onEmpty: () => x,
+            onNonEmpty: ([checkBox]) => checkBox.x + checkBox.w + checkGap,
+          })
+          const titleAvailableW = Math.max(0, availableW - (titleX - x))
+          const title = itemTitleGlyph(item)
+          const titleW = measureText(title, titleAvailableW)
+          const titleBox: LayoutBox = {
+            id: ids.next('item'),
+            x: titleX,
+            y: y + index,
+            w: titleW,
+            h: 1,
+            kind: 'Button',
+            text: fit(title, titleW),
+            label: item.title,
+            ...(item.isCurrent === true ? { isCurrent: true } : {}),
+            ...Option.match(
+              Option.orElse(Option.fromNullishOr(item.action), () =>
+                Option.fromNullishOr(item.href),
+              ),
+              {
+                onNone: () => ({}),
+                onSome: id => ({ action: { _tag: 'custom' as const, id } }),
+              },
+            ),
+            children: [],
+          }
+          const detail = Array.join(itemLinesOf(item), ' · ')
+          const rest = layoutNode(
+            Row(
+              { gap: 2 },
+              ...(detail === '' ? [] : [Text(detail, { dim: true })]),
+              ...(item.trailing ?? []),
+            ),
+            titleX + titleW + 2,
+            y + index,
+            Math.max(0, titleAvailableW - titleW - 2),
+            ids,
+          )
+          return { checkBoxes, titleBox, rest }
+        })
+        return {
+          id: ids.next('list'),
+          x,
+          y,
+          w: availableW,
+          h: rows.length,
+          kind: 'List',
+          label: list.label,
+          children: Array.flatMap(rows, ({ checkBoxes, titleBox, rest }) => [
+            ...checkBoxes,
+            titleBox,
+            rest,
+          ]),
+        }
+      },
+      Seek: seek => {
+        const line = seekLineOf(seek, availableW)
+        const w = measureText(line, availableW)
+        return {
+          id: ids.next('seek'),
+          x,
+          y,
+          w,
+          h: 1,
+          kind: 'Seek',
+          text: fit(line, w),
+          label: seek.label,
+          children: [],
+        }
+      },
+      Transcript: transcript => {
+        const lines = transcriptLines(transcript, availableW)
+        const children = Array.map(lines, (line, index) => ({
+          id: ids.next('text'),
+          x,
+          y: y + index,
+          w: measureText(line.text, availableW),
+          h: 1,
+          kind: 'Text' as const,
+          text: fit(line.text, measureText(line.text, availableW)),
+          ...(line.isCurrent ? { isCurrent: true } : {}),
+          children: [],
+        }))
+        return {
+          id: ids.next('transcript'),
+          x,
+          y,
+          w: Array.reduce(children, 0, (max, child) => Math.max(max, child.w)),
+          h: lines.length,
+          kind: 'Transcript',
+          label: transcript.label,
+          children,
         }
       },
       DeviceShell: shell => {

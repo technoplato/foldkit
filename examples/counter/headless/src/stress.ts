@@ -9,7 +9,7 @@ import { Array, Effect, Exit, Option, Scope } from 'effect'
 import { Processor } from 'foldkit'
 
 import {
-  FoldkitCounterV01,
+  SharedInstantProject,
   Instant,
   type SnapshotLogTransport,
   fromTransport,
@@ -57,7 +57,7 @@ export const startCounterOnTransport = (
   instance: string,
 ): CounterHandle =>
   startCounterOn(
-    Instant({ app: FoldkitCounterV01, processor: host, instance, transport }),
+    Instant({ app: SharedInstantProject, processor: host, instance, transport }),
   )
 
 /** The Ready count, or None while the Counter is Starting or Failed. */

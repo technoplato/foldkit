@@ -1,4 +1,4 @@
-import { Array, HashMap, Match as M, Option } from 'effect'
+import { Array, Match as M, Option, Record } from 'effect'
 
 import type { Device } from './device.js'
 import {
@@ -9,7 +9,12 @@ import {
 } from './layout.js'
 import type { AsciiFrame, AsciiHotspot, LayoutBox } from './types.js'
 
-type Cells = HashMap.HashMap<string, string>
+/** One run of characters written at a row and column, in paint order. */
+type Mark = Readonly<{
+  row: number
+  col: number
+  chars: ReadonlyArray<string>
+}>
 
 type Border = Readonly<{
   topLeft: string
@@ -47,24 +52,11 @@ const double: Border = {
   vertical: '║',
 }
 
-const cellKey = (row: number, col: number): string =>
-  `${row.toString()}:${col.toString()}`
-
-const paintLine = (
-  cells: Cells,
-  row: number,
-  startCol: number,
-  text: string,
-): Cells => {
-  const chars = Array.fromIterable(text)
-  if (Array.isArrayEmpty(chars)) {
-    return cells
-  }
-  const offsets = Array.range(0, chars.length - 1)
-  return Array.reduce(Array.zip(offsets, chars), cells, (acc, [offset, ch]) =>
-    HashMap.set(acc, cellKey(row, startCol + offset), ch),
-  )
-}
+const markOf = (row: number, col: number, text: string): Mark => ({
+  row,
+  col,
+  chars: Array.fromIterable(text),
+})
 
 const borderFor = (device: Device): Border =>
   M.value(device).pipe(
@@ -103,116 +95,133 @@ const statusText = (box: LayoutBox, innerWidth: number): string => {
   )
 }
 
-const paintBox = (
-  cells: Cells,
+const boxMarks = (
   x: number,
   y: number,
   w: number,
   h: number,
   border: Border,
-): Cells => {
+): ReadonlyArray<Mark> => {
   if (w < 2 || h < 2) {
-    return cells
+    return []
   }
   const bar = border.horizontal.repeat(w - 2)
-  const top = `${border.topLeft}${bar}${border.topRight}`
-  const bottom = `${border.bottomLeft}${bar}${border.bottomRight}`
-  const withEnds = paintLine(paintLine(cells, y, x, top), y + h - 1, x, bottom)
+  const ends = [
+    markOf(y, x, `${border.topLeft}${bar}${border.topRight}`),
+    markOf(y + h - 1, x, `${border.bottomLeft}${bar}${border.bottomRight}`),
+  ]
   if (h === 2) {
-    return withEnds
+    return ends
   }
-  const innerRows = Array.range(1, h - 2)
-  return Array.reduce(innerRows, withEnds, (acc, rowOffset) =>
-    HashMap.set(
-      HashMap.set(acc, cellKey(y + rowOffset, x), border.vertical),
-      cellKey(y + rowOffset, x + w - 1),
-      border.vertical,
-    ),
-  )
+  return [
+    ...ends,
+    ...Array.flatMap(Array.range(1, h - 2), rowOffset => [
+      markOf(y + rowOffset, x, border.vertical),
+      markOf(y + rowOffset, x + w - 1, border.vertical),
+    ]),
+  ]
 }
 
-const paintDevice = (cells: Cells, box: LayoutBox): Cells => {
+const deviceMarks = (box: LayoutBox): ReadonlyArray<Mark> => {
   const device = box.device
   if (device === undefined) {
-    return cells
+    return []
   }
   const standH = deviceHasStand(device) ? 1 : 0
   const boxH = box.h - standH
   const innerWidth = box.w - 2
-  const framed = paintBox(cells, box.x, box.y, box.w, boxH, borderFor(device))
-  const withStatus = deviceHasStatus(device)
-    ? paintLine(framed, box.y + 1, box.x + 1, statusText(box, innerWidth))
-    : framed
-  const withHome = deviceHasHome(device)
-    ? paintLine(
-        withStatus,
-        box.y + boxH - 2,
-        box.x + 1,
-        center('─────', innerWidth),
-      )
-    : withStatus
-  if (!deviceHasStand(device)) {
-    return withHome
-  }
-  return paintLine(
-    withHome,
-    box.y + boxH,
-    box.x,
-    fitText(` ${'▔'.repeat(innerWidth)} `, box.w),
-  )
-}
-
-const paintNode = (
-  cells: Cells,
-  hotspots: ReadonlyArray<AsciiHotspot>,
-  box: LayoutBox,
-): Readonly<{
-  cells: Cells
-  hotspots: ReadonlyArray<AsciiHotspot>
-}> => {
-  const withChrome =
-    box.kind === 'DeviceShell' ? paintDevice(cells, box) : cells
-  const withText =
-    box.text === undefined
-      ? withChrome
-      : paintLine(withChrome, box.y, box.x, box.text)
-  const nextHotspots =
-    box.action === undefined
-      ? hotspots
-      : [
-          ...hotspots,
-          {
-            id: box.id,
-            label: box.label ?? box.text ?? box.id,
-            row: box.y,
-            col: box.x,
-            width: box.w,
-            height: box.h,
-            action: box.action,
-          },
+  return [
+    ...boxMarks(box.x, box.y, box.w, boxH, borderFor(device)),
+    ...(deviceHasStatus(device)
+      ? [markOf(box.y + 1, box.x + 1, statusText(box, innerWidth))]
+      : []),
+    ...(deviceHasHome(device)
+      ? [markOf(box.y + boxH - 2, box.x + 1, center('─────', innerWidth))]
+      : []),
+    ...(deviceHasStand(device)
+      ? [
+          markOf(
+            box.y + boxH,
+            box.x,
+            fitText(` ${'▔'.repeat(innerWidth)} `, box.w),
+          ),
         ]
-  return Array.reduce(
-    box.children,
-    { cells: withText, hotspots: nextHotspots },
-    (state, child) => paintNode(state.cells, state.hotspots, child),
-  )
+      : []),
+  ]
 }
 
-const lineAt = (cells: Cells, row: number, width: number): string => {
-  const chars = Array.makeBy(width, col =>
-    Option.getOrElse(HashMap.get(cells, cellKey(row, col)), () => ' '),
-  )
-  return chars.join('')
+const marksOf = (box: LayoutBox): ReadonlyArray<Mark> => [
+  ...(box.kind === 'DeviceShell' ? deviceMarks(box) : []),
+  ...(box.text === undefined ? [] : [markOf(box.y, box.x, box.text)]),
+  ...Array.flatMap(box.children, marksOf),
+]
+
+const hotspotsOf = (box: LayoutBox): ReadonlyArray<AsciiHotspot> => [
+  ...(box.action === undefined
+    ? []
+    : [
+        {
+          id: box.id,
+          label: box.label ?? box.text ?? box.id,
+          row: box.y,
+          col: box.x,
+          width: box.w,
+          height: box.h,
+          action: box.action,
+        },
+      ]),
+  ...Array.flatMap(box.children, hotspotsOf),
+]
+
+const placed = (
+  cells: ReadonlyArray<string>,
+  mark: Mark,
+  width: number,
+): ReadonlyArray<string> => {
+  if (mark.col >= width) {
+    return cells
+  }
+  const shown = Array.take(mark.chars, width - mark.col)
+  return [
+    ...Array.take(cells, mark.col),
+    ...shown,
+    ...Array.drop(cells, mark.col + shown.length),
+  ]
 }
 
-/** Paints a layout tree to monospace lines and hotspots. */
+const blankRow = (width: number): ReadonlyArray<string> =>
+  Array.makeBy(width, () => ' ')
+
+const lineOf = (marks: ReadonlyArray<Mark>, width: number): string =>
+  Array.join(
+    Array.reduce(marks, blankRow(width), (cells, mark) =>
+      placed(cells, mark, width),
+    ),
+    '',
+  )
+
+const noMarks: ReadonlyArray<Mark> = []
+
+/**
+ * Paints a layout tree to monospace lines and hotspots. Each row is
+ * composed from the runs written on it, in paint order, so a later run
+ * covers an earlier one, the way a device's chrome sits under its content.
+ */
 export const paintAscii = (root: LayoutBox): AsciiFrame => {
-  const painted = paintNode(HashMap.empty(), [], root)
+  const byRow = Array.groupBy(marksOf(root), mark => mark.row.toString())
   const rows = root.h === 0 ? [] : Array.range(0, root.h - 1)
-  const lines = Array.map(rows, row => lineAt(painted.cells, row, root.w))
+  const lines = Array.map(rows, row =>
+    lineOf(
+      Option.match(Record.get(byRow, row.toString()), {
+        onNone: () => noMarks,
+        onSome: marks => marks,
+      }),
+      root.w,
+    ),
+  )
   return {
     maybeDevice: root.device,
     lines,
-    hotspots: painted.hotspots,
+    hotspots: hotspotsOf(root),
   }
 }

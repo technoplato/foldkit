@@ -1,13 +1,46 @@
-import { Button, Column, Row, Text, TextInput } from 'foldkit/renderers'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  Box,
+  Button,
+  Column,
+  List,
+  Plain,
+  Reference,
+  RichText,
+  Row,
+  Text,
+  TextInput,
+  Transcript,
+} from 'foldkit/renderers'
+import { useEffect } from 'react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
-import { paintReact } from './paintReact.js'
+import {
+  EmbedPaintersProvider,
+  type EmbedProps,
+  moveKeyboardOffControl,
+  paintReact,
+  paintTree,
+} from './paintReact.js'
 
 afterEach(() => {
   cleanup()
 })
+
+const preview = Text('Page 3 in Google Books', {
+  href: 'https://books.google.com/books?id=l2WMBAAAQBAJ&pg=PA3',
+  embed: {
+    kind: 'GoogleBooksPreview',
+    params: { volume: 'ISBN:9780544553729', page: '3' },
+    width: 640,
+    height: 560,
+  },
+})
+
+const PreviewStandIn = ({ embed, text }: EmbedProps) => (
+  <figure aria-label={text.content}>{embed.params['page']}</figure>
+)
 
 describe('paintReact', () => {
   it('paints Text and Button nodes from a screen tree', () => {
@@ -34,6 +67,30 @@ describe('paintReact', () => {
     expect(sendToken).toHaveBeenCalledWith('reset')
   })
 
+  it('gives a Button its hint and leaves the browser tooltip alone', () => {
+    render(
+      paintReact(
+        Button({
+          token: 'reset',
+          label: 'Reset',
+          description: 'Sets the count to 0',
+          keys: ['r'],
+          because: 'count is already 0',
+          disabled: true,
+        }),
+        vi.fn(),
+      ),
+    )
+    const reset = screen.getByRole('button', { name: 'Reset' })
+    expect(reset.getAttribute('data-hint')).toBe('Sets the count to 0')
+    expect(reset.getAttribute('data-hint-keys')).toBe('r')
+    expect(reset.getAttribute('data-hint-because')).toBe('count is already 0')
+    expect(reset.getAttribute('aria-description')).toBe(
+      'Sets the count to 0. Unavailable: count is already 0',
+    )
+    expect(reset.hasAttribute('title')).toBe(false)
+  })
+
   it('does not wire a disabled Button', () => {
     const sendToken = vi.fn()
     render(
@@ -58,6 +115,79 @@ describe('paintReact', () => {
     expect(link.getAttribute('href')).toBe(href)
   })
 
+  it('paints a Text image as a picture with its words as alt text', () => {
+    const cover = {
+      src: 'https://files.example/cover.jpg',
+      width: 120,
+      height: 180,
+    }
+    render(
+      paintReact(
+        Text('The Lantern Keeper cover', { image: cover, href: '/books/x' }),
+        vi.fn(),
+      ),
+    )
+    const picture = screen.getByRole('img', {
+      name: 'The Lantern Keeper cover',
+    })
+    expect(picture.getAttribute('src')).toBe(cover.src)
+    expect(picture.closest('a')?.getAttribute('href')).toBe('/books/x')
+  })
+
+  it('paints a Text embed with the view the host gives for its kind', () => {
+    render(
+      <EmbedPaintersProvider value={{ GoogleBooksPreview: PreviewStandIn }}>
+        {paintReact(Column({}, Text('Page 3'), preview), vi.fn())}
+      </EmbedPaintersProvider>,
+    )
+    const view = screen.getByRole('figure', { name: 'Page 3 in Google Books' })
+    expect(view.textContent).toBe('3')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('paints a Text embed with no view for its kind as its words and link', () => {
+    render(paintReact(preview, vi.fn()))
+    const link = screen.getByRole('link', { name: 'Page 3 in Google Books' })
+    expect(link.getAttribute('href')).toBe(
+      'https://books.google.com/books?id=l2WMBAAAQBAJ&pg=PA3',
+    )
+  })
+
+  it('keeps a Text embed mounted when lines before it come and go', () => {
+    const mounts = vi.fn()
+    const CountingView = ({ embed }: EmbedProps) => {
+      useEffect(() => {
+        mounts()
+      }, [])
+      return <figure>{embed.params['page']}</figure>
+    }
+    const treeWith = (lines: ReadonlyArray<string>, page: string) =>
+      Column(
+        {},
+        ...lines.map(line => Text(line)),
+        Text('Preview', {
+          embed: {
+            kind: 'Counting',
+            params: { page },
+            width: 640,
+            height: 560,
+          },
+        }),
+      )
+    const { rerender } = render(
+      <EmbedPaintersProvider value={{ Counting: CountingView }}>
+        {paintReact(treeWith([], '3'), vi.fn())}
+      </EmbedPaintersProvider>,
+    )
+    rerender(
+      <EmbedPaintersProvider value={{ Counting: CountingView }}>
+        {paintReact(treeWith(['Scribe heard page 4'], '4'), vi.fn())}
+      </EmbedPaintersProvider>,
+    )
+    expect(screen.getByRole('figure').textContent).toBe('4')
+    expect(mounts).toHaveBeenCalledTimes(1)
+  })
+
   it('paints a TextInput and sends token plus value', () => {
     const sendToken = vi.fn()
     render(
@@ -74,5 +204,625 @@ describe('paintReact', () => {
     expect(input).toBeDefined()
     fireEvent.change(input, { target: { value: 'Painted leftover.' } })
     expect(sendToken).toHaveBeenCalledWith('comment-draft:Painted leftover.')
+  })
+})
+
+describe('selecting and dragging rows', () => {
+  const row = {
+    check: {
+      action: 'select:804',
+      extendAction: 'select-to:804',
+      isChecked: false,
+      label: 'Select #804',
+    },
+    isDraggable: true,
+    key: '804',
+    title: 'A row',
+  }
+
+  it('presses extendAction when a box is pressed with Shift held', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(List({ items: [row], label: 'Rows' }), {
+        onPress,
+      }),
+    )
+    const box = screen.getByRole('checkbox', { name: 'Select #804' })
+    fireEvent.click(box)
+    fireEvent.click(box, { shiftKey: true })
+    expect(onPress.mock.calls.map(([button]) => button.action)).toEqual([
+      'select:804',
+      'select-to:804',
+    ])
+  })
+
+  it('presses a list dropAction with the key of the row dropped on it', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(
+        Column(
+          {},
+          List({ items: [row], label: 'Open' }),
+          List({
+            dropAction: 'card-drop:Blocked',
+            items: [],
+            label: 'Blocked',
+          }),
+        ),
+        { onPress },
+      ),
+    )
+    const held = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: '',
+      getData: (type: string) => held.get(type) ?? '',
+      setData: (type: string, value: string) => held.set(type, value),
+      get types() {
+        return [...held.keys()]
+      },
+    }
+    const card = screen.getByRole('list', { name: 'Open' }).querySelector('li')
+    fireEvent.dragStart(card ?? document.body, { dataTransfer })
+    fireEvent.drop(screen.getByRole('list', { name: 'Blocked' }), {
+      dataTransfer,
+    })
+    expect(onPress.mock.calls.map(([button]) => button.action)).toEqual([
+      'card-drop:Blocked:804',
+    ])
+  })
+})
+
+describe('fields and checks that press', () => {
+  const pressedTags = (onPress: ReturnType<typeof vi.fn>) =>
+    onPress.mock.calls.map(([button]) => button.action)
+
+  it('presses a field that adds on Enter, then empties it for the next', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(
+        TextInput({
+          value: '',
+          placeholder: 'New reminder',
+          action: 'AddReminder',
+          label: 'New reminder in Groceries',
+        }),
+        { onPress },
+      ),
+    )
+    const field = screen.getByRole('textbox', {
+      name: 'New reminder in Groceries',
+    })
+    fireEvent.change(field, { target: { value: '  Buy milk ' } })
+    fireEvent.blur(field)
+    expect(onPress).not.toHaveBeenCalled()
+    const form = field.closest('form')
+    if (form === null) {
+      throw new Error('the field sits in a form')
+    }
+    fireEvent.submit(form)
+    expect(pressedTags(onPress)).toEqual(['AddReminder:Buy milk'])
+    expect(field).toHaveProperty('value', '')
+  })
+
+  it('presses a field that edits when it is left after a change, and not when unchanged', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(
+        TextInput({
+          value: 'Oat milk',
+          action: 'RenameReminder',
+          label: 'Title',
+        }),
+        { onPress },
+      ),
+    )
+    const field = screen.getByRole('textbox', { name: 'Title' })
+    fireEvent.blur(field)
+    expect(onPress).not.toHaveBeenCalled()
+    fireEvent.change(field, { target: { value: 'Oat milk, 2 liters' } })
+    fireEvent.blur(field)
+    fireEvent.blur(field)
+    expect(pressedTags(onPress)).toEqual(['RenameReminder:Oat milk, 2 liters'])
+    expect(field).toHaveProperty('value', 'Oat milk, 2 liters')
+  })
+
+  it('presses the clear action when a field that edits is emptied', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(
+        TextInput({
+          value: 'Fruit and water',
+          action: 'SetNotes',
+          clearAction: 'ClearNotes',
+          label: 'Notes',
+        }),
+        { onPress },
+      ),
+    )
+    const field = screen.getByRole('textbox', { name: 'Notes' })
+    fireEvent.change(field, { target: { value: '' } })
+    fireEvent.blur(field)
+    expect(pressedTags(onPress)).toEqual(['ClearNotes'])
+  })
+
+  it('paints a row check as a checkbox that presses its own action', () => {
+    const onPress = vi.fn()
+    render(
+      paintTree(
+        List({
+          label: 'Groceries',
+          items: [
+            {
+              key: 'r1',
+              title: 'Oat milk',
+              check: {
+                isChecked: false,
+                label: 'Mark Oat milk done',
+                action: 'Complete:r1',
+              },
+              action: 'OpenReminder:r1',
+            },
+            {
+              key: 'r2',
+              title: 'Olive oil',
+              check: { isChecked: true, label: 'Mark Olive oil not done' },
+            },
+          ],
+        }),
+        { onPress },
+      ),
+    )
+    const open = screen.getByRole('checkbox', { name: 'Mark Oat milk done' })
+    expect(open.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(open)
+    const done = screen.getByRole('checkbox', {
+      name: 'Mark Olive oil not done',
+    })
+    expect(done.getAttribute('aria-checked')).toBe('true')
+    expect(done).toHaveProperty('disabled', true)
+    fireEvent.click(screen.getByRole('button', { name: 'Oat milk' }))
+    expect(pressedTags(onPress)).toEqual(['Complete:r1', 'OpenReminder:r1'])
+  })
+})
+
+describe('a Text made of parts and a Box shown as a layer', () => {
+  const fixedBy = RichText([
+    Plain('Fixed by '),
+    Reference({
+      label: '#1358',
+      title: 'issues CLI burns CPU',
+      state: 'PartiallyDone',
+      kind: 'Issue',
+      href: '/issues/1358',
+      detail: ['Filed 2026-10-29', 'Area: Issues CLI / performance'],
+    }),
+  ])
+
+  it('paints a reference as a link with its label, title, state and hover', () => {
+    render(paintTree(fixedBy, { onPress: vi.fn() }))
+    const link = screen.getByRole('link', { name: /#1358/ })
+    expect(link.getAttribute('href')).toBe('/issues/1358')
+    expect(link.getAttribute('data-kind')).toBe('Issue')
+    expect(link.getAttribute('data-state')).toBe('PartiallyDone')
+    expect(link.getAttribute('title')).toBe(
+      'Filed 2026-10-29\nArea: Issues CLI / performance',
+    )
+    expect(link.textContent).toContain('issues CLI burns CPU')
+    expect(screen.getByText(/Fixed by/)).toBeDefined()
+  })
+
+  it('follows a reference inside the app on a plain click', () => {
+    const onLink = vi.fn(() => true)
+    render(paintTree(fixedBy, { onPress: vi.fn(), onLink }))
+    fireEvent.click(screen.getByRole('link', { name: /#1358/ }))
+    expect(onLink).toHaveBeenCalledWith('/issues/1358')
+  })
+
+  it('paints a Dialog layer above the page and dismisses it on a click outside', () => {
+    const sendToken = vi.fn()
+    const palette = Box(
+      {
+        layer: {
+          kind: 'Dialog',
+          label: 'Command palette',
+          dismissToken: 'palette-close',
+        },
+      },
+      TextInput({ value: '', placeholder: 'Type a command or an Issue' }),
+    )
+    render(paintReact(palette, sendToken))
+    const dialog = screen.getByRole('dialog', { name: 'Command palette' })
+    expect(dialog).toBeDefined()
+    const backdrop = document.querySelector('.fk-layer-backdrop')
+    if (backdrop === null) {
+      throw new Error('Expected the layer backdrop')
+    }
+    fireEvent.click(backdrop)
+    expect(sendToken).toHaveBeenCalledWith('palette-close')
+  })
+
+  it('takes the keyboard when a layer opens and gives it back to what had it when it closes', () => {
+    const opener = Button({ token: 'status-menu', label: 'Status of #1571' })
+    const statusMenu = Box(
+      { layer: { kind: 'Dialog', label: 'Status of #1571' } },
+      Button({ token: 'set-status:Backlog', label: 'Backlog' }),
+    )
+    const { rerender } = render(paintReact(Column({}, opener), vi.fn()))
+    const openerButton = screen.getByRole('button', { name: 'Status of #1571' })
+    openerButton.focus()
+
+    rerender(paintReact(Column({}, opener, statusMenu), vi.fn()))
+    const dialog = screen.getByRole('dialog', { name: 'Status of #1571' })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+
+    rerender(paintReact(Column({}, opener), vi.fn()))
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Status of #1571' }),
+    )
+  })
+
+  it('leaves the keyboard on the field a layer opens with', () => {
+    const palette = Box(
+      { layer: { kind: 'Dialog', label: 'Command palette' } },
+      TextInput({
+        value: '',
+        placeholder: 'Type a command or an Issue',
+        focused: true,
+      }),
+    )
+    render(paintReact(Column({}, palette), vi.fn()))
+    expect(document.activeElement).toBe(
+      screen.getByPlaceholderText('Type a command or an Issue'),
+    )
+  })
+
+  it('moves the keyboard off a control on the page when the page takes a key, so Enter does not press it again', () => {
+    render(
+      paintReact(
+        Column({}, Button({ token: 'filter', label: 'Status: Any' })),
+        vi.fn(),
+      ),
+    )
+    const filter = screen.getByRole('button', { name: 'Status: Any' })
+    filter.focus()
+
+    moveKeyboardOffControl(filter)
+
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('moves the keyboard from a control inside a layer to the layer, so Enter picks the marked row', () => {
+    render(
+      paintReact(
+        Column(
+          {},
+          Box(
+            { layer: { kind: 'Dialog', label: 'Status of #1571' } },
+            Button({ token: 'set-status:Backlog', label: 'Backlog' }),
+          ),
+        ),
+        vi.fn(),
+      ),
+    )
+    const backlog = screen.getByRole('button', { name: 'Backlog' })
+    backlog.focus()
+
+    moveKeyboardOffControl(backlog)
+
+    expect(document.activeElement).toBe(
+      screen.getByRole('dialog', { name: 'Status of #1571' }),
+    )
+  })
+
+  it('paints a Panel layer at the side of the page', () => {
+    render(
+      paintReact(
+        Box(
+          { layer: { kind: 'Panel', label: 'Peek at #1358' } },
+          Text('issues CLI burns CPU'),
+        ),
+        vi.fn(),
+      ),
+    )
+    const panel = screen.getByRole('dialog', { name: 'Peek at #1358' })
+    expect(panel.getAttribute('data-layer')).toBe('Panel')
+  })
+})
+
+describe('paintTree: a long list', () => {
+  const handlers = { onPress: () => {} }
+
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+    vi.stubGlobal('CSS', { escape: (text: string) => text })
+  })
+
+  it('paints a row object that did not change only once', () => {
+    let titleReads = 0
+    const unchanged = {
+      key: 'unchanged',
+      get title() {
+        titleReads += 1
+        return 'Unchanged'
+      },
+    }
+    const moved = { key: 'moved', title: 'Moved' }
+    const { rerender } = render(
+      paintTree(List({ label: 'Rows', items: [unchanged, moved] }), handlers),
+    )
+    const readsAtFirstPaint = titleReads
+    rerender(
+      paintTree(
+        List({
+          label: 'Rows',
+          items: [unchanged, { ...moved, isCurrent: true }],
+        }),
+        handlers,
+      ),
+    )
+    expect(titleReads).toBe(readsAtFirstPaint)
+    expect(
+      screen.getByText('Moved').closest('li')?.getAttribute('data-current'),
+    ).toBe('true')
+  })
+})
+
+describe('paintTree: a field the Model focuses', () => {
+  const fieldWith = (focused: boolean) =>
+    TextInput({
+      blurToken: 'search-blur',
+      focusToken: 'search-focus',
+      focused,
+      label: 'Search',
+      token: 'search:',
+      value: '',
+    })
+
+  it('takes the focus when the Model says so, and lets go when it stops', () => {
+    const onPress = vi.fn()
+    const { rerender } = render(paintTree(fieldWith(false), { onPress }))
+    const field = screen.getByLabelText('Search')
+    expect(document.activeElement).not.toBe(field)
+
+    rerender(paintTree(fieldWith(true), { onPress }))
+    expect(document.activeElement).toBe(field)
+    expect(onPress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ token: 'search-focus' }),
+    )
+
+    rerender(paintTree(fieldWith(false), { onPress }))
+    expect(document.activeElement).not.toBe(field)
+    expect(onPress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ token: 'search-blur' }),
+    )
+  })
+
+  it('tells the Model when a person clicks into it', () => {
+    const onPress = vi.fn()
+    render(paintTree(fieldWith(false), { onPress }))
+    fireEvent.focus(screen.getByLabelText('Search'))
+    expect(onPress).toHaveBeenCalledWith(
+      expect.objectContaining({ token: 'search-focus' }),
+    )
+  })
+})
+
+describe('a Transcript with a clock', () => {
+  const reportedAtMs = Date.UTC(2026, 9, 18, 19, 0, 0)
+
+  const wordsOf = (
+    prefix: string,
+    texts: ReadonlyArray<string>,
+    firstStartMs: number,
+  ) =>
+    texts.map((text, index) => ({
+      token: `${prefix}${index.toString()}`,
+      text,
+      startMs: firstStartMs + index * 300,
+    }))
+
+  const reading = (rate: number) =>
+    Transcript({
+      label: 'Transcript',
+      action: 'SeekToWord',
+      emptyText: 'No words yet.',
+      clock: { placeMs: 10_000, atMs: reportedAtMs, rate },
+      passages: [
+        {
+          key: 'a',
+          label: '0:09',
+          isCurrent: true,
+          words: wordsOf('a', ['The', 'lamp', 'was', 'lit'], 9_400).map(word =>
+            word.token === 'a2' ? { ...word, isCurrent: true } : word,
+          ),
+        },
+        {
+          key: 'b',
+          label: '0:10',
+          words: wordsOf('b', ['Gulls', 'settled'], 10_600),
+        },
+      ],
+    })
+
+  const currentWords = (container: HTMLElement): ReadonlyArray<string> =>
+    Array.from(
+      container.querySelectorAll('.fk-word[data-current]'),
+      word => word.textContent?.trim() ?? '',
+    )
+
+  const currentPassages = (container: HTMLElement): number =>
+    container.querySelectorAll('.fk-passage[data-current]').length
+
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+    vi.stubGlobal('CSS', { escape: (text: string) => text })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('moves the mark on the word between the reports of the place', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(reportedAtMs)
+    const { container } = render(paintReact(reading(1), vi.fn()))
+    expect(currentWords(container)).toEqual(['was'])
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    expect(currentWords(container)).toEqual(['lit'])
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    expect(currentWords(container)).toEqual(['Gulls'])
+    expect(currentPassages(container)).toBe(1)
+  })
+
+  it('leaves the mark where the Program put it while the clock stands still', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(reportedAtMs)
+    const { container } = render(paintReact(reading(0), vi.fn()))
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(currentWords(container)).toEqual(['was'])
+  })
+})
+
+describe('paintTree: a list with columns and a filter', () => {
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+  })
+
+  const chapters = (onPress = vi.fn()) => {
+    render(
+      paintTree(
+        List({
+          label: 'Chapters',
+          columns: ['Starts', 'Length'],
+          filter: {
+            placeholder: 'Find a chapter',
+            label: 'Find a chapter in The Lantern Keeper',
+            emptyText: 'No chapter has that in its name.',
+          },
+          items: [
+            {
+              key: '1',
+              title: 'The Tide',
+              columns: ['0:00', '20:00'],
+              action: 'JumpToChapter:1',
+            },
+            {
+              key: '2',
+              title: 'The Light',
+              columns: ['20:00', '7:33'],
+              action: 'JumpToChapter:2',
+              isCurrent: true,
+            },
+            {
+              key: '3',
+              title: 'A Lamp Against the Tide',
+              columns: ['27:33', '12:10'],
+              action: 'JumpToChapter:3',
+            },
+          ],
+        }),
+        { onPress },
+      ),
+    )
+    return onPress
+  }
+
+  const rowTitles = (): ReadonlyArray<string> =>
+    globalThis.Array.from(document.querySelectorAll('.fk-item-title')).map(
+      title => title.textContent ?? '',
+    )
+
+  it('names the columns once, over the rows', () => {
+    chapters()
+    expect(
+      globalThis.Array.from(
+        document.querySelectorAll('.fk-list-head-column'),
+      ).map(name => name.textContent),
+    ).toEqual(['Starts', 'Length'])
+  })
+
+  it('paints each row with its columns inside its press, after its title', () => {
+    chapters()
+    const row = screen.getByText('The Light').closest('.fk-item-press')
+    expect(
+      globalThis.Array.from(row?.querySelectorAll('.fk-item-column') ?? []).map(
+        column => column.textContent,
+      ),
+    ).toEqual(['20:00', '7:33'])
+  })
+
+  it('narrows the rows as a person types, and presses nothing', () => {
+    const onPress = chapters()
+    const field = screen.getByRole('searchbox', {
+      name: 'Find a chapter in The Lantern Keeper',
+    })
+    fireEvent.change(field, { target: { value: 'tide' } })
+    expect(rowTitles()).toEqual(['The Tide', 'A Lamp Against the Tide'])
+    fireEvent.change(field, { target: { value: 'tide lamp' } })
+    expect(rowTitles()).toEqual(['A Lamp Against the Tide'])
+    fireEvent.change(field, { target: { value: '' } })
+    expect(rowTitles()).toEqual([
+      'The Tide',
+      'The Light',
+      'A Lamp Against the Tide',
+    ])
+    expect(onPress).not.toHaveBeenCalled()
+  })
+
+  it('says so when no row is left', () => {
+    chapters()
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'harbour' },
+    })
+    expect(rowTitles()).toEqual([])
+    expect(screen.getByText('No chapter has that in its name.')).toBeDefined()
+  })
+
+  it('moves the keyboard to the first row left on Enter or the down arrow', () => {
+    chapters()
+    const field = screen.getByRole('searchbox')
+    fireEvent.change(field, { target: { value: 'lamp' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(document.activeElement?.textContent).toContain(
+      'A Lamp Against the Tide',
+    )
+    field.focus()
+    fireEvent.keyDown(field, { key: 'ArrowDown' })
+    expect(document.activeElement?.textContent).toContain(
+      'A Lamp Against the Tide',
+    )
+  })
+
+  it('empties the field on Escape before Escape closes anything', () => {
+    chapters()
+    const field = screen.getByRole<HTMLInputElement>('searchbox')
+    fireEvent.change(field, { target: { value: 'lamp' } })
+    const escape = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => {
+      field.dispatchEvent(escape)
+    })
+    expect(field.value).toBe('')
+    expect(escape.defaultPrevented).toBe(true)
+    expect(rowTitles()).toHaveLength(3)
+  })
+
+  it('paints a list without columns or a filter as before, a bare list', () => {
+    render(
+      paintTree(List({ label: 'Rows', items: [{ key: 'a', title: 'A' }] }), {
+        onPress: () => {},
+      }),
+    )
+    expect(document.querySelector('.fk-list-head')).toBeNull()
+    expect(document.querySelector('.fk-list-frame')).toBeNull()
   })
 })

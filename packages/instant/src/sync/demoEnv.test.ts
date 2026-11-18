@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { loadInstantDemoEnv, resolveInstantSyncEngine } from './demoEnv.js'
-import { FoldkitCounterV01 } from './fromTransport.js'
+import { SharedInstantProject } from './fromTransport.js'
 
 const managedKeys = [
   'FOLDKIT_INSTANT_DEMO_ENV_FILE',
@@ -70,7 +70,7 @@ describe('Instant demo env', () => {
     delete process.env['COUNTER_TAPE_PATH']
 
     const engine = resolveInstantSyncEngine({
-      app: FoldkitCounterV01,
+      app: SharedInstantProject,
       processor: Processor.Host.Cli(),
     })
 
@@ -83,7 +83,7 @@ describe('Instant demo env', () => {
     process.env['COUNTER_TAPE_PATH'] = join(directory, 'tape.json')
 
     const engine = resolveInstantSyncEngine({
-      app: FoldkitCounterV01,
+      app: SharedInstantProject,
       processor: Processor.Host.Tui(),
     })
 
@@ -96,7 +96,7 @@ describe('Instant demo env', () => {
     process.env['FOLDKIT_INSTANT_DEMO_ENV_FILE'] = writeDemoEnvFile('')
 
     const engine = resolveInstantSyncEngine({
-      app: FoldkitCounterV01,
+      app: SharedInstantProject,
       processor: Processor.Host.OpenTui(),
       instance: 'tab-one',
     })
@@ -110,7 +110,7 @@ describe('Instant demo env', () => {
     process.env['FOLDKIT_INSTANT_DEMO_ENV_FILE'] = writeDemoEnvFile('')
 
     const engine = resolveInstantSyncEngine({
-      app: FoldkitCounterV01,
+      app: SharedInstantProject,
       processor: Processor.Host.Cli(),
     })
 

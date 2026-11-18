@@ -19,11 +19,112 @@ import type {
   AccountBalance,
   Model,
   ReceivingInstruction,
+  TransactionPreview,
   WalletAccount,
   WalletDataSource,
   WalletFailure,
 } from './model.js'
 import { sendNetworkSelectionLabel } from './sendNetworkSelection.js'
+import {
+  WalletNetworkMode,
+  isNetworkEnvironmentInWalletMode,
+} from './walletProfile.js'
+
+/**
+ * A network mode as people say it: Live is Mainnet.
+ *
+ * @example
+ * ```typescript
+ * walletNetworkModeLabel('Live') // 'Mainnet'
+ * ```
+ */
+export const walletNetworkModeLabel = (
+  networkMode: WalletNetworkMode,
+): string =>
+  M.value(networkMode).pipe(
+    M.withReturnType<string>(),
+    M.when('Devnet', () => 'Devnet'),
+    M.when('Testnet', () => 'Testnet'),
+    M.when('Live', () => 'Mainnet'),
+    M.exhaustive,
+  )
+
+/**
+ * The modes this host has at least one network for, in the order Devnet,
+ * Testnet, Mainnet. Before the portfolio loads, only the current mode.
+ *
+ * @example
+ * ```typescript
+ * availableWalletNetworkModes(model) // ['Devnet', 'Live'] for Solana Devnet and Mainnet only
+ * ```
+ */
+export const availableWalletNetworkModes = (
+  model: Model,
+): ReadonlyArray<WalletNetworkMode> => {
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return [model.walletNetworkMode]
+  }
+  const networks = model.portfolio.snapshot.networks
+  return Array.filter(WalletNetworkMode.literals, networkMode =>
+    Array.some(networks, network =>
+      isNetworkEnvironmentInWalletMode(network.environment, networkMode),
+    ),
+  )
+}
+
+/** What the confirm step shows: exactly what will be signed. */
+export const TransferConfirmation = S.Struct({
+  amountLabel: S.String,
+  recipientAddress: S.String,
+  networkName: S.String,
+  feeLabel: S.String,
+  balanceAfterLabel: S.String,
+  isRealMoney: S.Boolean,
+})
+/** What the confirm step shows: exactly what will be signed. */
+export type TransferConfirmation = typeof TransferConfirmation.Type
+
+/**
+ * The confirm step of one preview, read from the preview itself, so the
+ * words are what the signer receives: the amount, the full recipient
+ * address, the network, the fee and the balance after. `isRealMoney` is
+ * true on a Mainnet network.
+ *
+ * @example
+ * ```typescript
+ * transferConfirmation(model, preview)
+ * // Option.some({ amountLabel: '0.5 SOL', networkName: 'Solana Mainnet Beta', isRealMoney: true, ... })
+ * ```
+ */
+export const transferConfirmation = (
+  model: Model,
+  preview: TransactionPreview,
+): Option.Option<TransferConfirmation> => {
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return Option.none()
+  }
+  const { request, recipient } = preview.transfer
+  const portfolio = model.portfolio.snapshot
+  return Option.map(
+    networkForId(portfolio.networks, recipient.networkId),
+    network =>
+      TransferConfirmation.make({
+        amountLabel: assetAmountLabelForModel(model, {
+          assetId: request.assetId,
+          atomicUnits: request.atomicUnits,
+          observedAt: preview.estimatedFee.observedAt,
+        }),
+        recipientAddress: recipient.address,
+        networkName: network.displayName,
+        feeLabel: assetAmountLabelForModel(model, preview.estimatedFee),
+        balanceAfterLabel: assetAmountLabelForModel(
+          model,
+          preview.resultingBalance,
+        ),
+        isRealMoney: network.environment === 'Mainnet',
+      }),
+  )
+}
 
 /** Labels the single source behind every account and amount on the screen. */
 export const walletDataSourceLabel = (dataSource: WalletDataSource): string =>
@@ -105,6 +206,12 @@ export const walletAccountBalanceLabel = (
     return 'Loading…'
   }
   if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return 'Unavailable'
+  }
+  if (model.balanceFreshness._tag === 'RefreshingBalances') {
+    return 'Checking…'
+  }
+  if (model.balanceFreshness._tag === 'FailedBalanceRefresh') {
     return 'Unavailable'
   }
   const balances = Array.filter(
@@ -236,6 +343,43 @@ export const primaryWalletBalance = (
       : Option.none(),
   )
 
+/**
+ * The selected account's balance as words, never a number the chains have
+ * not just confirmed: while fresh balances are on their way it says it is
+ * checking, and after a failed refresh it says the balance could not be
+ * read.
+ *
+ * @example
+ * ```typescript
+ * primaryWalletBalanceLabel(model) // 'Checking the Solana Mainnet Beta balance…'
+ * ```
+ */
+export const primaryWalletBalanceLabel = (model: Model): string => {
+  if (model.portfolio._tag === 'LoadingPortfolio') {
+    return 'Loading…'
+  }
+  const networkName = Option.match(primaryWalletNetwork(model), {
+    onNone: () => 'selected network',
+    onSome: network => network.displayName,
+  })
+  return M.value(model.balanceFreshness).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      RefreshingBalances: () => `Checking the ${networkName} balance…`,
+      FailedBalanceRefresh: () =>
+        `The ${networkName} balance could not be read. Refresh to try again.`,
+      CurrentBalances: () =>
+        Option.match(primaryWalletBalance(model), {
+          onNone: () =>
+            isPrimaryWalletBalanceUnavailable(model)
+              ? 'Unavailable. Refresh to retry.'
+              : '—',
+          onSome: balance => assetAmountLabelForModel(model, balance.amount),
+        }),
+    }),
+  )
+}
+
 /** Reports whether the selected account's live balance request failed. */
 export const isPrimaryWalletBalanceUnavailable = (model: Model): boolean =>
   model.portfolio._tag === 'LoadedPortfolio' &&
@@ -285,11 +429,28 @@ export const primaryWalletAsset = (
       )
     : Option.none()
 
-/** Selects the adapter-suggested display amount for a small test transfer. */
+const isSelectedNetworkMainnet = (model: Model): boolean =>
+  model.portfolio._tag === 'LoadedPortfolio' &&
+  Option.isSome(model.maybeSendNetworkSelection) &&
+  Option.exists(
+    networkForId(
+      model.portfolio.snapshot.networks,
+      model.maybeSendNetworkSelection.value.networkId,
+    ),
+    network => network.environment === 'Mainnet',
+  )
+
+const primaryWalletTestAsset = (model: Model) =>
+  isSelectedNetworkMainnet(model) ? Option.none() : primaryWalletAsset(model)
+
+/**
+ * Selects the adapter-suggested display amount for a small test transfer.
+ * Mainnet has none: nothing sent there is a test.
+ */
 export const primaryWalletSuggestedTestTransferAmount = (
   model: Model,
 ): Option.Option<string> =>
-  Option.map(primaryWalletAsset(model), asset =>
+  Option.map(primaryWalletTestAsset(model), asset =>
     displayAmountFromAtomicUnits(
       asset.suggestedTestTransferAtomicUnits,
       asset.decimalPlaces,
@@ -300,7 +461,7 @@ export const primaryWalletSuggestedTestTransferAmount = (
 export const primaryWalletSuggestedTestTransferLabel = (
   model: Model,
 ): Option.Option<string> =>
-  Option.map(primaryWalletAsset(model), asset => {
+  Option.map(primaryWalletTestAsset(model), asset => {
     const amount = displayAmountFromAtomicUnits(
       asset.suggestedTestTransferAtomicUnits,
       asset.decimalPlaces,
@@ -452,7 +613,9 @@ export const transferPreviewReadinessLabel = (model: Model): string =>
       WaitingForTransferBalance: () =>
         'Waiting for the selected account balance.',
       MissingTransferAmount: () =>
-        'Enter an amount or use the small test amount.',
+        Option.isSome(primaryWalletSuggestedTestTransferAmount(model))
+          ? 'Enter an amount or use the small test amount.'
+          : 'Enter an amount.',
       InvalidPreviewTransferAmount: () => 'Enter a valid positive amount.',
       MissingTransferRecipient: () => 'Enter a recipient address.',
       InvalidPreviewTransferRecipient: () =>
@@ -466,11 +629,64 @@ export const transferPreviewReadinessLabel = (model: Model): string =>
     }),
   )
 
-/** Public lines for one sanitized Wallet failure, including adapter guidance. */
+const walletFailureCode = (failure: WalletFailure): string =>
+  `${failure.operation}/${failure.code}`
+
+const walletFailureWords = (failure: WalletFailure): string => {
+  const isRefused = failure.code === 'Rejected'
+  return M.value(failure.operation).pipe(
+    M.withReturnType<string>(),
+    M.when(
+      'ValidateTransfer',
+      () => 'This recipient could not be checked. Nothing was sent. Try again.',
+    ),
+    M.when('PreviewTransfer', () =>
+      isRefused
+        ? 'This send cannot go through: check the amount against your balance and the fee. Nothing was sent.'
+        : 'The network did not answer with a fee. Nothing was sent. Try the preview again.',
+    ),
+    M.when(
+      'BuildTransferPayload',
+      () =>
+        'This preview can no longer be sent. Nothing was sent. Preview the send again.',
+    ),
+    M.when(
+      'SignTransaction',
+      () => 'This wallet could not sign. Nothing was sent.',
+    ),
+    M.when('SubmitTransaction', () =>
+      isRefused
+        ? 'The network refused this send. Nothing was sent.'
+        : 'The network did not answer, so this send may still land. Check your activity before you send it again.',
+    ),
+    M.whenOr(
+      'LoadPortfolio',
+      'RefreshBalances',
+      () => 'Balances could not be read just now. Try again in a moment.',
+    ),
+    M.when(
+      'LoadTransactionHistory',
+      () => 'Recent activity could not be read just now.',
+    ),
+    M.when(
+      'ObserveTransactions',
+      () =>
+        'The wallet stopped listening to the chain, and is trying again by itself.',
+    ),
+    M.when('RequestTestFunding', () => 'Test funds could not be requested.'),
+    M.orElse(() => walletFailureCode(failure)),
+  )
+}
+
+/**
+ * Public lines for one sanitized Wallet failure, including adapter guidance.
+ * A failed send says in words whether anything was sent, since that is what
+ * a person needs before they try again.
+ */
 export const walletFailureLines = (
   failure: WalletFailure,
 ): ReadonlyArray<string> => {
-  const headline = `${failure.operation}/${failure.code}`
+  const headline = walletFailureWords(failure)
   if (
     failure._tag !== 'NetworkFailure' ||
     Option.isNone(failure.maybeGuidance)
@@ -487,7 +703,7 @@ export const walletFailureLines = (
 
 /** Formats one sanitized Wallet failure for a CLI or alert string. */
 export const walletFailureMessage = (failure: WalletFailure): string =>
-  Array.join(walletFailureLines(failure), '\n')
+  Array.join([walletFailureCode(failure), ...walletFailureLines(failure)], '\n')
 
 /** Selects the primary account and asset's receiving instruction. */
 export const primaryReceivingInstruction = (

@@ -10,11 +10,12 @@ import {
   modelForNavigation,
   navigationToPath,
   pathToNavigation,
+  signedInAuthor,
 } from 'issues-core-example'
 
 import { overlay } from '@foldkit/devtools'
 import { withHostedIdentity } from '@foldkit/instant'
-import { InstantToolsSchema } from '@foldkit/instant-tools/instant'
+import { InstantToolsSchemaWithFiles } from '@foldkit/instant-tools/instant'
 import { init } from '@instantdb/core'
 
 import './styles.css'
@@ -24,11 +25,14 @@ const appId = import.meta.env['VITE_INSTANT_APP_ID']
 const database =
   appId === undefined || appId === ''
     ? undefined
-    : init({ appId, schema: InstantToolsSchema })
+    : init({ appId, schema: InstantToolsSchemaWithFiles })
 const resources =
   database === undefined
     ? StaticIssueTrackerResources
-    : withHostedIdentity(makeLiveIssueTrackerResources(database), database)
+    : withHostedIdentity(
+        makeLiveIssueTrackerResources(database, signedInAuthor(database)),
+        database,
+      )
 const initialNavigation = pathToNavigation(window.location.href)
 const historyReconciliation = { isActive: false }
 

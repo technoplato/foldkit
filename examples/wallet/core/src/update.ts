@@ -59,9 +59,11 @@ import {
   type AddressBookEntry,
   AddressFamiliarity,
   CryptoFailure,
+  CurrentBalances,
   EditingTransferRecipient,
   EmptyTransferAmount,
   EmptyTransferRecipient,
+  FailedBalanceRefresh,
   FailedChallengeSignature,
   FailedPortfolio,
   FailedTestFunding,
@@ -88,6 +90,7 @@ import {
   ReadyToRequestTestFunding,
   ReceivedTestFunding,
   RecipientHistory,
+  RefreshingBalances,
   RequestingTestFunding,
   type SignatureProof,
   type SignatureState,
@@ -105,6 +108,7 @@ import {
   TransactionRecord,
   type TransactionState,
   type TransactionSubmission,
+  TransferGuidance,
   TransferRequest,
   UnavailableTestFunding,
   ValidTransferRecipient,
@@ -117,6 +121,7 @@ import {
   doesPortfolioIncludeWalletProfiles,
   familiarityForRecipient,
   isPortfolioSnapshotConsistent,
+  isPreviewOfEnteredTransfer,
   isTransactionSubmissionConsistent,
   maximumTransactionHistoryPageSize,
   mergeTransactionRecords,
@@ -131,7 +136,10 @@ import {
   resolveSendNetworkSelection,
   selectSendNetworkForMode,
 } from './sendNetworkSelection.js'
-import { parseSolanaPayTransferUri } from './solanaPayUri.js'
+import {
+  isSolanaPayTransferForNetwork,
+  parseSolanaPayTransferUri,
+} from './solanaPayUri.js'
 import {
   WalletClient,
   WalletClientError,
@@ -149,7 +157,9 @@ import {
   LoadingWalletProfiles,
   ReadyToCreateWallet,
   WalletCreationRequest,
+  WalletNetworkMode,
   WalletProfile,
+  isNetworkEnvironmentInWalletMode,
   nextWalletCreationRequest,
   upsertWalletProfile,
 } from './walletProfile.js'
@@ -560,18 +570,18 @@ const refreshWalletBalanceCommands = (
       ]
     : []
 
-const portfolioCommandsForRestore = (
+const withBalanceRefresh = (
   model: Model,
-): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
-  model.portfolio._tag === 'LoadingPortfolio' &&
-  model.walletProfileLoading._tag === 'LoadedWalletProfiles'
-    ? [
-        LoadWallet({
-          requestId: model.portfolio.requestId,
-          wallets: model.wallets,
-        }),
-      ]
-    : []
+  commands: ReadonlyArray<Command.Command<Message, never, WalletResources>>,
+): UpdateReturn => {
+  const refreshCommands = refreshWalletBalanceCommands(model)
+  return [
+    Array_.isReadonlyArrayNonEmpty(refreshCommands)
+      ? { ...model, balanceFreshness: RefreshingBalances.make({}) }
+      : model,
+    [...commands, ...refreshCommands],
+  ]
+}
 
 const testFundingCommandsForRestore = (
   model: Model,
@@ -597,14 +607,12 @@ const transactionCommandsForRestore = (
         recipientHistory: model.transaction.recipientHistory,
       }),
     ]
-  } else if (model.transaction._tag === 'SubmittingTransaction') {
-    return [SignAndSubmitTransaction({ preview: model.transaction.preview })]
   } else {
     return []
   }
 }
 
-const walletCreationCommandsForRestore = (
+const walletCreationCommandsAfterProfiles = (
   model: Model,
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> => {
   if (model.walletCreation._tag === 'CreatingWallet') {
@@ -621,13 +629,6 @@ const walletProfileCommandsForRestore = (
     ? [LoadWalletProfiles()]
     : []
 
-const signatureCommandsForRestore = (
-  model: Model,
-): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
-  model.signature._tag === 'SigningChallengeState'
-    ? [SignChallenge({ challenge: model.signature.challenge })]
-    : []
-
 const historyCommandsForRestore = (
   model: Model,
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
@@ -640,9 +641,61 @@ const commandsAfterPortfolioHydration = (
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> => [
   ...testFundingCommandsForRestore(model),
   ...transactionCommandsForRestore(model),
-  ...signatureCommandsForRestore(model),
   ...historyCommandsForRestore(model),
 ]
+
+const unenteredPreviewFailure = NetworkFailure.make({
+  operation: 'PreviewTransfer',
+  code: 'InvalidResponse',
+  maybeGuidance: Option.some({
+    summary: 'This preview is not what you entered, so nothing was signed.',
+    details: ['Preview the send again.'],
+  }),
+})
+
+const interruptedSubmissionFailure = NetworkFailure.make({
+  operation: 'SubmitTransaction',
+  code: 'Unavailable',
+  maybeGuidance: Option.some({
+    summary:
+      'This send stopped before it finished. It may already be on the network.',
+    details: ['Check Activity before you send again.'],
+  }),
+})
+
+const transactionForRestore = (
+  transaction: TransactionState,
+): TransactionState => {
+  if (transaction._tag === 'SubmittingTransaction') {
+    return FailedTransactionSubmission.make({
+      preview: transaction.preview,
+      failure: interruptedSubmissionFailure,
+    })
+  } else if (transaction._tag === 'PreviewedTransaction') {
+    return IdleTransaction.make({})
+  } else {
+    return transaction
+  }
+}
+
+const signatureForRestore = (signature: SignatureState): SignatureState =>
+  signature._tag === 'SigningChallengeState'
+    ? IdleSignature.make({})
+    : signature
+
+const modelForSigningRestore = (model: Model): Model => ({
+  ...model,
+  transaction: transactionForRestore(model.transaction),
+  signature: signatureForRestore(model.signature),
+})
+
+const modelForProfileRestore = (model: Model): Model => ({
+  ...model,
+  walletProfileLoading: LoadingWalletProfiles.make({}),
+  wallets: [],
+  portfolio: WaitingForWalletProfiles.make({}),
+  transactionObservation: WaitingForAccounts.make({}),
+})
 
 const modelForClipboardRestore = (model: Model): Model =>
   model.clipboardCopy._tag === 'CopyingToClipboard'
@@ -654,26 +707,6 @@ const modelForClipboardRestore = (model: Model): Model =>
         }),
       }
     : model
-
-const modelForPortfolioRestore = (model: Model): Model => {
-  if (model.walletProfileLoading._tag !== 'LoadedWalletProfiles') {
-    return model
-  }
-  if (model.portfolio._tag === 'LoadingPortfolio') {
-    return {
-      ...model,
-      transactionObservation: WaitingForAccounts.make({}),
-    }
-  }
-  return {
-    ...model,
-    portfolio: LoadingPortfolio.make({
-      requestId: `portfolio-${model.nextPortfolioRequestNumber.toString()}`,
-    }),
-    nextPortfolioRequestNumber: model.nextPortfolioRequestNumber + 1,
-    transactionObservation: WaitingForAccounts.make({}),
-  }
-}
 
 const testFundingAfterPortfolioFailure = (
   testFunding: TestFundingState,
@@ -738,19 +771,18 @@ const historyAfterPortfolioFailure = (
   }
 }
 
-/** Restarts finite work represented by a restored Wallet Model. */
+/**
+ * Restarts finite work represented by a restored Wallet Model. A restored
+ * Model can come from a link, so it never signs: a send cut off while
+ * signing fails with guidance to check Activity, a preview needs a fresh
+ * one, a challenge needs a new request, and the wallets come from the
+ * vault, never from the Model.
+ */
 export const restore = (model: Model): UpdateReturn => {
-  const restoredModel = modelForPortfolioRestore(
-    modelForClipboardRestore(model),
+  const restoredModel = modelForProfileRestore(
+    modelForSigningRestore(modelForClipboardRestore(model)),
   )
-  return [
-    restoredModel,
-    [
-      ...walletProfileCommandsForRestore(restoredModel),
-      ...walletCreationCommandsForRestore(restoredModel),
-      ...portfolioCommandsForRestore(restoredModel),
-    ],
-  ]
+  return [restoredModel, walletProfileCommandsForRestore(restoredModel)]
 }
 
 const replaceAddressBookEntry = (
@@ -1033,6 +1065,27 @@ const hasExactTransactionRecord = (
       candidate.amount.atomicUnits === transaction.amount.atomicUnits,
   )
 
+const hasNetworksInMode = (
+  portfolio: PortfolioSnapshot,
+  networkMode: WalletNetworkMode,
+): boolean =>
+  Array_.some(portfolio.networks, network =>
+    isNetworkEnvironmentInWalletMode(network.environment, networkMode),
+  )
+
+const walletNetworkModeForPortfolio = (
+  portfolio: PortfolioSnapshot,
+  networkMode: WalletNetworkMode,
+): WalletNetworkMode =>
+  hasNetworksInMode(portfolio, networkMode)
+    ? networkMode
+    : Option.getOrElse(
+        Array_.findFirst(WalletNetworkMode.literals, mode =>
+          hasNetworksInMode(portfolio, mode),
+        ),
+        () => networkMode,
+      )
+
 /** Applies one Wallet Message and returns its finite Commands. */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -1052,7 +1105,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         if (model.walletProfileLoading._tag !== 'LoadingWalletProfiles') {
           return [model, []]
         }
-        return beginPortfolioLoad(
+        const [loadingModel, portfolioCommands] = beginPortfolioLoad(
           {
             ...model,
             wallets,
@@ -1060,6 +1113,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           },
           wallets,
         )
+        return [
+          loadingModel,
+          [
+            ...portfolioCommands,
+            ...walletCreationCommandsAfterProfiles(loadingModel),
+          ],
+        ]
       },
       FailedLoadWalletProfiles: ({ code }) => {
         if (model.walletProfileLoading._tag !== 'LoadingWalletProfiles') {
@@ -1075,6 +1135,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       SelectedWalletNetworkMode: ({ networkMode }) => {
+        if (model.transaction._tag === 'SubmittingTransaction') {
+          return [model, []]
+        }
         const maybeSendNetworkSelection =
           model.portfolio._tag === 'LoadedPortfolio'
             ? selectSendNetworkForMode(
@@ -1092,7 +1155,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 Option.none(),
               )
             : [NotLoadedTransactionHistory.make({}), []]
-        return [
+        return withBalanceRefresh(
           {
             ...model,
             walletNetworkMode: networkMode,
@@ -1111,10 +1174,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             transactions: [],
           },
           historyCommands,
-        ]
+        )
       },
       SelectedSendNetwork: ({ selection }) => {
-        if (model.portfolio._tag !== 'LoadedPortfolio') {
+        if (
+          model.portfolio._tag !== 'LoadedPortfolio' ||
+          model.transaction._tag === 'SubmittingTransaction'
+        ) {
           return [model, []]
         }
         const maybeSelection = resolveSendNetworkSelection(
@@ -1248,6 +1314,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model.wallets,
         )
       },
+      RequestedBalanceRefresh: () => withBalanceRefresh(model, []),
       SucceededLoadWallet: ({ requestId, portfolio }) => {
         if (
           model.portfolio._tag !== 'LoadingPortfolio' ||
@@ -1255,16 +1322,22 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ) {
           return [model, []]
         }
+        const walletNetworkMode = walletNetworkModeForPortfolio(
+          portfolio,
+          model.walletNetworkMode,
+        )
         const maybeDefaultSelection = selectSendNetworkForMode(
           portfolio,
           model.wallets,
           model.maybeSendNetworkSelection,
-          model.walletNetworkMode,
+          walletNetworkMode,
         )
         if (model.walletIntent._tag !== 'PendingWalletIntent') {
           const hydratedModel = {
             ...model,
+            walletNetworkMode,
             portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
+            balanceFreshness: CurrentBalances.make({}),
             maybeSendNetworkSelection: maybeDefaultSelection,
             transactionObservation: transactionObservationForSelection(
               maybeDefaultSelection,
@@ -1323,7 +1396,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [
             {
               ...model,
+              walletNetworkMode,
               portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
+              balanceFreshness: CurrentBalances.make({}),
               maybeSendNetworkSelection: maybeDefaultSelection,
               transactionObservation: transactionObservationForSelection(
                 maybeDefaultSelection,
@@ -1353,6 +1428,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           {
             ...model,
             portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
+            balanceFreshness: CurrentBalances.make({}),
             walletNetworkMode: intent.source.networkMode,
             maybeSendNetworkSelection: maybeIntentSelection,
             transactionObservation:
@@ -1420,15 +1496,56 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 balanceSnapshot,
               }),
             }),
+            balanceFreshness: CurrentBalances.make({}),
           },
           [],
         ]
       },
-      FailedRefreshWalletBalances: () => [model, []],
+      FailedRefreshWalletBalances: ({
+        walletIds: refreshedWalletIds,
+        failure,
+      }) =>
+        model.portfolio._tag === 'LoadedPortfolio' &&
+        isSameWalletIds(walletIds(model.wallets), refreshedWalletIds)
+          ? [
+              {
+                ...model,
+                balanceFreshness: FailedBalanceRefresh.make({ failure }),
+              },
+              [],
+            ]
+          : [model, []],
       ChangedTransferRecipient: ({ value }) => {
         const maybePay = parseSolanaPayTransferUri(value)
         if (Option.isSome(maybePay)) {
           const pay = maybePay.value
+          const isForSelectedNetwork = Option.match(
+            model.maybeSendNetworkSelection,
+            {
+              onNone: () => true,
+              onSome: ({ networkId }) =>
+                isSolanaPayTransferForNetwork(pay, networkId),
+            },
+          )
+          if (!isForSelectedNetwork) {
+            return [
+              {
+                ...model,
+                walletIntent: NoWalletIntent.make({}),
+                transferRecipient: InvalidTransferRecipient.make({
+                  value,
+                  guidance: TransferGuidance.make({
+                    summary: 'This payment link is for another network.',
+                    details: [
+                      'Switch to its network, or ask for a link on this one.',
+                    ],
+                  }),
+                }),
+                transaction: IdleTransaction.make({}),
+              },
+              [],
+            ]
+          }
           return [
             {
               ...model,
@@ -1512,13 +1629,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         model.testFunding._tag === 'RequestingTestFunding' &&
         model.testFunding.request.requestId === request.requestId &&
         receipt.requestId === request.requestId
-          ? [
+          ? withBalanceRefresh(
               {
                 ...model,
                 testFunding: ReceivedTestFunding.make({ request, receipt }),
               },
-              refreshWalletBalanceCommands(model),
-            ]
+              [],
+            )
           : [model, []],
       FailedRequestTestFunding: ({ request, failure }) =>
         model.testFunding._tag === 'RequestingTestFunding' &&
@@ -1620,10 +1737,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           : [model, []],
       RequestedSignedTransactionSubmission: ({ previewId }) => {
         if (
-          model.transaction._tag === 'PreviewedTransaction' &&
-          model.transaction.preview.previewId === previewId
+          model.transaction._tag !== 'PreviewedTransaction' ||
+          model.transaction.preview.previewId !== previewId
         ) {
-          const preview: TransactionPreview = model.transaction.preview
+          return [model, []]
+        }
+        const preview: TransactionPreview = model.transaction.preview
+        if (isPreviewOfEnteredTransfer(model, preview)) {
           return [
             {
               ...model,
@@ -1632,7 +1752,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             [SignAndSubmitTransaction({ preview })],
           ]
         } else {
-          return [model, []]
+          return [
+            {
+              ...model,
+              transaction: FailedTransactionPreview.make({
+                transfer: preview.transfer,
+                failure: unenteredPreviewFailure,
+              }),
+            },
+            [],
+          ]
         }
       },
       SucceededSubmitSignedTransaction: ({ submission }) => {
@@ -1644,7 +1773,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             model.transaction.preview,
             submission,
           )
-          return [
+          return withBalanceRefresh(
             {
               ...model,
               transaction: SubmittedTransaction.make({
@@ -1655,8 +1784,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 transaction,
               ]),
             },
-            refreshWalletBalanceCommands(model),
-          ]
+            [],
+          )
         } else {
           return [model, []]
         }
@@ -1779,17 +1908,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model.transactions,
           transaction,
         )
-        return [
-          {
-            ...model,
-            transactions: mergeTransactionRecords(model.transactions, [
-              transaction,
-            ]),
-          },
-          isNewObservation && transaction.status !== 'Pending'
-            ? refreshWalletBalanceCommands(model)
-            : [],
-        ]
+        const observedModel = {
+          ...model,
+          transactions: mergeTransactionRecords(model.transactions, [
+            transaction,
+          ]),
+        }
+        return isNewObservation && transaction.status !== 'Pending'
+          ? withBalanceRefresh(observedModel, [])
+          : [observedModel, []]
       },
       FailedObserveTransactions: ({ accountIds, failure }) =>
         model.transactionObservation._tag === 'ObservingTransactions' &&
@@ -1809,15 +1936,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         const accountIds = accountIdsFromModel(model)
         return Array_.match(accountIds, {
           onEmpty: () => [model, []],
-          onNonEmpty: observedAccountIds => [
-            {
-              ...model,
-              transactionObservation: ObservingTransactions.make({
-                accountIds: observedAccountIds,
-              }),
-            },
-            [],
-          ],
+          onNonEmpty: observedAccountIds =>
+            withBalanceRefresh(
+              {
+                ...model,
+                transactionObservation: ObservingTransactions.make({
+                  accountIds: observedAccountIds,
+                }),
+              },
+              [],
+            ),
         })
       },
     }),

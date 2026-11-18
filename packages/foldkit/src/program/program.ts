@@ -69,6 +69,41 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
    * position, and a Message's audience follows the policy in force there.
    */
   sessionPolicyOf?: (model: Model) => SessionPolicy
+  /**
+   * The Processors that keep their own navigation whatever the session's
+   * mode, by the `from` they write, such as `cli-4f2a9c1e` for a terminal
+   * that plays in the background: Navigation Messages they write apply
+   * only to them, and they apply no one else's. Every Processor reads the
+   * same `from`, so every Processor folds the same rows the same way.
+   */
+  keepsOwnNavigation?: (processorId: string) => boolean
+  /**
+   * What a Program keeps when sync refolds its log: the part of the Model
+   * that never came from the log, such as a library read from its own
+   * tables or the place a player reached second by second. `refolded` is
+   * the Model the log folds to; the result replaces it.
+   *
+   * @example
+   * ```typescript
+   * keepOnRefold: (current, refolded) => ({ ...refolded, library: current.library })
+   * ```
+   */
+  keepOnRefold?: (current: Model, refolded: Model) => Model
+  /**
+   * True for a Message only the Processor that sends it applies. Sync
+   * never writes it to the log, so no other Processor receives it and no
+   * refold replays it, and a row with that Message from another writer is
+   * never applied, live or in a fold. Use it for what must not leave the
+   * device, such as a sign-in address pasted into a field, and keep what
+   * it changed with `keepOnRefold`.
+   *
+   * @example
+   * ```typescript
+   * isLocalOnly: message => message._tag === 'ConnectAudible'
+   * // ConnectAudible({ address }) updates this Processor; the log never holds the address
+   * ```
+   */
+  isLocalOnly?: (message: Message) => boolean
 }>
 
 /**

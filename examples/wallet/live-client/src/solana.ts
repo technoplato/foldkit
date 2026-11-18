@@ -46,7 +46,12 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
 } from '@solana/kit'
 
-import type { LiveNetworkAccount, LiveNetworkAdapter } from './adapter.js'
+import {
+  type LiveNetworkAccount,
+  type LiveNetworkAdapter,
+  type TransactionStanding,
+  isSettledStanding,
+} from './adapter.js'
 import type { SolanaLiveNetwork } from './catalog.js'
 
 /** Protected Solana transfer facts passed from networking to custody. */
@@ -93,8 +98,17 @@ const SolanaFeeResponse = S.Struct({
 const SolanaSignatureResponse = S.Struct({ result: S.String })
 
 const SolanaAccountInfoResponse = S.Struct({
-  result: S.Struct({ value: S.NullOr(S.Unknown) }),
+  result: S.Struct({
+    value: S.NullOr(
+      S.Struct({
+        owner: S.String,
+        executable: S.optionalKey(S.Boolean),
+      }),
+    ),
+  }),
 })
+
+const systemProgramAddress = '11111111111111111111111111111111'
 
 const SolanaRentExemptionResponse = S.Struct({
   result: S.Number,
@@ -150,6 +164,49 @@ const SolanaTransactionResponse = S.Struct({
 const SolanaLogsNotification = S.Struct({
   params: S.Struct({
     result: S.Struct({ value: S.Struct({ signature: S.String }) }),
+  }),
+})
+
+const SolanaSocketError = S.Struct({ code: S.Number })
+
+const SolanaSubscriptionFailure = S.Union([
+  S.Struct({ error: SolanaSocketError }),
+  S.Struct({ params: S.Struct({ error: SolanaSocketError }) }),
+])
+
+// NOTE: Solana's public endpoints close a socket after exactly 60 quiet
+// seconds, and publicnode ends a subscription on an open socket. A message
+// every 20 seconds keeps the first open, and any answer to it, even "Method
+// not found", proves the socket still hears; no answer means reconnect.
+const keepAliveEveryMilliseconds = 20_000
+const keepAliveAnswerMilliseconds = 5_000
+const keepAliveRequestId = 2
+const keepAliveMessage = JSON.stringify({
+  jsonrpc: '2.0',
+  id: keepAliveRequestId,
+  method: 'ping',
+})
+const SolanaKeepAliveAnswer = S.Struct({ id: S.Literal(keepAliveRequestId) })
+
+const SolanaSignatureNotification = S.Struct({
+  method: S.Literal('signatureNotification'),
+  params: S.Struct({
+    result: S.Struct({ value: S.Struct({ err: S.Unknown }) }),
+  }),
+})
+
+const SolanaSignatureStatusesResponse = S.Struct({
+  result: S.Struct({
+    value: S.Array(
+      S.NullOr(
+        S.Struct({
+          err: S.Unknown,
+          confirmationStatus: S.NullOr(
+            S.Literals(['processed', 'confirmed', 'finalized']),
+          ),
+        }),
+      ),
+    ),
   }),
 })
 
@@ -224,7 +281,9 @@ const solanaRpcGuidance = (
   }
   return TransferGuidance.make({
     summary: 'Solana rejected this transfer.',
-    details: [message],
+    details: [
+      'Check the amount and the address, then preview it again.',
+    ],
   })
 }
 
@@ -482,6 +541,93 @@ const loadTransaction = async (
   return response.result
 }
 
+const signatureStanding = async (
+  configuration: SolanaLiveNetwork,
+  signature: string,
+): Promise<TransactionStanding> => {
+  const response = await postJsonRpc(
+    configuration,
+    SolanaSignatureStatusesResponse,
+    'getSignatureStatuses',
+    [[signature], { searchTransactionHistory: true }],
+  )
+  return Option.match(
+    Option.fromNullishOr(Array.head(response.result.value).pipe(Option.getOrNull)),
+    {
+      onNone: () => 'Unknown',
+      onSome: ({ err, confirmationStatus }): TransactionStanding => {
+        if (err !== null) {
+          return 'FailedOnChain'
+        } else if (confirmationStatus === 'finalized') {
+          return 'Final'
+        } else if (confirmationStatus === 'confirmed') {
+          return 'Included'
+        } else {
+          return 'Seen'
+        }
+      },
+    },
+  )
+}
+
+/**
+ * One Solana pubsub subscription as a stream: it subscribes on open, keeps
+ * the socket open, and ends when the RPC refuses, the socket closes, or a
+ * keep-alive goes unanswered. `onMessage` gets every other message.
+ */
+const solanaSubscription = <A>(
+  configuration: SolanaLiveNetwork,
+  subscribe: Readonly<{ method: string; params: ReadonlyArray<unknown> }>,
+  onMessage: (
+    message: unknown,
+    queue: Queue.Enqueue<A, WalletClientError>,
+  ) => void,
+): Stream.Stream<A, WalletClientError> =>
+  Stream.callback<A, WalletClientError>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const socket = new WebSocket(configuration.webSocketRpcUrl)
+        let keepAliveTimer: ReturnType<typeof setInterval> | undefined
+        let answerDeadline: ReturnType<typeof setTimeout> | undefined
+        socket.addEventListener('open', () => {
+          socket.send(JSON.stringify({ jsonrpc: '2.0', id: 1, ...subscribe }))
+          keepAliveTimer = setInterval(() => {
+            socket.send(keepAliveMessage)
+            answerDeadline = setTimeout(() => {
+              Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+            }, keepAliveAnswerMilliseconds)
+          }, keepAliveEveryMilliseconds)
+        })
+        socket.addEventListener('message', event => {
+          try {
+            const message: unknown = JSON.parse(String(event.data))
+            if (S.is(SolanaKeepAliveAnswer)(message)) {
+              clearTimeout(answerDeadline)
+            } else if (S.is(SolanaSubscriptionFailure)(message)) {
+              Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+            } else {
+              onMessage(message, queue)
+            }
+          } catch {
+            Queue.failCauseUnsafe(queue, Cause.fail(invalidResponse()))
+          }
+        })
+        socket.addEventListener('error', () => {
+          Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+        })
+        socket.addEventListener('close', () => {
+          Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+        })
+        return () => {
+          clearInterval(keepAliveTimer)
+          clearTimeout(answerDeadline)
+          socket.close()
+        }
+      }),
+      closeSocket => Effect.sync(closeSocket),
+    ).pipe(Effect.flatMap(() => Effect.never)),
+  )
+
 const loadObservedTransaction = async (
   configuration: SolanaLiveNetwork,
   transactionSignature: string,
@@ -581,6 +727,20 @@ export const makeSolanaLiveAdapter = (
         ) {
           throw rejected(destinationCreationRentGuidance(rentLamports))
         }
+        if (
+          destinationAccount.result.value !== null &&
+          destinationAccount.result.value.owner !== systemProgramAddress
+        ) {
+          throw rejected(
+            TransferGuidance.make({
+              summary:
+                'That address is not a wallet, so SOL sent there can be lost for good.',
+              details: [
+                'It belongs to a program, such as a token account. Ask for a wallet address.',
+              ],
+            }),
+          )
+        }
         const resultingBalance =
           exactUnsignedInteger(balanceResponse.result.value) -
           BigInt(transfer.request.atomicUnits) -
@@ -591,6 +751,17 @@ export const makeSolanaLiveAdapter = (
               summary:
                 'The sender does not have enough SOL for this transfer and fee.',
               details: ['Reduce the amount or add SOL to the sending account.'],
+            }),
+          )
+        }
+        if (resultingBalance > 0n && resultingBalance < rentLamports) {
+          throw rejected(
+            TransferGuidance.make({
+              summary:
+                'This send would leave too little SOL in the sending account.',
+              details: [
+                `An account must keep at least ${rentLamports.toString()} lamports, or send everything so it holds none.`,
+              ],
             }),
           )
         }
@@ -741,79 +912,89 @@ export const makeSolanaLiveAdapter = (
       ),
     )
   },
-  observeTransactions: account =>
-    Stream.callback<typeof TransactionRecord.Type, WalletClientError>(queue =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          const socket = new WebSocket(configuration.webSocketRpcUrl)
-          const observedSignatures = new Set<string>()
-          socket.addEventListener('open', () => {
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: 1,
-                method: 'logsSubscribe',
-                params: [
-                  { mentions: [account.account.address] },
-                  { commitment: 'confirmed' },
-                ],
-              }),
+  observeTransactions: account => {
+    const observedSignatures = new Set<string>()
+    return solanaSubscription<typeof TransactionRecord.Type>(
+      configuration,
+      {
+        method: 'logsSubscribe',
+        params: [
+          { mentions: [account.account.address] },
+          { commitment: 'confirmed' },
+        ],
+      },
+      (message, queue) => {
+        const maybeNotification = S.decodeUnknownOption(SolanaLogsNotification)(
+          message,
+        )
+        if (Option.isNone(maybeNotification)) {
+          return
+        }
+        const transactionSignature =
+          maybeNotification.value.params.result.value.signature
+        if (observedSignatures.has(transactionSignature)) {
+          return
+        }
+        observedSignatures.add(transactionSignature)
+        if (observedSignatures.size > maximumObservedSignatures) {
+          const oldestSignature = observedSignatures.values().next()
+          if (!oldestSignature.done) {
+            observedSignatures.delete(oldestSignature.value)
+          }
+        }
+        void loadObservedTransaction(configuration, transactionSignature)
+          .then(transaction => {
+            const records = recordsForTransaction(
+              configuration,
+              account,
+              transactionSignature,
+              transaction,
+              Date.now(),
             )
+            Array.forEach(records, record => {
+              Queue.offerUnsafe(queue, record)
+            })
           })
-          socket.addEventListener('message', event => {
-            try {
-              const maybeNotification = S.decodeUnknownOption(
-                SolanaLogsNotification,
-              )(JSON.parse(String(event.data)))
-              if (Option.isNone(maybeNotification)) {
-                return
-              }
-              const transactionSignature =
-                maybeNotification.value.params.result.value.signature
-              if (observedSignatures.has(transactionSignature)) {
-                return
-              }
-              observedSignatures.add(transactionSignature)
-              if (observedSignatures.size > maximumObservedSignatures) {
-                const oldestSignature = observedSignatures.values().next()
-                if (!oldestSignature.done) {
-                  observedSignatures.delete(oldestSignature.value)
-                }
-              }
-              void loadObservedTransaction(configuration, transactionSignature)
-                .then(transaction => {
-                  const records = recordsForTransaction(
-                    configuration,
-                    account,
-                    transactionSignature,
-                    transaction,
-                    Date.now(),
-                  )
-                  Array.forEach(records, record => {
-                    Queue.offerUnsafe(queue, record)
-                  })
-                })
-                .catch(() => {
-                  Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
-                })
-            } catch {
-              Queue.failCauseUnsafe(queue, Cause.fail(invalidResponse()))
-            }
-          })
-          socket.addEventListener('error', () => {
+          .catch(() => {
             Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
           })
-          socket.addEventListener('close', () => {
-            Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
-          })
-          return socket
+      },
+    )
+  },
+  observeSettlement: (_account, transactionId) =>
+    Stream.merge(
+      solanaSubscription<TransactionStanding>(
+        configuration,
+        {
+          method: 'signatureSubscribe',
+          params: [transactionId, { commitment: 'finalized' }],
+        },
+        (message, queue) => {
+          Option.match(
+            S.decodeUnknownOption(SolanaSignatureNotification)(message),
+            {
+              onNone: () => {},
+              onSome: ({ params }) => {
+                Queue.offerUnsafe(
+                  queue,
+                  params.result.value.err === null ? 'Final' : 'FailedOnChain',
+                )
+              },
+            },
+          )
+        },
+      ),
+      Stream.fromEffect(
+        Effect.tryPromise({
+          try: () => signatureStanding(configuration, transactionId),
+          catch: walletClientErrorFromUnknown,
         }),
-        socket => Effect.sync(() => socket.close()),
-      ).pipe(Effect.flatMap(() => Effect.never)),
-    ),
+      ),
+    ).pipe(Stream.takeUntil(isSettledStanding)),
   requestTestFunding: (account, request) => {
     if (
-      configuration.network.environment === 'Mainnet' ||
+      configuration.network.testFundingMethod._tag !==
+        'AdapterTestFundingMethod' ||
       request.accountId !== account.account.accountId ||
       request.chainId !== configuration.chain.chainId ||
       request.networkId !== configuration.network.networkId ||

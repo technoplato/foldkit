@@ -18,6 +18,7 @@ import { type Host, labelOf } from '../processor/host.js'
 import type { ProgramSchema } from '../program/program.js'
 import type { UiNode } from '../renderers/types.js'
 import {
+  type Echo,
   type KeyInput,
   type KeyPlatform,
   type MenuOpener,
@@ -25,14 +26,28 @@ import {
   type ProgramInteraction,
   Ready,
   type Status,
+  echoOfKey,
   isBrowserOwnedChord,
   menuOpenerOf,
 } from './interaction.js'
 
 /**
+ * Runs `send` on behalf of a client on `clientHost`, such as a `books tui`
+ * view a CLI daemon answers: every Message sent while `send` runs is
+ * recorded as sent for that client, `{ _tag: 'Host', clientHost: { _tag:
+ * 'Tui' } }` in the journal, so telemetry records it, its Commands, and
+ * their results on the client's surface. `send` must send synchronously;
+ * a Message sent later, such as from a timer it started, is the
+ * Processor's own.
+ */
+export type OnBehalfOf = <A>(clientHost: Host, send: () => A) => A
+
+/**
  * A live Program occurrence any Client can read, watch, and send to. React
  * reads it through `useSyncExternalStore`; a CLI reads it once and exits.
  * `host` is the Host it was started on, which names the window.
+ * `onBehalfOf`, where a handle has it, sends for a client on another Host;
+ * see {@link OnBehalfOf}.
  */
 export type ProgramHandle<Model, Message> = Readonly<{
   readModel: () => Model
@@ -40,7 +55,26 @@ export type ProgramHandle<Model, Message> = Readonly<{
   send: (message: Message) => void
   stop: () => Promise<void>
   host?: Host
+  onBehalfOf?: OnBehalfOf
 }>
+
+/**
+ * Runs `send` on behalf of a client on `clientHost` through a handle that
+ * can say so, and plainly through one that cannot, such as an inert bound
+ * Program. See {@link OnBehalfOf}.
+ *
+ * @example
+ * ```typescript
+ * Interaction.onBehalfOf(bound, Processor.Host.Tui(), () => bound.pressKey(input))
+ * // the Message the key sends is recorded as sent for a Tui client
+ * ```
+ */
+export const onBehalfOf = <A>(
+  handle: Readonly<{ onBehalfOf?: OnBehalfOf }>,
+  clientHost: Host,
+  send: () => A,
+): A =>
+  handle.onBehalfOf === undefined ? send() : handle.onBehalfOf(clientHost, send)
 
 /**
  * A Program's interaction joined to one live handle. Every function reads
@@ -75,6 +109,7 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
     menu: () => Option.Option<MenuView>
     press: (tag: string) => boolean
     pressKey: (input: KeyInput) => boolean
+    echoOfKey: (input: KeyInput) => Option.Option<Echo>
     openMenu: () => boolean
     dismissMenu: () => boolean
     typeInMenu: (query: string) => boolean
@@ -234,6 +269,11 @@ export const bind = <Model, Message>(
       !isBrowserOwnedChord(input) &&
       sendAll(
         whenInteractive((inner, model) => inner.pressKey(model, input), []),
+      ),
+    echoOfKey: input =>
+      whenInteractive(
+        (inner, model) => echoOfKey(inner, model, input),
+        Option.none(),
       ),
     openMenu: () =>
       sendAll(whenInteractive((inner, model) => inner.openMenu(model), [])),

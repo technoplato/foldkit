@@ -226,6 +226,13 @@ const ethereumNetwork = (
   })
 }
 
+// NOTE: Solana's RPC faucet answers 410 "The RPC faucet is closed on this
+// cluster" on Devnet and Testnet, so its own web faucet is the only way in.
+const solanaFaucet = ExternalTestFundingMethod.make({
+  providerName: 'Solana Faucet',
+  providerUrl: 'https://faucet.solana.com',
+})
+
 const solanaNetwork = (
   networkId: string,
   displayName: string,
@@ -236,8 +243,8 @@ const solanaNetwork = (
   webSocketRpcUrl: string,
   explorerClusterQuery: string,
 ): SolanaLiveNetwork => {
-  const testFundingMethod = Array.contains(capabilities, 'TestFunding')
-    ? AdapterTestFundingMethod.make({})
+  const testFundingMethod = Array.contains(capabilities, 'ExternalTestFunding')
+    ? solanaFaucet
     : UnavailableTestFundingMethod.make({})
   const network = NetworkDescriptor.make({
     networkId,
@@ -401,7 +408,7 @@ export const liveWalletNetworks: ReadonlyArray<LiveWalletNetwork> = [
     'solana:devnet',
     'Solana Devnet',
     'Development',
-    testFundableCapabilities,
+    externalFundableCapabilities,
     'Devnet',
     'https://api.devnet.solana.com',
     'wss://api.devnet.solana.com',
@@ -411,7 +418,7 @@ export const liveWalletNetworks: ReadonlyArray<LiveWalletNetwork> = [
     'solana:testnet',
     'Solana Testnet',
     'Testnet',
-    testFundableCapabilities,
+    externalFundableCapabilities,
     'Testnet',
     'https://api.testnet.solana.com',
     'wss://api.testnet.solana.com',

@@ -558,6 +558,11 @@ const menuTitle = 'Actions'
 
 const menuFilterLabel = 'Search actions'
 
+const rowKeysLiveHint = 'This key runs its row now'
+
+const rowKeysRestingHint =
+  'Letters search here. Press ↓ to use this key, or press it on the page once the menu is closed'
+
 type RowNoun = Readonly<{ one: string; many: string }>
 
 const actionNoun: RowNoun = { one: 'action', many: 'actions' }
@@ -574,10 +579,16 @@ const summaryOf = (
       String.isEmpty(query.trim())
         ? `No ${noun.many}`
         : `No ${noun.many} match “${query.trim()}”`,
-    onNonEmpty: nonEmpty =>
-      nonEmpty.length === 1
-        ? `1 ${noun.one}`
-        : `${nonEmpty.length.toString()} ${noun.many}`,
+    onNonEmpty: nonEmpty => {
+      const count =
+        nonEmpty.length === 1
+          ? `1 ${noun.one}`
+          : `${nonEmpty.length.toString()} ${noun.many}`
+      const matches = nonEmpty.length === 1 ? 'matches' : 'match'
+      return String.isEmpty(query.trim())
+        ? count
+        : `${count} ${matches} “${query.trim()}”`
+    },
   })
 
 const escapeHintOf = (focus: Focus, isChoosing: boolean): string => {
@@ -597,6 +608,10 @@ const hintsOf = (
   { keys: ['↑', '↓'], does: 'move' },
   { keys: ['↵'], does: 'run' },
   { keys: ['esc'], does: escapeHintOf(focus, isChoosing) },
+  {
+    keys: ['a–z'],
+    does: focus._tag === 'OnFilter' ? 'search' : 'run a row by its key',
+  },
 ]
 
 /**
@@ -709,6 +724,9 @@ export const menuViewOf = (
     dismissLabel: `Close ${menuTitle.toLowerCase()}`,
     query: menu.query,
     isFilterFocused: menu.focus._tag === 'OnFilter',
+    areRowKeysLive: menu.focus._tag === 'OnAction',
+    rowKeysHint:
+      menu.focus._tag === 'OnAction' ? rowKeysLiveHint : rowKeysRestingHint,
     rows,
     summary: summaryOf(menu.query, rows, isChoosing ? choiceNoun : actionNoun),
     hints: hintsOf(menu.focus, isChoosing),
@@ -1354,7 +1372,28 @@ export const compose = <Child extends ActionMenuChild>(config: {
 
   const childSynchronization = child.synchronization
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
+  const childKeepsOwnNavigation = childSynchronization?.keepsOwnNavigation
+  const childIsLocalOnly = childSynchronization?.isLocalOnly
   const childScreen = child.screen
+
+  const isMenuMessage = (message: AppMessage): boolean =>
+    isMessage(message) ||
+    (hold === 'Owns' && NavigationMessage.isMessage(message))
+
+  const isChildMessage = (message: AppMessage): message is ChildMessage =>
+    !isMenuMessage(message)
+
+  const keptOnRefold = (
+    maybeKeep:
+      | ((current: ChildModel, refolded: ChildModel) => ChildModel)
+      | undefined,
+  ) =>
+    maybeKeep === undefined
+      ? {}
+      : {
+          keepOnRefold: (current: AppModel, refolded: AppModel): AppModel =>
+            withChild(refolded, maybeKeep(childOf(current), childOf(refolded))),
+        }
 
   const program = make({
     id: config.id ?? `actionMenu:${child.id}`,
@@ -1366,11 +1405,10 @@ export const compose = <Child extends ActionMenuChild>(config: {
     update,
     interaction,
     navigation,
-    ...liftEffects(child, childOf),
+    ...liftEffects(child, (model: AppModel) => Option.some(childOf(model))),
     synchronization: {
       messageCategory: message =>
-        isMessage(message) ||
-        (hold === 'Owns' && NavigationMessage.isMessage(message))
+        isMenuMessage(message)
           ? 'Navigation'
           : (childSynchronization?.messageCategory(message as ChildMessage) ??
             'Domain'),
@@ -1383,6 +1421,16 @@ export const compose = <Child extends ActionMenuChild>(config: {
         : {
             sessionPolicyOf: (model: AppModel) =>
               childSessionPolicyOf(childOf(model)),
+          }),
+      ...(childKeepsOwnNavigation === undefined
+        ? {}
+        : { keepsOwnNavigation: childKeepsOwnNavigation }),
+      ...keptOnRefold(childSynchronization?.keepOnRefold),
+      ...(childIsLocalOnly === undefined
+        ? {}
+        : {
+            isLocalOnly: (message: AppMessage): boolean =>
+              isChildMessage(message) && childIsLocalOnly(message),
           }),
     },
     ...(child.catalog === undefined ? {} : { catalog: child.catalog }),

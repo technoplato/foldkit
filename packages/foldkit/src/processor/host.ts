@@ -104,7 +104,11 @@ export const labelOf = (host: Host): string =>
     }),
   )
 
-const everyHost: ReadonlyArray<Host> = [
+/**
+ * Every Host, in the order the Host union lists them, from `Cli` to
+ * `ExpoAndroid`.
+ */
+export const everyHost: ReadonlyArray<Host> = [
   Cli(),
   Tui(),
   OpenTui(),

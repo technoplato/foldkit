@@ -1,0 +1,331 @@
+import { Array, Option } from 'effect'
+import * as ReadAloud from 'read-aloud-core-example'
+import { describe, expect, it } from 'vitest'
+
+import {
+  type PublicAnswer,
+  type PublicRoutes,
+  linkPreviewAnswer,
+} from '@foldkit/instant'
+
+import { TitleSlug } from './ids.js'
+import { booksLinkPreviews } from './linkPreviews.node.js'
+import type { Title } from './model.js'
+import { sampleTitles } from './sample.js'
+
+const origin = 'https://books.example'
+
+const coverUrl = 'https://storage.example/covers/lantern.jpg'
+
+const lantern = (): Title => {
+  const title = Option.getOrThrow(
+    Array.findFirst(
+      sampleTitles,
+      each => each.slug === TitleSlug.make('the-lantern-keeper'),
+    ),
+  )
+  return { ...title, maybeCoverUrl: Option.some(coverUrl) }
+}
+
+const titles = (): ReadonlyArray<Title> => [
+  lantern(),
+  ...Array.filter(
+    sampleTitles,
+    each => each.slug !== TitleSlug.make('the-lantern-keeper'),
+  ),
+]
+
+const feelingHappy: ReadAloud.Book = {
+  bookId: ReadAloud.BookId.make('thing-feeling-happy'),
+  key: ReadAloud.BookKey.make('9780063342705'),
+  maybeIsbn13: Option.some(ReadAloud.Isbn13.make('9780063342705')),
+  title: 'Little Blue Truck Feeling Happy',
+  credits: [
+    {
+      role: 'Author',
+      contributor: {
+        key: ReadAloud.ContributorKey.make('alice-schertle'),
+        name: 'Alice Schertle',
+      },
+    },
+  ],
+  publishedBy: [
+    {
+      key: ReadAloud.PublisherKey.make('harpercollins-publishers'),
+      name: 'HarperCollins Publishers',
+    },
+  ],
+  maybePublishYear: Option.some('2024'),
+  maybePageCount: Option.some(ReadAloud.PageNumber.make(14)),
+  maybeCoverUrl: Option.some(
+    'https://covers.openlibrary.org/b/id/15154333-M.jpg',
+  ),
+  links: [],
+  aliases: [],
+  contents: [],
+}
+
+const halloween: ReadAloud.Book = {
+  ...feelingHappy,
+  bookId: ReadAloud.BookId.make('thing-halloween-isbn'),
+  key: ReadAloud.BookKey.make('9781368002578'),
+  maybeIsbn13: Option.some(ReadAloud.Isbn13.make('9781368002578')),
+  title: '5-Minute Halloween Stories',
+  credits: [],
+  maybePageCount: Option.some(ReadAloud.PageNumber.make(192)),
+  maybeCoverUrl: Option.some(
+    'https://covers.openlibrary.org/b/id/8811043-M.jpg',
+  ),
+  aliases: [
+    ReadAloud.BookKey.make('thing-halloween-isbn'),
+    ReadAloud.BookKey.make('1368002579'),
+  ],
+}
+
+const readAloudTitle = (): Title => ({
+  ...lantern(),
+  slug: TitleSlug.make('read-aloud'),
+})
+
+const previewsWith = (
+  extraTitles: ReadonlyArray<Title> = [],
+  readAloudBooks: () => ReadonlyArray<ReadAloud.Book> = () => [
+    feelingHappy,
+    halloween,
+  ],
+): Readonly<{
+  answer: (path: string) => ReturnType<PublicRoutes>
+  loads: ReadonlyArray<number>
+  readAloudLoads: ReadonlyArray<number>
+  fetched: ReadonlyArray<string>
+  advanceMs: (ms: number) => void
+}> => {
+  const loads: Array<number> = []
+  const readAloudLoads: Array<number> = []
+  const fetched: Array<string> = []
+  let nowMs = 0
+  const routes = booksLinkPreviews({
+    origin,
+    loadTitles: async () => {
+      loads.push(nowMs)
+      return [...titles(), ...extraTitles]
+    },
+    fetchCover: async url => {
+      fetched.push(url)
+      return new Response(new Uint8Array([1, 2, 3]), {
+        headers: { 'content-type': 'image/png' },
+      })
+    },
+    loadReadAloudBooks: async () => {
+      readAloudLoads.push(nowMs)
+      return readAloudBooks()
+    },
+    nowMs: () => nowMs,
+  })
+  const answer = (path: string) =>
+    routes({ path, query: new URLSearchParams() })
+  const advanceMs = (ms: number) => {
+    nowMs += ms
+  }
+  return { answer, loads, readAloudLoads, fetched, advanceMs }
+}
+
+const bodyOf = (maybeAnswer: Option.Option<PublicAnswer>): string =>
+  Option.match(maybeAnswer, {
+    onNone: () => '',
+    onSome: preview => String(preview.body),
+  })
+
+describe('booksLinkPreviews', () => {
+  it('previews a title with its name, author, and cover', async () => {
+    const { answer } = previewsWith()
+    expect(await answer('/books/the-lantern-keeper')).toEqual(
+      Option.some(
+        linkPreviewAnswer({
+          siteName: 'Books',
+          title: 'The Lantern Keeper',
+          description: 'by Ada Quill',
+          maybeImageUrl: Option.some(
+            `${origin}/books/the-lantern-keeper/cover`,
+          ),
+          url: `${origin}/books/the-lantern-keeper`,
+          openPath: '/__foldkit/sign-in?next=%2Fbooks%2Fthe-lantern-keeper',
+        }),
+      ),
+    )
+  })
+
+  it('previews a moment with its time and no cover when there is none', async () => {
+    const { answer } = previewsWith()
+    const maybeAnswer = await answer('/books/small-hours/listen/12m03s')
+    const body = Option.match(maybeAnswer, {
+      onNone: () => '',
+      onSome: preview => String(preview.body),
+    })
+    expect(body).toContain('content="Listen from 12:03, by Noor Vale"')
+    expect(body).not.toContain('og:image')
+  })
+
+  it('serves the cover bytes, fetched once a day', async () => {
+    const { answer, fetched, advanceMs } = previewsWith()
+    const cover = Option.getOrThrow(
+      await answer('/books/the-lantern-keeper/cover'),
+    )
+    expect(cover.headers['content-type']).toBe('image/png')
+    expect(cover.body).toEqual(new Uint8Array([1, 2, 3]))
+    await answer('/books/the-lantern-keeper/cover')
+    advanceMs(25 * 60 * 60 * 1000)
+    await answer('/books/the-lantern-keeper/cover')
+    expect(fetched).toEqual([coverUrl, coverUrl])
+  })
+
+  it('answers nothing for an unknown title, a coverless cover, or another path', async () => {
+    const { answer } = previewsWith()
+    expect(await answer('/books/not-in-the-library')).toEqual(Option.none())
+    expect(await answer('/books/small-hours/cover')).toEqual(Option.none())
+    expect(await answer('/books/profile/contents')).toEqual(Option.none())
+    expect(await answer('/assets/index.js')).toEqual(Option.none())
+  })
+
+  it('reads the titles again only after five minutes', async () => {
+    const { answer, loads, advanceMs } = previewsWith()
+    await answer('/books/the-lantern-keeper')
+    advanceMs(60_000)
+    await answer('/books/small-hours')
+    advanceMs(5 * 60_000)
+    await answer('/books/small-hours')
+    expect(loads).toEqual([0, 360_000])
+  })
+
+  it('previews a page of a book read aloud with its title, the page, the author, and the Open Library cover', async () => {
+    const { answer } = previewsWith()
+    expect(await answer('/books/read-aloud/9780063342705/page/4')).toEqual(
+      Option.some(
+        linkPreviewAnswer({
+          siteName: 'Books',
+          title: 'Little Blue Truck Feeling Happy',
+          description: 'Page 4 of 14, by Alice Schertle',
+          maybeImageUrl: Option.some(
+            'https://covers.openlibrary.org/b/id/15154333-L.jpg',
+          ),
+          url: `${origin}/books/read-aloud/9780063342705/page/4`,
+          openPath:
+            '/__foldkit/sign-in?next=%2Fbooks%2Fread-aloud%2F9780063342705%2Fpage%2F4',
+        }),
+      ),
+    )
+  })
+
+  it('previews a book read aloud with no page by its length', async () => {
+    const { answer } = previewsWith()
+    expect(bodyOf(await answer('/books/read-aloud/9780063342705'))).toContain(
+      'content="14 pages, by Alice Schertle"',
+    )
+  })
+
+  // Scribe #2182 (Recording 410 #935-937, 2026-11-10): a kept book whose
+  // catalog record names no author answered Not found here, so Scribe showed
+  // its cover as a picture instead of the book.
+  it('previews a book read aloud with no author by its page alone, under any name it is kept by, at its own address', async () => {
+    const { answer } = previewsWith()
+    expect(await answer('/books/read-aloud/1368002579/page/141')).toEqual(
+      Option.some(
+        linkPreviewAnswer({
+          siteName: 'Books',
+          title: '5-Minute Halloween Stories',
+          description: 'Page 141 of 192',
+          maybeImageUrl: Option.some(
+            'https://covers.openlibrary.org/b/id/8811043-L.jpg',
+          ),
+          url: `${origin}/books/read-aloud/9781368002578/page/141`,
+          openPath:
+            '/__foldkit/sign-in?next=%2Fbooks%2Fread-aloud%2F9781368002578%2Fpage%2F141',
+        }),
+      ),
+    )
+  })
+
+  // Scribe #2182: the book watcher keeps a book seconds before it posts the
+  // card whose preview Scribe draws, so a book kept since the last read must
+  // answer at once, not after the minute the books are kept for.
+  it('reads the books again on a miss, at most once in a few seconds, so a book kept just now answers at once', async () => {
+    let kept: ReadonlyArray<ReadAloud.Book> = [feelingHappy]
+    const { answer, readAloudLoads, advanceMs } = previewsWith([], () => kept)
+    expect(await answer('/books/read-aloud/9780063342705')).not.toEqual(
+      Option.none(),
+    )
+    kept = [feelingHappy, halloween]
+    advanceMs(5_000)
+    expect(Option.isSome(await answer('/books/read-aloud/9781368002578'))).toBe(
+      true,
+    )
+    expect(readAloudLoads).toEqual([0, 5_000])
+    advanceMs(1_000)
+    expect(await answer('/books/read-aloud/9780152056612')).toEqual(
+      Option.none(),
+    )
+    expect(await answer('/books/read-aloud/9780152056612')).toEqual(
+      Option.none(),
+    )
+    expect(readAloudLoads).toEqual([0, 5_000])
+  })
+
+  it('answers nothing for the books read aloud, a page past the end, or a book never read aloud', async () => {
+    const { answer } = previewsWith([readAloudTitle()])
+    expect(await answer('/books/read-aloud')).toEqual(Option.none())
+    expect(await answer('/books/read-aloud/9780063342705/page/15')).toEqual(
+      Option.none(),
+    )
+    expect(await answer('/books/read-aloud/9780152056612/page/3')).toEqual(
+      Option.none(),
+    )
+  })
+
+  it("previews an author's page with their name and role, and never their books", async () => {
+    const { answer } = previewsWith()
+    const maybeAnswer = await answer('/books/authors/alice-schertle')
+    expect(maybeAnswer).toEqual(
+      Option.some(
+        linkPreviewAnswer({
+          siteName: 'Books',
+          title: 'Alice Schertle',
+          description: 'Author',
+          maybeImageUrl: Option.none(),
+          url: `${origin}/books/authors/alice-schertle`,
+          openPath:
+            '/__foldkit/sign-in?next=%2Fbooks%2Fauthors%2Falice-schertle',
+        }),
+      ),
+    )
+    expect(bodyOf(maybeAnswer)).not.toContain('Little Blue Truck')
+  })
+
+  it("previews a publisher's page, and an author known only from the library", async () => {
+    const { answer } = previewsWith()
+    expect(
+      bodyOf(await answer('/books/publishers/harpercollins-publishers')),
+    ).toContain('content="Publisher"')
+    expect(bodyOf(await answer('/books/authors/ada-quill'))).toContain(
+      'content="Ada Quill"',
+    )
+  })
+
+  it('answers nothing for a name no book credits in that role', async () => {
+    const { answer } = previewsWith()
+    expect(await answer('/books/illustrators/alice-schertle')).toEqual(
+      Option.none(),
+    )
+    expect(await answer('/books/authors/nobody-at-all')).toEqual(Option.none())
+    expect(await answer('/books/publishers/ada-quill')).toEqual(Option.none())
+  })
+
+  it('reads the books read aloud again only after a minute', async () => {
+    const { answer, readAloudLoads, advanceMs } = previewsWith()
+    await answer('/books/read-aloud/9780063342705/page/4')
+    advanceMs(30_000)
+    await answer('/books/read-aloud/9780063342705/page/5')
+    advanceMs(31_000)
+    await answer('/books/read-aloud/9780063342705/page/6')
+    expect(readAloudLoads).toEqual([0, 61_000])
+  })
+})

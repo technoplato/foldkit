@@ -4,6 +4,7 @@ import { expect, expectTypeOf } from 'vitest'
 import { describe, it } from '@effect/vitest'
 import {
   InstantCoreDatabase,
+  getOps,
   i,
   txInit,
   validateTransactions,
@@ -13,9 +14,12 @@ import {
   ApplicationProduct,
   Issue,
   IssueAttachment,
+  IssueMention,
   IssueQuery,
   IssueSuccessCriterion,
+  IssueTrackerError,
   type IssueTrackerService,
+  IssueWorkLogEntry,
   LibraryProduct,
   ProductCatalogEntry,
   type ProductCatalogService,
@@ -23,6 +27,8 @@ import {
   RepositoryAttachmentSource,
   TriageCandidate,
   type TriageInboxService,
+  UriReference,
+  describeIssueTrackerError,
 } from '../issues/index.js'
 import {
   IssueLogReference,
@@ -30,13 +36,18 @@ import {
   type LoggerService,
 } from '../logging/index.js'
 import {
+  InstantEntityStoreError,
   type InstantEntityStoreService,
+  type InstantIssueRecord,
   type InstantLogIssueLinkRecord,
+  type InstantToolsDatabase,
   InstantToolsEntities,
+  type IssueWriteTiming,
   InstantToolsSchema,
   decodeIssueRecord,
   makeInstantEntityStore,
   makeInstantIssueRecord,
+  makeInstantIssueRecordOver,
   makeInstantLogIssueLinkRecords,
   makeInstantProductRecord,
   makeInstantRecordingSegmentRecord,
@@ -59,6 +70,30 @@ const ApplicationSchema = i.schema({
 const adaptApplicationDatabase = (
   database: InstantCoreDatabase<typeof ApplicationSchema>,
 ) => makeInstantEntityStore(database)
+
+type ProductTransaction = Parameters<typeof getOps>[0]
+
+const makeValidatingProductDatabase = () => {
+  const rows = new Map<string, Readonly<Record<string, unknown>>>()
+  const database = {
+    tx: txInit<typeof InstantToolsSchema>(),
+    queryOnce: () =>
+      Promise.resolve({ data: { instantToolsProducts: [...rows.values()] } }),
+    transact: (transaction: ProductTransaction) => {
+      validateTransactions(transaction, InstantToolsSchema)
+      for (const [, , entityId, attributes] of getOps(transaction)) {
+        const rowId = String(entityId)
+        rows.set(rowId, { ...rows.get(rowId), ...attributes, id: rowId })
+      }
+      return Promise.resolve({ clientId: 'products-test', status: 'synced' })
+    },
+  }
+  return {
+    // oxlint-disable-next-line typescript/consistent-type-assertions
+    database: database as unknown as InstantToolsDatabase,
+    rows: () => [...rows.values()],
+  }
+}
 
 const issue = Issue.make({
   area: Option.none(),
@@ -174,9 +209,9 @@ const makeStore = Effect.gen(function* () {
         Ref.update(logs, records => [...records, record]),
         Ref.update(logIssueLinks, records => [...records, ...issueLinks]),
       ]).pipe(Effect.asVoid),
-    fetchIssues: Ref.get(issues),
+    fetchIssues: () => Ref.get(issues),
     fetchProducts: Ref.get(products),
-    observeIssues: Stream.fromEffect(Ref.get(issues)),
+    observeIssues: () => Stream.fromEffect(Ref.get(issues)),
     observeIssue: issueId =>
       Stream.fromEffect(
         Ref.get(issues).pipe(
@@ -205,6 +240,24 @@ const makeStore = Effect.gen(function* () {
     observeTriageCandidates: Stream.fromEffect(Ref.get(triageCandidates)),
     saveIssue: record =>
       Ref.update(savedIssues, records => [...records, record]),
+    fetchIssueIds: () =>
+      Ref.get(issues).pipe(
+        Effect.map(records => Array.map(records, record => record.issueID)),
+      ),
+    fetchIssueRecordsById: issueId =>
+      Ref.get(issues).pipe(
+        Effect.map(records =>
+          Array.filter(records, record => record.issueID === issueId),
+        ),
+      ),
+    createIssue: record =>
+      Ref.update(issues, records => [...records, record]).pipe(
+        Effect.as(record.id),
+      ),
+    deleteIssue: entityId =>
+      Ref.update(issues, records =>
+        Array.filter(records, record => record.id !== entityId),
+      ),
     saveProduct: record =>
       Ref.update(products, records => [...records, record]),
     saveRecordingSegment: record =>
@@ -223,6 +276,112 @@ const makeStore = Effect.gen(function* () {
     triageCandidates,
   }
 })
+
+type NumberedStoreOptions = Readonly<{
+  isUniqueIssueIdEnforced: boolean
+  isSaveDropped: boolean
+  takenWhileCreating: ReadonlyArray<string>
+}>
+
+const storedIssueRecord = (
+  entityId: string,
+  issueId: string,
+  title: string,
+): InstantIssueRecord => ({
+  ...makeInstantIssueRecord(Issue.make({ ...issue, id: issueId, title })),
+  id: entityId,
+})
+
+const makeNumberedStore = (options: NumberedStoreOptions) =>
+  Effect.gen(function* () {
+    const { store: baseStore } = yield* makeStore
+    const records = yield* Ref.make<ReadonlyArray<InstantIssueRecord>>([
+      storedIssueRecord('entity-001', '001', 'First stored Issue'),
+      storedIssueRecord('entity-005', '005', 'Fifth stored Issue'),
+    ])
+    const createdEntityIds = yield* Ref.make<ReadonlyArray<string>>([])
+    const pendingTakenIds = yield* Ref.make(options.takenWhileCreating)
+    const takeForeignNumber = (issueId: string) =>
+      Effect.gen(function* () {
+        const pending = yield* Ref.get(pendingTakenIds)
+        if (!Array.contains(pending, issueId)) {
+          return false
+        }
+        yield* Ref.set(
+          pendingTakenIds,
+          Array.filter(pending, id => id !== issueId),
+        )
+        yield* Ref.update(records, current => [
+          ...current,
+          storedIssueRecord(
+            `foreign-${issueId}`,
+            issueId,
+            'Filed by another agent',
+          ),
+        ])
+        return true
+      })
+    const store: InstantEntityStoreService = {
+      ...baseStore,
+      fetchIssueIds: () =>
+        Ref.get(records).pipe(
+          Effect.map(current => Array.map(current, record => record.issueID)),
+        ),
+      fetchIssueRecordsById: issueId =>
+        Ref.get(records).pipe(
+          Effect.map(current =>
+            Array.filter(current, record => record.issueID === issueId),
+          ),
+        ),
+      createIssue: record =>
+        Effect.gen(function* () {
+          const isTaken = yield* takeForeignNumber(record.issueID)
+          if (isTaken && options.isUniqueIssueIdEnforced) {
+            return yield* Effect.fail(
+              new InstantEntityStoreError({
+                cause: new Error('Record not unique: issueID'),
+                operation: 'CreateIssue',
+              }),
+            )
+          }
+          const entityId = `created-${record.issueID}`
+          yield* Ref.update(createdEntityIds, ids => [...ids, entityId])
+          yield* Ref.update(records, current => [
+            ...current,
+            { ...record, id: entityId },
+          ])
+          return entityId
+        }),
+      deleteIssue: entityId =>
+        Ref.update(records, current =>
+          Array.filter(current, record => record.id !== entityId),
+        ),
+      saveIssue: record =>
+        options.isSaveDropped
+          ? Effect.void
+          : Ref.update(records, current =>
+              Array.map(current, stored =>
+                stored.issueID === record.issueID
+                  ? { ...record, id: stored.id }
+                  : stored,
+              ),
+            ),
+    }
+    return { createdEntityIds, records, store }
+  })
+
+const noWaiting: IssueWriteTiming = { retryMs: 0, settleMs: 0 }
+
+const titledIssue = (issueId: string) =>
+  Issue.make({
+    ...issue,
+    id: issueId,
+    title: 'Filed through the one issues command',
+    viewerURL: Option.some(`https://issues.knophy.com/issues/${issueId}`),
+  })
+
+const payloadOf = (record: InstantIssueRecord): unknown =>
+  JSON.parse(record.payloadJson)
 
 describe('Instant adapter', () => {
   it('accepts an application database that composes the Instant Tools entities', () => {
@@ -253,8 +412,44 @@ describe('Instant adapter', () => {
           }),
         )
         expect(Option.map(maybeRecord, decodeIssueRecord)).toEqual(
-          Option.some(issue),
+          Option.some(
+            Issue.make({ ...issue, updatedAtMs: issue.updatedAtMs + 1 }),
+          ),
         )
+      }),
+  )
+
+  it.effect(
+    'keeps stored payload keys the Issue schema does not model when it saves',
+    () =>
+      Effect.gen(function* () {
+        const { issues, savedIssues, store } = yield* makeStore
+        const storedRecord = makeInstantIssueRecord(issue)
+        yield* Ref.set(issues, [
+          {
+            ...storedRecord,
+            payloadJson: JSON.stringify({
+              ...JSON.parse(storedRecord.payloadJson),
+              derivedMessageEdges: [{ from: 'ClickedRecord', to: 'Started' }],
+              files: [{ path: 'issues/files/042.md' }],
+            }),
+          },
+        ])
+        const issueTracker = makeIssueTracker(store)
+
+        yield* issueTracker.save(Issue.make({ ...issue, status: 'Blocked' }))
+
+        const savedPayloads = Array.map(yield* Ref.get(savedIssues), record =>
+          JSON.parse(record.payloadJson),
+        )
+        expect(savedPayloads).toHaveLength(1)
+        expect(savedPayloads).toMatchObject([
+          {
+            derivedMessageEdges: [{ from: 'ClickedRecord', to: 'Started' }],
+            files: [{ path: 'issues/files/042.md' }],
+            status: 'Blocked',
+          },
+        ])
       }),
   )
 
@@ -275,6 +470,113 @@ describe('Instant adapter', () => {
       expect(issues).toEqual([issue])
     }),
   )
+
+  it('keeps the keys a criterion, a mention or an entry holds that the schema does not model when it saves', () => {
+    const mention = IssueMention.make({
+      capturedAtMs: Option.none(),
+      directQuote: Option.some('Pause it from the phone.'),
+      id: 'mention-1',
+      issueId: issue.id,
+      reporter: Option.none(),
+      source: UriReference.make({ value: 'scribe://recording/208/segment/2735' }),
+    })
+    const entry = IssueWorkLogEntry.make({
+      agentId: Option.some('claude-code/one'),
+      commitSha: Option.none(),
+      durationSeconds: Option.none(),
+      id: 'work-021-progress-1',
+      occurredAtMs: 1_753_825_160_000,
+      state: Option.some('progress'),
+      summary: 'Measured.',
+    })
+    const withLists = Issue.make({
+      ...issue,
+      mentions: [mention],
+      workLog: [entry],
+    })
+    const encoded = JSON.parse(makeInstantIssueRecord(withLists).payloadJson)
+    const [criterion] = encoded.successCriteria
+    const [storedMention] = encoded.mentions
+    const [storedEntry] = encoded.workLog
+    const stored = {
+      ...makeInstantIssueRecord(withLists),
+      payloadJson: JSON.stringify({
+        ...encoded,
+        mentions: [
+          { ...storedMention, relayContext: 'Relayed by the listener.' },
+        ],
+        successCriteria: [
+          { ...criterion, evidence: ['runs/orphan-recordings.json'] },
+        ],
+        workLog: [{ ...storedEntry, verifiedBy: 'nightly check' }],
+      }),
+    }
+
+    const written = JSON.parse(
+      makeInstantIssueRecordOver(
+        Issue.make({
+          ...withLists,
+          successCriteria: [
+            IssueSuccessCriterion.make({
+              ...withLists.successCriteria[0]!,
+              isSatisfied: true,
+            }),
+          ],
+        }),
+        Option.some(stored),
+      ).payloadJson,
+    )
+
+    expect(written.successCriteria).toMatchObject([
+      { evidence: ['runs/orphan-recordings.json'], isSatisfied: true },
+    ])
+    expect(written.mentions).toMatchObject([
+      { id: 'mention-1', relayContext: 'Relayed by the listener.' },
+    ])
+    expect(written.workLog).toMatchObject([
+      { id: 'work-021-progress-1', verifiedBy: 'nightly check' },
+    ])
+  })
+
+  it('drops what a removed list item held, and lets a modeled key the change set win', () => {
+    const encoded = JSON.parse(makeInstantIssueRecord(issue).payloadJson)
+    const [criterion] = encoded.successCriteria
+    const stored = {
+      ...makeInstantIssueRecord(issue),
+      payloadJson: JSON.stringify({
+        ...encoded,
+        successCriteria: [
+          { ...criterion, evidence: ['kept only while the criterion is'] },
+          { id: 'gone', outcome: 'Removed.', requiredEvidence: [], evidence: ['x'] },
+        ],
+      }),
+    }
+
+    const written = JSON.parse(
+      makeInstantIssueRecordOver(
+        Issue.make({
+          ...issue,
+          successCriteria: [
+            IssueSuccessCriterion.make({
+              ...issue.successCriteria[0]!,
+              outcome: 'The changed outcome.',
+            }),
+          ],
+        }),
+        Option.some(stored),
+      ).payloadJson,
+    )
+
+    expect(written.successCriteria).toEqual([
+      {
+        evidence: ['kept only while the criterion is'],
+        id: 'compact-initial-placement',
+        isSatisfied: false,
+        outcome: 'The changed outcome.',
+        requiredEvidence: ['FocusedTest', 'PhysicalDeviceInteraction'],
+      },
+    ])
+  })
 
   it.effect(
     'observes filtered Issue collections and one Issue by identity',
@@ -312,7 +614,7 @@ describe('Instant adapter', () => {
         }
         const malformedStore: InstantEntityStoreService = {
           ...store,
-          observeIssues: Stream.succeed([malformedRecord]),
+          observeIssues: () => Stream.succeed([malformedRecord]),
           observeIssue: () => Stream.succeed(Option.some(malformedRecord)),
         }
         const issueTracker = makeIssueTracker(malformedStore)
@@ -342,6 +644,97 @@ describe('Instant adapter', () => {
   )
 
   it.effect(
+    'lists the newest Issues first before applying the query limit',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeStore
+        const oldest = Issue.make({ ...issue, createdAtMs: 1_000, id: '001' })
+        const newest = Issue.make({ ...issue, createdAtMs: 3_000, id: '584' })
+        const middle = Issue.make({ ...issue, createdAtMs: 2_000, id: '300' })
+        const catalogOrderStore: InstantEntityStoreService = {
+          ...store,
+          fetchIssues: () =>
+            Effect.succeed(
+              Array.map([oldest, newest, middle], makeInstantIssueRecord),
+            ),
+          observeIssues: () =>
+            Stream.succeed(
+              Array.map([oldest, newest, middle], makeInstantIssueRecord),
+            ),
+        }
+        const issueTracker = makeIssueTracker(catalogOrderStore)
+        const query = IssueQuery.make({
+          limit: 2,
+          productId: Option.none(),
+          projectId: Option.none(),
+          statuses: [],
+        })
+
+        const fetched = yield* issueTracker.fetch(query)
+        const observed = yield* Stream.runCollect(issueTracker.observe(query))
+
+        expect(Array.map(fetched, fetchedIssue => fetchedIssue.id)).toEqual([
+          '584',
+          '300',
+        ])
+        expect(
+          Array.map(observed, snapshot =>
+            Array.map(snapshot, observedIssue => observedIssue.id),
+          ),
+        ).toEqual([['584', '300']])
+      }),
+  )
+
+  it.effect(
+    'decodes only the Issues whose stored payload changed since the last catalog snapshot',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeStore
+        const unchanged = Issue.make({
+          ...issue,
+          createdAtMs: 1_000,
+          id: '001',
+        })
+        const edited = Issue.make({ ...issue, createdAtMs: 2_000, id: '002' })
+        const editedAgain = Issue.make({
+          ...edited,
+          title: 'Show the full recording timestamp',
+          updatedAtMs: edited.updatedAtMs + 1,
+        })
+        const changingStore: InstantEntityStoreService = {
+          ...store,
+          observeIssues: () =>
+            Stream.fromIterable([
+              Array.map([unchanged, edited], makeInstantIssueRecord),
+              Array.map([unchanged, editedAgain], makeInstantIssueRecord),
+            ]),
+        }
+        const query = IssueQuery.make({
+          limit: 100,
+          productId: Option.none(),
+          projectId: Option.none(),
+          statuses: [],
+        })
+
+        const snapshots = yield* Stream.runCollect(
+          makeIssueTracker(changingStore).observe(query),
+        )
+        const issueIn = (snapshotIndex: number, issueId: string) =>
+          Option.flatMap(Array.get(snapshots, snapshotIndex), snapshot =>
+            Array.findFirst(snapshot, observed => observed.id === issueId),
+          )
+
+        expect(
+          Option.getOrThrow(issueIn(1, '001')) ===
+            Option.getOrThrow(issueIn(0, '001')),
+        ).toBe(true)
+        expect(Option.getOrThrow(issueIn(1, '002')).title).toBe(
+          'Show the full recording timestamp',
+        )
+      }),
+  )
+
+  it.effect(
     'keeps readable Issues when one catalog payload cannot decode',
     () =>
       Effect.gen(function* () {
@@ -354,10 +747,8 @@ describe('Instant adapter', () => {
         }
         const mixedStore: InstantEntityStoreService = {
           ...store,
-          observeIssues: Stream.succeed([
-            makeInstantIssueRecord(issue),
-            malformedRecord,
-          ]),
+          observeIssues: () =>
+            Stream.succeed([makeInstantIssueRecord(issue), malformedRecord]),
         }
         const issueTracker = makeIssueTracker(mixedStore)
         const query = IssueQuery.make({
@@ -411,6 +802,105 @@ describe('Instant adapter', () => {
       }),
   )
 
+  it.effect(
+    'saves a product through Instant under one UUID row and reads it back by its product id',
+    () =>
+      Effect.gen(function* () {
+        const { database, rows } = makeValidatingProductDatabase()
+        const productCatalog = makeProductCatalog(
+          makeInstantEntityStore(database),
+        )
+        const acaga = ApplicationProduct.make({ id: 'acaga', name: 'ACAGA' })
+
+        yield* productCatalog.save(
+          ProductCatalogEntry.make({
+            product: acaga,
+            updatedAtMs: 1_792_000_000_000,
+          }),
+        )
+        yield* productCatalog.save(
+          ProductCatalogEntry.make({
+            product: acaga,
+            updatedAtMs: 1_792_000_000_500,
+          }),
+        )
+
+        expect(rows()).toEqual([
+          {
+            id: 'a07f9008-c1d6-5f59-a814-5d0d9ccfde0e',
+            kind: 'Application',
+            name: 'ACAGA',
+            productId: 'acaga',
+            updatedAtMs: 1_792_000_000_500,
+          },
+        ])
+        expect(yield* productCatalog.fetch).toEqual([
+          ProductCatalogEntry.make({
+            product: acaga,
+            updatedAtMs: 1_792_000_000_500,
+          }),
+        ])
+      }),
+  )
+
+  it.effect(
+    'asks Instant only for the Issues in the asked statuses, and for every Issue when none is asked',
+    () =>
+      Effect.gen(function* () {
+        const queries: Array<unknown> = []
+        const answer = { data: { instantToolsIssues: [] } }
+        const database = {
+          queryOnce: (query: unknown) => {
+            queries.push(query)
+            return Promise.resolve(answer)
+          },
+          subscribeQuery: (
+            query: unknown,
+            onResponse: (response: typeof answer) => void,
+          ) => {
+            queries.push(query)
+            onResponse(answer)
+            return () => undefined
+          },
+        }
+        const store = makeInstantEntityStore(
+          // oxlint-disable-next-line typescript/consistent-type-assertions
+          database as unknown as InstantToolsDatabase,
+        )
+        const tracker = makeIssueTracker(store)
+        const query = (statuses: IssueQuery['statuses']) =>
+          IssueQuery.make({
+            limit: 10,
+            productId: Option.none(),
+            projectId: Option.none(),
+            statuses,
+          })
+
+        yield* Stream.runHead(tracker.observe(query(['Open', 'InProgress'])))
+        yield* tracker.fetch(query(['Open']))
+        yield* store.fetchIssueIds(['Open', 'InProgress'])
+        yield* Stream.runHead(tracker.observe(query([])))
+        yield* store.fetchIssueIds([])
+
+        const inOpenOrInProgress = {
+          status: { $in: ['Open', 'InProgress'] },
+        }
+        expect(queries).toEqual([
+          { instantToolsIssues: { $: { where: inOpenOrInProgress } } },
+          {
+            instantToolsIssues: { $: { where: { status: { $in: ['Open'] } } } },
+          },
+          {
+            instantToolsIssues: {
+              $: { fields: ['issueID'], where: inOpenOrInProgress },
+            },
+          },
+          { instantToolsIssues: {} },
+          { instantToolsIssues: { $: { fields: ['issueID'] } } },
+        ])
+      }),
+  )
+
   it.effect('persists structured Log Events through the separate Logger', () =>
     Effect.gen(function* () {
       const { logIssueLinks, logs, store } = yield* makeStore
@@ -422,7 +912,7 @@ describe('Instant adapter', () => {
       expect(yield* Ref.get(logIssueLinks)).toEqual([
         expect.objectContaining({
           issueID: '023',
-          viewerURL: 'https://issues.knophy.com/issues/023',
+          viewerURL: 'https://issues.pisspoursoftware.xyz/issues/023',
         }),
       ])
       expect(yield* Stream.runCollect(logger.observeIssue('023'))).toEqual([
@@ -501,4 +991,296 @@ describe('Instant adapter', () => {
         expect(yield* Ref.get(triageCandidates)).toHaveLength(2)
       }),
   )
+
+  it.effect(
+    'files a new Issue under the number after the highest in use and leaves every stored Issue as it was',
+    () =>
+      Effect.gen(function* () {
+        const { records, store } = yield* makeNumberedStore({
+          isSaveDropped: false,
+          isUniqueIssueIdEnforced: true,
+          takenWhileCreating: [],
+        })
+        const before = yield* Ref.get(records)
+
+        const filed = yield* makeIssueTracker(store).file(titledIssue)
+
+        expect(filed.id).toBe('006')
+        const after = yield* Ref.get(records)
+        expect(after).toHaveLength(3)
+        expect(Array.take(after, 2)).toEqual(before)
+        expect(
+          Array.map(
+            Array.filter(after, record => record.issueID === '006'),
+            payloadOf,
+          ),
+        ).toMatchObject([{ id: '006', title: filed.title }])
+      }),
+  )
+
+  it.effect(
+    'takes the next number when the store refuses one another agent took first',
+    () =>
+      Effect.gen(function* () {
+        const { records, store } = yield* makeNumberedStore({
+          isSaveDropped: false,
+          isUniqueIssueIdEnforced: true,
+          takenWhileCreating: ['006'],
+        })
+
+        const filed = yield* makeIssueTracker(store).file(titledIssue)
+
+        expect(filed.id).toBe('007')
+        const sixes = Array.filter(
+          yield* Ref.get(records),
+          record => record.issueID === '006',
+        )
+        expect(Array.map(sixes, payloadOf)).toMatchObject([
+          { title: 'Filed by another agent' },
+        ])
+      }),
+  )
+
+  it.effect(
+    'takes its own record back when a store without the unique rule ends up holding the number twice',
+    () =>
+      Effect.gen(function* () {
+        const { records, store } = yield* makeNumberedStore({
+          isSaveDropped: false,
+          isUniqueIssueIdEnforced: false,
+          takenWhileCreating: ['006'],
+        })
+
+        const filed = yield* makeIssueTracker(store).file(titledIssue)
+
+        expect(filed.id).toBe('007')
+        const stored = yield* Ref.get(records)
+        expect(
+          Array.map(
+            Array.filter(stored, record => record.issueID === '006'),
+            record => record.id,
+          ),
+        ).toEqual(['foreign-006'])
+        expect(
+          Array.filter(stored, record => record.issueID === '007'),
+        ).toHaveLength(1)
+      }),
+  )
+
+  it.effect(
+    'says a filed Issue was created when reading it back fails, so nobody files it twice',
+    () =>
+      Effect.gen(function* () {
+        const { createdEntityIds, records, store } = yield* makeNumberedStore({
+          isSaveDropped: false,
+          isUniqueIssueIdEnforced: true,
+          takenWhileCreating: [],
+        })
+        const rateLimitedAfterCreating: InstantEntityStoreService = {
+          ...store,
+          fetchIssueRecordsById: issueId =>
+            Effect.flatMap(Ref.get(createdEntityIds), created =>
+              Array.isReadonlyArrayEmpty(created)
+                ? store.fetchIssueRecordsById(issueId)
+                : Effect.fail(
+                    new InstantEntityStoreError({
+                      cause: new Error('Your request exceeded the rate limit.'),
+                      operation: 'FetchIssueRecords',
+                    }),
+                  ),
+            ),
+        }
+
+        const error = yield* Effect.flip(
+          makeIssueTracker(rateLimitedAfterCreating).file(titledIssue),
+        )
+
+        expect(describeIssueTrackerError(error)).toBe(
+          'File: Issue 006 was created as entity created-006, but reading it back failed, so check Issue 006 before filing it again: FetchIssueRecords: Your request exceeded the rate limit.',
+        )
+        expect(
+          Array.map(yield* Ref.get(records), record => record.issueID),
+        ).toEqual(['001', '005', '006'])
+      }),
+  )
+
+  it.effect(
+    'reads one Issue by its number in any spelling without reading the catalog',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeNumberedStore({
+          isSaveDropped: false,
+          isUniqueIssueIdEnforced: true,
+          takenWhileCreating: [],
+        })
+        const tracker = makeIssueTracker(store)
+
+        expect(
+          Option.map(yield* tracker.fetchIssue('#5'), found => found.title),
+        ).toEqual(Option.some('Fifth stored Issue'))
+        expect(yield* tracker.fetchIssue('404')).toEqual(Option.none())
+      }),
+  )
+
+  it.effect(
+    'appends a work-log entry, keeps unmodeled payload keys, and reads it back',
+    () =>
+      Effect.gen(function* () {
+        const { records, store } = yield* makeNumberedStore({
+          isSaveDropped: false,
+          isUniqueIssueIdEnforced: true,
+          takenWhileCreating: [],
+        })
+        yield* Ref.update(records, current =>
+          Array.map(current, record =>
+            record.issueID === '005'
+              ? {
+                  ...record,
+                  payloadJson: JSON.stringify({
+                    ...JSON.parse(record.payloadJson),
+                    files: [{ path: 'issues/005/notes.md' }],
+                  }),
+                }
+              : record,
+          ),
+        )
+        const entry = IssueWorkLogEntry.make({
+          agentId: Option.some('claude-code/issues-one-way'),
+          commitSha: Option.some('a1b2c3d'),
+          durationSeconds: Option.none(),
+          id: 'work-005-claimed-1',
+          occurredAtMs: 1_800_000_000_000,
+          state: Option.some('claimed'),
+          summary: 'Claimed: red tests next.',
+        })
+
+        const updated = yield* makeIssueTracker(store, noWaiting).update('005', {
+          apply: current =>
+            Issue.make({
+              ...current,
+              claimantId: Option.some('claude-code/issues-one-way'),
+              status: 'InProgress',
+              workLog: [...current.workLog, entry],
+            }),
+          hasLanded: stored =>
+            Array.some(stored.workLog, logged => logged.id === entry.id),
+        })
+
+        expect(updated.status).toBe('InProgress')
+        const fives = Array.filter(
+          yield* Ref.get(records),
+          record => record.issueID === '005',
+        )
+        expect(Array.map(fives, payloadOf)).toMatchObject([
+          {
+            claimantId: 'claude-code/issues-one-way',
+            files: [{ path: 'issues/005/notes.md' }],
+            status: 'InProgress',
+            workLog: [{ id: 'work-005-claimed-1', state: 'claimed' }],
+          },
+        ])
+      }),
+  )
+
+  it.effect(
+    'fails, naming the operation and the cause, when a change does not land',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeNumberedStore({
+          isSaveDropped: true,
+          isUniqueIssueIdEnforced: true,
+          takenWhileCreating: [],
+        })
+
+        const error = yield* Effect.flip(
+          makeIssueTracker(store, noWaiting).update('005', {
+            apply: current => Issue.make({ ...current, status: 'Blocked' }),
+            hasLanded: stored => stored.status === 'Blocked',
+          }),
+        )
+
+        expect(error.operation).toBe('Update')
+        expect(describeIssueTrackerError(error)).toMatch(
+          /^Update: Issue 005: the change did not land/,
+        )
+      }),
+  )
+
+  it.effect(
+    'deletes one Issue by number and refuses a number two records hold',
+    () =>
+      Effect.gen(function* () {
+        const { records, store } = yield* makeNumberedStore({
+          isSaveDropped: false,
+          isUniqueIssueIdEnforced: false,
+          takenWhileCreating: [],
+        })
+        const tracker = makeIssueTracker(store)
+
+        const deleted = yield* tracker.delete('5')
+
+        expect(deleted.title).toBe('Fifth stored Issue')
+        expect(
+          Array.map(yield* Ref.get(records), record => record.issueID),
+        ).toEqual(['001'])
+
+        yield* Ref.update(records, current => [
+          ...current,
+          storedIssueRecord('entity-001-copy', '001', 'A second 001'),
+        ])
+        const refused = yield* Effect.flip(tracker.delete('001'))
+        expect(describeIssueTrackerError(refused)).toBe(
+          'Delete: Issue 001 is held by 2 records (entity-001, entity-001-copy); delete one by hand after reading both.',
+        )
+        expect(yield* Ref.get(records)).toHaveLength(2)
+      }),
+  )
+
+  it('names the operation and the real cause of a failure, never the bare tag', () => {
+    const error = new IssueTrackerError({
+      cause: new InstantEntityStoreError({
+        cause: new Error('Permission denied: instantToolsIssues'),
+        operation: 'CreateIssue',
+      }),
+      operation: 'File',
+    })
+
+    expect(describeIssueTrackerError(error)).toBe(
+      'File: CreateIssue: Permission denied: instantToolsIssues',
+    )
+  })
+
+  it('never names a credential that Instant echoes back in its hint', () => {
+    const refusal = Object.assign(
+      new Error('Record not found: app-admin-token'),
+      {
+        body: {
+          hint: {
+            args: [
+              {
+                'app-id': 'app-692',
+                token: 'secret-admin-token-692',
+              },
+            ],
+            message: 'This admin token may be expired or invalid.',
+          },
+          message: 'Record not found: app-admin-token',
+        },
+      },
+    )
+    const error = new IssueTrackerError({
+      cause: new InstantEntityStoreError({
+        cause: refusal,
+        operation: 'FetchIssueIds',
+      }),
+      operation: 'File',
+    })
+
+    const described = describeIssueTrackerError(error)
+
+    expect(described).not.toContain('secret-admin-token-692')
+    expect(described).toBe(
+      'File: FetchIssueIds: Record not found: app-admin-token: Record not found: app-admin-token ({"args":[{"app-id":"app-692","token":"[redacted]"}],"message":"This admin token may be expired or invalid."})',
+    )
+  })
 })

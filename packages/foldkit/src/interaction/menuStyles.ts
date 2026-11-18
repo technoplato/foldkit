@@ -1,10 +1,14 @@
+import { roleVar } from '../theme/theme.js'
+
 /**
  * The look of the action menu on the web, shared by every web painter:
  * Foldkit HTML, React, and Svelte. It styles the `fk-action-menu` class
  * names those painters emit: a dimmed backdrop, a centered panel, a
  * search field, rows with their key hints, matched letters, and a footer
  * of the keys that work right now. Every selector sits in `:where()`, so
- * an app's own rule for the same class wins without `!important`.
+ * an app's own rule for the same class wins without `!important`, except
+ * the search field's size: it stays at least 16px, because iPhone Safari
+ * zooms the page into any smaller field that takes focus.
  *
  * @example
  * ```tsx
@@ -21,7 +25,7 @@ export const menuStylesheet = `
   margin: 0;
   padding: 0;
   border: none;
-  background: rgb(15 23 42 / 0.4);
+  background: ${roleVar('Scrim')};
   backdrop-filter: blur(2px);
   cursor: default;
 }
@@ -38,13 +42,13 @@ export const menuStylesheet = `
   max-height: 70vh;
   overflow: hidden;
   transform: translateX(-50%);
-  border: 1px solid rgb(0 0 0 / 0.08);
+  border: 1px solid ${roleVar('Rule')};
   border-radius: 0.875rem;
-  background: rgb(255 255 255);
+  background: ${roleVar('RaisedSurface')};
   box-shadow:
-    0 24px 64px -12px rgb(15 23 42 / 0.35),
-    0 2px 6px rgb(15 23 42 / 0.08);
-  color: rgb(17 24 39);
+    0 24px 64px -12px ${roleVar('Shadow')},
+    0 2px 6px ${roleVar('Shadow')};
+  color: ${roleVar('Text')};
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -81,21 +85,24 @@ export const menuStylesheet = `
   width: 100%;
   padding: 1rem 1.125rem;
   border: none;
-  border-bottom: 1px solid rgb(229 231 235);
+  border-bottom: 1px solid ${roleVar('Rule')};
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 1rem;
   line-height: 1.5rem;
   outline: none;
 }
 
+.fk-action-menu-filter {
+  font-size: max(16px, 1rem);
+}
+
 :where(.fk-action-menu-filter)::placeholder {
-  color: rgb(156 163 175);
+  color: ${roleVar('FaintText')};
 }
 
 :where(.fk-action-menu-filter[readonly]) {
-  color: rgb(107 114 128);
+  color: ${roleVar('QuietText')};
   caret-color: transparent;
 }
 
@@ -118,16 +125,16 @@ export const menuStylesheet = `
 }
 
 :where(.fk-action-menu-row:hover) {
-  background: rgb(249 250 251);
+  background: ${roleVar('Field')};
 }
 
 :where(.fk-action-menu-row[aria-selected='true']) {
-  background: rgb(243 244 246);
+  background: ${roleVar('Surface')};
 }
 
 :where(.fk-action-menu-row[data-focused='true']) {
-  background: rgb(238 242 255);
-  box-shadow: inset 3px 0 0 rgb(79 70 229);
+  background: ${roleVar('Selected')};
+  box-shadow: inset 3px 0 0 ${roleVar('SelectedMark')};
 }
 
 :where(.fk-action-menu-row[aria-disabled='true']) {
@@ -146,19 +153,19 @@ export const menuStylesheet = `
   right: 0.75rem;
   left: 0.75rem;
   height: 1px;
-  background: rgb(229 231 235);
+  background: ${roleVar('Rule')};
 }
 
 :where(.fk-action-menu-row[data-nested='true'])::after {
   content: '›';
   flex: none;
-  color: rgb(156 163 175);
+  color: ${roleVar('FaintText')};
   font-size: 1.125rem;
 }
 
 :where(.fk-action-menu-row[aria-disabled='true'])
   :where(.fk-action-menu-label, .fk-action-menu-what) {
-  color: rgb(156 163 175);
+  color: ${roleVar('FaintText')};
 }
 
 :where(.fk-action-menu-text) {
@@ -175,19 +182,19 @@ export const menuStylesheet = `
 
 :where(.fk-action-menu-what) {
   overflow: hidden;
-  color: rgb(107 114 128);
+  color: ${roleVar('QuietText')};
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 :where(.fk-action-menu-because) {
-  color: rgb(180 83 9);
+  color: ${roleVar('Warning')};
   font-size: 0.75rem;
 }
 
 :where(.fk-action-menu-match) {
   background: none;
-  color: rgb(79 70 229);
+  color: ${roleVar('SelectedMark')};
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -199,27 +206,36 @@ export const menuStylesheet = `
   gap: 0.25rem;
 }
 
+:where(.fk-action-menu[data-keys-live='false'] .fk-action-menu-keys) {
+  opacity: 0.45;
+}
+
 :where(.fk-action-menu-pick) {
   flex: none;
-  min-width: 1.75rem;
+  box-sizing: border-box;
+  min-width: 2rem;
   padding: 0.125rem 0.375rem;
+  border: 1px solid ${roleVar('Rule')};
+  border-bottom-width: 2px;
   border-radius: 0.375rem;
-  color: rgb(107 114 128);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: ${roleVar('Field')};
+  color: ${roleVar('ButtonHover')};
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
   line-height: 1rem;
-  text-align: right;
+  text-align: center;
 }
 
 :where(.fk-action-menu-key) {
   box-sizing: border-box;
   min-width: 1.5rem;
   padding: 0.125rem 0.375rem;
-  border: 1px solid rgb(229 231 235);
+  border: 1px solid ${roleVar('Rule')};
   border-bottom-width: 2px;
   border-radius: 0.375rem;
-  background: rgb(249 250 251);
-  color: rgb(55 65 81);
+  background: ${roleVar('Field')};
+  color: ${roleVar('ButtonHover')};
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.75rem;
   line-height: 1rem;
@@ -229,7 +245,7 @@ export const menuStylesheet = `
 :where(.fk-action-menu-empty) {
   margin: 0;
   padding: 2rem 1rem;
-  color: rgb(107 114 128);
+  color: ${roleVar('QuietText')};
   text-align: center;
 }
 
@@ -239,9 +255,9 @@ export const menuStylesheet = `
   gap: 1rem;
   margin: 0;
   padding: 0.625rem 1rem;
-  border-top: 1px solid rgb(229 231 235);
-  background: rgb(249 250 251);
-  color: rgb(107 114 128);
+  border-top: 1px solid ${roleVar('Rule')};
+  background: ${roleVar('Field')};
+  color: ${roleVar('QuietText')};
   font-size: 0.75rem;
 }
 
@@ -249,5 +265,10 @@ export const menuStylesheet = `
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+:where(.fk-action-menu-count) {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 `

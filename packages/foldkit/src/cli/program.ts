@@ -1,4 +1,4 @@
-import { Array, Effect, Match as M, Option, pipe } from 'effect'
+import { Array, Match as M, Option, String, pipe } from 'effect'
 
 import {
   type Availability,
@@ -7,6 +7,7 @@ import {
   choiceTagOf,
   commandOf,
   isEnabled,
+  parseChoiceTag,
 } from '../catalog/catalog.js'
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type MenuView, keyInput } from '../interaction/interaction.js'
@@ -20,14 +21,11 @@ import { backOneEntry } from '../navigation/carrier.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, frameOf } from '../navigation/frame.js'
 import { Cli } from '../navigation/message.js'
+import { linksOf } from '../renderers/query.js'
 import { renderScreen } from '../renderers/render.js'
 import type { UiNode } from '../renderers/types.js'
 import { columnRow, underColumn } from './layout.js'
-import type {
-  CliDaemonFlags,
-  CliDaemonPaintedResult,
-  CliDaemonSurface,
-} from './protocol.js'
+import type { CliDaemonFlags, CliDaemonPaintedResult } from './protocol.js'
 
 // PAINT
 
@@ -221,11 +219,43 @@ const menuLines = (menu: MenuView): ReadonlyArray<string> => [
 const treeLines = (tree: UiNode): ReadonlyArray<string> =>
   Array.map(renderScreen(tree).split('\n'), line => line.trimEnd())
 
+const outsideLinkPattern = /^[a-z][a-z0-9+.-]*:/i
+
+/**
+ * The addresses on a screen that leave the Program, each whole on its own
+ * line under the words that name it, headed `Links`. Terminal text cuts a
+ * row to the width and cannot be clicked, so without these a row such as
+ * `Open Amazon sign-in` could not be opened from a terminal. A link that
+ * stays in the Program, `/books/a-new-earth/listen/12m03s`, is left out:
+ * `open <uri>` goes there. Empty when no link leaves.
+ *
+ * @example
+ * ```typescript
+ * screenLinkLines(connectScreen)
+ * // ['', 'Links', '  Open Amazon sign-in', '  https://www.amazon.com/ap/signin?…']
+ * ```
+ */
+export const screenLinkLines = (tree: UiNode): ReadonlyArray<string> =>
+  Array.match(
+    Array.filter(linksOf(tree), link => outsideLinkPattern.test(link.href)),
+    {
+      onEmpty: () => [],
+      onNonEmpty: links => [
+        '',
+        'Links',
+        ...Array.flatMap(links, link => [
+          `${indent}${link.title}`,
+          `${indent}${link.href}`,
+        ]),
+      ],
+    },
+  )
+
 const viewLines = (view: EntryView): ReadonlyArray<string> =>
   M.value(view).pipe(
     M.withReturnType<ReadonlyArray<string>>(),
     M.tagsExhaustive({
-      Screen: ({ node }) => treeLines(node),
+      Screen: ({ node }) => [...treeLines(node), ...screenLinkLines(node)],
       Menu: ({ menu }) => menuLines(menu),
     }),
   )
@@ -240,7 +270,10 @@ const frameLines = (frame: Frame): ReadonlyArray<string> => [
 const rootLines = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
 ): ReadonlyArray<string> =>
-  Option.match(bound.screen(), { onNone: () => [], onSome: treeLines })
+  Option.match(bound.screen(), {
+    onNone: () => [],
+    onSome: tree => [...treeLines(tree), ...screenLinkLines(tree)],
+  })
 
 const statusLine = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
@@ -394,6 +427,11 @@ const controlsOf = <Model, Message>(
       example: 'watch',
     },
     {
+      usage: 'follow [topic]',
+      what: 'Print a topic each time it changes, such as the screen',
+      example: 'follow screen',
+    },
+    {
       usage: 'tail',
       what: 'Print every event as it lands, from every device',
       example: 'tail',
@@ -437,6 +475,141 @@ export const programUsage = <Model, Message>(
   ].join('\n')
 }
 
+/** A command a host offers beside the Program's own, such as `books tui`. */
+export type HostCommand = Readonly<{ command: string; what: string }>
+
+const widestCommandColumn = 30
+
+type CommandLine = Readonly<{
+  command: string
+  maybeWhat: Option.Option<string>
+}>
+
+const lineOf = (command: string, what: string): CommandLine => ({
+  command,
+  maybeWhat: Option.some(what),
+})
+
+const wordsOfText = (text: string): string =>
+  pipe(
+    text,
+    String.toLowerCase,
+    String.replace(/[^a-z0-9]+/g, '-'),
+    String.replace(/^-+|-+$/g, ''),
+  )
+
+const choiceLineOf = (
+  entry: Entry,
+  tag: string,
+  token: string,
+): Option.Option<CommandLine> =>
+  Option.flatMap(entry.maybeChoices, choices =>
+    Option.match(
+      Array.findFirst(choices.choices, choice => choice.token === token),
+      {
+        onNone: () =>
+          choices.isOpen && isEnabled(entry.availability)
+            ? Option.some(lineOf(commandOf(tag), entry.what))
+            : Option.none(),
+        onSome: choice =>
+          isEnabled(choice.availability)
+            ? Option.some({
+                command: commandOf(tag),
+                maybeWhat: Option.liftPredicate(
+                  choice.title,
+                  title => wordsOfText(title) !== wordsOfText(token),
+                ),
+              })
+            : Option.none(),
+      },
+    ),
+  )
+
+const pressableLineOf = (
+  entries: ReadonlyArray<Entry>,
+  tag: string,
+): Option.Option<CommandLine> =>
+  Option.match(parseChoiceTag(tag), {
+    onNone: () =>
+      Option.flatMap(
+        Array.findFirst(entries, entry => entry.tag === tag),
+        entry =>
+          isEnabled(entry.availability) && Option.isNone(entry.maybeChoices)
+            ? Option.some(lineOf(commandOf(tag), entry.what))
+            : Option.none(),
+      ),
+    onSome: choice =>
+      Option.flatMap(
+        Array.findFirst(entries, entry => entry.tag === choice.tag),
+        entry => choiceLineOf(entry, tag, choice.token),
+      ),
+  })
+
+const paintedLineOf =
+  (name: string, commandWidth: number) =>
+  (line: CommandLine): ReadonlyArray<string> => {
+    const command = `${name} ${line.command}`
+    return Option.match(line.maybeWhat, {
+      onNone: () => [`${indent}${command}`],
+      onSome: what =>
+        command.length + columnGap > commandWidth
+          ? [
+              `${indent}${command}`,
+              ...underColumn(indentWidth + commandWidth, what),
+            ]
+          : columnRow([indent, command], [indentWidth, commandWidth], what),
+    })
+  }
+
+/**
+ * The commands a person can copy for this moment, one per line with what
+ * each does: the Program's presses that are enabled now, in the order
+ * given, then the host's own commands. A press that is disabled or needs
+ * a choice it was not given is left out, so every line runs as written. A
+ * choice whose title only repeats its token, `books listen small-hours`
+ * for Small Hours, stands alone, and a command too long for the column
+ * puts what it does on the next line, so one long title never pushes
+ * every description off the screen.
+ *
+ * @example
+ * ```typescript
+ * paintCommands(bound, 'books', ['Pause', 'Play', 'Listen:21-lessons-for-the-21st-century'], [
+ *   { command: 'tui', what: 'Opens the live player here' },
+ * ])
+ * // while it plays:
+ * // ['  books pause  Pauses and keeps your place',
+ * //  '  books listen 21-lessons-for-the-21st-century',
+ * //  '  books tui    Opens the live player here']
+ * ```
+ */
+export const paintCommands = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  name: string,
+  tags: ReadonlyArray<string>,
+  hostCommands: ReadonlyArray<HostCommand> = [],
+): ReadonlyArray<string> => {
+  const entries = bound.entries()
+  const candidates: ReadonlyArray<CommandLine> = [
+    ...Array.getSomes(Array.map(tags, tag => pressableLineOf(entries, tag))),
+    ...Array.map(hostCommands, host => lineOf(host.command, host.what)),
+  ]
+  const lines = Array.dedupeWith(
+    candidates,
+    (self, that) => self.command === that.command,
+  )
+  const commandWidth = Math.min(
+    widestOf(
+      Array.map(
+        Array.filter(lines, line => Option.isSome(line.maybeWhat)),
+        line => `${name} ${line.command}`,
+      ),
+      minimumCommandWidth,
+    ),
+    widestCommandColumn,
+  )
+  return Array.flatMap(lines, paintedLineOf(name, commandWidth))
+}
+
 // RUN
 
 const painted = (
@@ -462,27 +635,52 @@ type Command = Readonly<{
   availability: Availability
 }>
 
+const openCommandFor = (
+  catalogEntries: ReadonlyArray<Entry>,
+  command: string,
+): Option.Option<Command> => {
+  const [word = '', ...rest] = command.split(' ')
+  const token = rest.join(' ')
+  return Option.map(
+    Array.findFirst(
+      catalogEntries,
+      entry =>
+        token !== '' &&
+        commandOf(entry.tag) === word &&
+        Option.exists(entry.maybeChoices, choices => choices.isOpen),
+    ),
+    entry => ({
+      entry,
+      tag: choiceTagOf(entry.tag, token),
+      availability: entry.availability,
+    }),
+  )
+}
+
 const commandFor = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   command: string,
 ): Option.Option<Command> =>
-  Array.findFirst(
-    Array.flatMap(
-      bound.entries(),
-      (entry): ReadonlyArray<Command> => [
-        { entry, tag: entry.tag, availability: entry.availability },
-        ...Option.match(entry.maybeChoices, {
-          onNone: () => [],
-          onSome: ({ choices }) =>
-            Array.map(choices, choice => ({
-              entry,
-              tag: choiceTagOf(entry.tag, choice.token),
-              availability: choice.availability,
-            })),
-        }),
-      ],
+  Option.orElse(
+    Array.findFirst(
+      Array.flatMap(
+        bound.entries(),
+        (entry): ReadonlyArray<Command> => [
+          { entry, tag: entry.tag, availability: entry.availability },
+          ...Option.match(entry.maybeChoices, {
+            onNone: () => [],
+            onSome: ({ choices }) =>
+              Array.map(choices, choice => ({
+                entry,
+                tag: choiceTagOf(entry.tag, choice.token),
+                availability: choice.availability,
+              })),
+          }),
+        ],
+      ),
+      candidate => commandOf(candidate.tag) === command,
     ),
-    candidate => commandOf(candidate.tag) === command,
+    () => openCommandFor(bound.entries(), command),
   )
 
 const pressCommand = <Model, Message>(
@@ -645,29 +843,3 @@ export const runProgramCommand = <Model, Message>(
     return pressCommand(bound, name, words.join(' '), tag => bound.press(tag))
   }
 }
-
-const wordsOf = (token: string): ReadonlyArray<string> =>
-  pipe(
-    token.split(' '),
-    Array.filter(word => word !== ''),
-  )
-
-/**
- * A CLI daemon surface for any bound Program. `show` paints; `do` runs the
- * words the view sent.
- */
-export const programCliSurface = <Model, Message>(
-  bound: BoundInteraction<Model, Message>,
-  name: string,
-): CliDaemonSurface<Model, Message> => ({
-  read: () => Effect.sync(() => bound.readModel()),
-  run: message =>
-    Effect.sync(() => {
-      const previous = bound.readModel()
-      bound.send(message)
-      return { model: bound.readModel(), previous }
-    }),
-  show: () => Effect.sync(() => painted(paintProgram(bound, name))),
-  do: (token, flags) =>
-    Effect.sync(() => runProgramCommand(bound, name, wordsOf(token), flags)),
-})

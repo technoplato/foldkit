@@ -2,27 +2,49 @@ import { Array, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
+  AbandonedWork,
+  ActiveWork,
   ApplicationProduct,
+  BinaryFile,
+  ChangedFile,
+  CheckedSubtask,
+  EndedAgent,
   Issue,
+  IssueAgentPresence,
   IssueAttachment,
   IssueComplexity,
+  IssueLandingState,
   IssueMention,
+  IssueNewestFirst,
   type IssuePriority,
   IssueSourceDocument,
   IssueStatus,
+  IssueSubtask,
   IssueSuccessCriterion,
   IssueSuccessEvidence,
+  type IssueWorkActivity,
+  IssueWorkInProgress,
   IssueWorkLogEntry,
   MediaReference,
   RecordingMention,
   RecordingReference,
   RepositoryAttachmentSource,
+  RunningAgent,
+  StaleAgent,
+  StuckWork,
+  UncheckedSubtask,
+  UntrackedFile,
   escalatePriority,
+  isCloseToLanding,
+  isWorkingNow,
+  issueViewerUrl,
+  nextIssueId,
+  normalizeIssueId,
   registerMention,
 } from './domain.js'
 
 const firstMention = IssueMention.make({
-  capturedAtMs: 1_753_825_157_000,
+  capturedAtMs: Option.some(1_753_825_157_000),
   directQuote: Option.some('the date time stamp is still not in the gutter'),
   id: 'mention-1',
   issueId: 'issue-021',
@@ -42,6 +64,25 @@ const firstMention = IssueMention.make({
     }),
   }),
 })
+
+const workAt = (
+  landingState: IssueLandingState,
+  activity: IssueWorkActivity = ActiveWork.make({}),
+) =>
+  IssueWorkInProgress.make({
+    activity,
+    agentId: Option.some('claude-code/wip-835'),
+    branch: Option.some('agent/claude/issues-wip-835'),
+    commitSha: Option.some('84be45c4e'),
+    landingState,
+    lastStep: Option.some('Green: every focused test passes'),
+    repository: Option.some('foldkit'),
+    targetBuild: Option.some('106'),
+    updatedAtMs: 1_792_260_000_000,
+    worktree: Option.some(
+      '/Users/laptop/Sync/worktrees/foldkit-issues-wip-835',
+    ),
+  })
 
 const makeIssue = () =>
   Issue.make({
@@ -83,6 +124,12 @@ const makeIssue = () =>
 describe('issue domain', () => {
   it('preserves planned feature workflow state', () => {
     expect(S.decodeUnknownSync(IssueStatus)('Planned')).toBe('Planned')
+  })
+
+  it('holds an Issue that waits on its owner’s answer as its own status', () => {
+    expect(S.decodeUnknownSync(IssueStatus)('NeedsUserInput')).toBe(
+      'NeedsUserInput',
+    )
   })
 
   it('preserves research as live success evidence', () => {
@@ -185,6 +232,179 @@ describe('issue domain', () => {
 
     expect(mention.directQuote).toEqual(Option.none())
     expect(mention.reporter).toEqual(Option.none())
+  })
+
+  it('reads a Mention stored without a capture time, with a bare reporter name and a note', () => {
+    const storedMention = {
+      directQuote: 'The list stops before the newest Issue.',
+      id: 'mention-584-1',
+      issueId: '584',
+      note: 'Recording 199 #245',
+      reporter: 'main',
+      source: { _tag: 'Agent', id: 'claude-code-main' },
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.capturedAtMs).toEqual(Option.none())
+    expect(mention.note).toEqual(Option.some('Recording 199 #245'))
+    expect(mention.reporter).toEqual(
+      Option.some({ _tag: 'Unrecognized', value: 'main' }),
+    )
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual({
+      ...storedMention,
+      capturedAtMs: null,
+      related: [],
+    })
+  })
+
+  it('keeps reference shapes it does not model verbatim through a save', () => {
+    const conversation = {
+      _tag: 'Conversation',
+      conversation: { note: 'Relayed by the coordinating session.' },
+    }
+    const labeledRecording = {
+      _tag: 'Recording',
+      id: '096',
+      label: 'Recording 096 timestamp 0:18',
+    }
+    const storedMention = {
+      capturedAtMs: 1_753_825_157_000,
+      directQuote: null,
+      id: 'mention-478-1',
+      issueId: '478',
+      note: null,
+      related: ['147', { issueId: '216' }, labeledRecording],
+      reporter: null,
+      source: conversation,
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.source).toEqual(conversation)
+    expect(Array.map(mention.related, reference => reference._tag)).toEqual([
+      'Unrecognized',
+      'Unrecognized',
+      'Unrecognized',
+    ])
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual(storedMention)
+  })
+
+  it('still reads a modeled reference as its own variant', () => {
+    const mention = S.decodeUnknownSync(IssueMention)({
+      capturedAtMs: 1_753_825_157_000,
+      id: 'mention-modeled',
+      issueId: '218',
+      related: [{ _tag: 'Issue', id: '044' }],
+      source: { _tag: 'Agent', id: 'grok-4.6-issues-evidence' },
+    })
+
+    expect(mention.source).toEqual({
+      _tag: 'Agent',
+      id: 'grok-4.6-issues-evidence',
+    })
+    expect(mention.related).toEqual([{ _tag: 'Issue', id: '044' }])
+  })
+
+  it('reads work-log rows an older writer stored under other keys', () => {
+    const issue = makeIssue()
+    const encoded = S.encodeUnknownSync(Issue)(issue)
+    const decoded = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      workLog: [
+        {
+          agent: 'claude-code',
+          atMs: 1_785_851_462_354,
+          id: 'issue-146-work-1',
+          note: 'Diagnosed from a sample capture.',
+        },
+        {
+          agentId: 'grok-4.6-playback-blink',
+          id: 'issue-221-worklog-claim',
+          summary: 'Claimed.',
+          timestampMs: 1_787_155_632_190,
+        },
+        {
+          id: 'issue-146-work-2',
+          occurredAtMs: 1_785_878_005_116,
+          summary: 'Consumed the fix.',
+        },
+      ],
+    })
+
+    expect(decoded.workLog).toEqual([
+      IssueWorkLogEntry.make({
+        agentId: Option.some('claude-code'),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-146-work-1',
+        occurredAtMs: 1_785_851_462_354,
+        state: Option.none(),
+        summary: 'Diagnosed from a sample capture.',
+      }),
+      IssueWorkLogEntry.make({
+        agentId: Option.some('grok-4.6-playback-blink'),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-221-worklog-claim',
+        occurredAtMs: 1_787_155_632_190,
+        state: Option.none(),
+        summary: 'Claimed.',
+      }),
+      IssueWorkLogEntry.make({
+        agentId: Option.none(),
+        commitSha: Option.none(),
+        durationSeconds: Option.none(),
+        id: 'issue-146-work-2',
+        occurredAtMs: 1_785_878_005_116,
+        state: Option.none(),
+        summary: 'Consumed the fix.',
+      }),
+    ])
+  })
+
+  it('rejects a work-log row with no time under any known key', () => {
+    const issue = makeIssue()
+    const encoded = S.encodeUnknownSync(Issue)(issue)
+
+    expect(() =>
+      S.decodeUnknownSync(Issue)({
+        ...encoded,
+        workLog: [{ id: 'issue-undated', summary: 'No time.' }],
+      }),
+    ).toThrow()
+  })
+
+  it('preserves the stored Complex complexity label', () => {
+    expect(S.decodeUnknownSync(IssueComplexity)('Complex')).toBe('Complex')
+  })
+
+  it('keeps updatedAtMs when a registered Mention has no capture time', () => {
+    const issue = makeIssue()
+    const registration = registerMention(
+      issue,
+      IssueMention.make({
+        ...firstMention,
+        capturedAtMs: Option.none(),
+        id: 'mention-undated',
+        issueId: issue.id,
+      }),
+    )
+
+    expect(registration._tag).toBe('Accepted')
+    expect(registration.issue.updatedAtMs).toBe(issue.updatedAtMs)
+  })
+
+  it('orders Issues newest first and breaks a creation-time tie by id', () => {
+    const issue = makeIssue()
+    const older = Issue.make({ ...issue, createdAtMs: 1_000, id: '575' })
+    const newerLowId = Issue.make({ ...issue, createdAtMs: 2_000, id: '583' })
+    const newerHighId = Issue.make({ ...issue, createdAtMs: 2_000, id: '584' })
+
+    expect(
+      Array.map(
+        Array.sort([older, newerLowId, newerHighId], IssueNewestFirst),
+        sorted => sorted.id,
+      ),
+    ).toEqual(['584', '583', '575'])
   })
 
   it('defaults missing legacy work-log metadata to none', () => {
@@ -310,5 +530,326 @@ describe('issue domain', () => {
       S.decodeUnknownSync(Issue)(legacyPayload).evidenceLogQueries,
     ).toEqual([])
     expect(S.decodeUnknownSync(Issue)(legacyPayload).nightlyEligible).toBe(true)
+  })
+
+  it('reads an Issue number in every spelling agents use and pads it below 1,000', () => {
+    expect(normalizeIssueId('92')).toEqual(Option.some('092'))
+    expect(normalizeIssueId(' #92 ')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('issue 92')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('Issue #692')).toEqual(Option.some('692'))
+    expect(normalizeIssueId('092')).toEqual(Option.some('092'))
+    expect(normalizeIssueId('1001')).toEqual(Option.some('1001'))
+    expect(normalizeIssueId('0')).toEqual(Option.none())
+    expect(normalizeIssueId('92a')).toEqual(Option.none())
+    expect(normalizeIssueId('issue-041')).toEqual(Option.none())
+    expect(normalizeIssueId('')).toEqual(Option.none())
+  })
+
+  it('takes the number after the highest one in use, past any gap', () => {
+    expect(nextIssueId(['001', '153', '692', 'issue-preview'])).toBe('693')
+    expect(nextIssueId(['issue-041'])).toBe('001')
+    expect(nextIssueId([])).toBe('001')
+    expect(nextIssueId(['998', '999'])).toBe('1000')
+  })
+
+  it('links an Issue to its page on issues.pisspoursoftware.xyz', () => {
+    expect(issueViewerUrl('692')).toBe(
+      'https://issues.pisspoursoftware.xyz/issues/692',
+    )
+  })
+
+  it('reads a typed-chat Conversation source as its own variant and writes it back unchanged', () => {
+    const typed = {
+      _tag: 'Conversation',
+      conversation: {
+        harness: 'claude-code',
+        messageId: '82fc7bc4-3fb8-47f9-93de-90ec9d004131',
+        note: 'Typed in the Claude chat.',
+        sessionId: 'c863fc6a-8ae7-4eca-8838-49cc9408897c',
+        typedAtMs: 1_791_713_374_021,
+      },
+    }
+    const storedMention = {
+      capturedAtMs: 1_791_713_374_021,
+      directQuote: 'Ensure those are all documented issues.',
+      id: 'mention-689-typed-1',
+      issueId: '689',
+      note: null,
+      related: [],
+      reporter: null,
+      source: typed,
+    }
+    const mention = S.decodeUnknownSync(IssueMention)(storedMention)
+
+    expect(mention.source._tag).toBe('Conversation')
+    expect(S.encodeUnknownSync(IssueMention)(mention)).toEqual(storedMention)
+  })
+
+  it('reads and writes the related Issue numbers stored beside the mentions', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    const withRelated = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      relatedIssueIds: ['147', '539'],
+    })
+    expect(withRelated.relatedIssueIds).toEqual(['147', '539'])
+    expect(S.encodeUnknownSync(Issue)(withRelated)).toMatchObject({
+      relatedIssueIds: ['147', '539'],
+    })
+
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['relatedIssueIds']
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).relatedIssueIds).toEqual(
+      [],
+    )
+  })
+
+  it('reads and writes the epic an Issue sits under, and reads an Issue stored before parents as having none (Scribe #2348)', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    expect(makeIssue().parentIssueId).toEqual(Option.none())
+    expect(encoded).toMatchObject({ parentIssueId: null })
+
+    const underEpic = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      parentIssueId: '2347',
+    })
+    expect(underEpic.parentIssueId).toEqual(Option.some('2347'))
+    expect(S.encodeUnknownSync(Issue)(underEpic)).toMatchObject({
+      parentIssueId: '2347',
+    })
+
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['parentIssueId']
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).parentIssueId).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('reads an Issue stored before subtasks and work in progress as having neither', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['subtasks']
+    delete legacyPayload['workInProgress']
+
+    const decoded = S.decodeUnknownSync(Issue)(legacyPayload)
+
+    expect(decoded.subtasks).toEqual([])
+    expect(decoded.workInProgress).toEqual(Option.none())
+  })
+
+  it('round-trips subtasks and work in progress through the stored JSON', () => {
+    const IssueJson = S.fromJsonString(Issue)
+    const issue = Issue.make({
+      ...makeIssue(),
+      subtasks: [
+        IssueSubtask.make({
+          id: 'issue-021-subtask-1',
+          state: CheckedSubtask.make({ checkedAtMs: 1_792_260_000_000 }),
+          title: 'Red tests for the gutter timestamp',
+        }),
+        IssueSubtask.make({
+          id: 'issue-021-subtask-2',
+          state: UncheckedSubtask.make({}),
+          title: 'Green',
+        }),
+      ],
+      workInProgress: Option.some(
+        workAt('Pushed', StuckWork.make({ reason: 'Waits on a review' })),
+      ),
+    })
+
+    const json = S.encodeSync(IssueJson)(issue)
+
+    expect(S.decodeUnknownSync(IssueJson)(json)).toEqual(issue)
+    expect(JSON.parse(json)).toMatchObject({
+      subtasks: [
+        {
+          id: 'issue-021-subtask-1',
+          state: { _tag: 'Checked', checkedAtMs: 1_792_260_000_000 },
+        },
+        { id: 'issue-021-subtask-2', state: { _tag: 'Unchecked' } },
+      ],
+      workInProgress: {
+        activity: { _tag: 'Stuck', reason: 'Waits on a review' },
+        branch: 'agent/claude/issues-wip-835',
+        landingState: 'Pushed',
+        targetBuild: '106',
+      },
+    })
+  })
+
+  it('reads stored work in progress that names only its state, as active work', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+
+    const decoded = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      workInProgress: { landingState: 'Red', updatedAtMs: 5 },
+    })
+
+    expect(decoded.workInProgress).toEqual(
+      Option.some(
+        IssueWorkInProgress.make({
+          activity: ActiveWork.make({}),
+          agentId: Option.none(),
+          branch: Option.none(),
+          commitSha: Option.none(),
+          landingState: 'Red',
+          lastStep: Option.none(),
+          repository: Option.none(),
+          targetBuild: Option.none(),
+          updatedAtMs: 5,
+          worktree: Option.none(),
+        }),
+      ),
+    )
+  })
+
+  it('counts an Issue close to landing while its work is green or pushed and not abandoned', () => {
+    const workingAt = (
+      landingState: IssueLandingState,
+      activity?: IssueWorkActivity,
+    ) =>
+      Issue.make({
+        ...makeIssue(),
+        workInProgress: Option.some(workAt(landingState, activity)),
+      })
+
+    expect(
+      Array.map(IssueLandingState.literals, landingState =>
+        isCloseToLanding(workingAt(landingState)),
+      ),
+    ).toEqual([false, false, true, true, false, false])
+    expect(
+      isCloseToLanding(
+        workingAt('Green', StuckWork.make({ reason: 'Waits on a review' })),
+      ),
+    ).toBe(true)
+    expect(
+      isCloseToLanding(
+        workingAt('Pushed', AbandonedWork.make({ reason: 'Replaced by #804' })),
+      ),
+    ).toBe(false)
+    expect(isCloseToLanding(makeIssue())).toBe(false)
+  })
+  it('reads an Issue stored before agent presence as having none', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['agentPresence']
+
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).agentPresence).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('round-trips the running agent, its branch, worktree and touched files through the stored JSON', () => {
+    const IssueJson = S.fromJsonString(Issue)
+    const issue = Issue.make({
+      ...makeIssue(),
+      agentPresence: Option.some(
+        IssueAgentPresence.make({
+          account: Option.some('max'),
+          agentId: 'claude-code/issue-wip-1374@max',
+          branch: Option.some('agent/claude/issue-wip-1374'),
+          harness: Option.some('claude'),
+          run: RunningAgent.make({ sinceMs: 1_793_312_008_000 }),
+          startedAtMs: Option.some(1_793_312_008_000),
+          touchedFiles: Option.some({
+            base: 'technoplato/main',
+            checkedAtMs: 1_793_312_100_000,
+            fileCount: 3,
+            files: [
+              ChangedFile.make({
+                deletions: 2,
+                insertions: 40,
+                path: 'packages/instant-tools/src/issues/domain.ts',
+              }),
+              BinaryFile.make({ path: 'docs/shot.png' }),
+              UntrackedFile.make({ path: 'examples/issues/core/src/now.ts' }),
+            ],
+          }),
+          worktree: Option.some(
+            '/Users/laptop/Sync/worktrees/foldkit-issue-wip-1374',
+          ),
+        }),
+      ),
+    })
+
+    const json = S.encodeSync(IssueJson)(issue)
+
+    expect(S.decodeUnknownSync(IssueJson)(json)).toEqual(issue)
+    expect(JSON.parse(json)).toMatchObject({
+      agentPresence: {
+        account: 'max',
+        agentId: 'claude-code/issue-wip-1374@max',
+        run: { _tag: 'Running', sinceMs: 1_793_312_008_000 },
+        touchedFiles: {
+          base: 'technoplato/main',
+          fileCount: 3,
+          files: [
+            { _tag: 'Changed', deletions: 2, insertions: 40 },
+            { _tag: 'Binary', path: 'docs/shot.png' },
+            { _tag: 'Untracked' },
+          ],
+        },
+      },
+    })
+  })
+
+  it('reads stored agent presence that names only the agent and its run', () => {
+    const encoded = S.encodeUnknownSync(Issue)(makeIssue())
+
+    const decoded = S.decodeUnknownSync(Issue)({
+      ...encoded,
+      agentPresence: {
+        agentId: 'codex/backlog-1201@ld',
+        run: { _tag: 'Ended', how: 'exit 0', sinceMs: 9 },
+      },
+    })
+
+    expect(decoded.agentPresence).toEqual(
+      Option.some(
+        IssueAgentPresence.make({
+          account: Option.none(),
+          agentId: 'codex/backlog-1201@ld',
+          branch: Option.none(),
+          harness: Option.none(),
+          run: EndedAgent.make({ how: 'exit 0', sinceMs: 9 }),
+          startedAtMs: Option.none(),
+          touchedFiles: Option.none(),
+          worktree: Option.none(),
+        }),
+      ),
+    )
+  })
+
+  it('counts an Issue as worked on now only while its agent runs', () => {
+    const presentAs = (run: IssueAgentPresence['run']) =>
+      Issue.make({
+        ...makeIssue(),
+        agentPresence: Option.some(
+          IssueAgentPresence.make({
+            account: Option.none(),
+            agentId: 'claude-code/issue-wip-1374@max',
+            branch: Option.none(),
+            harness: Option.none(),
+            run,
+            startedAtMs: Option.none(),
+            touchedFiles: Option.none(),
+            worktree: Option.none(),
+          }),
+        ),
+      })
+
+    expect(isWorkingNow(presentAs(RunningAgent.make({ sinceMs: 1 })))).toBe(
+      true,
+    )
+    expect(
+      isWorkingNow(presentAs(EndedAgent.make({ how: 'exit 0', sinceMs: 1 }))),
+    ).toBe(false)
+    expect(
+      isWorkingNow(
+        presentAs(StaleAgent.make({ reason: 'not running', sinceMs: 1 })),
+      ),
+    ).toBe(false)
+    expect(isWorkingNow(makeIssue())).toBe(false)
   })
 })

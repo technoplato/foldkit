@@ -1,13 +1,40 @@
-import type * as Command from 'foldkit/command'
+import { Option } from 'effect'
+import { Navigation } from 'foldkit'
+import type { Command } from 'foldkit'
+import { initialAppearance } from 'foldkit/theme'
+import * as ReadAloud from 'read-aloud-core-example'
 
-import { type Message } from './message.js'
-import { type Model, initialModel } from './model.js'
+import * as Audible from './audible/model.js'
+import { type Destination, LibraryPage } from './destination.js'
+import type { Message } from './message.js'
+import { Idle, type Model, ShelfLoading } from './model.js'
 
+// INIT
+
+/**
+ * Starts on the library, waiting for the shelf and the books read aloud,
+ * with nothing loaded.
+ */
 export const init = (): readonly [
   Model,
   ReadonlyArray<Command.Command<Message>>,
-] => [initialModel, []]
-
-export const restore = (
-  model: Model,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => [model, []]
+] => [
+  {
+    library: ShelfLoading(),
+    chapters: {},
+    listening: Idle(),
+    speed: 1,
+    maybeProblem: Option.none(),
+    maybeTimelineProblem: Option.none(),
+    unsentReports: [],
+    maybeNotice: Option.none(),
+    controls: 'Collapsed',
+    maybeMember: Option.none(),
+    readings: ReadAloud.ReadingsLoading(),
+    previewChecks: [],
+    audible: Audible.init(),
+    appearance: initialAppearance,
+    navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
+  },
+  [],
+]

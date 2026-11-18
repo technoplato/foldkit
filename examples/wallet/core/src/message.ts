@@ -101,6 +101,11 @@ export const RequestedWalletRefresh = S.TaggedStruct(
   'RequestedWalletRefresh',
   {},
 )
+/** The host heard of a new transaction and wants fresh balances, nothing else. */
+export const RequestedBalanceRefresh = S.TaggedStruct(
+  'RequestedBalanceRefresh',
+  {},
+)
 /** The LoadWallet Command loaded normalized public wallet data. */
 export const SucceededLoadWallet = S.TaggedStruct('SucceededLoadWallet', {
   requestId: S.String,
@@ -256,6 +261,7 @@ export const Message = S.Union([
   SucceededCopyToClipboard,
   FailedCopyToClipboard,
   RequestedWalletRefresh,
+  RequestedBalanceRefresh,
   SucceededLoadWallet,
   FailedLoadWallet,
   SucceededRefreshWalletBalances,

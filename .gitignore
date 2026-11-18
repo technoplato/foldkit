@@ -23,6 +23,10 @@ examples/books/foldkit/public/a-new-earth-evocation.words.json
 examples/books/foldkit/public/media/a-new-earth.mp3
 examples/books/foldkit/public/media/*.mp3
 examples/books/foldkit/public/media/*.m4b
+examples/books/**/*.wav
+examples/books/**/*.m4b
+examples/books/**/*.mp3
+examples/books/**/*.aaxc
 **/.expo/
 **/.svelte-kit/
 **/ios/build/

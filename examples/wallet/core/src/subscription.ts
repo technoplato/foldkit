@@ -5,11 +5,17 @@ import {
   FailedObserveTransactions,
   type Message,
   ObservedTransaction,
+  ResumedTransactionObservation,
 } from './message.js'
 import { type Model, NetworkFailure } from './model.js'
 import { WalletClient } from './walletClient.js'
 
-/** Observes public transaction changes while loaded accounts require it. */
+const resumeObservationAfter = '15 seconds'
+
+/**
+ * Observes public transaction changes while loaded accounts require it, and
+ * starts observing again by itself after a drop.
+ */
 export const subscriptions = Subscription.make<Model, Message, WalletClient>()(
   entry => ({
     transactionChanges: entry(
@@ -62,6 +68,25 @@ export const subscriptions = Subscription.make<Model, Message, WalletClient>()(
             })
           }
         },
+      },
+    ),
+    resumeObservation: entry(
+      { isFailed: S.Boolean },
+      {
+        modelToDependencies: model => ({
+          isFailed:
+            model.transactionObservation._tag ===
+            'FailedTransactionObservation',
+        }),
+        dependenciesToStream: ({ isFailed }) =>
+          isFailed
+            ? Stream.fromEffect(
+                Effect.as(
+                  Effect.sleep(resumeObservationAfter),
+                  ResumedTransactionObservation.make({}),
+                ),
+              )
+            : Stream.empty,
       },
     ),
   }),

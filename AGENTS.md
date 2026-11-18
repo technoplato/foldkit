@@ -4,6 +4,55 @@ Preferences and conventions for Codex and other coding agents working on this re
 
 Repo-local `skills/foldkit`, `skills/generate-program`, and `skills/audit-program` target consumer Foldkit apps. Do not treat them as always-on repo-maintenance guidance unless the user explicitly invokes them.
 
+## Which layer? Decide before you add code
+
+Michael, typed 2026-11-17 (Scribe #2494): "any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers". And: "Sync engine should be generic, and our implementation just happens to be instant DB, but any kind of sync engine should work there." And: "That's the CLI, nothing interactive. The Tui is the interactive side". And: "the books domain goes in the core books domain, similar to Fold Kit Core". On the name of the background primitive: "Background processor, that's simpler language. I like that."
+
+Every change lands in exactly one of four layers. Name the layer before you write the first line, and say it in the commit body.
+
+1. **Foldkit core** (`packages/foldkit/src`, except `cli/`). Generic and domain free: the Program (Model, Message, update, Commands, Subscriptions), the Catalog of Actions, Navigation, the screen tree a Program returns (`foldkit/renderers` types and readings), `Interaction` (how any Client drives and follows a Program without knowing its Messages), Session and synchronization, and the sync engine interface `Runtime.SyncEngine`. Nothing here names a terminal, a socket, a process, the DOM, Instant, or a book.
+2. **A domain core** (`examples/<app>/core`, such as `examples/books/core`). Everything true about the domain, modeled once as Model, Message, update, Commands, Subscriptions, and pure readings of the Model. It relates to its Clients the way Foldkit core relates to a domain core. Nothing here names a terminal, React, or a flag.
+3. **Client adapters** (`packages/foldkit/src/cli`, `@foldkit/react`, `examples/<app>/cli`, `examples/<app>/react`, and so on). They paint what the cores say and translate native input into Messages. A terminal adapter owns argv, stdout lines, exit codes, and the Background Processor's process, socket, pid, and lock. The CLI is one-shot and scriptable: nothing waits on a keypress and nothing takes over the terminal. Anything interactive belongs to the TUI Client.
+4. **Engine and service adapters** (`@foldkit/instant`, an example's `instant*.ts`, `ffplayAudioOutput`, an HTTP client). They fill the ports a core declares: a `Runtime.SyncEngine`, a `Context.Service`. Instant is the engine every example ships with (see "Sync: Instant only" below); core depends only on the interface, and `Runtime.Memory` implements it for tests.
+
+Worked example, from the Books command line (Scribe #2494). The ask was to play an audiobook in the background and tail the words being read, with the paragraphs before and after, live and non-interactively.
+
+| What                                                                                     | Layer                  | Where                                              |
+| ---------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------- |
+| The values a reading of a running Program takes, as a Stream                             | Foldkit core           | `Interaction.follow`                               |
+| The paragraph a Transcript marks current, with those around it, as data, lines, and JSON | Foldkit core           | `foldkit/renderers` `transcriptExcerptOf`          |
+| What is being read in the player: title, chapter, place, link, excerpt                   | Books core             | `examples/books/core/src/words.ts` `spokenWordsOf` |
+| Playback position, the audio port, the transcript port                                   | Transcript Player core | `examples/transcript-player/core`                  |
+| A connection that stays open on a topic of a daemon's Program                            | CLI adapter            | `foldkit/cli` Follow, `writeCliFollow`             |
+| `books words`, `books follow words --json`, the flags, the line format's transport       | Books CLI adapter      | `examples/books/cli/src`                           |
+| The audio a terminal plays                                                               | Service adapter        | `ffplayAudioOutput`                                |
+
+The Books CLI adapter added no books logic: it calls `spokenWordsOf` and prints. A second Client (a caption, a status bar, React) gets the same words from the same function.
+
+Sessions sync what happened, and each Client derives what to show. The sync engine carries the facts (played, paused, sought to a place, navigated) and the place a player reports once a second. The word being spoken, the paragraph, and the highlight are never sent: each Client reads them locally from the Transcript's clock and the stored word times, many times a second. That is what keeps the highlight on the word and the log small. Do not add a Message per word, and do not sync derived state.
+
+Layout is organization first, style on top. Michael, typed 2026-11-17: "start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content and then we can apply the styling on top of that very compositionally very functionally".
+
+- A screen is built from layout nodes in `foldkit/renderers` that say only how content is arranged: `Column` and `Row` with a `gap`, `Box` with `padding`, `Spacer`, `Dock` (kept in view at the edge), `List` (rows picked as a whole), and the navigation presentations `Sheet` and `Dialog`. They carry no color, font, or pixel width.
+- Each painter maps a layout node to its own means: the HTML and React painters to elements with `fk-` class names, a terminal to lines and columns. Styling is applied on top by the painter's stylesheet and the `classNames` a host passes, never inside a Program's screen.
+- When a screen needs an arrangement the set lacks, such as a reading measure (a column that fills the window up to a readable width), a toolbar, or a split, add it as a layout node with a painter for every Client, then style it. Do not reach for a class name or a one-off element in a Client to get there.
+
+State drives; the components at the edge are told. Michael, typed 2026-11-18: "Let's get real dark mode light mode working in foldkit/core/theme or style" and "All state driven driving the components at the edge".
+
+- Everything a component shows is state in a core: the appearance, the word being spoken, a search, a hover description, what Contents holds. The view is a pure function of the Model, and the painters at the edge (React and DOM, the terminal) only receive values and draw.
+- No component reads the system's dark mode, storage, a context it mutates, or a class it toggles by itself. A fact about the outside, such as the system's mode, arrives through a Subscription as a Message (`SystemAppearance`, `ObservedSystemMode`), update decides, and the painters are told.
+- Colors are roles, never literals. `foldkit/theme` holds the roles, each with a light and a dark value; a stylesheet writes `${roleVar('QuietText')}` and a painter with no CSS reads `roleColorsOf(theme, mode)`. Tests fail on a raw color in the shared stylesheets and the Books site, and on a painter that asks the system. If a role is missing, add the role.
+- Appearance is a per-device choice and is not synced across sessions, on purpose (decided 2026-11-18 under his "take your best opinions here be tasteful"): a phone in a dark room and a desk in daylight should each keep their own look, and the default, Follow the system, already makes every device right. So `SetAppearance` and `ObservedSystemMode` are local Messages and the state lives in that device's Model. Do not "fix" this by syncing it.
+- One exception, written down rather than hidden: a page has to be in the right mode before the Program starts. The host mirrors the mode the Program resolved (`paintModeOnPage`), and the page's first paint reads that mirror with `firstPaintScript()`. The mirror has one writer, the host acting on the Model, and one reader, the first paint; no component touches it, and the Program's own mode replaces it as soon as it starts.
+
+Before you add code, answer these in order:
+
+1. Would a second Client need this fact or behavior? Then it is core. Put it in the domain core when it names the domain, in Foldkit core when it does not.
+2. Does it name a terminal, a flag, a process, the DOM, a pixel, or an SDK? Then it is an adapter, and the core must not learn of it. Give the core a port (a Service or the sync engine interface) or a pure reading, and let the adapter fill or print it.
+3. Is it background work or anything that stays in sync? It runs in the Background Processor: one running synced Program held by a process the CLI starts on its first command (`listenBackgroundProcessor`; first spelled `listenCliDaemon`, which still works). Commands ask it (Show, Do, Read, Run), follow it (`follow <topic>`), and stop it. Do not start a second kind of background process.
+4. Is it interactive (keys, a full screen)? It belongs to the TUI Client, never to a CLI command.
+5. Did you find core logic sitting in an adapter, or an adapter concern in a core? Say so, and move it with tests, smallest step first.
+
 ## DEATH (temporary house)
 
 `DEATH/` is the Distributed Elm Architecture Teaching Hospital. It is a temporary house for describing and implementing this benchmark and its gambits (wager with upside and downside). It is not Foldkit public API.
@@ -13,6 +62,15 @@ Repo-local `skills/foldkit`, `skills/generate-program`, and `skills/audit-progra
 - Talk to Grok Bot through `DEATH/mailbox/`. Do not poke Grok Bot PIDs.
 - `bench/` is a rehearsal against `https://counter.knophy.com`. It is not DEATH.
 - Interview questions live in `DEATH/qanda.md`. Chat asks one at a time.
+
+## Project wiki
+
+`wiki/` is the project's memory: what was said, what was decided, by whom, and why, across calls, chats, DEATH, and ShrinkBench. Full rules: `wiki/AGENTS.md`.
+
+- Consult it before any decision or recommendation about the benchmark, before asking the user a question it may already answer, and whenever recalling past discussions or people. Read `wiki/index.md` first, then only the pages it names.
+- Trust order: running code, then decided Q&A records (`DEATH/qanda.md`, ShrinkBench ADR 0001), then wiki pages, then raw sources. Never present a **Said** or **Proposed** claim as decided.
+- When the user shares a transcript, chat, or email about the project, ingest it. File syntheses worth keeping under `wiki/analyses/`. Run `python3 wiki/lint.py` after wiki changes.
+- Some rules in the DEATH section above are contested by newer ShrinkBench records (name, and whether `DEATH/` is history). See `wiki/open-questions.md` O2 and O3.
 
 When writing or reviewing documentation (TSDoc, module docs), load `.agents/skills/document/SKILL.md` (the `document` skill). Point-Free's libraries (the Composable Architecture, Swift Sharing, SQLiteData) are the quality bar. Shared vocabulary lives in `glossary.md`; define new terms there first. In documentation, comments, questions, and explanations, pair every abstract claim with a concrete example ("mounting composes transitively" must be followed by `/counters/counter/c1`).
 
@@ -52,6 +110,7 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 - Every example shares its state through Instant from the first run, through `Program.compose.sync`. One Instant project carries every app: each log row names its app and its Program version, such as `multiple-counters` at version 1.
 - Never ship an example that syncs through a Memory engine, a file tape, `localStorage`, `BroadcastChannel`, or any other per-process or per-tab store. `Runtime.Memory` is a fake for unit tests only.
 - When Instant's schema cannot type a Message strictly, wrap the row in an Effect Schema envelope (app, version, tag, payload) that rejects anything else, and evolve the schema. Never fall back to local-only state.
+- Every Instant app uses Scribe's schema, permanently, for every app we build, so all the apps are interconnected: a Books title, a Read Aloud page, and a Scribe recording can link to each other's rows. Production is `e7c49961` and dev is `bd40c50a`; both carry that one schema. Never give an app a schema of its own. Add an app's entities to Scribe's `instant.schema.ts` (in `~/Development/instant-scribe-verification/scribe`, currently on branch `agent/claude-opus-5.5/books`), with names that can't collide, such as `libraryItems` for Books and `remindersLists` for Reminders. Coordinate the change with the Scribe agents. Push only from that full schema: a push from a partial copy drops what the copy lacks.
 
 ## State Modeling
 
@@ -67,7 +126,7 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 - Drive navigation by state. A Client (browser history, argv, custom scheme) translates a URI into `OpenedNavigation` or `ChangedUrl`. update decides the next Model. Named Commands emit `pushUrl`, `replaceUrl`, or `back`. Do not hand-build paths at call sites when the printer exists.
 - Every destination a user can occupy must have a deep link. That includes share states (private, unlisted, public). Private still prints a URI. Access is permissions, not the absence of a link.
 - Keep the portable relative URI in core. Each Client adds an origin, scheme, or argv. Do not put tokens, refresh secrets, or PII in a URI. Instant share secrets belong in `ruleParams` (query `s`), not in the path.
-- Proofs live in `examples/routing`, `examples/counters`, `examples/books`, and `examples/cardboard`. Follow `skills/foldkit-navigation/SKILL.md`.
+- Proofs live in `examples/routing`, `examples/multiple-counters`, `examples/books`, and `examples/cardboard`. Follow `skills/foldkit-navigation/SKILL.md`.
 
 ## Code Style
 

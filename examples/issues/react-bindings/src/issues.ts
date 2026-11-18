@@ -1,6 +1,10 @@
 import { type Layer } from 'effect'
 import { Program } from 'foldkit'
 import {
+  type ProgramRuntimeStartError,
+  type ReplayFrameError,
+} from 'foldkit/program-runtime'
+import {
   ClickedDismissTriageCandidate,
   ClickedFileIssue,
   ClickedOpenTriage,
@@ -25,7 +29,10 @@ import {
   messageForScreenToken,
   modelForNavigation,
 } from 'issues-core-example'
-import { createReplayableReactProgramClient } from 'shared-react-bindings-example'
+import {
+  type ReplayableReactProgramClient,
+  createReplayableReactProgramClient,
+} from 'shared-react-bindings-example'
 
 import { type IssuePriority } from '@foldkit/instant-tools/issues'
 
@@ -54,10 +61,19 @@ export type IssueTrackerInitialRoute = Program.ResolvedProgramRoute<
   Message
 >
 
+/** The React Client of the Issue Tracker Program. */
+export type IssueTrackerReactClient = ReplayableReactProgramClient<
+  Model,
+  Message,
+  IssueTrackerActions,
+  IssueTrackerInitialRoute,
+  ProgramRuntimeStartError | ReplayFrameError
+>
+
 /** Creates a React Client over host-selected live or deterministic resources. */
 export const makeIssueTrackerReactClient = (
   resources: Layer.Layer<IssueTrackerResources>,
-) =>
+): IssueTrackerReactClient =>
   attachScreen(
     createReplayableReactProgramClient<
       Model,
@@ -110,9 +126,8 @@ type IssueScreenClient = Readonly<{
 }>
 
 /** Deterministic Client used by React Native previews and offline hosts. */
-export const StaticIssueTrackerClient = makeIssueTrackerReactClient(
-  StaticIssueTrackerResources,
-)
+export const StaticIssueTrackerClient: IssueTrackerReactClient =
+  makeIssueTrackerReactClient(StaticIssueTrackerResources)
 
 /** Canonical fresh filing route helper for host carriers. */
 export const initialIssueTrackerRoute = Program.state(

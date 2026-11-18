@@ -931,6 +931,23 @@ export const TransactionHistoryState = S.Union([
 /** The Wallet's finite transaction-history loading state. */
 export type TransactionHistoryState = typeof TransactionHistoryState.Type
 
+/** The balances on screen are the chains' latest answer. */
+export const CurrentBalances = S.TaggedStruct('CurrentBalances', {})
+/** Fresh balances were asked for, and none is shown until they land. */
+export const RefreshingBalances = S.TaggedStruct('RefreshingBalances', {})
+/** The last balance refresh failed, and no balance is shown. */
+export const FailedBalanceRefresh = S.TaggedStruct('FailedBalanceRefresh', {
+  failure: WalletFailure,
+})
+/** Whether the balances on screen are the chains' latest answer. */
+export const BalanceFreshness = S.Union([
+  CurrentBalances,
+  RefreshingBalances,
+  FailedBalanceRefresh,
+])
+/** Whether the balances on screen are the chains' latest answer. */
+export type BalanceFreshness = typeof BalanceFreshness.Type
+
 /** The complete renderer-, platform-, and chain-agnostic Wallet Model. */
 export const Model = S.Struct({
   wallets: S.Array(WalletProfile),
@@ -940,6 +957,7 @@ export const Model = S.Struct({
   walletCreation: WalletCreationState,
   clipboardCopy: ClipboardCopyState,
   portfolio: PortfolioState,
+  balanceFreshness: BalanceFreshness,
   walletIntent: WalletIntentState,
   transferRecipient: TransferRecipientState,
   transferAmount: TransferAmountState,
@@ -966,6 +984,7 @@ export const initialModel: Model = {
   walletCreation: ReadyToCreateWallet.make({}),
   clipboardCopy: IdleClipboardCopy.make({}),
   portfolio: WaitingForWalletProfiles.make({}),
+  balanceFreshness: CurrentBalances.make({}),
   walletIntent: NoWalletIntent.make({}),
   transferRecipient: EmptyTransferRecipient.make({}),
   transferAmount: EmptyTransferAmount.make({}),
@@ -979,6 +998,37 @@ export const initialModel: Model = {
   transactionObservation: WaitingForAccounts.make({}),
   transactionHistory: NotLoadedTransactionHistory.make({}),
   transactions: [],
+}
+
+/**
+ * True when a preview is exactly the send the screen shows: the selected
+ * account, asset and network, the entered amount, and the entered
+ * recipient. Confirm signs nothing else.
+ *
+ * @example
+ * ```typescript
+ * isPreviewOfEnteredTransfer(model, preview) // false once the amount is edited
+ * ```
+ */
+export const isPreviewOfEnteredTransfer = (
+  model: Model,
+  preview: TransactionPreview,
+): boolean => {
+  const { request, recipient } = preview.transfer
+  return (
+    Option.exists(
+      model.maybeSendNetworkSelection,
+      selection =>
+        selection.accountId === request.accountId &&
+        selection.assetId === request.assetId &&
+        selection.networkId === recipient.networkId,
+    ) &&
+    model.transferAmount._tag === 'ValidTransferAmount' &&
+    model.transferAmount.atomicUnits === request.atomicUnits &&
+    model.transferRecipient._tag === 'ValidTransferRecipient' &&
+    model.transferRecipient.recipient.networkId === recipient.networkId &&
+    model.transferRecipient.recipient.address === recipient.address
+  )
 }
 
 /** Derives address-book familiarity from one adapter-normalized recipient. */

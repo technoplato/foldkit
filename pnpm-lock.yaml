@@ -648,6 +648,9 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      transcript-player-core-example:
+        specifier: workspace:*
+        version: link:../../transcript-player/core
     devDependencies:
       '@types/node':
         specifier: ^25.9.3
@@ -667,13 +670,31 @@ importers:
 
   examples/books/core:
     dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../../packages/instant
+      '@instantdb/admin':
+        specifier: 1.0.65
+        version: 1.0.65
+      '@instantdb/core':
+        specifier: 1.0.65
+        version: 1.0.65
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      read-aloud-core-example:
+        specifier: workspace:*
+        version: link:../../read-aloud/core
+      transcript-player-core-example:
+        specifier: workspace:*
+        version: link:../../transcript-player/core
     devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
@@ -687,26 +708,14 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  examples/books/foldkit:
+  examples/books/opentui:
     dependencies:
-      '@effect/platform-browser':
-        specifier: 4.0.0-beta.97
-        version: 4.0.0-beta.97(effect@4.0.0-beta.97)
-      '@foldkit/devtools':
+      '@foldkit/opentui':
         specifier: workspace:*
-        version: link:../../../packages/devtools
-      '@foldkit/instant':
-        specifier: workspace:*
-        version: link:../../../packages/instant
-      '@foldkit/ui':
-        specifier: workspace:*
-        version: link:../../../packages/ui
-      '@instantdb/core':
-        specifier: 1.0.53
-        version: 1.0.53
-      '@tailwindcss/vite':
-        specifier: ^4.3.1
-        version: 4.3.1(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: link:../../../packages/opentui
+      '@opentui/core':
+        specifier: ^0.5.4
+        version: 0.5.4(typescript@6.0.3)(web-tree-sitter@0.25.10)
       books-core-example:
         specifier: workspace:*
         version: link:../core
@@ -716,56 +725,62 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
-      tailwindcss:
-        specifier: ^4.3.1
-        version: 4.3.1
     devDependencies:
-      '@foldkit/vite-plugin':
-        specifier: workspace:*
-        version: link:../../../packages/vite-plugin-foldkit
-      '@instantdb/admin':
-        specifier: 1.0.53
-        version: 1.0.53
+      '@types/bun':
+        specifier: ^1.3.4
+        version: 1.3.14
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
-      happy-dom:
-        specifier: ^20.10.4
-        version: 20.10.4
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
-      tsx:
-        specifier: ^4.22.4
-        version: 4.22.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
-      vite:
-        specifier: ^8.0.16
-        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
-      vitest:
-        specifier: ^4.1.9
-        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
   examples/books/react:
     dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../../packages/instant
+      '@foldkit/react':
+        specifier: workspace:*
+        version: link:../../../packages/react
       books-core-example:
         specifier: workspace:*
         version: link:../core
-      books-react-bindings-example:
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
         specifier: workspace:*
-        version: link:../react-bindings
+        version: link:../../../packages/foldkit
       react:
         specifier: 19.2.3
         version: 19.2.3
       react-dom:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
+      read-aloud-core-example:
+        specifier: workspace:*
+        version: link:../../read-aloud/core
+      read-aloud-react-bindings-example:
+        specifier: workspace:*
+        version: link:../../read-aloud/react-bindings
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.1
         version: 4.3.1(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
       '@types/react':
         specifier: ^19.2.17
         version: 19.2.17
@@ -775,6 +790,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.2
         version: 6.0.2(babel-plugin-react-compiler@1.0.0)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1(@noble/hashes@2.2.0)
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
@@ -787,43 +805,40 @@ importers:
       vite:
         specifier: ^8.0.16
         version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  examples/books/react-bindings:
+  examples/brandon/core:
     dependencies:
-      books-core-example:
+      '@foldkit/instant':
         specifier: workspace:*
-        version: link:../core
+        version: link:../../../packages/instant
+      '@foldkit/markdown':
+        specifier: workspace:*
+        version: link:../../../packages/markdown
+      '@instantdb/core':
+        specifier: 1.0.65
+        version: 1.0.65
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
-      shared-react-bindings-example:
+      wallet-core-example:
         specifier: workspace:*
-        version: link:../../shared/react-bindings
+        version: link:../../wallet/core
+      wallet-live-client-example:
+        specifier: workspace:*
+        version: link:../../wallet/live-client
     devDependencies:
-      '@testing-library/react':
-        specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@types/react':
-        specifier: ^19.2.17
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.17)
-      jsdom:
-        specifier: ^29.1.1
-        version: 29.1.1(@noble/hashes@2.2.0)
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
@@ -833,13 +848,19 @@ importers:
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      wallet-local-vault-example:
+        specifier: workspace:*
+        version: link:../../wallet/local-vault
 
-  examples/books/tui:
+  examples/brandon/foldkit:
     dependencies:
-      '@effect/platform-node':
-        specifier: 4.0.0-beta.97
-        version: 4.0.0-beta.97(effect@4.0.0-beta.97)(ioredis@5.10.1)
-      books-core-example:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../../packages/instant
+      '@foldkit/markdown':
+        specifier: workspace:*
+        version: link:../../../packages/markdown
+      brandon-core-example:
         specifier: workspace:*
         version: link:../core
       effect:
@@ -848,10 +869,80 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../../wallet/core
+      wallet-foldkit-example:
+        specifier: workspace:*
+        version: link:../../wallet/foldkit
+      wallet-live-client-example:
+        specifier: workspace:*
+        version: link:../../wallet/live-client
+      wallet-local-vault-example:
+        specifier: workspace:*
+        version: link:../../wallet/local-vault
+      wallet-qr-example:
+        specifier: workspace:*
+        version: link:../../wallet/qr
+      wallet-web-client-example:
+        specifier: workspace:*
+        version: link:../../wallet/web-client
+    devDependencies:
+      '@foldkit/vite-plugin':
+        specifier: workspace:*
+        version: link:../../../packages/vite-plugin-foldkit
+      happy-dom:
+        specifier: ^20.10.4
+        version: 20.10.4
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/brandon/server:
+    dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../../packages/instant
+      '@foldkit/markdown':
+        specifier: workspace:*
+        version: link:../../../packages/markdown
+      '@instantdb/admin':
+        specifier: 1.0.65
+        version: 1.0.65
+      '@nuintun/qrcode':
+        specifier: 5.0.3
+        version: 5.0.3
+      brandon-core-example:
+        specifier: workspace:*
+        version: link:../core
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../../wallet/core
+      wallet-live-client-example:
+        specifier: workspace:*
+        version: link:../../wallet/live-client
     devDependencies:
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
@@ -2455,6 +2546,9 @@ importers:
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
+      react-router:
+        specifier: 8.3.0
+        version: 8.3.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       tailwindcss:
         specifier: ^4.3.1
         version: 4.3.1
@@ -5438,6 +5532,46 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  examples/me:
+    dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../packages/instant
+      '@tailwindcss/vite':
+        specifier: ^4.3.1
+        version: 4.3.1(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../packages/foldkit
+      tailwindcss:
+        specifier: ^4.3.1
+        version: 4.3.1
+    devDependencies:
+      '@foldkit/vite-plugin':
+        specifier: workspace:*
+        version: link:../../packages/vite-plugin-foldkit
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+      happy-dom:
+        specifier: ^20.10.4
+        version: 20.10.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
   examples/message-versioning:
     dependencies:
       effect:
@@ -6033,6 +6167,46 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+
+  examples/performance:
+    dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../packages/instant
+      '@tailwindcss/vite':
+        specifier: ^4.3.1
+        version: 4.3.1(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../packages/foldkit
+      tailwindcss:
+        specifier: ^4.3.1
+        version: 4.3.1
+    devDependencies:
+      '@foldkit/vite-plugin':
+        specifier: workspace:*
+        version: link:../../packages/vite-plugin-foldkit
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+      happy-dom:
+        specifier: ^20.10.4
+        version: 20.10.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
   examples/personal-blog:
     dependencies:
@@ -6990,14 +7164,14 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  examples/reminders/core:
+  examples/read-aloud/core:
     dependencies:
       '@foldkit/instant':
         specifier: workspace:*
         version: link:../../../packages/instant
       '@instantdb/core':
-        specifier: 1.0.53
-        version: 1.0.53
+        specifier: 1.0.65
+        version: 1.0.65
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
@@ -7005,15 +7179,270 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/foldkit
     devDependencies:
-      '@instantdb/admin':
-        specifier: 1.0.53
-        version: 1.0.53
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/read-aloud/react:
+    dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../../packages/instant
+      '@foldkit/react':
+        specifier: workspace:*
+        version: link:../../../packages/react
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      read-aloud-core-example:
+        specifier: workspace:*
+        version: link:../core
+      read-aloud-react-bindings-example:
+        specifier: workspace:*
+        version: link:../react-bindings
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.3.1
+        version: 4.3.1(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.2
+        version: 6.0.2(babel-plugin-react-compiler@1.0.0)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      tailwindcss:
+        specifier: ^4.3.1
+        version: 4.3.1
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  examples/read-aloud/react-bindings:
+    dependencies:
+      '@foldkit/react':
+        specifier: workspace:*
+        version: link:../../../packages/react
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      read-aloud-core-example:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1(@noble/hashes@2.2.0)
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/reminders/cli:
+    dependencies:
+      '@effect/platform-node':
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97(effect@4.0.0-beta.97)(ioredis@5.10.1)
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+      reminders-core-example:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/reminders/core:
+    dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../../packages/instant
+      '@instantdb/core':
+        specifier: 1.0.65
+        version: 1.0.65
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/reminders/opentui:
+    dependencies:
+      '@foldkit/opentui':
+        specifier: workspace:*
+        version: link:../../../packages/opentui
+      '@opentui/core':
+        specifier: ^0.5.4
+        version: 0.5.4(typescript@6.0.3)(web-tree-sitter@0.25.10)
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+      reminders-core-example:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.3.4
+        version: 1.3.14
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  examples/reminders/react:
+    dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../../packages/instant
+      '@foldkit/react':
+        specifier: workspace:*
+        version: link:../../../packages/react
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      reminders-core-example:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.2
+        version: 6.0.2(babel-plugin-react-compiler@1.0.0)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      playwright:
+        specifier: ^1.61.0
+        version: 1.61.0
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
 
   examples/replayability:
     dependencies:
@@ -8647,6 +9076,31 @@ importers:
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/transcript-player/core:
+    dependencies:
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

@@ -31,9 +31,17 @@ export type ProgramArgv =
       flags: Readonly<Record<string, string>>
     }>
 
-const booleanFlags: ReadonlySet<string> = new Set(['meta', 'ctrl', 'shift'])
+const booleanFlags: ReadonlySet<string> = new Set([
+  'meta',
+  'ctrl',
+  'shift',
+  'json',
+])
 
-/** Splits argv into words and `--name value` or `--name=value` flags. */
+/**
+ * Splits argv into words and `--name value` or `--name=value` flags.
+ * `--meta`, `--ctrl`, `--shift`, and `--json` take no value.
+ */
 export const parseProgramArgv = (argv: ReadonlyArray<string>): ProgramArgv => {
   const words: Array<string> = []
   const flags: Record<string, string> = {}
@@ -66,4 +74,74 @@ export const parseProgramArgv = (argv: ReadonlyArray<string>): ProgramArgv => {
   } else {
     return { _tag: 'Do', token, flags }
   }
+}
+
+/**
+ * A topic to follow, as argv names it: the word after `follow`, empty
+ * when there is none, and the flags that shape its text.
+ */
+export type FollowArgv = Readonly<{
+  topic: string
+  flags: Readonly<Record<string, string>>
+}>
+
+const followWord = 'follow'
+
+/**
+ * Reads `follow <topic>` from argv, the command every Program's CLI has
+ * for hearing a topic of its Background Processor as it changes:
+ * `books follow words --json` the words being read as lines of JSON,
+ * `counter follow` its only topic, the screen. With no topic named the
+ * Background Processor follows its only topic or says which there are.
+ * Undefined for any other command.
+ *
+ * @example
+ * ```typescript
+ * followArgvOf(['follow', 'words', '--json']) // { topic: 'words', flags: { json: '1' } }
+ * followArgvOf(['follow']) // { topic: '', flags: {} }
+ * followArgvOf(['increment']) // undefined
+ * ```
+ */
+export const followArgvOf = (
+  argv: ReadonlyArray<string>,
+): FollowArgv | undefined => {
+  const request = parseProgramArgv(argv)
+  if (request._tag !== 'Do') {
+    return undefined
+  }
+  const [head = '', ...rest] = request.token.split(' ')
+  if (head !== followWord) {
+    return undefined
+  }
+  const topic = rest.join(' ')
+  return {
+    topic,
+    flags: request.flags,
+  }
+}
+
+const stdinWord = '-'
+
+/**
+ * Argv with its last word read from stdin when that word is a lone dash,
+ * so a secret never sits in the shell's history or the process list:
+ * `pbpaste | books connect-audible -` sends the pasted address as the
+ * word. Stdin's text is trimmed. Without a trailing dash argv comes back
+ * as it is and stdin is never read.
+ *
+ * @example
+ * ```typescript
+ * await withStdinWord(['connect-audible', '-'], readStdinText)
+ * // ['connect-audible', 'https://www.amazon.com/ap/maplanding?…']
+ * ```
+ */
+export const withStdinWord = async (
+  argv: ReadonlyArray<string>,
+  readStdin: () => Promise<string>,
+): Promise<ReadonlyArray<string>> => {
+  if (argv.at(-1) !== stdinWord) {
+    return argv
+  }
+  const word = (await readStdin()).trim()
+  return [...argv.slice(0, -1), word]
 }

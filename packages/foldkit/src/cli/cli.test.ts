@@ -37,12 +37,12 @@ describe('foldkit CLI adapter', () => {
   it.effect('prints a socket path for one Program', () =>
     Effect.sync(() => {
       const path = cliDaemonSocketPath({
-        programId: 'FoldkitCounterV01',
+        programId: 'SharedInstantProject',
         isolationKey: 'memory',
       })
       expect(path).toContain('fkc-')
       const other = cliDaemonSocketPath({
-        programId: 'FoldkitCounterV01',
+        programId: 'SharedInstantProject',
         isolationKey: 'instant',
       })
       expect(other).not.toBe(path)

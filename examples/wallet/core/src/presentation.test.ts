@@ -7,7 +7,7 @@ import {
   clipboardCopyRequestForAddress,
 } from './clipboard.js'
 import { AssetAmount, AssetDescriptor, NativeAsset } from './currency.js'
-import { NetworkFailure, TransferGuidance } from './model.js'
+import { NetworkFailure, SigningFailure, TransferGuidance } from './model.js'
 import {
   assetAmountLabel,
   clipboardCopyFailureMessage,
@@ -15,6 +15,7 @@ import {
   shortenedAddress,
   walletDataSourceDetail,
   walletDataSourceLabel,
+  walletFailureLines,
   walletFailureMessage,
 } from './presentation.js'
 
@@ -60,6 +61,109 @@ describe('wallet presentation', () => {
     expect(
       Option.getOrThrow(clipboardCopyFailureMessage(denied, request)),
     ).toContain('denied')
+  })
+
+  describe('a failed send on screen', () => {
+    const networkFailure = (
+      operation: typeof NetworkFailure.Type.operation,
+      code: typeof NetworkFailure.Type.code,
+    ) => NetworkFailure.make({ operation, code })
+
+    it('says a stale preview sent nothing, and what to do', () => {
+      expect(
+        walletFailureLines(networkFailure('BuildTransferPayload', 'Rejected')),
+      ).toEqual([
+        'This preview can no longer be sent. Nothing was sent. Preview the send again.',
+      ])
+    })
+
+    it('says a send the network refused was not sent', () => {
+      expect(
+        walletFailureLines(networkFailure('SubmitTransaction', 'Rejected')),
+      ).toEqual(['The network refused this send. Nothing was sent.'])
+    })
+
+    it('never says nothing was sent when the network went quiet mid-send', () => {
+      expect(
+        walletFailureLines(networkFailure('SubmitTransaction', 'Unavailable')),
+      ).toEqual([
+        'The network did not answer, so this send may still land. Check your activity before you send it again.',
+      ])
+    })
+
+    it('says a wallet that could not sign sent nothing', () => {
+      expect(
+        walletFailureLines(
+          SigningFailure.make({
+            operation: 'SignTransaction',
+            code: 'Unavailable',
+          }),
+        ),
+      ).toEqual(['This wallet could not sign. Nothing was sent.'])
+    })
+
+    it('says why a preview was refused', () => {
+      expect(
+        walletFailureLines(networkFailure('PreviewTransfer', 'Rejected')),
+      ).toEqual([
+        'This send cannot go through: check the amount against your balance and the fee. Nothing was sent.',
+      ])
+      expect(
+        walletFailureLines(networkFailure('PreviewTransfer', 'Unavailable')),
+      ).toEqual([
+        'The network did not answer with a fee. Nothing was sent. Try the preview again.',
+      ])
+    })
+
+    it('keeps the guidance beside the words', () => {
+      expect(
+        walletFailureLines(
+          NetworkFailure.make({
+            operation: 'SubmitTransaction',
+            code: 'Rejected',
+            maybeGuidance: Option.some(
+              TransferGuidance.make({
+                summary: 'This amount is too small.',
+                details: ['A new account needs more.'],
+              }),
+            ),
+          }),
+        ),
+      ).toEqual([
+        'The network refused this send. Nothing was sent.',
+        'This amount is too small.',
+        '- A new account needs more.',
+      ])
+    })
+
+    it('never prints an internal code on screen', () => {
+      expect(
+        walletFailureLines(networkFailure('ValidateTransfer', 'Unavailable')),
+      ).toEqual([
+        'This recipient could not be checked. Nothing was sent. Try again.',
+      ])
+      expect(
+        walletFailureLines(networkFailure('RefreshBalances', 'Unavailable')),
+      ).toEqual(['Balances could not be read just now. Try again in a moment.'])
+      expect(
+        walletFailureLines(networkFailure('LoadPortfolio', 'InvalidResponse')),
+      ).toEqual(['Balances could not be read just now. Try again in a moment.'])
+      expect(
+        walletFailureLines(
+          networkFailure('LoadTransactionHistory', 'Unavailable'),
+        ),
+      ).toEqual(['Recent activity could not be read just now.'])
+      expect(
+        walletFailureLines(
+          networkFailure('ObserveTransactions', 'Unavailable'),
+        ),
+      ).toEqual([
+        'The wallet stopped listening to the chain, and is trying again by itself.',
+      ])
+      expect(
+        walletFailureLines(networkFailure('RequestTestFunding', 'Rejected')),
+      ).toEqual(['Test funds could not be requested.'])
+    })
   })
 
   it('prints adapter guidance with a rejected network failure', () => {

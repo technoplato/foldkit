@@ -2,8 +2,11 @@ import { Array, Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 import {
+  FailedTransactionHistory,
   LoadTransactionHistory,
   Model,
+  NetworkFailure,
+  ObservingTransactions,
   PortfolioSnapshot,
   ReceivingInstruction,
   SucceededLoadTransactionHistory,
@@ -11,6 +14,7 @@ import {
   SucceededLoadWalletProfiles,
   TransactionHistoryPage,
   TransactionHistoryQuery,
+  WaitingForAccounts,
   WalletProfile,
   WalletProgram,
   initialModel,
@@ -348,6 +352,86 @@ describe('Wallet Foldkit client', () => {
       Scene.expect(Scene.text('Recipient on Sui Testnet')).toExist(),
       Scene.expect(Scene.label('Amount in SUI')).toHaveValue(''),
       Scene.expect(Scene.text('12 SUI')).toExist(),
+    )
+  })
+})
+
+describe('Wallet words a person reads', () => {
+  test('name the small test amount, so it never reads as the amount typed', () => {
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(loadedModel([simulatedWallet])),
+      Scene.expect(Scene.selector('.wallet-small-amount-label')).toContainText(
+        'Small test amount: ',
+      ),
+    )
+  })
+
+  test('say what failed, never an internal code', () => {
+    const failure = NetworkFailure.make({
+      operation: 'LoadTransactionHistory',
+      code: 'Unavailable',
+    })
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(
+        Model.make({
+          ...loadedModel([simulatedWallet]),
+          transactionHistory: FailedTransactionHistory.make({
+            query: TransactionHistoryQuery.make({
+              accountId: 'wallet-1:solana:devnet',
+              networkId: 'solana:devnet',
+              maybeCursor: Option.none(),
+              limit: 10,
+            }),
+            failure,
+          }),
+        }),
+      ),
+      Scene.expect(
+        Scene.text('Recent activity could not be read just now.'),
+      ).toExist(),
+      Scene.expect(Scene.text('LoadTransactionHistory')).toBeAbsent(),
+    )
+  })
+
+  test('say whether the wallet is listening to the chain, in words', () => {
+    const listening = Model.make({
+      ...loadedModel([simulatedWallet]),
+      transactionObservation: ObservingTransactions.make({
+        accountIds: ['wallet-1:solana:devnet'],
+      }),
+    })
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(listening),
+      Scene.expect(Scene.text('Listening to the chain')).toExist(),
+      Scene.expect(Scene.text('ObservingTransactions')).toBeAbsent(),
+    )
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(
+        Model.make({
+          ...listening,
+          transactionObservation: WaitingForAccounts.make({}),
+        }),
+      ),
+      Scene.expect(Scene.text('Waiting for a wallet')).toExist(),
+      Scene.expect(Scene.text('WaitingForAccounts')).toBeAbsent(),
+    )
+  })
+
+  test('say where the keys are, and name the mode the way the picker does', () => {
+    const live = Model.make({
+      ...loadedModel([simulatedWallet]),
+      walletNetworkMode: 'Live',
+    })
+    Scene.scene(
+      { update, view: makeView(freshWalletHostOrigin) },
+      Scene.with(live),
+      Scene.expect(Scene.text('Keys on this device only')).toExist(),
+      Scene.expect(Scene.text('Secure local custody')).toBeAbsent(),
+      Scene.expect(Scene.text('Live')).toBeAbsent(),
     )
   })
 })

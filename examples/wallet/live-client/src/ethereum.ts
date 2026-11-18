@@ -12,10 +12,13 @@ import {
   BaseError,
   type Transaction as EthereumRpcTransaction,
   InsufficientFundsError,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
   createPublicClient,
   defineChain,
   getAddress,
   http,
+  isAddress,
   serializeTransaction,
   webSocket,
 } from 'viem'
@@ -42,7 +45,12 @@ import {
   maximumTransactionHistoryPageSize,
 } from 'wallet-core-example'
 
-import type { LiveNetworkAccount, LiveNetworkAdapter } from './adapter.js'
+import {
+  type LiveNetworkAccount,
+  type LiveNetworkAdapter,
+  type TransactionStanding,
+  isSettledStanding,
+} from './adapter.js'
 import type { EthereumLiveNetwork } from './catalog.js'
 
 /** Protected EIP-1559 transaction facts passed from networking to custody. */
@@ -75,18 +83,17 @@ export const EthereumSignedPayloadJson = S.fromJsonString(EthereumSignedPayload)
 
 const BlockscoutAddress = S.Struct({ hash: S.String })
 const BlockscoutTransaction = S.Struct({
-  timestamp: S.String,
-  status: S.String,
+  timestamp: S.NullOr(S.String),
+  status: S.NullOr(S.String),
   hash: S.String,
   from: BlockscoutAddress,
   to: S.NullOr(BlockscoutAddress),
   value: S.String,
 })
-const BlockscoutNextPage = S.Struct({
-  block_number: S.Number,
-  index: S.Number,
-  items_count: S.Number,
-})
+const BlockscoutNextPage = S.Record(
+  S.String,
+  S.Union([S.String, S.Number, S.Null]),
+)
 const BlockscoutHistoryPage = S.Struct({
   items: S.Array(BlockscoutTransaction),
   next_page_params: S.NullOr(BlockscoutNextPage),
@@ -108,6 +115,14 @@ const quoteLifetimeMilliseconds = 60_000
 const unavailable = () => new WalletClientError({ code: 'Unavailable' })
 const invalidResponse = () => new WalletClientError({ code: 'InvalidResponse' })
 const rejected = () => new WalletClientError({ code: 'Rejected' })
+const feeRose = () =>
+  new WalletClientError({
+    code: 'Rejected',
+    guidance: {
+      summary: 'The network fee rose since the preview, so nothing was signed.',
+      details: ['Preview the send again to see the new fee.'],
+    },
+  })
 const unsupported = () =>
   new WalletClientError({ code: 'UnsupportedCapability' })
 
@@ -156,6 +171,21 @@ const chainForConfiguration = (configuration: EthereumLiveNetwork) =>
     },
   })
 
+const TransactionHash = S.TemplateLiteral(['0x', S.String])
+
+const transactionHash = (transactionId: string): `0x${string}` =>
+  S.decodeUnknownSync(TransactionHash)(transactionId)
+
+const unlessNotFound = (error: unknown): undefined => {
+  if (
+    error instanceof TransactionReceiptNotFoundError ||
+    error instanceof TransactionNotFoundError
+  ) {
+    return undefined
+  }
+  throw error
+}
+
 const clientsForConfiguration = (configuration: EthereumLiveNetwork) => {
   const chain = chainForConfiguration(configuration)
   return {
@@ -199,6 +229,22 @@ const validateRequest = (
   ) {
     return Effect.fail(invalidResponse())
   }
+  if (
+    isAddress(request.destinationAddress, { strict: false }) &&
+    !isAddress(request.destinationAddress, { strict: true })
+  ) {
+    return Effect.succeed(
+      RejectedTransfer.make({
+        request,
+        guidance: TransferGuidance.make({
+          summary: "This address's capital letters do not match its checksum.",
+          details: [
+            'One character may be mistyped. Copy the address again from where it came from.',
+          ],
+        }),
+      }),
+    )
+  }
   try {
     const destination = getAddress(request.destinationAddress)
     return Effect.succeed(
@@ -237,9 +283,11 @@ const queryStringForCursor = (
     Effect.mapError(invalidResponse),
     Effect.map(cursor => {
       const params = new URLSearchParams()
-      params.set('block_number', cursor.block_number.toString())
-      params.set('index', cursor.index.toString())
-      params.set('items_count', cursor.items_count.toString())
+      Array.forEach(Object.entries(cursor), ([name, value]) => {
+        if (value !== null) {
+          params.set(name, String(value))
+        }
+      })
       return `?${params.toString()}`
     }),
   )
@@ -266,7 +314,10 @@ const historyRecord = (
         onSome: to => getAddress(to.hash),
       })
     : from
-  const observedAt = Date.parse(transaction.timestamp)
+  const observedAt = Option.match(Option.fromNullishOr(transaction.timestamp), {
+    onNone: () => Date.now(),
+    onSome: Date.parse,
+  })
   return Option.some(
     TransactionRecord.make({
       recordId: `${transaction.hash}:${account.account.accountId}:eth`,
@@ -274,7 +325,10 @@ const historyRecord = (
       accountId: account.account.accountId,
       networkId: configuration.network.networkId,
       direction: isOutgoing ? 'Outgoing' : 'Incoming',
-      status: transaction.status === 'ok' ? 'Confirmed' : 'Failed',
+      status: Option.match(Option.fromNullishOr(transaction.status), {
+        onNone: () => 'Pending',
+        onSome: status => (status === 'ok' ? 'Confirmed' : 'Failed'),
+      }),
       amount: assetAmount(configuration, value, observedAt),
       counterpartyAddress,
       normalizedCounterpartyAddress: counterpartyAddress.toLowerCase(),
@@ -551,13 +605,23 @@ export const makeEthereumLiveAdapter = (
               value,
             }),
           ])
+          if (
+            gas * fees.maxFeePerGas >
+            BigInt(preview.estimatedFee.atomicUnits)
+          ) {
+            throw feeRose()
+          }
+          const maxPriorityFeePerGas =
+            fees.maxPriorityFeePerGas < fees.maxFeePerGas
+              ? fees.maxPriorityFeePerGas
+              : fees.maxFeePerGas
           const payload = EthereumPreparedPayload.make({
             previewId: preview.previewId,
             chainId: configuration.numericChainId,
             nonce,
             gas: gas.toString(),
             maxFeePerGas: fees.maxFeePerGas.toString(),
-            maxPriorityFeePerGas: fees.maxPriorityFeePerGas.toString(),
+            maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
             to: destination,
             value: value.toString(),
           })
@@ -711,6 +775,51 @@ export const makeEthereumLiveAdapter = (
           unwatch => Effect.sync(unwatch),
         ).pipe(Effect.flatMap(() => Effect.never)),
       ),
+    observeSettlement: (_account, transactionId) => {
+      const hash = transactionHash(transactionId)
+      const standing = async (): Promise<TransactionStanding> => {
+        const receipt = await publicClient
+          .getTransactionReceipt({ hash })
+          .catch(unlessNotFound)
+        if (receipt === undefined) {
+          const transaction = await publicClient
+            .getTransaction({ hash })
+            .catch(unlessNotFound)
+          return transaction === undefined ? 'Unknown' : 'Seen'
+        }
+        if (receipt.status !== 'success') {
+          return 'FailedOnChain'
+        }
+        const finalized = await publicClient.getBlock({ blockTag: 'finalized' })
+        return receipt.blockNumber <= finalized.number ? 'Final' : 'Included'
+      }
+      return Stream.merge(
+        Stream.callback<TransactionStanding, WalletClientError>(queue =>
+          Effect.acquireRelease(
+            Effect.sync(() =>
+              subscriptionClient.watchBlockNumber({
+                onBlockNumber: () => {
+                  void standing()
+                    .then(current => {
+                      Queue.offerUnsafe(queue, current)
+                    })
+                    .catch(() => {
+                      Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+                    })
+                },
+                onError: () => {
+                  Queue.failCauseUnsafe(queue, Cause.fail(unavailable()))
+                },
+              }),
+            ),
+            unwatch => Effect.sync(unwatch),
+          ).pipe(Effect.flatMap(() => Effect.never)),
+        ),
+        Stream.fromEffect(
+          Effect.tryPromise({ try: standing, catch: unavailable }),
+        ),
+      ).pipe(Stream.takeUntil(isSettledStanding))
+    },
     requestTestFunding: (account, request) => {
       if (
         configuration.network.networkId !== 'ethereum:anvil' ||

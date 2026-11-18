@@ -8,6 +8,8 @@ import {
 } from '../catalog/catalog.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
+import { Link } from '../navigation/message.js'
+import { isModalStyle } from '../navigation/structure.js'
 import { buttonsOf } from '../renderers/query.js'
 import type { ButtonNode, UiNode } from '../renderers/types.js'
 import type { BoundInteraction } from './bind.js'
@@ -17,10 +19,13 @@ import { type TerminalKeyOutcome, pressTerminalKey } from './terminal.js'
 // MODEL
 
 /**
- * Which button a terminal highlights on each screen, by the screen's key:
- * `{ '/counters': 'Reset:2' }`. A screen keeps its highlight while a
- * dialog over it has the keyboard, so closing "Delete Counter 2?" lands
- * back on the button that opened it.
+ * Which button a terminal highlights on each screen, by the screen's
+ * identity: `{ '/counters': 'Reset:2' }`. A screen keeps its highlight
+ * while a dialog over it has the keyboard, so closing "Delete Counter 2?"
+ * lands back on the button that opened it. A page whose address follows a
+ * moving place keeps its highlight as the place moves: the player at
+ * `/books/a-new-earth/listen/12m03s` and at `…/12m04s` is one page, keyed
+ * `/books/a-new-earth/listen/0s`.
  */
 export type TerminalFocus = Readonly<Record<string, string>>
 
@@ -35,6 +40,8 @@ export const noTerminalFocus: TerminalFocus = {}
 export type FocusMove = 'Next' | 'Previous' | 'Up' | 'Down'
 
 type FocusGrid = ReadonlyArray<ReadonlyArray<string>>
+
+type GridRow = Readonly<{ tags: ReadonlyArray<string>; isCurrent: boolean }>
 
 /**
  * How a key moves the terminal highlight. None for any other key.
@@ -67,31 +74,59 @@ export const focusMoveOf = (input: KeyInput): Option.Option<FocusMove> => {
 
 // GRID
 
+const isLinkTag = (tag: string): boolean => tag.startsWith('/')
+
 const pressableTagOf = (button: ButtonNode): Option.Option<string> =>
   button.disabled === true ? Option.none() : Option.fromNullishOr(button.action)
 
-const gridOfNode = (node: UiNode): FocusGrid =>
+const gridRowsOfNode = (node: UiNode): ReadonlyArray<GridRow> =>
   M.value(node).pipe(
-    M.withReturnType<FocusGrid>(),
+    M.withReturnType<ReadonlyArray<GridRow>>(),
     M.tagsExhaustive({
       Text: () => [],
       TextInput: () => [],
       Spacer: () => [],
       Button: button =>
-        Array.fromOption(Option.map(pressableTagOf(button), Array.of)),
+        Array.fromOption(
+          Option.map(pressableTagOf(button), tag => ({
+            tags: [tag],
+            isCurrent: false,
+          })),
+        ),
       Row: row =>
         Array.match(Array.getSomes(Array.map(buttonsOf(row), pressableTagOf)), {
           onEmpty: () => [],
-          onNonEmpty: tags => [tags],
+          onNonEmpty: tags => [{ tags, isCurrent: false }],
         }),
-      Column: column => Array.flatMap(column.children, gridOfNode),
-      Box: box => Array.flatMap(box.children, gridOfNode),
-      DeviceShell: shell => Array.flatMap(shell.children, gridOfNode),
+      Column: column => Array.flatMap(column.children, gridRowsOfNode),
+      Box: box => Array.flatMap(box.children, gridRowsOfNode),
+      Progress: () => [],
+      List: list =>
+        Array.map(list.items, item => ({
+          tags: [
+            ...Array.fromNullishOr(item.check?.action),
+            ...Array.fromNullishOr(item.action ?? item.href),
+            ...Array.getSomes(Array.map(item.trailing ?? [], pressableTagOf)),
+          ],
+          isCurrent: item.isCurrent === true,
+        })),
+      Seek: () => [],
+      Transcript: () => [],
+      DeviceShell: shell => Array.flatMap(shell.children, gridRowsOfNode),
     }),
   )
 
+const gridRowsOfView = (view: EntryView): ReadonlyArray<GridRow> =>
+  view._tag === 'Screen' ? gridRowsOfNode(view.node) : []
+
+const gridOfRows = (rows: ReadonlyArray<GridRow>): FocusGrid =>
+  Array.filter(
+    Array.map(rows, row => row.tags),
+    Array.isReadonlyArrayNonEmpty,
+  )
+
 const gridOfView = (view: EntryView): FocusGrid =>
-  view._tag === 'Screen' ? gridOfNode(view.node) : []
+  gridOfRows(gridRowsOfView(view))
 
 const keyboardLayerOf = (frame: Frame): FrameLayer =>
   Option.getOrElse(Array.last(frame.overlays), () => frame.base)
@@ -99,22 +134,72 @@ const keyboardLayerOf = (frame: Frame): FrameLayer =>
 const isPresented = (layer: FrameLayer): boolean =>
   Option.isSome(layer.maybeStyle)
 
+const isModal = (layer: FrameLayer): boolean =>
+  Option.exists(layer.maybeStyle, isModalStyle)
+
+const isFollowingNode = (node: UiNode): boolean =>
+  M.value(node).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      Text: () => false,
+      TextInput: () => false,
+      Spacer: () => false,
+      Button: () => false,
+      Progress: () => false,
+      List: () => false,
+      Seek: () => false,
+      Transcript: transcript =>
+        Array.some(transcript.passages, passage => passage.isCurrent === true),
+      Row: row => Array.some(row.children, isFollowingNode),
+      Column: column => Array.some(column.children, isFollowingNode),
+      Box: box => Array.some(box.children, isFollowingNode),
+      DeviceShell: shell => Array.some(shell.children, isFollowingNode),
+    }),
+  )
+
+const isFollowingAlong = (view: EntryView): boolean =>
+  view._tag === 'Screen' && isFollowingNode(view.node)
+
+const highlightsAtOnce = (layer: FrameLayer): boolean =>
+  isModal(layer) || (isPresented(layer) && !isFollowingAlong(layer.view))
+
 const isInGrid = (grid: FocusGrid, tag: string): boolean =>
   Array.some(grid, row => Array.contains(row, tag))
 
 const firstOf = (grid: FocusGrid): Option.Option<string> =>
   Array.head(Array.flatten(grid))
 
+const nearCurrentOf = (rows: ReadonlyArray<GridRow>): Option.Option<string> =>
+  Option.orElse(
+    Option.flatMap(
+      Array.findFirstIndex(rows, row => row.isCurrent),
+      currentIndex =>
+        Option.flatMap(
+          Array.findFirst(Array.drop(rows, currentIndex), row =>
+            Array.isReadonlyArrayNonEmpty(row.tags),
+          ),
+          row => Array.head(row.tags),
+        ),
+    ),
+    () => firstOf(gridOfRows(rows)),
+  )
+
 /**
  * The button a terminal highlights on the screen that has the keyboard:
- * the one kept for that screen while it is still there. A dialog
- * highlights its first button until a key moves it, so Enter answers it at
- * once; a page highlights nothing until the first arrow.
+ * the one kept for that screen while it is still there. A dialog or sheet
+ * highlights a row until a key moves it, so Enter answers it at once: the
+ * current row, or the first after it that presses, such as the chapter
+ * playing in a book's contents, else its first button. A page pushed
+ * above another highlights its first button at once too, unless it
+ * follows something that moves, such as a player's words being spoken:
+ * that page, like the root, highlights nothing until the first arrow, so
+ * a terminal keeps the words in view instead of the Back button.
  *
  * @example
  * ```typescript
  * focusedTagOf(frame, { '/counters': 'Reset:2' }) // Some('Reset:2')
  * focusedTagOf(frameWithDeleteQuestion, noTerminalFocus) // Some('ConfirmDelete:2')
+ * focusedTagOf(frameWithContentsAtChapter3, noTerminalFocus) // Some('JumpToChapter:4')
  * ```
  */
 export const focusedTagOf = (
@@ -122,12 +207,13 @@ export const focusedTagOf = (
   focus: TerminalFocus,
 ): Option.Option<string> => {
   const layer = keyboardLayerOf(frame)
-  const grid = gridOfView(layer.view)
-  const maybeKept = Option.filter(Record.get(focus, layer.key), tag =>
+  const rows = gridRowsOfView(layer.view)
+  const grid = gridOfRows(rows)
+  const maybeKept = Option.filter(Record.get(focus, layer.identity), tag =>
     isInGrid(grid, tag),
   )
-  return isPresented(layer)
-    ? Option.orElse(maybeKept, () => firstOf(grid))
+  return highlightsAtOnce(layer)
+    ? Option.orElse(maybeKept, () => nearCurrentOf(rows))
     : maybeKept
 }
 
@@ -257,7 +343,7 @@ export const pressTerminalKeyAt = <Model, Message>(
       if (Option.isSome(maybeMoved)) {
         return {
           outcome: 'Handled',
-          focus: Record.set(focus, layer.key, maybeMoved.value),
+          focus: Record.set(focus, layer.identity, maybeMoved.value),
         }
       }
       const maybePressed = Option.flatMap(maybeFocused, focusedTag =>
@@ -268,7 +354,9 @@ export const pressTerminalKeyAt = <Model, Message>(
       return Option.match(maybePressed, {
         onNone: passedOn,
         onSome: tag =>
-          bound.press(tag) ? { outcome: 'Handled', focus } : passedOn(),
+          (isLinkTag(tag) ? bound.openUri(tag, Link()) : bound.press(tag))
+            ? { outcome: 'Handled', focus }
+            : passedOn(),
       })
     },
   })
@@ -282,6 +370,19 @@ const keysLabelOf = (button: ButtonNode): string =>
     onNonEmpty: keys => `${button.label} (${Array.join(keys, ' ')})`,
   })
 
+const decoratedButton = (
+  button: ButtonNode,
+  maybeFocused: Option.Option<string>,
+  isShowingKeys: boolean,
+): ButtonNode => ({
+  ...button,
+  label: isShowingKeys ? keysLabelOf(button) : button.label,
+  ...(button.action !== undefined &&
+  Option.contains(maybeFocused, button.action)
+    ? { focused: true }
+    : {}),
+})
+
 const decorated = (
   node: UiNode,
   maybeFocused: Option.Option<string>,
@@ -293,14 +394,7 @@ const decorated = (
       Text: text => text,
       TextInput: input => input,
       Spacer: spacer => spacer,
-      Button: button => ({
-        ...button,
-        label: isShowingKeys ? keysLabelOf(button) : button.label,
-        ...(button.action !== undefined &&
-        Option.contains(maybeFocused, button.action)
-          ? { focused: true }
-          : {}),
-      }),
+      Button: button => decoratedButton(button, maybeFocused, isShowingKeys),
       Row: row => ({
         ...row,
         children: Array.map(row.children, child =>
@@ -319,6 +413,32 @@ const decorated = (
           decorated(child, maybeFocused, isShowingKeys),
         ),
       }),
+      Progress: progress => progress,
+      List: list => ({
+        ...list,
+        items: Array.map(list.items, item => ({
+          ...item,
+          ...(Option.exists(
+            Option.fromNullishOr(item.action ?? item.href),
+            tag => Option.contains(maybeFocused, tag),
+          )
+            ? { focused: true }
+            : {}),
+          ...(item.check?.action !== undefined &&
+          Option.contains(maybeFocused, item.check.action)
+            ? { check: { ...item.check, focused: true } }
+            : {}),
+          ...(item.trailing === undefined
+            ? {}
+            : {
+                trailing: Array.map(item.trailing, button =>
+                  decoratedButton(button, maybeFocused, isShowingKeys),
+                ),
+              }),
+        })),
+      }),
+      Seek: seek => seek,
+      Transcript: transcript => transcript,
       DeviceShell: shell => ({
         ...shell,
         children: Array.map(shell.children, child =>
@@ -340,7 +460,7 @@ const decorated = (
  * ```
  */
 export const terminalFrameOf = (frame: Frame, focus: TerminalFocus): Frame => {
-  const keyboardKey = keyboardLayerOf(frame).key
+  const keyboardIdentity = keyboardLayerOf(frame).identity
   const maybeFocused = focusedTagOf(frame, focus)
   const layerFor = (layer: FrameLayer): FrameLayer =>
     layer.view._tag === 'Screen'
@@ -350,7 +470,9 @@ export const terminalFrameOf = (frame: Frame, focus: TerminalFocus): Frame => {
             _tag: 'Screen',
             node: decorated(
               layer.view.node,
-              layer.key === keyboardKey ? maybeFocused : Option.none(),
+              layer.identity === keyboardIdentity
+                ? maybeFocused
+                : Option.none(),
               isPresented(layer),
             ),
           },

@@ -88,3 +88,30 @@ export const parseSolanaPayTransferUri = (
     return Option.none()
   }
 }
+
+const networkIdsOfClusters: Readonly<Record<string, string>> = {
+  devnet: 'solana:devnet',
+  testnet: 'solana:testnet',
+  mainnet: 'solana:mainnet-beta',
+  'mainnet-beta': 'solana:mainnet-beta',
+}
+
+/**
+ * True when a payment link may fill a send on this network: a Solana network,
+ * and the one the link names, if it names any. A cluster this wallet does not
+ * know never matches.
+ *
+ * @example
+ * ```typescript
+ * isSolanaPayTransferForNetwork(pay, 'solana:mainnet-beta') // false for ?cluster=devnet
+ * ```
+ */
+export const isSolanaPayTransferForNetwork = (
+  transfer: SolanaPayTransfer,
+  networkId: string,
+): boolean =>
+  networkId.startsWith('solana:') &&
+  Option.match(transfer.maybeCluster, {
+    onNone: () => true,
+    onSome: cluster => networkIdsOfClusters[cluster] === networkId,
+  })

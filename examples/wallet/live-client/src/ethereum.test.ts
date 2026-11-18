@@ -1,8 +1,13 @@
-import { Effect, Option } from 'effect'
+import { Effect, Option, Redacted, Schema as S } from 'effect'
 import { getAddress } from 'viem'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  AssetAmount,
+  AtomicUnits,
+  FirstTransactionWithRecipient,
+  TransactionPreview,
   TransferRequest,
+  UnfamiliarAddress,
   WalletAccount,
   WalletProfileAccount,
 } from 'wallet-core-example'
@@ -15,6 +20,8 @@ const ethereumTransport = vi.hoisted(() => ({
   balance: 2n,
   estimateGasMode: 'Ok',
   estimateGasCalls: 0,
+  maxFeePerGas: 1n,
+  maxPriorityFeePerGas: 1n,
 }))
 
 vi.mock('viem', async importOriginal => {
@@ -24,9 +31,10 @@ vi.mock('viem', async importOriginal => {
     createPublicClient: () => ({
       getBalance: async () => ethereumTransport.balance,
       estimateFeesPerGas: async () => ({
-        maxFeePerGas: 1n,
-        maxPriorityFeePerGas: 1n,
+        maxFeePerGas: ethereumTransport.maxFeePerGas,
+        maxPriorityFeePerGas: ethereumTransport.maxPriorityFeePerGas,
       }),
+      getTransactionCount: async () => 7,
       estimateGas: async () => {
         ethereumTransport.estimateGasCalls += 1
         if (ethereumTransport.estimateGasMode === 'InsufficientFunds') {
@@ -100,6 +108,91 @@ afterEach(() => {
   ethereumTransport.balance = 2n
   ethereumTransport.estimateGasMode = 'Ok'
   ethereumTransport.estimateGasCalls = 0
+  ethereumTransport.maxFeePerGas = 1n
+  ethereumTransport.maxPriorityFeePerGas = 1n
+})
+
+const previewedGwei = 10n
+const gasForTransfer = 21_000n
+const previewedFee = previewedGwei * gasForTransfer
+
+/** A preview whose fee was quoted at 10 per gas, for 21,000 gas. */
+const previewAtTenPerGas = TransactionPreview.make({
+  previewId: 'ethereum-preview-1',
+  transfer: {
+    _tag: 'ValidatedTransfer',
+    request,
+    recipient: {
+      networkId: ethereumSepoliaConfiguration.network.networkId,
+      address: recipientAddress,
+      normalizedAddress: recipientAddress,
+      displayAddress: recipientAddress,
+    },
+  },
+  estimatedFee: AssetAmount.make({
+    assetId: ethereumSepoliaConfiguration.asset.assetId,
+    atomicUnits: S.decodeUnknownSync(AtomicUnits)(previewedFee.toString()),
+    observedAt: 1,
+  }),
+  resultingBalance: AssetAmount.make({
+    assetId: ethereumSepoliaConfiguration.asset.assetId,
+    atomicUnits: '1',
+    observedAt: 1,
+  }),
+  expiresAt: Number.MAX_SAFE_INTEGER,
+  recipientFamiliarity: UnfamiliarAddress.make({}),
+  recipientHistory: FirstTransactionWithRecipient.make({}),
+})
+
+const preparedFees = (
+  payload: Redacted.Redacted<string>,
+): Readonly<{ gas: bigint; maxFeePerGas: bigint }> => {
+  const prepared: unknown = JSON.parse(Redacted.value(payload))
+  if (
+    typeof prepared !== 'object' ||
+    prepared === null ||
+    !('gas' in prepared) ||
+    !('maxFeePerGas' in prepared)
+  ) {
+    throw new Error('Expected a prepared Ethereum payload')
+  }
+  return {
+    gas: BigInt(String(prepared.gas)),
+    maxFeePerGas: BigInt(String(prepared.maxFeePerGas)),
+  }
+}
+
+describe('Ethereum live adapter fee binding', () => {
+  it('refuses to sign when the fee rose above what the preview showed', async () => {
+    ethereumTransport.maxFeePerGas = 50n
+    ethereumTransport.maxPriorityFeePerGas = 2n
+    const adapter = makeEthereumLiveAdapter(ethereumSepoliaConfiguration)
+
+    const failure = await Effect.runPromise(
+      adapter
+        .buildTransferPayload(account, previewAtTenPerGas)
+        .pipe(Effect.flip),
+    )
+
+    expect(failure.code).toBe('Rejected')
+    expect(failure.guidance?.summary).toBe(
+      'The network fee rose since the preview, so nothing was signed.',
+    )
+  })
+
+  it('never lets the signed maximum fee pass the previewed fee', async () => {
+    ethereumTransport.maxFeePerGas = 4n
+    ethereumTransport.maxPriorityFeePerGas = 9n
+    const adapter = makeEthereumLiveAdapter(ethereumSepoliaConfiguration)
+
+    const payload = await Effect.runPromise(
+      adapter.buildTransferPayload(account, previewAtTenPerGas),
+    )
+    const fees = preparedFees(payload.payload)
+
+    expect(fees.gas * fees.maxFeePerGas <= previewedFee).toBe(true)
+    expect(fees.maxFeePerGas).toBe(4n)
+  })
 })
 
 describe('Ethereum live adapter transfer failures', () => {
@@ -128,5 +221,28 @@ describe('Ethereum live adapter transfer failures', () => {
 
     expect(failure.code).toBe('Unavailable')
     expect(ethereumTransport.estimateGasCalls).toBe(1)
+  })
+})
+
+describe('Ethereum recipient checksum', () => {
+  const validationOf = (destinationAddress: string) =>
+    Effect.runPromise(
+      makeEthereumLiveAdapter(ethereumSepoliaConfiguration).validateTransfer(
+        account,
+        TransferRequest.make({ ...request, destinationAddress }),
+      ),
+    )
+
+  it('refuses a mixed-case address whose checksum does not match, such as one mistyped letter', async () => {
+    const checksummed = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed'
+    const mistyped = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD'
+    expect((await validationOf(checksummed))._tag).not.toBe('RejectedTransfer')
+    expect((await validationOf(mistyped))._tag).toBe('RejectedTransfer')
+  })
+
+  it('takes an all-lowercase address, which carries no checksum', async () => {
+    expect(
+      (await validationOf('0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed'))._tag,
+    ).not.toBe('RejectedTransfer')
   })
 })

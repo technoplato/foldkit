@@ -1,0 +1,5 @@
+---
+'foldkit': minor
+---
+
+A CLI daemon can now be the one place a Program runs for every terminal view, such as a player that keeps playing after the command that started it returns. `runCliTuiView` in `foldkit/cli/view` runs a terminal UI whose Program lives in its daemon: it paints the daemon's frame on the terminal's own screen, sends each key, refreshes twice a second and on resize, and leaves the Program running after `q`. `programCliSurface` answers those requests with `paintTerminal` and the same key routing as an in-process TUI, through the new `makeProgramTerminalView`, and says what a key came to in the Painted reply's new `flags`, such as `{ outcome: 'Quit' }`. `listenCliDaemon` takes `until`, so a daemon stops when its Program is done, such as at `books stop` or the end of a title, and `askCliView` asks a daemon that is already listening without starting one. `paintCommands` paints the commands a person can copy for this moment: the enabled presses a Program suggests, in order, then the host's own commands. `programCliSurface` moved to its own module; `foldkit/cli` still exports it.

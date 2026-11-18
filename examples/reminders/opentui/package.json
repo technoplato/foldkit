@@ -1,0 +1,33 @@
+{
+  "name": "reminders-opentui-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "reminders-opentui": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "prebuild": "pnpm --filter @foldkit/opentui build && pnpm --filter reminders-core-example build",
+    "pretypecheck": "pnpm --filter @foldkit/opentui build && pnpm --filter reminders-core-example build",
+    "reminders-opentui": "../scripts/with-reminders-access bun src/entry.ts",
+    "start": "pnpm run reminders-opentui",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/opentui": "workspace:*",
+    "@opentui/core": "^0.5.4",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "reminders-core-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.4",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3"
+  }
+}

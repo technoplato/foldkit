@@ -96,13 +96,13 @@ describe('Issue failure recovery', () => {
 })
 
 describe('Issue screenify', () => {
-  it('paints the Program screen with useScreen and paintReact', () => {
+  it('paints the Program screen with useScreen and paintTree, links opening in the app', () => {
     const source = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), 'App.tsx'),
       'utf8',
     )
     expect(source).toContain('useScreen')
-    expect(source).toContain('paintReact')
-    expect(source).toContain('paintReact(screen, sendScreenToken')
+    expect(source).toContain('paintTree(screen, {')
+    expect(source).toContain('onLink: openedLink')
   })
 })

@@ -1,177 +1,612 @@
-import { Schema as S } from 'effect'
+import { Array, Option, Schema as S } from 'effect'
+import { Catalog, Navigation } from 'foldkit'
 import { m } from 'foldkit/message'
-import { UrlRequest } from 'foldkit/navigation'
-import { Url } from 'foldkit/url'
+import * as Theme from 'foldkit/theme'
+import * as ReadAloud from 'read-aloud-core-example'
+import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
-  Bookmark,
-  ChapterSort,
-  Item,
-  Note,
-  NoteAudience,
-  Progress,
-  Seconds,
-  Word,
+  ImportFromAudible,
+  ReconnectAudible,
+  ShowAddBooks,
+  audibleActions,
+} from './addBooks.js'
+import * as Audible from './audible/index.js'
+import {
+  BookmarkId,
+  ChapterNumber,
+  ChapterNumberSegment,
+  Milliseconds,
+  TitleSlug,
+  clockOf,
+} from './ids.js'
+import {
+  Chapter,
+  type Model,
+  Shelf,
+  StretchReport,
+  type Title,
+  bookmarkOf,
+  bookmarksOf,
+  chapterNumberAt,
+  chaptersOf,
+  loadedPlayerOf,
+  loadedTitleOf,
+  placeOf,
+  titleOf,
+  titlesOf,
 } from './model.js'
-import { NavigationTarget } from './route.js'
+import { UnendedPlay } from './scribeTimeline.js'
+import { SharedHow } from './share.js'
+import {
+  askedBookmarkOf,
+  isAsking,
+  isOnOtherPlayer,
+  isOnPlayer,
+  loadedSlugOf,
+  shownTitleOf,
+  titlePageSlugOf,
+} from './stack.js'
 
-export const PressedSignIn = m('PressedSignIn')
-export const PressedSignOut = m('PressedSignOut')
-export const PressedOpenBook = m('PressedOpenBook', { itemId: S.String })
-export const PressedOpenChapter = m('PressedOpenChapter', {
-  itemId: S.String,
-  chapterId: S.String,
-})
-export const PressedSetChapterSort = m('PressedSetChapterSort', {
-  sort: ChapterSort,
-})
-export const PressedGoBack = m('PressedGoBack')
-export const PressedShowText = m('PressedShowText')
-export const PressedShowAudio = m('PressedShowAudio')
-export const PressedShowBoth = m('PressedShowBoth')
-export const PressedOpenImport = m('PressedOpenImport')
-export const PressedScanShelf = m('PressedScanShelf')
-export const PressedScanFinished = m('PressedScanFinished')
-export const PressedOpenSettings = m('PressedOpenSettings')
-export const PressedOpenAccounts = m('PressedOpenAccounts')
-export const PressedOpenSearch = m('PressedOpenSearch')
-export const PressedSetQuery = m('PressedSetQuery', { query: S.String })
-export const PressedStartPlayback = m('PressedStartPlayback', {
-  itemId: S.String,
-})
-export const PressedPausePlayback = m('PressedPausePlayback')
-export const PressedResumePlayback = m('PressedResumePlayback')
-export const PressedStopPlayback = m('PressedStopPlayback')
-export const PressedOpenPlaybackReader = m('PressedOpenPlaybackReader')
-export const PressedSeekWord = m('PressedSeekWord', { start: Seconds })
-export const HeardPlaybackPosition = m('HeardPlaybackPosition', {
-  mediaPosition: Seconds,
-})
-export const HeardAudioPlaying = m('HeardAudioPlaying', {
-  itemId: S.String,
-  renditionId: S.String,
-})
-export const HeardAudioPaused = m('HeardAudioPaused')
-export const HeardAudioEnded = m('HeardAudioEnded')
-export const HeardFollowAlong = m('HeardFollowAlong', {
-  itemId: S.String,
-  body: S.String,
-  words: S.Array(Word),
-})
-export const FailedFollowAlong = m('FailedFollowAlong')
-export const HeardSignedIn = m('HeardSignedIn', { accountId: S.String })
-export const FailedSignIn = m('FailedSignIn')
-export const HeardCatalog = m('HeardCatalog', { items: S.Array(Item) })
-export const FailedCatalog = m('FailedCatalog')
-export const HeardUserData = m('HeardUserData', {
-  bookmarks: S.Array(Bookmark),
-  notes: S.Array(Note),
-  progress: S.Array(Progress),
-})
-export const PressedAddBookmark = m('PressedAddBookmark')
-export const PressedOpenBookmark = m('PressedOpenBookmark', {
-  bookmarkId: S.String,
-})
-export const PressedDeleteBookmark = m('PressedDeleteBookmark', {
-  bookmarkId: S.String,
-})
-export const UpdatedNoteDraft = m('UpdatedNoteDraft', { value: S.String })
-export const PressedAddNote = m('PressedAddNote')
-export const PressedDeleteNote = m('PressedDeleteNote', { noteId: S.String })
-export const CompletedSaveProgress = m('CompletedSaveProgress')
-export const FailedSaveProgress = m('FailedSaveProgress')
-export const CompletedSaveBookmark = m('CompletedSaveBookmark')
-export const FailedSaveBookmark = m('FailedSaveBookmark')
-export const CompletedSaveNote = m('CompletedSaveNote')
-export const FailedSaveNote = m('FailedSaveNote')
-export const CompletedSignOut = m('CompletedSignOut')
-export const CompletedPlayAudio = m('CompletedPlayAudio')
-export const CompletedPauseAudio = m('CompletedPauseAudio')
-export const CompletedSeekAudio = m('CompletedSeekAudio')
-export const CompletedScrollCurrentWord = m('CompletedScrollCurrentWord')
-export const ClickedLink = m('ClickedLink', { request: UrlRequest })
-export const ChangedUrl = m('ChangedUrl', { url: Url })
-export const OpenedNavigation = m('OpenedNavigation', {
-  target: NavigationTarget,
-})
-export const CompletedNavigateInternal = m('CompletedNavigateInternal')
-export const CompletedLoadExternal = m('CompletedLoadExternal')
-export const CompletedHistoryBack = m('CompletedHistoryBack')
-export const PressedToggleAppearance = m('PressedToggleAppearance')
-export const PressedFollowLive = m('PressedFollowLive')
-export const ScrolledAway = m('ScrolledAway')
-export const PressedSetNoteAudience = m('PressedSetNoteAudience', {
-  audience: NoteAudience,
-})
-export const PressedCopySharePath = m('PressedCopySharePath')
-export const HeardSharedNote = m('HeardSharedNote', {
-  note: S.Option(Note),
-})
-export const FailedSharedNote = m('FailedSharedNote')
+// MESSAGE
 
-export const Message = S.Union([
-  PressedSignIn,
-  PressedSignOut,
-  PressedOpenBook,
-  PressedOpenChapter,
-  PressedSetChapterSort,
-  PressedGoBack,
-  PressedShowText,
-  PressedShowAudio,
-  PressedShowBoth,
-  PressedOpenImport,
-  PressedScanShelf,
-  PressedScanFinished,
-  PressedOpenSettings,
-  PressedOpenAccounts,
-  PressedOpenSearch,
-  PressedSetQuery,
-  PressedStartPlayback,
-  PressedPausePlayback,
-  PressedResumePlayback,
-  PressedStopPlayback,
-  PressedOpenPlaybackReader,
-  PressedSeekWord,
-  HeardPlaybackPosition,
-  HeardAudioPlaying,
-  HeardAudioPaused,
-  HeardAudioEnded,
-  HeardFollowAlong,
-  FailedFollowAlong,
-  HeardSignedIn,
-  FailedSignIn,
-  HeardCatalog,
-  FailedCatalog,
-  HeardUserData,
-  PressedAddBookmark,
-  PressedOpenBookmark,
-  PressedDeleteBookmark,
-  UpdatedNoteDraft,
-  PressedAddNote,
-  PressedDeleteNote,
-  CompletedSaveProgress,
-  FailedSaveProgress,
-  CompletedSaveBookmark,
-  FailedSaveBookmark,
-  CompletedSaveNote,
-  FailedSaveNote,
-  CompletedSignOut,
-  CompletedPlayAudio,
-  CompletedPauseAudio,
-  CompletedSeekAudio,
-  CompletedScrollCurrentWord,
-  ClickedLink,
-  ChangedUrl,
-  OpenedNavigation,
-  CompletedNavigateInternal,
-  CompletedLoadExternal,
-  CompletedHistoryBack,
-  PressedToggleAppearance,
-  PressedFollowLive,
-  ScrolledAway,
-  PressedSetNoteAudience,
-  PressedCopySharePath,
-  HeardSharedNote,
-  FailedSharedNote,
+const answerFirst = 'answer the question first'
+
+const unlessAsking = (model: Model): Catalog.Availability =>
+  isAsking(model)
+    ? Catalog.Disabled({ because: answerFirst })
+    : Catalog.Enabled()
+
+const whenLoaded = (model: Model): Catalog.Availability => {
+  if (isAsking(model)) {
+    return Catalog.Disabled({ because: answerFirst })
+  } else if (model.listening._tag === 'Idle') {
+    return Catalog.Disabled({ because: 'nothing is in the player' })
+  } else if (isOnOtherPlayer(model)) {
+    return Catalog.Disabled({ because: 'this title is not in the player' })
+  } else {
+    return Catalog.Enabled()
+  }
+}
+
+const authorsOf = (title: Title): string => Array.join(title.authors, ', ')
+
+const noAudio = 'its audio is not in the library yet'
+
+const audioOf = (title: Title): Catalog.Availability =>
+  Option.isSome(title.maybeAudioUrl)
+    ? Catalog.Enabled()
+    : Catalog.Disabled({ because: noAudio })
+
+const whichTitle = (
+  availabilityOf: (model: Model, title: Title) => Catalog.Availability,
+  preferredOf?: (model: Model) => Option.Option<TitleSlug>,
+): Catalog.Choose<Model, 'slug', TitleSlug> => ({
+  field: 'slug',
+  prompt: 'Which title?',
+  token: TitleSlug,
+  choicesOf: model =>
+    Array.map(titlesOf(model), title => ({
+      value: title.slug,
+      title: title.name,
+      detail: authorsOf(title),
+      availability: availabilityOf(model, title),
+    })),
+  ...(preferredOf === undefined ? {} : { preferredOf }),
+  nothingToChoose: 'the library has no titles yet',
+})
+
+const shownTitle = (model: Model): Option.Option<Title> =>
+  Option.flatMap(shownTitleOf(model), slug => titleOf(model, slug))
+
+const whichChapter = (
+  titleOfModel: (model: Model) => Option.Option<Title>,
+  availabilityOf: (
+    model: Model,
+    title: Title,
+    chapterNumber: ChapterNumber,
+  ) => Catalog.Availability,
+): Catalog.Choose<Model, 'chapterNumber', ChapterNumber> => ({
+  field: 'chapterNumber',
+  prompt: 'Which chapter?',
+  token: ChapterNumberSegment,
+  choicesOf: model =>
+    Option.match(
+      Option.flatMap(titleOfModel(model), title =>
+        Option.map(chaptersOf(model, title.slug), chapters => ({
+          title,
+          chapters,
+        })),
+      ),
+      {
+        onNone: () => [],
+        onSome: ({ title, chapters }) =>
+          Array.map(chapters, chapter => ({
+            value: chapter.chapterNumber,
+            title: chapter.name,
+            detail: clockOf(chapter.startMs),
+            availability: availabilityOf(model, title, chapter.chapterNumber),
+          })),
+      },
+    ),
+  nothingToChoose: 'no title is open',
+})
+
+const whichBookmark = (
+  prompt: string,
+  availabilityOf: (title: Title) => Catalog.Availability = () =>
+    Catalog.Enabled(),
+): Catalog.Choose<Model, 'bookmarkId', BookmarkId> => ({
+  field: 'bookmarkId',
+  prompt,
+  token: BookmarkId,
+  choicesOf: model =>
+    Option.match(shownTitle(model), {
+      onNone: () => [],
+      onSome: title =>
+        Array.map(bookmarksOf(model, title.slug), bookmark => ({
+          value: bookmark.bookmarkId,
+          title: clockOf(bookmark.atMs),
+          availability: availabilityOf(title),
+        })),
+    }),
+  nothingToChoose: 'this title has no bookmarks',
+})
+
+/** Opens one title's page. `o` presses it on a highlighted row. */
+export const Open = Catalog.action('Open', {
+  fields: { slug: TitleSlug },
+  choose: whichTitle((model, title) =>
+    Option.contains(titlePageSlugOf(model), title.slug)
+      ? Catalog.Disabled({ because: 'its page is open' })
+      : Catalog.Enabled(),
+  ),
+  what: "Opens this book's page, with its chapters and bookmarks",
+  why: 'The person wants its chapters and bookmarks',
+  enabled: unlessAsking,
+  meta: { label: 'Open', keys: ['o'], title: 'Open title' },
+})
+
+/**
+ * Plays one title from where the listener stopped, and shows its player.
+ * `p` plays the title on screen. While the title is in the player, the
+ * player's own Play and Pause take `p`.
+ */
+export const Listen = Catalog.action('Listen', {
+  fields: { slug: TitleSlug },
+  choose: whichTitle(
+    (model, title) =>
+      Option.contains(loadedSlugOf(model), title.slug)
+        ? Catalog.Disabled({ because: 'it is in the player' })
+        : audioOf(title),
+    shownTitleOf,
+  ),
+  what: 'Plays this book from where you stopped',
+  why: 'The person wants to listen',
+  enabled: unlessAsking,
+  meta: { label: 'Play', keys: ['p'], title: 'Play title' },
+})
+
+/**
+ * The Transcript Player's own Actions, offered for the title in this
+ * device's player: Play and Pause on `p`, skips on `[` and `]`, a seek to
+ * any place, playing from a word, and the speed. They keep the player's
+ * tags, so `SeekToWord:w4012` means the same in Books and on its own.
+ */
+export const playerActions = Catalog.within(TranscriptPlayer.catalog, {
+  childOf: loadedPlayerOf,
+  nothing: 'nothing is in the player',
+  enabled: unlessAsking,
+})
+
+/** The player's Actions, each reading the loaded player. */
+export const [
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  PreviousSection,
+  NextSection,
+  SeekTo,
+  SeekToWord,
+  SetSeekScope,
+  SetSpeed,
+] = playerActions.actions
+
+/**
+ * The look: light, dark, or following the system, `SetAppearance:Dark`.
+ * Foldkit's own Action, reading this Model's appearance, so the menu, a
+ * hover description, and `books set-appearance dark` all come from it.
+ */
+export const [SetAppearance] = Catalog.within(Theme.catalog, {
+  childOf: (model: Model) => Option.some(model.appearance),
+  nothing: 'the look cannot change here',
+}).actions
+
+/** Shows the player, whatever this device has loaded. */
+export const OpenPlayer = Catalog.action('OpenPlayer', {
+  what: 'Shows what is playing, with its words and controls',
+  why: 'The person wants the controls for what is playing',
+  enabled: (model: Model) => {
+    if (isAsking(model)) {
+      return Catalog.Disabled({ because: answerFirst })
+    } else if (isOnPlayer(model) && !isOnOtherPlayer(model)) {
+      return Catalog.Disabled({ because: 'the player is open' })
+    } else if (model.listening._tag === 'Idle') {
+      return Catalog.Disabled({ because: 'nothing is in the player' })
+    } else {
+      return Catalog.Enabled()
+    }
+  },
+  meta: { label: 'Now playing', keys: [], title: 'Open the player' },
+})
+
+/**
+ * Shows the chapters of the title on screen, beside its page, and closes
+ * them when they are showing. `c` presses it.
+ */
+export const ShowContents = Catalog.action('ShowContents', {
+  what: "Lists this book's chapters so you can jump to one",
+  why: 'The person wants to find a chapter',
+  enabled: (model: Model) =>
+    Option.isSome(shownTitle(model))
+      ? unlessAsking(model)
+      : Catalog.Disabled({ because: 'no title is open' }),
+  meta: { label: 'Contents', keys: ['c'] },
+})
+
+/**
+ * Plays the title on screen from the start of one chapter, and closes
+ * the contents.
+ */
+export const JumpToChapter = Catalog.action('JumpToChapter', {
+  fields: { chapterNumber: ChapterNumber },
+  choose: whichChapter(shownTitle, (model, title, chapterNumber) => {
+    if (Option.isNone(title.maybeAudioUrl)) {
+      return Catalog.Disabled({ because: noAudio })
+    } else if (
+      Option.exists(
+        loadedTitleOf(model),
+        ({ title: loaded, loaded: player }) =>
+          loaded.slug === title.slug &&
+          Option.contains(
+            chapterNumberAt(model, loaded.slug, placeOf(player)),
+            chapterNumber,
+          ),
+      )
+    ) {
+      return Catalog.Disabled({ because: 'it is playing now' })
+    } else {
+      return Catalog.Enabled()
+    }
+  }),
+  what: 'Plays this book from the start of the chapter',
+  why: 'The person wants to listen to that part',
+  enabled: unlessAsking,
+  meta: { label: 'Play', keys: [], title: 'Jump to chapter' },
+})
+
+/** Shows the speeds to choose from. `x` presses it on the player. */
+export const ShowSpeeds = Catalog.action('ShowSpeeds', {
+  what: 'Lets you pick how fast the book plays',
+  why: 'The person wants it faster or slower',
+  enabled: (model: Model) =>
+    isOnPlayer(model)
+      ? unlessAsking(model)
+      : Catalog.Disabled({ because: 'the player is not open' }),
+  meta: { label: 'Speed', keys: ['x'] },
+})
+
+/**
+ * Shares a link to the second the player is at, the player's own address:
+ * the share sheet on a phone, the clipboard elsewhere. `l` presses it.
+ */
+export const SharePlace = Catalog.action('SharePlace', {
+  what: 'Shares a link that opens the book at this moment',
+  why: 'The person wants someone to hear this part, or to come back to it',
+  enabled: whenLoaded,
+  meta: { label: 'Share', keys: ['l'], title: 'Share this moment' },
+})
+
+/** Shows every control of the player under the words. */
+export const ExpandControls = Catalog.action('ExpandControls', {
+  what: 'Shows every control, with the seek bar, chapters, speed, bookmark and share',
+  why: 'The person wants the chapter bar, chapters, speed, or sharing',
+  enabled: (model: Model) =>
+    model.controls === 'Collapsed' && isOnPlayer(model)
+      ? whenLoaded(model)
+      : Catalog.Disabled({ because: 'the controls are open' }),
+  meta: { label: 'More controls', keys: ['e'], title: 'Show every control' },
+})
+
+/** Folds the player's controls back into the compact bar. */
+export const CollapseControls = Catalog.action('CollapseControls', {
+  what: 'Folds the controls into one small bar, leaving more room for the words',
+  why: 'The person wants more room for the words',
+  enabled: (model: Model) =>
+    model.controls === 'Expanded' && isOnPlayer(model)
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'the controls are folded' }),
+  meta: { label: 'Fewer controls', keys: ['e'], title: 'Fold the controls' },
+})
+
+/** Goes to the library, the home. */
+export const ShowLibrary = Catalog.action('ShowLibrary', {
+  what: 'Goes to your library of books',
+  why: 'The person wants to pick a book',
+  enabled: unlessAsking,
+  meta: { label: 'Library', keys: [], title: 'Go to the library' },
+})
+
+/** Shows who is signed in, and how the library stands. */
+export const ShowProfile = Catalog.action('ShowProfile', {
+  what: 'Shows who is signed in',
+  why: 'The person wants to know which account this is',
+  enabled: unlessAsking,
+  meta: { label: 'Profile', keys: [], title: 'Show the profile' },
+})
+
+/**
+ * Shows the picture books read aloud, the one being read now first, at
+ * `/books/read-aloud`. The Read aloud row on the library presses it.
+ */
+export const ShowReadAloud = Catalog.action('ShowReadAloud', {
+  what: 'Shows the picture books read aloud',
+  why: 'The person wants to follow along in a book being read aloud',
+  enabled: unlessAsking,
+  meta: { label: 'Read aloud', keys: [], title: 'Show the books read aloud' },
+})
+
+/** Marks the place in the player. `b` presses it. */
+export const AddBookmark = Catalog.action('AddBookmark', {
+  what: 'Saves a bookmark at this moment so you can come back to it',
+  why: 'The person wants to come back to it',
+  enabled: whenLoaded,
+  meta: { label: 'Bookmark', keys: ['b'], title: 'Add bookmark' },
+})
+
+/** Plays the title on screen from one of its bookmarks. */
+export const PlayBookmark = Catalog.action('PlayBookmark', {
+  fields: { bookmarkId: BookmarkId },
+  choose: whichBookmark('Which bookmark?', audioOf),
+  what: 'Plays the book from this bookmark',
+  why: 'The person wants to go back to that place',
+  enabled: unlessAsking,
+  meta: { label: 'Play', keys: [], title: 'Play bookmark' },
+})
+
+/** Asks before deleting one bookmark. */
+export const DeleteBookmark = Catalog.action('DeleteBookmark', {
+  fields: { bookmarkId: BookmarkId },
+  choose: whichBookmark('Delete which bookmark?'),
+  what: 'Deletes this bookmark, after asking you first',
+  why: 'The person no longer needs it',
+  enabled: unlessAsking,
+  meta: { label: 'Delete', keys: [], title: 'Delete bookmark' },
+})
+
+/**
+ * Deletes the bookmark the open question names. Its one choice is that
+ * bookmark, so no surface can delete one nobody was asked about. `y`
+ * presses it.
+ */
+export const ConfirmDeleteBookmark = Catalog.action('ConfirmDeleteBookmark', {
+  fields: { bookmarkId: BookmarkId },
+  choose: {
+    field: 'bookmarkId',
+    prompt: 'Delete which bookmark?',
+    token: BookmarkId,
+    choicesOf: (model: Model) =>
+      Array.map(
+        Option.toArray(
+          Option.flatMap(askedBookmarkOf(model), bookmarkId =>
+            bookmarkOf(model, bookmarkId),
+          ),
+        ),
+        bookmark => ({
+          value: bookmark.bookmarkId,
+          title: clockOf(bookmark.atMs),
+        }),
+      ),
+    preferredOf: askedBookmarkOf,
+    nothingToChoose: 'no delete is waiting for an answer',
+  },
+  what: 'Deletes the bookmark',
+  why: 'The person is sure they want it gone',
+  meta: { label: 'Delete', keys: ['y'] },
+})
+
+/** Closes the question and keeps the bookmark. `n` presses it. */
+export const CancelDeleteBookmark = Catalog.action('CancelDeleteBookmark', {
+  what: 'Keeps the bookmark and closes the question',
+  why: 'The person changed their mind',
+  enabled: (model: Model) =>
+    isAsking(model)
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'no delete is waiting for an answer' }),
+  meta: { label: 'Cancel', keys: ['n'] },
+})
+
+/** The Audible import's Actions, each reading the page on top. */
+export const [
+  ConnectAudible,
+  TryAudibleSignInAgain,
+  ToggleAudibleTitle,
+  SelectAllAudibleTitles,
+  DeselectAudibleTitles,
+  ImportAudibleTitles,
+  ReadAudibleLibraryAgain,
+  GetAudiobookAudio,
+] = audibleActions.actions
+
+/**
+ * Every Books Action in the order surfaces list them. The action menu
+ * shows each once; the ones that act on a title, chapter, speed, or
+ * bookmark ask which next. The CLI reads them as `books play
+ * the-lantern-keeper`. Read Aloud's own Actions come next, with Share for
+ * a page, so `books turn-to-page 7` turns the book on screen. Adding
+ * books and the Audible import's Actions come last.
+ */
+export const catalog = Catalog.make([
+  Listen,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  PreviousSection,
+  NextSection,
+  SeekTo,
+  SeekToWord,
+  SetSeekScope,
+  ExpandControls,
+  CollapseControls,
+  ShowLibrary,
+  ShowProfile,
+  ShowReadAloud,
+  Open,
+  OpenPlayer,
+  ShowContents,
+  JumpToChapter,
+  ShowSpeeds,
+  SetSpeed,
+  SetAppearance,
+  SharePlace,
+  AddBookmark,
+  PlayBookmark,
+  DeleteBookmark,
+  ConfirmDeleteBookmark,
+  CancelDeleteBookmark,
+  ...ReadAloud.catalog.actions,
+  ReadAloud.SharePage,
+  ShowAddBooks,
+  ImportFromAudible,
+  ReconnectAudible,
+  ConnectAudible,
+  TryAudibleSignInAgain,
+  ToggleAudibleTitle,
+  SelectAllAudibleTitles,
+  DeselectAudibleTitles,
+  ImportAudibleTitles,
+  ReadAudibleLibraryAgain,
+  GetAudiobookAudio,
 ])
+
+/** The library store sent the shelf. */
+export const ReceivedShelf = m('ReceivedShelf', { shelf: Shelf })
+/** The library store said who is signed in, or that no one is. */
+export const ReceivedMember = m('ReceivedMember', {
+  maybeEmail: S.Option(S.String),
+})
+/** The library store could not be read, and why, safe to show. */
+export const FailedReadShelf = m('FailedReadShelf', { reason: S.String })
+/** The library store sent one title's chapters. */
+export const ReceivedChapters = m('ReceivedChapters', {
+  slug: TitleSlug,
+  chapters: S.NonEmptyArray(Chapter),
+})
+/** One title's chapters could not be read, and why, safe to show. */
+export const FailedReadChapters = m('FailedReadChapters', {
+  slug: TitleSlug,
+  reason: S.String,
+})
+/**
+ * The player's address names a place the player is not at: someone opened
+ * a link to a moment, went back or forward to one, or the shelf arrived
+ * after the link did.
+ */
+export const OpenedPlace = m('OpenedPlace', {
+  slug: TitleSlug,
+  atMs: Milliseconds,
+})
+/** The link to a moment went out, through a share sheet or a clipboard. */
+export const SharedLink = m('SharedLink', { how: SharedHow })
+/** The link to a moment could not go out, and why, safe to show. */
+export const FailedShareLink = m('FailedShareLink', { reason: S.String })
+/** The library store saved a place, a finish, or a bookmark change. */
+export const CompletedWriteLibrary = m('CompletedWriteLibrary')
+/** The library store refused a write, and why, safe to show. */
+export const FailedWriteLibrary = m('FailedWriteLibrary', {
+  reason: S.String,
+})
+/**
+ * Scribe's timeline took a stretch's start or end, on `recordingCount`
+ * recordings: 0 when none was live while it played.
+ */
+export const CompletedReportStretch = m('CompletedReportStretch', {
+  recordingCount: S.Int,
+})
+/**
+ * Scribe's timeline could not take a stretch's report, and why, safe to
+ * show, so Books can send it again.
+ */
+export const FailedReportStretch = m('FailedReportStretch', {
+  report: StretchReport,
+  reason: S.String,
+})
+/**
+ * Scribe's timeline has these Books plays with a start and no end, as of
+ * `checkedAtMs`: pages closed while they played.
+ */
+export const ReceivedUnendedPlays = m('ReceivedUnendedPlays', {
+  plays: S.Array(UnendedPlay),
+  checkedAtMs: S.Number,
+})
+/** Scribe's timeline took the ends of `closedCount` unended plays. */
+export const CompletedCloseUnendedPlays = m('CompletedCloseUnendedPlays', {
+  closedCount: S.Int,
+})
+/** Scribe's timeline could not take the unended plays' ends, and why. */
+export const FailedCloseUnendedPlays = m('FailedCloseUnendedPlays', {
+  reason: S.String,
+})
+
+/**
+ * Every Message Books accepts: the Catalog's Actions, the facts the
+ * library store, the player, Read Aloud's sources, and the Audible import
+ * report, and the carrier facts its stack folds.
+ */
+export const Message = S.Union([
+  ...catalog.Message.members,
+  ReceivedShelf,
+  FailedReadShelf,
+  ReceivedChapters,
+  FailedReadChapters,
+  ReceivedMember,
+  Theme.ObservedSystemMode,
+  ReadAloud.ReceivedReadings,
+  ReadAloud.FailedReadReadings,
+  ReadAloud.ReceivedPreview,
+  ReadAloud.FailedCheckPreview,
+  OpenedPlace,
+  SharedLink,
+  FailedShareLink,
+  TranscriptPlayer.ReachedPlace,
+  TranscriptPlayer.ReachedEnd,
+  TranscriptPlayer.FailedPlayAudio,
+  TranscriptPlayer.ReceivedPassages,
+  TranscriptPlayer.FailedLoadTranscript,
+  CompletedWriteLibrary,
+  FailedWriteLibrary,
+  CompletedReportStretch,
+  FailedReportStretch,
+  ReceivedUnendedPlays,
+  CompletedCloseUnendedPlays,
+  FailedCloseUnendedPlays,
+  Audible.StartedAudibleSignIn,
+  Audible.FailedStartAudibleSignIn,
+  Audible.ConnectedAudible,
+  Audible.FailedConnectAudible,
+  Audible.ReceivedAudibleLibrary,
+  Audible.FailedReadAudibleLibrary,
+  Audible.AdvancedAudibleImport,
+  Audible.ImportedAudibleTitles,
+  Audible.FailedImportAudibleTitles,
+  Audible.ReceivedAudiobookAudio,
+  Audible.FailedReadAudiobookAudio,
+  Audible.QueuedAudiobookAudio,
+  Audible.FailedQueueAudiobookAudio,
+  Navigation.OpenedUri,
+  Navigation.NavigatedBack,
+])
+/** A Books Message value. */
 export type Message = typeof Message.Type

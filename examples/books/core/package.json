@@ -3,30 +3,54 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/index.node.js",
+  "module": "./dist/index.node.js",
+  "types": "./dist/index.node.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./dist/index.node.d.ts",
+      "browser": "./dist/index.browser.js",
+      "import": "./dist/index.node.js",
+      "default": "./dist/index.node.js"
+    },
+    "./browser": {
+      "types": "./dist/index.browser.d.ts",
+      "import": "./dist/index.browser.js",
+      "default": "./dist/index.browser.js"
+    },
+    "./link-previews": {
+      "types": "./dist/linkPreviews.node.d.ts",
+      "import": "./dist/linkPreviews.node.js",
+      "default": "./dist/linkPreviews.node.js"
+    },
+    "./audible-endpoint": {
+      "types": "./dist/audible/index.node.d.ts",
+      "import": "./dist/audible/index.node.js",
+      "default": "./dist/audible/index.node.js"
     }
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:dev": "pnpm run build && ../scripts/with-books-env node scripts/seedDev.mjs"
   },
   "dependencies": {
     "effect": "4.0.0-beta.97",
-    "foldkit": "workspace:*"
+    "foldkit": "workspace:*",
+    "@foldkit/instant": "workspace:*",
+    "@instantdb/core": "1.0.65",
+    "@instantdb/admin": "1.0.65",
+    "read-aloud-core-example": "workspace:*",
+    "transcript-player-core-example": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^25.9.3",
     "prettier": "^3.8.4",
     "rimraf": "^6.1.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
-  }
+  },
+  "browser": "./dist/index.browser.js"
 }

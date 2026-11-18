@@ -1,8 +1,11 @@
 /// <reference types="node" />
 import { type ChildProcess, spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { type Socket, connect } from 'node:net'
+import { createInterface, emitKeypressEvents } from 'node:readline'
 
+import type { Host } from '../processor/host.js'
 import {
   cliDaemonLockPath,
   removeCliDaemonFiles,
@@ -14,30 +17,70 @@ export {
   cliDaemonLockPath,
   cliDaemonPidPath,
   cliDaemonSocketPath,
+  cliDaemonSocketPath as backgroundProcessorSocketPath,
   removeCliDaemonFiles,
 } from './paths.js'
-export { parseProgramArgv, type ProgramArgv } from './argv.js'
+export {
+  type FollowArgv,
+  type ProgramArgv,
+  followArgvOf,
+  parseProgramArgv,
+  withStdinWord,
+} from './argv.js'
+
+/**
+ * All of a process's stdin as text, for {@link withStdinWord}.
+ *
+ * @example
+ * ```typescript
+ * const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
+ * ```
+ */
+export const readStdinText = async (
+  input: NodeJS.ReadableStream = process.stdin,
+): Promise<string> => {
+  const chunks: Array<string> = []
+  for await (const chunk of input) {
+    chunks.push(String(chunk))
+  }
+  return chunks.join('')
+}
 
 /** Ready wait copied from the Effect client so this file never imports Effect. */
 export const cliViewReadyTimeoutMs = 20_000
 
-/** Show or Do a slim view sends. Paint stays in the daemon. */
+/**
+ * Show or Do a slim view sends. Paint stays in the daemon. `client` is the
+ * Host of the view that sends it, `{ _tag: 'Cli' }` unless the request
+ * names another, such as `{ _tag: 'Tui' }` from {@link runCliTuiView}, so
+ * the daemon records what the request causes on that client's surface.
+ */
 export type CliViewRequest =
   | Readonly<{
       readonly _tag: 'Show'
       readonly flags?: Readonly<Record<string, string>>
+      readonly client?: Host
     }>
   | Readonly<{
       readonly _tag: 'Do'
       readonly token: string
       readonly flags?: Readonly<Record<string, string>>
+      readonly client?: Host
     }>
 
-/** Painted stdout the daemon returns for Show or Do. */
+const cliClient: Host = { _tag: 'Cli' }
+
+const tuiClient: Host = { _tag: 'Tui' }
+
+/**
+ * Painted stdout the daemon returns for Show or Do, and what came of it,
+ * such as `{ outcome: 'Quit' }` after a terminal UI's `q`.
+ */
 export type CliViewPainted = Readonly<{
   stdout: string
   exitCode: number
   stderr: string
+  flags?: Readonly<Record<string, string>>
 }>
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -141,6 +184,18 @@ export const spawnCliViewDaemon = (options: {
   return child
 }
 
+/**
+ * True when a Background Processor is running on the socket. The name to
+ * use for {@link isCliViewListening}.
+ */
+export const isBackgroundProcessorRunning = isCliViewListening
+
+/**
+ * Starts a Background Processor detached from this command. The name to
+ * use for {@link spawnCliViewDaemon}.
+ */
+export const spawnBackgroundProcessorFromView = spawnCliViewDaemon
+
 const recoverStaleCliDaemonLock = (socketPath: string): void => {
   try {
     const pidText = readFileSync(cliDaemonLockPath(socketPath), 'utf8').trim()
@@ -199,7 +254,10 @@ const askPainted = async (
   request: CliViewRequest,
 ): Promise<CliViewPainted> => {
   const socket = await connectSocket(socketPath)
-  await writeLine(socket, JSON.stringify(request))
+  await writeLine(
+    socket,
+    JSON.stringify({ ...request, client: request.client ?? cliClient }),
+  )
   const line = await readLine(socket)
   socket.end()
   const parsed: unknown = JSON.parse(line)
@@ -220,12 +278,39 @@ const askPainted = async (
     throw new Error('CLI daemon Painted exitCode must be a number.')
   }
   const stderr = typeof parsed['stderr'] === 'string' ? parsed['stderr'] : ''
+  const flags = parsed['flags']
   return {
     stdout: parsed['stdout'],
     exitCode: parsed['exitCode'],
     stderr,
+    ...(isRecord(flags) ? { flags: stringsOf(flags) } : {}),
   }
 }
+
+const stringsOf = (
+  record: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, string>> =>
+  Object.entries(record).reduce<Readonly<Record<string, string>>>(
+    (strings, [key, value]) =>
+      typeof value === 'string' ? { ...strings, [key]: value } : strings,
+    {},
+  )
+
+/**
+ * Sends Show or Do to a daemon that is already listening, without starting
+ * one, so a command such as `books stop` never starts a player to stop it.
+ *
+ * @example
+ * ```typescript
+ * if (await isCliViewListening(socketPath)) {
+ *   writeCliViewResult(await askCliView(socketPath, { _tag: 'Do', token: 'stop' }))
+ * }
+ * ```
+ */
+export const askCliView = (
+  socketPath: string,
+  request: CliViewRequest,
+): Promise<CliViewPainted> => askPainted(socketPath, request)
 
 const formatMs = (durationMs: number): string =>
   durationMs.toFixed(1).padStart(8)
@@ -251,7 +336,10 @@ export const printCliViewTrace = (
   runtime.stderr.write(`${lines.join('\n')}\n`)
 }
 
-const writeText = (stream: NodeJS.WriteStream, text: string): void => {
+const writeText = (
+  stream: Readonly<{ write: (text: string) => unknown }>,
+  text: string,
+): void => {
   if (text === '') {
     return
   }
@@ -317,4 +405,440 @@ export const runCliView = async (
   const askMs = Date.now() - askStarted
   printCliViewTrace(process, { ensureMs, askMs })
   return painted
+}
+
+// FOLLOW
+
+const lostReasonOf = (cause: unknown): string =>
+  cause instanceof Error && cause.message !== ''
+    ? cause.message
+    : daemonUnreachable
+
+/**
+ * A topic a slim view follows, such as `{ topic: 'screen' }` or a
+ * Program's own `{ topic: 'words', flags: { json: '1' } }`. `client` is
+ * the Host of the view, `{ _tag: 'Cli' }` unless it names another.
+ */
+export type CliFollowRequest = Readonly<{
+  topic: string
+  flags?: Readonly<Record<string, string>>
+  client?: Host
+}>
+
+/**
+ * How a follow ended: the topic had no more to say, the view asked to
+ * stop, or the daemon went away or refused, and why.
+ */
+export type CliFollowEnd =
+  | Readonly<{ _tag: 'Ended' }>
+  | Readonly<{ _tag: 'Stopped' }>
+  | Readonly<{ _tag: 'Lost'; reason: string }>
+
+/** When a follow stops on the view's side: an AbortSignal, such as Ctrl-C's. */
+export type CliFollowOptions = Readonly<{ signal?: AbortSignal }>
+
+const daemonWentAway = 'The daemon stopped answering.'
+
+/**
+ * Follows one topic of a daemon that is already listening: `onText` hears
+ * each text the topic emits, as it changes, and the promise resolves with
+ * how the follow ended. It takes over nothing: no raw mode, no screen, no
+ * prompt, so its output pipes into another program. Aborting `signal`
+ * closes the connection, and the daemon stops the topic.
+ * This module must not import Effect, Instant, or a Program.
+ *
+ * @example
+ * ```typescript
+ * const end = await followCliView(socketPath, { topic: 'screen' }, text => {
+ *   process.stdout.write(`${text}\n`)
+ * })
+ * // { _tag: 'Ended' }
+ * ```
+ */
+export const followCliView = async (
+  socketPath: string,
+  request: CliFollowRequest,
+  onText: (text: string) => void,
+  options: CliFollowOptions = {},
+): Promise<CliFollowEnd> => {
+  const socket = await connectSocket(socketPath)
+  await writeLine(
+    socket,
+    JSON.stringify({
+      _tag: 'Follow',
+      ...request,
+      client: request.client ?? cliClient,
+    }),
+  )
+  return new Promise(resolve => {
+    const state = { buffer: '', isDone: false }
+    const finish = (end: CliFollowEnd): void => {
+      if (state.isDone) {
+        return
+      }
+      state.isDone = true
+      options.signal?.removeEventListener('abort', onAbort)
+      socket.end()
+      resolve(end)
+    }
+    const onAbort = (): void => {
+      finish({ _tag: 'Stopped' })
+    }
+    const hear = (line: string): void => {
+      const parsed: unknown = JSON.parse(line)
+      if (!isRecord(parsed)) {
+        return
+      }
+      if (parsed['_tag'] === 'Followed' && typeof parsed['text'] === 'string') {
+        onText(parsed['text'])
+      } else if (parsed['_tag'] === 'FollowEnded') {
+        finish({ _tag: 'Ended' })
+      } else if (parsed['_tag'] === 'Failed') {
+        finish({
+          _tag: 'Lost',
+          reason:
+            typeof parsed['cause'] === 'string'
+              ? parsed['cause']
+              : daemonWentAway,
+        })
+      }
+    }
+    socket.on('data', (chunk: Buffer) => {
+      state.buffer = `${state.buffer}${chunk.toString('utf8')}`
+      let maybeNewline = newlineIndex(state.buffer)
+      while (maybeNewline !== undefined && !state.isDone) {
+        const line = state.buffer.slice(0, maybeNewline).replace(/\r$/, '')
+        state.buffer = state.buffer.slice(maybeNewline + 1)
+        if (line !== '') {
+          hear(line)
+        }
+        maybeNewline = newlineIndex(state.buffer)
+      }
+    })
+    socket.on('close', () => {
+      finish({ _tag: 'Lost', reason: daemonWentAway })
+    })
+    socket.on('error', cause => {
+      finish({ _tag: 'Lost', reason: lostReasonOf(cause) })
+    })
+    if (options.signal?.aborted === true) {
+      onAbort()
+    } else {
+      options.signal?.addEventListener('abort', onAbort)
+    }
+  })
+}
+
+export type RunCliFollowViewOptions = Readonly<{
+  socketPath: string
+  spawn: () => ChildProcess
+  request: CliFollowRequest
+  onText: (text: string) => void
+  signal?: AbortSignal
+  timeoutMs?: number
+}>
+
+/**
+ * Ensures the daemon, then follows one topic of its Program until the
+ * topic ends, the view stops, or the daemon goes away: `books words
+ * --follow` prints the paragraph being read each time it changes.
+ * This module must not import Effect, Instant, or a Program.
+ *
+ * @example
+ * ```typescript
+ * const stopping = new AbortController()
+ * process.once('SIGINT', () => stopping.abort())
+ * await runCliFollowView({ socketPath, spawn, request: { topic: 'words' }, onText: print, signal: stopping.signal })
+ * ```
+ */
+export const runCliFollowView = async (
+  options: RunCliFollowViewOptions,
+): Promise<CliFollowEnd> => {
+  await ensureCliViewDaemon({
+    socketPath: options.socketPath,
+    spawn: options.spawn,
+    ...(options.timeoutMs === undefined
+      ? {}
+      : { timeoutMs: options.timeoutMs }),
+  })
+  return followCliView(
+    options.socketPath,
+    options.request,
+    options.onText,
+    options.signal === undefined ? {} : { signal: options.signal },
+  )
+}
+
+/**
+ * What {@link writeCliFollow} needs of the process it writes for: where
+ * the texts and a refusal go, the signals that stop it, and the exit code
+ * it sets. `process` is one.
+ */
+export type CliFollowRuntime = {
+  readonly stdout: Readonly<{
+    write: (text: string) => unknown
+    once: (event: 'error', listener: () => void) => unknown
+  }>
+  readonly stderr: Readonly<{ write: (text: string) => unknown }>
+  readonly once: (event: 'SIGINT' | 'SIGTERM', listener: () => void) => unknown
+  exitCode?: number | string | null | undefined
+}
+
+export type WriteCliFollowOptions = Readonly<{
+  socketPath: string
+  request: CliFollowRequest
+  spawn?: () => ChildProcess
+  timeoutMs?: number
+}>
+
+/**
+ * Follows one topic and writes it where a pipe can read it: each text on
+ * its own lines on stdout, nothing else, until the topic ends, the
+ * process is told to stop (Ctrl-C, SIGTERM), or the reader of the pipe
+ * goes away, as after `books follow words | head -3`. Those exit 0. When
+ * the daemon refuses the topic or goes away, the reason goes to stderr
+ * and the exit code is 1. With `spawn`, a daemon that is not running is
+ * started first. This module must not import Effect, Instant, or a
+ * Program.
+ *
+ * @example
+ * ```typescript
+ * const follow = followArgvOf(process.argv.slice(2))
+ * if (follow !== undefined) {
+ *   await writeCliFollow({ socketPath, spawn, request: follow })
+ * }
+ * ```
+ */
+export const writeCliFollow = async (
+  options: WriteCliFollowOptions,
+  runtime: CliFollowRuntime = process,
+): Promise<void> => {
+  const stopping = new AbortController()
+  const stop = (): void => {
+    stopping.abort()
+  }
+  runtime.once('SIGINT', stop)
+  runtime.once('SIGTERM', stop)
+  runtime.stdout.once('error', stop)
+  try {
+    if (options.spawn !== undefined) {
+      await ensureCliViewDaemon({
+        socketPath: options.socketPath,
+        spawn: options.spawn,
+        ...(options.timeoutMs === undefined
+          ? {}
+          : { timeoutMs: options.timeoutMs }),
+      })
+    }
+    const end = await followCliView(
+      options.socketPath,
+      options.request,
+      text => {
+        writeText(runtime.stdout, text)
+      },
+      { signal: stopping.signal },
+    )
+    if (end._tag === 'Lost') {
+      writeText(runtime.stderr, end.reason)
+      runtime.exitCode = 1
+    } else {
+      runtime.exitCode = 0
+    }
+  } catch (cause) {
+    const failed = cliViewFailed(cause)
+    writeText(runtime.stderr, failed.stderr)
+    runtime.exitCode = failed.exitCode
+  }
+}
+
+// TERMINAL UI
+
+/** How a terminal UI view ended: the person quit, or the daemon went away. */
+export type CliTuiViewEnd =
+  | Readonly<{ _tag: 'Quit' }>
+  | Readonly<{ _tag: 'Lost'; reason: string }>
+
+/** The keyboard a terminal UI view reads: a terminal's stdin. */
+export type CliTuiInput = NodeJS.ReadableStream &
+  Readonly<{
+    isTTY?: boolean
+    setRawMode?: (mode: boolean) => unknown
+  }>
+
+/** The screen a terminal UI view paints: a terminal's stdout. */
+export type CliTuiOutput = NodeJS.WritableStream &
+  Readonly<{
+    rows?: number
+    columns?: number
+  }>
+
+export type RunCliTuiViewOptions = Readonly<{
+  socketPath: string
+  spawn: () => ChildProcess
+  refreshMs?: number
+  timeoutMs?: number
+  input?: CliTuiInput
+  output?: CliTuiOutput
+}>
+
+type KeypressKey = Readonly<{
+  name?: string
+  sequence?: string
+  ctrl?: boolean
+  meta?: boolean
+  shift?: boolean
+}>
+
+const enterScreen = '\u001b[?1049h\u001b[?25l'
+
+const leaveScreen = '\u001b[?25h\u001b[?1049l'
+
+const clearScreen = '\u001b[H\u001b[2J'
+
+const tuiRefreshMs = 500
+
+const escapeCodeTimeoutMs = 50
+
+const viewIdLength = 8
+
+const fallbackRows = 24
+
+const fallbackColumns = 80
+
+const flagOf = (isHeld: boolean | undefined): string => (isHeld ? '1' : '0')
+
+/**
+ * Runs a terminal UI for a Program its daemon holds, so the UI is a view
+ * and the Program keeps running when it closes, such as a player that goes
+ * on playing in the background after `q`. It paints the daemon's frame on
+ * the terminal's own screen, restored on quit, sends each key to the
+ * daemon, which routes it through the Program's interaction and answers
+ * with the next frame, and asks for a fresh frame twice a second and when
+ * the terminal resizes, so the words being spoken move along. Ctrl-C
+ * quits, and so does a key the daemon answers with `{ outcome: 'Quit' }`.
+ * This module must not import Effect, Instant, or a Program.
+ *
+ * @example
+ * ```typescript
+ * const end = await runCliTuiView({ socketPath, spawn: () => spawnCliViewDaemon({ scriptPath }) })
+ * // { _tag: 'Quit' } after `q`; the daemon still plays
+ * ```
+ */
+export const runCliTuiView = async (
+  options: RunCliTuiViewOptions,
+): Promise<CliTuiViewEnd> => {
+  await ensureCliViewDaemon({
+    socketPath: options.socketPath,
+    spawn: options.spawn,
+    ...(options.timeoutMs === undefined
+      ? {}
+      : { timeoutMs: options.timeoutMs }),
+  })
+  const input: CliTuiInput = options.input ?? process.stdin
+  const output: CliTuiOutput = options.output ?? process.stdout
+  return new Promise(resolve => {
+    const state = {
+      lastFrame: '',
+      pending: Promise.resolve(),
+      isPolling: false,
+      isDone: false,
+    }
+    const keyboard = createInterface({
+      input,
+      escapeCodeTimeout: escapeCodeTimeoutMs,
+    })
+    emitKeypressEvents(input, keyboard)
+    const viewId = randomUUID().slice(0, viewIdLength)
+    const sizeFlags = (): Readonly<Record<string, string>> => ({
+      view: 'tui',
+      viewId,
+      rows: String(output.rows ?? fallbackRows),
+      columns: String(output.columns ?? fallbackColumns),
+    })
+    const finish = (end: CliTuiViewEnd): void => {
+      if (state.isDone) {
+        return
+      }
+      state.isDone = true
+      clearInterval(refresh)
+      input.off('keypress', onKeypress)
+      output.off('resize', onResize)
+      input.setRawMode?.(false)
+      keyboard.close()
+      input.pause()
+      output.write(leaveScreen)
+      resolve(end)
+    }
+    const draw = (painted: CliViewPainted): void => {
+      if (state.isDone) {
+        return
+      }
+      if (painted.stdout !== state.lastFrame) {
+        state.lastFrame = painted.stdout
+        output.write(`${clearScreen}${painted.stdout}`)
+      }
+      if (painted.flags?.['outcome'] === 'Quit') {
+        finish({ _tag: 'Quit' })
+      }
+    }
+    const ask = (request: CliViewRequest): Promise<void> => {
+      const asked = state.pending.then(async () => {
+        if (state.isDone) {
+          return
+        }
+        try {
+          draw(
+            await askPainted(options.socketPath, {
+              ...request,
+              client: tuiClient,
+            }),
+          )
+        } catch (cause) {
+          finish({ _tag: 'Lost', reason: lostReasonOf(cause) })
+        }
+      })
+      state.pending = asked
+      return asked
+    }
+    const poll = (): void => {
+      if (state.isPolling || state.isDone) {
+        return
+      }
+      state.isPolling = true
+      void ask({ _tag: 'Show', flags: sizeFlags() }).finally(() => {
+        state.isPolling = false
+      })
+    }
+    const onKeypress = (
+      sequence: string | undefined,
+      key: KeypressKey | undefined,
+    ): void => {
+      if (key?.ctrl === true && key.name === 'c') {
+        finish({ _tag: 'Quit' })
+        return
+      }
+      void ask({
+        _tag: 'Do',
+        token: 'key',
+        flags: {
+          ...sizeFlags(),
+          name: key?.name ?? '',
+          sequence: key?.sequence ?? sequence ?? '',
+          meta: flagOf(key?.meta),
+          ctrl: flagOf(key?.ctrl),
+          shift: flagOf(key?.shift),
+        },
+      })
+    }
+    const onResize = (): void => {
+      void ask({ _tag: 'Show', flags: sizeFlags() })
+    }
+    input.setRawMode?.(true)
+    input.on('keypress', onKeypress)
+    output.on('resize', onResize)
+    input.resume()
+    output.write(enterScreen)
+    const refresh = setInterval(poll, options.refreshMs ?? tuiRefreshMs)
+    void ask({ _tag: 'Show', flags: sizeFlags() })
+  })
 }
