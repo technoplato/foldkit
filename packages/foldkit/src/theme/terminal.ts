@@ -1,17 +1,24 @@
 import { Option } from 'effect'
 
-import { type Mode, type Role, type Theme, defaultTheme } from './theme.js'
+import {
+  type Contrast,
+  type Mode,
+  type Role,
+  type Theme,
+  defaultTheme,
+} from './theme.js'
 
 // TERMINAL
 
 /**
  * How text is painted for one terminal output: whether it takes color,
- * the ground the terminal says it has, dark or light, when it says, and
- * the theme the colors come from.
+ * the ground the terminal says it has, dark or light, when it says, the
+ * contrast it is told, and the theme the colors come from.
  */
 export type TerminalInk = Readonly<{
   isColor: boolean
   maybeGround: Mode | undefined
+  contrast: Contrast
   theme: Theme
 }>
 
@@ -49,7 +56,9 @@ const groundOfEnv = (
  * not when `NO_COLOR` is set or `TERM` is `dumb`, so text sent down a
  * pipe is never marked up. The ground is the terminal's, never the mode
  * a Model holds: `ground` when the host knows it, else what the terminal
- * says in `COLORFGBG`, else not known, and then nothing is assumed.
+ * says in `COLORFGBG`, else not known, and then nothing is assumed. The
+ * contrast is handed in from the Model, as for every painter: a terminal
+ * cannot be asked, so it is More only where a host reported it.
  *
  * @example
  * ```typescript
@@ -61,6 +70,7 @@ export const terminalInkOf = (
     isTerminal: boolean
     env: Readonly<Record<string, string | undefined>>
     ground?: Mode
+    contrast?: Contrast
     theme?: Theme
   }>,
 ): TerminalInk => ({
@@ -69,6 +79,7 @@ export const terminalInkOf = (
     (output.env['NO_COLOR'] ?? '') === '' &&
     output.env['TERM'] !== 'dumb',
   maybeGround: output.ground ?? groundOfEnv(output.env),
+  contrast: output.contrast ?? 'Standard',
   theme: output.theme ?? defaultTheme,
 })
 
@@ -159,7 +170,11 @@ export const terminalColorOf = (
   const colors = ink.theme[quietRoles.has(role) ? 'QuietText' : role]
   const isFlat = (color: string): boolean => Option.isSome(channelsOf(color))
   if (ink.maybeGround !== undefined) {
-    const color = ink.maybeGround === 'Dark' ? colors.dark : colors.light
+    const isDark = ink.maybeGround === 'Dark'
+    const standard = isDark ? colors.dark : colors.light
+    const maybeMore = isDark ? colors.darkMore : colors.lightMore
+    const color =
+      ink.contrast === 'More' && maybeMore !== undefined ? maybeMore : standard
     return isFlat(color) ? color : undefined
   } else if (quietRoles.has(role)) {
     return undefined

@@ -302,6 +302,16 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
         dependenciesToStream: () => Theme.systemModeStream,
       },
     ),
+    // The contrast the system asks for, a fact from the host as the mode
+    // is: a browser, a phone or any other host reports it, and one that
+    // cannot know it reports Standard.
+    systemContrast: entry(
+      { isWatching: S.Boolean },
+      {
+        modelToDependencies: () => ({ isWatching: true }),
+        dependenciesToStream: () => Theme.systemContrastStream,
+      },
+    ),
     audibleImport: entry(
       { maybeAsins: S.Option(S.Array(Audible.Asin)) },
       {

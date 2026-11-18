@@ -865,6 +865,7 @@ export const Message = S.Union([
   FailedReadChapters,
   ReceivedMember,
   Theme.ObservedSystemMode,
+  Theme.ObservedSystemContrast,
   ReadAloud.ReceivedReadings,
   ReadAloud.FailedReadReadings,
   ReadAloud.ReceivedPreview,
