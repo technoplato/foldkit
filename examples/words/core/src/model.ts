@@ -216,6 +216,19 @@ export const FailedPlayback = ts('FailedPlayback', {
   reason: S.String,
 })
 /** A recording is open, playing back or following along live. */
+/**
+ * The menu open on one word: the time the word starts, which names it,
+ * and where on the page it was pressed, so the menu opens there. Whether
+ * a menu is open, and on which word, is the Model's to say.
+ */
+export const WordMenu = S.Struct({
+  seconds: S.Number,
+  x: S.Number,
+  y: S.Number,
+})
+/** The menu open on one word. */
+export type WordMenu = typeof WordMenu.Type
+
 export const ReadyPlayback = ts('ReadyPlayback', {
   recordingID: S.String,
   detail: RecordingDetail,
@@ -239,6 +252,7 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   maybeAnnouncedText: S.Option(S.String),
   announcementPause: AnnouncementPause,
   announcementRevision: S.Number,
+  maybeWordMenu: S.Option(WordMenu),
 })
 /** Where playback stands. */
 export const PlaybackState = S.Union([

@@ -276,6 +276,17 @@ export const CompletedShareRecordingLink = m('CompletedShareRecordingLink')
 export const ClickedCopySectionLink = m('ClickedCopySectionLink', {
   sectionID: S.String,
 })
+/**
+ * The listener pressed a word for its menu, with a right click or a long
+ * press: the time the word starts, and where on the page it was pressed.
+ */
+export const OpenedWordMenu = m('OpenedWordMenu', {
+  seconds: S.Number,
+  x: S.Number,
+  y: S.Number,
+})
+/** The listener dismissed a word's menu. */
+export const ClosedWordMenu = m('ClosedWordMenu')
 /** The listener copied a link to one word. */
 export const ClickedCopyWordLink = m('ClickedCopyWordLink', {
   wordID: S.String,
@@ -396,6 +407,8 @@ export const Message = S.Union([
   CompletedShareRecordingLink,
   ClickedCopySectionLink,
   ClickedCopyWordLink,
+  OpenedWordMenu,
+  ClosedWordMenu,
   ClickedCopyMomentLink,
   ClickedCopySectionText,
   ClickedCopyTranscript,

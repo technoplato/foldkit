@@ -1433,6 +1433,7 @@ const readyFor = (
     maybeAnnouncedText: Option.none(),
     announcementPause: ReadyToAnnounce(),
     announcementRevision: 0,
+    maybeWordMenu: Option.none(),
   })
 
 const openRecording = (
@@ -2239,6 +2240,47 @@ const copyWithNotice = (
     ],
   ]
 }
+
+const withoutWordMenu = (ready: ReadyPlayback): ReadyPlayback =>
+  evo(ready, { maybeWordMenu: () => Option.none() })
+
+type WordInSection = Readonly<{
+  word: Section['words'][number]
+  sectionID: string
+}>
+
+const wordStartingAt = (
+  ready: ReadyPlayback,
+  seconds: number,
+): Option.Option<WordInSection> =>
+  pipe(
+    ready.detail.sections,
+    Array.flatMap(section =>
+      Array.map(section.words, word => ({ word, sectionID: section.id })),
+    ),
+    Array.findFirst(({ word }) => word.startSeconds === seconds),
+  )
+
+/**
+ * The menu open on a word, with the word it is on and its section, for a
+ * view to draw: Play from Here and Copy Link to This Word. None while no
+ * menu is open.
+ *
+ * @example
+ * ```ts
+ * wordMenuOf(ready) // Some({ word, sectionID, x: 120, y: 340 })
+ * ```
+ */
+export const wordMenuOf = (
+  ready: ReadyPlayback,
+): Option.Option<WordInSection & Readonly<{ x: number; y: number }>> =>
+  Option.flatMap(ready.maybeWordMenu, menu =>
+    Option.map(wordStartingAt(ready, menu.seconds), found => ({
+      ...found,
+      x: menu.x,
+      y: menu.y,
+    })),
+  )
 
 const copyFromReady = (
   model: Model,
@@ -3164,12 +3206,25 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         evo(model, { maybeBackgroundPlayback: () => Option.none() }),
         [],
       ],
+      OpenedWordMenu: ({ seconds, x, y }) =>
+        evolveReady(model, ready =>
+          evo(ready, {
+            maybeWordMenu: () =>
+              Option.map(wordStartingAt(ready, seconds), () => ({
+                seconds,
+                x,
+                y,
+              })),
+          }),
+        ),
+      ClosedWordMenu: () => evolveReady(model, withoutWordMenu),
       ClickedWord: ({ seconds }) =>
         updateReady(model, ready => {
           const [sought, seekCommands] = seekTo(
             evo(ready, {
               follow: () => 'Following',
               maybeFocusedSectionID: () => Option.none(),
+              maybeWordMenu: () => Option.none(),
             }),
             seconds,
           )
@@ -3364,7 +3419,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ]),
         ),
       ClickedCopyWordLink: ({ wordID }) =>
-        copyFromReady(model, ready =>
+        copyFromReady(evolveReady(model, withoutWordMenu)[0], ready =>
           pipe(
             ready.detail.sections,
             Array.map(section =>
