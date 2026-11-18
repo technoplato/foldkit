@@ -530,6 +530,39 @@ describe('reading away from the playhead', () => {
   })
 })
 
+describe('a word’s menu', () => {
+  it('opens on one word as state any Client draws, offers playing from it and what the Program adds, and closes', () => {
+    const closed = loaded(10_000)
+    expect(transcriptNodeOf(closed).wordMenuAction).toBe('ShowWordMenu')
+    expect(transcriptNodeOf(closed).wordMenu).toBeUndefined()
+    const open = pressed(closed, 'ShowWordMenu:dusk.4')
+    const [withCopy] = transcriptsOf(
+      transcriptOf(open, {
+        wordActions: [
+          { action: 'CopyWordLink', label: 'Copy link to this word' },
+        ],
+      }),
+    )
+    expect(withCopy?.wordMenu).toEqual({
+      token: 'dusk.4',
+      dismissAction: 'CloseWordMenu',
+      items: [
+        { action: 'SeekToWord:dusk.4', label: 'Play from here', icon: 'Play' },
+        { action: 'CopyWordLink:dusk.4', label: 'Copy link to this word' },
+      ],
+    })
+    expect(
+      transcriptNodeOf(pressed(open, 'CloseWordMenu')).wordMenu,
+    ).toBeUndefined()
+    const played = pressed(open, 'SeekToWord:dusk.4')
+    expect(played.placeMs).toBe(lampAtDuskMs)
+    expect(transcriptNodeOf(played).wordMenu).toBeUndefined()
+    expect(Catalog.messageFor(catalog, closed, 'ShowWordMenu:nowhere')).toEqual(
+      Option.none(),
+    )
+  })
+})
+
 describe('scrubbing by paragraph', () => {
   it('goes to the next paragraph on } and back to the start of this one on {, then the one before', () => {
     const inGulls = loaded(lampRailMs)

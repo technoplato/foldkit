@@ -200,12 +200,31 @@ describe('a link to one word', () => {
       model.listening._tag === 'Loaded'
         ? Array.head(transcriptsOf(readerTranscriptOf(model.listening)))
         : Option.none()
-    expect(Option.map(transcript, node => node.wordActions)).toEqual(
+    expect(Option.map(transcript, node => node.wordMenuAction)).toEqual(
+      Option.some('ShowWordMenu'),
+    )
+    bound.press('ShowWordMenu:w3')
+    const menuOf = () => {
+      const now = bound.readModel()
+      return now.listening._tag === 'Loaded'
+        ? Option.flatMap(
+            Array.head(transcriptsOf(readerTranscriptOf(now.listening))),
+            node => Option.fromNullishOr(node.wordMenu),
+          )
+        : Option.none()
+    }
+    expect(Option.map(menuOf(), menu => menu.items)).toEqual(
       Option.some([
-        { action: 'CopyWordLink', label: 'Copy link to this word' },
+        { action: 'SeekToWord:w3', label: 'Play from here', icon: 'Play' },
+        {
+          action: 'CopyWordLink:w3',
+          label: 'Copy link to this word',
+          icon: 'Link',
+        },
       ]),
     )
     bound.press('CopyWordLink:w3')
+    expect(menuOf()).toEqual(Option.none())
     expect(written).toContainEqual({
       name: 'CopyLink',
       args: JSON.stringify({
