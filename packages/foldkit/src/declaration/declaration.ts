@@ -228,12 +228,6 @@ export const wordsOf = (name: string): ReadonlyArray<string> =>
 
 const spokenOf = (name: string): string => wordsOf(name).join(' ')
 
-const wordsSaidIn = (text: string): ReadonlyArray<string> =>
-  text
-    .toLowerCase()
-    .split(/[^\p{Letter}\p{Number}]+/u)
-    .filter(word => word !== '')
-
 /**
  * The name people say for a thing that has a name, a title, and other
  * names it answers to. It is the name, unless the title ends with what
@@ -340,11 +334,21 @@ const addressedUnder = (
 export const pathsOf = (nodes: ReadonlyArray<Node>): ReadonlyArray<Addressed> =>
   addressedUnder(nodes, [])
 
+const wordsSaidIn = (text: string): ReadonlyArray<string> =>
+  text
+    .toLowerCase()
+    .split(/[^\p{Letter}\p{Number}]+/u)
+    .filter(word => word !== '')
+
 const answersOf = (node: Node): ReadonlyArray<string> =>
   node._tag === 'Group' ? [node.name] : [node.name, ...node.aliases]
 
+const sameName = (one: string, other: string): boolean =>
+  wordsSaidIn(spokenOf(one)).join(' ') ===
+  wordsSaidIn(spokenOf(other)).join(' ')
+
 const answersTo = (node: Node, name: string): boolean =>
-  answersOf(node).some(answer => spokenOf(answer) === spokenOf(name))
+  answersOf(node).some(answer => sameName(answer, name))
 
 const findUnder = (
   nodes: ReadonlyArray<Node>,
