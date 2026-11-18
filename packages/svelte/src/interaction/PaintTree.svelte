@@ -3,7 +3,9 @@
   import { Environment, Interaction, Navigation } from 'foldkit'
   import {
     type ButtonNode,
+    type ListItem,
     type UiNode,
+    filterListItems,
     itemLinesOf,
   } from 'foldkit/renderers'
 
@@ -37,6 +39,16 @@
     })
 
   let dockHeight = $state(0)
+
+  // NOTE: What is typed into a List's filter lives here, like a text
+  // field's draft: the Program hears nothing until a row is pressed.
+  let typed = $state('')
+
+  const shownItems: ReadonlyArray<ListItem> = $derived(
+    node._tag === 'List'
+      ? filterListItems(node.items, typed, node.filter?.isOverLines === true)
+      : [],
+  )
 
   const scrollWhenCurrent = (row: HTMLElement, isCurrent: boolean) => {
     if (isCurrent) {
@@ -219,86 +231,108 @@
     value={node.value}
   ></progress>
 {:else if node._tag === 'List'}
-  <ul aria-label={node.label} class={classFor(classNames, 'List', 'fk-list')}>
-    {#each node.items as item (item.key)}
-      {@const action = item.action}
-      <li
-        class="fk-item"
-        data-current={item.isCurrent === true ? true : undefined}
-        use:scrollWhenCurrent={item.isCurrent === true}
-      >
-        {#if item.check !== undefined}
-          {@const check = item.check}
-          {@const checkAction = check.action}
-          <button
-            aria-checked={check.isChecked}
-            aria-label={check.label}
-            class="fk-item-check"
-            data-checked={check.isChecked ? true : undefined}
-            disabled={checkAction === undefined}
-            onclick={() => {
-              if (checkAction !== undefined) {
-                onPress({ _tag: 'Button', label: check.label, action: checkAction })
-              }
-            }}
-            role="checkbox"
-            type="button"
-          ></button>
-        {/if}
-        {#snippet itemContent()}
-          {#if item.image !== undefined}
-            <img
-              alt={item.image.alt}
-              class="fk-item-image"
-              height={item.image.height}
-              loading="lazy"
-              src={item.image.src}
-              width={item.image.width}
-            />
+  {#snippet rows()}
+    <ul aria-label={node.label} class={classFor(classNames, 'List', 'fk-list')}>
+      {#each shownItems as item (item.key)}
+        {@const action = item.action}
+        <li
+          class="fk-item"
+          data-current={item.isCurrent === true ? true : undefined}
+          use:scrollWhenCurrent={item.isCurrent === true}
+        >
+          {#if item.check !== undefined}
+            {@const check = item.check}
+            {@const checkAction = check.action}
+            <button
+              aria-checked={check.isChecked}
+              aria-label={check.label}
+              class="fk-item-check"
+              data-checked={check.isChecked ? true : undefined}
+              disabled={checkAction === undefined}
+              onclick={() => {
+                if (checkAction !== undefined) {
+                  onPress({ _tag: 'Button', label: check.label, action: checkAction })
+                }
+              }}
+              role="checkbox"
+              type="button"
+            ></button>
           {/if}
-          <span class="fk-item-body">
-            <span class="fk-item-title">{item.title}</span>
-            {#each itemLinesOf(item) as line, index (index)}
-              <span class="fk-item-line">{line}</span>
-            {/each}
-            {#if item.progress !== undefined}
-              <progress
-                class="fk-progress"
-                max={item.progress.max}
-                value={item.progress.value}
-              ></progress>
+          {#snippet itemContent()}
+            {#if item.image !== undefined}
+              <img
+                alt={item.image.alt}
+                class="fk-item-image"
+                height={item.image.height}
+                loading="lazy"
+                src={item.image.src}
+                width={item.image.width}
+              />
             {/if}
-          </span>
-        {/snippet}
-        {#if item.href !== undefined}
-          {@const href = item.href}
-          <a
-            class="fk-item-press"
-            {href}
-            onclick={event => {
-              followLink(event, href)
-            }}>{@render itemContent()}</a
-          >
-        {:else}
-          <button
-            class="fk-item-press"
-            disabled={action === undefined}
-            onclick={() => {
-              if (action !== undefined) {
-                onPress({ _tag: 'Button', label: item.title, action })
-              }
-            }}
-            type="button"
-          >
-            {@render itemContent()}
-          </button>
-        {/if}
-        {#each item.trailing ?? [] as child, index (keyFor(child, index))}
-          <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
-        {/each}
-      </li>
-    {/each}
-  </ul>
+            <span class="fk-item-body">
+              <span class="fk-item-title">{item.title}</span>
+              {#each itemLinesOf(item) as line, index (index)}
+                <span class="fk-item-line">{line}</span>
+              {/each}
+              {#if item.progress !== undefined}
+                <progress
+                  class="fk-progress"
+                  max={item.progress.max}
+                  value={item.progress.value}
+                ></progress>
+              {/if}
+            </span>
+          {/snippet}
+          {#if item.href !== undefined}
+            {@const href = item.href}
+            <a
+              class="fk-item-press"
+              {href}
+              onclick={event => {
+                followLink(event, href)
+              }}>{@render itemContent()}</a
+            >
+          {:else}
+            <button
+              class="fk-item-press"
+              disabled={action === undefined}
+              onclick={() => {
+                if (action !== undefined) {
+                  onPress({ _tag: 'Button', label: item.title, action })
+                }
+              }}
+              type="button"
+            >
+              {@render itemContent()}
+            </button>
+          {/if}
+          {#each item.trailing ?? [] as child, index (keyFor(child, index))}
+            <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
+          {/each}
+        </li>
+      {/each}
+    </ul>
+  {/snippet}
+  {#if node.filter !== undefined}
+    <div class="fk-list-frame">
+      <div class="fk-list-head">
+        <input
+          aria-label={node.filter.label}
+          autocomplete="off"
+          bind:value={typed}
+          class="fk-list-filter"
+          placeholder={node.filter.placeholder}
+          type="search"
+        />
+      </div>
+      {#if shownItems.length === 0}
+        <p class="fk-list-empty" role="status">{node.filter.emptyText}</p>
+      {/if}
+      {@render rows()}
+    </div>
+  {:else}
+    {@render rows()}
+  {/if}
 {:else if node._tag === 'Seek'}
   <SeekBar className={classFor(classNames, 'Seek', 'fk-seek')} {onPress} seek={node} />
 {:else if node._tag === 'Transcript'}
