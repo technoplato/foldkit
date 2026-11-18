@@ -4,6 +4,62 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:31:16 a.m. EST — `edad8c4f1740` feat(foldkit): on a narrow window a toolbar gives its start the room (Scribe #2494)
+
+- **Implementation commit:** `edad8c4f1740e6fa05f49255882b7a80e7bcead8`
+- **Change:** on a narrow window a toolbar gives its start the room (Scribe #2494)
+- **Details:**
+  - At 560 px and narrower a toolbar's start takes the width that is left and its centre and end sit to the side, so a phone's player bar shows what is playing in full with the controls beside it. Wider, the centre stays in the middle. Measured in the real app: at 1440 px the bar spans 120 to 1320 with the transport's centre at 720; at 390 px the start has the room. foldkit renderers, interaction and
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/layoutNodes.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:31:16 a.m. EST — `2a717a932358` feat(books): the player's controls are a toolbar across the reader (Scribe #2494)
+
+- **Implementation commit:** `2a717a932358a1a623f1c575a2fe1d1750782f11`
+- **Change:** the player's controls are a toolbar across the reader (Scribe #2494)
+- **Details:**
+  - On the player page the collapsed controls are Foldkit's Toolbar: what is playing with its progress at the start, back 30 seconds and Play or Pause in the centre, and the control that opens the full player at the end. Under a wide reader the bar is as wide as the reading column and Play sits in the middle, under the words, instead of at the end of a narrow strip. The same Actions are offered, and a
+- **Files:**
+  - `examples/books/core/src/playerControls.test.ts` — changed by this commit
+  - `examples/books/core/src/screen.ts` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:31:16 a.m. EST — `7bb76c8306f2` fix(foldkit): the dock's width rule is whole again, and a test keeps every value well formed (Scribe #2494)
+
+- **Implementation commit:** `7bb76c8306f22a3865250310519729b1ac843293`
+- **Change:** the dock's width rule is whole again, and a test keeps every value well formed (Scribe #2494)
+- **Details:**
+  - The commit before this one put the toolbar's dock rule in the middle of the dock's own width rule, leaving 'min(100%, 680px' unclosed; a page would have dropped that rule and ten @foldkit/react tests failed on it, which that commit's message wrongly said passed. The two rules are separate again, the toolbar's regions are selected as rows, and a test fails on any stylesheet line whose parentheses d
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/layoutNodes.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:31:16 a.m. EST — `cf5264f3b05f` feat(foldkit): green: a toolbar, a split and a reading measure that only organize (Scribe #2494)
+
+- **Implementation commit:** `cf5264f3b05f6decbd17e1045f01db4e6e537c56`
+- **Change:** green: a toolbar, a split and a reading measure that only organize (Scribe #2494)
+- **Details:**
+  - foldkit/renderers gains three layout pieces, each a named arrangement of the Row and Box every painter already draws, with no color, font or pixel of their own:
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/elements.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/public.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/types.ts` — changed by this commit
+  - `packages/react/src/paintReact/paintReact.tsx` — changed by this commit
+- **User context (verbatim):**
+  > start developing a set of components that are core completely generic UI agnostic components that just do the spacing and organization of the content
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 1:17:44 a.m. EST — `eac7c969870d` feat(books): green: books words paints from the theme on a terminal (Scribe #2494)
 
 - **Implementation commit:** `eac7c969870d0a6a88cb4fca6fed1ebbda917399`
