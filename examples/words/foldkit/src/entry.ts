@@ -1,4 +1,5 @@
 import { Layer } from 'effect'
+import { browserSystemAppearance } from 'foldkit/theme'
 import {
   Capture,
   Share,
@@ -7,6 +8,7 @@ import {
 } from 'words-core-example'
 
 import {
+  browserAppearanceStore,
   browserCaptureEnvironment,
   browserClipboard,
   browserKeyboardInput,
@@ -33,6 +35,8 @@ startWords({
     browserTranscriptScroller,
     browserKeyboardInput,
     browserNetworkStatus,
+    browserAppearanceStore,
+    browserSystemAppearance,
   ),
   origin: browserOrigin,
   copyReader: makeLiveCopyReader(database),

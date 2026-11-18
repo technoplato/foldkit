@@ -5,6 +5,7 @@ import { foldkit } from '@foldkit/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
 import { foldkitAliases, instantBrowserAlias } from '../../../vite.aliases'
+import { wordsThemeHead } from '../themePlugin'
 
 // The words page on made-up recordings. It serves this folder, with the
 // site's own source and public files beside it, and reads no private
@@ -13,7 +14,11 @@ export default defineConfig({
   root: __dirname,
   publicDir: path.resolve(__dirname, '../public'),
   appType: 'spa',
-  plugins: [tailwindcss(), foldkit({ devToolsMcpPort: 9995 })],
+  plugins: [
+    wordsThemeHead(),
+    tailwindcss(),
+    foldkit({ devToolsMcpPort: 9995 }),
+  ],
   resolve: {
     alias: {
       'words-core-example': path.resolve(__dirname, '../../core/src/index.ts'),

@@ -26,39 +26,53 @@
   --text-display--line-height: calc(var(--type-unit) * 40);
 }
 
+/* NOTE: every color on this site is a role of the words theme (the words
+   core's theme.ts). The theme says each role's value, light and dark; the
+   Program says the mode (data-fk-mode, told to the page from the Model);
+   and the names below are the site's own names for those roles, kept so
+   its rules read as before. No rule here asks the system which scheme it
+   is in. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --display-scale: 1;
   --type-unit: calc(1rem / 16 * var(--display-scale));
-  --canvas: #f2f2f7;
-  --surface: #ffffff;
-  --surface-raised: #ffffff;
-  --fill: rgb(120 120 128 / 0.12);
-  --fill-strong: rgb(120 120 128 / 0.2);
-  --label: #1d1d1f;
-  --label-secondary: rgb(60 60 67 / 0.76);
-  --label-tertiary: rgb(60 60 67 / 0.5);
-  --separator: rgb(60 60 67 / 0.14);
-  --accent: #ff3b30;
-  --accent-strong: #d70015;
-  --accent-fill: #d70015;
-  --accent-soft: rgb(255 59 48 / 0.12);
-  --tint: #0058b0;
-  --tint-soft: rgb(0 88 176 / 0.1);
-  --positive: #1f7a36;
-  --positive-soft: rgb(52 199 89 / 0.16);
-  --caution: #b83200;
-  --caution-soft: rgb(255 149 0 / 0.16);
-  --highlight: rgb(255 204 0 / 0.42);
-  --focus-ring: rgb(255 149 0 / 0.55);
-  --segment-selected: #ffffff;
-  --badge-recording: #b50012;
-  --badge-paused: #a32c00;
-  --badge-playing: #0058b0;
-  --glass: rgb(255 255 255 / 0.9);
-  --glass-shadow: 0 8px 28px rgb(0 0 0 / 0.14);
-  --bar: rgb(242 242 247 / 0.92);
+  --canvas: var(--fk-page-ground);
+  --surface: var(--fk-surface);
+  --surface-raised: var(--fk-raised-surface);
+  --fill: var(--fk-field);
+  --fill-strong: var(--fk-field-strong);
+  --label: var(--fk-text);
+  --label-secondary: var(--fk-quiet-text);
+  --label-tertiary: var(--fk-faint-text);
+  --separator: var(--fk-rule);
+  --accent: var(--fk-danger);
+  --accent-strong: var(--fk-danger-strong);
+  --accent-fill: var(--fk-danger-fill);
+  --accent-soft: var(--fk-danger-soft);
+  --tint: var(--fk-accent);
+  --tint-soft: var(--fk-accent-soft);
+  --positive: var(--fk-positive);
+  --positive-soft: var(--fk-positive-soft);
+  --caution: var(--fk-warning);
+  --caution-soft: var(--fk-warning-soft);
+  --highlight: var(--fk-reading-current-word-ground);
+  --focus-ring: var(--fk-focus);
+  --segment-selected: var(--fk-selected);
+  --on-fill: var(--fk-button-label);
+  --badge-recording: var(--fk-own-badge-recording);
+  --badge-paused: var(--fk-own-badge-paused);
+  --badge-playing: var(--fk-own-badge-playing);
+  --glass: var(--fk-veil);
+  --glass-shadow: 0 8px 28px var(--fk-shadow);
+  --bar: var(--fk-bar-ground);
   --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
+}
+
+/* What is not a color changes with the painted mode here: the browser's
+   own controls, and the card's shadow, which dark does without. */
+:root[data-fk-mode='Dark'] {
+  color-scheme: dark;
+  --card-shadow: none;
 }
 
 /* NOTE: only iOS Safari supports -webkit-touch-callout; there -apple-system-body follows the Text Size setting and is 17 px at the default size. */
@@ -80,42 +94,12 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: #000000;
-    --surface: #1c1c1e;
-    --surface-raised: #2c2c2e;
-    --fill: rgb(120 120 128 / 0.24);
-    --fill-strong: rgb(120 120 128 / 0.36);
-    --label: #f5f5f7;
-    --label-secondary: rgb(235 235 245 / 0.72);
-    --label-tertiary: rgb(235 235 245 / 0.46);
-    --separator: rgb(84 84 88 / 0.6);
-    --accent: #ff453a;
-    --accent-strong: #ff8a80;
-    --accent-fill: #d70015;
-    --accent-soft: rgb(255 69 58 / 0.2);
-    --tint: #4da3ff;
-    --tint-soft: rgb(77 163 255 / 0.18);
-    --positive: #30d158;
-    --positive-soft: rgb(48 209 88 / 0.18);
-    --caution: #ff9f0a;
-    --caution-soft: rgb(255 159 10 / 0.18);
-    --highlight: rgb(255 214 10 / 0.32);
-    --focus-ring: rgb(255 159 10 / 0.6);
-    --segment-selected: #636366;
-    --badge-recording: #ffa198;
-    --badge-paused: #ffb340;
-    --badge-playing: #8cc4ff;
-    --glass: rgb(44 44 46 / 0.88);
-    --glass-shadow: 0 8px 28px rgb(0 0 0 / 0.5);
-    --bar: rgb(0 0 0 / 0.88);
-    --card-shadow: none;
-  }
-}
-
-@media (prefers-contrast: more) and (prefers-color-scheme: light) {
-  :root {
+/* NOTE: More Contrast is still asked of the browser here, and its values
+   are written here, not in the theme: the theme has light and dark only.
+   The blocks are keyed on the painted mode, so they follow the Program's
+   mode and not the system's scheme. */
+@media (prefers-contrast: more) {
+  :root:not([data-fk-mode='Dark']) {
     --label-secondary: rgb(60 60 67 / 0.92);
     --label-tertiary: rgb(60 60 67 / 0.78);
     --separator: rgb(60 60 67 / 0.4);
@@ -127,10 +111,8 @@
     --badge-paused: #8f2600;
     --badge-playing: #003d85;
   }
-}
 
-@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-  :root {
+  :root[data-fk-mode='Dark'] {
     --label-secondary: rgb(235 235 245 / 0.86);
     --label-tertiary: rgb(235 235 245 / 0.7);
     --separator: rgb(235 235 245 / 0.4);
@@ -455,7 +437,7 @@ body {
   /* NOTE: the words scroll under it, so it is the raised surface itself,
      not glass they would show through. */
   background: var(--surface-raised);
-  box-shadow: 0 1px 8px rgb(0 0 0 / 0.18);
+  box-shadow: 0 1px 8px var(--fk-shadow);
 }
 
 /* The ring goes round the whole bar, not round the field inside it. */
@@ -476,7 +458,7 @@ body {
 [data-find='Selected'] {
   border-radius: 4px;
   background: var(--tint);
-  color: #fff;
+  color: var(--on-fill);
 }
 
 /* A word's menu opens where the word was pressed, kept inside the window. */

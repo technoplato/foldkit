@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 import { siteSourceHeader } from '../../site-source-header'
 import { foldkitAliases, instantBrowserAlias } from '../../vite.aliases'
+import { wordsThemeHead } from './themePlugin'
 import {
   appleAppSiteAssociation,
   devImpersonation,
@@ -45,6 +46,7 @@ export default defineConfig({
     ),
   },
   plugins: [
+    wordsThemeHead(),
     tailwindcss(),
     foldkit({ devToolsMcpPort: 9996 }),
     appleAppSiteAssociation(),

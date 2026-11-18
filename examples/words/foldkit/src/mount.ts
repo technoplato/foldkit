@@ -8,7 +8,7 @@ import {
   Stream,
   pipe,
 } from 'effect'
-import { Mount } from 'foldkit'
+import { Mount, Theme } from 'foldkit'
 import {
   ApproachedListEdge,
   ChangedListRowFocus,
@@ -19,6 +19,7 @@ import {
   CompletedShowRowMenuOnContextMenu,
   GotShareMessage,
   ListEdge,
+  type Message,
   OpenedWordMenu,
   type PlaybackClock,
   ReachedListTop,
@@ -1133,3 +1134,47 @@ export const RunClockTime = Mount.define(
     }
   }),
 )
+
+// APPEARANCE
+
+/**
+ * Tells the page its mode. The view says the mode on the element this is
+ * mounted on (`data-mode`, from the Model); this paints it on the page's
+ * root, where the theme's colors are declared, remembers it for the next
+ * first paint, and gives the browser's own bar the page's ground. It is
+ * the only place the mode reaches the page, and it reads nothing but the
+ * attribute it is told.
+ */
+export const TellPageItsMode: Mount.MountAction<Message> = {
+  name: 'TellPageItsMode',
+  f: element =>
+    Stream.callback<Message>(() =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const tell = () => {
+            const mode =
+              element.getAttribute('data-mode') === 'Dark' ? 'Dark' : 'Light'
+            Theme.paintModeOnPage(mode, {
+              root: document.documentElement,
+              storage: window.localStorage,
+            })
+            const ground = getComputedStyle(document.documentElement)
+              .getPropertyValue('--fk-page-ground')
+              .trim()
+            const maybeBar = document.querySelector('meta[name="theme-color"]')
+            if (maybeBar !== null && ground !== '') {
+              maybeBar.setAttribute('content', ground)
+            }
+          }
+          const told = new MutationObserver(tell)
+          told.observe(element, {
+            attributes: true,
+            attributeFilter: ['data-mode'],
+          })
+          tell()
+          return told
+        }),
+        told => Effect.sync(() => told.disconnect()),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+}

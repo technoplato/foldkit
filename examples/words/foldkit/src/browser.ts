@@ -1,7 +1,8 @@
-import { Effect, Layer, Option, Stream } from 'effect'
-import { Subscription } from 'foldkit'
+import { Effect, Layer, Option, Schema as S, Stream } from 'effect'
+import { Subscription, Theme } from 'foldkit'
 import { afterPaint } from 'foldkit/render'
 import {
+  AppearanceStore,
   Capture,
   ClipboardWriteError,
   ClipboardWriter,
@@ -315,4 +316,30 @@ export const browserNetworkStatus = Layer.succeed(NetworkStatus, {
       }),
     ),
   ),
+})
+
+const APPEARANCE_KEY = 'words.appearance'
+
+/**
+ * The look kept on this device, in the browser's own storage. A browser
+ * that refuses storage keeps nothing, and the page follows the system.
+ */
+export const browserAppearanceStore = Layer.succeed(AppearanceStore, {
+  read: Effect.sync(() => {
+    try {
+      return S.decodeUnknownOption(Theme.Appearance)(
+        window.localStorage.getItem(APPEARANCE_KEY),
+      )
+    } catch {
+      return Option.none()
+    }
+  }),
+  keep: appearance =>
+    Effect.sync(() => {
+      try {
+        window.localStorage.setItem(APPEARANCE_KEY, appearance)
+      } catch {
+        // NOTE: storage refused; the choice lasts until the page closes.
+      }
+    }),
 })

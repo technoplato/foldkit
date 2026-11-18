@@ -6,6 +6,7 @@
   "include": [
     "vite.config.ts",
     "vitePlugins.ts",
+    "themePlugin.ts",
     "vitePlugins.test.ts",
     "vitest.config.ts"
   ]

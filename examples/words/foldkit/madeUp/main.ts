@@ -8,6 +8,7 @@
  *   http://127.0.0.1:5236/?sections=600   a long recording
  */
 import { Effect, Layer, Option, Stream } from 'effect'
+import { browserSystemAppearance } from 'foldkit/theme'
 import {
   Capture,
   ScribeAccountReady,
@@ -21,6 +22,7 @@ import {
 } from 'words-core-example'
 
 import {
+  browserAppearanceStore,
   browserCaptureEnvironment,
   browserClipboard,
   browserKeyboardInput,
@@ -111,6 +113,8 @@ startWords({
     browserTranscriptScroller,
     browserKeyboardInput,
     browserNetworkStatus,
+    browserAppearanceStore,
+    browserSystemAppearance,
   ),
   origin,
   copyReader: {

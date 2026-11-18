@@ -3,10 +3,13 @@ import { type Html, html } from 'foldkit/html'
 import {
   type AccessIdentity,
   Account,
+  type AppearanceChoice,
   Capture,
+  ChoseAppearance,
   GotAccountMessage,
   type Message,
   type Model,
+  appearanceChoicesOf,
 } from 'words-core-example'
 
 import { connectCard } from './connect.js'
@@ -57,7 +60,8 @@ const statusOf = (model: Model): Status =>
       CheckingAccount: () => ({
         tone: 'Neutral',
         text: 'Checking',
-        detail: 'Asking words.pisspoursoftware.xyz who Cloudflare Access says you are.',
+        detail:
+          'Asking words.pisspoursoftware.xyz who Cloudflare Access says you are.',
       }),
       ConnectingAccount: () => ({
         tone: 'Neutral',
@@ -293,6 +297,43 @@ const shortcutRows: ReadonlyArray<ShortcutRow> = [
   },
 ]
 
+const appearanceOption = (choice: AppearanceChoice): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.Role('radio'),
+      h.AriaChecked(choice.isChosen),
+      h.OnClick(ChoseAppearance({ appearance: choice.appearance })),
+      h.Class(
+        `inline-flex min-h-11 flex-1 items-center justify-center whitespace-nowrap rounded-[10px] px-3 text-subhead font-semibold transition ${choice.isChosen ? 'bg-segment-selected text-label shadow-[0_1px_3px_rgb(0_0_0/0.12)]' : 'text-secondary hover:text-label'}`,
+      ),
+    ],
+    [choice.label],
+  )
+}
+
+/**
+ * How the page looks on this device: follow the system, light, or dark.
+ * The choice is the Model's and is kept on the device; the page's colors
+ * follow it at once.
+ */
+const appearanceGroup = (model: Model): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return [
+    groupTitle('Appearance'),
+    h.div(
+      [
+        h.Role('radiogroup'),
+        h.AriaLabel('Appearance'),
+        h.Class('flex gap-1 rounded-xl bg-fill p-1'),
+      ],
+      Array.map(appearanceChoicesOf(model), appearanceOption),
+    ),
+    groupFootnote(['Kept on this device. Other devices keep their own.']),
+  ]
+}
+
 const shortcutsGroup = (): ReadonlyArray<Html> => {
   const h = html<Message>()
   return [
@@ -475,6 +516,7 @@ export const accountPage = (model: Model): Html => {
       }),
       ...scribeGroup(model),
       ...sharingGroup(model),
+      ...appearanceGroup(model),
       ...shortcutsGroup(),
       ...actionsOf(model),
     ],

@@ -15,9 +15,11 @@ import {
   isListRoute,
   isOwnRecordingOf,
   isRecordAvailableOf,
+  modeOf,
   playbackPhaseOf,
 } from 'words-core-example'
 
+import { TellPageItsMode } from '../mount.js'
 import { accountPage } from './account.js'
 import { captureBar, newRecordingPage } from './capture.js'
 import { icon } from './icon.js'
@@ -406,6 +408,9 @@ export const view =
       title: titleOf(model),
       body: h.div(
         [
+          // NOTE: the Model says the mode; the mount tells the page.
+          h.DataAttribute('mode', modeOf(model)),
+          h.OnMount(TellPageItsMode),
           h.Class(
             '@container/page folding-title-scope min-h-dvh bg-canvas font-sans text-label antialiased',
           ),
