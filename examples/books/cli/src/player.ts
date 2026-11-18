@@ -50,6 +50,7 @@ import {
   runProgramCommand,
 } from 'foldkit/cli'
 import { renderScreen } from 'foldkit/renderers'
+import * as Theme from 'foldkit/theme'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import { booksCommandName } from './settings.js'
@@ -93,7 +94,7 @@ const statusOf = (bound: BoundBooks): string => {
  * @example
  * ```typescript
  * paintBrief(bound)
- * // '▶ Playing A New Earth\n…\n\n  books pause   Pauses where it is\n…'
+ * // '▶ Playing A New Earth\n…\n\n  books pause   Pauses and keeps your place\n…'
  * ```
  */
 export const paintBrief = (bound: BoundBooks): string =>
@@ -175,11 +176,105 @@ const wordsTextOf = (
       flags['json'] === '1'
         ? JSON.stringify({ _tag: 'Opening', sentence: statusOf(bound) })
         : `# ${statusOf(bound)}`,
-    onSome: words =>
-      flags['json'] === '1'
-        ? S.encodeSync(SpokenWordsJson)(words)
-        : Array.join(spokenWordsLines(words), '\n'),
+    onSome: words => {
+      if (flags['json'] === '1') {
+        return S.encodeSync(SpokenWordsJson)(words)
+      } else if (flags['color'] === '1') {
+        return Array.join(inkedWordsLines(words, inkOf(bound)), '\n')
+      } else {
+        return Array.join(spokenWordsLines(words), '\n')
+      }
+    },
   })
+
+// NOTE: The view says whether its output is a terminal (the `color` flag);
+// the player only knows the mode, from the Model, and paints from roles.
+const inkOf = (bound: BoundBooks): Theme.TerminalInk =>
+  Theme.terminalInkOf({
+    isTerminal: true,
+    env: {},
+    mode: Option.match(readyOf(bound.readModel()), {
+      onNone: () => 'Dark',
+      onSome: model => Theme.modeOfState(model.appearance),
+    }),
+  })
+
+const inkedParagraphOf = (
+  ink: Theme.TerminalInk,
+  paragraph: WordsParagraph,
+  maybeCurrentWordIndex: Option.Option<number>,
+): string => {
+  const label = Theme.inked(ink, 'QuietText', paragraph.label)
+  if (paragraph.position !== 'Current') {
+    const mark = paragraph.position === 'Leading' ? '-' : '+'
+    return `${mark} ${label} ${Theme.inked(ink, 'ReadingToCome', paragraph.text)}`
+  } else {
+    const words = paragraph.text.split(' ')
+    const text = Option.match(maybeCurrentWordIndex, {
+      onNone: () => Theme.inked(ink, 'ReadingSpoken', paragraph.text),
+      onSome: index =>
+        Array.join(
+          Array.filter(
+            [
+              Theme.inked(
+                ink,
+                'ReadingSpoken',
+                Array.join(words.slice(0, index), ' '),
+              ),
+              Theme.inked(
+                ink,
+                'ReadingCurrentWord',
+                Option.getOrElse(Array.get(words, index), () => ''),
+              ),
+              Theme.inked(
+                ink,
+                'ReadingToCome',
+                Array.join(words.slice(index + 1), ' '),
+              ),
+            ],
+            part => part !== Theme.inked(ink, 'ReadingSpoken', ''),
+          ),
+          ' ',
+        ),
+    })
+    return `> ${label} ${text}`
+  }
+}
+
+type WordsParagraph = Extract<
+  SpokenWords,
+  { _tag: 'WordsNow' }
+>['excerpt']['paragraphs'][number]
+
+/**
+ * The words as a terminal paints them, from the theme's roles: what was
+ * spoken strong, the word being spoken in its color, what is to come and
+ * the paragraphs around it dim, a section's heading in the reading rule's
+ * color. The lines keep the shape `books words` prints without color.
+ */
+const inkedWordsLines = (
+  words: SpokenWords,
+  ink: Theme.TerminalInk,
+): ReadonlyArray<string> => {
+  const [header = '', ...rest] = spokenWordsLines(words)
+  if (words._tag !== 'WordsNow') {
+    return Array.map([header, ...rest], line =>
+      Theme.inked(ink, 'QuietText', line),
+    )
+  } else {
+    return [
+      Theme.inked(ink, 'QuietText', header),
+      ...Array.flatMap(words.excerpt.paragraphs, paragraph => [
+        ...Array.fromOption(
+          Option.map(paragraph.maybeHeading, heading =>
+            Theme.inked(ink, 'ReadingRule', `## ${heading}`),
+          ),
+        ),
+        inkedParagraphOf(ink, paragraph, words.excerpt.maybeCurrentWordIndex),
+      ]),
+    ]
+  }
+}
 
 type WordsReading = Readonly<{
   maybeWords: Option.Option<SpokenWords>

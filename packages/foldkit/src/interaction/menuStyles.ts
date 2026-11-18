@@ -206,16 +206,25 @@ export const menuStylesheet = `
   gap: 0.25rem;
 }
 
+:where(.fk-action-menu[data-keys-live='false'] .fk-action-menu-keys) {
+  opacity: 0.45;
+}
+
 :where(.fk-action-menu-pick) {
   flex: none;
-  min-width: 1.75rem;
+  box-sizing: border-box;
+  min-width: 2rem;
   padding: 0.125rem 0.375rem;
+  border: 1px solid ${roleVar('Rule')};
+  border-bottom-width: 2px;
   border-radius: 0.375rem;
-  color: ${roleVar('QuietText')};
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: ${roleVar('Field')};
+  color: ${roleVar('ButtonHover')};
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
   line-height: 1rem;
-  text-align: right;
+  text-align: center;
 }
 
 :where(.fk-action-menu-key) {
@@ -256,5 +265,10 @@ export const menuStylesheet = `
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+:where(.fk-action-menu-count) {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 `

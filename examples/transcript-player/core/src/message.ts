@@ -34,7 +34,7 @@ const noAudio = 'its audio is not in the library yet'
 
 /** Plays from the place. `p` presses it, and pauses while it plays. */
 export const Play = Catalog.action('Play', {
-  what: 'Plays from the place',
+  what: 'Plays from where it is paused',
   why: 'The person wants to listen',
   enabled: (model: Model) => {
     if (isSounding(model)) {
@@ -50,7 +50,7 @@ export const Play = Catalog.action('Play', {
 
 /** Pauses where it is. `p` or `k` presses it. */
 export const Pause = Catalog.action('Pause', {
-  what: 'Pauses where it is',
+  what: 'Pauses and keeps your place',
   why: 'The person wants to stop listening for now',
   enabled: (model: Model) =>
     isSounding(model)
@@ -138,7 +138,7 @@ export const SeekToWord = Catalog.action('SeekToWord', {
     },
     nothingToChoose: 'there are no words yet',
   },
-  what: 'Plays from a word of the transcript',
+  what: 'Plays from the word you pick',
   why: 'The person wants to hear that part',
   meta: { label: 'Play from here', keys: [], title: 'Play from word' },
 })

@@ -274,6 +274,21 @@ const LayerSurface = ({
   )
 }
 
+const browserKeyPlatform = (): Interaction.KeyPlatform =>
+  typeof navigator === 'undefined'
+    ? 'Other'
+    : Interaction.keyPlatformOf(navigator)
+
+/**
+ * The attributes that carry a Button's hint: what a press does, the keys
+ * that press it in a browser, and why it is unavailable.
+ */
+const hintPropsOf = (button: ButtonNode): Interaction.HintAttributes =>
+  Option.match(
+    Interaction.controlHintOf(button, browserKeyPlatform(), 'Browser'),
+    { onNone: () => ({}), onSome: Interaction.hintAttributesOf },
+  )
+
 /**
  * Moves the keyboard off a control, such as a button a person clicked, when
  * the page takes a key from it: to the open layer's surface when the control
@@ -1319,7 +1334,8 @@ export type PaintHandlers = Readonly<{
 /**
  * Paints a Program screen tree as React elements. A Button press reports
  * the whole node, so a Client can send its Catalog `action` or its legacy
- * `token`. A disabled Button carries its `because` sentence as the title.
+ * `token`. A Button carries its hint as attributes: what a press does, its
+ * keys, and why it is unavailable, which the document's hint listener shows.
  * A Text with an embed paints the host's view of that kind from
  * {@link EmbedPaintersProvider}, kept across repaints, or else its words.
  */
@@ -1561,7 +1577,7 @@ export const paintTree = (
             type="button"
             className={classFor('Button', 'fk-button')}
             disabled={button.disabled === true}
-            title={button.because}
+            {...hintPropsOf(button)}
             data-action={button.action}
             data-variant={button.variant}
             data-icon-only={button.isIconOnly === true ? true : undefined}

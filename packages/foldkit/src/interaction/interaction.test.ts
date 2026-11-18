@@ -166,12 +166,187 @@ describe('isBrowserOwnedChord', () => {
       false,
     )
   })
+})
 
-  it('reads a row number as each platform writes it', () => {
-    expect(Interaction.pickShortcutOf(3, 'Mac')).toEqual(Option.some('⌘3'))
-    expect(Interaction.pickShortcutOf(3, 'Other')).toEqual(
+describe('isHostOwnedKey', () => {
+  const command = (key: string) => Interaction.keyInput(key, { isMeta: true })
+  const control = (key: string) =>
+    Interaction.keyInput(key, { isControl: true })
+
+  it('a browser on a Mac owns ⌘1 to ⌘9, which switch its tabs', () => {
+    expect(Interaction.isHostOwnedKey('Browser', 'Mac', command('1'))).toBe(
+      true,
+    )
+    expect(Interaction.isHostOwnedKey('Browser', 'Mac', command('9'))).toBe(
+      true,
+    )
+    expect(Interaction.isHostOwnedKey('Browser', 'Mac', control('2'))).toBe(
+      false,
+    )
+  })
+
+  it('a browser off a Mac owns Ctrl+1 to Ctrl+9', () => {
+    expect(Interaction.isHostOwnedKey('Browser', 'Other', control('2'))).toBe(
+      true,
+    )
+  })
+
+  it('a browser owns its own chords, such as reload, and leaves ⌘K and plain keys', () => {
+    expect(Interaction.isHostOwnedKey('Browser', 'Mac', command('r'))).toBe(
+      true,
+    )
+    expect(Interaction.isHostOwnedKey('Browser', 'Mac', command('k'))).toBe(
+      false,
+    )
+    expect(
+      Interaction.isHostOwnedKey('Browser', 'Mac', Interaction.keyInput('p')),
+    ).toBe(false)
+    expect(
+      Interaction.isHostOwnedKey('Browser', 'Mac', Interaction.keyInput('2')),
+    ).toBe(false)
+  })
+
+  it('a native window owns nothing', () => {
+    expect(Interaction.isHostOwnedKey('Native', 'Mac', command('2'))).toBe(
+      false,
+    )
+    expect(Interaction.isHostOwnedKey('Native', 'Mac', command('r'))).toBe(
+      false,
+    )
+  })
+
+  it('a terminal never passes Command on', () => {
+    expect(Interaction.isHostOwnedKey('Terminal', 'Mac', command('k'))).toBe(
+      true,
+    )
+    expect(Interaction.isHostOwnedKey('Terminal', 'Mac', control('k'))).toBe(
+      false,
+    )
+  })
+})
+
+describe('pickShortcutOf', () => {
+  it('reads a row number with the first chord the host leaves to the Program', () => {
+    expect(Interaction.pickShortcutOf(3, 'Mac', 'Native')).toEqual(
+      Option.some('⌘3'),
+    )
+    expect(Interaction.pickShortcutOf(3, 'Mac', 'Browser')).toEqual(
+      Option.some('⌃3'),
+    )
+    expect(Interaction.pickShortcutOf(3, 'Other', 'Native')).toEqual(
       Option.some('Ctrl+3'),
     )
-    expect(Interaction.pickShortcutOf(3, 'Touch')).toEqual(Option.none())
+  })
+
+  it('shows no number where the host owns every chord for it, or there are no keys', () => {
+    expect(Interaction.pickShortcutOf(3, 'Other', 'Browser')).toEqual(
+      Option.none(),
+    )
+    expect(Interaction.pickShortcutOf(3, 'Touch', 'Browser')).toEqual(
+      Option.none(),
+    )
+  })
+})
+
+describe('shortcutsOf', () => {
+  it('reads the keys an Action declares as the platform writes them', () => {
+    expect(Interaction.shortcutsOf(['p', 'k'], 'Mac', 'Browser')).toEqual([
+      'p',
+      'k',
+    ])
+    expect(Interaction.shortcutsOf(['Escape', ' '], 'Mac', 'Browser')).toEqual([
+      'esc',
+      'space',
+    ])
+    expect(Interaction.shortcutsOf(['['], 'Other', 'Browser')).toEqual(['['])
+  })
+
+  it('shows no keys on a touch screen', () => {
+    expect(Interaction.shortcutsOf(['p'], 'Touch', 'Browser')).toEqual([])
+  })
+})
+
+describe('controlHintOf', () => {
+  const play = {
+    label: 'Play',
+    description: 'Plays from where you stopped',
+    keys: ['p'],
+  }
+
+  it('says what a control does and the keys that press it', () => {
+    expect(Interaction.controlHintOf(play, 'Mac', 'Browser')).toEqual(
+      Option.some({
+        maybeTitle: Option.none(),
+        maybeDescription: Option.some('Plays from where you stopped'),
+        shortcuts: ['p'],
+        maybeBecause: Option.none(),
+        spoken: 'Plays from where you stopped',
+      }),
+    )
+  })
+
+  it('names a control that shows only an icon', () => {
+    expect(
+      Option.flatMap(
+        Interaction.controlHintOf(
+          { ...play, isIconOnly: true },
+          'Mac',
+          'Browser',
+        ),
+        hint => hint.maybeTitle,
+      ),
+    ).toEqual(Option.some('Play'))
+  })
+
+  it('says why a control is unavailable', () => {
+    expect(
+      Option.map(
+        Interaction.controlHintOf(
+          { ...play, because: 'nothing is loaded' },
+          'Mac',
+          'Browser',
+        ),
+        hint => [hint.maybeBecause, hint.spoken],
+      ),
+    ).toEqual(
+      Option.some([
+        Option.some('nothing is loaded'),
+        'Plays from where you stopped. Unavailable: nothing is loaded',
+      ]),
+    )
+  })
+
+  it('shows no keys on a touch screen, and nothing for a control with nothing to add', () => {
+    expect(
+      Option.map(
+        Interaction.controlHintOf(play, 'Touch', 'Browser'),
+        hint => hint.shortcuts,
+      ),
+    ).toEqual(Option.some([]))
+    expect(
+      Interaction.controlHintOf({ label: 'Close' }, 'Mac', 'Browser'),
+    ).toEqual(Option.none())
+  })
+
+  it('writes the hint as the attributes every DOM painter puts on the control', () => {
+    expect(
+      Option.map(
+        Interaction.controlHintOf(
+          { ...play, isIconOnly: true, because: 'nothing is loaded' },
+          'Mac',
+          'Browser',
+        ),
+        Interaction.hintAttributesOf,
+      ),
+    ).toEqual(
+      Option.some({
+        'data-hint': 'Plays from where you stopped',
+        'data-hint-title': 'Play',
+        'data-hint-keys': 'p',
+        'data-hint-because': 'nothing is loaded',
+        'aria-description':
+          'Plays from where you stopped. Unavailable: nothing is loaded',
+      }),
+    )
   })
 })

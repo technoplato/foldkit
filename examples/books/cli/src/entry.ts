@@ -48,9 +48,19 @@ const hostedOrigin = 'https://books.pisspoursoftware.xyz'
 
 const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
 
-const request = parseProgramArgv(argv)
+// NOTE: Whether to paint is this view's to know: its output is a
+// terminal, and color was not refused. The player paints from the theme.
+const paints =
+  process.stdout.isTTY === true &&
+  (process.env['NO_COLOR'] ?? '') === '' &&
+  process.env['TERM'] !== 'dumb'
 
-const maybeFollow = followArgvOf(argv)
+const paintedArgv =
+  paints && !argv.includes('--json') ? [...argv, '--color', '1'] : argv
+
+const request = parseProgramArgv(paintedArgv)
+
+const maybeFollow = followArgvOf(paintedArgv)
 
 const [head = ''] = request._tag === 'Do' ? request.token.split(' ') : []
 

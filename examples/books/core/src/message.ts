@@ -161,7 +161,7 @@ export const Open = Catalog.action('Open', {
       ? Catalog.Disabled({ because: 'its page is open' })
       : Catalog.Enabled(),
   ),
-  what: 'Opens the title on its own page',
+  what: "Opens this book's page, with its chapters and bookmarks",
   why: 'The person wants its chapters and bookmarks',
   enabled: unlessAsking,
   meta: { label: 'Open', keys: ['o'], title: 'Open title' },
@@ -181,7 +181,7 @@ export const Listen = Catalog.action('Listen', {
         : audioOf(title),
     shownTitleOf,
   ),
-  what: 'Plays the title from where the listener stopped',
+  what: 'Plays this book from where you stopped',
   why: 'The person wants to listen',
   enabled: unlessAsking,
   meta: { label: 'Play', keys: ['p'], title: 'Play title' },
@@ -285,7 +285,7 @@ export const [SetAppearance] = Catalog.within(Theme.catalog, {
 
 /** Shows the player, whatever this device has loaded. */
 export const OpenPlayer = Catalog.action('OpenPlayer', {
-  what: 'Shows the player',
+  what: 'Shows what is playing, with its words and controls',
   why: 'The person wants the controls for what is playing',
   enabled: (model: Model) => {
     if (isAsking(model)) {
@@ -306,7 +306,7 @@ export const OpenPlayer = Catalog.action('OpenPlayer', {
  * them when they are showing. `c` presses it.
  */
 export const ShowContents = Catalog.action('ShowContents', {
-  what: 'Shows the chapters of the title on screen',
+  what: "Lists this book's chapters so you can jump to one",
   why: 'The person wants to find a chapter',
   enabled: (model: Model) =>
     Option.isSome(shownTitle(model))
@@ -340,7 +340,7 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
       return Catalog.Enabled()
     }
   }),
-  what: 'Plays the title from the start of the chapter',
+  what: 'Plays this book from the start of the chapter',
   why: 'The person wants to listen to that part',
   enabled: unlessAsking,
   meta: { label: 'Play', keys: [], title: 'Jump to chapter' },
@@ -348,7 +348,7 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
 
 /** Shows the speeds to choose from. `x` presses it on the player. */
 export const ShowSpeeds = Catalog.action('ShowSpeeds', {
-  what: 'Shows the playback speeds',
+  what: 'Lets you pick how fast the book plays',
   why: 'The person wants it faster or slower',
   enabled: (model: Model) =>
     isOnPlayer(model)
@@ -362,7 +362,7 @@ export const ShowSpeeds = Catalog.action('ShowSpeeds', {
  * the share sheet on a phone, the clipboard elsewhere. `l` presses it.
  */
 export const SharePlace = Catalog.action('SharePlace', {
-  what: 'Shares a link to this moment in the title',
+  what: 'Shares a link that opens the book at this moment',
   why: 'The person wants someone to hear this part, or to come back to it',
   enabled: whenLoaded,
   meta: { label: 'Share', keys: ['l'], title: 'Share this moment' },
@@ -370,7 +370,7 @@ export const SharePlace = Catalog.action('SharePlace', {
 
 /** Shows every control of the player under the words. */
 export const ExpandControls = Catalog.action('ExpandControls', {
-  what: 'Shows every control of the player',
+  what: 'Shows every control, with the seek bar, chapters, speed, bookmark and share',
   why: 'The person wants the chapter bar, chapters, speed, or sharing',
   enabled: (model: Model) =>
     model.controls === 'Collapsed' && isOnPlayer(model)
@@ -381,7 +381,7 @@ export const ExpandControls = Catalog.action('ExpandControls', {
 
 /** Folds the player's controls back into the compact bar. */
 export const CollapseControls = Catalog.action('CollapseControls', {
-  what: 'Folds the player back into the compact bar',
+  what: 'Folds the controls into one small bar, leaving more room for the words',
   why: 'The person wants more room for the words',
   enabled: (model: Model) =>
     model.controls === 'Expanded' && isOnPlayer(model)
@@ -392,7 +392,7 @@ export const CollapseControls = Catalog.action('CollapseControls', {
 
 /** Goes to the library, the home. */
 export const ShowLibrary = Catalog.action('ShowLibrary', {
-  what: 'Goes to the library',
+  what: 'Goes to your library of books',
   why: 'The person wants to pick a book',
   enabled: unlessAsking,
   meta: { label: 'Library', keys: [], title: 'Go to the library' },
@@ -419,7 +419,7 @@ export const ShowReadAloud = Catalog.action('ShowReadAloud', {
 
 /** Marks the place in the player. `b` presses it. */
 export const AddBookmark = Catalog.action('AddBookmark', {
-  what: 'Marks the place in the player',
+  what: 'Saves a bookmark at this moment so you can come back to it',
   why: 'The person wants to come back to it',
   enabled: whenLoaded,
   meta: { label: 'Bookmark', keys: ['b'], title: 'Add bookmark' },
@@ -429,7 +429,7 @@ export const AddBookmark = Catalog.action('AddBookmark', {
 export const PlayBookmark = Catalog.action('PlayBookmark', {
   fields: { bookmarkId: BookmarkId },
   choose: whichBookmark('Which bookmark?', audioOf),
-  what: 'Plays the title from the bookmark',
+  what: 'Plays the book from this bookmark',
   why: 'The person wants to go back to that place',
   enabled: unlessAsking,
   meta: { label: 'Play', keys: [], title: 'Play bookmark' },
@@ -439,7 +439,7 @@ export const PlayBookmark = Catalog.action('PlayBookmark', {
 export const DeleteBookmark = Catalog.action('DeleteBookmark', {
   fields: { bookmarkId: BookmarkId },
   choose: whichBookmark('Delete which bookmark?'),
-  what: 'Asks before deleting the bookmark',
+  what: 'Deletes this bookmark, after asking you first',
   why: 'The person no longer needs it',
   enabled: unlessAsking,
   meta: { label: 'Delete', keys: [], title: 'Delete bookmark' },
@@ -471,14 +471,14 @@ export const ConfirmDeleteBookmark = Catalog.action('ConfirmDeleteBookmark', {
     preferredOf: askedBookmarkOf,
     nothingToChoose: 'no delete is waiting for an answer',
   },
-  what: 'Deletes the bookmark the question names',
+  what: 'Deletes the bookmark',
   why: 'The person is sure they want it gone',
   meta: { label: 'Delete', keys: ['y'] },
 })
 
 /** Closes the question and keeps the bookmark. `n` presses it. */
 export const CancelDeleteBookmark = Catalog.action('CancelDeleteBookmark', {
-  what: 'Closes the question and keeps the bookmark',
+  what: 'Keeps the bookmark and closes the question',
   why: 'The person changed their mind',
   enabled: (model: Model) =>
     isAsking(model)

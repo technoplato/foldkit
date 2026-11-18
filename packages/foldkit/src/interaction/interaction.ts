@@ -230,34 +230,6 @@ export const shortcutOf = (key: KeyInput, platform: KeyPlatform): string => {
   }
 }
 
-/**
- * How a menu row's number reads on a platform: `⌘3` on a Mac, `Ctrl+3`
- * elsewhere, and None on a touch screen.
- *
- * @example
- * ```typescript
- * pickShortcutOf(3, 'Mac') // Some('⌘3')
- * pickShortcutOf(3, 'Touch') // None
- * ```
- */
-export const pickShortcutOf = (
-  pick: number,
-  platform: KeyPlatform,
-): Option.Option<string> =>
-  M.value(platform).pipe(
-    M.withReturnType<Option.Option<string>>(),
-    M.when('Mac', () =>
-      Option.some(shortcutOf(keyInput(String(pick), { isMeta: true }), 'Mac')),
-    ),
-    M.when('Other', () =>
-      Option.some(
-        shortcutOf(keyInput(String(pick), { isControl: true }), 'Other'),
-      ),
-    ),
-    M.when('Touch', () => Option.none()),
-    M.exhaustive,
-  )
-
 const browserOwnedChordKeys: ReadonlySet<string> = new Set([
   '+',
   '=',
@@ -290,8 +262,8 @@ const browserOwnedChordKeys: ReadonlySet<string> = new Set([
  * True for a chord the browser already owns: zoom (`⌘+`, `⌘-`, `⌘0`),
  * reload, tabs and windows, the address bar, find, print, save,
  * bookmarks, history, editing, and back and forward. A Program never
- * takes one, so `⌘-` always zooms out. `⌘1` to `⌘9` switch tabs too; only
- * the open action menu takes them, to pick a row.
+ * takes one, so `⌘-` always zooms out. The chord that switches tabs
+ * depends on the platform; {@link isHostOwnedKey} adds it.
  *
  * @example
  * ```typescript
@@ -303,6 +275,262 @@ const browserOwnedChordKeys: ReadonlySet<string> = new Set([
 export const isBrowserOwnedChord = (input: KeyInput): boolean =>
   isChord(input) &&
   browserOwnedChordKeys.has(normalizeKey(input.key).toLowerCase())
+
+// HOST
+
+/**
+ * Who shares the keyboard with a Program. A browser takes its own chords
+ * before a page hears them: `⌘2` switches to the second tab in Safari
+ * whatever the page does. A native window passes every key on, and a
+ * terminal never passes Command on. A Program declares the keys it
+ * prefers; each Client names its host, shows only the keys that host
+ * leaves, and refuses the rest.
+ */
+export const KeyHost = S.Literals(['Browser', 'Native', 'Terminal'])
+/** Who shares the keyboard with a Program. */
+export type KeyHost = typeof KeyHost.Type
+
+const tabDigitPattern = /^[1-9]$/
+
+const isBrowserTabChord = (platform: KeyPlatform, input: KeyInput): boolean =>
+  tabDigitPattern.test(normalizeKey(input.key)) &&
+  (platform === 'Mac' ? input.isMeta : input.isControl)
+
+/**
+ * True for a key press the host keeps for itself, so a Program must not
+ * take it or show it. A browser keeps its chords ({@link
+ * isBrowserOwnedChord}) and the chord that switches tabs: `⌘1` to `⌘9` on
+ * a Mac, `Ctrl+1` to `Ctrl+9` elsewhere. On a Mac it leaves `⌃1` to `⌃9`.
+ * A native window keeps nothing. A terminal keeps every Command chord.
+ *
+ * @example
+ * ```typescript
+ * isHostOwnedKey('Browser', 'Mac', keyInput('2', { isMeta: true })) // true
+ * isHostOwnedKey('Browser', 'Mac', keyInput('2', { isControl: true })) // false
+ * isHostOwnedKey('Native', 'Mac', keyInput('2', { isMeta: true })) // false
+ * ```
+ */
+export const isHostOwnedKey = (
+  host: KeyHost,
+  platform: KeyPlatform,
+  input: KeyInput,
+): boolean =>
+  M.value(host).pipe(
+    M.withReturnType<boolean>(),
+    M.when(
+      'Browser',
+      () => isBrowserOwnedChord(input) || isBrowserTabChord(platform, input),
+    ),
+    M.when('Native', () => false),
+    M.when('Terminal', () => input.isMeta),
+    M.exhaustive,
+  )
+
+const pickChordsOf = (
+  pick: number,
+  platform: KeyPlatform,
+): ReadonlyArray<KeyInput> =>
+  M.value(platform).pipe(
+    M.withReturnType<ReadonlyArray<KeyInput>>(),
+    M.when('Mac', () => [
+      keyInput(String(pick), { isMeta: true }),
+      keyInput(String(pick), { isControl: true }),
+    ]),
+    M.when('Other', () => [keyInput(String(pick), { isControl: true })]),
+    M.when('Touch', () => []),
+    M.exhaustive,
+  )
+
+/**
+ * How a menu row's number reads: the first chord for it the host leaves
+ * to the Program. A native Mac window shows `⌘3`. A browser on a Mac shows
+ * `⌃3`, because `⌘3` switches tabs there. None where the host keeps every
+ * chord, such as a browser off a Mac, and on a touch screen.
+ *
+ * @example
+ * ```typescript
+ * pickShortcutOf(3, 'Mac', 'Native') // Some('⌘3')
+ * pickShortcutOf(3, 'Mac', 'Browser') // Some('⌃3')
+ * pickShortcutOf(3, 'Touch', 'Browser') // None
+ * ```
+ */
+export const pickShortcutOf = (
+  pick: number,
+  platform: KeyPlatform,
+  host: KeyHost,
+): Option.Option<string> =>
+  Option.map(
+    Array.findFirst(
+      pickChordsOf(pick, platform),
+      chord => !isHostOwnedKey(host, platform, chord),
+    ),
+    chord => shortcutOf(chord, platform),
+  )
+
+const keyNames: ReadonlyMap<string, string> = new Map([
+  ['Escape', 'esc'],
+  [' ', 'space'],
+  ['Enter', '↵'],
+  ['ArrowUp', '↑'],
+  ['ArrowDown', '↓'],
+  ['ArrowLeft', '←'],
+  ['ArrowRight', '→'],
+  ['Backspace', '⌫'],
+  ['Tab', 'tab'],
+])
+
+/**
+ * The keys an Action declares, as a person on this platform and host
+ * reads them, without any the host keeps: `p` stays `p`, `Escape` reads
+ * `esc`, a space reads `space`. Empty on a touch screen.
+ *
+ * @example
+ * ```typescript
+ * shortcutsOf(['p', 'k'], 'Mac', 'Browser') // ['p', 'k']
+ * shortcutsOf(['Escape'], 'Mac', 'Browser') // ['esc']
+ * shortcutsOf(['p'], 'Touch', 'Browser') // []
+ * ```
+ */
+export const shortcutsOf = (
+  keys: ReadonlyArray<string>,
+  platform: KeyPlatform,
+  host: KeyHost,
+): ReadonlyArray<string> =>
+  platform === 'Touch'
+    ? []
+    : pipe(
+        keys,
+        Array.map(normalizeKey),
+        Array.filter(key => !isHostOwnedKey(host, platform, keyInput(key))),
+        Array.map(key =>
+          Option.getOrElse(Option.fromNullishOr(keyNames.get(key)), () => key),
+        ),
+      )
+
+// ECHO
+
+/**
+ * What a key press did, for a Client to show for a moment: the Action it
+ * ran, `Play title`, the keys that were pressed, and a note when it did
+ * nothing, `Unavailable: count is already 0`.
+ */
+export type Echo = Readonly<{
+  title: string
+  maybeNote: Option.Option<string>
+  keys: ReadonlyArray<string>
+}>
+
+// HINT
+
+/**
+ * What a Client says about one control when a pointer rests on it or the
+ * keyboard reaches it: what a press does, the keys that press it here,
+ * and why it is unavailable. `maybeTitle` names a control that shows only
+ * an icon. `spoken` is the same for a screen reader, in one line.
+ */
+export type ControlHint = Readonly<{
+  maybeTitle: Option.Option<string>
+  maybeDescription: Option.Option<string>
+  shortcuts: ReadonlyArray<string>
+  maybeBecause: Option.Option<string>
+  spoken: string
+}>
+
+/**
+ * The hint for one control, from what its Action declares: the
+ * description, the keys this platform and host leave it, and the reason
+ * it is unavailable. None for a control with nothing to add to its label.
+ *
+ * @example
+ * ```typescript
+ * controlHintOf({ label: 'Reset', description: 'Sets the count to 0', keys: ['r'] }, 'Mac', 'Browser')
+ * // Some({ maybeDescription: Some('Sets the count to 0'), shortcuts: ['r'], ... })
+ * controlHintOf({ label: 'Close' }, 'Mac', 'Browser') // None
+ * ```
+ */
+export const controlHintOf = (
+  control: Readonly<{
+    label: string
+    description?: string | undefined
+    keys?: ReadonlyArray<string> | undefined
+    because?: string | undefined
+    isIconOnly?: boolean | undefined
+  }>,
+  platform: KeyPlatform,
+  host: KeyHost,
+): Option.Option<ControlHint> => {
+  const maybeTitle =
+    control.isIconOnly === true ? Option.some(control.label) : Option.none()
+  const maybeDescription = Option.filter(
+    Option.fromNullishOr(control.description),
+    description => description !== '',
+  )
+  const maybeBecause = Option.fromNullishOr(control.because)
+  const shortcuts = shortcutsOf(control.keys ?? [], platform, host)
+  const hasNothingToAdd =
+    Option.isNone(maybeTitle) &&
+    Option.isNone(maybeDescription) &&
+    Option.isNone(maybeBecause) &&
+    Array.isReadonlyArrayEmpty(shortcuts)
+  return hasNothingToAdd
+    ? Option.none()
+    : Option.some({
+        maybeTitle,
+        maybeDescription,
+        shortcuts,
+        maybeBecause,
+        spoken: Array.join(
+          [
+            ...Array.fromOption(maybeDescription),
+            ...Array.fromOption(
+              Option.map(maybeBecause, because => `Unavailable: ${because}`),
+            ),
+          ],
+          '. ',
+        ),
+      })
+}
+
+/** The attributes that carry a control's hint in the DOM. */
+export type HintAttributes = Readonly<{
+  'data-hint'?: string
+  'data-hint-title'?: string
+  'data-hint-keys'?: string
+  'data-hint-because'?: string
+  'aria-description'?: string
+}>
+
+/**
+ * A hint as the attributes every DOM painter puts on its control, which
+ * the document's hint listener reads: `data-hint` is the description,
+ * `data-hint-title` the name of an icon, `data-hint-keys` the keys
+ * separated by spaces, `data-hint-because` the reason it is unavailable,
+ * and `aria-description` the line a screen reader says.
+ *
+ * @example
+ * ```typescript
+ * hintAttributesOf(hint)
+ * // { 'data-hint': 'Sets the count to 0', 'data-hint-keys': 'r', 'aria-description': 'Sets the count to 0' }
+ * ```
+ */
+export const hintAttributesOf = (hint: ControlHint): HintAttributes => ({
+  ...Option.match(hint.maybeDescription, {
+    onNone: () => ({}),
+    onSome: description => ({ 'data-hint': description }),
+  }),
+  ...Option.match(hint.maybeTitle, {
+    onNone: () => ({}),
+    onSome: title => ({ 'data-hint-title': title }),
+  }),
+  ...(Array.isReadonlyArrayEmpty(hint.shortcuts)
+    ? {}
+    : { 'data-hint-keys': Array.join(hint.shortcuts, ' ') }),
+  ...Option.match(hint.maybeBecause, {
+    onNone: () => ({}),
+    onSome: because => ({ 'data-hint-because': because }),
+  }),
+  ...(hint.spoken === '' ? {} : { 'aria-description': hint.spoken }),
+})
 
 const preferredShortcut = (
   keys: ReadonlyArray<KeyInput>,
@@ -442,9 +670,15 @@ export type MenuRow = Readonly<{
  * by `query`. `filterLabel` names the search field, `Search actions`, and
  * `dismissLabel` the control that closes the menu, `Close actions`.
  * `summary` counts the rows for a screen reader, `3 actions` or
- * `No actions match “zz”`. `hints` are the keys that work right now.
- * `style` says how to present it: a centered dialog on web, a modal on
- * React Native, a boxed prompt in a terminal.
+ * `2 actions match “p”`, or `No actions match “zz”`; a painter also shows
+ * it, so a person sees what a typed letter did. `hints` are the keys that
+ * work right now, the last of them what a letter does: `search` while the
+ * search has the keyboard, `run a row by its key` once a row has it.
+ * `areRowKeysLive` says the same of the key shown beside each row, so a
+ * painter dims those keys while a letter would only type, and
+ * `rowKeysHint` is the sentence it shows on them. `style` says
+ * how to present it: a centered dialog on web, a modal on React Native, a
+ * boxed prompt in a terminal.
  */
 export type MenuView = Readonly<{
   title: string
@@ -452,6 +686,8 @@ export type MenuView = Readonly<{
   dismissLabel: string
   query: string
   isFilterFocused: boolean
+  areRowKeysLive: boolean
+  rowKeysHint: string
   rows: ReadonlyArray<MenuRow>
   summary: string
   hints: ReadonlyArray<MenuHint>
@@ -530,6 +766,87 @@ export const keyedEntryOf = (
     )
   }
 }
+
+const echoOfEntry = (entry: Entry): Echo => ({
+  title: entry.title,
+  maybeNote: M.value(entry.availability).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tagsExhaustive({
+      Enabled: () => Option.none(),
+      Disabled: ({ because }) => Option.some(`Unavailable: ${because}`),
+    }),
+  ),
+  keys: [],
+})
+
+const menuOwnKeys: ReadonlySet<string> = new Set([
+  'j',
+  'k',
+  'J',
+  'K',
+  'Escape',
+  'Tab',
+  'ArrowDown',
+  'ArrowUp',
+])
+
+const rowEchoOf = (row: MenuRow): Option.Option<Echo> =>
+  row.isNested && isEnabled(row.entry.availability)
+    ? Option.none()
+    : Option.some(echoOfEntry(row.entry))
+
+const echoInMenu = (
+  menu: MenuView,
+  catalogEntries: ReadonlyArray<Entry>,
+  input: KeyInput,
+): Option.Option<Echo> => {
+  const key = normalizeKey(input.key)
+  if (isChord(input)) {
+    return Option.flatMap(
+      Array.findFirst(menu.rows, row =>
+        Option.contains(row.maybePick, Number(key)),
+      ),
+      rowEchoOf,
+    )
+  } else if (key === 'Enter') {
+    return Option.flatMap(
+      Array.findFirst(menu.rows, row => row.isHighlighted),
+      rowEchoOf,
+    )
+  } else if (menu.areRowKeysLive && !menuOwnKeys.has(key)) {
+    return Option.map(keyedEntryOf(catalogEntries, input), echoOfEntry)
+  } else {
+    return Option.none()
+  }
+}
+
+/**
+ * What one key press is about to do, for a Client to say once it is
+ * done: the Action a declared key runs, `Reset` for `r`, or the row a
+ * number, Enter, or its own key runs from the open menu. An unavailable
+ * Action comes with the reason, `Unavailable: count is already 0`, so a
+ * key that does nothing says why. None for a key that only types, moves,
+ * opens a list of choices, or belongs to no Action. `keys` is left for
+ * the Client to fill with the press as its platform writes it.
+ *
+ * @example
+ * ```typescript
+ * echoOfKey(App.interaction, { count: 3 }, keyInput('r'))
+ * // Some({ title: 'Reset', maybeNote: None, keys: [] })
+ * echoOfKey(App.interaction, { count: 0 }, keyInput('r'))
+ * // Some({ title: 'Reset', maybeNote: Some('Unavailable: count is already 0'), keys: [] })
+ * ```
+ */
+export const echoOfKey = <Model, Message>(
+  interaction: Pick<ProgramInteraction<Model, Message>, 'entries' | 'menu'>,
+  model: Model,
+  input: KeyInput,
+): Option.Option<Echo> =>
+  Option.match(interaction.menu(model), {
+    onNone: () =>
+      Option.map(keyedEntryOf(interaction.entries(model), input), echoOfEntry),
+    onSome: menu => echoInMenu(menu, interaction.entries(model), input),
+  })
 
 /**
  * How a key moves the keyboard between the buttons of a screen presented

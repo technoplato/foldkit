@@ -24,7 +24,7 @@ describe('terminalMenuLines', () => {
     ).toEqual([
       'Actions  Search actions: "res"',
       '  > Reset     r     Sets the count to 0',
-      '  [↑↓] move  [↵] run  [esc] close',
+      '  [↑↓] move  [↵] run  [esc] close  [a–z] search',
     ])
   })
 
