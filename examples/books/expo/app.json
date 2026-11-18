@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Foldkit - Books",
+    "slug": "foldkit-books",
+    "scheme": "foldkit-books",
+    "version": "0.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"],
+    "ios": {
+      "bundleIdentifier": "com.knophy.foldkit.books.dev",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.knophy.foldkit.books.dev"
+    }
+  }
+}
