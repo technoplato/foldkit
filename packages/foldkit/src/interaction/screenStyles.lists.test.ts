@@ -31,7 +31,7 @@ describe('the look of a list with columns', () => {
   })
 
   it('marks the row being read with a rule at its side, not only a color', () => {
-    expect(ruleOf(':where(.fk-item[data-current])')).toContain(
+    expect(ruleOf(':where(.fk-list-frame .fk-item[data-current])')).toContain(
       `box-shadow: inset 3px 0 0 ${screenLook.accentColor}`,
     )
   })

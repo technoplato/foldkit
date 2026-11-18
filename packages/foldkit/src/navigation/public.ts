@@ -122,6 +122,7 @@ export {
   coalescedStack,
   documentTitleOf,
   frameOf,
+  sideTagOf,
   styleTagOf,
   uriOfDeepLink,
   tanstackRouterPlugin,

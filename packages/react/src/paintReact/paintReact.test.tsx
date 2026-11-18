@@ -784,7 +784,9 @@ describe('paintTree: a list with columns and a filter', () => {
       bubbles: true,
       cancelable: true,
     })
-    field.dispatchEvent(escape)
+    act(() => {
+      field.dispatchEvent(escape)
+    })
     expect(field.value).toBe('')
     expect(escape.defaultPrevented).toBe(true)
     expect(rowTitles()).toHaveLength(3)

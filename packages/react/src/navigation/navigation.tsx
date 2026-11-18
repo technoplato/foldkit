@@ -200,6 +200,50 @@ const openingButtonOf = (
     () => Array.head(buttons),
   )
 
+const keyboardAtHandQuery = '(hover: hover) and (pointer: fine)'
+
+/**
+ * True on a page whose pointer hovers and is fine, a mouse or trackpad,
+ * which comes with a keyboard: a phone or tablet would raise its
+ * on-screen keyboard over the list if a field took the focus there.
+ */
+const hasKeyboardAtHand = (): boolean =>
+  Option.exists(
+    Environment.maybePage(),
+    page =>
+      typeof page.window.matchMedia === 'function' &&
+      page.window.matchMedia(keyboardAtHandQuery).matches,
+  )
+
+/**
+ * What takes the keyboard when a presented screen opens: a field that asks
+ * for it, such as the one that narrows a long list, where there is a
+ * keyboard to type on, else the current row's button, else the first.
+ */
+const openingFocusOf = (root: HTMLElement): Option.Option<HTMLElement> =>
+  Option.orElse(
+    Option.filter(
+      Option.fromNullishOr(
+        root.querySelector<HTMLElement>('[data-takes-focus]'),
+      ),
+      () => hasKeyboardAtHand(),
+    ),
+    () => openingButtonOf(enabledButtonsOf(root)),
+  )
+
+const caretKeys: ReadonlySet<string> = new Set(['ArrowLeft', 'ArrowRight'])
+
+/**
+ * True for the left and right arrows inside a text field, where they move
+ * the caret and must not move the keyboard to another button.
+ */
+const isCaretKeyInField = (
+  event: Readonly<{ key: string; target: EventTarget }>,
+): boolean =>
+  caretKeys.has(event.key) &&
+  (event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement)
+
 const steppedIndex = (
   maybeCurrent: Option.Option<number>,
   move: 'Next' | 'Previous',
@@ -229,11 +273,12 @@ const PresentedScreen = ({
 }>): ReactElement => {
   const bound = useBound()
   const ref = useRef<HTMLDivElement>(null)
+  const maybeSide = Navigation.sideTagOf(layer)
   useEffect(() => {
     const root = ref.current
     if (root !== null) {
-      Option.map(openingButtonOf(enabledButtonsOf(root)), button => {
-        button.focus({ preventScroll: true })
+      Option.map(openingFocusOf(root), control => {
+        control.focus({ preventScroll: true })
       })
     }
   }, [])
@@ -241,9 +286,10 @@ const PresentedScreen = ({
     <div
       ref={ref}
       role="dialog"
-      aria-modal="true"
+      aria-modal={Option.isNone(maybeSide)}
       className="fk-overlay"
       data-style={Navigation.styleTagOf(layer)}
+      data-side={Option.getOrUndefined(maybeSide)}
       data-key={layer.key}
       onClick={event => {
         if (event.target === event.currentTarget) {
@@ -259,7 +305,11 @@ const PresentedScreen = ({
             isShift: event.shiftKey,
           }),
         )
-        if (root !== null && Option.isSome(maybeMove)) {
+        if (
+          root !== null &&
+          Option.isSome(maybeMove) &&
+          !isCaretKeyInField(event)
+        ) {
           const buttons = enabledButtonsOf(root)
           Option.map(
             Array.get(

@@ -329,7 +329,7 @@ const contentsOf = (model: Model, title: Title): ReadonlyArray<UiNode> =>
  * @example
  * ```typescript
  * chapterPickerOf(model, title, Milliseconds.make(1_680_000))
- * // [List('Chapter'): The Light · Chapter 2 of 4 · 12:00 left in it [▴]]
+ * // [List('Chapter'): The Light · Chapter 2 of 4 · 12:00 left in it [☰]]
  * ```
  */
 export const chapterPickerOf = (
@@ -350,7 +350,7 @@ export const chapterPickerOf = (
             ...offeredActionOf(entriesOf(model), ShowContents.tag),
             trailing: withIcon(
               buttonsOf(model, [ShowContents], 'Ghost'),
-              'Expand',
+              'Chapters',
               true,
             ),
           },

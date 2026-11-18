@@ -820,7 +820,14 @@ const updated = (model: Model, message: Message): UpdateReturn =>
           : model,
         [],
       ],
-      ShowContents: () => [presentedContents(model), []],
+      ShowContents: () => [
+        Option.exists(model.navigation.maybeModal, modal =>
+          isContentsSheet(modal.destination),
+        )
+          ? withoutModal(model, isContentsSheet)
+          : presentedContents(model),
+        [],
+      ],
       JumpToChapter: ({ chapterNumber }) =>
         jumpedToChapter(model, chapterNumber),
       ShowSpeeds: () => [presentedSheet(model, SpeedSheet()), []],

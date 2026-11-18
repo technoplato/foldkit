@@ -232,6 +232,19 @@ describe('Contents', () => {
     expect(texts).toContain('4 chapters · 1h 20m')
   })
 
+  it('closes when Contents is pressed again, so its key and the picker open and close it', () => {
+    const { bound } = playingAt(28 * minuteMs)
+    bound.press('ShowContents')
+    bound.press('ShowContents')
+    expect(uriOf(bound)).toEqual(
+      Option.some('/books/the-lantern-keeper/listen/28m00s'),
+    )
+    bound.pressKey(Interaction.keyInput('c'))
+    expect(uriOf(bound)).toEqual(
+      Option.some('/books/the-lantern-keeper/listen/28m00s/contents'),
+    )
+  })
+
   it('still plays a chapter from its row, and closes', () => {
     const { bound } = playingAt(28 * minuteMs)
     bound.press('ShowContents')
@@ -252,7 +265,7 @@ describe('The chapter picker', () => {
     expect(row?.lines).toEqual(['Chapter 2 of 4 · 12:00 left in it'])
     expect(row?.action).toBe('ShowContents')
     expect(Array.map(row?.trailing ?? [], button => button.icon)).toEqual([
-      'Expand',
+      'Chapters',
     ])
   })
 
