@@ -278,11 +278,56 @@ describe('controlHintOf', () => {
       Option.some({
         maybeTitle: Option.none(),
         maybeDescription: Option.some('Plays from where you stopped'),
+        maybeWhy: Option.none(),
         shortcuts: ['p'],
         maybeBecause: Option.none(),
         spoken: 'Plays from where you stopped',
       }),
     )
+  })
+
+  it('carries why the user would press it, beside what it does', () => {
+    const hint = Interaction.controlHintOf(
+      { ...play, why: 'To go on listening' },
+      'Mac',
+      'Browser',
+    )
+    expect(Option.flatMap(hint, ({ maybeWhy }) => maybeWhy)).toEqual(
+      Option.some('To go on listening'),
+    )
+    expect(Option.map(hint, ({ spoken }) => spoken)).toEqual(
+      Option.some('Plays from where you stopped'),
+    )
+    expect(
+      Option.map(
+        hint,
+        found => Interaction.hintAttributesOf(found)['data-hint-why'],
+      ),
+    ).toEqual(Option.some('To go on listening'))
+  })
+
+  it('leaves the why out for a control that is unavailable, and says why it is', () => {
+    const hint = Interaction.controlHintOf(
+      { ...play, why: 'To go on listening', because: 'it is playing' },
+      'Mac',
+      'Browser',
+    )
+    expect(Option.flatMap(hint, ({ maybeWhy }) => maybeWhy)).toEqual(
+      Option.none(),
+    )
+    expect(Option.flatMap(hint, ({ maybeBecause }) => maybeBecause)).toEqual(
+      Option.some('it is playing'),
+    )
+  })
+
+  it('carries no why for a control with nothing else to say', () => {
+    expect(
+      Interaction.controlHintOf(
+        { label: 'Close', why: 'To be done' },
+        'Mac',
+        'Browser',
+      ),
+    ).toEqual(Option.none())
   })
 
   it('names a control that shows only an icon', () => {

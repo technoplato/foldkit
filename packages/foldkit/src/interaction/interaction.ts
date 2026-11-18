@@ -431,6 +431,7 @@ export type Echo = Readonly<{
 export type ControlHint = Readonly<{
   maybeTitle: Option.Option<string>
   maybeDescription: Option.Option<string>
+  maybeWhy: Option.Option<string>
   shortcuts: ReadonlyArray<string>
   maybeBecause: Option.Option<string>
   spoken: string
@@ -438,8 +439,11 @@ export type ControlHint = Readonly<{
 
 /**
  * The hint for one control, from what its Action declares: the
- * description, the keys this platform and host leave it, and the reason
- * it is unavailable. None for a control with nothing to add to its label.
+ * description, why the user would press it, the keys this platform and
+ * host leave it, and the reason
+ * it is unavailable. An unavailable control says that reason and leaves
+ * the why out, since the user cannot press it. None for a control with
+ * nothing to add to its label.
  *
  * @example
  * ```typescript
@@ -452,6 +456,7 @@ export const controlHintOf = (
   control: Readonly<{
     label: string
     description?: string | undefined
+    why?: string | undefined
     keys?: ReadonlyArray<string> | undefined
     because?: string | undefined
     isIconOnly?: boolean | undefined
@@ -466,6 +471,10 @@ export const controlHintOf = (
     description => description !== '',
   )
   const maybeBecause = Option.fromNullishOr(control.because)
+  const maybeWhy = Option.filter(
+    Option.fromNullishOr(control.why),
+    why => why !== '' && Option.isNone(maybeBecause),
+  )
   const shortcuts = shortcutsOf(control.keys ?? [], platform, host)
   const hasNothingToAdd =
     Option.isNone(maybeTitle) &&
@@ -477,6 +486,7 @@ export const controlHintOf = (
     : Option.some({
         maybeTitle,
         maybeDescription,
+        maybeWhy,
         shortcuts,
         maybeBecause,
         spoken: Array.join(
@@ -494,6 +504,7 @@ export const controlHintOf = (
 /** The attributes that carry a control's hint in the DOM. */
 export type HintAttributes = Readonly<{
   'data-hint'?: string
+  'data-hint-why'?: string
   'data-hint-title'?: string
   'data-hint-keys'?: string
   'data-hint-because'?: string
@@ -503,6 +514,7 @@ export type HintAttributes = Readonly<{
 /**
  * A hint as the attributes every DOM painter puts on its control, which
  * the document's hint listener reads: `data-hint` is the description,
+ * `data-hint-why` why the user would press it,
  * `data-hint-title` the name of an icon, `data-hint-keys` the keys
  * separated by spaces, `data-hint-because` the reason it is unavailable,
  * and `aria-description` the line a screen reader says.
@@ -517,6 +529,10 @@ export const hintAttributesOf = (hint: ControlHint): HintAttributes => ({
   ...Option.match(hint.maybeDescription, {
     onNone: () => ({}),
     onSome: description => ({ 'data-hint': description }),
+  }),
+  ...Option.match(hint.maybeWhy, {
+    onNone: () => ({}),
+    onSome: why => ({ 'data-hint-why': why }),
   }),
   ...Option.match(hint.maybeTitle, {
     onNone: () => ({}),

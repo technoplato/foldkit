@@ -1,4 +1,5 @@
 import { Array, Equivalence, Match as M, Option, Schema as S } from 'effect'
+import { ModelPath, computed } from 'foldkit/declaration'
 import {
   TranscriptExcerpt,
   type TranscriptExcerptOptions,
@@ -17,7 +18,7 @@ import { Milliseconds, TitleSlug, clockOf } from './ids.js'
 import { placePathOf, wordPathOf } from './links.js'
 import {
   type Loaded,
-  type Model,
+  Model,
   type Title,
   chapterNameAt,
   loadedTitleOf,
@@ -195,6 +196,40 @@ export const spokenWordsOf = (
       )
     },
   })
+
+const at = ModelPath.of(Model)
+
+/**
+ * The words being read, as state a Client can observe: the Model does
+ * not store them, they are computed from the shelf, the chapters, and
+ * what is in the player, by {@link spokenWordsOf} with a paragraph
+ * before and one after. A Client that wants more paragraphs, or the word
+ * at this very moment, calls `spokenWordsOf` with its own options.
+ *
+ * @example
+ * ```typescript
+ * wordsBeingRead.read(model) // WordsNow({ header, excerpt })
+ * ```
+ */
+export const wordsBeingRead = computed({
+  what: 'The words being read, with the paragraphs around them',
+  why: 'To read along with the voice',
+  from: [at.library, at.chapters, at.listening],
+  read: (model: Model) => spokenWordsOf(model),
+})
+
+/**
+ * What Books computes from its Model for a Client to observe, by name.
+ * `observablesOf(Model, computedFields)` lists these after the state the
+ * Model describes.
+ *
+ * @example
+ * ```typescript
+ * observablesOf(Model, computedFields).map(({ path }) => path.join('.'))
+ * // ['library', 'listening', 'speed', 'appearance', 'wordsBeingRead']
+ * ```
+ */
+export const computedFields = { wordsBeingRead }
 
 const headerLineOf = (header: WordsHeader): string =>
   Array.join(

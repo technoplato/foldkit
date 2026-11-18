@@ -74,19 +74,10 @@ export const withTouches = <Declared extends AnyAction>(
   also: Touched,
 ): Declared =>
   /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-  callableWith(schemaOf(declaration), {
-    tag: declaration.tag,
-    what: declaration.what,
-    why: declaration.why,
-    enabled: declaration.enabled,
-    meta: declaration.meta,
-    isPayloadFree: declaration.isPayloadFree,
-    maybeChoose: declaration.maybeChoose,
-    aliases: declaration.aliases,
-    parameters: declaration.parameters,
-    examples: declaration.examples,
-    maybeTouches: touchesWith(declaration.maybeTouches, also),
-  }) as unknown as Declared
+  retouched(
+    declaration,
+    touchesWith(declaration.maybeTouches, also),
+  ) as unknown as Declared
 
 // DECLARATION
 
@@ -291,6 +282,30 @@ const touchesWith = (
           }),
         }),
       ),
+  })
+
+const schemaOf = (
+  declaration: AnyAction,
+): S.TaggedStruct<string, S.Struct.Fields> =>
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+  declaration as unknown as S.TaggedStruct<string, S.Struct.Fields>
+
+const retouched = (
+  declaration: AnyAction,
+  maybeTouches: Option.Option<Touches>,
+): AnyAction =>
+  callableWith(schemaOf(declaration), {
+    tag: declaration.tag,
+    what: declaration.what,
+    why: declaration.why,
+    enabled: declaration.enabled,
+    meta: declaration.meta,
+    isPayloadFree: declaration.isPayloadFree,
+    maybeChoose: declaration.maybeChoose,
+    aliases: declaration.aliases,
+    parameters: declaration.parameters,
+    examples: declaration.examples,
+    maybeTouches,
   })
 
 const parametersOf = (
@@ -926,13 +941,17 @@ export type LiftedRow<Id, ChildModel> = Readonly<{
  * How a child Catalog is lifted over a list: the field each lifted Action
  * fills with the row's id, how an id prints as one word, the question, the
  * rows the parent Model holds, the row a bare press takes, and when the
- * parent offers the Actions at all.
+ * parent offers the Actions at all. `under` is the typed path where the
+ * parent keeps each row's child, so what a child's Action mutates reads
+ * under it: `count` becomes `counters.counter.count`. `also` is what the
+ * parent itself does on a child's Action, keyed by the Action's tag.
  */
 export type LiftConfig<
   Model,
   ChildModel,
   Field extends string,
   IdSchema extends S.Top,
+  Tag extends string = string,
 > = Readonly<{
   field: Field
   Id: IdSchema
@@ -943,6 +962,8 @@ export type LiftConfig<
   ) => ReadonlyArray<LiftedRow<IdSchema['Type'], ChildModel>>
   preferredOf?: (model: Model) => Option.Option<IdSchema['Type']>
   enabled?: (model: Model) => Availability
+  under?: ModelPath<unknown>
+  also?: Readonly<Partial<Record<Tag, Touched>>>
   nothingToChoose: string
 }>
 
@@ -999,7 +1020,13 @@ export const lift = <
   IdSchema extends S.Top,
 >(
   child: Catalog<Actions>,
-  config: LiftConfig<Model, ModelOf<Catalog<Actions>>, Field, IdSchema>,
+  config: LiftConfig<
+    Model,
+    ModelOf<Catalog<Actions>>,
+    Field,
+    IdSchema,
+    TagOf<Catalog<Actions>>
+  >,
 ): Readonly<{
   actions: LiftedActions<Actions, Field, IdSchema, Model>
   childOf: (message: Readonly<{ _tag: string }>) => Option.Option<
@@ -1009,7 +1036,16 @@ export const lift = <
     }>
   >
 }> => {
+  const also: Readonly<Record<string, Touched | undefined>> = config.also ?? {}
   const liftOne = (declaration: AnyAction): AnyAction =>
+    retouched(
+      liftedOf(declaration),
+      touchesWith(
+        touchesUnder(declaration.maybeTouches, config.under),
+        also[declaration.tag],
+      ),
+    )
+  const liftedOf = (declaration: AnyAction): AnyAction =>
     action(declaration.tag, {
       fields: Record.singleton(config.field, config.Id),
       choose: {
@@ -1123,12 +1159,6 @@ export type WithinActions<
  * playerActions.childOf(SeekTo({ placeMs: 60_000 })) // Some(SeekTo({ placeMs: 60_000 }))
  * ```
  */
-const schemaOf = (
-  declaration: AnyAction,
-): S.TaggedStruct<string, S.Struct.Fields> =>
-  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-  declaration as unknown as S.TaggedStruct<string, S.Struct.Fields>
-
 export const within = <
   const Actions extends Array.NonEmptyReadonlyArray<AnyAction>,
   Model,

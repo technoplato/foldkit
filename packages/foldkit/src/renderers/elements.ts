@@ -170,6 +170,7 @@ export const Button = (props: {
   readonly keys?: ReadonlyArray<string>
   readonly because?: string
   readonly description?: string
+  readonly why?: string
   readonly variant?: ButtonVariant
   readonly icon?: IconName
   readonly isIconOnly?: boolean
@@ -187,6 +188,7 @@ export const Button = (props: {
   ...(props.description === undefined || props.description === ''
     ? {}
     : { description: props.description }),
+  ...(props.why === undefined || props.why === '' ? {} : { why: props.why }),
   ...(props.variant === undefined ? {} : { variant: props.variant }),
   ...(props.icon === undefined ? {} : { icon: props.icon }),
   ...(props.isIconOnly === undefined ? {} : { isIconOnly: props.isIconOnly }),
@@ -196,8 +198,9 @@ export const Button = (props: {
 
 /**
  * One Button per Catalog entry, in Catalog order. Each carries the
- * entry's `what` as its description, so every painter can say what a
- * press does from the one sentence the Action declares. A Disabled entry
+ * entry's `what` as its description and its `why`, so every painter can
+ * say what a press does, and why the user would press, from the two
+ * sentences the Action declares. A Disabled entry
  * paints as a disabled Button carrying its sentence, so every painter
  * shows the same reason.
  *
@@ -220,6 +223,7 @@ export const actionButtons = (
             action: entry.tag,
             keys: entry.keys,
             description: entry.what,
+            why: entry.why,
           }),
         Disabled: ({ because }) =>
           Button({
@@ -227,6 +231,7 @@ export const actionButtons = (
             action: entry.tag,
             keys: entry.keys,
             description: entry.what,
+            why: entry.why,
             because,
             disabled: true,
           }),

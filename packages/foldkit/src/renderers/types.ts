@@ -110,6 +110,8 @@ export type ButtonVariant = 'Primary' | 'Ghost' | 'Destructive' | 'Tab' | 'Pill'
  * `description` is the one sentence its Action declares for what a press
  * does, `Sets the count to 0`, which a painter shows as a hint beside the
  * keys when a pointer rests on the control or the keyboard reaches it.
+ * `why` is the sentence its Action declares for why the user would press
+ * it, `To start over`, shown under the description in that hint.
  * `icon` draws beside the label, or instead of it with `isIconOnly`, the
  * label then left for screen readers. `isCurrent` marks the current tab.
  */
@@ -121,6 +123,7 @@ export type ButtonNode = Readonly<{
   readonly keys?: ReadonlyArray<string>
   readonly because?: string
   readonly description?: string
+  readonly why?: string
   readonly variant?: ButtonVariant
   readonly icon?: IconName
   readonly isIconOnly?: boolean
