@@ -98,3 +98,19 @@ export const paintModeOnPage = (mode: Mode, page: ModePage): void => {
  */
 export const firstPaintScript = (): string =>
   `try{var m=localStorage.getItem(${JSON.stringify(modeStorageKey)});if(m==="Dark"||m==="Light"){document.documentElement.setAttribute("${pageModeAttribute}",m)}}catch(e){}`
+
+/**
+ * The first-paint script for a page with no remembered mode yet: it uses
+ * the remembered mode when there is one, as {@link firstPaintScript}
+ * does, and otherwise takes the system's mode, once, so a first visit on
+ * a dark system does not open light. It runs before the Program exists
+ * and is the first paint's own exception; once the Program starts, the
+ * mode is the Model's, heard from the host as a fact.
+ *
+ * @example
+ * ```html
+ * <script>/* firstPaintScriptFollowingSystem() *\/</script>
+ * ```
+ */
+export const firstPaintScriptFollowingSystem = (): string =>
+  `try{var m=localStorage.getItem(${JSON.stringify(modeStorageKey)});if(m!=="Dark"&&m!=="Light"){m=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"Dark":"Light"}document.documentElement.setAttribute("${pageModeAttribute}",m)}catch(e){}`
