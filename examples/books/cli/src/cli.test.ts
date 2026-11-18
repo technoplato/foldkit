@@ -856,7 +856,7 @@ describe('books CLI', () => {
     expect(listened.exitCode).toBe(0)
     expect(listened.stdout).toMatch(/^▶ Playing The Lantern Keeper$/m)
     expect(listened.stdout).toMatch(
-      /^ {2}books pause +Pauses and keeps your place$/m,
+      /^ {2}books pause +Pauses and keeps the place$/m,
     )
     expect(listened.stdout).toMatch(/^ {2}books stop +Pauses, saves the place/m)
     await eventually(() => {

@@ -188,7 +188,9 @@ describe(
       const library = newLibrary()
       const help = books(library, [])
       expect(help.status).toBe(0)
-      expect(help.stdout).toMatch(/^ {2}books listen <title> +Plays this book/mu)
+      expect(help.stdout).toMatch(
+        /^ {2}books listen <title> +Plays this book/mu,
+      )
       expect(help.stdout).toMatch(
         /^ {2}books follow \[words\|screen\] \[--each-word\]/mu,
       )

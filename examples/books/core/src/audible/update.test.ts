@@ -202,11 +202,15 @@ describe('FinishAudibleSignIn', () => {
           readLibrary: Effect.succeed({ titles: [], skipped: [] }),
           importTitles: () => Stream.empty,
           readAudio: Effect.fail(
-            new AudibleImportError({ problem: Unavailable({ reason: 'no audio here' }) }),
+            new AudibleImportError({
+              problem: Unavailable({ reason: 'no audio here' }),
+            }),
           ),
           queueAudio: () =>
             Effect.fail(
-              new AudibleImportError({ problem: Unavailable({ reason: 'no audio here' }) }),
+              new AudibleImportError({
+                problem: Unavailable({ reason: 'no audio here' }),
+              }),
             ),
         },
       ),
@@ -330,7 +334,11 @@ describe("an owned book's audio", () => {
   const status: AudioStatus = {
     titles: [
       { asin: firstBook, name: 'The Quiet Orchard', state: AudioDone() },
-      { asin: secondBook, name: 'A Map of Small Rivers', state: AudioQueued({ position: 2 }) },
+      {
+        asin: secondBook,
+        name: 'A Map of Small Rivers',
+        state: AudioQueued({ position: 2 }),
+      },
     ],
     next: secondBook,
     running: null,
@@ -339,67 +347,115 @@ describe("an owned book's audio", () => {
 
   it('shows every owned title as the queue last said, read again and again', () => {
     expect(withAudio.audio).toEqual(
-      AudioRead({ status, maybeAsking: Option.none(), maybeProblem: Option.none() }),
+      AudioRead({
+        status,
+        maybeAsking: Option.none(),
+        maybeProblem: Option.none(),
+      }),
     )
     const later: AudioStatus = { ...status, running: secondBook }
-    expect(applied(withAudio, ReceivedAudiobookAudio({ status: later })).audio).toEqual(
-      AudioRead({ status: later, maybeAsking: Option.none(), maybeProblem: Option.none() }),
+    expect(
+      applied(withAudio, ReceivedAudiobookAudio({ status: later })).audio,
+    ).toEqual(
+      AudioRead({
+        status: later,
+        maybeAsking: Option.none(),
+        maybeProblem: Option.none(),
+      }),
     )
   })
 
   it('asks the queue for a book now, once, and shows the answer', () => {
-    const [asking, commands] = update(withAudio, GetAudiobookAudio({ asin: secondBook }))
-    expect(asking.audio).toEqual(
-      AudioRead({ status, maybeAsking: Option.some(secondBook), maybeProblem: Option.none() }),
+    const [asking, commands] = update(
+      withAudio,
+      GetAudiobookAudio({ asin: secondBook }),
     )
-    expect(commands.map(command => command.name)).toEqual([QueueAudiobookAudio.name])
-    const [again, none] = update(asking, GetAudiobookAudio({ asin: secondBook }))
+    expect(asking.audio).toEqual(
+      AudioRead({
+        status,
+        maybeAsking: Option.some(secondBook),
+        maybeProblem: Option.none(),
+      }),
+    )
+    expect(commands.map(command => command.name)).toEqual([
+      QueueAudiobookAudio.name,
+    ])
+    const [again, none] = update(
+      asking,
+      GetAudiobookAudio({ asin: secondBook }),
+    )
     expect(again).toBe(asking)
     expect(none).toEqual([])
     const first: AudioStatus = {
       ...status,
-      titles: [status.titles[0]!, { ...status.titles[1]!, state: AudioQueued({ position: 1 }) }],
+      titles: [
+        status.titles[0]!,
+        { ...status.titles[1]!, state: AudioQueued({ position: 1 }) },
+      ],
     }
-    expect(applied(asking, QueuedAudiobookAudio({ status: first })).audio).toEqual(
-      AudioRead({ status: first, maybeAsking: Option.none(), maybeProblem: Option.none() }),
+    expect(
+      applied(asking, QueuedAudiobookAudio({ status: first })).audio,
+    ).toEqual(
+      AudioRead({
+        status: first,
+        maybeAsking: Option.none(),
+        maybeProblem: Option.none(),
+      }),
     )
   })
 
   it('does not ask for a book that already has its audio', () => {
-    const [model, commands] = update(withAudio, GetAudiobookAudio({ asin: firstBook }))
+    const [model, commands] = update(
+      withAudio,
+      GetAudiobookAudio({ asin: firstBook }),
+    )
     expect(model).toBe(withAudio)
     expect(commands).toEqual([])
   })
 
   it('keeps the list and says why when the queue did not take the book', () => {
     const asking = update(withAudio, GetAudiobookAudio({ asin: secondBook }))[0]
-    const problem = Unavailable({ reason: 'the audio queue is not set up on this computer' })
-    expect(applied(asking, FailedQueueAudiobookAudio({ problem })).audio).toEqual(
-      AudioRead({ status, maybeAsking: Option.none(), maybeProblem: Option.some(problem) }),
+    const problem = Unavailable({
+      reason: 'the audio queue is not set up on this computer',
+    })
+    expect(
+      applied(asking, FailedQueueAudiobookAudio({ problem })).audio,
+    ).toEqual(
+      AudioRead({
+        status,
+        maybeAsking: Option.none(),
+        maybeProblem: Option.some(problem),
+      }),
     )
   })
 
   it('says why the audio could not be read', () => {
-    const problem = Unavailable({ reason: 'the audio queue is not set up on this computer' })
-    expect(applied(init(), FailedReadAudiobookAudio({ problem })).audio).toEqual(
-      AudioUnreadable({ problem }),
-    )
+    const problem = Unavailable({
+      reason: 'the audio queue is not set up on this computer',
+    })
+    expect(
+      applied(init(), FailedReadAudiobookAudio({ problem })).audio,
+    ).toEqual(AudioUnreadable({ problem }))
   })
 
   it('asks the queue through the import service and reports its answer', async () => {
     const asked: Array<string> = []
     const message = await Effect.runPromise(
-      Effect.provideService(QueueAudiobookAudio({ asin: secondBook }).effect, AudibleImport, {
-        startSignIn: Effect.succeed({ loginUrl }),
-        finishSignIn: () => Effect.void,
-        readLibrary: Effect.succeed({ titles: [], skipped: [] }),
-        importTitles: () => Stream.empty,
-        readAudio: Effect.succeed(status),
-        queueAudio: asin => {
-          asked.push(asin)
-          return Effect.succeed(status)
+      Effect.provideService(
+        QueueAudiobookAudio({ asin: secondBook }).effect,
+        AudibleImport,
+        {
+          startSignIn: Effect.succeed({ loginUrl }),
+          finishSignIn: () => Effect.void,
+          readLibrary: Effect.succeed({ titles: [], skipped: [] }),
+          importTitles: () => Stream.empty,
+          readAudio: Effect.succeed(status),
+          queueAudio: asin => {
+            asked.push(asin)
+            return Effect.succeed(status)
+          },
         },
-      }),
+      ),
     )
     expect(asked).toEqual([secondBook])
     expect(message).toEqual(QueuedAudiobookAudio({ status }))

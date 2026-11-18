@@ -1,4 +1,3 @@
-import { audioQueueLayer } from './audioQueue.node.js'
 import {
   Effect,
   Layer,
@@ -16,6 +15,7 @@ import {
   makeAccessVerifier,
 } from '@foldkit/instant'
 
+import { audioQueueLayer } from './audioQueue.node.js'
 import {
   type AudibleBridge,
   AudibleLocale,

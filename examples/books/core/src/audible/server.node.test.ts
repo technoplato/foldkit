@@ -531,9 +531,15 @@ describe('the Audible import server', () => {
   })
 })
 
-describe('the owned books\' audio on the Audible import server', () => {
+describe("the owned books' audio on the Audible import server", () => {
   const status = {
-    titles: [{ asin: 'B0FAKE0007', name: 'The Quiet Orchard', state: { _tag: 'Queued', position: 1 } }],
+    titles: [
+      {
+        asin: 'B0FAKE0007',
+        name: 'The Quiet Orchard',
+        state: { _tag: 'Queued', position: 1 },
+      },
+    ],
     next: 'B0FAKE0007',
     running: null,
   }
@@ -543,16 +549,27 @@ describe('the owned books\' audio on the Audible import server', () => {
     queue: (owner, asin) => {
       asked.push({ email: owner.email, asin })
       return asin === 'B0NOTOWNED'
-        ? Effect.fail(Unavailable({ reason: 'that is not one of your Audible books without audio' }))
+        ? Effect.fail(
+            Unavailable({
+              reason: 'that is not one of your Audible books without audio',
+            }),
+          )
         : Effect.succeed(S.decodeUnknownSync(AudioStatus)(status))
     },
   })
 
-  it('answers every owned book\'s audio, and takes one first for the owner', async () => {
+  it("answers every owned book's audio, and takes one first for the owner", async () => {
     const server = await makeServer({ audioQueue: queueLayer })
-    expect(await server.json('GET', '/__books/audible/audio')).toEqual({ status: 200, body: status })
+    expect(await server.json('GET', '/__books/audible/audio')).toEqual({
+      status: 200,
+      body: status,
+    })
     expect(
-      await server.json('POST', '/__books/audible/audio/queue', JSON.stringify({ asin: 'B0FAKE0007' })),
+      await server.json(
+        'POST',
+        '/__books/audible/audio/queue',
+        JSON.stringify({ asin: 'B0FAKE0007' }),
+      ),
     ).toEqual({ status: 200, body: status })
     expect(asked).toEqual([{ email: memberEmail, asin: 'B0FAKE0007' }])
     await server.dispose()
@@ -561,10 +578,19 @@ describe('the owned books\' audio on the Audible import server', () => {
   it('says why the queue would not take a book', async () => {
     const server = await makeServer({ audioQueue: queueLayer })
     expect(
-      await server.json('POST', '/__books/audible/audio/queue', JSON.stringify({ asin: 'B0NOTOWNED' })),
+      await server.json(
+        'POST',
+        '/__books/audible/audio/queue',
+        JSON.stringify({ asin: 'B0NOTOWNED' }),
+      ),
     ).toEqual({
       status: 400,
-      body: { problem: { _tag: 'Unavailable', reason: 'that is not one of your Audible books without audio' } },
+      body: {
+        problem: {
+          _tag: 'Unavailable',
+          reason: 'that is not one of your Audible books without audio',
+        },
+      },
     })
     await server.dispose()
   })
@@ -573,9 +599,16 @@ describe('the owned books\' audio on the Audible import server', () => {
     const server = await makeServer()
     expect(await server.json('GET', '/__books/audible/audio')).toEqual({
       status: 503,
-      body: { problem: { _tag: 'Unavailable', reason: 'the audio queue is not set up on this computer' } },
+      body: {
+        problem: {
+          _tag: 'Unavailable',
+          reason: 'the audio queue is not set up on this computer',
+        },
+      },
     })
-    expect((await server.json('GET', '/__books/audible/audio', '', false)).status).toBe(401)
+    expect(
+      (await server.json('GET', '/__books/audible/audio', '', false)).status,
+    ).toBe(401)
     await server.dispose()
   })
 })

@@ -1,5 +1,6 @@
 import { Array, Option } from 'effect'
-import { Interaction } from 'foldkit'
+import { Catalog, Interaction } from 'foldkit'
+import * as Declaration from 'foldkit/declaration'
 import { describe, expect, it } from 'vitest'
 
 import { App } from './app.js'
@@ -35,11 +36,20 @@ describe('what each Books Action says it does', () => {
     ).toEqual([])
   })
 
-  it('speaks of your book and your place, not of a title, a listener, or a player', () => {
+  it('speaks of the book and the place, not of a title, a listener, or a player', () => {
     expect(
       Array.filter(sentences, sentence =>
         /\b(the|a) (title|listener|player)\b/.test(sentence),
       ),
+    ).toEqual([])
+  })
+
+  it('says what it does and why the user would want it, never to the user, and in no Client’s words', () => {
+    expect(
+      Array.flatMap(Catalog.declarationsOf(catalog), declaration => [
+        ...Declaration.problemsOf(declaration),
+        ...Declaration.clientWordsOf(declaration),
+      ]),
     ).toEqual([])
   })
 
@@ -57,7 +67,7 @@ describe('what each Books Action says it does', () => {
       Array.findFirst(rows, row => row.entry.tag === 'Listen'),
     )
     expect(Interaction.textOf(listen.description)).toBe(
-      'Plays this book from where you stopped',
+      'Plays this book from where it was last stopped',
     )
   })
 })

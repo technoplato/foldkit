@@ -217,7 +217,11 @@ export const AudioState = S.Union([
 export type AudioState = typeof AudioState.Type
 
 /** One owned title and where its audio stands. */
-export const TitleAudio = S.Struct({ asin: Asin, name: S.String, state: AudioState })
+export const TitleAudio = S.Struct({
+  asin: Asin,
+  name: S.String,
+  state: AudioState,
+})
 /** One owned title and where its audio stands. */
 export type TitleAudio = typeof TitleAudio.Type
 

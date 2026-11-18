@@ -25,7 +25,7 @@ import {
   ToggleAudibleTitle,
   TryAudibleSignInAgain,
 } from './message.js'
-import type { Audio, AudibleView, SignIn, TitlesRead } from './model.js'
+import type { AudibleView, Audio, SignIn, TitlesRead } from './model.js'
 import { canGetAudioOf, isSelected, readAudioOf } from './model.js'
 import { type AudibleProblem, sentenceOf } from './problem.js'
 import type {
@@ -466,7 +466,9 @@ const audioCountsOf = (status: AudioStatus): string =>
       [
         `${countOf(status, ['Done']).toString()} in`,
         ...(countOf(status, ['Fetching', 'Words', 'Passages']) > 0
-          ? [`${countOf(status, ['Fetching', 'Words', 'Passages']).toString()} underway`]
+          ? [
+              `${countOf(status, ['Fetching', 'Words', 'Passages']).toString()} underway`,
+            ]
           : []),
         `${countOf(status, ['Queued']).toString()} queued`,
         ...(countOf(status, ['Refused']) > 0

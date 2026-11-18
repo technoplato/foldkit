@@ -1,6 +1,5 @@
-import { execFile } from 'node:child_process'
-
 import { Effect, Layer, Option, Schema as S } from 'effect'
+import { execFile } from 'node:child_process'
 
 import type { ImportOwner } from './libraryImport.js'
 import { type AudibleProblem, Unavailable } from './problem.js'
@@ -59,7 +58,10 @@ const ran = (
             Option.match(decoded, {
               onNone: () =>
                 Effect.fail(
-                  Unavailable({ reason: 'the audio queue answered something Books cannot read' }),
+                  Unavailable({
+                    reason:
+                      'the audio queue answered something Books cannot read',
+                  }),
                 ),
               onSome: Effect.succeed,
             }),
@@ -68,7 +70,8 @@ const ran = (
           resume(
             Effect.fail(
               Option.match(S.decodeUnknownOption(ProblemLine)(line), {
-                onNone: () => Unavailable({ reason: 'the audio queue did not answer' }),
+                onNone: () =>
+                  Unavailable({ reason: 'the audio queue did not answer' }),
                 onSome: ({ problem }) => Unavailable({ reason: problem }),
               }),
             ),
@@ -79,7 +82,9 @@ const ran = (
   })
 
 /** The audio queue as a command this computer runs. */
-export const processAudioQueue = (queue: AudioQueueProcess): AudioQueueShape => ({
+export const processAudioQueue = (
+  queue: AudioQueueProcess,
+): AudioQueueShape => ({
   status: () => ran(queue, []),
   queue: (owner: ImportOwner, asin: Asin) =>
     ran(queue, ['--queue', asin, '--owner', owner.email]),

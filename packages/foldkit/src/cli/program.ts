@@ -575,7 +575,7 @@ const paintedLineOf =
  *   { command: 'tui', what: 'Opens the live player here' },
  * ])
  * // while it plays:
- * // ['  books pause  Pauses and keeps your place',
+ * // ['  books pause  Pauses and keeps the place',
  * //  '  books listen 21-lessons-for-the-21st-century',
  * //  '  books tui    Opens the live player here']
  * ```

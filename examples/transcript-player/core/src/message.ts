@@ -35,7 +35,7 @@ const noAudio = 'its audio is not in the library yet'
 /** Plays from the place. `p` presses it, and pauses while it plays. */
 export const Play = Catalog.action('Play', {
   what: 'Plays from where it is paused',
-  why: 'The person wants to listen',
+  why: 'To go on listening',
   enabled: (model: Model) => {
     if (isSounding(model)) {
       return Catalog.Disabled({ because: 'it is playing' })
@@ -50,8 +50,8 @@ export const Play = Catalog.action('Play', {
 
 /** Pauses where it is. `p` or `k` presses it. */
 export const Pause = Catalog.action('Pause', {
-  what: 'Pauses and keeps your place',
-  why: 'The person wants to stop listening for now',
+  what: 'Pauses and keeps the place',
+  why: 'To stop listening for now',
   enabled: (model: Model) =>
     isSounding(model)
       ? Catalog.Enabled()
@@ -62,7 +62,7 @@ export const Pause = Catalog.action('Pause', {
 /** Goes back 30 seconds. `[` presses it. */
 export const SkipBack = Catalog.action('SkipBack', {
   what: 'Goes back 30 seconds',
-  why: 'The person missed something',
+  why: 'The user missed something',
   enabled: (model: Model) =>
     model.placeMs === 0
       ? Catalog.Disabled({ because: 'it is at the start' })
@@ -73,7 +73,7 @@ export const SkipBack = Catalog.action('SkipBack', {
 /** Goes forward 30 seconds. `]` presses it. */
 export const SkipForward = Catalog.action('SkipForward', {
   what: 'Goes forward 30 seconds',
-  why: 'The person wants to skip ahead',
+  why: 'To skip ahead',
   enabled: (model: Model) =>
     model.placeMs >= model.media.durationMs
       ? Catalog.Disabled({ because: 'it is at the end' })
@@ -113,7 +113,7 @@ export const SeekTo = Catalog.action('SeekTo', {
     nothingToChoose: 'there is nowhere to go',
   },
   what: 'Moves to a place in the recording',
-  why: 'The person wants to hear another part',
+  why: 'To hear another part',
   meta: { label: 'Seek', keys: [], title: 'Seek to' },
 })
 
@@ -139,15 +139,15 @@ export const SeekToWord = Catalog.action('SeekToWord', {
     },
     nothingToChoose: 'there are no words yet',
   },
-  what: 'Plays from the word you pick',
-  why: 'The person wants to hear that part',
+  what: 'Plays from the chosen word',
+  why: 'To hear that part',
   meta: { label: 'Play from here', keys: [], title: 'Play from word' },
 })
 
 /** Goes to the start of this chapter, or the one before it. */
 export const PreviousSection = Catalog.action('PreviousSection', {
   what: 'Goes to the start of this chapter, or the one before',
-  why: 'The person wants to hear the chapter again, or the last one',
+  why: 'To hear the chapter again, or the last one',
   enabled: (model: Model) =>
     Option.isSome(previousSectionOf(model))
       ? Catalog.Enabled()
@@ -158,7 +158,7 @@ export const PreviousSection = Catalog.action('PreviousSection', {
 /** Goes to the start of the next chapter. */
 export const NextSection = Catalog.action('NextSection', {
   what: 'Goes to the start of the next chapter',
-  why: 'The person wants to skip to what comes next',
+  why: 'To skip to what comes next',
   enabled: (model: Model) =>
     Option.isSome(nextSectionOf(model))
       ? Catalog.Enabled()
@@ -185,7 +185,7 @@ export const SetSeekScope = Catalog.action('SetSeekScope', {
     nothingToChoose: 'there is nothing to span',
   },
   what: 'Makes the seek bar span this chapter or the whole recording',
-  why: 'The person wants fine control in a chapter, or to move far',
+  why: 'To move finely within a chapter, or far across the book',
   meta: { label: 'Bar spans', keys: [], title: 'Set what the bar spans' },
 })
 
@@ -208,7 +208,7 @@ export const SetSpeed = Catalog.action('SetSpeed', {
     nothingToChoose: 'there are no speeds',
   },
   what: 'Plays faster or slower',
-  why: 'The person wants it faster or slower',
+  why: 'To hear it faster or slower',
   meta: { label: 'Speed', keys: [], title: 'Set speed' },
 })
 
@@ -218,7 +218,7 @@ export const SetSpeed = Catalog.action('SetSpeed', {
  */
 export const PreviousParagraph = Catalog.action('PreviousParagraph', {
   what: 'Goes to the start of this paragraph, or the one before',
-  why: 'The person wants to hear the paragraph again, or the last one',
+  why: 'To hear the paragraph again, or the last one',
   enabled: (model: Model) =>
     Option.isSome(previousParagraphOf(model))
       ? Catalog.Enabled()
@@ -229,7 +229,7 @@ export const PreviousParagraph = Catalog.action('PreviousParagraph', {
 /** Goes to the start of the next paragraph. `}` presses it. */
 export const NextParagraph = Catalog.action('NextParagraph', {
   what: 'Goes to the start of the next paragraph',
-  why: 'The person wants to move on a paragraph',
+  why: 'To move on a paragraph',
   enabled: (model: Model) =>
     Option.isSome(nextParagraphOf(model))
       ? Catalog.Enabled()
@@ -240,7 +240,7 @@ export const NextParagraph = Catalog.action('NextParagraph', {
 /** Opens the search for words in the recording. `/` presses it. */
 export const ShowSearch = Catalog.action('ShowSearch', {
   what: 'Opens the search for words in the recording',
-  why: 'The person wants to find where something was said',
+  why: 'To find where something was said',
   enabled: (model: Model) =>
     Option.isSome(model.maybeSearch)
       ? Catalog.Disabled({ because: 'the search is open' })
@@ -251,7 +251,7 @@ export const ShowSearch = Catalog.action('ShowSearch', {
 /** Closes the search. The words stay where the person was looking. */
 export const CloseSearch = Catalog.action('CloseSearch', {
   what: 'Closes the search',
-  why: 'The person has found what they wanted',
+  why: 'The user has found what they wanted',
   enabled: (model: Model) =>
     Option.isSome(model.maybeSearch)
       ? Catalog.Enabled()
@@ -276,14 +276,14 @@ export const SearchFor = Catalog.action('SearchFor', {
     nothingToChoose: 'type the words to find',
   },
   what: 'Finds every place the words are spoken in the recording',
-  why: 'The person wants to find where something was said',
+  why: 'To find where something was said',
   meta: { label: 'Search', keys: [], title: 'Search for' },
 })
 
 /** Empties the search, ready for other words. */
 export const ClearSearch = Catalog.action('ClearSearch', {
   what: 'Empties the search',
-  why: 'The person wants to search for something else',
+  why: 'To search for something else',
   enabled: (model: Model) =>
     Option.isSome(searchQueryOf(model))
       ? Catalog.Enabled()
@@ -299,7 +299,7 @@ const whenMatches = (model: Model): Catalog.Availability =>
 /** Shows the match after the one on screen, and the first after the last. `n` presses it. */
 export const NextMatch = Catalog.action('NextMatch', {
   what: 'Shows the next place the words were found',
-  why: 'The person is looking for one place among the matches',
+  why: 'The user is looking for one place among the matches',
   enabled: whenMatches,
   meta: { label: 'Next match', keys: ['n'] },
 })
@@ -307,7 +307,7 @@ export const NextMatch = Catalog.action('NextMatch', {
 /** Shows the match before the one on screen, and the last before the first. `N` presses it. */
 export const PreviousMatch = Catalog.action('PreviousMatch', {
   what: 'Shows the place before, where the words were found',
-  why: 'The person is looking for one place among the matches',
+  why: 'The user is looking for one place among the matches',
   enabled: whenMatches,
   meta: { label: 'Previous match', keys: ['N'] },
 })
@@ -339,7 +339,7 @@ export const ShowMatch = Catalog.action('ShowMatch', {
     nothingToChoose: 'there are no matches',
   },
   what: 'Shows one place the words were found',
-  why: 'The person wants to read around that match',
+  why: 'To read around that match',
   meta: { label: 'Show', keys: [], title: 'Show a match' },
 })
 
@@ -368,7 +368,7 @@ export const PlayFrom = Catalog.action('PlayFrom', {
     nothingToChoose: 'there is nowhere to play from',
   },
   what: 'Plays from a place in the recording',
-  why: 'The person wants to hear that part',
+  why: 'To hear that part',
   meta: { label: 'Play from here', keys: [], title: 'Play from a place' },
 })
 
@@ -378,7 +378,7 @@ export const PlayFrom = Catalog.action('PlayFrom', {
  */
 export const LeavePlayhead = Catalog.action('LeavePlayhead', {
   what: 'Lets the words stay where they are while it plays on',
-  why: 'The person wants to read somewhere else than what is sounding',
+  why: 'To read somewhere else than what is sounding',
   enabled: (model: Model) =>
     isFollowingPlayhead(model)
       ? Catalog.Enabled()
@@ -393,7 +393,7 @@ export const LeavePlayhead = Catalog.action('LeavePlayhead', {
 /** Shows the words being read again, and follows them. */
 export const BackToPlayhead = Catalog.action('BackToPlayhead', {
   what: 'Shows the words being read again, and follows them',
-  why: 'The person has read elsewhere and wants to follow the voice again',
+  why: 'The user has read elsewhere and wants to follow the voice again',
   enabled: (model: Model) =>
     isFollowingPlayhead(model)
       ? Catalog.Disabled({ because: 'the words follow the playhead' })
@@ -420,15 +420,15 @@ export const ShowWordMenu = Catalog.action('ShowWordMenu', {
         : Catalog.Disabled({ because: 'that word is not near the place' }),
     nothingToChoose: 'there are no words yet',
   },
-  what: 'Opens the menu for the word you pick',
-  why: 'The person wants to do something with that word',
+  what: 'Opens the menu for the chosen word',
+  why: 'To do something with that word',
   meta: { label: 'Word menu', keys: [], title: 'Open a word’s menu' },
 })
 
 /** Closes the word's menu. */
 export const CloseWordMenu = Catalog.action('CloseWordMenu', {
   what: 'Closes the word’s menu',
-  why: 'The person picked nothing from it',
+  why: 'The user picked nothing from it',
   enabled: (model: Model) =>
     Option.isSome(model.maybeWordMenu)
       ? Catalog.Enabled()
