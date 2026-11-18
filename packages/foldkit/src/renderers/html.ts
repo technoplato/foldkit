@@ -326,6 +326,9 @@ export const paintHtml = <Message>(
                             ]),
                       ],
                     ),
+                    ...Array.map(item.columns ?? [], column =>
+                      h.span([h.Class('fk-item-column')], [column]),
+                    ),
                   ]),
                   ...Array.map(item.trailing ?? [], paint),
                 ],

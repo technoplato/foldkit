@@ -112,6 +112,11 @@
       "import": "./dist/interaction/public.js",
       "default": "./dist/interaction/public.js"
     },
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "import": "./dist/theme/index.js",
+      "default": "./dist/theme/index.js"
+    },
     "./interaction-graph": {
       "types": "./dist/interactionGraph/public.d.ts",
       "import": "./dist/interactionGraph/public.js",

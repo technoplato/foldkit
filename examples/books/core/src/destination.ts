@@ -49,8 +49,10 @@ export const ListenPage = ts('ListenPage')
 export type ListenPage = typeof ListenPage.Type
 
 /**
- * The chapters of the title beneath, or of the one in the player: a
- * Sheet at `…/contents`.
+ * The chapters of the title beneath, or of the one in the player, at
+ * `…/contents`: a Drawer from the left, beside the page where a window has
+ * the room. The name is from when it was a Sheet; it stays, because the
+ * log and every saved stack spell it this way.
  */
 export const ContentsSheet = ts('ContentsSheet')
 /** The chapters of the title beneath. */

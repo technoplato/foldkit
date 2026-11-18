@@ -18,6 +18,7 @@ import {
   type TranscriptPassage,
   type UiNode,
   currentWordTokenAt,
+  filterListItems,
   iconDrawings,
   isClearedOnSubmit,
   isSubmittedOnLeave,
@@ -882,6 +883,11 @@ const ListRowView = memo(
             />
           )}
         </span>
+        {Array.map(item.columns ?? [], (column, index) => (
+          <span key={index} className="fk-item-column">
+            {column}
+          </span>
+        ))}
       </ItemPress>
       {paintChildren(item.trailing ?? [])}
     </ListRow>
@@ -891,6 +897,81 @@ const ListRowView = memo(
     before.onPress === after.onPress &&
     before.onLink === after.onLink,
 )
+
+const firstRowPressSelector = '.fk-item-press:not(:disabled)'
+
+/**
+ * A List with a head over its rows: a field that narrows the rows as a
+ * person types, when the List has a `filter`, and the names of the rows'
+ * columns, when it has `columns`. What is typed lives here, like a text
+ * field's draft: the Program hears nothing until a row is pressed. Enter
+ * or the down arrow moves the keyboard to the first row left, and Escape
+ * empties the field before it closes anything.
+ */
+const ListFrame = ({
+  list,
+  children,
+}: Readonly<{
+  list: ListNode
+  children: (items: ReadonlyArray<ListItem>) => ReactElement
+}>): ReactElement => {
+  const [typed, setTyped] = useState('')
+  const frame = useRef<HTMLDivElement>(null)
+  const items = useMemo(
+    () => filterListItems(list.items, typed),
+    [list.items, typed],
+  )
+  const filter = list.filter
+  return (
+    <div className="fk-list-frame" ref={frame}>
+      <div className="fk-list-head">
+        {filter === undefined ? null : (
+          <input
+            type="search"
+            className="fk-list-filter"
+            value={typed}
+            placeholder={filter.placeholder}
+            aria-label={filter.label}
+            autoComplete="off"
+            enterKeyHint="search"
+            data-takes-focus
+            onChange={event => {
+              setTyped(event.currentTarget.value)
+            }}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === 'ArrowDown') {
+                event.preventDefault()
+                event.stopPropagation()
+                frame.current
+                  ?.querySelector<HTMLElement>(firstRowPressSelector)
+                  ?.focus()
+              } else if (event.key === 'Escape' && typed !== '') {
+                event.preventDefault()
+                event.stopPropagation()
+                setTyped('')
+              }
+            }}
+          />
+        )}
+        {list.columns === undefined ? null : (
+          <div className="fk-list-head-columns" aria-hidden>
+            {Array.map(list.columns, name => (
+              <span key={name} className="fk-list-head-column">
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {filter !== undefined && Array.isReadonlyArrayEmpty(items) ? (
+        <p className="fk-list-empty" role="status">
+          {filter.emptyText}
+        </p>
+      ) : null}
+      {children(items)}
+    </div>
+  )
+}
 
 /**
  * How a painted tree reports presses, text input, and link follows.
@@ -999,6 +1080,26 @@ export const paintTree = (
           },
         }
   }
+  const paintRows = (
+    list: ListNode,
+    items: ReadonlyArray<ListItem>,
+  ): ReactElement => (
+    <ul
+      className={classFor('List', 'fk-list')}
+      aria-label={list.label}
+      {...dropAttributes(list)}
+    >
+      {Array.map(items, item => (
+        <ListRowView
+          key={item.key}
+          item={item}
+          onPress={handlers.onPress}
+          onLink={handlers.onLink}
+          paintChildren={paintChildren}
+        />
+      ))}
+    </ul>
+  )
   const paintReference = (reference: ReferencePart): ReactElement => {
     const href = reference.href
     const attributes = {
@@ -1196,23 +1297,12 @@ export const paintTree = (
             aria-label={progress.label}
           />
         ),
-        List: list => (
-          <ul
-            className={classFor('List', 'fk-list')}
-            aria-label={list.label}
-            {...dropAttributes(list)}
-          >
-            {Array.map(list.items, item => (
-              <ListRowView
-                key={item.key}
-                item={item}
-                onPress={handlers.onPress}
-                onLink={handlers.onLink}
-                paintChildren={paintChildren}
-              />
-            ))}
-          </ul>
-        ),
+        List: list =>
+          list.filter === undefined && list.columns === undefined ? (
+            paintRows(list, list.items)
+          ) : (
+            <ListFrame list={list}>{items => paintRows(list, items)}</ListFrame>
+          ),
         Seek: seek => (
           <SeekBar
             seek={seek}

@@ -1,7 +1,11 @@
 <script lang="ts">
   import { Option } from 'effect'
   import { Environment, Navigation } from 'foldkit'
-  import type { ButtonNode, UiNode } from 'foldkit/renderers'
+  import {
+    type ButtonNode,
+    type UiNode,
+    itemLinesOf,
+  } from 'foldkit/renderers'
 
   import CopyButton from './CopyButton.svelte'
   import Icon from './Icon.svelte'
@@ -243,7 +247,7 @@
           {/if}
           <span class="fk-item-body">
             <span class="fk-item-title">{item.title}</span>
-            {#each item.lines ?? [] as line, index (index)}
+            {#each itemLinesOf(item) as line, index (index)}
               <span class="fk-item-line">{line}</span>
             {/each}
             {#if item.progress !== undefined}

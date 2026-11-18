@@ -253,6 +253,24 @@ const presentedSheet = (model: Model, sheet: Destination): Model =>
     ),
   )
 
+const contentsSide = 'Left'
+
+/**
+ * The contents presented beside the page, as a drawer from the left, the
+ * same style its route declares.
+ */
+const presentedContents = (model: Model): Model =>
+  withStack(
+    model,
+    Navigation.pushed(
+      model.navigation,
+      Navigation.presented<Destination>(
+        ContentsSheet(),
+        Navigation.Drawer({ from: contentsSide }),
+      ),
+    ),
+  )
+
 const withoutModal = (
   model: Model,
   isModal: (destination: unknown) => boolean,
@@ -866,7 +884,14 @@ const updated = (model: Model, message: Message): UpdateReturn =>
           : model,
         [],
       ],
-      ShowContents: () => [presentedSheet(model, ContentsSheet()), []],
+      ShowContents: () => [
+        Option.exists(model.navigation.maybeModal, modal =>
+          isContentsSheet(modal.destination),
+        )
+          ? withoutModal(model, isContentsSheet)
+          : presentedContents(model),
+        [],
+      ],
       JumpToChapter: ({ chapterNumber }) =>
         jumpedToChapter(model, chapterNumber),
       ShowSpeeds: () => [presentedSheet(model, SpeedSheet()), []],

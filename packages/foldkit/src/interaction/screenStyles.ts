@@ -61,6 +61,9 @@ export type ScreenLook = Readonly<{
   fieldColor: string
   checkSize: number
   checkBorderColor: string
+  listColumnWidth: number
+  drawerWidth: number
+  drawerDockWidth: number
 }>
 
 /** The look every graphical painter maps; see {@link ScreenLook}. */
@@ -114,6 +117,9 @@ export const screenLook: ScreenLook = {
   fieldColor: '#f9fafb',
   checkSize: 24,
   checkBorderColor: '#c7c7cc',
+  listColumnWidth: 64,
+  drawerWidth: 420,
+  drawerDockWidth: 1100,
 }
 
 const px = (value: number): string => `${value.toString()}px`
@@ -1038,5 +1044,226 @@ export const screenStylesheet = `
 :where(.fk-item:has(.fk-item-check[data-checked]) .fk-item-title) {
   color: ${screenLook.dimColor};
   font-weight: 500;
+}
+
+:where(.fk-list-frame) {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  width: min(100%, ${px(screenLook.listWidth)});
+  margin: 0 auto;
+}
+
+:where(.fk-list-frame > .fk-list) {
+  width: 100%;
+}
+
+:where(.fk-list-head) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 0 6px;
+  border-bottom: 1px solid ${screenLook.trackColor};
+  background: ${screenLook.panelColor};
+}
+
+:where(.fk-list-filter) {
+  box-sizing: border-box;
+  width: 100%;
+  height: ${px(screenLook.fieldHeight)};
+  padding: 0 14px;
+  border: 1px solid ${screenLook.ghostBorderColor};
+  border-radius: 12px;
+  background: ${screenLook.fieldColor};
+  color: ${screenLook.textColor};
+  font: inherit;
+  font-size: ${px(screenLook.bodySize)};
+}
+
+:where(.fk-list-filter:focus-visible) {
+  outline: 2px solid ${screenLook.focusColor};
+  outline-offset: 1px;
+}
+
+:where(.fk-list-head-columns) {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  padding: 0 8px;
+}
+
+:where(.fk-item-column, .fk-list-head-column) {
+  flex: 0 0 ${px(screenLook.listColumnWidth)};
+  color: ${screenLook.dimColor};
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+:where(.fk-list-head-column) {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+:where(.fk-list-empty) {
+  margin: 0;
+  padding: 20px 8px;
+  color: ${screenLook.dimColor};
+  text-align: left;
+}
+
+:where(.fk-list-frame .fk-item-press) {
+  padding: 9px 8px 9px 12px;
+  border-radius: 8px;
+}
+
+:where(.fk-list-frame .fk-item-title) {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+:where(.fk-list-frame .fk-item[data-current]) {
+  border-radius: 8px;
+  background: ${screenLook.accentSoftColor};
+  box-shadow: inset 3px 0 0 ${screenLook.accentColor};
+}
+
+:where(.fk-list-frame .fk-item[data-current] .fk-item-title) {
+  font-weight: 700;
+}
+
+:where(.fk-list-frame .fk-item[data-current] .fk-item-line) {
+  color: #9a3412;
+}
+
+:where(.fk-list:has(+ .fk-transcript)) {
+  position: sticky;
+  top: 8px;
+  z-index: 2;
+  box-sizing: border-box;
+  width: min(100%, ${px(screenLook.readingWidth)});
+  border: 1px solid ${screenLook.ghostBorderColor};
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  backdrop-filter: blur(14px);
+}
+
+:where(.fk-list:has(+ .fk-transcript) .fk-item) {
+  padding: 0 6px 0 0;
+}
+
+:where(.fk-list:has(+ .fk-transcript) .fk-item-press) {
+  padding: 8px 20px;
+  border-radius: 999px;
+}
+
+:where(.fk-list:has(+ .fk-transcript) .fk-item > .fk-button[data-icon-only]) {
+  border-color: transparent;
+}
+
+:where(.fk-list:has(+ .fk-transcript) .fk-item-title) {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  -webkit-line-clamp: 1;
+}
+
+:where(.fk-column > .fk-text[data-dim]:has(+ .fk-list + .fk-transcript)) {
+  width: min(100%, ${px(screenLook.readingWidth)});
+  margin-bottom: -12px;
+  padding: 0 20px;
+}
+
+@media (min-width: 561px) {
+  :where(.fk-list:has(+ .fk-transcript) .fk-item-body) {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 14px;
+  }
+
+  :where(.fk-list:has(+ .fk-transcript) .fk-item-title) {
+    flex: 0 1 auto;
+  }
+
+  :where(.fk-list:has(+ .fk-transcript) .fk-item-line) {
+    flex: 1;
+  }
+}
+
+@media (max-width: 560px) {
+  :where(.fk-list:has(+ .fk-transcript)) {
+    border-radius: 18px;
+  }
+
+  :where(.fk-list:has(+ .fk-transcript) .fk-item-press) {
+    padding: 6px 16px;
+    border-radius: 18px;
+  }
+}
+
+:where(.fk-overlay[data-style='Drawer']) {
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+}
+
+:where(.fk-overlay[data-style='Drawer'][data-side='Left']) {
+  justify-content: flex-start;
+}
+
+:where(.fk-overlay[data-style='Drawer'] > *) {
+  width: min(88vw, ${px(screenLook.drawerWidth)});
+  height: 100dvh;
+  max-height: none;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 0;
+  text-align: left;
+}
+
+:where(.fk-overlay[data-style='Drawer'] > * > :first-child) {
+  margin-top: 20px;
+}
+
+:where(.fk-overlay[data-style='Drawer'] > * > .fk-text) {
+  align-self: stretch;
+  padding: 0 8px;
+  text-align: left;
+}
+
+@media (min-width: ${px(screenLook.drawerDockWidth)}) {
+  :where(.fk-overlay[data-style='Drawer']) {
+    background: none;
+    pointer-events: none;
+  }
+
+  :where(.fk-overlay[data-style='Drawer'] > *) {
+    pointer-events: auto;
+    box-shadow: 0 0 0 1px ${screenLook.trackColor}, 0 0 40px -16px rgb(15 23 42 / 0.3);
+  }
+
+  :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Left'])) {
+    padding-left: ${px(screenLook.drawerWidth)};
+  }
+
+  :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Left']) .fk-dock) {
+    left: ${px(screenLook.drawerWidth)};
+  }
+
+  :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Right'])) {
+    padding-right: ${px(screenLook.drawerWidth)};
+  }
+
+  :where(body:has(.fk-overlay[data-style='Drawer'][data-side='Right']) .fk-dock) {
+    right: ${px(screenLook.drawerWidth)};
+  }
 }
 `

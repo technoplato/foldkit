@@ -664,3 +664,141 @@ describe('a Transcript with a clock', () => {
     expect(currentWords(container)).toEqual(['was'])
   })
 })
+
+describe('paintTree: a list with columns and a filter', () => {
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+  })
+
+  const chapters = (onPress = vi.fn()) => {
+    render(
+      paintTree(
+        List({
+          label: 'Chapters',
+          columns: ['Starts', 'Length'],
+          filter: {
+            placeholder: 'Find a chapter',
+            label: 'Find a chapter in The Lantern Keeper',
+            emptyText: 'No chapter has that in its name.',
+          },
+          items: [
+            {
+              key: '1',
+              title: 'The Tide',
+              columns: ['0:00', '20:00'],
+              action: 'JumpToChapter:1',
+            },
+            {
+              key: '2',
+              title: 'The Light',
+              columns: ['20:00', '7:33'],
+              action: 'JumpToChapter:2',
+              isCurrent: true,
+            },
+            {
+              key: '3',
+              title: 'A Lamp Against the Tide',
+              columns: ['27:33', '12:10'],
+              action: 'JumpToChapter:3',
+            },
+          ],
+        }),
+        { onPress },
+      ),
+    )
+    return onPress
+  }
+
+  const rowTitles = (): ReadonlyArray<string> =>
+    globalThis.Array.from(document.querySelectorAll('.fk-item-title')).map(
+      title => title.textContent ?? '',
+    )
+
+  it('names the columns once, over the rows', () => {
+    chapters()
+    expect(
+      globalThis.Array.from(
+        document.querySelectorAll('.fk-list-head-column'),
+      ).map(name => name.textContent),
+    ).toEqual(['Starts', 'Length'])
+  })
+
+  it('paints each row with its columns inside its press, after its title', () => {
+    chapters()
+    const row = screen.getByText('The Light').closest('.fk-item-press')
+    expect(
+      globalThis.Array.from(row?.querySelectorAll('.fk-item-column') ?? []).map(
+        column => column.textContent,
+      ),
+    ).toEqual(['20:00', '7:33'])
+  })
+
+  it('narrows the rows as a person types, and presses nothing', () => {
+    const onPress = chapters()
+    const field = screen.getByRole('searchbox', {
+      name: 'Find a chapter in The Lantern Keeper',
+    })
+    fireEvent.change(field, { target: { value: 'tide' } })
+    expect(rowTitles()).toEqual(['The Tide', 'A Lamp Against the Tide'])
+    fireEvent.change(field, { target: { value: 'tide lamp' } })
+    expect(rowTitles()).toEqual(['A Lamp Against the Tide'])
+    fireEvent.change(field, { target: { value: '' } })
+    expect(rowTitles()).toEqual([
+      'The Tide',
+      'The Light',
+      'A Lamp Against the Tide',
+    ])
+    expect(onPress).not.toHaveBeenCalled()
+  })
+
+  it('says so when no row is left', () => {
+    chapters()
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'harbour' },
+    })
+    expect(rowTitles()).toEqual([])
+    expect(screen.getByText('No chapter has that in its name.')).toBeDefined()
+  })
+
+  it('moves the keyboard to the first row left on Enter or the down arrow', () => {
+    chapters()
+    const field = screen.getByRole('searchbox')
+    fireEvent.change(field, { target: { value: 'lamp' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(document.activeElement?.textContent).toContain(
+      'A Lamp Against the Tide',
+    )
+    field.focus()
+    fireEvent.keyDown(field, { key: 'ArrowDown' })
+    expect(document.activeElement?.textContent).toContain(
+      'A Lamp Against the Tide',
+    )
+  })
+
+  it('empties the field on Escape before Escape closes anything', () => {
+    chapters()
+    const field = screen.getByRole<HTMLInputElement>('searchbox')
+    fireEvent.change(field, { target: { value: 'lamp' } })
+    const escape = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => {
+      field.dispatchEvent(escape)
+    })
+    expect(field.value).toBe('')
+    expect(escape.defaultPrevented).toBe(true)
+    expect(rowTitles()).toHaveLength(3)
+  })
+
+  it('paints a list without columns or a filter as before, a bare list', () => {
+    render(
+      paintTree(List({ label: 'Rows', items: [{ key: 'a', title: 'A' }] }), {
+        onPress: () => {},
+      }),
+    )
+    expect(document.querySelector('.fk-list-head')).toBeNull()
+    expect(document.querySelector('.fk-list-frame')).toBeNull()
+  })
+})
