@@ -11,9 +11,11 @@ import {
   Paused,
   Playing,
   ScrolledAway,
+  type Search,
   SearchFailed,
   SearchFound,
   SearchIdle,
+  type SearchParts,
   Searching,
   TranscriptLoaded,
   TranscriptUnavailable,
@@ -36,16 +38,17 @@ import {
 } from './outMessage.js'
 import { nextParagraphOf, previousParagraphOf } from './paragraphs.js'
 import { foundIn } from './search.js'
-import { TranscriptSource } from './transcript.js'
+import { TranscriptSource, isWholeReading } from './transcript.js'
 
 // COMMAND
 
 /**
- * Searches a whole recording for `query`: asks the transcript source for
- * the passages that may hold the words, once, and finds each place in
- * them. Only the matches come back, never the recording's words. A source
- * that cannot be read becomes FailedSearch with its reason, so a lost
- * connection never crashes the player.
+ * Searches a recording for `query` in the words its source holds now:
+ * asks the transcript source for the passages read so far that may hold
+ * the words, and finds each place in them. Only the matches come back,
+ * with how many parts of the recording they are from, never the
+ * recording's words. A source that cannot be read becomes FailedSearch
+ * with its reason, so a lost connection never crashes the player.
  */
 export const SearchRecording = Command.define(
   'SearchRecording',
@@ -55,9 +58,15 @@ export const SearchRecording = Command.define(
 )(({ mediaId, query }) =>
   Effect.gen(function* () {
     const source = yield* TranscriptSource
-    const passages = yield* source.passagesMatching(mediaId, query)
-    const { total, matches } = foundIn(passages, query)
-    return ReceivedMatches({ query, total, matches })
+    const words = yield* source.passagesMatching(mediaId, query)
+    const { total, matches } = foundIn(words.passages, query)
+    return ReceivedMatches({
+      query,
+      total,
+      matches,
+      partsRead: words.partsRead,
+      partsTotal: words.partsTotal,
+    })
   }).pipe(
     Effect.catch(error =>
       Effect.succeed(FailedSearch({ query, reason: error.reason })),
@@ -212,49 +221,164 @@ const steppedMatch = (model: Model, direction: ScrubDirection): UpdateReturn =>
   )
 
 const searchedFor = (model: Model, query: SearchQuery): UpdateReturn => [
-  { ...model, maybeSearch: Option.some(Searching({ query })) },
+  {
+    ...model,
+    maybeSearch: Option.some(Searching({ query, maybeParts: Option.none() })),
+  },
   [SearchRecording({ mediaId: model.media.mediaId, query })],
   Option.none(),
 ]
 
-const isSearchingFor = (model: Model, query: SearchQuery): boolean =>
-  Option.exists(
-    model.maybeSearch,
-    search => search._tag === 'Searching' && search.query === query,
+/**
+ * The words a search still waits on more of: it is reading through for
+ * them, or has found some in the parts that are in.
+ */
+const unfinishedSearchOf = (
+  model: Model,
+): Option.Option<
+  Extract<Search, { _tag: 'Searching' } | { _tag: 'SearchFound' }>
+> =>
+  Option.flatMap(model.maybeSearch, search =>
+    search._tag === 'Searching' ||
+    (search._tag === 'SearchFound' && Option.isSome(search.maybeParts))
+      ? Option.some(search)
+      : Option.none(),
   )
+
+const partsOf = (
+  partsRead: number,
+  partsTotal: number,
+): Option.Option<SearchParts> =>
+  isWholeReading({ partsRead, partsTotal }) || partsTotal === 0
+    ? Option.none()
+    : Option.some({ partsRead, partsTotal })
+
+/**
+ * More of the recording's words are in: a search still waiting on them
+ * says how far the read has come and looks through what is in now. A
+ * search that has every part, or none asked for, does nothing.
+ */
+const readSearchWords = (
+  model: Model,
+  partsRead: number,
+  partsTotal: number,
+): UpdateReturn =>
+  Option.match(unfinishedSearchOf(model), {
+    onNone: () => unchanged(model),
+    onSome: search => [
+      {
+        ...model,
+        maybeSearch: Option.some({
+          ...search,
+          maybeParts: Option.orElse(
+            partsOf(partsRead, partsTotal),
+            () => search.maybeParts,
+          ),
+        }),
+      },
+      [SearchRecording({ mediaId: model.media.mediaId, query: search.query })],
+      Option.none(),
+    ],
+  })
 
 /**
  * The matches arrive: the search holds them, and the words show the
  * first that starts at or after the place being heard, or the first of
- * all when none does. The audio does not move. Matches for words no
- * longer searched for are dropped.
+ * all when none does. The audio does not move. While only some parts of
+ * the recording are in, the search says so and keeps the match a person
+ * is on as more land. Matches for words no longer searched for are
+ * dropped, and so is a result from fewer parts than the one shown.
  */
 const receivedMatches = (
   model: Model,
   query: SearchQuery,
   total: number,
   matches: ReadonlyArray<Match>,
-): UpdateReturn => {
-  if (!isSearchingFor(model, query)) {
-    return unchanged(model)
-  }
-  const found: Model = {
-    ...model,
-    maybeSearch: Option.some(
-      SearchFound({ query, total, matches, maybeSelectedMs: Option.none() }),
-    ),
-  }
-  return Option.match(
-    Option.orElse(
-      Array.findFirst(matches, match => match.startMs >= model.placeMs),
-      () => Array.head(matches),
+  partsRead: number,
+  partsTotal: number,
+): UpdateReturn =>
+  Option.match(
+    Option.filter(
+      unfinishedSearchOf(model),
+      search =>
+        search.query === query &&
+        (search._tag === 'Searching' ||
+          Option.match(search.maybeParts, {
+            onNone: () => true,
+            onSome: parts =>
+              partsRead >= parts.partsRead || partsTotal !== parts.partsTotal,
+          })),
     ),
     {
-      onNone: () => [found, [], Option.none()],
-      onSome: match => [lookingAt(found, match.startMs), [], Option.none()],
+      onNone: () => unchanged(model),
+      onSome: search => {
+        const maybeParts = partsOf(partsRead, partsTotal)
+        const isNothingRead = partsRead === 0 || partsTotal === 0
+        if (isNothingRead || (Option.isSome(maybeParts) && total === 0)) {
+          return [
+            {
+              ...model,
+              maybeSearch: Option.some(Searching({ query, maybeParts })),
+            },
+            [],
+            Option.none(),
+          ]
+        }
+        const maybeKeptMs =
+          search._tag === 'SearchFound'
+            ? Option.filter(search.maybeSelectedMs, selectedMs =>
+                Array.some(matches, match => match.startMs === selectedMs),
+              )
+            : Option.none()
+        const found: Model = {
+          ...model,
+          maybeSearch: Option.some(
+            SearchFound({
+              query,
+              total,
+              matches,
+              maybeSelectedMs: maybeKeptMs,
+              maybeParts,
+            }),
+          ),
+        }
+        if (Option.isSome(maybeKeptMs)) {
+          return [found, [], Option.none()]
+        }
+        return Option.match(
+          Option.orElse(
+            Array.findFirst(matches, match => match.startMs >= model.placeMs),
+            () => Array.head(matches),
+          ),
+          {
+            onNone: () => [found, [], Option.none()],
+            onSome: match => [
+              lookingAt(found, match.startMs),
+              [],
+              Option.none(),
+            ],
+          },
+        )
+      },
     },
   )
-}
+
+/**
+ * The words could not be read: a search waiting on them fails with the
+ * reason; one that has every part keeps what it found.
+ */
+const failedReadSearchWords = (model: Model, reason: string): UpdateReturn =>
+  Option.match(unfinishedSearchOf(model), {
+    onNone: () => unchanged(model),
+    onSome: search => [
+      {
+        ...model,
+        maybeSearch: Option.some(SearchFailed({ query: search.query, reason })),
+      },
+      [],
+      Option.none(),
+    ],
+  })
 
 const only = (model: Model): UpdateReturn => [model, [], Option.none()]
 
@@ -375,11 +499,18 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             : model,
         ),
       CloseWordMenu: () => only({ ...model, maybeWordMenu: Option.none() }),
-      ReceivedMatches: ({ query, total, matches }) =>
-        receivedMatches(model, query, total, matches),
+      ReceivedMatches: ({ query, total, matches, partsRead, partsTotal }) =>
+        receivedMatches(model, query, total, matches, partsRead, partsTotal),
+      ReadSearchWords: ({ partsRead, partsTotal }) =>
+        readSearchWords(model, partsRead, partsTotal),
+      FailedReadSearchWords: ({ reason }) =>
+        failedReadSearchWords(model, reason),
       FailedSearch: ({ query, reason }) =>
         only(
-          isSearchingFor(model, query)
+          Option.exists(
+            unfinishedSearchOf(model),
+            search => search.query === query,
+          )
             ? {
                 ...model,
                 maybeSearch: Option.some(SearchFailed({ query, reason })),

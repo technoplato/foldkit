@@ -406,6 +406,8 @@ describe('searching a recording', () => {
         query: SearchQuery.make('boat'),
         total: 0,
         matches: [],
+        partsRead: 1,
+        partsTotal: 1,
       }),
     )[0]
     expect(Option.map(searchOf(stale), search => search._tag)).toEqual(
@@ -442,6 +444,7 @@ describe('searching a recording', () => {
             reason: 'the transcript could not be read',
           }),
         ),
+      searchWordsOf: () => Stream.empty,
     }
     const [, commands] = update(
       pressed(loaded(), 'ShowSearch'),

@@ -1,4 +1,12 @@
-import { Array, Context, Data, Effect, Layer, Stream } from 'effect'
+import {
+  Array,
+  Context,
+  Data,
+  Effect,
+  Layer,
+  Schema as S,
+  Stream,
+} from 'effect'
 
 import { type MediaId, Milliseconds } from './ids.js'
 import type { Passage } from './model.js'
@@ -50,14 +58,43 @@ export const windowOf = (placeMs: Milliseconds): number =>
   Math.floor(placeMs / transcriptWindowMs)
 
 /**
+ * How far the read of a recording's words for searching has come: the
+ * parts in, of the parts it was split into. All are in when the two are
+ * equal and not zero.
+ */
+export const SearchReading = S.Struct({
+  partsRead: S.Int,
+  partsTotal: S.Int,
+})
+/** How far the read of a recording's words for searching has come. */
+export type SearchReading = typeof SearchReading.Type
+
+/**
+ * The words a source holds for a search right now: the passages of the
+ * parts that are in, in order, and how many parts that is.
+ */
+export type SearchWords = SearchReading &
+  Readonly<{ passages: ReadonlyArray<Passage> }>
+
+/** True once every part of a read is in. */
+export const isWholeReading = (reading: SearchReading): boolean =>
+  reading.partsTotal > 0 && reading.partsRead >= reading.partsTotal
+
+/**
  * Where a recording's words come from. `passagesIn` gives the passages
  * that overlap a range, sent again whenever they change, such as when a
  * new transcript lands; a recording with no transcript sends no passages.
- * `passagesMatching` answers a search: every passage that may hold the
- * words of `query`, read once, when a person searches and not before. It
- * may give more than hold them, since the player checks each word itself:
- * a source with a text index gives only the passages that match, and one
- * without reads the whole recording through.
+ * `searchWordsOf` reads a recording's words for searching, in parts and
+ * at once where the source can, keeps them, and says after each part how
+ * many are in; a recording whose words it still holds costs nothing and
+ * says so at once. It never ends on its own: the words are kept while
+ * someone listens to it, and for a while after.
+ * `passagesMatching` answers a search from what is kept: every passage
+ * read so far that may hold the words of `query`, with how many parts
+ * that is, and reads nothing itself. It may give more than hold them,
+ * since the player checks each word itself: a source with a text index
+ * gives only the passages that match, and one without holds the whole
+ * recording.
  */
 export class TranscriptSource extends Context.Service<
   TranscriptSource,
@@ -69,7 +106,11 @@ export class TranscriptSource extends Context.Service<
     passagesMatching: (
       mediaId: MediaId,
       query: string,
-    ) => Effect.Effect<ReadonlyArray<Passage>, TranscriptSourceError>
+    ) => Effect.Effect<SearchWords, TranscriptSourceError>
+    searchWordsOf: (
+      mediaId: MediaId,
+      durationMs: Milliseconds,
+    ) => Stream.Stream<SearchReading, TranscriptSourceError>
   }>
 >()('transcript-player/TranscriptSource') {}
 
@@ -94,7 +135,14 @@ export const transcriptsInMemory = (
             passage.endMs > range.fromMs && passage.startMs < range.toMs,
         ),
       ),
-    passagesMatching: mediaId => Effect.succeed(byMedia.get(mediaId) ?? []),
+    passagesMatching: mediaId =>
+      Effect.succeed({
+        passages: byMedia.get(mediaId) ?? [],
+        partsRead: 1,
+        partsTotal: 1,
+      }),
+    searchWordsOf: () =>
+      Stream.concat(Stream.make({ partsRead: 1, partsTotal: 1 }), Stream.never),
   })
 
 /** A source with no transcripts at all. */

@@ -492,6 +492,20 @@ export const ReceivedMatches = m('ReceivedMatches', {
   query: SearchQuery,
   total: S.Int,
   matches: S.Array(Match),
+  partsRead: S.Int,
+  partsTotal: S.Int,
+})
+/**
+ * More of the recording's words are in for searching: `partsRead` of the
+ * `partsTotal` parts they are read in.
+ */
+export const ReadSearchWords = m('ReadSearchWords', {
+  partsRead: S.Int,
+  partsTotal: S.Int,
+})
+/** The recording's words could not be read for searching, and why, safe to show. */
+export const FailedReadSearchWords = m('FailedReadSearchWords', {
+  reason: S.String,
 })
 /** The recording could not be searched for `query`, and why, safe to show. */
 export const FailedSearch = m('FailedSearch', {
@@ -509,6 +523,8 @@ export const Message = S.Union([
   FailedLoadTranscript,
   ReceivedMatches,
   FailedSearch,
+  ReadSearchWords,
+  FailedReadSearchWords,
 ])
 /** A Transcript Player Message. */
 export type Message = typeof Message.Type
@@ -530,6 +546,8 @@ const searchTags: ReadonlySet<string> = new Set([
   CloseWordMenu.tag,
   'ReceivedMatches',
   'FailedSearch',
+  'ReadSearchWords',
+  'FailedReadSearchWords',
 ])
 
 /**

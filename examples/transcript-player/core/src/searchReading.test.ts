@@ -152,7 +152,7 @@ describe('reading the words for a search', () => {
     )
     expect(tagOf(some)).toEqual(Option.some('SearchFound'))
     expect(textOf(some)).toContain('1 of 1')
-    expect(textOf(some)).toContain('searching… 3 of 7 parts')
+    expect(textOf(some)).toContain('Searching… 3 of 7 parts')
     const all = await ran(
       some,
       ReadSearchWords({ partsRead: 7, partsTotal: 7 }),
