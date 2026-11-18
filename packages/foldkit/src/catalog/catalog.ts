@@ -1112,6 +1112,7 @@ export const lift = <
         ),
     )
   return {
+    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
     actions: actions as unknown as LiftedActions<
       Actions,
       Field,
