@@ -1,4 +1,5 @@
 import { defaultTheme, roleVar, themeStylesheet } from '../theme/theme.js'
+import { readAlongStylesOf } from './readAlongStyles.js'
 
 /**
  * The one look every graphical painter maps, in pixels and hex colors. The
@@ -1335,16 +1336,16 @@ ${themeStylesheet(defaultTheme)}
   vertical-align: 1px;
 }
 
-:where(.fk-passage:has(.fk-word-mark)) {
+:where(.fk-passage:has(.fk-word-ribbon)) {
   position: relative;
 }
 
-:where(.fk-word[data-mark]) {
+:where(.fk-word[data-ribbon]) {
   background: linear-gradient(transparent 62%, ${roleVar('MarkSoft')} 62%);
   border-radius: 0;
 }
 
-:where(.fk-word-mark) {
+:where(.fk-word-ribbon) {
   position: absolute;
   left: 3px;
   width: 10px;
@@ -1357,7 +1358,7 @@ ${themeStylesheet(defaultTheme)}
   cursor: pointer;
 }
 
-:where(.fk-word-mark:focus-visible) {
+:where(.fk-word-ribbon:focus-visible) {
   outline: 2px solid ${roleVar('Focus')};
   outline-offset: 2px;
 }
@@ -1425,10 +1426,10 @@ ${themeStylesheet(defaultTheme)}
 }
 
 @media (max-width: 560px) {
-  :where(.fk-word-mark) {
+  :where(.fk-word-ribbon) {
     left: 0;
     width: 6px;
     height: 12px;
   }
 }
-`
+${readAlongStylesOf(screenLook)}`

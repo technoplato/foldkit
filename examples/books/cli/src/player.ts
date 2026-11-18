@@ -1,4 +1,6 @@
 import {
+  type BookSearch,
+  BookSearchJson,
   type BookmarksListing,
   BookmarksListingJson,
   type BoundBooks,
@@ -8,16 +10,20 @@ import {
   type SyncedBooksMessage,
   type SyncedBooksModel,
   alreadyBookmarkedNotice,
+  bookSearchLines,
+  bookSearchOf,
   bookmarksListingLines,
   bookmarksListingOf,
   briefScreen,
   clockOf,
+  isBookSearchSettled,
   isSameParagraph,
   loadedTitleOf,
   placeOf,
   spokenWordsLines,
   spokenWordsOf,
   suggestedPressesOf,
+  titlesOf,
 } from 'books-core-example'
 import {
   Array,
@@ -67,6 +73,10 @@ const hostCommandsOf = (isLoaded: boolean): ReadonlyArray<HostCommand> => [
     ? [
         { command: 'follow words', what: 'Prints the words as they are read' },
         { command: 'bookmarks', what: 'Lists this title’s bookmarks' },
+        {
+          command: 'search "<words>"',
+          what: 'Finds where words are spoken, with links',
+        },
         { command: 'stop', what: 'Stops and saves your place' },
       ]
     : []),
@@ -370,6 +380,115 @@ const followWords =
         )
   }
 
+const loadedNowOf = (bound: BoundBooks) =>
+  Option.flatMap(readyOf(bound.readModel()), loadedTitleOf)
+
+// SEARCH
+
+const searchTimeout = Duration.seconds(60)
+
+const searchOf = (bound: BoundBooks): Option.Option<BookSearch> =>
+  Option.map(readyOf(bound.readModel()), bookSearchOf)
+
+const isSettledFor = (search: BookSearch, query: string): boolean =>
+  isBookSearchSettled(search) &&
+  search._tag !== 'NoBookSearch' &&
+  search.query === query
+
+/**
+ * The search of the book in the player once it has an answer for
+ * `query`: its matches, or why it has none. None after a minute.
+ */
+const settledSearch = (bound: BoundBooks, query: string) =>
+  Effect.callback<BookSearch>(resume => {
+    const check = (): void => {
+      const maybeSearch = searchOf(bound)
+      if (
+        Option.isSome(maybeSearch) &&
+        isSettledFor(maybeSearch.value, query)
+      ) {
+        stopWatching()
+        resume(Effect.succeed(maybeSearch.value))
+      }
+    }
+    const stopWatching = bound.subscribe(check)
+    check()
+    return Effect.sync(stopWatching)
+  }).pipe(Effect.timeoutOption(searchTimeout))
+
+const searchTextOf = (search: BookSearch, flags: CliDaemonFlags): string =>
+  flags['json'] === '1'
+    ? S.encodeSync(BookSearchJson)(search)
+    : Array.join(bookSearchLines(search), '\n')
+
+const exampleTitleOf = (bound: BoundBooks): string =>
+  Option.getOrElse(
+    Option.map(
+      Option.flatMap(readyOf(bound.readModel()), model =>
+        Array.head(titlesOf(model)),
+      ),
+      title => title.slug,
+    ),
+    () => '<title>',
+  )
+
+/**
+ * What `books search <words>` prints: every place the words are spoken in
+ * the title in the player, as the books core finds them. A `#` line says
+ * how many, then one line per match with its time, chapter, the words
+ * with the match in brackets, and the link that opens the book on it;
+ * with `--json`, one line of JSON. It presses the same `SearchFor` the
+ * site's search field does, waits for the answer, and prints once: it
+ * never plays or moves the audio. Nothing in the player, or no words, is
+ * a sentence on stderr with exit code 1.
+ *
+ * @example
+ * ```typescript
+ * searchedBook(bound, ['search', 'lit', 'at', 'dusk'], {}, Processor.Host.Cli())
+ * // '# 1 match for “lit at dusk” in The Lantern Keeper\n0:11 · The Light · The keeper [lit the lamp at dusk.] · /books/the-lantern-keeper/listen/11.2s'
+ * ```
+ */
+export const searchedBook = (
+  bound: BoundBooks,
+  words: ReadonlyArray<string>,
+  flags: CliDaemonFlags,
+  client: Processor.Host.Host,
+) =>
+  Effect.gen(function* () {
+    const query = Array.join(Array.drop(words, 1), ' ')
+    if (query === '') {
+      return {
+        stdout: '',
+        stderr: `Search for what? For example: ${booksCommandName} search "lit at dusk"`,
+        exitCode: 1,
+      }
+    }
+    if (Option.isNone(loadedNowOf(bound))) {
+      return {
+        stdout: '',
+        stderr: `Nothing is in the player. Play a title first, such as: ${booksCommandName} listen ${exampleTitleOf(bound)}`,
+        exitCode: 1,
+      }
+    }
+    Interaction.onBehalfOf(bound, client, () =>
+      bound.press(`SearchFor:${query}`),
+    )
+    const maybeSearch = yield* settledSearch(bound, query)
+    return Option.match(maybeSearch, {
+      onNone: () => ({
+        stdout: '',
+        stderr: `The search for “${query}” has not finished after a minute. Try again.`,
+        exitCode: 1,
+      }),
+      onSome: search => ({
+        stdout: searchTextOf(search, flags),
+        ...(search._tag === 'BookSearchFailed'
+          ? { exitCode: 1 }
+          : { exitCode: 0 }),
+      }),
+    })
+  })
+
 // WRITES
 
 /**
@@ -444,9 +563,6 @@ export const trackLibraryWrites = (): LibraryWrites => {
 
 const saveTimeoutMs = 5_000
 
-const loadedNowOf = (bound: BoundBooks) =>
-  Option.flatMap(readyOf(bound.readModel()), loadedTitleOf)
-
 /**
  * Pauses the title playing, if one is, and waits for its place to save,
  * up to five seconds. Says what it stopped, or that nothing was playing.
@@ -492,6 +608,19 @@ const briefWords: ReadonlySet<string> = new Set(['', 'help', 'show'])
 
 const movingWords: ReadonlySet<string> = new Set(['open', 'back'])
 
+const addressPattern = /^https?:\/\//u
+
+/**
+ * A word as an address inside the Program: a whole link, such as the one
+ * `Copy link to this word` puts in the clipboard, opens by its path, so
+ * `books open https://…/books/the-lantern-keeper/listen/12m03.45s` lands
+ * where `books open /books/the-lantern-keeper/listen/12m03.45s` does.
+ */
+const pathWordOf = (word: string): string =>
+  addressPattern.test(word) && URL.canParse(word)
+    ? `${new URL(word).pathname}${new URL(word).search}`
+    : word
+
 /** The Books player a daemon serves, and the moment `books stop` asks it to end. */
 export type BooksPlayer = Readonly<{
   surface: CliDaemonSurface<SyncedBooksModel, SyncedBooksMessage>
@@ -505,7 +634,8 @@ export type BooksPlayer = Readonly<{
  * `books help` print the brief, `books actions` every command, `books
  * open /books/audible` and `books back` the page they land on, `books
  * screen` the page the player is on, `books
- * words` the paragraph being read with those around it, and `books stop`
+ * words` the paragraph being read with those around it, `books search
+ * lit at dusk` every place those words are spoken with its link, and `books stop`
  * pauses, waits for the place to save, says so, and ends the player. A
  * view may follow `words` or `screen` and hear each change. A terminal UI view gets the player's screen, fitted to its
  * terminal, and its keys go through the same Program. Every command and
@@ -660,7 +790,11 @@ export const makeBooksPlayer = (
             exitCode: 0,
           }))
         } else if (movingWords.has(head)) {
-          return Effect.sync(() => moved(words, flags, client))
+          return Effect.sync(() =>
+            moved(Array.map(words, pathWordOf), flags, client),
+          )
+        } else if (head === 'search') {
+          return searchedBook(bound, words, flags, client)
         } else if (head === 'bookmark') {
           return bookmarked(words, flags, client)
         } else if (head === 'bookmarks') {

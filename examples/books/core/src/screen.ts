@@ -52,6 +52,12 @@ import {
 } from './contents.js'
 import type { ContributorPage, PublisherPage } from './destination.js'
 import {
+  currentWordLinkButtonOf,
+  readerButtonsOf,
+  readerSearchOf,
+  readerTranscriptOf,
+} from './find.js'
+import {
   type BookmarkId,
   type ChapterNumber,
   Milliseconds,
@@ -62,6 +68,7 @@ import {
   AddBookmark,
   CancelDeleteBookmark,
   ClearBookmarkNote,
+  CloseSearch,
   CollapseControls,
   ConfirmDeleteBookmark,
   DeleteBookmark,
@@ -1351,7 +1358,10 @@ const collapsedControlsOf = (
         ],
       }),
     ],
-    center: TranscriptPlayer.miniTransportOf(loaded.player, entries),
+    center: [
+      ...TranscriptPlayer.miniTransportOf(loaded.player, entries),
+      ...barSearchButtonsOf(model, loaded),
+    ],
     end: withIcon(buttonsOf(model, [ExpandControls], 'Ghost'), 'Expand', true),
   })
 }
@@ -1380,7 +1390,57 @@ const expandedControlsOf = (model: Model, loaded: Loaded): UiNode =>
       ),
       ...withIcon(buttonsOf(model, [AddBookmark], 'Ghost'), 'Bookmark', false),
       ...withIcon(buttonsOf(model, [SharePlace], 'Ghost'), 'Share', false),
+      ...currentWordLinkButtonOf(model, loaded),
     ),
+  )
+
+const isSearchButton = (button: ButtonNode): boolean =>
+  button.action === TranscriptPlayer.ShowSearch.tag
+
+const searchButtonsOf = (
+  model: Model,
+  loaded: Loaded,
+): ReadonlyArray<ButtonNode> =>
+  Array.filter(readerButtonsOf(model, loaded), isSearchButton)
+
+/**
+ * Search in the folded bar, beside Play: a magnifier that opens the
+ * search, and, while the search is open, the same magnifier closes it,
+ * so Play stays in the middle of the bar.
+ */
+const barSearchButtonsOf = (
+  model: Model,
+  loaded: Loaded,
+): ReadonlyArray<ButtonNode> =>
+  Array.match(searchButtonsOf(model, loaded), {
+    onEmpty: () =>
+      withIcon(buttonsOf(model, [CloseSearch], 'Ghost'), 'Search', true),
+    onNonEmpty: buttons =>
+      Array.map(buttons, button => ({
+        ...button,
+        variant: 'Ghost' as const,
+        isIconOnly: true,
+      })),
+  })
+
+/**
+ * The reader's own buttons in a row above the controls. While the
+ * controls are folded into the bar, Search sits in the bar itself, so
+ * this row holds only `Back to playhead`, and nothing while the words
+ * follow the voice.
+ */
+const readerRowOf = (model: Model, loaded: Loaded): ReadonlyArray<UiNode> =>
+  Array.match(
+    model.controls === 'Expanded'
+      ? readerButtonsOf(model, loaded)
+      : Array.filter(
+          readerButtonsOf(model, loaded),
+          button => !isSearchButton(button),
+        ),
+    {
+      onEmpty: () => [],
+      onNonEmpty: buttons => [Row({ gap: 1 }, ...buttons)],
+    },
   )
 
 /**
@@ -1434,7 +1494,7 @@ export const playerScreen = (model: Model): UiNode =>
               Text(title.name, { dim: true }),
               ...chapterPickerOf(model, title, placeOf(loaded)),
               withTranscriptMarks(
-                TranscriptPlayer.transcriptOf(loaded.player),
+                readerTranscriptOf(loaded),
                 bookmarkMarksOf(model, title),
               ),
               Dock(
@@ -1442,6 +1502,8 @@ export const playerScreen = (model: Model): UiNode =>
                 ...problemLines(model),
                 ...timelineLines(model),
                 ...noticeLines(model),
+                ...readerSearchOf(model, loaded),
+                ...readerRowOf(model, loaded),
                 model.controls === 'Expanded'
                   ? expandedControlsOf(model, loaded)
                   : collapsedControlsOf(model, title, loaded),

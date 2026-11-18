@@ -983,7 +983,7 @@ describe('a Transcript with marks', () => {
     marked()
     expect(
       globalThis.Array.from(
-        document.querySelectorAll('.fk-word[data-mark]'),
+        document.querySelectorAll('.fk-word[data-ribbon]'),
       ).map(word => word.getAttribute('data-token')),
     ).toEqual(['w3'])
   })

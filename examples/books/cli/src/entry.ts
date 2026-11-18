@@ -20,6 +20,9 @@
  *   books follow words --json      as lines of JSON, for another program
  *   books bookmark                 mark the word being spoken; words after it are its note
  *   books bookmarks                this title's bookmarks, a line each; --json for another program
+ *   books search "lit at dusk"     where those words are spoken, with links
+ *   books search lamp --json       the same as one line of JSON
+ *   books open <a link to a word>  go to that word, paused
  *   books tui                      the player, live, in this terminal
  *   books stop                     pause, save your place, end the player
  *   books actions                  every command

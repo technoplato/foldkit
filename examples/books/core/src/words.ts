@@ -3,16 +3,18 @@ import {
   TranscriptExcerpt,
   type TranscriptExcerptOptions,
   TranscriptExcerptWire,
+  type TranscriptNode,
   transcriptAt,
   transcriptExcerptLines,
   transcriptExcerptOf,
   transcriptsOf,
+  wordAddressOf,
 } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import { Milliseconds, TitleSlug, clockOf } from './ids.js'
-import { placePathOf } from './links.js'
+import { placePathOf, wordPathOf } from './links.js'
 import {
   type Loaded,
   type Model,
@@ -27,8 +29,10 @@ import {
 /**
  * The title in the player as the words' heading: which book, the chapter
  * being heard, the place in milliseconds and as a clock, how long the
- * title runs, whether it is sounding, and the place's link, the same
- * address the player keeps: `/books/the-lantern-keeper/listen/12m03s`.
+ * title runs, whether it is sounding, the place's link, the same address
+ * the player keeps, `/books/the-lantern-keeper/listen/12m03s`, and the
+ * link to the word being spoken, the time that word starts,
+ * `/books/the-lantern-keeper/listen/12m03.45s`, once a word is known.
  */
 export const WordsHeader = S.Struct({
   slug: TitleSlug,
@@ -39,6 +43,7 @@ export const WordsHeader = S.Struct({
   durationMs: Milliseconds,
   isPlaying: S.Boolean,
   link: S.String,
+  maybeWordLink: S.OptionFromOptionalKey(S.String),
 })
 /** The title in the player as the words' heading. */
 export type WordsHeader = typeof WordsHeader.Type
@@ -69,7 +74,9 @@ export const SpokenWords = S.Union([NothingInPlayer, WordsWaiting, WordsNow])
 /** The words being read in this device's player. */
 export type SpokenWords = typeof SpokenWords.Type
 
-const HeaderWire = WordsHeader.pipe(S.encodeKeys({ maybeChapter: 'chapter' }))
+const HeaderWire = WordsHeader.pipe(
+  S.encodeKeys({ maybeChapter: 'chapter', maybeWordLink: 'wordLink' }),
+)
 
 /**
  * The words being read as one line of JSON, with no `maybe` in its keys:
@@ -85,7 +92,29 @@ export const SpokenWordsJson = S.fromJsonString(
   ),
 )
 
-const headerOf = (model: Model, title: Title, loaded: Loaded): WordsHeader => {
+const wordLinkOf = (
+  title: Title,
+  maybeTranscript: Option.Option<TranscriptNode>,
+): Option.Option<string> =>
+  Option.map(
+    Option.flatMap(maybeTranscript, transcript =>
+      Option.flatMap(
+        Array.findFirst(
+          Array.flatMap(transcript.passages, passage => passage.words),
+          word => word.isCurrent === true,
+        ),
+        wordAddressOf,
+      ),
+    ),
+    startMs => wordPathOf(title.slug, Milliseconds.make(startMs)),
+  )
+
+const headerOf = (
+  model: Model,
+  title: Title,
+  loaded: Loaded,
+  maybeTranscript: Option.Option<TranscriptNode>,
+): WordsHeader => {
   const placeMs = placeOf(loaded)
   return {
     slug: title.slug,
@@ -96,6 +125,7 @@ const headerOf = (model: Model, title: Title, loaded: Loaded): WordsHeader => {
     durationMs: title.durationMs,
     isPlaying: TranscriptPlayer.isSounding(loaded.player),
     link: placePathOf(title.slug, placeMs),
+    maybeWordLink: wordLinkOf(title, maybeTranscript),
   }
 }
 
@@ -119,7 +149,8 @@ const waitingSentenceOf = (player: TranscriptPlayer.Model): string =>
  * at the place the player last reported, once a second; with `nowMs`, a
  * wall-clock time, it is the word being spoken at that moment, read from
  * the transcript's clock, so a Client that asks many times a second moves
- * on the word. Nothing is sent or synced for it.
+ * on the word, and the header's link to the word is that word's. Nothing
+ * is sent or synced for it.
  *
  * @example
  * ```typescript
@@ -135,19 +166,15 @@ export const spokenWordsOf = (
   Option.match(loadedTitleOf(model), {
     onNone: () => NothingInPlayer(),
     onSome: ({ title, loaded }) => {
-      const header = headerOf(model, title, loaded)
+      const maybeTranscript = Option.map(
+        Array.head(transcriptsOf(TranscriptPlayer.transcriptOf(loaded.player))),
+        transcript =>
+          nowMs === undefined ? transcript : transcriptAt(transcript, nowMs),
+      )
+      const header = headerOf(model, title, loaded, maybeTranscript)
       return Option.match(
-        Option.flatMap(
-          Array.head(
-            transcriptsOf(TranscriptPlayer.transcriptOf(loaded.player)),
-          ),
-          transcript =>
-            transcriptExcerptOf(
-              nowMs === undefined
-                ? transcript
-                : transcriptAt(transcript, nowMs),
-              options,
-            ),
+        Option.flatMap(maybeTranscript, transcript =>
+          transcriptExcerptOf(transcript, options),
         ),
         {
           onNone: () =>

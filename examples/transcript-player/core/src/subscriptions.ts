@@ -11,7 +11,7 @@ import {
   ReachedPlace,
   ReceivedPassages,
 } from './message.js'
-import type { Model } from './model.js'
+import { type Model, viewPlaceOf } from './model.js'
 import { TranscriptSource, rangeOfWindow, windowOf } from './transcript.js'
 
 // SUBSCRIPTION
@@ -106,15 +106,17 @@ export type TranscriptDependencies = typeof TranscriptDependencies.Type
 
 /**
  * The transcript's dependencies for a player, or for none. They change
- * only when the place crosses into another window, so the words are read
- * again every 10 minutes of listening, not every second.
+ * only when the place the words on screen are around crosses into another
+ * window, so the words are read again every 10 minutes of listening, not
+ * every second, and at once when the person looks at a match far from
+ * the place being heard.
  */
 export const transcriptDependenciesOf = (
   maybePlayer: Option.Option<Model>,
 ): TranscriptDependencies => ({
   maybeWindow: Option.map(maybePlayer, player => ({
     mediaId: player.media.mediaId,
-    index: windowOf(player.placeMs),
+    index: windowOf(viewPlaceOf(player)),
   })),
 })
 

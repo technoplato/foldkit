@@ -89,15 +89,15 @@ describe('the look of a list in groups, and of a badge', () => {
 
 describe('the look of a mark in words read along with', () => {
   it('underlines the marked word in the soft color of a person’s own mark', () => {
-    expect(ruleOf(':where(.fk-word[data-mark])')).toContain(roleVar('MarkSoft'))
+    expect(ruleOf(':where(.fk-word[data-ribbon])')).toContain(roleVar('MarkSoft'))
   })
 
   it('sets the mark in the margin at the word’s own line, as a ribbon', () => {
-    const mark = ruleOf(':where(.fk-word-mark)')
+    const mark = ruleOf(':where(.fk-word-ribbon)')
     expect(mark).toContain('position: absolute')
     expect(mark).toContain(`background: ${roleVar('Mark')}`)
     expect(mark).toContain('clip-path: polygon')
-    expect(ruleOf(':where(.fk-passage:has(.fk-word-mark))')).toContain(
+    expect(ruleOf(':where(.fk-passage:has(.fk-word-ribbon))')).toContain(
       'position: relative',
     )
   })
@@ -146,7 +146,7 @@ describe('the look of a heading over a list with a head', () => {
 describe('the look of a mark on a narrow window', () => {
   it('draws the ribbon narrower than the paragraph’s side padding there, clear of the words', () => {
     const start = screenStylesheet.indexOf(
-      '@media (max-width: 560px) {\n  :where(.fk-word-mark)',
+      '@media (max-width: 560px) {\n  :where(.fk-word-ribbon)',
     )
     expect(start).toBeGreaterThan(0)
     const narrow = screenStylesheet.slice(start, start + 200)

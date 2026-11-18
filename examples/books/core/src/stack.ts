@@ -74,10 +74,18 @@ export const addressPlaceOf = (model: HasStack): Option.Option<Milliseconds> =>
     isPlayerPage(page) ? Option.some(page.atMs) : Option.none(),
   )
 
+const millisecondsPerSecond = 1000
+
+const namesOneWord = (atMs: Milliseconds): boolean =>
+  atMs % millisecondsPerSecond !== 0
+
 /**
  * The place a player's address asks for, when the player is not there:
  * the place a link names, or the listener's place for a placeless
  * `/listen`. None while the player already plays the address's second.
+ * An address that names one word, a place off the whole second such as
+ * `12m03.45s`, asks for that very place, so the link lands on its word
+ * even when the player is within the same second.
  */
 export const addressCueOf = (
   model: HasPlayer,
@@ -94,7 +102,9 @@ export const addressCueOf = (
         return Option.some({ slug, atMs: placeOfSlug(slug) })
       } else if (
         Option.contains(loadedSlugOf(model), slug) &&
-        Math.abs(placeOfSlug(slug) - top.atMs) < placeSlackMs
+        (namesOneWord(top.atMs)
+          ? placeOfSlug(slug) === top.atMs
+          : Math.abs(placeOfSlug(slug) - top.atMs) < placeSlackMs)
       ) {
         return Option.none()
       } else {

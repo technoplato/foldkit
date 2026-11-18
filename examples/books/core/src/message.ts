@@ -218,7 +218,67 @@ export const [
   SeekToWord,
   SetSeekScope,
   SetSpeed,
+  PreviousParagraph,
+  NextParagraph,
+  ShowSearch,
+  CloseSearch,
+  SearchFor,
+  ClearSearch,
+  NextMatch,
+  PreviousMatch,
+  ShowMatch,
+  PlayFrom,
+  LeavePlayhead,
+  BackToPlayhead,
+  ShowWordMenu,
+  CloseWordMenu,
 ] = playerActions.actions
+
+const currentWordChoiceOf = (model: Model) =>
+  Array.fromOption(
+    Option.map(
+      Option.flatMap(loadedPlayerOf(model), TranscriptPlayer.currentWordOf),
+      word => ({
+        value: word.wordId,
+        title: word.text,
+        detail: clockOf(word.startMs),
+      }),
+    ),
+  )
+
+/**
+ * Copies a link that opens the title on one word, the time the word
+ * starts in the player's own address:
+ * `/books/the-lantern-keeper/listen/12m03.45s`. A word's menu presses it
+ * with that word, `CopyWordLink:w4012`; the menu of Actions offers the
+ * word being read. It takes any word near the place.
+ */
+export const CopyWordLink = Catalog.action('CopyWordLink', {
+  fields: { wordId: TranscriptPlayer.WordId },
+  choose: {
+    field: 'wordId',
+    prompt: 'Which word?',
+    token: TranscriptPlayer.WordId,
+    choicesOf: currentWordChoiceOf,
+    accepts: (model: Model, wordId: TranscriptPlayer.WordId) =>
+      Option.isSome(
+        Option.flatMap(loadedPlayerOf(model), player =>
+          TranscriptPlayer.wordOf(player, wordId),
+        ),
+      )
+        ? Catalog.Enabled()
+        : Catalog.Disabled({ because: 'that word is not near the place' }),
+    nothingToChoose: 'there are no words yet',
+  },
+  what: 'Copies a link that opens this book on the word you pick',
+  why: 'The person wants to come back to that word, or send it to someone',
+  enabled: whenLoaded,
+  meta: {
+    label: 'Copy link to this word',
+    keys: [],
+    title: 'Copy link to a word',
+  },
+})
 
 /**
  * The look: light, dark, or following the system, `SetAppearance:Dark`.
@@ -601,6 +661,21 @@ export const catalog = Catalog.make([
   SeekTo,
   SeekToWord,
   SetSeekScope,
+  PreviousParagraph,
+  NextParagraph,
+  ShowSearch,
+  CloseSearch,
+  SearchFor,
+  ClearSearch,
+  NextMatch,
+  PreviousMatch,
+  ShowMatch,
+  PlayFrom,
+  LeavePlayhead,
+  BackToPlayhead,
+  ShowWordMenu,
+  CloseWordMenu,
+  CopyWordLink,
   ExpandControls,
   CollapseControls,
   ShowLibrary,
@@ -764,6 +839,8 @@ export const Message = S.Union([
   TranscriptPlayer.ReceivedPassages,
   TranscriptPlayer.FailedLoadTranscript,
   MarkedMoment,
+  TranscriptPlayer.ReceivedMatches,
+  TranscriptPlayer.FailedSearch,
   CompletedWriteLibrary,
   FailedWriteLibrary,
   CompletedReportStretch,
