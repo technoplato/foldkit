@@ -11,9 +11,11 @@ import {
 } from './link.js'
 import {
   AcquiredAudioPlayer,
+  ClickedCopySectionWordLink,
   ClickedCopyWordLink,
   ClickedWord,
   ClosedWordMenu,
+  HeardAudioPosition,
   type Message,
   ObservedFileUrls,
   ObservedRecording,
@@ -216,5 +218,27 @@ describe('a word’s menu', () => {
     expect(closedBy(ClickedCopyWordLink({ wordID: 'word-1-1' }))).toEqual(
       Option.none(),
     )
+  })
+})
+
+describe('the word link from a section’s menu, for a phone', () => {
+  const copiedFrom = (model: Model, sectionID: string): string =>
+    JSON.stringify(update(model, ClickedCopySectionWordLink({ sectionID }))[1])
+
+  it('links to the word being spoken when the voice is in that section', () => {
+    const speaking = update(
+      onRecording(),
+      HeardAudioPosition({ seconds: 7.4 }),
+    )[0]
+    expect(copiedFrom(speaking, out.id)).toContain('t=7.257')
+    expect(copiedFrom(speaking, out.id)).toContain('Copied link to this word')
+  })
+
+  it('links to the section’s first word when the voice is elsewhere', () => {
+    const speaking = update(
+      onRecording(),
+      HeardAudioPosition({ seconds: 2.5 }),
+    )[0]
+    expect(copiedFrom(speaking, out.id)).toContain('t=7"')
   })
 })
