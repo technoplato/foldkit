@@ -1,6 +1,7 @@
 import {
   Array,
   Cause,
+  Clock,
   Effect,
   Layer,
   Option,
@@ -125,15 +126,145 @@ export const decodeSegments = (
   )
 }
 
+const searchPageSize = 40
+
+/**
+ * One page of a rendition's segments for a search: the next forty that
+ * start after `afterMs`, in order. `librarySegments` holds each segment's
+ * words as JSON in `wordsJSON` and no text Instant can search, so a
+ * search reads the rendition through, a page at a time.
+ *
+ * @example
+ * ```typescript
+ * segmentsPageQueryOf(mediaId, -1) // the first forty segments
+ * ```
+ */
+export const segmentsPageQueryOf = (mediaId: MediaId, afterMs: number) => ({
+  librarySegments: {
+    $: {
+      where: {
+        'rendition.id': mediaId,
+        relativeStartMs: { $gt: afterMs },
+      },
+      order: { relativeStartMs: 'asc' as const },
+      limit: searchPageSize,
+    },
+  },
+})
+
+const SegmentStart = S.Struct({ relativeStartMs: S.Number })
+
+type SegmentsPage = Readonly<{
+  passages: ReadonlyArray<TranscriptPlayer.Passage>
+  rowCount: number
+  maybeLastStartMs: Option.Option<number>
+}>
+
+const segmentsPageOf = (data: unknown): SegmentsPage => {
+  const rows = Option.match(S.decodeUnknownOption(SegmentData)(data), {
+    onNone: () => [],
+    onSome: tables => tables.librarySegments ?? [],
+  })
+  return {
+    passages: decodeSegments(data),
+    rowCount: rows.length,
+    maybeLastStartMs: Option.map(
+      Option.flatMap(Array.last(rows), S.decodeUnknownOption(SegmentStart)),
+      row => row.relativeStartMs,
+    ),
+  }
+}
+
+const unreadable = new TranscriptPlayer.TranscriptSourceError({
+  reason: 'the transcript could not be read',
+})
+
+const beforeFirstSegmentMs = -1
+
+const everySegmentAfter = (
+  database: ProgramLogDatabase,
+  mediaId: MediaId,
+  afterMs: number,
+  read: ReadonlyArray<TranscriptPlayer.Passage>,
+): Effect.Effect<
+  ReadonlyArray<TranscriptPlayer.Passage>,
+  TranscriptPlayer.TranscriptSourceError
+> =>
+  Effect.flatMap(
+    Effect.tryPromise({
+      try: () => database.queryOnce(segmentsPageQueryOf(mediaId, afterMs)),
+      catch: () => unreadable,
+    }),
+    response => {
+      const page = segmentsPageOf(response.data)
+      const passages = [...read, ...page.passages]
+      return Option.match(
+        Option.filter(
+          page.maybeLastStartMs,
+          () => page.rowCount >= searchPageSize,
+        ),
+        {
+          onNone: () => Effect.succeed(passages),
+          onSome: lastStartMs =>
+            everySegmentAfter(database, mediaId, lastStartMs, passages),
+        },
+      )
+    },
+  )
+
+const keepSearchedWordsMs = 10 * 60 * 1000
+
+type SearchedWords = Readonly<{
+  mediaId: MediaId
+  passages: ReadonlyArray<TranscriptPlayer.Passage>
+  readAtMs: number
+}>
+
 /**
  * The Transcript Player's words from Instant: a rendition's word-timed
  * `librarySegments` around the place, live, so a transcript that lands
- * while someone listens shows at once.
+ * while someone listens shows at once. For a search it reads the whole
+ * rendition, forty segments a request, only when a person searches, and
+ * keeps those words ten minutes so the next search of the same title
+ * asks Instant nothing.
  */
 export const instantTranscriptSource = (
   database: ProgramLogDatabase,
-): Layer.Layer<TranscriptPlayer.TranscriptSource> =>
-  Layer.succeed(TranscriptPlayer.TranscriptSource, {
+): Layer.Layer<TranscriptPlayer.TranscriptSource> => {
+  const searched: { maybeWords: Option.Option<SearchedWords> } = {
+    maybeWords: Option.none(),
+  }
+  const keptFor = (
+    mediaId: MediaId,
+    nowMs: number,
+  ): Option.Option<SearchedWords> =>
+    Option.filter(
+      searched.maybeWords,
+      words =>
+        words.mediaId === mediaId &&
+        nowMs - words.readAtMs < keepSearchedWordsMs,
+    )
+  return Layer.succeed(TranscriptPlayer.TranscriptSource, {
+    passagesMatching: mediaId =>
+      Effect.gen(function* () {
+        const nowMs = yield* Clock.currentTimeMillis
+        const maybeKept = keptFor(mediaId, nowMs)
+        if (Option.isSome(maybeKept)) {
+          return maybeKept.value.passages
+        }
+        const passages = yield* everySegmentAfter(
+          database,
+          mediaId,
+          beforeFirstSegmentMs,
+          [],
+        )
+        searched.maybeWords = Option.some({
+          mediaId,
+          passages,
+          readAtMs: nowMs,
+        })
+        return passages
+      }),
     passagesIn: (mediaId, range) =>
       Stream.callback<
         ReadonlyArray<TranscriptPlayer.Passage>,
@@ -163,3 +294,4 @@ export const instantTranscriptSource = (
         ),
       ),
   })
+}

@@ -32,6 +32,12 @@ import {
 import * as Audible from './audible/index.js'
 import type { ContributorPage, PublisherPage } from './destination.js'
 import {
+  currentWordLinkButtonOf,
+  readerButtonsOf,
+  readerSearchOf,
+  readerTranscriptOf,
+} from './find.js'
+import {
   type BookmarkId,
   Milliseconds,
   type TitleSlug,
@@ -1034,8 +1040,15 @@ const expandedControlsOf = (model: Model, loaded: Loaded): UiNode =>
       ),
       ...withIcon(buttonsOf(model, [AddBookmark], 'Ghost'), 'Bookmark', false),
       ...withIcon(buttonsOf(model, [SharePlace], 'Ghost'), 'Share', false),
+      ...currentWordLinkButtonOf(model, loaded),
     ),
   )
+
+const readerRowOf = (model: Model, loaded: Loaded): ReadonlyArray<UiNode> =>
+  Array.match(readerButtonsOf(model, loaded), {
+    onEmpty: () => [],
+    onNonEmpty: buttons => [Row({ gap: 1 }, ...buttons)],
+  })
 
 /**
  * The player for the book its address names, read and listen: the words
@@ -1086,12 +1099,14 @@ export const playerScreen = (model: Model): UiNode =>
             Column(
               { gap: 1 },
               Text(title.name, { dim: true }),
-              TranscriptPlayer.transcriptOf(loaded.player),
+              readerTranscriptOf(loaded),
               Dock(
                 ...TranscriptPlayer.problemOf(loaded.player),
                 ...problemLines(model),
                 ...timelineLines(model),
                 ...noticeLines(model),
+                ...readerSearchOf(model, loaded),
+                ...readerRowOf(model, loaded),
                 model.controls === 'Expanded'
                   ? expandedControlsOf(model, loaded)
                   : collapsedControlsOf(model, title, loaded),

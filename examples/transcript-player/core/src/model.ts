@@ -184,8 +184,13 @@ export const Model = S.Struct({
   maybeSearch: S.OptionFromOptionalKey(Search),
   maybeAway: S.OptionFromOptionalKey(Away),
 })
-/** The Transcript Player. */
-export type Model = typeof Model.Type
+/**
+ * A Transcript Player Model value. An interface rather than an alias, so
+ * every type that names it, such as each Action's, carries `Model` by
+ * name instead of the whole Model again; a Program that offers the
+ * player's Actions with `Catalog.within` depends on that to typecheck.
+ */
+export interface Model extends S.Schema.Type<typeof Model> {}
 
 /**
  * A player holding `media`, paused at `placeMs` at `speed`, its words on

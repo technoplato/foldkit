@@ -1,7 +1,12 @@
 import { Effect, Layer } from 'effect'
 import { spawn } from 'node:child_process'
 
-import { LinkSharing, LinkSharingError, copied } from './share.js'
+import {
+  LinkSharing,
+  LinkSharingError,
+  type ShareableLink,
+  copied,
+} from './share.js'
 
 // SHARE
 
@@ -28,17 +33,17 @@ const copyText = (text: string): Promise<void> =>
  * terminalLinkSharing('https://books.pisspoursoftware.xyz')
  * ```
  */
-export const terminalLinkSharing = (origin: string) =>
-  Layer.succeed(LinkSharing, {
-    share: link =>
-      Effect.as(
-        Effect.tryPromise({
-          try: () => copyText(new URL(link.path, origin).toString()),
-          catch: () =>
-            new LinkSharingError({
-              reason: 'this terminal cannot copy to the clipboard',
-            }),
+export const terminalLinkSharing = (origin: string) => {
+  const copy = (link: ShareableLink) =>
+    Effect.tryPromise({
+      try: () => copyText(new URL(link.path, origin).toString()),
+      catch: () =>
+        new LinkSharingError({
+          reason: 'this terminal cannot copy to the clipboard',
         }),
-        copied,
-      ),
+    })
+  return Layer.succeed(LinkSharing, {
+    share: link => Effect.as(copy(link), copied),
+    copy,
   })
+}

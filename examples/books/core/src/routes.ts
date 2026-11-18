@@ -1,7 +1,7 @@
 import { Array, Option, Schema as S, String, pipe } from 'effect'
 import { Navigation, Route } from 'foldkit'
 import * as ReadAloud from 'read-aloud-core-example'
-import { PlaceSegment } from 'transcript-player-core-example'
+import { WordSegment } from 'transcript-player-core-example'
 
 import { AudibleConnectPage, AudibleTitlesPage } from './audible/destination.js'
 import {
@@ -31,7 +31,7 @@ import {
 // ROUTES
 
 const slugSegment = Route.schemaSegment('slug', TitleSlug)
-const placeSegment = Route.schemaSegment('atMs', PlaceSegment)
+const placeSegment = Route.schemaSegment('atMs', WordSegment)
 const bookmarkSegment = Route.schemaSegment('bookmarkId', BookmarkId)
 const roleSegment = Route.schemaSegment('role', CreditRoleSegment)
 const contributorSegment = Route.schemaSegment(
@@ -91,7 +91,9 @@ export const nameOfSlug = (slug: TitleSlug): string => nameOfTag(slug)
  * - `/books/the-lantern-keeper/listen/12:03` is that title's player at
  *   12:03, only above its page: a link to that moment, kept up to date as
  *   it plays. It stays one page while its place moves, so the words,
- *   their scroll, and the cover are never rebuilt.
+ *   their scroll, and the cover are never rebuilt. A place may name one
+ *   word, to the millisecond: `…/listen/12m03.45s` opens on the word
+ *   that starts then, and prints that way until the audio plays on.
  *   `/books/the-lantern-keeper/listen` opens it at the listener's place.
  * - `…/contents` and `…/speed` are Sheets; `…/delete-bookmark/<id>` is a
  *   Dialog.
