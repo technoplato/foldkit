@@ -27,8 +27,9 @@ describe('the words site takes its colours from the theme', () => {
     ])
   })
 
-  it('asks the browser for no colour scheme, in its rules or its dark variant', () => {
+  it('asks the browser for no colour scheme and no contrast, in its rules or its dark variant', () => {
     expect(stylesheet).not.toContain('prefers-color-scheme')
+    expect(stylesheet).not.toContain('prefers-contrast')
     expect(stylesheet).toContain(
       "@custom-variant dark (&:where([data-fk-mode='Dark'], [data-fk-mode='Dark'] *));",
     )

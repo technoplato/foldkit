@@ -42,17 +42,27 @@ const colorsBefore: ReadonlyArray<readonly [Theme.Role, string, string]> = [
 describe('the words theme', () => {
   it('keeps every colour the site had, light and dark, in the library’s roles', () => {
     colorsBefore.forEach(([role, light, dark]) => {
-      expect([role, wordsTheme[role]]).toEqual([role, { light, dark }])
+      expect([role, wordsTheme[role].light, wordsTheme[role].dark]).toEqual([
+        role,
+        light,
+        dark,
+      ])
     })
   })
 
   it('names the recorder’s badges and a device’s tile as roles of its own', () => {
-    expect(wordsOwnRoles).toEqual({
-      BadgeRecording: { light: '#b50012', dark: '#ffa198' },
-      BadgePaused: { light: '#a32c00', dark: '#ffb340' },
-      BadgePlaying: { light: '#0058b0', dark: '#8cc4ff' },
-      DeviceTile: { light: '#1c1c1e', dark: '#48484a' },
-    })
+    expect(
+      Object.entries(wordsOwnRoles).map(([name, colors]) => [
+        name,
+        colors.light,
+        colors.dark,
+      ]),
+    ).toEqual([
+      ['BadgeRecording', '#b50012', '#ffa198'],
+      ['BadgePaused', '#a32c00', '#ffb340'],
+      ['BadgePlaying', '#0058b0', '#8cc4ff'],
+      ['DeviceTile', '#1c1c1e', '#48484a'],
+    ])
   })
 
   it('is one stylesheet: every role light by default and dark where the Program says, with no question to the system', () => {
@@ -61,5 +71,39 @@ describe('the words theme', () => {
     expect(wordsStylesheet).toContain('--fk-own-badge-recording: #ffa198;')
     expect(wordsStylesheet).toContain('[data-fk-mode="Dark"]')
     expect(wordsStylesheet).not.toContain('prefers-color-scheme')
+  })
+
+  // The stronger colours the site had under More Contrast: [role, light, dark].
+  const moreBefore: ReadonlyArray<readonly [Theme.Role, string, string]> = [
+    ['QuietText', 'rgb(60 60 67 / 0.92)', 'rgb(235 235 245 / 0.86)'],
+    ['FaintText', 'rgb(60 60 67 / 0.78)', 'rgb(235 235 245 / 0.7)'],
+    ['Rule', 'rgb(60 60 67 / 0.4)', 'rgb(235 235 245 / 0.4)'],
+    ['Accent', '#0040a0', '#79b8ff'],
+    ['Link', '#0040a0', '#79b8ff'],
+    ['DangerStrong', '#b50012', '#ffa198'],
+    ['Positive', '#176a2d', '#4ee07a'],
+    ['Warning', '#9a2a00', '#ffb340'],
+  ]
+
+  it('keeps the stronger colours the site had under More Contrast, light and dark', () => {
+    moreBefore.forEach(([role, light, dark]) => {
+      expect([
+        role,
+        Theme.roleColorsOf(wordsTheme, 'Light', 'More')[role],
+        Theme.roleColorsOf(wordsTheme, 'Dark', 'More')[role],
+      ]).toEqual([role, light, dark])
+    })
+    expect(wordsOwnRoles['BadgeRecording']).toEqual({
+      light: '#b50012',
+      dark: '#ffa198',
+      lightMore: '#9e0010',
+      darkMore: '#ffbdb6',
+    })
+    expect(wordsOwnRoles['BadgePaused']?.lightMore).toBe('#8f2600')
+    expect(wordsOwnRoles['BadgePaused']?.darkMore).toBe('#ffcc80')
+    expect(wordsOwnRoles['BadgePlaying']?.lightMore).toBe('#003d85')
+    expect(wordsOwnRoles['BadgePlaying']?.darkMore).toBe('#add5ff')
+    expect(wordsStylesheet).toContain('[data-fk-contrast="More"]')
+    expect(wordsStylesheet).not.toContain('prefers-contrast')
   })
 })

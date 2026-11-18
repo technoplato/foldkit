@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AppearanceStore,
   appearanceChoicesOf,
+  contrastOf,
   makeMemoryAppearanceStore,
   modeOf,
 } from './appearance.js'
@@ -12,6 +13,7 @@ import { RecordingListRoute } from './link.js'
 import {
   ChoseAppearance,
   type Message,
+  ObservedSystemContrast,
   ObservedSystemMode,
   ReadKeptAppearance,
 } from './message.js'
@@ -88,5 +90,20 @@ describe('how the words page looks, as state', () => {
       Effect.flatMap(AppearanceStore, store => store.read),
     )
     expect(byDefault).toEqual(Option.none())
+  })
+
+  it('is painted with the usual contrast until the system is heard to ask for more', () => {
+    expect(contrastOf(start())).toBe('Standard')
+    expect(
+      contrastOf(after([ObservedSystemContrast({ contrast: 'More' })])),
+    ).toBe('More')
+    expect(
+      modeOf(
+        after([
+          ObservedSystemMode({ mode: 'Dark' }),
+          ObservedSystemContrast({ contrast: 'More' }),
+        ]),
+      ),
+    ).toBe('Dark')
   })
 })
