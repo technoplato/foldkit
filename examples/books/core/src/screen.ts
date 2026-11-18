@@ -21,10 +21,10 @@ import {
   Text,
   TextInput,
   Toolbar,
-  type TranscriptMark,
+  type TranscriptBookmark,
   type UiNode,
   actionButtons,
-  withTranscriptMarks,
+  withTranscriptBookmarks,
 } from 'foldkit/renderers'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -1136,14 +1136,14 @@ const bookmarkLists = (model: Model, title: Title): ReadonlyArray<UiNode> =>
   })
 
 /**
- * A title's bookmarks as marks for its reader: each on the millisecond
+ * A title's bookmarks as its reader's Transcript takes them: each on the millisecond
  * its word starts, named by its time, with its note and the press that
  * opens it.
  */
-const bookmarkMarksOf = (
+const transcriptBookmarksOf = (
   model: Model,
   title: Title,
-): ReadonlyArray<TranscriptMark> =>
+): ReadonlyArray<TranscriptBookmark> =>
   Array.map(bookmarksOf(model, title.slug), bookmark => ({
     startMs: bookmark.atMs,
     label: `Bookmark at ${clockOf(bookmark.atMs)}`,
@@ -1494,9 +1494,9 @@ export const playerScreen = (model: Model): UiNode =>
               { gap: 1 },
               Text(title.name, { dim: true }),
               ...chapterPickerOf(model, title, placeOf(loaded)),
-              withTranscriptMarks(
+              withTranscriptBookmarks(
                 readerTranscriptOf(loaded),
-                bookmarkMarksOf(model, title),
+                transcriptBookmarksOf(model, title),
               ),
               Dock(
                 ...TranscriptPlayer.problemOf(loaded.player),

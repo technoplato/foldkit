@@ -60,10 +60,10 @@ export {
   wordStepOf,
 } from './readAlong.js'
 export {
-  type PlacedMark,
-  marksInPassage,
-  withTranscriptMarks,
-} from './transcriptMarks.js'
+  type PlacedBookmark,
+  bookmarksInPassage,
+  withTranscriptBookmarks,
+} from './transcriptBookmarks.js'
 export {
   currentWordTokenAt,
   transcriptAt,
@@ -118,7 +118,7 @@ export type {
   TextNode,
   TextPart,
   TranscriptClock,
-  TranscriptMark,
+  TranscriptBookmark,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWord,

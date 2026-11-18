@@ -337,14 +337,14 @@ export type TranscriptPassage = Readonly<{
 }>
 
 /**
- * A place a person marked in a Transcript, such as a bookmark: the word
- * that starts on `startMs`. `label` names it for a screen reader,
- * `Bookmark at 12:03`; `note` is what they wrote on it; pressing the mark
+ * A bookmark in a Transcript, a place a person marked: the word that
+ * starts on `startMs`. `label` names it for a screen reader,
+ * `Bookmark at 12:03`; `note` is what they wrote on it; pressing the bookmark
  * or its note presses `action`, `OpenBookmark:7e1f04c2`. Graphical
- * painters draw the mark beside the word and the note under its
+ * painters draw a ribbon beside the word and the note under its
  * paragraph; a terminal stars the word.
  */
-export type TranscriptMark = Readonly<{
+export type TranscriptBookmark = Readonly<{
   readonly startMs: number
   readonly label: string
   readonly note?: string
@@ -358,9 +358,9 @@ export type TranscriptMark = Readonly<{
  * current word in view; a terminal brackets it, `[word]`. `emptyText` is
  * what shows while there are no passages. With a `clock` and each word's
  * `startMs`, the marks say which word was sounding when the Program last
- * heard the place, and `transcriptAt` says which is sounding now. `marks`
- * are the places a person marked, such as their bookmarks, each on the
- * millisecond one of the words starts.
+ * heard the place, and `transcriptAt` says which is sounding now. `bookmarks`
+ * are the places a person marked, each on the millisecond one of the
+ * words starts.
  *
  * The view and the word sounding can differ. `isFollowing` is false while
  * a person reads somewhere else: a painter then leaves the view where it
@@ -382,7 +382,7 @@ export type TranscriptNode = Readonly<{
   readonly passages: ReadonlyArray<TranscriptPassage>
   readonly emptyText: string
   readonly clock?: TranscriptClock
-  readonly marks?: ReadonlyArray<TranscriptMark>
+  readonly bookmarks?: ReadonlyArray<TranscriptBookmark>
   readonly isFollowing?: boolean
   readonly leaveAction?: string
   readonly focusToken?: string

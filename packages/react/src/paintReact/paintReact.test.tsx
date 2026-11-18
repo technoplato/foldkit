@@ -940,7 +940,7 @@ describe('paintTree: list rows in groups, with a badge, found by their lines', (
   })
 })
 
-describe('a Transcript with marks', () => {
+describe('a Transcript with bookmarks', () => {
   beforeAll(() => {
     Element.prototype.scrollIntoView = () => {}
   })
@@ -964,7 +964,7 @@ describe('a Transcript with marks', () => {
               ],
             },
           ],
-          marks: [
+          bookmarks: [
             {
               startMs: 1_231_200,
               label: 'Bookmark at 20:31',
@@ -979,7 +979,7 @@ describe('a Transcript with marks', () => {
     return onPress
   }
 
-  it('marks the word that starts on the mark’s millisecond, and no other', () => {
+  it('marks the word that starts on the bookmark’s millisecond, and no other', () => {
     marked()
     expect(
       globalThis.Array.from(
@@ -988,7 +988,7 @@ describe('a Transcript with marks', () => {
     ).toEqual(['w3'])
   })
 
-  it('puts a named mark beside the word that presses the mark’s action, not the word’s', () => {
+  it('puts a named ribbon beside the word that presses the bookmark’s action, not the word’s', () => {
     const onPress = marked()
     fireEvent.click(screen.getByRole('button', { name: 'Bookmark at 20:31' }))
     expect(onPress).toHaveBeenCalledTimes(1)
@@ -1007,7 +1007,7 @@ describe('a Transcript with marks', () => {
     })
   })
 
-  it('still plays from a marked word when the word itself is pressed', () => {
+  it('still plays from a bookmarked word when the word itself is pressed', () => {
     const onPress = marked()
     fireEvent.click(screen.getByText('wick', { exact: false }))
     expect(onPress.mock.calls[0]?.[0]).toMatchObject({

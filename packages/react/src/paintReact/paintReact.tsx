@@ -8,7 +8,7 @@ import {
   type ItemCheck,
   type ListItem,
   type ListNode,
-  type PlacedMark,
+  type PlacedBookmark,
   type ReferencePart,
   type SeekNode,
   type TextEmbed,
@@ -19,13 +19,13 @@ import {
   type TranscriptPassage,
   type TranscriptWordMenu,
   type UiNode,
+  bookmarksInPassage,
   currentWordTokenAt,
   filterListItems,
   groupedItemsOf,
   iconDrawings,
   isClearedOnSubmit,
   isSubmittedOnLeave,
-  marksInPassage,
   seekLandingAt,
   submittedTagOf,
   transcriptAt,
@@ -578,19 +578,19 @@ const currentTokenOf = (passage: TranscriptPassage): string | undefined =>
     ),
   )
 
-const noMarks: ReadonlyArray<PlacedMark> = []
+const noBookmarks: ReadonlyArray<PlacedBookmark> = []
 
 /**
- * What tells one passage's marks from another's between paints: each
- * mark's word, note and press, so a passage repaints when a bookmark on it
+ * What tells one passage's bookmarks from another's between paints:
+ * each one's word, note and press, so a passage repaints when a bookmark on it
  * is made, noted or removed, and not when one elsewhere is.
  */
-const marksKeyOf = (marks: ReadonlyArray<PlacedMark>): string =>
+const bookmarksKeyOf = (bookmarks: ReadonlyArray<PlacedBookmark>): string =>
   Array.join(
     Array.map(
-      marks,
-      ({ token, mark }) =>
-        `${token}|${mark.note ?? ''}|${mark.action ?? ''}|${mark.label}`,
+      bookmarks,
+      ({ token, bookmark }) =>
+        `${token}|${bookmark.note ?? ''}|${bookmark.action ?? ''}|${bookmark.label}`,
     ),
     '\n',
   )
@@ -607,21 +607,21 @@ const PassageView = memo(
   ({
     passage,
     action,
-    marks,
+    bookmarks,
     onPress,
   }: Readonly<{
     passage: TranscriptPassage
     action: string
-    marks: ReadonlyArray<PlacedMark>
+    bookmarks: ReadonlyArray<PlacedBookmark>
     onPress: (button: ButtonNode) => void
   }>): ReactElement => {
     const labelAction = passage.labelAction
-    const markOf = (token: string): Option.Option<PlacedMark> =>
-      Array.findFirst(marks, placed => placed.token === token)
-    const pressMark = (placed: PlacedMark): void => {
-      const markAction = placed.mark.action
-      if (markAction !== undefined) {
-        onPress(pressOf(markAction, placed.mark.label))
+    const bookmarkOf = (token: string): Option.Option<PlacedBookmark> =>
+      Array.findFirst(bookmarks, placed => placed.token === token)
+    const pressBookmark = (placed: PlacedBookmark): void => {
+      const bookmarkAction = placed.bookmark.action
+      if (bookmarkAction !== undefined) {
+        onPress(pressOf(bookmarkAction, placed.bookmark.label))
       }
     }
     return (
@@ -647,7 +647,7 @@ const PassageView = memo(
         )}
         <p className="fk-passage-words">
           {Array.map(passage.words, word => {
-            const maybeMark = markOf(word.token)
+            const maybeBookmark = bookmarkOf(word.token)
             return (
               <span
                 key={word.token}
@@ -655,22 +655,22 @@ const PassageView = memo(
                 data-token={word.token}
                 data-current={word.isCurrent === true ? true : undefined}
                 data-mark={word.mark}
-                data-ribbon={Option.isSome(maybeMark) ? true : undefined}
+                data-ribbon={Option.isSome(maybeBookmark) ? true : undefined}
                 onClick={() => {
                   onPress(pressOf(`${action}:${word.token}`, word.text))
                 }}
               >
-                {Option.match(maybeMark, {
+                {Option.match(maybeBookmark, {
                   onNone: () => null,
                   onSome: placed => (
                     <button
                       type="button"
                       className="fk-word-ribbon"
-                      aria-label={placed.mark.label}
-                      title={placed.mark.note ?? placed.mark.label}
+                      aria-label={placed.bookmark.label}
+                      title={placed.bookmark.note ?? placed.bookmark.label}
                       onClick={event => {
                         event.stopPropagation()
-                        pressMark(placed)
+                        pressBookmark(placed)
                       }}
                     />
                   ),
@@ -681,17 +681,17 @@ const PassageView = memo(
           })}
         </p>
         {Array.map(
-          Array.filter(marks, placed => placed.mark.note !== undefined),
+          Array.filter(bookmarks, placed => placed.bookmark.note !== undefined),
           placed => (
             <button
               key={placed.token}
               type="button"
               className="fk-passage-note"
               onClick={() => {
-                pressMark(placed)
+                pressBookmark(placed)
               }}
             >
-              {placed.mark.note}
+              {placed.bookmark.note}
             </button>
           ),
         )}
@@ -706,7 +706,7 @@ const PassageView = memo(
     currentTokenOf(before.passage) === currentTokenOf(after.passage) &&
     marksOf(before.passage) === marksOf(after.passage) &&
     before.action === after.action &&
-    marksKeyOf(before.marks) === marksKeyOf(after.marks) &&
+    bookmarksKeyOf(before.bookmarks) === bookmarksKeyOf(after.bookmarks) &&
     before.onPress === after.onPress,
 )
 
@@ -1116,10 +1116,10 @@ const TranscriptView = ({
                 key={passage.key}
                 passage={passage}
                 action={transcript.action}
-                marks={
-                  transcript.marks === undefined
-                    ? noMarks
-                    : marksInPassage(passage, transcript.marks)
+                bookmarks={
+                  transcript.bookmarks === undefined
+                    ? noBookmarks
+                    : bookmarksInPassage(passage, transcript.bookmarks)
                 }
                 onPress={onPress}
               />

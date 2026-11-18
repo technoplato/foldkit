@@ -26,8 +26,8 @@ import type {
   TextInputNode,
   TextNode,
   TextPart,
+  TranscriptBookmark,
   TranscriptClock,
-  TranscriptMark,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWordMenu,
@@ -460,7 +460,7 @@ export const Transcript = (
     emptyText: string
     passages: ReadonlyArray<TranscriptPassage>
     clock?: TranscriptClock
-    marks?: ReadonlyArray<TranscriptMark>
+    bookmarks?: ReadonlyArray<TranscriptBookmark>
     isFollowing?: boolean
     leaveAction?: string
     focusToken?: string
@@ -474,7 +474,7 @@ export const Transcript = (
   emptyText: props.emptyText,
   passages: props.passages,
   ...(props.clock === undefined ? {} : { clock: props.clock }),
-  ...(props.marks === undefined ? {} : { marks: props.marks }),
+  ...(props.bookmarks === undefined ? {} : { bookmarks: props.bookmarks }),
   ...(props.isFollowing === undefined
     ? {}
     : { isFollowing: props.isFollowing }),

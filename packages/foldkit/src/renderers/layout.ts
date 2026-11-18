@@ -4,7 +4,7 @@ import type { Device } from './device.js'
 import { Column, Row, Text } from './elements.js'
 import { iconGlyphs } from './icons.js'
 import { itemLinesOf } from './listRows.js'
-import { marksInPassage } from './transcriptMarks.js'
+import { bookmarksInPassage } from './transcriptBookmarks.js'
 import type {
   ButtonNode,
   HotspotAction,
@@ -13,7 +13,7 @@ import type {
   ListItem,
   ProgressNode,
   SeekNode,
-  TranscriptMark,
+  TranscriptBookmark,
   TranscriptNode,
   TranscriptPassage,
   TranscriptWord,
@@ -177,11 +177,11 @@ const itemTitleGlyph = (item: ListItem): string => {
 
 const passageLabelWidth = 8
 
-const markGlyph = '*'
+const bookmarkGlyph = '*'
 
-const wordGlyph = (word: TranscriptWord, isMarked: boolean): string => {
+const wordGlyph = (word: TranscriptWord, isBookmarked: boolean): string => {
   const glyph = word.isCurrent === true ? `[${word.text}]` : word.text
-  return isMarked ? `${markGlyph}${glyph}` : glyph
+  return isBookmarked ? `${bookmarkGlyph}${glyph}` : glyph
 }
 
 type TranscriptLine = Readonly<{ text: string; isCurrent: boolean }>
@@ -198,10 +198,10 @@ const nothingWrapped: Wrapped = { lines: [], maybeOpen: Option.none() }
 const wrappedWords = (
   words: ReadonlyArray<TranscriptWord>,
   width: number,
-  markedTokens: ReadonlySet<string>,
+  bookmarkedTokens: ReadonlySet<string>,
 ): ReadonlyArray<TranscriptLine> => {
   const wrapped = Array.reduce(words, nothingWrapped, (state, word) => {
-    const glyph = wordGlyph(word, markedTokens.has(word.token))
+    const glyph = wordGlyph(word, bookmarkedTokens.has(word.token))
     const isCurrent = word.isCurrent === true
     return Option.match(state.maybeOpen, {
       onNone: () => ({
@@ -229,28 +229,28 @@ const wrappedWords = (
 const passageLines = (
   passage: TranscriptPassage,
   availableW: number,
-  marks: ReadonlyArray<TranscriptMark>,
+  bookmarks: ReadonlyArray<TranscriptBookmark>,
 ): ReadonlyArray<TranscriptLine> => {
   const marker = passage.isCurrent === true ? '›' : ' '
   const label = `${marker}${passage.label}`.padEnd(passageLabelWidth, ' ')
   const textWidth = Math.max(1, availableW - passageLabelWidth)
-  const placed = marksInPassage(passage, marks)
-  const markedTokens = new Set(Array.map(placed, ({ token }) => token))
+  const placed = bookmarksInPassage(passage, bookmarks)
+  const bookmarkedTokens = new Set(Array.map(placed, ({ token }) => token))
   return [
     ...(passage.heading === undefined
       ? []
       : [plainLine(''), plainLine(passage.heading.toUpperCase())]),
     ...Array.map(
-      wrappedWords(passage.words, textWidth, markedTokens),
+      wrappedWords(passage.words, textWidth, bookmarkedTokens),
       (line, index) => ({
         text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,
         isCurrent: line.isCurrent,
       }),
     ),
     ...Array.getSomes(
-      Array.map(placed, ({ mark }) =>
-        Option.map(Option.fromNullishOr(mark.note), note =>
-          plainLine(`${' '.repeat(passageLabelWidth)}${markGlyph} ${note}`),
+      Array.map(placed, ({ bookmark }) =>
+        Option.map(Option.fromNullishOr(bookmark.note), note =>
+          plainLine(`${' '.repeat(passageLabelWidth)}${bookmarkGlyph} ${note}`),
         ),
       ),
     ),
@@ -265,7 +265,7 @@ const transcriptLines = (
     onEmpty: () => [plainLine(transcript.emptyText)],
     onNonEmpty: passages =>
       Array.flatMap(passages, passage =>
-        passageLines(passage, availableW, transcript.marks ?? []),
+        passageLines(passage, availableW, transcript.bookmarks ?? []),
       ),
   })
 

@@ -540,13 +540,16 @@ describe('One bookmark', () => {
 })
 
 describe('The reader', () => {
-  it('carries a mark for each bookmark of the title, on its word, with its note and the press that opens it', () => {
+  it('carries each bookmark of the title on its word, with its note and the press that opens it', () => {
     const { bound } = playingAt(passageStartMs, shelfWithBookmarks)
     const base = Option.getOrThrow(
       Option.flatMap(Navigation.frameOf(bound), frame => nodeOf(frame.base)),
     )
     expect(
-      Array.flatMap(transcriptsOf(base), transcript => transcript.marks ?? []),
+      Array.flatMap(
+        transcriptsOf(base),
+        transcript => transcript.bookmarks ?? [],
+      ),
     ).toEqual([
       {
         startMs: passageStartMs + 10 * wordMs,
