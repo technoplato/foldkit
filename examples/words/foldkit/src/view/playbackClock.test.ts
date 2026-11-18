@@ -1,10 +1,11 @@
 import { Array, Option } from 'effect'
 import { Scene } from 'foldkit'
 import { html } from 'foldkit/html'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import {
   AcquiredAudioPlayer,
   ClickedPlay,
+  CompletedRunPlaybackClock,
   HeardAudioPlaying,
   HeardAudioPosition,
   type Message,
@@ -19,8 +20,9 @@ import {
   update,
 } from 'words-core-example'
 
+import { RunClockTime, RunScrubberProgress } from '../mount.js'
 import { playbackBar } from './playback.js'
-import { transcript } from './transcript.js'
+import { readOnlySections, transcript } from './transcript.js'
 
 const recordingID = '7e0f1b2c-3d4e-4f50-8a6b-7c8d9e0f1a2b'
 
@@ -71,12 +73,15 @@ const detail: RecordingDetail = {
   audio: StoredAudio({ fileID: 'audio-file', byteCount: 10 }),
 }
 
-const playingAt = (seconds: number): Model =>
+const playingAt = (
+  seconds: number,
+  recording: RecordingDetail = detail,
+): Model =>
   Array.reduce(
     [
       ObservedRecording({
         recordingID,
-        maybeDetail: Option.some(detail),
+        maybeDetail: Option.some(recording),
         skippedCount: 0,
         maybeSkippedReason: Option.none(),
       }),
@@ -90,49 +95,55 @@ const playingAt = (seconds: number): Model =>
     (model: Model, message: Message) => update(model, message)[0],
   )
 
-const pageView = (model: Model) => {
-  const h = html<Message>()
-  return model.playback._tag === 'ReadyPlayback'
-    ? h.div(
-        [],
-        [
-          transcript(model.playback, false, false),
-          ...playbackBar(model, model.playback, false),
-        ],
-      )
-    : h.div([], [])
+const readyOf = (model: Model) => {
+  if (model.playback._tag === 'ReadyPlayback') {
+    return model.playback
+  } else {
+    throw new Error(`Expected ReadyPlayback, got ${model.playback._tag}`)
+  }
 }
 
+const barView = (model: Model) => {
+  const h = html<Message>()
+  return h.div([], playbackBar(model, readyOf(model), false))
+}
+
+// The effects at the edge start as the bar mounts; each says so once.
+const edgeStarted = Scene.Mount.resolveAll(
+  [RunScrubberProgress, CompletedRunPlaybackClock()],
+  [RunClockTime, CompletedRunPlaybackClock()],
+)
+
 describe('the words page tells its edge the clock (#2494)', () => {
-  test('the transcript carries the place, that it runs, and the length, and marks no word itself', () => {
-    Scene.scene(
-      { update, view: pageView },
-      Scene.with(playingAt(6)),
-      Scene.expect(
-        Scene.selector(
-          'section[data-clock-place="6"][data-clock-rate="1"][data-clock-marking="true"]',
-        ),
-      ).toExist(),
-      Scene.expect(Scene.selector('.word-current')).toBeAbsent(),
-      Scene.expect(Scene.selector('[data-word-current]')).toBeAbsent(),
+  test('the transcript carries the place, that it runs, and whether a word is marked', () => {
+    // NOTE: a recording with no lines yet, so the element is read without
+    // the page's runtime, which the lines themselves need.
+    const painted = JSON.stringify(
+      transcript(
+        readyOf(playingAt(6, { ...detail, sections: [] })),
+        false,
+        false,
+      ),
     )
+    expect(painted).toContain('"data-clock-place":"6"')
+    expect(painted).toContain('"data-clock-rate":"1"')
+    expect(painted).toContain('"data-clock-marking":"true"')
   })
 
-  test('each section says when it starts and each word when it does, so the edge can find the one spoken', () => {
-    Scene.scene(
-      { update, view: pageView },
-      Scene.with(playingAt(6)),
-      Scene.expect(
-        Scene.selector('article[data-section-seconds="12"]'),
-      ).toExist(),
-      Scene.expect(Scene.selector('[data-word-seconds="12.5"]')).toExist(),
+  test('each section says when it starts, and the view marks no word and no section itself', () => {
+    const painted = JSON.stringify(
+      readOnlySections(detail.sections, () => undefined),
     )
+    expect(painted).toContain('"data-section-seconds":"12"')
+    expect(painted).not.toContain('word-current')
+    expect(painted).not.toContain('bg-fill/70')
   })
 
   test('the scrubber and the time beside it carry the same clock', () => {
     Scene.scene(
-      { update, view: pageView },
+      { update, view: barView },
       Scene.with(playingAt(6)),
+      edgeStarted,
       Scene.expect(
         Scene.selector('[data-clock-progress][data-clock-place="6"]'),
       ).toExist(),

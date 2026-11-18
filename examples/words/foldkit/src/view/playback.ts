@@ -41,7 +41,8 @@ import {
   shortcutKeyOf,
 } from 'words-core-example'
 
-import { RunWallClock } from '../mount.js'
+import { RunClockTime, RunScrubberProgress, RunWallClock } from '../mount.js'
+import { clockAttributes } from './clock.js'
 import { type IconName, type SkipDirection, icon, skipIcon } from './icon.js'
 import type { ViewConfig } from './shell.js'
 import { transcript } from './transcript.js'
@@ -550,6 +551,9 @@ const scrubberInput = (ready: ReadyPlayback, className: string): Html => {
         '--progress': `${fraction * 100}%`,
         '--progress-fraction': String(fraction),
       }),
+      h.DataAttribute('clock-progress', ''),
+      ...clockAttributes(ready),
+      h.OnMount(RunScrubberProgress()),
       h.Class(`relative flex items-center ${className}`),
     ],
     [
@@ -606,6 +610,24 @@ const playPauseButton = (ready: ReadyPlayback, className: string): Html => {
   )
 }
 
+/**
+ * The time the playback has reached, beside the scrubber. The Model says
+ * it at each report of the place, and the edge reads it on between them
+ * (RunClockTime), so it turns over on the second as it always has.
+ */
+const positionLabel = (ready: ReadyPlayback): Html => {
+  const h = html<Message>()
+  return h.span(
+    [
+      h.DataAttribute('clock-time', ''),
+      ...clockAttributes(ready),
+      h.OnMount(RunClockTime()),
+      h.Class('tabular shrink-0 font-mono text-footnote text-secondary'),
+    ],
+    [formatClock(displayedPositionOf(ready))],
+  )
+}
+
 const clockLabel = (seconds: number): Html => {
   const h = html<Message>()
   return h.span(
@@ -644,7 +666,6 @@ const liveAudioCaption = (ready: ReadyPlayback): ReadonlyArray<Html> => {
 
 const transportBar = (ready: ReadyPlayback): Html => {
   const h = html<Message>()
-  const position = displayedPositionOf(ready)
   const duration = durationOf(ready)
   return h.div(
     [
@@ -664,7 +685,7 @@ const transportBar = (ready: ReadyPlayback): Html => {
           ),
         ],
         [
-          clockLabel(position),
+          positionLabel(ready),
           h.div(
             [h.Class('flex items-center gap-2')],
             [
@@ -726,7 +747,7 @@ const compactTransportBar = (ready: ReadyPlayback): Html => {
     ],
     [
       playPauseButton(ready, 'size-11'),
-      clockLabel(displayedPositionOf(ready)),
+      positionLabel(ready),
       scrubberInput(ready, 'min-w-0 flex-1'),
       clockLabel(durationOf(ready)),
     ],
@@ -768,7 +789,7 @@ const besideTransportBar = (ready: ReadyPlayback): Html => {
       h.span(
         [h.Class('flex min-w-0 flex-1 items-center gap-2 pl-1')],
         [
-          clockLabel(displayedPositionOf(ready)),
+          positionLabel(ready),
           scrubberInput(ready, 'min-w-0 flex-1'),
           clockLabel(durationOf(ready)),
         ],

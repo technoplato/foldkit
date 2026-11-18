@@ -303,8 +303,14 @@ body {
   background: var(--fill);
 }
 
-.word-current {
+/* NOTE: the word and the section being spoken are marked at the edge, by
+   the effect that reads on from the playback clock (RunSpokenWord). */
+[data-word-current] {
   background: var(--highlight);
+}
+
+[data-section-current] {
+  background-color: color-mix(in oklab, var(--color-fill) 70%, transparent);
 }
 
 .section-focused {
@@ -532,7 +538,7 @@ dialog::backdrop {
     display: none;
   }
 
-  .word-current {
+  [data-word-current] {
     background: Highlight;
     color: HighlightText;
     forced-color-adjust: none;

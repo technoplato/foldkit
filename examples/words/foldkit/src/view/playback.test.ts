@@ -4,6 +4,7 @@ import { html } from 'foldkit/html'
 import { describe, test } from 'vitest'
 import {
   AcquiredAudioPlayer,
+  CompletedRunPlaybackClock,
   type CompressedCopy,
   FailedObserveCompressedCopy,
   type Message,
@@ -17,6 +18,7 @@ import {
   update,
 } from 'words-core-example'
 
+import { RunClockTime, RunScrubberProgress } from '../mount.js'
 import { playbackBar } from './playback.js'
 
 const recordingID = '7e0f1b2c-3d4e-4f50-8a6b-7c8d9e0f1a2b'
@@ -86,6 +88,10 @@ describe("the words page's bar for a recording in progress (#1299)", () => {
           ObservedCompressedCopy({ recordingID, maybeCopy: Option.some(copy) }),
           AcquiredAudioPlayer(),
         ]),
+      ),
+      Scene.Mount.resolveAll(
+        [RunScrubberProgress, CompletedRunPlaybackClock()],
+        [RunClockTime, CompletedRunPlaybackClock()],
       ),
       Scene.expect(Scene.text('Live audio from iPhone')).toExist(),
       Scene.expect(Scene.role('button', { name: 'Play' })).toExist(),

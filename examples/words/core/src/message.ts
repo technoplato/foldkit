@@ -225,6 +225,8 @@ export const ClickedEnterFullScreen = m('ClickedEnterFullScreen')
 export const ClickedExitFullScreen = m('ClickedExitFullScreen')
 /** The full-screen wall clock started ticking. */
 export const CompletedRunWallClock = m('CompletedRunWallClock')
+/** An effect that reads on from the playback clock at the edge began. */
+export const CompletedRunPlaybackClock = m('CompletedRunPlaybackClock')
 /** Right-clicking a recording row opens its menu from now on. */
 export const CompletedShowRowMenuOnContextMenu = m(
   'CompletedShowRowMenuOnContextMenu',
@@ -377,6 +379,7 @@ export const Message = S.Union([
   ClickedEnterFullScreen,
   ClickedExitFullScreen,
   CompletedRunWallClock,
+  CompletedRunPlaybackClock,
   CompletedShowRowMenuOnContextMenu,
   PressedShortcut,
   ElapsedAnnouncementPause,

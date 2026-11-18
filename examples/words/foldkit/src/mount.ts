@@ -14,13 +14,20 @@ import {
   ChangedListRowFocus,
   ChangedPlayheadVisibility,
   ClickedWord,
+  CompletedRunPlaybackClock,
   CompletedRunWallClock,
   CompletedShowRowMenuOnContextMenu,
   GotShareMessage,
   ListEdge,
+  type PlaybackClock,
   ReachedListTop,
   RecordingWindow,
   Share,
+  type SpokenSection,
+  clockPlaceAt,
+  formatClock,
+  progressFractionOf,
+  spokenAt,
 } from 'words-core-example'
 
 const TOP_BAR_CLEARANCE_PX = 64
@@ -779,4 +786,268 @@ export const ObserveListEdge = Mount.defineStream(
             }),
         ).pipe(Effect.flatMap(() => Effect.never)),
       ),
+)
+
+// PLAYBACK CLOCK
+
+const clockOfElement = (element: Element): PlaybackClock => ({
+  placeSeconds: Number(element.getAttribute('data-clock-place') ?? '0'),
+  rate: Number(element.getAttribute('data-clock-rate') ?? '0'),
+  durationSeconds: Number(element.getAttribute('data-clock-duration') ?? '0'),
+  isMarking: element.getAttribute('data-clock-marking') !== 'false',
+})
+
+const CLOCK_ATTRIBUTES: ReadonlyArray<string> = [
+  'data-clock-place',
+  'data-clock-rate',
+  'data-clock-duration',
+  'data-clock-marking',
+]
+
+/** The spoken word is painted at most this often: it is never marked later than this. */
+const WORD_PAINT_GAP_MS = 40
+
+/** The scrubber and the time beside it are painted at most this often. */
+const BAR_PAINT_GAP_MS = 100
+
+/** How long the scrubber's measured width is trusted before it is read again. */
+const WIDTH_TRUST_MS = 1000
+
+type ClockRunner = Readonly<{ wake: () => void; stop: () => void }>
+
+/**
+ * Calls `paint` with the place the element's clock has reached, every
+ * `paintGapMs` while it runs, once when the clock is told something new
+ * while it stands still, and not at all otherwise. The element carries
+ * the clock the Model said (`data-clock-place`, `-rate`, `-duration`,
+ * `-marking`); this notes the moment each new place or rate arrives and
+ * reads on from there, so the page hears the place about once a second
+ * and still moves on the word. It stops with the tab in the background,
+ * as animation frames do. `wake` paints again after something other than
+ * the clock changed.
+ */
+const runPlaybackClock = (
+  element: Element,
+  paintGapMs: number,
+  paint: (clock: PlaybackClock, placeSeconds: number, nowMs: number) => void,
+): ClockRunner => {
+  const state = {
+    frame: 0,
+    isRunning: false,
+    told: '',
+    anchoredAtMs: performance.now(),
+    paintedAtMs: Number.NEGATIVE_INFINITY,
+  }
+  const step = (nowMs: number) => {
+    if (nowMs - state.paintedAtMs >= paintGapMs) {
+      const told = `${element.getAttribute('data-clock-place') ?? ''}|${element.getAttribute('data-clock-rate') ?? ''}`
+      if (told !== state.told) {
+        state.told = told
+        state.anchoredAtMs = nowMs
+      }
+      const clock = clockOfElement(element)
+      paint(clock, clockPlaceAt(clock, state.anchoredAtMs, nowMs), nowMs)
+      state.paintedAtMs = nowMs
+      if (clock.rate <= 0) {
+        state.isRunning = false
+        return
+      }
+    }
+    state.frame = window.requestAnimationFrame(step)
+  }
+  const wake = () => {
+    state.paintedAtMs = Number.NEGATIVE_INFINITY
+    if (!state.isRunning) {
+      state.isRunning = true
+      state.frame = window.requestAnimationFrame(step)
+    }
+  }
+  const observer = new MutationObserver(wake)
+  observer.observe(element, {
+    attributes: true,
+    attributeFilter: [...CLOCK_ATTRIBUTES],
+  })
+  wake()
+  return {
+    wake,
+    stop: () => {
+      observer.disconnect()
+      window.cancelAnimationFrame(state.frame)
+      state.isRunning = false
+    },
+  }
+}
+
+const onPlaybackClock = (
+  element: Element,
+  paint: (clock: PlaybackClock, placeSeconds: number, nowMs: number) => void,
+) =>
+  Effect.acquireRelease(
+    Effect.sync(() => runPlaybackClock(element, BAR_PAINT_GAP_MS, paint)),
+    runner => Effect.sync(runner.stop),
+  ).pipe(Effect.as(CompletedRunPlaybackClock()))
+
+const SECTION_SELECTOR = '[data-section-seconds]'
+const WORD_CURRENT = 'data-word-current'
+const SECTION_CURRENT = 'data-section-current'
+
+type SpokenElements = Readonly<{
+  sections: ReadonlyArray<SpokenSection>
+  sectionElements: ReadonlyArray<Element>
+  wordElements: ReadonlyArray<ReadonlyArray<Element>>
+}>
+
+const secondsOf = (element: Element, name: string): number =>
+  Number(element.getAttribute(name))
+
+const spokenElementsOf = (transcript: Element): SpokenElements => {
+  const sectionElements = Array.fromIterable(
+    transcript.querySelectorAll(SECTION_SELECTOR),
+  )
+  const wordElements = Array.map(sectionElements, section =>
+    Array.fromIterable(section.querySelectorAll(WORD_SELECTOR)),
+  )
+  return {
+    sectionElements,
+    wordElements,
+    sections: Array.map(sectionElements, (section, index) => ({
+      startSeconds: secondsOf(section, 'data-section-seconds'),
+      wordStarts: Array.map(wordElements[index] ?? [], word =>
+        secondsOf(word, 'data-word-seconds'),
+      ),
+    })),
+  }
+}
+
+const moveMark = (
+  maybeFrom: Element | undefined,
+  maybeTo: Element | undefined,
+  attribute: string,
+): void => {
+  if (maybeFrom !== maybeTo) {
+    maybeFrom?.removeAttribute(attribute)
+  }
+  if (maybeTo !== undefined && !maybeTo.hasAttribute(attribute)) {
+    maybeTo.setAttribute(attribute, '')
+  }
+}
+
+/**
+ * Marks the section and the word being spoken, on the transcript: the
+ * ones the playback clock has reached, by the page's own rule
+ * (`spokenAt`). Only the old and the new word and section are touched.
+ * It reads the sections and words from the page once, and again only
+ * after the page's lines change.
+ */
+export const RunSpokenWord = Mount.define(
+  'RunSpokenWord',
+  CompletedRunPlaybackClock,
+)(element => {
+  const state: {
+    maybeElements: SpokenElements | undefined
+    maybeSection: Element | undefined
+    maybeWord: Element | undefined
+  } = {
+    maybeElements: undefined,
+    maybeSection: undefined,
+    maybeWord: undefined,
+  }
+  const paint = (clock: PlaybackClock, placeSeconds: number): void => {
+    const elements = state.maybeElements ?? spokenElementsOf(element)
+    state.maybeElements = elements
+    const spoken = clock.isMarking
+      ? spokenAt(elements.sections, placeSeconds)
+      : { maybeSection: Option.none(), maybeWord: Option.none() }
+    const maybeSectionIndex = Option.getOrUndefined(spoken.maybeSection)
+    const maybeSection =
+      maybeSectionIndex === undefined
+        ? undefined
+        : elements.sectionElements[maybeSectionIndex]
+    const maybeWord =
+      maybeSectionIndex === undefined
+        ? undefined
+        : Option.getOrUndefined(
+            Option.flatMap(spoken.maybeWord, index =>
+              Option.fromNullishOr(
+                elements.wordElements[maybeSectionIndex]?.[index],
+              ),
+            ),
+          )
+    moveMark(state.maybeSection, maybeSection, SECTION_CURRENT)
+    moveMark(state.maybeWord, maybeWord, WORD_CURRENT)
+    state.maybeSection = maybeSection
+    state.maybeWord = maybeWord
+  }
+  return Effect.acquireRelease(
+    Effect.sync(() => {
+      const runner = runPlaybackClock(element, WORD_PAINT_GAP_MS, paint)
+      // NOTE: when the page's lines change, the lists of sections and
+      // words are read again, and the mark is put back at once, also while
+      // the clock stands still.
+      const lines = new MutationObserver(() => {
+        state.maybeElements = undefined
+        runner.wake()
+      })
+      lines.observe(element, { childList: true, subtree: true })
+      return { runner, lines }
+    }),
+    ({ runner, lines }) =>
+      Effect.sync(() => {
+        lines.disconnect()
+        runner.stop()
+        state.maybeSection?.removeAttribute(SECTION_CURRENT)
+        state.maybeWord?.removeAttribute(WORD_CURRENT)
+      }),
+  ).pipe(Effect.as(CompletedRunPlaybackClock()))
+})
+
+/**
+ * Moves the scrubber's thumb and its filled track with the playback
+ * clock, between the Model's own reports of the place.
+ */
+export const RunScrubberProgress = Mount.define(
+  'RunScrubberProgress',
+  CompletedRunPlaybackClock,
+)(element => {
+  const state = {
+    halfPixels: Number.NaN,
+    width: 0,
+    measuredAtMs: Number.NEGATIVE_INFINITY,
+  }
+  return onPlaybackClock(element, (clock, placeSeconds, nowMs) => {
+    const fraction = progressFractionOf(placeSeconds, clock.durationSeconds)
+    // NOTE: reading an element's width makes the browser settle its
+    // styles first, so the width is read once a second, not on every
+    // paint; and the thumb is drawn again only when it would move by half
+    // a pixel, so a long recording does not lay the bar out for nothing.
+    if (nowMs - state.measuredAtMs >= WIDTH_TRUST_MS) {
+      state.width = element.clientWidth
+      state.measuredAtMs = nowMs
+    }
+    const halfPixels = Math.round(fraction * state.width * 2)
+    if (halfPixels !== state.halfPixels && element instanceof HTMLElement) {
+      state.halfPixels = halfPixels
+      element.style.setProperty('--progress', `${fraction * 100}%`)
+      element.style.setProperty('--progress-fraction', String(fraction))
+    }
+  })
+})
+
+/**
+ * Turns the time beside the scrubber over on the second, with the
+ * playback clock, between the Model's own reports of the place. It
+ * writes into the text the view put there, so the view's next report
+ * finds its own text to change.
+ */
+export const RunClockTime = Mount.define(
+  'RunClockTime',
+  CompletedRunPlaybackClock,
+)(element =>
+  onPlaybackClock(element, (_clock, placeSeconds) => {
+    const text = formatClock(placeSeconds)
+    const maybeText = element.firstChild
+    if (maybeText instanceof Text && maybeText.nodeValue !== text) {
+      maybeText.nodeValue = text
+    }
+  }),
 )

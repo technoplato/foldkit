@@ -1,4 +1,4 @@
-import { Array, Match as M, Option, Record, pipe } from 'effect'
+import { Array, Match as M, Option, Record } from 'effect'
 import { type Html, createKeyedLazy, createLazy, html } from 'foldkit/html'
 import {
   ClickedCopySectionLink,
@@ -13,29 +13,33 @@ import {
   type Section,
   type Word,
   type WordsSeal,
-  displayedPositionOf,
   followedSectionOf,
   formatClock,
   isAudioPlayableOf,
-  isFollowingLiveEdgeOf,
   isLiveRecording,
   sealedLineTextOf,
-  sectionAt,
   sectionElementIDOf,
   sectionPlaybackStart,
   speakerLabelOf,
   speakerRunStartIDsOf,
   timelineOf,
-  wordAt,
 } from 'words-core-example'
 
-import { ObservePlayheadVisibility, TrackWordClicks } from '../mount.js'
+import {
+  ObservePlayheadVisibility,
+  RunSpokenWord,
+  TrackWordClicks,
+} from '../mount.js'
+import { clockAttributes } from './clock.js'
 import { type IconName, icon } from './icon.js'
 
 const sectionSlots = createKeyedLazy()
 const transcriptSlot = createLazy()
 
-const wordView = (word: Word, isActive: boolean, isPlayable: boolean): Html => {
+// NOTE: The view does not mark the word being spoken. It says when each
+// word starts, and the edge marks the one the playback clock has reached
+// (RunSpokenWord), so the place need only be heard about once a second.
+const wordView = (word: Word, isPlayable: boolean): Html => {
   const h = html<Message>()
   return h.span(
     [
@@ -43,7 +47,7 @@ const wordView = (word: Word, isActive: boolean, isPlayable: boolean): Html => {
       ...(isPlayable
         ? [h.DataAttribute('word-seconds', String(word.startSeconds))]
         : []),
-      h.Class(`${isPlayable ? 'word' : ''} ${isActive ? 'word-current' : ''}`),
+      h.Class(isPlayable ? 'word' : ''),
     ],
     [`${word.text} `],
   )
@@ -195,11 +199,7 @@ const sealedLineWords = (seal: WordsSeal): Html => {
   )
 }
 
-const openLineWords = (
-  section: Section,
-  activeWordID: string | undefined,
-  isPlayable: boolean,
-): Html => {
+const openLineWords = (section: Section, isPlayable: boolean): Html => {
   const h = html<Message>()
   return h.p(
     [
@@ -209,28 +209,19 @@ const openLineWords = (
     ],
     Array.match(section.words, {
       onEmpty: () => [section.text],
-      onNonEmpty: words =>
-        Array.map(words, word =>
-          wordView(word, word.id === activeWordID, isPlayable),
-        ),
+      onNonEmpty: words => Array.map(words, word => wordView(word, isPlayable)),
     }),
   )
 }
 
-const lineWords = (
-  section: Section,
-  activeWordID: string | undefined,
-  isPlayable: boolean,
-): Html =>
+const lineWords = (section: Section, isPlayable: boolean): Html =>
   Option.match(section.maybeWordsSeal, {
-    onNone: () => openLineWords(section, activeWordID, isPlayable),
+    onNone: () => openLineWords(section, isPlayable),
     onSome: sealedLineWords,
   })
 
 const sectionView = (
   section: Section,
-  activeWordID: string | undefined,
-  isCurrent: boolean,
   isFocused: boolean,
   isFollowed: boolean,
   speakerLabel: string | undefined,
@@ -239,13 +230,13 @@ const sectionView = (
   maybeMomentHref?: string,
 ): Html => {
   const h = html<Message>()
-  const surface = isCurrent ? 'bg-fill/70' : ''
   return h.article(
     [
       h.Key(section.id),
       h.Id(sectionElementIDOf(section.id)),
+      h.DataAttribute('section-seconds', String(section.startSeconds)),
       h.Class(
-        `relative grid grid-cols-[calc(var(--type-unit)*56)_minmax(0,1fr)] gap-x-2 rounded-2xl px-2 py-1 transition sm:grid-cols-[calc(var(--type-unit)*68)_minmax(0,1fr)] ${surface} ${isFocused ? 'section-focused' : ''}`,
+        `relative grid grid-cols-[calc(var(--type-unit)*56)_minmax(0,1fr)] gap-x-2 rounded-2xl px-2 py-1 transition sm:grid-cols-[calc(var(--type-unit)*68)_minmax(0,1fr)] ${isFocused ? 'section-focused' : ''}`,
       ),
     ],
     [
@@ -263,7 +254,7 @@ const sectionView = (
                   [speakerLabel],
                 ),
               ]),
-          lineWords(section, activeWordID, isPlayable),
+          lineWords(section, isPlayable),
         ],
       ),
       ...(isFollowed ? [playheadSentinel(section)] : []),
@@ -342,8 +333,6 @@ const imageView = (
 const timelineView = (
   detail: RecordingDetail,
   fileUrls: FileUrls,
-  currentSectionID: string | undefined,
-  activeWordID: string | undefined,
   focusedSectionID: string | undefined,
   followedSectionID: string | undefined,
   isPlayable: boolean,
@@ -359,8 +348,6 @@ const timelineView = (
           SectionEntry: ({ section }) =>
             sectionSlots(section.id, sectionView, [
               section,
-              section.id === currentSectionID ? activeWordID : undefined,
-              section.id === currentSectionID,
               section.id === focusedSectionID,
               section.id === followedSectionID,
               Array.contains(runStartIDs, section.id)
@@ -416,19 +403,11 @@ export const transcript = (
   isFullScreen: boolean,
 ): Html => {
   const h = html<Message>()
-  const position = displayedPositionOf(ready)
-  const maybeCurrent = isFollowingLiveEdgeOf(ready)
-    ? Option.none<Section>()
-    : sectionAt(ready.detail.sections, position)
-  const activeWordID = pipe(
-    maybeCurrent,
-    Option.flatMap(section => wordAt(section, position)),
-    Option.map(word => word.id),
-    Option.getOrUndefined,
-  )
   return h.section(
     [
       h.AriaLabel('Transcript'),
+      ...clockAttributes(ready),
+      h.OnMount(RunSpokenWord()),
       h.Class(
         `mx-auto w-full max-w-3xl pb-52 sm:px-4 min-[100rem]:max-w-[61rem] ${isFullScreen ? 'pl-2 pr-10 pt-16' : 'px-2 pt-2'}`,
       ),
@@ -446,8 +425,6 @@ export const transcript = (
           transcriptSlot(timelineView, [
             ready.detail,
             ready.fileUrls,
-            sectionIDOf(maybeCurrent),
-            activeWordID,
             Option.getOrUndefined(ready.maybeFocusedSectionID),
             sectionIDOf(followedSectionOf(ready)),
             isAudioPlayableOf(ready),
@@ -470,8 +447,6 @@ export const readOnlySections = (
     Array.map(sections, section =>
       sectionView(
         section,
-        undefined,
-        false,
         false,
         false,
         Array.contains(runStartIDs, section.id)

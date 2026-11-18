@@ -2656,10 +2656,7 @@ const isSharedLineOnScreen = (
  * A moment of a share has its own link, `m` naming the line (#1465): the page moves to that line when
  * the link is followed or when the line first arrives, and leaves a reader's scrolling alone after that.
  */
-const momentScrolls = (
-  before: Model,
-  after: Model,
-): Commands =>
+const momentScrolls = (before: Model, after: Model): Commands =>
   M.value(after.route).pipe(
     M.withReturnType<Commands>(),
     M.tag('Share', ({ shareID, m }) =>
@@ -3239,6 +3236,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ClickedExitFullScreen: () =>
         updateReady(model, ready => withScreenMode(ready, 'Standard')),
       CompletedRunWallClock: () => [model, []],
+      CompletedRunPlaybackClock: () => [model, []],
       CompletedShowRowMenuOnContextMenu: () => [model, []],
       ElapsedFocusHighlight: ({ revision }) =>
         evolveReady(model, ready =>

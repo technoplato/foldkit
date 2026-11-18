@@ -16,9 +16,9 @@ import {
   MediaSessionSkip,
   type NowPlaying,
   SKIP_SECONDS,
+  positionReportIntervalMs,
 } from 'words-core-example'
 
-const POSITION_INTERVAL_MS = 100
 const METADATA_TIMEOUT = Duration.seconds(5)
 const NOW_PLAYING_ARTWORK: ReadonlyArray<MediaImage> = [
   { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -157,6 +157,10 @@ const eventsOf = (element: HTMLAudioElement): Stream.Stream<AudioPlayerEvent> =>
       Effect.sync(() => {
         const emit = (event: AudioPlayerEvent) =>
           Queue.offerUnsafe(queue, event)
+        // NOTE: The place is reported about once a second while it plays,
+        // and at once on play, pause and seek. The page moves on the word
+        // between reports by reading on from the playback clock at the
+        // edge, so it is not told the place on every timeupdate.
         const emitPosition = () => {
           emit(HeardAudioPosition({ seconds: element.currentTime }))
         }
@@ -167,7 +171,6 @@ const eventsOf = (element: HTMLAudioElement): Stream.Stream<AudioPlayerEvent> =>
           }
         }
         const listeners: ReadonlyArray<readonly [string, () => void]> = [
-          ['timeupdate', emitPosition],
           [
             'seeked',
             () => {
@@ -180,6 +183,7 @@ const eventsOf = (element: HTMLAudioElement): Stream.Stream<AudioPlayerEvent> =>
             'playing',
             () => {
               emit(HeardAudioPlaying())
+              emitPosition()
               publishPlaybackState('playing')
               publishPosition(element)
             },
@@ -187,6 +191,7 @@ const eventsOf = (element: HTMLAudioElement): Stream.Stream<AudioPlayerEvent> =>
           [
             'pause',
             () => {
+              emitPosition()
               emit(HeardAudioPaused())
               publishPlaybackState('paused')
               publishPosition(element)
@@ -207,7 +212,7 @@ const eventsOf = (element: HTMLAudioElement): Stream.Stream<AudioPlayerEvent> =>
           if (!element.paused) {
             emitPosition()
           }
-        }, POSITION_INTERVAL_MS)
+        }, positionReportIntervalMs)
         emitDuration()
         emitPosition()
         return { listeners, interval, mediaActionHandlers }
