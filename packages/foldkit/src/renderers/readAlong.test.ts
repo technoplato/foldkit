@@ -92,7 +92,10 @@ describe('what a search finds', () => {
       ]),
     ).toEqual([
       ['', 'was lit at dusk. Gulls settled on the'],
-      ['was lit at dusk. Gulls settled on', 'rail. A boat rounded the point.'],
+      [
+        'lamp was lit at dusk. Gulls settled on',
+        'rail. A boat rounded the point.',
+      ],
     ])
   })
 
@@ -104,26 +107,30 @@ describe('what a search finds', () => {
   })
 
   it('searches sixteen hours of words fast enough to answer as a person types', () => {
-    const vocabulary = [
-      'lamp',
-      'harbour',
-      'keeper',
-      'tide',
-      'gull',
-      'lantern',
-      'the',
-      'and',
-      'of',
-      'weather,',
-      'Stairs.',
-      'rope',
+    const sentences = [
+      'The lantern keeper climbed the stairs at dusk.',
+      'Gulls settled on the harbour rail, and waited.',
+      'A boat rounded the point before the weather turned.',
+      'He trimmed the wick — then lit the lamp.',
+      'Far out a bell answered the lantern.',
     ]
     const sixteenHoursOfWords = 150_000
-    const texts = Array.makeBy(
+    const wordsPerSentence = 8
+    const texts = Array.take(
+      Array.flatMap(
+        Array.makeBy(
+          sixteenHoursOfWords / wordsPerSentence + sentences.length,
+          index => (index * 3 + Math.floor(index / 7)) % sentences.length,
+        ),
+        pick =>
+          Option.match(Array.get(sentences, pick), {
+            onNone: () => [],
+            onSome: sentence => sentence.split(' '),
+          }),
+      ),
       sixteenHoursOfWords,
-      index =>
-        `${vocabulary[(index * 7 + Math.floor(index / 13)) % vocabulary.length] ?? ''}${index % 97 === 0 ? 'x' : ''}`,
     )
+    expect(texts.length).toBe(sixteenHoursOfWords)
     const startedAt = performance.now()
     const found = matchesIn(texts, 'the lantern keep')
     const tookMs = performance.now() - startedAt
@@ -141,14 +148,14 @@ describe('marking what a search found', () => {
     )
 
   it('marks every word found, and the match a person is on apart from the rest', () => {
-    expect(marksOf(transcriptWithMatches(lighthouse, 'the lamp', 13_200))).toEqual(
-      [
-        ['a0', 'Found'],
-        ['a1', 'Found'],
-        ['b3', 'Selected'],
-        ['b4', 'Selected'],
-      ],
-    )
+    expect(
+      marksOf(transcriptWithMatches(lighthouse, 'the lamp', 13_200)),
+    ).toEqual([
+      ['a0', 'Found'],
+      ['a1', 'Found'],
+      ['b3', 'Selected'],
+      ['b4', 'Selected'],
+    ])
     expect(marksOf(transcriptWithMatches(lighthouse, 'lamp'))).toEqual([
       ['a1', 'Found'],
       ['b4', 'Found'],

@@ -205,11 +205,24 @@ export type BoxNode = Readonly<{
 }>
 
 /**
+ * What a seek bar lands on from `value` on, in words: the paragraph that
+ * starts there, `12:03 · The keeper climbed the stairs`, or a chapter by
+ * its name where its words are not at hand.
+ */
+export type SeekLanding = Readonly<{
+  readonly value: number
+  readonly text: string
+}>
+
+/**
  * A place on a timeline a person moves, a seek bar: `value` between `min`
  * and `max` in the Program's own unit, moved in `step`s. `min` defaults to
  * 0; a chapter's bar starts at the chapter's start. Moving it presses `action`
  * with the new value as its choice, `SeekTo:723000`. `valueText` is how
  * the place reads, `12:03 of 9:13:01`, for a screen reader and a terminal.
+ * `landings`, in order of `value`, say what a drag will land on before it
+ * is let go: a painter shows the one `seekLandingAt` gives for the place
+ * under the drag.
  */
 export type SeekNode = Readonly<{
   readonly _tag: 'Seek'
@@ -221,18 +234,37 @@ export type SeekNode = Readonly<{
   readonly label: string
   readonly valueText: string
   readonly disabled?: boolean
+  readonly landings?: ReadonlyArray<SeekLanding>
 }>
+
+/**
+ * How a search marks a word of a Transcript: `Found` for a word it
+ * found, `Selected` for a word of the match a person is on.
+ */
+export type TranscriptWordMark = 'Found' | 'Selected'
 
 /**
  * One word of a Transcript: its text, the token a press sends, whether it
  * is the one sounding now, and, when the Transcript has a clock, the place
- * the word starts at on it, `startMs`.
+ * the word starts at on it, `startMs`. `mark` is set on a word a search
+ * found.
  */
 export type TranscriptWord = Readonly<{
   readonly token: string
   readonly text: string
   readonly isCurrent?: boolean
   readonly startMs?: number
+  readonly mark?: TranscriptWordMark
+}>
+
+/**
+ * Something a person can do with one word besides play from it, offered
+ * in the word's menu: `Copy link to this word` presses `action` with the
+ * word's token, `CopyWordLink:w4012`.
+ */
+export type TranscriptWordAction = Readonly<{
+  readonly action: string
+  readonly label: string
 }>
 
 /**
@@ -273,6 +305,15 @@ export type TranscriptPassage = Readonly<{
  * what shows while there are no passages. With a `clock` and each word's
  * `startMs`, the marks say which word was sounding when the Program last
  * heard the place, and `transcriptAt` says which is sounding now.
+ *
+ * The view and the word sounding can differ. `isFollowing` is false while
+ * a person reads somewhere else: a painter then leaves the view where it
+ * is and never pulls it back to the word sounding. `leaveAction` is what
+ * a painter with a scrolling view presses when a person scrolls the word
+ * sounding out of it, `LeavePlayhead`, so the Program knows and can offer
+ * the way back. `focusToken` names a word to bring into view when it
+ * changes, such as the match a person stepped to. `wordActions` are what
+ * a word's menu offers besides playing from it.
  */
 export type TranscriptNode = Readonly<{
   readonly _tag: 'Transcript'
@@ -281,6 +322,10 @@ export type TranscriptNode = Readonly<{
   readonly passages: ReadonlyArray<TranscriptPassage>
   readonly emptyText: string
   readonly clock?: TranscriptClock
+  readonly isFollowing?: boolean
+  readonly leaveAction?: string
+  readonly focusToken?: string
+  readonly wordActions?: ReadonlyArray<TranscriptWordAction>
 }>
 
 /**

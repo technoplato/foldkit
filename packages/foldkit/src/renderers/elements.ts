@@ -14,6 +14,7 @@ import type {
   ProgressNode,
   ReferencePart,
   RowNode,
+  SeekLanding,
   SeekNode,
   SpacerNode,
   TextEmbed,
@@ -25,6 +26,7 @@ import type {
   TranscriptClock,
   TranscriptNode,
   TranscriptPassage,
+  TranscriptWordAction,
   UiNode,
 } from './types.js'
 
@@ -346,6 +348,7 @@ export const Seek = (
     label: string
     valueText: string
     disabled?: boolean
+    landings?: ReadonlyArray<SeekLanding>
   }>,
 ): SeekNode => ({
   _tag: 'Seek',
@@ -357,6 +360,7 @@ export const Seek = (
   label: props.label,
   valueText: props.valueText,
   ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
+  ...(props.landings === undefined ? {} : { landings: props.landings }),
 })
 
 /**
@@ -379,6 +383,10 @@ export const Transcript = (
     emptyText: string
     passages: ReadonlyArray<TranscriptPassage>
     clock?: TranscriptClock
+    isFollowing?: boolean
+    leaveAction?: string
+    focusToken?: string
+    wordActions?: ReadonlyArray<TranscriptWordAction>
   }>,
 ): TranscriptNode => ({
   _tag: 'Transcript',
@@ -387,6 +395,16 @@ export const Transcript = (
   emptyText: props.emptyText,
   passages: props.passages,
   ...(props.clock === undefined ? {} : { clock: props.clock }),
+  ...(props.isFollowing === undefined
+    ? {}
+    : { isFollowing: props.isFollowing }),
+  ...(props.leaveAction === undefined
+    ? {}
+    : { leaveAction: props.leaveAction }),
+  ...(props.focusToken === undefined ? {} : { focusToken: props.focusToken }),
+  ...(props.wordActions === undefined
+    ? {}
+    : { wordActions: props.wordActions }),
 })
 
 /**
