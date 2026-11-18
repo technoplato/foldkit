@@ -89,7 +89,9 @@ describe('the look of a list in groups, and of a badge', () => {
 
 describe('the look of a mark in words read along with', () => {
   it('underlines the marked word in the soft color of a person’s own mark', () => {
-    expect(ruleOf(':where(.fk-word[data-ribbon])')).toContain(roleVar('MarkSoft'))
+    expect(ruleOf(':where(.fk-word[data-ribbon])')).toContain(
+      roleVar('MarkSoft'),
+    )
   })
 
   it('sets the mark in the margin at the word’s own line, as a ribbon', () => {

@@ -98,7 +98,11 @@ describe('listenForHints', () => {
 
   it('says why the user would press it, under what it does', () => {
     listen()
-    fire(hinted({ ...play, 'data-hint-why': 'To go on listening' }), 'focusin')
+    fire(
+      hinted({ ...play, 'data-hint-why': 'To go on listening' }),
+      'pointerover',
+    )
+    vi.advanceTimersByTime(hintShowDelayMs)
     const lines = Array.from(
       tooltip()?.querySelector('.fk-hint-text')?.children ?? [],
       line => line.className,

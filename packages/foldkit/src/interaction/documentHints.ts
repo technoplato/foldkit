@@ -78,6 +78,7 @@ const fillHint = (
     ...linesOf(target, [
       ['fk-hint-title', from.getAttribute('data-hint-title')],
       ['fk-hint-what', from.getAttribute('data-hint')],
+      ['fk-hint-why', from.getAttribute('data-hint-why')],
       ['fk-hint-because', from.getAttribute('data-hint-because')],
     ]),
   )

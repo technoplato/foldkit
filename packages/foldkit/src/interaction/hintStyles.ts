@@ -90,7 +90,7 @@ export const hintStylesheet = `
   font-weight: 600;
 }
 
-:where(.fk-hint-because, .fk-echo-note) {
+:where(.fk-hint-why, .fk-hint-because, .fk-echo-note) {
   opacity: 0.75;
 }
 
