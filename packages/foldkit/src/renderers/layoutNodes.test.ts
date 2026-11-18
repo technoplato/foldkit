@@ -68,4 +68,11 @@ describe('layout that only organizes', () => {
       )
     expect(unbalanced).toEqual([])
   })
+
+  it('on a narrow window a toolbar gives its start the room and keeps the rest to the side', () => {
+    const narrow = screenStylesheet.slice(
+      screenStylesheet.indexOf('@media (max-width: 560px)'),
+    )
+    expect(narrow).toContain('grid-template-columns: minmax(0, 1fr) auto auto')
+  })
 })

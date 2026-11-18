@@ -974,6 +974,10 @@ ${themeStylesheet(defaultTheme)}
 }
 
 @media (max-width: 560px) {
+  :where(.fk-row[data-arrange="Toolbar"]) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
   :where(.fk-transcript) {
     width: 100vw;
     max-width: 100vw;
