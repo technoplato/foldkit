@@ -108,3 +108,23 @@ describe('the look of a mark in words read along with', () => {
     )
   })
 })
+
+describe('the look of the tabs that head a drawer', () => {
+  it('sets them side by side as one control, the one showing raised', () => {
+    const row = ruleOf(
+      ":where(.fk-overlay[data-style='Drawer'] .fk-row:has(> .fk-button[data-variant='Tab']))",
+    )
+    expect(row).toContain(`background: ${roleVar('Surface')}`)
+    expect(row).toContain('border-radius: 12px')
+    const current = ruleOf(
+      ":where(.fk-overlay[data-style='Drawer'] .fk-button[data-variant='Tab'][data-current])",
+    )
+    expect(current).toContain(`background: ${roleVar('RaisedSurface')}`)
+  })
+
+  it('lets a row in a list with a head run to three lines', () => {
+    expect(ruleOf(':where(.fk-list-frame .fk-item-title)')).toContain(
+      '-webkit-line-clamp: 3',
+    )
+  })
+})

@@ -134,6 +134,116 @@ describe('NavigationFrame', () => {
   })
 })
 
+describe('NavigationFrame: a drawer', () => {
+  const withKeyboardAtHand = (isAtHand: boolean): void => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: isAtHand })),
+    )
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('is marked with the side it comes from, and is not announced as modal', () => {
+    const bound = bindRouted()
+    const { container } = renderWith(bound)
+    act(() => {
+      bound.openUri('/counter/history', Navigation.Link())
+    })
+    const left = container.querySelector('.fk-overlay[data-style="Drawer"]')
+    expect(left?.getAttribute('data-side')).toBe('Left')
+    expect(left?.getAttribute('aria-modal')).toBe('false')
+    act(() => {
+      bound.openUri('/counter/about', Navigation.Link())
+    })
+    expect(
+      container
+        .querySelector('.fk-overlay[data-style="Drawer"]')
+        ?.getAttribute('data-side'),
+    ).toBe('Right')
+  })
+
+  it('leaves a Sheet without a side, and modal', () => {
+    const bound = bindRouted()
+    const { container } = renderWith(bound)
+    act(() => {
+      bound.press('OpenSessionSettings')
+    })
+    const sheet = container.querySelector('.fk-overlay[data-style="Sheet"]')
+    expect(sheet?.hasAttribute('data-side')).toBe(false)
+    expect(sheet?.getAttribute('aria-modal')).toBe('true')
+  })
+
+  it('opens with the keyboard in its field where a keyboard is at hand', () => {
+    withKeyboardAtHand(true)
+    const bound = bindRouted()
+    renderWith(bound)
+    act(() => {
+      bound.openUri('/counter/history', Navigation.Link())
+    })
+    expect(document.activeElement).toBe(
+      screen.getByRole('searchbox', { name: 'Find a count in the history' }),
+    )
+  })
+
+  it('opens with the keyboard on the drawer itself, on no button and no field, where there is none', () => {
+    withKeyboardAtHand(false)
+    const bound = bindRouted()
+    const { container } = renderWith(bound)
+    act(() => {
+      bound.openUri('/counter/history', Navigation.Link())
+    })
+    expect(document.activeElement).toBe(
+      container.querySelector('.fk-overlay[data-style="Drawer"]'),
+    )
+  })
+
+  it('opens a drawer without a field with the keyboard on the drawer itself', () => {
+    withKeyboardAtHand(true)
+    const bound = bindRouted()
+    const { container } = renderWith(bound)
+    act(() => {
+      bound.openUri('/counter/about', Navigation.Link())
+    })
+    expect(document.activeElement).toBe(
+      container.querySelector('.fk-overlay[data-style="Drawer"]'),
+    )
+  })
+
+  it('still opens a Sheet with the keyboard on its first button', () => {
+    withKeyboardAtHand(true)
+    const bound = bindRouted()
+    const { container } = renderWith(bound)
+    act(() => {
+      bound.press('OpenSessionSettings')
+    })
+    expect(document.activeElement?.tagName).toBe('BUTTON')
+    expect(
+      container
+        .querySelector('.fk-overlay[data-style="Sheet"]')
+        ?.contains(document.activeElement),
+    ).toBe(true)
+  })
+
+  it('keeps the left and right arrows with the field’s caret, and moves to the first row on the down arrow', () => {
+    withKeyboardAtHand(true)
+    const bound = bindRouted()
+    renderWith(bound)
+    act(() => {
+      bound.openUri('/counter/history', Navigation.Link())
+    })
+    const field = screen.getByRole('searchbox')
+    fireEvent.keyDown(field, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(field)
+    fireEvent.keyDown(field, { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(field)
+    fireEvent.keyDown(field, { key: 'ArrowDown' })
+    expect(document.activeElement?.textContent).toContain('One')
+  })
+})
+
 describe('useBrowserHistory', () => {
   it('writes each Program move to the address bar', async () => {
     const bound = bindRouted()

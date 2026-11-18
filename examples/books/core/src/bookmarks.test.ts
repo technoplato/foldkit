@@ -10,6 +10,7 @@ import {
   type ListItem,
   type ListNode,
   type UiNode,
+  buttonsOf,
   transcriptsOf,
 } from 'foldkit/renderers'
 import {
@@ -425,6 +426,18 @@ describe('One bookmark', () => {
     expect(uriOf(bound)).toEqual(
       Option.some('/books/the-lantern-keeper/listen/20m30s/bookmarks/b-snow'),
     )
+    expect(
+      Array.map(
+        Array.filter(
+          buttonsOf(panelOf(bound)),
+          button => button.variant === 'Tab',
+        ),
+        button => [button.label, button.isCurrent === true, button.action],
+      ),
+    ).toEqual([
+      ['Contents', false, 'ShowContents'],
+      ['Bookmarks 3', true, 'ShowBookmarks'],
+    ])
     bound.press('SetBookmarkNote:where the road closes')
     expect(writesOf(written)).toEqual([
       {
