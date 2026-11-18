@@ -1423,4 +1423,12 @@ ${themeStylesheet(defaultTheme)}
   font-weight: 700;
   text-align: left;
 }
+
+@media (max-width: 560px) {
+  :where(.fk-word-mark) {
+    left: 0;
+    width: 6px;
+    height: 12px;
+  }
+}
 `

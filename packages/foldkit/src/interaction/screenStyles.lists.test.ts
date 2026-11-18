@@ -142,3 +142,15 @@ describe('the look of a heading over a list with a head', () => {
     expect(heading).toContain('text-align: left')
   })
 })
+
+describe('the look of a mark on a narrow window', () => {
+  it('draws the ribbon narrower than the paragraph’s side padding there, clear of the words', () => {
+    const start = screenStylesheet.indexOf(
+      '@media (max-width: 560px) {\n  :where(.fk-word-mark)',
+    )
+    expect(start).toBeGreaterThan(0)
+    const narrow = screenStylesheet.slice(start, start + 200)
+    expect(narrow).toContain('left: 0')
+    expect(narrow).toContain('width: 6px')
+  })
+})
