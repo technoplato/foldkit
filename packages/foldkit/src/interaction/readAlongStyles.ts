@@ -168,6 +168,16 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
   color: ${roleVar('QuietText')};
 }
 
+/* A seek bar that names its landings sits in a wrapper that takes no room
+   of its own, so the bar lays out as a bar alone does. */
+:where(.fk-seek-field) {
+  display: contents;
+}
+
+:where(.fk-seek-landing[hidden]) {
+  display: none;
+}
+
 :where(.fk-seek-landing) {
   display: block;
   color: ${roleVar('Text')};

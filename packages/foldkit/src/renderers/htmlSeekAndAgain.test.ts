@@ -36,6 +36,12 @@ type Vnode = Readonly<{
   children?: ReadonlyArray<Vnode | string>
 }>
 
+const treeOf = (node: Parameters<typeof paintHtml>[0]): Vnode =>
+  // NOTE: the painter returns the library's own element tree, read here
+  // as plain data.
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  paintHtml(node, tag => tag) as unknown as Vnode
+
 const until = async (isSo: () => boolean): Promise<void> => {
   const tries = Array.from({ length: 400 })
   for (const _ of tries) {
@@ -113,10 +119,10 @@ describe('where a seek drag lands, in the Foldkit HTML painter', () => {
     })
     input.value = '41000'
     input.dispatchEvent(new Event('input', { bubbles: true }))
-    await until(() => !output.hidden)
+    await until(() => output.hidden === false)
     expect(output.textContent).toBe('0:40 · Then the fog came in')
     input.dispatchEvent(new Event('change', { bubbles: true }))
-    await until(() => output.hidden)
+    await until(() => output.hidden === true)
     expect(output.hidden).toBe(true)
     expect(input.getAttribute('aria-valuetext')).toBe('0:05 of 1:00')
     await Effect.runPromise(Fiber.interrupt(fiber))
@@ -133,17 +139,10 @@ describe('Enter again in a text field, in the Foldkit HTML painter', () => {
   })
 
   it('listens for Enter pressed again on a field that has an again action', () => {
-    // NOTE: the painter returns the library's own element tree, read here
-    // as plain data.
-    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-    const input = paintHtml(searchField, tag => tag) as unknown as Vnode
+    const input = treeOf(searchField)
     expect(typeof input.data?.on?.[againEventName]).toBe('function')
     expect(JSON.stringify(input)).toContain('"data-shown":"lamp"')
-    const plain = paintHtml(
-      TextInput({ value: 'lamp', action: 'SearchFor' }),
-      tag => tag,
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-    ) as unknown as Vnode
+    const plain = treeOf(TextInput({ value: 'lamp', action: 'SearchFor' }))
     expect(plain.data?.on?.[againEventName]).toBeUndefined()
   })
 

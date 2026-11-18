@@ -16,7 +16,10 @@ import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
 import {
+  againEventName,
   leftPlayheadEventName,
+  seekFieldMount,
+  textAgainMount,
   transcriptMount,
   wordMenuMount,
 } from './htmlEdge.js'
@@ -291,6 +294,10 @@ export const paintHtml = <Message>(
               ),
               () => new Error(`nothing to submit: ${input.action ?? ''}`),
             )
+          const againMessage =
+            input.againAction === undefined
+              ? undefined
+              : toMessage(input.againAction)
           const attrs = [
             h.Type('text'),
             h.Class('fk-text-input'),
@@ -306,6 +313,19 @@ export const paintHtml = <Message>(
             ...(input.action === undefined
               ? []
               : [h.EnterKeyHint('done'), h.OnChange(submittedMessage)]),
+            // NOTE: Enter on text the field already shows presses its again
+            // action, such as the next match. The edge notices the key and
+            // the unchanged text, and the view answers its event.
+            ...(againMessage === undefined
+              ? []
+              : [
+                  h.DataAttribute('shown', input.value),
+                  OnCustomEvent<Message>({
+                    name: againEventName,
+                    f: () => againMessage,
+                  }),
+                  h.OnMount(textAgainMount<Message>()),
+                ]),
           ]
           return h.input(attrs)
         },
@@ -458,7 +478,7 @@ export const paintHtml = <Message>(
             }
             throw new Error(`unknown seek: ${seek.action}:${value}`)
           }
-          return h.input([
+          const bar = h.input([
             h.Type('range'),
             h.Class('fk-seek'),
             h.Min((seek.min ?? 0).toString()),
@@ -471,6 +491,22 @@ export const paintHtml = <Message>(
               ? [h.Disabled(true)]
               : [h.OnChange(messageAt)]),
           ])
+          // NOTE: a bar that names what a drag lands on is painted beside a
+          // place for the name; the view says the landings, and the edge
+          // shows the one under the drag. A bar with none is the bar alone.
+          return seek.landings === undefined || seek.landings.length === 0
+            ? bar
+            : h.span(
+                [
+                  h.Class('fk-seek-field'),
+                  h.DataAttribute('landings', JSON.stringify(seek.landings)),
+                  h.OnMount(seekFieldMount<Message>()),
+                ],
+                [
+                  bar,
+                  h.output([h.Class('fk-seek-landing'), h.Hidden(true)], []),
+                ],
+              )
         },
         Transcript: transcript =>
           h.section(

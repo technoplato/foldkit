@@ -359,11 +359,16 @@ const wordWithToken = (transcript: Element, token: string): Element | null =>
  * moves nothing once they do not.
  */
 const runFollow = (transcript: Element): (() => void) => {
-  const state = {
+  const state: {
+    userScrolledAtMs: number
+    ownScrollUntilMs: number
+    leaveCheck: number
+    maybeFollowed: Element | undefined
+  } = {
     userScrolledAtMs: Number.NEGATIVE_INFINITY,
     ownScrollUntilMs: Number.NEGATIVE_INFINITY,
     leaveCheck: 0,
-    maybeFollowed: undefined as Element | undefined,
+    maybeFollowed: undefined,
   }
   const currentWord = (): Element | null =>
     transcript.querySelector(`.fk-word[${CURRENT}]`)
@@ -554,6 +559,167 @@ export const wordMenuMount = <Message>(
           Effect.sync(() =>
             document.removeEventListener('keydown', onKeyDown, true),
           ),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+})
+
+// SEEK
+
+type PaintedLanding = Readonly<{ value: number; text: string }>
+
+const isPaintedLanding = (value: unknown): value is PaintedLanding =>
+  typeof value === 'object' &&
+  value !== null &&
+  'value' in value &&
+  typeof value.value === 'number' &&
+  'text' in value &&
+  typeof value.text === 'string'
+
+const landingsOf = (field: Element): ReadonlyArray<PaintedLanding> => {
+  try {
+    const parsed: unknown = JSON.parse(
+      field.getAttribute('data-landings') ?? '[]',
+    )
+    return Array.isArray(parsed) ? parsed.filter(isPaintedLanding) : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Names, beside a painted seek bar, what a drag to `value` will land on:
+ * the last of the bar's landings to start at or before it, as
+ * `seekLandingAt` says for every painter. Before the first landing it
+ * names nothing and puts the name away.
+ *
+ * @example
+ * ```typescript
+ * showSeekLanding(seekFieldElement, 730_000)
+ * ```
+ */
+export const showSeekLanding = (field: Element, value: number): void => {
+  const maybeOutput = field.querySelector('.fk-seek-landing')
+  const maybeInput = field.querySelector('input')
+  const maybeLanding = landingsOf(field)
+    .filter(landing => landing.value <= value)
+    .at(-1)
+  if (maybeOutput instanceof HTMLElement) {
+    maybeOutput.textContent = maybeLanding?.text ?? ''
+    maybeOutput.hidden = maybeLanding === undefined
+  }
+  if (maybeInput !== null && maybeLanding !== undefined) {
+    if (!maybeInput.hasAttribute('data-value-text')) {
+      maybeInput.setAttribute(
+        'data-value-text',
+        maybeInput.getAttribute('aria-valuetext') ?? '',
+      )
+    }
+    maybeInput.setAttribute('aria-valuetext', maybeLanding.text)
+  }
+}
+
+const hideSeekLanding = (field: Element): void => {
+  const maybeOutput = field.querySelector('.fk-seek-landing')
+  const maybeInput = field.querySelector('input')
+  if (maybeOutput instanceof HTMLElement) {
+    maybeOutput.hidden = true
+  }
+  if (maybeInput !== null && maybeInput.hasAttribute('data-value-text')) {
+    maybeInput.setAttribute(
+      'aria-valuetext',
+      maybeInput.getAttribute('data-value-text') ?? '',
+    )
+    maybeInput.removeAttribute('data-value-text')
+  }
+}
+
+/** The name of the mount a painted seek bar with landings carries. */
+export const seekFieldMountName = 'FoldkitSeekField'
+
+/**
+ * The mount a painted seek bar with landings carries: while a person
+ * drags the bar it names what the drag will land on, such as the
+ * paragraph there, and puts the name away on release. It sends the
+ * Program nothing; the bar's own handler presses the seek.
+ *
+ * @example
+ * ```typescript
+ * h.span([h.Class('fk-seek-field'), h.OnMount(seekFieldMount())], [input, output])
+ * ```
+ */
+export const seekFieldMount = <Message>(): MountAction<Message> => ({
+  name: seekFieldMountName,
+  f: field =>
+    Stream.callback<Message>(() =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const onInput = (event: Event) => {
+            if (event.target instanceof HTMLInputElement) {
+              showSeekLanding(field, Number(event.target.value))
+            }
+          }
+          const onRelease = () => {
+            hideSeekLanding(field)
+          }
+          field.addEventListener('input', onInput)
+          field.addEventListener('change', onRelease)
+          return { onInput, onRelease }
+        }),
+        ({ onInput, onRelease }) =>
+          Effect.sync(() => {
+            field.removeEventListener('input', onInput)
+            field.removeEventListener('change', onRelease)
+          }),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+})
+
+// TEXT FIELD
+
+/**
+ * The event the edge sends a painted text field when Enter is pressed on
+ * text that has not changed. The view listens for it and presses the
+ * field's again action with its own, current handler.
+ */
+export const againEventName = 'fk-again'
+
+/** The name of the mount a painted text field with an again action carries. */
+export const textAgainMountName = 'FoldkitTextAgain'
+
+/**
+ * The mount a painted text field with an again action carries: Enter on
+ * text that is what the field already shows, and not empty, sends the
+ * field the again event, such as the next match of a search; Enter on
+ * changed text is left to the field's own submit.
+ *
+ * @example
+ * ```typescript
+ * h.input([h.DataAttribute('shown', input.value), h.OnMount(textAgainMount())])
+ * ```
+ */
+export const textAgainMount = <Message>(): MountAction<Message> => ({
+  name: textAgainMountName,
+  f: field =>
+    Stream.callback<Message>(() =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const onKeyDown = (event: Event) => {
+            if (
+              event instanceof KeyboardEvent &&
+              event.key === 'Enter' &&
+              field instanceof HTMLInputElement
+            ) {
+              const shown = (field.getAttribute('data-shown') ?? '').trim()
+              if (shown !== '' && field.value.trim() === shown) {
+                field.dispatchEvent(new CustomEvent(againEventName))
+              }
+            }
+          }
+          field.addEventListener('keydown', onKeyDown)
+          return onKeyDown
+        }),
+        onKeyDown =>
+          Effect.sync(() => field.removeEventListener('keydown', onKeyDown)),
       ).pipe(Effect.flatMap(() => Effect.never)),
     ),
 })
