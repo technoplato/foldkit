@@ -903,6 +903,11 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       AdvancedAudibleImport: message => audibleUpdated(model, message),
       ImportedAudibleTitles: message => audibleUpdated(model, message),
       FailedImportAudibleTitles: message => audibleUpdated(model, message),
+      GetAudiobookAudio: message => audibleUpdated(model, message),
+      ReceivedAudiobookAudio: message => audibleUpdated(model, message),
+      FailedReadAudiobookAudio: message => audibleUpdated(model, message),
+      QueuedAudiobookAudio: message => audibleUpdated(model, message),
+      FailedQueueAudiobookAudio: message => audibleUpdated(model, message),
       OpenedUri: fact => [Navigation.foldMessage(navigation, model, fact), []],
       NavigatedBack: fact => [
         Navigation.foldMessage(navigation, model, fact),

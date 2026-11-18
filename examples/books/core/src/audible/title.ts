@@ -1,4 +1,5 @@
 import { Schema as S } from 'effect'
+import { ts } from 'foldkit/schema'
 
 import { Milliseconds } from '../ids.js'
 
@@ -179,3 +180,55 @@ export const ImportSummary = S.Struct({
 })
 /** What an import did. */
 export type ImportSummary = typeof ImportSummary.Type
+
+/** No audiobook to bring in: the title has no audio on Audible. */
+export const AudioNone = ts('NoAudio')
+/** Waiting in the queue; `position` 1 is next. */
+export const AudioQueued = ts('Queued', {
+  position: S.Int.check(S.isGreaterThanOrEqualTo(1)),
+})
+/** The queue is getting the license, downloading, and storing the audio. */
+export const AudioFetching = ts('Fetching')
+/** The words are being heard: `done` of `total` hour-long pieces. */
+export const AudioWords = ts('Words', {
+  done: S.Int.check(S.isGreaterThanOrEqualTo(0)),
+  total: S.Int.check(S.isGreaterThanOrEqualTo(0)),
+})
+/** The words are in; the read-along passages and the catalog are being written. */
+export const AudioPassages = ts('Passages')
+/** The audio, its words, its passages, and its catalog entry are in. */
+export const AudioDone = ts('Done')
+/** Audible refused the license: its reason, and the one step that fixes it, if there is one. */
+export const AudioRefused = ts('Refused', { reason: S.String, fix: S.String })
+/** The queue set the title aside after it stopped three times, and why. */
+export const AudioFailed = ts('Failed', { reason: S.String })
+/** Where one title's audio stands. */
+export const AudioState = S.Union([
+  AudioNone,
+  AudioQueued,
+  AudioFetching,
+  AudioWords,
+  AudioPassages,
+  AudioDone,
+  AudioRefused,
+  AudioFailed,
+])
+/** Where one title's audio stands. */
+export type AudioState = typeof AudioState.Type
+
+/** One owned title and where its audio stands. */
+export const TitleAudio = S.Struct({ asin: Asin, name: S.String, state: AudioState })
+/** One owned title and where its audio stands. */
+export type TitleAudio = typeof TitleAudio.Type
+
+/**
+ * Every owned title's audio, the title the queue is working on, and the
+ * one it takes next.
+ */
+export const AudioStatus = S.Struct({
+  titles: S.Array(TitleAudio),
+  next: S.NullOr(Asin),
+  running: S.NullOr(Asin),
+})
+/** Every owned title's audio and what the queue does next. */
+export type AudioStatus = typeof AudioStatus.Type

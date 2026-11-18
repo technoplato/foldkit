@@ -1,3 +1,4 @@
+import { audioQueueLayer } from './audioQueue.node.js'
 import {
   Effect,
   Layer,
@@ -57,6 +58,7 @@ export type AudibleEndpointOptions = Readonly<{
   bridge?: Layer.Layer<AudibleBridge>
   vault?: Layer.Layer<CredentialsVault>
   libraryImport?: Layer.Layer<LibraryImport>
+  audioQueue?: Layer.Layer<never>
   log?: (line: string) => void
 }>
 
@@ -208,6 +210,7 @@ export const makeAudibleImportMiddleware = (
         }),
       options.bridge ?? processBridge(bridgeProcessFromEnv()),
       options.libraryImport ?? defaultLibraryImport(),
+      options.audioQueue ?? audioQueueLayer(),
     ),
   )
 

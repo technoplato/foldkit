@@ -70,6 +70,8 @@ const makeFakeAudible = () => {
             new Audible.AudibleImportError({ problem: Audible.NotConnected() }),
           ),
     ),
+    readAudio: Effect.succeed({ titles: [], next: null, running: null }),
+    queueAudio: () => Effect.succeed({ titles: [], next: null, running: null }),
     importTitles: asins =>
       Stream.make(
         Audible.ImportAdvanced({

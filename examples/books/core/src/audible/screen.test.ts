@@ -15,6 +15,8 @@ import { catalog } from './message.js'
 import {
   type AudibleModel,
   type AudibleView,
+  AudioRead,
+  AudioUnreadable,
   SignInConnecting,
   SignInReady,
   TitlesImported,
@@ -23,9 +25,22 @@ import {
   TitlesUnreadable,
   init,
 } from './model.js'
-import { AddressMismatch, AmazonRefused, LoginExpired } from './problem.js'
+import {
+  AddressMismatch,
+  AmazonRefused,
+  LoginExpired,
+  Unavailable,
+} from './problem.js'
 import { connectScreen, titlesScreen } from './screen.js'
-import { Asin, type AudibleTitle } from './title.js'
+import {
+  Asin,
+  type AudibleTitle,
+  AudioDone,
+  AudioQueued,
+  AudioRefused,
+  type AudioStatus,
+  AudioWords,
+} from './title.js'
 
 const loginUrl = 'https://www.amazon.com/ap/signin?openid.mode=checkid_setup'
 
@@ -267,5 +282,79 @@ describe('the Audible titles screen', () => {
     expect(Array.map(buttonsOf(screen), button => button.label)).toEqual([
       'Connect again',
     ])
+  })
+})
+
+describe("each owned book's audio on the titles screen", () => {
+  const read = TitlesRead({
+    titles: [
+      titleOf('B0FAKE0001', 'The Long Way to Noon', { match: 'InLibrary' }),
+      titleOf('B002V0RAUU', 'A New Earth', { match: 'InLibrary' }),
+      titleOf('B0FAKE0003', 'A Map of Small Rivers', { match: 'InLibrary' }),
+      titleOf('B0FAKE0004', 'The Glass Orchard', { match: 'InLibrary' }),
+    ],
+    skipped: [],
+    selected: [],
+    maybeProblem: Option.none(),
+  })
+  const status: AudioStatus = {
+    titles: [
+      { asin: Asin.make('B0FAKE0001'), name: 'The Long Way to Noon', state: AudioWords({ done: 3, total: 14 }) },
+      { asin: Asin.make('B002V0RAUU'), name: 'A New Earth', state: AudioDone() },
+      { asin: Asin.make('B0FAKE0003'), name: 'A Map of Small Rivers', state: AudioQueued({ position: 1 }) },
+      {
+        asin: Asin.make('B0FAKE0004'),
+        name: 'The Glass Orchard',
+        state: AudioRefused({ reason: 'CustomerThrottled (Ownership)', fix: 'Connect Audible again' }),
+      },
+    ],
+    next: Asin.make('B0FAKE0003'),
+    running: Asin.make('B0FAKE0001'),
+  }
+  const audio = AudioRead({ status, maybeAsking: Option.none(), maybeProblem: Option.none() })
+
+  it("says where each book's audio stands, what the queue is on and takes next", () => {
+    const screen = titlesOf({ titles: read, audio })
+    expect(wordsOf(screen)).toEqual(
+      expect.arrayContaining([
+        'Audio: 1 in · 1 underway · 1 queued · 1 refused',
+        'Now: The Long Way to Noon · Next: A Map of Small Rivers',
+      ]),
+    )
+    expect(Array.map(rowsOf(screen), row => row[row.length - 1])).toEqual([
+      'Audio: hearing the words, 3 of 14 hours',
+      'Audio and read-along are in',
+      'Audio: next in the queue',
+      'Audible refused the audio: CustomerThrottled (Ownership). Connect Audible again',
+    ])
+  })
+
+  it('offers Get audio now on a queued or refused book, never on one in or underway', () => {
+    const screen = titlesOf({ titles: read, audio })
+    const trailing = Array.map(itemsOf(screen), item =>
+      Array.map(item.trailing ?? [], button => button.action),
+    )
+    expect(trailing).toEqual([
+      [],
+      [],
+      ['GetAudiobookAudio:B0FAKE0003'],
+      ['GetAudiobookAudio:B0FAKE0004'],
+    ])
+  })
+
+  it('offers nothing while an ask is on its way, and says why one failed', () => {
+    const problem = Unavailable({ reason: 'the audio queue is not set up on this computer' })
+    const asking = titlesOf({
+      titles: read,
+      audio: AudioRead({ status, maybeAsking: Option.some(Asin.make('B0FAKE0003')), maybeProblem: Option.none() }),
+    })
+    expect(Array.flatMap(itemsOf(asking), item => item.trailing ?? [])).toEqual([])
+    const failed = titlesOf({
+      titles: read,
+      audio: AudioRead({ status, maybeAsking: Option.none(), maybeProblem: Option.some(problem) }),
+    })
+    expect(wordsOf(failed).join(' ')).toContain('the audio queue is not set up on this computer')
+    const unreadable = titlesOf({ titles: read, audio: AudioUnreadable({ problem }) })
+    expect(wordsOf(unreadable).join(' ')).toContain('the audio queue is not set up on this computer')
   })
 })

@@ -24,6 +24,10 @@ import {
   StartedSignInJson,
   audibleFinishPath,
   audibleImportPath,
+  audibleAudioPath,
+  audibleAudioQueuePath,
+  AudioQueueRequestJson,
+  AudioStatusJson,
   audibleLibraryPath,
   audibleStartPath,
   importEventName,
@@ -279,6 +283,8 @@ export const httpAudibleImport = (
 
   const encodeImport = S.encodeSync(ImportRequestJson)
 
+  const encodeAudioQueue = S.encodeSync(AudioQueueRequestJson)
+
   const drained = (response: Response): Effect.Effect<void> =>
     Effect.asVoid(Effect.promise(() => response.text().catch(() => '')))
 
@@ -303,6 +309,14 @@ export const httpAudibleImport = (
       Option.none(),
       AudibleLibraryJson,
     ),
+    readAudio: answered('GET', audibleAudioPath, Option.none(), AudioStatusJson),
+    queueAudio: asin =>
+      answered(
+        'POST',
+        audibleAudioQueuePath,
+        Option.some(encodeAudioQueue({ asin })),
+        AudioStatusJson,
+      ),
     importTitles: asins =>
       Stream.unwrap(
         Effect.flatMap(

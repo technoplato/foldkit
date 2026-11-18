@@ -422,6 +422,7 @@ export const [
   DeselectAudibleTitles,
   ImportAudibleTitles,
   ReadAudibleLibraryAgain,
+  GetAudiobookAudio,
 ] = audibleActions.actions
 
 /**
@@ -472,6 +473,7 @@ export const catalog = Catalog.make([
   DeselectAudibleTitles,
   ImportAudibleTitles,
   ReadAudibleLibraryAgain,
+  GetAudiobookAudio,
 ])
 
 /** The library store sent the shelf. */
@@ -583,6 +585,10 @@ export const Message = S.Union([
   Audible.AdvancedAudibleImport,
   Audible.ImportedAudibleTitles,
   Audible.FailedImportAudibleTitles,
+  Audible.ReceivedAudiobookAudio,
+  Audible.FailedReadAudiobookAudio,
+  Audible.QueuedAudiobookAudio,
+  Audible.FailedQueueAudiobookAudio,
   Navigation.OpenedUri,
   Navigation.NavigatedBack,
 ])

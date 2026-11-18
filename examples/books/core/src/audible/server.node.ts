@@ -51,12 +51,17 @@ import {
   AudibleLibraryJson,
   FinishSignInJson,
   ImportAdvanced,
+  type AudioQueueRequest,
+  AudioQueueRequestJson,
+  AudioStatusJson,
   type ImportEvent,
   ImportEventJson,
   ImportRequestJson,
   ImportStopped,
   ProblemBodyJson,
   StartedSignInJson,
+  audibleAudioPath,
+  audibleAudioQueuePath,
   audibleFinishPath,
   audibleImportPath,
   audibleLibraryPath,
@@ -67,6 +72,7 @@ import {
 import type {
   Asin,
   AudibleTitle,
+  AudioStatus,
   ListedTitle,
   SkipKind,
   SkippedCount,
@@ -252,6 +258,34 @@ export const audibleSessions = Layer.effect(
         Ref.update(libraries, HashMap.remove(memberKey)),
     })
   }),
+)
+
+/**
+ * The audio queue on this computer: every owned book's audio, and taking
+ * one first. Only the library's owner may ask; a refusal is a problem to
+ * show. Without one set up, both say so.
+ */
+export type AudioQueueShape = Readonly<{
+  status: (owner: ImportOwner) => Effect.Effect<AudioStatus, AudibleProblem>
+  queue: (
+    owner: ImportOwner,
+    asin: Asin,
+  ) => Effect.Effect<AudioStatus, AudibleProblem>
+}>
+
+const noAudioQueue = Unavailable({
+  reason: 'the audio queue is not set up on this computer',
+})
+
+/** The audio queue on this computer, or none. */
+export const AudioQueue = Context.Reference<AudioQueueShape>(
+  'books/AudioQueue',
+  {
+    defaultValue: () => ({
+      status: () => Effect.fail(noAudioQueue),
+      queue: () => Effect.fail(noAudioQueue),
+    }),
+  },
 )
 
 /** Everything the Audible import's server needs. */
@@ -700,6 +734,40 @@ const imported = (owner: ImportOwner, body: string) =>
     return answer
   })
 
+const encodeAudioStatus = S.encodeSync(AudioStatusJson)
+
+const audioRefusal = (problem: AudibleProblem): Refusal =>
+  refusal(
+    problem._tag === 'Unavailable' &&
+      problem.reason === noAudioQueue.reason
+      ? statusUnavailable
+      : statusBadRequest,
+    problem,
+  )
+
+const audioRead = (owner: ImportOwner) =>
+  Effect.gen(function* () {
+    const queue = yield* AudioQueue
+    const status = yield* Effect.mapError(queue.status(owner), audioRefusal)
+    return json(statusOk, encodeAudioStatus(status))
+  })
+
+const audioQueued = (owner: ImportOwner, body: string) =>
+  Effect.gen(function* () {
+    const request: AudioQueueRequest = yield* Effect.mapError(
+      S.decodeUnknownEffect(AudioQueueRequestJson)(body),
+      () => unavailable(statusBadRequest, 'Books sent a book it cannot read'),
+    )
+    const queue = yield* AudioQueue
+    const config = yield* AudibleServerConfig
+    const status = yield* Effect.mapError(
+      queue.queue(owner, request.asin),
+      audioRefusal,
+    )
+    config.log(`audible ${memberTagOf(owner)}: audio asked for ${request.asin}`)
+    return json(statusOk, encodeAudioStatus(status))
+  })
+
 const routed = (request: AudibleRequest, owner: ImportOwner) => {
   const method = request.method.toUpperCase()
   const isPost = method === 'POST'
@@ -714,6 +782,10 @@ const routed = (request: AudibleRequest, owner: ImportOwner) => {
     return method === 'GET' ? listed(owner) : wrongMethod
   } else if (request.path === audibleImportPath) {
     return isPost ? imported(owner, request.body) : wrongMethod
+  } else if (request.path === audibleAudioPath) {
+    return method === 'GET' ? audioRead(owner) : wrongMethod
+  } else if (request.path === audibleAudioQueuePath) {
+    return isPost ? audioQueued(owner, request.body) : wrongMethod
   } else {
     return Effect.fail(
       unavailable(statusNotFound, 'there is no such Audible import step'),
