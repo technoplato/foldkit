@@ -227,6 +227,7 @@ export const Open = Catalog.action('Open', {
  * player's own Play and Pause take `p`.
  */
 export const Listen = Catalog.action('Listen', {
+  aliases: ['Play', 'PlayTitle'],
   fields: { slug: TitleSlug },
   choose: whichTitle(
     (model, title) =>

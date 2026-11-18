@@ -32,6 +32,7 @@ import { listenBackgroundProcessor } from 'foldkit/cli'
 import { fileSink } from 'foldkit/telemetry/node'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { NodeRuntime } from '@effect/platform-node'
 
@@ -43,7 +44,7 @@ import {
   whenIdleFor,
   whenTitleFinished,
 } from './player.js'
-import { booksPlayerSocketPath, madeUpNameOf } from './settings.js'
+import { booksPlayerSocketPath, buildOf, madeUpNameOf } from './settings.js'
 import { signInFromEnv } from './signIn.js'
 
 const readyTimeoutMs = 20_000
@@ -53,6 +54,11 @@ const idleMs = Duration.toMillis(Duration.minutes(10))
 const refusalLingers = Duration.seconds(15)
 
 const stopTimeoutMs = 5_000
+
+// NOTE: What this player was built from, read once as it starts: when
+// `books` is updated under a running player the file is newer than this,
+// and a command can tell the player is the older one.
+const builtAtStart = buildOf(fileURLToPath(import.meta.url))
 
 const serve = Effect.gen(function* () {
   const socketPath = booksPlayerSocketPath()
@@ -106,9 +112,12 @@ const serve = Effect.gen(function* () {
       () => whenLibraryOpened(handle, readyTimeoutMs),
     ),
   )
-  const player = makeBooksPlayer(bound, writes, {
-    onPainted: telemetry.recordRendered,
-  })
+  const player = makeBooksPlayer(
+    bound,
+    writes,
+    { onPainted: telemetry.recordRendered },
+    builtAtStart,
+  )
   return yield* listenBackgroundProcessor({
     socketPath,
     Model: SyncedBooks.Model,

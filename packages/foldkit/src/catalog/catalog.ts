@@ -549,6 +549,11 @@ export type Entry<Tag extends string = string> = Readonly<{
   availability: Availability
   isPayloadFree: boolean
   maybeChoices: Option.Option<EntryChoices>
+  /**
+   * The other names the Action answers to, as it declares them, such as
+   * `PlayTitle` for `Listen`: a terminal takes `play-title` for it.
+   */
+  aliases: ReadonlyArray<string>
 }>
 
 /**
@@ -637,6 +642,7 @@ export const entryOf = <Tag extends string, Model>(
   why: declaration.why,
   label: declaration.meta.label,
   isPayloadFree: declaration.isPayloadFree,
+  aliases: declaration.aliases,
   ...Option.match(declaration.maybeChoose, {
     onNone: () => ({
       keys: declaration.meta.keys,

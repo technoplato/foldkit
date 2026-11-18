@@ -9,6 +9,7 @@
  *   production never share one.
  */
 import { cliDaemonSocketPath } from 'foldkit/cli/view'
+import { statSync } from 'node:fs'
 
 /** The word every command starts with, `books pause`. */
 export const booksCommandName = 'books'
@@ -61,3 +62,18 @@ export const booksPlayerSocketPath = (
     programId: booksCommandName,
     isolationKey: playerKeyOf(env),
   })
+
+/** The word a command asks a player what it was built from with. */
+export const playerBuildWord = 'player-build'
+
+/**
+ * What a built script was built from, as a word that changes with every
+ * build: the time the file was written. Empty when it cannot be read.
+ */
+export const buildOf = (scriptPath: string): string => {
+  try {
+    return Math.round(statSync(scriptPath).mtimeMs).toString()
+  } catch {
+    return ''
+  }
+}

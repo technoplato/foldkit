@@ -66,9 +66,12 @@ export type SpeedSheet = typeof SpeedSheet.Type
 /**
  * The question "Delete the bookmark at 12:03?", a Dialog. It names the
  * bookmark it asks about, so answering can only delete that one.
+ * `isFromPanel` says it was asked from that bookmark's open panel, which
+ * it took the place of, so answering no brings the panel back.
  */
 export const DeleteBookmarkQuestion = ts('DeleteBookmarkQuestion', {
   bookmarkId: BookmarkId,
+  isFromPanel: S.optionalKey(S.Boolean),
 })
 /** The question "Delete the bookmark at 12:03?". */
 export type DeleteBookmarkQuestion = typeof DeleteBookmarkQuestion.Type

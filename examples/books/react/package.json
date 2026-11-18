@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "dev": "../scripts/with-books-env vite --port 5183 --strictPort",
+    "dev:made-up": "vite --config madeUp/vite.config.ts",
     "prebuild": "pnpm --filter @foldkit/react build && pnpm --filter read-aloud-core-example build && pnpm --filter read-aloud-react-bindings-example build && pnpm --filter books-core-example build",
     "predev": "pnpm --filter @foldkit/react build && pnpm --filter read-aloud-core-example build && pnpm --filter read-aloud-react-bindings-example build && pnpm --filter books-core-example build",
     "start": "pnpm run dev",

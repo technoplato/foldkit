@@ -330,6 +330,25 @@ describe('books listen and books open take a title as a person types it', () => 
     await run(player, 'pause')
   })
 
+  it('plays a title for play and play-title too, the other names Listen answers to, while play alone plays on', async () => {
+    const { player, bound } = await openBooks()
+    const named = await run(player, 'play The Lantern Keeper')
+    expect(named.exitCode).toBe(0)
+    expect(named.stdout).toContain('Playing The Lantern Keeper')
+    await run(player, 'pause')
+    expect(isSounding(bound)).toBe(false)
+    const on = await run(player, 'play')
+    expect(on.exitCode).toBe(0)
+    expect(isSounding(bound)).toBe(true)
+    await run(player, 'pause')
+    const again = await run(player, 'play lantern')
+    expect(again.exitCode).toBe(0)
+    expect(isSounding(bound)).toBe(true)
+    const other = await run(player, 'play-title small hours')
+    expect(other.stdout).toContain('Playing Small Hours')
+    await run(player, 'pause')
+  })
+
   it('lists the titles that match when there are several, with the command for each, and plays nothing', async () => {
     const { player, bound } = await openBooks()
     const vague = await run(player, 'listen a')
@@ -373,6 +392,15 @@ describe('books listen and books open take a title as a person types it', () => 
     expect(unknown.stderr).toBe(
       'Unknown command "lisen". Nearest: books listen <title>. `books actions` lists every command.',
     )
+  })
+})
+
+describe('what a player was built from', () => {
+  it('is said to a command that asks, so a newer command can tell an older player', async () => {
+    const { bound } = await openBooks()
+    const player = makeBooksPlayer(bound, trackLibraryWrites(), {}, 'build-7')
+    const said = await run(player, 'player-build')
+    expect(said).toEqual({ stdout: 'build-7', exitCode: 0 })
   })
 })
 
