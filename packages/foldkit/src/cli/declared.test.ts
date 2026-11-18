@@ -127,6 +127,58 @@ describe('usageOf', () => {
   })
 })
 
+describe('the name a terminal says', () => {
+  const titled = (aliases: ReadonlyArray<string>) =>
+    make('Listen', {
+      title: 'Play title',
+      aliases,
+      what: 'Plays a title from the last place the user listened',
+      why: 'To hear the book',
+      parameters: {
+        slug: Parameter.subject(
+          Parameter.required(Parameter.named('title', 'Which title?')),
+        ),
+      },
+      examples: [{ given: { slug: 'small hours' }, what: 'Plays Small Hours' }],
+    })
+
+  it('is the title’s own word when the title ends with what is chosen and the declaration answers to it', () => {
+    const PlayTitle = titled(['Play'])
+    expect(usageOf(['Listen'], PlayTitle)).toBe('play <title>')
+    expect(
+      PlayTitle.examples.map(example =>
+        exampleOf(['Listen'], PlayTitle, example),
+      ),
+    ).toEqual(['play "small hours"'])
+  })
+
+  it('stays the declaration’s name when it does not answer to that word, so help names nothing that would not run', () => {
+    expect(usageOf(['Listen'], titled([]))).toBe('listen <title>')
+  })
+
+  it('stays the name when there is no title, or the title does not end with what is chosen', () => {
+    expect(usageOf(['Listen'], Listen)).toBe(
+      'listen <title> [--device <number>]',
+    )
+    expect(
+      usageOf(
+        ['Search'],
+        make('Search', {
+          title: 'Find words',
+          aliases: ['Find'],
+          what: 'Finds where words are spoken',
+          why: 'To get back to a passage',
+          parameters: {
+            words: Parameter.subject(
+              Parameter.required(Parameter.text('The words to look for')),
+            ),
+          },
+        }),
+      ),
+    ).toBe('search <words>')
+  })
+})
+
 describe('exampleOf', () => {
   it('spells an example as the words to type', () => {
     expect(
