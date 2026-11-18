@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import * as Catalog from '../catalog/catalog.js'
 import {
+  type AppearanceState,
   ObservedSystemMode,
   SetAppearance,
   SystemAppearance,
@@ -18,9 +19,12 @@ import {
 describe('what SetAppearance touches', () => {
   const states = [initialAppearance]
   const touching = (
-    state: typeof initialAppearance,
+    state: AppearanceState,
     message: typeof SetAppearance.Type,
-  ) => [update(state, message), []] as const
+  ): readonly [AppearanceState, ReadonlyArray<never>] => [
+    update(state, message),
+    [],
+  ]
 
   it('is the choice of look, and nothing else', () => {
     expect(Catalog.declarationOf(SetAppearance).touches).toEqual({

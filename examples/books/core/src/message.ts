@@ -1,6 +1,6 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
-import { m } from 'foldkit/message'
+import { ModelPath } from 'foldkit/declaration'
 import * as Theme from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -14,19 +14,40 @@ import {
 import * as Audible from './audible/index.js'
 import { excerptLineOf } from './bookmarks.js'
 import {
+  CopyLink,
+  ReadMoment,
+  ReportStretch,
+  ShareLink,
+  WriteLibrary,
+} from './command.js'
+import {
+  CompletedCloseUnendedPlays,
+  CompletedReportStretch,
+  CompletedWriteLibrary,
+  FailedCloseUnendedPlays,
+  FailedReadChapters,
+  FailedReadShelf,
+  FailedReportStretch,
+  FailedShareLink,
+  FailedWriteLibrary,
+  MarkedMoment,
+  OpenedPlace,
+  ReceivedChapters,
+  ReceivedMember,
+  ReceivedShelf,
+  ReceivedUnendedPlays,
+  SharedLink,
+} from './fact.js'
+import {
   BookmarkId,
   ChapterNumber,
   ChapterNumberSegment,
-  Milliseconds,
   TitleSlug,
   clockOf,
 } from './ids.js'
 import {
   BookmarkNote,
-  Chapter,
-  type Model,
-  Shelf,
-  StretchReport,
+  Model,
   type Title,
   bookmarkOf,
   bookmarksOf,
@@ -38,8 +59,6 @@ import {
   titleOf,
   titlesOf,
 } from './model.js'
-import { UnendedPlay } from './scribeTimeline.js'
-import { SharedHow } from './share.js'
 import {
   askedBookmarkOf,
   isAsking,
@@ -51,9 +70,35 @@ import {
   titlePageSlugOf,
 } from './stack.js'
 
+export * from './fact.js'
+
 // MESSAGE
 
 const answerFirst = 'answer the question first'
+
+const at = ModelPath.of(Model)
+
+const mutatedByEndingStretch = [at.listening.stretch, at.unsentReports]
+
+const mutatedByMoving = [...mutatedByEndingStretch, at.navigation.pages]
+
+const mutatedByPlayingTitle = [
+  at.listening,
+  at.unsentReports,
+  at.navigation.pages,
+]
+
+const savesAndReports = [WriteLibrary, ReportStretch]
+
+const movesWhileSounding: Catalog.Touched = {
+  mutates: mutatedByMoving,
+  triggers: [ReportStretch],
+}
+
+const movesPlace: Catalog.Touched = {
+  mutates: [at.listening.savedPlaceMs, ...mutatedByMoving],
+  triggers: savesAndReports,
+}
 
 const unlessAsking = (model: Model): Catalog.Availability =>
   isAsking(model)
@@ -172,6 +217,7 @@ export const Open = Catalog.action('Open', {
   what: "Opens this book's page, with its chapters and bookmarks",
   why: 'To see its chapters and bookmarks',
   enabled: unlessAsking,
+  mutates: [at.navigation.pages],
   meta: { label: 'Open', keys: ['o'], title: 'Open title' },
 })
 
@@ -192,6 +238,8 @@ export const Listen = Catalog.action('Listen', {
   what: 'Plays this book from where it was last stopped',
   why: 'To hear this book',
   enabled: unlessAsking,
+  mutates: mutatedByPlayingTitle,
+  triggers: savesAndReports,
   meta: { label: 'Play', keys: ['p'], title: 'Play title' },
 })
 
@@ -203,6 +251,27 @@ export const Listen = Catalog.action('Listen', {
  */
 export const playerActions = Catalog.within(TranscriptPlayer.catalog, {
   childOf: loadedPlayerOf,
+  under: at.listening.player,
+  also: {
+    Play: { mutates: [at.navigation.pages] },
+    Pause: {
+      mutates: [at.listening.savedPlaceMs, ...mutatedByEndingStretch],
+      triggers: savesAndReports,
+    },
+    SkipBack: movesPlace,
+    SkipForward: movesPlace,
+    PreviousSection: movesPlace,
+    NextSection: movesPlace,
+    SeekTo: movesPlace,
+    PreviousParagraph: movesPlace,
+    NextParagraph: movesPlace,
+    SeekToWord: movesWhileSounding,
+    PlayFrom: movesWhileSounding,
+    SetSpeed: {
+      mutates: [at.speed, ...mutatedByEndingStretch, at.navigation.maybeModal],
+      triggers: [ReportStretch],
+    },
+  },
   nothing: 'nothing is in the player',
   enabled: unlessAsking,
 })
@@ -274,6 +343,8 @@ export const CopyWordLink = Catalog.action('CopyWordLink', {
   what: 'Copies a link that opens this book on the chosen word',
   why: 'To come back to that word, or send it to someone',
   enabled: whenLoaded,
+  mutates: [at.listening.player.maybeWordMenu, at.maybeNotice],
+  triggers: [CopyLink],
   meta: {
     label: 'Copy link to this word',
     keys: [],
@@ -288,6 +359,7 @@ export const CopyWordLink = Catalog.action('CopyWordLink', {
  */
 export const [SetAppearance] = Catalog.within(Theme.catalog, {
   childOf: (model: Model) => Option.some(model.appearance),
+  under: at.appearance,
   nothing: 'the look cannot change here',
 }).actions
 
@@ -306,6 +378,7 @@ export const OpenPlayer = Catalog.action('OpenPlayer', {
       return Catalog.Enabled()
     }
   },
+  mutates: [at.navigation.pages],
   meta: { label: 'Now playing', keys: [], title: 'Open the player' },
 })
 
@@ -320,6 +393,7 @@ export const ShowContents = Catalog.action('ShowContents', {
     Option.isSome(shownTitle(model))
       ? unlessAsking(model)
       : Catalog.Disabled({ because: 'no title is open' }),
+  mutates: [at.navigation.maybeModal],
   meta: { label: 'Contents', keys: ['c'] },
 })
 
@@ -351,6 +425,8 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
   what: 'Plays this book from the start of the chapter',
   why: 'To listen to that part',
   enabled: unlessAsking,
+  mutates: [...mutatedByPlayingTitle, at.navigation.maybeModal],
+  triggers: savesAndReports,
   meta: { label: 'Play', keys: [], title: 'Jump to chapter' },
 })
 
@@ -362,6 +438,7 @@ export const ShowSpeeds = Catalog.action('ShowSpeeds', {
     isOnPlayer(model)
       ? unlessAsking(model)
       : Catalog.Disabled({ because: 'the player is not open' }),
+  mutates: [at.navigation.maybeModal],
   meta: { label: 'Speed', keys: ['x'] },
 })
 
@@ -373,6 +450,8 @@ export const SharePlace = Catalog.action('SharePlace', {
   what: 'Shares a link that opens the book at this moment',
   why: 'To let someone hear this part, or to come back to it',
   enabled: whenLoaded,
+  mutates: [at.maybeNotice],
+  triggers: [ShareLink],
   meta: { label: 'Share', keys: ['l'], title: 'Share this moment' },
 })
 
@@ -384,6 +463,7 @@ export const ExpandControls = Catalog.action('ExpandControls', {
     model.controls === 'Collapsed' && isOnPlayer(model)
       ? whenLoaded(model)
       : Catalog.Disabled({ because: 'the controls are open' }),
+  mutates: [at.controls],
   meta: { label: 'More controls', keys: ['e'], title: 'Show every control' },
 })
 
@@ -395,6 +475,7 @@ export const CollapseControls = Catalog.action('CollapseControls', {
     model.controls === 'Expanded' && isOnPlayer(model)
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'the controls are folded' }),
+  mutates: [at.controls],
   meta: { label: 'Fewer controls', keys: ['e'], title: 'Fold the controls' },
 })
 
@@ -403,6 +484,7 @@ export const ShowLibrary = Catalog.action('ShowLibrary', {
   what: 'Goes to the library of books',
   why: 'To pick a book',
   enabled: unlessAsking,
+  mutates: [at.navigation.pages, at.navigation.maybeModal],
   meta: { label: 'Library', keys: [], title: 'Go to the library' },
 })
 
@@ -411,6 +493,7 @@ export const ShowProfile = Catalog.action('ShowProfile', {
   what: 'Shows who is signed in',
   why: 'To know which account this is',
   enabled: unlessAsking,
+  mutates: [at.navigation.pages, at.navigation.maybeModal],
   meta: { label: 'Profile', keys: [], title: 'Show the profile' },
 })
 
@@ -422,6 +505,7 @@ export const ShowReadAloud = Catalog.action('ShowReadAloud', {
   what: 'Shows the picture books read aloud',
   why: 'To follow along in a book being read aloud',
   enabled: unlessAsking,
+  mutates: [at.navigation.pages, at.navigation.maybeModal],
   meta: { label: 'Read aloud', keys: [], title: 'Show the books read aloud' },
 })
 
@@ -433,6 +517,7 @@ export const AddBookmark = Catalog.action('AddBookmark', {
   what: 'Saves a bookmark on the word being spoken',
   why: 'To come back to it',
   enabled: whenLoaded,
+  triggers: [ReadMoment],
   meta: { label: 'Bookmark', keys: ['b'], title: 'Add bookmark' },
 })
 
@@ -450,6 +535,7 @@ export const AddNotedBookmark = Catalog.action('AddNotedBookmark', {
   what: 'Saves a bookmark on the word being spoken, with a typed note',
   why: 'To come back to it and remember why',
   enabled: whenLoaded,
+  triggers: [ReadMoment],
   meta: {
     label: 'Bookmark with a note',
     keys: [],
@@ -481,6 +567,8 @@ export const BookmarkWord = Catalog.action('BookmarkWord', {
   what: 'Saves a bookmark on this word',
   why: 'To come back to that word',
   enabled: whenLoaded,
+  mutates: [at.listening.player.maybeWordMenu, at.maybeNotice],
+  triggers: [WriteLibrary],
   meta: {
     label: 'Bookmark this word',
     keys: [],
@@ -499,6 +587,7 @@ export const ShowBookmarks = Catalog.action('ShowBookmarks', {
     Option.isSome(shownTitle(model))
       ? unlessAsking(model)
       : Catalog.Disabled({ because: 'no title is open' }),
+  mutates: [at.navigation.maybeModal],
   meta: { label: 'Bookmarks', keys: ['m'] },
 })
 
@@ -509,6 +598,7 @@ export const OpenBookmark = Catalog.action('OpenBookmark', {
   what: 'Opens this bookmark, with its words and its note',
   why: 'To read or change the note on it',
   enabled: unlessAsking,
+  mutates: [at.navigation.maybeModal],
   meta: { label: 'Open bookmark', keys: [], title: 'Open bookmark' },
 })
 
@@ -535,6 +625,7 @@ export const SetBookmarkNote = Catalog.action('SetBookmarkNote', {
   what: 'Writes a note on this bookmark',
   why: 'To remember why it was marked',
   enabled: onOpenBookmark,
+  triggers: [WriteLibrary],
   meta: { label: 'Note', keys: [], title: 'Write a bookmark’s note' },
 })
 
@@ -555,6 +646,7 @@ export const ClearBookmarkNote = Catalog.action('ClearBookmarkNote', {
             : Catalog.Disabled({ because: 'it has no note' }),
       },
     ),
+  triggers: [WriteLibrary],
   meta: { label: 'Clear note', keys: [], title: 'Clear a bookmark’s note' },
 })
 
@@ -566,6 +658,8 @@ export const UndoRemoveBookmark = Catalog.action('UndoRemoveBookmark', {
     Option.isSome(model.maybeRemovedBookmark)
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'no bookmark was just removed' }),
+  mutates: [at.maybeRemovedBookmark, at.maybeNotice],
+  triggers: [WriteLibrary],
   meta: { label: 'Undo', keys: ['z'], title: 'Put the bookmark back' },
 })
 
@@ -576,6 +670,8 @@ export const PlayBookmark = Catalog.action('PlayBookmark', {
   what: 'Plays the book from this bookmark',
   why: 'To go back to that place',
   enabled: unlessAsking,
+  mutates: mutatedByPlayingTitle,
+  triggers: savesAndReports,
   meta: { label: 'Play', keys: [], title: 'Play bookmark' },
 })
 
@@ -586,6 +682,7 @@ export const DeleteBookmark = Catalog.action('DeleteBookmark', {
   what: 'Deletes this bookmark, after asking first',
   why: 'The user no longer needs it',
   enabled: unlessAsking,
+  mutates: [at.navigation.maybeModal],
   meta: { label: 'Delete', keys: [], title: 'Delete bookmark' },
 })
 
@@ -617,6 +714,8 @@ export const ConfirmDeleteBookmark = Catalog.action('ConfirmDeleteBookmark', {
   },
   what: 'Deletes the bookmark',
   why: 'The user is sure they want it gone',
+  mutates: [at.navigation.maybeModal, at.maybeRemovedBookmark, at.maybeNotice],
+  triggers: [WriteLibrary],
   meta: { label: 'Delete', keys: ['y'] },
 })
 
@@ -628,7 +727,18 @@ export const CancelDeleteBookmark = Catalog.action('CancelDeleteBookmark', {
     isAsking(model)
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'no delete is waiting for an answer' }),
+  mutates: [at.navigation.maybeModal],
   meta: { label: 'Cancel', keys: ['n'] },
+})
+
+/**
+ * Shares a link to the page of the picture book on screen, Read Aloud's
+ * own Action, as Books carries it out: through its link sharing, with
+ * its notice.
+ */
+export const SharePage = Catalog.withTouches(ReadAloud.SharePage, {
+  mutates: [at.maybeNotice],
+  triggers: [ShareLink],
 })
 
 /** The Audible import's Actions, each reading the page on top. */
@@ -703,7 +813,7 @@ export const catalog = Catalog.make([
   CancelDeleteBookmark,
   UndoRemoveBookmark,
   ...ReadAloud.catalog.actions,
-  ReadAloud.SharePage,
+  SharePage,
   ShowAddBooks,
   ImportFromAudible,
   ReconnectAudible,
@@ -717,47 +827,6 @@ export const catalog = Catalog.make([
   GetAudiobookAudio,
 ])
 
-/** The library store sent the shelf. */
-export const ReceivedShelf = m('ReceivedShelf', { shelf: Shelf })
-/** The library store said who is signed in, or that no one is. */
-export const ReceivedMember = m('ReceivedMember', {
-  maybeEmail: S.Option(S.String),
-})
-/** The library store could not be read, and why, safe to show. */
-export const FailedReadShelf = m('FailedReadShelf', { reason: S.String })
-/** The library store sent one title's chapters. */
-export const ReceivedChapters = m('ReceivedChapters', {
-  slug: TitleSlug,
-  chapters: S.NonEmptyArray(Chapter),
-})
-/** One title's chapters could not be read, and why, safe to show. */
-export const FailedReadChapters = m('FailedReadChapters', {
-  slug: TitleSlug,
-  reason: S.String,
-})
-/**
- * The player's address names a place the player is not at: someone opened
- * a link to a moment, went back or forward to one, or the shelf arrived
- * after the link did.
- */
-export const OpenedPlace = m('OpenedPlace', {
-  slug: TitleSlug,
-  atMs: Milliseconds,
-})
-/** The link to a moment went out, through a share sheet or a clipboard. */
-export const SharedLink = m('SharedLink', { how: SharedHow })
-/** The link to a moment could not go out, and why, safe to show. */
-export const FailedShareLink = m('FailedShareLink', { reason: S.String })
-/**
- * The clock was read for a bookmark: `wallClockMs` is the moment the
- * person asked for one, so the word being spoken then is the one marked,
- * with the note they gave, if any. It stays on the device that asked: the
- * bookmark itself reaches every device through the library store.
- */
-export const MarkedMoment = m('MarkedMoment', {
-  wallClockMs: S.Number,
-  maybeNote: S.OptionFromOptionalKey(S.String),
-})
 const bookmarkEditTags: ReadonlySet<string> = new Set([
   AddNotedBookmark.tag,
   BookmarkWord.tag,
@@ -776,43 +845,6 @@ const bookmarkEditTags: ReadonlySet<string> = new Set([
  */
 export const isBookmarkEdit = (message: Readonly<{ _tag: string }>): boolean =>
   bookmarkEditTags.has(message._tag)
-/** The library store saved a place, a finish, or a bookmark change. */
-export const CompletedWriteLibrary = m('CompletedWriteLibrary')
-/** The library store refused a write, and why, safe to show. */
-export const FailedWriteLibrary = m('FailedWriteLibrary', {
-  reason: S.String,
-})
-/**
- * Scribe's timeline took a stretch's start or end, on `recordingCount`
- * recordings: 0 when none was live while it played.
- */
-export const CompletedReportStretch = m('CompletedReportStretch', {
-  recordingCount: S.Int,
-})
-/**
- * Scribe's timeline could not take a stretch's report, and why, safe to
- * show, so Books can send it again.
- */
-export const FailedReportStretch = m('FailedReportStretch', {
-  report: StretchReport,
-  reason: S.String,
-})
-/**
- * Scribe's timeline has these Books plays with a start and no end, as of
- * `checkedAtMs`: pages closed while they played.
- */
-export const ReceivedUnendedPlays = m('ReceivedUnendedPlays', {
-  plays: S.Array(UnendedPlay),
-  checkedAtMs: S.Number,
-})
-/** Scribe's timeline took the ends of `closedCount` unended plays. */
-export const CompletedCloseUnendedPlays = m('CompletedCloseUnendedPlays', {
-  closedCount: S.Int,
-})
-/** Scribe's timeline could not take the unended plays' ends, and why. */
-export const FailedCloseUnendedPlays = m('FailedCloseUnendedPlays', {
-  reason: S.String,
-})
 
 /**
  * Every Message Books accepts: the Catalog's Actions, the facts the

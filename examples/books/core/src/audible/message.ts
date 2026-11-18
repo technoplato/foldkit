@@ -1,26 +1,40 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog } from 'foldkit'
-import { m } from 'foldkit/message'
+import { ModelPath } from 'foldkit/declaration'
 
+import { PastedAddress, PastedAddressToken } from './address.js'
+import {
+  AdvancedAudibleImport,
+  ConnectedAudible,
+  FailedConnectAudible,
+  FailedImportAudibleTitles,
+  FailedQueueAudiobookAudio,
+  FailedReadAudibleLibrary,
+  FailedReadAudiobookAudio,
+  FailedStartAudibleSignIn,
+  ImportedAudibleTitles,
+  QueuedAudiobookAudio,
+  ReceivedAudibleLibrary,
+  ReceivedAudiobookAudio,
+  StartedAudibleSignIn,
+} from './fact.js'
 import {
   type AudiblePage,
-  type AudibleView,
+  AudibleView,
   type TitlesRead,
   canGetAudioOf,
   readAudioOf,
   readTitlesOf,
 } from './model.js'
-import { AudibleProblem } from './problem.js'
-import {
-  Asin,
-  AudibleTitle,
-  AudioStatus,
-  ImportProgress,
-  ImportSummary,
-  SkippedCount,
-} from './title.js'
+import { Asin } from './title.js'
+import { FinishAudibleSignIn, QueueAudiobookAudio } from './update.js'
+
+export * from './address.js'
+export * from './fact.js'
 
 // MESSAGE
+
+const at = ModelPath.of(AudibleView).audible
 
 const notOpenBecause = (page: AudiblePage): string =>
   page === 'Connect'
@@ -64,16 +78,6 @@ const withTitles = (
   )
 
 /**
- * The address a person pasted, carried hidden: it prints as `<redacted>`,
- * and no Schema can write it as JSON.
- */
-export const PastedAddress = S.Redacted(S.String, { disallowJsonEncode: true })
-
-const PastedAddressToken = S.RedactedFromValue(S.String, {
-  disallowEncode: true,
-})
-
-/**
  * Connects the family member's Audible account with the address Amazon
  * showed after they signed in, pasted into the field: pressing Return in
  * it presses `ConnectAudible:https://www.amazon.com/ap/maplanding?…`. The
@@ -93,6 +97,8 @@ export const ConnectAudible = Catalog.action('ConnectAudible', {
   what: 'Connects the Audible account with the address Amazon showed after sign-in',
   why: 'The user signed in on Amazon and wants Books to read their library',
   enabled: connectAvailabilityOf,
+  mutates: [at.signIn],
+  triggers: [FinishAudibleSignIn],
   meta: { label: 'Connect', keys: [], title: 'Connect Audible' },
 })
 
@@ -106,6 +112,7 @@ export const TryAudibleSignInAgain = Catalog.action('TryAudibleSignInAgain', {
         ? Catalog.Enabled()
         : Catalog.Disabled({ because: 'the Amazon sign-in has started' }),
     ),
+  mutates: [at.signIn],
   meta: { label: 'Try again', keys: [], title: 'Try the Amazon sign-in again' },
 })
 
@@ -136,6 +143,7 @@ export const ToggleAudibleTitle = Catalog.action('ToggleAudibleTitle', {
   what: 'Selects or clears one title to import',
   why: 'The user chooses which of their books come into the library',
   enabled: (view: AudibleView) => withTitles(view, () => Catalog.Enabled()),
+  mutates: [at.titles.selected],
   meta: { label: 'Select', keys: [], title: 'Select title' },
 })
 
@@ -149,6 +157,7 @@ export const SelectAllAudibleTitles = Catalog.action('SelectAllAudibleTitles', {
         ? Catalog.Disabled({ because: 'every title is selected' })
         : Catalog.Enabled(),
     ),
+  mutates: [at.titles.selected],
   meta: { label: 'Select all', keys: [], title: 'Select all titles' },
 })
 
@@ -162,6 +171,7 @@ export const DeselectAudibleTitles = Catalog.action('DeselectAudibleTitles', {
         ? Catalog.Disabled({ because: 'no title is selected' })
         : Catalog.Enabled(),
     ),
+  mutates: [at.titles.selected],
   meta: { label: 'Select none', keys: [], title: 'Select no titles' },
 })
 
@@ -178,6 +188,7 @@ export const ImportAudibleTitles = Catalog.action('ImportAudibleTitles', {
         ? Catalog.Disabled({ because: 'no title is selected' })
         : Catalog.Enabled(),
     ),
+  mutates: [at.titles],
   meta: { label: 'Import', keys: [], title: 'Import the selected titles' },
 })
 
@@ -198,6 +209,7 @@ export const ReadAudibleLibraryAgain = Catalog.action(
           return Catalog.Enabled()
         }
       }),
+    mutates: [at.titles],
     meta: {
       label: 'Try again',
       keys: [],
@@ -256,6 +268,8 @@ export const GetAudiobookAudio = Catalog.action('GetAudiobookAudio', {
   what: "Brings one book's audio in now, ahead of the queue",
   why: 'To listen to this book with its read-along soon',
   enabled: getAudioAvailabilityOf,
+  mutates: [at.audio.maybeAsking, at.audio.maybeProblem],
+  triggers: [QueueAudiobookAudio],
   meta: { label: 'Get audio now', keys: [], title: 'Get audio now' },
 })
 
@@ -273,59 +287,6 @@ export const catalog = Catalog.make([
   ReadAudibleLibraryAgain,
   GetAudiobookAudio,
 ])
-
-/** The server started an Amazon sign-in, to open at `loginUrl`. */
-export const StartedAudibleSignIn = m('StartedAudibleSignIn', {
-  loginUrl: S.String,
-})
-/** The Amazon sign-in could not start, and why. */
-export const FailedStartAudibleSignIn = m('FailedStartAudibleSignIn', {
-  problem: AudibleProblem,
-})
-/** The server saved the family member's Audible login. */
-export const ConnectedAudible = m('ConnectedAudible')
-/** The pasted address did not connect, and why. */
-export const FailedConnectAudible = m('FailedConnectAudible', {
-  problem: AudibleProblem,
-})
-/** The family member's Audible titles arrived, and what the importer leaves out. */
-export const ReceivedAudibleLibrary = m('ReceivedAudibleLibrary', {
-  titles: S.Array(AudibleTitle),
-  skipped: S.Array(SkippedCount),
-})
-/** The Audible titles could not be read, and why. */
-export const FailedReadAudibleLibrary = m('FailedReadAudibleLibrary', {
-  problem: AudibleProblem,
-})
-/** The import moved on. */
-export const AdvancedAudibleImport = m('AdvancedAudibleImport', {
-  progress: ImportProgress,
-})
-/** The import finished, and what it did. */
-export const ImportedAudibleTitles = m('ImportedAudibleTitles', {
-  summary: ImportSummary,
-})
-/** The import stopped before it was done, and why. */
-export const FailedImportAudibleTitles = m('FailedImportAudibleTitles', {
-  problem: AudibleProblem,
-})
-
-/** Every owned title's audio arrived, and what the queue does next. */
-export const ReceivedAudiobookAudio = m('ReceivedAudiobookAudio', {
-  status: AudioStatus,
-})
-/** The owned titles' audio could not be read, and why. */
-export const FailedReadAudiobookAudio = m('FailedReadAudiobookAudio', {
-  problem: AudibleProblem,
-})
-/** The queue took the book first; the audio as it stands now. */
-export const QueuedAudiobookAudio = m('QueuedAudiobookAudio', {
-  status: AudioStatus,
-})
-/** The queue did not take the book, and why. */
-export const FailedQueueAudiobookAudio = m('FailedQueueAudiobookAudio', {
-  problem: AudibleProblem,
-})
 
 /**
  * Every Message the Audible import accepts: its Actions, and the facts its
