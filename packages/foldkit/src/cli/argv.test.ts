@@ -31,8 +31,8 @@ describe('followArgvOf', () => {
     ).toEqual({ topic: 'words', flags: { json: '1', before: '2' } })
   })
 
-  it('follows the screen when no topic is named', () => {
-    expect(followArgvOf(['follow'])).toEqual({ topic: 'screen', flags: {} })
+  it('names no topic when none is given, so the Background Processor chooses or asks', () => {
+    expect(followArgvOf(['follow'])).toEqual({ topic: '', flags: {} })
   })
 
   it('is undefined for any other command', () => {

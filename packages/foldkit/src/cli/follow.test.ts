@@ -245,4 +245,31 @@ describe('the topics every Program has', () => {
       'Nothing here is called "wrods" to follow. Follow one of: screen.',
     )
   })
+
+  it('follows the only topic there is when none is named', async () => {
+    const heard = await Effect.runPromise(
+      Stream.runCollect(
+        followTopicOf({ screen: () => Stream.make('painted') }, '', {}, Cli()),
+      ),
+    )
+    expect(heard).toEqual(['painted'])
+  })
+
+  it('asks which topic when none is named and there are several', async () => {
+    const refusal = await Effect.runPromise(
+      Effect.flip(
+        Stream.runCollect(
+          followTopicOf(
+            { screen: () => Stream.empty, words: () => Stream.empty },
+            '',
+            {},
+            Cli(),
+          ),
+        ),
+      ),
+    )
+    expect(refusal.message).toBe(
+      'Follow what? Name one of: screen, words. For example: follow screen',
+    )
+  })
 })
