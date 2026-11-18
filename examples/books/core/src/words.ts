@@ -3,6 +3,7 @@ import {
   TranscriptExcerpt,
   type TranscriptExcerptOptions,
   TranscriptExcerptWire,
+  transcriptAt,
   transcriptExcerptLines,
   transcriptExcerptOf,
   transcriptsOf,
@@ -114,7 +115,11 @@ const waitingSentenceOf = (player: TranscriptPlayer.Model): string =>
  * every Client says the same thing: the title, chapter, place and link,
  * then the paragraph being read with `leading` paragraphs before it and
  * `trailing` after, one of each unless told otherwise. The paragraphs are
- * the ones the player's own transcript shows.
+ * the ones the player's own transcript shows. The word marked is the one
+ * at the place the player last reported, once a second; with `nowMs`, a
+ * wall-clock time, it is the word being spoken at that moment, read from
+ * the transcript's clock, so a Client that asks many times a second moves
+ * on the word. Nothing is sent or synced for it.
  *
  * @example
  * ```typescript
@@ -125,6 +130,7 @@ const waitingSentenceOf = (player: TranscriptPlayer.Model): string =>
 export const spokenWordsOf = (
   model: Model,
   options: TranscriptExcerptOptions = {},
+  nowMs?: number,
 ): SpokenWords =>
   Option.match(loadedTitleOf(model), {
     onNone: () => NothingInPlayer(),
@@ -135,7 +141,13 @@ export const spokenWordsOf = (
           Array.head(
             transcriptsOf(TranscriptPlayer.transcriptOf(loaded.player)),
           ),
-          transcript => transcriptExcerptOf(transcript, options),
+          transcript =>
+            transcriptExcerptOf(
+              nowMs === undefined
+                ? transcript
+                : transcriptAt(transcript, nowMs),
+              options,
+            ),
         ),
         {
           onNone: () =>
