@@ -358,6 +358,7 @@ describe('Session.compose', () => {
                 action: 'GoBack',
                 keys: ['Escape'],
                 description: 'Returns to the screen beneath this one',
+                why: 'The person is done with this screen',
                 variant: 'Ghost',
                 icon: 'Back',
               }),
