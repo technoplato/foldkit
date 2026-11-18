@@ -1,19 +1,9 @@
 #!/usr/bin/env node
 /**
- * The Counter CLI. Every command comes from the Counter's Catalog through
- * the generic Foldkit CLI surface:
- *
- *   counter                 paint the count and its Actions
- *   counter increment       press an Action by its derived word
- *   counter reset           refused with its sentence while the count is 0
- *   counter menu open       present the action menu (mirrors to peers)
- *   counter menu type re    filter it
- *   counter menu choose reset
- *   counter key k --meta    press any key
- *   counter tail            print every event as it lands
- *   counter watch           repaint the count as it changes
- *   counter follow          print the daemon's screen each time it changes
- *   counter help            usage derived from the Catalog
+ * The Counter CLI. Every command comes from the Counter's Catalog and
+ * the controls every Program's terminal has, through the generic Foldkit
+ * CLI surface. `counter help` prints them, each line derived from its
+ * declaration, so no list of commands is kept here.
  *
  * This file must not import Effect, Instant, or the Program, so the view
  * starts fast. Memory and File tapes run in this process.

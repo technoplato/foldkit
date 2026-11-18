@@ -113,7 +113,9 @@ describe('runProgramCommand', () => {
     expect(help.stdout).toMatch(
       /^ {2}increment +\+ +Increments the count by one$/m,
     )
-    expect(help.stdout).toMatch(/^ {2}menu choose <cmd> +Choose one Action/m)
+    expect(help.stdout).toMatch(
+      /^ {2}menu choose <action> +Chooses one Action/m,
+    )
     expect(help.stdout).toMatch(/^ +\$ counter menu choose increment$/m)
     expect(
       help.stdout.split('\n').every(line => line.length <= terminalWidth),
