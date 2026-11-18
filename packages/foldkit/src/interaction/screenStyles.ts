@@ -432,6 +432,38 @@ ${themeStylesheet(defaultTheme)}
   color: ${roleVar('Text')};
 }
 
+:where(.fk-row[data-arrange="Toolbar"]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: ${px(screenLook.columnGap)};
+  width: 100%;
+}
+
+:where(.fk-row[data-arrange="Toolbar"] > .fk-row:first-child) {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+:where(.fk-row[data-arrange="Toolbar"] > .fk-row:last-child) {
+  justify-content: flex-end;
+}
+
+:where(.fk-row[data-arrange="Split"]) {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  align-items: start;
+  column-gap: ${px(screenLook.columnGap)};
+  width: 100%;
+}
+
+:where(.fk-box[data-measure="Reading"]) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: min(100%, ${px(screenLook.readingWidth)});
+}
+
 :where(.fk-dock) {
   position: fixed;
   right: 0;
@@ -450,6 +482,10 @@ ${themeStylesheet(defaultTheme)}
 :where(.fk-dock > *) {
   width: min(100%, ${px(screenLook.listWidth)});
   margin: 0 auto;
+}
+
+:where(.fk-dock > .fk-row[data-arrange="Toolbar"]) {
+  width: min(100%, ${px(screenLook.readingWidth)});
 }
 
 :where(.fk-dock .fk-row) {
@@ -939,6 +975,10 @@ ${themeStylesheet(defaultTheme)}
 }
 
 @media (max-width: 560px) {
+  :where(.fk-row[data-arrange="Toolbar"]) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
   :where(.fk-transcript) {
     width: 100vw;
     max-width: 100vw;

@@ -240,7 +240,12 @@ export const paintHtml = <Message>(
         Spacer: () => h.div([h.Class('fk-spacer')], []),
         Row: row =>
           h.div(
-            [h.Class(row.isBoard === true ? 'fk-row fk-board' : 'fk-row')],
+            [
+              h.Class(row.isBoard === true ? 'fk-row fk-board' : 'fk-row'),
+              ...(row.arrange === undefined
+                ? []
+                : [h.DataAttribute('arrange', row.arrange)]),
+            ],
             Array.map(row.children, paint),
           ),
         Column: column =>
@@ -248,7 +253,12 @@ export const paintHtml = <Message>(
         Box: box =>
           box.layer === undefined
             ? h.div(
-                [h.Class(box.isDock === true ? 'fk-dock' : 'fk-box')],
+                [
+                  h.Class(box.isDock === true ? 'fk-dock' : 'fk-box'),
+                  ...(box.measure === undefined
+                    ? []
+                    : [h.DataAttribute('measure', box.measure)]),
+                ],
                 Array.map(box.children, paint),
               )
             : paintLayer(box, box.layer),
