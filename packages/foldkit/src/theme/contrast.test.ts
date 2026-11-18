@@ -74,7 +74,16 @@ describe('More Contrast, a third dimension of a theme', () => {
   })
 
   it('writes no contrast rules for a theme that names none', () => {
-    expect(themeStylesheet(defaultTheme)).not.toContain('data-fk-contrast')
+    const plain = withRoles(
+      defaultTheme,
+      Object.fromEntries(
+        Object.entries(defaultTheme).map(([role, colors]) => [
+          role,
+          { light: colors.light, dark: colors.dark },
+        ]),
+      ),
+    )
+    expect(themeStylesheet(plain)).not.toContain('data-fk-contrast')
   })
 })
 

@@ -119,21 +119,46 @@ export type Theme = Readonly<Record<Role, RoleColors>>
  * the reader on a ground that runs from dark green to black, the words
  * already spoken in white, those to come in grey, the word being spoken
  * in blue.
+ *
+ * Under More Contrast every text and mark reads at 7 to 1 or better on
+ * the page's ground and every edge at 3 to 1: a role names a stronger
+ * colour (`lightMore`, `darkMore`) wherever its own falls short, and the
+ * grounds and plain text stay as they are.
  */
 export const defaultTheme: Theme = {
   PageGround: { light: '#ffffff', dark: '#0b0d0c' },
   Surface: { light: '#f3f4f6', dark: '#161a18' },
   RaisedSurface: { light: '#ffffff', dark: '#1f2522' },
   Text: { light: '#111827', dark: '#f3f4f6' },
-  QuietText: { light: '#6b7280', dark: '#9aa1aa' },
-  Accent: { light: '#ea580c', dark: '#fb923c' },
+  QuietText: {
+    light: '#6b7280',
+    dark: '#9aa1aa',
+    lightMore: '#374151',
+    darkMore: '#d1d5db',
+  },
+  Accent: { light: '#ea580c', dark: '#fb923c', lightMore: '#9a3412' },
   AccentSoft: { light: '#ffedd5', dark: '#3a2414' },
-  Rule: { light: '#e5e7eb', dark: '#2a302d' },
+  Rule: {
+    light: '#e5e7eb',
+    dark: '#2a302d',
+    lightMore: '#6b7280',
+    darkMore: '#6b7280',
+  },
   Focus: { light: '#111827', dark: '#93c5fd' },
-  Danger: { light: '#b91c1c', dark: '#fca5a5' },
-  FaintText: { light: '#9ca3af', dark: '#6b7280' },
-  Link: { light: '#2563eb', dark: '#93c5fd' },
-  Border: { light: '#d1d5db', dark: '#3a403d' },
+  Danger: { light: '#b91c1c', dark: '#fca5a5', lightMore: '#7f1d1d' },
+  FaintText: {
+    light: '#9ca3af',
+    dark: '#6b7280',
+    lightMore: '#4b5563',
+    darkMore: '#b6bcc6',
+  },
+  Link: { light: '#2563eb', dark: '#93c5fd', lightMore: '#1e40af' },
+  Border: {
+    light: '#d1d5db',
+    dark: '#3a403d',
+    lightMore: '#4b5563',
+    darkMore: '#8d949e',
+  },
   Field: { light: '#f9fafb', dark: '#161a18' },
   Button: { light: '#000000', dark: '#f3f4f6' },
   ButtonHover: { light: '#374151', dark: '#d1d5db' },
@@ -143,29 +168,38 @@ export const defaultTheme: Theme = {
   Veil: { light: 'rgba(255, 255, 255, 0.94)', dark: 'rgba(11, 13, 12, 0.92)' },
   Shadow: { light: 'rgba(15, 23, 42, 0.3)', dark: 'rgba(0, 0, 0, 0.6)' },
   Selected: { light: '#eef2ff', dark: '#23264a' },
-  SelectedMark: { light: '#4f46e5', dark: '#a5b4fc' },
-  Warning: { light: '#b45309', dark: '#fbbf24' },
+  SelectedMark: { light: '#4f46e5', dark: '#a5b4fc', lightMore: '#3730a3' },
+  Warning: { light: '#b45309', dark: '#fbbf24', lightMore: '#78350f' },
   DeviceBorder: { light: '#3f3f46', dark: '#52525b' },
-  Mark: { light: '#7c3aed', dark: '#c4b5fd' },
+  Mark: { light: '#7c3aed', dark: '#c4b5fd', lightMore: '#5b21b6' },
   MarkSoft: { light: '#ede9fe', dark: '#2e2350' },
   ReadingGround: {
     light: 'transparent',
     dark: 'linear-gradient(#12301d, #060907 42%)',
   },
   ReadingSpoken: { light: '#111827', dark: '#ffffff' },
-  ReadingToCome: { light: '#6b7280', dark: '#8d949e' },
-  ReadingCurrentWord: { light: '#c2410c', dark: '#9db8ff' },
+  ReadingToCome: {
+    light: '#6b7280',
+    dark: '#8d949e',
+    lightMore: '#374151',
+    darkMore: '#c7ccd4',
+  },
+  ReadingCurrentWord: {
+    light: '#c2410c',
+    dark: '#9db8ff',
+    lightMore: '#9a3412',
+  },
   ReadingCurrentWordGround: { light: '#ffedd5', dark: 'transparent' },
   ReadingCurrentGround: {
     light: '#e8ecf2',
     dark: 'rgba(255, 255, 255, 0.06)',
   },
-  ReadingRule: { light: '#ea580c', dark: '#6ea0ff' },
+  ReadingRule: { light: '#ea580c', dark: '#6ea0ff', lightMore: '#9a3412' },
   FieldStrong: { light: '#e5e7eb', dark: '#2a302d' },
   DangerStrong: { light: '#991b1b', dark: '#fecaca' },
   DangerFill: { light: '#b91c1c', dark: '#b91c1c' },
   DangerSoft: { light: '#fee2e2', dark: '#3b1414' },
-  Positive: { light: '#15803d', dark: '#86efac' },
+  Positive: { light: '#15803d', dark: '#86efac', lightMore: '#14532d' },
   PositiveSoft: { light: '#dcfce7', dark: '#12301d' },
   WarningSoft: { light: '#fef3c7', dark: '#3a2a0c' },
   BarGround: {
