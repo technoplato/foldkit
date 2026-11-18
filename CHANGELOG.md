@@ -4,6 +4,385 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 4:22:31 p.m. EST — `26baf74f6fce` chore(foldkit): the one cast Catalog.lift returns through is marked, as its sibling in within is (Scribe #2518)
+
+- **Implementation commit:** `26baf74f6fce2d608366b1f6af84ad1d6bbff2ba`
+- **Change:** the one cast Catalog.lift returns through is marked, as its sibling in within is (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the Catalog.
+  - oxlint over the 47 files this issue changed found two problems, both on this cast, which predates the work. It carries the same marker the cast in Catalog.within does.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:31 p.m. EST — `302560e43646` test(foldkit): the Buttons of a composed App and a session carry their Action's why (Scribe #2518)
+
+- **Implementation commit:** `302560e43646a584e2384511f8ac0cb955f87d06`
+- **Change:** the Buttons of a composed App and a session carry their Action's why (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, tests of Navigation and Session.
+  - Three tests list a Button whole, and a Button built from a Catalog entry has carried its Action's why since f870dc852. I ran only the folders I had changed then and missed them; the whole suite found them. They expect the why now.
+- **Files:**
+  - `packages/foldkit/src/navigation/composition.test.ts` — changed by this commit
+  - `packages/foldkit/src/session/session.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > why is from a user perspective? Why would a user want to do this?
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:30 p.m. EST — `e4981dd07fac` feat(react): green: an Action that takes fields has a typed call, a check, and a control's props, all from its declaration (Scribe #2518)
+
+- **Implementation commit:** `e4981dd07fac09fd5251db3418177579c981f6f3`
+- **Change:** green: an Action that takes fields has a typed call, a check, and a control's props, all from its declaration (Scribe #2518)
+- **Details:**
+  - Layer: a client adapter, @foldkit/react.
+  - useCalls(program) gives every Action of the Catalog that takes fields as a CallHandle typed by those fields. call asks through Catalog.tagFor and the bound press, so the Action's own rule decides, as for a menu and a terminal. check hands what a form holds to Declaration.parse and answers its sentence, the one a terminal prints. props name the control with the Action's title, describe it with its what and why, and disable it with the reason while it is unavailable, through the same controlHintOf every painter uses. CallsOf types the result from the Program's Catalog. useActions is unchanged.
+  - Not here yet: a name that needs the Model to resolve, such as a title by what the user calls it; check reads only what the declaration can say without one.
+- **Files:**
+  - `packages/react/src/interaction/interaction.tsx` — changed by this commit
+- **User context (verbatim):**
+  > Hopefully that's strongly typed with effect stuff, and then that is used downstream for things like the React hook
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:30 p.m. EST — `872d2227e35a` feat(foldkit): green: a typed value is spelled as the tag every Client presses (Scribe #2518)
+
+- **Implementation commit:** `872d2227e35a553cad3092ceae5ca64064fdd0bf`
+- **Change:** green: a typed value is spelled as the tag every Client presses (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the Catalog.
+  - Catalog.tagFor gives the tag that asks for an Action with typed fields: the bare tag for one that takes nothing, a choice tag for one that chooses, printed with the Action's own token. A choosing Action's declaration now prints a value as well as reading one back.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/public.ts` — changed by this commit
+- **User context (verbatim):**
+  > Hopefully that's strongly typed with effect stuff, and then that is used downstream for things like the React hook
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:30 p.m. EST — `f870dc852793` feat(foldkit): green: a control's hint says why the user would press it, under what it does (Scribe #2518)
+
+- **Implementation commit:** `f870dc852793732018db73553f340921caa7dab9`
+- **Change:** green: a control's hint says why the user would press it, under what it does (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the screen tree and Interaction; a domain core's test, Counter.
+  - A Button carries its Action's why beside its description, filled by actionButtons from the Catalog entry, so every screen that builds its Buttons there gets it. controlHintOf carries it as maybeWhy, hintAttributesOf writes it as data-hint-why, and the panel that opens on hover or keyboard focus says it as a quieter line under what the control does. The HTML, React and Svelte painters take the hint's attributes whole, so none of them changed. A screen reader's description stays what the control does.
+  - Decided here: a control that is unavailable says why it is unavailable and leaves the why out, since the user cannot press it and two quiet lines read as one. The test for the panel now rests a pointer on the control, as its neighbours do. Counter core's Button test expects the why read from each Action.
+- **Files:**
+  - `examples/counter/core/src/program.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/documentHints.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/documentHints.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/hintStyles.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/interaction.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/interaction.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/screenStyles.lists.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/elements.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/types.ts` — changed by this commit
+- **User context (verbatim):**
+  > why is from a user perspective? Why would a user want to do this?
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:30 p.m. EST — `b0a34217ba68` test(counter): a Button's description is read from its Action, as the screen paints it (Scribe #2518)
+
+- **Implementation commit:** `b0a34217ba68437707e09f8170780a6aad2a4f6e`
+- **Change:** a Button's description is read from its Action, as the screen paints it (Scribe #2518)
+- **Details:**
+  - Layer: a domain core, Counter.
+  - The test listed each Button without the description every Button has carried since hover descriptions were added, so it was red before this work. It now expects each Action's own what, read from the declaration and not typed again.
+- **Files:**
+  - `examples/counter/core/src/program.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > I want to make sure that these are being derived from the actual command list and not manually typed out in the CLI program.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:30 p.m. EST — `8456e3eed439` feat(foldkit): green: a child's Actions lifted over a list keep what they touch, under the place the parent keeps each row (Scribe #2518)
+
+- **Implementation commit:** `8456e3eed439240c44e2f1a13553680b02ae6ad9`
+- **Change:** green: a child's Actions lifted over a list keep what they touch, under the place the parent keeps each row (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the Catalog.
+  - Catalog.lift takes under and also, as Catalog.within does. A lifted Action keeps what the child's Action says it touches, read under the typed path where the parent keeps each row's child, with what the parent adds; before, lifting dropped it. A path looks through the list, so the check compares row against row. within's TSDoc sits on within again: the helper that had come between them moved up.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:30 p.m. EST — `a19e5ad33842` feat(books): green: the words being read are a computed field of the Model, listed with the state it describes (Scribe #2518)
+
+- **Implementation commit:** `a19e5ad338427fee10ca969be80f7d354a0a5bfd`
+- **Change:** green: the words being read are a computed field of the Model, listed with the state it describes (Scribe #2518)
+- **Details:**
+  - Layer: a domain core, Books.
+  - The Model's shelf, player, speed and appearance carry their what and why with described(), and wordsBeingRead is declared beside them with computed(): what it is, why the user wants it, the three paths it is computed from (the shelf, the chapters, what is in the player), and spokenWordsOf as its reading. observablesOf(Model, computedFields) lists all five, so a Client lists what it can observe from the Model and nothing else. undeclaredSources holds the computed field to its sources over the sample Models; leaving any one of the three out is caught.
+- **Files:**
+  - `examples/books/core/src/model.ts` — changed by this commit
+  - `examples/books/core/src/words.ts` — changed by this commit
+- **User context (verbatim):**
+  > instead of reading declare we can at the model level declare some metadata in the same way that we do actions
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:29 p.m. EST — `12aa29bd2a99` docs: what an Action touches is checked from both sides, and where Facts and Commands live so an Action can name them (Scribe #2518)
+
+- **Implementation commit:** `12aa29bd2a99537b0587c7c965771424f9a70c89`
+- **Change:** what an Action touches is checked from both sides, and where Facts and Commands live so an Action can name them (Scribe #2518)
+- **Details:**
+  - Layer: none; the repository's guide for agents.
+  - Declare once now says that a path looks through an Option, a list and a union, how a parent says what it adds to a child's Actions, that unseenTouches holds a declaration from the other side, and what the check cannot see. File Organization says the import order an Action's triggers need: Facts, then Commands, then Actions.
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+- **User context (verbatim):**
+  > increase the emphasis with which we derive functionality we don't bolt on with concrete examples of what that looks like in abstract and concretely
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:29 p.m. EST — `3fd07d765d67` feat(books): green: every Books Action says the state it mutates and the Commands it triggers, and update is held to it (Scribe #2518)
+
+- **Implementation commit:** `3fd07d765d676f8d68f54e457fbd163fd42b4c59`
+- **Change:** green: every Books Action says the state it mutates and the Commands it triggers, and update is held to it (Scribe #2518)
+- **Details:**
+  - Layer: domain cores, Books, its Audible import, and Read Aloud.
+  - All 67 Actions of the Books Catalog say what they touch by typed reference. Books' own name paths of its Model and its Commands: Listen mutates what is in the player, the address, and the reports still to send, and triggers WriteLibrary and ReportStretch; AddBookmark only triggers ReadMoment, since the bookmark is written when the moment comes back. The player's Actions keep their own touches under listening.player, and Books says what it adds to each with also: a move saves the place, ends the stretch and keeps the address on the second. The theme's Action sits under appearance. Read Aloud's five mutate the pages of the stack, and Books adds its notice and ShareLink to SharePage with Catalog.withTouches. The Audible import's eight name the sign-in, the titles and the audio queue.
+  - So that an Action can name a Command, the order is Facts, then Commands, then Actions. Books' Facts move to fact.ts and its Commands to command.ts, because update reaches the Actions through the screens; the Audible import's Facts move to audible/fact.ts and the pasted address to audible/address.ts. message.ts and update.ts still export everything they did.
+- **Files:**
+  - `examples/books/core/src/addBooks.ts` — changed by this commit
+  - `examples/books/core/src/audible/address.ts` — changed by this commit
+  - `examples/books/core/src/audible/fact.ts` — changed by this commit
+  - `examples/books/core/src/audible/message.ts` — changed by this commit
+  - `examples/books/core/src/audible/update.ts` — changed by this commit
+  - `examples/books/core/src/command.ts` — changed by this commit
+  - `examples/books/core/src/fact.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/books/core/src/update.ts` — changed by this commit
+  - `examples/read-aloud/core/src/message.ts` — changed by this commit
+  - `packages/foldkit/src/theme/appearance.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:29 p.m. EST — `756d9847f888` feat(foldkit): green: a parent says what it adds to a child's Action, beside the child's own touches (Scribe #2518)
+
+- **Implementation commit:** `756d9847f8887022cd3bf8abbf4200cfa7b51dd3`
+- **Change:** green: a parent says what it adds to a child's Action, beside the child's own touches (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the Catalog and foldkit/theme.
+  - Catalog.within takes also, keyed by the child's Action tags, so a tag the child does not have does not compile: the parent's own state it mutates and the Commands it triggers on that Action, joined to the child's. Catalog.withTouches does the same for one Action a Program takes from another core, and returns the same Action: same tag, fields, words, keys, rule and choices. Catalog.Touched names the shape both take, which is the one Catalog.action takes.
+  - SetAppearance says it mutates the choice of look, and a test holds the theme's update to that from both sides.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/public.ts` — changed by this commit
+  - `packages/foldkit/src/theme/appearance.test.ts` — changed by this commit
+  - `packages/foldkit/src/theme/appearance.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:29 p.m. EST — `c83bc1e77968` feat(transcript-player): green: every Action says the state it mutates and the Command it triggers, and update is held to it (Scribe #2518)
+
+- **Implementation commit:** `c83bc1e7796841f65f4ea57a6e14f7b94b4114bf`
+- **Change:** green: every Action says the state it mutates and the Command it triggers, and update is held to it (Scribe #2518)
+- **Details:**
+  - Layer: a domain core, the Transcript Player.
+  - Each of the 24 Actions names what it mutates as typed paths of the Model, and SearchFor names the Command it triggers, SearchRecording, by its definition. The paths are as narrow as update is: Pause mutates transport; a move mutates the place, the clock, the transport, the cue, and returns the words to the voice; stepping through matches mutates only the selected match of the search and where the words are.
+  - So that an Action can name a Command, the Facts move to fact.ts. A Command answers with Facts and an Action names the Commands it triggers, so the order is Facts, then the Commands beside update, then the Actions; message.ts still exports every Message, so nothing that imports it changes.
+- **Files:**
+  - `examples/transcript-player/core/src/fact.ts` — changed by this commit
+  - `examples/transcript-player/core/src/message.ts` — changed by this commit
+  - `examples/transcript-player/core/src/touches.test.ts` — changed by this commit
+  - `examples/transcript-player/core/src/update.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:28 p.m. EST — `294a28965419` feat(foldkit): green: a typed path names a field only one variant of a state has (Scribe #2518)
+
+- **Implementation commit:** `294a28965419ba63af72d2340928729819b1c245`
+- **Change:** green: a typed path names a field only one variant of a state has (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, foldkit/declaration.
+  - ModelPath offers the fields of every variant of a state that is one of several, so at.maybeSearch.selected names what only a found search keeps. The check already holds an Action to it: a search that becomes another variant changes its tag and its other fields, which the Action did not say.
+- **Files:**
+  - `packages/foldkit/src/declaration/modelPath.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:28 p.m. EST — `bcf8a8e55450` feat(foldkit): green: what an Action mutates is told apart inside an Option and a list, and a touch no sample shows is named (Scribe #2518)
+
+- **Implementation commit:** `bcf8a8e5545021d02e86bc476354edb4e3dd37f9`
+- **Change:** green: what an Action mutates is told apart inside an Option and a list, and a touch no sample shows is named (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the Catalog and foldkit/declaration.
+  - A ModelPath looks through an Option and a list: at.maybeCounter.count and at.tallies.count name the field of what the Option holds and of every row. The check follows the same paths. Two Somes, and two lists of one length, are compared inside, row against the row at the same position; None against Some, or a row added or removed, is a change of the Option or the list itself. A path declared inside no longer covers a change of the whole, so maybeCounter.count does not excuse a change of maybeCounter.step. Catalog.undeclaredTouches takes sample Messages for the Actions no menu can offer a choice for, and reads an update that also answers its parent. Catalog.unseenTouches names what an Action says it mutates or triggers that no sample showed, so a declaration is held from both sides. The TSDoc says what the check cannot see: anything outside its samples, the inside of a value that is not a record, an Option or a list, a moved row, a Command's arguments and effect, and what update changes later when the Command's result arrives.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/public.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/modelPath.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:28 p.m. EST — `a0d01f2a8fae` feat(foldkit): green: a child's touches sit under the parent's key, and a computed field says what it is computed from (Scribe #2518)
+
+- **Implementation commit:** `a0d01f2a8faed9cddef926d84672352cceaee1b8`
+- **Change:** green: a child's touches sit under the parent's key, and a computed field says what it is computed from (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the Catalog and foldkit/declaration.
+  - Catalog.within takes under, the typed path where the parent keeps the child, and what a child's Action mutates then reads under it: count becomes maybeCounter.count. computed() declares a value the Model does not store, with its what and why and the typed paths it is computed from; observablesOf lists it with the stored state. undeclaredSources keeps one sample Model's values at those paths, takes everything else from another, and says when the value still changes. The check on what an Action mutates now lets a path declared inside a list or an Option cover the change of the whole, since a change is told apart only as deep as plain records go. Catalog.lift does not take under yet.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declare.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:28 p.m. EST — `c4de9d34da3e` feat(foldkit): the controls every Program's terminal has are declared once, and help reads them (Scribe #2518)
+
+- **Implementation commit:** `c4de9d34da3efab038a0eb9229e2602e0601b500`
+- **Change:** the controls every Program's terminal has are declared once, and help reads them (Scribe #2518)
+- **Details:**
+  - Layer: the Foldkit CLI adapter, foldkit/cli.
+  - The controls list in cli/program.ts (show, menu, key, open, back, where, watch, follow, tail, help) was typed by hand: each usage, what and example a string. It was the same fault as the Books usage. They are now declared in cli/controls.ts with Effect Schema fields, the menu's under one group, and programUsage reads each row's usage and example from its declaration; an example's values still come from the Program at hand (its first Action, its first key, the page that is open). The usage line's key flags come from Key's on or off fields. Each menu control has a line of its own, and menu choose names what it takes, an action. Counter and multiple-counters get this through the generic surface; their entries' comment tables of commands are replaced by a pointer to the derived help.
+- **Files:**
+  - `examples/counter/cli/src/cli.integration.test.ts` — changed by this commit
+  - `examples/counter/cli/src/entry.ts` — changed by this commit
+  - `examples/multiple-counters/cli/src/entry.ts` — changed by this commit
+  - `packages/foldkit/src/cli/controls.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/controls.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+- **User context (verbatim):**
+  > I want to make sure that these are being derived from the actual command list and not manually typed out in the CLI program.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:28 p.m. EST — `0d3a89d18ef1` fix(books): every what and why is about the user, never to the user, and says only what its Action does (Scribe #2518)
+
+- **Implementation commit:** `0d3a89d18ef10215e744a0f5a8cfd1965c2f0782`
+- **Change:** every what and why is about the user, never to the user, and says only what its Action does (Scribe #2518)
+- **Details:**
+  - Layer: the Books, Transcript Player and Read Aloud cores, and the
+  - His rule: a declaration names the user or says no actor; it does not say you. Sixty-seven Actions were read in one pass. Nineteen whats said you or your and now say it without an actor, such as Plays this book from where it was last stopped, or name the user where one is needed. Three whats also said why (so you can come back to it, leaving more room for the words) and now say only what the Action does. The whys are the user's reason, most as To and a verb, and none repeats its what. The Books test that asked for your book and your place now asks for the new rule, and one test runs Declaration.problemsOf and clientWordsOf over every Action of the Catalog, so a you, a why that repeats its what, or a Client's word fails. Tests that quote a sentence quote the new one.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/core/src/actions.test.ts` — changed by this commit
+  - `examples/books/core/src/addBooks.ts` — changed by this commit
+  - `examples/books/core/src/audible/audioQueue.node.test.ts` — changed by this commit
+  - `examples/books/core/src/audible/audioQueue.node.ts` — changed by this commit
+  - `examples/books/core/src/audible/endpoint.node.ts` — changed by this commit
+  - `examples/books/core/src/audible/http.ts` — changed by this commit
+  - `examples/books/core/src/audible/message.ts` — changed by this commit
+  - `examples/books/core/src/audible/screen.test.ts` — changed by this commit
+  - `examples/books/core/src/audible/screen.ts` — changed by this commit
+  - `examples/books/core/src/audible/server.node.test.ts` — changed by this commit
+  - `examples/books/core/src/audible/server.node.ts` — changed by this commit
+  - `examples/books/core/src/audible/title.ts` — changed by this commit
+  - `examples/books/core/src/audible/update.test.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/read-aloud/core/src/message.ts` — changed by this commit
+  - `examples/transcript-player/core/src/message.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/theme/appearance.ts` — changed by this commit
+- **User context (verbatim):**
+  > instead of you, let's make sure that our documentation mentions the user or the core actor in these kinds of things
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:28 p.m. EST — `1ac9a7027a3b` docs: declare once, derive everything, with the worked example from the Books terminal (Scribe #2518)
+
+- **Implementation commit:** `1ac9a7027a3bb8ea8f85ea71add94bbf7ccfd4c1`
+- **Change:** declare once, derive everything, with the worked example from the Books terminal (Scribe #2518)
+- **Details:**
+  - AGENTS.md gains a section with his words, the rule in the abstract, the derivation path as a diagram, four pairs of a hand-typed defect beside the declaration and the derived line (the usage line that said listen <title>, a tooltip, an accessible description, an agent's tool list), what a declaration says and how, and where the test that holds the rule lives. Naming gains the rule for Actions beside the one for Facts, and the core layer names foldkit/declaration. PRINCIPLES.md adds the worked example and the smell under Define once. The glossary defines Declaration, what and why, Parameter, Subject, mutates and triggers, ModelPath, Observable, and terminal command, and names m and md as the older way. The client-hosts skill says how a host derives its help. Nothing of his earlier words is rewritten.
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+  - `PRINCIPLES.md` — changed by this commit
+  - `glossary.md` — changed by this commit
+  - `skills/foldkit-client-hosts/SKILL.md` — changed by this commit
+- **User context (verbatim):**
+  > increase the emphasis with which we derive functionality we don't bolt on with concrete examples of what that looks like in abstract and concretely
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:28 p.m. EST — `7aca78ae2043` feat(books): the terminal's help, usage, flags and refusals are read from declarations (Scribe #2518)
+
+- **Implementation commit:** `7aca78ae2043639ded3858563be5202c52735b69`
+- **Change:** the terminal's help, usage, flags and refusals are read from declarations (Scribe #2518)
+- **Details:**
+  - Layer: the Books CLI adapter, over foldkit/cli and foldkit/declaration.
+  - The usage he read first was typed by hand in four places and said listen <title> while the command took a slug. Now what the terminal does itself is declared once in declared.ts, with Effect Schema fields: help, devices, login, stop, tui, follow, watch, tail, and what the player answers beside the library's Actions (words, bookmarks, bookmark, link, search, play-from, open, back, screen, actions). From those and from Catalog.declarationsOf come the first read of books, books help <command>, the lines the brief offers, the devices hint, the flags the argv reader knows as on or off, and the refusals.
+  - A wrong flag, a value of the wrong kind, a missing word or a word too many is refused in one sentence with the nearest name and the usage, before any player starts: the slim view reads the declarations as plain data kept beside the player's socket and derived again when the code changes, so it still loads no Effect. A command the terminal answers itself has a typed handler read from its declaration; one declared without a handler does not compile. books actions --json prints every command as tools a program reads. A test fails when a string in the folder types a command after the program's name, or a comment keeps a table of commands.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/declared.test.ts` — changed by this commit
+  - `examples/books/cli/src/declared.ts` — changed by this commit
+  - `examples/books/cli/src/devices.test.ts` — changed by this commit
+  - `examples/books/cli/src/devices.ts` — changed by this commit
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/help.ts` — changed by this commit
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/settings.ts` — changed by this commit
+  - `examples/books/cli/src/view.test.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/cli/declared.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/declared.ts` — changed by this commit
+  - `packages/foldkit/src/cli/declaredCache.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > I want to make sure that these are being derived from the actual command list and not manually typed out in the CLI program.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:27 p.m. EST — `aa55451141c4` feat(foldkit): green: an Action says what it mutates and triggers by typed reference, and update is held to it (Scribe #2518)
+
+- **Implementation commit:** `aa55451141c45adc9e85a3e30b28a43863ef536b`
+- **Change:** green: an Action says what it mutates and triggers by typed reference, and update is held to it (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the Catalog and foldkit/declaration.
+  - Catalog.action takes mutates, typed paths of the Model read off ModelPath.of(Model), and triggers, the Command definitions themselves. Catalog.declarationOf gives each Action as the plain declaration, its parameters read from its Effect Schema fields with the chosen field as its subject, and its touches as the two relations. Catalog .undeclaredTouches runs the pure update over sample Models and says when it changes a path or returns a Command an Action did not say. An Action that has not said what it touches has no touches, so nothing is guessed. A Model's fields say what and why for the user with described(), and observablesOf lists them by path: the same paths an Action mutates. An agent's tool reads read-only and side effects from the two relations.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/public.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/touches.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declaration.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declare.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declare.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/index.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/modelPath.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/tool.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/tool.ts` — changed by this commit
+- **User context (verbatim):**
+  > it triggers these things or it mutates this state. I think we should have a keyed object that uses strongly typed information only and no strings
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 4:22:27 p.m. EST — `ca4978c9b103` feat(foldkit): green: a declaration is plain data derived from Effect Schema fields, read by one parser (Scribe #2518)
+
+- **Implementation commit:** `ca4978c9b103377108c7641fbee4b4ff4c9be355`
+- **Change:** green: a declaration is plain data derived from Effect Schema fields, read by one parser (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the new module foldkit/declaration, and the
+  - A Declaration is plain data that knows no terminal, browser or application: a name, other names, what it does and why the user would want that (third person, never a Client's words), its parameters and examples, and what it touches once that is derived. Parameters are not a second schema: Declaration.declare takes Effect Schema fields and derives each parameter's kind, description, and whether it is required, optional or defaulted, the last by decoding nothing.
+  - One parser reads what any Client collected: an unknown name with the nearest one, a required parameter left out with an example, a wrong kind, a value outside its set; then the fields' own Schema for what only it knows, in the same kind of sentence. The plain files import nothing at run time, so a terminal's slim view can refuse fast.
+- **Files:**
+  - `packages/foldkit/package.json` — changed by this commit
+  - `packages/foldkit/src/cli/declared.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/declared.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declaration.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declaration.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declare.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declare.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/index.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/parameter.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/parse.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/parse.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/plain.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/public.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/schema.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/tool.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/tool.ts` — changed by this commit
+  - `packages/foldkit/src/index.ts` — changed by this commit
+- **User context (verbatim):**
+  > Nothing in it knows about terminals or browsers or applications. It's plain data.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 9:46:40 a.m. EST — `983701c48c94` feat(foldkit): green: a Transcript says who speaks and holds what sits between its passages (Scribe #2494)
 
 - **Implementation commit:** `983701c48c9477374ec8f82295f7ebdfb53a2b63`
