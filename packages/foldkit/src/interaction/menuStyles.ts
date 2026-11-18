@@ -1,3 +1,5 @@
+import { roleVar } from '../theme/theme.js'
+
 /**
  * The look of the action menu on the web, shared by every web painter:
  * Foldkit HTML, React, and Svelte. It styles the `fk-action-menu` class
@@ -213,11 +215,11 @@ export const menuStylesheet = `
   box-sizing: border-box;
   min-width: 2rem;
   padding: 0.125rem 0.375rem;
-  border: 1px solid rgb(229 231 235);
+  border: 1px solid ${roleVar('Rule')};
   border-bottom-width: 2px;
   border-radius: 0.375rem;
-  background: rgb(249 250 251);
-  color: rgb(55 65 81);
+  background: ${roleVar('Surface')};
+  color: ${roleVar('Text')};
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;

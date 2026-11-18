@@ -1,10 +1,21 @@
+import { type Role, cssVariableOf, defaultTheme } from '../theme/theme.js'
+
+// NOTE: A hint can show on a page that paints no screen, so no stylesheet
+// has declared the theme there. Each role falls back to the default
+// theme's own light color, read from the theme, never written here.
+const roleVar = (role: Role): string =>
+  `var(${cssVariableOf(role)}, ${defaultTheme[role].light})`
+
 /**
  * The look of a control's hint and of a key's echo on the web, shared by
  * every web painter. The hint is the small dark panel that says what a
  * control does and which keys press it; the echo is the line that says,
  * for a moment, what a key just did. `listenForHints` and `showEcho` add
- * it to the document head once. Every selector sits in `:where()`, so an
- * app's own rule for the same class wins without `!important`.
+ * it to the document head once. It names roles of the theme and no color
+ * of its own: the panel is the text color with the page's ground for its
+ * words, so it stands out in either mode. Every selector sits in
+ * `:where()`, so an app's own rule for the same class wins without
+ * `!important`.
  *
  * @example
  * ```tsx
@@ -21,11 +32,12 @@ export const hintStylesheet = `
   box-sizing: border-box;
   margin: 0;
   padding: 0.4375rem 0.625rem;
-  border: 1px solid rgb(255 255 255 / 0.08);
+  border: 1px solid color-mix(in srgb, ${roleVar('PageGround')} 14%, transparent);
   border-radius: 0.5rem;
-  background: rgb(17 24 39 / 0.96);
-  box-shadow: 0 8px 24px -6px rgb(15 23 42 / 0.45);
-  color: rgb(243 244 246);
+  background: ${roleVar('Text')};
+  box-shadow: 0 8px 24px -6px
+    color-mix(in srgb, ${roleVar('Text')} 35%, transparent);
+  color: ${roleVar('PageGround')};
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 0.8125rem;
   font-weight: 400;
@@ -79,7 +91,7 @@ export const hintStylesheet = `
 }
 
 :where(.fk-hint-because, .fk-echo-note) {
-  color: rgb(252 211 77);
+  opacity: 0.75;
 }
 
 :where(.fk-hint-keys, .fk-echo-keys) {
@@ -93,11 +105,11 @@ export const hintStylesheet = `
   box-sizing: border-box;
   min-width: 1.25rem;
   padding: 0 0.3125rem;
-  border: 1px solid rgb(255 255 255 / 0.22);
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
   border-bottom-width: 2px;
   border-radius: 0.3125rem;
-  background: rgb(255 255 255 / 0.1);
-  color: rgb(255 255 255);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.6875rem;
   line-height: 1rem;
