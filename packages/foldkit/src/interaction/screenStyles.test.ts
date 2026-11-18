@@ -68,4 +68,16 @@ describe('the look of words read along with', () => {
     expect(defaultTheme.ReadingGround.dark).toMatch(/^linear-gradient/)
     expect(defaultTheme.ReadingSpoken.dark).toBe('#ffffff')
   })
+
+  it('runs the reading ground edge to edge on a narrow window, so the words are not boxed in twice', () => {
+    const narrow = screenStylesheet.slice(
+      screenStylesheet.indexOf('@media (max-width: 560px)'),
+    )
+    const rule = narrow.slice(
+      narrow.indexOf(':where(.fk-transcript) {'),
+      narrow.indexOf('}', narrow.indexOf(':where(.fk-transcript) {')) + 1,
+    )
+    expect(rule).toContain('width: 100vw')
+    expect(rule).toContain('border-radius: 0')
+  })
 })

@@ -288,6 +288,7 @@ const contentsOf = (model: Model, title: Title): ReadonlyArray<UiNode> =>
             Text(`The chapters could not be read: ${reason}`, { dim: true }),
           ],
           ChaptersReady: ({ chapters }) => {
+            const entries = entriesOf(model)
             const maybePlace = markedPlaceOf(model, title)
             const maybeMarkedNumber = Option.map(
               maybePlace,
@@ -301,7 +302,7 @@ const contentsOf = (model: Model, title: Title): ReadonlyArray<UiNode> =>
                 filter: chapterFilterOf(title),
                 items: Array.map(chapters, chapter =>
                   chapterItemOf(
-                    entriesOf(model),
+                    entries,
                     Option.map(
                       Option.filter(maybePlace, () =>
                         Option.contains(

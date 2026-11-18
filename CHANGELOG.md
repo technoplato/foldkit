@@ -4,6 +4,42 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:12:19 a.m. EST — `9503911b64ff` fix(books): green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
+
+- **Implementation commit:** `9503911b64ffdf87e2edca6295ce3489ad20394d`
+- **Change:** green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
+- **Details:**
+  - contentsOf works out the Catalog's entries once and hands them to every chapter row, where it worked them out again for each of the 114 rows. The count of shelf reads while Contents paints is now the same for 4 chapters and for 120. The terminal UI test that asks every key to answer within 250 ms, which failed about one run in two, passed three whole-file runs in a row at a load of 7: its limit wa
+- **Files:**
+  - `examples/books/core/src/screen.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `817aa8b5c8e1` feat(foldkit): green: a sync failure names the sync engine, not one product (Scribe #2494)
+
+- **Implementation commit:** `817aa8b5c8e1e9573f93e9001c2b2c8075651c14`
+- **Change:** green: a sync failure names the sync engine, not one product (Scribe #2494)
+- **Details:**
+  - The seven sentences the runtime shows when a write is refused, a row cannot be read, or the log cannot be fetched say 'the sync engine' where they said Instant, since the runtime carries any engine. What happened, what it means and what to do read as before. foldkit runtime and program: 269 tests pass; the 4 that fail are the crash-view tests that fail on the base commit too.
+- **Files:**
+  - `packages/foldkit/src/runtime/start.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `707fb1710cf4` feat(foldkit): green: the reading ground runs edge to edge on a narrow window (Scribe #2494)
+
+- **Implementation commit:** `707fb1710cf49251e780bf8e04f9d86a864c62cb`
+- **Change:** green: the reading ground runs edge to edge on a narrow window (Scribe #2494)
+- **Details:**
+  - At 560 px and narrower the Transcript is as wide as the window, with no rounded corners, so on a phone the reading ground meets both edges and the words are not a card inside the page. Wider windows keep the 1200 px column. Checked at 390 by 844 in light and dark: the ground spans 0 to 390 with no sideways scroll, and the chapter bar and the mini player sit clear of it. foldkit interaction and the
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 1:03:03 a.m. EST — `6b996de189f0` docs: state drives and the components at the edge are told; the time label sits within its line (Scribe #2494)
 
 - **Implementation commit:** `6b996de189f02de9be8fdd69cc3a67457bd09a4e`
