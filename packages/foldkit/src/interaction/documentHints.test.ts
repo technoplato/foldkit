@@ -130,6 +130,82 @@ describe('listenForHints', () => {
     )
   })
 
+  it('measures the panel from the page’s start edge each time, so one shown near the far edge before does not push the next against it', () => {
+    listen()
+    const viewWidth = 390
+    vi.stubGlobal('innerWidth', viewWidth)
+    const first = hinted(play)
+    fire(document, 'keydown')
+    fire(first, 'focusin')
+    const panel = tooltip()
+    if (panel === null) {
+      throw new Error('no panel')
+    }
+    // A panel placed by the page shrinks to the room left of the far edge,
+    // as a browser lays it out: 320 wide at most.
+    Object.defineProperty(panel, 'offsetWidth', {
+      configurable: true,
+      get: () =>
+        Math.min(320, viewWidth - Number.parseInt(panel.style.left || '0', 10)),
+    })
+    const near = hinted(play)
+    near.getBoundingClientRect = () => new DOMRect(viewWidth - 60, 700, 50, 40)
+    fire(first, 'focusout')
+    // Where a narrower hint was shown before, part way across.
+    panel.style.left = '86px'
+    fire(near, 'focusin')
+    expect(Number.parseInt(panel.style.left, 10) + 320).toBeLessThanOrEqual(
+      viewWidth - 8,
+    )
+    vi.unstubAllGlobals()
+  })
+
+  it('tells one control from another by which element it is, never by reading into the element', () => {
+    listen()
+    // Elements with a part that cannot be read, as an icon's SVG length
+    // cannot before it is laid out.
+    const unreadable = (): HTMLElement => {
+      const button = hinted(play)
+      Object.defineProperty(button, 'unreadable', {
+        enumerable: true,
+        get: () => {
+          throw new Error('read into the element')
+        },
+      })
+      return button
+    }
+    const first = unreadable()
+    const second = unreadable()
+    fire(document, 'keydown')
+    fire(first, 'focusin')
+    expect(isShown()).toBe(true)
+    expect(() => {
+      fire(second, 'pointerover')
+    }).not.toThrow()
+  })
+
+  it('stays, and still comes, while something else on the page scrolls, such as words that follow a voice; hides when what holds the control scrolls', () => {
+    listen()
+    const words = document.createElement('div')
+    const dock = document.createElement('div')
+    document.body.append(words, dock)
+    const button = hinted(play)
+    dock.append(button)
+    fire(button, 'pointerover')
+    fire(words, 'scroll', { bubbles: false })
+    vi.advanceTimersByTime(hintShowDelayMs)
+    expect(isShown()).toBe(true)
+    fire(words, 'scroll', { bubbles: false })
+    expect(isShown()).toBe(true)
+    fire(dock, 'scroll', { bubbles: false })
+    expect(isShown()).toBe(false)
+    fire(document, 'keydown')
+    fire(button, 'focusin')
+    expect(isShown()).toBe(true)
+    fire(document, 'scroll', { bubbles: false })
+    expect(isShown()).toBe(false)
+  })
+
   it('shows nothing for a control without a hint, and nothing once stopped', () => {
     listen()
     const plain = document.createElement('button')
