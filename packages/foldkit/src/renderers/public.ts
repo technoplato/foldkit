@@ -23,7 +23,12 @@ export { Host } from './host.js'
 export { IconName, iconDrawings, iconGlyphs } from './icons.js'
 export type { IconDrawing } from './icons.js'
 export { progressLineOf, seekLineOf } from './layout.js'
-export { filterListItems, itemLinesOf } from './listRows.js'
+export {
+  type ItemGroup,
+  filterListItems,
+  groupedItemsOf,
+  itemLinesOf,
+} from './listRows.js'
 export { padOf } from './pad.js'
 export type {
   MobilePad,
@@ -81,6 +86,7 @@ export type {
   ColumnNode,
   DeviceShellNode,
   HotspotAction,
+  ItemBadge,
   ItemCheck,
   ItemImage,
   LayoutBox,
