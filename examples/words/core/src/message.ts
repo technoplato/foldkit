@@ -285,6 +285,16 @@ export const OpenedWordMenu = m('OpenedWordMenu', {
   x: S.Number,
   y: S.Number,
 })
+/** The listener opened the search inside the recording. */
+export const OpenedFind = m('OpenedFind')
+/** The listener closed the search inside the recording. */
+export const ClosedFind = m('ClosedFind')
+/** The listener changed the words searched for inside the recording. */
+export const ChangedFindQuery = m('ChangedFindQuery', { query: S.String })
+/** The listener stepped to the next match, or the one before. */
+export const SteppedFind = m('SteppedFind', {
+  direction: S.Literals(['Next', 'Previous']),
+})
 /** The listener dismissed a word's menu. */
 export const ClosedWordMenu = m('ClosedWordMenu')
 /** The listener copied a link to one word. */
@@ -409,6 +419,10 @@ export const Message = S.Union([
   ClickedCopyWordLink,
   OpenedWordMenu,
   ClosedWordMenu,
+  OpenedFind,
+  ClosedFind,
+  ChangedFindQuery,
+  SteppedFind,
   ClickedCopyMomentLink,
   ClickedCopySectionText,
   ClickedCopyTranscript,

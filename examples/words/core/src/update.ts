@@ -17,6 +17,8 @@ import { load, pushUrl, replaceUrl } from 'foldkit/navigation'
 import {
   type ScrubDirection,
   type ScrubUnit,
+  matchStepOf,
+  searchTranscript,
   wordAtAddress,
   wordStepOf,
 } from 'foldkit/renderers'
@@ -1434,6 +1436,7 @@ const readyFor = (
     announcementPause: ReadyToAnnounce(),
     announcementRevision: 0,
     maybeWordMenu: Option.none(),
+    maybeFind: Option.none(),
   })
 
 const openRecording = (
@@ -2240,6 +2243,117 @@ const copyWithNotice = (
     ],
   ]
 }
+
+/** One place the search inside a recording found. */
+export type FindMatch = Readonly<{
+  sectionID: string
+  wordIDs: ReadonlyArray<string>
+  startSeconds: number
+  startMs: number
+  text: string
+  before: string
+  after: string
+}>
+
+/**
+ * How the search inside a recording stands: the words searched for, every
+ * place they are spoken, in order, and which one the listener is on.
+ */
+export type FindState = Readonly<{
+  query: string
+  matches: ReadonlyArray<FindMatch>
+  maybeSelectedIndex: Option.Option<number>
+}>
+
+const findMatchesOf = (
+  ready: ReadyPlayback,
+  query: string,
+): ReadonlyArray<FindMatch> => {
+  const startOf = new Map(
+    Array.flatMap(ready.detail.sections, section =>
+      Array.map(section.words, word => [word.id, word.startSeconds] as const),
+    ),
+  )
+  return Array.map(
+    searchTranscript(readAlongOf(ready.detail.sections, stillAt(ready)), query),
+    match => ({
+      sectionID: match.passageKey,
+      wordIDs: match.tokens,
+      startSeconds:
+        startOf.get(match.token) ?? match.startMs / MILLISECONDS_PER_SECOND,
+      startMs: match.startMs,
+      text: match.text,
+      before: match.before,
+      after: match.after,
+    }),
+  )
+}
+
+/**
+ * The search inside the open recording, for a view to draw: what was
+ * found, by the library's shared search over the recording as a
+ * Transcript, whatever the words' case or punctuation, and the match the
+ * listener is on. None while the search is closed.
+ *
+ * @example
+ * ```ts
+ * findOf(ready) // Some({ query: 'lamp', matches: [{ sectionID, wordIDs, startSeconds: 4, … }, …], maybeSelectedIndex: Some(1) })
+ * ```
+ */
+export const findOf = (ready: ReadyPlayback): Option.Option<FindState> =>
+  Option.map(ready.maybeFind, find => {
+    const matches = findMatchesOf(ready, find.query)
+    return {
+      query: find.query,
+      matches,
+      maybeSelectedIndex: Option.flatMap(find.maybeSelectedMs, selectedMs =>
+        Array.findFirstIndex(matches, match => match.startMs === selectedMs),
+      ),
+    }
+  })
+
+/**
+ * A step through what the search found: from the match the listener is
+ * on, or from the place when on none, to the next match or the one
+ * before, around the ends. The words go to the match and stop following
+ * the voice, so nothing pulls them away; the audio does not move.
+ */
+const steppedFind = (
+  ready: ReadyPlayback,
+  direction: ScrubDirection,
+): ReadyReturn =>
+  Option.match(ready.maybeFind, {
+    onNone: (): ReadyReturn => [ready, []],
+    onSome: find =>
+      Option.match(
+        matchStepOf(
+          findMatchesOf(ready, find.query),
+          Option.getOrElse(find.maybeSelectedMs, () =>
+            Math.round(displayedPositionOf(ready) * MILLISECONDS_PER_SECOND),
+          ),
+          direction,
+        ),
+        {
+          onNone: (): ReadyReturn => [ready, []],
+          onSome: match => [
+            evo(ready, {
+              maybeFind: () =>
+                Option.some({
+                  query: find.query,
+                  maybeSelectedMs: Option.some(match.startMs),
+                }),
+              follow: () => 'Detached',
+            }),
+            [
+              ScrollToSection({
+                sectionID: match.sectionID,
+                placement: 'Center',
+              }),
+            ],
+          ],
+        },
+      ),
+  })
 
 const withoutWordMenu = (ready: ReadyPlayback): ReadyPlayback =>
   evo(ready, { maybeWordMenu: () => Option.none() })
@@ -3218,6 +3332,28 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           }),
         ),
       ClosedWordMenu: () => evolveReady(model, withoutWordMenu),
+      OpenedFind: () =>
+        evolveReady(model, ready =>
+          Option.isSome(ready.maybeFind)
+            ? ready
+            : evo(ready, {
+                maybeFind: () =>
+                  Option.some({ query: '', maybeSelectedMs: Option.none() }),
+              }),
+        ),
+      ClosedFind: () =>
+        evolveReady(model, ready =>
+          evo(ready, { maybeFind: () => Option.none() }),
+        ),
+      ChangedFindQuery: ({ query }) =>
+        evolveReady(model, ready =>
+          evo(ready, {
+            maybeFind: () =>
+              Option.some({ query, maybeSelectedMs: Option.none() }),
+          }),
+        ),
+      SteppedFind: ({ direction }) =>
+        updateReady(model, ready => steppedFind(ready, direction)),
       ClickedWord: ({ seconds }) =>
         updateReady(model, ready => {
           const [sought, seekCommands] = seekTo(

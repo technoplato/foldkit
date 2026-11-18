@@ -229,6 +229,18 @@ export const WordMenu = S.Struct({
 /** The menu open on one word. */
 export type WordMenu = typeof WordMenu.Type
 
+/**
+ * The search inside the open recording, while it is open: the words
+ * searched for, and the match the listener is on, by the time it starts
+ * in milliseconds. What was found is read from the recording, not kept.
+ */
+export const Find = S.Struct({
+  query: S.String,
+  maybeSelectedMs: S.Option(S.Number),
+})
+/** The search inside the open recording. */
+export type Find = typeof Find.Type
+
 export const ReadyPlayback = ts('ReadyPlayback', {
   recordingID: S.String,
   detail: RecordingDetail,
@@ -253,6 +265,7 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   announcementPause: AnnouncementPause,
   announcementRevision: S.Number,
   maybeWordMenu: S.Option(WordMenu),
+  maybeFind: S.Option(Find),
 })
 /** Where playback stands. */
 export const PlaybackState = S.Union([
