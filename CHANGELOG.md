@@ -4,6 +4,143 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 5:03:19 p.m. EST — `027b48629323` feat(react): green: a form checks and sends a choice by the name a person gives it (Scribe #2518)
+
+- **Implementation commit:** `027b48629323222faf603e4601c8bfe1f81c2da6`
+- **Change:** green: a form checks and sends a choice by the name a person gives it (Scribe #2518)
+- **Details:**
+  - Layer: a client adapter, @foldkit/react.
+  - A CallHandle's check, once the declaration takes what was said, asks Catalog.choiceNamed for an Action that chooses among what the Program holds, and answers its sentence when the name matches none or more than one: the sentence a terminal prints. callNamed sends the Action for the one choice a person names. An Action that takes values of its own, such as a time, is not asked for a name.
+- **Files:**
+  - `packages/react/src/interaction/interaction.tsx` — changed by this commit
+- **User context (verbatim):**
+  > Hopefully that's strongly typed with effect stuff, and then that is used downstream for things like the React hook
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 5:03:19 p.m. EST — `54d58be9355d` feat(foldkit): green: the choice a person names is found in the core, with one sentence when it is not (Scribe #2518)
+
+- **Implementation commit:** `54d58be9355d0d5ca0c2427cbc1a5e388584d6f2`
+- **Change:** green: the choice a person names is found in the core, with one sentence when it is not (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core, the Catalog; a client adapter, foldkit/cli.
+  - Catalog.choiceNamed(entry, typed) finds the choice a person names: its own token, or its title or part of it, in any case. One choice answers with the tag that asks for it; none or several answer with one sentence, No title matches or how many it matches, and the choices that matched. The terminal's stage that read a name now asks it and only adds its own usage and the lines to copy, so its output is the same as before; the Books terminal's tests did not change.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/public.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+- **User context (verbatim):**
+  > have a generic input parser that can quickly fail with an informative error message
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 5:03:18 p.m. EST — `a6dfd095b28b` fix(foldkit): green: help finds a command by any name it answers to, spelled as it is typed (Scribe #2518)
+
+- **Implementation commit:** `a6dfd095b28bb94b954a4f9c84148df140d480c2`
+- **Change:** green: help finds a command by any name it answers to, spelled as it is typed (Scribe #2518)
+- **Details:**
+  - Layer: the plain Declaration in Foldkit core.
+  - A declaration is found by its name or an alias however the words are joined: seek-to, seek to, seek_to and SeekTo are one name. Help reads the same declarations the commands do, so books help play-title, books help play and books help listen all give Listen's help, and books help seek-to works, which it did not for any name of more than one word.
+- **Files:**
+  - `packages/foldkit/src/declaration/declaration.ts` — changed by this commit
+- **User context (verbatim):**
+  > Every help line hint and example comes from one declaration for an action.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 5:03:18 p.m. EST — `3e2d0b50b173` fix(foldkit): green: a hint says why a control is unavailable as a sentence that stands alone (Scribe #2518)
+
+- **Implementation commit:** `3e2d0b50b173213b5e48c8a762a20075b848cacd`
+- **Change:** green: a hint says why a control is unavailable as a sentence that stands alone (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core (Interaction, Session, the theme); domain cores Books, its add-books page, Transcript Player, Read Aloud.
+  - controlHintOf carries the reason a control is unavailable as a sentence, with a capital and a full stop, so the HTML, React and Svelte painters all show It is already playing. The reason stays declared as a clause, since a terminal and a screen reader put a lead-in before it.
+  - The reasons that did not say enough alone are reworded where they are declared: the bar spans it now is the seek bar already spans this; it is the speed is it already plays at this speed; nothing is in the player adds play a book first; a control that is already open, showing, folded or following says already. One said your; it says the books. Tests that quoted the old clauses follow.
+- **Files:**
+  - `examples/books/core/src/addBooks.ts` — changed by this commit
+  - `examples/books/core/src/audible/message.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/read-aloud/core/src/message.ts` — changed by this commit
+  - `examples/transcript-player/core/src/message.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/catalog.test.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/interaction.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/interaction.ts` — changed by this commit
+  - `packages/foldkit/src/session/session.ts` — changed by this commit
+  - `packages/foldkit/src/test/apps/chapterContents.ts` — changed by this commit
+  - `packages/foldkit/src/theme/appearance.ts` — changed by this commit
+  - `packages/react/src/interaction/calls.test.tsx` — changed by this commit
+  - `packages/react/src/interaction/interaction.test.tsx` — changed by this commit
+  - `packages/react/src/paintReact/paintReact.test.tsx` — changed by this commit
+  - `packages/svelte/src/interaction/interaction.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > we should also be very clear in our language
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 5:03:18 p.m. EST — `d3da459162ee` fix(foldkit): green: a why is the reason itself, not a sentence about someone (Scribe #2518)
+
+- **Implementation commit:** `d3da459162ee78be11b4b3b1f900df2a3400e599`
+- **Change:** green: a why is the reason itself, not a sentence about someone (Scribe #2518)
+- **Details:**
+  - Layer: Foldkit core (foldkit/declaration, Session, the terminal's controls); domain cores Books, its Audible import, Transcript Player, Read Aloud, Counter, multiple-counters; the Books terminal's own commands.
+  - Declaration.problemsOf fails a why that does not begin with To, the reason as the user would give it. Every why that told of the person, the user, the reader, or of what had happened is rewritten: Back is To leave this screen; Skip back is To hear again what was missed; Undo is To undo a delete made by mistake. Books' test already runs the check over all 67 Actions, and a test reads the library's own source for the Actions and commands it declares. Two whys on Books' described state change with them. Test apps and expectations that quoted the old sentences follow.
+- **Files:**
+  - `examples/books/cli/src/declared.ts` — changed by this commit
+  - `examples/books/core/src/addBooks.ts` — changed by this commit
+  - `examples/books/core/src/audible/message.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/books/core/src/model.ts` — changed by this commit
+  - `examples/counter/core/src/message.ts` — changed by this commit
+  - `examples/multiple-counters/core/src/message.ts` — changed by this commit
+  - `examples/read-aloud/core/src/message.ts` — changed by this commit
+  - `examples/transcript-player/core/src/message.ts` — changed by this commit
+  - `packages/foldkit/src/actionMenu/actionMenu.test.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/catalog.test.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/cli/controls.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declaration.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declaration.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/interaction.test.ts` — changed by this commit
+  - `packages/foldkit/src/navigation/composition.test.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/renderers.test.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/replayController.test.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/syncModes.test.ts` — changed by this commit
+  - `packages/foldkit/src/session/session.test.ts` — changed by this commit
+  - `packages/foldkit/src/session/session.ts` — changed by this commit
+  - `packages/foldkit/src/test/apps/catalogCounter.ts` — changed by this commit
+  - `packages/foldkit/src/test/apps/chapterContents.ts` — changed by this commit
+  - `packages/foldkit/src/test/apps/navigableCounter.ts` — changed by this commit
+  - `packages/opentui/src/interaction/paintOpenTui.test.ts` — changed by this commit
+  - `packages/opentui/src/interaction/runOpenTui.test.ts` — changed by this commit
+  - `packages/react-native/src/expoRouter/routerStack.test.ts` — changed by this commit
+  - `packages/react-native/src/interaction/actionMenuModal.test.tsx` — changed by this commit
+  - `packages/react-native/src/interaction/screen.test.tsx` — changed by this commit
+  - `packages/react-native/src/reactNavigation/stack.test.ts` — changed by this commit
+  - `packages/react/src/interaction/interaction.test.tsx` — changed by this commit
+  - `packages/react/src/test/routedCounter.ts` — changed by this commit
+  - `packages/svelte/src/interaction/interaction.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > why is from a user perspective? Why would a user want to do this?
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 5:03:18 p.m. EST — `6a4bda9aa0e2` feat(foldkit): green: a terminal says an Action by its title's word when it answers to it (Scribe #2518)
+
+- **Implementation commit:** `6a4bda9aa0e29a61cb5824d57d17a752592cab7d`
+- **Change:** green: a terminal says an Action by its title's word when it answers to it (Scribe #2518)
+- **Details:**
+  - Layer: the plain Declaration in Foldkit core; client adapters foldkit/cli and the Books terminal.
+  - saidNameOf, in the plain declaration module, is the name people say for a thing with a name, a title and other names: the title's word when the title ends with what the thing chooses and it answers to that word, else its name. A Declaration carries its Action's title for it. The terminal's usage lines, examples, help, suggestions, refusals and the Actions list all read it, from a Declaration or an entry, so Books says play <title> everywhere while listen and play-title still run and the tag stays Listen. Help's Also line lists the other names, less the one said. A mistyped word near any name a command answers to still finds it. Books' own play example reads the same name. The Books terminal's tests expect play where they expected listen.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/view.test.ts` — changed by this commit
+  - `packages/foldkit/src/catalog/catalog.ts` — changed by this commit
+  - `packages/foldkit/src/cli/declared.ts` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/view.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declaration.ts` — changed by this commit
+- **User context (verbatim):**
+  > I think listen is not very clear so we should also be very clear in our language
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agents foldkit-declare-2518 and foldkit-declare-2518b of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 4:35:53 p.m. EST — `c29f0c9629c0` feat(books): the made-up page opens in the light or the dark look when asked (Scribe #2494)
 
 - **Implementation commit:** `c29f0c9629c00ff69c407df2041078ee0637b5ba`
