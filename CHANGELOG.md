@@ -4,6 +4,68 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 1:17:44 a.m. EST — `eac7c969870d` feat(books): green: books words paints from the theme on a terminal (Scribe #2494)
+
+- **Implementation commit:** `eac7c969870d0a6a88cb4fca6fed1ebbda917399`
+- **Change:** green: books words paints from the theme on a terminal (Scribe #2494)
+- **Details:**
+  - When the books command's output is a terminal and color is not refused, the view says so and the player paints 'books words' and 'books follow words' from the theme's roles through Foldkit's inked: what was spoken strong, the word being spoken in its color for the Model's mode, what is to come and the paragraphs around it dim, a section's heading in the reading rule's color. Down a pipe, and with
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:17:44 a.m. EST — `62c05ddf8374` feat(foldkit): green: the theme's roles in a terminal (Scribe #2494)
+
+- **Implementation commit:** `62c05ddf837481ab98188517ecd1997f9091ae5f`
+- **Change:** green: the theme's roles in a terminal (Scribe #2494)
+- **Details:**
+  - foldkit/theme gains the terminal's side: terminalInkOf says whether an output may use color (a terminal, with NO_COLOR unset and TERM not dumb) and carries the mode and the theme; inked(ink, role, text) paints a flat-colored role in its color for that mode, keeps body text in the terminal's own color (strong for Text and ReadingSpoken, dim for QuietText, FaintText and ReadingToCome), and leaves te
+- **Files:**
+  - `packages/foldkit/src/theme/index.ts` — changed by this commit
+  - `packages/foldkit/src/theme/terminal.ts` — changed by this commit
+- **User context (verbatim):**
+  > Let's get real dark mode light mode working in foldkit/core/theme or style
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `9503911b64ff` fix(books): green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
+
+- **Implementation commit:** `9503911b64ffdf87e2edca6295ce3489ad20394d`
+- **Change:** green: painting Contents reads the Catalog once, not once a chapter (Scribe #2494)
+- **Details:**
+  - contentsOf works out the Catalog's entries once and hands them to every chapter row, where it worked them out again for each of the 114 rows. The count of shelf reads while Contents paints is now the same for 4 chapters and for 120. The terminal UI test that asks every key to answer within 250 ms, which failed about one run in two, passed three whole-file runs in a row at a load of 7: its limit wa
+- **Files:**
+  - `examples/books/core/src/screen.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `817aa8b5c8e1` feat(foldkit): green: a sync failure names the sync engine, not one product (Scribe #2494)
+
+- **Implementation commit:** `817aa8b5c8e1e9573f93e9001c2b2c8075651c14`
+- **Change:** green: a sync failure names the sync engine, not one product (Scribe #2494)
+- **Details:**
+  - The seven sentences the runtime shows when a write is refused, a row cannot be read, or the log cannot be fetched say 'the sync engine' where they said Instant, since the runtime carries any engine. What happened, what it means and what to do read as before. foldkit runtime and program: 269 tests pass; the 4 that fail are the crash-view tests that fail on the base commit too.
+- **Files:**
+  - `packages/foldkit/src/runtime/start.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 1:12:19 a.m. EST — `707fb1710cf4` feat(foldkit): green: the reading ground runs edge to edge on a narrow window (Scribe #2494)
+
+- **Implementation commit:** `707fb1710cf49251e780bf8e04f9d86a864c62cb`
+- **Change:** green: the reading ground runs edge to edge on a narrow window (Scribe #2494)
+- **Details:**
+  - At 560 px and narrower the Transcript is as wide as the window, with no rounded corners, so on a phone the reading ground meets both edges and the words are not a card inside the page. Wider windows keep the 1200 px column. Checked at 390 by 844 in light and dark: the ground spans 0 to 390 with no sideways scroll, and the chapter bar and the mini player sit clear of it. foldkit interaction and the
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — changed by this commit
+- **User context (verbatim):**
+  > I'm not going to decide each one take your best opinions here be tasteful
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 1:03:03 a.m. EST — `6b996de189f0` docs: state drives and the components at the edge are told; the time label sits within its line (Scribe #2494)
 
 - **Implementation commit:** `6b996de189f02de9be8fdd69cc3a67457bd09a4e`

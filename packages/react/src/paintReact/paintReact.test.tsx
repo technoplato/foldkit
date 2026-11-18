@@ -67,6 +67,30 @@ describe('paintReact', () => {
     expect(sendToken).toHaveBeenCalledWith('reset')
   })
 
+  it('gives a Button its hint and leaves the browser tooltip alone', () => {
+    render(
+      paintReact(
+        Button({
+          token: 'reset',
+          label: 'Reset',
+          description: 'Sets the count to 0',
+          keys: ['r'],
+          because: 'count is already 0',
+          disabled: true,
+        }),
+        vi.fn(),
+      ),
+    )
+    const reset = screen.getByRole('button', { name: 'Reset' })
+    expect(reset.getAttribute('data-hint')).toBe('Sets the count to 0')
+    expect(reset.getAttribute('data-hint-keys')).toBe('r')
+    expect(reset.getAttribute('data-hint-because')).toBe('count is already 0')
+    expect(reset.getAttribute('aria-description')).toBe(
+      'Sets the count to 0. Unavailable: count is already 0',
+    )
+    expect(reset.hasAttribute('title')).toBe(false)
+  })
+
   it('does not wire a disabled Button', () => {
     const sendToken = vi.fn()
     render(

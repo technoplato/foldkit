@@ -938,6 +938,13 @@ ${themeStylesheet(defaultTheme)}
 }
 
 @media (max-width: 560px) {
+  :where(.fk-transcript) {
+    width: 100vw;
+    max-width: 100vw;
+    padding: 12px 10px;
+    border-radius: 0;
+  }
+
   :where(.fk-passage) {
     padding: 6px 8px;
   }

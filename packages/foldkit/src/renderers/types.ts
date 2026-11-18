@@ -104,6 +104,9 @@ export type ButtonVariant = 'Primary' | 'Ghost' | 'Destructive' | 'Tab'
  * A pressable control. The label is product data. `action` is the Catalog
  * tag a press sends; `keys` are the keys its Action declares, `['+', '=']`
  * for Increment; `because` is the sentence a disabled control shows.
+ * `description` is the one sentence its Action declares for what a press
+ * does, `Sets the count to 0`, which a painter shows as a hint beside the
+ * keys when a pointer rests on the control or the keyboard reaches it.
  * `icon` draws beside the label, or instead of it with `isIconOnly`, the
  * label then left for screen readers. `isCurrent` marks the current tab.
  */
@@ -114,6 +117,7 @@ export type ButtonNode = Readonly<{
   readonly action?: string
   readonly keys?: ReadonlyArray<string>
   readonly because?: string
+  readonly description?: string
   readonly variant?: ButtonVariant
   readonly icon?: IconName
   readonly isIconOnly?: boolean

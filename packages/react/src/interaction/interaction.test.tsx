@@ -117,8 +117,16 @@ const renderApp = () => {
   return bound
 }
 
+const asMac = (): void => {
+  Object.defineProperty(window.navigator, 'platform', {
+    get: () => 'MacIntel',
+    configurable: true,
+  })
+}
+
 afterEach(() => {
   cleanup()
+  Reflect.deleteProperty(window.navigator, 'platform')
 })
 
 describe('@foldkit/react/interaction', () => {
@@ -132,7 +140,74 @@ describe('@foldkit/react/interaction', () => {
     renderApp()
     const reset = screen.getByRole('button', { name: 'Reset' })
     expect(reset.hasAttribute('disabled')).toBe(true)
-    expect(reset.getAttribute('title')).toBe('count is already 0')
+    expect(reset.getAttribute('data-hint-because')).toBe('count is already 0')
+  })
+
+  it('gives each control its hint: what a press does, its key, and a line for a screen reader', () => {
+    renderApp()
+    const reset = screen.getByRole('button', { name: 'Reset' })
+    expect(reset.getAttribute('data-hint')).toBe('Sets the count to 0')
+    expect(reset.getAttribute('data-hint-keys')).toBe('r')
+    expect(reset.getAttribute('aria-description')).toBe(
+      'Sets the count to 0. Unavailable: count is already 0',
+    )
+    expect(reset.hasAttribute('title')).toBe(false)
+  })
+
+  it('says what a key ran and why a key did nothing', () => {
+    renderApp()
+    fireEvent.keyDown(document, { key: 'r' })
+    expect(document.querySelector('.fk-echo')?.textContent).toContain(
+      'Unavailable: count is already 0',
+    )
+    fireEvent.keyDown(document, { key: '+' })
+    expect(document.querySelector('.fk-echo')?.textContent).toContain(
+      'Increment',
+    )
+  })
+
+  it('numbers menu rows with Control on a Mac, and leaves Command and a digit to the browser', () => {
+    asMac()
+    const bound = renderApp()
+    fireEvent.keyDown(document, { key: 'k', metaKey: true })
+    expect(
+      Array.map(
+        Array.fromIterable(document.querySelectorAll('.fk-action-menu-pick')),
+        pick => pick.textContent,
+      ),
+    ).toEqual(['⌃1'])
+    expect(fireEvent.keyDown(document, { key: '1', metaKey: true })).toBe(true)
+    expect(bound.readModel().count).toBe(0)
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+    expect(fireEvent.keyDown(document, { key: '1', ctrlKey: true })).toBe(false)
+    expect(bound.readModel().count).toBe(1)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('shows no row number where the browser owns every chord for one', () => {
+    renderApp()
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true })
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+    expect(document.querySelectorAll('.fk-action-menu-pick')).toHaveLength(0)
+  })
+
+  it("dims a row's own key while letters search, and says how many rows a letter kept", () => {
+    renderApp()
+    fireEvent.keyDown(document, { key: 'k', metaKey: true })
+    const dialog = screen.getByRole('dialog', { name: 'Actions' })
+    expect(dialog.getAttribute('data-keys-live')).toBe('false')
+    fireEvent.keyDown(document, { key: 'r' })
+    expect(document.querySelector('.fk-action-menu-count')?.textContent).toBe(
+      '2 actions match “r”',
+    )
+    expect(
+      document.querySelector('.fk-action-menu-footer')?.textContent,
+    ).toContain('search')
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(dialog.getAttribute('data-keys-live')).toBe('true')
+    expect(
+      document.querySelector('.fk-action-menu-footer')?.textContent,
+    ).toContain('run a row by its key')
   })
 
   it('opens the action menu on Cmd-K and chooses with Enter', () => {
@@ -164,7 +239,7 @@ describe('@foldkit/react/interaction', () => {
         ),
       ),
     ).toEqual([['e'], ['e']])
-    expect(screen.getByRole('status').textContent).toBe('2 actions')
+    expect(screen.getByRole('status').textContent).toBe('2 actions match “e”')
     expect(search.getAttribute('aria-activedescendant')).toBe(
       'fk-action-menu-Increment',
     )

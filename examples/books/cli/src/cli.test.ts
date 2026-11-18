@@ -413,6 +413,32 @@ describe('books words', () => {
     })
   })
 
+  it('paints the words from the theme when the view says its output is a terminal', async () => {
+    const { player } = await openBooks({ transcripts: spokenTranscript })
+    await run(player, 'listen the-lantern-keeper')
+    await run(player, 'seek-to 6s')
+    await eventually(async () =>
+      (await run(player, 'words')).stdout.includes('> 0:05'),
+    )
+    const escape = '\u001b['
+    const plain = await run(player, 'words', { before: '0', after: '1' })
+    expect(plain.stdout).not.toContain(escape)
+    const painted = await run(player, 'words', {
+      before: '0',
+      after: '1',
+      color: '1',
+    })
+    const [, current = '', trailing = ''] = painted.stdout.split('\n')
+    expect(current).toContain(`${escape}1mHe${escape}22m`)
+    expect(current).toMatch(/\u001b\[38;2;\d+;\d+;\d+mtrimmed\u001b\[39m/)
+    expect(current).toContain(`${escape}2mthe wick and waited.${escape}22m`)
+    expect(trailing).toContain(
+      `${escape}2mFar out a bell answered the lamp.${escape}22m`,
+    )
+    const json = await run(player, 'words', { json: '1', color: '1' })
+    expect(json.stdout).not.toContain(escape)
+  })
+
   it('says nothing is in the player before a title is', async () => {
     const { player } = await openBooks()
     expect((await run(player, 'words')).stdout).toBe(
@@ -543,7 +569,7 @@ describe('books CLI', () => {
     const { bound, player } = await openBooks()
     const painted = await run(player, 'actions')
     expect(painted.stdout).toMatch(/The Lantern Keeper/)
-    expect(painted.stdout).toMatch(/^ {2}listen <slug> +Plays the title/m)
+    expect(painted.stdout).toMatch(/^ {2}listen <slug> +Plays this book/m)
     expect(painted.stdout).toMatch(/^ {2}seek-to <place-ms> +Moves to a place/m)
     expect(runProgramCommand(bound, 'books', [], {}).stdout).toMatch(
       /^ {2}listen <slug>/m,
@@ -581,7 +607,9 @@ describe('books CLI', () => {
     const listened = await run(player, 'listen the-lantern-keeper')
     expect(listened.exitCode).toBe(0)
     expect(listened.stdout).toMatch(/^▶ Playing The Lantern Keeper$/m)
-    expect(listened.stdout).toMatch(/^ {2}books pause +Pauses where it is$/m)
+    expect(listened.stdout).toMatch(
+      /^ {2}books pause +Pauses and keeps your place$/m,
+    )
     expect(listened.stdout).toMatch(/^ {2}books stop +Stops and saves/m)
     await eventually(() => {
       const model = bound.readModel()
@@ -594,7 +622,9 @@ describe('books CLI', () => {
     expect(sought.stdout).toMatch(/The Keeper · 1:00:00 of 1:20:00 · 20m left/)
     const paused = await run(player, 'pause')
     expect(paused.stdout).toMatch(/^❚❚ Paused The Lantern Keeper$/m)
-    expect(paused.stdout).toMatch(/^ {2}books play +Plays from the place$/m)
+    expect(paused.stdout).toMatch(
+      /^ {2}books play +Plays from where it is paused$/m,
+    )
     const refused = await run(player, 'pause')
     expect(refused.exitCode).toBe(1)
     expect(refused.stderr).toBe('pause is disabled: nothing is playing.')
