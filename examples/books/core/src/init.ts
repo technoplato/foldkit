@@ -1,6 +1,7 @@
 import { Option } from 'effect'
 import { Navigation } from 'foldkit'
 import type { Command } from 'foldkit'
+import { initialAppearance } from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
 
 import * as Audible from './audible/model.js'
@@ -32,6 +33,7 @@ export const init = (): readonly [
     readings: ReadAloud.ReadingsLoading(),
     previewChecks: [],
     audible: Audible.init(),
+    appearance: initialAppearance,
     navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
   },
   [],

@@ -11,6 +11,7 @@ import {
   pipe,
 } from 'effect'
 import { Subscription } from 'foldkit'
+import * as Theme from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -281,6 +282,13 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
         }),
         dependenciesToStream: ({ isWatching }) =>
           Audible.audioStream(isWatching),
+      },
+    ),
+    systemMode: entry(
+      { isWatching: S.Boolean },
+      {
+        modelToDependencies: () => ({ isWatching: true }),
+        dependenciesToStream: () => Theme.systemModeStream,
       },
     ),
     audibleImport: entry(
