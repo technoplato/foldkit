@@ -80,7 +80,22 @@ const fakeDatabase = () => {
   }
 }
 
-const nextTick = () => new Promise(resolve => setTimeout(resolve, 0))
+// NOTE: A forked fiber starts on the scheduler's next turn, which Effect
+// queues with setImmediate. A zero timeout queued after it runs first
+// whenever about a millisecond passes before the turn ends, so waiting one
+// tick for the fiber's subscription fails on a busy machine. Wait for the
+// thing itself instead, a second at most.
+const until = async (isSo: () => boolean): Promise<void> => {
+  const tries = Array.range(1, 200)
+  for (const _ of tries) {
+    if (isSo()) {
+      return
+    }
+    await new Promise(resolve => {
+      setTimeout(resolve, 5)
+    })
+  }
+}
 
 describe('decodeLibrary', () => {
   it('reads a finished title in either vocabulary', () => {
@@ -300,7 +315,7 @@ describe('makeInstantLibraryStore', () => {
     const { database, subscriptions } = fakeDatabase()
     const store = await Effect.runPromise(makeInstantLibraryStore(database))
     const shelfRead = Effect.runFork(Stream.runHead(store.shelf))
-    await nextTick()
+    await until(() => subscriptions.length === 1)
     expect(subscriptions.map(subscription => subscription.query)).toEqual([
       libraryQuery,
     ])
@@ -319,7 +334,7 @@ describe('makeInstantLibraryStore', () => {
     const chaptersRead = Effect.runFork(
       Stream.runHead(store.chapters(TitleSlug.make('small-hours'))),
     )
-    await nextTick()
+    await until(() => subscriptions.length === 2)
     const [, chaptersQuery] = subscriptions
     expect(chaptersQuery?.query).toEqual(chaptersQueryOf('book-of-item-1'))
     chaptersQuery?.respond({
@@ -337,7 +352,7 @@ describe('makeInstantLibraryStore', () => {
     const { database, subscriptions } = fakeDatabase()
     const store = await Effect.runPromise(makeInstantLibraryStore(database))
     const shelfRead = Effect.runFork(Effect.flip(Stream.runHead(store.shelf)))
-    await nextTick()
+    await until(() => subscriptions.length === 1)
     const [shelfQuery] = subscriptions
     shelfQuery?.respond({
       error: {
