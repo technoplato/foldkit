@@ -160,6 +160,30 @@ describe('listenForHints', () => {
     vi.unstubAllGlobals()
   })
 
+  it('tells one control from another by which element it is, never by reading into the element', () => {
+    listen()
+    // Elements with a part that cannot be read, as an icon's SVG length
+    // cannot before it is laid out.
+    const unreadable = (): HTMLElement => {
+      const button = hinted(play)
+      Object.defineProperty(button, 'unreadable', {
+        enumerable: true,
+        get: () => {
+          throw new Error('read into the element')
+        },
+      })
+      return button
+    }
+    const first = unreadable()
+    const second = unreadable()
+    fire(document, 'keydown')
+    fire(first, 'focusin')
+    expect(isShown()).toBe(true)
+    expect(() => {
+      fire(second, 'pointerover')
+    }).not.toThrow()
+  })
+
   it('shows nothing for a control without a hint, and nothing once stopped', () => {
     listen()
     const plain = document.createElement('button')
