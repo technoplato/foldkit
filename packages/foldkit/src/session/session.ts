@@ -134,7 +134,7 @@ type SessionModel = Readonly<{ session: SessionState }>
  */
 export const MirrorNavigation = Catalog.action('MirrorNavigation', {
   what: 'Shows the same screen on every device, starting from the first screen',
-  why: 'The person wants every device to go where they go',
+  why: 'To have every device go to the same place',
   enabled: (model: SessionModel) =>
     model.session.mode === 'Mirror'
       ? Catalog.Disabled({ because: 'navigation is already mirrored' })
@@ -145,7 +145,7 @@ export const MirrorNavigation = Catalog.action('MirrorNavigation', {
 /** A person chose to keep each device on its own screen. */
 export const KeepNavigationLocal = Catalog.action('KeepNavigationLocal', {
   what: 'Keeps each device on its own screen while the domain syncs',
-  why: 'The person wants to move around without moving everyone else',
+  why: 'To move around without moving every other device',
   enabled: (model: SessionModel) =>
     model.session.mode === 'SharedDomain'
       ? Catalog.Disabled({ because: 'navigation already stays on each device' })
@@ -193,7 +193,7 @@ const isOtherModalOpen = (model: NavigationModel): boolean =>
  */
 export const OpenSessionSettings = Catalog.action('OpenSessionSettings', {
   what: 'Shows how this session shares navigation',
-  why: 'The person wants to see or change whether every device follows',
+  why: 'To see or change whether every device follows',
   enabled: (model: NavigationModel) => {
     if (isSettingsOpen(model)) {
       return Catalog.Disabled({ because: 'session settings are already open' })
@@ -209,7 +209,7 @@ export const OpenSessionSettings = Catalog.action('OpenSessionSettings', {
 /** A person closed the Session settings Sheet. */
 export const CloseSessionSettings = Catalog.action('CloseSessionSettings', {
   what: 'Returns to the screen beneath the session settings',
-  why: 'The person is done with the session settings',
+  why: 'To leave the session settings',
   enabled: (model: NavigationModel) =>
     isSettingsOpen(model)
       ? Catalog.Enabled()
@@ -231,7 +231,7 @@ const isAboveRoot = (model: NavigationModel): boolean =>
  */
 export const GoBack = Catalog.action('GoBack', {
   what: 'Returns to the screen beneath this one',
-  why: 'The person is done with this screen',
+  why: 'To leave this screen',
   enabled: (model: NavigationModel) =>
     isAboveRoot(model)
       ? Catalog.Enabled()

@@ -50,14 +50,14 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
     nothingToChoose: 'there are no chapters',
   },
   what: 'Plays the chapter',
-  why: 'The person wants that part',
+  why: 'To hear that part',
   meta: { label: 'Play', keys: [] },
 })
 
 /** Plays the next chapter. `n` presses it. */
 export const NextChapter = Catalog.action('NextChapter', {
   what: 'Plays the next chapter',
-  why: 'The person wants what comes next',
+  why: 'To hear what comes next',
   meta: { label: 'Next', keys: ['n'] },
 })
 

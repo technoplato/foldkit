@@ -43,7 +43,7 @@ const anyCounter = (): Catalog.Availability => Catalog.Enabled()
 /** Adds a counter at the end of the list, starting at 0. `a` presses it. */
 export const Add = Catalog.action('Add', {
   what: 'Adds a counter at the end of the list, starting at 0',
-  why: 'The person wants another count',
+  why: 'To keep another count',
   enabled: unlessConfirming,
   meta: { label: 'Add counter', keys: ['a'], title: 'Add counter' },
 })
@@ -87,7 +87,7 @@ export const Open = Catalog.action('Open', {
       : Catalog.Enabled(),
   ),
   what: 'Opens the counter on its own page',
-  why: 'The person wants to focus on one count',
+  why: 'To look at one count alone',
   enabled: unlessConfirming,
   meta: { label: 'Open', keys: ['o'], title: 'Open counter' },
 })
@@ -97,7 +97,7 @@ export const Delete = Catalog.action('Delete', {
   fields: { counterId: CounterId },
   choose: whichCounter(anyCounter, shownOf),
   what: 'Asks before deleting the counter',
-  why: 'The person no longer needs this count',
+  why: 'To clear away a count that is no longer needed',
   enabled: unlessConfirming,
   meta: { label: 'Delete', keys: ['d'], title: 'Delete counter' },
 })
@@ -126,14 +126,14 @@ export const ConfirmDelete = Catalog.action('ConfirmDelete', {
     nothingToChoose: 'no delete is waiting for an answer',
   },
   what: 'Deletes the counter the question names',
-  why: 'The person is sure they want it gone',
+  why: 'To delete it, now that the question is answered',
   meta: { label: 'Delete', keys: ['y'] },
 })
 
 /** Closes the delete question and keeps the counter. `n` presses it. */
 export const CancelDelete = Catalog.action('CancelDelete', {
   what: 'Closes the question and keeps the counter',
-  why: 'The person changed their mind',
+  why: 'To keep the count after all',
   enabled: onlyWhileConfirming,
   meta: { label: 'Cancel', keys: ['n'] },
 })

@@ -7,21 +7,21 @@ import { type Model, initialCount } from './model.js'
 /** Raises the count by one. `+` and `=` press it. */
 export const Increment = Catalog.action('Increment', {
   what: 'Increments the count by one',
-  why: 'The person wants a higher count',
+  why: 'To count one more',
   meta: { label: '+', keys: ['+', '='] },
 })
 
 /** Lowers the count by one. `-` presses it. */
 export const Decrement = Catalog.action('Decrement', {
   what: 'Decrements the count by one',
-  why: 'The person wants a lower count',
+  why: 'To count one fewer',
   meta: { label: '-', keys: ['-'] },
 })
 
 /** Sets the count back to 0. Disabled while the count is already 0. */
 export const Reset = Catalog.action('Reset', {
   what: 'Sets the count to 0',
-  why: 'The person wants to start over',
+  why: 'To start over',
   enabled: (model: Model) =>
     model.count === initialCount
       ? Catalog.Disabled({ because: 'count is already 0' })

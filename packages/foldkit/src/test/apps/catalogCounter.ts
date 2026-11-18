@@ -15,14 +15,14 @@ type Model = typeof Model.Type
 /** Increments the count. Pressed with `+`. */
 export const Increment = Catalog.action('Increment', {
   what: 'Increments the count by one',
-  why: 'The person wants a higher count',
+  why: 'To count one more',
   meta: { label: '+', keys: ['+'] },
 })
 
 /** Resets the count. Disabled at 0 with the sentence `count is already 0`. */
 export const Reset = Catalog.action('Reset', {
   what: 'Sets the count to 0',
-  why: 'The person wants to start over',
+  why: 'To start over',
   enabled: (model: Model) =>
     model.count === 0
       ? Catalog.Disabled({ because: 'count is already 0' })

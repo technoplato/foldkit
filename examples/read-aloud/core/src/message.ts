@@ -61,7 +61,7 @@ export const OpenBook = Catalog.action('OpenBook', {
 /** Turns back one page. The left arrow presses it. */
 export const PreviousPage = Catalog.action('PreviousPage', {
   what: 'Turns back one page',
-  why: 'The reader went back a page, or Scribe heard the wrong one',
+  why: 'To go back when the reader did, or when Scribe heard the wrong page',
   enabled: (model: ReadAloudView) =>
     Option.match(shownPageOf(model), {
       onNone: () => Catalog.Disabled({ because: noBookOpen }),
@@ -77,7 +77,7 @@ export const PreviousPage = Catalog.action('PreviousPage', {
 /** Turns forward one page. The right arrow presses it. */
 export const NextPage = Catalog.action('NextPage', {
   what: 'Turns forward one page',
-  why: 'The reader turned the page before Scribe heard it',
+  why: 'To catch up when the reader turns the page before Scribe hears it',
   enabled: (model: ReadAloudView) =>
     Option.match(shownPageOf(model), {
       onNone: () => Catalog.Disabled({ because: noBookOpen }),
@@ -143,7 +143,7 @@ export const TurnToPage = Catalog.action('TurnToPage', {
  */
 export const FollowReading = Catalog.action('FollowReading', {
   what: 'Turns to the book and page being read now',
-  why: 'The user wants the screen to follow the reader again',
+  why: 'To have the screen follow the reader again',
   enabled: (model: ReadAloudView) =>
     Option.match(liveTurnOf(model), {
       onNone: () => Catalog.Disabled({ because: 'nothing is being read now' }),

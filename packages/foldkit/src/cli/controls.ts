@@ -22,7 +22,7 @@ export const OpenMenu = Declaration.declare('Open', {
 /** `menu close`: dismisses the action menu. */
 export const CloseMenu = Declaration.declare('Close', {
   what: 'Dismisses the action menu',
-  why: 'The user is done with the menu',
+  why: 'To leave the menu',
 })
 
 /** `menu type <text>`: filters the action menu. */

@@ -112,7 +112,7 @@ export const ImportFromAudible = Catalog.action('ImportFromAudible', {
  */
 export const ReconnectAudible = Catalog.action('ReconnectAudible', {
   what: 'Connects the Audible account again',
-  why: 'Audible no longer accepts the login Books saved',
+  why: 'To get back in when Audible no longer accepts the saved login',
   enabled: (model: Model) =>
     Option.exists(
       audibleViewOf(model),

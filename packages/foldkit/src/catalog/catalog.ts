@@ -345,7 +345,7 @@ const parametersOf = (
  * ```typescript
  * const Reset = Catalog.action('Reset', {
  *   what: 'Sets the count to 0',
- *   why: 'The person wants to start over',
+ *   why: 'To start over',
  *   enabled: (model: Model) =>
  *     model.count === 0
  *       ? Catalog.Disabled({ because: 'count is already 0' })

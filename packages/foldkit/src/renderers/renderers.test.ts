@@ -452,7 +452,7 @@ describe('a Text made of parts and a Box shown as a layer', () => {
 describe('actionButtons', () => {
   const Reset = Catalog.action('Reset', {
     what: 'Sets the count to 0',
-    why: 'The person wants to start over',
+    why: 'To start over',
     enabled: (count: number) =>
       count === 0
         ? Catalog.Disabled({ because: 'count is already 0' })
@@ -482,7 +482,7 @@ describe('actionButtons', () => {
         actionButtons(Catalog.entries(catalog, 3)),
         button => button.why,
       ),
-    ).toEqual(['The person wants to start over'])
+    ).toEqual(['To start over'])
     expect(
       JSON.stringify(
         paintHtml(
@@ -490,7 +490,7 @@ describe('actionButtons', () => {
           tag => tag,
         ),
       ),
-    ).toContain('The person wants to start over')
+    ).toContain('To start over')
   })
 
   it('paints the description, the keys, and the reason as a hint on the HTML control', () => {

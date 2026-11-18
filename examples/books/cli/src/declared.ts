@@ -59,14 +59,14 @@ export const Devices = Declaration.declare('Devices', {
 export const Login = Declaration.declare('Login', {
   aliases: ['SignIn'],
   what: 'Signs the user in to their library',
-  why: 'The library could not be opened because the sign-in ran out',
+  why: 'To open the library again after the sign-in ran out',
   triggers: [{ name: 'OpenSignInPage' }],
 })
 
 /** `books stop`: pauses, saves the place, and ends the player. */
 export const Stop = Declaration.declare('Stop', {
   what: 'Pauses, saves the place, and ends the player',
-  why: 'The user is done listening here',
+  why: 'To finish listening here',
   triggers: [{ name: 'EndPlayer' }],
 })
 

@@ -230,7 +230,7 @@ export const Model = S.Struct({
   speed: Speed.annotate(
     described({
       what: 'How fast books play',
-      why: 'The user chose to hear them faster or slower',
+      why: 'To hear books faster or slower',
     }),
   ),
   maybeProblem: S.Option(S.String),
@@ -245,7 +245,7 @@ export const Model = S.Struct({
   appearance: AppearanceState.annotate(
     described({
       what: 'Whether the screen is light or dark, and what the user chose',
-      why: 'The user reads more easily in one than the other',
+      why: 'To read more easily in the light or in the dark',
     }),
   ),
   navigation: Navigation.NavigationStack(Destination),

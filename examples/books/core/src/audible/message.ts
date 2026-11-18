@@ -95,7 +95,7 @@ export const ConnectAudible = Catalog.action('ConnectAudible', {
     nothingToChoose: 'paste the address Amazon showed',
   },
   what: 'Connects the Audible account with the address Amazon showed after sign-in',
-  why: 'The user signed in on Amazon and wants Books to read their library',
+  why: 'To let Books read the Audible library, after signing in on Amazon',
   enabled: connectAvailabilityOf,
   mutates: [at.signIn],
   triggers: [FinishAudibleSignIn],
@@ -105,7 +105,7 @@ export const ConnectAudible = Catalog.action('ConnectAudible', {
 /** Starts another Amazon sign-in after one could not start. */
 export const TryAudibleSignInAgain = Catalog.action('TryAudibleSignInAgain', {
   what: 'Starts the Amazon sign-in again',
-  why: 'The last one could not start',
+  why: 'To try once more after the sign-in could not start',
   enabled: (view: AudibleView) =>
     onPage(view, 'Connect', () =>
       view.audible.signIn._tag === 'SignInStuck'
@@ -141,7 +141,7 @@ export const ToggleAudibleTitle = Catalog.action('ToggleAudibleTitle', {
     nothingToChoose: 'no titles are listed',
   },
   what: 'Selects or clears one title to import',
-  why: 'The user chooses which of their books come into the library',
+  why: 'To choose which books come into the library',
   enabled: (view: AudibleView) => withTitles(view, () => Catalog.Enabled()),
   mutates: [at.titles.selected],
   meta: { label: 'Select', keys: [], title: 'Select title' },
@@ -197,7 +197,7 @@ export const ReadAudibleLibraryAgain = Catalog.action(
   'ReadAudibleLibraryAgain',
   {
     what: 'Reads the Audible titles again',
-    why: 'The last read failed',
+    why: 'To try once more after the titles could not be read',
     enabled: (view: AudibleView) =>
       onPage(view, 'Titles', () => {
         const titles = view.audible.titles

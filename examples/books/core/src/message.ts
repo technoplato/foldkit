@@ -633,7 +633,7 @@ export const SetBookmarkNote = Catalog.action('SetBookmarkNote', {
 /** Clears the open bookmark's note. */
 export const ClearBookmarkNote = Catalog.action('ClearBookmarkNote', {
   what: 'Clears this bookmark’s note',
-  why: 'The note no longer applies',
+  why: 'To take away a note that no longer applies',
   enabled: (model: Model) =>
     Option.match(
       Option.flatMap(openBookmarkOf(model), bookmarkId =>
@@ -654,7 +654,7 @@ export const ClearBookmarkNote = Catalog.action('ClearBookmarkNote', {
 /** Puts back the bookmark that was just removed. `z` presses it. */
 export const UndoRemoveBookmark = Catalog.action('UndoRemoveBookmark', {
   what: 'Puts back the bookmark that was just deleted',
-  why: 'The user removed it by mistake',
+  why: 'To undo a delete made by mistake',
   enabled: (model: Model) =>
     Option.isSome(model.maybeRemovedBookmark)
       ? Catalog.Enabled()
@@ -681,7 +681,7 @@ export const DeleteBookmark = Catalog.action('DeleteBookmark', {
   fields: { bookmarkId: BookmarkId },
   choose: whichBookmark('Delete which bookmark?'),
   what: 'Deletes this bookmark, after asking first',
-  why: 'The user no longer needs it',
+  why: 'To clear away a bookmark that is no longer needed',
   enabled: unlessAsking,
   mutates: [at.navigation.maybeModal],
   meta: { label: 'Delete', keys: [], title: 'Delete bookmark' },
@@ -714,7 +714,7 @@ export const ConfirmDeleteBookmark = Catalog.action('ConfirmDeleteBookmark', {
     nothingToChoose: 'no delete is waiting for an answer',
   },
   what: 'Deletes the bookmark',
-  why: 'The user is sure they want it gone',
+  why: 'To delete it, now that the question is answered',
   mutates: [at.navigation.maybeModal, at.maybeRemovedBookmark, at.maybeNotice],
   triggers: [WriteLibrary],
   meta: { label: 'Delete', keys: ['y'] },
@@ -723,7 +723,7 @@ export const ConfirmDeleteBookmark = Catalog.action('ConfirmDeleteBookmark', {
 /** Closes the question and keeps the bookmark. `n` presses it. */
 export const CancelDeleteBookmark = Catalog.action('CancelDeleteBookmark', {
   what: 'Keeps the bookmark and closes the question',
-  why: 'The user changed their mind',
+  why: 'To keep the bookmark after all',
   enabled: (model: Model) =>
     isAsking(model)
       ? Catalog.Enabled()

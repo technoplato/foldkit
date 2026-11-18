@@ -20,17 +20,17 @@ type CounterModel = typeof CounterModel.Type
 
 const Increment = Catalog.action('Increment', {
   what: 'Increments the count by one',
-  why: 'The person wants a higher count',
+  why: 'To count one more',
   meta: { label: '+', keys: ['+', '='] },
 })
 const Decrement = Catalog.action('Decrement', {
   what: 'Decrements the count by one',
-  why: 'The person wants a lower count',
+  why: 'To count one fewer',
   meta: { label: '-', keys: ['-'] },
 })
 const Reset = Catalog.action('Reset', {
   what: 'Sets the count to 0',
-  why: 'The person wants to start over',
+  why: 'To start over',
   enabled: (model: CounterModel) =>
     model.count === 0
       ? Catalog.Disabled({ because: 'count is already 0' })

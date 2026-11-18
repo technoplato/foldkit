@@ -39,7 +39,7 @@ type CounterModel = typeof CounterModel.Type
 
 const Increment = Catalog.action('Increment', {
   what: 'Increments the count by one',
-  why: 'The person wants a higher count',
+  why: 'To count one more',
   meta: { label: '+', keys: ['+'] },
 })
 const catalog = Catalog.make([Increment])
@@ -358,7 +358,7 @@ describe('Session.compose', () => {
                 action: 'GoBack',
                 keys: ['Escape'],
                 description: 'Returns to the screen beneath this one',
-                why: 'The person is done with this screen',
+                why: 'To leave this screen',
                 variant: 'Ghost',
                 icon: 'Back',
               }),

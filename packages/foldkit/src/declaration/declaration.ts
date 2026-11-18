@@ -591,6 +591,11 @@ export const problemsOf = (
           `${whole.name}: its why only repeats its what. Say when or for what it would be asked.`,
         ]
       : []),
+    ...(whole.why.trim() === '' || /^To\s/u.test(whole.why)
+      ? []
+      : [
+          `${whole.name}: its why is told about someone or something. Say the reason itself, as the user would give it, such as \`To leave this screen\`.`,
+        ]),
     ...secondPersonProblemsOf(whole),
     ...whole.aliases
       .filter(alias => spokenOf(alias) === spokenOf(whole.name))

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
@@ -40,7 +40,7 @@ const Search = Declaration.make('Search', {
 
 const SignIn = Declaration.make('SignIn', {
   what: 'Signs in to the library',
-  why: 'A command was refused because the sign-in ran out',
+  why: 'To open the library again after the sign-in ran out',
 })
 
 describe('Declaration.make', () => {
@@ -117,12 +117,9 @@ describe('Declaration.restates', () => {
   })
 
   it('is false when the why says when or for what a person would ask', () => {
-    expect(
-      Declaration.restates(
-        'Sets the count to 0',
-        'The person wants to start over',
-      ),
-    ).toBe(false)
+    expect(Declaration.restates('Sets the count to 0', 'To start over')).toBe(
+      false,
+    )
   })
 })
 
@@ -137,7 +134,7 @@ describe('Declaration.problemsOf', () => {
     const unsound = Declaration.make('Seek', {
       aliases: ['Seek'],
       what: 'Goes to a place',
-      why: 'Go to a place',
+      why: 'To go to a place',
       parameters: {
         place: Parameter.subject(Parameter.place('Where to go')),
         title: Parameter.subject(Parameter.named('title', 'Which title')),
@@ -168,6 +165,30 @@ describe('Declaration.problemsOf', () => {
         }),
       ),
     ).toEqual([])
+  })
+
+  it('holds every why the library itself declares for something asked for to that voice', () => {
+    const sourceRoot = join(import.meta.dirname, '..')
+    const isChecked = (name: string): boolean =>
+      name.endsWith('.ts') &&
+      !name.includes('.test.') &&
+      !name.includes('/test/')
+    const declaresAsked = /\b(?:Catalog\.action|declare)\(/u
+    const told = readdirSync(sourceRoot, { recursive: true, encoding: 'utf8' })
+      .filter(isChecked)
+      .map(name => ({
+        name,
+        text: readFileSync(join(sourceRoot, name), 'utf8'),
+      }))
+      .filter(({ text }) => declaresAsked.test(text))
+      .flatMap(({ name, text }) =>
+        Array.from(
+          text.matchAll(/^\s+why:\s*['"`]([^'"`]+)['"`]/gmu),
+          match => `${name}: ${match[1] ?? ''}`,
+        ),
+      )
+      .filter(line => !/: To\s/u.test(line))
+    expect(told).toEqual([])
   })
 
   it('says when a what or a why speaks to the user instead of about them', () => {

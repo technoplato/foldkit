@@ -8,13 +8,13 @@ type Model = typeof Model.Type
 
 const Increment = Catalog.action('Increment', {
   what: 'Increments the count by one',
-  why: 'The person wants a higher count',
+  why: 'To count one more',
   meta: { label: '+', keys: ['+', '='] },
 })
 
 const Reset = Catalog.action('Reset', {
   what: 'Sets the count to 0',
-  why: 'The person wants to start over',
+  why: 'To start over',
   enabled: (model: Model) =>
     model.count === 0
       ? Catalog.Disabled({ because: 'count is already 0' })
@@ -24,7 +24,7 @@ const Reset = Catalog.action('Reset', {
 
 const SetCount = Catalog.action('SetCount', {
   what: 'Sets the count to a chosen number',
-  why: 'The person typed a number',
+  why: 'To start from a number in mind',
   fields: { count: S.Number },
   meta: { label: 'Set', keys: [] },
 })
@@ -103,7 +103,7 @@ describe('Catalog.entries', () => {
       tag: 'Increment',
       title: 'Increment',
       what: 'Increments the count by one',
-      why: 'The person wants a higher count',
+      why: 'To count one more',
       label: '+',
       keys: ['+', '='],
       availability: Catalog.Enabled(),

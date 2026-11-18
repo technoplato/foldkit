@@ -91,7 +91,7 @@ export const Pause = Catalog.action('Pause', {
 /** Goes back 30 seconds. `[` presses it. */
 export const SkipBack = Catalog.action('SkipBack', {
   what: 'Goes back 30 seconds',
-  why: 'The user missed something',
+  why: 'To hear again what was missed',
   enabled: (model: Model) =>
     model.placeMs === 0
       ? Catalog.Disabled({ because: 'it is at the start' })
@@ -291,7 +291,7 @@ export const ShowSearch = Catalog.action('ShowSearch', {
 /** Closes the search. The words stay where the person was looking. */
 export const CloseSearch = Catalog.action('CloseSearch', {
   what: 'Closes the search',
-  why: 'The user has found what they wanted',
+  why: 'To put the search away',
   enabled: (model: Model) =>
     Option.isSome(model.maybeSearch)
       ? Catalog.Enabled()
@@ -343,7 +343,7 @@ const whenMatches = (model: Model): Catalog.Availability =>
 /** Shows the match after the one on screen, and the first after the last. `n` presses it. */
 export const NextMatch = Catalog.action('NextMatch', {
   what: 'Shows the next place the words were found',
-  why: 'The user is looking for one place among the matches',
+  why: 'To look through the places found',
   enabled: whenMatches,
   mutates: mutatedByShowingMatch,
   meta: { label: 'Next match', keys: ['n'] },
@@ -352,7 +352,7 @@ export const NextMatch = Catalog.action('NextMatch', {
 /** Shows the match before the one on screen, and the last before the first. `N` presses it. */
 export const PreviousMatch = Catalog.action('PreviousMatch', {
   what: 'Shows the place before, where the words were found',
-  why: 'The user is looking for one place among the matches',
+  why: 'To look through the places found',
   enabled: whenMatches,
   mutates: mutatedByShowingMatch,
   meta: { label: 'Previous match', keys: ['N'] },
@@ -442,7 +442,7 @@ export const LeavePlayhead = Catalog.action('LeavePlayhead', {
 /** Shows the words being read again, and follows them. */
 export const BackToPlayhead = Catalog.action('BackToPlayhead', {
   what: 'Shows the words being read again, and follows them',
-  why: 'The user has read elsewhere and wants to follow the voice again',
+  why: 'To follow the voice again after reading elsewhere',
   enabled: (model: Model) =>
     isFollowingPlayhead(model)
       ? Catalog.Disabled({ because: 'the words follow the playhead' })
@@ -479,7 +479,7 @@ export const ShowWordMenu = Catalog.action('ShowWordMenu', {
 /** Closes the word's menu. */
 export const CloseWordMenu = Catalog.action('CloseWordMenu', {
   what: 'Closes the word’s menu',
-  why: 'The user picked nothing from it',
+  why: 'To leave the word as it is',
   enabled: (model: Model) =>
     Option.isSome(model.maybeWordMenu)
       ? Catalog.Enabled()

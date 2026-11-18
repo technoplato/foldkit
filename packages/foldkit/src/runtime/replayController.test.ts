@@ -371,4 +371,3 @@ describe('makeReplayController', () => {
     60_000,
   )
 })
-

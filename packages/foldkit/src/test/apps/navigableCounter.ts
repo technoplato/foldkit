@@ -18,14 +18,14 @@ type CounterModel = typeof CounterModel.Type
 /** Increments the count. Pressed with `+`. */
 export const Increment = Catalog.action('Increment', {
   what: 'Increments the count by one',
-  why: 'The person wants a higher count',
+  why: 'To count one more',
   meta: { label: '+', keys: ['+'] },
 })
 
 /** Resets the count. Pressed with `r`. */
 export const Reset = Catalog.action('Reset', {
   what: 'Sets the count to 0',
-  why: 'The person wants to start over',
+  why: 'To start over',
   meta: { label: 'Reset', keys: ['r'] },
 })
 
