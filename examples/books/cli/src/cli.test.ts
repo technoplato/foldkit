@@ -301,6 +301,40 @@ const spokenTranscript = transcriptsInMemory(
 const followOf = (player: BooksPlayer) =>
   Option.getOrThrow(Option.fromNullishOr(player.surface.follow))
 
+describe('the live player paints from the theme', () => {
+  const showOf = (player: BooksPlayer) =>
+    Option.getOrThrow(Option.fromNullishOr(player.surface.show))
+  const tui = { view: 'tui', rows: '30', columns: '100' }
+  // eslint-disable-next-line no-control-regex
+  const inkPattern = /\u001b\[[0-9;]*m/g
+
+  it('inks the word being read in the theme’s color for a view whose output takes color, and sends plain text otherwise', async () => {
+    const { player } = await openBooks({ transcripts: spokenTranscript })
+    await run(player, 'listen the-lantern-keeper')
+    await run(player, 'seek-to 6s')
+    await eventually(async () =>
+      (await run(player, 'words')).stdout.includes('> 0:05'),
+    )
+    await run(player, 'pause')
+    const plain = await Effect.runPromise(
+      showOf(player)({ ...tui, viewId: 'plain' }, Processor.Host.Tui()),
+    )
+    const inked = await Effect.runPromise(
+      showOf(player)(
+        { ...tui, viewId: 'inked', color: '1' },
+        Processor.Host.Tui(),
+      ),
+    )
+    expect(plain.stdout).toMatch(/\[\S+\]/)
+    expect(plain.stdout).not.toMatch(inkPattern)
+    // eslint-disable-next-line no-control-regex
+    expect(inked.stdout).toMatch(
+      /\u001b\[38;2;\d+;\d+;\d+m\[[^\]\s]+\]\u001b\[39m/,
+    )
+    expect(inked.stdout.replace(inkPattern, '')).toBe(plain.stdout)
+  })
+})
+
 describe('a word’s two actions, as commands', () => {
   const readingAtSixSeconds = async () => {
     const opened = await openBooks({ transcripts: spokenTranscript })
