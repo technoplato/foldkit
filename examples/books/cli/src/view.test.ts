@@ -98,6 +98,7 @@ describe('a command the player could not read', () => {
       say: sentence => {
         happened.push(`said ${sentence}`)
       },
+      sayWhenOlder: () => Promise.resolve(false),
     }
     return { happened, runtime }
   }

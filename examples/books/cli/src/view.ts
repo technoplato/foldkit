@@ -20,7 +20,12 @@ import {
 } from 'foldkit/cli/view'
 import { fileURLToPath } from 'node:url'
 
-import { booksCommandName, booksPlayerSocketPath } from './settings.js'
+import {
+  booksCommandName,
+  booksPlayerSocketPath,
+  buildOf,
+  playerBuildWord,
+} from './settings.js'
 
 const daemonScriptPath = fileURLToPath(new URL('./daemon.js', import.meta.url))
 
@@ -33,6 +38,64 @@ const startingSentence = 'Starting the Books player…'
 const noPlayerSentence = `Nothing is playing in this terminal’s player. \`${commandLine(['Help'])}\` says how to start one.`
 
 const spawnPlayer = () => spawnCliViewDaemon({ scriptPath: daemonScriptPath })
+
+/**
+ * What a command says when the player it meets was started before
+ * `books` was updated: that it answers the old way, and the one command
+ * that ends it and keeps the place.
+ */
+export const olderPlayerSentence = `The Books player running here was started before \`${booksCommandName}\` was updated, so it answers the old way. Run \`${commandLine(['Stop'])}\` (it keeps the place); the next command starts the new one.`
+
+/**
+ * What {@link saidWhenPlayerIsOlder} needs from outside: whether a player
+ * is listening, a way to ask it, what this command was built from, and
+ * where to say a line.
+ */
+export type OlderRuntime = Readonly<{
+  isListening: (socketPath: string) => Promise<boolean>
+  ask: (socketPath: string, request: CliViewRequest) => Promise<CliViewPainted>
+  builtNow: () => string
+  say: (sentence: string) => void
+}>
+
+const olderRuntime: OlderRuntime = {
+  isListening: isCliViewListening,
+  ask: askCliView,
+  builtNow: () => buildOf(daemonScriptPath),
+  say: sentence => {
+    process.stderr.write(`${sentence}\n`)
+  },
+}
+
+/**
+ * Tells a person when the player running here is not of this build: it
+ * asks the player what it was built from, and when that is something
+ * else, or the player is too old to know the question, says
+ * {@link olderPlayerSentence}. True when it said so. A player of this
+ * build hears one question and the person nothing; with no player
+ * running nothing is asked.
+ */
+export const saidWhenPlayerIsOlder = async (
+  socketPath: string,
+  runtime: OlderRuntime = olderRuntime,
+): Promise<boolean> => {
+  if (!(await runtime.isListening(socketPath))) {
+    return false
+  }
+  try {
+    const answer = await runtime.ask(socketPath, {
+      _tag: 'Do',
+      token: playerBuildWord,
+    })
+    if (answer.exitCode === 0 && answer.stdout.trim() === runtime.builtNow()) {
+      return false
+    }
+  } catch {
+    return false
+  }
+  runtime.say(olderPlayerSentence)
+  return true
+}
 
 const notUnderstoodExitCode = 2
 
@@ -50,9 +113,11 @@ export type AskRuntime = Readonly<{
   ask: (socketPath: string, request: CliViewRequest) => Promise<CliViewPainted>
   write: (result: CliViewPainted) => void
   say: (sentence: string) => void
+  sayWhenOlder: (socketPath: string) => Promise<unknown>
 }>
 
 const askRuntime: AskRuntime = {
+  sayWhenOlder: socketPath => saidWhenPlayerIsOlder(socketPath),
   isListening: isCliViewListening,
   run: (socketPath, request) =>
     runCliView({ socketPath, spawn: spawnPlayer, request }),
@@ -84,6 +149,7 @@ export const askPlayer = async (
   if (!wasRunning) {
     runtime.say(startingSentence)
   }
+  await runtime.sayWhenOlder(socketPath)
   try {
     const result = await runtime.run(socketPath, request)
     runtime.write(result)
@@ -153,6 +219,7 @@ export const followPlayer = async (
 ): Promise<void> => {
   const socketPath = booksPlayerSocketPath()
   await sayWhenStarting(socketPath)
+  await saidWhenPlayerIsOlder(socketPath)
   await writeCliFollow({
     socketPath,
     spawn: spawnPlayer,
@@ -230,6 +297,7 @@ export const showPlayerTui = async (): Promise<void> => {
   }
   const socketPath = booksPlayerSocketPath()
   await sayWhenStarting(socketPath)
+  await saidWhenPlayerIsOlder(socketPath)
   try {
     const end = await runCliTuiView({
       socketPath,

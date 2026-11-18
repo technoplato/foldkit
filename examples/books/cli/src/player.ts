@@ -83,7 +83,7 @@ import {
   Stop,
   Tui,
 } from './declared.js'
-import { booksCommandName } from './settings.js'
+import { booksCommandName, playerBuildWord } from './settings.js'
 
 // BRIEF
 
@@ -767,6 +767,7 @@ export const makeBooksPlayer = (
   bound: BoundBooks,
   writes: LibraryWrites,
   reporting: TerminalPaintReporting = {},
+  build = '',
 ): BooksPlayer => {
   const programSurface = programCliSurface(bound, booksCommandName)
   const terminal = makeProgramTerminalView(
@@ -982,6 +983,10 @@ export const makeBooksPlayer = (
         const head = Option.getOrElse(Array.head(words), () => '')
         if (isTerminalViewRequest(flags)) {
           return terminal.pressKey(flags, client)
+        } else if (head === playerBuildWord) {
+          // NOTE: What this player was built from, for a command to tell
+          // a player started before `books` was updated.
+          return Effect.succeed({ stdout: build, exitCode: 0 })
         } else if (briefWords.has(head)) {
           return Effect.sync(brief)
         } else if (head === 'actions') {
