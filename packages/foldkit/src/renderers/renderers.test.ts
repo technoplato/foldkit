@@ -476,6 +476,23 @@ describe('actionButtons', () => {
     ).toEqual([['Sets the count to 0', 'count is already 0']])
   })
 
+  it('gives each Button the reason the user would press it, from the same declaration', () => {
+    expect(
+      Array.map(
+        actionButtons(Catalog.entries(catalog, 3)),
+        button => button.why,
+      ),
+    ).toEqual(['The person wants to start over'])
+    expect(
+      JSON.stringify(
+        paintHtml(
+          Row({}, ...actionButtons(Catalog.entries(catalog, 3))),
+          tag => tag,
+        ),
+      ),
+    ).toContain('The person wants to start over')
+  })
+
   it('paints the description, the keys, and the reason as a hint on the HTML control', () => {
     const painted = JSON.stringify(
       paintHtml(

@@ -96,6 +96,19 @@ describe('listenForHints', () => {
     expect(isShown()).toBe(false)
   })
 
+  it('says why the user would press it, under what it does', () => {
+    listen()
+    fire(hinted({ ...play, 'data-hint-why': 'To go on listening' }), 'focusin')
+    const lines = Array.from(
+      tooltip()?.querySelector('.fk-hint-text')?.children ?? [],
+      line => line.className,
+    )
+    expect(lines).toEqual(['fk-hint-what', 'fk-hint-why'])
+    expect(tooltip()?.querySelector('.fk-hint-why')?.textContent).toBe(
+      'To go on listening',
+    )
+  })
+
   it('names an icon and says why a control is unavailable', () => {
     listen()
     fire(
