@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 2:33:19 a.m. EST — `48684bdc14f8` feat(foldkit): green: the Foldkit HTML painter marks what a search found (Scribe #2494)
+
+- **Implementation commit:** `48684bdc14f8aefc106826ec921dad722a2edddc`
+- **Change:** green: the Foldkit HTML painter marks what a search found (Scribe #2494)
+- **Details:**
+  - In the HTML painter a word carries its token, a found word and the match a person is on carry data-mark, and a match row sets the found part of its title apart.
+- **Files:**
+  - `packages/foldkit/src/renderers/html.ts` — changed by this commit
+- **User context (verbatim):**
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 2:16:42 a.m. EST — `64c83e9cd55e` feat(books): green: the words for a search come from Instant in parts, all asked for at once (Scribe #2494)
 
 - **Implementation commit:** `64c83e9cd55e4b6b27f53de8d9777c8c33616469`
