@@ -9,11 +9,12 @@ import {
   Row,
   Text,
   TextInput,
+  Transcript,
 } from 'foldkit/renderers'
 import { useEffect } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import {
   EmbedPaintersProvider,
@@ -452,7 +453,12 @@ describe('a Text made of parts and a Box shown as a layer', () => {
   })
 
   it('moves the keyboard off a control on the page when the page takes a key, so Enter does not press it again', () => {
-    render(paintReact(Column({}, Button({ token: 'filter', label: 'Status: Any' })), vi.fn()))
+    render(
+      paintReact(
+        Column({}, Button({ token: 'filter', label: 'Status: Any' })),
+        vi.fn(),
+      ),
+    )
     const filter = screen.getByRole('button', { name: 'Status: Any' })
     filter.focus()
 
@@ -504,6 +510,7 @@ describe('paintTree: a long list', () => {
 
   beforeAll(() => {
     Element.prototype.scrollIntoView = () => {}
+    vi.stubGlobal('CSS', { escape: (text: string) => text })
   })
 
   it('paints a row object that did not change only once', () => {
@@ -573,5 +580,87 @@ describe('paintTree: a field the Model focuses', () => {
     expect(onPress).toHaveBeenCalledWith(
       expect.objectContaining({ token: 'search-focus' }),
     )
+  })
+})
+
+describe('a Transcript with a clock', () => {
+  const reportedAtMs = Date.UTC(2026, 9, 18, 19, 0, 0)
+
+  const wordsOf = (
+    prefix: string,
+    texts: ReadonlyArray<string>,
+    firstStartMs: number,
+  ) =>
+    texts.map((text, index) => ({
+      token: `${prefix}${index.toString()}`,
+      text,
+      startMs: firstStartMs + index * 300,
+    }))
+
+  const reading = (rate: number) =>
+    Transcript({
+      label: 'Transcript',
+      action: 'SeekToWord',
+      emptyText: 'No words yet.',
+      clock: { placeMs: 10_000, atMs: reportedAtMs, rate },
+      passages: [
+        {
+          key: 'a',
+          label: '0:09',
+          isCurrent: true,
+          words: wordsOf('a', ['The', 'lamp', 'was', 'lit'], 9_400).map(word =>
+            word.token === 'a2' ? { ...word, isCurrent: true } : word,
+          ),
+        },
+        {
+          key: 'b',
+          label: '0:10',
+          words: wordsOf('b', ['Gulls', 'settled'], 10_600),
+        },
+      ],
+    })
+
+  const currentWords = (container: HTMLElement): ReadonlyArray<string> =>
+    Array.from(
+      container.querySelectorAll('.fk-word[data-current]'),
+      word => word.textContent?.trim() ?? '',
+    )
+
+  const currentPassages = (container: HTMLElement): number =>
+    container.querySelectorAll('.fk-passage[data-current]').length
+
+  beforeAll(() => {
+    Element.prototype.scrollIntoView = () => {}
+    vi.stubGlobal('CSS', { escape: (text: string) => text })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('moves the mark on the word between the reports of the place', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(reportedAtMs)
+    const { container } = render(paintReact(reading(1), vi.fn()))
+    expect(currentWords(container)).toEqual(['was'])
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    expect(currentWords(container)).toEqual(['lit'])
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    expect(currentWords(container)).toEqual(['Gulls'])
+    expect(currentPassages(container)).toBe(1)
+  })
+
+  it('leaves the mark where the Program put it while the clock stands still', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(reportedAtMs)
+    const { container } = render(paintReact(reading(0), vi.fn()))
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(currentWords(container)).toEqual(['was'])
   })
 })
