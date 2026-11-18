@@ -13,7 +13,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **Files:**
   - `examples/transcript-player/core/src/search.test.ts` — changed by this commit
 - **User context (verbatim):**
-  > generic following the voice components in FoldKit with search and scrub
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
 - **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
 
 ## November 18th, 2026 at 1:59:24 a.m. EST — `8063d13cdd41` feat(foldkit): green: a terminal shows what a search found, in the words and in a row's title (Scribe #2494)
@@ -25,7 +25,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **Files:**
   - `packages/foldkit/src/renderers/layout.ts` — changed by this commit
 - **User context (verbatim):**
-  > generic following the voice components in FoldKit with search and scrub
+  > any core functionality needs to be expressed in the core, and then anything that's CLI specific or other site-specific needs to be done in those adapter layers
 - **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f (account al); no SpecStory capture for sub-agent sessions
 
 ## November 18th, 2026 at 1:51:52 a.m. EST — `cff564e13a13` fix(books): green: books with no command prints how to use it and starts no player (Scribe #2494)
