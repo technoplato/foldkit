@@ -48,6 +48,7 @@ import {
 import { spawnSync } from 'node:child_process'
 
 import { listAudioDevices, paintAudioDevices } from './devices.js'
+import { booksArgv } from './settings.js'
 import {
   askPlayer,
   followPlayer,
@@ -66,11 +67,11 @@ const argv = await withStdinWord(process.argv.slice(2), () => readStdinText())
 const paints = process.stdout.isTTY === true && takesColor(process.env)
 
 const paintedArgv =
-  paints && !argv.includes('--json') ? [...argv, '--color', '1'] : argv
+  paints && !argv.includes('--json') ? [...argv, '--color=1'] : argv
 
-const request = parseProgramArgv(paintedArgv)
+const request = parseProgramArgv(paintedArgv, booksArgv)
 
-const maybeFollow = followArgvOf(paintedArgv)
+const maybeFollow = followArgvOf(paintedArgv, booksArgv)
 
 const [head = ''] = request._tag === 'Do' ? request.token.split(' ') : []
 

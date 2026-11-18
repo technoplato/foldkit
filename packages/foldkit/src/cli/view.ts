@@ -21,6 +21,7 @@ export {
   removeCliDaemonFiles,
 } from './paths.js'
 export {
+  type ArgvOptions,
   type FollowArgv,
   type ProgramArgv,
   followArgvOf,
