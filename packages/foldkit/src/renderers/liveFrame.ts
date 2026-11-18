@@ -101,8 +101,12 @@ const linesOf = (node: UiNode, columns: number) => {
   }
 }
 
+// A line too long for the columns ends in an ellipsis, so it reads as cut.
 const resting = (text: string, columns: number): Line => {
-  const shown = text.slice(0, columns)
+  const shown =
+    text.length <= columns
+      ? text
+      : `${text.slice(0, Math.max(0, columns - 1))}…`
   return {
     text: shown,
     inks:

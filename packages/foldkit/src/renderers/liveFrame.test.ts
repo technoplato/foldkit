@@ -114,13 +114,17 @@ describe('a part of the view fitted to a terminal of any size', () => {
     expect(body).not.toContain(' 1:20 ')
   })
 
-  it('ends with what can be run now, each line whole or cut to the width, resting', () => {
+  it('ends with what can be run now, each line whole, or cut to the width with an ellipsis, resting', () => {
     const frame = liveFrameOf(
       part(12),
       { columns: 40, rows: 14 },
       { header, footer },
     )
-    expect(frame.lines.slice(-3)).toEqual(footer.map(line => line.slice(0, 40)))
+    expect(frame.lines.slice(-3)).toEqual([
+      '  books pause      Pauses and keeps you…',
+      '  books skip-back  Goes back 30 seconds',
+      '  books actions    Lists every command',
+    ])
     expect(frame.inks.at(-1)).toEqual([
       { col: 0, width: (footer.at(-1) ?? '').length, role: 'QuietText' },
     ])

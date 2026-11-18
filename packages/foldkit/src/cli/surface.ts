@@ -1,12 +1,30 @@
-import { Array, Effect, Option, Record, Ref, Stream, pipe } from 'effect'
+import {
+  Array,
+  Duration,
+  Effect,
+  Option,
+  Record,
+  Ref,
+  Stream,
+  pipe,
+} from 'effect'
 
 import { type BoundInteraction, onBehalfOf } from '../interaction/bind.js'
 import { follow } from '../interaction/follow.js'
 import { terminalKeyInput } from '../interaction/interaction.js'
 import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
 import { type Host, Tui } from '../processor/host.js'
+import { Text } from '../renderers/elements.js'
+import { liveFrameOf } from '../renderers/liveFrame.js'
+import { buttonsOf } from '../renderers/query.js'
+import type { UiNode } from '../renderers/types.js'
 import { type TerminalInk, inkedLine } from '../theme/terminal.js'
-import { paintProgram, paintScreen, runProgramCommand } from './program.js'
+import {
+  paintOffered,
+  paintProgram,
+  paintScreen,
+  runProgramCommand,
+} from './program.js'
 import {
   CliDaemonError,
   type CliDaemonFlags,
@@ -219,9 +237,165 @@ export type CliFollowings = Readonly<Record<string, CliFollowing>>
  */
 export const programFollowings = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
+  name = '',
+  options: Readonly<{ listCommand?: string; inkOf?: () => TerminalInk }> = {},
 ): CliFollowings => ({
-  screen: () => follow(bound, () => paintScreen(bound)),
+  screen: followLive(
+    bound,
+    () =>
+      Option.match(bound.screen(), {
+        onNone: () => ({ node: Text(paintScreen(bound)) }),
+        onSome: node => ({ node, offers: offeredBy(node) }),
+      }),
+    {
+      name,
+      ...options,
+      piped: () => follow(bound, () => paintScreen(bound)),
+    },
+  ),
 })
+
+// LIVE
+
+/**
+ * A part of a Program's view to follow live: the node to show, a node
+ * pinned above it, such as what is playing, and the tags of the Actions
+ * the part offers, which become the commands under it; `offeredBy` reads
+ * them from a node's own buttons. `isClocked` says the part moves between
+ * Messages, as a Transcript does while its clock runs, so it is read
+ * again by the clock.
+ */
+export type LivePart = Readonly<{
+  node: UiNode
+  header?: UiNode
+  offers?: ReadonlyArray<string>
+  isClocked?: boolean
+}>
+
+/**
+ * How a part is followed: the Program's command `name`, for the commands
+ * under the part, with the command that lists them all; the ink for a
+ * view whose output takes color; and what a pipe gets in place of frames.
+ */
+export type FollowLiveOptions = Readonly<{
+  name: string
+  listCommand?: string
+  inkOf?: () => TerminalInk
+  piped: CliFollowing
+}>
+
+/**
+ * The tags of the Actions a part of the view offers: the ones its own
+ * buttons press, in the order they sit, each once.
+ *
+ * @example
+ * ```typescript
+ * offeredBy(playerControls) // ['Pause', 'SkipBack', 'SkipForward', 'AddBookmark']
+ * ```
+ */
+export const offeredBy = (node: UiNode): ReadonlyArray<string> =>
+  Array.dedupe(
+    Array.getSomes(
+      Array.map(buttonsOf(node), button =>
+        button.disabled === true
+          ? Option.none()
+          : Option.fromNullishOr(button.action),
+      ),
+    ),
+  )
+
+const liveFrameEvery = Duration.millis(30)
+
+const fallbackLiveSize = { columns: 80, rows: 24 }
+
+// NOTE: A live frame is a few lines rewritten where they are, not the
+// whole screen: it takes at most this many rows, and one fewer than the
+// terminal has, so the cursor has a line under it.
+const mostLiveRows = 18
+
+const sizeFlag = (flags: CliDaemonFlags, name: string, fallback: number) => {
+  const parsed = Number.parseInt(flags[name] ?? '', 10)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+/**
+ * Follows a part of a Program's view. For a view that says its output is
+ * a terminal (`in-place`), with its size as facts (`columns`, `rows`), it
+ * sends the part fitted to that size by `liveFrameOf`, with the commands
+ * the part offers now under it, each time the frame differs: after a
+ * Message, and by the clock for a part that says it moves between
+ * Messages. The view repaints each frame over the last. For any other
+ * view it sends what `piped` sends, so another program gets events and
+ * never a frame. Every Program's `screen` topic is followed this way; a
+ * host names its own parts beside it.
+ *
+ * @example
+ * ```typescript
+ * const followings = {
+ *   ...programFollowings(bound, 'books'),
+ *   words: followLive(bound, nowMs => wordsPartAt(nowMs), { name: 'books', piped: wordEvents }),
+ * }
+ * ```
+ */
+export const followLive =
+  <Model, Message>(
+    bound: BoundInteraction<Model, Message>,
+    partAt: (nowMs: number) => LivePart,
+    options: FollowLiveOptions,
+  ): CliFollowing =>
+  (flags, client) => {
+    if (flags['in-place'] !== '1') {
+      return options.piped(flags, client)
+    }
+    const size = {
+      columns: sizeFlag(flags, 'columns', fallbackLiveSize.columns),
+      rows: Math.min(
+        mostLiveRows,
+        Math.max(1, sizeFlag(flags, 'rows', fallbackLiveSize.rows) - 1),
+      ),
+    }
+    const paint = (part: LivePart): string => {
+      const frame = liveFrameOf(part.node, size, {
+        ...(part.header === undefined ? {} : { header: part.header }),
+        footer: paintOffered(bound, options.name, part.offers ?? [], {
+          ...(options.listCommand === undefined
+            ? {}
+            : { listCommand: options.listCommand }),
+        }),
+      })
+      const inkOf = options.inkOf
+      return Array.join(
+        inkOf === undefined || flags['color'] !== '1'
+          ? frame.lines
+          : Array.map(frame.lines, (line, row) =>
+              inkedLine(
+                inkOf(),
+                line,
+                Option.getOrElse(Array.get(frame.inks, row), () => []),
+              ),
+            ),
+        '\n',
+      )
+    }
+    // NOTE: A part that does not move between Messages is painted again
+    // only when the Model is another one; a clocked part on every tick.
+    const state: { model: unknown; isClocked: boolean; text: string } = {
+      model: undefined,
+      isClocked: true,
+      text: '',
+    }
+    const read = (): string => {
+      const model = bound.readModel()
+      if (state.isClocked || model !== state.model) {
+        const part = partAt(Date.now())
+        state.model = model
+        state.isClocked = part.isClocked === true
+        state.text = paint(part)
+      }
+      return state.text
+    }
+    return Stream.tick(liveFrameEvery).pipe(Stream.map(read), Stream.changes)
+  }
 
 /**
  * The Stream for the topic a view asked to follow, or a refusal that names
@@ -309,6 +483,11 @@ export const programCliSurface = <Model, Message>(
             ),
           ),
     follow: (topic, flags, client) =>
-      followTopicOf(programFollowings(bound), topic, flags, client),
+      followTopicOf(
+        programFollowings(bound, name, inkOf === undefined ? {} : { inkOf }),
+        topic,
+        flags,
+        client,
+      ),
   }
 }

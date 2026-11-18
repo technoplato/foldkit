@@ -608,6 +608,42 @@ export const paintCommands = <Model, Message>(
   return Array.flatMap(lines, paintedLineOf(name, commandWidth))
 }
 
+/**
+ * The commands a part of the view offers now, for under it: of the Action
+ * tags the part's own controls press, the first few that run now, each as
+ * the terminal spells it with what it does, then the command that lists
+ * the rest. Nothing here is typed by hand: the words and sentences are the
+ * catalog's, so they change with the state, `pause` while it plays and
+ * `play` once it is paused.
+ *
+ * @example
+ * ```typescript
+ * paintOffered(bound, 'books', ['Pause', 'Play', 'SkipBack', 'AddBookmark'], { listCommand: 'actions' })
+ * // ['  books pause      Pauses and keeps your place',
+ * //  '  books skip-back  Goes back 30 seconds',
+ * //  '  books actions    Lists every command']
+ * ```
+ */
+export const paintOffered = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  name: string,
+  tags: ReadonlyArray<string>,
+  options: Readonly<{ limit?: number; listCommand?: string }> = {},
+): ReadonlyArray<string> => {
+  const entries = bound.entries()
+  const runnable = Array.take(
+    Array.dedupe(
+      Array.filter(tags, tag => Option.isSome(pressableLineOf(entries, tag))),
+    ),
+    options.limit ?? offeredShown,
+  )
+  return paintCommands(bound, name, runnable, [
+    { command: options.listCommand ?? 'help', what: 'Lists every command' },
+  ])
+}
+
+const offeredShown = 4
+
 // RUN
 
 const painted = (

@@ -32,7 +32,7 @@ describe('following a part of any Program’s view, live', () => {
     expect(lines.length).toBeLessThanOrEqual(11)
     expect(lines.every(line => line.length <= 40)).toBe(true)
     expect(frame).toContain('[ + ]')
-    expect(frame).toMatch(/^ {2}counter increment +Increments the count/m)
+    expect(frame).toMatch(/^ {2}counter increment +Increments the cou…$/m)
     expect(frame).not.toMatch(/counter reset/)
     expect(lines.at(-1)).toMatch(/^ {2}counter help +Lists every command$/)
   })
