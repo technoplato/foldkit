@@ -4,11 +4,13 @@ import { Array } from 'effect'
 
 /**
  * One thing a screen laid out: the part of the app, as a
- * `PaintedPart` names it, and how many passages or rows it had, when it
- * is a reader or a list.
+ * `PaintedPart` names it, how long it took from its render to its
+ * commit when that was timed, and how many passages or rows it had, when
+ * it is a reader or a list.
  */
 export type LaidOut = Readonly<{
   part: string
+  ms?: number
   passages?: number
   rows?: number
 }>
@@ -32,11 +34,20 @@ const maximumNoted = 200
 type Summed = Readonly<{
   part: string
   times: number
+  ms?: number
   passages?: number
   rows?: number
 }>
 
 const nothingSummed: ReadonlyArray<Summed> = []
+
+const withMs = (
+  maybeBefore: number | undefined,
+  maybeMore: number | undefined,
+): Readonly<{ ms?: number }> =>
+  maybeBefore === undefined && maybeMore === undefined
+    ? {}
+    : { ms: (maybeBefore ?? 0) + (maybeMore ?? 0) }
 
 const summed = (noted: ReadonlyArray<LaidOut>): ReadonlyArray<Summed> =>
   Array.reduce(noted, nothingSummed, (sums, entry) => {
@@ -47,10 +58,27 @@ const summed = (noted: ReadonlyArray<LaidOut>): ReadonlyArray<Summed> =>
     return Array.some(sums, sum => sum.part === entry.part)
       ? Array.map(sums, sum =>
           sum.part === entry.part
-            ? { ...sum, times: sum.times + 1, ...counts }
+            ? {
+                part: sum.part,
+                times: sum.times + 1,
+                ...withMs(sum.ms, entry.ms),
+                ...(sum.passages === undefined
+                  ? {}
+                  : { passages: sum.passages }),
+                ...(sum.rows === undefined ? {} : { rows: sum.rows }),
+                ...counts,
+              }
             : sum,
         )
-      : [...sums, { part: entry.part, times: 1, ...counts }]
+      : [
+          ...sums,
+          {
+            part: entry.part,
+            times: 1,
+            ...withMs(undefined, entry.ms),
+            ...counts,
+          },
+        ]
   })
 
 /**
@@ -108,7 +136,12 @@ export const stallWatch = (
       const heldMs = now() - dueAt
       if (heldMs >= atLeastMs && heldMs < asleepMs) {
         options.say({
-          stall: { heldMs: Math.round(heldMs), laidOut: summed(state.noted) },
+          stall: {
+            heldMs: Math.round(heldMs),
+            laidOut: Array.map(summed(state.noted), sum =>
+              sum.ms === undefined ? sum : { ...sum, ms: Math.round(sum.ms) },
+            ),
+          },
         })
       }
       state.noted = []
