@@ -4,5 +4,6 @@
 declare namespace NodeJS {
   interface ProcessEnv {
     readonly EXPO_PUBLIC_FOLDKIT_SILENT?: string
+    readonly EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR?: string
   }
 }

@@ -34,7 +34,12 @@ import {
 import { init } from '@instantdb/react-native'
 
 import { type PhoneConnection, isTelemetryAsked } from './connection'
-import { type Running, isBooksSilent, phoneResources } from './phoneResources'
+import {
+  type Running,
+  hearPlayerNotes,
+  isBooksSilent,
+  phoneResources,
+} from './phoneResources'
 import { traceFiles } from './traceFiles'
 
 type PhoneDatabase = ReturnType<typeof init>
@@ -99,6 +104,7 @@ const traced = <
     // next open. What came of asking goes in the trace; not reaching the
     // server is ordinary and shows nowhere else.
     laterNotes: say => {
+      hearPlayerNotes(say)
       watchUpdates({
         latest: Updates.latestContext,
         listen: Updates.addUpdatesStateChangeListener,

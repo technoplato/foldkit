@@ -6,6 +6,7 @@ declare const process: {
     readonly EXPO_PUBLIC_BOOKS_TELEMETRY?: string
     readonly EXPO_PUBLIC_BOOKS_MADE_UP_SOUND?: string
     readonly EXPO_PUBLIC_FOLDKIT_SILENT?: string
+    readonly EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR?: string
     readonly [key: string]: string | undefined
   }
 }

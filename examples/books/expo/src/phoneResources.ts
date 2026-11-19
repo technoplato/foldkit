@@ -4,10 +4,12 @@ import {
   titlesOf,
 } from 'books-core-example/browser'
 import { Array, Layer, Option } from 'effect'
+import { isDevice } from 'expo-device'
 import { Pause, Play, type Track } from 'transcript-player-core-example/browser'
 import {
   type TrackLabel,
   expoAudioOutput,
+  isSilentOn,
 } from 'transcript-player-expo-example'
 
 import { nativeSystemAppearance } from '@foldkit/react-native/theme'
@@ -50,9 +52,10 @@ const labelOf =
   }
 
 /**
- * Whether this app makes no sound, from what it was built or served
- * with: silent on the made-up library unless its sound is asked for by
- * name, and silent anywhere the test switch is on.
+ * Whether this app makes no sound, from where it runs and what it was
+ * built or served with: silent on a simulator and on the made-up library
+ * unless that sound is asked for by name, and silent anywhere the test
+ * switch is on.
  */
 export const isBooksSilent = (): boolean =>
   isSilentOf({
@@ -62,7 +65,34 @@ export const isBooksSilent = (): boolean =>
     EXPO_PUBLIC_BOOKS_MADE_UP_SOUND:
       process.env.EXPO_PUBLIC_BOOKS_MADE_UP_SOUND,
     EXPO_PUBLIC_FOLDKIT_SILENT: process.env.EXPO_PUBLIC_FOLDKIT_SILENT,
+  }) ||
+  isSilentOn({
+    isRealDevice: isDevice,
+    env: {
+      EXPO_PUBLIC_FOLDKIT_SILENT: process.env.EXPO_PUBLIC_FOLDKIT_SILENT,
+      EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR:
+        process.env.EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR,
+    },
   })
+
+const playerNoteKey = Symbol.for('foldkit.books.expo.playerNote')
+
+/**
+ * Gives the app's trace a way to hear what its player reports of itself
+ * before each play. Until it is given, nothing is recorded.
+ */
+export const hearPlayerNotes = (
+  say: (note: Readonly<Record<string, unknown>>) => void,
+): void => {
+  Reflect.set(globalThis, playerNoteKey, say)
+}
+
+const notePlayer = (note: Readonly<Record<string, unknown>>): void => {
+  const say: unknown = Reflect.get(globalThis, playerNoteKey)
+  if (typeof say === 'function') {
+    say(note)
+  }
+}
 
 /**
  * The services that are the phone's own, whichever library Books opens:
@@ -81,6 +111,11 @@ export const phoneResources = (running: Running) =>
     nativeLinkSharing(booksOrigin),
     expoAudioOutput({
       isSilent: isBooksSilent(),
+      // NOTE: before every play the trace gets what the player itself
+      // reports: its volume and whether it is muted.
+      onLoudness: reported => {
+        notePlayer({ player: reported })
+      },
       sourceOf: url =>
         url.startsWith(madeUpAudioOrigin) ? madeUpVoice() : { uri: url },
       labelOf: labelOf(running),

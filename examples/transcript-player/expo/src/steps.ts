@@ -159,3 +159,39 @@ export type Loudness = Readonly<{ volume: number; muted: boolean }>
  */
 export const loudnessOf = (isSilent: boolean): Loudness =>
   isSilent ? { volume: 0, muted: true } : { volume: 1, muted: false }
+
+/**
+ * Whether a phone app makes no sound at all, from where it runs and what
+ * it was built or served with. On a simulator it is silent with no flag:
+ * a simulator sounds from the speaker of the machine it runs on, which a
+ * person may be working or recording at. Its sound there has to be asked
+ * for by its own name, `EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR`. The test
+ * switch silences it anywhere, whatever else is asked.
+ *
+ * @example
+ * ```typescript
+ * isSilentOn({ isRealDevice: false, env: {} }) // true
+ * ```
+ */
+export const isSilentOn = ({
+  isRealDevice,
+  env,
+}: Readonly<{
+  isRealDevice: boolean
+  env: Readonly<Record<string, string | undefined>>
+}>): boolean =>
+  isSilentAsked(env) ||
+  (!isRealDevice &&
+    (env['EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR'] ?? '').trim() === '')
+
+/**
+ * Whether a player is as loud as it was told to be, from what the player
+ * itself reports. A silent output asks this of every player before it
+ * tells it to play.
+ */
+export const isAsLoudAs = (wanted: Loudness, heard: Loudness): boolean =>
+  heard.volume === wanted.volume && heard.muted === wanted.muted
+
+/** Why a silent output did not play a player that would not go silent. */
+export const wouldNotGoSilent =
+  'the player would not go silent, so it was not played'

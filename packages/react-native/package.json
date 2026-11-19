@@ -30,7 +30,8 @@
   },
   "bin": {
     "foldkit-expo-routes": "./bin/foldkit-expo-routes.mjs",
-    "foldkit-expo-updates": "./bin/foldkit-expo-updates.mjs"
+    "foldkit-expo-updates": "./bin/foldkit-expo-updates.mjs",
+    "foldkit-sim-session": "./bin/foldkit-sim-session.mjs"
   },
   "sideEffects": false,
   "files": [

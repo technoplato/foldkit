@@ -6,8 +6,9 @@ import {
   createAudioPlayer,
   setAudioModeAsync,
 } from 'expo-audio'
+import { isDevice } from 'expo-device'
 import {
-  type AudioEvent,
+  AudioEvent,
   AudioOutput,
   type Speed,
   type Track,
@@ -16,11 +17,13 @@ import {
 
 import {
   type PlayerStatus,
+  isAsLoudAs,
   isResumeOf,
-  isSilentAsked,
+  isSilentOn,
   loudnessOf,
   notHeardYet,
   stepOf,
+  wouldNotGoSilent,
 } from './steps'
 
 // OUTPUT
@@ -43,8 +46,14 @@ export type TrackLabel = Readonly<{ title: string; artist?: string }>
  *   Model keeps knowing whether it plays.
  * - `isSilent` makes every player silent: no volume, and muted. It still
  *   plays and reports, so a test reads the player's state and never
- *   sound. Left out, the app is silent when it was built or served with
- *   `EXPO_PUBLIC_FOLDKIT_SILENT` set, as every test of a phone app does.
+ *   sound. An app can add silence, never take it away: whatever it
+ *   says, the output is silent on a simulator unless the simulator's
+ *   sound is asked for by name, and anywhere the test switch is set
+ *   (`isSilentOn`). A silent output tells a player to play only when the
+ *   player itself reports no volume and muted.
+ * - `onLoudness` hears, before every play, whether the output is silent
+ *   and the volume and mute the player itself reports, so a trace can
+ *   show them.
  */
 export type ExpoAudioOptions = Readonly<{
   sourceOf?: (url: string) => AudioSource | number
@@ -52,6 +61,9 @@ export type ExpoAudioOptions = Readonly<{
   onDevicePause?: () => void
   onDevicePlay?: () => void
   isSilent?: boolean
+  onLoudness?: (
+    reported: Readonly<{ isSilent: boolean; volume: number; muted: boolean }>,
+  ) => void
 }>
 
 const statusEveryMs = 250
@@ -103,10 +115,17 @@ export const expoAudioOutput = (
 ): Layer.Layer<AudioOutput> => {
   let maybeHeld: Held | undefined = undefined
   let isSessionSet = false
+  // NOTE: an app can add silence, never take it away: on a simulator, or
+  // with the test switch on, the output is silent whatever its app says.
   const isSilent =
-    options.isSilent ??
-    isSilentAsked({
-      EXPO_PUBLIC_FOLDKIT_SILENT: process.env.EXPO_PUBLIC_FOLDKIT_SILENT,
+    options.isSilent === true ||
+    isSilentOn({
+      isRealDevice: isDevice,
+      env: {
+        EXPO_PUBLIC_FOLDKIT_SILENT: process.env.EXPO_PUBLIC_FOLDKIT_SILENT,
+        EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR:
+          process.env.EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR,
+      },
     })
   const loudness = loudnessOf(isSilent)
 
@@ -181,13 +200,28 @@ export const expoAudioOutput = (
           }
           player.setPlaybackRate(readSpeed())
           setLoudness(player)
+          const state = { heard: notHeardYet, isOver: false }
+          // NOTE: the lock on a silent output. The player's own volume and
+          // mute are read back from it, and it is told to play only when
+          // it reports what it was told. One that does not is not played.
+          const reported = { volume: player.volume, muted: player.muted }
+          options.onLoudness?.({ isSilent, ...reported })
+          if (isSilent && !isAsLoudAs(loudness, reported)) {
+            state.isOver = true
+            held.isSounding = false
+            Queue.offerUnsafe(
+              queue,
+              AudioEvent.Failed({ reason: wouldNotGoSilent }),
+            )
+            Queue.endUnsafe(queue)
+            return { held, state, subscription: { remove: () => undefined } }
+          }
           player.play()
           player.setActiveForLockScreen(
             true,
             options.labelOf === undefined ? {} : options.labelOf(track),
             { showSeekBackward: true, showSeekForward: true },
           )
-          const state = { heard: notHeardYet, isOver: false }
           const subscription = player.addListener(
             'playbackStatusUpdate',
             status => {
