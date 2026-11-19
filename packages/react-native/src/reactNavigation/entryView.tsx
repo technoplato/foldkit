@@ -1,6 +1,12 @@
 import { Match as M, Option } from 'effect'
 import { Navigation, Session } from 'foldkit'
-import { type ReactElement, createContext, useContext, useMemo } from 'react'
+import {
+  type ReactElement,
+  createContext,
+  useContext,
+  useMemo,
+  useRef,
+} from 'react'
 import { Pressable, View } from 'react-native'
 
 import { useBound } from '@foldkit/react/interaction'
@@ -10,6 +16,7 @@ import { ActionMenuSheet } from '../interaction/actionMenuModal.js'
 import { ScreenFrame } from '../interaction/frame.js'
 import type { PaintHandlers, PaintStyles } from '../interaction/paint.js'
 import { openLinkOf } from '../interaction/screen.js'
+import { sharedWith } from '../interaction/shared.js'
 import { WhenReady } from '../interaction/whenReady.js'
 import { PaintedPart } from '../telemetry/paintReporter.js'
 import { useLook } from '../theme/themed.js'
@@ -67,7 +74,22 @@ export const EntryView = ({
     Option.flatMap(maybeEntry, entry => tagOfDestination(entry.destination)),
     () => entryRouteName,
   )
-  const maybeView = useViewAt(Option.getOrElse(maybeEntryKey, () => entryKey))
+  const maybeGivenView = useViewAt(
+    Option.getOrElse(maybeEntryKey, () => entryKey),
+  )
+  // NOTE: each Model gives a new view, mostly equal to the last. The view
+  // painted is built of the last one's own parts wherever they are equal,
+  // so the painter repaints only the parts that changed.
+  const lastView = useRef<Navigation.EntryView | undefined>(undefined)
+  const maybeView = useMemo(
+    () =>
+      Option.map(maybeGivenView, view => {
+        const kept = sharedWith(lastView.current, view)
+        lastView.current = kept
+        return kept
+      }),
+    [maybeGivenView],
+  )
   const options = entryOptionsOf(bound, entryKey, look)
   const presentation = options.presentation
   const isUnderHeader = presentation === 'card'
