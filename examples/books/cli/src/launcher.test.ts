@@ -280,6 +280,34 @@ describe(
       expect(title.stdout).not.toContain('is not in your library')
     })
 
+    // NOTE: A command that names a time moves the place and keeps
+    // playing, whether the title was playing or paused: the same rule as
+    // a seek on the site and a tap on a word on the phone, the Program's
+    // own Action.
+    it('plays from a time while a title is already playing, and when it is paused', () => {
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      const whilePlaying = books(library, ['play-from', '0:30'])
+      expect(whilePlaying.stderr).toBe('')
+      expect(whilePlaying.status).toBe(0)
+      expect(whilePlaying.stdout).toContain('Playing The Lantern Keeper')
+      expect(whilePlaying.stdout).toContain('0:30 of 1:20:00')
+      expect(books(library, ['pause']).stdout).toContain('Paused')
+      const whilePaused = books(library, ['play-from', '1:00'])
+      expect(whilePaused.stderr).toBe('')
+      expect(whilePaused.stdout).toContain('Playing The Lantern Keeper')
+      expect(whilePaused.stdout).toContain('1:00 of 1:20:00')
+      const header = JSON.parse(
+        books(library, ['words', '--json']).stdout,
+      ).header
+      expect(header.isPlaying).toBe(true)
+      expect(header.placeMs).toBeGreaterThanOrEqual(60_000)
+      // A time past the end is refused in the Program's own words.
+      const past = books(library, ['play-from', '9:00:00'])
+      expect(past.status).toBe(1)
+      expect(past.stderr).toContain('that is past the end')
+    })
+
     it('prints help read from the declarations, and starts no player to do it', () => {
       const library = newLibrary()
       const help = books(library, [])
