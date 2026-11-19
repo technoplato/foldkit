@@ -27,7 +27,7 @@ import {
 import { attachDevelopmentTelemetry } from '@foldkit/react-native/telemetry'
 import { init } from '@instantdb/react-native'
 
-import type { PhoneConnection } from './connection'
+import { type PhoneConnection, isTelemetryAsked } from './connection'
 import { type Running, phoneResources } from './phoneResources'
 
 type PhoneDatabase = ReturnType<typeof init>
@@ -71,7 +71,14 @@ const traced = <
 >(
   handle: Handle,
 ): Handle => {
-  Option.match(attachDevelopmentTelemetry(handle, { app: 'books' }), {
+  const isAsked = isTelemetryAsked({
+    EXPO_PUBLIC_BOOKS_TELEMETRY: process.env.EXPO_PUBLIC_BOOKS_TELEMETRY,
+  })
+  const attached = attachDevelopmentTelemetry(handle, {
+    app: 'books',
+    ...(isAsked ? { isDevelopment: true } : {}),
+  })
+  Option.match(attached, {
     onNone: () => undefined,
     onSome: telemetry => {
       Reflect.set(globalThis, paintRecorderKey, telemetry.recordRendered)
