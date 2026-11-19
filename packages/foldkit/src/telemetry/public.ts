@@ -8,6 +8,8 @@ export {
   Rendered,
   SessionStarted,
   SessionStopped,
+  SyncKind,
+  Synced,
   TelemetryBatch,
   TelemetryCommand,
   TelemetryEvent,

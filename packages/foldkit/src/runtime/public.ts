@@ -58,6 +58,13 @@ export {
 } from './syncEngine.js'
 
 export type {
+  ObserveSync,
+  SyncLinkState,
+  SyncTrace,
+  SyncTraceFact,
+} from './syncTrace.js'
+
+export type {
   RoutingConfig,
   CrashConfig,
   CrashContext,

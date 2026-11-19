@@ -8,6 +8,7 @@ import {
   type InstantOptions,
   engineProcessorId,
   fromTransport,
+  instantLinksOf,
   missingAdminToken,
 } from './fromTransport.js'
 
@@ -16,6 +17,8 @@ export {
   engineProcessorId,
   fromTransport,
   instantCauseString,
+  instantLinksOf,
+  linkOfInstantStatus,
   type InstantApp,
   type InstantOptions,
 } from './fromTransport.js'
@@ -49,6 +52,7 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
         options.owner === undefined ? {} : { owner: options.owner },
       ),
       processor,
+      instantLinksOf(options.database),
     )
   }
   if (options.programLog === undefined && options.database !== undefined) {
@@ -58,6 +62,7 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
         options.selectCountId ?? options.countId,
       ),
       processor,
+      instantLinksOf(options.database),
     )
   }
   const adminToken = adminTokenFromEnv()

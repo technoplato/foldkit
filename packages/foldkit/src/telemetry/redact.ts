@@ -455,6 +455,10 @@ export const scrubEvent = (
         diagnostic.cause === undefined
           ? diagnostic
           : { ...diagnostic, cause: scrubText(diagnostic.cause, policy) },
+      Synced: synced =>
+        synced.cause === undefined
+          ? synced
+          : { ...synced, cause: scrubText(synced.cause, policy) },
       Crashed: crashed => ({
         ...crashed,
         cause: scrubText(crashed.cause, policy),

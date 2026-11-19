@@ -12,6 +12,7 @@ import {
   type InstantOptions,
   engineProcessorId,
   fromTransport,
+  instantLinksOf,
 } from './fromTransport.js'
 
 export {
@@ -19,6 +20,8 @@ export {
   engineProcessorId,
   fromTransport,
   instantCauseString,
+  instantLinksOf,
+  linkOfInstantStatus,
   type InstantApp,
   type InstantOptions,
 } from './fromTransport.js'
@@ -68,20 +71,24 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
     return fromTransport(options.transport, processor)
   }
   if (options.programLog !== undefined) {
+    const database = options.database ?? openDatabase(options)
     return fromTransport(
       makeInstantCoreProgramLogTransport(
-        options.database ?? openDatabase(options),
+        database,
         options.programLog,
         options.owner === undefined ? {} : { owner: options.owner },
       ),
       processor,
+      instantLinksOf(database),
     )
   }
+  const database = options.database ?? openDatabase(options)
   return fromTransport(
     makeInstantCoreSnapshotLogTransport(
-      options.database ?? openDatabase(options),
+      database,
       options.selectCountId ?? options.countId,
     ),
     processor,
+    instantLinksOf(database),
   )
 }

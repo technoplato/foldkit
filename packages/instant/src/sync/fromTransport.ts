@@ -1,10 +1,7 @@
 import { Deferred, Effect, Option, Schema as S, Stream } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 
-import type {
-  ProgramLogDatabase,
-  ProgramLogOwner,
-} from '../programLog/core.js'
+import type { ProgramLogDatabase, ProgramLogOwner } from '../programLog/core.js'
 import {
   type CountIdSelector,
   InstantCountSnapshotRecord,
@@ -177,14 +174,81 @@ const readSinceOf = (
   )
 
 /**
+ * Where the link stands for each word Instant uses for its connection:
+ * `connecting`, `opened` (connected, not yet signed in), `authenticated`
+ * (signed in), and `closed` or `errored` (offline). None for a word this
+ * build does not know, which is then not told.
+ *
+ * @example
+ * ```typescript
+ * linkOfInstantStatus('authenticated') // Some('SignedIn')
+ * ```
+ */
+export const linkOfInstantStatus = (
+  status: unknown,
+): Option.Option<Runtime.SyncLinkState> => {
+  if (status === 'connecting') {
+    return Option.some('Connecting')
+  } else if (status === 'opened') {
+    return Option.some('Connected')
+  } else if (status === 'authenticated') {
+    return Option.some('SignedIn')
+  } else if (status === 'closed' || status === 'errored') {
+    return Option.some('Offline')
+  } else {
+    return Option.none()
+  }
+}
+
+/** The part of an Instant database that says how its connection stands. */
+export type InstantConnection = Readonly<{
+  subscribeConnectionStatus: (listener: (status: unknown) => void) => () => void
+}>
+
+/**
+ * An Instant database's connection as a sync engine's link: its state
+ * now, then each change once, until the Scope closes. A sync runtime
+ * writes it into its trace, so a device's file says when it was
+ * connected, signed in, offline and back.
+ *
+ * @example
+ * ```typescript
+ * fromTransport(transport, processor, instantLinksOf(database))
+ * ```
+ */
+export const instantLinksOf =
+  (database: InstantConnection): NonNullable<Runtime.SyncEngine['links']> =>
+  listener =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const last: { maybeLink: Option.Option<Runtime.SyncLinkState> } = {
+          maybeLink: Option.none(),
+        }
+        return database.subscribeConnectionStatus(status => {
+          const maybeLink = linkOfInstantStatus(status)
+          if (
+            Option.isSome(maybeLink) &&
+            !Option.contains(last.maybeLink, maybeLink.value)
+          ) {
+            last.maybeLink = maybeLink
+            listener(maybeLink.value)
+          }
+        })
+      }),
+      unsubscribe => Effect.sync(unsubscribe),
+    )
+
+/**
  * Wraps a snapshot-log transport as the Runtime.start SyncEngine.
  * Instant has no Model.
  */
 export const fromTransport = (
   transport: SnapshotLogTransport,
   processor: string,
+  links?: Runtime.SyncEngine['links'],
 ): Runtime.SyncEngine => ({
   processor,
+  ...(links === undefined ? {} : { links }),
   read: () =>
     transport.read().pipe(
       Effect.map(state => ({

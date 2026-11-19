@@ -476,6 +476,7 @@ const withoutValues = (event: TelemetryEvent): TelemetryEvent =>
       SessionStopped: stopped => stopped,
       Rendered: rendered => rendered,
       Diagnostic: diagnostic => diagnostic,
+      Synced: synced => synced,
       Crashed: crashed => crashed,
       Transition: ({ payload: _payload, model: _model, ...transition }) => ({
         ...transition,

@@ -886,6 +886,7 @@ export function start<
           traceSync({ _tag: 'QueuedRow', ...wroteRow })
           return
         }
+        const writeStartedAt = clock()
         const written = yield* engine.write(write).pipe(Effect.result)
         if (Result.isFailure(written)) {
           outbox.push(write)
@@ -916,6 +917,7 @@ export function start<
           ...wroteRow,
           link: written.success.link,
           isRetry: false,
+          tookMs: Math.max(0, clock() - writeStartedAt),
         })
       })
 
@@ -926,6 +928,7 @@ export function start<
         }
         const pending = outbox.splice(0, outbox.length)
         for (const write of pending) {
+          const retryStartedAt = clock()
           const written = yield* engine.write(write).pipe(Effect.result)
           if (Result.isFailure(written)) {
             outbox.unshift(write)
@@ -939,6 +942,7 @@ export function start<
             message: tagOfRow(write.message),
             link: written.success.link,
             isRetry: true,
+            tookMs: Math.max(0, clock() - retryStartedAt),
           })
         }
       })

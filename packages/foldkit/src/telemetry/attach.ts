@@ -219,6 +219,16 @@ const startRecording = <Model, Message extends Readonly<{ _tag: string }>>(
       Effect.sync(() => observation.observeFailures(recorder.recordFailure)),
       stopObserving => Effect.sync(stopObserving),
     )
+    // NOTE: A synced Program's runtime says what it did with its engine;
+    // it goes on the same lines, so one file holds what the Program did
+    // and what reached the other devices.
+    const observeSync = observation.observeSync
+    if (observeSync !== undefined) {
+      yield* Effect.acquireRelease(
+        Effect.sync(() => observeSync(recorder.recordSync)),
+        stopObserving => Effect.sync(stopObserving),
+      )
+    }
     yield* Effect.acquireRelease(
       Effect.sync(() => observation.installCommandTracer(recorder.tracer)),
       uninstall => Effect.sync(uninstall),

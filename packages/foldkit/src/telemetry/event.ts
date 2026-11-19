@@ -212,6 +212,63 @@ export const Diagnostic = S.TaggedStruct('Diagnostic', {
 export type Diagnostic = typeof Diagnostic.Type
 
 /**
+ * What a sync runtime did, by kind: a row it wrote, one that waits behind
+ * another, a write that failed, its own row sent back by the store, a row
+ * it received, one it could not read, one its session's policy keeps from
+ * this Processor, or a change of its link.
+ */
+export const SyncKind = S.Literals([
+  'WroteRow',
+  'QueuedRow',
+  'FailedToWriteRow',
+  'ConfirmedRow',
+  'ReceivedRow',
+  'DroppedRow',
+  'RefusedRow',
+  'LinkChanged',
+])
+
+/** What a sync runtime did, by kind. */
+export type SyncKind = typeof SyncKind.Type
+
+/**
+ * One thing the sync runtime of a synced Program did, on the same lines
+ * as its transitions. `rowId` is the log row's id, the same in every
+ * device's file, so a `WroteRow` in one file and the `ReceivedRow` with
+ * its `rowId` in another are one row: whether a press reached the other
+ * device, and when, is read from the two `at` times. `message` is the
+ * Message's tag, never its payload; `from` the Processor that wrote a
+ * received row; `link` how a write ended (`delivered`, `queued`,
+ * `offline`) or where the link stands after a change (`Connecting`,
+ * `Connected`, `SignedIn`, `Offline`); `tookMs` how long the write took,
+ * so a written row left this device at `at` less `tookMs`; `cause` the
+ * engine's own words for a failure, a drop or a refusal.
+ *
+ * @example
+ * ```typescript
+ * // terminal's file
+ * {"_tag":"Synced","at":"2026-11-18T21:50:12.120Z",…,"kind":"WroteRow","rowId":"7947ca8d","message":"Play","link":"delivered"}
+ * // phone's file
+ * {"_tag":"Synced","at":"2026-11-18T21:50:12.410Z",…,"kind":"ReceivedRow","rowId":"7947ca8d","message":"Play","from":"cli"}
+ * ```
+ */
+export const Synced = S.TaggedStruct('Synced', {
+  ...envelope,
+  kind: SyncKind,
+  rowId: S.optionalKey(S.String),
+  message: S.optionalKey(S.String),
+  from: S.optionalKey(S.String),
+  link: S.optionalKey(S.String),
+  isLate: S.optionalKey(S.Boolean),
+  isRetry: S.optionalKey(S.Boolean),
+  tookMs: S.optionalKey(NonNegativeNumber),
+  cause: S.optionalKey(S.String),
+})
+
+/** One thing the sync runtime of a synced Program did. */
+export type Synced = typeof Synced.Type
+
+/**
  * The Program runtime stopped on a terminal failure. `source` names the
  * subsystem, and `message` the tag of the Message being processed, if any.
  */
@@ -248,6 +305,7 @@ export const TelemetryEvent = S.Union([
   CommandStarted,
   CommandFinished,
   Diagnostic,
+  Synced,
   Crashed,
   Rendered,
 ])

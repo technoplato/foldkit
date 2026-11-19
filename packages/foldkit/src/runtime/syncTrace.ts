@@ -19,7 +19,9 @@ type At = Readonly<{ timestamp: number }>
  * session's policy keeps from this Processor, and each change of its
  * link. `rowId` is the log row's id, the same on every device, so the
  * `WroteRow` in one device's trace and the `ReceivedRow` in another's are
- * the same row. `message` is the Message's tag, never its payload.
+ * the same row. `message` is the Message's tag, never its payload. A
+ * `WroteRow` is told when the engine answers, `tookMs` after the write
+ * left, so the other device may say it received the row a little before.
  *
  * @example
  * ```typescript
@@ -35,6 +37,7 @@ export type SyncTrace = At &
         message: string
         link: SyncLink
         isRetry: boolean
+        tookMs: number
       }>
     | Readonly<{ _tag: 'QueuedRow'; rowId: string; message: string }>
     | Readonly<{

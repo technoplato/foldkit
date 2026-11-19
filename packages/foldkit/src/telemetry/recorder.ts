@@ -22,6 +22,7 @@ import type {
   RuntimeDiagnostic,
   RuntimeFailure,
 } from '../runtime/runtimeDiagnostic.js'
+import type { SyncTrace } from '../runtime/syncTrace.js'
 import type {
   CommandOutcome,
   TelemetryCommand,
@@ -77,6 +78,7 @@ export type TelemetryRecorder = Readonly<{
   recordSessionStopped: (facts: SessionFacts, durationMs: number) => void
   recordTransition: (transition: JournalTransition<unknown, AnyMessage>) => void
   recordDiagnostic: (diagnostic: RuntimeDiagnostic) => void
+  recordSync: (trace: SyncTrace) => void
   recordFailure: (failure: RuntimeFailure<AnyMessage>) => void
   recordRendered: (render: RenderReport, atMs: number) => void
   tracer: Tracer.Tracer
@@ -480,6 +482,16 @@ export const makeRecorder = (
         ...('cause' in diagnostic
           ? { cause: scrubText(diagnostic.cause, policy) }
           : {}),
+      }))
+    },
+    recordSync: trace => {
+      const { _tag: kind, timestamp: _timestamp, ...facts } = trace
+      record(trace.timestamp, config.surface, envelope => ({
+        _tag: 'Synced',
+        ...envelope,
+        kind,
+        ...facts,
+        ...('cause' in facts ? { cause: scrubText(facts.cause, policy) } : {}),
       }))
     },
     recordFailure: failure => {
