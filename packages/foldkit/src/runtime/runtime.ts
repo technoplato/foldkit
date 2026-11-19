@@ -1533,16 +1533,48 @@ const makeProgramRenderer = <
           onNone: () => config.start,
           onSome: fromModel,
         })
-        const runtime = yield* makeProgramRuntime({
-          program: activeProgram,
-          resources: config.resources,
-          scheduling: browserProgramRuntimeScheduling,
-          ...(programStart === undefined ? {} : { start: programStart }),
-          ...(config.journal === undefined ? {} : { journal: config.journal }),
-          ...(config.observers === undefined
-            ? {}
-            : { observers: config.observers }),
-        }).pipe(Effect.orDie)
+        const runtimeExit = yield* Effect.exit(
+          makeProgramRuntime({
+            program: activeProgram,
+            resources: config.resources,
+            scheduling: browserProgramRuntimeScheduling,
+            ...(programStart === undefined ? {} : { start: programStart }),
+            ...(config.journal === undefined
+              ? {}
+              : { journal: config.journal }),
+            ...(config.observers === undefined
+              ? {}
+              : { observers: config.observers }),
+          }),
+        )
+        // NOTE: The runtime builds the resources Layer as it starts. When
+        // that fails there is no runtime to crash through, and letting the
+        // start die left the page blank with nothing reported. The page
+        // shows the crash view, with the Model the Program would have
+        // started on, and the crash is reported once; nothing of the app
+        // is drawn, since no Command of it could run.
+        if (Exit.isFailure(runtimeExit)) {
+          const squashed = Cause.squash(runtimeExit.cause)
+          renderCrashView(
+            {
+              error:
+                squashed instanceof Error
+                  ? squashed
+                  : new Error(String(squashed)),
+              model: Option.getOrElse(
+                decodedHmrModel,
+                () => activeProgram.init()[0],
+              ),
+              message: Option.none(),
+            },
+            config.crash,
+            container,
+            { maybeCurrentVNode: Option.none() },
+            config.manageDocument,
+          )
+          return yield* Effect.never
+        }
+        const runtime = runtimeExit.value
         yield* Option.match(maybePortHandleBridge, {
           onNone: () => Effect.void,
           onSome: bridge =>
