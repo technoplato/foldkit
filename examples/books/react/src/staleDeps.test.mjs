@@ -40,13 +40,15 @@ describe('what a package was built from, and when it was built', () => {
     expect(timesOf(root)).toEqual({ sourceMs: 300_000, builtMs: 260_000 })
   })
 
-  it('leaves out what a build does not read: tests, installed packages and the output itself', () => {
+  it('leaves out what a build does not read: tests, installed packages, hidden files, the output itself and the record a build writes beside it', () => {
     const root = packageAt({
       'package.json': 100,
       'src/index.ts': 200,
       'src/index.test.ts': 900,
       'src/part.test.tsx': 900,
       'node_modules/other/index.js': 900,
+      'tsconfig.build.tsbuildinfo': 900,
+      '.cache/any': 900,
       'dist/index.js': 250,
     })
     expect(timesOf(root)).toEqual({ sourceMs: 200_000, builtMs: 250_000 })

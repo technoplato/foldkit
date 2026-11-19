@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "build:live": "../scripts/with-books-env sh -c \"tsc --noEmit && vite build\"",
-    "deps": "pnpm --filter 'books-react-example^...' run build",
+    "deps": "node ../../../scripts/build-stale-deps.mjs",
     "dev": "../scripts/with-books-env vite --port 5183 --strictPort",
     "dev:made-up": "vite --config madeUp/vite.config.ts",
     "prebuild": "pnpm run deps",
@@ -16,6 +16,7 @@
     "pretypecheck": "pnpm run deps",
     "serve:live": "../scripts/with-books-env vite preview --host 127.0.0.1 --port 5200 --strictPort",
     "start": "pnpm run dev",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
