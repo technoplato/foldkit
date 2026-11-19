@@ -4,6 +4,74 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 9:00:48 p.m. EST — `d4f40b916f46` fix(books): green: a dev start builds only the dependencies whose sources are newer than their output (Scribe #2494)
+
+- **Implementation commit:** `d4f40b916f46119a2ba389a8570a0bed3da52987`
+- **Change:** A dev start builds only the dependencies whose sources are newer than their output
+- **Details:**
+  - Layer: the workspace's scripts. build-stale-deps asks the workspace which packages a package depends on and builds only the stale ones and what depends on them; the Books site's scripts use it. Nothing changed: 0.6 s; one package touched: 6.8 s; all seven: 35 to 41 s.
+- **Files:**
+  - `examples/books/react/package.json` — changed by this commit
+  - `examples/books/react/src/staleDeps.test.mjs` — changed by this commit
+  - `scripts/build-stale-deps.mjs` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 9:00:48 p.m. EST — `5a33d4549364` chore: fixtures, examples and docs name a made-up book where they named a real one (Scribe #2494)
+
+- **Implementation commit:** `5a33d45493645de06d593054f9d2be209a9e4a6f`
+- **Change:** Fixtures, examples and docs name a made-up book where they named a real one
+- **Details:**
+  - Layer: tests, doc comments, plans and changesets across the fork. One real audiobook's title, author, store id and name tag are replaced by made-up ones of the same length in 42 files, and the ignore file no longer names audio files by title. Only comments change outside tests and docs.
+- **Files:**
+  - `.changeset/link-rows-and-headings.md` — changed by this commit
+  - `.changeset/mirrored-launch-links.md` — changed by this commit
+  - `.changeset/public-routes-gate.md` — changed by this commit
+  - `.changeset/responsive-terminal-screens.md` — changed by this commit
+  - `.changeset/screen-identity.md` — changed by this commit
+  - `.gitignore` — changed by this commit
+  - `docs/adr/0014-one-contract-for-every-surface.md` — changed by this commit
+  - `examples/books/cli/src/cli.test.ts` — changed by this commit
+  - `examples/books/cli/src/daemon.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/core/src/addBooks.ts` — changed by this commit
+  - `examples/books/core/src/app.ts` — changed by this commit
+  - `examples/books/core/src/audible/message.ts` — changed by this commit
+  - `examples/books/core/src/audible/screen.test.ts` — changed by this commit
+  - `examples/books/core/src/audible/scribeImport.node.test.ts` — changed by this commit
+  - `examples/books/core/src/audible/server.node.test.ts` — changed by this commit
+  - `examples/books/core/src/audible/service.ts` — changed by this commit
+  - `examples/books/core/src/audible/title.ts` — changed by this commit
+  - `examples/books/core/src/audible/update.test.ts` — changed by this commit
+  - `examples/books/core/src/brief.ts` — changed by this commit
+  - `examples/books/core/src/linkPreview.ts` — changed by this commit
+  - `examples/books/core/src/linkPreviews.node.ts` — changed by this commit
+  - `examples/books/core/src/links.ts` — changed by this commit
+  - `examples/books/core/src/scribeTimeline.ts` — changed by this commit
+  - `examples/books/scripts/books` — changed by this commit
+  - `glossary.md` — changed by this commit
+  - `packages/foldkit/src/cli/program.ts` — changed by this commit
+  - `packages/foldkit/src/cli/terminalScreen.ts` — changed by this commit
+  - `packages/foldkit/src/environment/environment.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/terminalFocus.test.ts` — changed by this commit
+  - `packages/foldkit/src/interaction/terminalFocus.ts` — changed by this commit
+  - `packages/foldkit/src/navigation/carrier.ts` — changed by this commit
+  - `packages/foldkit/src/navigation/declaration.ts` — changed by this commit
+  - `packages/foldkit/src/renderers/elements.ts` — changed by this commit
+  - `packages/foldkit/src/session/session.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/event.test.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/event.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/redact.test.ts` — changed by this commit
+  - `packages/instant/src/hostedIdentity/publicRoutes.test.ts` — changed by this commit
+  - `packages/instant/src/hostedIdentity/publicRoutes.ts` — changed by this commit
+  - `packages/instant/src/hostedIdentity/telemetryEndpoint.test.ts` — changed by this commit
+  - `packages/instant/src/hostedIdentity/telemetryMiddleware.test.ts` — changed by this commit
+  - `plans/13-books-timeline.md` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 8:47:02 p.m. EST — `05404c15621d` fix(books): green: any host can wait for the shelf, and a command waits for the chapters it names (Scribe #2494)
 
 - **Implementation commit:** `05404c15621dcd9337202360e8813a752e1a0d1e`
