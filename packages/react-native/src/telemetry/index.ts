@@ -1,2 +1,6 @@
 export * from './developmentTelemetry.js'
 export * from './paintReporter.js'
+export * from './hostErrors.js'
+export * from './chunkedLines.js'
+export * from './updatesNote.js'
+export * from './stalls.js'

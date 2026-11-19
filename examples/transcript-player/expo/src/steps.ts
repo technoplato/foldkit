@@ -9,12 +9,14 @@ import {
 /**
  * What a phone's audio player says about itself, in the port's terms:
  * where it is, whether it is sounding, whether its audio has loaded,
- * whether it just reached the end, and why it failed, if it did.
+ * whether it has stopped only to load more, whether it just reached the
+ * end, and why it failed, if it did.
  */
 export type PlayerStatus = Readonly<{
   currentTimeMs: number
   isPlaying: boolean
   isLoaded: boolean
+  isWaitingForAudio: boolean
   didJustFinish: boolean
   maybeFailure: string | undefined
 }>
@@ -53,7 +55,9 @@ const millisecondsPerSecond = 1000
  * second is reported once, with the wall clock; a skip made on the lock
  * screen lands on a second not yet reported, so it is reported as the new
  * place. Audio that stops sounding after it has sounded, without ending
- * or failing, was paused by the device.
+ * or failing, was paused by the device, unless it stopped only to load
+ * more: a player waiting for audio was paused by nobody, and goes on by
+ * itself.
  *
  * @example
  * ```typescript
@@ -101,7 +105,8 @@ export const stepOf = (
       heard,
       events: [],
       isDone: false,
-      isPausedByDevice: heard.hasPlayed && status.isLoaded,
+      isPausedByDevice:
+        heard.hasPlayed && status.isLoaded && !status.isWaitingForAudio,
     }
   }
 }
@@ -122,3 +127,71 @@ const resumeToleranceMs = 1500
 export const isResumeOf = (
   place: Readonly<{ currentTimeMs: number; fromMs: number }>,
 ): boolean => Math.abs(place.currentTimeMs - place.fromMs) <= resumeToleranceMs
+
+// SILENCE
+
+/**
+ * Whether a phone app was built or served to make no sound at all:
+ * `EXPO_PUBLIC_FOLDKIT_SILENT` is set. Every test of a phone app sets it:
+ * a test reads what the player reports and the trace, never sound, and a
+ * machine that tests is often one a person is working or recording at.
+ *
+ * @example
+ * ```typescript
+ * isSilentAsked({ EXPO_PUBLIC_FOLDKIT_SILENT: '1' }) // true
+ * ```
+ */
+export const isSilentAsked = (
+  env: Readonly<Record<string, string | undefined>>,
+): boolean => (env['EXPO_PUBLIC_FOLDKIT_SILENT'] ?? '').trim() !== ''
+
+/** How loud a player is: its volume, and whether it is muted as well. */
+export type Loudness = Readonly<{ volume: number; muted: boolean }>
+
+/**
+ * How loud a player is to be. A silent one has no volume and is muted
+ * too, so neither setting alone can let sound out.
+ *
+ * @example
+ * ```typescript
+ * loudnessOf(true) // { volume: 0, muted: true }
+ * ```
+ */
+export const loudnessOf = (isSilent: boolean): Loudness =>
+  isSilent ? { volume: 0, muted: true } : { volume: 1, muted: false }
+
+/**
+ * Whether a phone app makes no sound at all, from where it runs and what
+ * it was built or served with. On a simulator it is silent with no flag:
+ * a simulator sounds from the speaker of the machine it runs on, which a
+ * person may be working or recording at. Its sound there has to be asked
+ * for by its own name, `EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR`. The test
+ * switch silences it anywhere, whatever else is asked.
+ *
+ * @example
+ * ```typescript
+ * isSilentOn({ isRealDevice: false, env: {} }) // true
+ * ```
+ */
+export const isSilentOn = ({
+  isRealDevice,
+  env,
+}: Readonly<{
+  isRealDevice: boolean
+  env: Readonly<Record<string, string | undefined>>
+}>): boolean =>
+  isSilentAsked(env) ||
+  (!isRealDevice &&
+    (env['EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR'] ?? '').trim() === '')
+
+/**
+ * Whether a player is as loud as it was told to be, from what the player
+ * itself reports. A silent output asks this of every player before it
+ * tells it to play.
+ */
+export const isAsLoudAs = (wanted: Loudness, heard: Loudness): boolean =>
+  heard.volume === wanted.volume && heard.muted === wanted.muted
+
+/** Why a silent output did not play a player that would not go silent. */
+export const wouldNotGoSilent =
+  'the player would not go silent, so it was not played'

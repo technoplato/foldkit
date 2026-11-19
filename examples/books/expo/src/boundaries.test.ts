@@ -104,4 +104,11 @@ describe('Books Expo boundaries', () => {
       '"@foldkit/react-native/plugin/sceneLifecycle.cjs"',
     )
   })
+
+  it('turns on React Native’s scheduler guard, through the adapter’s plugin', () => {
+    const config = readFileSync(join(here, '../app.json'), 'utf8')
+    expect(config).toContain(
+      '"@foldkit/react-native/plugin/schedulerGuard.cjs"',
+    )
+  })
 })

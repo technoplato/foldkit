@@ -52,6 +52,48 @@ type Passages = Readonly<{
 
 const noPassages: Passages = { passages: [], nextMs: 0 }
 
+const madeUpPassagesOf = (
+  passageCount: number,
+  sentencesIn: (index: number) => number = sentencesInPassage,
+): ReadonlyArray<TranscriptPlayer.Passage> =>
+  Array.reduce(Array.range(0, passageCount - 1), noPassages, (state, index) => {
+    // A paragraph is a few of the sentences, starting one further on
+    // each time, so paragraphs differ and are long enough to wrap.
+    const sentence = Array.join(
+      Array.map(
+        Array.range(0, sentencesIn(index) - 1),
+        at =>
+          madeUpSentences[(index + at) % madeUpSentences.length] ??
+          'The lamp was lit.',
+      ),
+      ' ',
+    )
+    const words = Array.map(sentence.split(' '), (text, at) => {
+      const startMs = state.nextMs + at * (wordMs + wordGapMs)
+      return {
+        wordId: TranscriptPlayer.WordId.make(
+          `p${index.toString()}w${at.toString()}`,
+        ),
+        text,
+        startMs: Milliseconds.make(startMs),
+        endMs: Milliseconds.make(startMs + wordMs),
+      }
+    })
+    const endMs = state.nextMs + words.length * (wordMs + wordGapMs)
+    return {
+      passages: [
+        ...state.passages,
+        {
+          passageId: `p${index.toString()}`,
+          startMs: Milliseconds.make(state.nextMs),
+          endMs: Milliseconds.make(endMs),
+          words,
+        },
+      ],
+      nextMs: endMs + passageGapMs,
+    }
+  }).passages
+
 /**
  * Made-up words for a made-up title: the same few sentences over and
  * over, a paragraph of one, of five and of three in turn, every word half
@@ -60,47 +102,24 @@ const noPassages: Passages = { passages: [], nextMs: 0 }
  * proving its sound, makes one from these words and their times.
  */
 export const madeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
-  Array.reduce(
-    Array.range(0, madeUpPassageCount - 1),
-    noPassages,
-    (state, index) => {
-      // A paragraph is a few of the sentences, starting one further on
-      // each time, so paragraphs differ and are long enough to wrap.
-      const sentence = Array.join(
-        Array.map(
-          Array.range(0, sentencesInPassage(index) - 1),
-          at =>
-            madeUpSentences[(index + at) % madeUpSentences.length] ??
-            'The lamp was lit.',
-        ),
-        ' ',
-      )
-      const words = Array.map(sentence.split(' '), (text, at) => {
-        const startMs = state.nextMs + at * (wordMs + wordGapMs)
-        return {
-          wordId: TranscriptPlayer.WordId.make(
-            `p${index.toString()}w${at.toString()}`,
-          ),
-          text,
-          startMs: Milliseconds.make(startMs),
-          endMs: Milliseconds.make(startMs + wordMs),
-        }
-      })
-      const endMs = state.nextMs + words.length * (wordMs + wordGapMs)
-      return {
-        passages: [
-          ...state.passages,
-          {
-            passageId: `p${index.toString()}`,
-            startMs: Milliseconds.make(state.nextMs),
-            endMs: Milliseconds.make(endMs),
-            words,
-          },
-        ],
-        nextMs: endMs + passageGapMs,
-      }
-    },
-  ).passages
+  madeUpPassagesOf(madeUpPassageCount)
+
+const longMadeUpPassageCount = 12
+
+const sentencesInLongPassage = 260
+
+/**
+ * Made-up words in passages as long as a real recording's can be: twelve
+ * passages of about two thousand words each, with no pause inside one. A
+ * reader is handed the passage being read and its neighbours, so here it
+ * is handed about ten thousand words at once: a chapter no painter should
+ * lay out whole. The long made-up shelf gives them to one title.
+ */
+export const longMadeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
+  madeUpPassagesOf(longMadeUpPassageCount, () => sentencesInLongPassage)
+
+/** The title of the long made-up shelf whose passages are the long ones. */
+export const longWordedSlug = 'a-field-guide-to-weather'
 
 // SESSION
 
@@ -168,7 +187,9 @@ export const startMadeUpBooks = async (
         new Map(
           Array.map(shelf.titles, title => [
             MediaId.make(title.slug),
-            madeUpPassages,
+            isLong && title.slug === longWordedSlug
+              ? longMadeUpPassages
+              : madeUpPassages,
           ]),
         ),
       ),

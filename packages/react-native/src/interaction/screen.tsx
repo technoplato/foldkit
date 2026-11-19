@@ -9,7 +9,7 @@ import {
   type TextPart,
   type UiNode,
 } from 'foldkit/renderers'
-import { Fragment, type ReactElement, type ReactNode, useMemo } from 'react'
+import { type ReactElement, type ReactNode, memo, useMemo } from 'react'
 import {
   Image,
   Linking,
@@ -451,6 +451,45 @@ const rowStyleOf = (row: RowNode, paint: Paint): ViewStyle => {
   }
 }
 
+const roots = new WeakMap<PaintHandlers, Paint>()
+
+const centered = new WeakMap<Paint, Paint>()
+
+const onePainters = new WeakMap<Paint, (child: UiNode) => ReactElement>()
+
+const childrenPainters = new WeakMap<
+  Paint,
+  (children: ReadonlyArray<UiNode>) => ReadonlyArray<ReactElement>
+>()
+
+const keptFor = <Key extends object, Value>(
+  kept: WeakMap<Key, Value>,
+  key: Key,
+  make: () => Value,
+): Value => {
+  const known = kept.get(key)
+  if (known !== undefined) {
+    return known
+  }
+  const made = make()
+  kept.set(key, made)
+  return made
+}
+
+// NOTE: one node of a screen, painted again only when the node is another
+// object. A screen's tree keeps the parts that did not change from one
+// Model to the next (`sharedWith`), so a change in one row, or one label,
+// repaints that part and leaves the rest of the screen alone.
+const PaintedNode = memo(
+  ({
+    node,
+    paintOne,
+  }: Readonly<{
+    node: UiNode
+    paintOne: (node: UiNode) => ReactElement
+  }>): ReactElement => paintOne(node),
+)
+
 /**
  * Paints a Program screen tree as React Native elements, in the look it
  * is told. A Button press reports the whole node, so a Client sends its
@@ -476,7 +515,11 @@ export const paintTree = (
     ((href: string): void => {
       void Linking.openURL(href)
     })
-  const root: Paint = {
+  // NOTE: one Paint for one set of handlers, and one centered Paint for
+  // each Paint, kept for as long as the handlers are: a part that is
+  // painted again only when what it is given is another object is given
+  // the same Paint every time.
+  const root: Paint = keptFor(roots, handlers, () => ({
     look: handlers.look ?? lightLook,
     styles: handlers.styles ?? {},
     onPress: handlers.onPress,
@@ -485,7 +528,21 @@ export const paintTree = (
     platformActions: handlers.platformActions ?? [],
     maybePlatformTitle: handlers.platformTitle,
     isCentered: handlers.isCentered === true,
-  }
+  }))
+  const paintOneWith = (paint: Paint): ((child: UiNode) => ReactElement) =>
+    keptFor(
+      onePainters,
+      paint,
+      () => (child: UiNode) => paintNode(child, paint),
+    )
+  const paintChildrenWith = (
+    paint: Paint,
+  ): ((children: ReadonlyArray<UiNode>) => ReadonlyArray<ReactElement>) =>
+    keptFor(
+      childrenPainters,
+      paint,
+      () => (children: ReadonlyArray<UiNode>) => paintChildren(children, paint),
+    )
   const keyFor = (child: UiNode, index: number): string =>
     child._tag === 'Button' && child.action !== undefined
       ? `button-${child.action}`
@@ -497,9 +554,11 @@ export const paintTree = (
     Array.map(
       Array.filter(children, child => !isEmptyOf(child, paint)),
       (child, index) => (
-        <Fragment key={keyFor(child, index)}>
-          {paintNode(child, paint)}
-        </Fragment>
+        <PaintedNode
+          key={keyFor(child, index)}
+          node={child}
+          paintOne={paintOneWith(paint)}
+        />
       ),
     )
   const paintBox = (box: BoxNode, paint: Paint): ReactElement => {
@@ -575,16 +634,18 @@ export const paintTree = (
                     {paintNode(child, paint)}
                   </View>
                 ) : (
-                  <Fragment key={keyFor(child, index)}>
-                    {paintNode(child, paint)}
-                  </Fragment>
+                  <PaintedNode
+                    key={keyFor(child, index)}
+                    node={child}
+                    paintOne={paintOneWith(paint)}
+                  />
                 ),
             )}
           </View>
         ),
         Column: column => {
           const inner: Paint = hasDisplay(column.children)
-            ? { ...paint, isCentered: true }
+            ? keptFor(centered, paint, () => ({ ...paint, isCentered: true }))
             : paint
           return (
             <View
@@ -619,21 +680,19 @@ export const paintTree = (
         ),
         List: list =>
           list.filter === undefined && list.columns === undefined ? (
-            paintRows(list, list.items, paint, children =>
-              paintChildren(children, paint),
-            )
+            paintRows(list, list.items, paint, paintChildrenWith(paint))
           ) : (
             <ListFrame
               list={list}
               paint={paint}
-              paintChildren={children => paintChildren(children, paint)}
+              paintChildren={paintChildrenWith(paint)}
             />
           ),
         Seek: seek => <SeekBar paint={paint} seek={seek} />,
         Transcript: transcript => (
           <TranscriptView
             paint={paint}
-            paintNode={child => paintNode(child, paint)}
+            paintNode={paintOneWith(paint)}
             transcript={transcript}
           />
         ),

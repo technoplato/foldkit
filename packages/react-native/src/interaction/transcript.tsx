@@ -1,6 +1,7 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Match as M, Option, Order } from 'effect'
 import {
   type PlacedBookmark,
+  type TranscriptEntry,
   type TranscriptNode,
   type TranscriptPassage,
   type TranscriptWord,
@@ -21,12 +22,27 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Platform, Pressable, Text, type TextStyle, View } from 'react-native'
+import {
+  FlatList,
+  type ListRenderItem,
+  Platform,
+  Pressable,
+  Text,
+  type TextStyle,
+  View,
+} from 'react-native'
 
+import { useLaidOut } from '../telemetry/paintReporter.js'
 import { Icon } from './icon.js'
 import { groundStyleOf } from './look.js'
 import { type Paint, pressOf } from './paint.js'
 import { ScreenOverlayContext, ScreenScrollContext } from './scroll.js'
+import {
+  type WindowAnchor,
+  type WindowEntry,
+  estimatedTopOf,
+  readerWindow,
+} from './transcriptWindow.js'
 
 const readingFamily = Platform.select({
   ios: 'Iowan Old Style',
@@ -508,6 +524,10 @@ const leavingScrollQuietMs = 1000
 
 const leaveCheckAfterMs = 250
 
+const maximumJumps = 5
+
+const retryAfterMs = 120
+
 type PassagePlace = Readonly<{
   y: number
   height: number
@@ -518,6 +538,24 @@ type PassagePlace = Readonly<{
 const noLines: LaidOutLines = []
 
 const noBookmarks: ReadonlyArray<PlacedBookmark> = []
+
+const entryKeyOf = (entry: TranscriptEntry): string =>
+  entry._tag === 'PassageEntry' ? entry.passage.key : entry.item.key
+
+const passageGap = 2
+
+const PassageGap = (): ReactElement => <View style={{ height: passageGap }} />
+
+const passageKeyOfToken = (
+  transcript: TranscriptNode,
+  token: string,
+): string | undefined =>
+  Array.findFirst(transcript.passages, passage =>
+    Array.some(passage.words, word => word.token === token),
+  ).pipe(
+    Option.map(passage => passage.key),
+    Option.getOrUndefined,
+  )
 
 type PassageBlockProps = Readonly<{
   passage: TranscriptPassage
@@ -593,6 +631,7 @@ export const TranscriptView = ({
   paint: Paint
   paintNode: (node: UiNode) => ReactElement
 }>): ReactElement => {
+  const laidOut = useLaidOut()
   const transcript = useLiveTranscript(given)
   const scroll = useContext(ScreenScrollContext)
   const { colors, sizes } = paint.look
@@ -612,8 +651,27 @@ export const TranscriptView = ({
   const isFollowing = transcript.isFollowing !== false
   const leaveAction = transcript.leaveAction
   const focusToken = transcript.focusToken
+  const entries = useMemo(() => transcriptEntriesOf(transcript), [transcript])
+  const windowEntries = useMemo<ReadonlyArray<WindowEntry>>(
+    () =>
+      Array.map(entries, entry =>
+        entry._tag === 'PassageEntry'
+          ? { key: entry.passage.key, wordCount: entry.passage.words.length }
+          : { key: entry.item.key, wordCount: 0 },
+      ),
+    [entries],
+  )
+  laidOut({ passages: windowEntries.length })
+  const pending = useRef<
+    Readonly<{ token: string | undefined; jumps: number }>
+  >({ token: undefined, jumps: 0 })
+  const heights = useRef(new Map<string, number>())
+  const retry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const topOfWords = useRef(0)
+  const words = useRef<View>(null)
   const live = useRef({
     transcript,
+    windowEntries,
     currentToken,
     isFollowing,
     leaveAction,
@@ -621,6 +679,7 @@ export const TranscriptView = ({
   })
   live.current = {
     transcript,
+    windowEntries,
     currentToken,
     isFollowing,
     leaveAction,
@@ -656,20 +715,117 @@ export const TranscriptView = ({
         ),
     )
 
+  // NOTE: where a word is, asked now. In a windowed list a passage's place
+  // moves as others are laid out above it, so a laid-out passage is
+  // measured afresh each time; one that is not laid out has no place.
+  const whereIs = (
+    token: string,
+    then: (maybePlace: Option.Option<number>) => void,
+  ): void => {
+    const key = passageKeyOfToken(live.current.transcript, token)
+    const part = key === undefined ? undefined : parts.current.get(key)
+    if (scroll === undefined || key === undefined || part === undefined) {
+      then(Option.none())
+    } else {
+      scroll.measure(part, (y, height) => {
+        heights.current.set(key, height)
+        const before = places.current.get(key) ?? {
+          y: 0,
+          height: 0,
+          textY: 0,
+          lines: noLines,
+        }
+        places.current.set(key, { ...before, y, height })
+        then(placeOfToken(token))
+      })
+    }
+  }
+
+  // NOTE: goes to about where a passage that is not laid out is, worked
+  // out from the nearest passage that is, measured now.
+  const goNear = (token: string): void => {
+    const now = live.current
+    const key = passageKeyOfToken(now.transcript, token)
+    const index = now.windowEntries.findIndex(entry => entry.key === key)
+    if (scroll === undefined || index < 0) {
+      return
+    }
+    const jump = (maybeAnchor: WindowAnchor | undefined): void => {
+      scroll.jumpTo(
+        Math.max(
+          0,
+          estimatedTopOf(
+            now.windowEntries,
+            heights.current,
+            maybeAnchor,
+            index,
+            topOfWords.current,
+          ) -
+            scroll.viewport() / 2,
+        ),
+      )
+    }
+    const laidOut = Array.filter(
+      Array.map(now.windowEntries, (entry, at) => ({ key: entry.key, at })),
+      entry => parts.current.has(entry.key),
+    )
+    const maybeNearest = Array.head(
+      Array.sort(
+        Array.map(laidOut, entry => entry.at),
+        Order.mapInput(Order.Number, (at: number) => Math.abs(at - index)),
+      ),
+    )
+    Option.match(maybeNearest, {
+      onNone: () => {
+        jump(undefined)
+      },
+      onSome: nearest => {
+        const part = parts.current.get(now.windowEntries[nearest]?.key ?? '')
+        if (part === undefined) {
+          jump(undefined)
+        } else {
+          scroll.measure(part, y => {
+            jump({ index: nearest, y })
+          })
+        }
+      },
+    })
+  }
+
   const bringToMiddle = (token: string, isOnlyWhenAway: boolean): void => {
     if (scroll === undefined) {
       return
     }
-    Option.map(placeOfToken(token), place => {
-      const view = {
-        place,
-        offset: scroll.offset(),
-        viewport: scroll.viewport(),
-      }
-      if (!isOnlyWhenAway || !isNearMiddle(view)) {
-        scroll.scrollTo(Math.max(0, place - view.viewport / 2))
-      }
-    })
+    whereIs(
+      token,
+      Option.match({
+        onSome: place => {
+          pending.current = { token: undefined, jumps: 0 }
+          const view = {
+            place,
+            offset: scroll.offset(),
+            viewport: scroll.viewport(),
+          }
+          if (!isOnlyWhenAway || !isNearMiddle(view)) {
+            scroll.scrollTo(Math.max(0, place - view.viewport / 2))
+          }
+        },
+        // NOTE: the word's passage is not laid out: only the passages near
+        // the screen are. The view goes to about where it is; when
+        // passages are laid out there it is asked again, a few times at
+        // most, until the word's own passage is one of them.
+        onNone: () => {
+          const jumps =
+            pending.current.token === token ? pending.current.jumps : 0
+          if (jumps < maximumJumps) {
+            pending.current = { token, jumps: jumps + 1 }
+            goNear(token)
+          } else {
+            pending.current = { token: undefined, jumps: 0 }
+          }
+        },
+      }),
+    )
   }
 
   const followNow = (): void => {
@@ -699,18 +855,22 @@ export const TranscriptView = ({
       ) {
         return
       }
-      const isAway = Option.exists(
-        placeOfToken(now.currentToken),
-        place =>
-          !isNearMiddle({
-            place,
-            offset: scroll.offset(),
-            viewport: scroll.viewport(),
-          }),
-      )
-      if (isAway) {
-        now.onPress(pressOf(now.leaveAction, 'Read elsewhere'))
-      }
+      const leaveAction = now.leaveAction
+      whereIs(now.currentToken, maybePlace => {
+        // NOTE: a word whose passage is no longer laid out is far away.
+        const isAway = Option.match(maybePlace, {
+          onNone: () => true,
+          onSome: place =>
+            !isNearMiddle({
+              place,
+              offset: scroll.offset(),
+              viewport: scroll.viewport(),
+            }),
+        })
+        if (isAway) {
+          now.onPress(pressOf(leaveAction, 'Read elsewhere'))
+        }
+      })
     }
     const stop = scroll.onUserScroll(() => {
       lastUserScrollAtMs.current = Date.now()
@@ -766,8 +926,23 @@ export const TranscriptView = ({
   // NOTE: what a passage tells the view is read through `noted`, so the
   // three callbacks a passage block is given never change and never make
   // it paint again.
-  const noted = useRef({ notePlace, scroll })
-  noted.current = { notePlace, scroll }
+  const noteLaidOut = (key: string, height: number): void => {
+    heights.current.set(key, height)
+    const waitingFor = pending.current.token
+    if (waitingFor !== undefined) {
+      // NOTE: a word is waited for, and passages were just laid out: ask
+      // again, once they have all had their say.
+      clearTimeout(retry.current)
+      retry.current = setTimeout(() => {
+        const token = pending.current.token
+        if (token !== undefined) {
+          bringToMiddle(token, false)
+        }
+      }, retryAfterMs)
+    }
+  }
+  const noted = useRef({ notePlace, noteLaidOut, scroll })
+  noted.current = { notePlace, noteLaidOut, scroll }
   const onPart = useCallback((key: string, part: View | null): void => {
     if (part === null) {
       parts.current.delete(key)
@@ -781,6 +956,7 @@ export const TranscriptView = ({
     if (within !== undefined && part !== undefined) {
       within.measure(part, (y, height) => {
         noted.current.notePlace(key, { y, height })
+        noted.current.noteLaidOut(key, height)
       })
     }
   }, [])
@@ -791,7 +967,58 @@ export const TranscriptView = ({
     [],
   )
 
-  const entries = useMemo(() => transcriptEntriesOf(transcript), [transcript])
+  const action = transcript.action
+  const wordMenuAction = transcript.wordMenuAction
+  const bookmarks = transcript.bookmarks
+  const quietColor = colors.QuietText
+  const renderEntry = useCallback<ListRenderItem<TranscriptEntry>>(
+    ({ item: entry }) =>
+      entry._tag === 'PassageEntry' ? (
+        <PassageBlock
+          action={action}
+          bookmarks={bookmarks}
+          onLaidOut={onLaidOut}
+          onLines={onLines}
+          onPart={onPart}
+          paint={paint}
+          passage={entry.passage}
+          wordMenuAction={wordMenuAction}
+        />
+      ) : (
+        <View
+          style={{
+            alignItems: 'flex-start',
+            flexDirection: 'row',
+            gap: 8,
+            paddingHorizontal: 16,
+            paddingVertical: 6,
+          }}
+        >
+          <Text
+            style={{
+              color: quietColor,
+              fontFamily: monoFamily,
+              fontSize: labelSize,
+              paddingTop: 3,
+            }}
+          >
+            {entry.item.label}
+          </Text>
+          <View style={{ flex: 1 }}>{paintNode(entry.item.node)}</View>
+        </View>
+      ),
+    [
+      action,
+      bookmarks,
+      onLaidOut,
+      onLines,
+      onPart,
+      paint,
+      paintNode,
+      quietColor,
+      wordMenuAction,
+    ],
+  )
   const wordMenu = transcript.wordMenu
   const showOverlay = useContext(ScreenOverlayContext)
   const menuWord =
@@ -814,12 +1041,20 @@ export const TranscriptView = ({
   }, [showOverlay, menuSheet])
   return (
     <View
+      ref={words}
       accessibilityLabel={transcript.label}
+      onLayout={() => {
+        const container = words.current
+        if (scroll !== undefined && container !== null) {
+          scroll.measure(container, y => {
+            topOfWords.current = y
+          })
+        }
+      }}
       style={[
         {
           alignSelf: 'stretch',
           borderRadius: passageRadius,
-          gap: 2,
           paddingVertical: 4,
           ...groundStyleOf(colors.ReadingGround),
         },
@@ -838,50 +1073,16 @@ export const TranscriptView = ({
           {transcript.emptyText}
         </Text>
       ) : null}
-      {Array.map(entries, entry =>
-        M.value(entry).pipe(
-          M.withReturnType<ReactElement>(),
-          M.tagsExhaustive({
-            PassageEntry: ({ passage }) => (
-              <PassageBlock
-                key={passage.key}
-                action={transcript.action}
-                bookmarks={transcript.bookmarks}
-                onLaidOut={onLaidOut}
-                onLines={onLines}
-                onPart={onPart}
-                paint={paint}
-                passage={passage}
-                wordMenuAction={transcript.wordMenuAction}
-              />
-            ),
-            ItemEntry: ({ item }) => (
-              <View
-                key={item.key}
-                style={{
-                  alignItems: 'flex-start',
-                  flexDirection: 'row',
-                  gap: 8,
-                  paddingHorizontal: 16,
-                  paddingVertical: 6,
-                }}
-              >
-                <Text
-                  style={{
-                    color: colors.QuietText,
-                    fontFamily: monoFamily,
-                    fontSize: labelSize,
-                    paddingTop: 3,
-                  }}
-                >
-                  {item.label}
-                </Text>
-                <View style={{ flex: 1 }}>{paintNode(item.node)}</View>
-              </View>
-            ),
-          }),
-        ),
-      )}
+      <FlatList
+        data={entries}
+        ItemSeparatorComponent={PassageGap}
+        initialNumToRender={readerWindow.initialNumToRender}
+        keyExtractor={entryKeyOf}
+        maxToRenderPerBatch={readerWindow.maxToRenderPerBatch}
+        renderItem={renderEntry}
+        scrollEnabled={false}
+        windowSize={readerWindow.windowSize}
+      />
       {showOverlay === undefined ? menuSheet : null}
     </View>
   )

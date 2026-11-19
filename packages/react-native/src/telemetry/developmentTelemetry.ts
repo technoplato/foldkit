@@ -1,6 +1,8 @@
 import { Option } from 'effect'
 import { Telemetry } from 'foldkit'
 
+import { hostNoteLineOf, watchHostErrors } from './hostErrors.js'
+
 // DEVELOPMENT TELEMETRY
 
 /** What every telemetry line a phone writes to its console starts with. */
@@ -20,14 +22,24 @@ export const telemetryLineOf = (line: string): string =>
 
 /**
  * How a phone attaches telemetry: the app's name, as every Client of it
- * gives, and, for a test, whether this is a development build and where
- * the lines go.
+ * gives; whether to record, when it is not for the build to say; where
+ * the lines go, when not the console, and where a line that cannot wait
+ * goes; facts the phone says about itself once, as the trace starts; and
+ * `laterNotes`, handed a way to say what it learns about itself after,
+ * such as what came of asking for newer code.
  */
 export type DevelopmentTelemetryOptions = Readonly<{
   app: string
   isDevelopment?: boolean
   write?: (line: string) => void
+  writeNow?: (line: string) => void
+  note?: Readonly<Record<string, unknown>>
+  laterNotes?: (say: (note: Readonly<Record<string, unknown>>) => void) => void
 }>
+
+// NOTE: Fast Refresh runs this module again in the same JavaScript
+// runtime, so whether the watch is on is kept on the runtime, not here.
+const hostWatchKey = Symbol.for('foldkit.reactNative.hostErrorWatch')
 
 const isDevelopmentBuild = (): boolean =>
   Reflect.get(globalThis, '__DEV__') === true
@@ -44,7 +56,9 @@ const writeToConsole = (line: string): void => {
  * development build: the Program's transitions with where each came from,
  * its Command spans, its Subscriptions, and the paints the app reports,
  * each written to the console as one marked NDJSON line, the same lines
- * the web and the terminal keep. A build that is not for development
+ * the web and the terminal keep. It also writes a line for any JavaScript
+ * failure that reaches the platform uncaught, so what stopped the app is
+ * on record before the platform takes it down. A build that is not for development
  * records nothing and gets None.
  *
  * @example
@@ -60,7 +74,29 @@ export const attachDevelopmentTelemetry = <
   options: DevelopmentTelemetryOptions,
 ): Option.Option<Telemetry.TelemetryAttachment> => {
   const write = options.write ?? writeToConsole
-  return (options.isDevelopment ?? isDevelopmentBuild())
+  const isOn = options.isDevelopment ?? isDevelopmentBuild()
+  if (isOn && Reflect.get(globalThis, hostWatchKey) !== true) {
+    Reflect.set(globalThis, hostWatchKey, true)
+    watchHostErrors({ write: options.writeNow ?? write })
+  }
+  if (isOn && options.note !== undefined) {
+    write(hostNoteLineOf(options.note, new Date()))
+  }
+  if (isOn && options.laterNotes !== undefined) {
+    const say = (note: Readonly<Record<string, unknown>>): void => {
+      write(hostNoteLineOf(note, new Date()))
+    }
+    // NOTE: keeping a trace never stops the app: whatever goes wrong in
+    // what the phone says about itself is written, and the Program starts.
+    try {
+      options.laterNotes(say)
+    } catch (error) {
+      say({
+        noteFailed: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+  return isOn
     ? Option.some(
         Telemetry.attach(handle, {
           app: options.app,

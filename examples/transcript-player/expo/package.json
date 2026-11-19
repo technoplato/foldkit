@@ -18,11 +18,13 @@
     "transcript-player-core-example": "workspace:*"
   },
   "peerDependencies": {
-    "expo-audio": ">=57.0.3 <58"
+    "expo-audio": ">=57.0.3 <58",
+    "expo-device": ">=57.0.1 <58"
   },
   "devDependencies": {
     "expo": "~57.0.9",
     "expo-audio": "~57.0.3",
+    "expo-device": "~57.0.1",
     "prettier": "^3.8.4",
     "react": "19.2.3",
     "react-native": "0.86.2",

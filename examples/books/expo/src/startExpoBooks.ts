@@ -15,8 +15,10 @@ import {
   startMadeUpBooks,
 } from 'books-core-example/browser'
 import { Layer, Option } from 'effect'
+import * as Updates from 'expo-updates'
 import { Processor, Runtime, type Telemetry } from 'foldkit'
 import { Platform } from 'react-native'
+import { enableSchedulerDelegateInvalidation } from 'react-native/src/private/featureflags/ReactNativeFeatureFlags'
 
 import {
   Instant,
@@ -24,11 +26,23 @@ import {
   accessRequestHeaders,
   withHostedIdentity,
 } from '@foldkit/instant/browser'
-import { attachDevelopmentTelemetry } from '@foldkit/react-native/telemetry'
+import {
+  type LaidOut,
+  attachDevelopmentTelemetry,
+  runningCodeOf,
+  stallWatch,
+  watchUpdates,
+} from '@foldkit/react-native/telemetry'
 import { init } from '@instantdb/react-native'
 
 import { type PhoneConnection, isTelemetryAsked } from './connection'
-import { type Running, phoneResources } from './phoneResources'
+import {
+  type Running,
+  hearPlayerNotes,
+  isBooksSilent,
+  phoneResources,
+} from './phoneResources'
+import { traceFiles } from './traceFiles'
 
 type PhoneDatabase = ReturnType<typeof init>
 
@@ -42,6 +56,9 @@ type ExpoGlobals = typeof globalThis & {
 
 const expoGlobals = (): ExpoGlobals => globalThis
 
+const isDevelopmentBuild = (): boolean =>
+  Reflect.get(globalThis, '__DEV__') === true
+
 const expoHost = (): Processor.Host.Host =>
   Platform.OS === 'ios'
     ? Processor.Host.ExpoIos()
@@ -50,6 +67,20 @@ const expoHost = (): Processor.Host.Host =>
 type RecordPaint = (render: Telemetry.RenderReport) => void
 
 const paintRecorderKey = Symbol.for('foldkit.books.expo.paintRecorder')
+
+const laidOutKey = Symbol.for('foldkit.books.expo.laidOut')
+
+/**
+ * Takes note of a part of the app being laid out, for the record of
+ * each time its JavaScript was held. Before Books has started, and with
+ * no trace kept, it notes nothing.
+ */
+export const noteBooksLaidOut = (entry: LaidOut): void => {
+  const note: unknown = Reflect.get(globalThis, laidOutKey)
+  if (typeof note === 'function') {
+    note(entry)
+  }
+}
 
 /**
  * Records one paint of the app in its telemetry. Before Books has
@@ -74,9 +105,36 @@ const traced = <
   const isAsked = isTelemetryAsked({
     EXPO_PUBLIC_BOOKS_TELEMETRY: process.env.EXPO_PUBLIC_BOOKS_TELEMETRY,
   })
+  // NOTE: a development build prints its trace, which the dev server
+  // keeps. A build that carries its own code has nobody reading what it
+  // prints, so when it is asked to keep a trace it keeps it as files.
+  const maybeFiles = isAsked && !isDevelopmentBuild() ? traceFiles() : undefined
   const attached = attachDevelopmentTelemetry(handle, {
     app: 'books',
+    note: {
+      reactNativeSchedulerGuard: enableSchedulerDelegateInvalidation(),
+      sound: isBooksSilent() ? 'silent' : 'loud',
+      ...runningCodeOf(Updates),
+    },
+    // NOTE: newer code is asked for when the app opens and runs from the
+    // next open. What came of asking goes in the trace; not reaching the
+    // server is ordinary and shows nowhere else.
+    laterNotes: say => {
+      hearPlayerNotes(say)
+      // NOTE: a build that carries its own code cannot time its paints.
+      // It can say each time its JavaScript was held, and what was being
+      // laid out then.
+      Reflect.set(globalThis, laidOutKey, stallWatch({ say }).noteLaidOut)
+      watchUpdates({
+        latest: Updates.latestContext,
+        listen: Updates.addUpdatesStateChangeListener,
+        say,
+      })
+    },
     ...(isAsked ? { isDevelopment: true } : {}),
+    ...(maybeFiles === undefined
+      ? {}
+      : { write: maybeFiles.write, writeNow: maybeFiles.writeNow }),
   })
   Option.match(attached, {
     onNone: () => undefined,

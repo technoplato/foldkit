@@ -1,22 +1,33 @@
 import { Match as M, Option } from 'effect'
 import { Navigation, Session } from 'foldkit'
-import { type ReactElement, createContext, useContext, useMemo } from 'react'
+import {
+  type ReactElement,
+  createContext,
+  memo,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react'
 import { Pressable, View } from 'react-native'
 
-import { useBound } from '@foldkit/react/interaction'
+import { ProgramProvider, useBound } from '@foldkit/react/interaction'
 import { useNavigationPlan, useViewAt } from '@foldkit/react/navigation'
 
 import { ActionMenuSheet } from '../interaction/actionMenuModal.js'
 import { ScreenFrame } from '../interaction/frame.js'
 import type { PaintHandlers, PaintStyles } from '../interaction/paint.js'
 import { openLinkOf } from '../interaction/screen.js'
+import { sharedWith } from '../interaction/shared.js'
 import { WhenReady } from '../interaction/whenReady.js'
 import { PaintedPart } from '../telemetry/paintReporter.js'
 import { useLook } from '../theme/themed.js'
 import { entryOptionsOf } from './entryOptions.js'
+import { quietWhile } from './quietBound.js'
 import {
   entryOfNavigatorKey,
   entryRouteName,
+  isCoveredOf,
   tagOfDestination,
 } from './stack.js'
 
@@ -57,6 +68,39 @@ export const EntryView = ({
   entryKey,
 }: Readonly<{ entryKey: string }>): ReactElement => {
   const bound = useBound()
+  // NOTE: a native stack keeps the page right under the one in sight
+  // live, for the swipe back to show. While it is covered it hears no
+  // change of the Model, so its view is not worked out again every time
+  // the Model moves, as it does each second a book plays. Back in sight,
+  // it hears once.
+  const isCovered = Option.exists(useNavigationPlan(), plan =>
+    isCoveredOf(plan, entryKey),
+  )
+  const covered = useRef(isCovered)
+  covered.current = isCovered
+  const quiet = useMemo(() => quietWhile(bound, () => covered.current), [bound])
+  useEffect(() => {
+    if (!isCovered) {
+      quiet.wake()
+    }
+  }, [isCovered, quiet])
+  // NOTE: one element for as long as the screen lives, so this component
+  // hearing every change (it has to, to know when it is covered) does
+  // not paint the screen under it again.
+  return useMemo(
+    () => (
+      <ProgramProvider bound={quiet.bound}>
+        <EntryBody entryKey={entryKey} />
+      </ProgramProvider>
+    ),
+    [quiet, entryKey],
+  )
+}
+
+const EntryBody = memo(function EntryBody({
+  entryKey,
+}: Readonly<{ entryKey: string }>): ReactElement {
+  const bound = useBound()
   const look = useLook()
   const styles = useContext(EntryStylesContext)
   const maybeEntry = Option.flatMap(useNavigationPlan(), plan =>
@@ -67,7 +111,22 @@ export const EntryView = ({
     Option.flatMap(maybeEntry, entry => tagOfDestination(entry.destination)),
     () => entryRouteName,
   )
-  const maybeView = useViewAt(Option.getOrElse(maybeEntryKey, () => entryKey))
+  const maybeGivenView = useViewAt(
+    Option.getOrElse(maybeEntryKey, () => entryKey),
+  )
+  // NOTE: each Model gives a new view, mostly equal to the last. The view
+  // painted is built of the last one's own parts wherever they are equal,
+  // so the painter repaints only the parts that changed.
+  const lastView = useRef<Navigation.EntryView | undefined>(undefined)
+  const maybeView = useMemo(
+    () =>
+      Option.map(maybeGivenView, view => {
+        const kept = sharedWith(lastView.current, view)
+        lastView.current = kept
+        return kept
+      }),
+    [maybeGivenView],
+  )
   const options = entryOptionsOf(bound, entryKey, look)
   const presentation = options.presentation
   const isUnderHeader = presentation === 'card'
@@ -154,7 +213,7 @@ export const EntryView = ({
     [bound, handlers, isUnderHeader, look, maybeView, presentation],
   )
   return <PaintedPart name={partName}>{painted}</PaintedPart>
-}
+})
 
 /** Paint styles for {@link EntryView}, or the neutral defaults. */
 export const entryStylesOf = (styles: PaintStyles | undefined): PaintStyles =>

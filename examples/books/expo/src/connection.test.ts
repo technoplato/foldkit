@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   connectionFrom,
   isMadeUpSessionShared,
+  isSilentOf,
   isTelemetryAsked,
   madeUpShelfOf,
 } from './connection'
@@ -80,5 +81,33 @@ describe('a trace from a build that is not for development', () => {
     expect(isTelemetryAsked({ EXPO_PUBLIC_BOOKS_TELEMETRY: '1' })).toBe(true)
     expect(isTelemetryAsked({ EXPO_PUBLIC_BOOKS_TELEMETRY: ' ' })).toBe(false)
     expect(isTelemetryAsked({})).toBe(false)
+  })
+})
+
+describe('whether the phone app makes any sound', () => {
+  const real = { EXPO_PUBLIC_BOOKS_INSTANT_APP_ID: 'app-1' }
+
+  it('is silent on the made-up library, which only tests and demonstrations open', () => {
+    expect(isSilentOf({})).toBe(true)
+    expect(isSilentOf({ ...real, EXPO_PUBLIC_BOOKS_MADE_UP: '1' })).toBe(true)
+    expect(isSilentOf({ EXPO_PUBLIC_BOOKS_MADE_UP: 'shared' })).toBe(true)
+  })
+
+  it('sounds on the made-up library only when a person asks for its sound by name', () => {
+    expect(isSilentOf({ EXPO_PUBLIC_BOOKS_MADE_UP_SOUND: '1' })).toBe(false)
+  })
+
+  it('sounds on a person’s own library', () => {
+    expect(isSilentOf(real)).toBe(false)
+  })
+
+  it('is silent anywhere the test switch is on, whatever else is asked', () => {
+    expect(isSilentOf({ ...real, EXPO_PUBLIC_FOLDKIT_SILENT: '1' })).toBe(true)
+    expect(
+      isSilentOf({
+        EXPO_PUBLIC_BOOKS_MADE_UP_SOUND: '1',
+        EXPO_PUBLIC_FOLDKIT_SILENT: '1',
+      }),
+    ).toBe(true)
   })
 })

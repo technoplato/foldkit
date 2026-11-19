@@ -24,10 +24,14 @@
       "types": "./dist/telemetry/index.d.ts",
       "import": "./dist/telemetry/index.js"
     },
-    "./plugin/sceneLifecycle.cjs": "./plugin/sceneLifecycle.cjs"
+    "./plugin/sceneLifecycle.cjs": "./plugin/sceneLifecycle.cjs",
+    "./plugin/schedulerGuard.cjs": "./plugin/schedulerGuard.cjs",
+    "./plugin/signedUpdates.cjs": "./plugin/signedUpdates.cjs"
   },
   "bin": {
-    "foldkit-expo-routes": "./bin/foldkit-expo-routes.mjs"
+    "foldkit-expo-routes": "./bin/foldkit-expo-routes.mjs",
+    "foldkit-expo-updates": "./bin/foldkit-expo-updates.mjs",
+    "foldkit-sim-session": "./bin/foldkit-sim-session.mjs"
   },
   "sideEffects": false,
   "files": [

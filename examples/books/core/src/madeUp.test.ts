@@ -3,7 +3,12 @@ import { Interaction, Processor, Runtime } from 'foldkit'
 import { SystemAppearance } from 'foldkit/theme'
 import { describe, expect, it } from 'vitest'
 
-import { madeUpSessionLog, startMadeUpBooks } from './madeUp.js'
+import {
+  longMadeUpPassages,
+  madeUpPassages,
+  madeUpSessionLog,
+  startMadeUpBooks,
+} from './madeUp.js'
 import { BooksProgram } from './program.js'
 import { longSampleChapters } from './sample.js'
 import { bindBooks, whenShelfOpened } from './synced.js'
@@ -134,5 +139,20 @@ describe('the made-up library on a host', () => {
     )
     expect(Object.values(longSampleChapters).map(c => c.length)).toContain(134)
     await handle.stop()
+  })
+
+  it('has passages of about two thousand made-up words each, so a reader handed five of them holds ten thousand', () => {
+    const counts = longMadeUpPassages.map(passage => passage.words.length)
+    const words = longMadeUpPassages.flatMap(passage => passage.words)
+
+    expect(Math.min(...counts)).toBeGreaterThanOrEqual(2_000)
+    expect(new Set(words.map(word => word.wordId)).size).toBe(words.length)
+    expect(
+      words.every(
+        (word, index) =>
+          index === 0 || word.startMs > (words[index - 1]?.startMs ?? 0),
+      ),
+    ).toBe(true)
+    expect(madeUpPassages.length).toBe(60)
   })
 })

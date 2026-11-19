@@ -4,6 +4,7 @@
     "slug": "foldkit-books",
     "scheme": "foldkit-books",
     "version": "0.0.0",
+    "platforms": ["android", "ios"],
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -17,7 +18,8 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
-      "@foldkit/react-native/plugin/sceneLifecycle.cjs"
+      "@foldkit/react-native/plugin/sceneLifecycle.cjs",
+      "@foldkit/react-native/plugin/schedulerGuard.cjs"
     ],
     "ios": {
       "bundleIdentifier": "com.knophy.foldkit.books.dev",

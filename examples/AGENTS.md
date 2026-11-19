@@ -161,6 +161,28 @@ Do not:
 - Treat `examples/auth` as this gate.
 - Invent a second IdP in Caddy or in the example origin.
 
+## Phone apps under test make no sound
+
+A simulator sounds from the default output of the Mac it runs on, with no
+prompt, and that Mac is one a person works and records at. A test of a phone
+app must not be able to make a sound (Scribe #2523).
+
+- The phone audio output (`examples/transcript-player/expo`) is silent on a
+  simulator with no flag (`isSilentOn`). Never set
+  `EXPO_PUBLIC_FOLDKIT_SOUND_ON_SIMULATOR` in a test, a script, or a shell
+  profile. `EXPO_PUBLIC_FOLDKIT_SILENT=1` silences any build anywhere; set it
+  on every dev server a test starts.
+- Silent means volume zero and muted, read back from the player before every
+  play; a player that does not report both is not played. Do not weaken that
+  check to make a test pass.
+- Assert on what the player reports and on the trace (`sound`, `player`
+  notes), never on sound.
+- Run every simulator session through `foldkit-sim-session` with cleanups
+  that pause, close the app, stop the dev server, and shut the simulator down.
+  They run when the test fails too.
+- The terminal player sounds through `ffplay` on the default output. Do not
+  run it in a test without `FOLDKIT_AUDIO_DEVICE` pointing at a silent device.
+
 ## Publishing an example
 
 Use the global `/host` skill. The origin must be a KeepAlive LaunchAgent bound

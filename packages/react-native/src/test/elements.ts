@@ -7,9 +7,36 @@ type Props = Readonly<Record<string, unknown>>
 export const propsOf = (element: ReactElement): Props =>
   Predicate.isObject(element.props) ? { ...element.props } : {}
 
+const memoMark = Symbol.for('react.memo')
+
+// NOTE: a painter keeps some parts by memo, such as one node or one row.
+// A test reads the tree without React, so a kept part that needs no hooks
+// is painted here, as React would paint it the first time.
+const painted = (value: unknown): unknown => {
+  if (!isValidElement(value)) {
+    return value
+  }
+  const type: unknown = value.type
+  if (
+    Predicate.isObject(type) &&
+    Predicate.hasProperty(type, '$$typeof') &&
+    type.$$typeof === memoMark &&
+    Predicate.hasProperty(type, 'type') &&
+    Predicate.isFunction(type.type)
+  ) {
+    try {
+      return painted(type.type(value.props))
+    } catch {
+      return value
+    }
+  } else {
+    return value
+  }
+}
+
 const childrenOf = (element: ReactElement): ReadonlyArray<unknown> => {
   const flatten = (value: unknown): ReadonlyArray<unknown> =>
-    globalThis.Array.isArray(value) ? value.flatMap(flatten) : [value]
+    globalThis.Array.isArray(value) ? value.flatMap(flatten) : [painted(value)]
   return flatten(propsOf(element)['children'])
 }
 

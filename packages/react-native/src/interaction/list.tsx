@@ -7,7 +7,7 @@ import {
   filterListItems,
   groupedItemsOf,
 } from 'foldkit/renderers'
-import { type ReactElement, useMemo, useState } from 'react'
+import { type ReactElement, memo, useMemo, useState } from 'react'
 import {
   Image,
   TextInput as NativeTextInput,
@@ -18,6 +18,7 @@ import {
   type ViewStyle,
 } from 'react-native'
 
+import { useLaidOut } from '../telemetry/paintReporter.js'
 import { fieldStyleOf } from './field.js'
 import { percentOf } from './look.js'
 import { type Paint, pressOf } from './paint.js'
@@ -255,6 +256,23 @@ export const paintRow = (
   )
 }
 
+// NOTE: one row of a List, painted again only when the row is another
+// object: a screen's tree keeps the rows that did not change, so a change
+// in one row of a long list repaints that row.
+const PaintedRow = memo(
+  ({
+    item,
+    paint,
+    paintChildren,
+  }: Readonly<{
+    item: ListItem
+    paint: Paint
+    paintChildren: (
+      children: ReadonlyArray<UiNode>,
+    ) => ReadonlyArray<ReactElement>
+  }>): ReactElement => paintRow(item, paint, paintChildren),
+)
+
 /**
  * The rows of a List, each group headed once by its name and how many
  * rows it has.
@@ -309,9 +327,14 @@ export const paintRows = (
                 </Text>
               </View>,
             ]),
-        ...Array.map(section.items, item =>
-          paintRow(item, paint, paintChildren),
-        ),
+        ...Array.map(section.items, item => (
+          <PaintedRow
+            key={item.key}
+            item={item}
+            paint={paint}
+            paintChildren={paintChildren}
+          />
+        )),
       ])}
     </View>
   )
@@ -335,6 +358,7 @@ export const ListFrame = ({
   ) => ReadonlyArray<ReactElement>
 }>): ReactElement => {
   const { colors } = paint.look
+  const laidOut = useLaidOut()
   const [typed, setTyped] = useState('')
   const filter = list.filter
   const isOverLines = filter?.isOverLines === true
@@ -342,6 +366,7 @@ export const ListFrame = ({
     () => filterListItems(list.items, typed, isOverLines),
     [list.items, typed, isOverLines],
   )
+  laidOut({ rows: items.length })
   return (
     <View style={{ alignSelf: 'stretch', gap: 8 }}>
       {filter === undefined ? null : (

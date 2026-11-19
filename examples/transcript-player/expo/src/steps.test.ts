@@ -7,6 +7,7 @@ const playingAt = (currentTimeMs: number): PlayerStatus => ({
   currentTimeMs,
   isPlaying: true,
   isLoaded: true,
+  isWaitingForAudio: false,
   didJustFinish: false,
   maybeFailure: undefined,
 })
@@ -93,5 +94,40 @@ describe('whether a player already holds the place it is asked to play from', ()
     expect(isResumeOf({ currentTimeMs: 61_200, fromMs: 61_000 })).toBe(true)
     expect(isResumeOf({ currentTimeMs: 61_000, fromMs: 120_000 })).toBe(false)
     expect(isResumeOf({ currentTimeMs: 61_000, fromMs: 58_000 })).toBe(false)
+  })
+})
+
+describe('audio that stops to load more', () => {
+  it('is not a pause by the device: nobody paused, so no device is told to pause', () => {
+    const sounding = stepOf(notHeardYet, playingAt(4_506_000), 1_000)
+    const loading = stepOf(
+      sounding.heard,
+      { ...playingAt(4_506_400), isPlaying: false, isWaitingForAudio: true },
+      1_400,
+    )
+    expect(loading.isPausedByDevice).toBe(false)
+    expect(loading.isDone).toBe(false)
+    expect(loading.events).toEqual([])
+  })
+
+  it('goes on reporting once it sounds again', () => {
+    const sounding = stepOf(notHeardYet, playingAt(4_506_000), 1_000)
+    const loading = stepOf(
+      sounding.heard,
+      { ...playingAt(4_506_400), isPlaying: false, isWaitingForAudio: true },
+      1_400,
+    )
+    const again = stepOf(loading.heard, playingAt(4_507_050), 5_000)
+    expect(tagsOf(again)).toEqual(['Advanced'])
+  })
+
+  it('is still a pause by the device when it stops with nothing left to wait for', () => {
+    const sounding = stepOf(notHeardYet, playingAt(4_506_000), 1_000)
+    const paused = stepOf(
+      sounding.heard,
+      { ...playingAt(4_506_400), isPlaying: false },
+      1_400,
+    )
+    expect(paused.isPausedByDevice).toBe(true)
   })
 })
