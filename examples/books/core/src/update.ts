@@ -1,6 +1,7 @@
 import { Array, Match as M, Option, Record as Record_ } from 'effect'
 import { type Command, Navigation } from 'foldkit'
 import { transcriptPlaceAt } from 'foldkit/renderers'
+import { appliedRowChanges } from 'foldkit/synchronization'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -65,6 +66,7 @@ import {
   ChaptersUnavailable,
   Loaded,
   type Model,
+  type Shelf,
   ShelfReady,
   ShelfUnavailable,
   type StretchReport,
@@ -437,6 +439,19 @@ const playerUpdated = (
       },
     }),
   )
+
+// What changed on a shelf that has opened; a shelf that has not opened is
+// told the whole shelf first, so a change that arrives before it is left.
+// NOTE: The library is spread, not made again: making it checks and
+// copies every title, and a painter that compares by identity would then
+// redraw the whole shelf for one saved place.
+const withShelf = (model: Model, changed: (shelf: Shelf) => Shelf): Model =>
+  model.library._tag === 'ShelfReady'
+    ? {
+        ...model,
+        library: { ...model.library, shelf: changed(model.library.shelf) },
+      }
+    : model
 
 const withChapters = (
   model: Model,
@@ -1050,6 +1065,28 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       OpenedPlace: ({ slug, atMs }) => openedPlace(model, slug, atMs),
       ReceivedShelf: ({ shelf }) => [
         { ...model, library: ShelfReady({ shelf }) },
+        [],
+      ],
+      ReceivedPlaces: changes => [
+        withShelf(model, shelf => ({
+          ...shelf,
+          progress: appliedRowChanges(
+            shelf.progress,
+            changes,
+            progress => progress.slug,
+          ),
+        })),
+        [],
+      ],
+      ReceivedBookmarks: changes => [
+        withShelf(model, shelf => ({
+          ...shelf,
+          bookmarks: appliedRowChanges(
+            shelf.bookmarks,
+            changes,
+            bookmark => bookmark.bookmarkId,
+          ),
+        })),
         [],
       ],
       FailedReadShelf: ({ reason }) => [

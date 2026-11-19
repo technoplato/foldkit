@@ -1,15 +1,33 @@
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
 
-import { Milliseconds, TitleSlug } from './ids.js'
-import { Chapter, Shelf, StretchReport } from './model.js'
+import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
+import { Bookmark, Chapter, Progress, Shelf, StretchReport } from './model.js'
 import { UnendedPlay } from './scribeTimeline.js'
 import { SharedHow } from './share.js'
 
 // FACT
 
-/** The library store sent the shelf. */
+/**
+ * The library store sent the shelf, whole: when it first opens, and when
+ * its titles change. What changes often comes as {@link ReceivedPlaces}
+ * and {@link ReceivedBookmarks}.
+ */
 export const ReceivedShelf = m('ReceivedShelf', { shelf: Shelf })
+/**
+ * Places were saved on the shelf: the places that are new or moved, and
+ * the titles whose place is gone. One saved place is one row, however
+ * long the shelf is.
+ */
+export const ReceivedPlaces = m('ReceivedPlaces', {
+  changed: S.Array(Progress),
+  removed: S.Array(TitleSlug),
+})
+/** Bookmarks changed on the shelf: the new or changed ones, and the removed. */
+export const ReceivedBookmarks = m('ReceivedBookmarks', {
+  changed: S.Array(Bookmark),
+  removed: S.Array(BookmarkId),
+})
 /** The library store said who is signed in, or that no one is. */
 export const ReceivedMember = m('ReceivedMember', {
   maybeEmail: S.Option(S.String),

@@ -85,6 +85,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       ConfirmDeleteBookmark: () => 'Domain',
       CancelDeleteBookmark: () => 'Navigation',
       ReceivedShelf: () => 'Domain',
+      ReceivedPlaces: () => 'Domain',
+      ReceivedBookmarks: () => 'Domain',
       FailedReadShelf: () => 'Domain',
       ReceivedChapters: () => 'Navigation',
       FailedReadChapters: () => 'Navigation',

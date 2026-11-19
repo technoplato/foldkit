@@ -26,7 +26,6 @@ import {
   OpenedPlace,
   ReceivedChapters,
   ReceivedMember,
-  ReceivedShelf,
   ReceivedUnendedPlays,
 } from './message.js'
 import {
@@ -40,6 +39,7 @@ import {
 } from './model.js'
 import { ScribeTimeline } from './scribeTimeline.js'
 import type { BooksServices } from './services.js'
+import { shelfFacts } from './shelfFacts.js'
 import { addressCueOf, loadedSlugOf, shownTitleOf } from './stack.js'
 
 // SUBSCRIPTION
@@ -151,8 +151,7 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
           Stream.unwrap(
             Effect.gen(function* () {
               const store = yield* LibraryStore
-              return store.shelf.pipe(
-                Stream.map(shelf => ReceivedShelf({ shelf })),
+              return shelfFacts(store.shelf).pipe(
                 Stream.catch(error =>
                   Stream.make(FailedReadShelf({ reason: error.reason })),
                 ),
