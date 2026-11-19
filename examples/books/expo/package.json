@@ -64,7 +64,9 @@
     "autolinking": {
       "ios": {
         "exclude": [
-          "@expo/ui"
+          "@expo/ui",
+          "react-native-reanimated",
+          "react-native-worklets"
         ]
       }
     }
