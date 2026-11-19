@@ -4,6 +4,176 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 11:22:00 p.m. EST — `2f4264a79430` perf(books): green: a position tick moves the place and nothing else (Scribe #2494)
+
+- **Implementation commit:** `2f4264a79430f4bc5ad8c37690150b91eb73248c`
+- **Change:** A position tick moves the place and nothing else
+- **Details:**
+  - Layer: the Books core's update, and the core constructor's description. A loaded title is spread, not made again, on each tick: 0.82 ms to 0.07 ms in Node on the made-up sixteen-hour title; about 19 ms on a phone before.
+- **Files:**
+  - `examples/books/core/src/update.ts` — changed by this commit
+  - `packages/foldkit/src/schema/index.ts` — changed by this commit
+- **User context (verbatim):**
+  > One thing is the application doesn't really sync. It's very laggy
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:22:00 p.m. EST — `015ac54ab643` fix(books): green: the library is read as three queries, and a cover keeps its address (Scribe #2494)
+
+- **Implementation commit:** `015ac54ab643dcc5a4cc57dd7b21e31088c845e6`
+- **Change:** The library is read as three queries, and a cover keeps its address
+- **Details:**
+  - Layer: the Books core's Instant adapter. Titles, places and bookmarks are three live queries joined into one shelf, so a saved place is answered by the places alone; cover and audio addresses are kept while they work.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — changed by this commit
+- **User context (verbatim):**
+  > One thing is the application doesn't really sync. It's very laggy
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:22:00 p.m. EST — `806b5199b9fa` docs(skills): a debugging skill, with how to read two devices' traces side by side (Scribe #2494)
+
+- **Implementation commit:** `806b5199b9fabe9100dbdd908bce8b45226e8497`
+- **Change:** A debugging skill, with how to read two devices' traces side by side
+- **Details:**
+  - Layer: the fork's skills. foldkit-debugging: where each client keeps its trace, the summary, what each sync line means, how to read Deliveries, and the core pieces for a Message that carries too much.
+- **Files:**
+  - `.claude-plugin/plugin.json` — changed by this commit
+  - `skills/foldkit-debugging/SKILL.md` — changed by this commit
+  - `skills/foldkit-debugging/agents/openai.yaml` — changed by this commit
+- **User context (verbatim):**
+  > this functionality needs to be built in a core of the sync engine and the core of the diagnostics and fold kit debugging skills, et cetera, and not stapled on or bolted on to the application
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:22:00 p.m. EST — `23504dadfd24` feat(foldkit): green: a summary of two devices' traces says which rows reached the other, and when (Scribe #2494)
+
+- **Implementation commit:** `23504dadfd24dc0a1d7b2c346321f68a119071fd`
+- **Change:** A summary of two devices' traces says which rows reached the other, and when
+- **Details:**
+  - Layer: Foldkit core, telemetry. summarize pairs each written row with the other devices' receipts by row id, with the time it took, names a device that never saw it, and holds each surface's link; formatSummary prints Deliveries and Link.
+- **Files:**
+  - `packages/foldkit/src/telemetry/public.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/summary.ts` — changed by this commit
+- **User context (verbatim):**
+  > we should have tracing enabled and you can just pull those traces in order to check
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:22:00 p.m. EST — `5a41baa57353` fix(books): a package built before something it depends on is built again (Scribe #2494)
+
+- **Implementation commit:** `5a41baa573531ee17dc10d68b48e4ab7a0c8082d`
+- **Change:** A package built before something it depends on is built again
+- **Details:**
+  - Layer: the workspace's build step. A package whose dependency has newer output than its own is stale.
+- **Files:**
+  - `examples/books/react/src/staleDeps.test.mjs` — changed by this commit
+  - `scripts/build-stale-deps.mjs` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:22:00 p.m. EST — `2a0106cc28a5` feat(foldkit): green: the trace holds what the sync runtime did, on every client, with the store's own link (Scribe #2494)
+
+- **Implementation commit:** `2a0106cc28a5cadfa8c1bca12820b5d167399d61`
+- **Change:** The trace holds what the sync runtime did, on every client, with the store's own link
+- **Details:**
+  - Layer: Foldkit core telemetry and @foldkit/instant. One Synced event per thing the sync runtime did, written through Telemetry.attach on every host; Instant's engines tell their link from Instant's connection status.
+- **Files:**
+  - `packages/foldkit/src/runtime/public.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/start.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/syncTrace.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/attach.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/event.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/fileSink.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/public.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/recorder.ts` — changed by this commit
+  - `packages/foldkit/src/telemetry/redact.ts` — changed by this commit
+  - `packages/instant/src/sync/fromTransport.ts` — changed by this commit
+  - `packages/instant/src/sync/instant.ts` — changed by this commit
+  - `packages/instant/src/sync/nodeInstant.ts` — changed by this commit
+- **User context (verbatim):**
+  > we should have tracing enabled and you can just pull those traces in order to check
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:22:00 p.m. EST — `c6e95c10d259` feat(foldkit): green: a sync runtime says what it did with each row and with its link (Scribe #2494)
+
+- **Implementation commit:** `c6e95c10d2599e06524570413058905bb6e80e41`
+- **Change:** A sync runtime says what it did with each row and with its link
+- **Details:**
+  - Layer: Foldkit core, the sync runtime. Runtime.start tells observers each row written (with the link and how long it took), queued, failed, confirmed, received (and from which Processor), dropped or refused, and each change of its link; a sync engine may tell its link's state.
+- **Files:**
+  - `packages/foldkit/src/runtime/programRuntime.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/start.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/syncEngine.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/syncTrace.ts` — changed by this commit
+- **User context (verbatim):**
+  > we should have tracing enabled and you can just pull those traces in order to check
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:22:00 p.m. EST — `64578f9bbce5` feat(books): green: a saved place tells a Client the place, not the shelf (Scribe #2494)
+
+- **Implementation commit:** `64578f9bbce5b2416f89841bf89b7174f3745ddb`
+- **Change:** A saved place tells a Client the place, not the shelf
+- **Details:**
+  - Layer: the Books core. The shelf's subscription sends the whole shelf once, then ReceivedPlaces and ReceivedBookmarks; the Model applies them and keeps unchanged rows the same objects. Measured on the made-up 65-title shelf, to a device that is not playing: 122,760 bytes a minute before, 707 after.
+- **Files:**
+  - `examples/books/core/src/fact.ts` — changed by this commit
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/books/core/src/program.ts` — changed by this commit
+  - `examples/books/core/src/shelfFacts.ts` — changed by this commit
+  - `examples/books/core/src/subscriptions.ts` — changed by this commit
+  - `examples/books/core/src/update.ts` — changed by this commit
+- **User context (verbatim):**
+  > One thing is the application doesn't really sync. It's very laggy
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:21:59 p.m. EST — `cbafb17482a6` feat(foldkit): green: a Client is sent the rows that changed, and keeps a file's address while it works (Scribe #2494)
+
+- **Implementation commit:** `cbafb17482a66bc234097a5e68716334bec971fc`
+- **Change:** A Client is sent the rows that changed, and keeps a file's address while it works
+- **Details:**
+  - Layer: Foldkit core, foldkit/synchronization. rowChangesBetween, appliedRowChanges and changedRows turn whole lists into changes; addressKeyOf, addressExpiresAtMs and keptAddress keep a signed file address stable until its last hour.
+- **Files:**
+  - `packages/foldkit/src/synchronization/addresses.ts` — changed by this commit
+  - `packages/foldkit/src/synchronization/public.ts` — changed by this commit
+  - `packages/foldkit/src/synchronization/rows.ts` — changed by this commit
+- **User context (verbatim):**
+  > this functionality needs to be built in a core of the sync engine and the core of the diagnostics and fold kit debugging skills, et cetera, and not stapled on or bolted on to the application
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:21:59 p.m. EST — `3ebb547c0c03` feat(foldkit): green: a telemetry summary says which Messages weigh the most (Scribe #2494)
+
+- **Implementation commit:** `3ebb547c0c03e88caa24d513af94578cdd057b2d`
+- **Change:** A telemetry summary says which Messages weigh the most
+- **Details:**
+  - Layer: Foldkit core, telemetry. Each surface's summary ranks Messages by the bytes their payloads carried, with the largest and the bytes a minute, printed as Heaviest Messages.
+- **Files:**
+  - `packages/foldkit/src/telemetry/summary.ts` — changed by this commit
+- **User context (verbatim):**
+  > this functionality needs to be built in a core of the sync engine and the core of the diagnostics and fold kit debugging skills, et cetera, and not stapled on or bolted on to the application
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:21:59 p.m. EST — `e97ed34cb50f` fix(foldkit): green: a page whose resources cannot be built shows the crash view, not nothing (Scribe #2494)
+
+- **Implementation commit:** `e97ed34cb50fda423edc080f04c0065f27da6646`
+- **Change:** A page whose resources cannot be built shows the crash view, not nothing
+- **Details:**
+  - Layer: Foldkit core, the browser runtime. A resources Layer that fails to build ended the start with a blank page and nothing reported; the page now shows the crash view and reports once. Four tests had failed since 2026-07-26.
+- **Files:**
+  - `packages/foldkit/src/runtime/runtime.ts` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 11:21:59 p.m. EST — `9c0ee5325ebd` feat(books): the made-up page opens the long shelf when asked (Scribe #2494)
+
+- **Implementation commit:** `9c0ee5325ebda51997ad830e7e6d028c3cc85137`
+- **Change:** The made-up page opens the long shelf when asked
+- **Details:**
+  - Layer: the Books site's made-up page. ?shelf=long opens the 65-title made-up shelf, for measuring the site on a library of a real size.
+- **Files:**
+  - `examples/books/react/madeUp/main.tsx` — changed by this commit
+- **User context (verbatim):**
+  > One thing is the application doesn't really sync. It's very laggy
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 9:00:48 p.m. EST — `d4f40b916f46` fix(books): green: a dev start builds only the dependencies whose sources are newer than their output (Scribe #2494)
 
 - **Implementation commit:** `d4f40b916f46119a2ba389a8570a0bed3da52987`
