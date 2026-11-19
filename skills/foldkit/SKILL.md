@@ -37,6 +37,8 @@ the task:
   links, Program state and replay URIs, and canonicalization laws.
 - `$foldkit-testing` for pure update tests, Story, Scene, Command substitution,
   Layer tests, routes, and runtime replay.
+- `$foldkit-debugging` for reading a running Program's trace: what was slow,
+  what a store sent, and whether a press on one device reached another.
 - `$foldkit-view` for pure accessible rendering, identity, UI Submodels,
   Mounts, and CustomElements.
 - `$foldkit-client-hosts` for renderer-free Programs, adapters, Ports, replay,
