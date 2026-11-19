@@ -4,9 +4,9 @@ import { usageText } from './help.js'
 import {
   type AskRuntime,
   askPlayer,
-  olderPlayerSentence,
   paintsColor,
-  saidWhenPlayerIsOlder,
+  restartedSentence,
+  restartedWhenOlder,
   showBriefOrUsage,
   takesColor,
 } from './view.js'
@@ -98,7 +98,7 @@ describe('a command the player could not read', () => {
       say: sentence => {
         happened.push(`said ${sentence}`)
       },
-      sayWhenOlder: () => Promise.resolve(false),
+      restartWhenOlder: () => Promise.resolve(false),
     }
     return { happened, runtime }
   }
@@ -133,23 +133,43 @@ describe('a command the player could not read', () => {
 })
 
 describe('a command that meets a player started before books was updated', () => {
+  // A made-up older player: it answers what it was built from, its words
+  // as JSON, and goes away when it is asked to stop.
   const meeting = (
     isRunning: boolean,
-    answer: Readonly<{ stdout: string; exitCode: number }>,
+    build: Readonly<{ stdout: string; exitCode: number }>,
+    words = '{"_tag":"NothingInPlayer"}',
   ) => {
     const happened: Array<string> = []
+    const player = { isRunning }
     return {
       happened,
       runtime: {
-        isListening: () => Promise.resolve(isRunning),
+        isListening: () => Promise.resolve(player.isRunning),
         ask: (
           _socketPath: string,
           request: { _tag: string; token?: string },
         ) => {
           happened.push(`asked ${request.token ?? request._tag}`)
-          return Promise.resolve({ ...answer, stderr: '' })
+          if (request.token === 'stop') {
+            player.isRunning = false
+          }
+          return Promise.resolve(
+            request.token === 'words'
+              ? { stdout: words, stderr: '', exitCode: 0 }
+              : { ...build, stderr: '' },
+          )
+        },
+        run: (
+          _socketPath: string,
+          request: { _tag: string; token?: string },
+        ) => {
+          happened.push(`started a player for ${request.token ?? request._tag}`)
+          player.isRunning = true
+          return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 })
         },
         builtNow: () => 'build-2',
+        wait: () => Promise.resolve(),
         say: (sentence: string) => {
           happened.push(`said ${sentence}`)
         },
@@ -157,33 +177,63 @@ describe('a command that meets a player started before books was updated', () =>
     }
   }
 
-  it('says so, and the one command that ends the old player and keeps the place', async () => {
+  it('stops it, which saves the place, says so in one sentence, and starts nothing when nothing was sounding', async () => {
     const { happened, runtime } = meeting(true, {
       stdout: 'build-1',
       exitCode: 0,
     })
-    expect(await saidWhenPlayerIsOlder('/socket', runtime)).toBe(true)
+    expect(await restartedWhenOlder('/socket', runtime)).toBe(true)
     expect(happened).toEqual([
       'asked player-build',
-      `said ${olderPlayerSentence}`,
+      'asked words',
+      'asked stop',
+      `said ${restartedSentence}`,
     ])
-    expect(olderPlayerSentence).toBe(
-      'The Books player running here was started before `books` was updated, so it answers the old way. Run `books stop` (it keeps the place); the next command starts the new one.',
+    expect(restartedSentence).toBe(
+      'The Books player here was started before `books` was updated, so it was restarted. Your place is kept.',
     )
   })
 
-  it('says so for a player too old to know what it was built from', async () => {
+  it('plays the title on in a player of this build when it was sounding', async () => {
+    const { happened, runtime } = meeting(
+      true,
+      { stdout: 'build-1', exitCode: 0 },
+      '{"_tag":"WordsNow","header":{"slug":"the-lantern-keeper","isPlaying":true}}',
+    )
+    expect(await restartedWhenOlder('/socket', runtime)).toBe(true)
+    expect(happened).toEqual([
+      'asked player-build',
+      'asked words',
+      'asked stop',
+      `said ${restartedSentence}`,
+      'started a player for listen the-lantern-keeper',
+    ])
+  })
+
+  it('leaves a paused title paused: its place is saved and nothing is played', async () => {
+    const { happened, runtime } = meeting(
+      true,
+      { stdout: 'build-1', exitCode: 0 },
+      '{"_tag":"WordsNow","header":{"slug":"the-lantern-keeper","isPlaying":false}}',
+    )
+    expect(await restartedWhenOlder('/socket', runtime)).toBe(true)
+    expect(happened).not.toContain(
+      'started a player for listen the-lantern-keeper',
+    )
+  })
+
+  it('restarts a player too old to know what it was built from', async () => {
     const { happened, runtime } = meeting(true, { stdout: '', exitCode: 2 })
-    expect(await saidWhenPlayerIsOlder('/socket', runtime)).toBe(true)
-    expect(happened).toHaveLength(2)
+    expect(await restartedWhenOlder('/socket', runtime)).toBe(true)
+    expect(happened).toContain('asked stop')
   })
 
   it('says nothing to a player of this build, and asks nothing when none is running', async () => {
     const same = meeting(true, { stdout: 'build-2', exitCode: 0 })
-    expect(await saidWhenPlayerIsOlder('/socket', same.runtime)).toBe(false)
+    expect(await restartedWhenOlder('/socket', same.runtime)).toBe(false)
     expect(same.happened).toEqual(['asked player-build'])
     const none = meeting(false, { stdout: '', exitCode: 0 })
-    expect(await saidWhenPlayerIsOlder('/socket', none.runtime)).toBe(false)
+    expect(await restartedWhenOlder('/socket', none.runtime)).toBe(false)
     expect(none.happened).toEqual([])
   })
 })
