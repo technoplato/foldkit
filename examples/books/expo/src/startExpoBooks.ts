@@ -14,8 +14,8 @@ import {
   sharedMadeUpSession,
   startMadeUpBooks,
 } from 'books-core-example/browser'
-import { Layer } from 'effect'
-import { Processor, Runtime } from 'foldkit'
+import { Layer, Option } from 'effect'
+import { Processor, Runtime, type Telemetry } from 'foldkit'
 import { Platform } from 'react-native'
 
 import {
@@ -24,6 +24,7 @@ import {
   accessRequestHeaders,
   withHostedIdentity,
 } from '@foldkit/instant/browser'
+import { attachDevelopmentTelemetry } from '@foldkit/react-native/telemetry'
 import { init } from '@instantdb/react-native'
 
 import type { PhoneConnection } from './connection'
@@ -45,6 +46,39 @@ const expoHost = (): Processor.Host.Host =>
   Platform.OS === 'ios'
     ? Processor.Host.ExpoIos()
     : Processor.Host.ExpoAndroid()
+
+type RecordPaint = (render: Telemetry.RenderReport) => void
+
+const paintRecorderKey = Symbol.for('foldkit.books.expo.paintRecorder')
+
+/**
+ * Records one paint of the app in its telemetry. Before Books has
+ * started, and in a build that is not for development, it records
+ * nothing.
+ */
+export const recordBooksPaint: RecordPaint = render => {
+  const record: unknown = Reflect.get(globalThis, paintRecorderKey)
+  if (typeof record === 'function') {
+    record(render)
+  }
+}
+
+// NOTE: As the web and the terminal do where they start Books, the phone
+// attaches the core's telemetry to the Program it starts. On a phone the
+// trace goes to what a development build prints, which Metro shows.
+const traced = <
+  Handle extends Parameters<typeof attachDevelopmentTelemetry>[0],
+>(
+  handle: Handle,
+): Handle => {
+  Option.match(attachDevelopmentTelemetry(handle, { app: 'books' }), {
+    onNone: () => undefined,
+    onSome: telemetry => {
+      Reflect.set(globalThis, paintRecorderKey, telemetry.recordRendered)
+    },
+  })
+  return handle
+}
 
 const startedOnce = (start: () => Promise<BoundBooks>): Promise<BoundBooks> => {
   const globals = expoGlobals()
@@ -92,7 +126,7 @@ export const startMadeUpExpoBooks = (
           }
         : {}),
     }).then(handle => {
-      const books = bindBooks(handle)
+      const books = bindBooks(traced(handle))
       running.maybeBooks = books
       return books
     })
@@ -176,7 +210,9 @@ export const startSignedInExpoBooks = (
       },
     )
     const books = bindBooks(
-      Runtime.startHandle({ program: SyncedBooks, sync, resources, host }),
+      traced(
+        Runtime.startHandle({ program: SyncedBooks, sync, resources, host }),
+      ),
     )
     running.maybeBooks = books
     return Promise.resolve(books)
