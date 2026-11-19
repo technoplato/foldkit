@@ -7,12 +7,14 @@ import {
   Option,
   Order,
   Queue,
+  Record as Record_,
   Ref,
   Schema as S,
   Stream,
   String,
   pipe,
 } from 'effect'
+import { addressKeyOf, keptAddress } from 'foldkit/synchronization'
 
 import type { ProgramLogDatabase } from '@foldkit/instant/browser'
 import { id } from '@instantdb/core'
@@ -135,7 +137,7 @@ const chapterRowsLimit = 2_000
  * 11 s for 107 titles and 4,665 chapters. They are read one title at a
  * time with {@link chaptersQueryOf}.
  */
-export const libraryQuery = {
+export const titlesQuery = {
   libraryItems: {
     $: { limit: rowsLimit },
     book: {
@@ -145,8 +147,33 @@ export const libraryQuery = {
     },
     preferredAudio: { files: { blob: {} } },
   },
+}
+
+/**
+ * The query for the listener's places. A place is saved about every ten
+ * seconds while a title plays, and a live query hands its whole result
+ * over each time a row in it changes, so the places are a query of their
+ * own: a saved place sends the places, never the titles.
+ */
+export const placesQuery = {
   libraryProgress: { $: { limit: rowsLimit }, item: {} },
+}
+
+/** The query for the listener's bookmarks, which change when one is made. */
+export const bookmarksQuery = {
   libraryBookmarks: { $: { limit: rowsLimit }, item: {} },
+}
+
+/**
+ * The whole library as one query, for a read that is asked once and not
+ * followed, such as a link preview's. A store that follows the library
+ * asks {@link titlesQuery}, {@link placesQuery} and
+ * {@link bookmarksQuery} apart.
+ */
+export const libraryQuery = {
+  ...titlesQuery,
+  ...placesQuery,
+  ...bookmarksQuery,
 }
 
 /**
@@ -226,6 +253,63 @@ const uniqueSlugs = (names: ReadonlyArray<string>): ReadonlyArray<TitleSlug> =>
       TitleSlug.make(next === 0 ? base : `${base}-${next.toString()}`),
     )
   })
+
+// The address this store holds for each file, by the file it names.
+type HeldAddresses = ReadonlyMap<string, string>
+
+const keptIn = (
+  held: HeldAddresses,
+  maybeArrived: Option.Option<string>,
+  nowMs: number,
+): Option.Option<string> =>
+  Option.map(maybeArrived, arrived =>
+    keptAddress(
+      Option.fromNullishOr(held.get(addressKeyOf(arrived))),
+      arrived,
+      nowMs,
+    ),
+  )
+
+/**
+ * A decoded library whose cover and audio addresses are the ones already
+ * held for those files while they still work, and the addresses now held.
+ * A file store renews the signature on an address now and then; taking
+ * each renewal would make every cover load again.
+ */
+const withKeptAddresses = (
+  decoded: Decoded,
+  held: HeldAddresses,
+  nowMs: number,
+): Readonly<{ decoded: Decoded; addresses: HeldAddresses }> => {
+  const keep = (title: Title): Title => ({
+    ...title,
+    maybeCoverUrl: keptIn(held, title.maybeCoverUrl, nowMs),
+    maybeAudioUrl: keptIn(held, title.maybeAudioUrl, nowMs),
+  })
+  const titles = Array.map(decoded.shelf.titles, keep)
+  return {
+    decoded: {
+      shelf: { ...decoded.shelf, titles },
+      index: new Map(
+        Array.map([...decoded.index], ([slug, entry]) => [
+          slug,
+          { ...entry, title: keep(entry.title) },
+        ]),
+      ),
+    },
+    addresses: new Map(
+      Array.map(
+        Array.getSomes(
+          Array.flatMap(titles, title => [
+            title.maybeCoverUrl,
+            title.maybeAudioUrl,
+          ]),
+        ),
+        address => [addressKeyOf(address), address] as const,
+      ),
+    ),
+  }
+}
 
 const firstUrlOf = (
   blobs: ReadonlyArray<typeof BlobRow.Type>,
@@ -569,10 +653,38 @@ export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
       index: new Map(),
     }),
     latest => {
-      const shelf = Stream.tap(
-        observed(database, libraryQuery, decodeLibrary),
-        decoded => Ref.set(latest, decoded),
-      ).pipe(Stream.map(decoded => decoded.shelf))
+      // NOTE: Three live queries, by how often each changes, joined into
+      // the one shelf: the first shelf is sent once all three have
+      // answered, then again whenever one of them does. Each title's
+      // cover and audio address is the one this store already holds for
+      // that file while it still works, so a renewed signature changes
+      // nothing a Client sees and loads nothing again.
+      const held = Effect.runSync(Ref.make<HeldAddresses>(new Map()))
+      const rowsIn = (table: string) => (data: unknown) =>
+        Option.getOrElse(
+          Option.flatMap(
+            S.decodeUnknownOption(S.Record(S.String, S.Unknown))(data),
+            tables => Record_.get(tables, table),
+          ),
+          (): unknown => [],
+        )
+      const shelf = Stream.zipLatestAll(
+        observed(database, titlesQuery, rowsIn('libraryItems')),
+        observed(database, placesQuery, rowsIn('libraryProgress')),
+        observed(database, bookmarksQuery, rowsIn('libraryBookmarks')),
+      ).pipe(
+        Stream.map(([libraryItems, libraryProgress, libraryBookmarks]) =>
+          decodeLibrary({ libraryItems, libraryProgress, libraryBookmarks }),
+        ),
+        Stream.mapEffect(decoded =>
+          Ref.modify(held, addresses => {
+            const kept = withKeptAddresses(decoded, addresses, Date.now())
+            return [kept.decoded, kept.addresses]
+          }),
+        ),
+        Stream.tap(decoded => Ref.set(latest, decoded)),
+        Stream.map(decoded => decoded.shelf),
+      )
 
       const chapters = (slug: TitleSlug) =>
         Stream.unwrap(
