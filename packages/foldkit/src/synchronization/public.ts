@@ -20,3 +20,18 @@ export {
   resolveAudience,
   validateProgramSynchronization,
 } from './synchronization.js'
+
+export {
+  type RowChanges,
+  appliedRowChanges,
+  changedRows,
+  hasRowChanges,
+  rowChangesBetween,
+} from './rows.js'
+
+export {
+  addressExpiresAtMs,
+  addressKeyOf,
+  defaultAddressMarginMs,
+  keptAddress,
+} from './addresses.js'
