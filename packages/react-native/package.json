@@ -28,7 +28,8 @@
     "./plugin/schedulerGuard.cjs": "./plugin/schedulerGuard.cjs"
   },
   "bin": {
-    "foldkit-expo-routes": "./bin/foldkit-expo-routes.mjs"
+    "foldkit-expo-routes": "./bin/foldkit-expo-routes.mjs",
+    "foldkit-expo-updates": "./bin/foldkit-expo-updates.mjs"
   },
   "sideEffects": false,
   "files": [
