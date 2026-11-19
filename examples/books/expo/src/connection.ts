@@ -37,21 +37,3 @@ export const connectionFrom = (
     appId => ({ appId: appId.trim(), sessionOrigin }),
   )
 }
-
-const signInPathStart = '/cdn-cgi/'
-
-/**
- * True when a sign-in page has come back to Books itself: an address on
- * the site's own origin that is not one of the sign-in's own pages there.
- *
- * @example
- * ```typescript
- * isBackAtBooks('https://books.example/books', 'https://books.example') // true
- * isBackAtBooks('https://books.example/cdn-cgi/access/authorized', 'https://books.example') // false
- * ```
- */
-export const isBackAtBooks = (url: string, origin: string): boolean => {
-  const isOnOrigin = url === origin || url.startsWith(`${origin}/`)
-  const path = url.slice(origin.length)
-  return isOnOrigin && !path.startsWith(signInPathStart)
-}
