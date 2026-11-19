@@ -22,10 +22,14 @@ const manifest: Manifest = JSON.parse(
 )
 
 describe('the Books site’s scripts', () => {
-  it('build every workspace package the site depends on, by asking the workspace', () => {
+  it('build the workspace packages the site depends on that are stale, by asking the workspace', () => {
     expect(manifest.scripts['deps']).toBe(
-      `pnpm --filter '${manifest.name}^...' run build`,
+      'node ../../../scripts/build-stale-deps.mjs',
     )
+  })
+
+  it('run their tests when the workspace runs every test', () => {
+    expect(manifest.scripts['test']).toBe('vitest run')
   })
 
   it.each(['dev', 'dev:made-up', 'build', 'build:live', 'typecheck'])(
@@ -36,8 +40,8 @@ describe('the Books site’s scripts', () => {
   )
 
   it('name no package to build by hand', () => {
-    const named = Object.entries(manifest.scripts).filter(
-      ([name, script]) => name !== 'deps' && /--filter/.test(script),
+    const named = Object.entries(manifest.scripts).filter(([, script]) =>
+      /--filter/.test(script),
     )
     expect(named).toEqual([])
   })
