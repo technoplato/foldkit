@@ -158,6 +158,57 @@ export const CrashRow = S.Struct({
 /** One crash in a summary. */
 export type CrashRow = typeof CrashRow.Type
 
+/** Where a surface's link stood at one moment, as its sync runtime said. */
+export const LinkRow = S.Struct({ at: S.String, link: S.String })
+
+/** Where a surface's link stood at one moment. */
+export type LinkRow = typeof LinkRow.Type
+
+/**
+ * What another device did with a row: received it, dropped it because it
+ * could not read it, or refused it under its session's policy; when, and
+ * how long after the row left the device that wrote it.
+ */
+export const DeliveryReceipt = S.Struct({
+  surface: TelemetrySurface,
+  session: S.String,
+  outcome: S.Literals(['ReceivedRow', 'DroppedRow', 'RefusedRow']),
+  at: S.String,
+  afterMs: S.Number,
+  isLate: S.optionalKey(S.Boolean),
+  cause: S.optionalKey(S.String),
+})
+
+/** What another device did with a row. */
+export type DeliveryReceipt = typeof DeliveryReceipt.Type
+
+/**
+ * One row a device wrote to the shared log, and what every other device
+ * that was running did with it: the answer to "did this press reach that
+ * device, and when", read from the devices' own files. `sentAt` is when
+ * the row left (when the store answered, less how long the write took);
+ * `link` how the write ended; `notSeenBy` the sessions that were running
+ * and recording their sync, and never said they had the row.
+ */
+export const Delivery = S.Struct({
+  rowId: S.String,
+  message: S.String,
+  fromSurface: TelemetrySurface,
+  fromSession: S.String,
+  link: S.String,
+  sentAt: S.String,
+  receipts: S.Array(DeliveryReceipt),
+  notSeenBy: S.Array(
+    S.Struct({ surface: TelemetrySurface, session: S.String }),
+  ),
+})
+
+/** One row a device wrote, and what the others did with it. */
+export type Delivery = typeof Delivery.Type
+
+/** How many of the newest deliveries a summary keeps. */
+export const defaultDeliveryRowLimit = 20
+
 /**
  * What one surface's sessions did in a window: which roles they had, the
  * busiest Messages and Actions, the Messages whose payloads weighed the
@@ -187,6 +238,7 @@ export const SurfaceSummary = S.Struct({
   peakTransitionsPerMinute: S.Int,
   peakMinute: S.optionalKey(S.String),
   subscriptions: S.Array(SubscriptionLifecycle),
+  links: S.Array(LinkRow),
   crashes: S.Array(CrashRow),
 })
 
@@ -206,6 +258,7 @@ export const TelemetrySummary = S.Struct({
   eventCount: S.Int,
   sessions: S.Array(SessionRow),
   surfaces: S.Array(SurfaceSummary),
+  deliveries: S.Array(Delivery),
 })
 
 /** What telemetry files say about the Programs that wrote them. */
@@ -643,8 +696,132 @@ const surfaceSummaryOf = (
       onSome: peak => ({ peakMinute: minuteLabelOf(Number(peak.name)) }),
     }),
     subscriptions: subscriptionLifecyclesOf(diagnostics),
+    links: Array.flatMap(included, event =>
+      event._tag === 'Synced' &&
+      event.kind === 'LinkChanged' &&
+      event.link !== undefined
+        ? [{ at: event.at, link: event.link }]
+        : [],
+    ),
     crashes,
   }
+}
+
+type SyncedEvent = Extract<TelemetryEvent, { _tag: 'Synced' }>
+
+type TimedSynced = Readonly<{ atMs: number; event: SyncedEvent }>
+
+const linkOfWrite = (event: SyncedEvent): string =>
+  M.value(event.kind).pipe(
+    M.when('QueuedRow', () => 'queued'),
+    M.when('FailedToWriteRow', () => 'failed'),
+    M.orElse(() => event.link ?? ''),
+  )
+
+const isWriteKind = (kind: SyncedEvent['kind']): boolean =>
+  kind === 'WroteRow' || kind === 'QueuedRow' || kind === 'FailedToWriteRow'
+
+const receiptOutcomeOf = (
+  kind: SyncedEvent['kind'],
+): Option.Option<DeliveryReceipt['outcome']> =>
+  kind === 'ReceivedRow' || kind === 'DroppedRow' || kind === 'RefusedRow'
+    ? Option.some(kind)
+    : Option.none()
+
+const bySentDescending = Order.mapInput(
+  Order.flip(Number_.Order),
+  (row: Readonly<{ sentAtMs: number }>) => row.sentAtMs,
+)
+
+/**
+ * The rows devices wrote, newest first, each with what the other devices'
+ * files say they did with it. A row is matched by its id, the same in
+ * every file. A session counts as not having seen a row only when it was
+ * running when the row left and its build records sync at all.
+ */
+const deliveriesOf = (
+  timed: ReadonlyArray<TimedEvent>,
+  limit: number,
+): ReadonlyArray<Delivery> => {
+  const synced: ReadonlyArray<TimedSynced> = Array.flatMap(
+    timed,
+    ({ atMs, event }) => (event._tag === 'Synced' ? [{ atMs, event }] : []),
+  )
+  const spanBySession = pipe(
+    timed,
+    Array.groupBy(({ event }) => event.session),
+    Record.map(sessionEvents => ({
+      surface: Array.headNonEmpty(sessionEvents).event.surface,
+      fromMs: Array.headNonEmpty(sessionEvents).atMs,
+      toMs: Array.lastNonEmpty(sessionEvents).atMs,
+    })),
+  )
+  const recordingSessions = Array.dedupe(
+    Array.map(synced, ({ event }) => event.session),
+  )
+  const lastWrites = pipe(
+    synced,
+    Array.filter(
+      ({ event }) => isWriteKind(event.kind) && event.rowId !== undefined,
+    ),
+    Array.groupBy(({ event }) => event.rowId ?? ''),
+    Record.values,
+    Array.map(writes => Array.lastNonEmpty(writes)),
+  )
+  return pipe(
+    lastWrites,
+    Array.map(({ atMs, event }) => {
+      const sentAtMs = atMs - (event.tookMs ?? 0)
+      const receipts = Array.flatMap(synced, received =>
+        received.event.rowId === event.rowId &&
+        received.event.session !== event.session
+          ? Option.match(receiptOutcomeOf(received.event.kind), {
+              onNone: () => [],
+              onSome: (outcome): ReadonlyArray<DeliveryReceipt> => [
+                {
+                  surface: received.event.surface,
+                  session: received.event.session,
+                  outcome,
+                  at: received.event.at,
+                  afterMs: received.atMs - sentAtMs,
+                  ...(received.event.isLate === true ? { isLate: true } : {}),
+                  ...(received.event.cause === undefined
+                    ? {}
+                    : { cause: received.event.cause }),
+                },
+              ],
+            })
+          : [],
+      )
+      return {
+        sentAtMs,
+        delivery: {
+          rowId: event.rowId ?? '',
+          message: event.message ?? '',
+          fromSurface: event.surface,
+          fromSession: event.session,
+          link: linkOfWrite(event),
+          sentAt: new Date(sentAtMs).toISOString(),
+          receipts,
+          notSeenBy: Array.flatMap(recordingSessions, session =>
+            session !== event.session &&
+            !Array.some(receipts, receipt => receipt.session === session)
+              ? Option.match(Record.get(spanBySession, session), {
+                  onNone: () => [],
+                  onSome: span =>
+                    span.fromMs <= sentAtMs && span.toMs >= sentAtMs
+                      ? [{ surface: span.surface, session }]
+                      : [],
+                })
+              : [],
+          ),
+        },
+      }
+    }),
+    Array.sort(bySentDescending),
+    Array.take(limit),
+    Array.map(({ delivery }) => delivery),
+  )
 }
 
 /**
@@ -699,6 +876,7 @@ export const summarize = (
     }),
     eventCount: timed.length,
     sessions: sessionRowsOf(Array.map(timed, ({ event }) => event)),
+    deliveries: deliveriesOf(timed, defaultDeliveryRowLimit),
     surfaces,
   }
 }
@@ -900,9 +1078,47 @@ const surfaceLines = (summary: SurfaceSummary): ReadonlyArray<string> => [
           ),
       }),
     ),
+    ...(Array.isReadonlyArrayEmpty(summary.links)
+      ? []
+      : section(
+          'Link',
+          Array.map(summary.links, row => `${row.at}  ${row.link}`),
+        )),
     ...section('Crashes', Array.map(summary.crashes, crashLine)),
   ]),
 ]
+
+const receiptLabelOf = (receipt: DeliveryReceipt): string =>
+  M.value(receipt.outcome).pipe(
+    M.withReturnType<string>(),
+    M.when(
+      'ReceivedRow',
+      () =>
+        `${receipt.surface} after ${Math.round(receipt.afterMs).toString()} ms${receipt.isLate === true ? ' (late)' : ''}`,
+    ),
+    M.when(
+      'DroppedRow',
+      () => `${receipt.surface} dropped it: ${receipt.cause ?? ''}`,
+    ),
+    M.when(
+      'RefusedRow',
+      () => `${receipt.surface} refused it: ${receipt.cause ?? ''}`,
+    ),
+    M.exhaustive,
+  )
+
+const reachedLabelOf = (delivery: Delivery): string => {
+  const said = [
+    ...Array.map(delivery.receipts, receiptLabelOf),
+    ...Array.map(
+      delivery.notSeenBy,
+      missed => `not seen by ${missed.surface} ${missed.session}`,
+    ),
+  ]
+  return Array.isReadonlyArrayEmpty(said)
+    ? 'no other device was recording'
+    : Array.join(said, '; ')
+}
 
 /**
  * Prints a summary as text a person reads in a terminal: the surfaces at a
@@ -988,6 +1204,21 @@ export const formatSummary = (
           ),
       }),
     ),
+    ...(Array.isReadonlyArrayEmpty(summary.deliveries)
+      ? []
+      : section(
+          'Deliveries',
+          tableLines(
+            ['sent', 'message', 'from', 'link', 'reached'],
+            Array.map(summary.deliveries, delivery => [
+              delivery.sentAt,
+              delivery.message,
+              delivery.fromSurface,
+              delivery.link,
+              reachedLabelOf(delivery),
+            ]),
+          ),
+        )),
     ...Array.flatMap(summary.surfaces, surfaceLines),
   ]
   return Array.join(lines, '\n').trimEnd()
