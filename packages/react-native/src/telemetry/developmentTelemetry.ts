@@ -83,9 +83,18 @@ export const attachDevelopmentTelemetry = <
     write(hostNoteLineOf(options.note, new Date()))
   }
   if (isOn && options.laterNotes !== undefined) {
-    options.laterNotes(note => {
+    const say = (note: Readonly<Record<string, unknown>>): void => {
       write(hostNoteLineOf(note, new Date()))
-    })
+    }
+    // NOTE: keeping a trace never stops the app: whatever goes wrong in
+    // what the phone says about itself is written, and the Program starts.
+    try {
+      options.laterNotes(say)
+    } catch (error) {
+      say({
+        noteFailed: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
   return isOn
     ? Option.some(

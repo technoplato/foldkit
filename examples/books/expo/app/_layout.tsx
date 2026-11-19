@@ -7,7 +7,7 @@ import { PaintReporter } from '@foldkit/react-native/telemetry'
 
 import { BooksGate } from '../src/booksGate'
 import { Looked } from '../src/looked'
-import { recordBooksPaint } from '../src/startExpoBooks'
+import { noteBooksLaidOut, recordBooksPaint } from '../src/startExpoBooks'
 
 /**
  * The Books app's root layout. It is the Counter's, line for line: every
@@ -23,7 +23,10 @@ export default function Layout(): ReactElement {
         {books => (
           <ProgramProvider bound={books}>
             <Looked books={books}>
-              <PaintReporter record={recordBooksPaint}>
+              <PaintReporter
+                record={recordBooksPaint}
+                laidOut={noteBooksLaidOut}
+              >
                 <FoldkitRouterStack />
               </PaintReporter>
             </Looked>

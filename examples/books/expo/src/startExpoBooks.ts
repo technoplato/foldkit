@@ -27,8 +27,10 @@ import {
   withHostedIdentity,
 } from '@foldkit/instant/browser'
 import {
+  type LaidOut,
   attachDevelopmentTelemetry,
   runningCodeOf,
+  stallWatch,
   watchUpdates,
 } from '@foldkit/react-native/telemetry'
 import { init } from '@instantdb/react-native'
@@ -65,6 +67,20 @@ const expoHost = (): Processor.Host.Host =>
 type RecordPaint = (render: Telemetry.RenderReport) => void
 
 const paintRecorderKey = Symbol.for('foldkit.books.expo.paintRecorder')
+
+const laidOutKey = Symbol.for('foldkit.books.expo.laidOut')
+
+/**
+ * Takes note of a part of the app being laid out, for the record of
+ * each time its JavaScript was held. Before Books has started, and with
+ * no trace kept, it notes nothing.
+ */
+export const noteBooksLaidOut = (entry: LaidOut): void => {
+  const note: unknown = Reflect.get(globalThis, laidOutKey)
+  if (typeof note === 'function') {
+    note(entry)
+  }
+}
 
 /**
  * Records one paint of the app in its telemetry. Before Books has
@@ -105,6 +121,10 @@ const traced = <
     // server is ordinary and shows nowhere else.
     laterNotes: say => {
       hearPlayerNotes(say)
+      // NOTE: a build that carries its own code cannot time its paints.
+      // It can say each time its JavaScript was held, and what was being
+      // laid out then.
+      Reflect.set(globalThis, laidOutKey, stallWatch({ say }).noteLaidOut)
       watchUpdates({
         latest: Updates.latestContext,
         listen: Updates.addUpdatesStateChangeListener,

@@ -57,10 +57,11 @@ export type UpdatesCheck = Readonly<{
   isDownloading: boolean
   isUpdateAvailable: boolean
   isUpdatePending: boolean
-  checkError?: Readonly<{ message: string }> | undefined
-  downloadError?: Readonly<{ message: string }> | undefined
-  downloadedManifest?: Readonly<{ id?: string }> | undefined
-  lastCheckForUpdateTime?: Date | undefined
+  // NOTE: where the module has nothing to say it may say null.
+  checkError?: Readonly<{ message: string }> | null | undefined
+  downloadError?: Readonly<{ message: string }> | null | undefined
+  downloadedManifest?: Readonly<{ id?: string }> | null | undefined
+  lastCheckForUpdateTime?: Date | null | undefined
 }>
 
 const maximumWhyCharacters = 200
@@ -78,6 +79,8 @@ const whyOf = (error: Readonly<{ message: string }>): string =>
 export const updatesOutcomeOf = (
   check: UpdatesCheck,
 ): Option.Option<Readonly<Record<string, unknown>>> => {
+  const maybeDownloadError = Option.fromNullishOr(check.downloadError)
+  const maybeCheckError = Option.fromNullishOr(check.checkError)
   if (check.isChecking || check.isDownloading) {
     return Option.none()
   } else if (check.isUpdatePending) {
@@ -85,17 +88,19 @@ export const updatesOutcomeOf = (
       updates: 'fetched; runs from the next open',
       updateId: check.downloadedManifest?.id ?? null,
     })
-  } else if (check.downloadError !== undefined) {
+  } else if (Option.isSome(maybeDownloadError)) {
     return Option.some({
       updates: 'could not fetch the newer code; keeping the code it has',
-      why: whyOf(check.downloadError),
+      why: whyOf(maybeDownloadError.value),
     })
-  } else if (check.checkError !== undefined) {
+  } else if (Option.isSome(maybeCheckError)) {
     return Option.some({
       updates: 'could not ask the updates server; keeping the code it has',
-      why: whyOf(check.checkError),
+      why: whyOf(maybeCheckError.value),
     })
-  } else if (check.lastCheckForUpdateTime !== undefined) {
+  } else if (
+    Option.isSome(Option.fromNullishOr(check.lastCheckForUpdateTime))
+  ) {
     return Option.some({ updates: 'none newer' })
   } else {
     return Option.none()
