@@ -120,6 +120,7 @@ export {
   maybeTitleOf,
   keyedStackDriver,
   coalescedStack,
+  destinationTagsOf,
   documentTitleOf,
   frameOf,
   sideTagOf,

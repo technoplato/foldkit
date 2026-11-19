@@ -7,6 +7,7 @@ import {
   type ProgramNavigation,
   screenView,
 } from '../navigation/declaration.js'
+import { destinationTagsOf } from '../navigation/destinationTags.js'
 import { type Frame, documentTitleOf, frameOf } from '../navigation/frame.js'
 import { NavigatedBack, OpenedUri, type UriVia } from '../navigation/message.js'
 import { type NavigationStack, stackAtRoot } from '../navigation/structure.js'
@@ -118,6 +119,7 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
     viewAt: (key: string) => Option.Option<EntryView>
     canonicalUri: (uri: string) => Option.Option<string>
     ownsUri: (uri: string) => boolean
+    destinationTags: () => ReadonlyArray<string>
     openUri: (uri: string, via: UriVia) => boolean
     navigateBack: (uri: string) => boolean
   }>
@@ -294,6 +296,8 @@ export const bind = <Model, Message>(
         ? Option.none()
         : canonicalUriOf(declaration, uri),
     ownsUri: uri => declaration !== undefined && ownsUriOf(declaration, uri),
+    destinationTags: () =>
+      declaration === undefined ? [] : destinationTagsOf(declaration),
     openUri: (uri, via) => sendFact(OpenedUri({ uri, via })),
     navigateBack: uri => sendFact(NavigatedBack({ uri })),
   }
