@@ -10,6 +10,7 @@ export type ScreenScroll = Readonly<{
   offset: () => number
   viewport: () => number
   scrollTo: (y: number) => void
+  jumpTo: (y: number) => void
   measure: (part: View, onMeasured: (y: number, height: number) => void) => void
   onUserScroll: (listener: () => void) => () => void
 }>

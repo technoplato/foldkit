@@ -1,12 +1,12 @@
 import { Array } from 'effect'
 import type { UiNode } from 'foldkit/renderers'
 import { type ReactElement, useMemo, useRef, useState } from 'react'
-import { ScrollView, View, useWindowDimensions } from 'react-native'
+import { FlatList, ScrollView, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { keyboardRoomOf, useKeyboardHeight } from './keyboard.js'
 import { lightLook } from './look.js'
-import { type PaintHandlers, screenPartsOf } from './paint.js'
+import { type PaintHandlers, hasNodeOf, screenPartsOf } from './paint.js'
 import { paintTree } from './screen.js'
 import {
   ScreenOverlayContext,
@@ -17,6 +17,10 @@ import {
 const pagePadding = 16
 
 const dockPaddingY = 8
+
+const oneCell: ReadonlyArray<number> = [0]
+
+const cellKeyOf = (): string => 'body'
 
 const fittedShareOfWindow = 0.85
 
@@ -69,6 +73,7 @@ export const ScreenFrame = ({
     windowHeight * fittedShareOfWindow,
   )
   const scrollView = useRef<ScrollView>(null)
+  const list = useRef<FlatList<number>>(null)
   const content = useRef<View>(null)
   const offset = useRef(0)
   const viewport = useRef(0)
@@ -79,6 +84,11 @@ export const ScreenFrame = ({
       viewport: () => viewport.current,
       scrollTo: y => {
         scrollView.current?.scrollTo({ y, animated: true })
+        list.current?.scrollToOffset({ offset: y, animated: true })
+      },
+      jumpTo: y => {
+        scrollView.current?.scrollTo({ y, animated: false })
+        list.current?.scrollToOffset({ offset: y, animated: false })
       },
       measure: (part, onMeasured) => {
         const within = content.current
@@ -124,6 +134,28 @@ export const ScreenFrame = ({
       )),
     [parts.docks, dockHandlers],
   )
+  // NOTE: a screen with words to read along with scrolls in the platform's
+  // windowed list, as its one cell, so the words inside can be a windowed
+  // list of their own that lays out only the passages near the screen.
+  const isWindowed = !isFitted && hasNodeOf(tree, 'Transcript')
+  const cell = (
+    <View
+      ref={content}
+      collapsable={false}
+      style={{
+        padding: pagePadding,
+        paddingBottom:
+          pagePadding +
+          (Array.isReadonlyArrayEmpty(parts.docks) ? room.dockInset : 0),
+      }}
+    >
+      <ScreenOverlayContext.Provider value={setMaybeOverlay}>
+        <ScreenScrollContext.Provider value={scroll}>
+          {body}
+        </ScreenScrollContext.Provider>
+      </ScreenOverlayContext.Provider>
+    </View>
+  )
   return (
     <View
       style={[
@@ -134,57 +166,82 @@ export const ScreenFrame = ({
         { paddingBottom: room.frameLift },
       ]}
     >
-      <ScrollView
-        ref={scrollView}
-        contentInsetAdjustmentBehavior={
-          isUnderHeader === true ? 'automatic' : 'never'
-        }
-        keyboardShouldPersistTaps="handled"
-        onLayout={event => {
-          viewport.current = event.nativeEvent.layout.height
-        }}
-        onMomentumScrollEnd={() => {
-          // NOTE: a scroll this frame made itself also ends with this
-          // event. Only the coasting after a person's own drag is theirs.
-          if (isCoasting.current) {
+      {isWindowed ? (
+        <FlatList
+          ref={list}
+          data={oneCell}
+          keyExtractor={cellKeyOf}
+          renderItem={() => cell}
+          contentInsetAdjustmentBehavior={
+            isUnderHeader === true ? 'automatic' : 'never'
+          }
+          keyboardShouldPersistTaps="handled"
+          onLayout={event => {
+            viewport.current = event.nativeEvent.layout.height
+          }}
+          onMomentumScrollEnd={() => {
+            // NOTE: a scroll this frame made itself also ends with this
+            // event. Only the coasting after a person's own drag is theirs.
+            if (isCoasting.current) {
+              isCoasting.current = false
+              noteUserScroll()
+            }
+          }}
+          onScroll={event => {
+            offset.current = event.nativeEvent.contentOffset.y
+          }}
+          onScrollBeginDrag={() => {
             isCoasting.current = false
             noteUserScroll()
-          }
-        }}
-        onScroll={event => {
-          offset.current = event.nativeEvent.contentOffset.y
-        }}
-        onScrollBeginDrag={() => {
-          isCoasting.current = false
-          noteUserScroll()
-        }}
-        onScrollEndDrag={() => {
-          isCoasting.current = true
-          noteUserScroll()
-        }}
-        onContentSizeChange={(_width, height) => {
-          setContentHeight(height)
-        }}
-        scrollEventThrottle={32}
-        style={isFitted ? { flexGrow: 0, height: fittedHeight } : { flex: 1 }}
-      >
-        <View
-          ref={content}
-          collapsable={false}
-          style={{
-            padding: pagePadding,
-            paddingBottom:
-              pagePadding +
-              (Array.isReadonlyArrayEmpty(parts.docks) ? room.dockInset : 0),
           }}
+          onScrollEndDrag={() => {
+            isCoasting.current = true
+            noteUserScroll()
+          }}
+          onContentSizeChange={(_width, height) => {
+            setContentHeight(height)
+          }}
+          scrollEventThrottle={32}
+          style={isFitted ? { flexGrow: 0, height: fittedHeight } : { flex: 1 }}
+        />
+      ) : (
+        <ScrollView
+          ref={scrollView}
+          contentInsetAdjustmentBehavior={
+            isUnderHeader === true ? 'automatic' : 'never'
+          }
+          keyboardShouldPersistTaps="handled"
+          onLayout={event => {
+            viewport.current = event.nativeEvent.layout.height
+          }}
+          onMomentumScrollEnd={() => {
+            // NOTE: a scroll this frame made itself also ends with this
+            // event. Only the coasting after a person's own drag is theirs.
+            if (isCoasting.current) {
+              isCoasting.current = false
+              noteUserScroll()
+            }
+          }}
+          onScroll={event => {
+            offset.current = event.nativeEvent.contentOffset.y
+          }}
+          onScrollBeginDrag={() => {
+            isCoasting.current = false
+            noteUserScroll()
+          }}
+          onScrollEndDrag={() => {
+            isCoasting.current = true
+            noteUserScroll()
+          }}
+          onContentSizeChange={(_width, height) => {
+            setContentHeight(height)
+          }}
+          scrollEventThrottle={32}
+          style={isFitted ? { flexGrow: 0, height: fittedHeight } : { flex: 1 }}
         >
-          <ScreenOverlayContext.Provider value={setMaybeOverlay}>
-            <ScreenScrollContext.Provider value={scroll}>
-              {body}
-            </ScreenScrollContext.Provider>
-          </ScreenOverlayContext.Provider>
-        </View>
-      </ScrollView>
+          {cell}
+        </ScrollView>
+      )}
       {Array.isReadonlyArrayEmpty(parts.docks) ? null : (
         <View
           style={{

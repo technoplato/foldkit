@@ -5,6 +5,7 @@
 export const native = {
   AccessibilityInfo: {},
   Appearance: {},
+  FlatList: 'FlatList',
   Image: 'Image',
   Keyboard: {
     addListener: () => ({ remove: (): void => undefined }),
