@@ -4,6 +4,7 @@ export type {
   EntryWithoutKeepAlive,
   Subscription,
   Subscriptions,
+  Superseding,
 } from './subscription.js'
 
 export { animationFrame } from './animationFrame.js'

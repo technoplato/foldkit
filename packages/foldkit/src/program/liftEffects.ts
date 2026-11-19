@@ -68,6 +68,11 @@ const liftSubscription = <ParentModel, ChildModel>(
               () => readLifted().maybeDependencies,
             ),
         }),
+    // The child's Messages pass through unchanged, so its own answer to
+    // which waiting Message a newer one replaces is the parent's too.
+    ...(subscription.supersedes === undefined
+      ? {}
+      : { supersedes: subscription.supersedes }),
     ...(subscription.source === undefined
       ? {}
       : { source: subscription.source }),

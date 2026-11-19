@@ -192,6 +192,12 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
         TranscriptPlayer.clockDependenciesOf(loadedPlayerOf(model)),
       keepAliveEquivalence: TranscriptPlayer.isSameClock,
       dependenciesToStream: TranscriptPlayer.clockStream,
+      // NOTE: A newer place takes a waiting place's turn, so a device
+      // that falls behind holds one place and takes a press next.
+      supersedes: (waiting, arrived) =>
+        TranscriptPlayer.isMessage(waiting) &&
+        TranscriptPlayer.isMessage(arrived) &&
+        TranscriptPlayer.clockSupersedes(waiting, arrived),
     }),
     unendedPlays: entry(
       { isShelfReady: S.Boolean },
