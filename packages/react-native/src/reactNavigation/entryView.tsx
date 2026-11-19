@@ -3,13 +3,15 @@ import { Navigation, Session } from 'foldkit'
 import {
   type ReactElement,
   createContext,
+  memo,
   useContext,
+  useEffect,
   useMemo,
   useRef,
 } from 'react'
 import { Pressable, View } from 'react-native'
 
-import { useBound } from '@foldkit/react/interaction'
+import { ProgramProvider, useBound } from '@foldkit/react/interaction'
 import { useNavigationPlan, useViewAt } from '@foldkit/react/navigation'
 
 import { ActionMenuSheet } from '../interaction/actionMenuModal.js'
@@ -21,9 +23,11 @@ import { WhenReady } from '../interaction/whenReady.js'
 import { PaintedPart } from '../telemetry/paintReporter.js'
 import { useLook } from '../theme/themed.js'
 import { entryOptionsOf } from './entryOptions.js'
+import { quietWhile } from './quietBound.js'
 import {
   entryOfNavigatorKey,
   entryRouteName,
+  isCoveredOf,
   tagOfDestination,
 } from './stack.js'
 
@@ -63,6 +67,39 @@ const cardMaxWidth = 480
 export const EntryView = ({
   entryKey,
 }: Readonly<{ entryKey: string }>): ReactElement => {
+  const bound = useBound()
+  // NOTE: a native stack keeps the page right under the one in sight
+  // live, for the swipe back to show. While it is covered it hears no
+  // change of the Model, so its view is not worked out again every time
+  // the Model moves, as it does each second a book plays. Back in sight,
+  // it hears once.
+  const isCovered = Option.exists(useNavigationPlan(), plan =>
+    isCoveredOf(plan, entryKey),
+  )
+  const covered = useRef(isCovered)
+  covered.current = isCovered
+  const quiet = useMemo(() => quietWhile(bound, () => covered.current), [bound])
+  useEffect(() => {
+    if (!isCovered) {
+      quiet.wake()
+    }
+  }, [isCovered, quiet])
+  // NOTE: one element for as long as the screen lives, so this component
+  // hearing every change (it has to, to know when it is covered) does
+  // not paint the screen under it again.
+  return useMemo(
+    () => (
+      <ProgramProvider bound={quiet.bound}>
+        <EntryBody entryKey={entryKey} />
+      </ProgramProvider>
+    ),
+    [quiet, entryKey],
+  )
+}
+
+const EntryBody = memo(function EntryBody({
+  entryKey,
+}: Readonly<{ entryKey: string }>): ReactElement {
   const bound = useBound()
   const look = useLook()
   const styles = useContext(EntryStylesContext)
@@ -176,7 +213,7 @@ export const EntryView = ({
     [bound, handlers, isUnderHeader, look, maybeView, presentation],
   )
   return <PaintedPart name={partName}>{painted}</PaintedPart>
-}
+})
 
 /** Paint styles for {@link EntryView}, or the neutral defaults. */
 export const entryStylesOf = (styles: PaintStyles | undefined): PaintStyles =>
