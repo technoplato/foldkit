@@ -126,6 +126,55 @@ describe('Catalog.entries', () => {
   })
 })
 
+describe('Catalog.entries, asked many times of one Model', () => {
+  const countingCatalog = (onAsked: () => void) =>
+    Catalog.make([
+      Catalog.action('Reset', {
+        what: 'Sets the count to 0',
+        why: 'To start over',
+        enabled: (model: Model) => {
+          onAsked()
+          return model.count === 0
+            ? Catalog.Disabled({ because: 'count is already 0' })
+            : Catalog.Enabled()
+        },
+        meta: { label: 'Reset', keys: ['r'] },
+      }),
+    ])
+
+  it('projects the Actions once, so a screen that asks for each of its rows pays once', () => {
+    let asked = 0
+    const counting = countingCatalog(() => {
+      asked += 1
+    })
+    const model = { count: 3 }
+
+    const first = Catalog.entries(counting, model)
+    const again = Catalog.entries(counting, model)
+
+    expect(asked).toBe(1)
+    expect(again).toBe(first)
+  })
+
+  it('projects again for the next Model', () => {
+    let asked = 0
+    const counting = countingCatalog(() => {
+      asked += 1
+    })
+
+    const atThree = Catalog.entries(counting, { count: 3 })
+    const atZero = Catalog.entries(counting, { count: 0 })
+
+    expect(asked).toBe(2)
+    expect(
+      Array.map(atThree, entry => Catalog.isEnabled(entry.availability)),
+    ).toEqual([true])
+    expect(
+      Array.map(atZero, entry => Catalog.isEnabled(entry.availability)),
+    ).toEqual([false])
+  })
+})
+
 describe('Catalog lookups', () => {
   it('finds by tag, key, and derived command', () => {
     expect(
