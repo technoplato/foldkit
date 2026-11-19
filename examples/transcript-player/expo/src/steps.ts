@@ -9,12 +9,14 @@ import {
 /**
  * What a phone's audio player says about itself, in the port's terms:
  * where it is, whether it is sounding, whether its audio has loaded,
- * whether it just reached the end, and why it failed, if it did.
+ * whether it has stopped only to load more, whether it just reached the
+ * end, and why it failed, if it did.
  */
 export type PlayerStatus = Readonly<{
   currentTimeMs: number
   isPlaying: boolean
   isLoaded: boolean
+  isWaitingForAudio: boolean
   didJustFinish: boolean
   maybeFailure: string | undefined
 }>
@@ -53,7 +55,9 @@ const millisecondsPerSecond = 1000
  * second is reported once, with the wall clock; a skip made on the lock
  * screen lands on a second not yet reported, so it is reported as the new
  * place. Audio that stops sounding after it has sounded, without ending
- * or failing, was paused by the device.
+ * or failing, was paused by the device, unless it stopped only to load
+ * more: a player waiting for audio was paused by nobody, and goes on by
+ * itself.
  *
  * @example
  * ```typescript
@@ -101,7 +105,8 @@ export const stepOf = (
       heard,
       events: [],
       isDone: false,
-      isPausedByDevice: heard.hasPlayed && status.isLoaded,
+      isPausedByDevice:
+        heard.hasPlayed && status.isLoaded && !status.isWaitingForAudio,
     }
   }
 }

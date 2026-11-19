@@ -46,6 +46,8 @@ const statusEveryMs = 250
 
 const millisecondsPerSecond = 1000
 
+const waitingToPlay = 'waitingToPlayAtSpecifiedRate'
+
 type Held = {
   url: string
   player: AudioPlayer
@@ -57,6 +59,11 @@ const statusOf = (status: AudioStatus): PlayerStatus => ({
   currentTimeMs: status.currentTime * millisecondsPerSecond,
   isPlaying: status.playing,
   isLoaded: status.isLoaded,
+  // NOTE: a player that streams stops sounding while it loads more. It
+  // says so two ways: it is buffering, or it is waiting to play at its
+  // rate. Either is the player's own doing, not a pause.
+  isWaitingForAudio:
+    status.isBuffering || status.timeControlStatus === waitingToPlay,
   didJustFinish: status.didJustFinish,
   maybeFailure: undefined,
 })
