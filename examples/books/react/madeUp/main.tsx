@@ -37,12 +37,16 @@ const lookTimeoutMs = 5_000
 // `?session=shared` makes it the one made-up session every device that
 // asks for it shares, so a tab, a phone and a terminal can be watched
 // moving together. Without it the session stays in this tab.
+//
+// `?shelf=long` opens the long made-up shelf, 65 titles with one of about
+// 16 hours, for measuring this Client on a library of a real size.
 const host = Processor.Host.React()
-const isSessionShared =
-  new URLSearchParams(window.location.search).get('session') === 'shared'
+const asked = new URLSearchParams(window.location.search)
+const isSessionShared = asked.get('session') === 'shared'
 const handle = await startMadeUpBooks({
   host,
   resources: browserSystemAppearance,
+  ...(asked.get('shelf') === 'long' ? { shelf: 'Long' as const } : {}),
   ...(isSessionShared
     ? { sync: sharedMadeUpSession({ host, instance: newProcessorInstance() }) }
     : {}),
