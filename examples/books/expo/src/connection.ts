@@ -83,3 +83,26 @@ export const madeUpShelfOf = (
 export const isTelemetryAsked = (
   env: Readonly<Record<string, string | undefined>>,
 ): boolean => (env['EXPO_PUBLIC_BOOKS_TELEMETRY'] ?? '').trim() !== ''
+
+/**
+ * Whether the phone app makes no sound at all. It is silent on the
+ * made-up library, which only tests and demonstrations open, unless its
+ * sound is asked for by name with `EXPO_PUBLIC_BOOKS_MADE_UP_SOUND`; and
+ * silent anywhere `EXPO_PUBLIC_FOLDKIT_SILENT` is set, whatever else is
+ * asked. On a person's own library it sounds.
+ *
+ * @example
+ * ```typescript
+ * isSilentOf({ EXPO_PUBLIC_BOOKS_MADE_UP: '1' }) // true
+ * ```
+ */
+export const isSilentOf = (
+  env: Readonly<Record<string, string | undefined>>,
+): boolean => {
+  const isAsked = (name: string): boolean => (env[name] ?? '').trim() !== ''
+  const isMadeUp = Option.isNone(connectionFrom(env, ''))
+  return (
+    isAsked('EXPO_PUBLIC_FOLDKIT_SILENT') ||
+    (isMadeUp && !isAsked('EXPO_PUBLIC_BOOKS_MADE_UP_SOUND'))
+  )
+}

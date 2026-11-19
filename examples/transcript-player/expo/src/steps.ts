@@ -127,3 +127,35 @@ const resumeToleranceMs = 1500
 export const isResumeOf = (
   place: Readonly<{ currentTimeMs: number; fromMs: number }>,
 ): boolean => Math.abs(place.currentTimeMs - place.fromMs) <= resumeToleranceMs
+
+// SILENCE
+
+/**
+ * Whether a phone app was built or served to make no sound at all:
+ * `EXPO_PUBLIC_FOLDKIT_SILENT` is set. Every test of a phone app sets it:
+ * a test reads what the player reports and the trace, never sound, and a
+ * machine that tests is often one a person is working or recording at.
+ *
+ * @example
+ * ```typescript
+ * isSilentAsked({ EXPO_PUBLIC_FOLDKIT_SILENT: '1' }) // true
+ * ```
+ */
+export const isSilentAsked = (
+  env: Readonly<Record<string, string | undefined>>,
+): boolean => (env['EXPO_PUBLIC_FOLDKIT_SILENT'] ?? '').trim() !== ''
+
+/** How loud a player is: its volume, and whether it is muted as well. */
+export type Loudness = Readonly<{ volume: number; muted: boolean }>
+
+/**
+ * How loud a player is to be. A silent one has no volume and is muted
+ * too, so neither setting alone can let sound out.
+ *
+ * @example
+ * ```typescript
+ * loudnessOf(true) // { volume: 0, muted: true }
+ * ```
+ */
+export const loudnessOf = (isSilent: boolean): Loudness =>
+  isSilent ? { volume: 0, muted: true } : { volume: 1, muted: false }

@@ -14,7 +14,14 @@ import {
   countedSound,
 } from 'transcript-player-core-example'
 
-import { type PlayerStatus, isResumeOf, notHeardYet, stepOf } from './steps'
+import {
+  type PlayerStatus,
+  isResumeOf,
+  isSilentAsked,
+  loudnessOf,
+  notHeardYet,
+  stepOf,
+} from './steps'
 
 // OUTPUT
 
@@ -34,12 +41,17 @@ export type TrackLabel = Readonly<{ title: string; artist?: string }>
  *   pauses or resumes the audio, as its lock screen, its headphones or a
  *   phone call do. The host presses the Program's own Actions, so the
  *   Model keeps knowing whether it plays.
+ * - `isSilent` makes every player silent: no volume, and muted. It still
+ *   plays and reports, so a test reads the player's state and never
+ *   sound. Left out, the app is silent when it was built or served with
+ *   `EXPO_PUBLIC_FOLDKIT_SILENT` set, as every test of a phone app does.
  */
 export type ExpoAudioOptions = Readonly<{
   sourceOf?: (url: string) => AudioSource | number
   labelOf?: (track: Track) => TrackLabel
   onDevicePause?: () => void
   onDevicePlay?: () => void
+  isSilent?: boolean
 }>
 
 const statusEveryMs = 250
@@ -91,6 +103,20 @@ export const expoAudioOutput = (
 ): Layer.Layer<AudioOutput> => {
   let maybeHeld: Held | undefined = undefined
   let isSessionSet = false
+  const isSilent =
+    options.isSilent ??
+    isSilentAsked({
+      EXPO_PUBLIC_FOLDKIT_SILENT: process.env.EXPO_PUBLIC_FOLDKIT_SILENT,
+    })
+  const loudness = loudnessOf(isSilent)
+
+  // NOTE: set on every player when it is made and again each time it is
+  // told to play, so nothing between the two can leave a silent app
+  // sounding.
+  const setLoudness = (player: AudioPlayer): void => {
+    player.volume = loudness.volume
+    player.muted = loudness.muted
+  }
 
   const setSession = (): void => {
     if (isSessionSet) {
@@ -116,6 +142,7 @@ export const expoAudioOutput = (
       options.sourceOf === undefined ? url : options.sourceOf(url),
       { updateInterval: statusEveryMs },
     )
+    setLoudness(player)
     const held: Held = { url, player, isSounding: false, isSettling: false }
     player.addListener('playbackStatusUpdate', status => {
       // NOTE: a pause this output asked for takes a moment to show in the
@@ -153,6 +180,7 @@ export const expoAudioOutput = (
             void player.seekTo(track.fromMs / millisecondsPerSecond)
           }
           player.setPlaybackRate(readSpeed())
+          setLoudness(player)
           player.play()
           player.setActiveForLockScreen(
             true,

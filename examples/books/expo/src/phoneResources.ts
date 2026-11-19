@@ -12,6 +12,7 @@ import {
 
 import { nativeSystemAppearance } from '@foldkit/react-native/theme'
 
+import { isSilentOf } from './connection'
 import { nativeLinkSharing } from './nativeLinkSharing'
 
 // NOTE: the made-up titles name audio at an address nothing answers. The
@@ -49,6 +50,21 @@ const labelOf =
   }
 
 /**
+ * Whether this app makes no sound, from what it was built or served
+ * with: silent on the made-up library unless its sound is asked for by
+ * name, and silent anywhere the test switch is on.
+ */
+export const isBooksSilent = (): boolean =>
+  isSilentOf({
+    EXPO_PUBLIC_BOOKS_INSTANT_APP_ID:
+      process.env.EXPO_PUBLIC_BOOKS_INSTANT_APP_ID,
+    EXPO_PUBLIC_BOOKS_MADE_UP: process.env.EXPO_PUBLIC_BOOKS_MADE_UP,
+    EXPO_PUBLIC_BOOKS_MADE_UP_SOUND:
+      process.env.EXPO_PUBLIC_BOOKS_MADE_UP_SOUND,
+    EXPO_PUBLIC_FOLDKIT_SILENT: process.env.EXPO_PUBLIC_FOLDKIT_SILENT,
+  })
+
+/**
  * The services that are the phone's own, whichever library Books opens:
  * its report of the system's appearance, its audio, in the background and
  * on the lock screen, with what the lock screen does told to the Program
@@ -64,6 +80,7 @@ export const phoneResources = (running: Running) =>
     nativeSystemAppearance,
     nativeLinkSharing(booksOrigin),
     expoAudioOutput({
+      isSilent: isBooksSilent(),
       sourceOf: url =>
         url.startsWith(madeUpAudioOrigin) ? madeUpVoice() : { uri: url },
       labelOf: labelOf(running),

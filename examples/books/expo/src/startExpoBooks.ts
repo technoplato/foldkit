@@ -15,6 +15,7 @@ import {
   startMadeUpBooks,
 } from 'books-core-example/browser'
 import { Layer, Option } from 'effect'
+import * as Updates from 'expo-updates'
 import { Processor, Runtime, type Telemetry } from 'foldkit'
 import { Platform } from 'react-native'
 import { enableSchedulerDelegateInvalidation } from 'react-native/src/private/featureflags/ReactNativeFeatureFlags'
@@ -25,11 +26,15 @@ import {
   accessRequestHeaders,
   withHostedIdentity,
 } from '@foldkit/instant/browser'
-import { attachDevelopmentTelemetry } from '@foldkit/react-native/telemetry'
+import {
+  attachDevelopmentTelemetry,
+  runningCodeOf,
+  watchUpdates,
+} from '@foldkit/react-native/telemetry'
 import { init } from '@instantdb/react-native'
 
 import { type PhoneConnection, isTelemetryAsked } from './connection'
-import { type Running, phoneResources } from './phoneResources'
+import { type Running, isBooksSilent, phoneResources } from './phoneResources'
 import { traceFiles } from './traceFiles'
 
 type PhoneDatabase = ReturnType<typeof init>
@@ -85,7 +90,21 @@ const traced = <
   const maybeFiles = isAsked && !isDevelopmentBuild() ? traceFiles() : undefined
   const attached = attachDevelopmentTelemetry(handle, {
     app: 'books',
-    note: { reactNativeSchedulerGuard: enableSchedulerDelegateInvalidation() },
+    note: {
+      reactNativeSchedulerGuard: enableSchedulerDelegateInvalidation(),
+      sound: isBooksSilent() ? 'silent' : 'loud',
+      ...runningCodeOf(Updates),
+    },
+    // NOTE: newer code is asked for when the app opens and runs from the
+    // next open. What came of asking goes in the trace; not reaching the
+    // server is ordinary and shows nowhere else.
+    laterNotes: say => {
+      watchUpdates({
+        latest: Updates.latestContext,
+        listen: Updates.addUpdatesStateChangeListener,
+        say,
+      })
+    },
     ...(isAsked ? { isDevelopment: true } : {}),
     ...(maybeFiles === undefined
       ? {}
