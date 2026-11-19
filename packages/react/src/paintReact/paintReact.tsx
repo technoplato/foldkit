@@ -26,6 +26,7 @@ import {
   iconDrawings,
   isClearedOnSubmit,
   isSubmittedOnLeave,
+  resolveLazyNode,
   seekLandingAt,
   submittedTagOf,
   transcriptAt,
@@ -1765,6 +1766,7 @@ export const paintTree = (
             {paintChildren(shell.children)}
           </div>
         ),
+        Lazy: lazy => paint(resolveLazyNode(lazy)),
       }),
     )
   return paint(node)

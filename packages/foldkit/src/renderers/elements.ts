@@ -9,6 +9,7 @@ import type {
   ButtonNode,
   ButtonVariant,
   ColumnNode,
+  LazyNode,
   ListFilter,
   ListItem,
   ListNode,
@@ -547,4 +548,28 @@ export const List = (
   ...(props.dropAction === undefined ? {} : { dropAction: props.dropAction }),
   ...(props.columns === undefined ? {} : { columns: props.columns }),
   ...(props.filter === undefined ? {} : { filter: props.filter }),
+})
+
+/**
+ * Defers building a subtree until resolved against the previous render's
+ * cache. `fn` must be a pure module-scope function, and every value it reads
+ * (including Model slices, time, and look) must be passed explicitly in `args`.
+ * Pass `options.key` when placing `Lazy` nodes inside dynamic lists so
+ * sibling insertions or reorderings match the right cache entry.
+ *
+ * @example
+ * ```typescript
+ * Lazy(renderLibrary, [model.library, model.query], { key: 'library' })
+ * ```
+ */
+export const Lazy = <Args extends ReadonlyArray<unknown>>(
+  fn: (...args: Args) => UiNode,
+  args: Args,
+  options?: Readonly<{ key?: string }>,
+): LazyNode => ({
+  _tag: 'Lazy',
+  ...(options?.key === undefined ? {} : { key: options.key }),
+  fn,
+  args,
+  build: () => fn(...args),
 })

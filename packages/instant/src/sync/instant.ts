@@ -80,6 +80,7 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
       ),
       processor,
       instantLinksOf(database),
+      { writesSnapshot: false },
     )
   }
   const database = options.database ?? openDatabase(options)

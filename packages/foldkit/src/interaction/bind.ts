@@ -17,6 +17,7 @@ import {
 } from '../navigation/uri.js'
 import { type Host, labelOf } from '../processor/host.js'
 import type { ProgramSchema } from '../program/program.js'
+import { type LazyCache, resolveLazyTree } from '../renderers/lazy.js'
 import type { UiNode } from '../renderers/types.js'
 import {
   type Echo,
@@ -186,15 +187,49 @@ export const bind = <Model, Message>(
   type Kept = {
     model: Model
     maybePlan: Option.Option<Option.Option<CarrierPlan<unknown>>>
+    maybeScreen: Option.Option<Option.Option<UiNode>>
     views: Map<string, Option.Option<EntryView>>
   }
   let maybeKept: Kept | undefined = undefined
+  const entryLazyCaches = new Map<string, LazyCache>()
+  let maybeScreenLazyCache: LazyCache | undefined = undefined
 
   const keptFor = (model: Model): Kept => {
     if (maybeKept === undefined || maybeKept.model !== model) {
-      maybeKept = { model, maybePlan: Option.none(), views: new Map() }
+      maybeKept = {
+        model,
+        maybePlan: Option.none(),
+        maybeScreen: Option.none(),
+        views: new Map(),
+      }
     }
     return maybeKept
+  }
+
+  const pruneEntryLazyCaches = (
+    maybePlan: Option.Option<CarrierPlan<unknown>>,
+  ): void => {
+    if (Option.isNone(maybePlan)) {
+      entryLazyCaches.clear()
+      return
+    }
+    const liveKeys = new Set(
+      Array.map(maybePlan.value.entries, entry => entry.key),
+    )
+    for (const key of entryLazyCaches.keys()) {
+      if (!liveKeys.has(key)) {
+        entryLazyCaches.delete(key)
+      }
+    }
+  }
+
+  const resolveEntryView = (key: string, view: EntryView): EntryView => {
+    if (view._tag !== 'Screen') {
+      return view
+    }
+    const resolved = resolveLazyTree(view.node, entryLazyCaches.get(key))
+    entryLazyCaches.set(key, resolved.cache)
+    return resolved.node === view.node ? view : { ...view, node: resolved.node }
   }
 
   const builtPlan = (): Option.Option<CarrierPlan<unknown>> => {
@@ -213,6 +248,7 @@ export const bind = <Model, Message>(
       return kept.maybePlan.value
     }
     const built = builtPlan()
+    pruneEntryLazyCaches(built)
     kept.maybePlan = Option.some(built)
     return built
   }
@@ -223,9 +259,27 @@ export const bind = <Model, Message>(
     if (known !== undefined) {
       return known
     }
-    const built = builtViewAt(key)
+    const built = Option.map(builtViewAt(key), view =>
+      resolveEntryView(key, view),
+    )
     kept.views.set(key, built)
     return built
+  }
+
+  const resolvedScreen = (): Option.Option<UiNode> => {
+    if (screen === undefined) {
+      return Option.none()
+    }
+    const model = handle.readModel()
+    const kept = keptFor(model)
+    if (Option.isSome(kept.maybeScreen)) {
+      return kept.maybeScreen.value
+    }
+    const resolved = resolveLazyTree(screen(model), maybeScreenLazyCache)
+    maybeScreenLazyCache = resolved.cache
+    const result = Option.some(resolved.node)
+    kept.maybeScreen = Option.some(result)
+    return result
   }
 
   const builtViewAt = (key: string): Option.Option<EntryView> =>
@@ -297,10 +351,7 @@ export const bind = <Model, Message>(
         ? Option.none()
         : menuOpenerOf(interaction, platform),
     status,
-    screen: () =>
-      screen === undefined
-        ? Option.none()
-        : Option.some(screen(handle.readModel())),
+    screen: resolvedScreen,
     entries: () => whenInteractive((inner, model) => inner.entries(model), []),
     menu: () =>
       whenInteractive((inner, model) => inner.menu(model), Option.none()),

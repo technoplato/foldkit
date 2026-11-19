@@ -56,6 +56,13 @@ export class SyncTransportError extends Data.TaggedError('SyncTransportError')<{
  */
 export type SyncEngine = Readonly<{
   processor: string
+  /**
+   * Whether `write` stores a per-Message snapshot alongside the Message row.
+   * Defaults to `true` for legacy snapshot-log tables; message-only logs set
+   * `false` so `Runtime.start` does not encode the full Ready Model on every
+   * persisted Message just to discard it.
+   */
+  writesSnapshot?: boolean
   read: () => Effect.Effect<SyncRead, SyncTransportError>
   readSince?: (
     maybeCursor: Option.Option<string>,

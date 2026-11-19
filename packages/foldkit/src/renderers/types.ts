@@ -546,6 +546,25 @@ export type DeviceShellNode = Readonly<{
   readonly children: ReadonlyArray<UiNode>
 }>
 
+/**
+ * A deferred subtree whose output depends only on `fn` (a pure module-scope
+ * function) and `args` (compared pairwise with `Object.is`). When resolved
+ * through `Interaction.bind` (or `resolveLazyTree`), matching the same
+ * `(path, key)` with the same `fn` and `Object.is`-equal `args` skips
+ * calling `build` and returns the exact previous resolved `UiNode` object so
+ * painters can skip unchanged subtrees by reference.
+ *
+ * Time, look, and every Model field read by `fn` must be passed explicitly in
+ * `args` rather than captured in a closure over `Model`.
+ */
+export type LazyNode = Readonly<{
+  readonly _tag: 'Lazy'
+  readonly key?: string
+  readonly fn: unknown
+  readonly args: ReadonlyArray<unknown>
+  readonly build: () => UiNode
+}>
+
 /** Host-neutral ASCII tree. */
 export type UiNode =
   | TextNode
@@ -560,6 +579,7 @@ export type UiNode =
   | SeekNode
   | TranscriptNode
   | DeviceShellNode
+  | LazyNode
 
 /**
  * A laid-out character box. `isCurrent` marks what a person is following

@@ -24,6 +24,7 @@ import {
   wordMenuMount,
 } from './htmlEdge.js'
 import { iconGlyphs } from './icons.js'
+import { resolveLazyNode } from './lazy.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
 import { transcriptEntriesOf } from './transcriptEntries.js'
@@ -652,6 +653,7 @@ export const paintHtml = <Message>(
             [h.Class(`fk-device fk-device-${shell.device}`)],
             Array.map(shell.children, paint),
           ),
+        Lazy: lazy => paint(resolveLazyNode(lazy)),
       }),
     )
   return paint(node)

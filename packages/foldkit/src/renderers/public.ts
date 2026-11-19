@@ -3,6 +3,7 @@ export {
   Button,
   Column,
   Dock,
+  Lazy,
   List,
   Plain,
   Progress,
@@ -22,6 +23,11 @@ export {
 export { Host } from './host.js'
 export { IconName, iconDrawings, iconGlyphs } from './icons.js'
 export type { IconDrawing } from './icons.js'
+export {
+  type LazyCache,
+  resolveLazyNode,
+  resolveLazyTree,
+} from './lazy.js'
 export { progressLineOf, seekLineOf } from './layout.js'
 export {
   type ItemGroup,
@@ -113,6 +119,7 @@ export type {
   ItemCheck,
   ItemImage,
   LayoutBox,
+  LazyNode,
   ListFilter,
   ListItem,
   ListNode,

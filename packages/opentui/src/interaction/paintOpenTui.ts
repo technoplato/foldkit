@@ -11,6 +11,7 @@ import {
   iconGlyphs,
   itemLinesOf,
   progressLineOf,
+  resolveLazyNode,
   seekLineOf,
 } from 'foldkit/renderers'
 
@@ -350,6 +351,7 @@ export const paintOpenTui = (
           shell.children,
           options,
         ),
+      Lazy: lazy => paintOpenTui(ctx, resolveLazyNode(lazy), options),
     }),
   )
 

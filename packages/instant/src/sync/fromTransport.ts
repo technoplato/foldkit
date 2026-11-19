@@ -246,9 +246,13 @@ export const fromTransport = (
   transport: SnapshotLogTransport,
   processor: string,
   links?: Runtime.SyncEngine['links'],
-): Runtime.SyncEngine => ({
-  processor,
-  ...(links === undefined ? {} : { links }),
+  options?: Readonly<{ writesSnapshot?: boolean }>,
+): Runtime.SyncEngine => {
+  const writesSnapshot = options?.writesSnapshot ?? true
+  return {
+    processor,
+    writesSnapshot,
+    ...(links === undefined ? {} : { links }),
   read: () =>
     transport.read().pipe(
       Effect.map(state => ({
@@ -296,8 +300,11 @@ export const fromTransport = (
       )
       yield* Deferred.await(ready)
     }),
-  write: write =>
-    decodeSnapshot(write.snapshot).pipe(
+  write: write => {
+    const snapshotEffect = writesSnapshot
+      ? decodeSnapshot(write.snapshot)
+      : Effect.succeed(emptyCountSnapshot)
+    return snapshotEffect.pipe(
       Effect.flatMap(snapshot =>
         decodeMessage(write.message).pipe(
           Effect.flatMap(message =>
@@ -310,8 +317,10 @@ export const fromTransport = (
           ),
         ),
       ),
-    ),
-})
+    )
+  },
+  }
+}
 
 /** Engine that fails read and write when the Node admin token is missing. */
 export const missingAdminToken = (processor: string): Runtime.SyncEngine => ({

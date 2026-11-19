@@ -7,6 +7,7 @@
     type UiNode,
     filterListItems,
     itemLinesOf,
+    resolveLazyNode,
   } from 'foldkit/renderers'
 
   import CopyButton from './CopyButton.svelte'
@@ -340,6 +341,14 @@
     className={classFor(classNames, 'Transcript', 'fk-transcript')}
     {onPress}
     transcript={node}
+  />
+{:else if node._tag === 'Lazy'}
+  <PaintTree
+    {classNames}
+    {onInput}
+    {onLink}
+    {onPress}
+    node={resolveLazyNode(node)}
   />
 {:else}
   <div

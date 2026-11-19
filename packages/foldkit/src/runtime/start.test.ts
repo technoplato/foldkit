@@ -438,4 +438,53 @@ describe('Runtime.start Memory', () => {
       ),
     )
   })
+
+  it('skips encoding the Ready Model snapshot on persist when engine.writesSnapshot is false', async () => {
+    let snapshotEncodeCalls = 0
+    const trackedSnapshot = S.Struct({ count: S.Number }).pipe(
+      S.decodeTo(
+        S.Struct({ count: S.Number }),
+        SchemaTransformation.transform({
+          decode: value => value,
+          encode: value => {
+            snapshotEncodeCalls += 1
+            return value
+          },
+        }),
+      ),
+    )
+    const TrackedSynced = compose.sync({
+      of: Counter,
+      snapshot: trackedSnapshot,
+      message: MessageWire,
+    })
+
+    await runScoped(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          const base = Memory({ processor: Host.React(), store })
+          const writtenSnapshots: Array<unknown> = []
+          const engine = {
+            ...base,
+            writesSnapshot: false,
+            write: (write: Parameters<typeof base.write>[0]) => {
+              writtenSnapshots.push(write.snapshot)
+              return base.write(write)
+            },
+          }
+          const runtime = yield* start({
+            program: TrackedSynced,
+            sync: engine,
+          })
+          yield* runtime.run(Increment())
+          yield* runtime.run(Increment())
+          expect(runtime.readModel()).toEqual({ _tag: 'Ready', count: 2 })
+          expect(snapshotEncodeCalls).toBe(0)
+          expect(writtenSnapshots).toEqual([undefined, undefined])
+          expect(store.messages).toHaveLength(2)
+        }),
+      ),
+    )
+  })
 })

@@ -10,6 +10,7 @@ import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
 import { Link } from '../navigation/message.js'
 import { isModalStyle } from '../navigation/structure.js'
+import { resolveLazyNode } from '../renderers/lazy.js'
 import { buttonsOf } from '../renderers/query.js'
 import type { ButtonNode, UiNode } from '../renderers/types.js'
 import type { BoundInteraction } from './bind.js'
@@ -113,6 +114,7 @@ const gridRowsOfNode = (node: UiNode): ReadonlyArray<GridRow> =>
       Seek: () => [],
       Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, gridRowsOfNode),
+      Lazy: lazy => gridRowsOfNode(resolveLazyNode(lazy)),
     }),
   )
 
@@ -154,6 +156,7 @@ const isFollowingNode = (node: UiNode): boolean =>
       Column: column => Array.some(column.children, isFollowingNode),
       Box: box => Array.some(box.children, isFollowingNode),
       DeviceShell: shell => Array.some(shell.children, isFollowingNode),
+      Lazy: lazy => isFollowingNode(resolveLazyNode(lazy)),
     }),
   )
 
@@ -445,6 +448,8 @@ const decorated = (
           decorated(child, maybeFocused, isShowingKeys),
         ),
       }),
+      Lazy: lazy =>
+        decorated(resolveLazyNode(lazy), maybeFocused, isShowingKeys),
     }),
   )
 

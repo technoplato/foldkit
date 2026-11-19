@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 
+import { resolveLazyNode } from './lazy.js'
 import type {
   ButtonNode,
   TextInputNode,
@@ -26,6 +27,7 @@ export const textsOf = (node: UiNode): ReadonlyArray<TextNode> =>
       Seek: () => [],
       Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, textsOf),
+      Lazy: lazy => textsOf(resolveLazyNode(lazy)),
     }),
   )
 
@@ -46,6 +48,7 @@ export const buttonsOf = (node: UiNode): ReadonlyArray<ButtonNode> =>
       Seek: () => [],
       Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, buttonsOf),
+      Lazy: lazy => buttonsOf(resolveLazyNode(lazy)),
     }),
   )
 
@@ -66,6 +69,7 @@ export const inputsOf = (node: UiNode): ReadonlyArray<TextInputNode> =>
       Seek: () => [],
       Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, inputsOf),
+      Lazy: lazy => inputsOf(resolveLazyNode(lazy)),
     }),
   )
 
@@ -89,6 +93,7 @@ export const transcriptsOf = (node: UiNode): ReadonlyArray<TranscriptNode> =>
       Seek: () => [],
       Transcript: transcript => [transcript],
       DeviceShell: shell => Array.flatMap(shell.children, transcriptsOf),
+      Lazy: lazy => transcriptsOf(resolveLazyNode(lazy)),
     }),
   )
 
@@ -139,6 +144,7 @@ export const linksOf = (node: UiNode): ReadonlyArray<ScreenLink> =>
       Seek: () => [],
       Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, linksOf),
+      Lazy: lazy => linksOf(resolveLazyNode(lazy)),
     }),
   )
 

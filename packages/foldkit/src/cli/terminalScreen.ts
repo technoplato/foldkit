@@ -15,6 +15,7 @@ import {
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
 import type { Host } from '../processor/host.js'
 import { layoutTree } from '../renderers/layout.js'
+import { resolveLazyNode } from '../renderers/lazy.js'
 import { anchorRowsOf } from '../renderers/liveFrame.js'
 import { paintAscii } from '../renderers/paint.js'
 import type { UiNode } from '../renderers/types.js'
@@ -174,6 +175,7 @@ const withoutDocks = (node: UiNode): Split =>
         const { children, docks } = splitChildren(shell.children)
         return { maybeNode: Option.some({ ...shell, children }), docks }
       },
+      Lazy: lazy => withoutDocks(resolveLazyNode(lazy)),
       Box: box => {
         if (box.isDock === true) {
           return { maybeNode: Option.none(), docks: [box] }

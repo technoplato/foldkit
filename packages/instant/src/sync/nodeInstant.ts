@@ -53,6 +53,7 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
       ),
       processor,
       instantLinksOf(options.database),
+      { writesSnapshot: false },
     )
   }
   if (options.programLog === undefined && options.database !== undefined) {
@@ -77,6 +78,8 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
         options.programLog,
       ),
       processor,
+      undefined,
+      { writesSnapshot: false },
     )
   }
   return fromTransport(

@@ -8,6 +8,7 @@ import {
   type TextNode,
   type TextPart,
   type UiNode,
+  resolveLazyNode,
 } from 'foldkit/renderers'
 import { type ReactElement, type ReactNode, memo, useMemo } from 'react'
 import {
@@ -701,6 +702,7 @@ export const paintTree = (
             {paintChildren(shell.children, paint)}
           </View>
         ),
+        Lazy: lazy => paintNode(resolveLazyNode(lazy), paint),
       }),
     )
   return paintNode(node, root)

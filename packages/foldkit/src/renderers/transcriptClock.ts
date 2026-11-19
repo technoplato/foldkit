@@ -33,14 +33,117 @@ export const transcriptPlaceAt = (
 
 type Timed = Readonly<{ token: string; startMs: number }>
 
-const timedWordsOf = (transcript: TranscriptNode): ReadonlyArray<Timed> =>
-  Array.flatMap(transcript.passages, passage =>
-    Array.flatMap(passage.words, word =>
-      word.startMs === undefined
-        ? []
-        : [{ token: word.token, startMs: word.startMs }],
-    ),
-  )
+type TranscriptIndex = Readonly<{
+  readonly timed: ReadonlyArray<Timed>
+  readonly isMonotonic: boolean
+  readonly passageIndicesByToken: ReadonlyMap<string, ReadonlyArray<number>>
+  readonly currentPassageIndices: ReadonlyArray<number>
+}>
+
+const passageIndexCache = new WeakMap<
+  ReadonlyArray<TranscriptPassage>,
+  TranscriptIndex
+>()
+
+const buildTranscriptIndex = (
+  passages: ReadonlyArray<TranscriptPassage>,
+): TranscriptIndex => {
+  const timed: Array<Timed> = []
+  const passageIndicesByToken = new Map<string, Array<number>>()
+  const currentPassageIndices: Array<number> = []
+  let isMonotonic = true
+  let previousStartMs = Number.NEGATIVE_INFINITY
+
+  for (let passageIndex = 0; passageIndex < passages.length; passageIndex++) {
+    const passage = passages.at(passageIndex)
+    if (passage === undefined) {
+      continue
+    }
+
+    let hasCurrentWord = passage.isCurrent === true
+
+    for (const word of passage.words) {
+      if (word.isCurrent === true) {
+        hasCurrentWord = true
+      }
+
+      if (word.startMs !== undefined) {
+        if (word.startMs < previousStartMs) {
+          isMonotonic = false
+        }
+        previousStartMs = word.startMs
+        timed.push({ token: word.token, startMs: word.startMs })
+      }
+
+      const existing = passageIndicesByToken.get(word.token)
+      if (existing === undefined) {
+        passageIndicesByToken.set(word.token, [passageIndex])
+      } else if (existing.at(-1) !== passageIndex) {
+        existing.push(passageIndex)
+      }
+    }
+
+    if (hasCurrentWord) {
+      currentPassageIndices.push(passageIndex)
+    }
+  }
+
+  return {
+    timed,
+    isMonotonic,
+    passageIndicesByToken,
+    currentPassageIndices,
+  }
+}
+
+const indexOfPassages = (
+  passages: ReadonlyArray<TranscriptPassage>,
+): TranscriptIndex => {
+  const cached = passageIndexCache.get(passages)
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const built = buildTranscriptIndex(passages)
+  passageIndexCache.set(passages, built)
+  return built
+}
+
+const findLastTimedAtOrBefore = (
+  index: TranscriptIndex,
+  placeMs: number,
+): Option.Option<Timed> => {
+  const { timed, isMonotonic } = index
+  const first = timed.at(0)
+  if (first === undefined) {
+    return Option.none()
+  }
+
+  if (!isMonotonic) {
+    return Array.findLast(timed, word => word.startMs <= placeMs)
+  }
+
+  if (first.startMs > placeMs) {
+    return Option.none()
+  }
+
+  let low = 0
+  let high = timed.length - 1
+  let answer = 0
+
+  while (low <= high) {
+    const mid = (low + high) >>> 1
+    const candidate = timed.at(mid)
+    if (candidate !== undefined && candidate.startMs <= placeMs) {
+      answer = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+
+  return Option.fromNullishOr(timed.at(answer))
+}
 
 /**
  * The token of the word being spoken at the wall-clock time `nowMs`: the
@@ -59,8 +162,9 @@ export const currentWordTokenAt = (
 ): Option.Option<string> =>
   Option.flatMap(Option.fromNullishOr(transcript.clock), clock => {
     const placeMs = transcriptPlaceAt(clock, nowMs)
+    const index = indexOfPassages(transcript.passages)
     return Option.map(
-      Array.findLast(timedWordsOf(transcript), word => word.startMs <= placeMs),
+      findLastTimedAtOrBefore(index, placeMs),
       word => word.token,
     )
   })
@@ -112,8 +216,46 @@ export const transcriptAt = (
 ): TranscriptNode =>
   Option.match(currentWordTokenAt(transcript, nowMs), {
     onNone: () => transcript,
-    onSome: token => ({
-      ...transcript,
-      passages: Array.map(transcript.passages, markedPassage(token)),
-    }),
+    onSome: token => {
+      const index = indexOfPassages(transcript.passages)
+      const targetIndices = index.passageIndicesByToken.get(token) ?? []
+      const candidateIndices = new Set<number>([
+        ...index.currentPassageIndices,
+        ...targetIndices,
+      ])
+
+      const mark = markedPassage(token)
+      let nextPassages: Array<TranscriptPassage> | undefined = undefined
+
+      for (const passageIndex of candidateIndices) {
+        const current = transcript.passages.at(passageIndex)
+        if (current === undefined) {
+          continue
+        }
+
+        const updated = mark(current)
+        if (updated !== current) {
+          if (nextPassages === undefined) {
+            nextPassages = [...transcript.passages]
+          }
+          nextPassages[passageIndex] = updated
+        }
+      }
+
+      if (nextPassages === undefined) {
+        return transcript
+      }
+
+      passageIndexCache.set(nextPassages, {
+        timed: index.timed,
+        isMonotonic: index.isMonotonic,
+        passageIndicesByToken: index.passageIndicesByToken,
+        currentPassageIndices: targetIndices,
+      })
+
+      return {
+        ...transcript,
+        passages: nextPassages,
+      }
+    },
   })

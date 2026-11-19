@@ -118,4 +118,84 @@ describe('the word being spoken at a moment', () => {
     const { clock: _clock, ...unclocked } = reading(1)
     expect(transcriptAt(unclocked, reportedAtMs + 700)).toBe(unclocked)
   })
+
+  it('hands back the exact same transcript node when the spoken word has not moved', () => {
+    const given = reading(1)
+    expect(transcriptAt(given, reportedAtMs)).toBe(given)
+  })
+
+  it('steps across passages in a large transcript without rebuilding untouched passages', () => {
+    const passages = globalThis.Array.from({ length: 200 }, (_, pIndex) => ({
+      key: `p${pIndex.toString()}`,
+      label: `${pIndex.toString()}:00`,
+      words: globalThis.Array.from({ length: 50 }, (__, wIndex) => {
+        const globalWord = pIndex * 50 + wIndex
+        return {
+          token: `w${globalWord.toString()}`,
+          text: `word${globalWord.toString()}`,
+          startMs: globalWord * 250,
+        }
+      }),
+    }))
+    const large = Transcript({
+      label: 'Large Transcript',
+      action: 'SeekToWord',
+      emptyText: 'No words yet.',
+      clock: { placeMs: 50 * 250 + 100, atMs: reportedAtMs, rate: 1 },
+      passages,
+    })
+
+    const firstStep = transcriptAt(large, reportedAtMs)
+    expect(firstStep.passages.at(0)).toBe(large.passages.at(0))
+    expect(firstStep.passages.at(1)?.isCurrent).toBe(true)
+    expect(
+      firstStep.passages
+        .at(1)
+        ?.words.filter(word => word.isCurrent === true)
+        .map(word => word.token),
+    ).toEqual(['w50'])
+    expect(firstStep.passages.at(199)).toBe(large.passages.at(199))
+
+    const secondStep = transcriptAt(firstStep, reportedAtMs + 250)
+    expect(secondStep.passages.at(0)).toBe(firstStep.passages.at(0))
+    expect(
+      secondStep.passages
+        .at(1)
+        ?.words.filter(word => word.isCurrent === true)
+        .map(word => word.token),
+    ).toEqual(['w51'])
+
+    const jumped = transcriptAt(
+      {
+        ...secondStep,
+        clock: { placeMs: 120 * 50 * 250, atMs: reportedAtMs, rate: 1 },
+      },
+      reportedAtMs,
+    )
+    expect(jumped.passages.at(1)?.isCurrent).toBeUndefined()
+    expect(jumped.passages.at(120)?.isCurrent).toBe(true)
+    expect(jumped.passages.at(50)).toBe(secondStep.passages.at(50))
+  })
+
+  it('still finds the last matching word when timestamps are out of order', () => {
+    const outOfOrder = Transcript({
+      label: 'Out of order',
+      action: 'SeekToWord',
+      emptyText: 'No words yet.',
+      clock: { placeMs: 500, atMs: reportedAtMs, rate: 0 },
+      passages: [
+        {
+          key: 'p0',
+          label: '0:00',
+          words: [
+            { token: 'a', text: 'first', startMs: 1000 },
+            { token: 'b', text: 'second', startMs: 400 },
+          ],
+        },
+      ],
+    })
+    expect(currentWordTokenAt(outOfOrder, reportedAtMs)).toEqual(
+      Option.some('b'),
+    )
+  })
 })

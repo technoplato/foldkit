@@ -5,6 +5,7 @@ import type { Role } from '../theme/theme.js'
 import type { Device } from './device.js'
 import { Column, Row, Text } from './elements.js'
 import { iconGlyphs } from './icons.js'
+import { resolveLazyNode } from './lazy.js'
 import { itemLinesOf } from './listRows.js'
 import { bookmarksInPassage } from './transcriptBookmarks.js'
 import { transcriptEntriesOf } from './transcriptEntries.js'
@@ -818,6 +819,7 @@ const layoutNode = (
           children: [content],
         }
       },
+      Lazy: lazy => layoutNode(resolveLazyNode(lazy), x, y, availableW, ids),
     }),
   )
 

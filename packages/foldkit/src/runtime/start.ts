@@ -155,7 +155,6 @@ const fillWriteTime = (
   now: number,
   programVersion: number,
 ): SyncWrite => {
-  const snapshotRow = asRecord(snapshot)
   const messageRow = asRecord(message)
   const existingId = readRowString(messageRow, 'id')
   const messageId =
@@ -163,11 +162,14 @@ const fillWriteTime = (
       ? newMessageId()
       : existingId.value
   return {
-    snapshot: {
-      ...snapshotRow,
-      asOf: processor,
-      at: now,
-    },
+    snapshot:
+      snapshot === undefined
+        ? undefined
+        : {
+            ...asRecord(snapshot),
+            asOf: processor,
+            at: now,
+          },
     message: {
       ...messageRow,
       id: messageId,
@@ -825,21 +827,25 @@ export function start<
           return
         }
         const { _tag: _readyTag, ...childModel } = model
-        const encodedSnapshot = encodeUnknown(program.snapshot, childModel)
-        if (Result.isFailure(encodedSnapshot)) {
-          sendFromSync(
-            asMessage<Message>(
-              decodeFailed({
-                what: 'This Processor could not encode the snapshot.',
-                meaning: 'The Ready Model did not match the snapshot Schema.',
-                fix: 'Keep the local number. Fix the snapshot Schema.',
-                sent: message,
-                cause: 'Snapshot Schema encode failed.',
-                raw: childModel,
-              }),
-            ),
-          )
-          return
+        let encodedSnapshotValue: unknown = undefined
+        if (engine.writesSnapshot !== false) {
+          const encodedSnapshot = encodeUnknown(program.snapshot, childModel)
+          if (Result.isFailure(encodedSnapshot)) {
+            sendFromSync(
+              asMessage<Message>(
+                decodeFailed({
+                  what: 'This Processor could not encode the snapshot.',
+                  meaning: 'The Ready Model did not match the snapshot Schema.',
+                  fix: 'Keep the local number. Fix the snapshot Schema.',
+                  sent: message,
+                  cause: 'Snapshot Schema encode failed.',
+                  raw: childModel,
+                }),
+              ),
+            )
+            return
+          }
+          encodedSnapshotValue = encodedSnapshot.success
         }
         const encodedMessage = encodeUnknown(program.message, message)
         if (Result.isFailure(encodedMessage)) {
@@ -858,7 +864,7 @@ export function start<
           return
         }
         const write = fillWriteTime(
-          encodedSnapshot.success,
+          encodedSnapshotValue,
           encodedMessage.success,
           engine.processor,
           stampTime(),
