@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { madeUpSessionLog, startMadeUpBooks } from './madeUp.js'
 import { BooksProgram } from './program.js'
+import { longSampleChapters } from './sample.js'
 import { bindBooks, whenShelfOpened } from './synced.js'
 
 const settleMs = 3_000
@@ -107,5 +108,28 @@ describe('the made-up library on a host', () => {
   it('keeps the session every device shares under a name of its own, never a person’s library', () => {
     expect(madeUpSessionLog).not.toBe(BooksProgram.id)
     expect(madeUpSessionLog).toContain('made-up')
+  })
+
+  it('can open a shelf as long as a long-time listener’s: 65 titles, one of them about 16 hours in 134 chapters', async () => {
+    const handle = await startMadeUpBooks({
+      host: Processor.Host.Cli(),
+      shelf: 'Long',
+    })
+    const bound = bindBooks(handle)
+    await Interaction.whenSettled(bound, settleMs)
+    const model = handle.readModel()
+    const titles =
+      model._tag === 'Ready' && model.library._tag === 'ShelfReady'
+        ? model.library.shelf.titles
+        : []
+    const hourMs = 3_600_000
+
+    expect(titles).toHaveLength(65)
+    expect(new Set(titles.map(title => title.slug)).size).toBe(65)
+    expect(Math.max(...titles.map(title => title.durationMs))).toBeGreaterThan(
+      15 * hourMs,
+    )
+    expect(Object.values(longSampleChapters).map(c => c.length)).toContain(134)
+    await handle.stop()
   })
 })
