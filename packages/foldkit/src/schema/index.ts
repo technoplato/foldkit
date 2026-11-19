@@ -349,6 +349,11 @@ export function r(tag: string, fields: S.Struct.Fields = {}): any {
  * Use `ts` for non-message, non-route tagged structs — enabling `Loading()`
  * instead of `Loading.make()`.
  *
+ * Calling it checks and copies every field, however deep. To change a
+ * field of a value an update already holds, spread it or use `evo`:
+ * making a struct that holds a long list again on every Message, such as
+ * a player's words on each second's place, costs the whole list each time.
+ *
  * @example
  * ```typescript
  * const Loading = ts('Loading')

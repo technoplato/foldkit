@@ -278,6 +278,15 @@ const withLoaded = (model: Model, loaded: Loaded): Model => ({
   listening: loaded,
 })
 
+// NOTE: A loaded title with some of its fields changed. It is spread, not
+// made again: making it checks and copies everything the player holds,
+// the words and sections of the whole book, and the place arrives every
+// second. The fields were checked when they were made.
+const changedLoaded = (
+  loaded: Loaded,
+  changed: Partial<Omit<Loaded, '_tag'>>,
+): Loaded => ({ ...loaded, ...changed })
+
 const savedAt = (
   model: Model,
   loaded: Loaded,
@@ -286,7 +295,7 @@ const savedAt = (
   placeMs === loaded.savedPlaceMs
     ? [withLoaded(model, loaded), []]
     : [
-        withLoaded(model, Loaded({ ...loaded, savedPlaceMs: placeMs })),
+        withLoaded(model, changedLoaded(loaded, { savedPlaceMs: placeMs })),
         saveOf(loaded.slug, placeMs),
       ]
 
@@ -316,7 +325,7 @@ const heldOut = (
         Finished: () => [
           withLoaded(
             model,
-            Loaded({ ...loaded, savedPlaceMs: placeOf(loaded) }),
+            changedLoaded(loaded, { savedPlaceMs: placeOf(loaded) }),
           ),
           [WriteLibrary({ write: FinishTitle({ slug: loaded.slug }) })],
         ],
@@ -400,7 +409,7 @@ const stretchEndedAs = (model: Model, reason: StretchEndReason): UpdateReturn =>
       Loaded: loaded => {
         const [stretch, events] = stoppedAt(loaded.stretch, reason)
         return withReportsSent(
-          withLoaded(model, Loaded({ ...loaded, stretch })),
+          withLoaded(model, changedLoaded(loaded, { stretch })),
           stretchReportsOf(model, loaded.slug, events),
         )
       },
@@ -428,7 +437,7 @@ const playerUpdated = (
         )
         const [next, saves] = heldOut(
           model,
-          Loaded({ ...loaded, player, stretch }),
+          changedLoaded(loaded, { player, stretch }),
           maybeOutMessage,
         )
         const [sent, reports] = withReportsSent(
