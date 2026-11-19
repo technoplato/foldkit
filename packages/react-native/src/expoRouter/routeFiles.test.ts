@@ -2,13 +2,8 @@ import { Array, Option } from 'effect'
 import type { DeclaredAddress } from 'foldkit/navigation/route-table'
 import { describe, expect, it } from 'vitest'
 
-import {
-  generatedMark,
-  routeFilesOf,
-  routeNameFor,
-  staleRouteFilesOf,
-  uriOfNamedRoute,
-} from './routeFiles.js'
+import { generatedMark, routeFilesOf, staleRouteFilesOf } from './routeFiles.js'
+import { routeNameFor, uriOfNamedRoute } from './routeNames.js'
 
 const literal = (segment: string) => ({ _tag: 'Literal' as const, segment })
 

@@ -1,7 +1,7 @@
 import { Array, Option, Predicate, Record, Schema as S, pipe } from 'effect'
 import { Navigation } from 'foldkit'
 
-import { routeNameFor, uriOfNamedRoute } from './routeFiles.js'
+import { routeNameFor, uriOfNamedRoute } from './routeNames.js'
 
 // ROUTE
 
