@@ -16,7 +16,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@foldkit/react-native/plugin/sceneLifecycle.cjs"
     ],
     "ios": {
       "bundleIdentifier": "com.knophy.foldkit.books.dev",

@@ -97,4 +97,11 @@ describe('Books Expo boundaries', () => {
       }
     }
   })
+
+  it('adopts the scene life cycle iOS 27 requires, through the adapter’s plugin', () => {
+    const config = readFileSync(join(here, '../app.json'), 'utf8')
+    expect(config).toContain(
+      '"@foldkit/react-native/plugin/sceneLifecycle.cjs"',
+    )
+  })
 })

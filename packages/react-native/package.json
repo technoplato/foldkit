@@ -19,7 +19,8 @@
     "./theme": {
       "types": "./dist/theme/index.d.ts",
       "import": "./dist/theme/index.js"
-    }
+    },
+    "./plugin/sceneLifecycle.cjs": "./plugin/sceneLifecycle.cjs"
   },
   "bin": {
     "foldkit-expo-routes": "./bin/foldkit-expo-routes.mjs"
@@ -27,7 +28,8 @@
   "sideEffects": false,
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "plugin"
   ],
   "scripts": {
     "clean": "rimraf dist *.tsbuildinfo",
