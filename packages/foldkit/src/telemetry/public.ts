@@ -92,3 +92,8 @@ export {
   wholeWindow,
   type TelemetryWindow,
 } from './summary.js'
+export {
+  defaultMaximumLineCharacters,
+  lineSink,
+  type LineSinkOptions,
+} from './lineSink.js'
