@@ -103,6 +103,17 @@ describe('the word being spoken at a moment', () => {
     ])
   })
 
+  it('hands back, untouched, every passage the word neither left nor entered, so a painter repaints only those that changed', () => {
+    const given = reading(1)
+    const sameWord = transcriptAt(given, reportedAtMs)
+    const nextPassage = transcriptAt(given, reportedAtMs + 700)
+
+    expect(sameWord.passages[0]).toBe(given.passages[0])
+    expect(sameWord.passages[1]).toBe(given.passages[1])
+    expect(nextPassage.passages[0]).not.toBe(given.passages[0])
+    expect(nextPassage.passages[1]).not.toBe(given.passages[1])
+  })
+
   it('leaves a transcript with no clock exactly as it is', () => {
     const { clock: _clock, ...unclocked } = reading(1)
     expect(transcriptAt(unclocked, reportedAtMs + 700)).toBe(unclocked)
