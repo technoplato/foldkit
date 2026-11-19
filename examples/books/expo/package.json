@@ -11,6 +11,8 @@
     "prestart:signed-in": "pnpm run prepare-cores && pnpm run voice",
     "pretest": "pnpm run prepare-cores",
     "pretypecheck": "pnpm run prepare-cores",
+    "routes": "node ../../../packages/react-native/bin/foldkit-expo-routes.mjs generate --navigation books-core-example#SyncedBooks",
+    "routes:check": "node ../../../packages/react-native/bin/foldkit-expo-routes.mjs check --navigation books-core-example#SyncedBooks",
     "start": "expo start --port 8097",
     "start:made-up": "EXPO_PUBLIC_BOOKS_MADE_UP=1 expo start --port 8097",
     "start:signed-in": "./scripts/with-books-app expo start --port 8097 --dev-client",

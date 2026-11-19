@@ -8,6 +8,8 @@
     "ios": "../scripts/with-counter-v01-env ../expo/scripts/with-public-instant-env expo start --ios --port 8090",
     "pretest": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter counter-core-example build",
     "pretypecheck": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter counter-core-example build",
+    "routes": "node ../../../packages/react-native/bin/foldkit-expo-routes.mjs generate --navigation counter-core-example#SyncedCounter",
+    "routes:check": "node ../../../packages/react-native/bin/foldkit-expo-routes.mjs check --navigation counter-core-example#SyncedCounter",
     "start": "../scripts/with-counter-v01-env ../expo/scripts/with-public-instant-env expo start --port 8090",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
@@ -33,6 +35,7 @@
     "@babel/plugin-transform-object-rest-spread": "^7.29.7",
     "@types/react": "^19.2.17",
     "babel-preset-expo": "~57.0.4",
+    "counter-core-example": "workspace:*",
     "prettier": "^3.8.4",
     "react-dom": "19.2.3",
     "react-native-web": "~0.21.2",

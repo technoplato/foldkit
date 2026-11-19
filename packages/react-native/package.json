@@ -21,9 +21,13 @@
       "import": "./dist/theme/index.js"
     }
   },
+  "bin": {
+    "foldkit-expo-routes": "./bin/foldkit-expo-routes.mjs"
+  },
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "scripts": {
     "clean": "rimraf dist *.tsbuildinfo",
