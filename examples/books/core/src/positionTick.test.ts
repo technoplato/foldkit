@@ -80,3 +80,33 @@ describe('a position tick while a long title plays', () => {
     expect(each).toBeLessThan(0.2)
   })
 })
+
+// NOTE: A device that takes longer over a tick than a second fell behind:
+// on 2026-11-19 an iPad was taking places 10 to 14 seconds after the
+// audio reported them, and a pause from the terminal waited behind them.
+// The whole Program, as every Client runs it, says a newer place makes a
+// waiting one pointless, so the runtime keeps one.
+describe('the places the player reports, as the whole Program queues them', () => {
+  const place = (seconds: number) =>
+    TranscriptPlayer.ReachedPlace({
+      placeMs: Milliseconds.make(seconds * 1_000),
+      wallClockMs: 1_795_000_000_000 + seconds * 1_000,
+    })
+  const clock = SyncedBooks.subscriptions?.['clock']
+
+  it('lets a newer place take a waiting place’s turn', () => {
+    expect(clock?.supersedes?.(place(4), place(5))).toBe(true)
+  })
+
+  it('never lets a place take the turn of the end, of a failure, or the other way round', () => {
+    const end = TranscriptPlayer.ReachedEnd()
+    const failure = TranscriptPlayer.FailedPlayAudio({ reason: 'no sound' })
+    expect(clock?.supersedes?.(end, place(5))).toBe(false)
+    expect(clock?.supersedes?.(failure, place(5))).toBe(false)
+    expect(clock?.supersedes?.(place(4), end)).toBe(false)
+  })
+
+  it('says nothing of the kind for the shelf, whose every fact must be taken', () => {
+    expect(SyncedBooks.subscriptions?.['shelf']?.supersedes).toBeUndefined()
+  })
+})
