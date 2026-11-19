@@ -32,6 +32,7 @@ import {
   View,
 } from 'react-native'
 
+import { useLaidOut } from '../telemetry/paintReporter.js'
 import { Icon } from './icon.js'
 import { groundStyleOf } from './look.js'
 import { type Paint, pressOf } from './paint.js'
@@ -630,6 +631,7 @@ export const TranscriptView = ({
   paint: Paint
   paintNode: (node: UiNode) => ReactElement
 }>): ReactElement => {
+  const laidOut = useLaidOut()
   const transcript = useLiveTranscript(given)
   const scroll = useContext(ScreenScrollContext)
   const { colors, sizes } = paint.look
@@ -659,6 +661,7 @@ export const TranscriptView = ({
       ),
     [entries],
   )
+  laidOut({ passages: windowEntries.length })
   const pending = useRef<
     Readonly<{ token: string | undefined; jumps: number }>
   >({ token: undefined, jumps: 0 })

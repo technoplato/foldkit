@@ -140,6 +140,26 @@ describe('what came of asking for newer code', () => {
     )
   })
 
+  it('reads an updates module that says null where it has nothing to say', () => {
+    expect(
+      updatesOutcomeOf({
+        ...settled,
+        checkError: null,
+        downloadError: null,
+        downloadedManifest: null,
+        lastCheckForUpdateTime: null,
+      }),
+    ).toEqual(Option.none())
+    expect(
+      updatesOutcomeOf({
+        ...settled,
+        checkError: null,
+        downloadError: null,
+        lastCheckForUpdateTime: new Date('2026-11-19T16:00:00Z'),
+      }),
+    ).toEqual(Option.some({ updates: 'none newer' }))
+  })
+
   it('is that newer code could not be fetched', () => {
     expect(
       updatesOutcomeOf({

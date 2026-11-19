@@ -8,10 +8,10 @@ type Note = Readonly<Record<string, unknown>>
 // when the test lets the thread run again, as a real one does after the
 // JavaScript thread was held.
 const world = () => {
-  const state = {
-    nowMs: 0,
-    due: [] as Array<{ atMs: number; run: () => void }>,
-  }
+  const state: {
+    nowMs: number
+    due: Array<{ atMs: number; run: () => void }>
+  } = { nowMs: 0, due: [] }
   const said: Array<Note> = []
   const freeFor = (ms: number): void => {
     const until = state.nowMs + ms

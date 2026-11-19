@@ -74,6 +74,27 @@ describe('a phone’s telemetry in a development build', () => {
     )
   })
 
+  it('still attaches when what the phone says later breaks: keeping a trace never stops the app', () => {
+    const lines: Array<string> = []
+    const running = handle()
+    const attached = attachDevelopmentTelemetry(running, {
+      app: 'books',
+      isDevelopment: true,
+      write: line => {
+        lines.push(line)
+      },
+      laterNotes: () => {
+        throw new Error('the updates module said something odd')
+      },
+    })
+
+    expect(Option.isSome(attached)).toBe(true)
+    expect(running.observedCount()).toBe(1)
+    expect(lines.filter(line => line.startsWith('foldkit-host-note '))).toEqual(
+      [expect.stringContaining('the updates module said something odd')],
+    )
+  })
+
   it('asks for nothing later in a build that is not for development', () => {
     const asked: Array<unknown> = []
     attachDevelopmentTelemetry(handle(), {
