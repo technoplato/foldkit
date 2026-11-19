@@ -13,6 +13,8 @@ import {
 } from 'foldkit/renderers'
 import {
   type ReactElement,
+  memo,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -465,28 +467,35 @@ export const useLiveTranscript = (
   transcript: TranscriptNode,
 ): TranscriptNode => {
   const isRunning = transcript.clock !== undefined && transcript.clock.rate > 0
-  const [nowMs, setNowMs] = useState(() => Date.now())
+  const given = useRef(transcript)
+  given.current = transcript
+  const tokenNow = (): string | undefined =>
+    Option.getOrUndefined(currentWordTokenAt(given.current, Date.now()))
+  // NOTE: the clock is read many times a second, and the view is told only
+  // when the word it reads is another word: a tick that lands on the same
+  // word paints nothing.
+  const [tickedToken, setTickedToken] = useState<string | undefined>(tokenNow)
   useEffect(() => {
     if (!isRunning) {
       return undefined
     }
-    setNowMs(Date.now())
+    setTickedToken(tokenNow())
     const timer = setInterval(() => {
-      setNowMs(Date.now())
+      setTickedToken(tokenNow())
     }, liveWordEveryMs)
     return () => {
       clearInterval(timer)
     }
+    // NOTE: the timer reads the Transcript through `given`, so it is set
+    // up once for as long as the clock runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRunning])
-  const liveToken = isRunning
-    ? Option.getOrUndefined(currentWordTokenAt(transcript, nowMs))
-    : undefined
+  const liveToken = isRunning ? tickedToken : undefined
   return useMemo(
     () =>
-      liveToken === undefined ? transcript : transcriptAt(transcript, nowMs),
-    // NOTE: `nowMs` is left out on purpose: the Transcript is marked again
-    // when the word changes, not on every tick of the clock.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      liveToken === undefined
+        ? transcript
+        : transcriptAt(transcript, Date.now()),
     [transcript, liveToken],
   )
 }
@@ -509,6 +518,61 @@ type PassagePlace = Readonly<{
 const noLines: LaidOutLines = []
 
 const noBookmarks: ReadonlyArray<PlacedBookmark> = []
+
+type PassageBlockProps = Readonly<{
+  passage: TranscriptPassage
+  action: TranscriptNode['action']
+  wordMenuAction: TranscriptNode['wordMenuAction']
+  bookmarks: TranscriptNode['bookmarks']
+  paint: Paint
+  onPart: (key: string, part: View | null) => void
+  onLaidOut: (key: string) => void
+  onLines: (key: string, lines: LaidOutLines, textY: number) => void
+}>
+
+// NOTE: one passage of the Transcript, painted again only when the passage
+// itself is another object: the core hands back every passage the spoken
+// word neither left nor entered as the object it was, so a word moving on
+// repaints its own passage and no other.
+const PassageBlock = memo(
+  ({
+    passage,
+    action,
+    wordMenuAction,
+    bookmarks,
+    paint,
+    onPart,
+    onLaidOut,
+    onLines,
+  }: PassageBlockProps): ReactElement => {
+    const inPassage = useMemo(
+      () =>
+        bookmarks === undefined
+          ? noBookmarks
+          : bookmarksInPassage(passage, bookmarks),
+      [passage, bookmarks],
+    )
+    const actions = useMemo(
+      () =>
+        wordMenuAction === undefined ? { action } : { action, wordMenuAction },
+      [action, wordMenuAction],
+    )
+    return (
+      <View
+        ref={part => {
+          onPart(passage.key, part)
+        }}
+        onLayout={() => {
+          onLaidOut(passage.key)
+        }}
+      >
+        {paintPassage(passage, actions, inPassage, paint, (lines, textY) => {
+          onLines(passage.key, lines, textY)
+        })}
+      </View>
+    )
+  },
+)
 
 /**
  * Words to read along with. While the Transcript says the view follows
@@ -699,7 +763,35 @@ export const TranscriptView = ({
     }
   }
 
-  const entries = transcriptEntriesOf(transcript)
+  // NOTE: what a passage tells the view is read through `noted`, so the
+  // three callbacks a passage block is given never change and never make
+  // it paint again.
+  const noted = useRef({ notePlace, scroll })
+  noted.current = { notePlace, scroll }
+  const onPart = useCallback((key: string, part: View | null): void => {
+    if (part === null) {
+      parts.current.delete(key)
+    } else {
+      parts.current.set(key, part)
+    }
+  }, [])
+  const onLaidOut = useCallback((key: string): void => {
+    const part = parts.current.get(key)
+    const within = noted.current.scroll
+    if (within !== undefined && part !== undefined) {
+      within.measure(part, (y, height) => {
+        noted.current.notePlace(key, { y, height })
+      })
+    }
+  }, [])
+  const onLines = useCallback(
+    (key: string, lines: LaidOutLines, textY: number): void => {
+      noted.current.notePlace(key, { lines, textY })
+    },
+    [],
+  )
+
+  const entries = useMemo(() => transcriptEntriesOf(transcript), [transcript])
   const wordMenu = transcript.wordMenu
   const showOverlay = useContext(ScreenOverlayContext)
   const menuWord =
@@ -751,36 +843,17 @@ export const TranscriptView = ({
           M.withReturnType<ReactElement>(),
           M.tagsExhaustive({
             PassageEntry: ({ passage }) => (
-              <View
+              <PassageBlock
                 key={passage.key}
-                ref={part => {
-                  if (part === null) {
-                    parts.current.delete(passage.key)
-                  } else {
-                    parts.current.set(passage.key, part)
-                  }
-                }}
-                onLayout={() => {
-                  const part = parts.current.get(passage.key)
-                  if (scroll !== undefined && part !== undefined) {
-                    scroll.measure(part, (y, height) => {
-                      notePlace(passage.key, { y, height })
-                    })
-                  }
-                }}
-              >
-                {paintPassage(
-                  passage,
-                  transcript,
-                  transcript.bookmarks === undefined
-                    ? noBookmarks
-                    : bookmarksInPassage(passage, transcript.bookmarks),
-                  paint,
-                  (lines, textY) => {
-                    notePlace(passage.key, { lines, textY })
-                  },
-                )}
-              </View>
+                action={transcript.action}
+                bookmarks={transcript.bookmarks}
+                onLaidOut={onLaidOut}
+                onLines={onLines}
+                onPart={onPart}
+                paint={paint}
+                passage={passage}
+                wordMenuAction={transcript.wordMenuAction}
+              />
             ),
             ItemEntry: ({ item }) => (
               <View

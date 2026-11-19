@@ -6,6 +6,7 @@ import { type Look, lightLook } from '../interaction/look.js'
 import {
   type NativePresentation,
   entryOfNavigatorKey,
+  isCoveredOf,
   presentationOf,
 } from './stack.js'
 
@@ -16,6 +17,8 @@ import {
  * entry without one, because native stack headers fall back to the route
  * name otherwise. The header and the page beneath take the look's
  * colors, so the platform's own chrome is in the Program's mode.
+ * `freezeOnBlur` is true for a page another page covers: the stack stops
+ * painting it until it is back in sight.
  */
 export type EntryOptions = Readonly<{
   presentation: NativePresentation
@@ -26,6 +29,7 @@ export type EntryOptions = Readonly<{
   headerStyle: Readonly<{ backgroundColor: string }>
   headerTitleStyle: Readonly<{ color: string }>
   contentStyle: Readonly<{ backgroundColor: string }>
+  freezeOnBlur: boolean
 }>
 
 /**
@@ -48,7 +52,8 @@ export const entryOptionsOf = (
   key: string,
   look: Look = lightLook,
 ): EntryOptions => {
-  const maybeEntry = Option.flatMap(bound.navigation(), plan =>
+  const maybePlan = bound.navigation()
+  const maybeEntry = Option.flatMap(maybePlan, plan =>
     entryOfNavigatorKey(plan, key),
   )
   const presentation = presentationOf(
@@ -69,5 +74,9 @@ export const entryOptionsOf = (
     contentStyle: {
       backgroundColor: isFloating ? 'transparent' : look.colors.PageGround,
     },
+    freezeOnBlur: Option.match(maybePlan, {
+      onNone: () => false,
+      onSome: plan => isCoveredOf(plan, key),
+    }),
   }
 }

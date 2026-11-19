@@ -292,6 +292,37 @@ export const entryOfNavigatorKey = <Destination>(
     entry => entry.identity === planKeyOf(navigatorKey),
   )
 
+const fillsTheScreen = (presentation: NativePresentation): boolean =>
+  presentation === 'card' || presentation === 'fullScreenModal'
+
+/**
+ * Whether the page a navigator's route shows is out of sight: some entry
+ * after it in the plan fills the screen. A sheet or a dialog over a page
+ * leaves it in sight, so it is not covered by those.
+ *
+ * @example
+ * ```typescript
+ * isCoveredOf(plan, '/books') // true once a title's page is pushed over the library
+ * ```
+ */
+export const isCoveredOf = <Destination>(
+  plan: Navigation.CarrierPlan<Destination>,
+  navigatorKey: string,
+): boolean =>
+  pipe(
+    Array.findFirstIndex(
+      plan.entries,
+      entry => entry.identity === planKeyOf(navigatorKey),
+    ),
+    Option.match({
+      onNone: () => false,
+      onSome: index =>
+        Array.some(Array.drop(plan.entries, index + 1), later =>
+          fillsTheScreen(presentationOf(later.maybeStyle)),
+        ),
+    }),
+  )
+
 /**
  * How a steady stack writes an address that moves under a page that
  * stays. Where a navigator shows the address, as Expo Router does in a
