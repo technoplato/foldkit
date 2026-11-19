@@ -1,7 +1,7 @@
 {
   "name": "foldkit-skills",
-  "version": "0.10.32",
-  "description": "Skills for building Foldkit apps with architecture, Schema, Effect, state, Program runtimes, navigation, testing, view, and multi-client guidance",
+  "version": "0.10.33",
+  "description": "Skills for building Foldkit apps with architecture, Schema, Effect, state, Program runtimes, navigation, testing, debugging, view, and multi-client guidance",
   "skills": [
     "./skills/foldkit/",
     "./skills/foldkit-composable-architecture/",
@@ -12,6 +12,7 @@
     "./skills/foldkit-sharing/",
     "./skills/foldkit-navigation/",
     "./skills/foldkit-testing/",
+    "./skills/foldkit-debugging/",
     "./skills/foldkit-view/",
     "./skills/foldkit-client-hosts/",
     "./skills/generate-program/",

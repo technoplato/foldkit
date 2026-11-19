@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Debugging'
+  short_description: 'Read a Program’s trace, alone or across two devices'
+  default_prompt: 'Use $foldkit-debugging to find out from the trace what this Foldkit Program did.'
