@@ -55,6 +55,24 @@ export const CountRow = S.Struct({ name: S.String, count: S.Int })
 /** One row of a count ranking. */
 export type CountRow = typeof CountRow.Type
 
+/**
+ * How much one Message carried in a window: how often it ran, the bytes
+ * of its payloads as JSON, all together and the largest one, and those
+ * bytes averaged over each minute. A Message that carries a whole
+ * collection each time one row of it changes shows here, where its count
+ * alone hides it.
+ */
+export const MessageWeight = S.Struct({
+  message: S.String,
+  count: S.Int,
+  payloadBytes: S.Int,
+  largestBytes: S.Int,
+  bytesPerMinute: S.Number,
+})
+
+/** How much one Message carried in a window. */
+export type MessageWeight = typeof MessageWeight.Type
+
 /** One Command's durations. */
 export const CommandDurations = S.Struct({
   command: S.String,
@@ -142,7 +160,8 @@ export type CrashRow = typeof CrashRow.Type
 
 /**
  * What one surface's sessions did in a window: which roles they had, the
- * busiest Messages and Actions, the slowest Commands, the Commands that
+ * busiest Messages and Actions, the Messages whose payloads weighed the
+ * most, the slowest Commands, the Commands that
  * failed or never finished, update and render durations, how many
  * transitions ran per minute, how often each Subscription restarted, and
  * every crash. `fromAt` and `toAt` are the surface's own first and last
@@ -156,6 +175,7 @@ export const SurfaceSummary = S.Struct({
   fromAt: S.String,
   toAt: S.String,
   topMessages: S.Array(CountRow),
+  heaviestMessages: S.Array(MessageWeight),
   topActions: S.Array(CountRow),
   slowestCommands: S.Array(CommandDurations),
   commandFailures: S.Array(CommandFailure),
@@ -255,6 +275,55 @@ const countRows = (
     Record.toEntries,
     Array.map(([name, occurrences]) => ({ name, count: occurrences.length })),
     Array.sort(byCountDescending),
+    Array.take(limit),
+  )
+
+const payloadEncoder = new TextEncoder()
+
+const payloadBytesOf = (
+  event: Extract<TelemetryEvent, { _tag: 'Transition' }>,
+): number =>
+  event.payload === undefined
+    ? 0
+    : payloadEncoder.encode(JSON.stringify(event.payload)).length
+
+const byPayloadBytesDescending = Order.mapInput(
+  Order.flip(Number_.Order),
+  (row: MessageWeight) => row.payloadBytes,
+)
+
+const messageWeightsOf = (
+  transitions: ReadonlyArray<Extract<TelemetryEvent, { _tag: 'Transition' }>>,
+  spanMinutes: number,
+  limit: number,
+): ReadonlyArray<MessageWeight> =>
+  pipe(
+    transitions,
+    Array.map(transition => ({
+      message: transition.message,
+      bytes: payloadBytesOf(transition),
+    })),
+    Array.filter(weighed => weighed.bytes > 0),
+    Array.groupBy(weighed => weighed.message),
+    Record.toEntries,
+    Array.map(([message, weighed]) => {
+      const payloadBytes = Array.reduce(
+        weighed,
+        0,
+        (total, each) => total + each.bytes,
+      )
+      return {
+        message,
+        count: weighed.length,
+        payloadBytes,
+        largestBytes: Array.reduce(weighed, 0, (largest, each) =>
+          Math.max(largest, each.bytes),
+        ),
+        bytesPerMinute:
+          payloadBytes / Math.max(spanMinutes, minimumAveragedMinutes),
+      }
+    }),
+    Array.sort(byPayloadBytesDescending),
     Array.take(limit),
   )
 
@@ -535,6 +604,7 @@ const surfaceSummaryOf = (
       Array.map(transitions, transition => transition.message),
       limit,
     ),
+    heaviestMessages: messageWeightsOf(transitions, spanMinutes, limit),
     topActions: countRows(
       Array.getSomes(Array.map(transitions, actionNameOf)),
       limit,
@@ -729,6 +799,20 @@ const surfaceLines = (summary: SurfaceSummary): ReadonlyArray<string> => [
           ),
       }),
     ),
+    ...(Array.isReadonlyArrayEmpty(summary.heaviestMessages)
+      ? []
+      : section(
+          'Heaviest Messages',
+          tableLines(
+            ['bytes a minute', 'count', 'largest', 'message'],
+            Array.map(summary.heaviestMessages, row => [
+              Math.round(row.bytesPerMinute).toString(),
+              row.count.toString(),
+              row.largestBytes.toString(),
+              row.message,
+            ]),
+          ),
+        )),
     ...section(
       'Top Actions',
       Array.match(summary.topActions, {
