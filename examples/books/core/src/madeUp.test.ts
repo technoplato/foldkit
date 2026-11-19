@@ -141,9 +141,11 @@ describe('the made-up library on a host', () => {
     await handle.stop()
   })
 
-  it('has a chapter of ten thousand made-up words for the long shelf’s long book, each word after the last', () => {
+  it('has passages of about two thousand made-up words each, so a reader handed five of them holds ten thousand', () => {
+    const counts = longMadeUpPassages.map(passage => passage.words.length)
     const words = longMadeUpPassages.flatMap(passage => passage.words)
-    expect(words.length).toBeGreaterThanOrEqual(10_000)
+
+    expect(Math.min(...counts)).toBeGreaterThanOrEqual(2_000)
     expect(new Set(words.map(word => word.wordId)).size).toBe(words.length)
     expect(
       words.every(

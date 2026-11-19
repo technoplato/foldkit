@@ -5,7 +5,6 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 import { MediaId, Milliseconds } from './ids.js'
 import { LibraryStore } from './library.js'
 import {
-  longBookSlug,
   longSampleChapters,
   longSampleShelf,
   makeTestLibraryStore,
@@ -55,13 +54,14 @@ const noPassages: Passages = { passages: [], nextMs: 0 }
 
 const madeUpPassagesOf = (
   passageCount: number,
+  sentencesIn: (index: number) => number = sentencesInPassage,
 ): ReadonlyArray<TranscriptPlayer.Passage> =>
   Array.reduce(Array.range(0, passageCount - 1), noPassages, (state, index) => {
     // A paragraph is a few of the sentences, starting one further on
     // each time, so paragraphs differ and are long enough to wrap.
     const sentence = Array.join(
       Array.map(
-        Array.range(0, sentencesInPassage(index) - 1),
+        Array.range(0, sentencesIn(index) - 1),
         at =>
           madeUpSentences[(index + at) % madeUpSentences.length] ??
           'The lamp was lit.',
@@ -104,16 +104,22 @@ const madeUpPassagesOf = (
 export const madeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
   madeUpPassagesOf(madeUpPassageCount)
 
-const longMadeUpPassageCount = 1_200
+const longMadeUpPassageCount = 12
+
+const sentencesInLongPassage = 260
 
 /**
- * A made-up chapter as long as a real one: more than ten thousand made-up
- * words in twelve hundred paragraphs. The long made-up shelf gives it to
- * its long book, so a reader can be measured on a chapter no painter
- * should lay out whole.
+ * Made-up words in passages as long as a real recording's can be: twelve
+ * passages of about two thousand words each, with no pause inside one. A
+ * reader is handed the passage being read and its neighbours, so here it
+ * is handed about ten thousand words at once: a chapter no painter should
+ * lay out whole. The long made-up shelf gives them to one title.
  */
 export const longMadeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
-  madeUpPassagesOf(longMadeUpPassageCount)
+  madeUpPassagesOf(longMadeUpPassageCount, () => sentencesInLongPassage)
+
+/** The title of the long made-up shelf whose passages are the long ones. */
+export const longWordedSlug = 'a-field-guide-to-weather'
 
 // SESSION
 
@@ -181,7 +187,7 @@ export const startMadeUpBooks = async (
         new Map(
           Array.map(shelf.titles, title => [
             MediaId.make(title.slug),
-            isLong && title.slug === longBookSlug
+            isLong && title.slug === longWordedSlug
               ? longMadeUpPassages
               : madeUpPassages,
           ]),
