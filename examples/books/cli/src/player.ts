@@ -898,10 +898,17 @@ export const makeBooksPlayer = (
         stderr: `Play from where? Give a link to a word or a time, such as: ${exampleLineOf(PlayFrom)}`,
         exitCode: 1,
       }),
-      onSome: place => {
-        const sought = ran(['seek-to', place], flags, client)
-        return sought.exitCode === 0 ? ran(['play'], flags, client) : sought
-      },
+      // NOTE: The Program's own PlayFrom, pressed with the place: it moves
+      // there and plays whatever the player was doing, and refuses a
+      // place past the end in its own words. Making it here out of a seek
+      // and a play refused while a title was already playing, because
+      // play is not available then.
+      onSome: place =>
+        ran(
+          [Catalog.commandOf(TranscriptPlayer.PlayFrom.tag), place],
+          flags,
+          client,
+        ),
     })
   /**
    * `books bookmark [note]`: marks the word being spoken and answers once

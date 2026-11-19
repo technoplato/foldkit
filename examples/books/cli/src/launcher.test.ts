@@ -302,10 +302,6 @@ describe(
       ).header
       expect(header.isPlaying).toBe(true)
       expect(header.placeMs).toBeGreaterThanOrEqual(60_000)
-      // A time past the end is refused in the Program's own words.
-      const past = books(library, ['play-from', '9:00:00'])
-      expect(past.status).toBe(1)
-      expect(past.stderr).toContain('that is past the end')
     })
 
     it('prints help read from the declarations, and starts no player to do it', () => {

@@ -16,7 +16,7 @@ import {
   ReceivedPassages,
   catalog,
 } from './message.js'
-import { type Model, type Passage, init } from './model.js'
+import { type Model, type Passage, init, isSounding } from './model.js'
 import type { OutMessage } from './outMessage.js'
 import {
   playerScreen,
@@ -264,5 +264,40 @@ describe('the Transcript Player', () => {
         message._tag === 'ReceivedPassages' ? message.passages.length : -1,
       ),
     ).toEqual([2])
+  })
+})
+
+// NOTE: One rule for every Client: naming a place to play from moves
+// there and plays, whatever the player was doing. A terminal's
+// `play-from`, a page's seek and a phone's tap on a word all press this.
+describe('playing from a place', () => {
+  const placeTag = (seconds: number): string =>
+    `PlayFrom:${(seconds * 1_000).toString()}`
+
+  it('is offered while the audio is already playing, and moves there and keeps playing', () => {
+    const playing = pressed(loaded(1_000), 'Play')
+    expect(isSounding(playing)).toBe(true)
+    expect(
+      Option.isSome(Catalog.messageFor(catalog, playing, placeTag(3))),
+    ).toBe(true)
+    const moved = pressed(playing, placeTag(3))
+    expect(moved.placeMs).toBe(3_000)
+    expect(isSounding(moved)).toBe(true)
+  })
+
+  it('starts the audio when it was paused', () => {
+    const paused = loaded(1_000)
+    expect(isSounding(paused)).toBe(false)
+    const moved = pressed(paused, placeTag(2))
+    expect(moved.placeMs).toBe(2_000)
+    expect(isSounding(moved)).toBe(true)
+  })
+
+  it('is refused past the end', () => {
+    expect(
+      Option.isSome(
+        Catalog.messageFor(catalog, loaded(1_000), placeTag(99_999)),
+      ),
+    ).toBe(false)
   })
 })
