@@ -1,7 +1,7 @@
 import { Option } from 'effect'
 import { Telemetry } from 'foldkit'
 
-import { watchHostErrors } from './hostErrors.js'
+import { hostNoteLineOf, watchHostErrors } from './hostErrors.js'
 
 // DEVELOPMENT TELEMETRY
 
@@ -22,13 +22,16 @@ export const telemetryLineOf = (line: string): string =>
 
 /**
  * How a phone attaches telemetry: the app's name, as every Client of it
- * gives, and, for a test, whether this is a development build and where
- * the lines go.
+ * gives; whether to record, when it is not for the build to say; where
+ * the lines go, when not the console, and where a line that cannot wait
+ * goes; and facts the phone says about itself once, as the trace starts.
  */
 export type DevelopmentTelemetryOptions = Readonly<{
   app: string
   isDevelopment?: boolean
   write?: (line: string) => void
+  writeNow?: (line: string) => void
+  note?: Readonly<Record<string, unknown>>
 }>
 
 // NOTE: Fast Refresh runs this module again in the same JavaScript
@@ -71,7 +74,10 @@ export const attachDevelopmentTelemetry = <
   const isOn = options.isDevelopment ?? isDevelopmentBuild()
   if (isOn && Reflect.get(globalThis, hostWatchKey) !== true) {
     Reflect.set(globalThis, hostWatchKey, true)
-    watchHostErrors({ write })
+    watchHostErrors({ write: options.writeNow ?? write })
+  }
+  if (isOn && options.note !== undefined) {
+    write(hostNoteLineOf(options.note, new Date()))
   }
   return isOn
     ? Option.some(

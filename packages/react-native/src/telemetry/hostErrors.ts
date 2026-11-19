@@ -3,6 +3,25 @@
 /** What every line about a JavaScript failure outside the Program starts with. */
 export const hostErrorLineMark = 'foldkit-host-error '
 
+/** What every line a phone writes about itself, once, starts with. */
+export const hostNoteLineMark = 'foldkit-host-note '
+
+/**
+ * One line of facts a phone says about itself when its trace starts, such
+ * as whether a guard is on in this build.
+ *
+ * @example
+ * ```typescript
+ * hostNoteLineOf({ reactNativeSchedulerGuard: true }, new Date())
+ * // 'foldkit-host-note {"at":"…","reactNativeSchedulerGuard":true}'
+ * ```
+ */
+export const hostNoteLineOf = (
+  note: Readonly<Record<string, unknown>>,
+  at: Date,
+): string =>
+  `${hostNoteLineMark}${JSON.stringify({ at: at.toISOString(), ...note })}`
+
 const maximumStackCharacters = 1_500
 
 /**

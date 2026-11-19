@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   hostErrorLineMark,
   hostErrorLineOf,
+  hostNoteLineMark,
+  hostNoteLineOf,
   watchHostErrors,
 } from './hostErrors.js'
 
@@ -68,5 +70,19 @@ describe('what a phone writes when its JavaScript fails outside the Program', ()
     expect(() => {
       watchHostErrors({ errorUtils: undefined, write: () => undefined })
     }).not.toThrow()
+  })
+})
+
+describe('what a phone says about itself when its trace starts', () => {
+  it('is one marked line with the time and the facts it was given', () => {
+    const line = hostNoteLineOf(
+      { reactNativeSchedulerGuard: true },
+      new Date('2026-11-19T15:00:00.000Z'),
+    )
+    expect(line.startsWith(hostNoteLineMark)).toBe(true)
+    expect(JSON.parse(line.slice(hostNoteLineMark.length))).toEqual({
+      at: '2026-11-19T15:00:00.000Z',
+      reactNativeSchedulerGuard: true,
+    })
   })
 })

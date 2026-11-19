@@ -24,7 +24,8 @@
       "types": "./dist/telemetry/index.d.ts",
       "import": "./dist/telemetry/index.js"
     },
-    "./plugin/sceneLifecycle.cjs": "./plugin/sceneLifecycle.cjs"
+    "./plugin/sceneLifecycle.cjs": "./plugin/sceneLifecycle.cjs",
+    "./plugin/schedulerGuard.cjs": "./plugin/schedulerGuard.cjs"
   },
   "bin": {
     "foldkit-expo-routes": "./bin/foldkit-expo-routes.mjs"
