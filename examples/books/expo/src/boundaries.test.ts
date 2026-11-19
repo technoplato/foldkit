@@ -64,4 +64,13 @@ describe('Books Expo boundaries', () => {
     expect(access).toContain('openAuthSessionAsync')
     expect(access).toContain('SecureStore.setItemAsync')
   })
+
+  it('asks the phone for nothing it does not use: sound in the background, never the microphone', () => {
+    const config = readFileSync(join(here, '../app.json'), 'utf8')
+    const app: unknown = JSON.parse(config)
+    expect(config).toContain('"UIBackgroundModes"')
+    expect(JSON.stringify(app)).toContain(
+      '["expo-audio",{"microphonePermission":false}]',
+    )
+  })
 })
