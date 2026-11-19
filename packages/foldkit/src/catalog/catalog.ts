@@ -654,12 +654,56 @@ export const entryOf = <Tag extends string, Model>(
   }),
 })
 
-/** Projects every Action of a Catalog against the current Model, in order. */
+// NOTE: A Model is a value that is never changed in place: the next Model
+// is another object. So what a Catalog projects from one Model is kept
+// with that Model, and is gone when the Model is.
+const projected = new WeakMap<object, WeakMap<object, ReadonlyArray<Entry>>>()
+
+const projectedFor = (
+  catalog: object,
+): WeakMap<object, ReadonlyArray<Entry>> => {
+  const kept = projected.get(catalog)
+  if (kept !== undefined) {
+    return kept
+  }
+  const fresh = new WeakMap<object, ReadonlyArray<Entry>>()
+  projected.set(catalog, fresh)
+  return fresh
+}
+
+const isKeepable = (model: unknown): model is object =>
+  typeof model === 'object' && model !== null
+
+/**
+ * Projects every Action of a Catalog against the current Model, in order.
+ * The projection is made once for one Model and kept with it, so a screen
+ * that asks wherever it draws a control, such as once for each row of a
+ * list, pays for it once.
+ *
+ * @example
+ * ```typescript
+ * Catalog.entries(catalog, model) === Catalog.entries(catalog, model) // true
+ * ```
+ */
 export const entries = <C extends AnyCatalog>(
   catalog: C,
   model: ModelOf<C>,
-): ReadonlyArray<Entry<TagOf<C>>> =>
-  Array.map(catalog.actions, declaration => entryOf(declaration, model))
+): ReadonlyArray<Entry<TagOf<C>>> => {
+  const project = (): ReadonlyArray<Entry<TagOf<C>>> =>
+    Array.map(catalog.actions, declaration => entryOf(declaration, model))
+  if (!isKeepable(model)) {
+    return project()
+  }
+  const kept = projectedFor(catalog)
+  const known = kept.get(model)
+  if (known !== undefined) {
+    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+    return known as ReadonlyArray<Entry<TagOf<C>>>
+  }
+  const fresh = project()
+  kept.set(model, fresh)
+  return fresh
+}
 
 // LOOKUP
 
