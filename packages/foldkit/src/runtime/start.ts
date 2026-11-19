@@ -1268,16 +1268,53 @@ export function start<
       yield* reconcile
     }
 
+    // NOTE: A Message's row is written the moment its update has been
+    // applied, before the Commands that update returned are started. The
+    // row tells every other device what was pressed; writing it only
+    // after the Message's whole operation had ended made a pause, which
+    // saves the place, reach the others seconds later than a play. The
+    // journal tells its observers as a transition is recorded, which is
+    // after the update and before its Commands.
+    const awaitingWrite = new Map<Message, Array<Deferred.Deferred<void>>>()
+    const writtenWhenTaken = (message: Message): Deferred.Deferred<void> => {
+      const written = Deferred.makeUnsafe<void>()
+      awaitingWrite.set(message, [
+        ...(awaitingWrite.get(message) ?? []),
+        written,
+      ])
+      return written
+    }
+    const stopWritingWhenTaken = runtime.journal.observe(transition => {
+      const waiting = awaitingWrite.get(transition.message)
+      if (waiting === undefined) {
+        return
+      }
+      const [written, ...others] = waiting
+      if (Array.isReadonlyArrayEmpty(others)) {
+        awaitingWrite.delete(transition.message)
+      } else {
+        awaitingWrite.set(transition.message, others)
+      }
+      if (written !== undefined) {
+        Effect.runFork(
+          persist(transition.message).pipe(
+            Effect.ensuring(Deferred.succeed(written, undefined)),
+          ),
+        )
+      }
+    })
+    yield* Effect.addFinalizer(() => Effect.sync(stopWritingWhenTaken))
+
     return {
       ...runtime,
       send: (message: Message, options) => {
         if (isRejectedLocally(message)) {
           return
         }
-        runtime.send(message, options)
         if (!isLocalOnly(message)) {
-          Effect.runFork(persist(message))
+          writtenWhenTaken(message)
         }
+        runtime.send(message, options)
       },
       run: (message: Message, options) => {
         if (isRejectedLocally(message)) {
@@ -1285,9 +1322,12 @@ export function start<
         } else if (isLocalOnly(message)) {
           return runtime.run(message, options)
         } else {
-          return runtime
-            .run(message, options)
-            .pipe(Effect.tap(() => persist(message)))
+          return Effect.suspend(() => {
+            const written = writtenWhenTaken(message)
+            return runtime
+              .run(message, options)
+              .pipe(Effect.tap(() => Deferred.await(written)))
+          })
         }
       },
       lastWrite: () => lastWrite,
