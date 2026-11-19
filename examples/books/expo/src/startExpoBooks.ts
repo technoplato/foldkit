@@ -17,6 +17,7 @@ import {
 import { Layer, Option } from 'effect'
 import { Processor, Runtime, type Telemetry } from 'foldkit'
 import { Platform } from 'react-native'
+import { enableSchedulerDelegateInvalidation } from 'react-native/src/private/featureflags/ReactNativeFeatureFlags'
 
 import {
   Instant,
@@ -29,6 +30,7 @@ import { init } from '@instantdb/react-native'
 
 import { type PhoneConnection, isTelemetryAsked } from './connection'
 import { type Running, phoneResources } from './phoneResources'
+import { traceFiles } from './traceFiles'
 
 type PhoneDatabase = ReturnType<typeof init>
 
@@ -41,6 +43,9 @@ type ExpoGlobals = typeof globalThis & {
 }
 
 const expoGlobals = (): ExpoGlobals => globalThis
+
+const isDevelopmentBuild = (): boolean =>
+  Reflect.get(globalThis, '__DEV__') === true
 
 const expoHost = (): Processor.Host.Host =>
   Platform.OS === 'ios'
@@ -74,9 +79,17 @@ const traced = <
   const isAsked = isTelemetryAsked({
     EXPO_PUBLIC_BOOKS_TELEMETRY: process.env.EXPO_PUBLIC_BOOKS_TELEMETRY,
   })
+  // NOTE: a development build prints its trace, which the dev server
+  // keeps. A build that carries its own code has nobody reading what it
+  // prints, so when it is asked to keep a trace it keeps it as files.
+  const maybeFiles = isAsked && !isDevelopmentBuild() ? traceFiles() : undefined
   const attached = attachDevelopmentTelemetry(handle, {
     app: 'books',
+    note: { reactNativeSchedulerGuard: enableSchedulerDelegateInvalidation() },
     ...(isAsked ? { isDevelopment: true } : {}),
+    ...(maybeFiles === undefined
+      ? {}
+      : { write: maybeFiles.write, writeNow: maybeFiles.writeNow }),
   })
   Option.match(attached, {
     onNone: () => undefined,

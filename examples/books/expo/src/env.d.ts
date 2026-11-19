@@ -9,3 +9,9 @@ declare const process: {
 }
 
 declare const require: (path: string) => number
+
+// NOTE: React Native's own reading of one of its feature flags. The file is
+// part of React Native without types of its own.
+declare module 'react-native/src/private/featureflags/ReactNativeFeatureFlags' {
+  export const enableSchedulerDelegateInvalidation: () => boolean
+}
