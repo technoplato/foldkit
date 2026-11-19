@@ -74,6 +74,28 @@ describe('a record of each time a phone app’s JavaScript was held', () => {
     ])
   })
 
+  it('says how long each part took to lay out, added up, so a hold says how much of it was drawing', () => {
+    const { said, freeFor, heldFor, watch } = world()
+    freeFor(1_000)
+    watch.noteLaidOut({ part: 'PlayerPage', ms: 310.4, passages: 32 })
+    watch.noteLaidOut({ part: 'PlayerPage', ms: 120.2, passages: 32 })
+    watch.noteLaidOut({ part: 'TitlePage', ms: 8 })
+    heldFor(1_800)
+    freeFor(1)
+
+    expect(said).toEqual([
+      {
+        stall: {
+          heldMs: 1_600,
+          laidOut: [
+            { part: 'PlayerPage', times: 2, ms: 431, passages: 32 },
+            { part: 'TitlePage', times: 1, ms: 8 },
+          ],
+        },
+      },
+    ])
+  })
+
   it('names nothing laid out when the thread was held by something else', () => {
     const { said, freeFor, heldFor } = world()
     freeFor(1_000)

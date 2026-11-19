@@ -358,7 +358,6 @@ export const ListFrame = ({
   ) => ReadonlyArray<ReactElement>
 }>): ReactElement => {
   const { colors } = paint.look
-  const laidOut = useLaidOut()
   const [typed, setTyped] = useState('')
   const filter = list.filter
   const isOverLines = filter?.isOverLines === true
@@ -366,7 +365,7 @@ export const ListFrame = ({
     () => filterListItems(list.items, typed, isOverLines),
     [list.items, typed, isOverLines],
   )
-  laidOut({ rows: items.length })
+  useLaidOut({ rows: items.length })
   return (
     <View style={{ alignSelf: 'stretch', gap: 8 }}>
       {filter === undefined ? null : (

@@ -7,6 +7,8 @@ import {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
+  useRef,
 } from 'react'
 
 import type { LaidOut } from './stalls.js'
@@ -23,30 +25,54 @@ const NoteLaidOutContext = createContext<NoteLaidOut | undefined>(undefined)
 
 const PartNameContext = createContext<string | undefined>(undefined)
 
-const noCounts = (): void => undefined
+type Counts = Readonly<{ passages?: number; rows?: number }>
+
+const noCounts: Counts = {}
+
+const nowMs = (): number => Date.now()
+
+// NOTE: a build that carries its own code has no profiler, so a part
+// times itself: from when it renders to when what it rendered is
+// committed. React renders a part's children inside that span, so the
+// figure is the part with everything under it.
+const useTimedNote = (
+  note: NoteLaidOut | undefined,
+  maybePart: string | undefined,
+  counts: Counts,
+): void => {
+  const startedAt = useRef(0)
+  const laidOut = useRef(counts)
+  startedAt.current = nowMs()
+  laidOut.current = counts
+  useLayoutEffect(() => {
+    if (note !== undefined && maybePart !== undefined) {
+      note({
+        part: maybePart,
+        ms: nowMs() - startedAt.current,
+        ...laidOut.current,
+      })
+    }
+  })
+}
 
 /**
- * A way for a part of a screen to say how much it is laying out now: a
- * reader its passages, a list its rows. It reaches the nearest
- * {@link PaintReporter} that was given `laidOut`, under the name of the
- * nearest {@link PaintedPart}; anywhere else it does nothing.
+ * Tells the record of held threads that a part of a screen was laid out
+ * just now: how long it took from its render to its commit, and how much
+ * it laid out, a reader its passages, a list its rows. It reaches the
+ * nearest {@link PaintReporter} that was given `laidOut`, under the name
+ * of the nearest {@link PaintedPart}; anywhere else it does nothing.
  *
  * @example
  * ```tsx
- * const laidOut = useLaidOut()
- * laidOut({ passages: passages.length })
+ * useLaidOut({ passages: passages.length })
  * ```
  */
-export const useLaidOut = (): ((
-  counts: Readonly<{ passages?: number; rows?: number }>,
-) => void) => {
-  const note = useContext(NoteLaidOutContext)
-  const maybePart = useContext(PartNameContext)
-  return note === undefined || maybePart === undefined
-    ? noCounts
-    : counts => {
-        note({ part: maybePart, ...counts })
-      }
+export const useLaidOut = (counts: Counts): void => {
+  useTimedNote(
+    useContext(NoteLaidOutContext),
+    useContext(PartNameContext),
+    counts,
+  )
 }
 
 /** The painter every paint a phone reports is named for. */
@@ -126,9 +152,7 @@ export const PaintedPart = ({
 }: Readonly<{ name: string; children: ReactNode }>): ReactElement => {
   const record = useContext(RecordPaintContext)
   const noteLaidOut = useContext(NoteLaidOutContext)
-  // NOTE: said while rendering, on purpose: what holds the thread is the
-  // rendering itself, and the note has to be taken before it is held.
-  noteLaidOut?.({ part: name })
+  useTimedNote(noteLaidOut, name, noCounts)
   const onRender = useCallback<ProfilerOnRenderCallback>(
     (_id, phase, actualDuration) => {
       record?.({
