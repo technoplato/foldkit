@@ -21,7 +21,7 @@ const isReactNative = (): boolean =>
  * @example
  * ```typescript
  * Environment.maybePage() // Some({ window, document }) in a browser tab
- * Environment.maybePage() // None in `books listen a-new-earth`, even with Instant's window shim
+ * Environment.maybePage() // None in `books listen a-tin-comet`, even with Instant's window shim
  * ```
  */
 export const maybePage = (): Option.Option<Page> => {

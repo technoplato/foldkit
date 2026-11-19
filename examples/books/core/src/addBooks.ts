@@ -129,7 +129,7 @@ export const ReconnectAudible = Catalog.action('ReconnectAudible', {
 
 /**
  * The Audible import's own Actions, offered while one of its pages is on
- * top. They keep their tags, so `ToggleAudibleTitle:B002V0RAUU` means the
+ * top. They keep their tags, so `ToggleAudibleTitle:B0MADEUP01` means the
  * same in Books and in the import.
  */
 export const audibleActions = Catalog.within(Audible.catalog, {

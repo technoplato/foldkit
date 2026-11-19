@@ -149,7 +149,7 @@ describe('foldkitTelemetry middleware', () => {
   it(
     'serves every other path as the app',
     withServer(async ({ origin }) => {
-      const response = await fetch(`${origin}/books/a-new-earth`)
+      const response = await fetch(`${origin}/books/a-tin-comet`)
       expect(await response.text()).toBe('the app')
     }),
   )

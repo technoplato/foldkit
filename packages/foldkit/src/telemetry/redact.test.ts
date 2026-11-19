@@ -55,7 +55,7 @@ describe('toTelemetryJson', () => {
 
   it('returns clean JSON as the same reference', () => {
     const message = {
-      bookId: 'a-new-earth',
+      bookId: 'a-tin-comet',
       via: { _tag: 'Button', label: 'Play' },
     }
     expect(toTelemetryJson(message, policy)).toBe(message)

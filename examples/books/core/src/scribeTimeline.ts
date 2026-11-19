@@ -318,7 +318,7 @@ const optionalFields = (
  * @example
  * ```typescript
  * mediaPlayPayload({ playId, facts, mediaStartSeconds: 723.4, startedAtMs, playbackRate: 1, maybeOpenUrl, change: PlayStarted() })
- * // '{"mediaPlay":{"_0":{"artworkURL":"https://books.pisspoursoftware.xyz/books/a-new-earth/cover","change":{"started":{}},"kind":"audiobook",…}}}'
+ * // '{"mediaPlay":{"_0":{"artworkURL":"https://books.pisspoursoftware.xyz/books/a-tin-comet/cover","change":{"started":{}},"kind":"audiobook",…}}}'
  * ```
  */
 export const mediaPlayPayload = (
@@ -377,7 +377,7 @@ export const mediaPlayPayload = (
  * @example
  * ```typescript
  * bookPlayFactsOf(title, 'https://books.pisspoursoftware.xyz')
- * // { kind: 'audiobook', mediaKey: 'audiobook:…', maybeTitle: Some('A New Earth'), maybeShowTitle: Some('Eckhart Tolle'), … }
+ * // { kind: 'audiobook', mediaKey: 'audiobook:…', maybeTitle: Some('A Tin Comet'), maybeShowTitle: Some('Ottilie Marsh'), … }
  * ```
  */
 export const bookPlayFactsOf = (title: Title, origin: string): PlayFacts => ({
@@ -407,7 +407,7 @@ export const bookPlayFactsOf = (title: Title, origin: string): PlayFacts => ({
  * @example
  * ```typescript
  * bookPlayOpenUrlOf(title, 'https://books.pisspoursoftware.xyz', 723.4)
- * // Some('https://books.pisspoursoftware.xyz/books/a-new-earth/listen/12m03s')
+ * // Some('https://books.pisspoursoftware.xyz/books/a-tin-comet/listen/12m03s')
  * ```
  */
 export const bookPlayOpenUrlOf = (

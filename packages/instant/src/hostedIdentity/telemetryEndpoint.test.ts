@@ -176,7 +176,7 @@ describe('answerTelemetryRequest', () => {
   })
 
   it('leaves every other path to the server', async () => {
-    const other = ask(throughCloudflare, { url: '/books/a-new-earth' })
+    const other = ask(throughCloudflare, { url: '/books/a-tin-comet' })
     expect(await other.answer).toStrictEqual(Option.none())
   })
 })

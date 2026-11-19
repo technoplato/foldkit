@@ -59,13 +59,13 @@ const listedOf = (asin: string, name: string): ListedTitle => ({
 const library: BridgeLibrary = {
   titles: [
     listedOf('B0FAKE0001', 'The Quiet Orchard'),
-    listedOf('B002V0RAUU', 'A New Earth'),
+    listedOf('B0MADEUP01', 'A Tin Comet'),
     listedOf('B0FAKE0003', 'Paper Boats'),
     listedOf('B0FAKEPOD1', 'The Made-Up Hour'),
   ],
   items: [
     { asin: 'B0FAKE0001', title: 'The Quiet Orchard' },
-    { asin: 'B002V0RAUU', title: 'A New Earth' },
+    { asin: 'B0MADEUP01', title: 'A Tin Comet' },
     { asin: 'B0FAKE0003', title: 'Paper Boats' },
     { asin: 'B0FAKEPOD1', title: 'The Made-Up Hour' },
   ],
@@ -96,7 +96,7 @@ const makeServer = async (
   const clock = { nowMs: 1_000_000 }
   const importer = await Effect.runPromise(
     makeTestLibraryImport({
-      inLibrary: ['B002V0RAUU'],
+      inLibrary: ['B0MADEUP01'],
       skipped: [{ asin: 'B0FAKEPOD1', kind: 'Podcast' }],
       marked: [{ asin: 'B0FAKE0003', mark: 'Free' }],
     }),
@@ -392,7 +392,7 @@ describe('the Audible import server', () => {
           marks: [],
         }),
         expect.objectContaining({
-          asin: 'B002V0RAUU',
+          asin: 'B0MADEUP01',
           match: 'InLibrary',
           marks: [],
         }),
@@ -423,7 +423,7 @@ describe('the Audible import server', () => {
     const server = await makeServer()
     await server.connect()
     const events = await server.frames(
-      JSON.stringify({ asins: ['B0FAKE0001', 'B002V0RAUU', 'B0NOTOWNED'] }),
+      JSON.stringify({ asins: ['B0FAKE0001', 'B0MADEUP01', 'B0NOTOWNED'] }),
     )
     expect(Array.map(events, event => JSON.stringify(event))).toEqual(
       Array.map(
@@ -466,7 +466,7 @@ describe('the Audible import server', () => {
         event => JSON.stringify(event),
       ),
     )
-    expect(server.calls.detailsFor).toEqual([['B0FAKE0001', 'B002V0RAUU']])
+    expect(server.calls.detailsFor).toEqual([['B0FAKE0001', 'B0MADEUP01']])
     const applied: ReadonlyArray<AppliedImport> = await server.applied()
     expect(
       Array.map(applied, ({ owner, asins, details }) => ({
@@ -482,7 +482,7 @@ describe('the Audible import server', () => {
     ).toEqual([
       {
         owner: { email: memberEmail },
-        asins: ['B0FAKE0001', 'B002V0RAUU'],
+        asins: ['B0FAKE0001', 'B0MADEUP01'],
         chapters: [1, 1],
       },
     ])

@@ -20,8 +20,8 @@
  *
  * ```json
  * {"_tag":"SessionStarted","at":"2026-10-04T20:15:02.114Z","sequence":1,"session":"9f3c2a71","app":"books","surface":"web-react","programId":"sync:books","programVersion":1}
- * {"_tag":"Transition","at":"2026-10-04T20:15:03.020Z","sequence":2,"session":"9f3c2a71","app":"books","surface":"web-react","transition":1,"message":"PressedPlay","payload":{"bookId":"a-new-earth"},"source":{"_tag":"Host"},"commands":[{"name":"PlayAudio","args":{"bookId":"a-new-earth"}}],"isModelChanged":true,"changedPathCount":2,"updateDurationMs":0.05}
- * {"_tag":"CommandStarted","at":"2026-10-04T20:15:03.021Z","sequence":3,"session":"9f3c2a71","app":"books","surface":"web-react","command":"PlayAudio","span":1,"args":{"bookId":"a-new-earth"}}
+ * {"_tag":"Transition","at":"2026-10-04T20:15:03.020Z","sequence":2,"session":"9f3c2a71","app":"books","surface":"web-react","transition":1,"message":"PressedPlay","payload":{"bookId":"a-tin-comet"},"source":{"_tag":"Host"},"commands":[{"name":"PlayAudio","args":{"bookId":"a-tin-comet"}}],"isModelChanged":true,"changedPathCount":2,"updateDurationMs":0.05}
+ * {"_tag":"CommandStarted","at":"2026-10-04T20:15:03.021Z","sequence":3,"session":"9f3c2a71","app":"books","surface":"web-react","command":"PlayAudio","span":1,"args":{"bookId":"a-tin-comet"}}
  * {"_tag":"CommandFinished","at":"2026-10-04T20:15:03.233Z","sequence":4,"session":"9f3c2a71","app":"books","surface":"web-react","command":"PlayAudio","span":1,"durationMs":212.4,"outcome":"Success","result":"StartedPlayback"}
  * ```
  */

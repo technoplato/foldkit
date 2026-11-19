@@ -522,7 +522,7 @@ export const Progress = (
  * ```typescript
  * List({
  *   label: 'Your books',
- *   items: [{ key: 'a-new-earth', title: 'A New Earth', lines: ['Eckhart Tolle', '9:09:44 left'], action: 'Open:a-new-earth' }],
+ *   items: [{ key: 'a-tin-comet', title: 'A Tin Comet', lines: ['Ottilie Marsh', '9:09:44 left'], action: 'Open:a-tin-comet' }],
  * })
  * List({
  *   label: 'Chapters',

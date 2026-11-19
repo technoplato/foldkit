@@ -9,7 +9,7 @@ import { BooksProgram } from './program.js'
  * progress, and bookmarks are the same everywhere; Mirror navigation makes
  * every browser, phone, and terminal follow along, and Keep navigation
  * local gives each its own again. A terminal is one more session: `books
- * open /books/a-new-earth` moves the browsers that mirror, and a browser
+ * open /books/a-tin-comet` moves the browsers that mirror, and a browser
  * moves the terminal. The Profile tab shows no Back button; the tab bar
  * leads out of it.
  */

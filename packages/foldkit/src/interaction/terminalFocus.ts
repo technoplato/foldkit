@@ -24,8 +24,8 @@ import { type TerminalKeyOutcome, pressTerminalKey } from './terminal.js'
  * while a dialog over it has the keyboard, so closing "Delete Counter 2?"
  * lands back on the button that opened it. A page whose address follows a
  * moving place keeps its highlight as the place moves: the player at
- * `/books/a-new-earth/listen/12m03s` and at `…/12m04s` is one page, keyed
- * `/books/a-new-earth/listen/0s`.
+ * `/books/a-tin-comet/listen/12m03s` and at `…/12m04s` is one page, keyed
+ * `/books/a-tin-comet/listen/0s`.
  */
 export type TerminalFocus = Readonly<Record<string, string>>
 

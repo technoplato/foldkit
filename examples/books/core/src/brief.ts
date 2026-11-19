@@ -122,7 +122,7 @@ const libraryLinesOf = (model: Model): ReadonlyArray<UiNode> =>
  * @example
  * ```typescript
  * renderScreen(briefScreen(model))
- * // '▶ Playing A New Earth'
+ * // '▶ Playing A Tin Comet'
  * // 'Chapter 3: The Core of Ego · 1:02:03 of 9:13:01 · 8h 11m left'
  * // '“the present moment is [all] you ever have”'
  * ```

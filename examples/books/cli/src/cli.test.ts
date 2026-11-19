@@ -170,20 +170,20 @@ const minuteMs = 60_000
 
 const chapterCount = 114
 
-const longTitleSlug = TitleSlug.make('a-new-earth')
+const longTitleSlug = TitleSlug.make('a-tin-comet')
 
 const longShelf: Shelf = {
   ...sampleShelf,
   titles: [
     {
       slug: longTitleSlug,
-      mediaId: MediaId.make('a-new-earth'),
-      name: 'A New Earth',
+      mediaId: MediaId.make('a-tin-comet'),
+      name: 'A Tin Comet',
       authors: ['A Made-Up Author'],
       narrators: ['A Made-Up Reader'],
       durationMs: Milliseconds.make(chapterCount * 5 * minuteMs),
       maybeCoverUrl: Option.none(),
-      maybeAudioUrl: Option.some('https://audio.invalid/a-new-earth.mp3'),
+      maybeAudioUrl: Option.some('https://audio.invalid/a-tin-comet.mp3'),
     },
     ...sampleShelf.titles,
   ],
@@ -209,13 +209,13 @@ const resumedShelf: Shelf = {
   titles: [
     {
       slug: longTitleSlug,
-      mediaId: MediaId.make('a-new-earth'),
-      name: 'A New Earth',
+      mediaId: MediaId.make('a-tin-comet'),
+      name: 'A Tin Comet',
       authors: ['A Made-Up Author'],
       narrators: ['A Made-Up Reader'],
       durationMs: Milliseconds.make(resumedDurationMs),
       maybeCoverUrl: Option.none(),
-      maybeAudioUrl: Option.some('https://audio.invalid/a-new-earth.mp3'),
+      maybeAudioUrl: Option.some('https://audio.invalid/a-tin-comet.mp3'),
     },
   ],
   progress: [
@@ -248,7 +248,7 @@ const resumedChapters: ChaptersBySlug = {
 const longTranscript = transcriptsInMemory(
   new Map([
     [
-      MediaId.make('a-new-earth'),
+      MediaId.make('a-tin-comet'),
       Array.map(Array.range(0, 7), index => ({
         passageId: `p${index.toString()}`,
         startMs: Milliseconds.make(index * 10 * minuteMs),
@@ -1013,7 +1013,7 @@ describe('books CLI', () => {
     })
     const idle = await run(player, 'help')
     expect(idle.stdout.split('\n')).toContain(
-      'Continue A New Earth: Chapter 2: A long made-up part about waiting for the bus · 1:42:15 of 9:13:01 · 7h 31m left',
+      'Continue A Tin Comet: Chapter 2: A long made-up part about waiting for the bus · 1:42:15 of 9:13:01 · 7h 31m left',
     )
   })
 
@@ -1105,7 +1105,7 @@ describe('the Books player daemon', () => {
       audio: tickingAudio(20),
       transcripts: longTranscript,
     })
-    await run(player, 'listen a-new-earth')
+    await run(player, 'listen a-tin-comet')
     await eventually(() => placeOf(bound) > 5_000)
     const tui = { view: 'tui', rows: '30', columns: '100' }
     const keys = [
@@ -1154,7 +1154,7 @@ describe('the Books player daemon', () => {
       transcripts: longTranscript,
       telemetry: memory.layer,
     })
-    await run(player, 'listen a-new-earth')
+    await run(player, 'listen a-tin-comet')
     await eventually(() => placeOf(bound) > 5_000)
     const recordedBefore = memory.events().length
     const tui = { view: 'tui', rows: '30', columns: '100', viewId: 'telemetry' }

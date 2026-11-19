@@ -55,8 +55,8 @@ const library = {
       is_ayce: true,
       origin_type: 'AudibleChannels',
     }),
-    itemOf('B002V0RAUU', 'A New Earth', {
-      authors: [{ name: 'Eckhart Tolle' }],
+    itemOf('B0MADEUP01', 'A Tin Comet', {
+      authors: [{ name: 'Ottilie Marsh' }],
     }),
     itemOf('B0FAKEKIND', 'Kindred', {
       authors: [{ name: 'Octavia E. Butler' }],
@@ -67,16 +67,16 @@ const library = {
 const snapshot: LibrarySnapshot = {
   books: [
     {
-      id: 'book-a-new-earth',
+      id: 'book-a-tin-comet',
       fields: {
-        title: 'A New Earth',
+        title: 'A Tin Comet',
         identifiersJSON: JSON.stringify([
-          { kind: 'asin', value: 'B002V0RAUU' },
+          { kind: 'asin', value: 'B0MADEUP01' },
         ]),
       },
-      authors: [{ id: 'author-tolle', name: 'Eckhart Tolle' }],
+      authors: [{ id: 'author-marsh', name: 'Ottilie Marsh' }],
       narrators: [],
-      items: [{ id: 'item-a-new-earth', fields: {}, links: {} }],
+      items: [{ id: 'item-a-tin-comet', fields: {}, links: {} }],
       coverIDs: [],
       hasCoverBytes: false,
       audioRenditionIDs: [],
@@ -95,7 +95,7 @@ const snapshot: LibrarySnapshot = {
     },
   ],
   authors: [
-    { id: 'author-tolle', name: 'Eckhart Tolle' },
+    { id: 'author-marsh', name: 'Ottilie Marsh' },
     { id: 'author-butler', name: 'Octavia E. Butler' },
   ],
   narrators: [],
@@ -123,7 +123,7 @@ describe('the Scribe importer as Books shows it', () => {
       PlannedNew({ asin: Asin.make('B0FAKE0003'), marks: ['Explicit'] }),
       PlannedSkip({ asin: Asin.make('B0FAKEPOD1'), kind: 'Podcast' }),
       PlannedSkip({ asin: Asin.make('B0FAKEPLUS'), kind: 'AudiblePlusLoan' }),
-      PlannedInLibrary({ asin: Asin.make('B002V0RAUU'), marks: [] }),
+      PlannedInLibrary({ asin: Asin.make('B0MADEUP01'), marks: [] }),
       PlannedSkip({ asin: Asin.make('B0FAKEKIND'), kind: 'SampleMatch' }),
     ])
   })
@@ -148,7 +148,7 @@ describe('the Scribe importer as Books shows it', () => {
       snapshot,
       nowMs,
       details,
-      asins: ['B0FAKE0001', 'B0FAKE0002', 'B0FAKE0003', 'B002V0RAUU'],
+      asins: ['B0FAKE0001', 'B0FAKE0002', 'B0FAKE0003', 'B0MADEUP01'],
     })
     const applied: AppliedAudibleImport = {
       ok: false,
@@ -178,10 +178,10 @@ describe('the Scribe importer as Books shows it', () => {
           problems: ['its book is not readable as the owner'],
         },
         ...Array.map(
-          Array.filter(chosen.titles, title => title.asin === 'B002V0RAUU'),
+          Array.filter(chosen.titles, title => title.asin === 'B0MADEUP01'),
           title => ({
-            asin: 'B002V0RAUU',
-            title: 'A New Earth',
+            asin: 'B0MADEUP01',
+            title: 'A Tin Comet',
             action: title.action,
             ok: true,
             problems: [],

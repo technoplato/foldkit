@@ -1,5 +1,5 @@
 #!/bin/sh
-# Terminal Books: `books`, `books listen a-new-earth`, `books pause`,
+# Terminal Books: `books`, `books listen a-tin-comet`, `books pause`,
 # `books tui`. It picks where to sign in, opens your library, and runs
 # the command against this machine's player.
 #

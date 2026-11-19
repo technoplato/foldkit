@@ -29,7 +29,7 @@ export type TerminalSize = Readonly<{ rows: number; columns: number }>
 
 /**
  * Where a terminal screen is scrolled: the first body line shown, for the
- * screen with this identity, such as `/books/a-new-earth/contents`.
+ * screen with this identity, such as `/books/a-tin-comet/contents`.
  */
 export type TerminalScroll = Readonly<{ identity: string; offset: number }>
 
@@ -483,7 +483,7 @@ const startingLines = <Model, Message>(
  * @example
  * ```typescript
  * const painted = paintTerminal(bound, 'books', view, { rows: 24, columns: 80 })
- * // painted.lines: 24 lines, 'books  /books/a-new-earth/contents' first and
+ * // painted.lines: 24 lines, 'books  /books/a-tin-comet/contents' first and
  * // '[↑↓←→] move  [↵] press  [?] actions  [q] quit' last
  * ```
  */

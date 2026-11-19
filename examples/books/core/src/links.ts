@@ -8,7 +8,7 @@ import { Milliseconds, type TitleSlug } from './ids.js'
 /**
  * Where Books is published, the origin of every link it hands out, such
  * as the moment Scribe's timeline opens:
- * `https://books.pisspoursoftware.xyz/books/a-new-earth/listen/12m03s`.
+ * `https://books.pisspoursoftware.xyz/books/a-tin-comet/listen/12m03s`.
  */
 export const booksOrigin = 'https://books.pisspoursoftware.xyz'
 

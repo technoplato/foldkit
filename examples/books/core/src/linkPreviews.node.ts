@@ -122,7 +122,7 @@ const imageTypeOf = (response: Response): string => {
  * @example
  * ```typescript
  * hostedIdentity({ publicRoutes: booksLinkPreviews({ origin, loadTitles, fetchCover: fetch, loadReadAloudBooks }) })
- * // '/books/a-new-earth' → a page titled "A New Earth" with "by Eckhart Tolle" and its cover; '/books/profile' → 404
+ * // '/books/a-tin-comet' → a page titled "A Tin Comet" with "by Ottilie Marsh" and its cover; '/books/profile' → 404
  * // '/books/authors/alice-schertle' → a page titled "Alice Schertle" with "Author"
  * ```
  */

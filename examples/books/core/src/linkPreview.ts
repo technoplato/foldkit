@@ -7,12 +7,12 @@ import type { Title } from './model.js'
 
 // LINK
 
-/** A link to one title, `/books/a-new-earth`. */
+/** A link to one title, `/books/a-tin-comet`. */
 export const TitleLink = ts('TitleLink', { slug: TitleSlug })
 /** A link to one title. */
 export type TitleLink = typeof TitleLink.Type
 
-/** A link to one moment of a title, `/books/a-new-earth/listen/1h00m00s`. */
+/** A link to one moment of a title, `/books/a-tin-comet/listen/1h00m00s`. */
 export const MomentLink = ts('MomentLink', {
   slug: TitleSlug,
   atMs: Milliseconds,
@@ -20,7 +20,7 @@ export const MomentLink = ts('MomentLink', {
 /** A link to one moment of a title. */
 export type MomentLink = typeof MomentLink.Type
 
-/** A title's cover, the picture its previews show, `/books/a-new-earth/cover`. */
+/** A title's cover, the picture its previews show, `/books/a-tin-comet/cover`. */
 export const CoverLink = ts('CoverLink', { slug: TitleSlug })
 /** A title's cover. */
 export type CoverLink = typeof CoverLink.Type
@@ -41,8 +41,8 @@ const decodePlace = S.decodeUnknownOption(PlaceSegment)
  *
  * @example
  * ```typescript
- * booksLinkOf('/books/a-new-earth/listen/1h00m00s') // Some(MomentLink({ slug: 'a-new-earth', atMs: 3600000 }))
- * booksLinkOf('/books/a-new-earth/contents') // None
+ * booksLinkOf('/books/a-tin-comet/listen/1h00m00s') // Some(MomentLink({ slug: 'a-tin-comet', atMs: 3600000 }))
+ * booksLinkOf('/books/a-tin-comet/contents') // None
  * ```
  */
 export const booksLinkOf = (path: string): Option.Option<BooksLink> => {
@@ -68,7 +68,7 @@ export const booksLinkOf = (path: string): Option.Option<BooksLink> => {
   })
 }
 
-/** The path of a title's cover, `/books/a-new-earth/cover`. */
+/** The path of a title's cover, `/books/a-tin-comet/cover`. */
 export const coverPathOf = (slug: TitleSlug): string => `/books/${slug}/cover`
 
 const bylineOf = (title: Title): string =>
@@ -83,7 +83,7 @@ const bylineOf = (title: Title): string =>
  *
  * @example
  * ```typescript
- * previewLineOf(title, MomentLink({ slug, atMs: 3600000 })) // 'Listen from 1:00:00, by Eckhart Tolle'
+ * previewLineOf(title, MomentLink({ slug, atMs: 3600000 })) // 'Listen from 1:00:00, by Ottilie Marsh'
  * ```
  */
 export const previewLineOf = (

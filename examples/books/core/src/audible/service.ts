@@ -94,7 +94,7 @@ export const ImportRequest = S.Struct({ asins: S.Array(Asin) })
 /** The titles a person chose to import. */
 export type ImportRequest = typeof ImportRequest.Type
 
-/** `{"asins":["B002V0RAUU"]}` */
+/** `{"asins":["B0MADEUP01"]}` */
 export const ImportRequestJson = S.fromJsonString(S.toCodecJson(ImportRequest))
 
 /** The import moved on: 12 of 40 titles' chapters read. */

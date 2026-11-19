@@ -10,7 +10,7 @@ import {
 
 /**
  * Where a visitor with no login goes to sign in and come back, such as
- * `/__foldkit/sign-in?next=/books/a-new-earth`. Cloudflare Access gates
+ * `/__foldkit/sign-in?next=/books/a-tin-comet`. Cloudflare Access gates
  * it like any private path, so a visitor who reaches the origin there has
  * signed in, and the origin sends them on to `next`.
  */
@@ -30,7 +30,7 @@ const loginCookieMaxAgeSeconds = 12 * 60 * 60
 
 /**
  * A request from a visitor with no Access login, as public routes see it:
- * the path, such as `/books/a-new-earth`, and the query.
+ * the path, such as `/books/a-tin-comet`, and the query.
  */
 export type PublicRequest = Readonly<{
   path: string
@@ -46,7 +46,7 @@ export type PublicAnswer = Readonly<{
 
 /**
  * The routes an origin answers for anyone: Some with the answer for a path
- * it serves, such as a link preview for `/books/a-new-earth`, and None for
+ * it serves, such as a link preview for `/books/a-tin-comet`, and None for
  * every other path, which the visitor then gets as 404.
  */
 export type PublicRoutes = (
@@ -66,7 +66,7 @@ const isPlainSegment = (segment: string): boolean =>
  *
  * @example
  * ```typescript
- * plainPathOf('/books/a-new-earth?ref=1') // Some('/books/a-new-earth')
+ * plainPathOf('/books/a-tin-comet?ref=1') // Some('/books/a-tin-comet')
  * plainPathOf('/books/..%2Fassets') // None
  * ```
  */
@@ -172,7 +172,7 @@ const verifiedTokenOf = async (
  *
  * @example
  * ```typescript
- * await guardHostedRequest({ publicRoutes, verifyAccessToken: verifier.verify, remoteAddress, headers, method: 'GET', url: '/books/a-new-earth' })
+ * await guardHostedRequest({ publicRoutes, verifyAccessToken: verifier.verify, remoteAddress, headers, method: 'GET', url: '/books/a-tin-comet' })
  * // None for Michael's browser, Some(preview page) for a link unfurler, Some(404) for '/assets/index.js' without a login
  * ```
  */
@@ -258,8 +258,8 @@ const previewStyle = [
  *
  * @example
  * ```typescript
- * linkPreviewAnswer({ siteName: 'Books', title: 'A New Earth', description: 'by Eckhart Tolle', maybeImageUrl: Option.some('https://books.pisspoursoftware.xyz/books/a-new-earth/cover'), url: 'https://books.pisspoursoftware.xyz/books/a-new-earth', openPath: '/__foldkit/sign-in?next=/books/a-new-earth' })
- * // { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', … }, body: '<!doctype html>…<meta property="og:title" content="A New Earth">…' }
+ * linkPreviewAnswer({ siteName: 'Books', title: 'A Tin Comet', description: 'by Ottilie Marsh', maybeImageUrl: Option.some('https://books.pisspoursoftware.xyz/books/a-tin-comet/cover'), url: 'https://books.pisspoursoftware.xyz/books/a-tin-comet', openPath: '/__foldkit/sign-in?next=/books/a-tin-comet' })
+ * // { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', … }, body: '<!doctype html>…<meta property="og:title" content="A Tin Comet">…' }
  * ```
  */
 export const linkPreviewAnswer = (preview: LinkPreview): PublicAnswer => {

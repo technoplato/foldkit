@@ -69,7 +69,7 @@ import {
 
 /**
  * True for a launch that names a page beyond the Program's home, such as
- * `/books/a-new-earth/listen/12m03s`, not `/books`. While navigation is
+ * `/books/a-tin-comet/listen/12m03s`, not `/books`. While navigation is
  * mirrored, a newcomer at the home joins the shared stack, but a link to
  * somewhere in particular moves the shared stack there, so a link someone
  * sends still opens what it names, on every mirrored device.
@@ -506,7 +506,7 @@ const structFieldsOf = (schema: unknown): S.Struct.Fields =>
  * whose buttons carry their row, such as `Increment:counter-2`, keeps
  * them; the session's Actions follow. While navigation is mirrored, a launch
  * at the home does not move the stack: a newcomer joins the shared screen.
- * A launch at a deeper address, such as `/books/a-new-earth/listen/1h00m00s`,
+ * A launch at a deeper address, such as `/books/a-tin-comet/listen/1h00m00s`,
  * opens it. `isTab` names the pages a tab bar reaches, such as a Profile
  * page: they show no Back button, since the tab bar is the way out.
  * `ownNavigationHosts` names the Hosts whose Processors keep their own

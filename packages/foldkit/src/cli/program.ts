@@ -253,7 +253,7 @@ const outsideLinkPattern = /^[a-z][a-z0-9+.-]*:/i
  * line under the words that name it, headed `Links`. Terminal text cuts a
  * row to the width and cannot be clicked, so without these a row such as
  * `Open Amazon sign-in` could not be opened from a terminal. A link that
- * stays in the Program, `/books/a-new-earth/listen/12m03s`, is left out:
+ * stays in the Program, `/books/a-tin-comet/listen/12m03s`, is left out:
  * `open <uri>` goes there. Empty when no link leaves.
  *
  * @example

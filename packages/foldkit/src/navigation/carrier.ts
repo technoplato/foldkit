@@ -27,8 +27,8 @@ import { pathAndUri, printStates } from './uri.js'
  * path, and `uri` adds its configuration. `identity` is the path printed
  * with every Destination's passing fields reset by its screen's
  * `identityOf`, so a painter keeps one page's DOM while its address moves:
- * `/books/a-new-earth/listen/1h41m05s` and `/books/a-new-earth/listen/1h41m06s`
- * share the identity `/books/a-new-earth/listen/0s`.
+ * `/books/a-tin-comet/listen/1h41m05s` and `/books/a-tin-comet/listen/1h41m06s`
+ * share the identity `/books/a-tin-comet/listen/0s`.
  *
  * @example
  * ```typescript

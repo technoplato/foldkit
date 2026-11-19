@@ -67,7 +67,7 @@ const titles = [
     marks: ['Explicit'],
     series: [{ name: 'Noon Trilogy', maybeSequence: Option.some('2') }],
   }),
-  titleOf('B002V0RAUU', 'A New Earth', { match: 'InLibrary' }),
+  titleOf('B0MADEUP01', 'A Tin Comet', { match: 'InLibrary' }),
 ]
 
 const hostButtons = {
@@ -200,7 +200,7 @@ describe('the Audible titles screen', () => {
         'Mara Linden',
         'Explicit · 13h 20m · Noon Trilogy, book 2',
       ],
-      ['A New Earth', 'Mara Linden', 'In your library'],
+      ['A Tin Comet', 'Mara Linden', 'In your library'],
     ])
     expect(Array.map(buttonsOf(screen), button => button.label)).toContain(
       'Import 1 book',
@@ -214,7 +214,7 @@ describe('the Audible titles screen', () => {
           titles: TitlesImporting({
             titles,
             skipped: [],
-            selected: [Asin.make('B0FAKE0001'), Asin.make('B002V0RAUU')],
+            selected: [Asin.make('B0FAKE0001'), Asin.make('B0MADEUP01')],
             progress: { stage, done: 3, total: 8 },
           }),
         }),
@@ -289,7 +289,7 @@ describe("each owned book's audio on the titles screen", () => {
   const read = TitlesRead({
     titles: [
       titleOf('B0FAKE0001', 'The Long Way to Noon', { match: 'InLibrary' }),
-      titleOf('B002V0RAUU', 'A New Earth', { match: 'InLibrary' }),
+      titleOf('B0MADEUP01', 'A Tin Comet', { match: 'InLibrary' }),
       titleOf('B0FAKE0003', 'A Map of Small Rivers', { match: 'InLibrary' }),
       titleOf('B0FAKE0004', 'The Glass Orchard', { match: 'InLibrary' }),
     ],
@@ -305,8 +305,8 @@ describe("each owned book's audio on the titles screen", () => {
         state: AudioWords({ done: 3, total: 14 }),
       },
       {
-        asin: Asin.make('B002V0RAUU'),
-        name: 'A New Earth',
+        asin: Asin.make('B0MADEUP01'),
+        name: 'A Tin Comet',
         state: AudioDone(),
       },
       {

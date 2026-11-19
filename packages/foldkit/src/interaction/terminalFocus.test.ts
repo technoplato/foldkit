@@ -9,11 +9,11 @@ import { keyInput, terminalKeyInput } from './interaction.js'
 import { focusedTagOf, noTerminalFocus } from './terminalFocus.js'
 
 const playerAt = (place: string): Frame => ({
-  uri: `/books/a-new-earth/listen/${place}`,
+  uri: `/books/a-tin-comet/listen/${place}`,
   maybeTitle: Option.some('Now playing'),
   base: {
-    key: `/books/a-new-earth/listen/${place}`,
-    identity: '/books/a-new-earth/listen/0s',
+    key: `/books/a-tin-comet/listen/${place}`,
+    identity: '/books/a-tin-comet/listen/0s',
     maybeStyle: Option.none(),
     view: screenView(
       Column(
@@ -30,18 +30,18 @@ const playerAt = (place: string): Frame => ({
 })
 
 const contentsWithChapter2Playing: Frame = {
-  uri: '/books/a-new-earth/contents',
+  uri: '/books/a-tin-comet/contents',
   maybeTitle: Option.some('Contents'),
   base: {
-    key: '/books/a-new-earth',
-    identity: '/books/a-new-earth',
+    key: '/books/a-tin-comet',
+    identity: '/books/a-tin-comet',
     maybeStyle: Option.none(),
     view: screenView(Column()),
   },
   overlays: [
     {
-      key: '/books/a-new-earth/contents',
-      identity: '/books/a-new-earth/contents',
+      key: '/books/a-tin-comet/contents',
+      identity: '/books/a-tin-comet/contents',
       maybeStyle: Option.some(Sheet()),
       view: screenView(
         List({
@@ -85,7 +85,7 @@ describe('terminalKeyInput', () => {
 
 describe('focusedTagOf', () => {
   it('keeps the highlight on a page whose address follows its place', () => {
-    const focus = { '/books/a-new-earth/listen/0s': 'Pause' }
+    const focus = { '/books/a-tin-comet/listen/0s': 'Pause' }
     expect(focusedTagOf(playerAt('12m03s'), focus)).toEqual(
       Option.some('Pause'),
     )

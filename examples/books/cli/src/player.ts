@@ -174,7 +174,7 @@ const statusOf = (bound: BoundBooks): string => {
  * @example
  * ```typescript
  * paintBrief(bound)
- * // '▶ Playing A New Earth\n…\n\n  books pause   Pauses and keeps the place\n…'
+ * // '▶ Playing A Tin Comet\n…\n\n  books pause   Pauses and keeps the place\n…'
  * ```
  */
 export const paintBrief = (bound: BoundBooks): string =>
@@ -238,7 +238,7 @@ const wordsNowOf = (bound: BoundBooks, flags: CliDaemonFlags) =>
  * @example
  * ```typescript
  * paintWords(bound, {})
- * // '# A New Earth · Chapter 3 · 1:02:03 of 9:13:01 · playing · /books/a-new-earth/listen/1h02m03s\n- 1:01:40 …\n> 1:02:01 … [word] …\n+ 1:02:30 …'
+ * // '# A Tin Comet · Chapter 3 · 1:02:03 of 9:13:01 · playing · /books/a-tin-comet/listen/1h02m03s\n- 1:01:40 …\n> 1:02:01 … [word] …\n+ 1:02:30 …'
  * paintWords(bound, { json: '1' })
  * // '{"_tag":"WordsNow","header":{…},"excerpt":{…}}'
  * ```
@@ -764,7 +764,7 @@ export type BooksPlayer = Readonly<{
 
 /**
  * The Books player's socket surface. Every command acts on this one
- * player and prints the brief after it runs: `books listen a-new-earth`
+ * player and prints the brief after it runs: `books listen a-tin-comet`
  * plays, `books pause` pauses, `books seek-to 1h00m00s` moves. `books` and
  * `books help` print the brief, `books actions` every command, `books
  * open /books/audible` and `books back` the page they land on, `books

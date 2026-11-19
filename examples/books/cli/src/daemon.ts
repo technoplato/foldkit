@@ -2,7 +2,7 @@
 /**
  * The Books player, a Background Processor: one detached process per
  * Instant app on this machine that holds the Program and its ffplay
- * audio, so `books listen a-new-earth` keeps playing after the command
+ * audio, so `books listen a-tin-comet` keeps playing after the command
  * returns, and `books pause`,
  * `books tui`, and every other command act on the same player through
  * its socket. The first command that needs it starts it. `books stop`,

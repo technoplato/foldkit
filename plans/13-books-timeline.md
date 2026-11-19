@@ -6,13 +6,13 @@ criterion 3); his words are in
 
 ## What a person sees
 
-- He plays A New Earth in Books from 12:03 while Scribe records. Three
+- He plays A Tin Comet in Books from 12:03 while Scribe records. Three
   seconds in, the stretch begins and Books writes it; seconds later his
-  recording's timeline shows "Listening to A New Earth" with the book's
-  cover. When he pauses at 15:00, it shows "Listened to A New Earth", and
-  opened, "Listened to A New Earth, 12:03–15:00 · 2 min 57 s".
+  recording's timeline shows "Listening to A Tin Comet" with the book's
+  cover. When he pauses at 15:00, it shows "Listened to A Tin Comet", and
+  opened, "Listened to A Tin Comet, 12:03–15:00 · 2 min 57 s".
 - A tap on the row opens
-  `https://books.pisspoursoftware.xyz/books/a-new-earth/listen/12m03s`: the
+  `https://books.pisspoursoftware.xyz/books/a-tin-comet/listen/12m03s`: the
   player, paused at the second the stretch began.
 - Nothing shows when no recording was live while he listened, and a tap on
   Play then Pause under 3 s is no stretch at all.
@@ -55,7 +55,7 @@ criterion 3); his words are in
    each event with the recording's own owner, which the rules allow a member.
 7. **The cover is the public one.** Scribe's app has no Cloudflare Access
    login, so the artwork is Books' public cover,
-   `https://books.pisspoursoftware.xyz/books/a-new-earth/cover`, already
+   `https://books.pisspoursoftware.xyz/books/a-tin-comet/cover`, already
    served to link previews.
 8. **A recording is live by its heartbeat.** The recording device writes its
    duration every 5 s; a recording counts as capturing until 15 s after the
@@ -77,7 +77,7 @@ criterion 3); his words are in
 ## Verified
 
 On 2026-10-18 at 21:43, while a recording was live on his iPhone, the
-deployed Books played A New Earth from 1:47:20 for 19 s (headless Chrome,
+deployed Books played A Tin Comet from 1:47:20 for 19 s (headless Chrome,
 muted). Its two rows landed on that recording, owned by his Apple sign-in:
 the start at the recording's second 144.5, and the end at 163.6, 19.1 s
 later, paused. Scribe on the Mac showed both, at 2:24 and 2:43, with Open in

@@ -92,7 +92,7 @@ System`. Same person in two tabs = same actor, two `from`s.
   Messages and advertises capabilities.
 - **Background Processor**: one long-lived Processor held by a process a CLI
   starts on its first command and talks to after that, such as the Books
-  player that keeps playing after `books listen a-new-earth` returns. A
+  player that keeps playing after `books listen a-tin-comet` returns. A
   command asks it, follows it (`books follow words`), or stops it. Its
   Program and sync engine connection stay warm, which is why a command
   answers in about 60 ms. First spelled "CLI daemon" in code

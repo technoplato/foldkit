@@ -70,7 +70,7 @@ const titleOf = (
 })
 
 const orchard = titleOf('B0FAKE0001', 'The Quiet Orchard', 'New')
-const newEarth = titleOf('B002V0RAUU', 'A New Earth', 'InLibrary')
+const tinComet = titleOf('B0MADEUP01', 'A Tin Comet', 'InLibrary')
 const rivers = titleOf('B0FAKE0003', 'A Map of Small Rivers', 'New')
 
 const loginUrl = 'https://www.amazon.com/ap/signin?openid.mode=checkid_setup'
@@ -96,7 +96,7 @@ const applied = (
 const read = applied(
   init(),
   ReceivedAudibleLibrary({
-    titles: [orchard, newEarth, rivers],
+    titles: [orchard, tinComet, rivers],
     skipped: [{ kind: 'Podcast', count: 4 }],
   }),
 )
@@ -257,7 +257,7 @@ describe('the Audible titles', () => {
     ).toEqual(['B0FAKE0001', 'B0FAKE0003'])
     expect(selectedOf(applied(read, SelectAllAudibleTitles()))).toEqual([
       'B0FAKE0001',
-      'B002V0RAUU',
+      'B0MADEUP01',
       'B0FAKE0003',
     ])
     expect(selectedOf(applied(read, DeselectAudibleTitles()))).toEqual([])
@@ -270,7 +270,7 @@ describe('the Audible titles', () => {
     const importing = applied(read, ImportAudibleTitles())
     expect(importing.titles).toEqual(
       TitlesImporting({
-        titles: [orchard, newEarth, rivers],
+        titles: [orchard, tinComet, rivers],
         skipped: [{ kind: 'Podcast', count: 4 }],
         selected: [Asin.make('B0FAKE0001'), Asin.make('B0FAKE0003')],
         progress: { stage: 'ReadingChapters', done: 0, total: 2 },
@@ -304,7 +304,7 @@ describe('the Audible titles', () => {
         .titles,
     ).toEqual(
       TitlesRead({
-        titles: [orchard, newEarth, rivers],
+        titles: [orchard, tinComet, rivers],
         skipped: [{ kind: 'Podcast', count: 4 }],
         selected: [Asin.make('B0FAKE0001'), Asin.make('B0FAKE0003')],
         maybeProblem: Option.some(refused),

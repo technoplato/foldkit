@@ -7,7 +7,7 @@ import { Milliseconds } from '../ids.js'
 
 /**
  * An Audible title's Amazon Standard Identification Number, ten capital
- * letters and digits: `B002V0RAUU` for A New Earth. It is the one id an
+ * letters and digits: `B0MADEUP01` for A Tin Comet. It is the one id an
  * Audible title keeps everywhere, so the import matches books by it.
  * Branded, so a slug or a name never stands in for one.
  */
@@ -30,7 +30,7 @@ export type SeriesPart = typeof SeriesPart.Type
 
 /**
  * Whether the shelf already has an Audible title: `New`, or `InLibrary`
- * when a book there carries the same ASIN, such as A New Earth.
+ * when a book there carries the same ASIN, such as A Tin Comet.
  */
 export const ShelfMatch = S.Literals(['New', 'InLibrary'])
 /** Whether the shelf already has an Audible title. */
@@ -72,7 +72,7 @@ export type TitleMark = typeof TitleMark.Type
 /**
  * One audiobook a family member owns on Audible, as the import shows it:
  * its listing, whether the shelf already has it, `match: 'InLibrary'`
- * for A New Earth when it is already there, and what the importer notes
+ * for A Tin Comet when it is already there, and what the importer notes
  * about it.
  */
 export const AudibleTitle = S.Struct({

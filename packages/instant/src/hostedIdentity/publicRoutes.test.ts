@@ -26,14 +26,14 @@ const verifyAccessToken = async (
 const preview: PublicAnswer = {
   status: 200,
   headers: { 'content-type': 'text/html; charset=utf-8' },
-  body: '<title>A New Earth</title>',
+  body: '<title>A Tin Comet</title>',
 }
 
 const seenPaths: Array<string> = []
 
 const publicRoutes: PublicRoutes = async request => {
   seenPaths.push(request.path)
-  return request.path === '/books/a-new-earth'
+  return request.path === '/books/a-tin-comet'
     ? Option.some(preview)
     : Option.none()
 }
@@ -60,8 +60,8 @@ const guard = (
 
 describe('plainPathOf', () => {
   it('keeps a plain path and drops its query', () => {
-    expect(plainPathOf('/books/a-new-earth/listen/1h00m00s?ref=x')).toEqual(
-      Option.some('/books/a-new-earth/listen/1h00m00s'),
+    expect(plainPathOf('/books/a-tin-comet/listen/1h00m00s?ref=x')).toEqual(
+      Option.some('/books/a-tin-comet/listen/1h00m00s'),
     )
     expect(plainPathOf('/books/')).toEqual(Option.some('/books/'))
     expect(plainPathOf('/.well-known/apple-app-site-association')).toEqual(
@@ -75,10 +75,10 @@ describe('plainPathOf', () => {
     ).toEqual(Option.none())
     expect(plainPathOf('/books/%2e%2e/assets/index.js')).toEqual(Option.none())
     expect(plainPathOf('/books/../assets/index.js')).toEqual(Option.none())
-    expect(plainPathOf('/books/./a-new-earth')).toEqual(Option.none())
-    expect(plainPathOf('/books//a-new-earth')).toEqual(Option.none())
+    expect(plainPathOf('/books/./a-tin-comet')).toEqual(Option.none())
+    expect(plainPathOf('/books//a-tin-comet')).toEqual(Option.none())
     expect(plainPathOf('//evil.example/books')).toEqual(Option.none())
-    expect(plainPathOf('books/a-new-earth')).toEqual(Option.none())
+    expect(plainPathOf('books/a-tin-comet')).toEqual(Option.none())
     expect(plainPathOf('/books/a\\b')).toEqual(Option.none())
   })
 })
@@ -86,7 +86,7 @@ describe('plainPathOf', () => {
 describe('guardHostedRequest', () => {
   it('lets a verified login through to the app, by header or by cookie', async () => {
     expect(
-      await guard('/books/a-new-earth', {
+      await guard('/books/a-tin-comet', {
         ...throughCloudflare,
         'cf-access-jwt-assertion': goodToken,
       }),
@@ -110,11 +110,11 @@ describe('guardHostedRequest', () => {
   })
 
   it('answers a visitor with no login only from the public routes', async () => {
-    expect(await guard('/books/a-new-earth?ref=imessage')).toEqual(
+    expect(await guard('/books/a-tin-comet?ref=imessage')).toEqual(
       Option.some(preview),
     )
     expect(
-      await guard('/books/a-new-earth', throughCloudflare, 'HEAD'),
+      await guard('/books/a-tin-comet', throughCloudflare, 'HEAD'),
     ).toEqual(Option.some(preview))
     expect(await guard('/assets/index.js')).toEqual(Option.some(publicNotFound))
     expect(await guard('/books/12-rules-for-life')).toEqual(
@@ -145,7 +145,7 @@ describe('guardHostedRequest', () => {
 
   it('refuses anything but GET and HEAD without a login', async () => {
     expect(
-      await guard('/books/a-new-earth', throughCloudflare, 'POST'),
+      await guard('/books/a-tin-comet', throughCloudflare, 'POST'),
     ).toEqual(Option.some(publicNotFound))
   })
 
@@ -160,7 +160,7 @@ describe('guardHostedRequest', () => {
         remoteAddress: '127.0.0.1',
         headers: throughCloudflare,
         method: 'GET',
-        url: '/books/a-new-earth',
+        url: '/books/a-tin-comet',
       }),
     ).toEqual(Option.some(publicNotFound))
   })
@@ -176,8 +176,8 @@ describe('guardHostedRequest', () => {
         answer.headers['location'],
       ])
     expect(
-      await locationOf(`${hostedSignInPath}?next=%2Fbooks%2Fa-new-earth`),
-    ).toEqual(Option.some([302, '/books/a-new-earth']))
+      await locationOf(`${hostedSignInPath}?next=%2Fbooks%2Fa-tin-comet`),
+    ).toEqual(Option.some([302, '/books/a-tin-comet']))
     expect(
       await locationOf(`${hostedSignInPath}?next=%2F%2Fevil.example%2Fx`),
     ).toEqual(Option.some([302, '/']))
@@ -189,7 +189,7 @@ describe('guardHostedRequest', () => {
 
   it('keeps the login it checked at sign-in, and accepts it later', async () => {
     const maybeSignIn = await guard(
-      `${hostedSignInPath}?next=%2Fbooks%2Fa-new-earth`,
+      `${hostedSignInPath}?next=%2Fbooks%2Fa-tin-comet`,
       { ...throughCloudflare, 'cf-access-jwt-assertion': goodToken },
     )
     const setCookie = Option.match(maybeSignIn, {
@@ -200,7 +200,7 @@ describe('guardHostedRequest', () => {
       `${hostedLoginCookieName}=${goodToken}; Path=/; Max-Age=43200; HttpOnly; Secure; SameSite=Lax`,
     )
     expect(
-      await guard('/books/a-new-earth', {
+      await guard('/books/a-tin-comet', {
         ...throughCloudflare,
         cookie: `CF_Authorization=stale.access.token; ${hostedLoginCookieName}=${goodToken}`,
       }),

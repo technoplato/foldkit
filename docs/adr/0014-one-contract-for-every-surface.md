@@ -8,7 +8,7 @@ Status: Accepted, amended 2026-11-17 (see Amendment 1: decision 4's "Terminals k
 
 Books worked on the web and broke in the terminal. Michael, on 2026-10-05: "they shouldn't have broken in the first place if they worked on web is supposed to be the point of this abstraction". The core Program was the same everywhere; every failure was in what surrounds it.
 
-- `books listen a-new-earth` played for a moment and stopped. The next `books play` said "nothing is in the player", and the words stayed on "Loading the words…".
+- `books listen a-tin-comet` played for a moment and stopped. The next `books play` said "nothing is in the player", and the words stayed on "Loading the words…".
 - In the TUI, keys seemed dead: 17 of 22 keys changed nothing visible, and Escape never went back.
 - The terminal followed Safari's screen and once landed on `/books/contents` with "No title is open", a Contents Sheet with no title under it.
 - Terminal telemetry recorded nothing.
@@ -51,7 +51,7 @@ Books worked on the web and broke in the terminal. Michael, on 2026-10-05: "they
 ### The web page jumped every second
 
 1. The page jumped because React tore down and rebuilt the player every second.
-2. React rebuilt it because the frame keyed each screen by its address, and the player's address follows the second being heard: `/books/a-new-earth/listen/1h41m05s`, then `/1h41m06s`.
+2. React rebuilt it because the frame keyed each screen by its address, and the player's address follows the second being heard: `/books/a-tin-comet/listen/1h41m05s`, then `/1h41m06s`.
 3. Screens were keyed by address because Foldkit gave painters nothing else to key by: a carrier entry had a `key` (its path) and no identity.
 4. Terminal focus had the same bug, fixed separately, because each painter derived "which screen is this" on its own.
 5. That is the same root as the TUI viewport: cross-cutting behavior reimplemented per painter, with no shared contract.
@@ -99,7 +99,7 @@ Michael, typed 2026-11-17 (Scribe #2494): "I want the navigational stuff to foll
 
 What changed:
 
-- Books no longer names the terminal Hosts in `Session.compose`'s `ownNavigationHosts`. A terminal Processor is one more session: while the session mirrors, `books open /books/a-new-earth` moves every browser and phone that mirrors, and a browser's move lands on the terminal. `books mirror-navigation` and `books keep-navigation-local` are the session setting, the same Actions the web and mobile apps offer.
+- Books no longer names the terminal Hosts in `Session.compose`'s `ownNavigationHosts`. A terminal Processor is one more session: while the session mirrors, `books open /books/a-tin-comet` moves every browser and phone that mirrors, and a browser's move lands on the terminal. `books mirror-navigation` and `books keep-navigation-local` are the session setting, the same Actions the web and mobile apps offer.
 - `ownNavigationHosts` stays in `Session.compose` for a Program that needs a Host held apart. Books passes none.
 - The failure that led to decision 4, a terminal left on `/books/contents` with no title under it, is still prevented by the other half of that decision: Session trims any folded stack to what the navigation allows.
 

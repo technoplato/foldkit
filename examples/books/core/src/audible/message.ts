@@ -118,7 +118,7 @@ export const TryAudibleSignInAgain = Catalog.action('TryAudibleSignInAgain', {
 
 /**
  * Selects one Audible title to import, or clears it: its row's check
- * presses `ToggleAudibleTitle:B002V0RAUU`.
+ * presses `ToggleAudibleTitle:B0MADEUP01`.
  */
 export const ToggleAudibleTitle = Catalog.action('ToggleAudibleTitle', {
   fields: { asin: Asin },

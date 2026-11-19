@@ -554,7 +554,7 @@ export type Screen<Destination> = Readonly<{
  * title's page refuses `/books/the-lantern-keeper/chapter/2/listen`.
  * `identityOf` resets the fields that pass while the page stays put, so a
  * painter keeps its DOM, scroll, and images: a player whose address
- * follows its place, `/books/a-new-earth/listen/1h41m05s`, stays one page
+ * follows its place, `/books/a-tin-comet/listen/1h41m05s`, stays one page
  * when `identityOf` resets `atMs`.
  */
 export type ScreenOptions<Destination> = Readonly<{
