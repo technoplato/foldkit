@@ -75,9 +75,20 @@ const markedWord =
 const markedPassage =
   (token: string) =>
   (passage: TranscriptPassage): TranscriptPassage => {
+    const hasWord = Array.some(passage.words, word => word.token === token)
+    const isAlreadySo = Array.every(
+      passage.words,
+      word => (word.isCurrent === true) === (word.token === token),
+    )
+    // NOTE: A passage the word neither left nor entered is handed back as
+    // the object it was, so a painter repaints only the passages that
+    // changed.
+    if (isAlreadySo && (passage.isCurrent === true) === hasWord) {
+      return passage
+    }
     const { isCurrent: _isCurrent, ...unmarked } = passage
     const words = Array.map(passage.words, markedWord(token))
-    return Array.some(passage.words, word => word.token === token)
+    return hasWord
       ? { ...unmarked, isCurrent: true, words }
       : { ...unmarked, words }
   }
