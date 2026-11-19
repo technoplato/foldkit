@@ -4,6 +4,34 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 7:34:02 p.m. EST — `ca7a5ca57f26` fix(books): green: a title named like a screen gets a name tag its own link can open (Scribe #2494)
+
+- **Implementation commit:** `ca7a5ca57f26fe200ec1ad795583d52d86271178`
+- **Change:** A title named like a screen gets a name tag its own link can open
+- **Details:**
+  - Layer: the Books core and its Instant adapter. A name tag whose page or player address would not parse back to that title is taken, asked of the Program's own routes: a book called Menu is menu-2. Each answer is worked out once.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.test.ts` — changed by this commit
+  - `examples/books/core/src/instantLibrary.ts` — changed by this commit
+  - `examples/books/core/src/nameTags.ts` — changed by this commit
+  - `examples/books/core/src/routesRoundTrip.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 7:34:02 p.m. EST — `b21d52320d6e` fix(foldkit): green: an exact word names its screen before a route that takes any name (Scribe #2494)
+
+- **Implementation commit:** `b21d52320d6ef68d883170c191c29edc6ec445ab`
+- **Change:** An exact word names its screen before a route that takes any name
+- **Details:**
+  - Layer: Foldkit core, navigation. Above each screen the parse tries a route that begins with an exact word before one that takes any value there, whatever order they were declared in, so a screen a wrapper adds over a Program (the session's settings, the action menu) is no longer read as a value of the Program's own route. The route table gains roundTripOf, which prints every stack a Program's routes allow and parses each back; Books holds it at no faults over 57 addresses.
+- **Files:**
+  - `examples/books/core/src/routesRoundTrip.test.ts` — changed by this commit
+  - `packages/foldkit/src/navigation/uri.ts` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 7:06:44 p.m. EST — `1eb567cb3a69` fix(foldkit): green: under More Contrast the words read and the words to come stay far apart (Scribe #2494)
 
 - **Implementation commit:** `1eb567cb3a6961a3856f2a1793250c5b293b5502`
