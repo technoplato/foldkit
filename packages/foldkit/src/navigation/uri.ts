@@ -296,6 +296,30 @@ const parseWith = <Destination>(
     ),
   )
 
+const leadsWithExactWord = <Destination>(
+  route: DestinationRoute<Destination>,
+): boolean =>
+  pipe(
+    Option.fromNullishOr(route.routeCase.parser.shape),
+    Option.flatMap(shape => Array.head(shape.segments)),
+    Option.exists(segment => segment._tag === 'Literal'),
+  )
+
+// NOTE: A route that begins with an exact word is tried before one that
+// takes any value in that place, wherever each was declared, and the
+// rest keep their declared order. A screen a wrapper adds over a Program,
+// such as `session` or `menu`, is declared after the Program's own, and
+// would otherwise be read as a value of the Program's route:
+// `/books/session` as a title named `session`. Both print the same
+// address, so only one can come back from it: the exact word, as every
+// router a Client generates files for reads it.
+const exactWordsFirst = <Destination>(
+  routes: ReadonlyArray<DestinationRoute<Destination>>,
+): ReadonlyArray<DestinationRoute<Destination>> => [
+  ...Array.filter(routes, route => leadsWithExactWord(route)),
+  ...Array.filter(routes, route => !leadsWithExactWord(route)),
+]
+
 const parseEntries = <Model, Destination>(
   navigation: ProgramNavigation<Model, Destination>,
   segments: ReadonlyArray<string>,
@@ -311,7 +335,7 @@ const parseEntries = <Model, Destination>(
       route.isAllowedAbove(beneath),
     )
   return Option.orElse(
-    Array.findFirst(allowedAbove('Entry'), route =>
+    Array.findFirst(exactWordsFirst(allowedAbove('Entry')), route =>
       pipe(
         parseWith(route, segments, search),
         Option.filter(({ remaining }) => remaining.length < segments.length),
@@ -481,8 +505,11 @@ export const allowedStackOf = <Model, Destination>(
 }
 
 /**
- * Parses a URI into a stack. Total: a strict parse with backtracking
- * first, then a lenient one whose unmatched tail becomes NotFound, then a
+ * Parses a URI into a stack. Above each screen, a route that begins with
+ * an exact word is tried before one that takes any value there, whatever
+ * order they were declared in, so `/counter/session` is the session's
+ * settings even where a route takes any name in that place. Total: a
+ * strict parse with backtracking first, then a lenient one whose unmatched tail becomes NotFound, then a
  * NotFound root for a URI outside the slug, then the root stack. A
  * fallback takes the shortest run of segments after which the rest parses
  * strictly, so a page pushed above NotFound keeps its own route:

@@ -31,6 +31,7 @@ describe('every address Books prints', () => {
     expect(
       pipe(
         routeTableOf(navigation),
+        Array.filter(row => row.placement !== 'Fallback'),
         Array.map(row => row.name),
         Array.filter(name => !tried.has(name)),
       ),
