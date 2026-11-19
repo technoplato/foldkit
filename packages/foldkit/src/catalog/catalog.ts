@@ -14,6 +14,7 @@ import {
   type Example,
   type Parameters,
   type Touches,
+  type Undone,
   make as makeDeclaration,
 } from '../declaration/declaration.js'
 import { parametersOfFields } from '../declaration/declare.js'
@@ -192,6 +193,7 @@ export type ActionDeclaration<Tag extends string, Model> = Readonly<{
   parameters: Parameters
   examples: ReadonlyArray<Example>
   maybeTouches: Option.Option<Touches>
+  maybeUndo: Option.Option<Undo>
 }>
 
 /**
@@ -227,8 +229,66 @@ export type ActionConfig<Model> = Readonly<{
   meta: ActionMeta
   aliases?: ReadonlyArray<string>
   examples?: ReadonlyArray<Example>
+  undo?: Undo
 }> &
   Touched
+
+/** How long an undo is offered when its declaration does not say. */
+export const undoOfferedForMs = 8000
+
+/**
+ * How what an Action does is taken back, said once on that Action:
+ * `UndoneBy` names the Action that undoes it by its tag, what to say
+ * happened, and for how long the undo is offered; `CannotBeUndone` says
+ * why not. Build one with {@link undoneBy} or {@link cannotBeUndone}.
+ */
+export type Undo =
+  | Readonly<{
+      _tag: 'UndoneBy'
+      tag: string
+      said: string
+      offeredForMs: number
+    }>
+  | Readonly<{ _tag: 'CannotBeUndone'; because: string }>
+
+/**
+ * Says an Action is undone by another, by reference to that Action, so
+ * a rename breaks the build. `said` is what happened, as a Client says
+ * it beside the Undo control, and `offeredForMs` how long it is offered
+ * there, {@link undoOfferedForMs} unless given. Every Client's Undo
+ * control, key, and help line are read from this.
+ *
+ * @example
+ * ```typescript
+ * const ConfirmDeleteBookmark = Catalog.action('ConfirmDeleteBookmark', {
+ *   undo: Catalog.undoneBy(UndoRemoveBookmark, { said: 'Bookmark removed' }),
+ *   …
+ * })
+ * ```
+ */
+export const undoneBy = (
+  action: Readonly<{ tag: string }>,
+  config: Readonly<{ said: string; offeredForMs?: number }>,
+): Undo => ({
+  _tag: 'UndoneBy',
+  tag: action.tag,
+  said: config.said,
+  offeredForMs: config.offeredForMs ?? undoOfferedForMs,
+})
+
+/**
+ * Says an Action cannot be undone, and why, so a Client can warn before
+ * it and an agent knows it is final.
+ *
+ * @example
+ * ```typescript
+ * undo: Catalog.cannotBeUndone('the words can be searched for again')
+ * ```
+ */
+export const cannotBeUndone = (because: string): Undo => ({
+  _tag: 'CannotBeUndone',
+  because,
+})
 
 /**
  * What an Action touches, as it is written: the state it `mutates`, as
@@ -308,6 +368,7 @@ const retouched = (
     parameters: declaration.parameters,
     examples: declaration.examples,
     maybeTouches,
+    maybeUndo: declaration.maybeUndo,
   })
 
 const parametersOf = (
@@ -401,6 +462,7 @@ export function action(
     parameters: parametersOf(fields, Option.fromNullishOr(config.choose)),
     examples: config.examples ?? [],
     maybeTouches: touchesOf(config),
+    maybeUndo: Option.fromNullishOr(config.undo),
   })
 }
 
@@ -555,6 +617,8 @@ export type Entry<Tag extends string = string> = Readonly<{
    * `PlayTitle` for `Listen`: a terminal takes `play-title` for it.
    */
   aliases: ReadonlyArray<string>
+  /** True for an Action another says undoes it. */
+  undoes: boolean
 }>
 
 /**
@@ -644,6 +708,7 @@ export const entryOf = <Tag extends string, Model>(
   label: declaration.meta.label,
   isPayloadFree: declaration.isPayloadFree,
   aliases: declaration.aliases,
+  undoes: false,
   ...Option.match(declaration.maybeChoose, {
     onNone: () => ({
       keys: declaration.meta.keys,
@@ -653,6 +718,16 @@ export const entryOf = <Tag extends string, Model>(
     onSome: choose => choicesEntryOf(declaration, choose, model),
   }),
 })
+
+const undoingTagsOf = (catalog: AnyCatalog): ReadonlySet<string> =>
+  new Set(
+    Array.flatMap(catalog.actions, declaration =>
+      Option.match(declaration.maybeUndo, {
+        onNone: () => [],
+        onSome: undo => (undo._tag === 'UndoneBy' ? [undo.tag] : []),
+      }),
+    ),
+  )
 
 // NOTE: A Model is a value that is never changed in place: the next Model
 // is another object. So what a Catalog projects from one Model is kept
@@ -689,8 +764,12 @@ export const entries = <C extends AnyCatalog>(
   catalog: C,
   model: ModelOf<C>,
 ): ReadonlyArray<Entry<TagOf<C>>> => {
+  const undoing = undoingTagsOf(catalog)
   const project = (): ReadonlyArray<Entry<TagOf<C>>> =>
-    Array.map(catalog.actions, declaration => entryOf(declaration, model))
+    Array.map(catalog.actions, declaration => ({
+      ...entryOf(declaration, model),
+      undoes: undoing.has(declaration.tag),
+    }))
   if (!isKeepable(model)) {
     return project()
   }
@@ -1213,6 +1292,10 @@ export const lift = <
       meta: declaration.meta,
       aliases: declaration.aliases,
       examples: declaration.examples,
+      ...Option.match(declaration.maybeUndo, {
+        onNone: () => ({}),
+        onSome: undo => ({ undo }),
+      }),
     })
   const actions = Array.map(child.actions, liftOne)
   const childOf = (message: Readonly<{ _tag: string }>) =>
@@ -1343,6 +1426,7 @@ export const within = <
         touchesUnder(declaration.maybeTouches, config.under),
         alsoOf(declaration.tag),
       ),
+      maybeUndo: declaration.maybeUndo,
       enabled: (model: Model) => {
         const availability = parentEnabled(model)
         return isEnabled(availability)
@@ -1410,6 +1494,20 @@ export const declarationOf = (
       onNone: () => ({}),
       onSome: touches => ({ touches }),
     }),
+    ...Option.match(declaration.maybeUndo, {
+      onNone: () => ({}),
+      onSome: (undo): Readonly<{ undo: Undone }> => ({
+        undo:
+          undo._tag === 'UndoneBy'
+            ? {
+                _tag: 'UndoneBy',
+                by: undo.tag,
+                said: undo.said,
+                offeredForMs: undo.offeredForMs,
+              }
+            : undo,
+      }),
+    }),
     parameters: declaration.parameters,
     examples: declaration.examples,
   })
@@ -1427,6 +1525,65 @@ export const declarationOf = (
 export const declarationsOf = (
   catalog: AnyCatalog,
 ): ReadonlyArray<Declaration> => Array.map(catalog.actions, declarationOf)
+
+// UNDO
+
+/**
+ * The Action that undoes what was last done, while it can be asked for:
+ * the first enabled entry another Action says undoes it. A Client's Undo
+ * key and its `undo` command press this. None while there is nothing to
+ * undo.
+ *
+ * @example
+ * ```typescript
+ * Catalog.undoOf(catalog, afterRemoval) // Some({ tag: 'UndoRemoveBookmark', … })
+ * Catalog.undoOf(catalog, untouched) // None
+ * ```
+ */
+export const undoOf = <C extends AnyCatalog>(
+  catalog: C,
+  model: ModelOf<C>,
+): Option.Option<Entry<TagOf<C>>> =>
+  Array.findFirst(
+    entries(catalog, model),
+    entry => entry.undoes && isEnabled(entry.availability),
+  )
+
+const destroyingVerb =
+  /^(Deletes|Removes|Clears|Erases|Discards|Empties|Forgets)\b/u
+
+/**
+ * What a Catalog leaves unsaid about undoing, a sentence each; empty
+ * when every Action that destroys something says what undoes it or that
+ * it cannot be undone, and every undo named is an Action of the Catalog.
+ * An Action is taken to destroy something when its `what` begins with
+ * Deletes, Removes, Clears, Erases, Discards, Empties, or Forgets. A
+ * Program's test calls this.
+ *
+ * @example
+ * ```typescript
+ * Catalog.undeclaredUndos(catalog) // []
+ * // ['DeleteAll destroys something and says neither what undoes it nor that it cannot be undone.']
+ * ```
+ */
+export const undeclaredUndos = (catalog: AnyCatalog): ReadonlyArray<string> =>
+  Array.flatMap(catalog.actions, declaration =>
+    Option.match(declaration.maybeUndo, {
+      onNone: () =>
+        destroyingVerb.test(declaration.what)
+          ? [
+              `${declaration.tag} destroys something and says neither what undoes it nor that it cannot be undone.`,
+            ]
+          : [],
+      onSome: undo =>
+        undo._tag === 'UndoneBy' &&
+        !Array.some(catalog.actions, other => other.tag === undo.tag)
+          ? [
+              `${declaration.tag} says ${undo.tag} undoes it, and the Catalog has no ${undo.tag}.`,
+            ]
+          : [],
+    }),
+  )
 
 // TOUCHES
 

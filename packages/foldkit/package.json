@@ -127,6 +127,16 @@
       "import": "./dist/theme/index.js",
       "default": "./dist/theme/index.js"
     },
+    "./undo": {
+      "types": "./dist/undo/index.d.ts",
+      "import": "./dist/undo/index.js",
+      "default": "./dist/undo/index.js"
+    },
+    "./keyboard": {
+      "types": "./dist/keyboard/index.d.ts",
+      "import": "./dist/keyboard/index.js",
+      "default": "./dist/keyboard/index.js"
+    },
     "./interaction-graph": {
       "types": "./dist/interactionGraph/public.d.ts",
       "import": "./dist/interactionGraph/public.js",

@@ -38,6 +38,27 @@ export type Touches = Readonly<{
 export const changesSomething = (touches: Touches): boolean =>
   touches.mutates.length > 0 || touches.triggers.length > 0
 
+// UNDONE
+
+/**
+ * How what a declaration does is taken back, as plain data: `UndoneBy`
+ * names the declaration that undoes it, what to say happened, and for
+ * how long the undo is offered; `CannotBeUndone` says why not.
+ *
+ * @example
+ * ```typescript
+ * const undo: Declaration.Undone = { _tag: 'UndoneBy', by: 'UndoRemoveBookmark', said: 'Bookmark removed', offeredForMs: 8000 }
+ * ```
+ */
+export type Undone =
+  | Readonly<{
+      _tag: 'UndoneBy'
+      by: string
+      said: string
+      offeredForMs: number
+    }>
+  | Readonly<{ _tag: 'CannotBeUndone'; because: string }>
+
 // DECLARATION
 
 /** The parameters of a declaration, each under its name, in order. */
@@ -133,6 +154,7 @@ export type Declaration<
   what: string
   why: string
   touches?: Touches
+  undo?: Undone
   parameters: P
   examples: ReadonlyArray<Example<P>>
 }>
@@ -148,6 +170,7 @@ export type Config<P extends Parameters> = Readonly<{
   what: string
   why: string
   touches?: Touches
+  undo?: Undone
   parameters?: P
   examples?: ReadonlyArray<Example<P>>
 }>
@@ -180,6 +203,7 @@ export const make = <
   what: config.what,
   why: config.why,
   ...(config.touches === undefined ? {} : { touches: config.touches }),
+  ...(config.undo === undefined ? {} : { undo: config.undo }),
   /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
   parameters: config.parameters ?? ({} as P),
   examples: config.examples ?? [],
