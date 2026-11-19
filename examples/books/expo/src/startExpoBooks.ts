@@ -11,6 +11,7 @@ import {
   makeInstantScribeTimeline,
   newProcessorInstance,
   noReadAloud,
+  sharedMadeUpSession,
   startMadeUpBooks,
 } from 'books-core-example/browser'
 import { Layer } from 'effect'
@@ -19,6 +20,7 @@ import { Platform } from 'react-native'
 
 import {
   Instant,
+  SharedInstantProject,
   accessRequestHeaders,
   withHostedIdentity,
 } from '@foldkit/instant/browser'
@@ -59,7 +61,10 @@ const startedOnce = (start: () => Promise<BoundBooks>): Promise<BoundBooks> => {
  * Starts Books once per JavaScript runtime, on the made-up library every
  * Client can open: three titles nobody wrote, with made-up words and a
  * made-up voice. Nobody is signed in and no real library is read. The
- * phone's own services are the same as for a person's library. Fast
+ * phone's own services are the same as for a person's library. With
+ * `isShared` it is the one made-up session every device that asks for it
+ * shares, so the phone, a browser tab and a terminal can be watched
+ * moving together; without, it stays on this phone. Fast
  * Refresh runs this module again, so the running Books lives on
  * `globalThis` and is reused.
  *
@@ -68,12 +73,24 @@ const startedOnce = (start: () => Promise<BoundBooks>): Promise<BoundBooks> => {
  * const books = await startMadeUpExpoBooks()
  * ```
  */
-export const startMadeUpExpoBooks = (): Promise<BoundBooks> =>
+export const startMadeUpExpoBooks = (
+  options: Readonly<{ isShared: boolean }> = { isShared: false },
+): Promise<BoundBooks> =>
   startedOnce(() => {
     const running: Running = { maybeBooks: undefined }
+    const host = expoHost()
     return startMadeUpBooks({
-      host: expoHost(),
+      host,
       resources: phoneResources(running),
+      ...(options.isShared
+        ? {
+            sync: sharedMadeUpSession({
+              host,
+              instance: newProcessorInstance(),
+              database: init({ appId: SharedInstantProject.id }).core,
+            }),
+          }
+        : {}),
     }).then(handle => {
       const books = bindBooks(handle)
       running.maybeBooks = books

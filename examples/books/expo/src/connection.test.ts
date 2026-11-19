@@ -1,7 +1,7 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { connectionFrom } from './connection'
+import { connectionFrom, isMadeUpSessionShared } from './connection'
 
 const origin = 'https://books.example'
 
@@ -29,5 +29,31 @@ describe('which library the phone opens', () => {
         origin,
       ),
     ).toEqual(Option.none())
+  })
+})
+
+describe('the made-up library as one session on every device', () => {
+  it('is shared only when asked for by name', () => {
+    expect(isMadeUpSessionShared({ EXPO_PUBLIC_BOOKS_MADE_UP: 'shared' })).toBe(
+      true,
+    )
+    expect(isMadeUpSessionShared({ EXPO_PUBLIC_BOOKS_MADE_UP: '1' })).toBe(
+      false,
+    )
+    expect(isMadeUpSessionShared({})).toBe(false)
+  })
+
+  it('is still the made-up library, never a person’s own', () => {
+    expect(
+      Option.isNone(
+        connectionFrom(
+          {
+            EXPO_PUBLIC_BOOKS_INSTANT_APP_ID: 'app-1',
+            EXPO_PUBLIC_BOOKS_MADE_UP: 'shared',
+          },
+          'https://books.example',
+        ),
+      ),
+    ).toBe(true)
   })
 })

@@ -18,7 +18,8 @@
     "start:signed-in": "./scripts/with-books-app expo start --port 8097 --dev-client",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "voice": "node scripts/make-made-up-voice.mjs"
+    "voice": "node scripts/make-made-up-voice.mjs",
+    "start:made-up-shared": "EXPO_PUBLIC_BOOKS_MADE_UP=shared expo start --port 8097"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",

@@ -7,7 +7,11 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ensureHostedInstantSession } from '@foldkit/instant/browser'
 
 import { loadKeptSession, signInThroughTheSystem } from './access'
-import { type PhoneConnection, connectionFrom } from './connection'
+import {
+  type PhoneConnection,
+  connectionFrom,
+  isMadeUpSessionShared,
+} from './connection'
 import {
   phoneDatabase,
   startMadeUpExpoBooks,
@@ -96,7 +100,11 @@ export const BooksGate = ({
   useEffect(() => {
     Option.match(maybeConnection, {
       onNone: () => {
-        void startMadeUpExpoBooks().then(books => {
+        void startMadeUpExpoBooks({
+          isShared: isMadeUpSessionShared({
+            EXPO_PUBLIC_BOOKS_MADE_UP: process.env.EXPO_PUBLIC_BOOKS_MADE_UP,
+          }),
+        }).then(books => {
           setGate({ _tag: 'Open', books })
         })
       },

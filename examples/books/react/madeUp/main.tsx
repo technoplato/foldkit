@@ -6,7 +6,12 @@
  * `pnpm --filter books-react-example run dev:made-up` serves it, and
  * `?look=Dark` opens it in the dark look.
  */
-import { bindBooks, startMadeUpBooks } from 'books-core-example/browser'
+import {
+  bindBooks,
+  newProcessorInstance,
+  sharedMadeUpSession,
+  startMadeUpBooks,
+} from 'books-core-example/browser'
 import { Interaction, Processor } from 'foldkit'
 import {
   browserSystemAppearance,
@@ -28,9 +33,19 @@ const lookTimeoutMs = 5_000
 // NOTE: The library is made up; the browser is not. The Program hears
 // this browser's own report of the system's appearance, as the served
 // site does, so More Contrast can be looked at here.
+//
+// `?session=shared` makes it the one made-up session every device that
+// asks for it shares, so a tab, a phone and a terminal can be watched
+// moving together. Without it the session stays in this tab.
+const host = Processor.Host.React()
+const isSessionShared =
+  new URLSearchParams(window.location.search).get('session') === 'shared'
 const handle = await startMadeUpBooks({
-  host: Processor.Host.React(),
+  host,
   resources: browserSystemAppearance,
+  ...(isSessionShared
+    ? { sync: sharedMadeUpSession({ host, instance: newProcessorInstance() }) }
+    : {}),
 })
 
 const tellPageItsMode = (): void => {

@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 
 import { madeUpSessionLog, startMadeUpBooks } from './madeUp.js'
 import { BooksProgram } from './program.js'
-import { sampleTitles } from './sample.js'
 import { bindBooks } from './synced.js'
 
 const settleMs = 3_000
@@ -62,7 +61,7 @@ describe('the made-up library on a host', () => {
     const onTerminal = bindBooks(terminal)
     await Interaction.whenSettled(onPhone, settleMs)
     await Interaction.whenSettled(onTerminal, settleMs)
-    const title = sampleTitles[0].slug
+    const title = 'the-lantern-keeper'
     const addressOn = (bound: typeof onPhone): string =>
       Option.match(bound.navigation(), {
         onNone: () => '',
