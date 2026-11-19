@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 8:47:02 p.m. EST — `05404c15621d` fix(books): green: any host can wait for the shelf, and a command waits for the chapters it names (Scribe #2494)
+
+- **Implementation commit:** `05404c15621dcd9337202360e8813a752e1a0d1e`
+- **Change:** Any host can wait for the shelf, and a command waits for the chapters it names
+- **Details:**
+  - Layer: the Books core. whenBooks waits for something to hold of the Ready Model on its own change; whenShelfOpened is the shelf's case. The terminal's wait for the library no longer looks every tenth of a second, and also waits for the chapters of the titles in progress, which a place is said by.
+- **Files:**
+  - `examples/books/core/src/live.ts` — changed by this commit
+  - `examples/books/core/src/synced.ts` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 8:47:02 p.m. EST — `a7c544e16cc3` fix(books): green: every script that serves or checks the site builds what it depends on first (Scribe #2494)
+
+- **Implementation commit:** `a7c544e16cc364037fba909a2956aa9323c7919b`
+- **Change:** Every script that serves or checks the Books site builds what it depends on first
+- **Details:**
+  - Layer: the Books site's package. One step builds every workspace package the site depends on, asked of the workspace by the package's own name; the dev server, the made-up page, the two builds and the typecheck run it first. The launcher test also holds that books open with the address of the session's settings or the action menu shows that screen.
+- **Files:**
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/react/package.json` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 7:34:02 p.m. EST — `ca7a5ca57f26` fix(books): green: a title named like a screen gets a name tag its own link can open (Scribe #2494)
 
 - **Implementation commit:** `ca7a5ca57f26fe200ec1ad795583d52d86271178`
