@@ -24,7 +24,9 @@ export const telemetryLineOf = (line: string): string =>
  * How a phone attaches telemetry: the app's name, as every Client of it
  * gives; whether to record, when it is not for the build to say; where
  * the lines go, when not the console, and where a line that cannot wait
- * goes; and facts the phone says about itself once, as the trace starts.
+ * goes; facts the phone says about itself once, as the trace starts; and
+ * `laterNotes`, handed a way to say what it learns about itself after,
+ * such as what came of asking for newer code.
  */
 export type DevelopmentTelemetryOptions = Readonly<{
   app: string
@@ -32,6 +34,7 @@ export type DevelopmentTelemetryOptions = Readonly<{
   write?: (line: string) => void
   writeNow?: (line: string) => void
   note?: Readonly<Record<string, unknown>>
+  laterNotes?: (say: (note: Readonly<Record<string, unknown>>) => void) => void
 }>
 
 // NOTE: Fast Refresh runs this module again in the same JavaScript
@@ -78,6 +81,11 @@ export const attachDevelopmentTelemetry = <
   }
   if (isOn && options.note !== undefined) {
     write(hostNoteLineOf(options.note, new Date()))
+  }
+  if (isOn && options.laterNotes !== undefined) {
+    options.laterNotes(note => {
+      write(hostNoteLineOf(note, new Date()))
+    })
   }
   return isOn
     ? Option.some(
