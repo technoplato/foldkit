@@ -4,6 +4,62 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 19th, 2026 at 10:12:08 a.m. EST — `9771710eee8b` fix(books): green: a newer place takes a waiting place's turn in the whole Program (Scribe #2494)
+
+- **Implementation commit:** `9771710eee8b6934ba9ca8e297b660b22c7c0f30`
+- **Change:** A newer place takes a waiting place's turn in the whole Program
+- **Details:**
+  - Layer: the transcript player's core, the Books core, and Foldkit core's lifting of a child's Subscriptions. The player's clock says a place is made pointless by a newer place; composed Programs keep the child's answer.
+- **Files:**
+  - `examples/books/core/src/positionTick.test.ts` — changed by this commit
+  - `examples/books/core/src/subscriptions.ts` — changed by this commit
+  - `examples/transcript-player/core/src/subscriptions.ts` — changed by this commit
+  - `packages/foldkit/src/program/liftEffects.ts` — changed by this commit
+  - `packages/foldkit/src/subscription/public.ts` — changed by this commit
+- **User context (verbatim):**
+  > One thing is the application doesn't really sync. It's very laggy
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 19th, 2026 at 10:12:08 a.m. EST — `d29e165521db` fix(foldkit): green: a Message's row leaves before what the Message started has finished (Scribe #2494)
+
+- **Implementation commit:** `d29e165521dbd2245ae9246fda3144f058edf768`
+- **Change:** A Message's row leaves before what the Message started has finished
+- **Details:**
+  - Layer: Foldkit core, the sync runtime. The row is written at the Message's transition, before its Commands start: 407 ms to 5 ms on two Processors with a 400 ms Command.
+- **Files:**
+  - `packages/foldkit/src/runtime/start.ts` — changed by this commit
+- **User context (verbatim):**
+  > One thing is the application doesn't really sync. It's very laggy
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 19th, 2026 at 10:12:08 a.m. EST — `31e6757e5b76` feat(foldkit): green: a waiting Message that a newer one makes pointless is replaced, so a press is taken next (Scribe #2494)
+
+- **Implementation commit:** `31e6757e5b763bf1e7785053a1d44607931baefa`
+- **Change:** A waiting Message that a newer one makes pointless is replaced, so a press is taken next
+- **Details:**
+  - Layer: Foldkit core, Subscriptions and the Program runtime. An entry may say supersedes(waiting, arrived); the runtime replaces the last waiting Message of that Subscription and never reorders; the queue is drained one Message at a time.
+- **Files:**
+  - `packages/foldkit/src/runtime/programRuntime.ts` — changed by this commit
+  - `packages/foldkit/src/runtime/supersededMessages.test.ts` — changed by this commit
+  - `packages/foldkit/src/subscription/subscription.ts` — changed by this commit
+- **User context (verbatim):**
+  > this functionality needs to be built in a core of the sync engine and the core of the diagnostics and fold kit debugging skills, et cetera, and not stapled on or bolted on to the application
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 19th, 2026 at 10:12:08 a.m. EST — `c210c24b20fd` feat(books): green: a command restarts a player that is older than books by itself (Scribe #2494)
+
+- **Implementation commit:** `c210c24b20fd411854073f7d64f937f8e55db2d8`
+- **Change:** A command restarts a player that is older than books by itself
+- **Details:**
+  - Layer: the Books terminal's view. A books command that meets a player started before books was updated stops it, which saves the place, says one sentence, plays the title on when it was sounding, and then runs what was typed.
+- **Files:**
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/view.test.ts` — changed by this commit
+  - `examples/books/cli/src/view.ts` — changed by this commit
+- **User context (verbatim):**
+  > this functionality needs to be built in a core of the sync engine and the core of the diagnostics and fold kit debugging skills, et cetera, and not stapled on or bolted on to the application
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 11:22:00 p.m. EST — `2f4264a79430` perf(books): green: a position tick moves the place and nothing else (Scribe #2494)
 
 - **Implementation commit:** `2f4264a79430f4bc5ad8c37690150b91eb73248c`

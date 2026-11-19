@@ -41,41 +41,88 @@ const spawnPlayer = () => spawnCliViewDaemon({ scriptPath: daemonScriptPath })
 
 /**
  * What a command says when the player it meets was started before
- * `books` was updated: that it answers the old way, and the one command
- * that ends it and keeps the place.
+ * `books` was updated and it has restarted it: one sentence, on the error
+ * stream so a pipe's reader never sees it.
  */
-export const olderPlayerSentence = `The Books player running here was started before \`${booksCommandName}\` was updated, so it answers the old way. Run \`${commandLine(['Stop'])}\` (it keeps the place); the next command starts the new one.`
+export const restartedSentence = `The Books player here was started before \`${booksCommandName}\` was updated, so it was restarted. Your place is kept.`
 
 /**
- * What {@link saidWhenPlayerIsOlder} needs from outside: whether a player
- * is listening, a way to ask it, what this command was built from, and
+ * What {@link restartedWhenOlder} needs from outside: whether a player is
+ * listening, a way to ask a running one, a way to run a command starting
+ * the player when needed, what this command was built from, a wait, and
  * where to say a line.
  */
 export type OlderRuntime = Readonly<{
   isListening: (socketPath: string) => Promise<boolean>
   ask: (socketPath: string, request: CliViewRequest) => Promise<CliViewPainted>
+  run: (socketPath: string, request: CliViewRequest) => Promise<CliViewPainted>
   builtNow: () => string
+  wait: (ms: number) => Promise<void>
   say: (sentence: string) => void
 }>
 
 const olderRuntime: OlderRuntime = {
   isListening: isCliViewListening,
   ask: askCliView,
+  run: (socketPath, request) =>
+    runCliView({ socketPath, spawn: spawnPlayer, request }),
   builtNow: () => buildOf(daemonScriptPath),
+  wait: ms =>
+    new Promise(resolve => {
+      setTimeout(resolve, ms)
+    }),
   say: sentence => {
     process.stderr.write(`${sentence}\n`)
   },
 }
 
+const stoppedCheckEveryMs = 25
+
+const stoppedWithinMs = 5_000
+
+// The title an older player was sounding, read from its own words as
+// JSON, which every build of the player answers. None when nothing was
+// sounding or it could not say.
+const soundingIn = async (
+  socketPath: string,
+  runtime: OlderRuntime,
+): Promise<string | undefined> => {
+  try {
+    const answer = await runtime.ask(socketPath, {
+      _tag: 'Do',
+      token: 'words',
+      flags: { json: '1' },
+    })
+    const said: unknown = JSON.parse(answer.stdout)
+    const header =
+      typeof said === 'object' && said !== null && 'header' in said
+        ? said.header
+        : undefined
+    return typeof header === 'object' &&
+      header !== null &&
+      'isPlaying' in header &&
+      header.isPlaying === true &&
+      'slug' in header &&
+      typeof header.slug === 'string'
+      ? header.slug
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
- * Tells a person when the player running here is not of this build: it
- * asks the player what it was built from, and when that is something
- * else, or the player is too old to know the question, says
- * {@link olderPlayerSentence}. True when it said so. A player of this
- * build hears one question and the person nothing; with no player
- * running nothing is asked.
+ * Restarts the player running here when it is not of this build, so
+ * nobody has to remember to stop it after `books` is updated: it asks the
+ * player what it was built from, and when that is something else, or the
+ * player is too old to know the question, it asks the player to stop,
+ * which saves the place, waits until it has gone, and, when a title was
+ * sounding, plays that title on in a player of this build, from the
+ * place that was saved. It says {@link restartedSentence} once. True when
+ * it restarted. A player of this build hears one question and the person
+ * nothing; with no player running nothing is asked.
  */
-export const saidWhenPlayerIsOlder = async (
+export const restartedWhenOlder = async (
   socketPath: string,
   runtime: OlderRuntime = olderRuntime,
 ): Promise<boolean> => {
@@ -93,7 +140,27 @@ export const saidWhenPlayerIsOlder = async (
   } catch {
     return false
   }
-  runtime.say(olderPlayerSentence)
+  const maybeSounding = await soundingIn(socketPath, runtime)
+  try {
+    await runtime.ask(socketPath, { _tag: 'Do', token: 'stop' })
+  } catch {
+    // A player that went away while it was asked has stopped.
+  }
+  const deadline = Date.now() + stoppedWithinMs
+  while ((await runtime.isListening(socketPath)) && Date.now() < deadline) {
+    await runtime.wait(stoppedCheckEveryMs)
+  }
+  runtime.say(restartedSentence)
+  if (maybeSounding !== undefined) {
+    try {
+      await runtime.run(socketPath, {
+        _tag: 'Do',
+        token: `listen ${maybeSounding}`,
+      })
+    } catch {
+      // The command that follows starts the player if this could not.
+    }
+  }
   return true
 }
 
@@ -113,11 +180,11 @@ export type AskRuntime = Readonly<{
   ask: (socketPath: string, request: CliViewRequest) => Promise<CliViewPainted>
   write: (result: CliViewPainted) => void
   say: (sentence: string) => void
-  sayWhenOlder: (socketPath: string) => Promise<unknown>
+  restartWhenOlder: (socketPath: string) => Promise<unknown>
 }>
 
 const askRuntime: AskRuntime = {
-  sayWhenOlder: socketPath => saidWhenPlayerIsOlder(socketPath),
+  restartWhenOlder: socketPath => restartedWhenOlder(socketPath),
   isListening: isCliViewListening,
   run: (socketPath, request) =>
     runCliView({ socketPath, spawn: spawnPlayer, request }),
@@ -149,7 +216,11 @@ export const askPlayer = async (
   if (!wasRunning) {
     runtime.say(startingSentence)
   }
-  await runtime.sayWhenOlder(socketPath)
+  // NOTE: A stop only stops: restarting a player to stop it would start
+  // one for nothing.
+  if (!(request._tag === 'Do' && request.token === 'stop')) {
+    await runtime.restartWhenOlder(socketPath)
+  }
   try {
     const result = await runtime.run(socketPath, request)
     runtime.write(result)
@@ -219,7 +290,7 @@ export const followPlayer = async (
 ): Promise<void> => {
   const socketPath = booksPlayerSocketPath()
   await sayWhenStarting(socketPath)
-  await saidWhenPlayerIsOlder(socketPath)
+  await restartedWhenOlder(socketPath)
   await writeCliFollow({
     socketPath,
     spawn: spawnPlayer,
@@ -297,7 +368,7 @@ export const showPlayerTui = async (): Promise<void> => {
   }
   const socketPath = booksPlayerSocketPath()
   await sayWhenStarting(socketPath)
-  await saidWhenPlayerIsOlder(socketPath)
+  await restartedWhenOlder(socketPath)
   try {
     const end = await runCliTuiView({
       socketPath,

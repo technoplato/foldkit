@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Milliseconds } from './ids.js'
 import { startMadeUpBooks } from './madeUp.js'
+import { Loaded } from './model.js'
 import { SyncedBooks, bindBooks, whenShelfOpened } from './synced.js'
 
 // NOTE: While a title plays, the place arrives once a second. It changes
@@ -60,23 +61,63 @@ describe('a position tick while a long title plays', () => {
     )
   })
 
-  it('costs a small part of a millisecond, however much the player holds', async () => {
+  it('costs a small part of what making the loaded title again costs, however busy the machine', async () => {
     const { model } = await playing()
     const tick = TranscriptPlayer.ReachedPlace({
       placeMs: Milliseconds.make(4_000),
       wallClockMs: 1_795_000_000_000,
     })
-    const times = 300
-    for (let warm = 0; warm < 100; warm += 1) {
-      SyncedBooks.update(model, tick)
+    const loaded =
+      model._tag === 'Ready' && model.listening._tag === 'Loaded'
+        ? model.listening
+        : undefined
+    expect(loaded).toBeDefined()
+    const timed = (run: () => unknown): number => {
+      const times = 300
+      for (let warm = 0; warm < 100; warm += 1) {
+        run()
+      }
+      const startedAt = performance.now()
+      for (let index = 0; index < times; index += 1) {
+        run()
+      }
+      return (performance.now() - startedAt) / times
     }
-    const startedAt = performance.now()
-    for (let index = 0; index < times; index += 1) {
-      SyncedBooks.update(model, tick)
-    }
-    const each = (performance.now() - startedAt) / times
-    // It was about 0.8 ms on this machine; a tenth of that leaves room
-    // for a busy one.
-    expect(each).toBeLessThan(0.2)
+    // What a tick cost before: the loaded title made again, which checks
+    // and copies everything the player holds. Both are timed in the same
+    // run, so a busy machine slows them alike.
+    const made = timed(() => (loaded === undefined ? loaded : Loaded(loaded)))
+    const each = timed(() => SyncedBooks.update(model, tick))
+    expect(each).toBeLessThan(made / 3)
+  })
+})
+
+// NOTE: A device that takes longer over a tick than a second fell behind:
+// on 2026-11-19 an iPad was taking places 10 to 14 seconds after the
+// audio reported them, and a pause from the terminal waited behind them.
+// The whole Program, as every Client runs it, says a newer place makes a
+// waiting one pointless, so the runtime keeps one.
+describe('the places the player reports, as the whole Program queues them', () => {
+  const place = (seconds: number) =>
+    TranscriptPlayer.ReachedPlace({
+      placeMs: Milliseconds.make(seconds * 1_000),
+      wallClockMs: 1_795_000_000_000 + seconds * 1_000,
+    })
+  const clock = SyncedBooks.subscriptions?.['clock']
+
+  it('lets a newer place take a waiting place’s turn', () => {
+    expect(clock?.supersedes?.(place(4), place(5))).toBe(true)
+  })
+
+  it('never lets a place take the turn of the end, of a failure, or the other way round', () => {
+    const end = TranscriptPlayer.ReachedEnd()
+    const failure = TranscriptPlayer.FailedPlayAudio({ reason: 'no sound' })
+    expect(clock?.supersedes?.(end, place(5))).toBe(false)
+    expect(clock?.supersedes?.(failure, place(5))).toBe(false)
+    expect(clock?.supersedes?.(place(4), end)).toBe(false)
+  })
+
+  it('says nothing of the kind for the shelf, whose every fact must be taken', () => {
+    expect(SyncedBooks.subscriptions?.['shelf']?.supersedes).toBeUndefined()
   })
 })

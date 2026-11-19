@@ -81,6 +81,21 @@ const messageOfAudioEvent = (event: AudioEvent): Message =>
     }),
   )
 
+/**
+ * Which of the clock's facts a newer one makes pointless: a place, by a
+ * newer place. The audio reports where it is about once a second; a
+ * device that takes longer than that over each report keeps the newest
+ * one waiting, not all of them. The end and a failure are each taken.
+ *
+ * @example
+ * ```typescript
+ * clockSupersedes(ReachedPlace({ … }), ReachedPlace({ … })) // true
+ * clockSupersedes(ReachedEnd(), ReachedPlace({ … })) // false
+ * ```
+ */
+export const clockSupersedes = (waiting: Message, arrived: Message): boolean =>
+  waiting._tag === 'ReachedPlace' && arrived._tag === 'ReachedPlace'
+
 /** The audio for a track, as the player's facts. */
 export const clockStream = (
   { maybeTrack }: ClockDependencies,
@@ -224,6 +239,7 @@ export const subscriptions = Subscription.make<
     modelToDependencies: model => clockDependenciesOf(Option.some(model)),
     keepAliveEquivalence: isSameClock,
     dependenciesToStream: clockStream,
+    supersedes: clockSupersedes,
   }),
   transcript: entry(TranscriptDependencies.fields, {
     modelToDependencies: model => transcriptDependenciesOf(Option.some(model)),

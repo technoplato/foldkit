@@ -101,6 +101,14 @@ type QueuedMessage<Message> = Readonly<{
   source: TransitionSource
   maybeEnvelope: Option.Option<MessageEnvelope>
   maybeOperation: Option.Option<Operation>
+  /**
+   * For a Message from a Subscription that says which of its Messages a
+   * newer one makes pointless: the Subscription's name and its answer.
+   */
+  superseding?: Readonly<{
+    name: string
+    supersedes: (waiting: Message, arrived: Message) => boolean
+  }>
 }>
 
 type RecordedProgramRuntimeEvent = Readonly<{
@@ -815,8 +823,27 @@ export const makeProgramRuntime = <
       if (isRuntimeDisposed || Option.isSome(maybeCrashCause)) {
         return
       }
-      addOperationWork(queuedMessage.maybeOperation)
-      pendingMessages.push(queuedMessage)
+      // NOTE: A Message its own Subscription says the last one waiting is
+      // made pointless by takes that one's place. A device that takes
+      // longer over each tick than the ticks are apart would otherwise
+      // fall further behind real time with every one, and a press would
+      // wait behind all of them. Only the Message at the end of the
+      // queue is replaced, so nothing is ever taken out of the order it
+      // arrived in: a tick that arrives after a press waits behind it.
+      const superseding = queuedMessage.superseding
+      const isReplacingLast = Option.exists(
+        Array.last(pendingMessages),
+        waiting =>
+          superseding !== undefined &&
+          waiting.superseding?.name === superseding.name &&
+          superseding.supersedes(waiting.message, queuedMessage.message),
+      )
+      if (isReplacingLast) {
+        pendingMessages = [...pendingMessages.slice(0, -1), queuedMessage]
+      } else {
+        addOperationWork(queuedMessage.maybeOperation)
+        pendingMessages.push(queuedMessage)
+      }
       if (isBootComplete) {
         if (isDrainDeferred) {
           queueMicrotask(drainPendingMessages)
@@ -1052,34 +1079,32 @@ export const makeProgramRuntime = <
 
       isProcessingMessages = true
       try {
+        // NOTE: One Message at a time, each taken off the front, so every
+        // Message still waiting stays in the queue, where a newer one of
+        // its Subscription can find it and take its place.
         while (Array.isReadonlyArrayNonEmpty(pendingMessages)) {
-          let batch: ReadonlyArray<QueuedMessage<Message>> = pendingMessages
-          pendingMessages = []
-          while (Array.isReadonlyArrayNonEmpty(batch)) {
-            const [queuedMessage, remainingBatch] = Array.matchLeft(batch, {
+          const [queuedMessage, stillWaiting] = Array.matchLeft(
+            pendingMessages,
+            {
               onEmpty: () => {
-                throw new Error('A non-empty Message batch became empty')
+                throw new Error('A non-empty Message queue became empty')
               },
               onNonEmpty: (head, tail) => [head, tail],
-            })
-            processMessage(queuedMessage)
-            if (Option.isSome(maybeCrashCause)) {
-              pendingMessages = []
-              return
-            }
-            const hasRemainingWork =
-              Array.isReadonlyArrayNonEmpty(remainingBatch) ||
-              Array.isReadonlyArrayNonEmpty(pendingMessages)
-            if (
-              hasRemainingWork &&
-              synchronousWorkMsSinceYield + (schedulingNow() - drainStartedAt) >
-                synchronousWorkBudgetMs
-            ) {
-              pendingMessages = Array.appendAll(remainingBatch, pendingMessages)
-              scheduleDeferredDrain()
-              return
-            }
-            batch = remainingBatch
+            },
+          )
+          pendingMessages = [...stillWaiting]
+          processMessage(queuedMessage)
+          if (Option.isSome(maybeCrashCause)) {
+            pendingMessages = []
+            return
+          }
+          if (
+            Array.isReadonlyArrayNonEmpty(pendingMessages) &&
+            synchronousWorkMsSinceYield + (schedulingNow() - drainStartedAt) >
+              synchronousWorkBudgetMs
+          ) {
+            scheduleDeferredDrain()
+            return
           }
         }
       } finally {
@@ -1201,6 +1226,7 @@ export const makeProgramRuntime = <
         modelToDependencies,
         keepAliveEquivalence,
         dependenciesToStream,
+        supersedes,
         source,
       },
     ]: readonly [
@@ -1293,6 +1319,9 @@ export const makeProgramRuntime = <
                   source: transitionSource,
                   maybeEnvelope: Option.none(),
                   maybeOperation: Option.none(),
+                  ...(supersedes === undefined
+                    ? {}
+                    : { superseding: { name, supersedes } }),
                 }),
               ),
             ),

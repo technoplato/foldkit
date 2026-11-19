@@ -351,25 +351,64 @@ describe(
       expect(names).toContain('pause')
     })
 
-    it('tells a person when the player running was started before books was updated, with the one command to run', () => {
+    // NOTE: A player keeps running the code it started with. After `books`
+    // is updated, the next command restarts it by itself, says so, and
+    // keeps the place: nobody has to remember to stop it first.
+    const restartedSentence =
+      'The Books player here was started before `books` was updated, so it was restarted. Your place is kept.\n'
+
+    const makeBooksNewer = (): void => {
+      const now = new Date()
+      utimesSync(join(here, '../dist/daemon.js'), now, now)
+    }
+
+    it('restarts a player that was started before books was updated, says so, and goes on playing where it was', () => {
       const library = newLibrary()
       expect(books(library, ['listen', 'lantern']).stderr).toBe(
         'Starting the Books player…\n',
       )
-      expect(books(library, ['pause']).stderr).toBe('')
-      const now = new Date()
-      utimesSync(join(here, '../dist/daemon.js'), now, now)
-      const met = books(library, ['play'])
+      makeBooksNewer()
+      const met = books(library, ['link'])
+      expect(met.stderr).toBe(restartedSentence)
       expect(met.status).toBe(0)
+      expect(met.stdout).toContain('/books/the-lantern-keeper/listen/')
+      // The player answering now is the new one: nothing is restarted
+      // again, and it is playing.
+      const words = books(library, ['words', '--json'])
+      expect(words.stderr).toBe('')
+      expect(JSON.parse(words.stdout)).toMatchObject({
+        header: { slug: 'the-lantern-keeper', isPlaying: true },
+      })
+      expect(books(library, ['pause']).stderr).toBe('')
+    })
+
+    it('restarts a paused player too, and the command that met it is answered by the new one', () => {
+      // NOTE: The place itself is not looked at here. The older player is
+      // asked to stop, which saves the place in the library; the made-up
+      // library lives in the player's own process and forgets when that
+      // ends, so only a real library can show the place again.
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      expect(books(library, ['pause']).stdout).toContain('Paused')
+      makeBooksNewer()
+      const met = books(library, ['play', 'lantern'])
+      expect(met.stderr).toBe(restartedSentence)
       expect(met.stdout).toContain('Playing The Lantern Keeper')
-      expect(met.stderr).toBe(
-        'The Books player running here was started before `books` was updated, so it answers the old way. Run `books stop` (it keeps the place); the next command starts the new one.\n',
-      )
-      expect(books(library, ['stop']).status).toBe(0)
+      const words = books(library, ['words', '--json'])
+      expect(words.stderr).toBe('')
+      expect(JSON.parse(words.stdout).header.isPlaying).toBe(true)
+    })
+
+    it('only stops an older player when the command is stop, with nothing restarted', () => {
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      makeBooksNewer()
+      const stopped = books(library, ['stop'])
+      expect(stopped.stderr).toBe('')
+      expect(stopped.stdout).toContain('Your place is saved.')
       expect(books(library, ['listen', 'lantern']).stderr).toBe(
         'Starting the Books player…\n',
       )
-      expect(books(library, ['pause']).stderr).toBe('')
     })
 
     it('answers a command nobody declared in one sentence and leaves no player running', () => {
