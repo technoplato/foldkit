@@ -9,6 +9,7 @@ import {
   Rendered,
   SessionStarted,
   SessionStopped,
+  Synced,
   type TelemetryEvent,
   Transition,
 } from './event.js'
@@ -592,5 +593,141 @@ describe('the Messages that weigh the most', () => {
     expect(
       formatSummary(summarize(events), 'books-web-react.ndjson'),
     ).not.toContain('Heaviest Messages')
+  })
+})
+
+// NOTE: Two devices each keep their own file. A row one wrote has the same
+// id in the other's file, so the summary of both files answers whether a
+// press on one reached the other, and how long it took.
+describe('rows one device wrote, and what the others did with them', () => {
+  const phone: Session = {
+    session: 'eeee0005',
+    app: 'books',
+    surface: 'mobile-ios',
+  }
+  const synced = (
+    secondsAfterStart: number,
+    session: Session,
+    fields: Omit<Synced, keyof ReturnType<typeof envelopeAt> | '_tag'>,
+  ): TelemetryEvent =>
+    Synced.make({ ...envelopeAt(secondsAfterStart, session), ...fields })
+  const together: ReadonlyArray<TelemetryEvent> = [
+    sessionStarted(0, cliDaemon),
+    sessionStarted(1, phone),
+    synced(2, phone, { kind: 'LinkChanged', link: 'SignedIn' }),
+    synced(10.5, cliDaemon, {
+      kind: 'WroteRow',
+      rowId: 'row-play',
+      message: 'Play',
+      link: 'delivered',
+      isRetry: false,
+      tookMs: 200,
+    }),
+    synced(10.9, phone, {
+      kind: 'ReceivedRow',
+      rowId: 'row-play',
+      message: 'Play',
+      from: 'cli',
+      isLate: false,
+    }),
+    synced(20, cliDaemon, {
+      kind: 'WroteRow',
+      rowId: 'row-pause',
+      message: 'Pause',
+      link: 'delivered',
+      isRetry: false,
+      tookMs: 100,
+    }),
+    synced(30, phone, { kind: 'LinkChanged', link: 'Offline' }),
+    synced(40, phone, {
+      kind: 'WroteRow',
+      rowId: 'row-seek',
+      message: 'SeekTo',
+      link: 'queued',
+      isRetry: false,
+      tookMs: 0,
+    }),
+    synced(41, cliDaemon, {
+      kind: 'DroppedRow',
+      rowId: 'row-seek',
+      from: 'expo-ios',
+      cause: 'Message Schema decode failed.',
+    }),
+    transition(60, 'Pause', { _tag: 'Host' }, 0.1, cliDaemon),
+  ]
+
+  it('pairs a written row with the device that received it, by the row’s id, with how long it took from when it left', () => {
+    const [seek, pause, play] = summarize(together).deliveries
+    expect(play).toMatchObject({
+      rowId: 'row-play',
+      message: 'Play',
+      fromSurface: 'terminal-cli',
+      link: 'delivered',
+      sentAt: '2026-10-04T20:00:10.300Z',
+      receipts: [
+        {
+          surface: 'mobile-ios',
+          session: 'eeee0005',
+          outcome: 'ReceivedRow',
+          at: '2026-10-04T20:00:10.900Z',
+          afterMs: 600,
+        },
+      ],
+      notSeenBy: [],
+    })
+    expect(pause).toMatchObject({
+      rowId: 'row-pause',
+      receipts: [],
+      notSeenBy: [{ surface: 'mobile-ios', session: 'eeee0005' }],
+    })
+    expect(seek).toMatchObject({
+      rowId: 'row-seek',
+      fromSurface: 'mobile-ios',
+      link: 'queued',
+      receipts: [
+        {
+          surface: 'terminal-cli',
+          outcome: 'DroppedRow',
+          cause: 'Message Schema decode failed.',
+        },
+      ],
+    })
+  })
+
+  it('says where each device’s link stood, in order', () => {
+    const summary = summarize(together)
+    expect(
+      summary.surfaces.find(surface => surface.surface === 'mobile-ios')?.links,
+    ).toEqual([
+      { at: '2026-10-04T20:00:02.000Z', link: 'SignedIn' },
+      { at: '2026-10-04T20:00:30.000Z', link: 'Offline' },
+    ])
+  })
+
+  it('prints them, newest first, and says which device never saw a row', () => {
+    const printed = formatSummary(summarize(together), 'books')
+    expect(printed).toContain(
+      [
+        'Deliveries',
+        '  sent                      message  from          link       reached',
+        '  2026-10-04T20:00:40.000Z  SeekTo   mobile-ios    queued     terminal-cli dropped it: Message Schema decode failed.',
+        '  2026-10-04T20:00:19.900Z  Pause    terminal-cli  delivered  not seen by mobile-ios eeee0005',
+        '  2026-10-04T20:00:10.300Z  Play     terminal-cli  delivered  mobile-ios after 600 ms',
+      ].join('\n'),
+    )
+    expect(printed).toContain(
+      [
+        '  Link',
+        '    2026-10-04T20:00:02.000Z  SignedIn',
+        '    2026-10-04T20:00:30.000Z  Offline',
+      ].join('\n'),
+    )
+  })
+
+  it('has no deliveries to print for files with no sync lines', () => {
+    expect(summarize(events).deliveries).toEqual([])
+    expect(formatSummary(summarize(events), 'books')).not.toContain(
+      'Deliveries',
+    )
   })
 })
