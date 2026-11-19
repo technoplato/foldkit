@@ -4,6 +4,7 @@ import { type ReactElement, useMemo, useRef, useState } from 'react'
 import { ScrollView, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { keyboardRoomOf, useKeyboardHeight } from './keyboard.js'
 import { lightLook } from './look.js'
 import { type PaintHandlers, screenPartsOf } from './paint.js'
 import { paintTree } from './screen.js'
@@ -53,6 +54,10 @@ export const ScreenFrame = ({
 }>): ReactElement => {
   const look = handlers.look ?? lightLook
   const insets = useSafeAreaInsets()
+  const room = keyboardRoomOf({
+    keyboardHeight: useKeyboardHeight(),
+    bottomInset: insets.bottom,
+  })
   const windowHeight = useWindowDimensions().height
   const isFitted = fit === 'Content'
   const [maybeOverlay, setMaybeOverlay] = useState<ReactElement | undefined>(
@@ -124,6 +129,9 @@ export const ScreenFrame = ({
       style={[
         { backgroundColor: look.colors.PageGround },
         isFitted ? undefined : { flex: 1 },
+        // NOTE: the keyboard's room: the docks, and a field in one, stay in
+        // sight above it.
+        { paddingBottom: room.frameLift },
       ]}
     >
       <ScrollView
@@ -167,7 +175,7 @@ export const ScreenFrame = ({
             padding: pagePadding,
             paddingBottom:
               pagePadding +
-              (Array.isReadonlyArrayEmpty(parts.docks) ? insets.bottom : 0),
+              (Array.isReadonlyArrayEmpty(parts.docks) ? room.dockInset : 0),
           }}
         >
           <ScreenOverlayContext.Provider value={setMaybeOverlay}>
@@ -184,7 +192,7 @@ export const ScreenFrame = ({
             borderTopColor: look.colors.Rule,
             borderTopWidth: 1,
             gap: 4,
-            paddingBottom: Math.max(dockPaddingY, insets.bottom),
+            paddingBottom: Math.max(dockPaddingY, room.dockInset),
             paddingHorizontal: pagePadding,
             paddingTop: dockPaddingY,
           }}

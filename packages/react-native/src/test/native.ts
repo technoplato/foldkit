@@ -6,6 +6,9 @@ export const native = {
   AccessibilityInfo: {},
   Appearance: {},
   Image: 'Image',
+  Keyboard: {
+    addListener: () => ({ remove: (): void => undefined }),
+  },
   Linking: { openURL: (): Promise<void> => Promise.resolve() },
   Modal: 'Modal',
   PanResponder: { create: () => ({ panHandlers: {} }) },
