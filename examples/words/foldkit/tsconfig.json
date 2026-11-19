@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "madeUp/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "madeUp/vite.config.ts",
+    "../../../packages/foldkit/src"
+  ]
+}

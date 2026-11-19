@@ -1,0 +1,558 @@
+@import 'tailwindcss';
+
+/* NOTE: a rule that differs in dark follows the mode the Program painted,
+   never the browser's own scheme. */
+@custom-variant dark (&:where([data-fk-mode='Dark'], [data-fk-mode='Dark'] *));
+
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    system-ui, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* NOTE: spacing is in pixels on purpose, so a larger text size grows the type and keeps the 44 px controls. */
+  --spacing: 4px;
+
+  --text-caption: calc(var(--type-unit) * 12);
+  --text-caption--line-height: calc(var(--type-unit) * 16);
+  --text-footnote: calc(var(--type-unit) * 13);
+  --text-footnote--line-height: calc(var(--type-unit) * 18);
+  --text-subhead: calc(var(--type-unit) * 15);
+  --text-subhead--line-height: calc(var(--type-unit) * 21);
+  --text-body: calc(var(--type-unit) * 17);
+  --text-body--line-height: calc(var(--type-unit) * 26);
+  --text-title: calc(var(--type-unit) * 22);
+  --text-title--line-height: calc(var(--type-unit) * 28);
+  --text-large-title: calc(var(--type-unit) * 28);
+  --text-large-title--line-height: calc(var(--type-unit) * 34);
+  --text-display: calc(var(--type-unit) * 34);
+  --text-display--line-height: calc(var(--type-unit) * 40);
+}
+
+/* NOTE: every color on this site is a role of the words theme (the words
+   core's theme.ts). The theme says each role's value, light and dark; the
+   Program says the mode (data-fk-mode, told to the page from the Model);
+   and the names below are the site's own names for those roles, kept so
+   its rules read as before. No rule here asks the system which scheme it
+   is in. */
+:root {
+  color-scheme: light;
+  --display-scale: 1;
+  --type-unit: calc(1rem / 16 * var(--display-scale));
+  --canvas: var(--fk-page-ground);
+  --surface: var(--fk-surface);
+  --surface-raised: var(--fk-raised-surface);
+  --fill: var(--fk-field);
+  --fill-strong: var(--fk-field-strong);
+  --label: var(--fk-text);
+  --label-secondary: var(--fk-quiet-text);
+  --label-tertiary: var(--fk-faint-text);
+  --separator: var(--fk-rule);
+  --accent: var(--fk-danger);
+  --accent-strong: var(--fk-danger-strong);
+  --accent-fill: var(--fk-danger-fill);
+  --accent-soft: var(--fk-danger-soft);
+  --tint: var(--fk-accent);
+  --tint-soft: var(--fk-accent-soft);
+  --positive: var(--fk-positive);
+  --positive-soft: var(--fk-positive-soft);
+  --caution: var(--fk-warning);
+  --caution-soft: var(--fk-warning-soft);
+  --highlight: var(--fk-reading-current-word-ground);
+  --focus-ring: var(--fk-focus);
+  --segment-selected: var(--fk-selected);
+  --on-fill: var(--fk-button-label);
+  --badge-recording: var(--fk-own-badge-recording);
+  --badge-paused: var(--fk-own-badge-paused);
+  --badge-playing: var(--fk-own-badge-playing);
+  --glass: var(--fk-veil);
+  --glass-shadow: 0 8px 28px var(--fk-shadow);
+  --bar: var(--fk-bar-ground);
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
+}
+
+/* What is not a color changes with the painted mode here: the browser's
+   own controls, and the card's shadow, which dark does without. */
+:root[data-fk-mode='Dark'] {
+  color-scheme: dark;
+  --card-shadow: none;
+}
+
+/* NOTE: only iOS Safari supports -webkit-touch-callout; there -apple-system-body follows the Text Size setting and is 17 px at the default size. */
+@supports (-webkit-touch-callout: none) {
+  html {
+    font: -apple-system-body;
+    line-height: 1.5;
+  }
+
+  :root {
+    --type-unit: calc(1rem / 17 * var(--display-scale));
+  }
+}
+
+/* NOTE: from 1600 px (100rem at the default text size) every text style grows by 30 percent, so the wider reading column keeps 45 to 90 characters per line and the page keeps four text sizes. */
+@media (width >= 100rem) {
+  :root {
+    --display-scale: 1.3;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-raised);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+  --color-label: var(--label);
+  --color-secondary: var(--label-secondary);
+  --color-tertiary: var(--label-tertiary);
+  --color-separator: var(--separator);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-soft: var(--accent-soft);
+  --color-tint: var(--tint);
+  --color-tint-soft: var(--tint-soft);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-caution: var(--caution);
+  --color-caution-soft: var(--caution-soft);
+  --color-highlight: var(--highlight);
+  --color-segment-selected: var(--segment-selected);
+  --color-badge-recording: var(--badge-recording);
+  --color-badge-paused: var(--badge-paused);
+  --color-badge-playing: var(--badge-playing);
+}
+
+html {
+  background: var(--canvas);
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 4.5rem;
+  scroll-padding-bottom: 12rem;
+}
+
+body {
+  font-feature-settings: 'kern';
+}
+
+:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: 2px;
+}
+
+@utility glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--glass-shadow);
+}
+
+@utility bar {
+  background: var(--bar);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .bar {
+    background: var(--surface-raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* NOTE: under More Contrast, glass and the bar are solid and outlined.
+   The Program says the contrast (data-fk-contrast, told to the page from
+   the Model); the stronger colours themselves are the theme's. */
+[data-fk-contrast='More'] .glass {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--label);
+}
+
+[data-fk-contrast='More'] .bar {
+  background: var(--canvas);
+  box-shadow: 0 1px 0 var(--separator);
+}
+
+@utility card {
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.78);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-breathe {
+  animation: breathe 1.8s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 0.9s linear infinite;
+}
+
+.animate-rise {
+  animation: rise 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-breathe,
+  .animate-rise {
+    animation: none;
+  }
+
+  .animate-spin-slow {
+    animation-duration: 3s;
+  }
+
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.record-dot-ring {
+  box-shadow: inset 0 0 0 3px var(--label-secondary);
+}
+
+.word {
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.word:hover {
+  background: var(--fill);
+}
+
+/* NOTE: the word and the section being spoken are marked at the edge, by
+   the effect that reads on from the playback clock (RunSpokenWord). */
+[data-word-current] {
+  background: var(--highlight);
+}
+
+[data-section-current] {
+  background-color: color-mix(in oklab, var(--color-fill) 70%, transparent);
+}
+
+.section-focused {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.scrubber {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 44px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.scrubber::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--label) var(--progress, 0%),
+    var(--fill-strong) var(--progress, 0%)
+  );
+}
+
+/* NOTE: the browser snaps its own thumb to the one-second step; that thumb only takes the pointer, and .scrubber-thumb draws the playhead where it is. */
+.scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 9999px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.scrubber::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--fill-strong);
+}
+
+.scrubber::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--label);
+}
+
+.scrubber::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  left: calc(9px + (100% - 18px) * var(--progress-fraction, 0));
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  pointer-events: none;
+}
+
+/* NOTE: a floating piece that appears (New Recording, the recorder, the player, the mini player) materializes, fading and rising in, rather than popping in; Reduce Motion turns the transition off below. Back to Playhead keeps its own rise. */
+#player .glass:not(.animate-rise) {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+@starting-style {
+  #player .glass:not(.animate-rise) {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* NOTE: a phone with this browser's own recording in progress beside a playback shows the one-row recorder and player; wider screens and large text keep the full rows. */
+.beside-compact {
+  display: none;
+}
+
+@container page (20rem <= width < 40rem) {
+  .beside-compact {
+    display: flex;
+  }
+
+  .beside-full {
+    display: none;
+  }
+}
+
+/* NOTE: with large text on a narrow screen the top bar has no room for the recording's title, so the page shows its own title, wrapping. */
+@container page (width < 20rem) {
+  .bar-title {
+    display: none;
+  }
+
+  .page-title-when-large {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
+  }
+}
+
+.menu-popover {
+  margin: 0;
+  inset: auto;
+  border: 0;
+  padding: 6px;
+  min-width: 14rem;
+  border-radius: 18px;
+  color: var(--label);
+  position-area: bottom span-right;
+  position-try-fallbacks: flip-block, flip-inline;
+  margin-block: 6px;
+}
+
+/* The search inside a recording stays under the top bar while the words
+   scroll to each match; what it found is marked in the words. */
+.find-bar {
+  position: sticky;
+  top: 4.5rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 0 4px 0 6px;
+  border-radius: 999px;
+  /* NOTE: the words scroll under it, so it is the raised surface itself,
+     not glass they would show through. */
+  background: var(--surface-raised);
+  box-shadow: 0 1px 8px var(--fk-shadow);
+}
+
+/* The ring goes round the whole bar, not round the field inside it. */
+.find-bar input:focus-visible {
+  outline: none;
+}
+
+.find-bar:focus-within {
+  outline: 2px solid var(--tint);
+  outline-offset: 2px;
+}
+
+[data-find='Found'] {
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--tint) 22%, transparent);
+}
+
+[data-find='Selected'] {
+  border-radius: 4px;
+  background: var(--tint);
+  color: var(--on-fill);
+}
+
+/* A word's menu opens where the word was pressed, kept inside the window. */
+.word-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.word-menu {
+  position: fixed;
+  z-index: 61;
+  left: max(8px, min(var(--word-menu-x), calc(100vw - 15.5rem)));
+  top: max(8px, min(var(--word-menu-y), calc(100dvh - 7.5rem)));
+  padding: 6px;
+  min-width: 14rem;
+  border-radius: 18px;
+  color: var(--label);
+}
+
+@supports not (position-area: bottom) {
+  .menu-popover {
+    inset: 0;
+    margin: auto;
+    height: fit-content;
+  }
+}
+
+dialog.share-dialog {
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.32);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+.folded-title {
+  visibility: hidden;
+}
+
+@supports (animation-timeline: view()) {
+  .folding-title-scope {
+    timeline-scope: --page-title;
+  }
+
+  .folding-title {
+    view-timeline-name: --page-title;
+    view-timeline-inset: 56px 0px;
+  }
+
+  .folded-title {
+    visibility: visible;
+    animation: folded-title-in linear both;
+    animation-timeline: --page-title;
+    animation-range: exit 30% exit 90%;
+  }
+}
+
+@keyframes folded-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes folded-title-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  .glass,
+  .bar,
+  .card,
+  .menu-popover {
+    border: 1px solid CanvasText;
+  }
+
+  button,
+  summary,
+  select,
+  input,
+  textarea {
+    border: 1px solid ButtonText;
+  }
+
+  .scrubber {
+    appearance: auto;
+    -webkit-appearance: auto;
+  }
+
+  .scrubber::-webkit-slider-thumb {
+    -webkit-appearance: auto;
+  }
+
+  .scrubber-thumb {
+    display: none;
+  }
+
+  [data-word-current] {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+}

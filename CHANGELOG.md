@@ -5181,6 +5181,381 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **User context (verbatim):**
   > port audible into the books example and follow our navigational precedent set and counters here
 - **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+## November 7th, 2026 at 5:14:37 a.m. EST — `7392417f424a` feat(words): green: Scribe #1990's typed questions on the page
+
+- **Implementation commit:** `7392417f424a18c2477c94e2f6a9a93ac705210b`
+- **Change:** The words page's questions show a question Michael typed in a chat: his words, where and when he typed them, and the address of his message (Scribe #1990)
+- **Details:**
+  - decodeQuestions reads each typed moment with its chat message into typedPassages; a typed moment without its message is no passage, as a stretch without its line is none; a search reads typed words too.
+  - The address shows as selectable text: no app on the Mac registers claude-code:// (Claude.app registers only claude://), so it is never a link that does nothing; a Scribe thread comment's https link opens.
+  - Measured: words core vitest 298/298, the app 40/40, both typechecks clean; on the 14 real typed questions the page's decoder read 14, 0 unreadable, 15 passages.
+- **Files:**
+  - `examples/words/core/src/questions/model.ts` — TypedPassage and Question.typedPassages; search reads typed words
+  - `examples/words/core/src/questions/decode.ts` — typed moments with their chat message become passages
+  - `examples/words/core/src/store.ts` — the questions query reads each moment's chat message
+  - `examples/words/foldkit/src/view/questions.ts` — a typed passage shows his words, the chat and time, and the address
+- **User context (verbatim):**
+  > Also note some of this in the Scribe Q&A.
+- **SpecStory:** unavailable — headless Claude Code run (claude -p) qa-typed-1990, session 5d0c7163-4a09-44d0-b6ec-221fa8e8a33e; SpecStory does not capture claude -p runs
+
+## November 2nd, 2026 at 10:05:57 p.m. EST — `da9b75fc5e82` fix(words): a live copy that sits still over held audio is nudged on
+
+- **Implementation commit:** `da9b75fc5e82e5d9d46393293a1a167492b70aa9`
+- **Change:** A live copy that sits still over audio it holds is nudged on, and reported if nudges do not move it (#1299).
+- **Details:**
+  - Once in about ten headless WebKit runs the player sat at its live join for 45 s while playing with readyState 4 over 36 s of held audio. The pure watchStall checks once a second; after two still checks it nudges the playhead 0.1 s on (more each time) and after three nudges reports the stall with Retry.
+  - After: WebKit played in 10 of 10 runs (24.5 to 29.2 s behind) and Chrome in 1 of 1 (31 to 33 s); no run stalled, so the rescue is proven only by the unit tests.
+- **Files:**
+  - `examples/words/core/src/compressedCopy.ts` — the pure stall watch
+  - `examples/words/core/src/compressedCopy.test.ts` — the stall watch's tests
+  - `examples/words/foldkit/src/copyAudio.ts` — checks the playhead once a second and nudges a stall
+- **User context (verbatim):**
+  > Is the audio available for uh the words.pisspour software.xyz?" "Now or is the audio available before the thing finishes? Right" "now it's saying it isn't, but I think it is. (Recording 315 #34-36, 2026-10-28 08:50, https://words.pisspoursoftware.xyz/recording/7fe98540-5ed4-4971-a506-1a8bb0faf8f4/section/d4bedfb8-dfc0-437e-a292-32b687895829?t=1808.86)
+- **SpecStory:** unavailable — unavailable: headless Claude Code session (claude -p, started by tools/agent-run); no SpecStory URI was captured
+
+## November 2nd, 2026 at 10:05:57 p.m. EST — `092d21284d03` fix(words): the live copy plays from an empty buffer; a stop is said
+
+- **Implementation commit:** `092d21284d038ba0bba431d6a8e42f38b86a806d`
+- **Change:** The live copy plays in a real browser: an empty buffer no longer kills the feeder, and any stop is reported (#1299).
+- **Details:**
+  - Effect's Array.makeBy makes at least one element, so reading an empty TimeRanges asked for stretch 0 of 0 and threw IndexSizeError, a defect Effect.catch does not see; the feeder died with nothing on screen. bufferedRangesOf answers an empty buffer first (a test fakes the browser's throw), and the feeder reports every cause but its own interruption.
+  - Measured on the throwaway Instant app bd40c50a with a fake phone storing a 6 s segment every 6 s, 10 s behind its end: Chrome joined 29.5 s behind the recording's clock and was 29.9 s behind 120 s later; WebKit's ManagedMediaSource joined 24.2 s behind and stayed there; Back 15 and a drag to 0:10 played in both (evidence ~/Sync/audit/live-copy-1299).
+- **Files:**
+  - `examples/words/foldkit/src/copyAudio.ts` — an empty buffer is no stretch; every stop is said
+  - `examples/words/foldkit/src/copyAudio.test.ts` — regression test with a TimeRanges that throws as the browser does
+- **User context (verbatim):**
+  > Is the audio available for uh the words.pisspour software.xyz?" "Now or is the audio available before the thing finishes? Right" "now it's saying it isn't, but I think it is. (Recording 315 #34-36, 2026-10-28 08:50, https://words.pisspoursoftware.xyz/recording/7fe98540-5ed4-4971-a506-1a8bb0faf8f4/section/d4bedfb8-dfc0-437e-a292-32b687895829?t=1808.86)
+- **SpecStory:** unavailable — unavailable: headless Claude Code session (claude -p, started by tools/agent-run); no SpecStory URI was captured
+
+## November 2nd, 2026 at 10:05:56 p.m. EST — `d713c9d286c5` feat(words): green: a recording in progress plays its live copy
+
+- **Implementation commit:** `d713c9d286c5137de57edfe5f449eb0a7ecb357b`
+- **Change:** A recording in progress plays on the words page from its live compressed copy (Scribe ADR 0091), for its owner, about 25 to 33 s behind the recording, instead of saying the audio arrives when the recording stops (#1299, red 7acf2925c).
+- **Details:**
+  - Core finds the copy by the stream id the phone derives from the recording's generation, observes its one stream row, and a pure planner (nextCopyStep) reads segment rows a run at a time, appends the 6 s segments around the listener, frees what lies 2 minutes behind, and ends a finished copy.
+  - The host plays it through Media Source Extensions, ManagedMediaSource on an iPhone, behind the same AudioPlayer handle; every read, download and append is bounded at 5 s and retried twice, then the player fails with its reason and Retry.
+  - Play joins 12 s behind the copy's end until the listener plays or picks a moment; then the page follows the line being heard. The source is chosen once, the file first, so the file arriving after Stop never cuts the listener off; a stopped recording waiting for its file plays its finished copy. A share page never asks for a copy, and the rules show one to its owners only.
+  - Verified: words core 295/295 then 297/297, host 37 then 39, both typechecks, oxlint on the changed files; real browsers below.
+- **Files:**
+  - `examples/words/core/src/compressedCopy.ts` — the copy's types, its stream id, row decoding and the pure feed planner
+  - `examples/words/core/src/update.ts` — the copy as an audio source, the live join, and following the line being heard
+  - `examples/words/core/src/store.ts` — the copy's Instant reads: stream row, segment runs, file URLs by path
+  - `examples/words/core/src/subscription.ts` — observes the loaded recording's copy
+  - `examples/words/foldkit/src/copyAudio.ts` — the Media Source player for the copy
+  - `examples/words/foldkit/src/view/playback.ts` — the bar plays the copy with a Live audio caption; no stop message
+- **User context (verbatim):**
+  > Is the audio available for uh the words.pisspour software.xyz?" "Now or is the audio available before the thing finishes? Right" "now it's saying it isn't, but I think it is. (Recording 315 #34-36, 2026-10-28 08:50, https://words.pisspoursoftware.xyz/recording/7fe98540-5ed4-4971-a506-1a8bb0faf8f4/section/d4bedfb8-dfc0-437e-a292-32b687895829?t=1808.86)
+  > Yeah, so file that as a P0 for when we get" "Uh quotaback." "And then we also want that audio." "if that's shared publicly to be completely scrubbed. (Recording 315 #40-43, https://words.pisspoursoftware.xyz/recording/7fe98540-5ed4-4971-a506-1a8bb0faf8f4/section/4cb73877-216c-41aa-9042-e703f6822192?t=1846.5)
+- **SpecStory:** unavailable — unavailable: headless Claude Code session (claude -p, started by tools/agent-run); no SpecStory URI was captured
+
+## October 29th, 2026 at 1:50:03 a.m. EDT — `932bf226b983` fix(words): green: a sealed line is drawn as soft bars
+
+- **Implementation commit:** `932bf226b983430434ea56cddc946f417218f638`
+- **Change:** The words site draws a sealed line as soft bars where its words would be, keeping its time and speaker, like the app's live screen (docs/FEATURES.md item 10, ADR 0097 amendment A; #1322, red ec146555b).
+- **Details:**
+  - Screen readers and the tooltip read [sealed], or [checking the voice] while held; copies and exports keep that label; no words are ever drawn.
+  - Seen end to end on the throwaway app bd40c50a in headless Chromium (e2e-sealed-soft-bars.png, synthetic words): the sealed and the held line each draw 4 bars at 0:34 and 0:38; the page still shows the 9 kept lines, and links to retired lines open at the kept line.
+  - Verified: web 33/33, web tsc, oxlint, vite build (the bar utilities are in the CSS).
+- **Files:**
+  - `examples/words/foldkit/src/view/transcript.ts` — a sealed line drawn as soft bars with its label for screen readers
+- **User context (verbatim):**
+  > its stretch keeps its place and time as a line with soft bars (docs/FEATURES.md item 10)
+  > blur out those words. / but make it so I could recover them later. (Recording 297 #844-845, https://words.pisspoursoftware.xyz/recording/3b1d645a-cef4-4ba6-9acd-c52583ade335/section/8c929745-4ad4-49bc-8de3-b9a48390963c?t=9981.01)
+- **SpecStory:** unavailable — headless pi RPC session (agent pi/words-1322@ld-credits, started by tools/agent-run); no SpecStory URI was captured
+
+## October 29th, 2026 at 1:37:18 a.m. EDT — `2c5b33949e53` fix(words): green: every reader skips retired lines and seals sealed ones
+
+- **Implementation commit:** `2c5b33949e535d0d4a093ab2207bd9e467b0c1c6`
+- **Change:** The words site skips retired lines and shows sealed lines sealed, through one rule in core/src/decode.ts (linesOf), on the recording page, its section links, the list previews and search, the share sheet, Copy Transcript and the share page (#1322; red c984f2008; the share page is #1329).
+- **Details:**
+  - A retired row (retiredAtMs) is read for its id, # and the line it names, never its words: it never wins a # it shares with a kept line though its retirement stamped it newer, and a run of retired rows leaves the kept lines their #. A link to a retired line opens at its supersededBy line, else the next kept line, from that line's start.
+  - A sealed row (wordsSeal) keeps its place, time and speaker and shows [sealed], or [checking the voice] while held, never its words; the view draws it in muted italics.
+  - Queries select LINE_FIELDS (recordingLinesQuery, previewLineQuery), so sealedWords never reaches a browser; the share page reads every field of its scrubbed lines so a seal the scrubber starts to copy (#1329) applies without a new build.
+  - Guard: core/src/lineReaders.test.ts scans examples/words with the TypeScript AST and fails when a file outside decode.ts queries, reads or declares line rows, or names sealedWords; proven on a scratch branch (4 findings), then deleted.
+  - End to end on the throwaway app bd40c50a in headless Chromium: the deployed build showed 13 lines (4 retired), no seal and the envelope in 3 websocket frames; this build shows the 9 kept lines, [sealed] and [checking the voice], opens links to retired lines at the kept line, and the envelope reaches 0 frames.
+  - Program version 8 (Section.maybeWordsSeal, RecordingDetail.retiredLines). Verified: core 268/268, web 33/33, core and web tsc, oxlint and prettier on the changed files, vite build.
+- **Files:**
+  - `examples/words/core/src/decode.ts` — the one line rule, its query selections, scrubbedLinesOf and retiredLineNamed
+  - `examples/words/core/src/recording.ts` — WordsSeal, Section.maybeWordsSeal, RetiredLine, RecordingDetail.retiredLines
+  - `examples/words/core/src/store.ts` — every line query uses decode.ts's selections
+  - `examples/words/core/src/update.ts` — a link to a retired line opens at the line that replaced it
+  - `examples/words/core/src/share/decode.ts` — the share page's scrubbed lines go through scrubbedLinesOf
+  - `examples/words/core/src/program.ts` — Program version 8
+  - `examples/words/foldkit/src/view/transcript.ts` — a sealed line drawn as sealed
+  - `examples/words/core/src/lines.test.ts` — the rule's cases (red in c984f2008)
+  - `examples/words/core/src/lineReaders.test.ts` — the guard
+- **User context (verbatim):**
+  > a wrong line is retired, never edited or deleted (#662, ADR 0064 section 8) (docs/FEATURES.md item 2, typed 2026-10-14 21:52)
+  > nothing public unscrubbed (Commandment 6)
+  > so that it's accessible in an incognito browser window to anybody that clicks the link (Recording 186 #307, https://words.pisspoursoftware.xyz/recording/4fcac44e-4eb9-460d-b52f-da6e09525816/section/9cafa8ff-f0c9-40ed-b7ec-d435a38a0f20?t=1966.66)
+- **SpecStory:** unavailable — headless pi RPC session (agent pi/words-1322@ld-credits, started by tools/agent-run); no SpecStory URI was captured
+
+## October 29th, 2026 at 1:37:17 a.m. EDT — `3c59ea8df4c6` chore(words): sync Scribe's schema at ee490cf5 (sealed lines)
+
+- **Implementation commit:** `3c59ea8df4c654f485836516262488f9ab1547ad`
+- **Change:** Words reads Scribe's schema at ee490cf5: transcriptionSegments' wordsSeal and sealedWords (ADR 0097, #1183) and the Voice Memo entities (#1277), so the site can select a line's seal and never its envelope (#1322).
+- **Details:**
+  - core/src/scribeSchema.ts and its .source.json, synced with examples/words/scripts/sync-scribe-schema.sh from realtime-voice main (ee490cf58, same as origin/main): 130 to 134 entities.
+  - Verified: core tsc and 252/252 tests, web tsc and 31/31 tests, prettier.
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — Scribe's schema with the sealed-line fields
+  - `examples/words/core/src/scribeSchema.source.json` — where the copy came from
+- **User context (verbatim):**
+  > a wrong line is retired, never edited or deleted (#662, ADR 0064 section 8) (docs/FEATURES.md item 2, typed 2026-10-14 21:52)
+  > blur out those words. / but make it so I could recover them later. (Recording 297 #844-845, https://words.pisspoursoftware.xyz/recording/3b1d645a-cef4-4ba6-9acd-c52583ade335/section/8c929745-4ad4-49bc-8de3-b9a48390963c?t=9981.01)
+- **SpecStory:** unavailable — headless pi RPC session (agent pi/words-1322@ld-credits, started by tools/agent-run); no SpecStory URI was captured
+
+## October 25th, 2026 at 1:10 p.m. EDT — `f64c656c6` feat(words): green: the live clock counts from the owner's newest beat, which the origin reads from the live room
+
+- **Implementation commit:** `f64c656c6` (red 3e0e4d97e; log throttle 5c3640c38)
+- **Change:** The words site's live clock counts from the recording device's 5 s beat (ADR 0094 landing W). The origin reads the recording's live room with Instant's admin presence (`GET /__words/live-beat?recording=<id>`), applies the mirror's owner-only rule (a member signed in as the row's owner, a beat at most 15 s old) and hands the browser only the newest beat; the browser asks every 5 s while such a recording is on screen and counts at most 7 s past the beat, or from the row's length save when that is newer (W-lite).
+- **Issues:** [#1178](https://issues.knophy.com/issues/1178), [#1097](https://issues.knophy.com/issues/1097)
+- **Details:**
+  - The browser never sees the room's members and needs no rooms entry in Scribe's schema; only the listener's own recordings answer, everything else answers `{}`.
+  - Measured end to end on the throwaway app bd40c50a (test owner and stranger publishing in one room, rows saved every 60 s, 10 minutes sampled every 5 s): before, the clock was off by up to 53.7 s (mean 25.4 s, 9% of samples within 1 s); after, 0 s on all 117 samples. Once the beats stopped the clock stopped 7 s past the last one; the stranger's beat never reached the browser.
+  - Program version 7 (the Model and Messages changed).
+  - Verified: words core 252/252, web 31/31, core and web tsc, oxlint on the changed files.
+- **Files:**
+  - `examples/words/foldkit/vitePlugins.ts` — the live beat endpoint and newestTrustedBeatOf
+  - `examples/words/core/src/origin.ts` — liveBeatPath, decodeLiveBeatResponse, readLiveBeat
+  - `examples/words/core/src/subscription.ts` — asks for beats every 5 s while a live-room recording is on screen
+  - `examples/words/core/src/update.ts` — ObservedLiveBeat keeps only a newer beat; liveLengthOf counts from it
+  - `examples/words/foldkit/src/browser.ts` — the browser's request
+- **User context (verbatim):**
+  > none: the lab's decision of 12:10 on #1097 (option b, the origin reads presence)
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/words-live-1178@ld); no SpecStory URI was captured
+
+## October 25th, 2026 at 12:25 p.m. EDT — `b3aa7b741` feat(words): green: the live clock runs 65 s past a live-room save, holds through a pause and skips capture gaps
+
+- **Implementation commit:** `b3aa7b741` (red 96dc870dd)
+- **Change:** A recording live on another device keeps counting each second when its device saves the row only once a minute (ADR 0094 landing W-lite, so #1097's landing B can land). While the row has a liveRoomKey the clock runs up to 65 s past the length save (6 s otherwise); an open capture gap (a pause) holds it and a closed one is skipped; a save that moves updatedAtMs but not the length (a rename, an image) no longer holds it back.
+- **Issues:** [#1178](https://issues.knophy.com/issues/1178), [#1097](https://issues.knophy.com/issues/1097)
+- **Details:**
+  - Measured on a simulated phone, 10 minutes sampled every 5 s with a 60 s pause and two stamp-only saves: before, rows every 60 s were off by up to 54 s (8% of samples within 1 s) and rows every 5 s by up to 6 s at the pause; after, 0 s on both.
+  - Capture gaps overlap in real rows (a microphone outage inside a pause), so the clock subtracts their union.
+  - A phone that dies with the row still stamped active now shows its clock running up to 65 s past the last save before it stops (6 s before), as the lab accepted on #1097.
+  - Verified: words core 245/245, web 26/26, core and web tsc, oxlint on the changed files.
+- **Files:**
+  - `examples/words/core/src/recording.ts` — CaptureGap; the summary's isLiveRoomSet and captureGaps
+  - `examples/words/core/src/decode.ts` — reads liveRoomKey and captureGapsJSON
+  - `examples/words/core/src/model.ts` — liveLengthSaves, the save each live clock counts from
+  - `examples/words/core/src/update.ts` — liveDurationSecondsOf skips capture gaps and caps at 65 s with a live room
+- **User context (verbatim):**
+  > none: the lab's decision of 12:10 on #1097 (W-lite before landing B)
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/words-live-1178@ld); no SpecStory URI was captured
+
+## October 25th, 2026 at 11:46:46 a.m. EDT — `b8d66151e865` feat(words): green: the questions page reads 2,000 and says when it is full
+
+- **Implementation commit:** `b8d66151e865574dd88352306c54414edebd9a21`
+- **Change:** The questions page reads his newest 2,000 questions (was 500) and says when the limit cut the list (red 534ceab99; Scribe #1176).
+- **Issues:** [#1176](https://issues.knophy.com/issues/1176)
+- **Details:**
+  - Scribe's backfill keeps about 600 questions; 2,000 made-up questions with answers and topics read in 2.2 s (median of 5, 2.8 s at most) on the throwaway app and search in 2 ms.
+  - Verified: words core 238/238, web 26/26, core and web tsc, prettier.
+- **Files:**
+  - `examples/words/core/src/questions/decode.ts` — decodeQuestions(rows, limit) reports isLimitReached
+  - `examples/words/core/src/store.ts` — QUESTION_LIMIT 2000
+  - `examples/words/foldkit/src/view/questions.ts` — the limit notice
+- **User context (verbatim):**
+  > want to be able to look at that.
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/qa-1176@ld); no SpecStory URI was captured
+
+## October 25th, 2026 at 11:46:46 a.m. EDT — `428970f20c00` feat(words): a Questions page lists Michael's questions with their answers
+
+- **Implementation commit:** `428970f20c005cadfe2f06466cb6a5547804f924`
+- **Change:** A Questions page lists Michael's questions with their answers, his words linked to their lines, each answer linked to its thread (Scribe #1176, ADR 0095).
+- **Issues:** [#1176](https://issues.knophy.com/issues/1176)
+- **Details:**
+  - Route /questions?q=; search over his words, the answers and the topics; All / To Learn / Open filters with counts; topic chips search by topic; unreadable rows counted aloud.
+  - Verified: words core and web tests, Scene tests for the page, core and web tsc.
+- **Files:**
+  - `examples/words/core/src/questions/model.ts` — the questions Submodel: questions, stretches, answers, filters, search
+  - `examples/words/core/src/questions/decode.ts` — reads question rows, counts unreadable ones
+  - `examples/words/core/src/questions/update.ts` — folds observed questions, search and filter
+  - `examples/words/core/src/link.ts` — the Questions route with q
+  - `examples/words/core/src/store.ts` — observeQuestions
+  - `examples/words/core/src/subscription.ts` — observes questions while the page is open and signed in
+  - `examples/words/foldkit/src/view/questions.ts` — the page
+  - `examples/words/foldkit/src/view/shell.ts` — the question-mark link
+- **User context (verbatim):**
+  > Create a Q&A document where if I ask a question in any recording, you just record it down.
+  > want to be able to look at that.
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/qa-1176@ld); no SpecStory URI was captured
+
+## October 25th, 2026 at 11:46:35 a.m. EDT — `0c0aae5c1ec2` chore(words): sync Scribe's schema at 479d6324 (questions and answers)
+
+- **Implementation commit:** `0c0aae5c1ec2ed7f2d5699aa003d2867057ed600`
+- **Change:** Words reads Scribe's questions and answers: the schema synced at Scribe 479d6324 (Scribe #1176, ADR 0095).
+- **Issues:** [#1176](https://issues.knophy.com/issues/1176)
+- **Details:**
+  - core/src/scribeSchema.ts and its .source.json carry questions, questionAnswers and the widened sourceMoments (134 entities).
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — Scribe's schema with questions and answers
+  - `examples/words/core/src/scribeSchema.source.json` — where it came from
+- **User context (verbatim):**
+  > Create a Q&A document where if I ask a question in any recording, you just record it down.
+- **SpecStory:** unavailable — headless claude -p session (agent claude-code/qa-1176@ld); no SpecStory URI was captured
+
+## October 17th, 2026 at 2:40 a.m. EDT — `3da9ed751` fix(words): the share page says who a share reaches
+
+- **Implementation commit:** `3da9ed751` (red `f7a01c162`)
+- **Change:** The share page's badge says who the share reaches, as the viewer sees it, instead of "Shared with You" on every share; a failed request to the words origin says what happened instead of always "did not answer within 5 seconds" (Scribe #754, #718).
+- **Details:**
+  - "Your share" for any of the owner's sign-ins: the page reads the share's `owner` link, which Scribe's rules show only to the owner's own sign-ins (ADR 0024), so the web sign-in knows a share its iPhone sign-in made. "Anyone with the link" for a link share, "Public" for a public one, "Shared with You" only for a named recipient.
+  - Only a request that ran out of time says it did not answer within 5 seconds. A request the browser could not complete (most often Cloudflare Access sending it to a sign-in on another site) says so and names the likely cause; anything else says what it was. words core 231/231, view 21/21, tsc and oxlint clean.
+- **Files:**
+  - `examples/words/core/src/share/model.ts` — `ShareAudience`: `OwnShare`, `LinkAudience`, `PublicAudience`, `NamedAudience`
+  - `examples/words/core/src/share/decode.ts` — `audienceOf`
+  - `examples/words/core/src/store.ts` — the opened share's query reads its `owner`
+  - `examples/words/foldkit/src/view/share.ts` — `audienceLabel` in the share header
+  - `examples/words/foldkit/src/originFailure.ts` — `originFailureReason`, used by `browser.ts`
+- **User context (verbatim):**
+  > Still being checked. the share I made. And it says shared with you, but it was shared publicly.
+  (Michael, Scribe Recording 242 #31-33, https://words.pisspoursoftware.xyz/recording/1dd708ee-edef-4e8a-9483-5ac3a16cf3d7/section/1d4def79-5c28-42fb-940d-502d5ffb4e43?t=469.72)
+- **SpecStory:** unavailable — headless Claude Code agent scribe-B-share-linked (account withheld).
+
+## October 17th, 2026 at 1:33 a.m. EDT — `5cdfb8f36` feat(words): a share link opens for a reader with no login
+
+- **Implementation commit:** `5cdfb8f36` (red `d154d5f6c`)
+- **Change:** A share link opens for a reader with no Cloudflare Access login and no Scribe account: the page signs them in as an anonymous Instant guest and shows the share's scrubbed copy (Scribe #754).
+- **Details:**
+  - Scribe's rules let a link holder read a share only when signed in. The guest sign-in runs only on a share with its key, only while Instant has no one signed in, and only once the origin said Access has no login for this browser, so the owner's own account connects instead and is never made a guest. The share is read once the reader has an identity. Cloudflare Access now lets `/recording/*/share/*` and the page's assets through (an Access app with the account's bypass policy); every other words path stays behind Access.
+  - Checked against production from a local preview of the branch as a fresh headless browser (no Access cookie, no session): with the key, both passed link shares show every scrubbed line and no original; without it, "This share is not available" and no guest. Each guest reads only the share row and its scrubbed copy, never a recording, a section, an attachment or a route; the run deleted its guests. words core 227/227, view 14/14, tsc and oxlint clean.
+- **Files:**
+  - `examples/words/core/src/update.ts` — `guestReaderShareIDOf`: when a share link's reader needs a guest identity
+  - `examples/words/core/src/subscription.ts` — the guest sign-in Subscription; the share is read once the reader has an identity
+  - `examples/words/core/src/store.ts` — `signInAsGuest`
+  - `examples/words/core/src/guestReader.test.ts` — the reader with no login
+- **User context (verbatim):**
+  > Share link should open for readers without Claude file access, yes.
+  > so that it's accessible in an incognito browser window to anybody that clicks the link for that little range of shared segment for that particular recording that I'm making.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 16th, 2026 at 9:49:17 p.m. EDT — `6df61d448a18` fix(words): a share without audio says it has none
+
+- **Implementation commit:** `6df61d448a18a36aa5c549304d49611586b3d20e`
+- **Change:** A share without audio says it has none, not that audio comes in a later update (Scribe #597).
+- **Details:**
+  - Scribe build 105 includes the scrubbed clip when the sharer turns Include Audio on, so a share without audio is one shared without it, or one over the scrubber's 30-minute clip limit (Scribe #753). Red 719545f8f (share.test.ts expects the new notice) first; words core 219/219, view 14/14, tsc clean.
+- **Files:**
+  - `examples/words/foldkit/src/view/share.ts` — the no-audio notice says the share has no audio
+- **User context (verbatim):**
+  > Public. I want the audio in there.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 16th, 2026 at 5:27:12 p.m. EDT — `6f3c1de5e756` fix(words): show a pending share's passed lines only, and never its sharer
+
+- **Implementation commit:** `6f3c1de5e7563884d9ef27bd7903d37911383f4f`
+- **Change:** A pending share's page shows only its passed lines, and no share page names who shared it (Scribe #718, #597).
+- **Details:**
+  - Found on bd40c50a: a pending share still showed an earlier pass's scrubbed title, note and audio card, and the page printed sharedByDisplayName, which the scrubber never checks. Red 7913801cd first.
+  - Verified on bd40c50a: reader screenshots of pending, partly passed, passed and withheld under the app's pushed rules; the page's query read under the share-model rules as an override decodes to the same page (plus the scrubbed image), and the reader reads no recording or section under the override. Evidence in ~/Sync/audit/share-718/web/scrubbed-*.
+- **Files:**
+  - `examples/words/core/src/share/decode.ts` — a pending share keeps only passed lines and images
+  - `examples/words/foldkit/src/view/share.ts` — no sharer name; no audio card while pending
+- **User context (verbatim):**
+  > Nothing goes out until the scrubbing step has passed it
+- **SpecStory:** unavailable — unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 16th, 2026 at 5:27:12 p.m. EDT — `cfa04ea0df24` feat(words): read only a share's scrubbed copy on its share page
+
+- **Implementation commit:** `cfa04ea0df24b86d1a16172c3f1cf433a2dc9d84`
+- **Change:** The words share page reads only the share's scrubbed copy (Scribe #718, #597; ADR 0014 section 13.11).
+- **Details:**
+  - The share query reads the share row, scrubbedLines, scrubbedImages with their files and audioClip; it no longer reads the original sections or the recording. Passed: scrubbedTitle, scrubbedNote, passed lines in segment order, passed images at their offsets, the clip. Pending: 'Being checked' and the lines passed so far with 'The rest is being checked'. Withheld: 'This share could not be checked, so nothing in it is shown' and the reason.
+  - The schema copy gains the share-model module's attributes, entities and links from Scribe's agent/claude/share-model-718-schema (8c38d7677). Red c12a4c10f first.
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — share-model attributes, entities and links
+  - `examples/words/core/src/share/model.ts` — ScrubState, ScrubbedImage, SharedRange as readers read it, sharedItemsOf
+  - `examples/words/core/src/share/decode.ts` — reads the scrubbed copy; drops rows not passed
+  - `examples/words/core/src/store.ts` — the share query reads the scrubbed copy, not the originals
+  - `examples/words/foldkit/src/view/share.ts` — passed, pending and withheld pages
+  - `examples/words/foldkit/src/view/view.ts` — the tab title uses the scrubbed title
+- **User context (verbatim):**
+  > Nothing goes out until the scrubbing step has passed it
+- **SpecStory:** unavailable — unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 16th, 2026 at 3:34:56 p.m. EDT — `7af93ed85181` feat(words): play a share's audio clip on its share page
+
+- **Implementation commit:** `7af93ed85181359f06a04d451b81b2085352a704`
+- **Change:** The words share page plays the share's audio clip (Scribe #718, #389).
+- **Details:**
+  - The share query also reads audioClipStatus, audioClipDurationSeconds and the audioClip file; ready shows a native audio player with the clip's length above the shared lines, preparing shows 'Audio is still uploading' and turns into the player live, failed shows 'The audio could not be shared', no status leaves the page as before.
+  - The schema copy gains the two attributes and the recordingSegmentShareAudioClip link exactly as Scribe's instant.schema.ts has them (ADR 0044, already in production).
+  - Red 493c81d64 first. Verified: words core 214/214, foldkit 9/9 (4 new Scene tests), core and web tsc, vite build; live on the throwaway Instant app bd40c50a in headless Chrome (duration 12.05 s, currentTime 2.08 s after 2.5 s of play), evidence in ~/Sync/audit/share-718/web/.
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — audio clip attributes and link
+  - `examples/words/core/src/share/model.ts` — SharedAudio states on SharedRange
+  - `examples/words/core/src/share/decode.ts` — reads the clip's status, length and file
+  - `examples/words/core/src/store.ts` — the share query reads audioClip
+  - `examples/words/foldkit/src/view/share.ts` — the player and the preparing and failed cards
+- **User context (verbatim):**
+  > The include audio on share uh is not allowing me to open it.
+- **SpecStory:** unavailable — unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 4th, 2026 at 4:34:12 a.m. EDT — `fbac11a07b68` fix(words): name words.pisspoursoftware.xyz in the remaining user-facing texts
+
+- **Implementation commit:** `fbac11a07b68d8f92a4cc2907fa4edd2eb1ac842`
+- **Change:** The remaining user-facing texts name words.pisspoursoftware.xyz (Scribe #493).
+- **Details:**
+  - 16 strings: the origin's error and status texts, the microphone and slow-answer notices, and the account page's sign-in, sharing and sign-out copy; 'every knophy.com site' reads 'every pisspoursoftware.xyz site'.
+  - Verified: words core 208/208, plugin 5/5, core, web and node tsc pass.
+- **Files:**
+  - `examples/words/core/src/origin.ts` — error and status texts name the new host
+  - `examples/words/foldkit/src/browser.ts` — slow-answer notice
+  - `examples/words/foldkit/src/capture.ts` — microphone notice
+  - `examples/words/foldkit/src/view/account.ts` — sign-in, sharing and sign-out copy
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 4th, 2026 at 4:30:42 a.m. EDT — `dcd297cd7c2e` fix(words): name words.pisspoursoftware.xyz in the sign-in help texts
+
+- **Implementation commit:** `dcd297cd7c2e8e125844b3e73d70ff8b0373ef96`
+- **Change:** The sign-in help texts name words.pisspoursoftware.xyz (Scribe #493).
+- **Details:**
+  - Shown only when no Cloudflare Access login reaches the page; they pointed at https://words.knophy.com, which redirects since Phase 2.
+  - Verified: web tsc, plugin tests 5/5, words core 208/208.
+- **Files:**
+  - `examples/words/foldkit/src/view/account.ts` — sign-in help text on the account page
+  - `examples/words/foldkit/src/view/list.ts` — sign-in help text on the list
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 4th, 2026 at 12:01:51 a.m. EDT — `68f4670bf0bf` feat(words): print shared links on words.pisspoursoftware.xyz
+
+- **Implementation commit:** `68f4670bf0bfca0548a55567482706433d3c005c`
+- **Change:** Web Scribe prints shared links on words.pisspoursoftware.xyz (Scribe #493).
+- **Details:**
+  - scribeLinkOrigin moves to the new host; ScribeLinkHost still reads both hosts. Deploy after Scribe 87 is on Michael's iPhone.
+  - Verified: words core vitest 208/208, plugin tests 5/5, core, web and node tsc pass.
+- **Files:**
+  - `examples/words/core/src/link.ts` — scribeLinkOrigin on the new host; host list order
+  - `examples/words/core/src/link.test.ts` — printed links on the new host
+  - `examples/words/core/src/update.test.ts` — copied and shared links on the new host
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## October 3rd, 2026 at 8:43:08 p.m. EDT — `fc21bb66c254` fix(words): verify Cloudflare Access logins before minting Scribe sessions
+
+- **Implementation commit:** `fc21bb66c2544437df18288965ffc8e58ed2edb1`
+- **Change:** Verify Cloudflare Access logins before the words origin mints Scribe sessions, and refuse paths under the universal-links bypass.
+- **Details:**
+  - The origin trusted the unsigned Cf-Access-Jwt-Assertion payload and a bare Cf-Access-Authenticated-User-Email header; it now verifies RS256, issuer, expiry and CF_ACCESS_AUD with the @foldkit/instant Access verifier and ignores the bare header.
+  - Access bypasses /.well-known/apple-app-site-association and every path under it; an encoded-slash path reached the app shell without login. The origin now answers 404 for anything under that prefix but the file.
+  - Verified: vitePlugins.test.ts 5/5 (each check fails when its guard is removed), words core 208/208, both tsc configs pass.
+- **Files:**
+  - `examples/words/foldkit/vitePlugins.ts` — verified identity, bypass-prefix guard, verification log lines
+  - `examples/words/foldkit/vitePlugins.test.ts` — signed, forged, unsigned, wrong-audience, wrong-issuer, expired logins; bypass paths; loopback preview
+  - `examples/words/foldkit/vitest.config.ts` — node test environment for the plugin test
+  - `examples/words/foldkit/tsconfig.json` — app code only
+  - `examples/words/foldkit/tsconfig.node.json` — Node-side files, dot access on index signatures as packages/instant allows
+  - `examples/words/foldkit/package.json` — typecheck runs both configs
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
 
 ## October 3rd, 2026 at 8:22:21 p.m. EDT — `75e066403974` fix(instant): verify Cloudflare Access logins before minting Instant sessions
 
@@ -5780,6 +6155,636 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## October 3rd, 2026 at 5:44:18 p.m. EDT — `ffff6bc57a26` feat(words): open shared links on words.pisspoursoftware.xyz beside words.knophy.com
+
+- **Implementation commit:** `ffff6bc57a269c3497182980000b56553805c557`
+- **Change:** Open shared links on words.pisspoursoftware.xyz beside words.knophy.com (Scribe #493).
+- **Details:**
+  - The knophy.com subdomains move to pisspoursoftware.xyz; words.pisspoursoftware.xyz already serves this site through the words tunnel (Host rewritten to words.knophy.com until this deploys).
+  - ScribeLinkHost lists both web hosts; scribeRouteFromLink reads a link on either (any case) as the same place. Links still print on words.knophy.com (scribeRouteToShareUrl) until the redirect phase.
+  - Verified: words core vitest 12 files, 208 tests pass (the new two-host test fails without the change); core and web tsc --noEmit pass.
+- **Files:**
+  - `examples/words/core/src/link.ts` — ScribeLinkHost, and webPathOf accepts either host
+  - `examples/words/core/src/link.test.ts` — both hosts read the same place; the poor lookalike, the apex and http are rejected
+  - `examples/words/foldkit/vite.config.ts` — dev and preview allowedHosts add words.pisspoursoftware.xyz
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
+## September 30th, 2026 at 2:34:40 p.m. EDT — `a1fbd426fce4` fix(words): forget a focused recording row when its list is replaced
+
+- **Implementation commit:** `a1fbd426fce439eb98726a80a3e885b03fe90375`
+- **Change:** Forget a focused recording row when its list is replaced (Scribe #299).
+- **Details:**
+  - Opening a recording from the list replaces the list with the sidebar (from 1024 px); the report that focus left the old rows was dropped with them, so the clicked row stayed kept and could show as a stray extra row after the window slid past its page.
+  - New rows report the focus as they find it; on the fixture a recording opened from a slid list shows the newest page in the sidebar with 100 rows (101 before).
+- **Files:**
+  - `examples/words/foldkit/src/mount.ts` — TrackRecordingRows reports the focus it finds when it mounts
+- **User context (verbatim):**
+  > I never want to have to manually load more things.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session.
+
+## September 30th, 2026 at 2:22:34 p.m. EDT — `3dc2547729e7` test(words): tell a late list snapshot apart from the loaded rows
+
+- **Implementation commit:** `3dc2547729e79ff350a9fe46c3ee6c3bac2e699a`
+- **Change:** Make the late list snapshot test tell an accepted snapshot apart from the loaded rows (Scribe #299).
+- **Details:**
+  - The late snapshot now carries a new recording at the top, so taking it would change the rows; with update's window check removed the test fails (it passed before, since the snapshot matched the loaded rows).
+  - Test-only; the deployed bundle is unchanged.
+- **Files:**
+  - `examples/words/core/src/listWindow.test.ts` — the stale snapshot test uses different rows
+- **User context (verbatim):**
+  > I never want to have to manually load more things.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session.
+
+## September 30th, 2026 at 2:02:31 p.m. EDT — `9f088af149b3` fix(words): keep no Program journal history in production builds
+
+- **Implementation commit:** `9f088af149b37f98af46ea03de4f59d6cb7ad07d`
+- **Change:** Keep no Program journal history in production builds (Scribe #299).
+- **Details:**
+  - Foldkit's Program journal keeps every transition by default, so an open page kept every Instant snapshot it received; production builds now keep none (retainLatestTransitions with a maximum of zero); the dev server keeps them for DevTools.
+  - Fixture, 18 page loads per round trip through 1,004 recordings: heap growth per round trip 6.3 MB with the default journal, 1.9 MB with this one (slow-render diagnostics on), 1.0 MB with those off; the rest comes from Foldkit's Model PubSub replay window, not changed here.
+- **Files:**
+  - `examples/words/foldkit/src/entry.ts` — the production journal keeps no transitions
+- **User context (verbatim):**
+  > I never want to have to manually load more things.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session.
+
+## September 30th, 2026 at 1:59:16 p.m. EDT — `3ff3f97e609f` feat(words): load the recording list by itself as it scrolls, in a window of three pages
+
+- **Implementation commit:** `3ff3f97e609f2d1b7cb6713847580e9b5f72a624`
+- **Change:** Load the recording list by itself as it scrolls, in a window of three pages (Scribe #299); Show More is gone.
+- **Details:**
+  - One Instant query per window (top-level limit and offset, newest first, the same where); snapshots carry their window; hasNextPage says whether older recordings exist.
+  - A request only when an edge of the loaded rows comes within about a screen, at most once per window edge, never while a page loads; a load that adds nothing marks the edge NothingAdded, so a stuck server cannot loop.
+  - At most 300 rows: the page farthest from the listener leaves as the window slides, and comes back when the listener scrolls back; the very top of a slid list goes back to the newest page in one step.
+  - The visible row stays in place in every engine: a spacer stands in for rows above the window, a MutationObserver corrects each render before paint, and the rows keep their height so the first layout cannot clamp the scroll position.
+  - Keyboard focus is never lost: the focused row stays when its page leaves, and a row the renderer moved gets its focus back before paint; edges sit in fixed slots so day sections never move.
+  - A quiet polite status shows only while a page loads; the count names a number only when it knows one; search grows the window but never slides it and says what it covered; new recording titles stay past the highest number shown.
+  - Tests: 17 new in listWindow.test.ts (207 in all); each fails before the change.
+- **Files:**
+  - `examples/words/core/src/listWindow.ts` — the window of pages, its edges, and the count kinds
+  - `examples/words/core/src/listWindow.test.ts` — paging, loop, eviction, focus, search, count, and query tests
+  - `examples/words/core/src/model.ts` — the list's window, older edge, kept focused row, and highest title number
+  - `examples/words/core/src/message.ts` — ApproachedListEdge, ReachedListTop, ChangedListRowFocus; snapshots carry their window; Show More removed
+  - `examples/words/core/src/update.ts` — when an edge asks for a window, what a snapshot means for the older edge, the kept row, the count
+  - `examples/words/core/src/subscription.ts` — the list observes its window
+  - `examples/words/core/src/store.ts` — the window query and the older-rows answer
+  - `examples/words/core/src/update.test.ts` — snapshots in existing tests carry the first window
+  - `examples/words/core/src/index.ts` — exports the window module
+  - `examples/words/core/src/program.ts` — Program version 6
+  - `examples/words/foldkit/src/mount.ts` — ObserveListEdge and TrackRecordingRows
+  - `examples/words/foldkit/src/view/list.ts` — rows between edge slots, the spacer, the loading status, the count, the search note
+- **User context (verbatim):**
+  > make sure that the show latest, show earliest stuff never shows up. I never want to have to manually load more things.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session.
+
+## September 30th, 2026 at 4:34:17 a.m. EDT — `1f636163ea86` fix(words): title the offline opening card "Waiting for the network"
+
+- **Implementation commit:** `1f636163ea86915c4502bef69e5aa5a4cec8074b`
+- **Change:** Title the offline opening card Waiting for the network (#289 W49, follow-up).
+- **Details:**
+  - Offline, the page's notice already says You are offline; the opening card now says what the recording waits for, and that the browser is offline and the recording opens once the network is back.
+- **Files:**
+  - `examples/words/foldkit/src/view/playback.ts` — the offline opening card's title and line
+- **User context (verbatim):**
+  > the transcript is not loading from within the app, although the word count is.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 30th, 2026 at 4:07:28 a.m. EDT — `b994a01bec07` fix(words): keep the title whole at large text, badges readable on selected rows, two rows beside a live recording, and a wider column from 1600 px
+
+- **Implementation commit:** `b994a01bec07fd7a6866d8ae1cae183a2a2d4c53`
+- **Change:** Keep the title whole at large text, badges readable on selected rows, two rows beside a live recording, and a wider column from 1600 px (#289 W60, W52, W58, W63).
+- **Details:**
+  - W60: under 20rem of page width (large text on a phone) the top bar drops the recording title and the page shows it, wrapping.
+  - W52: badge text tokens keep Recording, Paused, and Playing above 4.5:1 on selected and hovered rows in light, dark, and Increase Contrast.
+  - W58: beside a playback on a phone, the live recorder and the player each take one row; chrome 36.1 to 28.7 percent at 375 px.
+  - W63: from 1600 px text grows by 30 percent, the column is 61rem (about 90 characters per line), the sidebar 35rem; blank per side at 1920 px 20 to 10 percent.
+- **Files:**
+  - `examples/words/foldkit/src/styles.css` — the large-display scale, badge tokens, the one-row pieces, the wrapping title
+  - `examples/words/foldkit/src/view/capture.ts` — the one-row recorder
+  - `examples/words/foldkit/src/view/playback.ts` — the one-row player, the page title at large text, the wider column
+  - `examples/words/foldkit/src/view/view.ts` — the page container, both pieces beside each other, the wider sidebar
+  - `examples/words/foldkit/src/view/shell.ts` — the bar title yields at large text; the toast follows the sidebar
+  - `examples/words/foldkit/src/view/transcript.ts` — the wider column; the gutter and cards scale with text
+  - `examples/words/foldkit/src/view/ui.ts` — badge tokens; avatar initials follow the large-display scale
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 30th, 2026 at 4:06:40 a.m. EDT — `f6f1e11e9e9f` feat(words): stop a recording with Shift-Command-Period, and let floating pieces materialize
+
+- **Implementation commit:** `f6f1e11e9e9f123a734448b9df6165cb300db5d2`
+- **Change:** Stop a recording with Shift-Command-Period, and let floating pieces materialize (#289 W38, W64).
+- **Details:**
+  - W38: Shift-Command-Period (Shift-Control-Period off the Mac) stops the recording in progress, like the Mac app; never while typing, in a dialog, or on key repeat; named on Stop and in Settings.
+  - W64: New Recording, the recorder, the player, and the mini player fade and rise in over 0.2 s when they appear; Reduce Motion turns it off.
+- **Files:**
+  - `examples/words/core/src/keyboard.ts` — StopRecording, the key press's physical key and modifiers, shortcutHintOf
+  - `examples/words/core/src/update.ts` — the StopRecording shortcut stops a capturing recording
+  - `examples/words/foldkit/src/browser.ts` — key presses report code, Shift, and Command or Control
+  - `examples/words/foldkit/src/view/capture.ts` — shortcut hints on Pause and Stop
+  - `examples/words/foldkit/src/view/account.ts` — the Stop shortcut in Settings
+  - `examples/words/foldkit/src/styles.css` — materialize transition for floating pieces
+  - `examples/words/core/src/keyboard.test.ts` — Stop shortcut tests
+  - `examples/words/core/src/update.test.ts` — Stop shortcut update test
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 30th, 2026 at 4:04:37 a.m. EDT — `d91c94787ff7` feat(words): mark recordings shared with this account and open them at their share
+
+- **Implementation commit:** `d91c94787ff79744fd807737a0b4d6d1b43ce505`
+- **Change:** Mark recordings shared with this account and open them at their share (#289 W56).
+- **Details:**
+  - The web reads the range shares other accounts made to this one (addressed to the signed-in email, or claimed), newest first, once sharing is on; the account's own shares are left out.
+  - A shared row says Shared with You and who shared it, opens the share's page, and its menu copies the share's link; a recording page for a shared recording opens as the share's page and the address bar follows.
+  - Recording and share rows decode ownerUserID, so the account's own recordings are never marked as shared.
+- **Files:**
+  - `examples/words/core/src/update.ts` — receivedShareOf, receivedShareRouteOf, opening a received share in place of the recording page
+  - `examples/words/core/src/store.ts` — observeReceivedShares
+  - `examples/words/core/src/subscription.ts` — the received shares Subscription
+  - `examples/words/core/src/share/decode.ts` — decodeReceivedShares; share owners
+  - `examples/words/core/src/share/model.ts` — received shares
+  - `examples/words/core/src/share/message.ts` — ObservedReceivedShares
+  - `examples/words/core/src/share/intent.ts` — reportReceivedShares
+  - `examples/words/core/src/share/update.ts` — keep received shares; wording
+  - `examples/words/core/src/decode.ts` — recording owners
+  - `examples/words/core/src/recording.ts` — maybeOwnerUserID
+  - `examples/words/foldkit/src/view/list.ts` — shared rows: badge, sharer, share link, open row
+  - `examples/words/foldkit/src/view/ui.ts` — Shared badge tone
+  - `examples/words/foldkit/src/view/share.ts` — Shared with You wording and badge
+  - `examples/words/core/src/update.test.ts` — received share tests
+  - `examples/words/core/src/share/share.test.ts` — received share decode and update tests
+  - `examples/words/core/src/transcript.test.ts` — owner decode test
+  - `examples/words/core/src/coldLoad.test.ts` — summary owner field
+  - `examples/words/core/src/search.test.ts` — summary owner field
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 30th, 2026 at 4:01:05 a.m. EDT — `759ba56f2904` fix(words): say what an opening recording waits for, count live lengths forward, and fix the scrubber and skip links
+
+- **Implementation commit:** `759ba56f2904fd9611f6f3cae1a1adbfb198dd9f`
+- **Change:** Say what an opening recording waits for, count live lengths forward, and fix the scrubber and skip links (#289 W49, W44, W53, W61, W51, W54, W55, W62, W40).
+- **Details:**
+  - W49: the Opening card shows a spinner; after 8 s it says the transcript is still loading, with Try Again (a new attempt restarts the recording Subscription); offline it says the recording opens once the network is back; a recording that failed to load offers Try Again.
+  - W44: a recording in progress elsewhere never shows less than it showed (liveLengthFloors); the web recorder saves the length with each finished section, so its save time and length move together.
+  - W53: the scrubber steps 1 s, so Up and Down Arrow and assistive adjustments change the spoken time; Left and Right Arrow move 5 s; the thumb is drawn at the exact playhead.
+  - W61: Skip to Controls and Skip to Content are the first tab stops; the page scrolls the window, because scrollIntoView moved Chromium's focus navigation starting point past them.
+  - W51: the account chip says Offline while offline, on a phone too. W54: signed in, the list says Loading recordings. W55: the mini player's title link is 44 px. W62: avatar initials are sized to the circle. W40: the recording title keeps the large title size from 1024 px.
+- **Files:**
+  - `examples/words/core/src/update.ts` — displayedLengthOf and liveLengthFloors, openingWaitOf and Try Again, scrubber arrows, Skip to Content, the scroll to the title
+  - `examples/words/core/src/subscription.ts` — the opening patience timer and the recording attempt dependency
+  - `examples/words/core/src/model.ts` — OpeningPatience, liveLengthFloors, recordingAttempt
+  - `examples/words/core/src/message.ts` — PressedScrubberArrow, ElapsedOpeningPatience, ClickedTryOpeningAgain, Skip to Content
+  - `examples/words/core/src/capture/update.ts` — WriteSegment carries the length recorded so far
+  - `examples/words/core/src/capture/writer.ts` — finalSectionRecordingFieldsOf writes the length with the save time
+  - `examples/words/core/src/scroller.ts` — scrollToPageTop
+  - `examples/words/foldkit/src/browser.ts` — window scrolling for follow and the title
+  - `examples/words/foldkit/src/view/playback.ts` — opening notices, scrubber, mini player link, title size
+  - `examples/words/foldkit/src/view/view.ts` — skip links, the content column, the opening notices
+  - `examples/words/foldkit/src/view/shell.ts` — offline chip
+  - `examples/words/foldkit/src/view/list.ts` — Loading recordings; counted lengths
+  - `examples/words/foldkit/src/view/ui.ts` — avatar sizes
+  - `examples/words/foldkit/src/view/account.ts` — the scrubber keys note; the avatar size
+  - `examples/words/foldkit/src/styles.css` — the drawn scrubber thumb
+  - `examples/words/core/src/update.test.ts` — scrubber, live length, opening, and Skip to Content tests
+  - `examples/words/core/src/capture/capture.test.ts` — length with each section tests
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+  > the transcript is not loading from within the app, although the word count is.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 11:05:58 p.m. EDT — `edd500ad530e` fix(words): count a recording in progress elsewhere up each second
+
+- **Implementation commit:** `edd500ad530ef03038a3ead82c6997eb07b8a07b`
+- **Change:** Count a recording in progress elsewhere up each second (#289 W44).
+- **Details:**
+  - The list row and the live bar show the last saved length plus the time since that save, stopping 6 s after saves stop and never running backward.
+  - A one-second live clock Subscription runs only while such a recording is on screen; the live bar's timer sits outside the status region, so screen readers do not hear it each second.
+- **Files:**
+  - `examples/words/core/src/update.ts` — liveDurationSecondsOf, isCountingLiveOf, TickedLiveClock
+  - `examples/words/core/src/subscription.ts` — live clock Subscription
+  - `examples/words/core/src/model.ts` — maybeLiveClockMs
+  - `examples/words/core/src/message.ts` — TickedLiveClock
+  - `examples/words/core/src/recording.ts` — maybeUpdatedAtMs
+  - `examples/words/core/src/decode.ts` — updatedAtMs decode
+  - `examples/words/foldkit/src/view/list.ts` — counting row length
+  - `examples/words/foldkit/src/view/playback.ts` — live bar timer; status region without controls
+  - `examples/words/foldkit/src/view/view.ts` — live clock to the bar
+  - `examples/words/core/src/update.test.ts` — live clock tests
+  - `examples/words/core/src/coldLoad.test.ts` — summary field
+  - `examples/words/core/src/search.test.ts` — summary field
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 10:54:54 p.m. EDT — `b03f1ad0dcc0` feat(words): keep the search in the address bar and open a match at its line
+
+- **Implementation commit:** `b03f1ad0dcc03b45c70e1005dfe839277d940477`
+- **Change:** Keep the search in the address bar and open a match at its line (#289 W42, web part).
+- **Details:**
+  - Typing on the list replaces the address with /recordings/search?q= after a 400 ms pause, one history entry; a cold load of a search link fills the field; the catch-up never overwrites newer typing; a sidebar search beside an open recording stays out of the address bar.
+  - A result whose preview line holds every word links to that section a second early; matching words are highlighted in the title and preview lines.
+  - Searching every transcript line needs a production index on transcriptionSegments.text (listed for Michael's decision).
+- **Files:**
+  - `examples/words/core/src/link.ts` — SearchRecordingsRoute q, isListRoute
+  - `examples/words/core/src/update.ts` — ReplaceUrl, WaitForSearchPause, search route handling
+  - `examples/words/core/src/search.ts` — matchedPreviewLineOf, textPartsOf
+  - `examples/words/core/src/recording.ts` — PreviewLine
+  - `examples/words/core/src/decode.ts` — preview lines with section and start
+  - `examples/words/core/src/message.ts` — ElapsedSearchPause, CompletedReplaceUrl
+  - `examples/words/core/src/program.ts` — version 5
+  - `examples/words/foldkit/src/view/list.ts` — match link and highlight
+  - `examples/words/foldkit/src/view/shell.ts` — search page top bar
+  - `examples/words/foldkit/src/view/view.ts` — shared list route check
+  - `examples/words/core/src/update.test.ts` — search address bar tests
+  - `examples/words/core/src/search.test.ts` — match and highlight tests
+  - `examples/words/core/src/link.test.ts` — search link tests
+  - `examples/words/core/src/coldLoad.test.ts` — cold load of a search link
+  - `examples/words/core/src/transcript.test.ts` — preview line decode
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 10:30:35 p.m. EDT — `da45629315bd` fix(words): one moment link, clearer names, fewer text sizes, no empty landmark
+
+- **Implementation commit:** `da45629315bd03f0ad688ea832853561bb5b21ff`
+- **Change:** One moment link, clearer names, fewer text sizes, no empty landmark (#289 W38, W39, W40, W47).
+- **Details:**
+  - W39: the player's Copy Link to This Moment copies the section link at the playhead with the lead-in (playback form only before the first section); Back to Playhead uses a playhead symbol.
+  - W38: Settings lists F and /; Skip to Controls and the Controls region; no single-key Stop by design (capture safety).
+  - W40: body-size semibold headings on the list's empty states and the Settings email; W47: no empty Controls region.
+- **Files:**
+  - `examples/words/core/src/update.ts` — momentRouteOf
+  - `examples/words/core/src/update.test.ts` — moment link tests
+  - `examples/words/core/src/message.ts` — Skip to Controls doc
+  - `examples/words/foldkit/src/view/icon.ts` — Playhead icon
+  - `examples/words/foldkit/src/view/playback.ts` — Back to Playhead symbol
+  - `examples/words/foldkit/src/view/account.ts` — shortcut list and email size
+  - `examples/words/foldkit/src/view/list.ts` — body-size headings
+  - `examples/words/foldkit/src/view/view.ts` — Skip to Controls; region only with controls
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 10:25:24 p.m. EDT — `94546393c955` feat(words): keep a recording playing while browsing and beside the live one
+
+- **Implementation commit:** `94546393c95535e58293f94980a0f709dae1aca3`
+- **Change:** Keep a recording playing while browsing and beside the live one (#289 W21, F3).
+- **Details:**
+  - maybeBackgroundPlayback keeps a started playback and its audio when the listener leaves for the list, Settings, or this browser's own recording in progress; a mini player shows it; opening another recording replaces it; its title brings it back where it is.
+  - Audio messages, the transport, shortcuts, and Media Session act on audioOwnerOf; page actions stay with the page; background playbacks drop page scrolls.
+  - Fixture probe (probe-w21.mjs): list playback 0:03 to 0:06, Space paused, return at 0:06, Close removed it; F3 live page playback 0:03 to 0:05 with Pause and Stop, back at 0:07.
+- **Files:**
+  - `examples/words/core/src/update.ts` — background playback, audio owner, route rules, close
+  - `examples/words/core/src/model.ts` — maybeBackgroundPlayback
+  - `examples/words/core/src/message.ts` — ClickedCloseMiniPlayer
+  - `examples/words/core/src/subscription.ts` — audio events follow the audio owner
+  - `examples/words/core/src/update.test.ts` — background playback, F3, close, replace, and resume tests
+  - `examples/words/foldkit/src/view/playback.ts` — mini player
+  - `examples/words/foldkit/src/view/view.ts` — mini player in the floating controls
+  - `examples/words/foldkit/src/view/capture.ts` — New Recording full width beside the mini player
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 10:10:17 p.m. EDT — `59e3edcb2d4e` fix(words): fit the recording page's chrome on a phone under 30 percent
+
+- **Implementation commit:** `59e3edcb2d4e12404929b3722c0c1d8627021a04`
+- **Change:** Fit the recording page's chrome on a phone under 30 percent (#289 W32).
+- **Details:**
+  - Phones: inline title in the top bar, Share plus a More menu on the meta line, phase badge in the meta line, a slightly tighter player with every control kept. Chrome at rest at 375 by 812 went from 37.3 to 27.6 percent (probe-w32.mjs); from 640 px nothing changes.
+- **Files:**
+  - `examples/words/foldkit/src/view/playback.ts` — phone header with Share and More; meta line pieces; tighter phone player
+  - `examples/words/foldkit/src/view/shell.ts` — inline recording title in the phone top bar
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 9:54:58 p.m. EDT — `5c3df9a8ff1d` fix(words): plain-language failures and messages, without internal names
+
+- **Implementation commit:** `5c3df9a8ff1d91f409f2e03a45701e55c299b186`
+- **Change:** Plain-language failures and messages, without internal names (#289 W35, W8).
+- **Details:**
+  - failureTextOf and storeFailureReasonOf turn recorder, share, store, and origin errors into a sentence about what did not happen plus a plain cause (network, or Scribe not answering in time); for example UploadAudio: Failed to fetch now reads The audio did not upload. The network connection dropped.
+  - User text no longer names ADRs or Instant; the microphone failures say choose Try Again (W8).
+- **Files:**
+  - `examples/words/core/src/failure.ts` — plainCauseOf and failureTextOf
+  - `examples/words/core/src/failure.test.ts` — failure text tests
+  - `examples/words/core/src/index.ts` — export the failure text
+  - `examples/words/core/src/capture/update.ts` — recorder failures as sentences
+  - `examples/words/core/src/capture/writer.ts` — timeout wording
+  - `examples/words/core/src/share/update.ts` — share failures as sentences
+  - `examples/words/core/src/share/writer.ts` — timeout wording
+  - `examples/words/core/src/store.ts` — storeFailureReasonOf
+  - `examples/words/core/src/subscription.ts` — observation failures as sentences
+  - `examples/words/core/src/update.ts` — recording check failure as a sentence
+  - `examples/words/core/src/account/update.ts` — sign-in failures as sentences
+  - `examples/words/core/src/origin.ts` — origin failures as sentences
+  - `examples/words/foldkit/src/view/account.ts` — Account ID and plain sharing text
+  - `examples/words/foldkit/src/view/share.ts` — plain sharing and audio notices
+  - `examples/words/foldkit/src/view/connect.ts` — no ADR reference
+  - `examples/words/foldkit/src/view/capture.ts` — save failure wording
+  - `examples/words/foldkit/src/capture.ts` — microphone failures say choose Try Again
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 9:50:58 p.m. EDT — `fc511477aeb1` fix(words): give Full Screen more of a phone and keep its clock by the text
+
+- **Implementation commit:** `fc511477aeb16ee2717e02a3ae0e2fa37fdbb2f1`
+- **Change:** Give Full Screen more of a phone and keep its clock by the text (#289 W34, W43, W46).
+- **Details:**
+  - W34: a compact one-row player in Full Screen below 640 px; content share on an 812 px phone 86 to 91.6 percent (player 114 to 68 px); notices clear of Exit.
+  - W43: the wall clock's hour is numeric, no leading zero.
+  - W46: the clock anchors 2.5rem outside the 48rem column (gap 568 to 32 px at 1920 px).
+- **Files:**
+  - `examples/words/foldkit/src/view/playback.ts` — compact Full Screen player; clock position; notice clearance
+  - `examples/words/foldkit/src/view/view.ts` — offline notice clear of Exit in Full Screen
+  - `examples/words/foldkit/src/mount.ts` — numeric hour on the wall clock
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 9:43:57 p.m. EDT — `fbb602ac3439` fix(words): keep share rows readable on phones and focused timestamps clear of the player
+
+- **Implementation commit:** `fbb602ac343956fd93bda0720e6d22371c27467f`
+- **Change:** Keep share rows readable on phones and focused timestamps clear of the player (#289 W23, W26).
+- **Details:**
+  - W23: share rows keep a 12rem text column with normal word breaking, so Copy Link and Stop Sharing wrap below it at 375 px.
+  - W26: html scroll-padding 4.5rem top and 12rem bottom; tabbing through timestamps on a 375 px phone left 4 of 22 behind the player before and 0 of 25 after.
+- **Files:**
+  - `examples/words/foldkit/src/view/share.ts` — share row text column and button wrap
+  - `examples/words/foldkit/src/styles.css` — root scroll padding for the top bar and the player
+  - `examples/words/foldkit/src/view/transcript.ts` — section scroll margins replaced by the root padding
+  - `examples/words/foldkit/src/view/playback.ts` — title scroll margin replaced by the root padding
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 9:39:47 p.m. EDT — `0832651d1cb8` feat(words): the recording list as a sidebar beside the page from 1024 px
+
+- **Implementation commit:** `0832651d1cb8dacc499dc081c91059c2b4472a57`
+- **Change:** The recording list as a sidebar beside the page from 1024 px (#289 W20, W41).
+- **Details:**
+  - From 1024 px the list is a sticky 21rem sidebar (24rem from 1280 px) with the open recording marked; the list route shows Choose a Recording beside it; the split holds while signing in so the layout does not move; one column without a connected account and in Full Screen; nothing changes below 1024 px.
+  - Measured on the fixture at 1280 px: the page column starts at 384 px, the player centers at 832 px, sidebar wheel scrolling leaves the followed playhead attached, transcript scrolling detaches it, and a sidebar click opens Recording 013 at the top of its page.
+  - W41: the top bar uses the content column's max width and padding, and spans the grid when split.
+- **Files:**
+  - `examples/words/foldkit/src/view/view.ts` — split layout, page column, and offsets
+  - `examples/words/foldkit/src/view/list.ts` — shared list body, sidebar, placeholder, open row marked
+  - `examples/words/foldkit/src/view/shell.ts` — top bar on the content grid; toast offset
+  - `examples/words/foldkit/src/view/playback.ts` — title id constant and scroll margin
+  - `examples/words/core/src/update.ts` — ScrollToRecordingTitle for recordings opened without a moment
+  - `examples/words/core/src/message.ts` — CompletedScrollToRecordingTitle
+  - `examples/words/core/src/update.test.ts` — title scroll test
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 9:27:15 p.m. EDT — `25d1ff80e82e` feat(words): reopen a recording where the listener left it
+
+- **Implementation commit:** `25d1ff80e82e71f7ed6639e52858ae844eef4ecb`
+- **Change:** Reopen a recording where the listener left it (#289 W31).
+- **Details:**
+  - resumePositions keeps, per recording, the position where it was left part way through; opening it again without a moment in the link resumes there and scrolls to it; links with t or a section win; played to the end, it starts over.
+- **Files:**
+  - `examples/words/core/src/update.ts` — remember positions when a route leaves a playback; resume links that name no moment
+  - `examples/words/core/src/model.ts` — resumePositions
+  - `examples/words/core/src/update.test.ts` — resume, link, and end-of-audio tests
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 9:23:32 p.m. EDT — `dd024f61ead9` feat(words): row actions on touch and a right-click menu on the recording list
+
+- **Implementation commit:** `dd024f61ead95579682e4de26f285a8a72c8d3d7`
+- **Change:** Row actions on touch and a right-click menu on the recording list (#289 W30).
+- **Details:**
+  - Before, on a touch phone no row offered any action (the hover-only Copy Link was hidden); after, 4 of 4 rows show a 44x44 More button whose menu lists Copy Link and Share Link, and Share Link hands the recording's https link to the system share sheet.
+  - On desktop a right-click on a row opens the same menu, and Copy Link puts https://words.knophy.com/recording/<id> on the clipboard (probe-w30.mjs on the fixture host).
+- **Files:**
+  - `examples/words/core/src/linkSharer.ts` — LinkSharer service for the system share sheet
+  - `examples/words/core/src/index.ts` — export the LinkSharer service
+  - `examples/words/core/src/message.ts` — Share Link and context menu Messages
+  - `examples/words/core/src/update.ts` — ShareRecordingLink Command and handlers
+  - `examples/words/core/src/program.ts` — LinkSharer among the Program's resources
+  - `examples/words/core/src/update.test.ts` — Share Link test
+  - `examples/words/foldkit/src/browser.ts` — the Web Share API as the LinkSharer
+  - `examples/words/foldkit/src/entry.ts` — provide LinkSharer; tell views whether the browser can share
+  - `examples/words/foldkit/src/mount.ts` — ShowRowMenuOnContextMenu
+  - `examples/words/foldkit/src/view/list.ts` — More button and row menu
+  - `examples/words/foldkit/src/view/shell.ts` — ViewConfig canShareLinks
+  - `examples/words/foldkit/src/view/view.ts` — pass the view config to the list
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 9:08:20 p.m. EDT — `0db15b6ccc7a` fix(words): keep the recording bar readable at large text and as wide as the player
+
+- **Implementation commit:** `0db15b6ccc7ac1b39489a02b2b12571361bc0ec1`
+- **Change:** Keep the recording bar readable at large text and as wide as the player (#289 W29, W45).
+- **Details:**
+  - W29: the recording bar is a size container; below 18rem Pause and Stop are 44 px icon-only buttons. At 200 percent text on a 375 px phone the status ended at 146 px under Pause at 96 px; now Pause starts at 259 px. The default size keeps the labels.
+  - W45: the recording, Finishing, and Saving bars are full width, like the playback bar they stack with.
+- **Files:**
+  - `examples/words/foldkit/src/view/capture.ts` — full-width recorder bars; icon-only Pause and Stop when narrow
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 9:01:47 p.m. EDT — `87e5d124459d` fix(words): one status per recording, a Paused cue, and quieter recording controls
+
+- **Implementation commit:** `87e5d124459d23fba688040df8ed7b60207b8e63`
+- **Change:** One status per recording, a Paused cue, and quieter recording controls (#289 W25, W27, W28, W33, W37).
+- **Details:**
+  - W25 dark contrast: accent-strong #ff8a80 in dark (Stop and Resume 5.21:1, 4.89:1 with reduced transparency) and #ffa198 with more contrast; the share suggestion chip text in the label color (9.51:1); avatar gradient #d32f2f to #b71c1c (white initials 4.98 to 6.57:1).
+  - W27: this browser's own row shows the recorder's phase (Paused or Recording) and running time; no header badge repeats the recording bar.
+  - W33: playbackPhaseOf gives Playing while audio plays and Paused only part way through with the audio loaded; the header shows it as a badge and the tab title as a prefix.
+  - W28 and W37: Play is a plain label-color glyph; only Share is tinted; Open in Scribe and Full Screen are icon-only quiet buttons, so the actions fit one row.
+- **Files:**
+  - `examples/words/core/src/update.ts` — playbackPhaseOf
+  - `examples/words/core/src/model.ts` — PlaybackPhase
+  - `examples/words/core/src/update.test.ts` — playback phase tests
+  - `examples/words/foldkit/src/styles.css` — dark and dark more-contrast accent-strong
+  - `examples/words/foldkit/src/view/list.ts` — own row takes the recorder's phase and time
+  - `examples/words/foldkit/src/view/playback.ts` — header badge from the playback phase; plain Play; quiet icon actions
+  - `examples/words/foldkit/src/view/ui.ts` — quietIconButton; darker avatar gradient
+  - `examples/words/foldkit/src/view/share.ts` — suggestion chip text in the label color
+  - `examples/words/foldkit/src/view/view.ts` — tab title prefix from the playback phase
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 8:40:17 p.m. EDT — `fdbebcd98e15` fix(words): confirm an empty share answer, and know sharing's state before saying it
+
+- **Implementation commit:** `fdbebcd98e1593e74bf9e41777e6ae7e3d792543`
+- **Change:** Confirm an empty share answer, and know sharing's state before saying it (#282 #289 W48, W24).
+- **Details:**
+  - Found by the production check with sharing on: a recipient's cold load of a share link went Opening (146 ms), This share is not available (731 ms), the share (1016 ms); the restarted query first answered from what the browser read before signing in.
+  - ConfirmSharedRange asks the server (queryOnce with ruleParams k) before an opening share is called missing; answers for another viewer are ignored; WordsStore gains hasSharedRange.
+  - Settings read sharing as waiting for approval until the access check answered; the account Model's maybeFeatures is None until then, Settings says Checking with words.knophy.com, and share writes and share queries wait for Enabled.
+- **Files:**
+  - `examples/words/core/src/share/update.ts` — ConfirmSharedRange before a share is called missing; stale answers ignored
+  - `examples/words/core/src/share/message.ts` — ConfirmedMissingSharedRange and ConfirmedSharedRangeExists
+  - `examples/words/core/src/store.ts` — hasSharedRange, a server check with the link token
+  - `examples/words/core/src/account/model.ts` — maybeFeatures, maybeSharingOf, isSharingEnabled
+  - `examples/words/core/src/account/update.ts` — the access check answer sets the features
+  - `examples/words/core/src/subscription.ts` — share queries wait for sharing to be on
+  - `examples/words/core/src/update.ts` — the share context reads the optional features
+  - `examples/words/foldkit/src/view/account.ts` — Settings sharing row says checking until the origin answers
+  - `examples/words/foldkit/src/view/share.ts` — the approval notice shows only when the origin says sharing waits
+  - `examples/words/core/src/share/share.test.ts` — confirm, stale answer, and revoke tests
+  - `examples/words/core/src/coldLoad.test.ts` — the share link cold load follows the production sequence
+- **User context (verbatim):**
+  > Uh permission push, I approve.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 8:22:54 p.m. EDT — `b0f4fd5052f7` fix(words): vendor the Scribe schema that production runs
+
+- **Implementation commit:** `b0f4fd5052f7e984b06d8fe53d7471a0e32d78cd`
+- **Change:** Vendor the Scribe schema that production runs (#282 #289 W48).
+- **Details:**
+  - Production has Scribe main's schema and permissions since the 2026-09-29 push Michael approved; the Scribe drift gate (scripts/instant-drift/check.py, a read-only pull) prints: Instant schema and permissions match the fresh server pull.
+  - The web's copy came from 4edb7e06 and lacked 04c3855c's sharedSettings owner field and link, which the web does not read; it is now main's file at 04c3855c (sha256 1678d1df33de9014).
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — Scribe main's instant.schema.ts at 04c3855c
+  - `examples/words/core/src/scribeSchema.source.json` — source commit and sha256 of the vendored schema
+- **User context (verbatim):**
+  > Uh permission push, I approve.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 8:19:04 p.m. EDT — `767c04a1a3d3` fix(words): open section and moment links where they point on a cold load
+
+- **Implementation commit:** `767c04a1a3d39808ddcdc47e315b6b40f6bcd815`
+- **Change:** Open section and moment links where they point on a cold load (#289 W24, the web's G3 gate).
+- **Details:**
+  - A copied section or moment link opened in a new tab landed at 0:00 with nothing selected: before sign-in Instant answered that the recording was missing, MissingRecording dropped the link's start time and section, and the recording opened at the start once the browser signed in (round 3 measured Opening at 121 ms, not available at 539 ms, the recording at 0:00 at 1029 ms).
+  - MissingRecording and FailedPlayback keep the link's request; an account change returns them to OpeningPlayback with the request; ConfirmRecording carries the account it asked for and a stale answer is ignored; the page shows a recording or share that looks missing as opening until sign-in settles (displayedPlaybackOf, displayedSharedRangeOf, isSignInSettledOf).
+  - The iPhone's one-second lead-in holds: a section link without t starts at the whole second before the section (ScribeDeepLink.shareableStartTime); t is used as written.
+  - Fixture check (cold sign-in, no session): before, every link went Opening, not available, 0:00; after, Opening then the moment (0:49 with the section focused, 1:44, 1:23), and Play continued from there.
+- **Files:**
+  - `examples/words/core/src/update.ts` — keep the link's request through missing answers and sign-in; displayed playback and share selectors
+  - `examples/words/core/src/model.ts` — MissingRecording and FailedPlayback carry the request
+  - `examples/words/core/src/message.ts` — confirm answers name the account they were asked for
+  - `examples/words/core/src/program.ts` — Program version 4 for the Model change
+  - `examples/words/core/src/coldLoad.test.ts` — cold-load tests for every link form in the ADR 0012 grammar
+  - `examples/words/core/src/update.test.ts` — existing confirm test passes the new account field
+  - `examples/words/foldkit/src/view/view.ts` — recording page renders the displayed playback
+  - `examples/words/foldkit/src/view/share.ts` — share page renders the displayed shared range
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 7:09:46 a.m. EDT — `9958fd91c98f` fix(words): name the copy formats the way the iPhone does
+
+- **Implementation commit:** `9958fd91c98f8589f481f926e213588a39186b29`
+- **Change:** Name the copy formats the way the iPhone does.
+- **Details:**
+  - The Copy Transcript menu lists Markdown, Plain Text, and SubRip (SRT), the names and order of the iPhone's Copy Transcript menu, which the design audit's round-1 gap W8 asked for; it read Copy as Plain Text, Copy as Markdown, and Copy as SRT.
+- **Files:**
+  - `examples/words/foldkit/src/view/playback.ts` — Copy Transcript menu items renamed and reordered
+- **User context (verbatim):**
+  > audit the uh visuals of the words.nofi.com
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 6:47:48 a.m. EDT — `653173ee795e` fix(words): keep the connect card's step numbers round
+
+- **Implementation commit:** `653173ee795e909554869b84254167e688ddbe0f`
+- **Change:** Keep the connect card's step numbers round.
+- **Details:**
+  - The round-1 type change let the step numbers grow with the text size, and in the step row they stretched to the height of the step's text; they sit at the top of the row again.
+- **Files:**
+  - `examples/words/foldkit/src/view/connect.ts` — Align the step numbers to the top of the step row.
+- **User context (verbatim):**
+  > audit the uh visuals of the words.nofi.com
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 6:43:00 a.m. EDT — `98d4dbb0ffd1` feat(words): follow playback and apply the round-1 design fixes
+
+- **Implementation commit:** `98d4dbb0ffd10a6b86ef4f3cd0bcdd00cf57e847`
+- **Change:** Follow playback and the live edge, and apply the design audit's round-1 web fixes (W1 to W19 and W22).
+- **Details:**
+  - The transcript follows the playhead and a recording in progress at its live edge through a ScrollToSection Command; Back to Playhead and Back to Live show only once the followed section is off screen, and scrolling back follows again. This clears the web's G3 gate (Return to playhead did nothing).
+  - Type moved to rem tokens with at most four sizes a screen and the iOS text size through -apple-system-body; spacing stays in pixels so controls keep 44 px when text grows.
+  - Contrast tokens, dark Increase Contrast values, one material and one shadow for floating controls, forced-colors outlines, and Reduce Motion handling.
+  - Keyboard shortcuts, Skip to Player, a native modal share dialog, popover menus, a timestamp section menu, 44 px targets, Media Session, a web app manifest and icons, a rate-limited live region, an offline notice, Full Screen with the rotated wall clock, and search that filters as you type.
+  - Names shared with the iPhone and Mac: Back to Live, Back to Playhead, Full Screen, Settings, New Recording; phases Recording, Paused, Playing.
+- **Files:**
+  - `examples/words/core/src/update.ts` — Scroll Commands for following and returning, keyboard shortcuts, Media Session actions, rate-limited announcements, Full Screen, and search.
+  - `examples/words/core/src/keyboard.ts` — Map key presses to shortcuts where the page offers them, and the host keyboard service.
+  - `examples/words/core/src/scroller.ts` — The host service that scrolls a section into view.
+  - `examples/words/core/src/search.ts` — Filter the list by title and preview lines.
+  - `examples/words/core/src/update.test.ts` — Tests for follow, Back to Playhead and Back to Live, the keyboard, Full Screen, announcements, Media Session, and search.
+  - `examples/words/foldkit/src/mount.ts` — Observe playhead visibility, open the share dialog as a native modal, track word clicks, and run the wall clock.
+  - `examples/words/foldkit/src/browser.ts` — Scroll with Reduce Motion in mind, claim shortcut keys, and report the network.
+  - `examples/words/foldkit/src/audio.ts` — Publish Now Playing and answer the system media controls.
+  - `examples/words/foldkit/src/styles.css` — Rem type tokens, contrast and material tokens, the scrubber, popovers, forced colors, Reduce Motion, and the folding title.
+  - `examples/words/foldkit/src/view/playback.ts` — The compact header, the transport, Back to Playhead and Back to Live, and Full Screen.
+  - `examples/words/foldkit/src/view/transcript.ts` — The timestamp section menu and the followed section's visibility observer.
+  - `examples/words/foldkit/src/view/view.ts` — The player region, Skip to Player, the offline notice, and the phase in the tab title.
+  - `examples/words/foldkit/index.html` — Icons, the manifest, and per-appearance theme colors.
+- **User context (verbatim):**
+  > audit the uh visuals of the words.nofi.com
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 1:57:50 a.m. EDT — `a0a6b4d0bf5b` fix(words): say where the Account screen is when Scribe opens without it
+
+- **Implementation commit:** `a0a6b4d0bf5b94faca228a72ae3a25e387206176`
+- **Change:** Say where the Account screen is when Scribe opens without it.
+- **Details:**
+  - Builds of Scribe before the /account route open on a scan of the account QR code but stay on the recording list; the first step now names the Settings path for that case.
+- **Files:**
+  - `examples/words/foldkit/src/view/connect.ts` — Name the Settings path when the scan does not open the Account screen.
+- **User context (verbatim):**
+  > I have no idea what my account is, how to share with it
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 1:43:20 a.m. EDT — `9739dab7bf87` fix(words): align transcript text, explain microphone failures, fit iPhones
+
+- **Implementation commit:** `9739dab7bf87e53af70b06506ba054094be0db49`
+- **Change:** Align transcript text, explain microphone failures, and fit iPhone widths.
+- **Details:**
+  - Section text now lines up with its timestamp: the copy actions float over the section's corner and the speaker name renders only where a run starts.
+  - A refused, missing, or busy microphone now says what to do instead of the browser's raw message.
+  - On iPhone widths the recording actions and the share sheet's link option collapse to icons and short labels with their accessible names.
+- **Files:**
+  - `examples/words/foldkit/src/view/transcript.ts` — Float section actions and render speaker names only at run starts.
+  - `examples/words/foldkit/src/capture.ts` — Explain microphone failures in plain words.
+  - `examples/words/foldkit/src/view/ui.ts` — Add a button whose label collapses to its icon on narrow screens.
+  - `examples/words/foldkit/src/view/playback.ts` — Fit the recording actions on one row on iPhones.
+  - `examples/words/foldkit/src/view/share.ts` — Shorten the link option on narrow screens.
+- **User context (verbatim):**
+  > audit the uh visuals of the words.nofi.com
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 29th, 2026 at 1:26:32 a.m. EDT — `226d5fd8a3a6` feat(words): account, sharing, and live recording on web Scribe
+
+- **Implementation commit:** `226d5fd8a3a6caaf5ee89129ae18ef822a7ee72b`
+- **Change:** Add the account, sharing, and live recording to web Scribe.
+- **Details:**
+  - words.knophy.com now shows who Cloudflare Access says the listener is and the state of their Scribe account. Without an account it shows a QR code for the iPhone's Account screen and checks every 5 seconds, signing in on its own; creating the account from Access stays off behind WORDS_CREATE_SCRIBE_ACCOUNT_FROM_ACCESS.
+  - Recording runs in the browser: an AudioWorklet records 16 kHz audio, Deepgram transcribes it live with a 30 second token the origin mints, and the Program writes recordings, open-section upserts with words JSON, and the WAV attachment in the iPhone's exact shapes.
+  - Sharing follows ADR 0014: a range of sections with people by email or a secret link, recipient autocomplete, revoke, and share links that show and claim the range. Share writes stay off until the origin reports the sharing schema.
+- **Files:**
+  - `examples/words/foldkit/vitePlugins.ts` — Report the Access identity, gate the session mint, and mint transcription tokens on the origin.
+  - `examples/words/core/src/account/update.ts` — Connect the Access identity to the Scribe account, recheck while waiting, and sign out.
+  - `examples/words/core/src/capture/update.ts` — Record, transcribe live, and save in the iPhone's write shape.
+  - `examples/words/core/src/capture/writer.ts` — Write recordings, sections, and audio exactly as the iPhone does.
+  - `examples/words/core/src/share/update.ts` — Share ranges by email or link, revoke, and claim a share.
+  - `examples/words/core/src/ids.ts` — Derive transcription, section, attachment, and recipient ids like the iPhone.
+  - `examples/words/foldkit/src/capture.ts` — Open the microphone, the capture worklet, and the Deepgram stream.
+  - `examples/words/foldkit/src/view/connect.ts` — Replace the not-signed-in dead end with the QR code and steps.
+  - `examples/words/foldkit/src/view/account.ts` — Show the account, the Access session, sharing, and sign out.
+  - `examples/words/foldkit/src/styles.css` — Define the light and dark palette and glass for floating controls.
+- **User context (verbatim):**
+  > I don't see the account that's logged in. I don't see how to invite people or share links with
+  > I have no idea what my account is, how to share with it, maybe a QR code, I don't know, anything
+  > I don't have the ability to record audio or transcribe anything
+  > I don't want anything that isn't live.
 - **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
 
 ## September 23rd, 2026 at 8:30:16 a.m. EDT — `64b45461a2a7` docs: add Foldkit principles and the view-agnostic audit
