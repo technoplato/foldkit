@@ -304,6 +304,28 @@ describe(
       expect(header.placeMs).toBeGreaterThanOrEqual(60_000)
     })
 
+    // NOTE: A command to a player that is already running is a small
+    // program that connects, asks and prints: it loads no Program and
+    // waits for nothing. It is the fastest of several runs that is held
+    // to the budget, so a busy machine cannot fail it.
+    it('answers a command to a running player within a quarter of a second', () => {
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      const timed = (words: ReadonlyArray<string>): number => {
+        const startedAt = performance.now()
+        expect(books(library, words).status).toBe(0)
+        return performance.now() - startedAt
+      }
+      const runs = [
+        timed(['pause']),
+        timed(['play']),
+        timed(['pause']),
+        timed(['play']),
+        timed(['pause']),
+      ]
+      expect(Math.min(...runs)).toBeLessThan(250)
+    })
+
     it('prints help read from the declarations, and starts no player to do it', () => {
       const library = newLibrary()
       const help = books(library, [])
