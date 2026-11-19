@@ -173,26 +173,32 @@ export const defaultTheme: Theme = {
   DeviceBorder: { light: '#3f3f46', dark: '#52525b' },
   Mark: { light: '#7c3aed', dark: '#c4b5fd', lightMore: '#5b21b6' },
   MarkSoft: { light: '#ede9fe', dark: '#2e2350' },
+  // NOTE: Under More Contrast a reader's place stays plain to see: the
+  // reading grounds are flat, the words read and the words to come both
+  // reach 7 to 1 on the page and on the paragraph being read, and they
+  // stay 2.3 to 1 or more apart from each other.
   ReadingGround: {
     light: 'transparent',
     dark: 'linear-gradient(#12301d, #060907 42%)',
+    darkMore: '#0b0d0c',
   },
-  ReadingSpoken: { light: '#111827', dark: '#ffffff' },
+  ReadingSpoken: { light: '#111827', dark: '#ffffff', lightMore: '#000000' },
   ReadingToCome: {
     light: '#6b7280',
     dark: '#8d949e',
-    lightMore: '#374151',
-    darkMore: '#c7ccd4',
+    lightMore: '#434d5b',
+    darkMore: '#a1a8b1',
   },
   ReadingCurrentWord: {
     light: '#c2410c',
     dark: '#9db8ff',
-    lightMore: '#9a3412',
+    lightMore: '#7c2d12',
   },
   ReadingCurrentWordGround: { light: '#ffedd5', dark: 'transparent' },
   ReadingCurrentGround: {
     light: '#e8ecf2',
     dark: 'rgba(255, 255, 255, 0.06)',
+    darkMore: '#1a1c1b',
   },
   ReadingRule: { light: '#ea580c', dark: '#6ea0ff', lightMore: '#9a3412' },
   FieldStrong: { light: '#e5e7eb', dark: '#2a302d' },
