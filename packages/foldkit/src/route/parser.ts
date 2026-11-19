@@ -52,7 +52,98 @@ export type Biparser<A> = {
     search?: string,
   ) => Effect.Effect<ParseResult<A>, ParseError>
   print: (value: A, state: PrintState) => Effect.Effect<PrintState, ParseError>
+  readonly shape?: RouteShape
 }
+
+/**
+ * How a value a route reads from one segment is read: as a `String`, as
+ * an `Int`, through a `Schema`, or by a hand-made pair of functions,
+ * `Custom`.
+ */
+export type RouteParamKind = 'String' | 'Int' | 'Schema' | 'Custom'
+
+/**
+ * One part of a route's path, as plain data: an exact word, `listen`; a
+ * value read from one segment into the field `name`, with the Schema it
+ * is read through when it has one, so a sample of it can be made; or
+ * everything after it, under `name`.
+ */
+export type RouteSegmentShape =
+  | Readonly<{ _tag: 'Literal'; segment: string }>
+  | Readonly<{
+      _tag: 'Param'
+      name: string
+      kind: RouteParamKind
+      maybeSchema?: Schema.Codec<any, string>
+    }>
+  | Readonly<{ _tag: 'Rest'; name: string }>
+
+/**
+ * What a route looks like, read without running it: the parts of its
+ * path in order, and the query keys it reads. Every Client derives from
+ * it what it would otherwise type beside the route: a native stack's
+ * screen names, a file router's route files, a site map.
+ *
+ * @example
+ * ```ts
+ * shapeOf(pipe(literal('bookmarks'), slash(schemaSegment('bookmarkId', BookmarkId))))
+ * // Some({ segments: [Literal bookmarks, Param bookmarkId], queryKeys: [] })
+ * ```
+ */
+export type RouteShape = Readonly<{
+  segments: ReadonlyArray<RouteSegmentShape>
+  queryKeys: ReadonlyArray<string>
+}>
+
+const noShape: RouteShape = { segments: [], queryKeys: [] }
+
+const shapeOfSegment = (segment: RouteSegmentShape): RouteShape => ({
+  segments: [segment],
+  queryKeys: [],
+})
+
+/**
+ * The shape a parser says of itself, or None for one written without the
+ * combinators here, which cannot say.
+ *
+ * @example
+ * ```ts
+ * shapeOf(literal('listen')) // Some({ segments: [{ _tag: 'Literal', segment: 'listen' }], queryKeys: [] })
+ * ```
+ */
+export const shapeOf = (parser: Biparser<any>): Option.Option<RouteShape> =>
+  Option.fromNullishOr(parser.shape)
+
+const joinedShape = (
+  first: Biparser<any>,
+  second: Biparser<any>,
+): Readonly<{ shape?: RouteShape }> =>
+  first.shape === undefined || second.shape === undefined
+    ? {}
+    : {
+        shape: {
+          segments: [...first.shape.segments, ...second.shape.segments],
+          queryKeys: [...first.shape.queryKeys, ...second.shape.queryKeys],
+        },
+      }
+
+const fieldNamesOf = (schema: unknown): ReadonlyArray<string> =>
+  Predicate.hasProperty(schema, 'fields') && Predicate.isObject(schema.fields)
+    ? Record.keys(schema.fields)
+    : []
+
+const queriedShape = (
+  parser: Biparser<any>,
+  schema: unknown,
+): Readonly<{ shape?: RouteShape }> =>
+  parser.shape === undefined
+    ? {}
+    : {
+        shape: {
+          segments: parser.shape.segments,
+          queryKeys: [...parser.shape.queryKeys, ...fieldNamesOf(schema)],
+        },
+      }
 
 /** An embed/extract pair that focuses one case of a route union. */
 export type CasePath<Root, Value> = Readonly<{
@@ -121,6 +212,7 @@ const pathToSegments = flow(String.split('/'), Array.filter(String.isNonEmpty))
  * ```
  */
 export const literal = (segment: string): Biparser<{}> => ({
+  shape: shapeOfSegment({ _tag: 'Literal', segment }),
   parse: segments =>
     Array.matchLeft(segments, {
       onEmpty: () =>
@@ -163,6 +255,7 @@ export const param = <A>(
   parse: (segment: string) => Effect.Effect<A, ParseError>,
   print: (value: A) => string,
 ): Biparser<A> => ({
+  shape: shapeOfSegment({ _tag: 'Param', name: label, kind: 'Custom' }),
   parse: segments =>
     Array.matchLeft(segments, {
       onEmpty: () =>
@@ -198,13 +291,15 @@ export const param = <A>(
  */
 export const string = <K extends string>(
   name: K,
-): Biparser<Record<K, string>> =>
-  param(
+): Biparser<Record<K, string>> => ({
+  ...param(
     `string (${name})`,
     /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
     segment => Effect.succeed({ [name]: segment } as Record<K, string>),
     record => record[name],
-  )
+  ),
+  shape: shapeOfSegment({ _tag: 'Param', name, kind: 'String' }),
+})
 
 /**
  * Creates a parser that captures a URL segment as a named integer field.
@@ -216,8 +311,10 @@ export const string = <K extends string>(
  * int('id') // parses /42 into { id: 42 }
  * ```
  */
-export const int = <K extends string>(name: K): Biparser<Record<K, number>> =>
-  param(
+export const int = <K extends string>(
+  name: K,
+): Biparser<Record<K, number>> => ({
+  ...param(
     `integer (${name})`,
     segment => {
       const parsed = parseInt(segment, 10)
@@ -234,7 +331,9 @@ export const int = <K extends string>(name: K): Biparser<Record<K, number>> =>
           Effect.succeed({ [name]: parsed } as Record<K, number>)
     },
     record => record[name].toString(),
-  )
+  ),
+  shape: shapeOfSegment({ _tag: 'Param', name, kind: 'Int' }),
+})
 
 export const __isSingleSegment = (segment: string): boolean =>
   Array.matchLeft(pathToSegments(segment), {
@@ -288,6 +387,12 @@ export const schemaSegment = <K extends string, A, I extends string>(
   const encode = Schema.encodeEffect(schema)
 
   return {
+    shape: shapeOfSegment({
+      _tag: 'Param',
+      name,
+      kind: 'Schema',
+      maybeSchema: schema,
+    }),
     parse: segments =>
       Array.matchLeft(segments, {
         onEmpty: () =>
@@ -339,6 +444,7 @@ export const schemaSegment = <K extends string, A, I extends string>(
  * Succeeds only when the URL path is exactly `/`.
  */
 export const root: Biparser<{}> = {
+  shape: noShape,
   parse: segments =>
     Array.matchLeft(segments, {
       onEmpty: () => Effect.succeed([{}, []]),
@@ -365,6 +471,7 @@ export const root: Biparser<{}> = {
  * ```
  */
 export const here: Biparser<{}> = {
+  shape: noShape,
   parse: segments => Effect.succeed([{}, segments]),
   print: (_, state) => Effect.succeed(state),
 }
@@ -394,6 +501,7 @@ export const rest = <K extends string>(
   name: K,
 ): TerminalParser<Record<K, Array.NonEmptyReadonlyArray<string>>> => {
   const parser: Biparser<Record<K, Array.NonEmptyReadonlyArray<string>>> = {
+    shape: shapeOfSegment({ _tag: 'Rest', name }),
     parse: segments =>
       Array.match(segments, {
         onEmpty: () =>
@@ -461,6 +569,7 @@ export const restString = <K extends string>(
   name: K,
 ): TerminalParser<Record<K, string>> => {
   const parser: Biparser<Record<K, string>> = {
+    shape: shapeOfSegment({ _tag: 'Rest', name }),
     parse: segments =>
       Array.match(segments, {
         onEmpty: () =>
@@ -692,6 +801,7 @@ export const slash: {
 } =
   (parserB: Biparser<any>) =>
   (parserA: Biparser<any>): any => ({
+    ...joinedShape(parserA, parserB),
     parse: (segments: ReadonlyArray<string>, search?: string) =>
       pipe(
         parserA.parse(segments, search),
@@ -737,6 +847,7 @@ export const query =
     parser: Biparser<B>,
   ): TerminalParser<B & A> => {
     const queryParser: Biparser<B & A> = {
+      ...queriedShape(parser, schema),
       parse: (segments, search) =>
         pipe(
           parser.parse(segments, search),

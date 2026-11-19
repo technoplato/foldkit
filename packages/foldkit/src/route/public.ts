@@ -17,6 +17,7 @@ export {
   query,
   parseUrlWithFallback,
   r,
+  shapeOf,
 } from './index.js'
 
 export type {
@@ -29,6 +30,9 @@ export type {
   CasePath,
   RouteCase,
   PrintState,
+  RouteParamKind,
+  RouteSegmentShape,
+  RouteShape,
 } from './index.js'
 
 export * as Transition from './transition.js'

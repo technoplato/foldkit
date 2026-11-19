@@ -152,6 +152,11 @@
       "import": "./dist/navigation/public.js",
       "default": "./dist/navigation/public.js"
     },
+    "./navigation/route-table": {
+      "types": "./dist/navigation/routeTable.d.ts",
+      "import": "./dist/navigation/routeTable.js",
+      "default": "./dist/navigation/routeTable.js"
+    },
     "./port": {
       "types": "./dist/port/public.d.ts",
       "import": "./dist/port/public.js",
