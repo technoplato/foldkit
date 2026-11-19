@@ -179,7 +179,25 @@ export const bind = <Model, Message>(
       ? Option.some(stackAtRoot(navigation.root))
       : navigation.stack.get(model)
 
-  const plan = (): Option.Option<CarrierPlan<unknown>> => {
+  // NOTE: A Client reads the plan and each page's view many times for one
+  // Model: a React host reads them on every store change and again as it
+  // renders, once for every page on its stack. A Model is never changed in
+  // place, so what was built from one is kept until the next.
+  type Kept = {
+    model: Model
+    maybePlan: Option.Option<Option.Option<CarrierPlan<unknown>>>
+    views: Map<string, Option.Option<EntryView>>
+  }
+  let maybeKept: Kept | undefined = undefined
+
+  const keptFor = (model: Model): Kept => {
+    if (maybeKept === undefined || maybeKept.model !== model) {
+      maybeKept = { model, maybePlan: Option.none(), views: new Map() }
+    }
+    return maybeKept
+  }
+
+  const builtPlan = (): Option.Option<CarrierPlan<unknown>> => {
     if (declaration === undefined || !isReady()) {
       return Option.none()
     }
@@ -189,7 +207,28 @@ export const bind = <Model, Message>(
     )
   }
 
-  const viewAt = (key: string): Option.Option<EntryView> =>
+  const plan = (): Option.Option<CarrierPlan<unknown>> => {
+    const kept = keptFor(handle.readModel())
+    if (Option.isSome(kept.maybePlan)) {
+      return kept.maybePlan.value
+    }
+    const built = builtPlan()
+    kept.maybePlan = Option.some(built)
+    return built
+  }
+
+  const viewAt = (key: string): Option.Option<EntryView> => {
+    const kept = keptFor(handle.readModel())
+    const known = kept.views.get(key)
+    if (known !== undefined) {
+      return known
+    }
+    const built = builtViewAt(key)
+    kept.views.set(key, built)
+    return built
+  }
+
+  const builtViewAt = (key: string): Option.Option<EntryView> =>
     Option.flatMap(plan(), currentPlan =>
       Option.flatMap(
         Array.findFirst(currentPlan.entries, entry => entry.key === key),

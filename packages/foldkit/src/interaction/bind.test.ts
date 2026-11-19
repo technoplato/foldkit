@@ -45,6 +45,40 @@ describe('bind', () => {
   })
 })
 
+describe('what a bound Program reads of one Model', () => {
+  const countingScreens = () => {
+    let painted = 0
+    const program = {
+      ...App,
+      screen: (model: Parameters<NonNullable<typeof App.screen>>[0]) => {
+        painted += 1
+        return Option.getOrThrow(Option.fromNullishOr(App.screen))(model)
+      },
+    }
+    return { bound: bind(program, handleOf(program)), painted: () => painted }
+  }
+
+  it('builds a page once for one Model, however many times a Client reads it', () => {
+    const { bound, painted } = countingScreens()
+    const first = bound.viewAt('/counter')
+    const again = bound.viewAt('/counter')
+
+    expect(Option.isSome(first)).toBe(true)
+    expect(again).toBe(first)
+    expect(painted()).toBe(1)
+    expect(bound.navigation()).toBe(bound.navigation())
+  })
+
+  it('builds it again once the Model has changed', () => {
+    const { bound, painted } = countingScreens()
+    bound.viewAt('/counter')
+    bound.press('Increment')
+    bound.viewAt('/counter')
+
+    expect(painted()).toBe(2)
+  })
+})
+
 describe('whenSettled', () => {
   it('resolves at once for a Ready Program', async () => {
     await expect(whenSettled(bindOn(Host.Cli()), 10)).resolves.toBeUndefined()
