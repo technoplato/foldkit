@@ -135,6 +135,9 @@ export const sampleShelf: Shelf = {
 
 const longShelfTitleCount = 65
 
+/** The long made-up shelf's long book: about 16 hours in 134 chapters. */
+export const longBookSlug = 'the-long-way-round'
+
 const longBookChapterCount = 134
 
 const longBookMinutesEach = 7.25
@@ -151,7 +154,7 @@ const numbered = (count: number, word: string) =>
 const longBooks: ReadonlyArray<SampleBook> = [
   ...sampleBooks,
   {
-    slug: 'the-long-way-round',
+    slug: longBookSlug,
     name: 'The Long Way Round',
     authors: ['Mara Finch'],
     narrators: ['Owen Hart'],

@@ -5,6 +5,7 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 import { MediaId, Milliseconds } from './ids.js'
 import { LibraryStore } from './library.js'
 import {
+  longBookSlug,
   longSampleChapters,
   longSampleShelf,
   makeTestLibraryStore,
@@ -52,6 +53,47 @@ type Passages = Readonly<{
 
 const noPassages: Passages = { passages: [], nextMs: 0 }
 
+const madeUpPassagesOf = (
+  passageCount: number,
+): ReadonlyArray<TranscriptPlayer.Passage> =>
+  Array.reduce(Array.range(0, passageCount - 1), noPassages, (state, index) => {
+    // A paragraph is a few of the sentences, starting one further on
+    // each time, so paragraphs differ and are long enough to wrap.
+    const sentence = Array.join(
+      Array.map(
+        Array.range(0, sentencesInPassage(index) - 1),
+        at =>
+          madeUpSentences[(index + at) % madeUpSentences.length] ??
+          'The lamp was lit.',
+      ),
+      ' ',
+    )
+    const words = Array.map(sentence.split(' '), (text, at) => {
+      const startMs = state.nextMs + at * (wordMs + wordGapMs)
+      return {
+        wordId: TranscriptPlayer.WordId.make(
+          `p${index.toString()}w${at.toString()}`,
+        ),
+        text,
+        startMs: Milliseconds.make(startMs),
+        endMs: Milliseconds.make(startMs + wordMs),
+      }
+    })
+    const endMs = state.nextMs + words.length * (wordMs + wordGapMs)
+    return {
+      passages: [
+        ...state.passages,
+        {
+          passageId: `p${index.toString()}`,
+          startMs: Milliseconds.make(state.nextMs),
+          endMs: Milliseconds.make(endMs),
+          words,
+        },
+      ],
+      nextMs: endMs + passageGapMs,
+    }
+  }).passages
+
 /**
  * Made-up words for a made-up title: the same few sentences over and
  * over, a paragraph of one, of five and of three in turn, every word half
@@ -60,47 +102,18 @@ const noPassages: Passages = { passages: [], nextMs: 0 }
  * proving its sound, makes one from these words and their times.
  */
 export const madeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
-  Array.reduce(
-    Array.range(0, madeUpPassageCount - 1),
-    noPassages,
-    (state, index) => {
-      // A paragraph is a few of the sentences, starting one further on
-      // each time, so paragraphs differ and are long enough to wrap.
-      const sentence = Array.join(
-        Array.map(
-          Array.range(0, sentencesInPassage(index) - 1),
-          at =>
-            madeUpSentences[(index + at) % madeUpSentences.length] ??
-            'The lamp was lit.',
-        ),
-        ' ',
-      )
-      const words = Array.map(sentence.split(' '), (text, at) => {
-        const startMs = state.nextMs + at * (wordMs + wordGapMs)
-        return {
-          wordId: TranscriptPlayer.WordId.make(
-            `p${index.toString()}w${at.toString()}`,
-          ),
-          text,
-          startMs: Milliseconds.make(startMs),
-          endMs: Milliseconds.make(startMs + wordMs),
-        }
-      })
-      const endMs = state.nextMs + words.length * (wordMs + wordGapMs)
-      return {
-        passages: [
-          ...state.passages,
-          {
-            passageId: `p${index.toString()}`,
-            startMs: Milliseconds.make(state.nextMs),
-            endMs: Milliseconds.make(endMs),
-            words,
-          },
-        ],
-        nextMs: endMs + passageGapMs,
-      }
-    },
-  ).passages
+  madeUpPassagesOf(madeUpPassageCount)
+
+const longMadeUpPassageCount = 1_200
+
+/**
+ * A made-up chapter as long as a real one: more than ten thousand made-up
+ * words in twelve hundred paragraphs. The long made-up shelf gives it to
+ * its long book, so a reader can be measured on a chapter no painter
+ * should lay out whole.
+ */
+export const longMadeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
+  madeUpPassagesOf(longMadeUpPassageCount)
 
 // SESSION
 
@@ -168,7 +181,9 @@ export const startMadeUpBooks = async (
         new Map(
           Array.map(shelf.titles, title => [
             MediaId.make(title.slug),
-            madeUpPassages,
+            isLong && title.slug === longBookSlug
+              ? longMadeUpPassages
+              : madeUpPassages,
           ]),
         ),
       ),
