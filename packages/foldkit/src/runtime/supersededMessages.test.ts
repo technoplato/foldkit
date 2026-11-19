@@ -28,25 +28,24 @@ const said = (message: Message): string =>
     ? `place ${message.placeMs.toString()}`
     : message._tag
 
-// A host whose turns are taken by hand: every drain that goes over its
-// budget waits until the test lets the next one run, as a busy device's
-// next turn waits for its paint.
+// A busy host whose turns are taken by hand. Its clock moves only while
+// a Message is being taken, ten milliseconds each, which is over its
+// budget, so after each Message the rest wait for the host's next turn,
+// as a device's next turn waits for its paint.
 const byHand = () => {
   const waiting: Array<() => void> = []
+  const clock = { ms: 0 }
   return {
     scheduling: {
-      now: (() => {
-        let clock = 0
-        return () => {
-          clock += 10
-          return clock
-        }
-      })(),
+      now: () => clock.ms,
       defer: (resume: () => void) => {
         waiting.push(resume)
         return () => undefined
       },
       synchronousWorkBudgetMs: 1,
+    },
+    work: (): void => {
+      clock.ms += 10
     },
     nextTurn: (): void => {
       waiting.shift()?.()
@@ -60,12 +59,21 @@ const started = (
 ) =>
   Effect.gen(function* () {
     const ticks = yield* Queue.unbounded<Message>()
+    const host = byHand()
+    const delivered = { count: 0 }
     const subscriptions = Subscription.make<Model, Message>()(entry => ({
       clock: entry(
         {},
         {
           modelToDependencies: () => ({}),
-          dependenciesToStream: () => Stream.fromQueue(ticks),
+          dependenciesToStream: () =>
+            Stream.fromQueue(ticks).pipe(
+              Stream.tap(() =>
+                Effect.sync(() => {
+                  delivered.count += 1
+                }),
+              ),
+            ),
           ...(supersedes === undefined ? {} : { supersedes }),
         },
       ),
@@ -76,24 +84,32 @@ const started = (
       Model,
       Message,
       init: () => [{ taken: [] }, []],
-      update: (model, message) => [
-        { taken: [...model.taken, said(message)] },
-        [],
-      ],
+      update: (model, message) => {
+        host.work()
+        return [{ taken: [...model.taken, said(message)] }, []]
+      },
       subscriptions,
     })
-    const host = byHand()
     const runtime = yield* makeProgramRuntime({
       program: Program,
       resources: Layer.empty,
       scheduling: host.scheduling,
     })
     yield* runtime.initialization
+    // Hands the Subscription one Message and waits until the runtime has
+    // it, however busy the machine running the test is.
     const tick = (message: Message) =>
       Effect.gen(function* () {
+        const before = delivered.count
         yield* Queue.offer(ticks, message)
-        yield* Effect.yieldNow
-        yield* Effect.sleep('1 millis')
+        for (
+          let attempt = 0;
+          attempt < 2_000 && delivered.count === before;
+          attempt += 1
+        ) {
+          yield* Effect.sleep('1 millis')
+        }
+        yield* Effect.sleep('2 millis')
       })
     const settle = Effect.gen(function* () {
       for (let turn = 0; turn < 50 && host.turnsWaiting() > 0; turn += 1) {

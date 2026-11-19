@@ -19,6 +19,29 @@ type EntrySource = Readonly<{
 }>
 
 /**
+ * Which of a Subscription's Messages a newer one makes pointless. When a
+ * Message from this Subscription arrives while the last Message waiting
+ * to be taken is an earlier one of its own, and
+ * `supersedes(waiting, arrived)` is true, the arrived one takes its
+ * place. Nothing is taken out of the order it arrived in. A stream of
+ * states, such as a clock's ticks or a player's place, says so; a device
+ * that falls behind then holds one of them, never seconds of stale ones,
+ * and what a person pressed is taken next. Events that must each be
+ * taken, such as an end or a failure, answer false.
+ *
+ * @example
+ * ```typescript
+ * supersedes: (waiting, arrived) =>
+ *   waiting._tag === 'ReachedPlace' && arrived._tag === 'ReachedPlace'
+ * ```
+ */
+export type Superseding<Message> = {
+  // NOTE: Written as a method so an entry for some of a Program's
+  // Messages is still an entry for all of them, as its stream is.
+  supersedes?(waiting: Message, arrived: Message): boolean
+}
+
+/**
  * The entry shape produced by helpers like `Subscription.persistent` and
  * `Port.subscription` before branding. Pass values of this shape into
  * `Subscription.make` as entry values.
@@ -30,7 +53,8 @@ export type EntryWithoutKeepAlive<Model, Message, Dependencies, Services> = {
   readonly dependenciesToStream: (
     dependencies: Dependencies,
   ) => Stream.Stream<Message, never, Services>
-} & EntrySource
+} & EntrySource &
+  Superseding<Message>
 
 type EntryWithKeepAlive<Model, Message, Dependencies, Services> = {
   readonly dependenciesSchema: DependenciesSchema<Dependencies>
@@ -40,7 +64,8 @@ type EntryWithKeepAlive<Model, Message, Dependencies, Services> = {
     dependencies: Dependencies,
     readDependencies: () => Dependencies,
   ) => Stream.Stream<Message, never, Services>
-} & EntrySource
+} & EntrySource &
+  Superseding<Message>
 
 type Entry<Model, Message, Dependencies, Services = never> =
   | EntryWithoutKeepAlive<Model, Message, Dependencies, Services>
@@ -93,7 +118,7 @@ type EntryCallbacksWithoutKeepAlive<Model, Message, Dependencies, Services> = {
   readonly dependenciesToStream: (
     dependencies: Dependencies,
   ) => Stream.Stream<Message, never, Services>
-}
+} & Superseding<Message>
 
 /**
  * Callbacks for a subscription entry with `keepAliveEquivalence`. Dependencies
@@ -106,7 +131,7 @@ type EntryCallbacksWithKeepAlive<Model, Message, Dependencies, Services> = {
     dependencies: Dependencies,
     readDependencies: () => Dependencies,
   ) => Stream.Stream<Message, never, Services>
-}
+} & Superseding<Message>
 
 /**
  * Builds a single subscription entry from a field map and callbacks.
@@ -303,11 +328,31 @@ export const lift =
       const modelToDependencies = (parentModel: ParentModel) =>
         subscription.modelToDependencies(config.toChildModel(parentModel))
 
+      // NOTE: The child says which of its own Messages a newer one makes
+      // pointless. The parent's queue holds the wrapped Messages, so each
+      // wrapped Message remembers the child Message it was made from, and
+      // the child's answer is asked of those.
+      const childOf = new WeakMap<object, unknown>()
       const wrapStream = (stream: Stream.Stream<any, never, any>) =>
-        Stream.map(
-          stream,
-          config.toParentMessage as (message: any) => ParentMessage,
-        )
+        Stream.map(stream, (message: any): ParentMessage => {
+          const wrapped = (
+            config.toParentMessage as (message: any) => ParentMessage
+          )(message)
+          if (typeof wrapped === 'object' && wrapped !== null) {
+            childOf.set(wrapped, message)
+          }
+          return wrapped
+        })
+      const childSupersedes = subscription.supersedes
+      const superseding =
+        childSupersedes === undefined
+          ? {}
+          : {
+              supersedes: (waiting: any, arrived: any): boolean =>
+                childOf.has(waiting) &&
+                childOf.has(arrived) &&
+                childSupersedes(childOf.get(waiting), childOf.get(arrived)),
+            }
 
       if (subscription.keepAliveEquivalence !== undefined) {
         return {
@@ -321,6 +366,7 @@ export const lift =
             wrapStream(
               subscription.dependenciesToStream(dependencies, readDependencies),
             ),
+          ...superseding,
           ...(subscription.source === undefined
             ? {}
             : { source: subscription.source }),
@@ -332,6 +378,7 @@ export const lift =
         modelToDependencies,
         dependenciesToStream: (dependencies: any) =>
           wrapStream(subscription.dependenciesToStream(dependencies)),
+        ...superseding,
         ...(subscription.source === undefined
           ? {}
           : { source: subscription.source }),
