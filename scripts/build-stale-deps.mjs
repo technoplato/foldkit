@@ -68,13 +68,23 @@ export const timesOf = root => ({
 })
 
 /**
- * The packages that are stale, in the order given: never built, or with
- * sources newer than their output.
+ * The packages that are stale, in the order given: never built, with
+ * sources newer than their output, or built before the output of a
+ * package they depend on, which they were then built against.
  */
-export const staleNamesOf = packages =>
-  packages
-    .filter(each => each.builtMs === 0 || each.sourceMs > each.builtMs)
+export const staleNamesOf = packages => {
+  const builtAt = new Map(packages.map(each => [each.name, each.builtMs]))
+  return packages
+    .filter(
+      each =>
+        each.builtMs === 0 ||
+        each.sourceMs > each.builtMs ||
+        (each.dependsOn ?? []).some(
+          name => (builtAt.get(name) ?? 0) > each.builtMs,
+        ),
+    )
     .map(each => each.name)
+}
 
 /**
  * The packages to build, in the order given: each stale one and every

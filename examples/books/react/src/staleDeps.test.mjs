@@ -73,6 +73,18 @@ describe('which packages are stale', () => {
   })
 })
 
+describe('a package built before something it depends on', () => {
+  it('is stale too, since it was built against the older output', () => {
+    expect(
+      staleNamesOf([
+        { name: 'library', sourceMs: 5, builtMs: 9, dependsOn: [] },
+        { name: 'painter', sourceMs: 5, builtMs: 7, dependsOn: ['library'] },
+        { name: 'alone', sourceMs: 5, builtMs: 7, dependsOn: [] },
+      ]),
+    ).toEqual(['painter'])
+  })
+})
+
 describe('which packages to build', () => {
   const packages = [
     { name: 'library', dependsOn: [] },
