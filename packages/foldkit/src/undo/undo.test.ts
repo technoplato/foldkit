@@ -45,7 +45,7 @@ const paintedOf = (
     ...noticeOf(state, Catalog.entries(catalog, shelf), hasHardwareKeyboard),
   )
   return {
-    texts: textsOf(node),
+    texts: textsOf(node).map(text => text.content),
     buttons: buttonsOf(node).map(button => [button.label, button.action]),
   }
 }
