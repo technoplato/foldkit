@@ -1,4 +1,11 @@
-import { type Context, Effect, Layer, Option } from 'effect'
+import {
+  Array,
+  type Context,
+  Effect,
+  Layer,
+  Option,
+  Record as Record_,
+} from 'effect'
 import { type Processor, Runtime } from 'foldkit'
 import {
   localSnapshotFile,
@@ -36,7 +43,8 @@ import { BooksProgram } from './program.js'
 import { ScribeTimeline } from './scribeTimeline.js'
 import { terminalLinkSharing } from './share.node.js'
 import type { BooksHandle, BooksHandleOnHost } from './startConfig.js'
-import { SyncedBooks } from './synced.js'
+import { wantedChapterSlugsOf } from './subscriptions.js'
+import { SyncedBooks, whenBooks, whenShelfOpened } from './synced.js'
 
 // START
 
@@ -224,27 +232,6 @@ export const startBooks = (
     host: config.host,
   })
 
-const shelfPollMs = 100
-
-const shelfOpenedWithin = (
-  handle: BooksHandle,
-  timeoutMs: number,
-): Promise<void> =>
-  new Promise(resolve => {
-    const startedAtMs = Date.now()
-    const check = (): void => {
-      const model = handle.readModel()
-      const isOpened =
-        model._tag === 'Ready' && model.library._tag !== 'ShelfLoading'
-      if (isOpened || Date.now() - startedAtMs >= timeoutMs) {
-        resolve()
-      } else {
-        setTimeout(check, shelfPollMs)
-      }
-    }
-    check()
-  })
-
 /**
  * Waits until this device has caught up with what its other sessions
  * did, and the library has opened, or could not, so a one-shot command
@@ -265,9 +252,19 @@ export const whenLibraryOpened = async (
 ): Promise<void> => {
   const startedAtMs = Date.now()
   await Runtime.caughtUpWithin(handle, timeoutMs)
-  await shelfOpenedWithin(
+  const left = (): number => Math.max(0, timeoutMs - (Date.now() - startedAtMs))
+  await whenShelfOpened(handle, left())
+  // NOTE: The chapters of the titles in progress arrive after the shelf,
+  // and a command says a place by its chapter: "Chapter 2: …". Waiting
+  // for the shelf alone answered before they were in whenever it was
+  // quick; a check every tenth of a second used to hide that.
+  await whenBooks(
     handle,
-    Math.max(0, timeoutMs - (Date.now() - startedAtMs)),
+    model =>
+      Array.every(wantedChapterSlugsOf(model), slug =>
+        Record_.has(model.chapters, slug),
+      ),
+    left(),
   )
 }
 
