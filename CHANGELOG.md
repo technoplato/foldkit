@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 19th, 2026 at 10:19:23 a.m. EST — `11d730a7b2c6` fix(books): green: play-from with a time moves the place and keeps playing (Scribe #2494)
+
+- **Implementation commit:** `11d730a7b2c6bdac38c19f399a47e11da2a04ba4`
+- **Change:** play-from with a time moves the place and keeps playing
+- **Details:**
+  - Layer: the Books terminal adapter and the transcript player's core tests. The terminal presses the Program's own PlayFrom Action, which moves and plays whatever the player was doing; it no longer composes a seek and a play.
+- **Files:**
+  - `examples/books/cli/src/launcher.test.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/transcript-player/core/src/player.test.ts` — changed by this commit
+- **User context (verbatim):**
+  > this functionality needs to be built in a core of the sync engine and the core of the diagnostics and fold kit debugging skills, et cetera, and not stapled on or bolted on to the application
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 19th, 2026 at 10:12:08 a.m. EST — `9771710eee8b` fix(books): green: a newer place takes a waiting place's turn in the whole Program (Scribe #2494)
 
 - **Implementation commit:** `9771710eee8b6934ba9ca8e297b660b22c7c0f30`
