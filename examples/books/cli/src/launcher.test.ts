@@ -264,6 +264,22 @@ describe(
       expect(last.at(-1)).toBe('  books link   ·   books actions for more')
     })
 
+    it('opens the session’s settings and the action menu by their addresses, not a title of that name', () => {
+      const library = newLibrary()
+      const session = books(library, ['open', '/books/session'])
+      expect(session.status).toBe(0)
+      expect(session.stdout).toContain('at /books/session')
+      expect(session.stdout).toContain('Mirror navigation')
+      expect(session.stdout).not.toContain('is not in your library')
+      const menu = books(library, ['open', '/books/menu'])
+      expect(menu.stdout).toContain('at /books/menu')
+      expect(menu.stdout).toContain('Search actions')
+      expect(menu.stdout).not.toContain('is not in your library')
+      const title = books(library, ['open', '/books/the-lantern-keeper'])
+      expect(title.stdout).toContain('at /books/the-lantern-keeper')
+      expect(title.stdout).not.toContain('is not in your library')
+    })
+
     it('prints help read from the declarations, and starts no player to do it', () => {
       const library = newLibrary()
       const help = books(library, [])

@@ -5,14 +5,18 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",
+    "build:live": "../scripts/with-books-env sh -c \"tsc --noEmit && vite build\"",
+    "deps": "pnpm --filter 'books-react-example^...' run build",
     "dev": "../scripts/with-books-env vite --port 5183 --strictPort",
     "dev:made-up": "vite --config madeUp/vite.config.ts",
-    "prebuild": "pnpm --filter @foldkit/react build && pnpm --filter read-aloud-core-example build && pnpm --filter read-aloud-react-bindings-example build && pnpm --filter books-core-example build",
-    "predev": "pnpm --filter @foldkit/react build && pnpm --filter read-aloud-core-example build && pnpm --filter read-aloud-react-bindings-example build && pnpm --filter books-core-example build",
+    "prebuild": "pnpm run deps",
+    "prebuild:live": "pnpm run deps",
+    "predev": "pnpm run deps",
+    "predev:made-up": "pnpm run deps",
+    "pretypecheck": "pnpm run deps",
+    "serve:live": "../scripts/with-books-env vite preview --host 127.0.0.1 --port 5200 --strictPort",
     "start": "pnpm run dev",
-    "typecheck": "tsc --noEmit",
-    "build:live": "../scripts/with-books-env sh -c \"tsc --noEmit && vite build\"",
-    "serve:live": "../scripts/with-books-env vite preview --host 127.0.0.1 --port 5200 --strictPort"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@foldkit/instant": "workspace:*",
