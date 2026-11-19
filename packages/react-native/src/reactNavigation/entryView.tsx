@@ -11,9 +11,14 @@ import { ScreenFrame } from '../interaction/frame.js'
 import type { PaintHandlers, PaintStyles } from '../interaction/paint.js'
 import { openLinkOf } from '../interaction/screen.js'
 import { WhenReady } from '../interaction/whenReady.js'
+import { PaintedPart } from '../telemetry/paintReporter.js'
 import { useLook } from '../theme/themed.js'
 import { entryOptionsOf } from './entryOptions.js'
-import { entryOfNavigatorKey } from './stack.js'
+import {
+  entryOfNavigatorKey,
+  entryRouteName,
+  tagOfDestination,
+} from './stack.js'
 
 // ENTRY
 
@@ -54,11 +59,13 @@ export const EntryView = ({
   const bound = useBound()
   const look = useLook()
   const styles = useContext(EntryStylesContext)
-  const maybeEntryKey = Option.map(
-    Option.flatMap(useNavigationPlan(), plan =>
-      entryOfNavigatorKey(plan, entryKey),
-    ),
-    entry => entry.key,
+  const maybeEntry = Option.flatMap(useNavigationPlan(), plan =>
+    entryOfNavigatorKey(plan, entryKey),
+  )
+  const maybeEntryKey = Option.map(maybeEntry, entry => entry.key)
+  const partName = Option.getOrElse(
+    Option.flatMap(maybeEntry, entry => tagOfDestination(entry.destination)),
+    () => entryRouteName,
   )
   const maybeView = useViewAt(Option.getOrElse(maybeEntryKey, () => entryKey))
   const options = entryOptionsOf(bound, entryKey, look)
@@ -82,7 +89,7 @@ export const EntryView = ({
     }),
     [bound, look, styles, isUnderHeader, headerTitle],
   )
-  return useMemo(
+  const painted = useMemo(
     () =>
       Option.match(maybeView, {
         onNone: () => <WhenReady>{null}</WhenReady>,
@@ -146,6 +153,7 @@ export const EntryView = ({
       }),
     [bound, handlers, isUnderHeader, look, maybeView, presentation],
   )
+  return <PaintedPart name={partName}>{painted}</PaintedPart>
 }
 
 /** Paint styles for {@link EntryView}, or the neutral defaults. */

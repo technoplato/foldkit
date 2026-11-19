@@ -383,7 +383,8 @@ export const screenNamesOf = (
 ): Array.NonEmptyReadonlyArray<string> =>
   Array.append(destinationTags, entryRouteName)
 
-const tagOfDestination = (destination: unknown): Option.Option<string> =>
+/** The tag of a plan entry's Destination, such as `TitlePage`, when it has one. */
+export const tagOfDestination = (destination: unknown): Option.Option<string> =>
   S.decodeUnknownOption(S.Struct({ _tag: S.String }))(destination).pipe(
     Option.map(tagged => tagged._tag),
   )
