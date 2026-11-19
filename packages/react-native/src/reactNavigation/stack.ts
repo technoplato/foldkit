@@ -9,7 +9,7 @@ export const entryRouteName = 'FoldkitEntry'
 /** One React Navigation route as a Foldkit stack writes it. */
 export type EntryRoute = Readonly<{
   key: string
-  name: typeof entryRouteName
+  name: string
   params: Readonly<{ uri: string }>
 }>
 
@@ -23,14 +23,19 @@ export type EntryState = Readonly<{
   routes: Array.NonEmptyArray<EntryRoute>
 }>
 
-const routeOf = (route: Navigation.KeyedRoute): EntryRoute => ({
-  key: route.key,
-  name: entryRouteName,
-  params: { uri: route.uri },
-})
+const genericName = (): string => entryRouteName
+
+const routeOf =
+  (nameOf: (key: string) => string) =>
+  (route: Navigation.KeyedRoute): EntryRoute => ({
+    key: route.key,
+    name: nameOf(route.key),
+    params: { uri: route.uri },
+  })
 
 /**
- * The navigation state that shows a list of keyed routes, top last.
+ * The navigation state that shows a list of keyed routes, top last, each
+ * under the screen `nameOf` gives its key, or the one generic screen.
  *
  * @example
  * ```typescript
@@ -40,9 +45,10 @@ const routeOf = (route: Navigation.KeyedRoute): EntryRoute => ({
  */
 export const entryStateOf = (
   routes: Array.NonEmptyReadonlyArray<Navigation.KeyedRoute>,
+  nameOf: (key: string) => string = genericName,
 ): EntryState => ({
   index: routes.length - 1,
-  routes: Array.map(routes, routeOf),
+  routes: Array.map(routes, routeOf(nameOf)),
 })
 
 /**
@@ -162,6 +168,7 @@ const readRoutes = (
 export const reactNavigationStack = (
   ref: NavigationRefLike,
   initialRoutes: Array.NonEmptyReadonlyArray<Navigation.KeyedRoute>,
+  nameOf: (key: string) => string = genericName,
 ): Navigation.KeyedStack => {
   let lastRoutes = initialRoutes
   const routes = (): Array.NonEmptyReadonlyArray<Navigation.KeyedRoute> => {
@@ -175,7 +182,7 @@ export const reactNavigationStack = (
     routes,
     reset: next => {
       lastRoutes = next
-      ref.resetRoot(entryStateOf(next))
+      ref.resetRoot(entryStateOf(next, nameOf))
     },
     subscribe: listener => ref.addListener('state', listener),
   }
@@ -358,3 +365,48 @@ export const steadyStack = (
     subscribe: stack.subscribe,
   }
 }
+
+// SCREENS
+
+/**
+ * The screens a native stack declares for a Program: one named after each
+ * Destination it declares, then the one generic screen, for an entry the
+ * stack cannot name.
+ *
+ * @example
+ * ```typescript
+ * screenNamesOf(bound.destinationTags()) // ['Counter', 'SessionSettings', 'ActionMenu', 'FoldkitEntry']
+ * ```
+ */
+export const screenNamesOf = (
+  destinationTags: ReadonlyArray<string>,
+): Array.NonEmptyReadonlyArray<string> =>
+  Array.append(destinationTags, entryRouteName)
+
+const tagOfDestination = (destination: unknown): Option.Option<string> =>
+  S.decodeUnknownOption(S.Struct({ _tag: S.String }))(destination).pipe(
+    Option.map(tagged => tagged._tag),
+  )
+
+/**
+ * The screen an entry is shown under: the one named after its
+ * Destination, found by the page the navigator's key stands for, when the
+ * stack declares it; else the one generic screen.
+ *
+ * @example
+ * ```typescript
+ * screenNameOf(bound.navigation(), '/books/a-title/listen/0s', tags) // 'PlayerPage'
+ * ```
+ */
+export const screenNameOf = (
+  maybePlan: Option.Option<Navigation.CarrierPlan<unknown>>,
+  navigatorKey: string,
+  destinationTags: ReadonlyArray<string>,
+): string =>
+  pipe(
+    maybePlan,
+    Option.flatMap(plan => entryOfNavigatorKey(plan, navigatorKey)),
+    Option.flatMap(entry => tagOfDestination(entry.destination)),
+    Option.filter(tag => Array.contains(destinationTags, tag)),
+    Option.getOrElse(genericName),
+  )

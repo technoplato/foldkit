@@ -1,9 +1,10 @@
-import { Layer, Stream } from 'effect'
-import { Interaction, Processor } from 'foldkit'
+import { Layer, Option, Stream } from 'effect'
+import { Interaction, Processor, Runtime } from 'foldkit'
 import { SystemAppearance } from 'foldkit/theme'
 import { describe, expect, it } from 'vitest'
 
-import { startMadeUpBooks } from './madeUp.js'
+import { madeUpSessionLog, startMadeUpBooks } from './madeUp.js'
+import { BooksProgram } from './program.js'
 import { bindBooks } from './synced.js'
 
 const settleMs = 3_000
@@ -44,5 +45,46 @@ describe('the made-up library on a host', () => {
       'Light',
     )
     await handle.stop()
+  })
+
+  it('is one session on every device that shares an engine: while the session mirrors, a title opened in the terminal opens on the phone', async () => {
+    const store = Runtime.makeMemoryStore()
+    const phone = await startMadeUpBooks({
+      host: Processor.Host.ExpoIos(),
+      sync: Runtime.Memory({ processor: 'phone', store }),
+    })
+    const terminal = await startMadeUpBooks({
+      host: Processor.Host.Cli(),
+      sync: Runtime.Memory({ processor: 'terminal', store }),
+    })
+    const onPhone = bindBooks(phone)
+    const onTerminal = bindBooks(terminal)
+    await Interaction.whenSettled(onPhone, settleMs)
+    await Interaction.whenSettled(onTerminal, settleMs)
+    const title = 'the-lantern-keeper'
+    const addressOn = (bound: typeof onPhone): string =>
+      Option.match(bound.navigation(), {
+        onNone: () => '',
+        onSome: plan => plan.uri,
+      })
+    const modeOn = (bound: typeof onPhone): string => {
+      const model = bound.readModel()
+      return model._tag === 'Ready' ? model.session.mode : model._tag
+    }
+
+    onTerminal.press('MirrorNavigation')
+    await waitUntil(() => modeOn(onPhone) === 'Mirror')
+    await waitUntil(() => onTerminal.press(`Open:${title}`))
+    await waitUntil(() => addressOn(onPhone) === `/books/${title}`)
+
+    expect(modeOn(onPhone)).toBe('Mirror')
+    expect(addressOn(onPhone)).toBe(`/books/${title}`)
+    await phone.stop()
+    await terminal.stop()
+  })
+
+  it('keeps the session every device shares under a name of its own, never a person’s library', () => {
+    expect(madeUpSessionLog).not.toBe(BooksProgram.id)
+    expect(madeUpSessionLog).toContain('made-up')
   })
 })

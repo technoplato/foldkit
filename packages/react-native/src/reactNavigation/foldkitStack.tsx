@@ -20,25 +20,24 @@ import { useLook } from '../theme/themed.js'
 import { entryOptionsOf } from './entryOptions.js'
 import { EntryStylesContext, EntryView, entryStylesOf } from './entryView.js'
 import {
-  entryRouteName,
   entryStateOf,
   keyedRoutesOf,
   reactNavigationStack,
   renewedStack,
+  screenNameOf,
+  screenNamesOf,
   steadyStack,
 } from './stack.js'
 
 // STACK
 
-type ParamList = {
-  [entryRouteName]: Readonly<{ uri: string }>
-}
+type ParamList = Record<string, Readonly<{ uri: string }>>
 
 const Stack = createNativeStackNavigator<ParamList>()
 
 const EntryScreen = ({
   route,
-}: NativeStackScreenProps<ParamList, typeof entryRouteName>): ReactElement => (
+}: NativeStackScreenProps<ParamList, string>): ReactElement => (
   <EntryView entryKey={route.key} />
 )
 
@@ -57,6 +56,16 @@ const ReadyStack = ({
   )
   const [routesAtMount] = useState(initialRoutes)
   const [isReady, setIsReady] = useState(false)
+  const screenNames = useMemo(
+    () => screenNamesOf(bound.destinationTags()),
+    [bound],
+  )
+  const nameOf = useMemo(
+    () =>
+      (key: string): string =>
+        screenNameOf(bound.navigation(), key, bound.destinationTags()),
+    [bound],
+  )
 
   useEffect(() => {
     if (!isReady) {
@@ -67,7 +76,9 @@ const ReadyStack = ({
       Navigation.keyedStackDriver(
         steadyStack(
           Navigation.coalescedStack(
-            renewedStack(reactNavigationStack(navigationRef, routesAtMount)),
+            renewedStack(
+              reactNavigationStack(navigationRef, routesAtMount, nameOf),
+            ),
           ),
           bound.navigation,
           { isAddressShown: false },
@@ -75,12 +86,12 @@ const ReadyStack = ({
       ),
       { launchUri: Option.fromNullishOr(launchUri) },
     )
-  }, [bound, isReady, navigationRef, routesAtMount, launchUri])
+  }, [bound, isReady, navigationRef, routesAtMount, launchUri, nameOf])
 
   return (
     <NavigationContainer
       ref={navigationRef}
-      initialState={entryStateOf(routesAtMount)}
+      initialState={entryStateOf(routesAtMount, nameOf)}
       onReady={() => {
         setIsReady(true)
       }}
@@ -91,7 +102,9 @@ const ReadyStack = ({
           headerRight: () => <HeaderMenuButton />,
         })}
       >
-        <Stack.Screen name={entryRouteName} component={EntryScreen} />
+        {Array.map(screenNames, name => (
+          <Stack.Screen key={name} name={name} component={EntryScreen} />
+        ))}
       </Stack.Navigator>
     </NavigationContainer>
   )
@@ -99,7 +112,9 @@ const ReadyStack = ({
 
 /**
  * The bound Program's navigation as a React Navigation native stack: one
- * keyed route per plan entry, presented by its declared style. A swipe,
+ * screen named after each Destination the Program declares, and one
+ * keyed route per plan entry under its Destination's screen, presented by
+ * its declared style. A swipe,
  * the header back button, and the Android back button reach the Program
  * as `NavigatedBack`; every Program move resets the stack to its plan,
  * keeping unchanged screens mounted. Until the Program is Ready it shows

@@ -7,7 +7,12 @@ import {
 } from 'read-aloud-core-example/browser'
 import { htmlAudioOutput } from 'transcript-player-core-example/browser'
 
-import { Instant, withHostedIdentity } from '@foldkit/instant/browser'
+import {
+  Instant,
+  type ProgramLogDatabase,
+  SharedInstantProject,
+  withHostedIdentity,
+} from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
 import { httpAudibleImport } from './audible/http.js'
@@ -17,6 +22,7 @@ import { makeInstantScribeTimeline } from './instantScribeTimeline.js'
 import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
 import { booksOrigin } from './links.js'
+import { madeUpSessionLog } from './madeUp.js'
 import { BooksProgram } from './program.js'
 import { ScribeTimeline } from './scribeTimeline.js'
 import { browserLinkSharing } from './share.browser.js'
@@ -80,3 +86,34 @@ export const startBooks = (config: StartBooksConfig): BooksHandleOnHost => {
     host: config.host,
   })
 }
+
+/**
+ * The engine that makes the made-up library one session on every device
+ * that asks for it: the one Instant project every example syncs through,
+ * on rows of the made-up library's own. Nobody signs in, and it never
+ * opens the app that holds a person's library. Pass it to
+ * `startMadeUpBooks` as `sync`. A phone passes the database it
+ * opened; a browser opens its own.
+ *
+ * @example
+ * ```typescript
+ * const handle = await startMadeUpBooks({
+ *   host,
+ *   sync: sharedMadeUpSession({ host, instance: newProcessorInstance() }),
+ * })
+ * ```
+ */
+export const sharedMadeUpSession = (
+  config: Readonly<{
+    host: Processor.Host.Host
+    instance: string
+    database?: ProgramLogDatabase
+  }>,
+): Runtime.SyncEngine =>
+  Instant({
+    app: SharedInstantProject,
+    processor: config.host,
+    instance: config.instance,
+    programLog: madeUpSessionLog,
+    database: config.database ?? init({ appId: SharedInstantProject.id }),
+  })

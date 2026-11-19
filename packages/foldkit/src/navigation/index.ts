@@ -163,6 +163,7 @@ export { documentTitleOf, frameOf, sideTagOf, styleTagOf } from './frame.js'
 export { uriOfDeepLink } from './deepLink.js'
 export type { Frame, FrameLayer, FrameSource } from './frame.js'
 export { coalescedStack, keyedStackDriver } from './keyedStack.js'
+export { destinationTagsOf } from './destinationTags.js'
 export type { KeyedRoute, KeyedStack } from './keyedStack.js'
 export {
   tanstackRouterPlugin,

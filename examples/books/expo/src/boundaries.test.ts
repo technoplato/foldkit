@@ -64,4 +64,44 @@ describe('Books Expo boundaries', () => {
     expect(access).toContain('openAuthSessionAsync')
     expect(access).toContain('SecureStore.setItemAsync')
   })
+
+  it('asks the phone for nothing it does not use: sound in the background, never the microphone', () => {
+    const config = readFileSync(join(here, '../app.json'), 'utf8')
+    const app: unknown = JSON.parse(config)
+    expect(config).toContain('"UIBackgroundModes"')
+    expect(JSON.stringify(app)).toContain(
+      '["expo-audio",{"microphonePermission":false}]',
+    )
+  })
+
+  it('builds no native half of a package the iPhone app never runs', () => {
+    // NOTE: The router asks for @expo/ui and uses it on Android only, and
+    // the two animation libraries arrive only as its companions. Their iOS
+    // halves do not compile beside the Expo core this fork installs, so the
+    // iOS app leaves them out; nothing in the app imports any of them.
+    const unused = [
+      '@expo/ui',
+      'react-native-reanimated',
+      'react-native-worklets',
+    ]
+    const manifest: unknown = JSON.parse(
+      readFileSync(join(here, '../package.json'), 'utf8'),
+    )
+    expect(JSON.stringify(manifest)).toContain(
+      `"autolinking":{"ios":{"exclude":${JSON.stringify(unused)}}}`,
+    )
+    for (const file of [...sourcesIn(appDir), ...sourcesIn(here)]) {
+      const source = readFileSync(file, 'utf8')
+      for (const name of unused) {
+        expect(source, file).not.toContain(`'${name}`)
+      }
+    }
+  })
+
+  it('adopts the scene life cycle iOS 27 requires, through the adapter’s plugin', () => {
+    const config = readFileSync(join(here, '../app.json'), 'utf8')
+    expect(config).toContain(
+      '"@foldkit/react-native/plugin/sceneLifecycle.cjs"',
+    )
+  })
 })

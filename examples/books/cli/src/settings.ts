@@ -44,6 +44,21 @@ export const madeUpContrastOf = (
 ): 'Standard' | 'More' =>
   env['BOOKS_MADE_UP_CONTRAST']?.trim() === 'More' ? 'More' : 'Standard'
 
+/**
+ * Whether the made-up library is the one session every device shares,
+ * from `BOOKS_MADE_UP_SESSION=shared`: a terminal, a browser tab and a
+ * phone that all ask for it can be watched moving together. Without it a
+ * made-up player keeps its session to itself.
+ *
+ * @example
+ * ```typescript
+ * isMadeUpSessionShared({ BOOKS_MADE_UP_SESSION: 'shared' }) // true
+ * ```
+ */
+export const isMadeUpSessionShared = (
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean => env['BOOKS_MADE_UP_SESSION']?.trim() === 'shared'
+
 /** The Instant app the environment names, `bd40c50a-…`, or empty. */
 export const booksAppIdOf = (
   env: Readonly<Record<string, string | undefined>> = process.env,

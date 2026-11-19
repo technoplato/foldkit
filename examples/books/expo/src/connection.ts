@@ -37,3 +37,17 @@ export const connectionFrom = (
     appId => ({ appId: appId.trim(), sessionOrigin }),
   )
 }
+
+/**
+ * Whether the made-up library is the one session every device shares:
+ * `EXPO_PUBLIC_BOOKS_MADE_UP=shared`. Any other value keeps the made-up
+ * library on this phone alone.
+ *
+ * @example
+ * ```typescript
+ * isMadeUpSessionShared({ EXPO_PUBLIC_BOOKS_MADE_UP: 'shared' }) // true
+ * ```
+ */
+export const isMadeUpSessionShared = (
+  env: Readonly<Record<string, string | undefined>>,
+): boolean => (env['EXPO_PUBLIC_BOOKS_MADE_UP'] ?? '').trim() === 'shared'

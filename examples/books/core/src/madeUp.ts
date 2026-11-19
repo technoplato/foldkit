@@ -100,6 +100,15 @@ export const madeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
     },
   ).passages
 
+// SESSION
+
+/**
+ * The name the made-up library's session is kept under when every device
+ * shares it: rows of its own on the shared log, apart from every other
+ * app's and never under the name a person's library is kept under.
+ */
+export const madeUpSessionLog = 'books-made-up'
+
 // START
 
 /**

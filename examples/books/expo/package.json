@@ -18,7 +18,8 @@
     "start:signed-in": "./scripts/with-books-app expo start --port 8097 --dev-client",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "voice": "node scripts/make-made-up-voice.mjs"
+    "voice": "node scripts/make-made-up-voice.mjs",
+    "start:made-up-shared": "EXPO_PUBLIC_BOOKS_MADE_UP=shared expo start --port 8097"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
@@ -58,5 +59,16 @@
     "prettier": "^3.8.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
+  },
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "exclude": [
+          "@expo/ui",
+          "react-native-reanimated",
+          "react-native-worklets"
+        ]
+      }
+    }
   }
 }

@@ -22,6 +22,7 @@ import {
   SyncedBooks,
   bindBooks,
   newProcessorInstance,
+  sharedMadeUpSession,
   startBooks,
   startMadeUpBooks,
   whenLibraryOpened,
@@ -50,6 +51,7 @@ import {
 import {
   booksPlayerSocketPath,
   buildOf,
+  isMadeUpSessionShared,
   madeUpContrastOf,
   madeUpNameOf,
 } from './settings.js'
@@ -91,6 +93,14 @@ const serve = Effect.gen(function* () {
             host: Processor.Host.Cli(),
             library: writes.wrap,
             resources: terminalSystemAppearance(Effect.sync(madeUpContrastOf)),
+            ...(isMadeUpSessionShared()
+              ? {
+                  sync: sharedMadeUpSession({
+                    host: Processor.Host.Cli(),
+                    instance: newProcessorInstance(),
+                  }),
+                }
+              : {}),
           }),
         )
       : startBooks(signIn.signedIn, {

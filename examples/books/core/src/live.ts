@@ -5,6 +5,7 @@ import {
   localSnapshotPath,
   terminalSystemAppearance,
 } from 'foldkit/cli'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   fetchPreviewSource,
@@ -16,6 +17,7 @@ import { ffplayAudioOutput } from 'transcript-player-core-example'
 import {
   Instant,
   type ProgramLogDatabase,
+  SharedInstantProject,
   accessRequestHeaders,
   accessTokenFromEnv,
   ensureHostedInstantSession,
@@ -29,6 +31,7 @@ import { makeInstantScribeTimeline } from './instantScribeTimeline.js'
 import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
 import { booksOrigin } from './links.js'
+import { madeUpSessionLog } from './madeUp.js'
 import { BooksProgram } from './program.js'
 import { ScribeTimeline } from './scribeTimeline.js'
 import { terminalLinkSharing } from './share.node.js'
@@ -267,3 +270,40 @@ export const whenLibraryOpened = async (
     Math.max(0, timeoutMs - (Date.now() - startedAtMs)),
   )
 }
+
+/**
+ * The engine that makes the made-up library one session on every device
+ * that asks for it: the one Instant project every example syncs through,
+ * on rows of the made-up library's own. Nobody signs in, and it never
+ * opens the app that holds a person's library. Pass it to
+ * `startMadeUpBooks` as `sync`. A terminal keeps what
+ * Instant caches in a folder of its own under the system's temporary
+ * folder, never beside a person's library.
+ *
+ * @example
+ * ```typescript
+ * const handle = await startMadeUpBooks({
+ *   host,
+ *   sync: sharedMadeUpSession({ host, instance: newProcessorInstance() }),
+ * })
+ * ```
+ */
+export const sharedMadeUpSession = (
+  config: Readonly<{
+    host: Processor.Host.Host
+    instance: string
+    database?: ProgramLogDatabase
+  }>,
+): Runtime.SyncEngine =>
+  Instant({
+    app: SharedInstantProject,
+    processor: config.host,
+    instance: config.instance,
+    programLog: madeUpSessionLog,
+    database:
+      config.database ??
+      makeNodeInstantDatabase(
+        SharedInstantProject.id,
+        join(tmpdir(), 'foldkit-books-made-up', 'instant'),
+      ),
+  })

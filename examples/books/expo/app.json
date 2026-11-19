@@ -9,9 +9,15 @@
     "newArchEnabled": true,
     "plugins": [
       "expo-router",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@foldkit/react-native/plugin/sceneLifecycle.cjs"
     ],
     "ios": {
       "bundleIdentifier": "com.knophy.foldkit.books.dev",
