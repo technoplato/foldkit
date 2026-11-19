@@ -22,10 +22,13 @@ export type ToolProperty = Readonly<{
  * What a call touches, in the words agent protocols use: `readOnlyHint`
  * is true when nothing is mutated or triggered, and `openWorldHint`
  * when a side effect is triggered, which reaches past the Model.
+ * `destructiveHint` is there for a declaration that says how it is
+ * undone: true when it cannot be, false when something undoes it.
  */
 export type ToolAnnotations = Readonly<{
-  readOnlyHint: boolean
-  openWorldHint: boolean
+  readOnlyHint?: boolean
+  openWorldHint?: boolean
+  destructiveHint?: boolean
 }>
 
 /**
@@ -147,9 +150,18 @@ export const toolOf = (
         .map(([name]) => name),
       additionalProperties: false,
     },
-    ...(whole.touches === undefined
+    ...(whole.touches === undefined && whole.undo === undefined
       ? {}
-      : { annotations: annotationsOf(whole.touches) }),
+      : {
+          annotations: {
+            ...(whole.touches === undefined
+              ? {}
+              : annotationsOf(whole.touches)),
+            ...(whole.undo === undefined
+              ? {}
+              : { destructiveHint: whole.undo._tag === 'CannotBeUndone' }),
+          },
+        }),
   }
 }
 
