@@ -45,6 +45,18 @@ const FailingResourceLive = Layer.sync(ResourceService, (): ResourceShape => {
   throw new Error(LAYER_BUILD_ERROR)
 })
 
+// NOTE: The runtime builds the resources Layer once, as it starts, so a
+// Layer that cannot be built is known before anything is drawn. A
+// resource that builds and then fails when a Command reads it crashes
+// later, after the page has been drawn.
+const USE_ERROR = 'the resource was closed'
+
+const FailingWhenUsedLive = Layer.succeed(ResourceService, {
+  get value(): string {
+    throw new Error(USE_ERROR)
+  },
+})
+
 type UpdateReturn = readonly [
   Model,
   ReadonlyArray<Command.Command<Message, never, ResourceService>>,
@@ -101,6 +113,29 @@ const awaitTwoAnimationFrames = (): Promise<void> =>
   })
 
 describe('resources', () => {
+  it('draws nothing of the app when the Layer fails to build, only the crash view', async () => {
+    const element = makeElement({
+      Model,
+      Message,
+      init: () => [{ label: 'ready' }, []],
+      update,
+      view,
+      crash,
+      container,
+      resources: FailingResourceLive,
+    })
+
+    const fiber = Effect.runFork(element.start())
+
+    try {
+      await awaitBodyText(`Crash view: ${LAYER_BUILD_ERROR}`)
+      await awaitTwoAnimationFrames()
+      expect(document.body.textContent).not.toContain('ready')
+    } finally {
+      await Effect.runPromise(Fiber.interrupt(fiber))
+    }
+  })
+
   it('renders the crash view when the Layer fails to build for an init Command', async () => {
     const element = makeElement({
       Model,
@@ -131,7 +166,7 @@ describe('resources', () => {
       view,
       crash,
       container,
-      resources: FailingResourceLive,
+      resources: FailingWhenUsedLive,
     })
 
     const fiber = Effect.runFork(element.start())
@@ -143,12 +178,10 @@ describe('resources', () => {
       expect(button).not.toBeNull()
       button?.click()
 
-      await awaitBodyText(`Crash view: ${LAYER_BUILD_ERROR}`)
+      await awaitBodyText(`Crash view: ${USE_ERROR}`)
       await awaitTwoAnimationFrames()
 
-      expect(document.body.textContent).toContain(
-        `Crash view: ${LAYER_BUILD_ERROR}`,
-      )
+      expect(document.body.textContent).toContain(`Crash view: ${USE_ERROR}`)
       expect(document.body.textContent).not.toContain('reading')
     } finally {
       await Effect.runPromise(Fiber.interrupt(fiber))
