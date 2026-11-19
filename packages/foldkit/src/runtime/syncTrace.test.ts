@@ -1,6 +1,13 @@
-import { Duration, Effect, Schema as S, SchemaTransformation } from 'effect'
+import {
+  Duration,
+  Effect,
+  Fiber,
+  Schema as S,
+  SchemaTransformation,
+} from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import * as Command from '../command/index.js'
 import { m } from '../message/public.js'
 import * as Host from '../processor/host.js'
 import { compose } from '../program/compose.js'
@@ -271,6 +278,114 @@ describe('what a sync runtime says it did', () => {
           expect(seen.of('LinkChanged').map(changed => changed.link)).toEqual([
             'Connected',
           ])
+        }),
+      ),
+    )
+  })
+})
+
+// NOTE: A pause was the slowest thing to send, two seconds, where a play
+// took a fifth of one: the row was written only after everything the
+// Message started had finished, and a pause saves the place, which the
+// store takes its time over. The row tells the other devices what was
+// pressed; it leaves as soon as the update has been applied.
+describe('when a Message’s row leaves', () => {
+  const Pressed = m('Pressed')
+  const Saved = m('Saved')
+  const SlowMessage = S.Union([Pressed, Saved])
+  const SlowModel = S.Struct({ presses: S.Number, saves: S.Number })
+  const saveTakesMs = 400
+  const SavePlace = Command.define(
+    'SavePlace',
+    Saved,
+  )(Effect.as(Effect.sleep(Duration.millis(saveTakesMs)), Saved()))
+  const Slow = make({
+    id: 'trace-slow-save',
+    version: 1,
+    Model: SlowModel,
+    Message: SlowMessage,
+    init: () => [{ presses: 0, saves: 0 }, []],
+    update: (model, message) =>
+      message._tag === 'Pressed'
+        ? [{ ...model, presses: model.presses + 1 }, [SavePlace()]]
+        : [{ ...model, saves: model.saves + 1 }, []],
+  })
+  const SlowRow = S.Struct({
+    id: S.String,
+    tag: S.Literals(['Pressed', 'Saved']),
+    from: S.String,
+    createdAtMs: S.Number,
+  })
+  const SyncedSlow = compose.sync({
+    of: Slow,
+    snapshot: S.Struct({
+      id: S.String,
+      value: S.Number,
+      asOf: S.String,
+      at: S.Number,
+    }).pipe(
+      S.decodeTo(
+        SlowModel,
+        SchemaTransformation.transform({
+          decode: row => ({ presses: row.value, saves: 0 }),
+          encode: model => ({
+            id: 'c0a7c001-0000-4000-8000-000000000002',
+            value: model.presses,
+            asOf: '',
+            at: 0,
+          }),
+        }),
+      ),
+    ),
+    message: SlowRow.pipe(
+      S.decodeTo(
+        SlowMessage,
+        SchemaTransformation.transform({
+          decode: row => ({ _tag: row.tag }),
+          encode: message => ({
+            id: '',
+            tag: message._tag,
+            from: '',
+            createdAtMs: 0,
+          }),
+        }),
+      ),
+    ),
+  })
+
+  it('is before what the Message started has finished, and the other device has it then', async () => {
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          const terminal = yield* start({
+            program: SyncedSlow,
+            sync: Memory({ processor: Host.Cli(), store }),
+          })
+          const phone = yield* start({
+            program: SyncedSlow,
+            sync: Memory({ processor: Host.ExpoIos(), store }),
+          })
+          const onTerminal = traced()
+          const onPhone = traced()
+          terminal.observeSync(onTerminal.listen)
+          phone.observeSync(onPhone.listen)
+          const startedAt = Date.now()
+          const running = yield* Effect.forkChild(terminal.run(Pressed()))
+          yield* eventually(() => onPhone.of('ReceivedRow').length === 1)
+          const receivedAfterMs = Date.now() - startedAt
+          // The save is still going; the row has left and arrived.
+          expect(receivedAfterMs).toBeLessThan(saveTakesMs / 2)
+          expect(onTerminal.of('WroteRow')).toMatchObject([
+            { message: 'Pressed', link: 'delivered' },
+          ])
+          expect(terminal.readModel()).toMatchObject({ presses: 1, saves: 0 })
+          // The Message's own run still ends only when its save has.
+          yield* Fiber.join(running)
+          expect(Date.now() - startedAt).toBeGreaterThanOrEqual(
+            saveTakesMs - 20,
+          )
+          expect(terminal.readModel()).toMatchObject({ presses: 1, saves: 1 })
         }),
       ),
     )
