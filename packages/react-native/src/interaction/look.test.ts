@@ -63,6 +63,21 @@ describe('the React Native adapter', () => {
     }
   })
 
+  it('keeps what only the generator needs out of what an app runs', () => {
+    const importers = sourcesIn(sourceRoot).filter(file =>
+      readFileSync(file, 'utf8').includes('foldkit/navigation/route-table'),
+    )
+    expect(importers.map(file => file.slice(sourceRoot.length + 1))).toEqual([
+      'expoRouter/routeFiles.ts',
+    ])
+    const reachable = sourcesIn(sourceRoot).filter(
+      file =>
+        !file.endsWith('expoRouter/routeFiles.ts') &&
+        /from '\.\/routeFiles\.js'/.test(readFileSync(file, 'utf8')),
+    )
+    expect(reachable).toEqual([])
+  })
+
   it('asks the system for its appearance in one host adapter only', () => {
     const askers = sourcesIn(sourceRoot).filter(file =>
       /useColorScheme|\bAppearance\.(get|add)|AccessibilityInfo\.(is|add)/.test(
