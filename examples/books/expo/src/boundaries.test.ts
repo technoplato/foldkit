@@ -73,4 +73,19 @@ describe('Books Expo boundaries', () => {
       '["expo-audio",{"microphonePermission":false}]',
     )
   })
+
+  it('builds no native half of a package the iPhone app never runs', () => {
+    // NOTE: The router asks for @expo/ui, and uses it on Android only. Its
+    // iOS half does not compile beside the Expo core this fork installs,
+    // so the iOS app leaves it out; nothing on iOS imports it.
+    const manifest: unknown = JSON.parse(
+      readFileSync(join(here, '../package.json'), 'utf8'),
+    )
+    expect(JSON.stringify(manifest)).toContain(
+      '"autolinking":{"ios":{"exclude":["@expo/ui"]}}',
+    )
+    for (const file of [...sourcesIn(appDir), ...sourcesIn(here)]) {
+      expect(readFileSync(file, 'utf8'), file).not.toContain('@expo/ui')
+    }
+  })
 })
