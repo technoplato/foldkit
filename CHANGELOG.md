@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 7:06:44 p.m. EST — `1eb567cb3a69` fix(foldkit): green: under More Contrast the words read and the words to come stay far apart (Scribe #2494)
+
+- **Implementation commit:** `1eb567cb3a6961a3856f2a1793250c5b293b5502`
+- **Change:** Under More Contrast the words read and the words to come stay far apart
+- **Details:**
+  - Layer: Foldkit core, the theme. The words to come and the words read are 2.4 to 1 apart or more under More Contrast (they were 1.6 to 1.7), both at 7 to 1 or better on the page and on the paragraph being read; the dark reading ground is flat under More Contrast; the word being read reaches 7 to 1 on its own ground in light.
+- **Files:**
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 6:56:07 p.m. EST — `0e12adf1dc41` feat(books): green: a terminal and the site paint stronger on a system that asks for More Contrast (Scribe #2494)
 
 - **Implementation commit:** `0e12adf1dc413442e7014f563cb740b978dc09f9`
