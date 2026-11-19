@@ -24,11 +24,11 @@ import { compose as composeProgram } from '../program/compose.js'
 import { make } from '../program/program.js'
 import { startHandle } from '../runtime/handle.js'
 import { makeProgramRuntime } from '../runtime/programRuntime.js'
-import { Memory } from '../runtime/syncEngine.js'
+import { Memory, makeMemoryStore } from '../runtime/syncEngine.js'
 import { m } from '../schema/index.js'
 import * as Subscription from '../subscription/subscription.js'
 import { attach, observer } from './attach.js'
-import { type TelemetryEvent, encodeLine } from './event.js'
+import { type TelemetryEvent, decodeLine, encodeLine } from './event.js'
 import { fileSink, readTelemetryFiles } from './node.js'
 import * as Telemetry from './public.js'
 import { makeRecorder } from './recorder.js'
@@ -142,6 +142,7 @@ const describeEvent = (event: TelemetryEvent): string =>
         `CommandFinished ${command} ${outcome}`,
       Diagnostic: ({ kind, name, instanceId }) =>
         `${kind} ${name} ${instanceId}`,
+      Synced: ({ kind }) => `Synced ${kind}`,
       Crashed: ({ source }) => `Crashed ${source._tag}`,
       Rendered: ({ painter }) => `Rendered ${painter}`,
     }),
@@ -498,6 +499,74 @@ describe('Telemetry.attach', () => {
     expect(Option.map(Array.last(events), event => event._tag)).toStrictEqual(
       Option.some('SessionStopped'),
     )
+  })
+
+  it('records what the sync runtime did on the same lines: the row written here is the row received there', async () => {
+    const store = makeMemoryStore()
+    const onTerminal = makeMemorySink()
+    const onPhone = makeMemorySink()
+    const terminal = startHandle({
+      program: SyncedLibrary,
+      sync: Memory({ processor: 'cli', store }),
+      host: Host.Cli(),
+    })
+    const phone = startHandle({
+      program: SyncedLibrary,
+      sync: Memory({ processor: 'expo-ios', store }),
+      host: Host.ExpoIos(),
+    })
+    attach(terminal, { app: 'telemetry-test', sink: onTerminal.layer })
+    attach(phone, { app: 'telemetry-test', sink: onPhone.layer })
+    await vi.waitFor(() => {
+      expect(terminal.readModel()._tag).toBe('Ready')
+      expect(phone.readModel()._tag).toBe('Ready')
+    })
+    const surface = programCliSurface(bind(SyncedLibrary, terminal), 'library')
+    await Effect.runPromise(surface.run(ClickedFetch({ bookId: 'dune' })))
+    const syncedOf = (events: ReadonlyArray<TelemetryEvent>) =>
+      events.filter(
+        (event): event is Extract<TelemetryEvent, { _tag: 'Synced' }> =>
+          event._tag === 'Synced',
+      )
+    await vi.waitFor(() => {
+      expect(
+        syncedOf(onPhone.events()).some(event => event.kind === 'ReceivedRow'),
+      ).toBe(true)
+    })
+    await terminal.stop()
+    await phone.stop()
+
+    const wrote = syncedOf(onTerminal.events()).find(
+      event => event.kind === 'WroteRow',
+    )
+    const received = syncedOf(onPhone.events()).find(
+      event => event.kind === 'ReceivedRow',
+    )
+    expect(wrote).toMatchObject({
+      message: 'ClickedFetch',
+      link: 'delivered',
+      surface: 'terminal-cli',
+    })
+    expect(received).toMatchObject({
+      message: 'ClickedFetch',
+      from: 'cli',
+      rowId: wrote?.rowId,
+    })
+    // A write is recorded when the store answers; it left `tookMs`
+    // before that, and the other device has it no sooner than it left.
+    expect(Date.parse(received?.at ?? '')).toBeGreaterThanOrEqual(
+      Date.parse(wrote?.at ?? '') - (wrote?.tookMs ?? 0) - 1,
+    )
+    expect(wrote?.tookMs).toBeGreaterThanOrEqual(0)
+    // A row carries its Message's tag, never what the Message held.
+    expect(JSON.stringify(wrote)).not.toContain('dune')
+    expect(
+      syncedOf(onTerminal.events()).find(event => event.kind === 'LinkChanged'),
+    ).toMatchObject({ link: 'Connected' })
+    // Each line reads back as it was written.
+    for (const event of [...onTerminal.events(), ...onPhone.events()]) {
+      expect(decodeLine(encodeLine(event))).toEqual(Option.some(event))
+    }
   })
 
   it('records whole Models when asked', async () => {

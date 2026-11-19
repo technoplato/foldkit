@@ -134,8 +134,10 @@ describe('what a sync runtime says it did', () => {
           })
           expect(wrote?.rowId).not.toBe('')
           expect(received?.rowId).toBe(wrote?.rowId)
+          // A write is told when the store answers; the row left `tookMs`
+          // before that, and the other device has it no sooner.
           expect(received?.timestamp).toBeGreaterThanOrEqual(
-            wrote?.timestamp ?? Infinity,
+            (wrote?.timestamp ?? Infinity) - (wrote?.tookMs ?? 0) - 1,
           )
           // The device that wrote a row never says it received it.
           expect(onTerminal.of('ReceivedRow')).toEqual([])

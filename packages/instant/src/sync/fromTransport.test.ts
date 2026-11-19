@@ -1,4 +1,4 @@
-import { Array, Deferred, Effect } from 'effect'
+import { Array, Deferred, Effect, Option } from 'effect'
 import { Runtime } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
@@ -10,8 +10,10 @@ import {
 } from '../snapshotLog/snapshotLog.js'
 import {
   fromTransport,
+  instantLinksOf,
   isNamedShareInstantFrom,
   isOwnedInstantFrom,
+  linkOfInstantStatus,
   messageBelongsToInstantRoom,
 } from './fromTransport.js'
 
@@ -142,5 +144,80 @@ describe('messageBelongsToInstantRoom', () => {
     expect(
       messageBelongsToInstantRoom('cli-mine-alice', 'tui-share-kitchen'),
     ).toBe(false)
+  })
+})
+
+// NOTE: The store's own word for its connection is what a device's trace
+// says of its link, so "was the phone connected when the terminal wrote"
+// is read from the phone's file.
+describe('an Instant engine’s link', () => {
+  it('reads each of the store’s connection words as where the link stands', () => {
+    expect(
+      Array.map(
+        ['connecting', 'opened', 'authenticated', 'closed', 'errored'],
+        linkOfInstantStatus,
+      ),
+    ).toEqual(
+      Array.map(
+        ['Connecting', 'Connected', 'SignedIn', 'Offline', 'Offline'],
+        Option.some,
+      ),
+    )
+    expect(linkOfInstantStatus('something-new')).toEqual(Option.none())
+  })
+
+  it('tells its link as the store says it, each change once, until its scope closes', async () => {
+    const listeners = new Set<(status: string) => void>()
+    const database = {
+      subscribeConnectionStatus: (listener: (status: string) => void) => {
+        listeners.add(listener)
+        listener('connecting')
+        return () => {
+          listeners.delete(listener)
+        }
+      },
+    }
+    const said = (status: string): void => {
+      for (const listener of listeners) {
+        listener(status)
+      }
+    }
+    const heard: Array<Runtime.SyncLinkState> = []
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const transport = yield* makeMemorySnapshotLogTransport()
+          const engine = fromTransport(
+            transport,
+            'cli',
+            instantLinksOf(database),
+          )
+          yield* engine.links?.(link => heard.push(link)) ?? Effect.void
+          said('opened')
+          said('authenticated')
+          said('authenticated')
+          said('closed')
+          said('opened')
+          expect(listeners.size).toBe(1)
+        }),
+      ),
+    )
+    expect(heard).toEqual([
+      'Connecting',
+      'Connected',
+      'SignedIn',
+      'Offline',
+      'Connected',
+    ])
+    expect(listeners.size).toBe(0)
+  })
+
+  it('has no link to tell when it was given no store to ask', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const transport = yield* makeMemorySnapshotLogTransport()
+        expect(fromTransport(transport, 'cli').links).toBeUndefined()
+      }),
+    )
   })
 })
