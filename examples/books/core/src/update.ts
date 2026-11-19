@@ -999,6 +999,13 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         { ...model, appearance: { ...model.appearance, systemMode: mode } },
         [],
       ],
+      ObservedSystemContrast: ({ contrast }) => [
+        {
+          ...model,
+          appearance: { ...model.appearance, systemContrast: contrast },
+        },
+        [],
+      ],
       OpenPlayer: () => [
         model.listening._tag === 'Loaded'
           ? openedPlayer(model, model.listening.slug)

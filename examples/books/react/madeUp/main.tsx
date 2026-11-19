@@ -8,7 +8,13 @@
  */
 import { bindBooks, startMadeUpBooks } from 'books-core-example/browser'
 import { Interaction, Processor } from 'foldkit'
-import { modeOfState, paintModeOnPage } from 'foldkit/theme'
+import {
+  browserSystemAppearance,
+  contrastOfState,
+  modeOfState,
+  paintContrastOnPage,
+  paintModeOnPage,
+} from 'foldkit/theme'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
@@ -19,7 +25,13 @@ import './styles.css'
 
 const lookTimeoutMs = 5_000
 
-const handle = await startMadeUpBooks({ host: Processor.Host.React() })
+// NOTE: The library is made up; the browser is not. The Program hears
+// this browser's own report of the system's appearance, as the served
+// site does, so More Contrast can be looked at here.
+const handle = await startMadeUpBooks({
+  host: Processor.Host.React(),
+  resources: browserSystemAppearance,
+})
 
 const tellPageItsMode = (): void => {
   const model = handle.readModel()
@@ -28,6 +40,10 @@ const tellPageItsMode = (): void => {
       root: document.documentElement,
       storage: window.localStorage,
     })
+    paintContrastOnPage(
+      contrastOfState(model.appearance),
+      document.documentElement,
+    )
   }
 }
 handle.subscribe(tellPageItsMode)

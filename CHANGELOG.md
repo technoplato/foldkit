@@ -4,6 +4,132 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 18th, 2026 at 7:06:44 p.m. EST — `1eb567cb3a69` fix(foldkit): green: under More Contrast the words read and the words to come stay far apart (Scribe #2494)
+
+- **Implementation commit:** `1eb567cb3a6961a3856f2a1793250c5b293b5502`
+- **Change:** Under More Contrast the words read and the words to come stay far apart
+- **Details:**
+  - Layer: Foldkit core, the theme. The words to come and the words read are 2.4 to 1 apart or more under More Contrast (they were 1.6 to 1.7), both at 7 to 1 or better on the page and on the paragraph being read; the dark reading ground is flat under More Contrast; the word being read reaches 7 to 1 on its own ground in light.
+- **Files:**
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 6:56:07 p.m. EST — `0e12adf1dc41` feat(books): green: a terminal and the site paint stronger on a system that asks for More Contrast (Scribe #2494)
+
+- **Implementation commit:** `0e12adf1dc413442e7014f563cb740b978dc09f9`
+- **Change:** A terminal and the site paint stronger on a system that asks for More Contrast
+- **Details:**
+  - Layer: client adapters. foldkit/cli gains a terminal host's report of the system's contrast (a Mac's Increase Contrast setting, read at start and each minute); the Books player inks from its Model's contrast; the Books site tells its page the contrast beside the mode. Not measured: the served site signed in, and a Mac with the setting on.
+- **Files:**
+  - `examples/books/cli/src/daemon.ts` — changed by this commit
+  - `examples/books/cli/src/player.ts` — changed by this commit
+  - `examples/books/cli/src/settings.ts` — changed by this commit
+  - `examples/books/core/src/live.ts` — changed by this commit
+  - `examples/books/react/madeUp/main.tsx` — changed by this commit
+  - `examples/books/react/src/main.tsx` — changed by this commit
+  - `packages/foldkit/src/cli/public.ts` — changed by this commit
+  - `packages/foldkit/src/cli/systemAppearance.ts` — changed by this commit
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 6:56:07 p.m. EST — `5508e46a6f6b` feat(books): green: Books hears the system's More Contrast, and a terminal's ink takes it (Scribe #2494)
+
+- **Implementation commit:** `5508e46a6f6be6f230c2ac79cc837d039f74ff3d`
+- **Change:** Books hears the system's More Contrast, and a terminal's ink takes it
+- **Details:**
+  - Layer: the Books core (a Message from the host beside the mode's, a subscription, kept on the device) and Foldkit core's terminal ink, which takes a role's stronger colour when it is told the contrast is More. A phone, a browser or a terminal host reports it; one that reports none is taken to ask for the usual contrast.
+- **Files:**
+  - `examples/books/core/src/message.ts` — changed by this commit
+  - `examples/books/core/src/program.ts` — changed by this commit
+  - `examples/books/core/src/subscriptions.ts` — changed by this commit
+  - `examples/books/core/src/update.ts` — changed by this commit
+  - `packages/foldkit/src/theme/terminal.ts` — changed by this commit
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 6:56:06 p.m. EST — `fe7f90a05ac5` feat(foldkit): green: the default theme has its colours for More Contrast (Scribe #2494)
+
+- **Implementation commit:** `fe7f90a05ac5085b6b122130660156d034d9fe0b`
+- **Change:** The default theme has its colours for More Contrast
+- **Details:**
+  - Layer: Foldkit core, the theme. Fourteen roles name a stronger colour where their own falls short, so every text and mark reads at 7 to 1 or better on the page's ground and every edge at 3 to 1, light and dark; the grounds and plain text are unchanged, and a page that does not say its contrast is More looks as it did.
+- **Files:**
+  - `packages/foldkit/src/theme/contrast.test.ts` — changed by this commit
+  - `packages/foldkit/src/theme/theme.ts` — changed by this commit
+- **User context (verbatim):**
+  > All state driven driving the components at the edge
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 6:56:06 p.m. EST — `5cef44420528` test(examples-e2e): the counter and counters specs match the examples as they are (Scribe #2494)
+
+- **Implementation commit:** `5cef444205282a7792a454924aa4169f4cbdde43`
+- **Change:** The counter and counters end-to-end specs match the examples as they are
+- **Details:**
+  - Layer: the end-to-end suite. The specs open the pages the examples serve today; all 29 specs pass run alone.
+- **Files:**
+  - `packages/examples-e2e/e2e/counter.spec.ts` — changed by this commit
+  - `packages/examples-e2e/e2e/counters.spec.ts` — changed by this commit
+  - `packages/examples-e2e/playwright.config.ts` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 6:56:06 p.m. EST — `a8e0466994f4` fix(ui): green: a dialog gone before it shows gives the scroll lock back (Scribe #2494)
+
+- **Implementation commit:** `a8e0466994f4d1a196f159f76143169209e09290`
+- **Change:** A dialog gone before it shows gives the scroll lock back
+- **Details:**
+  - Layer: @foldkit/ui. ShowDialog took the page's scroll lock and kept it when the dialog was gone before it could be shown, so the page could not be scrolled again; it now gives the lock back.
+- **Files:**
+  - `packages/ui/src/dialog/index.ts` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 6:56:06 p.m. EST — `4bb2344e564f` chore(ci): an install in this fork writes no git hooks (Scribe #2494)
+
+- **Implementation commit:** `4bb2344e564f6edd946b353e1eea95cf50a0930b`
+- **Change:** An install in this fork writes no git hooks
+- **Details:**
+  - Layer: the workspace. The prepare script writes hooks only when FOLDKIT_GIT_HOOKS is set, and AGENTS.md says so and why: upstream's 80-column commit-message check cannot pass on this fork's history, and the hooks folder is shared by every worktree.
+- **Files:**
+  - `AGENTS.md` — changed by this commit
+  - `package.json` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 6:56:06 p.m. EST — `40c7a31ad06e` test(examples-e2e): the charting spec presses the radio the page draws (Scribe #2494)
+
+- **Implementation commit:** `40c7a31ad06e100b221961de352c7915aa43b2cf`
+- **Change:** The charting end-to-end spec presses the radio the page draws
+- **Details:**
+  - Layer: the end-to-end suite. The spec follows the page as it is today.
+- **Files:**
+  - `packages/examples-e2e/e2e/charting.spec.ts` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
+## November 18th, 2026 at 6:56:06 p.m. EST — `6f49ed1570d8` chore(foldkit): the lint check finds nothing in the files the two branches touched (Scribe #2494, #2518)
+
+- **Implementation commit:** `6f49ed1570d8927100a07b80d7a5fc0a6c5b7cf3`
+- **Change:** The lint check finds nothing in the files the Books and declarations branches touched
+- **Details:**
+  - Layer: Foldkit core and its tests. Twenty-seven lint problems fixed where they were, among them one documented composedAs for the session's computed types.
+- **Files:**
+  - `packages/foldkit/src/catalog/touches.test.ts` — changed by this commit
+  - `packages/foldkit/src/cli/follow.test.ts` — changed by this commit
+  - `packages/foldkit/src/declaration/declare.ts` — changed by this commit
+  - `packages/foldkit/src/session/session.ts` — changed by this commit
+- **User context (verbatim):**
+  > make upstream edits to the fold kit fork I have on my machine if there's anything that isn't working properly for this complicated use case. This will help improve the core of the library.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent books-cli-2494 of session 03b61e9f; no SpecStory capture for sub-agent sessions
+
 ## November 18th, 2026 at 5:03:19 p.m. EST — `027b48629323` feat(react): green: a form checks and sends a choice by the name a person gives it (Scribe #2518)
 
 - **Implementation commit:** `027b48629323222faf603e4601c8bfe1f81c2da6`

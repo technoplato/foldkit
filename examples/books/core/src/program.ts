@@ -49,6 +49,7 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       CollapseControls: () => 'Navigation',
       SetAppearance: () => 'Navigation',
       ObservedSystemMode: () => 'Navigation',
+      ObservedSystemContrast: () => 'Navigation',
       ShowLibrary: () => 'Navigation',
       ShowProfile: () => 'Navigation',
       ShowReadAloud: () => 'Navigation',
