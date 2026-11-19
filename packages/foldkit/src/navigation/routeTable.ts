@@ -16,8 +16,8 @@ import type {
   Placement,
   ProgramNavigation,
 } from './declaration.js'
-import { entriesOf } from './structure.js'
-import { parseStack } from './uri.js'
+import { type Presented, entriesOf, presented, stackFrom } from './structure.js'
+import { parseStack, printStack } from './uri.js'
 
 // TABLE
 
@@ -91,7 +91,15 @@ const tagOf = (destination: unknown): Option.Option<string> =>
     ? Option.some(destination._tag)
     : Option.none()
 
-const rowOf = (route: DestinationRoute<any>): Option.Option<DeclaredRoute> =>
+// A declared route with a Destination made from its sample: what a
+// table row is read from, and what a round trip prints.
+type Sampled = Readonly<{
+  route: DestinationRoute<any>
+  destination: unknown
+  row: DeclaredRoute
+}>
+
+const sampledOf = (route: DestinationRoute<any>): Option.Option<Sampled> =>
   Option.gen(function* () {
     const shape = yield* Route.shapeOf(route.routeCase.parser)
     const sample = yield* Option.all(Array.map(shape.segments, sampleOfSegment))
@@ -101,13 +109,20 @@ const rowOf = (route: DestinationRoute<any>): Option.Option<DeclaredRoute> =>
     const destination = route.routeCase.casePath.embed(value)
     const name = yield* tagOf(destination)
     return {
-      name,
-      placement: route.placement,
-      presentation: route.styleOf(destination)._tag,
-      segments: shape.segments,
-      sample,
+      route,
+      destination,
+      row: {
+        name,
+        placement: route.placement,
+        presentation: route.styleOf(destination)._tag,
+        segments: shape.segments,
+        sample,
+      },
     }
   })
+
+const rowOf = (route: DestinationRoute<any>): Option.Option<DeclaredRoute> =>
+  Option.map(sampledOf(route), sampled => sampled.row)
 
 /**
  * A Program's declared routes as a table, in the order it declares them:
@@ -273,3 +288,144 @@ export const pathOfAddress = (
     }),
     '/',
   )}`
+
+// ROUND TRIP
+
+/**
+ * One stack a Program printed, by its Destinations' tags, root first,
+ * with the address it printed as.
+ */
+export type PrintedStack = Readonly<{
+  names: ReadonlyArray<string>
+  printed: string
+}>
+
+/**
+ * A printed address that does not parse back to the stack it was printed
+ * for: the stack by its tags, the address, and the tags it parsed as. A
+ * stack that would not print at all has an empty address and no parsed
+ * tags.
+ */
+export type RoundTripFault = PrintedStack &
+  Readonly<{ parsedNames: ReadonlyArray<string> }>
+
+/** How deep a stack `roundTripOf` builds unless told otherwise. */
+export const defaultRoundTripDepth = 4
+
+type Built = Readonly<{
+  root: Sampled
+  entries: ReadonlyArray<Sampled>
+}>
+
+const destinationsOf = (built: Built): Array.NonEmptyReadonlyArray<unknown> => [
+  built.root.destination,
+  ...Array.map(built.entries, entry => entry.destination),
+]
+
+const builtNamesOf = (built: Built): ReadonlyArray<string> => [
+  built.root.row.name,
+  ...Array.map(built.entries, entry => entry.row.name),
+]
+
+// Nothing sits above a screen that is presented over the page, so a
+// stack grows only while its top was pushed.
+const isOpenAbove = (built: Built): boolean =>
+  Array.every(built.entries, entry => entry.row.presentation === 'Push')
+
+const entryOf = (sampled: Sampled): Presented<unknown> =>
+  presented(sampled.destination, sampled.route.styleOf(sampled.destination))
+
+/**
+ * Prints every stack a Program's routes allow, up to `maxDepth` screens,
+ * and parses each address back: the stacks it printed, and the faults,
+ * each an address that does not come back as the stack it was printed
+ * for. Each stack is built from the routes themselves, a sample
+ * Destination for each wherever the route says it may sit, so the parse
+ * is what is checked and never what decides. A shared link or a deep link
+ * is a printed address: a Program with no faults opens the screen a link
+ * was made for, on every Client.
+ *
+ * @example
+ * ```typescript
+ * roundTripOf(navigation).faults
+ * // [] when every address parses back, else
+ * // [{ names: ['Library', 'Settings'], printed: '/books/settings', parsedNames: ['Library', 'Title'] }]
+ * ```
+ */
+export const roundTripOf = (
+  navigation: AnyNavigation,
+  options: Readonly<{ maxDepth?: number }> = {},
+): Readonly<{
+  printed: ReadonlyArray<PrintedStack>
+  faults: ReadonlyArray<RoundTripFault>
+}> => {
+  const maxDepth = options.maxDepth ?? defaultRoundTripDepth
+  const sampled = Array.getSomes(Array.map(navigation.routes, sampledOf))
+  const entryRoutes = Array.filter(
+    sampled,
+    each => each.row.placement === 'Entry',
+  )
+  const roots: ReadonlyArray<Built> = Array.map(
+    Array.filter(sampled, each => each.row.placement === 'Root'),
+    root => ({ root, entries: [] }),
+  )
+  const deeper = (stacks: ReadonlyArray<Built>): ReadonlyArray<Built> =>
+    Array.flatMap(
+      Array.filter(stacks, stack => isOpenAbove(stack)),
+      (built: Built): ReadonlyArray<Built> =>
+        Array.map(
+          Array.filter(
+            entryRoutes,
+            each =>
+              !Array.contains(builtNamesOf(built), each.row.name) &&
+              each.route.isAllowedAbove(destinationsOf(built)),
+          ),
+          (each): Built => ({
+            root: built.root,
+            entries: [...built.entries, each],
+          }),
+        ),
+    )
+  const start: Readonly<{
+    all: ReadonlyArray<Built>
+    last: ReadonlyArray<Built>
+  }> = { all: roots, last: roots }
+  const levels = Array.reduce(
+    Array.range(2, Math.max(2, maxDepth)),
+    start,
+    (state, depth) => {
+      const next = depth > maxDepth ? [] : deeper(state.last)
+      return { all: [...state.all, ...next], last: next }
+    },
+  )
+  const tripped = Array.map(levels.all, (built): RoundTripFault => {
+    const names = builtNamesOf(built)
+    const stack = stackFrom(
+      built.root.destination,
+      Array.map(built.entries, entryOf),
+    )
+    return Option.match(printStack(navigation, stack), {
+      onNone: () => ({ names, printed: '', parsedNames: [] }),
+      onSome: printed => ({
+        names,
+        printed,
+        parsedNames: namesAt(navigation, printed),
+      }),
+    })
+  })
+  return {
+    printed: Array.map(
+      Array.filter(tripped, each => each.printed !== ''),
+      ({ names, printed }) => ({ names, printed }),
+    ),
+    faults: Array.filter(
+      tripped,
+      each =>
+        !Equal.equals(each.parsedNames, each.names) ||
+        !Option.contains(
+          printStack(navigation, parseStack(navigation, each.printed)),
+          each.printed,
+        ),
+    ),
+  }
+}

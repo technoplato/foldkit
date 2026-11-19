@@ -9,8 +9,14 @@ import {
   rootScreen,
   screens,
 } from './declaration.js'
-import { addressesOf, pathOfAddress, routeTableOf } from './routeTable.js'
-import { Drawer } from './structure.js'
+import {
+  addressesOf,
+  pathOfAddress,
+  roundTripOf,
+  routeTableOf,
+} from './routeTable.js'
+import { Drawer, Sheet, entriesOf } from './structure.js'
+import { parseStack } from './uri.js'
 
 const TitleSlug = S.String.check(
   S.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
@@ -125,5 +131,80 @@ describe('every address a Program can be at', () => {
 
   it('makes the same samples every time, so a generated file never changes by itself', () => {
     expect(addressesOf(navigation)).toEqual(addressesOf(navigation))
+  })
+})
+
+// A wrapper adds its screens after the Program's own, as the session's
+// settings and the action menu are added over an app: here a sheet named
+// by an exact word, declared after a route that takes any name tag.
+const Settings = ts('Settings')
+
+const wrapped = screens({
+  slug: 'shelf',
+  root: rootScreen(Shelf, Route.here, { title: () => 'Shelf' }),
+  screens: [
+    pushScreen(Title, Route.schemaSegment('slug', TitleSlug), {
+      isAllowedAbove: topIs('Shelf'),
+    }),
+    pushScreen(Listen, Route.literal('listen'), {
+      isAllowedAbove: topIs('Title'),
+    }),
+    presentScreen(Settings, Route.literal('settings'), Sheet(), {
+      isAllowedAbove: beneath => !Array.some(beneath, isTagged('Settings')),
+    }),
+  ],
+})
+
+const topNameAt = (uri: string): Option.Option<string> =>
+  pipe(
+    parseStack(wrapped, uri),
+    stack => Array.last(entriesOf(stack)),
+    Option.map(entry => entry.destination._tag),
+  )
+
+describe('an address a Program prints, parsed back', () => {
+  it('is the screen an exact word names, wherever a route that takes any name was declared', () => {
+    expect(topNameAt('/shelf/settings')).toEqual(Option.some('Settings'))
+    expect(topNameAt('/shelf/moby')).toEqual(Option.some('Title'))
+    expect(topNameAt('/shelf/moby/settings')).toEqual(Option.some('Settings'))
+    expect(topNameAt('/shelf/moby/listen')).toEqual(Option.some('Listen'))
+  })
+
+  it('is the stack it was printed for, for every declared route in every place it may sit', () => {
+    const trip = roundTripOf(wrapped)
+    expect(trip.faults).toEqual([])
+    expect(Array.map(trip.printed, each => each.names)).toEqual([
+      ['Shelf'],
+      ['Shelf', 'Title'],
+      ['Shelf', 'Settings'],
+      ['Shelf', 'Title', 'Listen'],
+      ['Shelf', 'Title', 'Settings'],
+      ['Shelf', 'Title', 'Listen', 'Settings'],
+    ])
+  })
+
+  it('says which printed address parses back as another stack', () => {
+    // A Program that declares the same exact word twice: the second can
+    // never be reached by its own address.
+    const Other = ts('Other')
+    const twice = screens({
+      slug: 'shelf',
+      root: rootScreen(Shelf, Route.here, { title: () => 'Shelf' }),
+      screens: [
+        pushScreen(Profile, Route.literal('same'), {}),
+        pushScreen(Other, Route.literal('same'), {}),
+      ],
+    })
+    expect(
+      Array.findFirst(roundTripOf(twice, { maxDepth: 2 }).faults, fault =>
+        Array.last(fault.names).pipe(Option.contains('Other')),
+      ),
+    ).toEqual(
+      Option.some({
+        names: ['Shelf', 'Other'],
+        printed: '/shelf/same',
+        parsedNames: ['Shelf', 'Profile'],
+      }),
+    )
   })
 })
