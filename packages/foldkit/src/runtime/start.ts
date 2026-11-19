@@ -6,6 +6,7 @@ import {
   Layer,
   Option,
   Order,
+  Predicate,
   Result,
   Schema as S,
   Schedule,
@@ -54,6 +55,7 @@ import {
   readRowString,
   rowOrderOf,
 } from './syncEngine.js'
+import type { ObserveSync, SyncTrace, SyncTraceFact } from './syncTrace.js'
 
 /** A Program produced by {@link Program.compose.sync}. */
 export type SyncStartProgram<
@@ -111,6 +113,12 @@ export type StartedProgram<
 > = ProgramRuntime<Model, Message, P> &
   Readonly<{
     lastWrite: () => Option.Option<SyncWriteResult>
+    /**
+     * Hears what this runtime did with its sync engine, as it happens:
+     * each row written and how the write ended, each row received,
+     * dropped or refused, and each change of its link.
+     */
+    observeSync: ObserveSync
     /**
      * Completes once this Processor has asked the sync engine for the log
      * rows it had not seen: `CaughtUp` when it read them and the Model
@@ -396,14 +404,62 @@ export function start<
       Model: program.of.Model,
     }
 
+    // NOTE: What this runtime does with its engine is told to whoever
+    // listens, as it happens: telemetry writes it on the same lines as
+    // the Program's transitions, so two devices' files answer whether a
+    // row one wrote reached the other, and when. A listener that throws
+    // is ignored: watching never changes what the runtime does.
+    const syncListeners = new Set<(trace: SyncTrace) => void>()
+    const observeSync: ObserveSync = listener => {
+      syncListeners.add(listener)
+      return () => {
+        syncListeners.delete(listener)
+      }
+    }
+    const traceSync = (fact: SyncTraceFact): void => {
+      if (syncListeners.size === 0) {
+        return
+      }
+      /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+      const trace = { ...fact, timestamp: clock() } as SyncTrace
+      for (const listener of syncListeners) {
+        try {
+          listener(trace)
+        } catch {
+          // A listener never fails the runtime it watches.
+        }
+      }
+    }
+
     const runtime = yield* makeProgramRuntime({
       program,
       resources: (config.resources ?? Layer.empty) as Layer.Layer<Resources>,
       ...(config.observers === undefined
         ? {}
-        : { observers: config.observers }),
+        : {
+            observers: Array.map(
+              config.observers,
+              (observer): ProgramRuntimeObserver<Model, Message> =>
+                observation =>
+                  observer({ ...observation, observeSync }),
+            ),
+          }),
     })
     yield* runtime.initialization
+
+    const tagOfMessage = (message: unknown): string =>
+      Predicate.hasProperty(message, '_tag') && typeof message._tag === 'string'
+        ? message._tag
+        : ''
+
+    const tagOfRow = (row: unknown): string =>
+      Option.match(decodeUnknown(program.message, row), {
+        onNone: () => '',
+        onSome: tagOfMessage,
+      })
+
+    const fromOfRow = (row: unknown): string =>
+      Option.getOrElse(readRowString(row, 'from'), () => '')
 
     const sendFromSync = (message: Message): void => {
       runtime.send(message, { source: fromSync() })
@@ -820,15 +876,25 @@ export function start<
         } else if (Option.isSome(writtenOrder)) {
           bumpLastApplied(writtenOrder.value)
         }
+        const wroteRow = {
+          rowId: idOfRow(write.message),
+          message: tagOfMessage(message),
+        }
         if (Array.isArrayNonEmpty(outbox)) {
           outbox.push(write)
           lastWrite = Option.some({ link: 'queued' })
+          traceSync({ _tag: 'QueuedRow', ...wroteRow })
           return
         }
         const written = yield* engine.write(write).pipe(Effect.result)
         if (Result.isFailure(written)) {
           outbox.push(write)
           lastWrite = Option.some({ link: 'queued' })
+          traceSync({
+            _tag: 'FailedToWriteRow',
+            ...wroteRow,
+            cause: written.failure.cause,
+          })
           sendFromSync(
             asMessage<Message>(
               transportFailed({
@@ -845,6 +911,12 @@ export function start<
           return
         }
         lastWrite = Option.some(written.success)
+        traceSync({
+          _tag: 'WroteRow',
+          ...wroteRow,
+          link: written.success.link,
+          isRetry: false,
+        })
       })
 
     const flushOutbox = (): Effect.Effect<void> =>
@@ -861,6 +933,13 @@ export function start<
             return
           }
           lastWrite = Option.some(written.success)
+          traceSync({
+            _tag: 'WroteRow',
+            rowId: idOfRow(write.message),
+            message: tagOfRow(write.message),
+            link: written.success.link,
+            isRetry: true,
+          })
         }
       })
 
@@ -894,6 +973,12 @@ export function start<
     const applyRemoteRow = (row: unknown): void => {
       const decoded = decodeUnknown(program.message, row)
       if (Option.isNone(decoded)) {
+        traceSync({
+          _tag: 'DroppedRow',
+          rowId: idOfRow(row),
+          from: fromOfRow(row),
+          cause: 'Message Schema decode failed.',
+        })
         sendFromSync(
           asMessage<Message>(
             decodeFailed({
@@ -911,14 +996,39 @@ export function start<
       if (isLocalOnlyFromLog(decoded.value)) {
         return
       }
+      const receivedRow = {
+        rowId: idOfRow(row),
+        message: tagOfMessage(decoded.value),
+        from: fromOfRow(row),
+      }
       if (appliesHere(currentPolicy(), decoded.value, row)) {
+        traceSync({ _tag: 'ReceivedRow', ...receivedRow, isLate: false })
         sendFromSync(
           asMessage<Message>({
             _tag: 'RemoteMessageReceived',
             message: decoded.value,
           }),
         )
+      } else {
+        traceSync({
+          _tag: 'RefusedRow',
+          ...receivedRow,
+          cause:
+            "The session's policy keeps this Message on the Processor that sent it.",
+        })
       }
+    }
+
+    // A row that landed behind the last one applied is folded in by
+    // refolding the log, so it is told here, where it arrived.
+    const traceLateRow = (row: unknown): void => {
+      traceSync({
+        _tag: 'ReceivedRow',
+        rowId: idOfRow(row),
+        message: tagOfRow(row),
+        from: fromOfRow(row),
+        isLate: true,
+      })
     }
 
     /**
@@ -948,6 +1058,10 @@ export function start<
         idsPastCursor.clear()
       }
       if (isAnyLate) {
+        Array.forEach(
+          Array.filter(fresh, row => !isOwnRow(row)),
+          traceLateRow,
+        )
         refold()
       } else {
         pipe(
@@ -1002,6 +1116,9 @@ export function start<
         return
       }
       if (isOwnRow(event.row)) {
+        if (unconfirmedIds.has(idOfRow(event.row))) {
+          traceSync({ _tag: 'ConfirmedRow', rowId: idOfRow(event.row) })
+        }
         rememberEngineRow(event.row)
         return
       }
@@ -1011,6 +1128,7 @@ export function start<
       if (isBehindApplied(event.row)) {
         if (engine.readSince === undefined) {
           rememberRow(event.row)
+          traceLateRow(event.row)
           refold()
         } else {
           checkPastCursor()
@@ -1115,6 +1233,11 @@ export function start<
       )
 
       yield* engine.subscribe(onEvent)
+      if (engine.links !== undefined) {
+        yield* engine.links(link => {
+          traceSync({ _tag: 'LinkChanged', link })
+        })
+      }
       yield* flushOutbox().pipe(
         Effect.repeat(Schedule.spaced(Duration.millis(outboxFlushMs))),
         Effect.forkScoped,
@@ -1165,6 +1288,7 @@ export function start<
       },
       lastWrite: () => lastWrite,
       caughtUp: Deferred.await(caughtUp),
+      observeSync,
     }
   })
 }

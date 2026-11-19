@@ -88,6 +88,7 @@ import {
   subscriptionFailureSource,
   updateFailureSource,
 } from './runtimeDiagnostic.js'
+import type { ObserveSync } from './syncTrace.js'
 
 type Operation = {
   readonly id: number
@@ -309,8 +310,9 @@ export type ProgramRuntime<
 /**
  * The read-only part of a running Program that an observer gets: its id
  * and version, every transition, every Subscription and ManagedResource
- * diagnostic, every terminal failure, and its Command spans through
- * `installCommandTracer`. It cannot send a Message or read the Model
+ * diagnostic, every terminal failure, its Command spans through
+ * `installCommandTracer`, and, when it is synced, what its sync runtime
+ * did through `observeSync`. It cannot send a Message or read the Model
  * outside a transition, so watching a Program never changes it.
  */
 export type ProgramRuntimeObservation<Model, Message> = Pick<
@@ -325,7 +327,15 @@ export type ProgramRuntimeObservation<Model, Message> = Pick<
   | 'observeFailures'
   | 'failures'
   | 'installCommandTracer'
->
+> &
+  Readonly<{
+    /**
+     * Hears what the sync runtime above this Program did: rows written,
+     * received, dropped or refused, and each change of its link. Absent
+     * for a Program that runs with no sync engine.
+     */
+    observeSync?: ObserveSync
+  }>
 
 /**
  * Connects to a Program runtime before it boots, in a Scope the runtime

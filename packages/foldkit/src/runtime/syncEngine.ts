@@ -1,6 +1,7 @@
 import { Array, Data, Effect, Option, Scope } from 'effect'
 
 import { type Host, print } from '../processor/host.js'
+import type { SyncLinkState } from './syncTrace.js'
 
 /** Result of one sync write. Isolated Memory reports `offline`. */
 export type SyncLink = 'offline' | 'queued' | 'delivered'
@@ -65,6 +66,14 @@ export type SyncEngine = Readonly<{
   write: (
     write: SyncWrite,
   ) => Effect.Effect<SyncWriteResult, SyncTransportError>
+  /**
+   * Tells where the engine's link to its store stands: its state now,
+   * then each change, until the Scope closes. An engine that cannot know
+   * leaves it out, and its runtime's trace then holds no link changes.
+   */
+  links?: (
+    listener: (link: SyncLinkState) => void,
+  ) => Effect.Effect<void, never, Scope.Scope>
 }>
 
 /** Shared Memory rows. Two Processors share one store. */
@@ -122,6 +131,16 @@ export const Memory = (options?: {
   let isOffline = false
   const queuedWrites: Array<SyncWrite> = []
   const ownListeners = new Set<(event: SyncEvent) => void>()
+  const linkListeners = new Set<(link: SyncLinkState) => void>()
+
+  const linkNow = (): SyncLinkState =>
+    isIsolated || isOffline ? 'Offline' : 'Connected'
+
+  const tellLink = (): void => {
+    for (const listener of linkListeners) {
+      listener(linkNow())
+    }
+  }
 
   const notify = (event: SyncEvent): void => {
     for (const listener of store.listeners) {
@@ -155,9 +174,11 @@ export const Memory = (options?: {
     },
     goOffline: () => {
       isOffline = true
+      tellLink()
     },
     comeOnline: () => {
       isOffline = false
+      tellLink()
       const writes = queuedWrites.splice(0)
       for (const write of writes) {
         applyWrite(write)
@@ -177,6 +198,17 @@ export const Memory = (options?: {
       store.messages.push(row)
       notify({ _tag: 'Message', row })
     },
+    links: listener =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          linkListeners.add(listener)
+          listener(linkNow())
+        }),
+        () =>
+          Effect.sync(() => {
+            linkListeners.delete(listener)
+          }),
+      ),
     read: () => {
       if (pendingReadFailure !== undefined) {
         const cause = pendingReadFailure
