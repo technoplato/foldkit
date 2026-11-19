@@ -40,6 +40,7 @@ import {
   type Title,
   wholeBookChapters,
 } from './model.js'
+import { titleTagStands } from './nameTags.js'
 
 // ROWS
 
@@ -200,11 +201,17 @@ const slugOfName = (name: string): string =>
     String.replace(/^-+|-+$/g, ''),
   )
 
+// NOTE: A name tag is taken when another title has it, and when it cannot
+// be a title's at all: `menu`, `session` and `profile` are Books' own
+// screens' words, and the exact word opens the screen. Such a title gets
+// a number, as a second title of the same name does, so its own link
+// opens it.
 const uniqueSlugs = (names: ReadonlyArray<string>): ReadonlyArray<TitleSlug> =>
   Array.reduce(names, Array.empty<TitleSlug>(), (taken, name) => {
     const base = slugOfName(name) || 'title'
     const isTaken = (candidate: string) =>
-      Array.some(taken, slug => slug === candidate)
+      Array.some(taken, slug => slug === candidate) ||
+      !titleTagStands(candidate)
     const next = isTaken(base)
       ? Option.getOrElse(
           Array.findFirst(

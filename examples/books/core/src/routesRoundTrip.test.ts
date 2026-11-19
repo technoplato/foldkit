@@ -1,4 +1,4 @@
-import { Array, pipe } from 'effect'
+import { Array, Option, pipe } from 'effect'
 import { Navigation } from 'foldkit'
 import { roundTripOf, routeTableOf } from 'foldkit/navigation/route-table'
 import { describe, expect, it } from 'vitest'
@@ -9,7 +9,7 @@ import { App } from './app.js'
 // and the action menu that are added over them. A shared link or a deep
 // link is a printed address, so each must open the screen it was printed
 // for, on every Client.
-const navigation = App.navigation
+const navigation = Option.getOrThrow(Option.fromNullishOr(App.navigation))
 
 const namesAt = (uri: string): ReadonlyArray<string> => {
   const stack = Navigation.parseStack(navigation, uri)

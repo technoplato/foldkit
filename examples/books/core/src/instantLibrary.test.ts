@@ -39,7 +39,10 @@ const itemRow = (itemId: string, title: string, addedAtMs: number) => ({
 })
 
 const namesAt = (uri: string): ReadonlyArray<string> => {
-  const stack = Navigation.parseStack(App.navigation, uri)
+  const stack = Navigation.parseStack(
+    Option.getOrThrow(Option.fromNullishOr(App.navigation)),
+    uri,
+  )
   return Array.map(
     [
       stack.root,
