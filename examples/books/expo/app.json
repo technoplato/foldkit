@@ -9,7 +9,12 @@
     "newArchEnabled": true,
     "plugins": [
       "expo-router",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ],
       "expo-secure-store",
       "expo-web-browser"
     ],
