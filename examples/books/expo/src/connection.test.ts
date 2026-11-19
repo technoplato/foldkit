@@ -1,7 +1,7 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { connectionFrom, isBackAtBooks } from './connection'
+import { connectionFrom } from './connection'
 
 const origin = 'https://books.example'
 
@@ -29,28 +29,5 @@ describe('which library the phone opens', () => {
         origin,
       ),
     ).toEqual(Option.none())
-  })
-})
-
-describe('when a person has finished signing in', () => {
-  it('is when the sign-in page has come back to Books itself', () => {
-    expect(isBackAtBooks(`${origin}/books`, origin)).toBe(true)
-    expect(isBackAtBooks(`${origin}/`, origin)).toBe(true)
-  })
-
-  it('is not while the sign-in is still on its own pages', () => {
-    expect(
-      isBackAtBooks(
-        'https://team.cloudflareaccess.com/cdn-cgi/access/login/x',
-        origin,
-      ),
-    ).toBe(false)
-    expect(
-      isBackAtBooks(`${origin}/cdn-cgi/access/authorized?nonce=1`, origin),
-    ).toBe(false)
-    expect(isBackAtBooks('https://books.example.evil.test/books', origin)).toBe(
-      false,
-    )
-    expect(isBackAtBooks('about:blank', origin)).toBe(false)
   })
 })

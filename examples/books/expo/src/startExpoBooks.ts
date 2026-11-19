@@ -17,7 +17,11 @@ import { Layer } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 import { Platform } from 'react-native'
 
-import { Instant, withHostedIdentity } from '@foldkit/instant/browser'
+import {
+  Instant,
+  accessRequestHeaders,
+  withHostedIdentity,
+} from '@foldkit/instant/browser'
 import { init } from '@instantdb/react-native'
 
 import type { PhoneConnection } from './connection'
@@ -100,7 +104,9 @@ export const phoneDatabase = (connection: PhoneConnection): PhoneDatabase => {
  * the Audible import through the site, and the phone's own audio,
  * appearance and sharing. It is the browser's start with the phone's
  * services in place of the browser's. The books read aloud are not on the
- * phone yet. Call it once the person is signed in.
+ * phone yet. Call it once the person is signed in, with the session the
+ * sign-in gave, which a phone presents itself where a browser's cookie
+ * would.
  *
  * @example
  * ```typescript
@@ -109,6 +115,7 @@ export const phoneDatabase = (connection: PhoneConnection): PhoneDatabase => {
  */
 export const startSignedInExpoBooks = (
   connection: PhoneConnection,
+  maybeSession?: string,
 ): Promise<BoundBooks> =>
   startedOnce(() => {
     const running: Running = { maybeBooks: undefined }
@@ -134,13 +141,22 @@ export const startSignedInExpoBooks = (
         ),
         Layer.succeed(
           Audible.AudibleImport,
-          Audible.httpAudibleImport({ origin: connection.sessionOrigin }),
+          Audible.httpAudibleImport({
+            origin: connection.sessionOrigin,
+            headers:
+              maybeSession === undefined
+                ? {}
+                : accessRequestHeaders(maybeSession),
+          }),
         ),
         noReadAloud,
         phoneResources(running),
       ),
       database,
-      { sessionOrigin: connection.sessionOrigin },
+      {
+        sessionOrigin: connection.sessionOrigin,
+        ...(maybeSession === undefined ? {} : { accessToken: maybeSession }),
+      },
     )
     const books = bindBooks(
       Runtime.startHandle({ program: SyncedBooks, sync, resources, host }),

@@ -7,7 +7,12 @@
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "plugins": ["expo-router", "expo-audio"],
+    "plugins": [
+      "expo-router",
+      "expo-audio",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
     "ios": {
       "bundleIdentifier": "com.knophy.foldkit.books.dev",
       "supportsTablet": true,

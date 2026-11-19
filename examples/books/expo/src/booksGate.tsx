@@ -1,19 +1,13 @@
 import { type BoundBooks, booksOrigin } from 'books-core-example/browser'
-import { Option, Schema as S } from 'effect'
+import { Option } from 'effect'
 import { type ReactElement, useEffect, useMemo, useState } from 'react'
+import { Pressable, Text } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { WebView } from 'react-native-webview'
 
-import {
-  ensureHostedInstantSession,
-  hostedIdentitySessionPath,
-} from '@foldkit/instant/browser'
+import { ensureHostedInstantSession } from '@foldkit/instant/browser'
 
-import {
-  type PhoneConnection,
-  connectionFrom,
-  isBackAtBooks,
-} from './connection'
+import { loadKeptSession, signInThroughTheSystem } from './access'
+import { type PhoneConnection, connectionFrom } from './connection'
 import {
   phoneDatabase,
   startMadeUpExpoBooks,
@@ -24,34 +18,36 @@ import {
 
 type Gate =
   | Readonly<{ _tag: 'Opening' }>
-  | Readonly<{ _tag: 'SigningIn'; connection: PhoneConnection }>
+  | Readonly<{ _tag: 'SignedOut'; connection: PhoneConnection }>
   | Readonly<{ _tag: 'Open'; books: BoundBooks }>
 
-// NOTE: the site answers a visitor who is not signed in at its root by
-// sending them to sign in, and brings them back there. Its book pages
-// answer such a visitor with a public preview or nothing.
-const signInPath = '/'
-
-const MintedSession = S.Struct({ token: S.String })
-
-const decodeMinted = S.decodeUnknownOption(S.fromJsonString(MintedSession))
-
-// NOTE: the page asks the site's own mint for a session, as the web does,
-// and hands the answer to the app. The sign-in's cookie never leaves the
-// page, and nothing here keeps the answer: Instant keeps its own session.
-const askTheMint = `fetch(${JSON.stringify(hostedIdentitySessionPath)}, { credentials: 'include' })
-  .then(response => response.text())
-  .then(text => window.ReactNativeWebView.postMessage(text))
-  .catch(() => window.ReactNativeWebView.postMessage(''));
-true;`
+/**
+ * Opens a person's library with the session the phone holds, by asking
+ * the site's mint, as the web does. None when the mint signs nobody in.
+ */
+const openLibrary = async (
+  connection: PhoneConnection,
+  maybeSession: string | undefined,
+): Promise<Option.Option<BoundBooks>> => {
+  const member = await ensureHostedInstantSession(
+    phoneDatabase(connection).core,
+    {
+      sessionOrigin: connection.sessionOrigin,
+      ...(maybeSession === undefined ? {} : { accessToken: maybeSession }),
+    },
+  )
+  return member === null
+    ? Option.none()
+    : Option.some(await startSignedInExpoBooks(connection, maybeSession))
+}
 
 /**
  * Opens Books for the app: the made-up library when the app was built
  * with no library to open, else a person's own. A person who is not
- * signed in yet sees the same sign-in page the web shows, inside the
- * app; when it comes back to Books, the page asks the site's mint for
- * their session and the app opens their library. The next launch finds
- * the session the phone kept and shows no sign-in.
+ * signed in yet is taken to the system's own sign-in sheet, the same
+ * sign-in the web uses; when it comes back the app opens their library.
+ * The next launch finds the session the phone kept and shows no sign-in.
+ * A person who closes the sheet can open it again.
  *
  * @example
  * ```tsx
@@ -76,34 +72,51 @@ export const BooksGate = ({
     [],
   )
   const [gate, setGate] = useState<Gate>({ _tag: 'Opening' })
-  const [isAsking, setIsAsking] = useState(false)
+
+  const signIn = (connection: PhoneConnection): void => {
+    setGate({ _tag: 'Opening' })
+    void signInThroughTheSystem()
+      .then(outcome =>
+        outcome._tag === 'SignedIn'
+          ? openLibrary(connection, outcome.accessToken)
+          : Option.none<BoundBooks>(),
+      )
+      .then(
+        Option.match({
+          onNone: () => {
+            setGate({ _tag: 'SignedOut', connection })
+          },
+          onSome: books => {
+            setGate({ _tag: 'Open', books })
+          },
+        }),
+      )
+  }
 
   useEffect(() => {
-    let isLeft = false
-    const open = (books: BoundBooks): void => {
-      if (!isLeft) {
-        setGate({ _tag: 'Open', books })
-      }
-    }
     Option.match(maybeConnection, {
       onNone: () => {
-        void startMadeUpExpoBooks().then(open)
-      },
-      onSome: connection => {
-        void ensureHostedInstantSession(phoneDatabase(connection).core, {
-          sessionOrigin: connection.sessionOrigin,
-        }).then(member => {
-          if (member !== null) {
-            void startSignedInExpoBooks(connection).then(open)
-          } else if (!isLeft) {
-            setGate({ _tag: 'SigningIn', connection })
-          }
+        void startMadeUpExpoBooks().then(books => {
+          setGate({ _tag: 'Open', books })
         })
       },
+      onSome: connection => {
+        void loadKeptSession()
+          .then(kept => openLibrary(connection, kept))
+          .then(
+            Option.match({
+              onNone: () => {
+                signIn(connection)
+              },
+              onSome: books => {
+                setGate({ _tag: 'Open', books })
+              },
+            }),
+          )
+      },
     })
-    return () => {
-      isLeft = true
-    }
+    // NOTE: the gate opens once, for the library the app was built with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maybeConnection])
 
   if (gate._tag === 'Open') {
@@ -113,37 +126,20 @@ export const BooksGate = ({
   } else {
     const connection = gate.connection
     return (
-      <SafeAreaView style={{ flex: 1 }}>
-        <WebView
-          injectedJavaScript={isAsking ? askTheMint : undefined}
-          key={isAsking ? 'asking' : 'signing-in'}
-          onMessage={event => {
-            Option.match(decodeMinted(event.nativeEvent.data), {
-              onNone: () => {
-                setIsAsking(false)
-              },
-              onSome: minted => {
-                void phoneDatabase(connection)
-                  .core.auth.signInWithToken(minted.token)
-                  .then(() => startSignedInExpoBooks(connection))
-                  .then(books => {
-                    setGate({ _tag: 'Open', books })
-                  })
-              },
-            })
+      <SafeAreaView
+        style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}
+      >
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={16}
+          onPress={() => {
+            signIn(connection)
           }}
-          onNavigationStateChange={state => {
-            if (
-              !isAsking &&
-              !state.loading &&
-              isBackAtBooks(state.url, connection.sessionOrigin)
-            ) {
-              setIsAsking(true)
-            }
-          }}
-          sharedCookiesEnabled
-          source={{ uri: `${connection.sessionOrigin}${signInPath}` }}
-        />
+        >
+          <Text style={{ fontSize: 17, fontWeight: '600' }}>
+            Sign in to Books
+          </Text>
+        </Pressable>
       </SafeAreaView>
     )
   }

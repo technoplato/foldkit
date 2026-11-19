@@ -50,12 +50,18 @@ describe('Books Expo boundaries', () => {
     expect(start).toContain('books-core-example')
   })
 
-  it('keeps no sign-in secret: no token, cookie or password is written by the app', () => {
+  it('keeps a sign-in session in the device’s secure store and nowhere else', () => {
     const sources = [...sourcesIn(appDir), ...sourcesIn(here)]
     for (const file of sources) {
       const source = readFileSync(file, 'utf8')
-      expect(source, file).not.toMatch(/AsyncStorage\.setItem|SecureStore/)
-      expect(source, file).not.toMatch(/CF_Authorization|password/i)
+      expect(source, file).not.toMatch(/AsyncStorage\.setItem|console\./)
+      expect(source, file).not.toMatch(/react-native-webview|password/i)
+      if (!file.endsWith('access.ts')) {
+        expect(source, file).not.toMatch(/SecureStore|cf_authorization/i)
+      }
     }
+    const access = readFileSync(join(here, 'access.ts'), 'utf8')
+    expect(access).toContain('openAuthSessionAsync')
+    expect(access).toContain('SecureStore.setItemAsync')
   })
 })
