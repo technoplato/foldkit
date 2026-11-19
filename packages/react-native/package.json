@@ -20,6 +20,10 @@
       "types": "./dist/theme/index.d.ts",
       "import": "./dist/theme/index.js"
     },
+    "./telemetry": {
+      "types": "./dist/telemetry/index.d.ts",
+      "import": "./dist/telemetry/index.js"
+    },
     "./plugin/sceneLifecycle.cjs": "./plugin/sceneLifecycle.cjs"
   },
   "bin": {
