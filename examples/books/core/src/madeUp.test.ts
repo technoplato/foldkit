@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { madeUpSessionLog, startMadeUpBooks } from './madeUp.js'
 import { BooksProgram } from './program.js'
-import { bindBooks } from './synced.js'
+import { bindBooks, whenShelfOpened } from './synced.js'
 
 const settleMs = 3_000
 
@@ -72,15 +72,36 @@ describe('the made-up library on a host', () => {
       return model._tag === 'Ready' ? model.session.mode : model._tag
     }
 
-    onTerminal.press('MirrorNavigation')
-    await waitUntil(() => modeOn(onPhone) === 'Mirror')
-    await waitUntil(() => onTerminal.press(`Open:${title}`))
+    // NOTE: A Program is settled before its shelf has opened, and a title
+    // that is not on the shelf yet cannot be opened. Once the shelf is
+    // in, a press straight after mirroring is taken at once, with no
+    // press repeated until it is.
+    await whenShelfOpened(terminal, settleMs)
+    await whenShelfOpened(phone, settleMs)
+    expect(onTerminal.press('MirrorNavigation')).toBe(true)
+    expect(onTerminal.press(`Open:${title}`)).toBe(true)
     await waitUntil(() => addressOn(onPhone) === `/books/${title}`)
 
     expect(modeOn(onPhone)).toBe('Mirror')
     expect(addressOn(onPhone)).toBe(`/books/${title}`)
     await phone.stop()
     await terminal.stop()
+  })
+
+  it('says when its shelf has opened, at once when it already has, and gives up after the time it is given', async () => {
+    const handle = await startMadeUpBooks({ host: Processor.Host.Cli() })
+    const bound = bindBooks(handle)
+    await Interaction.whenSettled(bound, settleMs)
+    await whenShelfOpened(handle, settleMs)
+    const model = handle.readModel()
+    expect(model._tag === 'Ready' ? model.library._tag : model._tag).toBe(
+      'ShelfReady',
+    )
+    expect(bound.press('Open:the-lantern-keeper')).toBe(true)
+    const startedAtMs = Date.now()
+    await whenShelfOpened(handle, settleMs)
+    expect(Date.now() - startedAtMs).toBeLessThan(50)
+    await handle.stop()
   })
 
   it('keeps the session every device shares under a name of its own, never a person’s library', () => {
