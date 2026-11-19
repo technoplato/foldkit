@@ -518,3 +518,79 @@ describe('formatSummary', () => {
     )
   })
 })
+
+// NOTE: A Message that carries a whole collection each time one row of it
+// changes costs every Client a decode, an update and a repaint, and its
+// count alone hides it: a few a minute, each the size of the library.
+describe('the Messages that weigh the most', () => {
+  const shelf = { titles: 'x'.repeat(1_000) }
+  const place = { placeMs: 12_000 }
+  const weighed = (
+    secondsAfterStart: number,
+    message: string,
+    payload: Transition['payload'],
+  ): TelemetryEvent =>
+    Transition.make({
+      ...envelopeAt(secondsAfterStart),
+      transition: 1,
+      message,
+      payload,
+      source: { _tag: 'Subscription', name: 'shelf' },
+      commands: [],
+      isModelChanged: true,
+      changedPathCount: 1,
+    })
+  const playing: ReadonlyArray<TelemetryEvent> = [
+    ...[0, 10, 20, 30, 40, 50].map(second =>
+      weighed(second, 'ReceivedShelf', shelf),
+    ),
+    ...Array.from({ length: 61 }, (_, second) =>
+      weighed(second, 'ReachedPlace', place),
+    ),
+    transition(60, 'Pause'),
+  ]
+  const shelfBytes = JSON.stringify(shelf).length
+  const placeBytes = JSON.stringify(place).length
+
+  it('are ranked by the bytes their payloads carried, with how much that is a minute', () => {
+    const [surface] = summarize(playing).surfaces
+    expect(surface?.heaviestMessages).toEqual([
+      {
+        message: 'ReceivedShelf',
+        count: 6,
+        payloadBytes: 6 * shelfBytes,
+        largestBytes: shelfBytes,
+        bytesPerMinute: 6 * shelfBytes,
+      },
+      {
+        message: 'ReachedPlace',
+        count: 61,
+        payloadBytes: 61 * placeBytes,
+        largestBytes: placeBytes,
+        bytesPerMinute: 61 * placeBytes,
+      },
+    ])
+  })
+
+  it('leave out a Message that carried nothing', () => {
+    const [surface] = summarize(playing).surfaces
+    expect(surface?.heaviestMessages.map(row => row.message)).not.toContain(
+      'Pause',
+    )
+  })
+
+  it('are printed with the rest of the surface, and not at all when no payload was recorded', () => {
+    const printed = formatSummary(summarize(playing), 'books-web-react.ndjson')
+    expect(printed).toContain(
+      [
+        '  Heaviest Messages',
+        '    bytes a minute  count  largest  message',
+        `    ${(6 * shelfBytes).toString().padEnd(14)}  6      ${shelfBytes.toString().padEnd(7)}  ReceivedShelf`,
+        `    ${(61 * placeBytes).toString().padEnd(14)}  61     ${placeBytes.toString().padEnd(7)}  ReachedPlace`,
+      ].join('\n'),
+    )
+    expect(
+      formatSummary(summarize(events), 'books-web-react.ndjson'),
+    ).not.toContain('Heaviest Messages')
+  })
+})
