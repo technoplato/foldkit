@@ -68,3 +68,18 @@ export const madeUpShelfOf = (
   (env['EXPO_PUBLIC_BOOKS_MADE_UP_SHELF'] ?? '').trim() === 'long'
     ? 'Long'
     : 'Three'
+
+/**
+ * Whether a build that is not for development is asked to keep the trace
+ * a development build keeps: `EXPO_PUBLIC_BOOKS_TELEMETRY=1`. It is for
+ * measuring the app as a person gets it, without a development build's
+ * own weight.
+ *
+ * @example
+ * ```typescript
+ * isTelemetryAsked({ EXPO_PUBLIC_BOOKS_TELEMETRY: '1' }) // true
+ * ```
+ */
+export const isTelemetryAsked = (
+  env: Readonly<Record<string, string | undefined>>,
+): boolean => (env['EXPO_PUBLIC_BOOKS_TELEMETRY'] ?? '').trim() !== ''

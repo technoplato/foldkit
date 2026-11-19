@@ -3,6 +3,7 @@ declare const process: {
     readonly EXPO_PUBLIC_BOOKS_INSTANT_APP_ID?: string
     readonly EXPO_PUBLIC_BOOKS_MADE_UP?: string
     readonly EXPO_PUBLIC_BOOKS_MADE_UP_SHELF?: string
+    readonly EXPO_PUBLIC_BOOKS_TELEMETRY?: string
     readonly [key: string]: string | undefined
   }
 }

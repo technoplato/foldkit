@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   connectionFrom,
   isMadeUpSessionShared,
+  isTelemetryAsked,
   madeUpShelfOf,
 } from './connection'
 
@@ -71,5 +72,13 @@ describe('how long the made-up shelf is', () => {
       'Three',
     )
     expect(madeUpShelfOf({})).toBe('Three')
+  })
+})
+
+describe('a trace from a build that is not for development', () => {
+  it('is kept only when the build asks for it', () => {
+    expect(isTelemetryAsked({ EXPO_PUBLIC_BOOKS_TELEMETRY: '1' })).toBe(true)
+    expect(isTelemetryAsked({ EXPO_PUBLIC_BOOKS_TELEMETRY: ' ' })).toBe(false)
+    expect(isTelemetryAsked({})).toBe(false)
   })
 })
