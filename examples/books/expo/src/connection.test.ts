@@ -1,7 +1,11 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { connectionFrom, isMadeUpSessionShared } from './connection'
+import {
+  connectionFrom,
+  isMadeUpSessionShared,
+  madeUpShelfOf,
+} from './connection'
 
 const origin = 'https://books.example'
 
@@ -55,5 +59,17 @@ describe('the made-up library as one session on every device', () => {
         ),
       ),
     ).toBe(true)
+  })
+})
+
+describe('how long the made-up shelf is', () => {
+  it('is the long one only when asked for by name', () => {
+    expect(madeUpShelfOf({ EXPO_PUBLIC_BOOKS_MADE_UP_SHELF: 'long' })).toBe(
+      'Long',
+    )
+    expect(madeUpShelfOf({ EXPO_PUBLIC_BOOKS_MADE_UP_SHELF: '1' })).toBe(
+      'Three',
+    )
+    expect(madeUpShelfOf({})).toBe('Three')
   })
 })

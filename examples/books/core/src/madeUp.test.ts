@@ -117,11 +117,14 @@ describe('the made-up library on a host', () => {
     })
     const bound = bindBooks(handle)
     await Interaction.whenSettled(bound, settleMs)
-    const model = handle.readModel()
-    const titles =
-      model._tag === 'Ready' && model.library._tag === 'ShelfReady'
+    const titlesNow = () => {
+      const model = handle.readModel()
+      return model._tag === 'Ready' && model.library._tag === 'ShelfReady'
         ? model.library.shelf.titles
         : []
+    }
+    await waitUntil(() => titlesNow().length > 0)
+    const titles = titlesNow()
     const hourMs = 3_600_000
 
     expect(titles).toHaveLength(65)

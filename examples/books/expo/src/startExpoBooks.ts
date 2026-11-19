@@ -108,7 +108,9 @@ const startedOnce = (start: () => Promise<BoundBooks>): Promise<BoundBooks> => {
  * ```
  */
 export const startMadeUpExpoBooks = (
-  options: Readonly<{ isShared: boolean }> = { isShared: false },
+  options: Readonly<{ isShared: boolean; shelf?: 'Three' | 'Long' }> = {
+    isShared: false,
+  },
 ): Promise<BoundBooks> =>
   startedOnce(() => {
     const running: Running = { maybeBooks: undefined }
@@ -116,6 +118,7 @@ export const startMadeUpExpoBooks = (
     return startMadeUpBooks({
       host,
       resources: phoneResources(running),
+      ...(options.shelf === undefined ? {} : { shelf: options.shelf }),
       ...(options.isShared
         ? {
             sync: sharedMadeUpSession({

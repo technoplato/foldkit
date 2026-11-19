@@ -51,3 +51,20 @@ export const connectionFrom = (
 export const isMadeUpSessionShared = (
   env: Readonly<Record<string, string | undefined>>,
 ): boolean => (env['EXPO_PUBLIC_BOOKS_MADE_UP'] ?? '').trim() === 'shared'
+
+/**
+ * How long the made-up shelf is: `EXPO_PUBLIC_BOOKS_MADE_UP_SHELF=long`
+ * asks for the one as long as a long-time listener's, for measuring the
+ * app on a real-sized library. Anything else is the three short titles.
+ *
+ * @example
+ * ```typescript
+ * madeUpShelfOf({ EXPO_PUBLIC_BOOKS_MADE_UP_SHELF: 'long' }) // 'Long'
+ * ```
+ */
+export const madeUpShelfOf = (
+  env: Readonly<Record<string, string | undefined>>,
+): 'Three' | 'Long' =>
+  (env['EXPO_PUBLIC_BOOKS_MADE_UP_SHELF'] ?? '').trim() === 'long'
+    ? 'Long'
+    : 'Three'

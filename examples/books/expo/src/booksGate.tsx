@@ -11,6 +11,7 @@ import {
   type PhoneConnection,
   connectionFrom,
   isMadeUpSessionShared,
+  madeUpShelfOf,
 } from './connection'
 import {
   phoneDatabase,
@@ -103,6 +104,10 @@ export const BooksGate = ({
         void startMadeUpExpoBooks({
           isShared: isMadeUpSessionShared({
             EXPO_PUBLIC_BOOKS_MADE_UP: process.env.EXPO_PUBLIC_BOOKS_MADE_UP,
+          }),
+          shelf: madeUpShelfOf({
+            EXPO_PUBLIC_BOOKS_MADE_UP_SHELF:
+              process.env.EXPO_PUBLIC_BOOKS_MADE_UP_SHELF,
           }),
         }).then(books => {
           setGate({ _tag: 'Open', books })

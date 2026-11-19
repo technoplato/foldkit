@@ -131,6 +131,66 @@ export const sampleShelf: Shelf = {
   bookmarks: [],
 }
 
+// LONG SHELF
+
+const longShelfTitleCount = 65
+
+const longBookChapterCount = 134
+
+const longBookMinutesEach = 7.25
+
+const usualChapterCount = 8
+
+const usualMinutesEach = 60
+
+const numbered = (count: number, word: string) =>
+  Array.map(Array.range(1, count), number => `${word} ${number.toString()}`)
+
+// One book of about 16 hours in 134 chapters, then enough made-up titles
+// of about eight hours to fill the shelf.
+const longBooks: ReadonlyArray<SampleBook> = [
+  ...sampleBooks,
+  {
+    slug: 'the-long-way-round',
+    name: 'The Long Way Round',
+    authors: ['Mara Finch'],
+    narrators: ['Owen Hart'],
+    chapterNames: numbered(longBookChapterCount, 'Part'),
+    minutesEach: longBookMinutesEach,
+  },
+  ...Array.map(
+    Array.range(sampleBooks.length + 2, longShelfTitleCount),
+    number => ({
+      slug: `made-up-title-${number.toString()}`,
+      name: `Made-up Title ${number.toString()}`,
+      authors: [`Made-up Author ${number.toString()}`],
+      narrators: [`Made-up Reader ${number.toString()}`],
+      chapterNames: numbered(usualChapterCount, 'Chapter'),
+      minutesEach: usualMinutesEach,
+    }),
+  ),
+]
+
+/**
+ * A made-up shelf as long as a long-time listener's: 65 titles by people
+ * who do not exist, one of them about 16 hours in 134 chapters. It is for
+ * measuring how a Client behaves with a real-sized library and nobody's
+ * own.
+ */
+export const longSampleShelf: Shelf = {
+  titles: Array.map(longBooks, titleOf),
+  progress: [],
+  bookmarks: [],
+}
+
+/** The long made-up shelf's chapters, by slug. */
+export const longSampleChapters: ChaptersBySlug = Record_.fromEntries(
+  Array.map(longBooks, book => [
+    book.slug,
+    chaptersOf(book.chapterNames, book.minutesEach),
+  ]),
+)
+
 const firstBookmarkNumber = 1
 
 const appliedWrite = (

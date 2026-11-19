@@ -5,11 +5,13 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 import { MediaId, Milliseconds } from './ids.js'
 import { LibraryStore } from './library.js'
 import {
+  longSampleChapters,
+  longSampleShelf,
   makeTestLibraryStore,
   noReadAloud,
   noScribeTimeline,
+  sampleChapters,
   sampleShelf,
-  sampleTitles,
 } from './sample.js'
 import { makeTestLinkSharing } from './share.js'
 import type { BooksHandleOnHost } from './startConfig.js'
@@ -117,13 +119,16 @@ export const madeUpSessionLog = 'books-made-up'
  * are services of the host's own that replace the made-up ones of the
  * same kind, such as a phone's audio output and its report of the
  * system's appearance. `sync` is the engine the session runs on; without
- * one it stays in this process.
+ * one it stays in this process. `shelf` is how long the made-up shelf
+ * is: three short titles, or `Long`, 65 titles with one of about 16 hours
+ * in 134 chapters, for measuring a Client on a real-sized library.
  */
 export type MadeUpBooksConfig = Readonly<{
   host: Processor.Host.Host
   library?: (store: LibraryStoreService) => LibraryStoreService
   resources?: Layer.Layer<never>
   sync?: Runtime.SyncEngine
+  shelf?: 'Three' | 'Long'
 }>
 
 /**
@@ -142,7 +147,11 @@ export type MadeUpBooksConfig = Readonly<{
 export const startMadeUpBooks = async (
   config: MadeUpBooksConfig,
 ): Promise<BooksHandleOnHost> => {
-  const store = await Effect.runPromise(makeTestLibraryStore(sampleShelf))
+  const isLong = config.shelf === 'Long'
+  const shelf = isLong ? longSampleShelf : sampleShelf
+  const store = await Effect.runPromise(
+    makeTestLibraryStore(shelf, isLong ? longSampleChapters : sampleChapters),
+  )
   const sharing = await Effect.runPromise(makeTestLinkSharing())
   const wrap = config.library ?? ((service: LibraryStoreService) => service)
   return Runtime.startHandle({
@@ -157,7 +166,7 @@ export const startMadeUpBooks = async (
       }),
       TranscriptPlayer.transcriptsInMemory(
         new Map(
-          Array.map(sampleTitles, title => [
+          Array.map(shelf.titles, title => [
             MediaId.make(title.slug),
             madeUpPassages,
           ]),
