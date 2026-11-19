@@ -1,8 +1,10 @@
 import { Array, Effect, Fiber, Option, Stream } from 'effect'
+import { Navigation } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import type { ProgramLogDatabase } from '@foldkit/instant/browser'
 
+import { App } from './app.js'
 import { TitleSlug } from './ids.js'
 import {
   chaptersQueryOf,
@@ -12,6 +14,7 @@ import {
   makeInstantLibraryStore,
 } from './instantLibrary.js'
 import { decodeSegments } from './instantTranscript.js'
+import { titleTagStands } from './nameTags.js'
 import { sampleTitles } from './sample.js'
 
 const itemRow = (itemId: string, title: string, addedAtMs: number) => ({
@@ -34,6 +37,17 @@ const itemRow = (itemId: string, title: string, addedAtMs: number) => ({
     },
   ],
 })
+
+const namesAt = (uri: string): ReadonlyArray<string> => {
+  const stack = Navigation.parseStack(App.navigation, uri)
+  return Array.map(
+    [
+      stack.root,
+      ...Array.map(Navigation.entriesOf(stack), entry => entry.destination),
+    ],
+    destination => destination._tag,
+  )
+}
 
 const chapters = [
   { index: 1, title: 'Two', startMs: 1_200_000, endMs: 2_400_000 },
@@ -202,6 +216,73 @@ describe('decodeLibrary', () => {
           Option.map(entry.maybeProgress, progress => progress.progressId),
       ),
     ).toEqual(Option.some(Option.some('p-new')))
+  })
+})
+
+describe('decodeLibrary: a title named like one of Books’ own screens', () => {
+  // NOTE: A title's page and a screen cannot share an address: the exact
+  // word opens the screen. A title whose name would make that word gets a
+  // number, as a second title of the same name does, so its own link
+  // opens it.
+  const named = [
+    'Menu',
+    'Session',
+    'Profile',
+    'Add',
+    'Audible',
+    'Read Aloud',
+    'Publishers',
+    'Authors',
+    'The Lantern Keeper',
+  ]
+  const { shelf } = decodeLibrary({
+    libraryItems: Array.map(named, (name, index) =>
+      itemRow(`item-${index.toString()}`, name, index),
+    ),
+  })
+  const slugs = shelf.titles.map(title => title.slug)
+
+  it('gives each a name tag that is not the screen’s word', () => {
+    expect(slugs).toEqual([
+      'menu-2',
+      'session-2',
+      'profile-2',
+      'add-2',
+      'audible-2',
+      'read-aloud-2',
+      'publishers-2',
+      'authors-2',
+      'the-lantern-keeper',
+    ])
+  })
+
+  it('opens each title by its own address, and its player by its own', () => {
+    for (const slug of slugs) {
+      expect(namesAt(`/books/${slug}`), slug).toEqual([
+        'LibraryPage',
+        'TitlePage',
+      ])
+      expect(namesAt(`/books/${slug}/listen`), slug).toEqual([
+        'LibraryPage',
+        'TitlePage',
+        'ListenPage',
+      ])
+      expect(titleTagStands(slug)).toBe(true)
+    }
+  })
+
+  it('says which name tags a screen already answers to', () => {
+    expect(
+      Array.filter(
+        ['menu', 'session', 'profile', 'add', 'audible', 'read-aloud'],
+        tag => titleTagStands(tag),
+      ),
+    ).toEqual([])
+    // `/books/authors` alone is free, but `/books/authors/listen` is a
+    // person's page, so a title could not be played from its own link.
+    expect(titleTagStands('authors')).toBe(false)
+    expect(titleTagStands('the-lantern-keeper')).toBe(true)
+    expect(titleTagStands('listen')).toBe(true)
   })
 })
 
