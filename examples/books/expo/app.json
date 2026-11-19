@@ -4,6 +4,7 @@
     "slug": "foldkit-books",
     "scheme": "foldkit-books",
     "version": "0.0.0",
+    "platforms": ["android", "ios"],
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
