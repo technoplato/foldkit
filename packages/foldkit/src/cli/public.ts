@@ -58,6 +58,8 @@ export {
 
 export { keyInputOfTerminal, runProgramTui } from './tui.js'
 export {
+  type TerminalHeaderLine,
+  type TerminalHeaderOf,
   type TerminalPaint,
   type TerminalPaintPhase,
   type TerminalPaintReporting,

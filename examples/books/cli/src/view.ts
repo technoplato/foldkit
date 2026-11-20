@@ -370,10 +370,14 @@ export const showPlayerTui = async (): Promise<void> => {
   await sayWhenStarting(socketPath)
   await restartedWhenOlder(socketPath)
   try {
+    const ground = process.env['COLORFGBG']
     const end = await runCliTuiView({
       socketPath,
       spawn: spawnPlayer,
       isColor: takesColor(process.env),
+      ...(ground !== undefined && ground !== ''
+        ? { terminalGround: ground }
+        : {}),
     })
     if (end._tag === 'Lost') {
       writeCliViewResult({

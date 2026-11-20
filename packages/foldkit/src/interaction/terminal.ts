@@ -228,7 +228,7 @@ const rowLines = (
   return Array.map([...descriptionRuns, ...unavailableRuns], runs => ({
     runs,
     maybeChoice,
-    isFocused: row.isFocused,
+    isFocused: row.isFocused || row.isHighlighted,
   }))
 }
 

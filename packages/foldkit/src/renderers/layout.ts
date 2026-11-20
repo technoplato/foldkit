@@ -100,18 +100,31 @@ const buttonGlyph = (button: ButtonNode): string => {
 }
 
 /**
- * The role a button or a row plays where it stands out: the one with the
- * keyboard, and the current one, such as the chapter playing.
+ * The role a button or a row plays: focused controls stand out in Focus,
+ * disabled controls rest in QuietText, every other pressable control uses
+ * Accent (the one pressable color), and a non-pressable current item is
+ * bold Text rather than colored.
  */
 const standingInkOf = (
-  standing: Readonly<{ focused?: boolean; isCurrent?: boolean }>,
+  standing: Readonly<{
+    focused?: boolean
+    isCurrent?: boolean
+    isPressable?: boolean
+    disabled?: boolean
+  }>,
   col: number,
   width: number,
 ): Readonly<{ inks?: ReadonlyArray<InkRun> }> => {
-  if (standing.focused === true) {
+  if (width <= 0) {
+    return {}
+  } else if (standing.focused === true) {
     return { inks: [{ col, width, role: 'Focus' }] }
-  } else if (standing.isCurrent === true) {
+  } else if (standing.disabled === true) {
+    return { inks: [{ col, width, role: 'QuietText' }] }
+  } else if (standing.isPressable === true) {
     return { inks: [{ col, width, role: 'Accent' }] }
+  } else if (standing.isCurrent === true) {
+    return { inks: [{ col, width, role: 'Text' }] }
   } else {
     return {}
   }
@@ -209,6 +222,21 @@ const itemTitleGlyph = (item: ListItem): string => {
 
 const passageLabelWidth = 8
 
+const transcriptReadingMeasure = 76
+
+const labelColumnWidthOf = (
+  passages: ReadonlyArray<TranscriptPassage>,
+  items: ReadonlyArray<Readonly<{ label: string }>>,
+): number => {
+  const widestPassage = Array.reduce(passages, 0, (widest, passage) =>
+    Math.max(widest, passage.label.length),
+  )
+  const widestItem = Array.reduce(items, widestPassage, (widest, item) =>
+    Math.max(widest, item.label.length),
+  )
+  return Math.max(passageLabelWidth, widestItem + 3)
+}
+
 const bookmarkGlyph = '*'
 
 // NOTE: In text a word a search found sits in single marks, and the match
@@ -292,7 +320,7 @@ const wordRoleOf = (
     } else if (word.mark === 'Found') {
       return 'Mark'
     } else if (passage.isCurrent !== true) {
-      return 'ReadingToCome'
+      return 'QuietText'
     } else {
       return Option.match(maybeCurrentIndex, {
         onNone: () => 'ReadingSpoken',
@@ -395,16 +423,20 @@ const passageLines = (
   availableW: number,
   bookmarks: ReadonlyArray<TranscriptBookmark>,
   maybeShownToken: string | undefined,
+  labelWidth: number,
 ): ReadonlyArray<TranscriptLine> => {
   const marker = passage.isCurrent === true ? '›' : ' '
   const named = `${marker}${passage.label}`
-  const label = named.padEnd(passageLabelWidth, ' ')
+  const label = named.padEnd(labelWidth, ' ')
   const labelInk: InkRun = { col: 0, width: named.length, role: 'QuietText' }
   const shiftedBy = (run: InkRun): InkRun => ({
     ...run,
-    col: run.col + passageLabelWidth,
+    col: run.col + labelWidth,
   })
-  const textWidth = Math.max(1, availableW - passageLabelWidth)
+  const textWidth = Math.min(
+    transcriptReadingMeasure,
+    Math.max(1, availableW - labelWidth),
+  )
   const placed = bookmarksInPassage(passage, bookmarks)
   const bookmarkedTokens = new Set(Array.map(placed, ({ token }) => token))
   const shown = shownWordsOf(passage)
@@ -414,15 +446,15 @@ const passageLines = (
       : [
           plainLine(''),
           plainLine(passage.heading.toUpperCase(), [
-            { col: 0, width: passage.heading.length, role: 'ReadingRule' },
+            { col: 0, width: passage.heading.length, role: 'Text' },
           ]),
         ]),
     ...(passage.speaker === undefined
       ? []
       : [
-          plainLine(`${' '.repeat(passageLabelWidth)}${passage.speaker}`, [
+          plainLine(`${' '.repeat(labelWidth)}${passage.speaker}`, [
             {
-              col: passageLabelWidth,
+              col: labelWidth,
               width: passage.speaker.length,
               role: 'QuietText',
             },
@@ -437,7 +469,7 @@ const passageLines = (
         shown.roleOf,
       ),
       (line, index) => ({
-        text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,
+        text: `${index === 0 ? label : ' '.repeat(labelWidth)}${line.text}`,
         isCurrent: line.isCurrent,
         isShown: line.isShown,
         inks: [
@@ -449,7 +481,7 @@ const passageLines = (
     ...Array.getSomes(
       Array.map(placed, ({ bookmark }) =>
         Option.map(Option.fromNullishOr(bookmark.note), note =>
-          plainLine(`${' '.repeat(passageLabelWidth)}${bookmarkGlyph} ${note}`),
+          plainLine(`${' '.repeat(labelWidth)}${bookmarkGlyph} ${note}`),
         ),
       ),
     ),
@@ -472,6 +504,12 @@ const layoutNode = (
     M.tagsExhaustive({
       Text: text => {
         const w = text.width ?? measureText(text.content, availableW)
+        const role: Role | undefined =
+          text.dim === true
+            ? 'QuietText'
+            : text.emphasis !== undefined
+              ? 'Text'
+              : undefined
         return {
           id: ids.next('text'),
           x,
@@ -480,6 +518,9 @@ const layoutNode = (
           h: 1,
           kind: 'Text',
           text: fit(text.content, w),
+          ...(role !== undefined && w > 0
+            ? { inks: [{ col: x, width: w, role }] }
+            : {}),
           children: [],
         }
       },
@@ -501,7 +542,14 @@ const layoutNode = (
           kind: 'Button',
           text: glyph.substring(0, w),
           label: button.label,
-          ...standingInkOf(button, x, w),
+          ...standingInkOf(
+            {
+              ...button,
+              isPressable: action !== undefined,
+            },
+            x,
+            w,
+          ),
           ...(action === undefined ? {} : { action }),
           children: [],
         }
@@ -548,33 +596,51 @@ const layoutNode = (
             ids,
           )
         }
+        if (Array.isReadonlyArrayEmpty(row.children)) {
+          return {
+            id: ids.next('row'),
+            x,
+            y,
+            w: 0,
+            h: 1,
+            kind: 'Row',
+            children: emptyBoxes,
+          }
+        }
         const laid = Array.reduce(
           row.children,
           {
             cursor: x,
-            maxH: 1,
+            rowY: y,
+            rowMaxH: 1,
+            widest: 0,
             children: emptyBoxes,
           },
           (state, child) => {
             const remaining = Math.max(0, x + availableW - state.cursor)
-            if (remaining <= 0) {
-              return state
-            }
-            const box = layoutNode(child, state.cursor, y, remaining, ids)
+            const neededWidth =
+              child._tag === 'Button' ? buttonGlyph(child).length : 1
+            const shouldWrap = state.cursor > x && remaining < neededWidth
+            const targetX = shouldWrap ? x : state.cursor
+            const targetY = shouldWrap ? state.rowY + state.rowMaxH : state.rowY
+            const targetW = shouldWrap ? availableW : remaining
+            const box = layoutNode(child, targetX, targetY, targetW, ids)
+            const rowEnd = targetX + box.w - x
             return {
-              cursor: state.cursor + box.w + row.gap,
-              maxH: Math.max(state.maxH, box.h),
+              cursor: targetX + box.w + row.gap,
+              rowY: targetY,
+              rowMaxH: shouldWrap ? box.h : Math.max(state.rowMaxH, box.h),
+              widest: Math.max(state.widest, rowEnd),
               children: [...state.children, box],
             }
           },
         )
-        const used = laid.cursor - row.gap - x
         return {
           id: ids.next('row'),
           x,
           y,
-          w: used > 0 ? Math.min(availableW, used) : availableW,
-          h: laid.maxH,
+          w: Math.min(availableW, laid.widest),
+          h: laid.rowY - y + laid.rowMaxH,
           kind: 'Row',
           children: laid.children,
         }
@@ -659,6 +725,16 @@ const layoutNode = (
                     kind: 'Button',
                     text: checkGlyph(item.check),
                     label: item.check.label,
+                    ...standingInkOf(
+                      {
+                        ...(item.check.focused === true
+                          ? { focused: true }
+                          : {}),
+                        isPressable: item.check.action !== undefined,
+                      },
+                      x,
+                      checkGlyph(item.check).length,
+                    ),
                     ...(item.check.action === undefined
                       ? {}
                       : { action: { _tag: 'custom', id: item.check.action } }),
@@ -672,6 +748,8 @@ const layoutNode = (
           const titleAvailableW = Math.max(0, availableW - (titleX - x))
           const title = itemTitleGlyph(item)
           const titleW = measureText(title, titleAvailableW)
+          const isPressableItem =
+            item.action !== undefined || item.href !== undefined
           const titleBox: LayoutBox = {
             id: ids.next('item'),
             x: titleX,
@@ -682,7 +760,11 @@ const layoutNode = (
             text: fit(title, titleW),
             label: item.title,
             ...(item.isCurrent === true ? { isCurrent: true } : {}),
-            ...standingInkOf(item, titleX, titleW),
+            ...standingInkOf(
+              { ...item, isPressable: isPressableItem },
+              titleX,
+              titleW,
+            ),
             ...Option.match(
               Option.orElse(Option.fromNullishOr(item.action), () =>
                 Option.fromNullishOr(item.href),
@@ -706,13 +788,21 @@ const layoutNode = (
             Math.max(0, titleAvailableW - titleW - 2),
             ids,
           )
-          return { checkBoxes, titleBox, rest }
+          const rowWidth =
+            rest.w > 0 ? rest.x + rest.w - x : titleBox.x + titleBox.w - x
+          return { checkBoxes, titleBox, rest, rowWidth }
         })
+        const listWidth = Math.min(
+          availableW,
+          Array.reduce(rows, 0, (widest, row) =>
+            Math.max(widest, row.rowWidth),
+          ),
+        )
         return {
           id: ids.next('list'),
           x,
           y,
-          w: availableW,
+          w: listWidth,
           h: rows.length,
           kind: 'List',
           label: list.label,
@@ -741,6 +831,10 @@ const layoutNode = (
       Transcript: transcript => {
         const maybeShownToken =
           transcript.isFollowing === false ? transcript.focusToken : undefined
+        const labelWidth = labelColumnWidthOf(
+          transcript.passages,
+          transcript.items ?? [],
+        )
         const lineBox = (line: TranscriptLine, row: number): LayoutBox => ({
           id: ids.next('text'),
           x,
@@ -780,6 +874,7 @@ const layoutNode = (
                 availableW,
                 transcript.bookmarks ?? [],
                 maybeShownToken,
+                labelWidth,
               )
               return {
                 boxes: [
@@ -794,9 +889,9 @@ const layoutNode = (
               const named = ` ${entry.item.label}`
               const shown = layoutNode(
                 entry.item.node,
-                x + passageLabelWidth,
+                x + labelWidth,
                 y + state.rows,
-                Math.max(1, availableW - passageLabelWidth),
+                Math.max(1, availableW - labelWidth),
                 ids,
               )
               return {

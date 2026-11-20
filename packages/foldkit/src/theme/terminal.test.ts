@@ -43,6 +43,16 @@ describe('the theme in a terminal', () => {
     )
   })
 
+  it('paints Focus with bold inverse on dark, light, and unknown grounds instead of faint light blue', () => {
+    for (const ink of [onDark, onLight, unknown]) {
+      expect(inked(ink, 'Focus', '[>Play<]')).toBe(
+        `${escape}1;7m[>Play<]${escape}22;27m`,
+      )
+    }
+    const noColor = terminalInkOf({ isTerminal: true, env: { NO_COLOR: '1' } })
+    expect(inked(noColor, 'Focus', '[>Play<]')).toBe('[>Play<]')
+  })
+
   it('keeps body text in the color the terminal has: strong for what stands out, plain for what is to come', () => {
     expect(inked(onDark, 'ReadingSpoken', 'He trimmed')).toBe(
       `${escape}1mHe trimmed${escape}22m`,

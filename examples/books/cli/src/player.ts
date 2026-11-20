@@ -18,6 +18,7 @@ import {
   bookmarksListingLines,
   bookmarksListingOf,
   briefScreen,
+  chapterNameAt,
   clockOf,
   currentWordAddressOf,
   isBookSearchSettled,
@@ -853,11 +854,45 @@ export const makeBooksPlayer = (
   topics: BooksPlayerTopics = {},
 ): BooksPlayer => {
   const programSurface = programCliSurface(bound, booksCommandName)
+  const playerHeaderOf = () =>
+    Option.match(readyOf(bound.readModel()), {
+      onNone: () => [],
+      onSome: model => {
+        const uri = Option.getOrElse(
+          Option.map(bound.navigation(), plan => plan.uri),
+          () => '',
+        )
+        if (!uri.includes('/listen/') || Option.isSome(bound.menu())) {
+          return []
+        }
+        return Option.match(loadedTitleOf(model), {
+          onNone: () => [],
+          onSome: ({ title, loaded }) => {
+            const isSounding = TranscriptPlayer.isSounding(loaded.player)
+            const statusLine = Array.join(
+              [
+                ...Array.fromOption(
+                  chapterNameAt(model, title.slug, placeOf(loaded)),
+                ),
+                `${clockOf(placeOf(loaded))} of ${clockOf(title.durationMs)}`,
+                isSounding ? 'playing' : 'paused',
+              ],
+              ' · ',
+            )
+            return [
+              { text: title.name, isEmphasis: true },
+              { text: statusLine },
+            ]
+          },
+        })
+      },
+    })
   const terminal = makeProgramTerminalView(
     bound,
     booksCommandName,
     reporting,
     inkOf(bound),
+    playerHeaderOf,
   )
   const stopped = Effect.runSync(Deferred.make<void>())
   const brief = (): CliDaemonPaintedResult => ({

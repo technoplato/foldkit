@@ -777,6 +777,11 @@ export type RunCliTuiViewOptions = Readonly<{
    * that paints from a theme inks the frame; otherwise frames are plain.
    */
   isColor?: boolean
+  /**
+   * The terminal's ground from `COLORFGBG`, when set, so the daemon inks
+   * quiet text for the terminal's actual background.
+   */
+  terminalGround?: string
 }>
 
 type KeypressKey = Readonly<{
@@ -851,6 +856,9 @@ export const runCliTuiView = async (
       rows: String(output.rows ?? fallbackRows),
       columns: String(output.columns ?? fallbackColumns),
       ...(options.isColor === true ? { color: '1' } : {}),
+      ...(options.terminalGround !== undefined && options.terminalGround !== ''
+        ? { 'terminal-ground': options.terminalGround }
+        : {}),
     })
     const finish = (end: CliTuiViewEnd): void => {
       if (state.isDone) {

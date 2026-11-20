@@ -18,7 +18,8 @@ import { layoutTree } from '../renderers/layout.js'
 import { resolveLazyNode } from '../renderers/lazy.js'
 import { anchorRowsOf } from '../renderers/liveFrame.js'
 import { paintAscii } from '../renderers/paint.js'
-import type { UiNode } from '../renderers/types.js'
+import { transcriptExcerptOf } from '../renderers/transcriptExcerpt.js'
+import type { TranscriptNode, UiNode } from '../renderers/types.js'
 import type { RenderReport } from '../telemetry/recorder.js'
 import type { InkRun } from '../theme/terminal.js'
 import { fitDisplayWidth } from './frameWriter.js'
@@ -87,6 +88,15 @@ export type TerminalPaintReporting = Readonly<{
   onPainted?: (report: RenderReport) => void
 }>
 
+/** One pinned header line at the top of a terminal screen. */
+export type TerminalHeaderLine = Readonly<{
+  text: string
+  isEmphasis?: boolean
+}>
+
+/** Optional 1-to-2 line pinned header a host provides for a terminal screen. */
+export type TerminalHeaderOf = () => ReadonlyArray<TerminalHeaderLine>
+
 /** The painter a terminal host reports its frames as. */
 export const terminalPainter = 'Terminal'
 
@@ -95,8 +105,6 @@ const minimumRows = 8
 const minimumColumns = 40
 
 const contextLines = 2
-
-const chromeRows = 2
 
 const minimumBodyRows = 3
 
@@ -107,11 +115,52 @@ type Line = Readonly<{ text: string; inks: ReadonlyArray<InkRun> }>
 
 const plain = (text: string): Line => ({ text, inks: [] })
 
+const emphasized = (text: string): Line => ({
+  text,
+  inks: text === '' ? [] : [{ col: 0, width: text.length, role: 'Text' }],
+})
+
 // The screen's own lines rest: where it is, how much is hidden, the keys.
 const quiet = (text: string): Line => ({
   text,
   inks: text === '' ? [] : [{ col: 0, width: text.length, role: 'QuietText' }],
 })
+
+const calmTranscript = (transcript: TranscriptNode): TranscriptNode => {
+  const target =
+    transcript.isFollowing === false && transcript.focusToken !== undefined
+      ? Option.match(
+          Array.findFirstIndex(transcript.passages, passage =>
+            Array.some(
+              passage.words,
+              word => word.token === transcript.focusToken,
+            ),
+          ),
+          {
+            onNone: () => transcript,
+            onSome: focusIndex => ({
+              ...transcript,
+              passages: Array.map(transcript.passages, (passage, index) => ({
+                ...passage,
+                isCurrent: index === focusIndex,
+              })),
+            }),
+          },
+        )
+      : transcript
+  return Option.match(transcriptExcerptOf(target), {
+    onNone: () => transcript,
+    onSome: excerpt => {
+      const keptKeys = Array.map(excerpt.paragraphs, paragraph => paragraph.key)
+      return {
+        ...transcript,
+        passages: Array.filter(transcript.passages, passage =>
+          Array.contains(keptKeys, passage.key),
+        ),
+      }
+    },
+  })
+}
 
 type Part = Readonly<{
   lines: ReadonlyArray<Line>
@@ -163,7 +212,7 @@ const withoutDocks = (node: UiNode): Split =>
       Progress: kept,
       List: kept,
       Seek: kept,
-      Transcript: kept,
+      Transcript: transcript => kept(calmTranscript(transcript)),
       Row: row => {
         const { children, docks } = splitChildren(row.children)
         return { maybeNode: Option.some({ ...row, children }), docks }
@@ -383,12 +432,29 @@ const paintOf = (
 
 // PAINT
 
+const headerLinesOf = (
+  name: string,
+  uri: string,
+  headerOf?: TerminalHeaderOf,
+): ReadonlyArray<Line> => {
+  const custom =
+    headerOf === undefined ? [] : Array.take(headerOf(), contextLines)
+  if (Array.isReadonlyArrayEmpty(custom)) {
+    return [quiet(`${name}  ${uri}`)]
+  } else {
+    return Array.map(custom, line =>
+      line.isEmphasis === true ? emphasized(line.text) : quiet(line.text),
+    )
+  }
+}
+
 const paintedFrame = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
   view: TerminalView,
   frame: Frame,
   size: TerminalSize,
+  headerOf?: TerminalHeaderOf,
 ): TerminalPaint => {
   const decorated = terminalFrameOf(frame, view.focus)
   const maybeFocused = focusedTagOf(frame, view.focus)
@@ -415,14 +481,33 @@ const paintedFrame = <Model, Message>(
     layered,
     part => part.docks,
   )
-  const docks = Array.flatMap(
-    dockNodes,
-    dock => treePart(dock, size.columns, Option.none()).lines,
+  const dockParts = stacked(
+    Array.map(dockNodes, dock => treePart(dock, size.columns, maybeFocused)),
+  ).parts
+  const docks = Array.flatMap(dockParts, part => part.lines)
+  const maybeFocusedDockRow = Array.findFirst(
+    Array.getSomes(Array.map(dockParts, part => part.maybeFocusedRow)),
+    () => true,
   )
-  const dockLines = Array.takeRight(
-    docks,
-    Math.max(0, size.rows - chromeRows - minimumBodyRows),
-  )
+  const headerLines = headerLinesOf(name, frame.uri, headerOf)
+  const chromeRows = headerLines.length + 1
+  const maxDockRows = Math.max(0, size.rows - chromeRows - minimumBodyRows)
+  const dockLines =
+    docks.length <= maxDockRows
+      ? docks
+      : Option.match(maybeFocusedDockRow, {
+          onNone: () => Array.takeRight(docks, maxDockRows),
+          onSome: focusedRow => {
+            const dockOffset = offsetOf(
+              docks.length,
+              maxDockRows,
+              0,
+              Option.some(focusedRow),
+              Option.some(Math.max(0, docks.length - maxDockRows)),
+            )
+            return Array.take(Array.drop(docks, dockOffset), maxDockRows)
+          },
+        })
   const height = Math.max(1, size.rows - chromeRows - dockLines.length)
   const hasOverlay = Array.isReadonlyArrayNonEmpty(decorated.overlays)
   const minimumOffset =
@@ -447,7 +532,7 @@ const paintedFrame = <Model, Message>(
   return paintOf(
     Array.map(
       [
-        quiet(`${name}  ${frame.uri}`),
+        ...headerLines,
         ...padded(windowLines(body, offset, height, minimumOffset), height),
         ...dockLines,
         quiet(terminalFooterOf(bound.menuKeys())),
@@ -508,6 +593,7 @@ export const paintTerminal = <Model, Message>(
   name: string,
   view: TerminalView,
   size: TerminalSize,
+  headerOf?: TerminalHeaderOf,
 ): TerminalPaint => {
   const fitted: TerminalSize = {
     rows: Math.max(minimumRows, size.rows),
@@ -515,7 +601,7 @@ export const paintTerminal = <Model, Message>(
   }
   return Option.match(frameOf(bound), {
     onNone: () => paintOf(startingLines(bound, name, view, fitted), view),
-    onSome: frame => paintedFrame(bound, name, view, frame, fitted),
+    onSome: frame => paintedFrame(bound, name, view, frame, fitted, headerOf),
   })
 }
 
@@ -534,9 +620,10 @@ export const paintTerminalReported = <Model, Message>(
   phase: TerminalPaintPhase,
   reporting: TerminalPaintReporting,
   maybeClientHost: Option.Option<Host> = Option.none(),
+  headerOf?: TerminalHeaderOf,
 ): TerminalPaint => {
   const startedAt = performance.now()
-  const painted = paintTerminal(bound, name, view, size)
+  const painted = paintTerminal(bound, name, view, size, headerOf)
   if (reporting.onPainted !== undefined) {
     reporting.onPainted({
       painter: terminalPainter,

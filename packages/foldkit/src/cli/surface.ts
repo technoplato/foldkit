@@ -33,6 +33,7 @@ import {
   type CliDaemonSurface,
 } from './protocol.js'
 import {
+  type TerminalHeaderOf,
   type TerminalPaint,
   type TerminalPaintPhase,
   type TerminalPaintReporting,
@@ -122,6 +123,7 @@ export const makeProgramTerminalView = <Model, Message>(
   name: string,
   reporting: TerminalPaintReporting = {},
   inkOf?: (flags: CliDaemonFlags) => TerminalInk,
+  headerOf?: TerminalHeaderOf,
 ): ProgramTerminalView => {
   // NOTE: Whether its output takes color is the view's to know, and it
   // says so with the `color` flag; the mode is the Program's, read from
@@ -176,6 +178,7 @@ export const makeProgramTerminalView = <Model, Message>(
         phase,
         reporting,
         Option.some(client),
+        headerOf,
       )
       yield* keep(flags, painted.view)
       return {

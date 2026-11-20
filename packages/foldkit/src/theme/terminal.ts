@@ -87,10 +87,16 @@ const escape = '\u001b['
 
 const strong = (text: string): string => `${escape}1m${text}${escape}22m`
 
+const focused = (text: string): string => `${escape}1;7m${text}${escape}22;27m`
+
 const underlined = (text: string): string => `${escape}4m${text}${escape}24m`
 
 // What stands out is strong, in the terminal's own color.
 const strongRoles: ReadonlySet<Role> = new Set(['Text', 'ReadingSpoken'])
+
+// Focused controls use bold inverse so they read unmistakably on dark,
+// light, and unknown grounds without relying on a faint accent color.
+const focusedRoles: ReadonlySet<Role> = new Set(['Focus'])
 
 // What is to come keeps the terminal's own text, untouched.
 const plainRoles: ReadonlySet<Role> = new Set(['ReadingToCome'])
@@ -164,7 +170,7 @@ export const terminalColorOf = (
   ink: TerminalInk,
   role: Role,
 ): string | undefined => {
-  if (strongRoles.has(role) || plainRoles.has(role)) {
+  if (strongRoles.has(role) || focusedRoles.has(role) || plainRoles.has(role)) {
     return undefined
   }
   const colors = ink.theme[quietRoles.has(role) ? 'QuietText' : role]
@@ -215,6 +221,8 @@ const colored = (color: string, text: string): string =>
 export const inked = (ink: TerminalInk, role: Role, text: string): string => {
   if (!ink.isColor) {
     return text
+  } else if (focusedRoles.has(role)) {
+    return focused(text)
   } else if (strongRoles.has(role)) {
     return strong(text)
   } else {

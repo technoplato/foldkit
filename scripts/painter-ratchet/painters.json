@@ -322,7 +322,7 @@
         "timers": 2,
         "heldState": 0,
         "listeners": 0,
-        "numbers": 5
+        "numbers": 4
       },
       "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
     },
