@@ -97,4 +97,40 @@ describe('followProgramTail', () => {
       'React         ad55df2e',
     ])
   })
+
+  it('does not drop live rows with no id when a starting row also had no id', async () => {
+    const engine = Memory({ processor: 'cli-fdb5a3a8' })
+    engine.injectMessage({
+      _tag: 'Increment',
+      from: 'cli-fdb5a3a8',
+      createdAtMs: 0,
+    })
+    const lines = await Effect.runPromise(
+      Effect.gen(function* () {
+        const following = yield* Effect.forkChild(
+          Stream.runCollect(
+            Stream.take(followProgramTail(engine, Increment), 3),
+          ),
+        )
+        yield* Effect.sleep('600 millis')
+        engine.injectMessage({
+          _tag: 'Increment',
+          from: 'cli-fdb5a3a8',
+          client: 'tui',
+          createdAtMs: 1,
+        })
+        engine.injectMessage({
+          _tag: 'Increment',
+          from: 'react-ad55df2e',
+          createdAtMs: 2,
+        })
+        return yield* Fiber.join(following)
+      }),
+    )
+    expect(Array.from(lines, line => line.slice(10, 34).trim())).toStrictEqual([
+      'CLI           fdb5a3a8',
+      'TUI           fdb5a3a8',
+      'React         ad55df2e',
+    ])
+  })
 })

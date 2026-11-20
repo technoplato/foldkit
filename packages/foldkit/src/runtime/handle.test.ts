@@ -186,7 +186,7 @@ describe('Runtime.startHandle provenance', () => {
     ])
   })
 
-  it('writes on the log row the client a Message was sent for, and nothing for its own', async () => {
+  it('writes client on the log row only when it differs from the Processor’s own Host', async () => {
     const engine = Memory({ processor: 'cli-fdb5a3a8' })
     const handle = startHandle({
       program: SyncedCounter,
@@ -214,7 +214,7 @@ describe('Runtime.startHandle provenance', () => {
           ? row.client
           : undefined,
       ),
-    ).toStrictEqual([undefined, 'tui', 'cli'])
+    ).toStrictEqual([undefined, 'tui', undefined])
   })
 
   it('runs the Commands a Message returned under that Message’s operation', async () => {

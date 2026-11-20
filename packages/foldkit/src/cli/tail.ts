@@ -138,8 +138,10 @@ export const runProgramTail = (
 ): Effect.Effect<void, never, Scope.Scope> =>
   Effect.gen(function* () {
     const seen = new Set<string>(
-      Array.map(startingRows, row =>
-        Option.getOrElse(readRowString(row, 'id'), () => ''),
+      Array.getSomes(
+        Array.map(startingRows, row =>
+          Option.filter(readRowString(row, 'id'), id => id !== ''),
+        ),
       ),
     )
     const pending: Array<unknown> = [...startingRows]
@@ -151,11 +153,16 @@ export const runProgramTail = (
       if (event._tag !== 'Message') {
         return
       }
-      const id = Option.getOrElse(readRowString(event.row, 'id'), () => '')
-      if (seen.has(id)) {
-        return
+      const maybeId = Option.filter(
+        readRowString(event.row, 'id'),
+        id => id !== '',
+      )
+      if (Option.isSome(maybeId)) {
+        if (seen.has(maybeId.value)) {
+          return
+        }
+        seen.add(maybeId.value)
       }
-      seen.add(id)
       if (isSettled) {
         writeRow(event.row)
       } else {

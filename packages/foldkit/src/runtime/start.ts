@@ -15,7 +15,7 @@ import {
 } from 'effect'
 
 import type { Ports } from '../port/port.js'
-import { type Host, print } from '../processor/host.js'
+import { type Host, hostOfFrom, print } from '../processor/host.js'
 import {
   hydrateFromSynced,
   projectSynced,
@@ -192,6 +192,12 @@ const fillWriteTime = (
     Option.isNone(existingId) || existingId.value === ''
       ? newMessageId()
       : existingId.value
+  const maybeWrittenClient = Option.filter(maybeClient, client =>
+    Option.match(hostOfFrom(processor), {
+      onNone: () => true,
+      onSome: processorHost => print(client) !== print(processorHost),
+    }),
+  )
   return {
     snapshot:
       snapshot === undefined
@@ -207,7 +213,7 @@ const fillWriteTime = (
       programVersion,
       from: processor,
       createdAtMs: now,
-      ...Option.match(maybeClient, {
+      ...Option.match(maybeWrittenClient, {
         onNone: () => ({}),
         onSome: client => ({ client: print(client) }),
       }),
