@@ -246,16 +246,27 @@ describe(
           resolve(state.text)
         }, 4_000)
       })
+      expect(written).not.toContain('\u001b[2J')
+      expect(written).toContain('\u001b[?2026h')
+      expect(written).toContain('\u001b[?2026l')
       // eslint-disable-next-line no-control-regex
-      const plain = written.replace(/\u001b\[[0-9;]*m/g, '').replace(/\r/g, '')
-      // eslint-disable-next-line no-control-regex
-      const frames = plain.split(/\u001b\[\d+A\u001b\[J/)
+      const frames = written
+        .split('\u001b[?2026h')
+        .slice(1)
+        .map(frame =>
+          frame
+            // eslint-disable-next-line no-control-regex
+            .replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, '')
+            .replace(/\r/g, ''),
+        )
       expect(frames.length).toBeGreaterThan(2)
       const last = (frames.at(-1) ?? '').split('\n').filter(line => line !== '')
       expect(last.every(line => line.length <= 60)).toBe(true)
       expect(last.length).toBeLessThanOrEqual(19)
       expect(last[0]).toBe('  The Lantern Keeper')
       expect(last[1]).toMatch(/^ {2}The Tide · \d+:\d\d of 1:20:00 · playing$/)
+      expect(last.join('\n')).toContain('1×')
+      expect(last.join('\n')).toMatch(/mirrored|local/)
       expect(last.some(line => /^ {2}▎ \d+:\d\d {2}\S/.test(line))).toBe(true)
       expect(last.join('\n')).not.toMatch(/^[#>+-] /m)
       expect(last.join('\n')).toMatch(

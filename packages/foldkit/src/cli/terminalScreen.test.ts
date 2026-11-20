@@ -5,6 +5,7 @@ import { keyInput } from '../interaction/interaction.js'
 import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
 import { Link } from '../navigation/message.js'
 import { bindChapters } from '../test/apps/chapterContents.js'
+import { displayWidth } from './frameWriter.js'
 import {
   type TerminalSize,
   type TerminalView,
@@ -93,5 +94,16 @@ describe('paintTerminal', () => {
     bound.send({ _tag: 'Ticked' })
     const after = linesOf(bound, moved)
     expect(after).toEqual(before)
+  })
+
+  it('truncates lines containing wide CJK and emoji glyphs by display width', () => {
+    const bound = bindChapters()
+    const painted = paintTerminal(
+      bound,
+      '日本語テスト😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀',
+      initialTerminalView,
+      { rows: 10, columns: 40 },
+    )
+    expect(displayWidth(painted.lines[0] ?? '')).toBeLessThanOrEqual(40)
   })
 })

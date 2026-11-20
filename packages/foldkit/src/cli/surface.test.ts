@@ -419,6 +419,61 @@ describe('a daemon a terminal UI view talks to', () => {
           expect(
             terminal.written.some(text => text.includes('\u001b[?1049l')),
           ).toBe(true)
+          expect(
+            terminal.written.every(text => !text.includes('\u001b[2J')),
+          ).toBe(true)
+          expect(
+            terminal.written.some(text => text.includes('\u001b[?2026h')),
+          ).toBe(true)
+          expect(
+            terminal.written.some(text => text.includes('\u001b[?2026l')),
+          ).toBe(true)
+        }),
+      ),
+    )
+  })
+
+  it('repaints in full on terminal resize even when shrinking', async () => {
+    const socketPath = socketPathFor('tui-resize')
+    const bound = bindChapters()
+    bound.openUri('/chapters/contents', Link())
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* startCliDaemonServer({
+            socketPath,
+            Model: ChapterApp.Model,
+            Message: ChapterApp.Message,
+            surface: programCliSurface(bound, 'chapters'),
+          })
+          const terminal = fakeTerminal()
+          const ending = runCliTuiView({
+            socketPath,
+            spawn: () => {
+              throw new Error('the daemon is already listening')
+            },
+            refreshMs: 60_000,
+            input: terminal.keyboard,
+            output: terminal.screen,
+          })
+          yield* Effect.promise(() =>
+            eventually(() =>
+              terminal.written.some(text => text.includes('› Chapter 2')),
+            ),
+          )
+          const beforeResize = terminal.written.length
+          terminal.screen.rows = 12
+          terminal.screen.columns = 50
+          terminal.screen.emit('resize')
+          yield* Effect.promise(() =>
+            eventually(() => terminal.written.length > beforeResize),
+          )
+          const resizedFrame = terminal.written.at(-1) ?? ''
+          expect(resizedFrame).toContain('\u001b[?2026h')
+          expect(resizedFrame).not.toContain('\u001b[2J')
+          expect(resizedFrame.split('\n')).toHaveLength(12)
+          terminal.keyboard.write('q')
+          yield* Effect.promise(() => ending)
         }),
       ),
     )

@@ -11,6 +11,7 @@ import {
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type KeyInput, terminalKeyInput } from '../interaction/interaction.js'
 import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
+import { formatTerminalFrame } from './frameWriter.js'
 import {
   type TerminalPaintPhase,
   type TerminalPaintReporting,
@@ -23,8 +24,6 @@ import {
 const enterScreen = '\u001b[?1049h\u001b[?25l'
 
 const leaveScreen = '\u001b[?25h\u001b[?1049l'
-
-const clearScreen = '\u001b[H\u001b[2J'
 
 const fallbackSize: TerminalSize = { rows: 24, columns: 80 }
 
@@ -125,7 +124,11 @@ export const runProgramTui = <Model, Message>(
             reporting,
           )
           yield* Ref.set(view, painted.view)
-          const frame = `${windowTitleSequence(bound)}${clearScreen}${painted.lines.join('\n')}`
+          const frame = formatTerminalFrame(painted.lines.join('\n'), {
+            columns: size.columns,
+            rows: size.rows,
+            prefix: windowTitleSequence(bound),
+          })
           const maybeLast = yield* Ref.get(maybeLastFrame)
           if (!Option.contains(maybeLast, frame)) {
             yield* Ref.set(maybeLastFrame, Option.some(frame))

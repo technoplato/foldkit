@@ -73,7 +73,7 @@ import {
   usageOf,
 } from 'foldkit/cli/view'
 import type { Declaration, Declared } from 'foldkit/declaration'
-import { Text, renderScreen } from 'foldkit/renderers'
+import { Column, Text, renderScreen } from 'foldkit/renderers'
 import * as Theme from 'foldkit/theme'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -485,12 +485,55 @@ const wordEvents =
     )
 
 /**
+ * Compact picture of the app's state for `books follow`: speed, session
+ * mode, whether controls, search, or the action menu are open, the page
+ * the app is on, and the word link when it differs from the page.
+ */
+const appStateLineOf = (
+  bound: BoundBooks,
+  model: Extract<SyncedBooksModel, { _tag: 'Ready' }>,
+): string => {
+  const page = Option.getOrElse(
+    Option.map(bound.navigation(), plan => plan.uri),
+    () => '',
+  )
+  const maybeLink = Option.map(currentWordAddressOf(model), address =>
+    addressPattern.test(address) && URL.canParse(address)
+      ? new URL(address).pathname
+      : address,
+  )
+  const isSearchOpen = Option.exists(loadedTitleOf(model), ({ loaded }) =>
+    Option.isSome(loaded.player.maybeSearch),
+  )
+  const isLoaded = Option.isSome(loadedTitleOf(model))
+  return Array.join(
+    [
+      ...(isLoaded ? [] : ['paused']),
+      `${model.speed.toString()}×`,
+      model.session.mode === 'Mirror' ? 'mirrored' : 'local',
+      ...(model.controls === 'Expanded' ? ['controls open'] : []),
+      ...(isSearchOpen ? ['search open'] : []),
+      ...(Option.isSome(bound.menu()) ? ['menu open'] : []),
+      ...(page === '' ? [] : [`page ${page}`]),
+      ...Array.fromOption(
+        Option.map(
+          Option.filter(maybeLink, link => link !== page),
+          link => `link ${link}`,
+        ),
+      ),
+    ],
+    ' · ',
+  )
+}
+
+/**
  * The `words` topic a view follows. A terminal gets the words as a live
  * frame: the reader's own words fitted to its size, the mark on the word
- * being spoken, moving by the word, with what can be run now under them,
- * repainted in place. A pipe gets what {@link wordEvents} says. Which
- * words, what sits above them and what they offer is the Books core's
- * `wordsPartAt`; how a part is followed is the library's.
+ * being spoken, moving by the word, with compact app state above and
+ * what can be run now under them, repainted in place. A pipe gets what
+ * {@link wordEvents} says. Which words, what sits above them and what
+ * they offer is the Books core's `wordsPartAt`; how a part is followed
+ * is the library's.
  */
 const followWords = (bound: BoundBooks): CliFollowing =>
   followLive(
@@ -498,7 +541,15 @@ const followWords = (bound: BoundBooks): CliFollowing =>
     nowMs =>
       Option.match(readyOf(bound.readModel()), {
         onNone: () => ({ node: Text(statusOf(bound)) }),
-        onSome: model => wordsPartAt(model, nowMs),
+        onSome: model => {
+          const part = wordsPartAt(model, nowMs)
+          const stateLine = Text(appStateLineOf(bound, model), { dim: true })
+          const header =
+            part.header === undefined
+              ? Column({}, Text('Books', { emphasis: 'Headline' }), stateLine)
+              : Column({}, part.header, stateLine)
+          return { ...part, header }
+        },
       }),
     {
       name: booksCommandName,

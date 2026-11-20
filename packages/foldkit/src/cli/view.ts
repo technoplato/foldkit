@@ -6,6 +6,7 @@ import { type Socket, connect } from 'node:net'
 import { createInterface, emitKeypressEvents } from 'node:readline'
 
 import type { Host } from '../processor/host.js'
+import { formatTerminalFrame } from './frameWriter.js'
 import {
   cliDaemonLockPath,
   removeCliDaemonFiles,
@@ -609,6 +610,7 @@ export type CliFollowRuntime = {
   readonly stdout: Readonly<{
     write: (text: string) => unknown
     once: (event: 'error', listener: () => void) => unknown
+    isTTY?: boolean
     columns?: number
     rows?: number
     on?: (event: 'resize', listener: () => void) => unknown
@@ -634,29 +636,9 @@ export type WriteCliFollowOptions = Readonly<{
   inPlace?: boolean
 }>
 
-const inkPattern = /\u001b\[[0-9;]*m/gu
-
 const fallbackFollowColumns = 80
 
 const fallbackFollowRows = 24
-
-/**
- * The rows a text takes on a terminal `columns` wide: a row for each
- * line, and more for a line that wraps, counted by what shows, not by
- * its color codes.
- */
-const rowsOf = (text: string, columns: number): number =>
-  text
-    .split('\n')
-    .reduce(
-      (rows, line) =>
-        rows +
-        Math.max(1, Math.ceil(line.replace(inkPattern, '').length / columns)),
-      0,
-    )
-
-const eraseRows = (rows: number): string =>
-  rows > 0 ? `\u001b[${rows.toString()}A\r\u001b[J` : ''
 
 /**
  * Follows one topic and writes it where a pipe can read it: each text on
@@ -688,6 +670,7 @@ export const writeCliFollow = async (
   runtime.once('SIGINT', stop)
   runtime.once('SIGTERM', stop)
   runtime.stdout.once('error', stop)
+  const isInPlace = options.inPlace === true && runtime.stdout.isTTY !== false
   try {
     if (options.spawn !== undefined) {
       await ensureCliViewDaemon({
@@ -698,16 +681,15 @@ export const writeCliFollow = async (
           : { timeoutMs: options.timeoutMs }),
       })
     }
-    const shown = { rows: 0 }
     const write = (text: string): void => {
-      if (options.inPlace !== true) {
+      if (!isInPlace) {
         writeText(runtime.stdout, text)
       } else if (text !== '') {
-        const body = text.endsWith('\n') ? text.slice(0, -1) : text
-        runtime.stdout.write(`${eraseRows(shown.rows)}${body}\n`)
-        shown.rows = rowsOf(
-          body,
-          runtime.stdout.columns ?? fallbackFollowColumns,
+        runtime.stdout.write(
+          formatTerminalFrame(text, {
+            columns: runtime.stdout.columns ?? fallbackFollowColumns,
+            rows: runtime.stdout.rows ?? fallbackFollowRows,
+          }),
         )
       }
     }
@@ -715,7 +697,7 @@ export const writeCliFollow = async (
     // size as facts. When the terminal is resized it asks again with the
     // new size; the next frame is written over the last one.
     const requestNow = (): CliFollowRequest =>
-      options.inPlace === true
+      isInPlace
         ? {
             ...options.request,
             flags: {
@@ -734,7 +716,7 @@ export const writeCliFollow = async (
       const onStop = (): void => {
         resized.abort()
       }
-      if (options.inPlace === true) {
+      if (isInPlace) {
         runtime.stdout.on?.('resize', onResize)
       }
       stopping.signal.addEventListener('abort', onStop)
@@ -808,8 +790,6 @@ type KeypressKey = Readonly<{
 const enterScreen = '\u001b[?1049h\u001b[?25l'
 
 const leaveScreen = '\u001b[?25h\u001b[?1049l'
-
-const clearScreen = '\u001b[H\u001b[2J'
 
 const tuiRefreshMs = 500
 
@@ -892,7 +872,12 @@ export const runCliTuiView = async (
       }
       if (painted.stdout !== state.lastFrame) {
         state.lastFrame = painted.stdout
-        output.write(`${clearScreen}${painted.stdout}`)
+        output.write(
+          formatTerminalFrame(painted.stdout, {
+            columns: output.columns ?? fallbackColumns,
+            rows: output.rows ?? fallbackRows,
+          }),
+        )
       }
       if (painted.flags?.['outcome'] === 'Quit') {
         finish({ _tag: 'Quit' })
@@ -948,6 +933,7 @@ export const runCliTuiView = async (
       })
     }
     const onResize = (): void => {
+      state.lastFrame = ''
       void ask({ _tag: 'Show', flags: sizeFlags() })
     }
     input.setRawMode?.(true)

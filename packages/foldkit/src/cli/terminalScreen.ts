@@ -21,6 +21,7 @@ import { paintAscii } from '../renderers/paint.js'
 import type { UiNode } from '../renderers/types.js'
 import type { RenderReport } from '../telemetry/recorder.js'
 import type { InkRun } from '../theme/terminal.js'
+import { fitDisplayWidth } from './frameWriter.js'
 import { paintScreen } from './program.js'
 
 // MODEL
@@ -353,10 +354,23 @@ const padded = (
 
 const fittedLine =
   (width: number) =>
-  (line: Line): Line =>
-    line.text.length > width
-      ? { text: line.text.slice(0, width), inks: line.inks }
-      : line
+  (line: Line): Line => {
+    const fitted = fitDisplayWidth(line.text, width)
+    if (fitted.text.length === line.text.length) {
+      return line
+    } else {
+      return {
+        text: fitted.text,
+        inks: Array.filter(
+          Array.map(line.inks, run => ({
+            ...run,
+            width: Math.min(run.width, fitted.text.length - run.col),
+          })),
+          run => run.width > 0,
+        ),
+      }
+    }
+  }
 
 const paintOf = (
   lines: ReadonlyArray<Line>,

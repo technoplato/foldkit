@@ -5,6 +5,16 @@ import { describe, expect, it } from 'vitest'
 import { follow } from '../interaction/follow.js'
 import { Cli } from '../processor/host.js'
 import { Ticked, bindChapters } from '../test/apps/chapterContents.js'
+import {
+  AUTOWRAP_OFF,
+  AUTOWRAP_ON,
+  CURSOR_HOME,
+  ERASE_BELOW,
+  ERASE_TO_EOL,
+  SYNC_END,
+  SYNC_START,
+  formatTerminalFrame,
+} from './frameWriter.js'
 import { startCliDaemonServer } from './listen.js'
 import { cliDaemonSocketPath } from './paths.js'
 import { CliDaemonError, type CliDaemonSurface } from './protocol.js'
@@ -210,7 +220,7 @@ describe('following to a pipe', () => {
     expect(runtime.exitCode).toBe(0)
   })
 
-  it('rewrites a topic in place on a terminal: each text over the last, as many rows as the last took', async () => {
+  it('rewrites a topic in place on a terminal with synchronized cursor-home frames and no ESC[2J', async () => {
     const socketPath = socketPathFor('in-place')
     const { runtime, written } = fakeRuntime()
     await serving(
@@ -228,31 +238,63 @@ describe('following to a pipe', () => {
           runtime,
         ),
     )
+    expect(written.stdout).not.toContain('\u001b[2J')
     expect(written.stdout).toBe(
       [
-        '# one\n> The [keeper] climbed\n',
-        '\u001b[2A\r\u001b[J# one\n> The keeper [climbed]\n',
-        '\u001b[2A\r\u001b[J# two\n',
+        formatTerminalFrame('# one\n> The [keeper] climbed', {
+          columns: 80,
+          rows: 24,
+        }),
+        formatTerminalFrame('# one\n> The keeper [climbed]', {
+          columns: 80,
+          rows: 24,
+        }),
+        formatTerminalFrame('# two', { columns: 80, rows: 24 }),
       ].join(''),
     )
   })
 
-  it('counts the rows a line wraps over, by what shows and not by its color codes', async () => {
+  it('caps in-place frames to terminal width and height so wide or tall output never scrolls', async () => {
     const socketPath = socketPathFor('in-place-wrap')
-    const { runtime, written } = fakeRuntime({ columns: 10 })
+    const { runtime, written } = fakeRuntime({ columns: 10, rows: 2 })
     const inked = '\u001b[2m0123456789\u001b[22m'
     await serving(
       socketPath,
-      surfaceFollowing(() => Stream.make(`${inked}\n0123456789ab`, 'next')),
+      surfaceFollowing(() =>
+        Stream.make(`${inked}\n日本語テスト\nthird line`, 'next'),
+      ),
       () =>
         writeCliFollow(
           { socketPath, request: { topic: 'words' }, inPlace: true },
           runtime,
         ),
     )
-    expect(written.stdout).toBe(
-      `${inked}\n0123456789ab\n\u001b[3A\r\u001b[Jnext\n`,
+    expect(written.stdout).not.toContain('\u001b[2J')
+    expect(written.stdout).not.toContain('third line')
+    expect(written.stdout).toContain(
+      `${SYNC_START}${AUTOWRAP_OFF}${CURSOR_HOME}`,
     )
+    expect(written.stdout).toContain(`日本語テスト`.slice(0, 5))
+    expect(written.stdout).not.toContain('ト')
+    expect(written.stdout).toContain(
+      `next${ERASE_TO_EOL}\n\r${ERASE_BELOW}${AUTOWRAP_ON}${SYNC_END}`,
+    )
+  })
+
+  it('writes zero escape sequences or synchronized markers to a non-TTY pipe even when inPlace is passed', async () => {
+    const socketPath = socketPathFor('non-tty-pipe')
+    const { runtime, written } = fakeRuntime({ isTTY: false })
+    await serving(
+      socketPath,
+      surfaceFollowing(() => Stream.make('first line', 'second line')),
+      () =>
+        writeCliFollow(
+          { socketPath, request: { topic: 'words' }, inPlace: true },
+          runtime,
+        ),
+    )
+    expect(written.stdout).toBe('first line\nsecond line\n')
+    expect(written.stdout).not.toContain('\u001b')
   })
 
   it('tells the topic it rewrites in place, and its size as facts, and asks again with the new size when the terminal is resized', async () => {

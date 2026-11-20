@@ -338,7 +338,7 @@
     "packages/foldkit/src/cli/view.ts": {
       "counts": {
         "timers": 8,
-        "heldState": 6,
+        "heldState": 5,
         "listeners": 16,
         "numbers": 11
       },

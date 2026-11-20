@@ -774,10 +774,9 @@ describe('books words', () => {
     const lines = paused.split('\n')
     expect(lines.every(line => line.length <= 60)).toBe(true)
     expect(lines.length).toBeLessThanOrEqual(19)
-    expect(lines.slice(0, 3)).toEqual([
+    expect(lines.slice(0, 2)).toEqual([
       '  The Lantern Keeper',
       '  The Tide · 0:05 of 1:20:00 · paused',
-      '',
     ])
     expect(lines).toContain('  ▎ 0:05  [He] trimmed the wick and waited.')
     expect(lines).toContain('    0:00  The keeper climbed the stairs at dusk.')
@@ -798,6 +797,28 @@ describe('books words', () => {
       '  books link   ·   books actions for more',
     ])
     await run(player, 'pause')
+  })
+
+  it('shows compact app state in books follow alongside the words', async () => {
+    const { player, bound } = await pausedOn('5500')
+    const terminal = { 'in-place': '1', columns: '120', rows: '20' }
+    const [initial = ''] = await heard(player, terminal, 1)
+    expect(initial).toContain('1×')
+    expect(initial).toContain('local')
+    expect(initial).toContain('page /books/the-lantern-keeper/listen/')
+    expect(initial).toContain('/books/the-lantern-keeper/listen/5.5s')
+    bound.press('SetSpeed:1.5')
+    bound.press('ExpandControls')
+    bound.press('ShowSearch')
+    bound.press('MirrorNavigation')
+    await run(player, 'open /books/menu')
+    const [updated = ''] = await heard(player, terminal, 1)
+    expect(updated).toContain('1.5×')
+    expect(updated).toContain('mirrored')
+    expect(updated).toContain('controls open')
+    expect(updated).toContain('search open')
+    expect(updated).toContain('menu open')
+    expect(updated).toContain('page /books/menu')
   })
 
   it('inks the frame for the ground the view says its terminal has, the word being read underlined and unbracketed, and never dims', async () => {

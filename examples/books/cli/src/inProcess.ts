@@ -58,7 +58,15 @@ export const runWatch = async (): Promise<void> => {
         painted => {
           process.stdout.write(painted)
         },
-        { isTerminal: process.stdout.isTTY === true },
+        {
+          isTerminal: process.stdout.isTTY === true,
+          ...(process.stdout.columns === undefined
+            ? {}
+            : { columns: process.stdout.columns }),
+          ...(process.stdout.rows === undefined
+            ? {}
+            : { rows: process.stdout.rows }),
+        },
       ),
     ),
   ).finally(handle.stop)

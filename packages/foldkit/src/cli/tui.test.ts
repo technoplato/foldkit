@@ -5,6 +5,14 @@ import { Link } from '../navigation/message.js'
 import type { RenderReport } from '../telemetry/recorder.js'
 import { bindCounter } from '../test/apps/catalogCounter.js'
 import { Ticked, bindChapters } from '../test/apps/chapterContents.js'
+import {
+  AUTOWRAP_OFF,
+  AUTOWRAP_ON,
+  CURSOR_HOME,
+  ERASE_TO_EOL,
+  SYNC_END,
+  SYNC_START,
+} from './frameWriter.js'
 import { runProgramTui } from './tui.js'
 
 const eventually = async (isDone: () => boolean): Promise<void> => {
@@ -49,12 +57,18 @@ const scriptedTerminal = (
       }),
   })
 
-const clearScreen = '\u001b[H\u001b[2J'
+const frameStart = `${SYNC_START}${AUTOWRAP_OFF}${CURSOR_HOME}`
+
+const frameEnd = `${AUTOWRAP_ON}${SYNC_END}`
 
 const linesOfFrame = (frame: string): ReadonlyArray<string> =>
-  Option.match(Array.last(frame.split(clearScreen)), {
+  Option.match(Array.last(frame.split(frameStart)), {
     onNone: () => [],
-    onSome: screen => screen.split('\n'),
+    onSome: screen =>
+      screen
+        .replace(frameEnd, '')
+        .split('\n')
+        .map(line => line.replace(ERASE_TO_EOL, '')),
   })
 
 describe('runProgramTui', () => {
@@ -119,7 +133,9 @@ describe('runProgramTui', () => {
         ),
       ),
     )
-    const painted = Array.filter(frames, frame => frame.includes(clearScreen))
+    const painted = Array.filter(frames, frame => frame.includes(frameStart))
+    expect(painted.length).toBeGreaterThan(1)
+    expect(frames.every(frame => !frame.includes('\u001b[2J'))).toBe(true)
     const last = linesOfFrame(Option.getOrThrow(Array.last(painted)))
     expect(Array.last(frames)).toEqual(Option.some('\u001b[?25h\u001b[?1049l'))
     expect(last).toHaveLength(24)

@@ -1,17 +1,18 @@
 import { Effect, Option, type Scope } from 'effect'
 
 import type { BoundInteraction } from '../interaction/bind.js'
+import { formatTerminalFrame } from './frameWriter.js'
 import { paintScreen } from './program.js'
 
 // WATCH
 
-const clearScreen = '\u001b[H\u001b[2J'
-
 const watchFooter = 'Watching every device. Ctrl-C stops.'
 
-/** Where a watch paints: a terminal clears before each paint, a pipe does not. */
+/** Where a watch paints: a terminal overwrites in place, a pipe prints each frame. */
 export type WatchOptions = Readonly<{
   isTerminal: boolean
+  columns?: number
+  rows?: number
 }>
 
 /**
@@ -62,7 +63,12 @@ export const runProgramWatch = <Model, Message>(
           maybeLastPaint = Option.some(painted)
           write(
             options.isTerminal
-              ? `${clearScreen}${painted}\n`
+              ? formatTerminalFrame(painted, {
+                  ...(options.columns === undefined
+                    ? {}
+                    : { columns: options.columns }),
+                  ...(options.rows === undefined ? {} : { rows: options.rows }),
+                })
               : `${painted}\n\n`,
           )
         }
