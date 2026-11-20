@@ -1,5 +1,6 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog } from 'foldkit'
+import { Reader } from 'foldkit/behavior'
 import { ModelPath } from 'foldkit/declaration'
 
 import {
@@ -55,9 +56,18 @@ const mutatedBySounding = [
   at.nextCue,
 ]
 
-const mutatedByMoving = [...mutatedBySounding, at.maybeAway, at.maybeWordMenu]
+const mutatedByReading = [at.reader, at.maybeLeftAtMs]
 
-const mutatedByShowingMatch = [at.maybeSearch.maybeSelectedMs, at.maybeAway]
+const mutatedByMoving = [
+  ...mutatedBySounding,
+  ...mutatedByReading,
+  at.maybeWordMenu,
+]
+
+const mutatedByShowingMatch = [
+  at.maybeSearch.maybeSelectedMs,
+  ...mutatedByReading,
+]
 
 /** Plays from the place. `p` presses it, and pauses while it plays. */
 export const Play = Catalog.action('Play', {
@@ -433,7 +443,7 @@ export const LeavePlayhead = Catalog.action('LeavePlayhead', {
       : Catalog.Disabled({
           because: 'the words are already away from the voice',
         }),
-  mutates: [at.maybeAway],
+  mutates: mutatedByReading,
   meta: {
     label: 'Read elsewhere',
     keys: [],
@@ -449,8 +459,8 @@ export const BackToPlayhead = Catalog.action('BackToPlayhead', {
     isFollowingPlayhead(model)
       ? Catalog.Disabled({ because: 'the words already follow the voice' })
       : Catalog.Enabled(),
-  mutates: [at.maybeAway, at.maybeWordMenu],
-  meta: { label: 'Back to playhead', keys: [] },
+  mutates: [...mutatedByReading, at.maybeWordMenu],
+  meta: { label: Reader.returnLabelOf('Playhead'), keys: [] },
 })
 
 /**

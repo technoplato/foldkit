@@ -1,4 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
+import { Reader } from 'foldkit/behavior'
 import { type Html, html } from 'foldkit/html'
 import {
   type AccessIdentity,
@@ -288,7 +289,10 @@ const shortcutRows: ReadonlyArray<ShortcutRow> = [
     action:
       'Stop the recording in progress, as on the Mac (Shift-Control-Period on Windows and Linux)',
   },
-  { keys: 'L', action: 'Back to Playhead, or Back to Live while recording' },
+  {
+    keys: 'L',
+    action: `${Reader.returnLabelOf('Playhead')}, or ${Reader.returnLabelOf('Live')} while recording`,
+  },
   { keys: 'F', action: 'Full Screen for the recording you are reading' },
   { keys: '/', action: 'Search the recording list' },
   {

@@ -36,7 +36,7 @@ describe('the look of the word whose menu is open', () => {
 })
 
 describe('the look of the reader’s own buttons', () => {
-  it('makes Back to playhead and Search pills that sit centered above the controls', () => {
+  it('makes Back to Playhead and Search pills that sit centered above the controls', () => {
     const pill = ruleOf(":where(.fk-button[data-variant='Pill'])")
     expect(pill).toContain('border-radius: 999px')
     expect(pill).toContain(`color: ${roleVar('Text')}`)

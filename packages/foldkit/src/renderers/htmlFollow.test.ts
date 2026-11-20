@@ -298,6 +298,83 @@ describe('the reader scrolling away, at the edge', () => {
     transcript.remove()
   })
 
+  // NOTE: the test DOM lays nothing out and its window never moves, so a
+  // glide here is always still on its way.
+  const glidingToTheWord = async (transcript: Element) => {
+    const scrolls = recordedScrolls()
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<never>().f(transcript)),
+    )
+    await new Promise(resolve => {
+      setTimeout(resolve, 20)
+    })
+    transcript.setAttribute('data-following', 'true')
+    await until(() => scrolls.length === 1)
+    return { scrolls, fiber }
+  }
+
+  it('stops its own glide where it is when the reader’s wheel lands on it, so the wheel is not lost to the glide', async () => {
+    const { transcript } = page()
+    transcript.setAttribute('data-following', 'false')
+    const { scrolls, fiber } = await glidingToTheWord(transcript)
+    window.dispatchEvent(new Event('wheel'))
+    expect(scrolls).toEqual([
+      { top: topThatCentersTheWord(), behavior: 'smooth' },
+      { top: window.scrollY, behavior: 'instant' },
+    ])
+    window.dispatchEvent(new Event('wheel'))
+    expect(scrolls.length).toBe(2)
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
+  it('stops its glide for a finger as for a wheel', async () => {
+    const { transcript } = page()
+    transcript.setAttribute('data-following', 'false')
+    const { scrolls, fiber } = await glidingToTheWord(transcript)
+    window.dispatchEvent(new Event('touchmove'))
+    expect(scrolls.at(-1)).toEqual({ top: window.scrollY, behavior: 'instant' })
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
+  it('stops nothing once the glide has ended', async () => {
+    const { transcript } = page()
+    transcript.setAttribute('data-following', 'false')
+    const { scrolls, fiber } = await glidingToTheWord(transcript)
+    window.dispatchEvent(new Event('scrollend'))
+    window.dispatchEvent(new Event('wheel'))
+    expect(scrolls.length).toBe(1)
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
+  it('stops nothing when the view is already where the glide was heading', async () => {
+    const { transcript } = page()
+    transcript.setAttribute('data-following', 'false')
+    const { scrolls, fiber } = await glidingToTheWord(transcript)
+    vi.spyOn(window, 'scrollY', 'get').mockReturnValue(topThatCentersTheWord())
+    window.dispatchEvent(new Event('wheel'))
+    expect(scrolls.length).toBe(1)
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
+  it('stops nothing for a wheel when it has started no glide', async () => {
+    const { transcript } = page()
+    const scrolls = recordedScrolls()
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<never>().f(transcript)),
+    )
+    await new Promise(resolve => {
+      setTimeout(resolve, 20)
+    })
+    window.dispatchEvent(new Event('wheel'))
+    expect(scrolls).toEqual([])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
   it('puts the word in the middle of what the page’s scroll padding leaves free: 60 px lower for 120 px kept at the top', async () => {
     const { transcript } = page()
     transcript.setAttribute('data-following', 'false')

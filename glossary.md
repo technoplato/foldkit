@@ -230,6 +230,38 @@ draft }) | Saving({ base, draft })`. It may PROJECT into a URI
   empty `CounterScene {}` structs, hand-mirrored `urlToNavigation` /
   `navigationToPath`, children booted as separate apps. Not canonical.
 
+## Reading along (plan 14b)
+
+- **Voice**: what a reader reads along with: the word sounding in a
+  recording that plays, or the newest word of a recording in progress.
+  e.g. the word at 12:03 of an audiobook; the last word said so far.
+- **Reader (block)**: the one rule, in Foldkit core, for how the words on
+  screen stand to the voice, on the Model's side. `Reader` in
+  `foldkit/behavior`: `Reader.step(state, context, fact)` and
+  `Reader.project(state, transcript, { leaveAction })`. Books' Transcript
+  Player and Words both keep its State in their Model. Not the painter's
+  rule, which is `TranscriptFollow`.
+- **Following**: the reader's state while the words keep the voice in the
+  middle of the view. e.g. `Reader.Following()`, where every reader starts.
+- **Detached**: the reader's state while the words stay where the reader
+  put them, with the place to show when one is named. e.g.
+  `Reader.Detached({ maybePlace: Option.none() })` after a scroll away.
+- **Place (reader)**: what a detached reader is shown: a word by the time
+  it starts, or a passage by its key. e.g.
+  `Reader.Word({ startMs: 10_802_400 })` for a match of a search;
+  `Reader.Passage({ key: 's7' })` for the section a link opened on. One at a
+  time.
+- **Way back**: the control that follows the voice again, shown whenever
+  the reader is detached. Its label is `Back to Playhead`, or
+  `Back to Live` while the voice is the newest word of a recording in
+  progress.
+  `Reader.returnControlOf` gives it as data; each app draws it where its
+  layout puts it.
+- **Move of the voice**: the listener putting the voice somewhere on
+  purpose: a picked word, a seek, a skip, a step, a link to a time. It
+  follows again in both apps (`Reader.MovedVoice()`). Play and Pause are
+  not moves.
+
 ## Plans vocabulary (proposed, 2026-10-09)
 
 Terms introduced by `plans/` and not yet in code. Proposed until the plan that

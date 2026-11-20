@@ -1,4 +1,5 @@
 import { Array, Option } from 'effect'
+import { Reader } from 'foldkit/behavior'
 import { evo } from 'foldkit/struct'
 import { fromString } from 'foldkit/url'
 import { describe, expect, it } from 'vitest'
@@ -33,7 +34,6 @@ import {
   ClickedPause,
   ClickedPlay,
   ClickedRetryAudio,
-  ClickedReturnToPlayhead,
   ClickedShareRecordingLink,
   ClickedSkip,
   ClickedSkipToContent,
@@ -214,8 +214,10 @@ describe('opening links', () => {
 
     expect(ready.positionSeconds).toBe(19)
     expect(ready.maybePendingSeekSeconds).toEqual(Option.some(19))
-    expect(ready.maybeFocusedSectionID).toEqual(Option.some(sectionB.id))
-    expect(ready.follow).toBe('Detached')
+    expect(Reader.placeOf(ready.reader)).toEqual(
+      Option.some(Reader.Passage({ key: sectionB.id })),
+    )
+    expect(ready.reader._tag).toBe('Detached')
     expect(commandNames).toEqual([
       'ClearFocusHighlightLater',
       'ScrollToSection',
@@ -224,7 +226,8 @@ describe('opening links', () => {
     const cleared = run(model, [
       ElapsedFocusHighlight({ revision: ready.focusRevision }),
     ])
-    expect(readyOf(cleared.model).maybeFocusedSectionID).toEqual(Option.none())
+    expect(Reader.placeOf(readyOf(cleared.model).reader)).toEqual(Option.none())
+    expect(readyOf(cleared.model).reader._tag).toBe('Detached')
   })
 
   it("uses the link's t when it has one", () => {
@@ -333,7 +336,7 @@ describe('playing', () => {
 
     expect(next.positionSeconds).toBe(20.2)
     expect(next.transport).toBe('Playing')
-    expect(next.follow).toBe('Following')
+    expect(next.reader._tag).toBe('Following')
     expect(commandNames).toEqual(['SeekAudio', 'PlayAudio'])
   })
 
@@ -349,14 +352,6 @@ describe('playing', () => {
     expect(next.positionSeconds).toBe(41)
     expect(next.scrub._tag).toBe('NotScrubbing')
     expect(commandNames).toEqual(['SeekAudio'])
-  })
-
-  it('returns to the playhead after scrolling away', () => {
-    const detached = run(ready, [ScrolledTranscriptAway()]).model
-    expect(readyOf(detached).follow).toBe('Detached')
-    expect(
-      readyOf(run(detached, [ClickedReturnToPlayhead()]).model).follow,
-    ).toBe('Following')
   })
 
   it('holds the clock the scrubber reads on from: the place, whether it runs, and the length', () => {
@@ -487,7 +482,7 @@ describe('playing', () => {
     ).toEqual(Option.some([30, 'Paused']))
     expect(readyOf(back.model).positionSeconds).toBe(30)
     expect(back.model.maybeBackgroundPlayback).toEqual(Option.none())
-    expect(readyOf(back.model).follow).toBe('Following')
+    expect(readyOf(back.model).reader._tag).toBe('Following')
     expect(back.commandNames).toEqual([])
   })
 
@@ -730,7 +725,7 @@ describe('following the playhead', () => {
       StartedScrub({ seconds: 6 }),
     ]).model
     const released = commandsOf(away, EndedScrub({ seconds: 21 }))
-    expect(readyOf(released.model).follow).toBe('Following')
+    expect(readyOf(released.model).reader._tag).toBe('Following')
     expect(released.commands).toEqual([
       { name: 'SeekAudio', args: { seconds: 21 } },
     ])
@@ -893,7 +888,7 @@ describe('keyboard shortcuts', () => {
     ]).model
     expect(shortcutContextOf(away).isAwayFromFollowed).toBe(true)
     const back = run(away, [PressedShortcut({ shortcut: 'ReturnToFollowed' })])
-    expect(readyOf(back.model).follow).toBe('Following')
+    expect(readyOf(back.model).reader._tag).toBe('Following')
     expect(back.commandNames).toEqual([])
   })
 

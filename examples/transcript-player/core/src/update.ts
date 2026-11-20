@@ -1,17 +1,16 @@
 import { Array, Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
+import { Reader } from 'foldkit/behavior'
 import { type ScrubDirection, matchStepOf } from 'foldkit/renderers'
 
 import { FailedSearch, ReceivedMatches } from './fact.js'
 import { MediaId, Milliseconds, SearchQuery, type WordId } from './ids.js'
 import type { Message } from './message.js'
 import {
-  LookingAt,
   type Match,
   type Model,
   Paused,
   Playing,
-  ScrolledAway,
   type Search,
   SearchFailed,
   SearchFound,
@@ -23,10 +22,10 @@ import {
   type Transport,
   Unplayable,
   hasAudio,
-  isFollowingPlayhead,
   isSounding,
   nextSectionOf,
   previousSectionOf,
+  readerContext,
   viewPlaceOf,
   wordOf,
 } from './model.js'
@@ -124,15 +123,48 @@ const stoppedAs = (model: Model, transport: Transport): UpdateReturn =>
       ]
     : unchanged(model)
 
-const following = (model: Model): Model => ({
-  ...model,
-  maybeAway: Option.none(),
+const leftAtOf = (
+  model: Model,
+  nextReader: Reader.State,
+): Option.Option<Milliseconds> => {
+  if (
+    Reader.isFollowing(nextReader) ||
+    Option.isSome(Reader.placeOf(nextReader))
+  ) {
+    return Option.none()
+  } else if (Reader.isFollowing(model.reader)) {
+    return Option.some(model.placeMs)
+  } else {
+    return model.maybeLeftAtMs
+  }
+}
+
+/**
+ * Tells Foldkit's reader rule what happened, and keeps where the words on
+ * screen stay with it: the place the voice was at when the person scrolled
+ * away, and nowhere while they follow or look at a named place. A fact
+ * that changes nothing gives the same Model back.
+ */
+const told = (model: Model, fact: Reader.Fact): Model => {
+  const nextReader = Reader.step(model.reader, readerContext, fact)
+  return nextReader === model.reader
+    ? model
+    : {
+        ...model,
+        reader: nextReader,
+        maybeLeftAtMs: leftAtOf(model, nextReader),
+      }
+}
+
+const following = (model: Model, fact: Reader.Fact): Model => ({
+  ...told(model, fact),
   maybeWordMenu: Option.none(),
 })
 
 const movedTo = (model: Model, placeMs: Milliseconds): UpdateReturn => [
   following(
     isSounding(model) ? sounding(model, placeMs) : { ...model, placeMs },
+    Reader.MovedVoice(),
   ),
   [],
   Option.some(Moved({ placeMs })),
@@ -153,7 +185,7 @@ const playedFromWord = (model: Model, wordId: WordId): UpdateReturn =>
     {
       onNone: () => unchanged(model),
       onSome: word => [
-        following(sounding(model, word.startMs)),
+        following(sounding(model, word.startMs), Reader.MovedVoice()),
         [],
         Option.some(Moved({ placeMs: word.startMs })),
       ],
@@ -180,16 +212,18 @@ const playedFrom = (model: Model, placeMs: Milliseconds): UpdateReturn =>
     ? [
         following(
           withSelected(sounding(model, clamped(model, placeMs)), placeMs),
+          Reader.MovedVoice(),
         ),
         [],
         Option.some(Moved({ placeMs: clamped(model, placeMs) })),
       ]
     : unchanged(model)
 
-const lookingAt = (model: Model, placeMs: Milliseconds): Model => ({
-  ...withSelected(model, placeMs),
-  maybeAway: Option.some(LookingAt({ atMs: placeMs })),
-})
+const lookingAt = (model: Model, placeMs: Milliseconds): Model =>
+  told(
+    withSelected(model, placeMs),
+    Reader.NamedPlace({ place: Reader.Word({ startMs: placeMs }) }),
+  )
 
 const shownMatch = (
   model: Model,
@@ -481,18 +515,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ),
         ),
       PlayFrom: ({ placeMs }) => playedFrom(model, placeMs),
-      LeavePlayhead: () =>
-        only(
-          isFollowingPlayhead(model)
-            ? {
-                ...model,
-                maybeAway: Option.some(
-                  ScrolledAway({ anchorMs: model.placeMs }),
-                ),
-              }
-            : model,
-        ),
-      BackToPlayhead: () => only(following(model)),
+      LeavePlayhead: () => only(told(model, Reader.LeftVoice())),
+      BackToPlayhead: () => only(following(model, Reader.ReturnedToVoice())),
       ShowWordMenu: ({ wordId }) =>
         only(
           Option.isSome(wordOf(model, wordId))

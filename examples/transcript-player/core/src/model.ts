@@ -1,4 +1,5 @@
-import { Array, Option, Schema as S } from 'effect'
+import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
+import { Reader } from 'foldkit/behavior'
 import { ts } from 'foldkit/schema'
 
 import { MediaId, Milliseconds, SearchQuery, Speed, WordId } from './ids.js'
@@ -163,20 +164,11 @@ export type Search = typeof Search.Type
 export const searchMatchesLimit = 100
 
 /**
- * The person scrolled the words away from the word sounding. The words
- * on screen stay the ones around `anchorMs`, the place it was at when
- * they did, while the audio plays on.
+ * What is so for the reader's rule in this player: the word followed is
+ * always the word sounding, never the newest word of a recording in
+ * progress, so the way back is always Back to Playhead.
  */
-export const ScrolledAway = ts('ScrolledAway', { anchorMs: Milliseconds })
-/**
- * The person is looking at one word away from the word sounding, such as
- * a match of a search: the word that starts at `atMs`, to bring into view.
- */
-export const LookingAt = ts('LookingAt', { atMs: Milliseconds })
-/** How the words on screen stand away from the word sounding. */
-export const Away = S.Union([ScrolledAway, LookingAt])
-/** How the words on screen stand away from the word sounding. */
-export type Away = typeof Away.Type
+export const readerContext: Reader.Context = { isLive: false }
 
 /**
  * The Transcript Player: one recording, where it is, whether it sounds,
@@ -184,9 +176,14 @@ export type Away = typeof Away.Type
  * `maybePlacedAtMs` is the wall-clock time the audio last reported the
  * place while playing; None after a jump until it reports again. With it
  * a painter knows the place between reports, see {@link playbackClockOf}.
- * `maybeSearch` is the search while it is open. `maybeAway` says the
- * words on screen are somewhere other than the word sounding; None, they
- * follow it. `maybeWordMenu` is the word whose menu is open.
+ * `maybeSearch` is the search while it is open. `reader` is how the words
+ * on screen stand to the word sounding, by Foldkit's shared rule
+ * (`Reader` in `foldkit/behavior`): following it, or away from it, at a
+ * match of a search when one is named. A Model kept before the player
+ * had it opens following. `maybeLeftAtMs` is where the voice was when the
+ * person scrolled away, so the words on screen stay around that place
+ * while the audio plays on; None while they follow or look at a match.
+ * `maybeWordMenu` is the word whose menu is open.
  */
 export const Model = S.Struct({
   media: Media,
@@ -198,7 +195,10 @@ export const Model = S.Struct({
   seekScope: SeekScope,
   transcript: Transcript,
   maybeSearch: S.OptionFromOptionalKey(Search),
-  maybeAway: S.OptionFromOptionalKey(Away),
+  reader: Reader.State.pipe(
+    S.withDecodingDefaultTypeKey(Effect.succeed(Reader.initial)),
+  ),
+  maybeLeftAtMs: S.OptionFromOptionalKey(Milliseconds),
   maybeWordMenu: S.OptionFromOptionalKey(WordId),
 })
 /**
@@ -237,7 +237,8 @@ export const init = (
     (Array.isReadonlyArrayEmpty(media.sections) ? 'Recording' : 'Section'),
   transcript: TranscriptLoading(),
   maybeSearch: Option.none(),
-  maybeAway: Option.none(),
+  reader: Reader.initial,
+  maybeLeftAtMs: Option.none(),
   maybeWordMenu: Option.none(),
 })
 
@@ -374,7 +375,10 @@ export const selectedMatchOf = (model: Model): Option.Option<Match> =>
 
 /** True while the words on screen follow the word sounding. */
 export const isFollowingPlayhead = (model: Model): boolean =>
-  Option.isNone(model.maybeAway)
+  Reader.isFollowing(model.reader)
+
+const leftPlaceOf = (model: Model): Milliseconds =>
+  Option.getOrElse(model.maybeLeftAtMs, () => model.placeMs)
 
 /**
  * The place the words on screen are around: the place being heard while
@@ -389,7 +393,14 @@ export const isFollowingPlayhead = (model: Model): boolean =>
  * ```
  */
 export const viewPlaceOf = (model: Model): Milliseconds =>
-  Option.match(model.maybeAway, {
-    onNone: () => model.placeMs,
-    onSome: away => (away._tag === 'ScrolledAway' ? away.anchorMs : away.atMs),
+  Option.match(Reader.placeOf(model.reader), {
+    onNone: () =>
+      isFollowingPlayhead(model) ? model.placeMs : leftPlaceOf(model),
+    onSome: M.type<Reader.Place>().pipe(
+      M.withReturnType<Milliseconds>(),
+      M.tagsExhaustive({
+        Word: ({ startMs }) => Milliseconds.make(startMs),
+        Passage: () => leftPlaceOf(model),
+      }),
+    ),
   })

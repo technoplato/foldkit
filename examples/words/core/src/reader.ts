@@ -1,4 +1,5 @@
 import { Array, Option, String } from 'effect'
+import { Reader } from 'foldkit/behavior'
 import {
   type MenuAction,
   type TranscriptNode,
@@ -27,12 +28,7 @@ import {
 } from './readAlong.js'
 import type { Section } from './recording.js'
 import { sectionPlaybackStart } from './transcript.js'
-import {
-  findOf,
-  isAudioPlayableOf,
-  sectionMenuOf,
-  wordMenuOf,
-} from './update.js'
+import { isAudioPlayableOf, sectionMenuOf, wordMenuOf } from './update.js'
 
 // PRESS
 
@@ -152,9 +148,10 @@ const wordMenuItemsOf = (
  * The open recording as the one Transcript every Client paints, with
  * everything the Model says about reading it: the whole timeline of
  * `timelineReadAlongOf`, the words the search inside the recording found
- * and the match the listener is on, whether the words follow the voice,
- * the word to bring into view, the section a link opened on, and the menu
- * open on a word or on a section's time. A painter
+ * and the match the listener is on, the menu open on a word or on a
+ * section's time, and what Foldkit's reader rule says of how the words
+ * stand to the voice: whether they follow it, the word to bring into
+ * view, and the section a link opened on. A painter
  * draws it and presses what it says; `readerMessageOf` turns each press
  * back into the Message the Model takes. A web page, a phone and a
  * terminal read the same recording the same way from it.
@@ -180,30 +177,11 @@ export const readerOf = (
         Option.getOrUndefined(find.maybeSelectedMs),
       ),
   })
-  const maybeFocusToken = Option.flatMap(findOf(ready), find =>
-    Option.flatMap(find.maybeSelectedIndex, index =>
-      Option.flatMap(Array.get(find.matches, index), match =>
-        Array.head(match.wordIDs),
-      ),
-    ),
-  )
-  const maybeFocusedID = Option.getOrUndefined(ready.maybeFocusedSectionID)
-  return {
+  const pressable: TranscriptNode = {
     ...marked,
-    passages: Array.map(marked.passages, passage => {
-      const pressable = withSectionMenuPress(passage)
-      return passage.key === maybeFocusedID
-        ? { ...pressable, isFocused: true }
-        : pressable
-    }),
+    passages: Array.map(marked.passages, withSectionMenuPress),
     action: playWordPress,
-    isFollowing: ready.follow === 'Following',
-    leaveAction: leavePress,
     wordMenuAction: wordMenuPress,
-    ...Option.match(maybeFocusToken, {
-      onNone: () => ({}),
-      onSome: focusToken => ({ focusToken }),
-    }),
     ...Option.match(sectionMenuOf(ready), {
       onNone: () => ({}),
       onSome: section => ({
@@ -225,6 +203,7 @@ export const readerOf = (
       }),
     }),
   }
+  return Reader.project(ready.reader, pressable, { leaveAction: leavePress })
 }
 
 /**

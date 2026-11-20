@@ -1,4 +1,5 @@
 import { Array, Option, pipe } from 'effect'
+import { Reader } from 'foldkit/behavior'
 import { describe, expect, it } from 'vitest'
 
 import { decodeRecordingDetail, decodeRecordingList } from './decode.js'
@@ -218,7 +219,9 @@ describe('a link to a retired line', () => {
       ]),
     )
 
-    expect(ready.maybeFocusedSectionID).toEqual(Option.some(lineID(2)))
+    expect(Reader.placeOf(ready.reader)).toEqual(
+      Option.some(Reader.Passage({ key: lineID(2) })),
+    )
     expect(ready.positionSeconds).toBe(19)
     expect(scrolls).toEqual([{ sectionID: lineID(2) }])
   })
@@ -235,7 +238,9 @@ describe('a link to a retired line', () => {
       ]),
     )
 
-    expect(ready.maybeFocusedSectionID).toEqual(Option.some(lineID(4)))
+    expect(Reader.placeOf(ready.reader)).toEqual(
+      Option.some(Reader.Passage({ key: lineID(4) })),
+    )
     expect(ready.positionSeconds).toBe(19)
     expect(scrolls).toEqual([{ sectionID: lineID(4) }])
   })

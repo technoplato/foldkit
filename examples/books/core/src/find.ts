@@ -61,7 +61,7 @@ export const readerSearchOf = (
 
 /**
  * The reader's own buttons, for the player page to place under the
- * words: `Back to playhead` while the words are away from the word being
+ * words: `Back to Playhead` while the words are away from the word being
  * read, and `Search` while the search is closed.
  */
 export const readerButtonsOf = (

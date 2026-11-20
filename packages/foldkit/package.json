@@ -122,6 +122,11 @@
       "import": "./dist/interaction/public.js",
       "default": "./dist/interaction/public.js"
     },
+    "./behavior": {
+      "types": "./dist/behavior/index.d.ts",
+      "import": "./dist/behavior/index.js",
+      "default": "./dist/behavior/index.js"
+    },
     "./theme": {
       "types": "./dist/theme/index.d.ts",
       "import": "./dist/theme/index.js",

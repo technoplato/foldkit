@@ -15,6 +15,7 @@ import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 import { init } from './init.js'
 import {
   AddNotedBookmark,
+  BackToPlayhead,
   BookmarkWord,
   ConfirmDeleteBookmark,
   ConnectAudible,
@@ -270,6 +271,12 @@ const pausedAway = after(
   Pause(),
 )
 
+/**
+ * Sounding with a search that found two places, the words scrolled away
+ * from the voice after a look at one of them.
+ */
+const foundThenAway = after(busy, BackToPlayhead(), LeavePlayhead())
+
 /** Another title's page open while the first sounds in the player. */
 const onOtherTitle = after(playing, Open({ slug: fieldGuide }))
 
@@ -457,6 +464,7 @@ export const sampleModels: ReadonlyArray<Model> = [
   atEnd,
   withNotice,
   pausedAway,
+  foundThenAway,
   withUnsentReport,
   onOtherTitle,
   withSpeeds,

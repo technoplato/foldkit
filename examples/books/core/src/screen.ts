@@ -1547,7 +1547,7 @@ const barSearchButtonsOf = (
 /**
  * The reader's own buttons in a row above the controls. While the
  * controls are folded into the bar, Search sits in the bar itself, so
- * this row holds only `Back to playhead`, and nothing while the words
+ * this row holds only `Back to Playhead`, and nothing while the words
  * follow the voice.
  */
 const readerRowOf = (model: Model, loaded: Loaded): ReadonlyArray<UiNode> =>

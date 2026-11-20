@@ -1,7 +1,9 @@
 import { Array, Option } from 'effect'
+import { Reader } from 'foldkit/behavior'
 import { transcriptAt } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
+import { MediaSessionSeek, MediaSessionSkip } from './audioPlayer.js'
 import { PlaybackRoute, RecordingRoute, SectionRoute } from './link.js'
 import {
   AcquiredAudioPlayer,
@@ -12,14 +14,18 @@ import {
   ClickedReturnToPlayhead,
   ClickedSkip,
   ClickedWord,
+  ClosedFind,
+  ElapsedFocusHighlight,
   EndedScrub,
   HeardAudioPaused,
   HeardAudioPlaying,
   HeardAudioPosition,
+  HeardMediaSessionAction,
   type Message,
   MovedScrub,
   ObservedFileUrls,
   ObservedRecording,
+  PressedScrubberArrow,
   PressedShortcut,
   ScrolledTranscriptAway,
   SteppedFind,
@@ -37,6 +43,7 @@ import {
 import {
   isReturnShownOf,
   modelForRoute,
+  returnControlOf,
   shortcutContextOf,
   update,
 } from './update.js'
@@ -206,7 +213,7 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         observed(finished([sectionA, sectionB, sectionC])),
       )
       expect(opened.commandNames).toEqual(['ScrollToRecordingTitle'])
-      expect(opened.ready.follow).toBe('Following')
+      expect(opened.ready.reader._tag).toBe('Following')
     })
 
     it('a recording opened at a linked section asks for that section in the middle, does not follow the voice, and shows the way back', () => {
@@ -226,7 +233,7 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
           command => command.args,
         ),
       ).toEqual([{ sectionID: sectionC.id }])
-      expect(readyOf(next).follow).toBe('Detached')
+      expect(readyOf(next).reader._tag).toBe('Detached')
       expect(isReturnShownOf(readyOf(next))).toBe(true)
     })
 
@@ -390,34 +397,25 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
 
     it('the listener scrolling away stops the words following, and shows the way back', () => {
       const away = told(playingAt(20.2), ScrolledTranscriptAway())
-      expect(away.ready.follow).toBe('Detached')
+      expect(away.ready.reader._tag).toBe('Detached')
       expect(readerOfModel(away.model).isFollowing).toBe(false)
       expect(isReturnShownOf(away.ready)).toBe(true)
       expect(away.commandNames).toEqual([])
     })
 
-    it('the words stay detached while the voice moves on, skips, pauses, plays and goes Full Screen', () => {
+    it('the words stay detached while the voice moves on by itself, pauses, plays and goes Full Screen', () => {
       const away = folded(playingAt(6), [ScrolledTranscriptAway()])
       expect(
         Array.map(
           [
             heardAt(40.3),
-            ClickedSkip({ deltaSeconds: 15 }),
-            PressedShortcut({ shortcut: 'SkipForward' }),
             ClickedPause(),
             ClickedPlay(),
             ClickedEnterFullScreen(),
           ],
-          message => told(away, message).ready.follow,
+          message => told(away, message).ready.reader._tag,
         ),
-      ).toEqual([
-        'Detached',
-        'Detached',
-        'Detached',
-        'Detached',
-        'Detached',
-        'Detached',
-      ])
+      ).toEqual(['Detached', 'Detached', 'Detached', 'Detached'])
     })
 
     it('while recording, the words stay detached as new words arrive', () => {
@@ -428,7 +426,7 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         away,
         observed(recording([sectionA, sectionB, sectionC])),
       )
-      expect(grown.ready.follow).toBe('Detached')
+      expect(grown.ready.reader._tag).toBe('Detached')
       expect(isReturnShownOf(grown.ready)).toBe(true)
     })
   })
@@ -436,15 +434,29 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
   describe('following again', () => {
     const away = folded(playingAt(20.2), [ScrolledTranscriptAway()])
 
-    it('Back to Playhead shows whenever the words do not follow, and not while they do', () => {
-      expect(isReturnShownOf(readyOf(playingAt(20.2)))).toBe(false)
+    it('the way back is the shared reader’s: none while the words follow, Back to Playhead once they do not, Back to Live while recording', () => {
+      expect(returnControlOf(readyOf(playingAt(20.2)))).toEqual(Option.none())
+      expect(returnControlOf(readyOf(recordingWith([sectionA])))).toEqual(
+        Option.none(),
+      )
+      expect(returnControlOf(readyOf(away))).toEqual(
+        Option.some({ target: 'Playhead', label: 'Back to Playhead' }),
+      )
+      expect(
+        returnControlOf(
+          readyOf(
+            folded(recordingWith([sectionA, sectionB]), [
+              ScrolledTranscriptAway(),
+            ]),
+          ),
+        ),
+      ).toEqual(Option.some({ target: 'Live', label: 'Back to Live' }))
       expect(isReturnShownOf(readyOf(away))).toBe(true)
-      expect(isReturnShownOf(readyOf(recordingWith([sectionA])))).toBe(false)
     })
 
     it('pressing Back to Playhead follows again and asks for no scroll: the painter brings the spoken word to the middle', () => {
       const returned = told(away, ClickedReturnToPlayhead())
-      expect(returned.ready.follow).toBe('Following')
+      expect(returned.ready.reader._tag).toBe('Following')
       expect(readerOfModel(returned.model).isFollowing).toBe(true)
       expect(returned.commandNames).toEqual([])
     })
@@ -454,7 +466,7 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         folded(recordingWith([sectionA, sectionB]), [ScrolledTranscriptAway()]),
         ClickedReturnToPlayhead(),
       )
-      expect(returned.ready.follow).toBe('Following')
+      expect(returned.ready.reader._tag).toBe('Following')
       expect(clockOf(returned.model)).toEqual(standingAt(22.2))
       expect(returned.commandNames).toEqual([])
     })
@@ -464,13 +476,13 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
       expect(shortcutContextOf(playingAt(20.2)).isAwayFromFollowed).toBe(false)
       expect(
         told(away, PressedShortcut({ shortcut: 'ReturnToFollowed' })).ready
-          .follow,
+          .reader._tag,
       ).toBe('Following')
     })
 
     it('picking a word follows again from that word', () => {
       const picked = told(away, ClickedWord({ seconds: 40.2 }))
-      expect(picked.ready.follow).toBe('Following')
+      expect(picked.ready.reader._tag).toBe('Following')
       expect(clockOf(picked.model)).toEqual(standingAt(40.2))
     })
 
@@ -479,8 +491,47 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         folded(away, [MovedScrub({ seconds: 41 })]),
         EndedScrub({ seconds: 41 }),
       )
-      expect(released.ready.follow).toBe('Following')
+      expect(released.ready.reader._tag).toBe('Following')
       expect(released.commandNames).toEqual(['SeekAudio'])
+    })
+
+    it('every other move of the voice follows again too, as in Books: a skip, the skip key, the scrubber’s arrows, a step by word or paragraph, and the system’s media controls', () => {
+      expect(
+        Array.map(
+          [
+            ClickedSkip({ deltaSeconds: 15 }),
+            PressedShortcut({ shortcut: 'SkipForward' }),
+            PressedScrubberArrow({ arrow: 'Right' }),
+            PressedShortcut({ shortcut: 'NextWord' }),
+            PressedShortcut({ shortcut: 'PreviousParagraph' }),
+            HeardMediaSessionAction({
+              action: MediaSessionSkip({ deltaSeconds: -15 }),
+            }),
+            HeardMediaSessionAction({
+              action: MediaSessionSeek({ seconds: 41 }),
+            }),
+          ],
+          message => told(away, message).ready.reader._tag,
+        ),
+      ).toEqual([
+        'Following',
+        'Following',
+        'Following',
+        'Following',
+        'Following',
+        'Following',
+        'Following',
+      ])
+    })
+
+    it('a step that lands on no word moves nothing, so the words stay detached', () => {
+      const atTheStart = folded(pausedAt(0), [ScrolledTranscriptAway()])
+      const stepped = told(
+        atTheStart,
+        PressedShortcut({ shortcut: 'PreviousWord' }),
+      )
+      expect(stepped.commandNames).toEqual([])
+      expect(stepped.ready.reader._tag).toBe('Detached')
     })
   })
 
@@ -490,9 +541,142 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         ChangedFindQuery({ query: 'bell' }),
       ])
       const stepped = told(searching, SteppedFind({ direction: 'Next' }))
-      expect(stepped.ready.follow).toBe('Detached')
+      expect(stepped.ready.reader._tag).toBe('Detached')
       expect(stepped.commandNames).toEqual([])
       expect(readerOfModel(stepped.model).focusToken).toBe('section-1:3')
+    })
+
+    it('names the match by the time it starts, so the word is found again when the recording’s words are made again', () => {
+      const stepped = folded(pausedAt(6), [
+        ChangedFindQuery({ query: 'bell' }),
+        SteppedFind({ direction: 'Next' }),
+      ])
+      expect(
+        Option.map(
+          Reader.placeOf(readyOf(stepped).reader),
+          place => place._tag,
+        ),
+      ).toEqual(Option.some('Word'))
+      const remade: Section = {
+        ...sectionB,
+        id: 'section-9',
+        words: Array.map(sectionB.words, (word, at) => ({
+          ...word,
+          id: `section-9:${at.toString()}`,
+        })),
+      }
+      const again = told(
+        stepped,
+        observed(finished([sectionA, remade, sectionC, sectionD])),
+      )
+      expect(readerOfModel(again.model).focusToken).toBe('section-9:3')
+    })
+
+    it('names no word once the search closes or its words change, and the words stay detached', () => {
+      const stepped = folded(pausedAt(6), [
+        ChangedFindQuery({ query: 'bell' }),
+        SteppedFind({ direction: 'Next' }),
+      ])
+      expect(
+        Array.map(
+          [ClosedFind(), ChangedFindQuery({ query: 'lamp' })],
+          message => {
+            const after = told(stepped, message)
+            return [
+              after.ready.reader._tag,
+              readerOfModel(after.model).focusToken,
+            ]
+          },
+        ),
+      ).toEqual([
+        ['Detached', undefined],
+        ['Detached', undefined],
+      ])
+    })
+
+    it('names no word once the words follow again, though the match stays selected', () => {
+      const stepped = folded(pausedAt(6), [
+        ChangedFindQuery({ query: 'bell' }),
+        SteppedFind({ direction: 'Next' }),
+      ])
+      const picked = told(stepped, ClickedWord({ seconds: 40.2 }))
+      expect(picked.ready.reader._tag).toBe('Following')
+      expect(readerOfModel(picked.model).focusToken).toBeUndefined()
+      const again = told(picked.model, SteppedFind({ direction: 'Next' }))
+      expect(readerOfModel(again.model).focusToken).toBe('section-1:3')
+    })
+  })
+
+  describe('a section a link opened on', () => {
+    const linked = folded(
+      modelForRoute(
+        SectionRoute({ recordingID, sectionID: sectionC.id, t: Option.none() }),
+      ),
+      [
+        observed(finished([sectionA, sectionB, sectionC, sectionD])),
+        ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio' } }),
+        AcquiredAudioPlayer(),
+      ],
+    )
+
+    const markedOf = (model: Model): ReadonlyArray<string> =>
+      Array.map(
+        Array.filter(
+          readerOfModel(model).passages,
+          passage => passage.isFocused === true,
+        ),
+        passage => passage.key,
+      )
+
+    it('is the one place the reader shows, marked until its four seconds are up', () => {
+      expect(Reader.placeOf(readyOf(linked).reader)).toEqual(
+        Option.some(Reader.Passage({ key: sectionC.id })),
+      )
+      expect(markedOf(linked)).toEqual([sectionC.id])
+      const elapsed = told(
+        linked,
+        ElapsedFocusHighlight({ revision: readyOf(linked).focusRevision }),
+      )
+      expect(markedOf(elapsed.model)).toEqual([])
+      expect(elapsed.ready.reader._tag).toBe('Detached')
+    })
+
+    it('keeps its mark when an older link’s four seconds run out', () => {
+      const stale = told(
+        linked,
+        ElapsedFocusHighlight({
+          revision: readyOf(linked).focusRevision - 1,
+        }),
+      )
+      expect(markedOf(stale.model)).toEqual([sectionC.id])
+    })
+
+    it('gives way to a match the listener steps to: one place at a time, and the mark’s timer leaves the match named', () => {
+      const stepped = folded(linked, [
+        ChangedFindQuery({ query: 'bell' }),
+        SteppedFind({ direction: 'Next' }),
+      ])
+      expect(markedOf(stepped)).toEqual([])
+      expect(readerOfModel(stepped).focusToken).toBe('section-1:3')
+      const elapsed = told(
+        stepped,
+        ElapsedFocusHighlight({ revision: readyOf(stepped).focusRevision }),
+      )
+      expect(readerOfModel(elapsed.model).focusToken).toBe('section-1:3')
+    })
+
+    it('loses its mark when the listener moves the voice', () => {
+      expect(
+        markedOf(told(linked, ClickedSkip({ deltaSeconds: 15 })).model),
+      ).toEqual([])
+      expect(
+        markedOf(
+          told(
+            folded(linked, [MovedScrub({ seconds: 41 })]),
+            EndedScrub({ seconds: 41 }),
+          ).model,
+        ),
+      ).toEqual([])
     })
   })
 
@@ -515,7 +699,7 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         following,
         observed(finished([sectionA, sectionB, sectionC])),
       )
-      expect(done.ready.follow).toBe('Following')
+      expect(done.ready.reader._tag).toBe('Following')
       expect(done.commandNames).toEqual([])
       expect(clockOf(done.model)).toEqual(standingAt(0))
     })
@@ -527,7 +711,7 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         openedAtTwoSeconds,
         observed(finished([early, sectionB, sectionC])),
       )
-      expect(done.ready.follow).toBe('Detached')
+      expect(done.ready.reader._tag).toBe('Detached')
       expect(isReturnShownOf(done.ready)).toBe(true)
       expect(done.commandNames).toEqual([])
       expect(clockOf(done.model)).toEqual(standingAt(2))
@@ -542,17 +726,16 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         recordingWith([sealedFirst, sectionB]),
         observed(finished([sealedFirst, sectionB])),
       )
-      expect(done.ready.follow).toBe('Detached')
+      expect(done.ready.reader._tag).toBe('Detached')
     })
 
-    it('once finished, pressing Back to Playhead follows the word at the place', () => {
-      const done = folded(openedAtTwoSeconds, [
-        observed(finished([early, sectionB, sectionC])),
-      ])
-      expect(readyOf(done).follow).toBe('Detached')
-      expect(told(done, ClickedReturnToPlayhead()).ready.follow).toBe(
-        'Following',
+    it('tells nothing for a recording that was already finished', () => {
+      const following = pausedAt(6)
+      const again = told(
+        following,
+        observed(finished([sectionA, sectionB, sectionC, sectionD])),
       )
+      expect(again.ready.reader._tag).toBe('Following')
     })
   })
 })

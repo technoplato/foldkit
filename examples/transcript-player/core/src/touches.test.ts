@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 
 import { MediaId, Milliseconds, SearchQuery, WordId } from './ids.js'
 import {
+  BackToPlayhead,
+  LeavePlayhead,
   type Message,
   NextMatch,
   Pause,
@@ -110,7 +112,28 @@ const busy = after(
 /** The same, paused after the audio reported its place. */
 const pausedAfterSounding = after(busy, Pause())
 
-const models: ReadonlyArray<Model> = [fresh, atEnd, busy, pausedAfterSounding]
+/** Sounding, the words scrolled away from the word sounding. */
+const scrolledAway = after(
+  init(media, { placeMs: Milliseconds.make(22_500) }),
+  ReceivedPassages({ passages }),
+  Play(),
+  LeavePlayhead(),
+)
+
+/**
+ * Sounding with a search that found two places, the words scrolled away
+ * from the voice after a look at one of them.
+ */
+const foundThenAway = after(busy, BackToPlayhead(), LeavePlayhead())
+
+const models: ReadonlyArray<Model> = [
+  fresh,
+  atEnd,
+  busy,
+  pausedAfterSounding,
+  scrolledAway,
+  foundThenAway,
+]
 
 /** The Messages a person types or presses that no menu lists. */
 const typed: ReadonlyArray<typeof catalog.Message.Type> = [
@@ -140,7 +163,7 @@ describe('what the Transcript Player’s Actions touch', () => {
       triggers: ['SearchRecording'],
     })
     expect(Catalog.declarationOf(NextMatch).touches).toEqual({
-      mutates: ['maybeSearch.maybeSelectedMs', 'maybeAway'],
+      mutates: ['maybeSearch.maybeSelectedMs', 'reader', 'maybeLeftAtMs'],
       triggers: [],
     })
   })

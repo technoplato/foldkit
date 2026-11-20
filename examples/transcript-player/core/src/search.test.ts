@@ -1,5 +1,6 @@
-import { Array, Effect, Option, Stream } from 'effect'
+import { Array, Effect, Option, Schema as S, Stream } from 'effect'
 import { Catalog, Interaction } from 'foldkit'
+import { Reader } from 'foldkit/behavior'
 import { renderScreen, seekLandingAt, transcriptsOf } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
@@ -13,7 +14,7 @@ import {
   catalog,
 } from './message.js'
 import {
-  type Model,
+  Model,
   type Passage,
   init,
   isFollowingPlayhead,
@@ -513,7 +514,7 @@ describe('searching a recording', () => {
         readerButtonsOf(found, Catalog.entries(catalog, found)),
         button => button.label,
       ),
-    ).toEqual(['Back to playhead'])
+    ).toEqual(['Back to Playhead'])
   })
 })
 
@@ -553,6 +554,39 @@ describe('reading away from the playhead', () => {
     expect(isFollowingPlayhead(pressed(away, 'SkipForward'))).toBe(true)
     expect(isFollowingPlayhead(pressed(away, 'SeekToWord:boat.1'))).toBe(true)
     expect(isFollowingPlayhead(pressed(away, 'Pause'))).toBe(false)
+  })
+
+  it('holds how the words stand to the voice as Foldkit’s reader state, with where the voice was when the person left', async () => {
+    const playing = pressed(loaded(10_000), 'Play')
+    expect(playing.reader).toEqual(Reader.Following())
+    const away = pressed(playing, 'LeavePlayhead')
+    expect(away.reader).toEqual(Reader.Detached({ maybePlace: Option.none() }))
+    expect(away.maybeLeftAtMs).toEqual(Option.some(10_000))
+    expect(pressed(away, 'LeavePlayhead')).toBe(away)
+    const found = await searched(away, 'lamp')
+    expect(Option.isSome(selectedStartOf(found))).toBe(true)
+    expect(Reader.placeOf(found.reader)).toEqual(
+      Option.map(selectedStartOf(found), startMs => Reader.Word({ startMs })),
+    )
+    expect(found.maybeLeftAtMs).toEqual(Option.none())
+    expect(pressed(found, 'LeavePlayhead')).toBe(found)
+    const back = pressed(found, 'BackToPlayhead')
+    expect(back.reader).toEqual(Reader.Following())
+    expect(back.maybeLeftAtMs).toEqual(Option.none())
+  })
+
+  it('opens following for a Model kept before the player held the reader’s state', () => {
+    const codec = S.toCodecJson(Model)
+    const keptJson = JSON.stringify(
+      S.encodeSync(codec)(loaded(10_000)),
+      (key, value: unknown) => (key === 'reader' ? undefined : value),
+    ).replace('{', '{"maybeAway":{"_tag":"LookingAt","atMs":10802400},')
+    expect(keptJson).not.toContain('"reader"')
+    expect(keptJson).toContain('"maybeAway"')
+    const restored = S.decodeUnknownSync(codec)(JSON.parse(keptJson))
+    expect(restored.reader).toEqual(Reader.Following())
+    expect(restored.placeMs).toBe(10_000)
+    expect(viewPlaceOf(restored)).toBe(10_000)
   })
 })
 

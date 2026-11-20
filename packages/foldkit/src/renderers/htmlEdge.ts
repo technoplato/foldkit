@@ -428,32 +428,80 @@ const windowDeltaOf = (word: Element): number => {
 }
 
 /**
- * Brings a word to the middle of the Transcript: inside the Transcript's
- * own scroll area when it has one, so what is above stays put, else in
- * the window. It glides, and jumps with no animation where the reader
- * asked for reduced motion.
+ * A glide the edge started: where the view is heading, down the area that
+ * scrolls.
  */
-const centerWord = (transcript: Element, word: Element): void => {
+type Glide = Readonly<{ top: number }>
+
+/** How near its end a glide counts as there, since a view rests on a fraction of a pixel. */
+const GLIDE_ARRIVED_PX = 1
+
+const scrolledTopOf = (transcript: Element): number =>
+  isScrollArea(transcript) ? transcript.scrollTop : window.scrollY
+
+const scrollViewTo = (
+  transcript: Element,
+  top: number,
+  behavior: ScrollBehavior,
+): void => {
   if (isScrollArea(transcript)) {
-    const view = transcript.getBoundingClientRect()
-    const bounds = word.getBoundingClientRect()
-    transcript.scrollTo({
-      top:
-        transcript.scrollTop +
-        (bounds.top - view.top) -
-        transcript.clientHeight / 2,
-      behavior: scrollBehavior(),
-    })
+    transcript.scrollTo({ top, behavior })
   } else {
     // NOTE: this scrolls the window rather than call scrollIntoView. In
     // Chromium, scrollIntoView moves the sequential focus navigation
     // starting point, so with nothing focused the next Tab would skip
     // everything above the Transcript and land in its words.
-    window.scrollTo({
-      top: window.scrollY + windowDeltaOf(word),
-      behavior: scrollBehavior(),
-    })
+    window.scrollTo({ top, behavior })
   }
+}
+
+const middleTopOf = (transcript: Element, word: Element): number => {
+  if (isScrollArea(transcript)) {
+    const view = transcript.getBoundingClientRect()
+    const bounds = word.getBoundingClientRect()
+    return (
+      transcript.scrollTop +
+      (bounds.top - view.top) -
+      transcript.clientHeight / 2
+    )
+  } else {
+    return window.scrollY + windowDeltaOf(word)
+  }
+}
+
+/**
+ * Brings a word to the middle of the Transcript: inside the Transcript's
+ * own scroll area when it has one, so what is above stays put, else in
+ * the window. It glides, and answers with the glide it started; it jumps
+ * with no animation where the reader asked for reduced motion, and then
+ * there is no glide.
+ */
+const centerWord = (
+  transcript: Element,
+  word: Element,
+): Option.Option<Glide> => {
+  const top = middleTopOf(transcript, word)
+  const behavior = scrollBehavior()
+  scrollViewTo(transcript, top, behavior)
+  return behavior === 'smooth'
+    ? Option.some({ top: Math.max(0, top) })
+    : Option.none()
+}
+
+// NOTE: a glide is over when the browser says its scroll ended, and it is
+// taken to be over when the view is already where it was heading, for a
+// browser that does not say. A glide that could not reach where it was
+// heading, as to a word on the last line of a page, then counts as running
+// until the reader next scrolls, and stopping it there moves nothing.
+const isGlideRunning = (transcript: Element, glide: Glide): boolean =>
+  Math.abs(scrolledTopOf(transcript) - glide.top) > GLIDE_ARRIVED_PX
+
+/**
+ * Stops a glide where it is, by a jump to the place the view is at. The
+ * reader's own scroll then moves the view from there.
+ */
+const stopGlide = (transcript: Element): void => {
+  scrollViewTo(transcript, scrolledTopOf(transcript), 'instant')
 }
 
 const isFollowingOf = (transcript: Element): boolean =>
@@ -470,12 +518,17 @@ const wordWithToken = (transcript: Element, token: string): Element | null =>
  * every painter does. This is only the browser's part: it tells the rule
  * when the spoken word changes, when a word is named and when the page
  * scrolls, measures the spoken word against the window or the
- * Transcript's own scroll area, scrolls a word to the middle, and sends
- * the view the leave event. When to do any of it is the rule's.
+ * Transcript's own scroll area, scrolls a word to the middle, stops that
+ * scroll when the reader's own lands on it, and sends the view the leave
+ * event. When to do any of it is the rule's.
  */
 const runFollow = (transcript: Element): (() => void) => {
-  const held: { maybeFollowed: Element | undefined } = {
+  const held: {
+    maybeFollowed: Element | undefined
+    maybeGlide: Option.Option<Glide>
+  } = {
     maybeFollowed: undefined,
+    maybeGlide: Option.none(),
   }
   // NOTE: what is followed is the word being spoken, or, while the place
   // is in a passage with no words, that passage.
@@ -501,7 +554,7 @@ const runFollow = (transcript: Element): (() => void) => {
     bringToMiddle: word => {
       const maybeWord = word === 'Spoken' ? spokenWord() : namedWord()
       if (maybeWord !== null) {
-        centerWord(transcript, maybeWord)
+        held.maybeGlide = centerWord(transcript, maybeWord)
       }
     },
     pressLeave: () => {
@@ -531,8 +584,22 @@ const runFollow = (transcript: Element): (() => void) => {
       follow.tell(TranscriptFollow.ResumedFollowing())
     }
   }
+  // NOTE: a wheel or a finger that lands while the edge's own glide is
+  // still running would lose to it: the glide carries the word back to the
+  // middle, and the rule, looking a moment later, finds the reader never
+  // left. So the reader's scroll stops the glide first.
   const noteReaderScroll = () => {
+    const isGliding = Option.exists(held.maybeGlide, glide =>
+      isGlideRunning(transcript, glide),
+    )
+    held.maybeGlide = Option.none()
+    if (isGliding) {
+      stopGlide(transcript)
+    }
     follow.tell(TranscriptFollow.ScrolledByReader())
+  }
+  const noteGlideEnded = () => {
+    held.maybeGlide = Option.none()
   }
   const noteScroll = () => {
     follow.tell(TranscriptFollow.ScrolledView())
@@ -553,6 +620,8 @@ const runFollow = (transcript: Element): (() => void) => {
   window.addEventListener('touchmove', noteReaderScroll, { passive: true })
   window.addEventListener('scroll', noteScroll, { passive: true })
   transcript.addEventListener('scroll', noteScroll, { passive: true })
+  window.addEventListener('scrollend', noteGlideEnded, { passive: true })
+  transcript.addEventListener('scrollend', noteGlideEnded, { passive: true })
   if (transcript.hasAttribute('data-focus-token')) {
     follow.tell(TranscriptFollow.NamedWord())
   }
@@ -564,6 +633,8 @@ const runFollow = (transcript: Element): (() => void) => {
     window.removeEventListener('touchmove', noteReaderScroll)
     window.removeEventListener('scroll', noteScroll)
     transcript.removeEventListener('scroll', noteScroll)
+    window.removeEventListener('scrollend', noteGlideEnded)
+    transcript.removeEventListener('scrollend', noteGlideEnded)
   }
 }
 

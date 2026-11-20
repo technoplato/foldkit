@@ -99,7 +99,7 @@ export type TextNode = Readonly<{
  * `Destructive` one that removes something, `Tab` one of a set of places,
  * such as Library and Profile, the current one marked with `isCurrent`,
  * and `Pill` a small rounded one that floats by what it acts on, such as
- * `Back to playhead` under words read along with.
+ * `Back to Playhead` under words read along with.
  */
 export type ButtonVariant = 'Primary' | 'Ghost' | 'Destructive' | 'Tab' | 'Pill'
 

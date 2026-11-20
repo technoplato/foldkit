@@ -12,6 +12,7 @@ import {
   pipe,
 } from 'effect'
 import { Command, Theme } from 'foldkit'
+import { Reader } from 'foldkit/behavior'
 import * as Dom from 'foldkit/dom'
 import { load, pushUrl, replaceUrl } from 'foldkit/navigation'
 import {
@@ -893,6 +894,36 @@ const liveLengthFloorsAt = (
   )
 
 /**
+ * What is so for Foldkit's reader rule in an open recording: whether the
+ * word followed is the newest word of a recording in progress.
+ *
+ * @example
+ * ```typescript
+ * readerContextOf(recording) // { isLive: true }
+ * readerContextOf(finished) // { isLive: false }
+ * ```
+ */
+export const readerContextOf = (ready: ReadyPlayback): Reader.Context => ({
+  isLive: isFollowingLiveEdgeOf(ready),
+})
+
+/**
+ * The way back to the voice, while it shows, as Foldkit's reader rule
+ * says it: Back to Playhead, or Back to Live while the newest word of a
+ * recording in progress is followed.
+ *
+ * @example
+ * ```typescript
+ * returnControlOf(scrolledAway) // Some({ target: 'Playhead', label: 'Back to Playhead' })
+ * returnControlOf(following) // None
+ * ```
+ */
+export const returnControlOf = (
+  ready: ReadyPlayback,
+): Option.Option<Reader.ReturnControl> =>
+  Reader.returnControlOf(ready.reader, readerContextOf(ready))
+
+/**
  * Whether Back to Playhead (or, while recording, Back to Live) shows:
  * whenever the words do not follow the voice.
  *
@@ -902,7 +933,23 @@ const liveLengthFloorsAt = (
  * ```
  */
 export const isReturnShownOf = (ready: ReadyPlayback): boolean =>
-  ready.follow === 'Detached'
+  Option.isSome(returnControlOf(ready))
+
+/**
+ * Tells Foldkit's reader rule what happened in an open recording. The
+ * rule says how the words stand to the voice next.
+ */
+const toldReader = (ready: ReadyPlayback, fact: Reader.Fact): ReadyPlayback =>
+  evo(ready, {
+    reader: reader => Reader.step(reader, readerContextOf(ready), fact),
+  })
+
+// NOTE: every way the listener moves the voice on purpose tells the rule
+// here: a skip, a step by word or paragraph, a seek, a picked word. Play
+// joining the newest audio of a recording in progress also seeks and is
+// not one, so `seekTo` itself tells nothing.
+const movingVoice = (ready: ReadyPlayback): ReadyPlayback =>
+  toldReader(ready, Reader.MovedVoice())
 
 /** The playback position, following the scrubber while the listener drags it. */
 export const displayedPositionOf = (ready: ReadyPlayback): number =>
@@ -1244,7 +1291,8 @@ const steppedBy = (
     ),
     Option.match({
       onNone: (): ReadyReturn => [ready, []],
-      onSome: word => seekTo(ready, word.startSeconds + INTO_WORD_SECONDS),
+      onSome: word =>
+        seekTo(movingVoice(ready), word.startSeconds + INTO_WORD_SECONDS),
     }),
   )
 }
@@ -1310,11 +1358,13 @@ const applyRequest = (
   const nextRevision = isFocusing
     ? ready.focusRevision + 1
     : ready.focusRevision
-  const focused = evo(ready, {
-    maybeFocusedSectionID: () => request.maybeFocusSectionID,
-    focusRevision: () => nextRevision,
-    follow: () => (isFocusing ? 'Detached' : 'Following'),
-  })
+  const focused = toldReader(
+    evo(ready, { focusRevision: () => nextRevision }),
+    Option.match(request.maybeFocusSectionID, {
+      onNone: () => Reader.MovedVoice(),
+      onSome: key => Reader.NamedPlace({ place: Reader.Passage({ key }) }),
+    }),
+  )
   const highlightCommands: Commands = isFocusing
     ? [ClearFocusHighlightLater({ revision: nextRevision })]
     : []
@@ -1424,7 +1474,7 @@ const readyFor = (
     positionSeconds: 0,
     transport: 'Paused',
     maybePositionReportedAtMs: Option.none(),
-    follow: 'Following',
+    reader: Reader.initial,
     screenMode: 'Standard',
     scrub: NotScrubbing(),
     audioPlayer: NoAudioPlayer(),
@@ -1433,7 +1483,6 @@ const readyFor = (
     compressedCopy: NoCompressedCopy(),
     livePlacement: 'AtLiveEdge',
     maybePendingSeekSeconds: Option.none(),
-    maybeFocusedSectionID: Option.none(),
     focusRevision: 0,
     maybeAnnouncedText: Option.none(),
     announcementPause: ReadyToAnnounce(),
@@ -1579,7 +1628,7 @@ const openRoutedRecording = (
     {
       onSome: background => {
         const restored = evo(routed, {
-          playback: () => evo(background, { follow: () => 'Following' }),
+          playback: () => toldReader(background, Reader.ReturnedToVoice()),
           maybeBackgroundPlayback: () => Option.none(),
         })
         return isRequestingNoMoment(request)
@@ -2028,16 +2077,22 @@ const isPlaceOnWord = (ready: ReadyPlayback): boolean =>
 // and a painter would take the listener there from the newest words. So a
 // recording that finishes with its place on a word, or in a section with
 // no words, stops following, and the listener stays where they are, with
-// Back to Playhead to go there.
+// Back to Playhead to go there. The rule is Foldkit's reader's; it is
+// told here, with what was followed before the recording finished.
 const stayingWhereItFinished = (
   before: ReadyPlayback,
   after: ReadyPlayback,
 ): ReadyPlayback =>
-  isFollowingLiveEdgeOf(before) &&
-  !isLiveRecording(after) &&
-  isPlaceOnWord(after)
-    ? evo(after, { follow: () => 'Detached' })
-    : after
+  isLiveRecording(after)
+    ? after
+    : evo(after, {
+        reader: reader =>
+          Reader.step(
+            reader,
+            readerContextOf(before),
+            Reader.FinishedLive({ isPlaceSpoken: isPlaceOnWord(after) }),
+          ),
+      })
 
 const newestFinishedTextOf = (
   before: ReadyPlayback,
@@ -2119,7 +2174,7 @@ const togglePlayback = (ready: ReadyPlayback): ReadyReturn =>
 
 const skipBy = (ready: ReadyPlayback, deltaSeconds: number): ReadyReturn =>
   seekTo(
-    ready,
+    movingVoice(ready),
     Math.min(
       durationOf(ready),
       Math.max(0, ready.positionSeconds + deltaSeconds),
@@ -2130,10 +2185,7 @@ const skipBy = (ready: ReadyPlayback, deltaSeconds: number): ReadyReturn =>
 // follow the voice again and brings the word being spoken, or while
 // recording the newest word, to the middle.
 const returnToFollowed = (ready: ReadyPlayback): ReadyPlayback =>
-  evo(ready, {
-    follow: () => 'Following',
-    maybeFocusedSectionID: () => Option.none(),
-  })
+  toldReader(ready, Reader.ReturnedToVoice())
 
 const withScreenMode = (
   ready: ReadyPlayback,
@@ -2354,14 +2406,18 @@ const steppedFind = (
         {
           onNone: () => ready,
           onSome: match =>
-            evo(ready, {
-              maybeFind: () =>
-                Option.some({
-                  query: find.query,
-                  maybeSelectedMs: Option.some(match.startMs),
-                }),
-              follow: () => 'Detached',
-            }),
+            toldReader(
+              evo(ready, {
+                maybeFind: () =>
+                  Option.some({
+                    query: find.query,
+                    maybeSelectedMs: Option.some(match.startMs),
+                  }),
+              }),
+              Reader.NamedPlace({
+                place: Reader.Word({ startMs: match.startMs }),
+              }),
+            ),
         },
       ),
   })
@@ -3316,7 +3372,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             MediaSessionSeek: ({ seconds }) =>
               updateAudio(model, ready =>
                 seekTo(
-                  ready,
+                  movingVoice(ready),
                   Math.min(durationOf(ready), Math.max(0, seconds)),
                 ),
               ),
@@ -3411,23 +3467,27 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]),
       ClosedFind: () =>
         evolveReady(model, ready =>
-          evo(ready, { maybeFind: () => Option.none() }),
+          toldReader(
+            evo(ready, { maybeFind: () => Option.none() }),
+            Reader.ForgotWord(),
+          ),
         ),
       ChangedFindQuery: ({ query }) =>
         evolveReady(model, ready =>
-          evo(ready, {
-            maybeFind: () =>
-              Option.some({ query, maybeSelectedMs: Option.none() }),
-          }),
+          toldReader(
+            evo(ready, {
+              maybeFind: () =>
+                Option.some({ query, maybeSelectedMs: Option.none() }),
+            }),
+            Reader.ForgotWord(),
+          ),
         ),
       SteppedFind: ({ direction }) =>
         evolveReady(model, ready => steppedFind(ready, direction)),
       ClickedWord: ({ seconds }) =>
         updateReady(model, ready => {
           const [sought, seekCommands] = seekTo(
-            evo(ready, {
-              follow: () => 'Following',
-              maybeFocusedSectionID: () => Option.none(),
+            evo(movingVoice(ready), {
               maybeWordMenu: () => Option.none(),
               maybeSectionMenuID: () => Option.none(),
             }),
@@ -3451,10 +3511,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       EndedScrub: ({ seconds }) =>
         updateReady(model, ready =>
           seekTo(
-            evo(ready, {
-              scrub: () => NotScrubbing(),
-              follow: () => 'Following',
-            }),
+            movingVoice(evo(ready, { scrub: () => NotScrubbing() })),
             seconds,
           ),
         ),
@@ -3466,7 +3523,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ),
         ),
       ScrolledTranscriptAway: () =>
-        evolveReady(model, ready => evo(ready, { follow: () => 'Detached' })),
+        evolveReady(model, ready => toldReader(ready, Reader.LeftVoice())),
       ClickedReturnToPlayhead: () => evolveReady(model, returnToFollowed),
       CompletedScrollToSection: () => [model, []],
       CompletedScrollToRecordingTitle: () => [model, []],
@@ -3570,7 +3627,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ElapsedFocusHighlight: ({ revision }) =>
         evolveReady(model, ready =>
           ready.focusRevision === revision
-            ? evo(ready, { maybeFocusedSectionID: () => Option.none() })
+            ? toldReader(ready, Reader.ForgotPassage())
             : ready,
         ),
 

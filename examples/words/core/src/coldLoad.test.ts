@@ -1,4 +1,5 @@
 import { Array, Effect, Layer, Option, pipe } from 'effect'
+import { Reader } from 'foldkit/behavior'
 import { fromString } from 'foldkit/url'
 import { describe, expect, it } from 'vitest'
 
@@ -344,7 +345,9 @@ describe('opening each recording link in a new tab', () => {
       ])
       expect(commandsNamed(steps, 'ConnectAccount')).toEqual([{ email }])
       expect(ready.positionSeconds).toBe(link.startSeconds)
-      expect(ready.maybeFocusedSectionID).toEqual(link.maybeFocusSectionID)
+      expect(Reader.placeOf(ready.reader)).toEqual(
+        Option.map(link.maybeFocusSectionID, key => Reader.Passage({ key })),
+      )
       expect(commandsNamed(steps, 'SeekAudio')).toEqual(
         link.startSeconds > 0 ? [{ seconds: link.startSeconds }] : [],
       )
@@ -407,8 +410,8 @@ describe('opening each recording link in a new tab', () => {
     ])
     expect(steps.map(step => step.shown)).not.toContain('MissingRecording')
     expect(readyOf(model).positionSeconds).toBe(19)
-    expect(readyOf(model).maybeFocusedSectionID).toEqual(
-      Option.some(linkedSection.id),
+    expect(Reader.placeOf(readyOf(model).reader)).toEqual(
+      Option.some(Reader.Passage({ key: linkedSection.id })),
     )
   })
 
@@ -466,8 +469,8 @@ describe('opening each recording link in a new tab', () => {
       'ReadyPlayback',
     ])
     expect(readyOf(model).positionSeconds).toBe(19)
-    expect(readyOf(model).maybeFocusedSectionID).toEqual(
-      Option.some(linkedSection.id),
+    expect(Reader.placeOf(readyOf(model).reader)).toEqual(
+      Option.some(Reader.Passage({ key: linkedSection.id })),
     )
   })
 

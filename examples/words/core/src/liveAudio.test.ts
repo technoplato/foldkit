@@ -16,6 +16,7 @@ import {
   ObservedCompressedCopy,
   ObservedFileUrls,
   ObservedRecording,
+  ScrolledTranscriptAway,
 } from './message.js'
 import type { Model, ReadyPlayback } from './model.js'
 import { readAlongPlaybackOf } from './playbackClock.js'
@@ -200,6 +201,19 @@ describe('a recording in progress plays from its live copy (#1299)', () => {
     ])
     expect(audioSourceOf(model)).toEqual(Option.none())
     expect(isAudioPlayableOf(readyOf(model))).toBe(false)
+  })
+
+  it('Play joining the live edge leaves a listener who scrolled away where they are: Play is not a move of the voice', () => {
+    const away = run(live(), [
+      found(copy()),
+      AcquiredAudioPlayer(),
+      ScrolledTranscriptAway(),
+    ]).model
+    const played = run(away, [ClickedPlay()])
+    expect(
+      audioCommandsOf(played.commands).map(command => command.name),
+    ).toEqual(['SeekAudio', 'PlayAudio'])
+    expect(readyOf(played.model).reader._tag).toBe('Detached')
   })
 
   it('Play joins the live edge as it is now, then keeps the place it played', () => {

@@ -156,7 +156,7 @@ describe('finding words inside one recording', () => {
       }).focusToken,
     ).toBe('section-1:6')
     expect(readyOf(stepped.model).positionSeconds).toBe(11)
-    expect(readyOf(stepped.model).follow).toBe('Detached')
+    expect(readyOf(stepped.model).reader._tag).toBe('Detached')
   })
 
   it('steps on and back through the matches, and around the ends', () => {

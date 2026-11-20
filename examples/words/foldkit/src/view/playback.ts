@@ -1,4 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
+import type { Reader } from 'foldkit/behavior'
 import { type Html, html } from 'foldkit/html'
 import {
   ClickedCloseMiniPlayer,
@@ -34,11 +35,10 @@ import {
   displayedPositionOf,
   durationOf,
   formatClock,
-  isFollowingLiveEdgeOf,
   isLiveRecording,
-  isReturnShownOf,
   liveAudioCaptionOf,
   playbackPhaseOf,
+  returnControlOf,
   scribeRouteToPath,
   shortcutKeyOf,
 } from 'words-core-example'
@@ -841,57 +841,59 @@ const statusBar = (
 const newestLineOf = (ready: ReadyPlayback): Option.Option<string> =>
   Option.map(Array.last(ready.detail.sections), section => section.text)
 
+const returnButton = (
+  ready: ReadyPlayback,
+  control: Reader.ReturnControl,
+): Html => {
+  const h = html<Message>()
+  const isLive = control.target === 'Live'
+  const key = shortcutKeyOf('ReturnToFollowed')
+  return h.button(
+    [
+      h.Type('button'),
+      h.OnClick(ClickedReturnToPlayhead()),
+      h.Title(keyHint(control.label, key)),
+      h.AriaKeyshortcuts(key),
+      h.Class(
+        'glass animate-rise mx-auto inline-flex min-h-11 max-w-full items-center gap-2 rounded-full px-4 py-1.5 text-left text-tint',
+      ),
+    ],
+    [
+      icon(isLive ? 'ChevronDown' : 'Playhead', 'size-4 shrink-0'),
+      h.span(
+        [h.Class('flex min-w-0 flex-col')],
+        [
+          h.span([h.Class('text-subhead font-semibold')], [control.label]),
+          ...(isLive
+            ? Option.match(newestLineOf(ready), {
+                onNone: () => [],
+                onSome: line => [
+                  h.span(
+                    [h.Class('max-w-72 truncate text-footnote text-secondary')],
+                    [line],
+                  ),
+                ],
+              })
+            : []),
+        ],
+      ),
+    ],
+  )
+}
+
 /**
  * Back to Playhead, or Back to Live while recording: shown whenever the
  * words do not follow the voice, which is once the listener has scrolled
- * the spoken word, or the newest word, out of the middle. Back to Live
- * previews the newest line.
+ * the spoken word, or the newest word, out of the middle. Whether it
+ * shows, where it goes and what it is called come from Foldkit's reader
+ * rule (`returnControlOf`); this draws it. Back to Live previews the
+ * newest line.
  */
-export const returnPill = (ready: ReadyPlayback): ReadonlyArray<Html> => {
-  const h = html<Message>()
-  const isLive = isFollowingLiveEdgeOf(ready)
-  const label = isLive ? 'Back to Live' : 'Back to Playhead'
-  const key = shortcutKeyOf('ReturnToFollowed')
-  return isReturnShownOf(ready)
-    ? [
-        h.button(
-          [
-            h.Type('button'),
-            h.OnClick(ClickedReturnToPlayhead()),
-            h.Title(keyHint(label, key)),
-            h.AriaKeyshortcuts(key),
-            h.Class(
-              'glass animate-rise mx-auto inline-flex min-h-11 max-w-full items-center gap-2 rounded-full px-4 py-1.5 text-left text-tint',
-            ),
-          ],
-          [
-            icon(isLive ? 'ChevronDown' : 'Playhead', 'size-4 shrink-0'),
-            h.span(
-              [h.Class('flex min-w-0 flex-col')],
-              [
-                h.span([h.Class('text-subhead font-semibold')], [label]),
-                ...(isLive
-                  ? Option.match(newestLineOf(ready), {
-                      onNone: () => [],
-                      onSome: line => [
-                        h.span(
-                          [
-                            h.Class(
-                              'max-w-72 truncate text-footnote text-secondary',
-                            ),
-                          ],
-                          [line],
-                        ),
-                      ],
-                    })
-                  : []),
-              ],
-            ),
-          ],
-        ),
-      ]
-    : []
-}
+export const returnPill = (ready: ReadyPlayback): ReadonlyArray<Html> =>
+  Option.match(returnControlOf(ready), {
+    onNone: () => [],
+    onSome: control => [returnButton(ready, control)],
+  })
 
 /**
  * The player for a recording that keeps playing while the listener browses,

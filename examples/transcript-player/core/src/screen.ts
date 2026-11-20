@@ -1,5 +1,6 @@
 import { Array, Option, Order } from 'effect'
 import { Catalog } from 'foldkit'
+import { Reader } from 'foldkit/behavior'
 import {
   type ButtonNode,
   Column,
@@ -18,8 +19,6 @@ import {
   type UiNode,
   actionButtons,
   transcriptWithMatches,
-  transcriptsOf,
-  wordAtAddress,
 } from 'foldkit/renderers'
 
 import { Milliseconds, clockOf } from './ids.js'
@@ -54,10 +53,10 @@ import {
   type SearchParts,
   type Section,
   currentWordOf,
-  isFollowingPlayhead,
   isSounding,
   passagesOf,
   playbackClockOf,
+  readerContext,
   searchQueryOf,
   sectionAt,
   selectedMatchOf,
@@ -401,21 +400,6 @@ const playIcon: IconName = 'Play'
 
 const picked: TranscriptWordMark = 'Picked'
 
-const focusTokenOf = (
-  model: Model,
-  transcript: UiNode,
-): Option.Option<string> =>
-  Option.flatMap(model.maybeAway, away =>
-    away._tag === 'LookingAt'
-      ? Option.map(
-          Option.flatMap(Array.head(transcriptsOf(transcript)), node =>
-            wordAtAddress(node, away.atMs),
-          ),
-          word => word.token,
-        )
-      : Option.none(),
-  )
-
 /**
  * The words around the place on screen, a passage before and a few
  * after, the one sounding marked. Pressing a word plays from it; pressing
@@ -506,8 +490,6 @@ export const transcriptOf = (
     emptyText: emptyTextOf(model),
     passages: paragraphs,
     clock: playbackClockOf(model),
-    isFollowing: isFollowingPlayhead(model),
-    leaveAction: LeavePlayhead.tag,
     wordMenuAction: ShowWordMenu.tag,
     ...Option.match(
       Option.filter(model.maybeWordMenu, wordId =>
@@ -537,9 +519,8 @@ export const transcriptOf = (
       },
     ),
   })
-  const focused = Option.match(focusTokenOf(model, plain), {
-    onNone: () => plain,
-    onSome: focusToken => ({ ...plain, focusToken }),
+  const focused = Reader.project(model.reader, plain, {
+    leaveAction: LeavePlayhead.tag,
   })
   const searched = Option.match(searchQueryOf(model), {
     onNone: () => focused,
@@ -769,26 +750,32 @@ const withIconOf =
   (icon: IconName) =>
   (button: ButtonNode): ButtonNode => ({ ...button, icon })
 
+const playheadIcon: IconName = 'Playhead'
+
 /**
  * The reader's own buttons, for a Program to place by the words: `Back
- * to playhead` while the words are away from the word sounding, and
- * `Search` while the search is closed.
+ * to Playhead` while the words are away from the word sounding, and
+ * `Search` while the search is closed. Whether the way back shows, and
+ * what it is called, is Foldkit's reader rule's to say.
  *
  * @example
  * ```typescript
- * readerButtonsOf(player, entries) // [Search], or [Back to playhead, Search] after scrolling away
+ * readerButtonsOf(player, entries) // [Search], or [Back to Playhead, Search] after scrolling away
  * ```
  */
 export const readerButtonsOf = (
   model: Model,
   entries: ReadonlyArray<Catalog.Entry>,
 ): ReadonlyArray<ButtonNode> => [
-  ...(isFollowingPlayhead(model)
-    ? []
-    : Array.map(
-        buttonOf(entries, BackToPlayhead, pill),
-        withIconOf('Playhead'),
-      )),
+  ...Option.match(Reader.returnControlOf(model.reader, readerContext), {
+    onNone: () => [],
+    onSome: control =>
+      Array.map(buttonOf(entries, BackToPlayhead, pill), button => ({
+        ...button,
+        label: control.label,
+        icon: playheadIcon,
+      })),
+  }),
   ...(Option.isSome(model.maybeSearch)
     ? []
     : Array.map(buttonOf(entries, ShowSearch, pill), withIconOf('Search'))),

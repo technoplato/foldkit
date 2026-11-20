@@ -1,5 +1,6 @@
 import { Schema as S } from 'effect'
 import { Theme } from 'foldkit'
+import { Reader } from 'foldkit/behavior'
 import { ts } from 'foldkit/schema'
 
 import * as Account from './account/model.js'
@@ -68,17 +69,6 @@ export type Transport = typeof Transport.Type
 export const PlaybackPhase = S.Literals(['Playing', 'Paused'])
 /** The phase a playback shows. */
 export type PlaybackPhase = typeof PlaybackPhase.Type
-
-/**
- * `Following` keeps the word being spoken (or, while recording, the newest
- * word) in the middle of the view. `Detached` means the listener scrolled it
- * out of the middle: they see Back to Playhead (or Back to Live), and the
- * words stay where they put them until they press it, pick a word, or let
- * go of the scrubber.
- */
-export const Follow = S.Literals(['Following', 'Detached'])
-/** Whether the transcript keeps the spoken word or the newest word in the middle. */
-export type Follow = typeof Follow.Type
 
 /**
  * How the recording page presents: `Standard` with its header and top bar,
@@ -234,6 +224,17 @@ export const Find = S.Struct({
 /** The search inside the open recording. */
 export type Find = typeof Find.Type
 
+/**
+ * `reader` is how the words on screen stand to the voice, by Foldkit's
+ * shared rule (`Reader` in `foldkit/behavior`). `Following` keeps the word
+ * being spoken, or while recording the newest word, in the middle of the
+ * view. `Detached` means the listener scrolled it out of the middle or
+ * went to a named place, a match of the search or the section a link
+ * opened on: they see Back to Playhead (or Back to Live), and the words
+ * stay where they put them until they press it or move the voice.
+ * `focusRevision` counts the sections links have opened on, so the timer
+ * that ends one section's mark never ends the next one's.
+ */
 export const ReadyPlayback = ts('ReadyPlayback', {
   recordingID: S.String,
   detail: RecordingDetail,
@@ -243,7 +244,7 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   positionSeconds: S.Number,
   maybePositionReportedAtMs: S.Option(S.Number),
   transport: Transport,
-  follow: Follow,
+  reader: Reader.State,
   screenMode: ScreenMode,
   scrub: Scrub,
   audioPlayer: AudioPlayerState,
@@ -252,7 +253,6 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   compressedCopy: CompressedCopyState,
   livePlacement: LivePlacement,
   maybePendingSeekSeconds: S.Option(S.Number),
-  maybeFocusedSectionID: S.Option(S.String),
   focusRevision: S.Number,
   maybeAnnouncedText: S.Option(S.String),
   announcementPause: AnnouncementPause,
