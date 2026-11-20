@@ -6,8 +6,9 @@
  *
  *   pnpm --filter words-foldkit-example run dev:made-up
  *   http://127.0.0.1:5236/?sections=600   a long recording
+ *   http://127.0.0.1:5236/?live=1         a third recording still in progress, a sentence longer every two seconds
  */
-import { Effect, Layer, Option, Stream } from 'effect'
+import { Effect, Layer, Option, Queue, Stream } from 'effect'
 import { Theme } from 'foldkit'
 import {
   Capture,
@@ -17,6 +18,7 @@ import {
   WordsOrigin,
   WordsOriginError,
   type WordsOriginService,
+  WordsStore,
   WordsStoreError,
   makeStaticWordsResources,
 } from 'words-core-example'
@@ -31,7 +33,11 @@ import {
   browserTranscriptScroller,
 } from '../src/browser.js'
 import { startWords } from '../src/start.js'
-import { madeUpAudioFileID, madeUpRecordingOf } from './recordings.js'
+import {
+  madeUpAudioFileID,
+  madeUpLiveRecordingOf,
+  madeUpRecordingOf,
+} from './recordings.js'
 import { silentAudioUrl } from './silence.js'
 import './styles.css'
 
@@ -43,6 +49,17 @@ const sectionCount = Math.max(
     40,
 )
 
+const isLiveShown =
+  new URLSearchParams(window.location.search).get('live') === '1'
+
+const liveRecordingID = 'a0000000-0000-4000-8000-000000000003'
+
+const liveTitle = 'Still Recording'
+
+const liveFirstSectionCount = 30
+
+const liveGrowthMs = 2000
+
 const recordings = [
   madeUpRecordingOf(
     'a0000000-0000-4000-8000-000000000001',
@@ -50,6 +67,9 @@ const recordings = [
     sectionCount,
   ),
   madeUpRecordingOf('a0000000-0000-4000-8000-000000000002', 'Small Hours', 12),
+  ...(isLiveShown
+    ? [madeUpLiveRecordingOf(liveRecordingID, liveTitle, liveFirstSectionCount)]
+    : []),
 ]
 
 const longestSeconds = Math.max(
@@ -79,31 +99,74 @@ const origin: WordsOriginService = {
   readLiveBeat: () => Effect.succeed(Option.none()),
 }
 
+const noneSkipped = { count: 0, maybeFirstReason: Option.none() }
+
+const growingRecording = Stream.callback<{
+  maybeDetail: Option.Option<ReturnType<typeof madeUpLiveRecordingOf>>
+  skipped: typeof noneSkipped
+}>(queue =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const heard = { sectionCount: liveFirstSectionCount }
+      return setInterval(() => {
+        heard.sectionCount += 1
+        Queue.offerUnsafe(queue, {
+          maybeDetail: Option.some(
+            madeUpLiveRecordingOf(
+              liveRecordingID,
+              liveTitle,
+              heard.sectionCount,
+            ),
+          ),
+          skipped: noneSkipped,
+        })
+      }, liveGrowthMs)
+    }),
+    growth =>
+      Effect.sync(() => {
+        clearInterval(growth)
+      }),
+  ),
+)
+
+const staticStore = makeStaticWordsResources(
+  SignedIn({
+    userID: 'c0ffee00-1234-4abc-8def-0123456789ab',
+    maybeEmail: Option.some(email),
+    isGuest: false,
+  }),
+  {
+    recordings: recordings.map(recording => recording.summary),
+    skipped: { count: 0, maybeFirstReason: Option.none() },
+  },
+  Object.fromEntries(
+    recordings.map(recording => [
+      recording.summary.id,
+      {
+        detail: {
+          maybeDetail: Option.some(recording),
+          skipped: { count: 0, maybeFirstReason: Option.none() },
+        },
+        fileUrls: { [madeUpAudioFileID]: audioUrl },
+      },
+    ]),
+  ),
+)
+
+const growingStore = Layer.effect(
+  WordsStore,
+  Effect.map(WordsStore, held => ({
+    ...held,
+    observeRecording: (recordingID: string) =>
+      recordingID === liveRecordingID
+        ? Stream.concat(held.observeRecording(recordingID), growingRecording)
+        : held.observeRecording(recordingID),
+  })),
+).pipe(Layer.provide(staticStore))
+
 startWords({
   resources: Layer.mergeAll(
-    makeStaticWordsResources(
-      SignedIn({
-        userID: 'c0ffee00-1234-4abc-8def-0123456789ab',
-        maybeEmail: Option.some(email),
-        isGuest: false,
-      }),
-      {
-        recordings: recordings.map(recording => recording.summary),
-        skipped: { count: 0, maybeFirstReason: Option.none() },
-      },
-      Object.fromEntries(
-        recordings.map(recording => [
-          recording.summary.id,
-          {
-            detail: {
-              maybeDetail: Option.some(recording),
-              skipped: { count: 0, maybeFirstReason: Option.none() },
-            },
-            fileUrls: { [madeUpAudioFileID]: audioUrl },
-          },
-        ]),
-      ),
-    ),
+    isLiveShown ? growingStore : staticStore,
     Capture.makeAcceptingRecordingWriter(),
     Share.makeAcceptingShareWriter(),
     Layer.succeed(WordsOrigin, origin),

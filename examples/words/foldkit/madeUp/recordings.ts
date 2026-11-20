@@ -110,3 +110,25 @@ export const madeUpRecordingOf = (
     audio: StoredAudio({ fileID: madeUpAudioFileID, byteCount: 1 }),
   }
 }
+
+/**
+ * A made-up recording still in progress, `sectionCount` sections so far.
+ * Asking again with a larger count gives the same sections and more, as a
+ * recording grows while it is heard.
+ *
+ * @example
+ * ```typescript
+ * madeUpLiveRecordingOf('…0003', 'Still Recording', 9)
+ * ```
+ */
+export const madeUpLiveRecordingOf = (
+  recordingID: string,
+  title: string,
+  sectionCount: number,
+): RecordingDetail => {
+  const recording = madeUpRecordingOf(recordingID, title, sectionCount)
+  return {
+    ...recording,
+    summary: { ...recording.summary, activity: 'Recording' },
+  }
+}
