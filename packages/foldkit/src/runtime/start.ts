@@ -413,11 +413,13 @@ export function start<
     let isLogComplete = false
     const idsPastCursor = new Set<string>()
     let isLocalSnapshotStale = false
+    let lastSavedText: string | undefined
     let isSaveBlocked = false
     let isOutboxFrozen = false
     let isAuthChangedTripped = false
     let isLogRead = false
     const unconfirmedIds = new Set<string>()
+    const writtenHereIds = new Set<string>()
     let isReadingWholeLog = false
     let lastWrite: Option.Option<SyncWriteResult> = Option.none()
     let lastApplied: Option.Option<LogRowOrder> = Option.none()
@@ -519,6 +521,12 @@ export function start<
           }),
     })
     yield* runtime.initialization
+    const stopObservingLocalModel = runtime.observeModel(next => {
+      if ((next as SyncedModel<ChildModel, Message>)._tag === 'Ready') {
+        isLocalSnapshotStale = true
+      }
+    })
+    yield* Effect.addFinalizer(() => Effect.sync(stopObservingLocalModel))
 
     const maybeSnapshotScope: Option.Option<LocalSnapshot.LocalSnapshotScope> =
       engine.snapshotScope === undefined
@@ -820,39 +828,81 @@ export function start<
               }),
             ),
         )
-        return Option.match(maybeNext, {
-          onNone: () => Effect.void,
-          onSome: next => {
-            const snapshots = LocalSnapshot.retainedSnapshots(
-              savedSnapshots,
-              next,
-            )
-            savedSnapshots = snapshots
-            bases = Array.map(snapshots, baseOf)
-            return Option.match(
-              LocalSnapshot.encode(
-                snapshotProgram,
-                {
-                  snapshots,
-                  rows: Array.filter(
-                    Array.map(entries, entry => entry.row),
-                    row =>
-                      idsPastCursor.has(idOfRow(row)) ||
-                      !LocalSnapshot.isAtOrBefore(
-                        row,
-                        Array.headNonEmpty(snapshots).watermark.position,
-                      ),
-                  ),
-                  maybeCursor,
-                },
-                Option.getOrUndefined(maybeSnapshotScope),
-              ),
-              {
-                onNone: () => Effect.void,
-                onSome: encoded =>
-                  store.save(encoded).pipe(
+        const snapshots: ReadonlyArray<LocalSnapshot.LocalSnapshot<ChildModel>> =
+          Option.match(maybeNext, {
+            onNone: () => savedSnapshots,
+            onSome: next => {
+              const nextSnapshots = LocalSnapshot.retainedSnapshots(
+                savedSnapshots,
+                next,
+              )
+              savedSnapshots = nextSnapshots
+              bases = Array.map(nextSnapshots, baseOf)
+              return nextSnapshots
+            },
+          })
+        const projectLocal = childSynchronization?.projectLocal
+        const keepOnRefold = childSynchronization?.keepOnRefold
+        const currentModel = runtime.readModel() as SyncedModel<
+          ChildModel,
+          Message
+        >
+        const rawDeviceModel: ChildModel | undefined =
+          currentModel._tag !== 'Ready'
+            ? undefined
+            : unconfirmedIds.size === 0
+              ? childOfReady(currentModel)
+              : Option.isSome(maybeNext) && keepOnRefold !== undefined
+                ? keepOnRefold(
+                    childOfReady(currentModel),
+                    maybeNext.value.model,
+                  )
+                : undefined
+        const deviceModel: ChildModel | undefined =
+          rawDeviceModel === undefined
+            ? undefined
+            : projectLocal === undefined
+              ? rawDeviceModel
+              : projectLocal(rawDeviceModel)
+        if (
+          Array.isReadonlyArrayEmpty(snapshots) &&
+          deviceModel === undefined
+        ) {
+          return Effect.void
+        }
+        const rows = Array.match(snapshots, {
+          onEmpty: () => Array.map(entries, entry => entry.row),
+          onNonEmpty: nonEmpty =>
+            Array.filter(
+              Array.map(entries, entry => entry.row),
+              row =>
+                idsPastCursor.has(idOfRow(row)) ||
+                !LocalSnapshot.isAtOrBefore(
+                  row,
+                  Array.headNonEmpty(nonEmpty).watermark.position,
+                ),
+            ),
+        })
+        return Option.match(
+          LocalSnapshot.encode(
+            snapshotProgram,
+            {
+              snapshots,
+              rows,
+              maybeCursor,
+              ...(deviceModel === undefined ? {} : { deviceModel }),
+            },
+            Option.getOrUndefined(maybeSnapshotScope),
+          ),
+          {
+            onNone: () => Effect.void,
+            onSome: encoded =>
+              encoded === lastSavedText
+                ? Effect.void
+                : store.save(encoded).pipe(
                     Effect.tap(() =>
                       Effect.sync(() => {
+                        lastSavedText = encoded
                         traceSync({ _tag: 'SavedLocalSnapshot' })
                       }),
                     ),
@@ -866,10 +916,8 @@ export function start<
                       }),
                     ),
                   ),
-              },
-            )
           },
-        })
+        )
       })
 
     const tripAuthChanged = (reason: string): Effect.Effect<void> =>
@@ -1040,7 +1088,9 @@ export function start<
           program.of.version,
         )
         rememberRow(write.message)
-        unconfirmedIds.add(idOfRow(write.message))
+        const writeRowId = idOfRow(write.message)
+        unconfirmedIds.add(writeRowId)
+        writtenHereIds.add(writeRowId)
         const writtenOrder = rowOrderOf(write.message)
         const isBeforeApplied =
           Option.isSome(writtenOrder) &&
@@ -1149,6 +1199,7 @@ export function start<
                     Option.getOrUndefined(maybeSnapshotScope),
                   )
                   if (Option.isSome(decoded)) {
+                    lastSavedText = text
                     traceSync({ _tag: 'LoadedLocalSnapshot', hit: true })
                   } else {
                     traceSync({
@@ -1182,11 +1233,22 @@ export function start<
       savedSnapshots = local.snapshots
       bases = Array.map(local.snapshots, baseOf)
       maybeCursor = local.maybeCursor
-      const newest = Array.lastNonEmpty(local.snapshots)
-      lastApplied = Option.some(newest.watermark.position)
-      sendFromSync(
-        asMessage<Message>({ _tag: 'SnapshotReceived', model: newest.model }),
-      )
+      const maybeNewest = Array.last(local.snapshots)
+      if (Option.isSome(maybeNewest)) {
+        lastApplied = Option.some(maybeNewest.value.watermark.position)
+      }
+      const maybeBootModel =
+        local.deviceModel !== undefined
+          ? Option.some(local.deviceModel)
+          : Option.map(maybeNewest, newest => newest.model)
+      if (Option.isSome(maybeBootModel)) {
+        sendFromSync(
+          asMessage<Message>({
+            _tag: 'SnapshotReceived',
+            model: maybeBootModel.value,
+          }),
+        )
+      }
     }
 
     const isBehindApplied = (row: unknown): boolean =>
@@ -1784,7 +1846,7 @@ export function start<
     const caughtUp = yield* Deferred.make<CatchUp>()
 
     const reconcile = Effect.gen(function* () {
-      const knownBefore = knownRows.size
+      const knownIdsBefore = new Set(knownRows.keys())
       const maybeReadFailure = yield* readUnseen
       if (Option.isSome(maybeReadFailure)) {
         sendFromSync(
@@ -1798,24 +1860,52 @@ export function start<
             }),
           ),
         )
-      } else {
+      } else if (Option.isNone(maybeLocalState)) {
         const maybeFolded = yield* Option.match(foldLog(), {
           onSome: folded => Effect.succeed(Option.some(folded)),
           onNone: () => Effect.map(readWholeLog, () => foldLog()),
         })
         Option.map(maybeFolded, folded => {
           lastApplied = folded.maxOrder
-          if (Option.isNone(maybeLocalState)) {
-            sendFromSync(
-              asMessage<Message>({
-                _tag: 'SnapshotReceived',
-                model: folded.model,
+          sendFromSync(
+            asMessage<Message>({
+              _tag: 'SnapshotReceived',
+              model: folded.model,
+            }),
+          )
+        })
+      } else {
+        const fresh = Array.filter(
+          Array.fromIterable(knownRows.entries()),
+          ([id]) => !knownIdsBefore.has(id) && !writtenHereIds.has(id),
+        ).map(([, row]) => row)
+        if (Array.isArrayNonEmpty(fresh)) {
+          const isAnyLate = Array.some(fresh, row => isBehindApplied(row))
+          if (isAnyLate) {
+            const maybeFolded = yield* Option.match(foldLog(), {
+              onSome: folded => Effect.succeed(Option.some(folded)),
+              onNone: () => Effect.map(readWholeLog, () => foldLog()),
+            })
+            Option.map(maybeFolded, folded => {
+              lastApplied = folded.maxOrder
+              sendRefolded(folded.model)
+            })
+          } else {
+            pipe(
+              fresh,
+              Array.filterMap(row =>
+                Result.fromOption(
+                  Option.map(rowOrderOf(row), order => ({ order, row })),
+                  () => undefined,
+                ),
+              ),
+              Array.sort(logEntryOrder),
+              Array.forEach(entry => {
+                applyRemoteRow(entry.row)
               }),
             )
-          } else if (knownRows.size !== knownBefore) {
-            sendRefolded(folded.model)
           }
-        })
+        }
       }
       yield* Deferred.succeed(
         caughtUp,

@@ -1,4 +1,4 @@
-import { Match as M } from 'effect'
+import { Match as M, Option } from 'effect'
 import { Program } from 'foldkit'
 import * as Theme from 'foldkit/theme'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -9,6 +9,7 @@ import { Message, catalog, isBookmarkEdit } from './message.js'
 import { Model } from './model.js'
 import { navigation } from './navigation.js'
 import { libraryScreen } from './screen.js'
+import { Quiet } from './stretch.js'
 import { subscriptions } from './subscriptions.js'
 import { update } from './update.js'
 
@@ -198,6 +199,22 @@ export const BooksProgram = Program.make({
       audible: current.audible,
       maybeRemovedBookmark: current.maybeRemovedBookmark,
       appearance: current.appearance,
+    }),
+    projectLocal: model => ({
+      ...model,
+      listening:
+        model.listening._tag === 'Loaded'
+          ? {
+              ...model.listening,
+              player: {
+                ...model.listening.player,
+                transport: TranscriptPlayer.Paused(),
+              },
+              stretch: Quiet(),
+            }
+          : model.listening,
+      maybeNotice: Option.none(),
+      maybeRemovedBookmark: Option.none(),
     }),
   },
 })

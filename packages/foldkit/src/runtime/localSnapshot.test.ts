@@ -598,7 +598,8 @@ describe('Runtime.start with a local snapshot', () => {
     )
     expect(saved.snapshots.length).toBeGreaterThanOrEqual(2)
     const middle =
-      Array.headNonEmpty(saved.snapshots).watermark.position.createdAtMs + 5
+      Option.getOrThrow(Array.head(saved.snapshots)).watermark.position
+        .createdAtMs + 5
     store.messages.push(row('late-decrement', 'Decrement', middle))
     const cold = await Effect.runPromise(
       bootAndRead(store, LocalSnapshot.memory(), 399),
@@ -650,11 +651,16 @@ describe('Runtime.start with a local snapshot', () => {
       LocalSnapshot.decode(Counter, text),
     )
     expect(
-      Option.map(saved, state => Array.lastNonEmpty(state.snapshots).model),
+      Option.flatMap(saved, state =>
+        Option.map(Array.last(state.snapshots), snapshot => snapshot.model),
+      ),
     ).toEqual(Option.some({ count: 1, isPanelOpen: false }))
+    expect(Option.map(saved, state => state.deviceModel)).toEqual(
+      Option.some(undefined),
+    )
   })
 
-  it('keeps one Processor’s local navigation out of the shared snapshot', async () => {
+  it('keeps one Processor’s local navigation out of the shared snapshot while restoring it for this device', async () => {
     const store = makeMemoryStore()
     const snapshots = LocalSnapshot.memory()
     await Effect.runPromise(
@@ -680,8 +686,13 @@ describe('Runtime.start with a local snapshot', () => {
       LocalSnapshot.decode(Counter, text),
     )
     expect(
-      Option.map(saved, state => Array.lastNonEmpty(state.snapshots).model),
+      Option.flatMap(saved, state =>
+        Option.map(Array.last(state.snapshots), snapshot => snapshot.model),
+      ),
     ).toEqual(Option.some({ count: 1, isPanelOpen: false }))
+    expect(Option.map(saved, state => state.deviceModel)).toEqual(
+      Option.some({ count: 1, isPanelOpen: true }),
+    )
   })
 
   it('resolves the engine local snapshot store after resources initialize, and honors Disabled opt-out', async () => {
@@ -974,9 +985,137 @@ describe('Runtime.start with a local snapshot', () => {
         LocalSnapshot.decode(Counter, text),
       ),
     )
-    expect(Array.lastNonEmpty(saved.snapshots).model).toEqual({
+    expect(Option.getOrThrow(Array.last(saved.snapshots)).model).toEqual({
       count: 3,
       isPanelOpen: false,
     })
+  })
+
+  it('restores the projected deviceModel across restart even with zero log rows, and keeps local state on refold', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    const LocalPanelProgram = make({
+      ...Counter,
+      id: 'snapshot-counter-local',
+      synchronization: {
+        messageCategory: (message: CounterMessage) =>
+          message._tag === 'ToggledPanel' ? 'Navigation' : 'Domain',
+        projectDomain: (model: CounterModel) => model,
+        isLocalOnly: (message: CounterMessage) =>
+          message._tag === 'ToggledPanel',
+        keepOnRefold: (current: CounterModel, refolded: CounterModel) => ({
+          ...refolded,
+          isPanelOpen: current.isPanelOpen,
+        }),
+        projectLocal: (model: CounterModel) => ({
+          ...model,
+          count: model.count,
+        }),
+      },
+    })
+    const SyncedLocal = compose.sync({
+      of: LocalPanelProgram,
+      snapshot: CountProjection,
+      message: MessageWire,
+    })
+
+    // Open panel with zero synced log rows, then close (simulating force-close after save).
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: SyncedLocal,
+            sync: Memory({ processor: 'device-a-1', store }),
+            localSnapshot: snapshots,
+          })
+          yield* runtime.run(ToggledPanel())
+          expect(runtime.readModel()).toEqual({
+            _tag: 'Ready',
+            count: 0,
+            isPanelOpen: true,
+          })
+        }),
+      ),
+    )
+    expect(store.messages).toHaveLength(0)
+
+    // Another device writes a domain row while this device is closed.
+    store.messages.push(row('remote-inc', 'Increment', Date.now() + 1000))
+
+    // Reopen on the same device: paints isPanelOpen: true immediately at 0 ms,
+    // then reconciles the remote Increment while keeping isPanelOpen: true.
+    const [atBoot, afterCatchUp] = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: SyncedLocal,
+            sync: Memory({ processor: 'device-a-2', store }),
+            localSnapshot: snapshots,
+          })
+          const initial = runtime.readModel()
+          yield* runtime.caughtUp
+          yield* Effect.sleep(Duration.millis(10))
+          return [initial, runtime.readModel()] as const
+        }),
+      ),
+    )
+    expect(atBoot).toEqual({ _tag: 'Ready', count: 0, isPanelOpen: true })
+    expect(afterCatchUp).toEqual({ _tag: 'Ready', count: 1, isPanelOpen: true })
+  })
+
+  it('applies projectLocal when saving deviceModel so reopened state quiets active playback', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    const QuietOnRestore = make({
+      ...Counter,
+      id: 'snapshot-counter-quiet',
+      synchronization: {
+        messageCategory: (message: CounterMessage) =>
+          message._tag === 'ToggledPanel' ? 'Navigation' : 'Domain',
+        projectDomain: (model: CounterModel) => model,
+        projectLocal: (model: CounterModel) => ({
+          ...model,
+          isPanelOpen: false,
+        }),
+      },
+    })
+    const SyncedQuiet = compose.sync({
+      of: QuietOnRestore,
+      snapshot: CountProjection,
+      message: MessageWire,
+    })
+
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: SyncedQuiet,
+            sync: Memory({ processor: 'device-b-1', store }),
+            localSnapshot: snapshots,
+          })
+          yield* runtime.run(Increment())
+          yield* runtime.run(ToggledPanel())
+          expect(runtime.readModel()).toEqual({
+            _tag: 'Ready',
+            count: 1,
+            isPanelOpen: true,
+          })
+        }),
+      ),
+    )
+
+    const restored = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: SyncedQuiet,
+            sync: Memory({ processor: 'device-b-2', store }),
+            localSnapshot: snapshots,
+          })
+          return runtime.readModel()
+        }),
+      ),
+    )
+    expect(restored).toEqual({ _tag: 'Ready', count: 1, isPanelOpen: false })
   })
 })

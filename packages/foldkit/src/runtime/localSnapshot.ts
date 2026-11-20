@@ -422,9 +422,10 @@ export type LocalSnapshot<Model> = Readonly<{
  * late from the newest snapshot before it, using the rows kept here.
  */
 export type LocalState<Model> = Readonly<{
-  snapshots: Array.NonEmptyReadonlyArray<LocalSnapshot<Model>>
+  snapshots: ReadonlyArray<LocalSnapshot<Model>>
   rows: ReadonlyArray<unknown>
   maybeCursor: Option.Option<string>
+  deviceModel?: Model
 }>
 
 /**
@@ -503,8 +504,9 @@ const StoredState = S.Struct({
   foldRevision: S.optionalKey(S.String),
   scope: S.optionalKey(LocalSnapshotScope),
   cursor: S.optionalKey(S.String),
-  snapshots: S.NonEmptyArray(StoredSnapshot),
+  snapshots: S.Array(StoredSnapshot),
   rows: S.Array(S.Unknown),
+  deviceModel: S.optionalKey(S.Unknown),
 })
 
 /**
@@ -525,13 +527,16 @@ export const encode = <Model>(
 ): Option.Option<string> => {
   const ModelJson = S.toCodecJson(program.Model)
   return pipe(
-    Result.try(() =>
-      Array.map(state.snapshots, snapshot => ({
+    Result.try(() => ({
+      snapshots: Array.map(state.snapshots, snapshot => ({
         watermark: snapshot.watermark,
         model: S.encodeSync(ModelJson)(snapshot.model),
       })),
-    ),
-    Result.map(snapshots =>
+      ...(state.deviceModel === undefined
+        ? {}
+        : { deviceModel: S.encodeSync(ModelJson)(state.deviceModel) }),
+    })),
+    Result.map(encoded =>
       JSON.stringify({
         format: storedFormat,
         programId: program.id,
@@ -544,8 +549,11 @@ export const encode = <Model>(
           onNone: () => ({}),
           onSome: cursor => ({ cursor }),
         }),
-        snapshots,
+        snapshots: encoded.snapshots,
         rows: state.rows,
+        ...('deviceModel' in encoded
+          ? { deviceModel: encoded.deviceModel }
+          : {}),
       }),
     ),
     Result.getSuccess,
@@ -584,32 +592,42 @@ export const decode = <Model>(
           : stored.scope !== undefined &&
             scopesEqual(stored.scope, expectedScope)),
     ),
-    Option.flatMap(stored =>
-      pipe(
-        Option.all(
-          Array.map(stored.snapshots, snapshot =>
-            Option.map(
-              S.decodeUnknownOption(ModelJson)(snapshot.model),
-              (model): LocalSnapshot<Model> => ({
-                model,
-                watermark: snapshot.watermark,
-              }),
-            ),
+    Option.flatMap(stored => {
+      const maybeSnapshots = Option.all(
+        Array.map(stored.snapshots, snapshot =>
+          Option.map(
+            S.decodeUnknownOption(ModelJson)(snapshot.model),
+            (model): LocalSnapshot<Model> => ({
+              model,
+              watermark: snapshot.watermark,
+            }),
           ),
         ),
-        Option.flatMap(snapshots =>
-          Array.match(snapshots, {
-            onEmpty: () => Option.none<LocalState<Model>>(),
-            onNonEmpty: nonEmpty =>
-              Option.some({
-                snapshots: nonEmpty,
+      )
+      const maybeDeviceModel =
+        stored.deviceModel === undefined
+          ? Option.some<Model | undefined>(undefined)
+          : Option.map(
+              S.decodeUnknownOption(ModelJson)(stored.deviceModel),
+              (model): Model | undefined => model,
+            )
+      return Option.flatMap(
+        Option.zipWith(
+          maybeSnapshots,
+          maybeDeviceModel,
+          (snapshots, deviceModel) => ({ snapshots, deviceModel }),
+        ),
+        ({ snapshots, deviceModel }) =>
+          Array.isReadonlyArrayEmpty(snapshots) && deviceModel === undefined
+            ? Option.none<LocalState<Model>>()
+            : Option.some<LocalState<Model>>({
+                snapshots,
                 rows: stored.rows,
                 maybeCursor: Option.fromNullishOr(stored.cursor),
+                ...(deviceModel === undefined ? {} : { deviceModel }),
               }),
-          }),
-        ),
-      ),
-    ),
+      )
+    }),
   )
 }
 

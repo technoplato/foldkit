@@ -90,6 +90,19 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
    */
   keepOnRefold?: (current: Model, refolded: Model) => Model
   /**
+   * Projects the live Ready Model into what this device keeps across a
+   * force-close and restart. Unlike `projectDomain`, this keeps device-local
+   * state such as the open screen, cached library shelf, and appearance,
+   * while letting a Program quiet active side effects (for example, pausing
+   * an audio player so reopening never starts sound on its own).
+   *
+   * @example
+   * ```typescript
+   * projectLocal: model => ({ ...model, listening: pause(model.listening) })
+   * ```
+   */
+  projectLocal?: (model: Model) => Model
+  /**
    * True for a Message only the Processor that sends it applies. Sync
    * never writes it to the log, so no other Processor receives it and no
    * refold replays it, and a row with that Message from another writer is

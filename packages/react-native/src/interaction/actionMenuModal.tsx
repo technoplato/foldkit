@@ -6,6 +6,7 @@ import {
   type ModalProps,
   Platform,
   Pressable,
+  ScrollView,
   type StyleProp,
   StyleSheet,
   Text,
@@ -217,6 +218,7 @@ export const ActionMenuSheet = ({
         backgroundColor: look.colors.Scrim,
         flex: 1,
         justifyContent: 'flex-start',
+        paddingBottom: 24,
         paddingTop: '15%',
       }}
     >
@@ -242,6 +244,8 @@ export const ActionMenuSheet = ({
           borderRadius: 14,
           borderWidth: 1,
           elevation: 12,
+          flexShrink: 1,
+          maxHeight: '78%',
           maxWidth: 576,
           overflow: 'hidden',
           shadowColor: look.colors.Shadow,
@@ -271,7 +275,13 @@ export const ActionMenuSheet = ({
           }}
           value={menu.query}
         />
-        <View accessibilityLiveRegion="polite" style={{ gap: 2, padding: 6 }}>
+        <ScrollView
+          accessibilityLiveRegion="polite"
+          contentContainerStyle={{ gap: 2, padding: 6 }}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+        >
           {Array.match(menu.rows, {
             onEmpty: () => (
               <Text
@@ -296,7 +306,7 @@ export const ActionMenuSheet = ({
                 />
               )),
           })}
-        </View>
+        </ScrollView>
       </View>
     </View>
   )

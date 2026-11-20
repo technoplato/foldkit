@@ -854,6 +854,7 @@ export const compose = <Child extends SessionChild>(config: {
 
   const childSynchronization = child.synchronization
   const childKeepOnRefold = childSynchronization?.keepOnRefold
+  const childProjectLocal = childSynchronization?.projectLocal
   const childIsLocalOnly = childSynchronization?.isLocalOnly
   const childScreen = child.screen
   const ownNavigationHosts = config.ownNavigationHosts ?? []
@@ -870,6 +871,13 @@ export const compose = <Child extends SessionChild>(config: {
 
   const isChildMessage = (message: AppMessage): message is ChildMessage =>
     !isSessionMessage(message)
+
+  const isAtRootStack = (stack: NavigationStack<AppDestination>): boolean =>
+    Option.isNone(stack.maybeModal) &&
+    stack.pages.length === 1 &&
+    Option.exists(Array.head(stack.pages), page =>
+      isSameDestination(page, childNavigation.root),
+    )
 
   const program = make({
     id: config.id ?? `session:${child.id}`,
@@ -905,14 +913,24 @@ export const compose = <Child extends SessionChild>(config: {
           : childSynchronization.projectDomain(childOf(model)),
       sessionPolicyOf: model => policyOf(model.session),
       keepsOwnNavigation,
-      ...(childKeepOnRefold === undefined
-        ? {}
-        : {
-            keepOnRefold: (current: AppModel, refolded: AppModel): AppModel =>
-              withChild(
+      keepOnRefold: (current: AppModel, refolded: AppModel): AppModel => {
+        const nextModel =
+          childKeepOnRefold === undefined
+            ? refolded
+            : withChild(
                 refolded,
                 childKeepOnRefold(childOf(current), childOf(refolded)),
-              ),
+              )
+        return refolded.session.mode === 'SharedDomain' &&
+          isAtRootStack(refolded.navigation)
+          ? allowed({ ...nextModel, navigation: current.navigation })
+          : nextModel
+      },
+      ...(childProjectLocal === undefined
+        ? {}
+        : {
+            projectLocal: (model: AppModel): AppModel =>
+              withChild(model, childProjectLocal(childOf(model))),
           }),
       ...(childIsLocalOnly === undefined
         ? {}

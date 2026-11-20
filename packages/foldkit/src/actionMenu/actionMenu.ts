@@ -1373,6 +1373,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const childSynchronization = child.synchronization
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
   const childKeepsOwnNavigation = childSynchronization?.keepsOwnNavigation
+  const childProjectLocal = childSynchronization?.projectLocal
   const childIsLocalOnly = childSynchronization?.isLocalOnly
   const childScreen = child.screen
 
@@ -1426,6 +1427,16 @@ export const compose = <Child extends ActionMenuChild>(config: {
         ? {}
         : { keepsOwnNavigation: childKeepsOwnNavigation }),
       ...keptOnRefold(childSynchronization?.keepOnRefold),
+      projectLocal: (model: AppModel): AppModel => {
+        const projected =
+          childProjectLocal === undefined
+            ? model
+            : withChild(model, childProjectLocal(childOf(model)))
+        return {
+          ...projected,
+          navigation: dismissMenu<AppDestination>(projected.navigation),
+        }
+      },
       ...(childIsLocalOnly === undefined
         ? {}
         : {

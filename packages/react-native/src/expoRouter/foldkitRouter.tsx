@@ -91,10 +91,19 @@ export const FoldkitRouterStack = ({
           bound.navigation,
           { isAddressShown: Platform.OS === 'web' },
         )
+        const initialUri = Array.lastNonEmpty(stack.routes()).uri
+        // NOTE: On native, launching from the Home Screen always lands on
+        // Expo Router's bare index route (`/`). Treating `/` as an explicit
+        // launch URI would overwrite a restored Program screen back to home;
+        // real deep links carry a path beyond `/`.
+        const launchUri =
+          Platform.OS !== 'web' && initialUri === '/'
+            ? Option.none<string>()
+            : Option.some(initialUri)
         return Navigation.runCarrier(
           bound,
           Navigation.keyedStackDriver(stack),
-          { launchUri: Option.some(Array.lastNonEmpty(stack.routes()).uri) },
+          { launchUri },
         )
       },
     })

@@ -29,6 +29,7 @@ vi.mock('react-native', () => ({
   Modal: 'Modal',
   Platform: { select: () => 'Menlo' },
   Pressable: 'Pressable',
+  ScrollView: 'ScrollView',
   StyleSheet: { hairlineWidth: 1 },
   Text: 'Text',
   TextInput: 'TextInput',
@@ -158,5 +159,17 @@ describe('ActionMenuModal', () => {
     expect(rows).toHaveLength(2)
     callProp(Option.getOrThrow(Array.last(rows)), 'onChoose', 'Reset')
     expect(bound.chooseFromMenu).toHaveBeenCalledExactlyOnceWith('Reset')
+  })
+
+  it('places the rows inside a ScrollView that lets taps through while the keyboard is open', () => {
+    presented.set('menu', menuAt(2))
+    const tree = [presentedSheet(), ...descendants(presentedSheet())]
+    const scrollView = Option.getOrThrow(
+      Array.findFirst(tree, element => element.type === 'ScrollView'),
+    )
+    expect(propsOf(scrollView)['keyboardShouldPersistTaps']).toBe('handled')
+    expect(
+      Array.filter(descendants(scrollView), element => 'row' in propsOf(element)),
+    ).toHaveLength(2)
   })
 })
