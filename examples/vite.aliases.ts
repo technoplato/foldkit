@@ -80,6 +80,10 @@ export const foldkitAliases = (dirname: string) => ({
     dirname,
     '../../packages/foldkit/src/attention/public',
   ),
+  'foldkit/behavior': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/behavior',
+  ),
   'foldkit/calendar': path.resolve(
     dirname,
     '../../packages/foldkit/src/calendar',
