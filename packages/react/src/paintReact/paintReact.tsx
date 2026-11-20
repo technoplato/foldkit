@@ -17,6 +17,7 @@ import {
   type TextInputNode,
   type TextNode,
   type TextPart,
+  TranscriptFollow,
   type TranscriptNode,
   type TranscriptPassage,
   type UiNode,
@@ -719,28 +720,21 @@ const PassageView = memo(
     before.onPress === after.onPress,
 )
 
-const userScrollQuietMs = 4000
-
-const leavingScrollQuietMs = 1000
-
-const leaveCheckAfterMs = 250
-
-const autoScrollMs = 900
-
-const middleBandStart = 0.25
-
-const middleBandEnd = 0.75
-
-const isNearMiddleOf = (root: HTMLElement, word: HTMLElement): boolean => {
+const sightOf = (
+  root: HTMLElement,
+  word: HTMLElement,
+): TranscriptFollow.Sight => {
   const isScrollArea = root.scrollHeight > root.clientHeight
   const view = isScrollArea
     ? root.getBoundingClientRect()
     : { top: 0, height: window.innerHeight }
   const bounds = word.getBoundingClientRect()
-  return (
-    bounds.top > view.top + view.height * middleBandStart &&
-    bounds.bottom < view.top + view.height * middleBandEnd
-  )
+  return {
+    top: bounds.top,
+    bottom: bounds.bottom,
+    viewStart: view.top,
+    viewSize: view.height,
+  }
 }
 
 /**
@@ -759,13 +753,6 @@ const centerWord = (root: HTMLElement, word: HTMLElement): void => {
     })
   } else {
     word.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }
-}
-
-/** Keeps a word near the middle of the transcript, moving only when it has left it. */
-const followWord = (root: HTMLElement, word: HTMLElement): void => {
-  if (!isNearMiddleOf(root, word)) {
-    centerWord(root, word)
   }
 }
 
@@ -1029,11 +1016,7 @@ const TranscriptView = ({
   const transcript = useLiveTranscript(given)
   const entries = useMemo(() => transcriptEntriesOf(transcript), [transcript])
   const ref = useRef<HTMLElement>(null)
-  const lastUserScrollAtMs = useRef(0)
-  const autoScrollUntilMs = useRef(0)
-  const leaveCheck = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  )
+  const follow = useRef<TranscriptFollow.Running | undefined>(undefined)
   const maybeCurrentToken = Array.findFirst(
     Array.flatMap(transcript.passages, passage =>
       Array.fromNullishOr(currentTokenOf(passage)),
@@ -1050,81 +1033,81 @@ const TranscriptView = ({
     Array.some(transcript.passages, passage =>
       Array.some(passage.words, word => word.token === focusToken),
     )
-  const live = useRef({ currentToken, isFollowing, leaveAction, onPress })
-  live.current = { currentToken, isFollowing, leaveAction, onPress }
+  const live = useRef({
+    currentToken,
+    focusToken,
+    isFollowing,
+    leaveAction,
+    onPress,
+  })
+  live.current = { currentToken, focusToken, isFollowing, leaveAction, onPress }
+  // NOTE: when to follow, when to leave the view alone and when the reader
+  // has left are `TranscriptFollow`'s to say, as for every painter. This
+  // is the browser's part: it measures, scrolls, listens and presses.
   useEffect(() => {
-    const leaveIfAway = (): void => {
-      const now = live.current
+    const wordOf = (token: string | undefined): HTMLElement | null => {
       const root = ref.current
-      if (
-        root === null ||
-        now.leaveAction === undefined ||
-        !now.isFollowing ||
-        now.currentToken === undefined
-      ) {
-        return
-      }
-      const word = wordIn(root, now.currentToken)
-      if (word !== null && !isNearMiddleOf(root, word)) {
-        now.onPress(pressOf(now.leaveAction, 'Read elsewhere'))
-      }
+      return root === null || token === undefined ? null : wordIn(root, token)
     }
-    const noteUserScroll = (): void => {
-      lastUserScrollAtMs.current = Date.now()
-      clearTimeout(leaveCheck.current)
-      leaveCheck.current = setTimeout(leaveIfAway, leaveCheckAfterMs)
+    const running = TranscriptFollow.start({
+      now: () => Date.now(),
+      told: () => ({
+        isFollowing: live.current.isFollowing,
+        hasLeave: live.current.leaveAction !== undefined,
+      }),
+      measure: (_purpose, answer) => {
+        const root = ref.current
+        const word = wordOf(live.current.currentToken)
+        if (root !== null && word !== null) {
+          answer(Option.some(sightOf(root, word)))
+        }
+      },
+      bringToMiddle: which => {
+        const root = ref.current
+        const word = wordOf(
+          which === 'Spoken'
+            ? live.current.currentToken
+            : live.current.focusToken,
+        )
+        if (root !== null && word !== null) {
+          centerWord(root, word)
+        }
+      },
+      pressLeave: () => {
+        const now = live.current
+        if (now.leaveAction !== undefined) {
+          now.onPress(pressOf(now.leaveAction, 'Read elsewhere'))
+        }
+      },
+    })
+    follow.current = running
+    const noteReaderScroll = (): void => {
+      running.tell(TranscriptFollow.ScrolledByReader())
     }
     const noteScroll = (): void => {
-      if (Date.now() > autoScrollUntilMs.current) {
-        noteUserScroll()
-      }
+      running.tell(TranscriptFollow.ScrolledView())
     }
     const root = ref.current
-    window.addEventListener('wheel', noteUserScroll, { passive: true })
-    window.addEventListener('touchmove', noteUserScroll, { passive: true })
+    window.addEventListener('wheel', noteReaderScroll, { passive: true })
+    window.addEventListener('touchmove', noteReaderScroll, { passive: true })
     window.addEventListener('scroll', noteScroll, { passive: true })
     root?.addEventListener('scroll', noteScroll, { passive: true })
     return () => {
-      clearTimeout(leaveCheck.current)
-      window.removeEventListener('wheel', noteUserScroll)
-      window.removeEventListener('touchmove', noteUserScroll)
+      running.stop()
+      follow.current = undefined
+      window.removeEventListener('wheel', noteReaderScroll)
+      window.removeEventListener('touchmove', noteReaderScroll)
       window.removeEventListener('scroll', noteScroll)
       root?.removeEventListener('scroll', noteScroll)
     }
   }, [])
   useEffect(() => {
-    const root = ref.current
-    const quietMs =
-      leaveAction === undefined ? userScrollQuietMs : leavingScrollQuietMs
-    if (
-      root === null ||
-      currentToken === undefined ||
-      !isFollowing ||
-      Date.now() - lastUserScrollAtMs.current < quietMs
-    ) {
-      return
-    }
-    const word = wordIn(root, currentToken)
-    if (word === null) {
-      return
-    }
-    autoScrollUntilMs.current = Date.now() + autoScrollMs
-    followWord(root, word)
-    // NOTE: `leaveAction` only picks how long a person's own scroll is
-    // left alone; a change of it alone moves nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    follow.current?.tell(TranscriptFollow.ChangedSpokenWord())
   }, [currentToken, isFollowing])
   useEffect(() => {
-    const root = ref.current
-    if (root === null || focusToken === undefined || !isFocusWordHere) {
-      return
+    if (focusToken !== undefined && isFocusWordHere) {
+      follow.current?.tell(TranscriptFollow.NamedWord())
     }
-    const word = wordIn(root, focusToken)
-    if (word === null) {
-      return
-    }
-    autoScrollUntilMs.current = Date.now() + autoScrollMs
-    centerWord(root, word)
   }, [focusToken, isFocusWordHere])
   const menuAsk = useMenuAsk(target => {
     const token = tokenOfTarget(target)

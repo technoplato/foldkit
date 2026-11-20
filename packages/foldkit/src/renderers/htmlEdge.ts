@@ -1,7 +1,10 @@
-import { Effect, Queue, Stream } from 'effect'
+import { Effect, Option, Queue, Stream } from 'effect'
 
 import type { MountAction } from '../mount/index.js'
 import { transcriptPlaceAt } from './transcriptClock.js'
+import * as TranscriptFollow from './transcriptFollow.js'
+
+export { shouldFollowWord } from './transcriptFollow.js'
 
 // NOTE: This is the edge of the Foldkit HTML painter: small effects that
 // run on the page beside the painted elements, told what to do only by
@@ -361,56 +364,23 @@ const runTranscriptPresses = (transcript: Element): (() => void) => {
  */
 export const leftPlayheadEventName = 'fk-left-playhead'
 
-/** After the reader scrolls, the words are left alone this long, where leaving is the Program's to hear. */
-const LEAVING_QUIET_MS = 1000
-
-/** After the reader scrolls, the words are left alone this long, where nothing hears of leaving. */
-const SCROLL_QUIET_MS = 4000
-
-/** How long after the reader's scroll the edge looks whether the spoken word left the middle. */
-const LEAVE_CHECK_AFTER_MS = 250
-
-/** How long a scroll the edge started is taken to be its own. */
-const OWN_SCROLL_MS = 900
-
-const MIDDLE_BAND_START = 0.25
-
-const MIDDLE_BAND_END = 0.75
-
-/**
- * Whether the edge brings a newly spoken word to the middle now: only
- * while the words follow the voice, and not for a moment after the reader
- * scrolled, a second where leaving is reported, four where it is not.
- *
- * @example
- * ```typescript
- * shouldFollowWord({ isFollowing: true, hasLeave: true, nowMs: 10_000, userScrolledAtMs: 9_500 }) // false
- * ```
- */
-export const shouldFollowWord = (
-  facts: Readonly<{
-    isFollowing: boolean
-    hasLeave: boolean
-    nowMs: number
-    userScrolledAtMs: number
-  }>,
-): boolean =>
-  facts.isFollowing &&
-  facts.nowMs - facts.userScrolledAtMs >=
-    (facts.hasLeave ? LEAVING_QUIET_MS : SCROLL_QUIET_MS)
-
 const isScrollArea = (transcript: Element): boolean =>
   transcript.scrollHeight > transcript.clientHeight
 
-const isNearMiddleOf = (transcript: Element, word: Element): boolean => {
+const sightOf = (
+  transcript: Element,
+  word: Element,
+): TranscriptFollow.Sight => {
   const view = isScrollArea(transcript)
     ? transcript.getBoundingClientRect()
     : { top: 0, height: window.innerHeight }
   const bounds = word.getBoundingClientRect()
-  return (
-    bounds.top > view.top + view.height * MIDDLE_BAND_START &&
-    bounds.bottom < view.top + view.height * MIDDLE_BAND_END
-  )
+  return {
+    top: bounds.top,
+    bottom: bounds.bottom,
+    viewStart: view.top,
+    viewSize: view.height,
+  }
 }
 
 /**
@@ -444,97 +414,99 @@ const wordWithToken = (transcript: Element, token: string): Element | null =>
   transcript.querySelector(`[data-token="${CSS.escape(token)}"]`)
 
 /**
- * Keeps the spoken word in the middle while the words follow the voice,
- * shows the word the Transcript says to show, and tells the view when the
- * reader has scrolled the spoken word out of the middle. The Program
- * decides whether the words follow; this reads that from the element and
- * moves nothing once they do not.
+ * Follows the voice on a painted Transcript, as `TranscriptFollow` says
+ * every painter does. This is only the browser's part: it tells the rule
+ * when the spoken word changes, when a word is named and when the page
+ * scrolls, measures the spoken word against the window or the
+ * Transcript's own scroll area, scrolls a word to the middle, and sends
+ * the view the leave event. When to do any of it is the rule's.
  */
 const runFollow = (transcript: Element): (() => void) => {
-  const state: {
-    userScrolledAtMs: number
-    ownScrollUntilMs: number
-    leaveCheck: number
-    maybeFollowed: Element | undefined
-  } = {
-    userScrolledAtMs: Number.NEGATIVE_INFINITY,
-    ownScrollUntilMs: Number.NEGATIVE_INFINITY,
-    leaveCheck: 0,
+  const held: { maybeFollowed: Element | undefined } = {
     maybeFollowed: undefined,
   }
-  const currentWord = (): Element | null =>
+  const spokenWord = (): Element | null =>
     transcript.querySelector(`.fk-word[${CURRENT}]`)
-  const leaveIfAway = () => {
-    const maybeWord = currentWord()
-    if (
-      isFollowingOf(transcript) &&
-      hasLeaveOf(transcript) &&
-      maybeWord !== null &&
-      !isNearMiddleOf(transcript, maybeWord)
-    ) {
+  const namedWord = (): Element | null => {
+    const maybeToken = transcript.getAttribute('data-focus-token')
+    return maybeToken === null ? null : wordWithToken(transcript, maybeToken)
+  }
+  const follow = TranscriptFollow.start({
+    now: () => Date.now(),
+    told: () => ({
+      isFollowing: isFollowingOf(transcript),
+      hasLeave: hasLeaveOf(transcript),
+    }),
+    measure: (_purpose, answer) => {
+      const maybeWord = spokenWord()
+      if (maybeWord !== null) {
+        answer(Option.some(sightOf(transcript, maybeWord)))
+      }
+    },
+    bringToMiddle: word => {
+      const maybeWord = word === 'Spoken' ? spokenWord() : namedWord()
+      if (maybeWord !== null) {
+        centerWord(transcript, maybeWord)
+      }
+    },
+    pressLeave: () => {
       transcript.dispatchEvent(new CustomEvent(leftPlayheadEventName))
+    },
+  })
+  const noteSpoken = () => {
+    const maybeWord = spokenWord()
+    if (maybeWord !== null && maybeWord !== held.maybeFollowed) {
+      held.maybeFollowed = maybeWord
+      follow.tell(TranscriptFollow.ChangedSpokenWord())
     }
   }
-  const noteUserScroll = () => {
-    state.userScrolledAtMs = Date.now()
-    window.clearTimeout(state.leaveCheck)
-    state.leaveCheck = window.setTimeout(leaveIfAway, LEAVE_CHECK_AFTER_MS)
+  const noteTold = (records: ReadonlyArray<MutationRecord>) => {
+    const isNamed = records.some(
+      record => record.attributeName === 'data-focus-token',
+    )
+    const isFollowingAgain = records.some(
+      record =>
+        record.attributeName === 'data-following' &&
+        record.oldValue === 'false',
+    )
+    if (isNamed && transcript.hasAttribute('data-focus-token')) {
+      follow.tell(TranscriptFollow.NamedWord())
+    }
+    if (isFollowingAgain && isFollowingOf(transcript)) {
+      follow.tell(TranscriptFollow.ChangedSpokenWord())
+    }
+  }
+  const noteReaderScroll = () => {
+    follow.tell(TranscriptFollow.ScrolledByReader())
   }
   const noteScroll = () => {
-    if (Date.now() > state.ownScrollUntilMs) {
-      noteUserScroll()
-    }
+    follow.tell(TranscriptFollow.ScrolledView())
   }
-  const follow = () => {
-    const maybeWord = currentWord()
-    if (maybeWord === null || maybeWord === state.maybeFollowed) {
-      return
-    }
-    state.maybeFollowed = maybeWord
-    if (
-      shouldFollowWord({
-        isFollowing: isFollowingOf(transcript),
-        hasLeave: hasLeaveOf(transcript),
-        nowMs: Date.now(),
-        userScrolledAtMs: state.userScrolledAtMs,
-      }) &&
-      !isNearMiddleOf(transcript, maybeWord)
-    ) {
-      state.ownScrollUntilMs = Date.now() + OWN_SCROLL_MS
-      centerWord(transcript, maybeWord)
-    }
-  }
-  const show = () => {
-    const maybeToken = transcript.getAttribute('data-focus-token')
-    const maybeWord =
-      maybeToken === null ? null : wordWithToken(transcript, maybeToken)
-    if (maybeWord !== null) {
-      state.ownScrollUntilMs = Date.now() + OWN_SCROLL_MS
-      centerWord(transcript, maybeWord)
-    }
-  }
-  const spoken = new MutationObserver(follow)
+  const spoken = new MutationObserver(noteSpoken)
   spoken.observe(transcript, {
     attributes: true,
     attributeFilter: [CURRENT],
     subtree: true,
   })
-  const told = new MutationObserver(show)
+  const told = new MutationObserver(noteTold)
   told.observe(transcript, {
     attributes: true,
-    attributeFilter: ['data-focus-token'],
+    attributeFilter: ['data-focus-token', 'data-following'],
+    attributeOldValue: true,
   })
-  window.addEventListener('wheel', noteUserScroll, { passive: true })
-  window.addEventListener('touchmove', noteUserScroll, { passive: true })
+  window.addEventListener('wheel', noteReaderScroll, { passive: true })
+  window.addEventListener('touchmove', noteReaderScroll, { passive: true })
   window.addEventListener('scroll', noteScroll, { passive: true })
   transcript.addEventListener('scroll', noteScroll, { passive: true })
-  show()
+  if (transcript.hasAttribute('data-focus-token')) {
+    follow.tell(TranscriptFollow.NamedWord())
+  }
   return () => {
     spoken.disconnect()
     told.disconnect()
-    window.clearTimeout(state.leaveCheck)
-    window.removeEventListener('wheel', noteUserScroll)
-    window.removeEventListener('touchmove', noteUserScroll)
+    follow.stop()
+    window.removeEventListener('wheel', noteReaderScroll)
+    window.removeEventListener('touchmove', noteReaderScroll)
     window.removeEventListener('scroll', noteScroll)
     transcript.removeEventListener('scroll', noteScroll)
   }

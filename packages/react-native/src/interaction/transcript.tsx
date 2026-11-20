@@ -2,6 +2,7 @@ import { Array, Match as M, Option, Order } from 'effect'
 import {
   type PlacedBookmark,
   type TranscriptEntry,
+  TranscriptFollow,
   type TranscriptNode,
   type TranscriptPassage,
   type TranscriptWord,
@@ -117,13 +118,19 @@ export const lineOfOffset = (
   return found.line === -1 ? Math.max(0, lines.length - 1) : found.line
 }
 
-const middleBandStart = 0.25
-
-const middleBandEnd = 0.75
+const sightOf = (
+  view: Readonly<{ place: number; offset: number; viewport: number }>,
+): TranscriptFollow.Sight => ({
+  top: view.place,
+  bottom: view.place,
+  viewStart: view.offset,
+  viewSize: view.viewport,
+})
 
 /**
  * True when a place in a scrolled view is in its middle half, where a
- * word being read is left alone.
+ * word being read is left alone, as `TranscriptFollow.isInMiddle` says
+ * for every painter.
  *
  * @example
  * ```typescript
@@ -133,9 +140,7 @@ const middleBandEnd = 0.75
  */
 export const isNearMiddle = (
   view: Readonly<{ place: number; offset: number; viewport: number }>,
-): boolean =>
-  view.place > view.offset + view.viewport * middleBandStart &&
-  view.place < view.offset + view.viewport * middleBandEnd
+): boolean => TranscriptFollow.isInMiddle(sightOf(view))
 
 // WORDS
 
@@ -452,12 +457,6 @@ export const useLiveTranscript = (
 
 // VIEW
 
-const userScrollQuietMs = 4000
-
-const leavingScrollQuietMs = 1000
-
-const leaveCheckAfterMs = 250
-
 const maximumJumps = 5
 
 const retryAfterMs = 120
@@ -570,10 +569,7 @@ export const TranscriptView = ({
   const { colors, sizes } = paint.look
   const places = useRef(new Map<string, PassagePlace>())
   const parts = useRef(new Map<string, View>())
-  const lastUserScrollAtMs = useRef(0)
-  const leaveCheck = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  )
+  const follow = useRef<TranscriptFollow.Running | undefined>(undefined)
   const maybeCurrentToken = Array.findFirst(
     Array.flatMap(transcript.passages, passage =>
       Array.fromOption(currentTokenOf(passage)),
@@ -606,6 +602,7 @@ export const TranscriptView = ({
     transcript,
     windowEntries,
     currentToken,
+    focusToken,
     isFollowing,
     leaveAction,
     onPress: paint.onPress,
@@ -614,6 +611,7 @@ export const TranscriptView = ({
     transcript,
     windowEntries,
     currentToken,
+    focusToken,
     isFollowing,
     leaveAction,
     onPress: paint.onPress,
@@ -725,7 +723,7 @@ export const TranscriptView = ({
     })
   }
 
-  const bringToMiddle = (token: string, isOnlyWhenAway: boolean): void => {
+  const bringToMiddle = (token: string): void => {
     if (scroll === undefined) {
       return
     }
@@ -734,14 +732,7 @@ export const TranscriptView = ({
       Option.match({
         onSome: place => {
           pending.current = { token: undefined, jumps: 0 }
-          const view = {
-            place,
-            offset: scroll.offset(),
-            viewport: scroll.viewport(),
-          }
-          if (!isOnlyWhenAway || !isNearMiddle(view)) {
-            scroll.scrollTo(Math.max(0, place - view.viewport / 2))
-          }
+          scroll.scrollTo(Math.max(0, place - scroll.viewport() / 2))
         },
         // NOTE: the word's passage is not laid out: only the passages near
         // the screen are. The view goes to about where it is; when
@@ -761,77 +752,76 @@ export const TranscriptView = ({
     )
   }
 
-  const followNow = (): void => {
-    const now = live.current
-    const quietMs =
-      now.leaveAction === undefined ? userScrollQuietMs : leavingScrollQuietMs
-    if (
-      now.currentToken === undefined ||
-      !now.isFollowing ||
-      Date.now() - lastUserScrollAtMs.current < quietMs
-    ) {
-      return
-    }
-    bringToMiddle(now.currentToken, true)
-  }
-
+  // NOTE: when to follow, when to leave the view alone and when the reader
+  // has left are `TranscriptFollow`'s to say, as for every painter. This
+  // is the phone's part: it measures a word's line, scrolls the screen's
+  // body, hears a person's own scrolls, and presses.
   useEffect(() => {
     if (scroll === undefined) {
       return undefined
     }
-    const leaveIfAway = (): void => {
-      const now = live.current
-      if (
-        now.leaveAction === undefined ||
-        !now.isFollowing ||
-        now.currentToken === undefined
-      ) {
-        return
-      }
-      const leaveAction = now.leaveAction
-      whereIs(now.currentToken, maybePlace => {
-        // NOTE: a word whose passage is no longer laid out is far away.
-        const isAway = Option.match(maybePlace, {
-          onNone: () => true,
-          onSome: place =>
-            !isNearMiddle({
-              place,
-              offset: scroll.offset(),
-              viewport: scroll.viewport(),
-            }),
-        })
-        if (isAway) {
-          now.onPress(pressOf(leaveAction, 'Read elsewhere'))
+    const running = TranscriptFollow.start({
+      now: () => Date.now(),
+      told: () => ({
+        isFollowing: live.current.isFollowing,
+        hasLeave: live.current.leaveAction !== undefined,
+      }),
+      measure: (_purpose, answer) => {
+        const token = live.current.currentToken
+        if (token !== undefined) {
+          // NOTE: a word whose passage is not laid out has no place, which
+          // the rule takes for far away.
+          whereIs(token, maybePlace => {
+            answer(
+              Option.map(maybePlace, place =>
+                sightOf({
+                  place,
+                  offset: scroll.offset(),
+                  viewport: scroll.viewport(),
+                }),
+              ),
+            )
+          })
         }
-      })
-    }
+      },
+      bringToMiddle: which => {
+        const token =
+          which === 'Spoken'
+            ? live.current.currentToken
+            : live.current.focusToken
+        if (token !== undefined) {
+          bringToMiddle(token)
+        }
+      },
+      pressLeave: () => {
+        const now = live.current
+        if (now.leaveAction !== undefined) {
+          now.onPress(pressOf(now.leaveAction, 'Read elsewhere'))
+        }
+      },
+    })
+    follow.current = running
     const stop = scroll.onUserScroll(() => {
-      lastUserScrollAtMs.current = Date.now()
-      clearTimeout(leaveCheck.current)
-      leaveCheck.current = setTimeout(leaveIfAway, leaveCheckAfterMs)
+      running.tell(TranscriptFollow.ScrolledByReader())
     })
     return () => {
-      clearTimeout(leaveCheck.current)
+      running.stop()
+      follow.current = undefined
       stop()
     }
-    // NOTE: the listener reads what is live through `live`; it is set up
+    // NOTE: the rule reads what is live through `live`; it is started
     // once for the scrolling body it is in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scroll])
 
   useEffect(() => {
-    followNow()
-    // NOTE: the view follows when the word or the following changes, not
-    // on every paint.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    follow.current?.tell(TranscriptFollow.ChangedSpokenWord())
   }, [currentToken, isFollowing])
 
   useEffect(() => {
     if (focusToken !== undefined) {
-      bringToMiddle(focusToken, false)
+      follow.current?.tell(TranscriptFollow.NamedWord())
     }
-    // NOTE: a named word is brought to the middle once, when it is named.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusToken])
 
   const notePlace = (key: string, change: Partial<PassagePlace>): void => {
@@ -852,7 +842,7 @@ export const TranscriptView = ({
         ),
     )
     if (isCurrentPassage) {
-      followNow()
+      follow.current?.tell(TranscriptFollow.ChangedSpokenWord())
     }
   }
 
@@ -869,7 +859,7 @@ export const TranscriptView = ({
       retry.current = setTimeout(() => {
         const token = pending.current.token
         if (token !== undefined) {
-          bringToMiddle(token, false)
+          bringToMiddle(token)
         }
       }, retryAfterMs)
     }

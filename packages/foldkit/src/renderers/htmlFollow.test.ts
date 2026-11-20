@@ -140,6 +140,27 @@ describe('the reader scrolling away, at the edge', () => {
     transcript.remove()
   })
 
+  it('brings the spoken word back to the middle when the Program says the words follow again', async () => {
+    const { transcript, word } = page()
+    transcript.setAttribute('data-following', 'false')
+    const shown: Array<string> = []
+    word.scrollIntoView = () => {
+      shown.push(word.getAttribute('data-token') ?? '')
+    }
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<never>().f(transcript)),
+    )
+    await new Promise(resolve => {
+      setTimeout(resolve, 20)
+    })
+    expect(shown).toEqual([])
+    transcript.setAttribute('data-following', 'true')
+    await until(() => shown.length === 1)
+    expect(shown).toEqual(['w1'])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
   it('brings the word it is told to show into view', async () => {
     const { transcript, word } = page()
     transcript.setAttribute('data-following', 'false')

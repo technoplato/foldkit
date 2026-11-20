@@ -144,6 +144,34 @@ Choose deliberately, per widget:
 - Interaction state that must NOT ride the tape (ephemeral hover/focus) ->
   client-local, but still driven by facts, never by painters reading DOM.
 
+Worked example of the third kind: `TranscriptFollow`
+(`packages/foldkit/src/renderers/transcriptFollow.ts`), how a Transcript's
+view follows the voice. The rule is one pure function, and painters only
+measure, scroll, listen, and press.
+
+```ts
+TranscriptFollow.step(
+  TranscriptFollow.initial,
+  { isFollowing: true, hasLeave: true, nowMs: 5_000 },
+  TranscriptFollow.ScrolledByReader(),
+)
+// { state: { readerScrolledAtMs: 5_000, ... },
+//   instructions: [WaitForLeaveCheck({ afterMs: 250 })] }
+```
+
+- Facts in: `ChangedSpokenWord`, `NamedWord`, `ScrolledByReader`,
+  `ScrolledView`, `ElapsedLeaveWait`, `MeasuredWord`.
+- Instructions out: `MeasureWord`, `BringToMiddle`, `WaitForLeaveCheck`,
+  `PressLeave`.
+- One shared runner, `TranscriptFollow.start(ports)`, holds the state and
+  the one timer. A painter gives it five ports (`now`, `told`, `measure`,
+  `bringToMiddle`, `pressLeave`) and tells it facts. The HTML edge, the React
+  painter, and the React Native painter are each that and nothing more.
+
+When a painter needs a behavior, write the rule this way first. A second
+painter that reimplements a rule, such as its own quiet period after a scroll,
+has left the architecture.
+
 ## Navigation across renderers
 
 Destinations are Schema sum types in core. The URL is a projection, not a
