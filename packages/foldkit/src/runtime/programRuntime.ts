@@ -4,11 +4,14 @@ import {
   Data,
   Deferred,
   Effect,
+  type Equivalence,
   Exit,
   Function,
   Layer,
+  MutableRef,
   Option,
   PubSub,
+  Queue,
   Record,
   Ref,
   Schema,
@@ -1219,6 +1222,15 @@ export const makeProgramRuntime = <
         )
       })
 
+    type FollowedSubscription = Readonly<{
+      name: string
+      modelToDependencies: (model: Model) => unknown
+      equivalence: Equivalence.Equivalence<unknown>
+      latestDependencies: MutableRef.MutableRef<unknown>
+      offeredDependencies: MutableRef.MutableRef<unknown>
+      restarts: Queue.Queue<unknown>
+    }>
+
     const startSubscription = ([
       name,
       {
@@ -1236,12 +1248,14 @@ export const makeProgramRuntime = <
         Message,
         Resources | ManagedResourceServices
       >[string],
-    ]) =>
+    ]): Effect.Effect<FollowedSubscription> =>
       Effect.gen(function* () {
         const equivalence =
           keepAliveEquivalence ?? Schema.toEquivalence(dependenciesSchema)
         const initialDependencies = modelToDependencies(liveModel)
-        const latestDependenciesRef = yield* Ref.make(initialDependencies)
+        const latestDependencies = MutableRef.make(initialDependencies)
+        const offeredDependencies = MutableRef.make(initialDependencies)
+        const restarts = yield* Queue.unbounded<unknown>()
         const transitionSource =
           source?._tag === 'Port'
             ? Option.match(portRuntime.inboundName(source.port), {
@@ -1250,22 +1264,11 @@ export const makeProgramRuntime = <
               })
             : fromSubscription(name)
 
-        const modelChangesStream = Stream.fromPubSub(modelPubSub).pipe(
-          Stream.mapEffect(model => {
-            const dependencies = modelToDependencies(model)
-            return Effect.as(
-              Ref.set(latestDependenciesRef, dependencies),
-              dependencies,
-            )
-          }),
-        )
-
         yield* Effect.forkIn(runtimeScope)(
           Stream.concat(
             Stream.make(initialDependencies),
-            modelChangesStream,
+            Stream.fromQueue(restarts),
           ).pipe(
-            Stream.changesWith(equivalence),
             Stream.switchMap(dependencies => {
               const instanceId = nextLifecycleInstanceId
               nextLifecycleInstanceId += 1
@@ -1275,7 +1278,7 @@ export const makeProgramRuntime = <
                 instanceId,
               }
               return dependenciesToStream(dependencies, () =>
-                Ref.getUnsafe(latestDependenciesRef),
+                MutableRef.get(latestDependencies),
               ).pipe(
                 Stream.onStart(
                   Effect.sync(() =>
@@ -1331,6 +1334,15 @@ export const makeProgramRuntime = <
             ),
           ),
         )
+
+        return {
+          name,
+          modelToDependencies,
+          equivalence,
+          latestDependencies,
+          offeredDependencies,
+          restarts,
+        }
       })
 
     const observation: ProgramRuntimeObservation<Model, Message> = {
@@ -1370,14 +1382,52 @@ export const makeProgramRuntime = <
     }
 
     if (config.program.subscriptions !== undefined) {
-      yield* pipe(
+      const followedSubscriptions = yield* pipe(
         config.program.subscriptions,
         Record.toEntries,
         Effect.forEach(startSubscription, {
           concurrency: 'unbounded',
-          discard: true,
         }),
       )
+
+      if (Array.isArrayNonEmpty(followedSubscriptions)) {
+        const followModel = (model: Model): void => {
+          for (const followed of followedSubscriptions) {
+            try {
+              const dependencies = followed.modelToDependencies(model)
+              MutableRef.set(followed.latestDependencies, dependencies)
+              if (
+                !followed.equivalence(
+                  dependencies,
+                  MutableRef.get(followed.offeredDependencies),
+                )
+              ) {
+                MutableRef.set(followed.offeredDependencies, dependencies)
+                Queue.offerUnsafe(followed.restarts, dependencies)
+              }
+            } catch (defect) {
+              crash(Cause.die(defect), subscriptionFailureSource(followed.name))
+              return
+            }
+          }
+        }
+
+        const modelSubscription = yield* PubSub.subscribe(modelPubSub).pipe(
+          Effect.provideService(Scope.Scope, runtimeScope),
+        )
+
+        yield* Effect.forkIn(runtimeScope)(
+          pipe(
+            Stream.fromSubscription(modelSubscription),
+            Stream.runForEach(model => Effect.sync(() => followModel(model))),
+            Effect.catchCause(cause =>
+              Effect.sync(() =>
+                crash(cause, subscriptionFailureSource('subscriptions')),
+              ),
+            ),
+          ),
+        )
+      }
     }
 
     const requirementsToLifecycle = (

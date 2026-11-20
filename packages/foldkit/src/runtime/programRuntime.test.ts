@@ -1573,4 +1573,136 @@ describe('makeProgramRuntime', () => {
         }),
       ),
   )
+
+  it.effect(
+    'derives Subscription dependencies in one fiber, restarts only changed Subscriptions, keeps latest readDependencies fresh, and names the failing Subscription on defect',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Model = S.Struct({
+            tick: S.Number,
+            mode: S.Number,
+            shouldThrow: S.Boolean,
+          })
+          type Model = typeof Model.Type
+          const Tick = m('Tick')
+          const ChangeMode = m('ChangeMode')
+          const TriggerThrow = m('TriggerThrow')
+          const Message = S.Union([Tick, ChangeMode, TriggerThrow])
+          type Message = typeof Message.Type
+
+          const starts = { steady: 0, mode: 0, keepAlive: 0 }
+          let readLatestTick: (() => number) | undefined
+
+          const program = make({
+            id: 'single-fiber-subs',
+            version: 1,
+            Model,
+            Message,
+            init: () => [{ tick: 0, mode: 0, shouldThrow: false }, []],
+            update: (model: Model, message: Message) => {
+              if (message._tag === 'Tick') {
+                return [{ ...model, tick: model.tick + 1 }, []]
+              } else if (message._tag === 'ChangeMode') {
+                return [{ ...model, mode: model.mode + 1 }, []]
+              } else {
+                return [{ ...model, shouldThrow: true }, []]
+              }
+            },
+            subscriptions: Subscription.make<Model, Message>()(entry => ({
+              steady: entry(
+                {},
+                {
+                  modelToDependencies: () => ({}),
+                  dependenciesToStream: () => {
+                    starts.steady += 1
+                    return Stream.never
+                  },
+                },
+              ),
+              mode: entry(
+                { mode: S.Number },
+                {
+                  modelToDependencies: model => ({ mode: model.mode }),
+                  dependenciesToStream: () => {
+                    starts.mode += 1
+                    return Stream.never
+                  },
+                },
+              ),
+              keepAlive: entry(
+                { tick: S.Number, mode: S.Number },
+                {
+                  modelToDependencies: model => ({
+                    tick: model.tick,
+                    mode: model.mode,
+                  }),
+                  keepAliveEquivalence: (left, right) =>
+                    left.mode === right.mode,
+                  dependenciesToStream: (_deps, readDependencies) => {
+                    starts.keepAlive += 1
+                    readLatestTick = () => readDependencies().tick
+                    return Stream.never
+                  },
+                },
+              ),
+              fragile: entry(
+                { shouldThrow: S.Boolean },
+                {
+                  modelToDependencies: model => {
+                    if (model.shouldThrow) {
+                      throw new Error('fragile deps boom')
+                    }
+                    return { shouldThrow: model.shouldThrow }
+                  },
+                  dependenciesToStream: () => Stream.never,
+                },
+              ),
+            })),
+          })
+
+          const runtime = yield* makeProgramRuntime({
+            program,
+            resources: Layer.empty,
+          })
+          yield* runtime.initialization
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(starts).toEqual({ steady: 1, mode: 1, keepAlive: 1 })
+            }),
+          )
+
+          yield* runtime.run(Tick())
+          yield* runtime.run(Tick())
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(readLatestTick?.()).toBe(2)
+            }),
+          )
+          // Unchanged Subscriptions and keepAlive Subscriptions did not restart.
+          expect(starts).toEqual({ steady: 1, mode: 1, keepAlive: 1 })
+
+          yield* runtime.run(ChangeMode())
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(starts).toEqual({ steady: 1, mode: 2, keepAlive: 2 })
+            }),
+          )
+
+          // A defect in modelToDependencies names the exact Subscription.
+          const failureReceived = yield* Deferred.make<void>()
+          runtime.observeFailures(() => {
+            Deferred.doneUnsafe(failureReceived, Effect.void)
+          })
+          runtime.send(TriggerThrow())
+          yield* Deferred.await(failureReceived)
+          const failures = runtime.readFailures()
+          expect(failures.length).toBeGreaterThan(0)
+          expect(failures[0]?.source).toEqual({
+            _tag: 'Subscription',
+            name: 'fragile',
+          })
+        }),
+      ),
+  )
 })
