@@ -9,8 +9,11 @@ import { h } from '../snabbdom/index.js'
 import { type VNode, dedupeSharedVNodes, memoizedVNodes } from '../vdom.js'
 import {
   type BoundaryRegistry,
+  abandonRender,
   beginRender,
+  clearKeyedLazyCaches,
   createBoundaryRegistry,
+  endRender,
 } from './boundary.js'
 import { createKeyedLazy, createLazy } from './lazy.js'
 import {
@@ -470,5 +473,170 @@ describe('createKeyedLazy', () => {
     lazy('a', viewFn, ['hello'])
 
     expect(callCount).toBe(2)
+  })
+
+  it('evicts entries absent from a completed render by default', () => {
+    let calls = 0
+    const rowView = (label: string) => {
+      calls += 1
+      return h('div', {}, [label])
+    }
+    const registry = createBoundaryRegistry()
+    clearRuntime()
+    setRuntime(noOpDispatchSync, noOpContext, registry)
+
+    const lazyRows = createKeyedLazy()
+    beginRender(registry)
+    const firstA = lazyRows('a', rowView, ['alpha'])
+    lazyRows('b', rowView, ['beta'])
+    endRender(registry)
+    expect(calls).toBe(2)
+
+    // Render without key 'b': 'a' hits cache, 'b' is evicted on endRender.
+    beginRender(registry)
+    const secondA = lazyRows('a', rowView, ['alpha'])
+    endRender(registry)
+    expect(secondA).toBe(firstA)
+    expect(calls).toBe(2)
+
+    // Rendering 'b' again recomputes because it was evicted.
+    beginRender(registry)
+    lazyRows('a', rowView, ['alpha'])
+    lazyRows('b', rowView, ['beta'])
+    endRender(registry)
+    expect(calls).toBe(3)
+  })
+
+  it('retains absent entries when configured with evict: None', () => {
+    let calls = 0
+    const rowView = (label: string) => {
+      calls += 1
+      return h('div', {}, [label])
+    }
+    const registry = createBoundaryRegistry()
+    clearRuntime()
+    setRuntime(noOpDispatchSync, noOpContext, registry)
+
+    const lazyRows = createKeyedLazy({ evict: 'None' })
+    beginRender(registry)
+    lazyRows('a', rowView, ['alpha'])
+    const firstB = lazyRows('b', rowView, ['beta'])
+    endRender(registry)
+
+    beginRender(registry)
+    lazyRows('a', rowView, ['alpha'])
+    endRender(registry)
+
+    beginRender(registry)
+    const secondB = lazyRows('b', rowView, ['beta'])
+    endRender(registry)
+    expect(secondB).toBe(firstB)
+    expect(calls).toBe(2)
+  })
+
+  it('preserves nested keyed-lazy entries beneath a cached createLazy parent', () => {
+    let rowCalls = 0
+    const rowView = (label: string) => {
+      rowCalls += 1
+      return h('span', {}, [label])
+    }
+    const registry = createBoundaryRegistry()
+    clearRuntime()
+    setRuntime(noOpDispatchSync, noOpContext, registry)
+
+    const lazyParent = createLazy()
+    const lazyRows = createKeyedLazy()
+    const parentView = (label: string) =>
+      h('div', {}, [lazyRows('row-1', rowView, [label])])
+
+    beginRender(registry)
+    lazyParent(parentView, ['hello'])
+    endRender(registry)
+    expect(rowCalls).toBe(1)
+
+    // Parent hits cache; nested 'row-1' must NOT be evicted.
+    beginRender(registry)
+    lazyParent(parentView, ['hello'])
+    endRender(registry)
+    expect(rowCalls).toBe(1)
+
+    // Parent misses (new arg), nested 'row-1' still cached with same label!
+    const parentViewTwo = (label: string, _version: number) =>
+      h('div', {}, [lazyRows('row-1', rowView, [label])])
+    beginRender(registry)
+    lazyParent(parentViewTwo, ['hello', 2])
+    endRender(registry)
+    expect(rowCalls).toBe(1)
+  })
+
+  it('rolls back cache writes on abandonRender without evicting prior entries', () => {
+    let calls = 0
+    const rowView = (label: string) => {
+      calls += 1
+      return h('div', {}, [label])
+    }
+    const registry = createBoundaryRegistry()
+    clearRuntime()
+    setRuntime(noOpDispatchSync, noOpContext, registry)
+
+    const lazyRows = createKeyedLazy()
+    beginRender(registry)
+    const firstA = lazyRows('a', rowView, ['v1'])
+    endRender(registry)
+    expect(calls).toBe(1)
+
+    // Partial render updates 'a' to 'v2' and adds 'b', then fails and abandons.
+    beginRender(registry)
+    lazyRows('a', rowView, ['v2'])
+    lazyRows('b', rowView, ['new'])
+    abandonRender(registry)
+    expect(calls).toBe(3)
+
+    // Next render sees 'a' restored to 'v1' (cache hit!) and 'b' rolled back (recomputed).
+    beginRender(registry)
+    const afterRollbackA = lazyRows('a', rowView, ['v1'])
+    lazyRows('b', rowView, ['new'])
+    endRender(registry)
+    expect(afterRollbackA).toBe(firstA)
+    expect(calls).toBe(4)
+  })
+
+  it('isolates evicting caches per runtime BoundaryRegistry and clears them on teardown', () => {
+    let calls = 0
+    const rowView = (label: string) => {
+      calls += 1
+      return h('div', {}, [label])
+    }
+    const registryOne = createBoundaryRegistry()
+    const registryTwo = createBoundaryRegistry()
+    const lazyRows = createKeyedLazy()
+
+    clearRuntime()
+    setRuntime(noOpDispatchSync, noOpContext, registryOne)
+    beginRender(registryOne)
+    const oneA = lazyRows('a', rowView, ['alpha'])
+    endRender(registryOne)
+    clearRuntime()
+
+    // Runtime two renders only 'b'; runtime one's 'a' stays intact.
+    setRuntime(noOpDispatchSync, noOpContext, registryTwo)
+    beginRender(registryTwo)
+    lazyRows('b', rowView, ['beta'])
+    endRender(registryTwo)
+    clearRuntime()
+
+    setRuntime(noOpDispatchSync, noOpContext, registryOne)
+    beginRender(registryOne)
+    const oneAAgain = lazyRows('a', rowView, ['alpha'])
+    endRender(registryOne)
+    expect(oneAAgain).toBe(oneA)
+    expect(calls).toBe(2)
+
+    // Teardown clears runtime one's cache.
+    clearKeyedLazyCaches(registryOne)
+    beginRender(registryOne)
+    lazyRows('a', rowView, ['alpha'])
+    endRender(registryOne)
+    expect(calls).toBe(3)
   })
 })

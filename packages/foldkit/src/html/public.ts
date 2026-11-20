@@ -11,6 +11,8 @@ export type {
   ChildAttribute,
   Document,
   Html,
+  KeyedLazyConfig,
+  KeyedLazyEviction,
   KeyboardModifiers,
   TagName,
 } from './index.js'

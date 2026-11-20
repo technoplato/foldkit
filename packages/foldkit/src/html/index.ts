@@ -42,9 +42,13 @@ import {
 import { submodel } from './submodel.js'
 
 export { createKeyedLazy, createLazy } from './lazy.js'
+export type { KeyedLazyConfig, KeyedLazyEviction } from './lazy.js'
 export {
+  abandonRender as __abandonRender,
   beginRender as __beginRender,
+  clearKeyedLazyCaches as __clearKeyedLazyCaches,
   createBoundaryRegistry as __createBoundaryRegistry,
+  endRender as __endRender,
 } from './boundary.js'
 export type { BoundaryRegistry } from './boundary.js'
 export { childAttributes } from './childAttribute.js'

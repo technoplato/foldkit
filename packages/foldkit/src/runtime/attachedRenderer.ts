@@ -18,9 +18,11 @@ import {
 } from '../html/boundary.js'
 import {
   type Document,
+  __abandonRender as abandonHtmlRender,
   __beginRender as beginHtmlRender,
   __clearRuntime as clearHtmlRuntime,
   __createBoundaryRegistry as createHtmlBoundaryRegistry,
+  __endRender as endHtmlRender,
   __setRuntime as setHtmlRuntime,
 } from '../html/index.js'
 import { MountTracker } from '../mount/index.js'
@@ -269,10 +271,12 @@ const makeAttachedFoldkitApplicationWithPatch = <Model, ClientInput>(
         setHtmlRuntime(dispatch.dispatchSync, runtimeContext, boundaryRegistry)
         try {
           nextDocument = config.view(model)
+          endHtmlRender(boundaryRegistry)
         } finally {
           clearHtmlRuntime()
         }
       } catch (cause) {
+        abandonHtmlRender(boundaryRegistry)
         restoreBoundaryRegistry(boundaryRegistry, boundaryCheckpoint)
         return Option.some(makeDefect(config.program.id, 'View', cause))
       }

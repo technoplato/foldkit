@@ -1,11 +1,19 @@
-import { Predicate } from 'effect'
+import { Match, Predicate } from 'effect'
 
 import { type VNode, dedupeMemoizedResult, memoizedVNodes } from '../vdom.js'
 import {
   type BoundaryId,
+  type BoundaryRegistry,
+  type KeyedLazyRenderState,
+  type KeyedLazyUsages,
+  beginKeyedLazyTracking,
   beginLazyTracking,
+  endKeyedLazyTracking,
   endLazyTracking,
   markSeenForLazyHit,
+  registerLazyRollback,
+  restoreKeyedLazyUsages,
+  trackKeyedLazyUsage,
 } from './boundary.js'
 import {
   type DispatchSync,
@@ -38,13 +46,14 @@ type CacheEntry = Readonly<{
   // `markSeenForLazyHit` so the duplicate-slotId guard sees memoized
   // siblings even when their `h.submodel` did not run this render.
   trackedBoundaries: ReadonlyMap<BoundaryId, string>
+  trackedKeyedUsages: KeyedLazyUsages
 }>
 
 const resolveOrCache = <Args extends ReadonlyArray<unknown>>(
   previousEntry: CacheEntry | undefined,
   fn: (...args: Args) => VNode | null,
   args: Args,
-  onCache: (entry: CacheEntry) => void,
+  onCache: (entry: CacheEntry | undefined) => void,
 ): VNode | null => {
   const dispatch = requireDispatch()
   const { registry } = requireBoundary()
@@ -59,14 +68,17 @@ const resolveOrCache = <Args extends ReadonlyArray<unknown>>(
     argsEqual(previousEntry.args, args)
   ) {
     markSeenForLazyHit(registry, previousEntry.trackedBoundaries)
+    restoreKeyedLazyUsages(registry, previousEntry.trackedKeyedUsages)
     return previousEntry.vnode
   }
 
   const trackedBoundaries = beginLazyTracking(registry)
+  const trackedKeyedUsages = beginKeyedLazyTracking(registry)
   let vnode: VNode | null
   try {
     vnode = fn(...args)
   } finally {
+    endKeyedLazyTracking(registry)
     endLazyTracking(registry)
   }
   // NOTE: dedupe the freshly built subtree against the per-render seen set so a
@@ -79,7 +91,17 @@ const resolveOrCache = <Args extends ReadonlyArray<unknown>>(
   if (Predicate.isNotNull(deduped)) {
     memoizedVNodes.add(deduped)
   }
-  onCache({ fn, args, dispatch, vnode: deduped, trackedBoundaries })
+  onCache({
+    fn,
+    args,
+    dispatch,
+    vnode: deduped,
+    trackedBoundaries,
+    trackedKeyedUsages,
+  })
+  registerLazyRollback(registry, () => {
+    onCache(previousEntry)
+  })
   return deduped
 }
 
@@ -116,27 +138,98 @@ export const createLazy = (): (<Args extends ReadonlyArray<unknown>>(
     })
 }
 
+/** Retention policy for a keyed view cache. `None` retains every key.
+ *  `AbsentFromRender` releases entries unused by a completed render. */
+export type KeyedLazyEviction = 'None' | 'AbsentFromRender'
+
+/** Options for {@link createKeyedLazy}. `evict` defaults to `AbsentFromRender`. */
+export type KeyedLazyConfig = Readonly<{
+  evict?: KeyedLazyEviction
+}>
+
+type KeyedLazy = <Args extends ReadonlyArray<unknown>>(
+  key: PropertyKey,
+  fn: (...args: Args) => VNode | null,
+  args: Args,
+) => VNode | null
+
+const writeCacheEntry = (
+  cache: Map<PropertyKey, CacheEntry>,
+  key: PropertyKey,
+  entry: CacheEntry | undefined,
+): void => {
+  if (entry === undefined) {
+    cache.delete(key)
+  } else {
+    cache.set(key, entry)
+  }
+}
+
+const createRetainingKeyedLazy = (): KeyedLazy => {
+  const cache = new Map<PropertyKey, CacheEntry>()
+
+  return (key, fn, args) =>
+    resolveOrCache(cache.get(key), fn, args, entry => {
+      writeCacheEntry(cache, key, entry)
+    })
+}
+
+const createEvictingKeyedLazy = (): KeyedLazy => {
+  const states = new WeakMap<
+    BoundaryRegistry,
+    Readonly<{
+      cache: Map<PropertyKey, CacheEntry>
+      renderState: KeyedLazyRenderState
+    }>
+  >()
+
+  return (key, fn, args) => {
+    const { registry } = requireBoundary()
+    const existingState = states.get(registry)
+    const cache = existingState?.cache ?? new Map<PropertyKey, CacheEntry>()
+    const renderState = existingState?.renderState ?? {
+      keys: () => cache.keys(),
+      delete: (entryKey: PropertyKey) => {
+        cache.delete(entryKey)
+      },
+      clear: () => {
+        cache.clear()
+      },
+      isEmpty: () => cache.size === 0,
+    }
+
+    if (existingState === undefined) {
+      states.set(registry, { cache, renderState })
+    }
+
+    const vnode = resolveOrCache(cache.get(key), fn, args, entry => {
+      writeCacheEntry(cache, key, entry)
+    })
+    trackKeyedLazyUsage(registry, renderState, key)
+    return vnode
+  }
+}
+
 /** Creates a keyed memoization map for view functions rendered in a loop. Each
  *  key gets its own independent cache slot. On each render, only entries whose
  *  function reference, dispatch, or arguments have changed by reference are
  *  recomputed.
  *
+ *  By default (`evict: 'AbsentFromRender'`), entries absent from a completed
+ *  render are released automatically (preserving nested entries beneath cached
+ *  parents and rolling back cache writes if view construction throws). Each
+ *  runtime owns an isolated cache. Pass `{ evict: 'None' }` only for bounded
+ *  key sets that must retain entries while absent.
+ *
  *  Like `createLazy`, each key's cached VNode must be rendered at a single
  *  position in the tree. If the same item needs to appear in multiple
  *  positions, create one keyed lazy per position. */
-export const createKeyedLazy = (): (<Args extends ReadonlyArray<unknown>>(
-  key: PropertyKey,
-  fn: (...args: Args) => VNode | null,
-  args: Args,
-) => VNode | null) => {
-  const cache = new Map<PropertyKey, CacheEntry>()
+export const createKeyedLazy = (config?: KeyedLazyConfig): KeyedLazy => {
+  const eviction = config?.evict ?? 'AbsentFromRender'
 
-  return <Args extends ReadonlyArray<unknown>>(
-    key: PropertyKey,
-    fn: (...args: Args) => VNode | null,
-    args: Args,
-  ): VNode | null =>
-    resolveOrCache(cache.get(key), fn, args, entry => {
-      cache.set(key, entry)
-    })
+  return Match.value(eviction).pipe(
+    Match.when('None', () => createRetainingKeyedLazy()),
+    Match.when('AbsentFromRender', () => createEvictingKeyedLazy()),
+    Match.exhaustive,
+  )
 }

@@ -27,10 +27,13 @@ import { startWebSocketBridge } from '../devTools/webSocketBridge.js'
 import {
   Document,
   Html,
+  __abandonRender as abandonHtmlRender,
   __beginRender as beginHtmlRender,
   __beginReplayRender as beginReplayHtmlRender,
+  __clearKeyedLazyCaches as clearHtmlKeyedLazyCaches,
   __clearRuntime as clearHtmlRuntime,
   __createBoundaryRegistry as createHtmlBoundaryRegistry,
+  __endRender as endHtmlRender,
   __endReplayRender as endReplayHtmlRender,
   __setRuntime as setHtmlRuntime,
 } from '../html/index.js'
@@ -1634,6 +1637,9 @@ const makeProgramRenderer = <
         }
         const runtimeContext = yield* Effect.context<never>()
         const boundaryRegistry = createHtmlBoundaryRegistry()
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => clearHtmlKeyedLazyCaches(boundaryRegistry)),
+        )
         const vnodeSlot: VNodeSlot = { maybeCurrentVNode: Option.none() }
         yield* Effect.addFinalizer(exit => {
           if (!Exit.hasInterrupts(exit)) {
@@ -1840,7 +1846,12 @@ const makeProgramRenderer = <
                     boundaryRegistry,
                   )
                   try {
-                    return config.view(model)
+                    const document = config.view(model)
+                    endHtmlRender(boundaryRegistry)
+                    return document
+                  } catch (error) {
+                    abandonHtmlRender(boundaryRegistry)
+                    throw error
                   } finally {
                     clearHtmlRuntime()
                   }

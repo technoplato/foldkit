@@ -75,6 +75,17 @@ const splitBoundary = (boundaryId: BoundaryId): ReadonlyArray<string> =>
  *  and `markSeenForLazyHit` write to every set on the stack so an
  *  outer lazy correctly captures ids contributed by inner lazies it
  *  wraps. */
+/** Per-runtime keyed-lazy cache handle tracked across one render pass. */
+export type KeyedLazyRenderState = Readonly<{
+  keys: () => IterableIterator<PropertyKey>
+  delete: (key: PropertyKey) => void
+  clear: () => void
+  isEmpty: () => boolean
+}>
+
+/** Map from each evicting keyed-lazy cache to the keys touched during a render. */
+export type KeyedLazyUsages = Map<KeyedLazyRenderState, Set<PropertyKey>>
+
 export type BoundaryRegistry = {
   isDispatchEnabled: boolean
   readonly wraps: Map<BoundaryId, WrapDescriptor>
@@ -84,6 +95,9 @@ export type BoundaryRegistry = {
   >
   readonly seenThisRender: Map<BoundaryId, string>
   readonly lazyTrackingStack: Array<Map<BoundaryId, string>>
+  readonly keyedLazyStates: KeyedLazyUsages
+  readonly keyedLazyTrackingStack: Array<KeyedLazyUsages>
+  readonly pendingLazyRollbacks: Array<() => void>
   // NOTE: per-render set of VNode objects already placed in the tree, shared
   // between the top-level dedupe pass and createLazy's own dedupe so a const
   // reused across memoized results is cloned. Cleared each render.
@@ -104,6 +118,9 @@ export const createBoundaryRegistry = (): BoundaryRegistry => ({
   boundaryDispatches: new WeakMap(),
   seenThisRender: new Map(),
   lazyTrackingStack: [],
+  keyedLazyStates: new Map(),
+  keyedLazyTrackingStack: [],
+  pendingLazyRollbacks: [],
   dedupeSeen: new Set(),
 })
 
@@ -152,6 +169,8 @@ export const clearBoundaryRegistry = (registry: BoundaryRegistry): void => {
   registry.wraps.clear()
   registry.seenThisRender.clear()
   registry.lazyTrackingStack.splice(0)
+  registry.keyedLazyTrackingStack.splice(0)
+  clearKeyedLazyCaches(registry)
   registry.dedupeSeen.clear()
 }
 
@@ -430,7 +449,107 @@ export const getOrCreateBoundaryDispatch = (
  *  it during patch to tell a same-cycle remount (a keyed root whose
  *  key changed) from a true unmount; clearing it mid-cycle would
  *  resurrect the `dispatchAcrossBoundary missing wrap` crash. */
+const recordKeyedLazyUsage = (
+  usages: KeyedLazyUsages,
+  state: KeyedLazyRenderState,
+  key: PropertyKey,
+): void => {
+  let keys = usages.get(state)
+  if (keys === undefined) {
+    keys = new Set()
+    usages.set(state, keys)
+  }
+  keys.add(key)
+}
+
+/** Starts capturing nested `createKeyedLazy` usages beneath a lazy parent. */
+export const beginKeyedLazyTracking = (
+  registry: BoundaryRegistry,
+): KeyedLazyUsages => {
+  const usages: KeyedLazyUsages = new Map()
+  registry.keyedLazyTrackingStack.push(usages)
+  return usages
+}
+
+/** Ends the current nested `createKeyedLazy` tracking frame. */
+export const endKeyedLazyTracking = (registry: BoundaryRegistry): void => {
+  if (registry.keyedLazyTrackingStack.length === 0) {
+    throw new Error(
+      'Foldkit: endKeyedLazyTracking called without a matching beginKeyedLazyTracking.',
+    )
+  }
+  registry.keyedLazyTrackingStack.pop()
+}
+
+/** Marks a keyed-lazy entry as used by the current render and any enclosing lazy frames. */
+export const trackKeyedLazyUsage = (
+  registry: BoundaryRegistry,
+  state: KeyedLazyRenderState,
+  key: PropertyKey,
+): void => {
+  recordKeyedLazyUsage(registry.keyedLazyStates, state, key)
+  for (const usages of registry.keyedLazyTrackingStack) {
+    recordKeyedLazyUsage(usages, state, key)
+  }
+}
+
+/** Replays nested keyed-lazy usages captured under a cached parent on cache hit. */
+export const restoreKeyedLazyUsages = (
+  registry: BoundaryRegistry,
+  usages: KeyedLazyUsages,
+): void => {
+  for (const [state, keys] of usages) {
+    for (const key of keys) {
+      trackKeyedLazyUsage(registry, state, key)
+    }
+  }
+}
+
+/** Registers a rollback callback for a lazy cache write during the active render. */
+export const registerLazyRollback = (
+  registry: BoundaryRegistry,
+  rollback: () => void,
+): void => {
+  registry.pendingLazyRollbacks.push(rollback)
+}
+
 export const beginRender = (registry: BoundaryRegistry): void => {
   registry.seenThisRender.clear()
   registry.dedupeSeen.clear()
+  registry.pendingLazyRollbacks.splice(0)
+  for (const keys of registry.keyedLazyStates.values()) {
+    keys.clear()
+  }
+}
+
+/** Commits a completed render and releases keyed-lazy entries absent from it. */
+export const endRender = (registry: BoundaryRegistry): void => {
+  registry.pendingLazyRollbacks.splice(0)
+  for (const [state, usedKeys] of registry.keyedLazyStates) {
+    for (const key of state.keys()) {
+      if (!usedKeys.has(key)) {
+        state.delete(key)
+      }
+    }
+    if (state.isEmpty()) {
+      registry.keyedLazyStates.delete(state)
+    }
+  }
+}
+
+/** Rolls back cache writes from a failed render without pruning prior entries. */
+export const abandonRender = (registry: BoundaryRegistry): void => {
+  for (let index = registry.pendingLazyRollbacks.length - 1; index >= 0; index -= 1) {
+    registry.pendingLazyRollbacks[index]?.()
+  }
+  registry.pendingLazyRollbacks.splice(0)
+}
+
+/** Releases every render-scoped keyed-lazy cache owned by a runtime. */
+export const clearKeyedLazyCaches = (registry: BoundaryRegistry): void => {
+  abandonRender(registry)
+  for (const state of registry.keyedLazyStates.keys()) {
+    state.clear()
+  }
+  registry.keyedLazyStates.clear()
 }
