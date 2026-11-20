@@ -1,6 +1,7 @@
 import { Effect, Fiber, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import * as Slot from '../behavior/slot.js'
 import { Transcript } from './elements.js'
 import { paintHtml } from './html.js'
 import {
@@ -9,6 +10,7 @@ import {
   transcriptPressEventName,
   wordMenuMount,
 } from './htmlEdge.js'
+import { slotAttributesOf } from './htmlHost.js'
 
 // Made-up words: nothing here is from a real recording or book.
 const withMenu = (isOpen: boolean) =>
@@ -157,18 +159,22 @@ describe('the menu at the edge', () => {
     transcript.remove()
   })
 
-  it('opens the menu on a long press with a finger, as a right click does, and not after the finger moves', async () => {
+  it('tells a hold on a word to core’s rule, sends the hold’s press when the Transcript says it completed, and not after the finger moves', async () => {
     const transcript = document.createElement('section')
-    transcript.setAttribute('data-word-menu-action', 'ShowWordMenu')
+    slotAttributesOf(Slot.menuAsk('ShowWordMenu'), 'data-token').forEach(
+      ([name, value]) => {
+        transcript.setAttribute(name, value)
+      },
+    )
     const word = document.createElement('span')
     word.className = 'fk-word'
     word.setAttribute('data-token', 'w2')
     transcript.append(word)
     document.body.append(transcript)
-    const asked: Array<string> = []
+    const pressed: Array<string> = []
     transcript.addEventListener(transcriptPressEventName, event => {
       if (event instanceof CustomEvent && typeof event.detail === 'string') {
-        asked.push(event.detail)
+        pressed.push(event.detail)
       }
     })
     const fiber = Effect.runFork(
@@ -188,13 +194,21 @@ describe('the menu at the edge', () => {
       )
     pointer('pointerdown', 10)
     pointer('pointermove', 60)
-    await new Promise(resolve => {
-      setTimeout(resolve, 650)
-    })
-    expect(asked).toEqual([])
+    pointer('pointermove', 90)
+    pointer('pointerup', 90)
+    expect(pressed).toEqual([
+      'fk-hold-down:ShowWordMenu:w2',
+      'fk-hold-away',
+      'fk-hold-up',
+    ])
     pointer('pointerdown', 10)
-    await until(() => asked.length === 1)
-    expect(asked).toEqual(['ShowWordMenu:w2'])
+    transcript.setAttribute('data-hold-count', '2')
+    transcript.setAttribute('data-hold-press', 'ShowWordMenu:w2')
+    await until(() => pressed.length === 5)
+    expect(pressed.slice(3)).toEqual([
+      'fk-hold-down:ShowWordMenu:w2',
+      'ShowWordMenu:w2',
+    ])
     await Effect.runPromise(Fiber.interrupt(fiber))
     transcript.remove()
   })

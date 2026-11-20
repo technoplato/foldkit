@@ -1,5 +1,5 @@
 import { Array, Option, String } from 'effect'
-import { Reader } from 'foldkit/behavior'
+import { LongPress, Reader } from 'foldkit/behavior'
 import {
   type MenuAction,
   type TranscriptNode,
@@ -15,6 +15,7 @@ import {
   ClickedWord,
   ClosedSectionMenu,
   ClosedWordMenu,
+  GotHoldMessage,
   type Message,
   OpenedSectionMenu,
   OpenedWordMenu,
@@ -225,7 +226,10 @@ export const readerMessageOf = (
   ready: ReadyPlayback,
   press: string,
 ): Option.Option<Message> => {
-  if (press === closeWordMenuPress) {
+  const maybeTold = LongPress.messageOfToken(press)
+  if (Option.isSome(maybeTold)) {
+    return Option.some(GotHoldMessage({ message: maybeTold.value }))
+  } else if (press === closeWordMenuPress) {
     return Option.some(ClosedWordMenu())
   } else if (press === closeSectionMenuPress) {
     return Option.some(ClosedSectionMenu())

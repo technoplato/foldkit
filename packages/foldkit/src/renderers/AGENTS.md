@@ -30,11 +30,17 @@ answers instructions, and give the painter only a port to fill. Read
 
 ## In this folder
 
-A rule that belongs in core, and is still here: `LONG_PRESS_MS = 500` and
-`LONG_PRESS_SLACK_PX = 10` in `htmlEdge.ts`. How long a hold is, and how far a
-finger may drift, is the same on every Client that has no recognizer of its
-own. It moves to a `longPress` block in plan 14's slice 4. Do not add another
-like it.
+A rule that was here and moved to core (plan 14c, Scribe #2595): how long a
+hold is and how far a finger may drift. `htmlEdge.ts` had `LONG_PRESS_MS = 500`
+and a timer; the rule is now `LongPress` in `../behavior/`, its state is in
+the Model, and its wait is a Command. Where a menu goes moved too
+(`Placement.place`). Do not add another like them.
+
+`htmlHost.ts` is the browser's host, the one file here that knows parts
+exist. It reads a binding from the attributes the painter wrote, binds the
+browser's events, and sends the press the binding gives. It keeps one
+sample, where a finger went down, and only until the finger lifts. The
+React painter runs the same function.
 
 A mechanic that belongs here: `sightOf(transcript, word)` in `htmlEdge.ts`,
 which measures a word against the window with `getBoundingClientRect`, and

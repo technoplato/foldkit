@@ -11,6 +11,8 @@ import {
   pipe,
 } from 'effect'
 
+import { type Sync, Synced } from '../behavior/pace.js'
+import { synchronizationOf } from '../behavior/part.js'
 import {
   type CatalogCarrierOf,
   type Entry,
@@ -191,6 +193,25 @@ export type Message = typeof Message.Type
 
 /** True when a Message belongs to the action menu. */
 export const isMessage = S.is(Message)
+
+/**
+ * How each action menu Message syncs: every one is an ordinary logged
+ * Message. They are Navigation, so the session decides which devices
+ * follow: with navigation mirrored, opening the menu on a desk opens it on
+ * a phone. What sync is told about them is derived from this.
+ */
+export const sync: Readonly<Record<Message['_tag'], Sync>> = {
+  OpenedActionMenu: Synced(),
+  DismissedActionMenu: Synced(),
+  ChangedActionMenuQuery: Synced(),
+  MovedActionMenuFocus: Synced(),
+  ChoseActionMenuAction: Synced(),
+  OpenedActionMenuChoices: Synced(),
+  ClosedActionMenuChoices: Synced(),
+}
+
+const syncOfMessage = (message: unknown): Sync =>
+  isMessage(message) ? sync[message._tag] : Synced()
 
 // FILTER
 
@@ -1373,28 +1394,37 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const childSynchronization = child.synchronization
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
   const childKeepsOwnNavigation = childSynchronization?.keepsOwnNavigation
-  const childProjectLocal = childSynchronization?.projectLocal
-  const childIsLocalOnly = childSynchronization?.isLocalOnly
   const childScreen = child.screen
 
   const isMenuMessage = (message: AppMessage): boolean =>
     isMessage(message) ||
     (hold === 'Owns' && NavigationMessage.isMessage(message))
 
-  const isChildMessage = (message: AppMessage): message is ChildMessage =>
-    !isMenuMessage(message)
-
-  const keptOnRefold = (
-    maybeKeep:
-      | ((current: ChildModel, refolded: ChildModel) => ChildModel)
-      | undefined,
-  ) =>
-    maybeKeep === undefined
-      ? {}
-      : {
-          keepOnRefold: (current: AppModel, refolded: AppModel): AppModel =>
-            withChild(refolded, maybeKeep(childOf(current), childOf(refolded))),
-        }
+  // NOTE: what sync is told about the menu is derived from what its
+  // Messages declare, with the child's answers lifted beside them. The
+  // menu keeps nothing of its own across a refold, since its state rides
+  // the navigation stack the log folds, and it rests dismissed.
+  const derived = synchronizationOf<
+    AppModel,
+    AppMessage,
+    ChildModel,
+    ChildMessage
+  >({
+    maybeChild: Option.fromNullishOr(childSynchronization),
+    childOf,
+    withChild,
+    hasDeviceMessages: false,
+    own: {
+      isOwn: isMenuMessage,
+      syncOf: syncOfMessage,
+      categoryOf: () => 'Navigation',
+      maybeKeep: Option.none(),
+      atRest: model => ({
+        ...model,
+        navigation: dismissMenu<AppDestination>(model.navigation),
+      }),
+    },
+  })
 
   const program = make({
     id: config.id ?? `actionMenu:${child.id}`,
@@ -1408,11 +1438,6 @@ export const compose = <Child extends ActionMenuChild>(config: {
     navigation,
     ...liftEffects(child, (model: AppModel) => Option.some(childOf(model))),
     synchronization: {
-      messageCategory: message =>
-        isMenuMessage(message)
-          ? 'Navigation'
-          : (childSynchronization?.messageCategory(message as ChildMessage) ??
-            'Domain'),
       projectDomain: model =>
         childSynchronization === undefined
           ? childOf(model)
@@ -1426,23 +1451,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
       ...(childKeepsOwnNavigation === undefined
         ? {}
         : { keepsOwnNavigation: childKeepsOwnNavigation }),
-      ...keptOnRefold(childSynchronization?.keepOnRefold),
-      projectLocal: (model: AppModel): AppModel => {
-        const projected =
-          childProjectLocal === undefined
-            ? model
-            : withChild(model, childProjectLocal(childOf(model)))
-        return {
-          ...projected,
-          navigation: dismissMenu<AppDestination>(projected.navigation),
-        }
-      },
-      ...(childIsLocalOnly === undefined
-        ? {}
-        : {
-            isLocalOnly: (message: AppMessage): boolean =>
-              isChildMessage(message) && childIsLocalOnly(message),
-          }),
+      ...derived,
     },
     ...(child.catalog === undefined ? {} : { catalog: child.catalog }),
     ...(childScreen === undefined

@@ -1,5 +1,6 @@
 import { Array, Match as M } from 'effect'
 
+import type { SlotBinding } from '../behavior/slot.js'
 import type { Entry } from '../catalog/catalog.js'
 import type { IconName } from './icons.js'
 import type {
@@ -179,6 +180,7 @@ export const Button = (props: {
   readonly isIconOnly?: boolean
   readonly isCurrent?: boolean
   readonly disabled?: boolean
+  readonly slot?: SlotBinding
 }): ButtonNode => ({
   _tag: 'Button',
   label: props.label,
@@ -197,6 +199,7 @@ export const Button = (props: {
   ...(props.isIconOnly === undefined ? {} : { isIconOnly: props.isIconOnly }),
   ...(props.isCurrent === undefined ? {} : { isCurrent: props.isCurrent }),
   ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
+  ...(props.slot === undefined ? {} : { slot: props.slot }),
 })
 
 /**

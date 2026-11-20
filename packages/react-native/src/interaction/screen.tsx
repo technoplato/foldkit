@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
+import { Slot } from 'foldkit/behavior'
 import {
   type BoxNode,
   type ButtonNode,
@@ -26,6 +27,7 @@ import { useBound, useScreen } from '@foldkit/react/interaction'
 
 import { useLook } from '../theme/themed.js'
 import { TextField, TokenField } from './field.js'
+import { hostPropsOf } from './host.js'
 import { Icon } from './icon.js'
 import { ListFrame, ProgressBar, paintRows } from './list.js'
 import { type Look, lightLook } from './look.js'
@@ -369,6 +371,7 @@ const paintButton = (button: ButtonNode, paint: Paint): ReactElement => {
   const isDisabled = button.disabled === true
   const isIconOnly = button.isIconOnly === true && button.icon !== undefined
   const drawn = buttonLookOf(button, paint.look)
+  const host = hostPropsOf(Slot.ofButton(button), paint, button.label)
   return (
     <Pressable
       accessibilityHint={hintOf(button)}
@@ -377,9 +380,11 @@ const paintButton = (button: ButtonNode, paint: Paint): ReactElement => {
       accessibilityState={{
         disabled: isDisabled,
         selected: button.isCurrent === true,
+        ...host.accessibilityState,
       }}
       disabled={isDisabled}
       hitSlop={isIconOnly ? 6 : 0}
+      onLongPress={host.onLongPress}
       onPress={() => {
         paint.onPress(button)
       }}

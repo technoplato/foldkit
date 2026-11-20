@@ -1,5 +1,5 @@
 import { Array, Match as M, Option, Order } from 'effect'
-import { TranscriptFollow } from 'foldkit/behavior'
+import { Slot, TranscriptFollow } from 'foldkit/behavior'
 import {
   type PlacedBookmark,
   type SpokenUnit,
@@ -35,6 +35,7 @@ import {
 } from 'react-native'
 
 import { useLaidOut } from '../telemetry/paintReporter.js'
+import { hostPropsOf } from './host.js'
 import { groundStyleOf } from './look.js'
 import { MenuSheet } from './menuSheet.js'
 import { type Paint, pressOf } from './paint.js'
@@ -200,7 +201,7 @@ type LaidOutLines = ReadonlyArray<
  */
 export const paintPassage = (
   passage: TranscriptPassage,
-  transcript: Pick<TranscriptNode, 'action' | 'wordMenuAction'>,
+  transcript: Pick<TranscriptNode, 'action' | 'wordMenuAction' | 'wordSlot'>,
   bookmarks: ReadonlyArray<PlacedBookmark>,
   paint: Paint,
   onLines?: (lines: LaidOutLines, textY: number) => void,
@@ -225,7 +226,7 @@ export const paintPassage = (
     }
   }
   const labelAction = passage.labelAction
-  const wordMenuAction = transcript.wordMenuAction
+  const maybeWordBinding = Slot.ofWords(transcript)
   const pressBookmark = (placed: PlacedBookmark): void => {
     const bookmarkAction = placed.bookmark.action
     if (bookmarkAction !== undefined) {
@@ -312,15 +313,7 @@ export const paintPassage = (
           return (
             <Text
               key={word.token}
-              onLongPress={
-                wordMenuAction === undefined
-                  ? undefined
-                  : () => {
-                      paint.onPress(
-                        pressOf(`${wordMenuAction}:${word.token}`, word.text),
-                      )
-                    }
-              }
+              {...hostPropsOf(maybeWordBinding, paint, word.text, word.token)}
               onPress={() => {
                 paint.onPress(
                   pressOf(`${transcript.action}:${word.token}`, word.text),
@@ -501,6 +494,7 @@ type PassageBlockProps = Readonly<{
   passage: TranscriptPassage
   action: TranscriptNode['action']
   wordMenuAction: TranscriptNode['wordMenuAction']
+  wordSlot: TranscriptNode['wordSlot']
   bookmarks: TranscriptNode['bookmarks']
   paint: Paint
   onPart: (key: string, part: View | null) => void
@@ -517,6 +511,7 @@ const PassageBlock = memo(
     passage,
     action,
     wordMenuAction,
+    wordSlot,
     bookmarks,
     paint,
     onPart,
@@ -531,9 +526,12 @@ const PassageBlock = memo(
       [passage, bookmarks],
     )
     const actions = useMemo(
-      () =>
-        wordMenuAction === undefined ? { action } : { action, wordMenuAction },
-      [action, wordMenuAction],
+      () => ({
+        action,
+        ...(wordMenuAction === undefined ? {} : { wordMenuAction }),
+        ...(wordSlot === undefined ? {} : { wordSlot }),
+      }),
+      [action, wordMenuAction, wordSlot],
     )
     return (
       <View
@@ -912,6 +910,7 @@ export const TranscriptView = ({
 
   const action = transcript.action
   const wordMenuAction = transcript.wordMenuAction
+  const wordSlot = transcript.wordSlot
   const bookmarks = transcript.bookmarks
   const quietColor = colors.QuietText
   const renderEntry = useCallback<ListRenderItem<TranscriptEntry>>(
@@ -926,6 +925,7 @@ export const TranscriptView = ({
           paint={paint}
           passage={entry.passage}
           wordMenuAction={wordMenuAction}
+          wordSlot={wordSlot}
         />
       ) : (
         <View
@@ -960,6 +960,7 @@ export const TranscriptView = ({
       paintNode,
       quietColor,
       wordMenuAction,
+      wordSlot,
     ],
   )
   const wordMenu = transcript.wordMenu

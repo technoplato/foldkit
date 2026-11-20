@@ -96,7 +96,7 @@ const openedWith = (messages: ReadonlyArray<Message>): Model =>
 
 const transcriptView = (model: Model) => {
   if (model.playback._tag === 'ReadyPlayback') {
-    return transcript(model.playback, false, false)
+    return transcript(model.playback, false, false, model.hold)
   } else {
     throw new Error(`Expected ReadyPlayback, got ${model.playback._tag}`)
   }

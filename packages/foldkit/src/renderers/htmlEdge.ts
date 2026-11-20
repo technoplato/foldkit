@@ -1,7 +1,9 @@
 import { Effect, Option, Queue, Stream } from 'effect'
 
+import * as Placement from '../behavior/placement.js'
 import * as TranscriptFollow from '../behavior/transcriptFollow.js'
 import type { MountAction } from '../mount/index.js'
+import { bindSlots } from './htmlHost.js'
 import { transcriptPlaceAt } from './transcriptClock.js'
 
 export { shouldFollowWord } from '../behavior/transcriptFollow.js'
@@ -200,98 +202,10 @@ const runTranscriptClock = (transcript: Element): (() => void) => {
 /** The name of the mount every painted Transcript carries. */
 export const transcriptMountName = 'FoldkitTranscript'
 
-const LONG_PRESS_MS = 500
-
-const LONG_PRESS_SLACK_PX = 10
-
 const wordOfTarget = (target: EventTarget | null): Element | undefined =>
   target instanceof Element
     ? (target.closest('.fk-word[data-token]') ?? undefined)
     : undefined
-
-const rowWithMenuOfTarget = (
-  target: EventTarget | null,
-): Element | undefined =>
-  target instanceof Element
-    ? (target.closest('.fk-item[data-menu="true"]') ?? undefined)
-    : undefined
-
-/**
- * Opens the menu of a part of `root`, such as a word or a list row, on a
- * long press with a finger or a pen, the way a right click does: it sends
- * the part `partOf` finds under the finger the same `contextmenu` the view
- * already answers, so the Program is told through the view's own, current
- * handler. A press that moves, or lifts early, opens nothing; the tap that
- * ends a long press does not also press the part.
- */
-const runLongPress = (
-  root: Element,
-  partOf: (target: EventTarget | null) => Element | undefined,
-): (() => void) => {
-  const state: {
-    maybePress: Readonly<{ x: number; y: number; timer: number }> | undefined
-    isClickSwallowed: boolean
-  } = { maybePress: undefined, isClickSwallowed: false }
-  const end = () => {
-    if (state.maybePress !== undefined) {
-      window.clearTimeout(state.maybePress.timer)
-      state.maybePress = undefined
-    }
-  }
-  const onDown = (event: Event) => {
-    const maybePart = partOf(event.target)
-    if (
-      maybePart === undefined ||
-      !(event instanceof PointerEvent) ||
-      event.pointerType === 'mouse'
-    ) {
-      return
-    }
-    end()
-    state.maybePress = {
-      x: event.clientX,
-      y: event.clientY,
-      timer: window.setTimeout(() => {
-        state.maybePress = undefined
-        state.isClickSwallowed = true
-        maybePart.dispatchEvent(
-          new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
-        )
-      }, LONG_PRESS_MS),
-    }
-  }
-  const onMove = (event: Event) => {
-    const press = state.maybePress
-    if (
-      press !== undefined &&
-      event instanceof PointerEvent &&
-      Math.hypot(event.clientX - press.x, event.clientY - press.y) >
-        LONG_PRESS_SLACK_PX
-    ) {
-      end()
-    }
-  }
-  const onClick = (event: Event) => {
-    if (state.isClickSwallowed) {
-      state.isClickSwallowed = false
-      event.stopPropagation()
-      event.preventDefault()
-    }
-  }
-  root.addEventListener('pointerdown', onDown)
-  root.addEventListener('pointermove', onMove)
-  root.addEventListener('pointerup', end)
-  root.addEventListener('pointercancel', end)
-  root.addEventListener('click', onClick, true)
-  return () => {
-    end()
-    root.removeEventListener('pointerdown', onDown)
-    root.removeEventListener('pointermove', onMove)
-    root.removeEventListener('pointerup', end)
-    root.removeEventListener('pointercancel', end)
-    root.removeEventListener('click', onClick, true)
-  }
-}
 
 /**
  * The event the edge sends a painted Transcript for a press on one of its
@@ -649,8 +563,9 @@ const runFollow = (transcript: Element): (() => void) => {
  * painter: it hears every press on the Transcript's words and passage
  * labels with one listener and sends the view `transcriptPressEventName`;
  * moves the mark on the word between a Program's reports of
- * the place, where the Transcript has a clock; opens a word's menu on a
- * long press, where it offers one; keeps the spoken word in the middle
+ * the place, where the Transcript has a clock; runs the browser's host for
+ * the words' binding, so a hold on a word is told to core's rule; keeps
+ * the spoken word in the middle
  * while the words follow the voice; and tells the view when the reader
  * has scrolled away. What it does is told only by the
  * element's attributes, and it sends the Program nothing itself, so any
@@ -668,16 +583,16 @@ export const transcriptMount = <Message>(): MountAction<Message> => ({
       Effect.acquireRelease(
         Effect.sync(() => {
           const stopClock = runTranscriptClock(transcript)
-          const stopLongPress = runLongPress(transcript, target =>
-            transcript.hasAttribute('data-word-menu-action')
-              ? wordOfTarget(target)
-              : undefined,
-          )
+          const stopHost = bindSlots(transcript, press => {
+            transcript.dispatchEvent(
+              new CustomEvent(transcriptPressEventName, { detail: press }),
+            )
+          })
           const stopFollow = runFollow(transcript)
           const stopPresses = runTranscriptPresses(transcript)
           return () => {
             stopClock()
-            stopLongPress()
+            stopHost()
             stopFollow()
             stopPresses()
           }
@@ -686,10 +601,6 @@ export const transcriptMount = <Message>(): MountAction<Message> => ({
       ).pipe(Effect.flatMap(() => Effect.never)),
     ),
 })
-
-const MENU_GAP_PX = 8
-
-const MENU_EDGE_PX = 8
 
 /**
  * Puts an open word menu by its word: under it, or above it where there
@@ -713,19 +624,13 @@ export const placeWordMenu = (menu: HTMLElement, token: string): void => {
 
 const placeMenuBy = (menu: HTMLElement, maybePart: Element | null): void => {
   if (maybePart !== null) {
-    const bounds = maybePart.getBoundingClientRect()
-    const size = menu.getBoundingClientRect()
-    const below = bounds.bottom + MENU_GAP_PX
-    const fitsBelow = below + size.height <= window.innerHeight - MENU_EDGE_PX
-    const left = Math.max(
-      MENU_EDGE_PX,
-      Math.min(bounds.left, window.innerWidth - size.width - MENU_EDGE_PX),
-    )
-    const top = fitsBelow
-      ? below
-      : Math.max(MENU_EDGE_PX, bounds.top - MENU_GAP_PX - size.height)
-    menu.style.left = `${left.toString()}px`
-    menu.style.top = `${top.toString()}px`
+    const placed = Placement.place({
+      anchor: maybePart.getBoundingClientRect(),
+      size: menu.getBoundingClientRect(),
+      view: { width: window.innerWidth, height: window.innerHeight },
+    })
+    menu.style.left = `${placed.left.toString()}px`
+    menu.style.top = `${placed.top.toString()}px`
     if (!menu.hasAttribute('aria-label')) {
       menu.setAttribute('aria-label', maybePart.textContent?.trim() ?? '')
     }
@@ -829,30 +734,6 @@ export const itemMenuMount = <Message>(
     },
     dismiss,
   )
-
-/** The name of the mount a painted List with row menus carries. */
-export const listMountName = 'FoldkitList'
-
-/**
- * The mount a painted List carries when a row has a menu: it opens the
- * row's menu on a long press, as a right click does. It sends the Program
- * nothing itself, so any Program's page can carry it.
- *
- * @example
- * ```typescript
- * h.ul([h.Class('fk-list'), h.OnMount(listMount())], rows)
- * ```
- */
-export const listMount = <Message>(): MountAction<Message> => ({
-  name: listMountName,
-  f: list =>
-    Stream.callback<Message>(() =>
-      Effect.acquireRelease(
-        Effect.sync(() => runLongPress(list, rowWithMenuOfTarget)),
-        stop => Effect.sync(stop),
-      ).pipe(Effect.flatMap(() => Effect.never)),
-    ),
-})
 
 /** The name of the mount an open word menu carries. */
 export const wordMenuMountName = 'FoldkitWordMenu'

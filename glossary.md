@@ -251,18 +251,53 @@ and then when that state changes, it should render again. That's it."
   draws. Mechanics live in a painter. e.g. `element.getBoundingClientRect()`
   on a page; `scrollToOffset` on a phone's list; `setTimeout` behind the
   `wait` port.
-- **Block**: one small behavior: its Schemas (`State`, `Fact`,
-  `Instruction`), its `initial` state, and its
-  `step(state, context, fact)`, which answers the next state and the
-  instructions. `step` never waits, never reads a clock and never touches
-  a platform: time arrives in `context.nowMs`. e.g. `TranscriptFollow`,
-  `Reader`; `longPress` when it is built.
-- **Part**: a whole component: its blocks, its slots, and its projection
-  from state to what each slot shows. e.g. a Transcript; a List with a row
-  menu. Declared once, and hosted by every painter (plan 14, slice 4).
+- **Block**: one small behavior that keeps state: the Schemas of its state
+  and its Messages, its chart, how each Message syncs, and what a restart
+  opens it on. Its state is a field of the Model (plan 14c). e.g.
+  `LongPress.block`. Two older blocks have another shape and become charts
+  when they become parts: `Reader` (a plain `step`) and `TranscriptFollow`
+  (a `step` that answers instructions, run by the painters' runner). A
+  behavior that keeps nothing is a pure function and not a block, e.g.
+  `Placement.place`.
+- **Chart**: a block's or a part's rule as a `Machine.define` table: every
+  state, and what each Message does in it, as data. e.g. `LongPress.chart`:
+  `Pressing` on `ElapsedHold` goes to `Held`. `unreachableStates`,
+  `deadTransitions` and `toMermaid` read the table.
+- **Part**: a whole component, declared once with `Part.define`: its state
+  as a chart, the Catalog Actions done to it, its slots, and a pure
+  projection from state to what each slot shows. A Program takes parts
+  with `Part.compose`, and every painter hosts them through its host. e.g.
+  the fixture's `TitleMenu`, a menu a hold or the second button opens on a
+  row.
 - **Slot**: one painted element of a part. e.g. a menu's row; a
   Transcript's word. A slot says, as data, its role, how it takes focus,
-  and which gesture becomes which fact or Action.
+  and which gesture becomes which Action.
+- **Gesture**: one thing a person does to a painted element, in words no
+  platform owns, from a closed list in core: `Pressed`, `PressedSecondary`,
+  `HeldLong`, and the raw three a platform with no hold tells
+  (`PressedDown`, `MovedPointerAway`, `ReleasedPointer`). Each painter
+  says which it recognizes itself.
+- **Binding**: what the screen tree carries to a painter for one slot: the
+  press each gesture sends and what the projection says of the slot. e.g.
+  `Slot.menuAsk('ShowTitleMenu:salt-road')`, a hold or the second button,
+  both sending that press. A painter reads bindings and never a part.
+- **Host**: the one piece of a painter that knows parts exist. It reads a
+  binding, binds the platform's events, and sends the press the binding
+  gives. e.g. `renderers/htmlHost.ts` (`bindSlots`), which the React
+  painter runs too; `hostPropsOf` on the phone.
+- **Hold signal**: what a completed hold says on the screen tree,
+  `{ press, pressCount }` on the List, Transcript or Button it was held
+  on. The painter that told the press sends it, and stops the tap that
+  follows.
+- **Sync (of a Message)**: how one Message reaches the log, declared once
+  beside it. `Synced`, the default, at once; `Settled`, when input pauses
+  (typing, 200 ms); `Sampled`, at most so often (a drag, 50 ms); `Device`,
+  never, with the reason. e.g. `PressedDown` is
+  `Device({ because: 'InputInProgress' })`.
+- **Pace**: how quickly a part's input syncs, set in its configuration:
+  how long typing rests, the grain of a drag, how often a drag is written.
+  The rule is pure (`Pace.arrived`, `Pace.due`, `Pace.told`); whoever
+  writes the log supplies the clock.
 - **Fact (told to a rule)**: something that happened, told to a rule. A
   Message when the rule runs in update (the Fact entry under "Plans
   vocabulary" is this case), and a plain value when the rule runs in a
@@ -284,13 +319,12 @@ and then when that state changes, it should render again. That's it."
   (`renderers/html.ts`, `htmlEdge.ts`), `packages/react-native/src/interaction`,
   the terminal painters in `packages/foldkit/src/cli`. A painter holds no
   rule.
-- **Home (of a block's state)**: where a block's state is kept, asked in
-  this order. **Painter home**: nothing painted and nothing an agent reads
-  depends on it, so the runner holds it. e.g. the quiet second after a
-  scroll. **Logged home**: another device or the log should see it, so it
-  is in the Model and an ordinary Message changes it. e.g. which page is on
-  the stack. **Device home**: otherwise; in the Model, never logged. e.g.
-  Books' title menu, `Reader.State`.
+- **Home (of a block's state)**: where a block's state is kept. For every
+  part since plan 14c it is the Model, and each Message says whether it
+  syncs or stays on the device. **Painter home** is the older case, where
+  the painters' runner holds the state: only `TranscriptFollow` still has
+  it, e.g. the quiet second after a scroll, and it is a rule still to
+  move.
 - **Painter ratchet**: the gate that counts, per painter file, its timers
   and clocks, held state, listeners, and numbers other than 0 and 1, and
   fails when a count rises above the checked-in ledger

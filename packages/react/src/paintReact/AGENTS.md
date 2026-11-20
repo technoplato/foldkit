@@ -26,11 +26,13 @@ answers instructions, and give the painter only a port to fill. Read
 
 ## In this folder
 
-A rule that belongs in core, and is still here: `longPressMs = 500` and
-`copiedResetMs = 1500` in `paintReact.tsx`. The HTML edge has its own
-`LONG_PRESS_MS = 500`, so the same rule is written twice. They move to the
-`longPress` and `timedHint` blocks (plan 14, slices 4 and 6). Do not add
-another like them, and do not paste a rule in from another painter: the
+A rule that belongs in core, and is still here: `copiedResetMs = 1500` in
+`paintReact.tsx`. It moves to the `timedHint` block (plan 14, slice 6).
+`longPressMs = 500` was here too, written a second time beside the HTML
+edge's; it is now `LongPress` in `foldkit/behavior` (plan 14c, Scribe
+#2595), and `host.tsx` is this painter's host: it writes a binding as
+props and runs the browser's host from one effect. Do not add another rule
+like these, and do not paste a rule in from another painter: the
 quiet-time check in `@foldkit/svelte`'s `TranscriptView.svelte` pasted here
 fails the ratchet on timers, held state, listeners and numbers at once.
 

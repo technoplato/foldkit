@@ -152,3 +152,9 @@ export type {
   TranscriptWordMenu,
   UiNode,
 } from './types.js'
+export {
+  bindSlots,
+  holdAttributesOf,
+  recognizes as browserRecognizes,
+  slotAttributesOf,
+} from './htmlHost.js'

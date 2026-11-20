@@ -1110,7 +1110,12 @@ export const recordingPage = (
           )
         : recordingHeader(ready, config),
       ...transcriptionNoticeOf(model, ready),
-      transcript(ready, isTranscribingOf(model, ready), isFullScreen),
+      transcript(
+        ready,
+        isTranscribingOf(model, ready),
+        isFullScreen,
+        model.hold,
+      ),
       h.div(
         [h.AriaLive('polite'), h.AriaAtomic(true), h.Class('sr-only')],
         Option.toArray(ready.maybeAnnouncedText),

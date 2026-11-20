@@ -1,5 +1,6 @@
 import { Schema as S } from 'effect'
 import { Theme } from 'foldkit'
+import { LongPress } from 'foldkit/behavior'
 import { m } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
@@ -278,6 +279,14 @@ export const ClickedCopySectionLink = m('ClickedCopySectionLink', {
   sectionID: S.String,
 })
 /**
+ * Foldkit's rule for a hold was told something: a finger went down on a
+ * word, moved off it or lifted, or one of the rule's waits ended. The
+ * hold's state is this device's alone.
+ */
+export const GotHoldMessage = m('GotHoldMessage', {
+  message: LongPress.Message,
+})
+/**
  * The listener pressed a word for its menu, with a right click or a long
  * press: the time the word starts, and where on the page it was pressed.
  */
@@ -452,6 +461,7 @@ export const Message = S.Union([
   ClickedCopyWordLink,
   OpenedWordMenu,
   ClosedWordMenu,
+  GotHoldMessage,
   OpenedSectionMenu,
   ClosedSectionMenu,
   ChoseAppearance,

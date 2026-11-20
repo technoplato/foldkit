@@ -364,23 +364,45 @@
       "counts": {
         "timers": 0,
         "heldState": 0,
-        "listeners": 24,
+        "listeners": 25,
         "numbers": 0
-      }
-    },
-    "packages/foldkit/src/renderers/htmlEdge.ts": {
-      "counts": {
-        "timers": 6,
-        "heldState": 3,
-        "listeners": 21,
-        "numbers": 9
       },
       "rises": [
         {
-          "kind": "timers",
-          "from": 5,
-          "to": 6,
-          "why": "The follow runner's wait port (Scribe #2594): TranscriptFollow moved to packages/foldkit/src/behavior/ and names no timer, so each painter now says how its platform waits. The 250 ms and when to wait stay in the rule; this setTimeout is the mechanic."
+          "kind": "listeners",
+          "from": 24,
+          "to": 25,
+          "why": "The host's press event (Scribe #2595): a List and a bound Button hear fk-slot-press from the browser's host and answer it through the view's own handler, as a Transcript hears fk-transcript-press. A row's own contextmenu listener is gone; the host hears the second button for every row."
+        }
+      ]
+    },
+    "packages/foldkit/src/renderers/htmlEdge.ts": {
+      "counts": {
+        "timers": 5,
+        "heldState": 2,
+        "listeners": 16,
+        "numbers": 5
+      }
+    },
+    "packages/foldkit/src/renderers/htmlHost.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 7,
+        "numbers": 0
+      },
+      "rises": [
+        {
+          "kind": "listeners",
+          "from": 0,
+          "to": 7,
+          "why": "The browser's host (Scribe #2595, plans/14c-part-and-host.md): a painter file split in two. runLongPress and its five listeners left htmlEdge.ts (listeners 21 to 16, held state 3 to 2, timers 6 to 5, numbers 9 to 5) and the host that replaces it is this new file. It has two more listeners than runLongPress had: the second button, which each row bound for itself before, and the one that hears the Model say a hold completed. It keeps no timer and no number: the 500 ms and the 10 px are LongPress's in packages/foldkit/src/behavior/."
+        },
+        {
+          "kind": "heldState",
+          "from": 0,
+          "to": 1,
+          "why": "The browser's host (Scribe #2595, plans/14c-part-and-host.md): a painter file split in two. runLongPress and its five listeners left htmlEdge.ts (listeners 21 to 16, held state 3 to 2, timers 6 to 5, numbers 9 to 5) and the host that replaces it is this new file. The one thing held is where a finger went down, kept only until it lifts, so the host can tell core once that the finger moved off the spot. The distance it compares with is data on the binding."
         }
       ]
     },
@@ -492,9 +514,17 @@
       "counts": {
         "timers": 0,
         "heldState": 4,
-        "listeners": 4,
+        "listeners": 5,
         "numbers": 23
-      }
+      },
+      "rises": [
+        {
+          "kind": "listeners",
+          "from": 4,
+          "to": 5,
+          "why": "A bound Button's hold (Scribe #2595): onLongPress from hostPropsOf, the phone's host, so a part bound on a button is heard with no code naming it. transcript.tsx lost the hand-written one it had (listeners 11 to 10)."
+        }
+      ]
     },
     "packages/react-native/src/interaction/seek.tsx": {
       "counts": {
@@ -516,7 +546,7 @@
       "counts": {
         "timers": 6,
         "heldState": 17,
-        "listeners": 11,
+        "listeners": 10,
         "numbers": 28
       },
       "rises": [
@@ -688,19 +718,35 @@
         "numbers": 0
       }
     },
-    "packages/react/src/paintReact/paintReact.tsx": {
+    "packages/react/src/paintReact/host.tsx": {
       "counts": {
-        "timers": 8,
-        "heldState": 24,
-        "listeners": 45,
-        "numbers": 8
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 0,
+        "numbers": 0
       },
       "rises": [
         {
-          "kind": "timers",
-          "from": 7,
-          "to": 8,
-          "why": "The follow runner's wait port (Scribe #2594): TranscriptFollow moved to packages/foldkit/src/behavior/ and names no timer, so each painter now says how its platform waits. The 250 ms and when to wait stay in the rule; this setTimeout is the mechanic."
+          "kind": "heldState",
+          "from": 0,
+          "to": 2,
+          "why": "The React painter's host (Scribe #2595), a new file: two refs, the element the browser's host is bound on and the newest press callback, so the effect is bound once. useMenuAsk and its two refs left paintReact.tsx (held state 24 to 21, timers 8 to 7, numbers 8 to 4). No rule is here: the host is core's bindSlots."
+        }
+      ]
+    },
+    "packages/react/src/paintReact/paintReact.tsx": {
+      "counts": {
+        "timers": 7,
+        "heldState": 21,
+        "listeners": 46,
+        "numbers": 4
+      },
+      "rises": [
+        {
+          "kind": "listeners",
+          "from": 45,
+          "to": 46,
+          "why": "A bound Button's host (Scribe #2595): the onPress prop of SlotHost, through which the browser's host sends a part's presses. The six handlers of useMenuAsk are gone from this file's two uses; the count is the props that remain."
         }
       ]
     },

@@ -1,4 +1,5 @@
 import { Array, Option } from 'effect'
+import { Slot } from 'foldkit/behavior'
 import {
   type ItemCheck,
   type ListItem,
@@ -20,6 +21,7 @@ import {
 
 import { useLaidOut } from '../telemetry/paintReporter.js'
 import { fieldStyleOf } from './field.js'
+import { hostPropsOf } from './host.js'
 import { percentOf } from './look.js'
 import { MenuSheetOverlay } from './menuSheet.js'
 import { type Paint, pressOf } from './paint.js'
@@ -161,8 +163,8 @@ const titleOf = (item: ListItem, paint: Paint): ReactElement => {
  * One row of a List: a box to tick, a picture, the title with its mark
  * and badge, the lines under it, how far along it is, the columns at its
  * end, and its trailing buttons. Pressing the row presses its Action, or
- * follows its link. A long press on a row with a `menuAction` asks the
- * Program for the row's menu.
+ * follows its link. A hold on a row a part bound, or one with a
+ * `menuAction`, sends the press its binding gives, through the host.
  */
 export const paintRow = (
   item: ListItem,
@@ -174,7 +176,7 @@ export const paintRow = (
   const { colors, sizes } = paint.look
   const action = item.action
   const href = item.href
-  const menuAction = item.menuAction
+  const host = hostPropsOf(Slot.ofItem(item), paint, item.title)
   return (
     <View
       key={item.key}
@@ -193,17 +195,16 @@ export const paintRow = (
       <Pressable
         accessibilityLabel={item.title}
         accessibilityRole={href === undefined ? 'button' : 'link'}
-        accessibilityState={{ selected: item.isCurrent === true }}
+        accessibilityState={{
+          selected: item.isCurrent === true,
+          ...host.accessibilityState,
+        }}
         disabled={
-          action === undefined && href === undefined && menuAction === undefined
+          action === undefined &&
+          href === undefined &&
+          host.onLongPress === undefined
         }
-        onLongPress={
-          menuAction === undefined
-            ? undefined
-            : () => {
-                paint.onPress(pressOf(menuAction, item.title))
-              }
-        }
+        onLongPress={host.onLongPress}
         onPress={() => {
           if (href !== undefined) {
             paint.onLink(href)

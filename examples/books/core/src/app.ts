@@ -1,4 +1,5 @@
 import { ActionMenu, Session } from 'foldkit'
+import { Part } from 'foldkit/behavior'
 
 import { BooksProgram } from './program.js'
 
@@ -14,7 +15,10 @@ import { BooksProgram } from './program.js'
  */
 export const App = ActionMenu.compose({
   of: Session.compose({
-    of: BooksProgram,
+    // NOTE: the hold on a title or a word is Foldkit's rule, kept in this
+    // device's Model by this composition. Without it a hold on the web
+    // would ask for nothing, since no painter keeps a timer.
+    of: Part.compose({ of: BooksProgram }),
     initialMode: 'SharedDomain',
   }),
 })

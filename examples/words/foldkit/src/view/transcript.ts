@@ -1,4 +1,5 @@
 import { Array, Option, Record } from 'effect'
+import { LongPress } from 'foldkit/behavior'
 import { type Html, html } from 'foldkit/html'
 import type { TextImage } from 'foldkit/renderers'
 import { createPassageSlots, paintHtml } from 'foldkit/renderers/html'
@@ -289,11 +290,20 @@ const pictureOf =
 // middle while the words follow the voice, brings the word the reader names
 // to the middle, and presses the reader's leave action when the listener
 // scrolls the spoken word away.
-const readerView = (ready: ReadyPlayback): Html =>
+const readerView = (ready: ReadyPlayback, hold: LongPress.State): Html =>
   paintHtml<Message>(
-    readerOf(ready, readAlongPlaybackOf(ready), {
-      pictureOf: pictureOf(ready),
-    }),
+    {
+      ...readerOf(ready, readAlongPlaybackOf(ready), {
+        pictureOf: pictureOf(ready),
+      }),
+      // NOTE: a hold on a word is Foldkit's rule, kept in the Model. When
+      // one completes the Transcript says so here, and the painter's host
+      // sends the word's menu press and stops the tap that follows.
+      ...Option.match(LongPress.signalOf(hold), {
+        onNone: () => ({}),
+        onSome: signal => ({ hold: signal }),
+      }),
+    },
     press => Option.getOrUndefined(readerMessageOf(ready, press)),
     { passageSlots },
   )
@@ -309,6 +319,7 @@ export const transcript = (
   ready: ReadyPlayback,
   isTranscribing: boolean,
   isFullScreen: boolean,
+  hold: LongPress.State,
 ): Html => {
   const h = html<Message>()
   return h.section(
@@ -328,7 +339,7 @@ export const transcript = (
                 [h.Class('px-4 text-subhead text-secondary')],
                 ['This recording has no transcript.'],
               ),
-        onNonEmpty: () => readerView(ready),
+        onNonEmpty: () => readerView(ready, hold),
       }),
     ],
   )

@@ -235,7 +235,7 @@ describe('a word’s menu', () => {
     expect(pressesOf(onPress)).toEqual(['ShowWordMenu:a1'])
   })
 
-  it('asks for it on a long press with a finger, and does not play the word under the finger', () => {
+  it('tells a finger held on a word to core’s rule, and keeps no timer of its own', () => {
     vi.useFakeTimers()
     const onPress = pressed()
     const { container } = render(paintTree(lighthouse(), { onPress }))
@@ -251,11 +251,14 @@ describe('a word’s menu', () => {
     act(() => {
       vi.advanceTimersByTime(600)
     })
+    expect(pressesOf(onPress)).toEqual(['fk-hold-down:ShowWordMenu:a1'])
     fireEvent.pointerUp(lamp, { pointerType: 'touch' })
     fireEvent.click(lamp)
-    expect(pressesOf(onPress)).toEqual(['ShowWordMenu:a1'])
-    fireEvent.click(lamp)
-    expect(pressesOf(onPress)).toEqual(['ShowWordMenu:a1', 'SeekToWord:a1'])
+    expect(pressesOf(onPress)).toEqual([
+      'fk-hold-down:ShowWordMenu:a1',
+      'fk-hold-up',
+      'SeekToWord:a1',
+    ])
   })
 
   it('draws the menu the Program holds, presses what a person picks, and closes on Escape or a press outside', () => {
@@ -337,7 +340,7 @@ describe('a row’s menu', () => {
     expect(pressesOf(onPress)).toEqual(['ShowTitleMenu:salt-road'])
   })
 
-  it('asks for it on a long press with a finger, and does not open the row under the finger', () => {
+  it('tells a finger held on a row to core’s rule, and keeps no timer of its own', () => {
     vi.useFakeTimers()
     const onPress = pressed()
     const { container } = render(paintTree(shelf(), { onPress }))
@@ -353,12 +356,12 @@ describe('a row’s menu', () => {
     act(() => {
       vi.advanceTimersByTime(600)
     })
+    expect(pressesOf(onPress)).toEqual(['fk-hold-down:ShowTitleMenu:salt-road'])
     fireEvent.pointerUp(row, { pointerType: 'touch' })
     fireEvent.click(row)
-    expect(pressesOf(onPress)).toEqual(['ShowTitleMenu:salt-road'])
-    fireEvent.click(row)
     expect(pressesOf(onPress)).toEqual([
-      'ShowTitleMenu:salt-road',
+      'fk-hold-down:ShowTitleMenu:salt-road',
+      'fk-hold-up',
       'Open:salt-road',
     ])
   })

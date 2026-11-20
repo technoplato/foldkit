@@ -12,7 +12,7 @@ import {
   pipe,
 } from 'effect'
 import { Command, Theme } from 'foldkit'
-import { Reader } from 'foldkit/behavior'
+import { LongPress, Reader } from 'foldkit/behavior'
 import * as Dom from 'foldkit/dom'
 import { load, pushUrl, replaceUrl } from 'foldkit/navigation'
 import {
@@ -102,6 +102,7 @@ import {
   FailedPlayAudio,
   GotAccountMessage,
   GotCaptureMessage,
+  GotHoldMessage,
   GotShareMessage,
   type Message,
   type ObservedRecordings,
@@ -1745,6 +1746,7 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       liveBeats: {},
       liveLengthFloors: {},
       recordingAttempt: 0,
+      hold: LongPress.initial,
       maybeCopyNotice: Option.none(),
       copyRevision: 0,
       connectivity: 'Online',
@@ -3524,6 +3526,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ),
       ScrolledTranscriptAway: () =>
         evolveReady(model, ready => toldReader(ready, Reader.LeftVoice())),
+      GotHoldMessage: ({ message: told }) => {
+        const [hold, waits] = LongPress.chart.transition(model.hold, told)
+        return [
+          evo(model, { hold: () => hold }),
+          Command.mapMessages(waits, answer =>
+            GotHoldMessage({ message: answer }),
+          ),
+        ]
+      },
       ClickedReturnToPlayhead: () => evolveReady(model, returnToFollowed),
       CompletedScrollToSection: () => [model, []],
       CompletedScrollToRecordingTitle: () => [model, []],

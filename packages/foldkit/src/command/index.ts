@@ -1,4 +1,4 @@
-import { Array, Effect, Function, Predicate, Schema } from 'effect'
+import { Array, Duration, Effect, Function, Predicate, Schema } from 'effect'
 
 import type { EffectManifest } from './effectManifest.js'
 
@@ -434,3 +434,22 @@ export const mapMessages: {
     }>
   > => Array.map(commands, command => mapMessage(command, f)),
 )
+
+/**
+ * An Effect that answers `message` once `afterMs` have passed, for a
+ * Command that is a wait. A rule in `foldkit/behavior` never waits itself:
+ * it returns a Command built on this, and the runtime does the waiting on
+ * the Effect clock, so a test moves the time by hand.
+ *
+ * @example
+ * ```typescript
+ * const WaitForHold = Command.define('WaitForHold', { pressCount: S.Number }, ElapsedHold)(
+ *   ({ pressCount }) => answerAfter(500, ElapsedHold({ pressCount })),
+ * )
+ * ```
+ */
+export const answerAfter = <Message>(
+  afterMs: number,
+  message: Message,
+): Effect.Effect<Message> =>
+  Effect.as(Effect.sleep(Duration.millis(afterMs)), message)

@@ -14,6 +14,7 @@ export {
 export type { EffectManifest as EffectManifestType } from './effectManifest.js'
 export {
   CommandDefinitionTypeId,
+  answerAfter,
   define,
   mapEffect,
   mapMessage,

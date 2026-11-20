@@ -1,5 +1,6 @@
 import type { Effect, Schema } from 'effect'
 
+import type { Sync } from '../behavior/pace.js'
 import type { AnyCatalog } from '../catalog/catalog.js'
 import type { EffectManifest } from '../command/effectManifest.js'
 import {
@@ -117,6 +118,19 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
    * ```
    */
   isLocalOnly?: (message: Message) => boolean
+  /**
+   * How a Message reaches the log, for whoever writes it: at once, when
+   * its input settles, or sampled. A Program that composes parts gets
+   * this derived from what each Message declares; a Message with no word
+   * is synced at once. The pure rule a writer runs is `Pace.due`.
+   *
+   * @example
+   * ```typescript
+   * paceOf: message => message._tag === 'Typed' ? Settled({ afterMs: 200 }) : Synced()
+   * // five keystrokes in a burst are one row, 200 ms after the last
+   * ```
+   */
+  paceOf?: (message: Message) => Sync
 }>
 
 /**

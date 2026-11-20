@@ -1,3 +1,5 @@
+import type { Signal as HoldSignal } from '../behavior/longPress.js'
+import type { SlotBinding } from '../behavior/slot.js'
 import type { InkRun } from '../theme/terminal.js'
 import type { Device } from './device.js'
 import type { IconName } from './icons.js'
@@ -114,6 +116,9 @@ export type ButtonVariant = 'Primary' | 'Ghost' | 'Destructive' | 'Tab' | 'Pill'
  * it, `To start over`, shown under the description in that hint.
  * `icon` draws beside the label, or instead of it with `isIconOnly`, the
  * label then left for screen readers. `isCurrent` marks the current tab.
+ * `slot` is what a part binds on the button beyond its press, such as a
+ * hold that pins it: a painter's host reads it, and a painter with no
+ * pointer leaves it alone.
  */
 export type ButtonNode = Readonly<{
   readonly _tag: 'Button'
@@ -130,6 +135,8 @@ export type ButtonNode = Readonly<{
   readonly isCurrent?: boolean
   readonly disabled?: boolean
   readonly focused?: boolean
+  readonly slot?: SlotBinding
+  readonly hold?: HoldSignal
 }>
 
 /**
@@ -432,7 +439,10 @@ export type TranscriptItem = Readonly<{
  * word's token when a person asks for that word's menu, with a secondary
  * click or a long press: `ShowWordMenu:w4012`. `wordMenu` is the menu
  * while one is open. `passageMenu` is the menu open on a passage, which
- * a passage's `labelAction` asks for.
+ * a passage's `labelAction` asks for. `wordSlot` is the one binding a part
+ * gives every word, each of its presses joined with the word's token by
+ * the painter; `Slot.ofWords` reads it, or the binding `wordMenuAction`
+ * means.
  */
 export type TranscriptNode = Readonly<{
   readonly _tag: 'Transcript'
@@ -446,6 +456,8 @@ export type TranscriptNode = Readonly<{
   readonly leaveAction?: string
   readonly focusToken?: string
   readonly wordMenuAction?: string
+  readonly wordSlot?: SlotBinding
+  readonly hold?: HoldSignal
   readonly wordMenu?: TranscriptWordMenu
   readonly passageMenu?: TranscriptPassageMenu
   readonly items?: ReadonlyArray<TranscriptItem>
@@ -528,6 +540,10 @@ export type ItemMenu = Readonly<{
  * for the row's menu, with a long press or a secondary click:
  * `ShowTitleMenu:a-tin-comet`. A terminal has neither, so everything a
  * row's menu offers needs another way in, such as the row's own page.
+ * `slot` is what a part binds on the row, the press each gesture sends and
+ * what the part says of the row; a row with a `slot` is read from it, and
+ * `menuAction` is the short way to say "a hold or the second button asks
+ * for this", which `Slot.ofItem` turns into the same binding.
  */
 export type ListItem = Readonly<{
   readonly key: string
@@ -550,6 +566,7 @@ export type ListItem = Readonly<{
   readonly isDraggable?: boolean
   readonly focused?: boolean
   readonly trailing?: ReadonlyArray<ButtonNode>
+  readonly slot?: SlotBinding
 }>
 
 /**
@@ -580,7 +597,11 @@ export type ListFilter = Readonly<{
  * another way in, such as a key. `columns` names each of the rows'
  * `columns` in order, `['Starts', 'Length']`. With `filter`, a painter that
  * takes typing offers a field over the list that narrows its rows. `menu`
- * is the menu while one is open on one of the rows.
+ * is the menu while one is open on one of the rows. `hold` is there while
+ * a hold has completed on this device: with a `press`, the painter that
+ * told the press sends it, once for each `pressCount`; and while `hold`
+ * is there at all, the next tap is the hold's own and a painter stops it.
+ * A Transcript and a Button a part bound carry the same field.
  */
 export type ListNode = Readonly<{
   readonly _tag: 'List'
@@ -590,6 +611,7 @@ export type ListNode = Readonly<{
   readonly columns?: ReadonlyArray<string>
   readonly filter?: ListFilter
   readonly menu?: ItemMenu
+  readonly hold?: HoldSignal
 }>
 
 /** Device chrome around a product tree. The shell does not own product buttons. */

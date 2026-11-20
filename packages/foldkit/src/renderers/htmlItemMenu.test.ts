@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { List } from './elements.js'
 import { paintHtml } from './html.js'
-import { itemMenuMount, listMount, placeItemMenu } from './htmlEdge.js'
+import { itemMenuMount, placeItemMenu } from './htmlEdge.js'
 
 // Made-up books: nothing here is a real title.
 const shelf = (isOpen: boolean) =>
@@ -39,7 +39,7 @@ type Vnode = Readonly<{
   sel?: string
   data?: Readonly<{
     class?: Readonly<Record<string, boolean>>
-    on?: Readonly<Record<string, unknown>>
+    attrs?: Readonly<Record<string, unknown>>
   }>
   children?: ReadonlyArray<Vnode | string>
   text?: string
@@ -78,11 +78,16 @@ const until = async (isSo: () => boolean): Promise<void> => {
 }
 
 describe('a row’s menu in the Foldkit HTML painter', () => {
-  it('asks for the menu on a right click on a row that has one, and on no other', () => {
+  it('binds the row that has a menu, and no other, to ask for it on the second button and on a hold', () => {
     const rows = classed(paintedTree(false), 'fk-item')
-    expect(
-      rows.map(row => typeof row.data?.on?.['contextmenu'] === 'function'),
-    ).toEqual([true, false])
+    expect(rows.map(row => row.data?.attrs?.['data-slot-secondary'])).toEqual([
+      'ShowTitleMenu:salt-road',
+      undefined,
+    ])
+    expect(rows.map(row => row.data?.attrs?.['data-slot-hold-down'])).toEqual([
+      'fk-hold-down:ShowTitleMenu:salt-road',
+      undefined,
+    ])
     expect(classed(paintedTree(false), 'fk-word-menu')).toHaveLength(0)
   })
 
@@ -129,28 +134,6 @@ describe('the row menu at the edge', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await until(() => told.length === 1)
     expect(told).toEqual(['CloseTitleMenu'])
-    await Effect.runPromise(Fiber.interrupt(fiber))
-    list.remove()
-  })
-
-  it('opens the menu on a long press with a finger, as a right click does', async () => {
-    const { list, row } = listWithRow()
-    const asked: Array<string> = []
-    row.addEventListener('contextmenu', () => asked.push('salt-road'))
-    const fiber = Effect.runFork(Stream.runDrain(listMount<never>().f(list)))
-    await new Promise(resolve => {
-      setTimeout(resolve, 20)
-    })
-    row.dispatchEvent(
-      new PointerEvent('pointerdown', {
-        bubbles: true,
-        pointerType: 'touch',
-        clientX: 10,
-        clientY: 10,
-      }),
-    )
-    await until(() => asked.length === 1)
-    expect(asked).toEqual(['salt-road'])
     await Effect.runPromise(Fiber.interrupt(fiber))
     list.remove()
   })

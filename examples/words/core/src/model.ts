@@ -1,6 +1,6 @@
 import { Schema as S } from 'effect'
 import { Theme } from 'foldkit'
-import { Reader } from 'foldkit/behavior'
+import { LongPress, Reader } from 'foldkit/behavior'
 import { ts } from 'foldkit/schema'
 
 import * as Account from './account/model.js'
@@ -314,7 +314,9 @@ export type LiveLengthSave = typeof LiveLengthSave.Type
  * Scribe for the open recording again. `recordingWindow` is the run of list
  * pages the list observes; it moves as the listener scrolls near an edge of
  * the loaded rows. `maybeFocusedRowID` is the recording row that holds
- * keyboard focus, as the host reports it.
+ * keyboard focus, as the host reports it. `hold` is where a finger held on
+ * a word stands, by Foldkit's own rule for a hold: it is this device's and
+ * is never sent anywhere.
  */
 export const Model = S.Struct({
   route: ScribeRoute,
@@ -339,6 +341,7 @@ export const Model = S.Struct({
   connectivity: Connectivity,
   searchQuery: S.String,
   appearance: Theme.AppearanceState,
+  hold: LongPress.State,
 })
 /** The web Scribe Model. */
 export type Model = typeof Model.Type

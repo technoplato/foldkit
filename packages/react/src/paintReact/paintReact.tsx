@@ -1,6 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import { TranscriptFollow } from 'foldkit/behavior'
+import { Placement, Slot, TranscriptFollow } from 'foldkit/behavior'
 import {
   type BoxLayer,
   type BoxNode,
@@ -39,9 +39,7 @@ import {
   type DragEvent,
   Fragment,
   type ReactElement,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
-  type PointerEvent as ReactPointerEvent,
   createContext,
   memo,
   useContext,
@@ -51,6 +49,8 @@ import {
   useRef,
   useState,
 } from 'react'
+
+import { SlotHost, holdPropsOf, slotPropsOf, useSlotHost } from './host.js'
 
 /** Extra class per node kind, appended after the fk-* base class. */
 export type PaintClassNames = Partial<Record<UiNode['_tag'], string>>
@@ -766,11 +766,6 @@ const wordAnchorOf =
     return container === null ? null : wordIn(container, token)
   }
 
-const tokenOfTarget = (target: EventTarget | null): string | undefined =>
-  target instanceof Element
-    ? (target.closest('[data-token]')?.getAttribute('data-token') ?? undefined)
-    : undefined
-
 /**
  * Words to read along with. It keeps the word sounding in the middle of
  * the window as it moves, and lets a person scroll away to read ahead: it
@@ -819,89 +814,6 @@ const useLiveTranscript = (transcript: TranscriptNode): TranscriptNode => {
   )
 }
 
-const longPressMs = 500
-
-const longPressSlackPx = 10
-
-const menuGapPx = 8
-
-const menuEdgePx = 8
-
-type MenuPlace = Readonly<{ left: number; top: number }>
-
-/**
- * The handlers by which a person asks for a menu on part of an element:
- * a secondary click, in place of the browser's own menu, or a long press
- * with a finger or a pen. `askOf` says what asking does for the part
- * under the pointer, or nothing where that part has no menu. A press that
- * moves, or lifts early, asks for nothing, and the tap that ends a long
- * press is swallowed, so it does not also press the part under the finger.
- */
-const useMenuAsk = (
-  askOf: (target: EventTarget | null) => (() => void) | undefined,
-) => {
-  const longPress = useRef<
-    | Readonly<{
-        timer: ReturnType<typeof setTimeout>
-        x: number
-        y: number
-      }>
-    | undefined
-  >(undefined)
-  const isClickSwallowed = useRef(false)
-  const endLongPress = (): void => {
-    if (longPress.current !== undefined) {
-      clearTimeout(longPress.current.timer)
-      longPress.current = undefined
-    }
-  }
-  return {
-    onContextMenu: (event: ReactMouseEvent<HTMLElement>): void => {
-      const ask = askOf(event.target)
-      if (ask !== undefined) {
-        event.preventDefault()
-        endLongPress()
-        ask()
-      }
-    },
-    onPointerDown: (event: ReactPointerEvent<HTMLElement>): void => {
-      const ask = askOf(event.target)
-      if (ask === undefined || event.pointerType === 'mouse') {
-        return
-      }
-      endLongPress()
-      longPress.current = {
-        x: event.clientX,
-        y: event.clientY,
-        timer: setTimeout(() => {
-          longPress.current = undefined
-          isClickSwallowed.current = true
-          ask()
-        }, longPressMs),
-      }
-    },
-    onPointerMove: (event: ReactPointerEvent<HTMLElement>): void => {
-      const pressed = longPress.current
-      if (
-        pressed !== undefined &&
-        Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) >
-          longPressSlackPx
-      ) {
-        endLongPress()
-      }
-    },
-    onPointerUp: endLongPress,
-    onPointerCancel: endLongPress,
-    onClickCapture: (event: ReactMouseEvent<HTMLElement>): void => {
-      if (isClickSwallowed.current) {
-        isClickSwallowed.current = false
-        event.stopPropagation()
-        event.preventDefault()
-      }
-    },
-  }
-}
-
 /**
  * A menu the Program holds open on one part of the page, such as a word
  * or a list row, drawn by that part: its items as a menu, a press outside
@@ -927,7 +839,6 @@ const AnchoredMenu = ({
   onPress: (button: ButtonNode) => void
 }>): ReactElement => {
   const ref = useRef<HTMLDivElement>(null)
-  const [place, setPlace] = useState<MenuPlace>({ left: 0, top: 0 })
   const [anchorText, setAnchorText] = useState('')
   const dismiss = (): void => {
     onPress(pressOf(dismissAction, 'Close'))
@@ -938,20 +849,17 @@ const AnchoredMenu = ({
     if (part === null || panel === null) {
       return
     }
-    const bounds = part.getBoundingClientRect()
-    const size = panel.getBoundingClientRect()
-    const below = bounds.bottom + menuGapPx
-    const fitsBelow = below + size.height <= window.innerHeight - menuEdgePx
-    setAnchorText(part.textContent?.trim() ?? '')
-    setPlace({
-      left: Math.max(
-        menuEdgePx,
-        Math.min(bounds.left, window.innerWidth - size.width - menuEdgePx),
-      ),
-      top: fitsBelow
-        ? below
-        : Math.max(menuEdgePx, bounds.top - menuGapPx - size.height),
+    // NOTE: where the menu goes is core's to say. This measures the two
+    // rectangles and puts the menu there before the browser paints, so it
+    // is never drawn at the corner first.
+    const placed = Placement.place({
+      anchor: part.getBoundingClientRect(),
+      size: panel.getBoundingClientRect(),
+      view: { width: window.innerWidth, height: window.innerHeight },
     })
+    panel.style.left = `${placed.left.toString()}px`
+    panel.style.top = `${placed.top.toString()}px`
+    setAnchorText(part.textContent?.trim() ?? '')
     // NOTE: `anchor` is a stable reader of the page; the menu is placed
     // again only when it opens on another part.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -976,7 +884,6 @@ const AnchoredMenu = ({
         role="menu"
         aria-label={label ?? anchorText}
         className="fk-word-menu"
-        style={{ left: place.left, top: place.top }}
       >
         {Array.map(items, item => (
           <button
@@ -1034,7 +941,6 @@ const TranscriptView = ({
   const isFollowing = transcript.isFollowing !== false
   const leaveAction = transcript.leaveAction
   const focusToken = transcript.focusToken
-  const wordMenuAction = transcript.wordMenuAction
   const isFocusWordHere =
     focusToken !== undefined &&
     Array.some(transcript.passages, passage =>
@@ -1129,13 +1035,12 @@ const TranscriptView = ({
       follow.current?.tell(TranscriptFollow.NamedWord())
     }
   }, [focusToken, isFocusWordHere])
-  const menuAsk = useMenuAsk(target => {
-    const token = tokenOfTarget(target)
-    return wordMenuAction === undefined || token === undefined
-      ? undefined
-      : () => {
-          onPress(pressOf(`${wordMenuAction}:${token}`, 'Word menu'))
-        }
+  useSlotHost(ref, press => {
+    onPress(pressOf(press, 'Word menu'))
+  })
+  const wordSlotProps = Option.match(Slot.ofWords(transcript), {
+    onNone: () => ({}),
+    onSome: binding => slotPropsOf(binding, 'data-token'),
   })
   return (
     <>
@@ -1144,7 +1049,8 @@ const TranscriptView = ({
         className={className}
         aria-label={transcript.label}
         data-following={isFollowing ? undefined : 'false'}
-        {...menuAsk}
+        {...wordSlotProps}
+        {...holdPropsOf(transcript.hold)}
       >
         {Array.match(entries, {
           onEmpty: () => (
@@ -1219,7 +1125,10 @@ const ListRow = ({
       ref={ref}
       className="fk-item"
       data-key={item.key}
-      data-menu={item.menuAction === undefined ? undefined : true}
+      {...Option.match(Slot.ofItem(item), {
+        onNone: () => ({}),
+        onSome: binding => ({ 'data-menu': true, ...slotPropsOf(binding) }),
+      })}
       data-current={isCurrent ? true : undefined}
       draggable={isDraggable ? true : undefined}
       onDragStart={
@@ -1376,12 +1285,6 @@ const ListRowView = memo(
 const rowIn = (root: HTMLElement, key: string): HTMLElement | null =>
   root.querySelector<HTMLElement>(`.fk-item[data-key="${CSS.escape(key)}"]`)
 
-const rowKeyOfTarget = (target: EventTarget | null): string | undefined =>
-  target instanceof Element
-    ? (target.closest('.fk-item[data-key]')?.getAttribute('data-key') ??
-      undefined)
-    : undefined
-
 const menuLabelOf = (
   items: ReadonlyArray<ListItem>,
   menu: ItemMenu,
@@ -1400,14 +1303,12 @@ const menuLabelOf = (
  */
 const RowsList = ({
   list,
-  items,
   className,
   dropAttributes,
   onPress,
   children,
 }: Readonly<{
   list: ListNode
-  items: ReadonlyArray<ListItem>
   className: string
   dropAttributes: Readonly<{
     onDragOver?: (event: DragEvent<HTMLUListElement>) => void
@@ -1417,21 +1318,8 @@ const RowsList = ({
   children: ReactNode
 }>): ReactElement => {
   const ref = useRef<HTMLUListElement>(null)
-  const menuAsk = useMenuAsk(target => {
-    const key = rowKeyOfTarget(target)
-    return Option.getOrUndefined(
-      Option.map(
-        Array.findFirst(
-          items,
-          item => item.key === key && item.menuAction !== undefined,
-        ),
-        item => () => {
-          if (item.menuAction !== undefined) {
-            onPress(pressOf(item.menuAction, item.title))
-          }
-        },
-      ),
-    )
+  useSlotHost(ref, press => {
+    onPress(pressOf(press, list.label))
   })
   const menu = list.menu
   return (
@@ -1441,7 +1329,7 @@ const RowsList = ({
         className={className}
         aria-label={list.label}
         {...dropAttributes}
-        {...menuAsk}
+        {...holdPropsOf(list.hold)}
       >
         {children}
       </ul>
@@ -1651,7 +1539,6 @@ export const paintTree = (
   ): ReactElement => (
     <RowsList
       list={list}
-      items={items}
       className={classFor('List', 'fk-list')}
       dropAttributes={dropAttributes(list)}
       onPress={handlers.onPress}
@@ -1808,32 +1695,52 @@ export const paintTree = (
               {paintText(text)}
             </EmbedView>
           ),
-        Button: button => (
-          <button
-            type="button"
-            className={classFor('Button', 'fk-button')}
-            disabled={button.disabled === true}
-            {...hintPropsOf(button)}
-            data-action={button.action}
-            data-variant={button.variant}
-            data-icon-only={button.isIconOnly === true ? true : undefined}
-            data-current={button.isCurrent === true ? true : undefined}
-            aria-current={button.isCurrent === true ? 'page' : undefined}
-            aria-label={button.isIconOnly === true ? button.label : undefined}
-            data-keys={button.keys?.join(' ')}
-            aria-keyshortcuts={button.keys?.join(' ')}
-            onClick={
-              button.disabled === true
-                ? undefined
-                : () => {
-                    handlers.onPress(button)
-                  }
-            }
-          >
-            {button.icon === undefined ? null : <Icon name={button.icon} />}
-            {button.isIconOnly === true ? null : button.label}
-          </button>
-        ),
+        Button: button => {
+          const maybeBinding = Slot.ofButton(button)
+          const control = (
+            <button
+              type="button"
+              className={classFor('Button', 'fk-button')}
+              disabled={button.disabled === true}
+              {...hintPropsOf(button)}
+              data-action={button.action}
+              data-variant={button.variant}
+              data-icon-only={button.isIconOnly === true ? true : undefined}
+              data-current={button.isCurrent === true ? true : undefined}
+              aria-current={button.isCurrent === true ? 'page' : undefined}
+              aria-label={button.isIconOnly === true ? button.label : undefined}
+              data-keys={button.keys?.join(' ')}
+              aria-keyshortcuts={button.keys?.join(' ')}
+              {...Option.match(maybeBinding, {
+                onNone: () => ({}),
+                onSome: binding => slotPropsOf(binding),
+              })}
+              onClick={
+                button.disabled === true
+                  ? undefined
+                  : () => {
+                      handlers.onPress(button)
+                    }
+              }
+            >
+              {button.icon === undefined ? null : <Icon name={button.icon} />}
+              {button.isIconOnly === true ? null : button.label}
+            </button>
+          )
+          return Option.match(maybeBinding, {
+            onNone: () => control,
+            onSome: () => (
+              <SlotHost
+                hold={button.hold}
+                onPress={press => {
+                  handlers.onPress(pressOf(press, button.label))
+                }}
+              >
+                {control}
+              </SlotHost>
+            ),
+          })
+        },
         TextInput: input => {
           if (input.action !== undefined || input.clearAction !== undefined) {
             return (

@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 
+import * as Slot from '../behavior/slot.js'
 import {
   type Html,
   OnCustomEvent,
@@ -24,7 +25,6 @@ import {
   againEventName,
   itemMenuMount,
   leftPlayheadEventName,
-  listMount,
   passageMenuMount,
   seekFieldMount,
   textAgainMount,
@@ -32,6 +32,12 @@ import {
   transcriptPressEventName,
   wordMenuMount,
 } from './htmlEdge.js'
+import {
+  holdAttributesOf,
+  slotAttributesOf,
+  slotHostMount,
+  slotPressEventName,
+} from './htmlHost.js'
 import { iconGlyphs } from './icons.js'
 import { resolveLazyNode } from './lazy.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
@@ -55,11 +61,11 @@ import type {
  */
 export {
   itemMenuMount,
-  listMount,
   passageMenuMount,
   transcriptMount,
   wordMenuMount,
 } from './htmlEdge.js'
+export { slotHostMount } from './htmlHost.js'
 
 const browserKeyPlatform = (): KeyPlatform =>
   typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
@@ -195,6 +201,14 @@ export const paintHtml = <Message>(
   options: PaintHtmlOptions = {},
 ): Html => {
   const h = html<Message>()
+  const hostAttributes = (
+    attributes: ReadonlyArray<readonly [name: string, value: string]>,
+  ) => Array.map(attributes, ([name, value]) => h.Attribute(name, value))
+  const slotPresses = OnCustomEvent<Message>({
+    name: slotPressEventName,
+    f: event =>
+      typeof event.detail === 'string' ? toMessage(event.detail) : undefined,
+  })
   const leaveAttributes = (transcript: TranscriptNode) => {
     const maybeLeave =
       transcript.leaveAction === undefined
@@ -488,6 +502,15 @@ export const paintHtml = <Message>(
                     [iconGlyphs[button.icon]],
                   ),
                 ]
+          const slot = Option.match(Slot.ofButton(button), {
+            onNone: () => [],
+            onSome: binding => [
+              ...hostAttributes(slotAttributesOf(binding)),
+              ...hostAttributes(holdAttributesOf(button.hold)),
+              slotPresses,
+              h.OnMount(slotHostMount<Message>()),
+            ],
+          })
           return h.button(
             [
               h.Type('button'),
@@ -499,6 +522,7 @@ export const paintHtml = <Message>(
               ...variant,
               ...iconOnly,
               ...current,
+              ...slot,
             ],
             [...glyph, ...(button.isIconOnly === true ? [] : [button.label])],
           )
@@ -594,18 +618,20 @@ export const paintHtml = <Message>(
             [
               h.Class('fk-list'),
               h.AriaLabel(list.label),
-              ...(Array.some(list.items, item => item.menuAction !== undefined)
-                ? [h.OnMount(listMount<Message>())]
+              ...(Array.some(list.items, item =>
+                Option.isSome(Slot.ofItem(item)),
+              )
+                ? [
+                    ...hostAttributes(holdAttributesOf(list.hold)),
+                    slotPresses,
+                    h.OnMount(slotHostMount<Message>()),
+                  ]
                 : []),
             ],
             [
               ...Array.map(list.items, item => {
                 const message =
                   item.action === undefined ? undefined : toMessage(item.action)
-                const menuMessage =
-                  item.menuAction === undefined
-                    ? undefined
-                    : toMessage(item.menuAction)
                 const pressAttributes =
                   item.href === undefined
                     ? [
@@ -624,12 +650,13 @@ export const paintHtml = <Message>(
                     ...(item.isCurrent === true
                       ? [h.DataAttribute('current', 'true')]
                       : []),
-                    ...(menuMessage === undefined
-                      ? []
-                      : [
-                          h.DataAttribute('menu', 'true'),
-                          h.OnContextMenu(menuMessage),
-                        ]),
+                    ...Option.match(Slot.ofItem(item), {
+                      onNone: () => [],
+                      onSome: binding => [
+                        h.DataAttribute('menu', 'true'),
+                        ...hostAttributes(slotAttributesOf(binding)),
+                      ],
+                    }),
                   ],
                   [
                     ...Array.map(Array.fromNullishOr(item.check), check => {
@@ -781,14 +808,29 @@ export const paintHtml = <Message>(
               // press on them with one listener and sends the press event,
               // which the view answers here.
               h.DataAttribute('word-action', transcript.action),
-              ...(transcript.wordMenuAction === undefined
-                ? []
-                : [
-                    h.DataAttribute(
-                      'word-menu-action',
-                      transcript.wordMenuAction,
+              // NOTE: a word's menu is asked through the words' one binding.
+              // The second button stays with the edge's own listener, which
+              // leaves a right click on selected words to the browser; a
+              // hold is the host's, told to core's rule.
+              ...Option.match(Slot.ofWords(transcript), {
+                onNone: () => [],
+                onSome: binding => [
+                  ...Array.map(
+                    Array.filter(
+                      binding.gestures,
+                      each => each.gesture === 'PressedSecondary',
                     ),
-                  ]),
+                    each => h.DataAttribute('word-menu-action', each.press),
+                  ),
+                  ...hostAttributes(
+                    Array.filter(
+                      slotAttributesOf(binding, 'data-token'),
+                      ([name]) => name !== 'data-slot-secondary',
+                    ),
+                  ),
+                  ...hostAttributes(holdAttributesOf(transcript.hold)),
+                ],
+              }),
               OnCustomEvent<Message>({
                 name: transcriptPressEventName,
                 f: event =>
