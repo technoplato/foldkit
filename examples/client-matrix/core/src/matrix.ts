@@ -143,7 +143,6 @@ export const navigationForScreenMode = (mode: ScreenMode): Navigation =>
         counterId: 'counter-1',
         maybeMode: Option.some(
           CounterFactAlert.make({
-            detailPresentationId: 'detail-matrix-fact',
             requestId: 'fact-matrix-fact',
             status: LoadingCounterFact.make({}),
           }),
@@ -157,7 +156,6 @@ export const navigationForScreenMode = (mode: ScreenMode): Navigation =>
         maybeMode: Option.some(
           DeleteCounterConfirmation.make({
             confirmationId: 'delete-matrix-delete',
-            detailPresentationId: 'detail-matrix-delete',
           }),
         ),
         presentationId: 'detail-matrix-delete',

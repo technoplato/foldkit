@@ -330,6 +330,10 @@
       "entry": ["src/index.ts"],
       "ignoreDependencies": ["prettier"]
     },
+    "examples/index": {
+      "entry": ["server.mjs", "check.mjs", "rebuild-worker.mjs"],
+      "ignoreDependencies": ["tailwindcss"]
+    },
     "examples/replayability": {
       "ignoreDependencies": ["prettier"]
     },

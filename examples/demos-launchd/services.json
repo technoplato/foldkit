@@ -1,0 +1,162 @@
+[
+  {
+    "name": "index",
+    "port": 8789,
+    "command": "/opt/homebrew/bin/node",
+    "args": ["${HOME}/Sync/worktrees/foldkit-demos/examples/index/server.mjs"],
+    "cwd": "${HOME}/Sync/worktrees/foldkit-demos/examples/index"
+  },
+  {
+    "name": "cardboard-foldkit-demo",
+    "port": 5194,
+    "command": "${HOME}/.local/bin/foldkit-cardboard-foldkit-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "cardboard-react-demo",
+    "port": 5193,
+    "command": "${HOME}/.local/bin/foldkit-cardboard-react-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "casino-demo",
+    "port": 5220,
+    "command": "${HOME}/Library/Application Support/fnm/node-versions/v24.11.1/installation/bin/node",
+    "args": [
+      "${HOME}/Sync/worktrees/foldkit-mini/examples/casino/foldkit/node_modules/vite/bin/vite.js",
+      "preview",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "5220",
+      "--strictPort"
+    ],
+    "cwd": "${HOME}/Sync/worktrees/foldkit-mini/examples/casino/foldkit"
+  },
+  {
+    "name": "constructive-data-modeling-demo",
+    "port": 5195,
+    "command": "${HOME}/.local/bin/foldkit-constructive-data-modeling-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "counter-demo",
+    "port": 5210,
+    "command": "${HOME}/.local/bin/foldkit-counter-demo-launchd"
+  },
+  {
+    "name": "counters-demo",
+    "port": 5176,
+    "command": "${HOME}/.local/bin/foldkit-counters-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "deposit-demo",
+    "port": 5204,
+    "command": "${HOME}/.local/bin/foldkit-deposit-demo-launchd"
+  },
+  {
+    "name": "expo-demo",
+    "port": 8091,
+    "command": "${HOME}/.local/bin/foldkit-expo-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "foldkit-demo",
+    "port": 5175,
+    "command": "${HOME}/.local/bin/foldkit-foldkit-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "gate-demo",
+    "port": 5212,
+    "command": "${HOME}/.local/bin/foldkit-gate-demo-launchd"
+  },
+  {
+    "name": "ideas-demo",
+    "port": 5201,
+    "command": "${HOME}/.local/bin/foldkit-ideas-demo-launchd"
+  },
+  {
+    "name": "ingest-demo",
+    "port": 5214,
+    "command": "${HOME}/.local/bin/foldkit-ingest-demo-launchd"
+  },
+  {
+    "name": "matrix-demo",
+    "port": 5190,
+    "command": "${HOME}/.local/bin/foldkit-matrix-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "orbit-demo",
+    "port": 5203,
+    "command": "${HOME}/.local/bin/foldkit-orbit-demo-launchd"
+  },
+  {
+    "name": "puzzle-demo",
+    "port": 5209,
+    "command": "${HOME}/.local/bin/foldkit-puzzle-demo-launchd"
+  },
+  {
+    "name": "react-demo",
+    "port": 5174,
+    "command": "${HOME}/.local/bin/foldkit-react-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "settings-demo",
+    "port": 5216,
+    "command": "${HOME}/.local/bin/foldkit-settings-demo-launchd"
+  },
+  {
+    "name": "songbook-demo",
+    "port": 5211,
+    "command": "${HOME}/.local/bin/foldkit-songbook-demo-launchd"
+  },
+  {
+    "name": "transcribe-demo",
+    "port": 5202,
+    "command": "${HOME}/.local/bin/foldkit-transcribe-demo-launchd"
+  },
+  {
+    "name": "vending-demo",
+    "port": 5205,
+    "command": "${HOME}/.local/bin/foldkit-vending-demo-launchd",
+    "cwd": "${HOME}/Sync/worktrees/foldkit-demos"
+  },
+  {
+    "name": "vending-till",
+    "port": 5208,
+    "command": "${HOME}/.local/bin/foldkit-vending-till-launchd",
+    "cwd": "${HOME}/Sync/worktrees/foldkit-demos"
+  },
+  {
+    "name": "wallet-foldkit-demo",
+    "port": 5192,
+    "command": "${HOME}/.local/bin/foldkit-wallet-foldkit-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "wallet-react-demo",
+    "port": 5191,
+    "command": "${HOME}/.local/bin/foldkit-wallet-react-demo-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "wallet-testnet-server",
+    "port": 5197,
+    "command": "${HOME}/.local/bin/foldkit-wallet-testnet-server-launchd",
+    "cwd": "${HOME}/Development/foldkit"
+  },
+  {
+    "name": "world-demo",
+    "port": 5207,
+    "command": "${HOME}/.local/bin/foldkit-world-launchd",
+    "cwd": "${HOME}/Development/foldkit",
+    "env": {
+      "HOME": "${HOME}",
+      "PATH": "/opt/homebrew/bin:${HOME}/.local/bin:/usr/bin:/bin"
+    }
+  }
+]

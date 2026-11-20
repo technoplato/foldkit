@@ -1,0 +1,283 @@
+#!/opt/homebrew/bin/node
+'use strict';
+
+/**
+ * Supervisor for the hosted Foldkit demo servers (LaunchAgent
+ * com.knophy.foldkit.demos). README.md beside this file covers installing it and
+ * reloading the manifest.
+ */
+
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+
+const SCRIPT_DIR = path.dirname(fs.realpathSync(__filename));
+const CONFIG_PATH =
+  process.env.FOLDKIT_DEMOS_CONFIG || path.join(SCRIPT_DIR, 'services.json');
+const HOME = os.homedir();
+const LOG_DIR =
+  process.env.FOLDKIT_DEMOS_LOG_DIR || path.join(HOME, 'Library/Logs/foldkit');
+
+const BACKOFF_MS = [5000, 15000, 30000, 60000];
+const HEALTHY_UPTIME_MS = 60000;
+const SHUTDOWN_TIMEOUT_MS = 3000;
+
+fs.mkdirSync(LOG_DIR, { recursive: true });
+
+function log(message) {
+  process.stdout.write(`[${new Date().toISOString()}] ${message}\n`);
+}
+
+function logError(message) {
+  process.stderr.write(`[${new Date().toISOString()}] ${message}\n`);
+}
+
+function loadServices() {
+  const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+  const parsed = JSON.parse(raw, (_key, value) =>
+    typeof value === 'string' ? value.replaceAll('${HOME}', HOME) : value,
+  );
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Expected array in ${CONFIG_PATH}`);
+  }
+  return parsed;
+}
+
+function serviceKey(service) {
+  return JSON.stringify({
+    command: service.command,
+    args: service.args || [],
+    cwd: service.cwd || null,
+    env: service.env || null,
+    outLog: service.outLog || null,
+    errLog: service.errLog || null,
+  });
+}
+
+function killProcessGroup(pid, signal) {
+  try {
+    process.kill(-pid, signal);
+  } catch (error) {
+    if (error && error.code !== 'ESRCH') {
+      try {
+        process.kill(pid, signal);
+      } catch (innerError) {
+        if (innerError && innerError.code !== 'ESRCH') {
+          logError(`Failed to send ${signal} to pid ${pid}: ${innerError.message}`);
+        }
+      }
+    }
+  }
+}
+
+/** @type {Map<string, { service: any, specKey: string, child: any, startedAt: number, restartCount: number, restartTimer: any, stopping: boolean }>} */
+const managed = new Map();
+let isShuttingDown = false;
+
+function startService(entry) {
+  if (isShuttingDown || entry.stopping) {
+    return;
+  }
+
+  const { service } = entry;
+  const outPath = service.outLog || path.join(LOG_DIR, `${service.name}.out.log`);
+  const errPath = service.errLog || path.join(LOG_DIR, `${service.name}.err.log`);
+
+  let outFd = null;
+  let errFd = null;
+  let child;
+  try {
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.mkdirSync(path.dirname(errPath), { recursive: true });
+    outFd = fs.openSync(outPath, 'a');
+    errFd = fs.openSync(errPath, 'a');
+    child = spawn(service.command, service.args || [], {
+      cwd: service.cwd || HOME,
+      env: service.env ? { ...process.env, ...service.env } : process.env,
+      detached: true,
+      stdio: ['ignore', outFd, errFd],
+    });
+  } catch (error) {
+    logError(`[${service.name}] failed to spawn: ${error.message}`);
+    scheduleRestart(entry);
+    return;
+  } finally {
+    for (const fd of [outFd, errFd]) {
+      if (fd !== null) {
+        fs.closeSync(fd);
+      }
+    }
+  }
+
+  // NOTE: a command that cannot start (a missing file or folder) gets no pid and
+  // emits only 'error', never 'exit', so the retry is scheduled from 'error'.
+  child.on('error', (error) => {
+    logError(`[${service.name}] process error: ${error.message}`);
+    if (child.pid === undefined && entry.child === child) {
+      entry.child = null;
+      scheduleRestart(entry);
+    }
+  });
+
+  entry.child = child;
+  entry.startedAt = Date.now();
+  if (child.pid === undefined) {
+    return;
+  }
+
+  log(`[${service.name}] started (pid ${child.pid}, port ${service.port || 'n/a'})`);
+
+  child.on('exit', (code, signal) => {
+    const uptimeMs = Date.now() - entry.startedAt;
+    entry.child = null;
+
+    if (entry.stopping || isShuttingDown) {
+      log(`[${service.name}] stopped (code=${code}, signal=${signal})`);
+      return;
+    }
+
+    if (uptimeMs >= HEALTHY_UPTIME_MS) {
+      entry.restartCount = 0;
+    }
+
+    logError(
+      `[${service.name}] exited unexpectedly after ${Math.round(uptimeMs / 1000)}s (code=${code}, signal=${signal})`,
+    );
+    scheduleRestart(entry);
+  });
+}
+
+function scheduleRestart(entry) {
+  if (isShuttingDown || entry.stopping) {
+    return;
+  }
+
+  const delayMs =
+    BACKOFF_MS[Math.min(entry.restartCount, BACKOFF_MS.length - 1)];
+  entry.restartCount += 1;
+
+  log(`[${entry.service.name}] restarting in ${delayMs / 1000}s`);
+  entry.restartTimer = setTimeout(() => {
+    entry.restartTimer = null;
+    startService(entry);
+  }, delayMs);
+}
+
+function stopEntry(entry) {
+  entry.stopping = true;
+  if (entry.restartTimer) {
+    clearTimeout(entry.restartTimer);
+    entry.restartTimer = null;
+  }
+
+  const child = entry.child;
+  if (
+    !child ||
+    child.pid === undefined ||
+    child.exitCode !== null ||
+    child.signalCode !== null
+  ) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(killTimer);
+      resolve();
+    };
+
+    child.once('exit', finish);
+    killProcessGroup(child.pid, 'SIGTERM');
+
+    const killTimer = setTimeout(() => {
+      if (!settled && entry.child) {
+        logError(`[${entry.service.name}] force-killing pid ${child.pid}`);
+        killProcessGroup(child.pid, 'SIGKILL');
+      }
+      finish();
+    }, SHUTDOWN_TIMEOUT_MS);
+  });
+}
+
+async function reconcile() {
+  let services;
+  try {
+    services = loadServices();
+  } catch (error) {
+    logError(`Failed to load ${CONFIG_PATH}: ${error.message}`);
+    return;
+  }
+
+  const nextByName = new Map();
+  for (const service of services) {
+    nextByName.set(service.name, service);
+  }
+
+  const stopPromises = [];
+  for (const [name, entry] of managed.entries()) {
+    const nextService = nextByName.get(name);
+    if (!nextService || serviceKey(nextService) !== entry.specKey) {
+      managed.delete(name);
+      stopPromises.push(stopEntry(entry));
+    }
+  }
+
+  if (stopPromises.length > 0) {
+    await Promise.all(stopPromises);
+  }
+
+  for (const service of services) {
+    if (!managed.has(service.name)) {
+      const entry = {
+        service,
+        specKey: serviceKey(service),
+        child: null,
+        startedAt: 0,
+        restartCount: 0,
+        restartTimer: null,
+        stopping: false,
+      };
+      managed.set(service.name, entry);
+      startService(entry);
+    }
+  }
+}
+
+async function shutdown(signal) {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+  log(`Received ${signal}; stopping ${managed.size} services...`);
+
+  const entries = Array.from(managed.values());
+  await Promise.all(entries.map((entry) => stopEntry(entry)));
+  log('All services stopped. Exiting.');
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
+// NOTE: a second SIGHUP waits for the first reload to finish. Two reloads at once
+// would start a replacement server while the old one still holds its port.
+let reconciling = Promise.resolve();
+
+function queueReconcile() {
+  reconciling = reconciling.then(reconcile).catch((error) => {
+    logError(`Failed to apply ${CONFIG_PATH}: ${error.message}`);
+  });
+}
+
+process.on('SIGHUP', () => {
+  log('Received SIGHUP; reloading services.json');
+  queueReconcile();
+});
+
+log(`Starting foldkit-demos supervisor with config ${CONFIG_PATH}`);
+queueReconcile();

@@ -185,9 +185,22 @@ app must not be able to make a sound (Scribe #2523).
 
 ## Publishing an example
 
-Use the global `/host` skill. The origin must be a KeepAlive LaunchAgent bound
-to `127.0.0.1`. Routing is one Caddyfile site block. Do not add hostnames to
+Use the global `/host` skill. Hosted Foldkit demos run under one KeepAlive
+LaunchAgent, `com.knophy.foldkit.demos` (`examples/demos-launchd/README.md`).
+Each origin must bind to `127.0.0.1`. To add, edit, or remove a demo without
+restarting the rest, update `examples/demos-launchd/services.json` and run:
+
+```sh
+launchctl kill SIGHUP gui/$(id -u)/com.knophy.foldkit.demos
+```
+
+Routing is one Caddyfile site block. Do not add hostnames to
 `~/.cloudflared/config.yml`.
+
+A demo is published when `node examples/index/check.mjs` passes for it, not
+when its URL answers 200. The check compares the served page and script with the
+demo's build and loads the page in a headless browser
+(`examples/index/README.md`).
 
 ## Composition rubric
 

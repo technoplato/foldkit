@@ -43,9 +43,10 @@ iOS and Android captures link to the corresponding `foldkit://showcase` deep
 link. Terminal, TUI, and raw CLI cells remain capture evidence with their
 reproducible launch command.
 
-The matrix is published at `https://matrixdemo.knophy.com`. Its browser carriers
-use `https://countersdemo.knophy.com`, `https://foldkitdemo.knophy.com`, and
-`https://expodemo.knophy.com`. Native custom-scheme links require an installed
+The matrix is published at `https://matrix.pisspoursoftware.xyz`. Its browser
+carriers use `https://countersdemo.pisspoursoftware.xyz`,
+`https://foldkitdemo.pisspoursoftware.xyz`, and
+`https://expodemo.pisspoursoftware.xyz`. Native custom-scheme links require an installed
 development or production build. Expo Go does not register the Showcase's
 `foldkit` scheme.
 

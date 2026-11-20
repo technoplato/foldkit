@@ -15,10 +15,17 @@ export const carrierForClient = (
     M.withReturnType<string>(),
     M.when(
       'ReactWeb',
-      () => `https://countersdemo.knophy.com${portableUri}?presenter=a`,
+      () =>
+        `https://countersdemo.pisspoursoftware.xyz${portableUri}?presenter=a`,
     ),
-    M.when('FoldkitView', () => `https://foldkitdemo.knophy.com${portableUri}`),
-    M.when('ExpoWeb', () => `https://expodemo.knophy.com${portableUri}`),
+    M.when(
+      'FoldkitView',
+      () => `https://foldkitdemo.pisspoursoftware.xyz${portableUri}`,
+    ),
+    M.when(
+      'ExpoWeb',
+      () => `https://expodemo.pisspoursoftware.xyz${portableUri}`,
+    ),
     M.when(
       'EffectTerminal',
       () =>

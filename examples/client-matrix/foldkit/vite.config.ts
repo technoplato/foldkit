@@ -12,9 +12,12 @@ export default defineConfig({
     alias: foldkitAliases(path.resolve(__dirname, '..')),
   },
   server: {
-    allowedHosts: ['matrixdemo.knophy.com'],
+    allowedHosts: ['matrix.knophy.com', 'matrixdemo.knophy.com'],
     fs: {
       allow: ['../../../'],
     },
+  },
+  preview: {
+    allowedHosts: ['matrix.knophy.com', 'matrixdemo.knophy.com'],
   },
 })

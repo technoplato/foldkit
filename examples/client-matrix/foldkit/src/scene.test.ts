@@ -39,12 +39,12 @@ describe('Client Matrix Foldkit view', () => {
       ).toExist(),
       Scene.expect(liveFrame).toHaveAttr(
         'src',
-        'https://countersdemo.knophy.com/counters/counter-1?presenter=a',
+        'https://countersdemo.pisspoursoftware.xyz/counters/counter-1?presenter=a',
       ),
       Scene.click(Scene.role('button', { name: 'Clients as rows' })),
       Scene.expect(liveFrame).toHaveAttr(
         'src',
-        'https://countersdemo.knophy.com/counters/counter-1?presenter=a',
+        'https://countersdemo.pisspoursoftware.xyz/counters/counter-1?presenter=a',
       ),
       Scene.click(
         Scene.role('button', {
@@ -70,7 +70,7 @@ describe('Client Matrix Foldkit view', () => {
         }),
       ).toHaveAttr(
         'href',
-        'https://expodemo.knophy.com/counters/counter-1/fact',
+        'https://expodemo.pisspoursoftware.xyz/counters/counter-1/fact',
       ),
       Scene.expect(
         Scene.role('link', {
