@@ -1,9 +1,10 @@
 import { Option, Record, Schema, Stream } from 'effect'
 
 import type { ManagedResources } from '../managedResource/managedResource.js'
-import type {
-  Subscription,
-  Subscriptions,
+import {
+  type Subscription,
+  type Subscriptions,
+  shareParentModelProjection,
 } from '../subscription/subscription.js'
 
 // LIFT
@@ -98,23 +99,26 @@ const liftSubscription = <ParentModel, ChildModel>(
 export const liftEffects = <ParentModel, ChildModel>(
   child: ProgramEffects<ChildModel>,
   maybeChildOf: (model: ParentModel) => Option.Option<ChildModel>,
-): ProgramEffects<ParentModel> => ({
-  ...(child.subscriptions === undefined
-    ? {}
-    : {
-        subscriptions: Record.map(child.subscriptions, subscription =>
-          liftSubscription(subscription, maybeChildOf),
-        ),
-      }),
-  ...(child.managedResources === undefined
-    ? {}
-    : {
-        managedResources: Record.map(child.managedResources, resource => ({
-          ...resource,
-          modelToMaybeRequirements: (model: ParentModel) =>
-            Option.flatMap(maybeChildOf(model), childModel =>
-              resource.modelToMaybeRequirements(childModel),
-            ),
-        })),
-      }),
-})
+): ProgramEffects<ParentModel> => {
+  const readMaybeChild = shareParentModelProjection(maybeChildOf)
+  return {
+    ...(child.subscriptions === undefined
+      ? {}
+      : {
+          subscriptions: Record.map(child.subscriptions, subscription =>
+            liftSubscription(subscription, readMaybeChild),
+          ),
+        }),
+    ...(child.managedResources === undefined
+      ? {}
+      : {
+          managedResources: Record.map(child.managedResources, resource => ({
+            ...resource,
+            modelToMaybeRequirements: (model: ParentModel) =>
+              Option.flatMap(readMaybeChild(model), childModel =>
+                resource.modelToMaybeRequirements(childModel),
+              ),
+          })),
+        }),
+  }
+}

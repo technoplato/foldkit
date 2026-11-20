@@ -1,4 +1,4 @@
-import { type Equivalence, Record, Schema, Stream } from 'effect'
+import { type Equivalence, Predicate, Record, Schema, Stream } from 'effect'
 
 type SubscriptionBrand = {
   readonly __subscription: never
@@ -292,11 +292,40 @@ type ChildMessageOf<ChildSubscriptions> =
     : never
 
 /**
+ * Memoizes a pure parent-to-child Model projection by parent Model identity
+ * across sibling lifted Subscriptions so a lift with N entries computes the
+ * child Model once per parent Model object or function. Primitive parent
+ * Models are read directly on each call.
+ */
+export const shareParentModelProjection = <ParentModel, ChildModel>(
+  read: (parentModel: ParentModel) => ChildModel,
+): ((parentModel: ParentModel) => ChildModel) => {
+  const cache = new WeakMap<object, ChildModel>()
+
+  return parentModel => {
+    if (Predicate.isObjectKeyword(parentModel)) {
+      if (cache.has(parentModel)) {
+        return cache.get(parentModel)!
+      }
+      const childModel = read(parentModel)
+      cache.set(parentModel, childModel)
+      return childModel
+    } else {
+      return read(parentModel)
+    }
+  }
+}
+
+/**
  * Lifts a record of child Subscriptions into a parent's Model and Message
  * context, applying a Model accessor and a Message wrapper uniformly to
  * every entry. Per-entry dependency types, schemas, and `keepAliveEquivalence`
  * settings are preserved; each lifted entry's variant (with or without
  * `readDependencies`) matches its source entry's.
+ *
+ * Entries that read the same parent Model object or function share one
+ * `toChildModel` result. Primitive parent Models are read separately for each
+ * entry. Keep `toChildModel` a pure projection of the parent Model.
  */
 export const lift =
   <
@@ -322,11 +351,13 @@ export const lift =
     >
       ? Subscription<ParentModel, ParentMessage, Dependencies, Services>
       : never
-  } =>
+  } => {
+    const readChildModel = shareParentModelProjection(config.toChildModel)
+
     /* eslint-disable @typescript-eslint/consistent-type-assertions */
-    Record.map(subscriptions, subscription => {
+    return Record.map(subscriptions, subscription => {
       const modelToDependencies = (parentModel: ParentModel) =>
-        subscription.modelToDependencies(config.toChildModel(parentModel))
+        subscription.modelToDependencies(readChildModel(parentModel))
 
       // NOTE: The child says which of its own Messages a newer one makes
       // pointless. The parent's queue holds the wrapped Messages, so each
@@ -384,4 +415,5 @@ export const lift =
           : { source: subscription.source }),
       }
     }) as any
+  }
 /* eslint-enable @typescript-eslint/consistent-type-assertions */
