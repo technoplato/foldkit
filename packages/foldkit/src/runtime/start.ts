@@ -15,6 +15,7 @@ import {
 } from 'effect'
 
 import type { Ports } from '../port/port.js'
+import { type Host, print } from '../processor/host.js'
 import {
   hydrateFromSynced,
   projectSynced,
@@ -38,7 +39,7 @@ import {
 } from '../synchronization/synchronization.js'
 import * as LocalSnapshot from './localSnapshot.js'
 import type { LocalSnapshotStore } from './localSnapshot.js'
-import { fromSync } from './programJournal.js'
+import { clientHostOf, fromSync } from './programJournal.js'
 import type {
   ProgramRuntime,
   ProgramRuntimeObserver,
@@ -183,6 +184,7 @@ const fillWriteTime = (
   processor: string,
   now: number,
   programVersion: number,
+  maybeClient: Option.Option<Host>,
 ): SyncWrite => {
   const messageRow = asRecord(message)
   const existingId = readRowString(messageRow, 'id')
@@ -205,6 +207,10 @@ const fillWriteTime = (
       programVersion,
       from: processor,
       createdAtMs: now,
+      ...Option.match(maybeClient, {
+        onNone: () => ({}),
+        onSome: client => ({ client: print(client) }),
+      }),
     },
   }
 }
@@ -1075,7 +1081,10 @@ export function start<
       })
     }
 
-    const persist = (message: Message): Effect.Effect<void> =>
+    const persist = (
+      message: Message,
+      maybeClient: Option.Option<Host>,
+    ): Effect.Effect<void> =>
       Effect.gen(function* () {
         if (!isChildMessage(message) || isOutboxFrozen) {
           return
@@ -1127,6 +1136,7 @@ export function start<
           engine.processor,
           stampTime(),
           program.of.version,
+          maybeClient,
         )
         rememberRow(write.message)
         const writeRowId = idOfRow(write.message)
@@ -2058,7 +2068,7 @@ export function start<
       }
       if (written !== undefined) {
         Effect.runFork(
-          persist(transition.message).pipe(
+          persist(transition.message, clientHostOf(transition.source)).pipe(
             Effect.ensuring(Deferred.succeed(written, undefined)),
           ),
         )

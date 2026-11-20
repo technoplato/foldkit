@@ -186,6 +186,37 @@ describe('Runtime.startHandle provenance', () => {
     ])
   })
 
+  it('writes on the log row the client a Message was sent for, and nothing for its own', async () => {
+    const engine = Memory({ processor: 'cli-fdb5a3a8' })
+    const handle = startHandle({
+      program: SyncedCounter,
+      sync: engine,
+      host: Host.Cli(),
+    })
+    await vi.waitFor(() => {
+      expect(handle.readModel()._tag).toBe('Ready')
+    })
+    handle.send(Increment())
+    handle.onBehalfOf(Host.Tui(), () => {
+      handle.send(Increment())
+    })
+    handle.onBehalfOf(Host.Cli(), () => {
+      handle.send(Increment())
+    })
+    await vi.waitFor(() => {
+      expect(engine.store.messages).toHaveLength(3)
+    })
+    await handle.stop()
+
+    expect(
+      engine.store.messages.map(row =>
+        typeof row === 'object' && row !== null && 'client' in row
+          ? row.client
+          : undefined,
+      ),
+    ).toStrictEqual([undefined, 'tui', 'cli'])
+  })
+
   it('runs the Commands a Message returned under that Message’s operation', async () => {
     const { handle, seen, spans } = watchedHandle()
     await vi.waitFor(() => {

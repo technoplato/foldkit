@@ -756,6 +756,13 @@ const pathWordOf = (word: string): string =>
     ? `${new URL(word).pathname}${new URL(word).search}`
     : word
 
+/**
+ * Topics a player serves beside the screen and the words, when it holds
+ * them: `log`, every Message its library's log takes, as `books tail`
+ * prints them, for a made-up library whose log lives only in the player.
+ */
+export type BooksPlayerTopics = Readonly<{ log?: CliFollowing }>
+
 /** The Books player a daemon serves, and the moment `books stop` asks it to end. */
 export type BooksPlayer = Readonly<{
   surface: CliDaemonSurface<SyncedBooksModel, SyncedBooksMessage>
@@ -792,6 +799,7 @@ export const makeBooksPlayer = (
   writes: LibraryWrites,
   reporting: TerminalPaintReporting = {},
   build = '',
+  topics: BooksPlayerTopics = {},
 ): BooksPlayer => {
   const programSurface = programCliSurface(bound, booksCommandName)
   const terminal = makeProgramTerminalView(
@@ -989,6 +997,7 @@ export const makeBooksPlayer = (
       inkOf: inkOf(bound),
     }),
     words: followWords(bound),
+    ...(topics.log === undefined ? {} : { log: topics.log }),
   }
   return {
     stopped: Deferred.await(stopped),

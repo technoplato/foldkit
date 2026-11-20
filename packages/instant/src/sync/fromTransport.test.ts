@@ -62,6 +62,43 @@ describe('fromTransport occupancy', () => {
   })
 })
 
+describe('fromTransport write', () => {
+  it('stores a row that names the client it was sent for with the log’s own fields only', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const transport = yield* makeMemorySnapshotLogTransport()
+        const engine = fromTransport(transport, 'cli-fdb5a3a8')
+        yield* engine.write({
+          message: {
+            createdAtMs: 1,
+            from: 'cli-fdb5a3a8',
+            id: 'm1',
+            tag: 'Pause',
+            programVersion: 1,
+            client: 'tui',
+          },
+          snapshot: InstantCountSnapshotRecord.make({
+            asOf: 'cli-fdb5a3a8',
+            at: 1,
+            id: countSnapshotId,
+            value: 0,
+          }),
+        })
+        const state = yield* engine.read()
+        expect(state.messages).toStrictEqual([
+          {
+            createdAtMs: 1,
+            from: 'cli-fdb5a3a8',
+            id: 'm1',
+            tag: 'Pause',
+            programVersion: 1,
+          },
+        ])
+      }),
+    )
+  })
+})
+
 describe('fromTransport subscribe', () => {
   it('enqueues each Message once across a 200-write burst, not the triangular replay', async () => {
     await Effect.runPromise(

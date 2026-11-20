@@ -5,14 +5,16 @@ import {
   Option,
   Order,
   Predicate,
+  Queue,
   Record,
   Schema as S,
   Scope,
+  Stream,
   pipe,
 } from 'effect'
 
 import { titleOf } from '../catalog/catalog.js'
-import { fromLabelOf } from '../processor/host.js'
+import { fromLabelOf, hostOfFrom, labelOf } from '../processor/host.js'
 import {
   type SyncEngine,
   readRowNumber,
@@ -66,26 +68,34 @@ const describe = (message: unknown): string => {
   return Array.join([titleOf(String(message._tag)), ...fields], '  ')
 }
 
+const clientLabelOf = (row: unknown): Option.Option<string> =>
+  Option.map(Option.flatMap(readRowString(row, 'client'), hostOfFrom), labelOf)
+
 /**
- * One log row as a tail line that fits 80 columns: when it landed, which
- * app wrote it, that app's instance, and the Message as words with its
- * fields. A row the Program cannot read shows its raw tag.
+ * One log row as a tail line that fits 80 columns: when it landed, the
+ * client it was pressed on, the instance of the Processor that wrote it,
+ * and the Message as words with its fields. The client is the one the row
+ * names when it was sent on behalf of a client on another Host, such as a
+ * `books tui` view whose keys the CLI daemon sends, and otherwise the
+ * Processor's own Host. A row the Program cannot read shows its raw tag.
  *
  * @example
  * ```typescript
  * formatTailRow(SyncedCounter.message, row)
  * // '00:53:05  React         ad55df2e  Increment'
  * // '00:53:09  CLI           4f2a9c1e  Changed action menu query  query "re"'
- * // '00:53:12  CLI           4f2a9c1e  Got counter message  counterId 2  message Increment'
+ * // '00:53:12  TUI           4f2a9c1e  Moved action menu focus  move "Next"'
  * ```
  */
 export const formatTailRow = (
   messageSchema: S.Decoder<unknown>,
   row: unknown,
 ): ReadonlyArray<string> => {
-  const { app, instance } = fromLabelOf(
+  const writer = fromLabelOf(
     Option.getOrElse(readRowString(row, 'from'), () => ''),
   )
+  const app = Option.getOrElse(clientLabelOf(row), () => writer.app)
+  const { instance } = writer
   const time = Option.match(readRowNumber(row, 'createdAtMs'), {
     onNone: () => '',
     onSome: clockOf,
@@ -124,10 +134,15 @@ export const runProgramTail = (
   engine: SyncEngine,
   messageSchema: S.Decoder<unknown>,
   write: (line: string) => void,
+  startingRows: ReadonlyArray<unknown> = [],
 ): Effect.Effect<void, never, Scope.Scope> =>
   Effect.gen(function* () {
-    const seen = new Set<string>()
-    const pending: Array<unknown> = []
+    const seen = new Set<string>(
+      Array.map(startingRows, row =>
+        Option.getOrElse(readRowString(row, 'id'), () => ''),
+      ),
+    )
+    const pending: Array<unknown> = [...startingRows]
     let isSettled = false
     const writeRow = (row: unknown): void => {
       Array.forEach(formatTailRow(messageSchema, row), write)
@@ -154,3 +169,39 @@ export const runProgramTail = (
       writeRow,
     )
   })
+
+/**
+ * {@link runProgramTail} as a Stream of its lines, for a Background
+ * Processor to serve as a topic a view follows, such as the log of a
+ * made-up library that lives only in the processor that holds it. The
+ * last ten come from the rows the engine holds when the view connects,
+ * since an engine's live feed may start with none of them.
+ *
+ * @example
+ * ```typescript
+ * const followings = { log: () => followProgramTail(engine, SyncedCounter.message) }
+ * // books tail on a made-up library:
+ * // 00:53:06  TUI           9c1e4f2a  Opened action menu
+ * ```
+ */
+export const followProgramTail = (
+  engine: SyncEngine,
+  messageSchema: S.Decoder<unknown>,
+): Stream.Stream<string> =>
+  Stream.callback<string>(queue =>
+    Effect.flatMap(
+      Effect.orElseSucceed(
+        Effect.map(engine.read(), read => read.messages),
+        () => [],
+      ),
+      startingRows =>
+        runProgramTail(
+          engine,
+          messageSchema,
+          line => {
+            Queue.offerUnsafe(queue, line)
+          },
+          startingRows,
+        ),
+    ),
+  )

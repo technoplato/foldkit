@@ -45,6 +45,23 @@ export const madeUpContrastOf = (
   env['BOOKS_MADE_UP_CONTRAST']?.trim() === 'More' ? 'More' : 'Standard'
 
 /**
+ * How long the made-up shelf is, from `BOOKS_MADE_UP_SHELF`: `Long`, 65
+ * titles with one of about 16 hours in 134 chapters and one whose words
+ * run past the first hour, for seeing a terminal at a real library's size,
+ * or the usual three short titles.
+ *
+ * @example
+ * ```typescript
+ * madeUpShelfOf({ BOOKS_MADE_UP_SHELF: 'Long' }) // 'Long'
+ * madeUpShelfOf({}) // 'Three'
+ * ```
+ */
+export const madeUpShelfOf = (
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): 'Three' | 'Long' =>
+  env['BOOKS_MADE_UP_SHELF']?.trim() === 'Long' ? 'Long' : 'Three'
+
+/**
  * Whether the made-up library is the one session every device shares,
  * from `BOOKS_MADE_UP_SESSION=shared`: a terminal, a browser tab and a
  * phone that all ask for it can be watched moving together. Without it a

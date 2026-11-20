@@ -478,6 +478,22 @@ export const fromClient = (
     ...(actionName === undefined ? {} : { actionName }),
   })
 
+/**
+ * The Host of the client a Message was sent for, when it was sent on
+ * behalf of one, such as `Tui` for a key a `books tui` view sent to the
+ * CLI daemon that holds the Program. None for any other source.
+ *
+ * @example
+ * ```typescript
+ * clientHostOf(fromClient(Processor.Host.Tui())) // Some({ _tag: 'Tui' })
+ * clientHostOf(fromHost()) // None
+ * ```
+ */
+export const clientHostOf = (source: TransitionSource): Option.Option<Host> =>
+  source._tag === 'Host'
+    ? Option.fromNullishOr(source.clientHost)
+    : Option.none()
+
 /** Constructs Command provenance for a Message. */
 export const fromCommand = (name: string): TransitionSource =>
   CommandTransitionSource.make({ name })

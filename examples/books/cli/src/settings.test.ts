@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
-import { isMadeUpSessionShared, madeUpNameOf } from './settings.js'
+import {
+  isMadeUpSessionShared,
+  madeUpNameOf,
+  madeUpShelfOf,
+} from './settings.js'
+
+describe('how long the made-up shelf is', () => {
+  it('is the long shelf only when the environment names it', () => {
+    expect(madeUpShelfOf({ BOOKS_MADE_UP_SHELF: 'Long' })).toBe('Long')
+    expect(madeUpShelfOf({ BOOKS_MADE_UP_SHELF: 'long' })).toBe('Three')
+    expect(madeUpShelfOf({})).toBe('Three')
+  })
+})
 
 describe('the made-up library as one session on every device', () => {
   it('is shared only when the environment asks for it by name', () => {

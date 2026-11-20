@@ -19,6 +19,7 @@
  * `foldkit telemetry books`.
  */
 import {
+  MessageWire,
   SyncedBooks,
   bindBooks,
   newProcessorInstance,
@@ -27,9 +28,10 @@ import {
   startMadeUpBooks,
   whenLibraryOpened,
 } from 'books-core-example'
-import { Duration, Effect } from 'effect'
-import { Interaction, Processor, Telemetry } from 'foldkit'
+import { Duration, Effect, Option } from 'effect'
+import { Interaction, Processor, Runtime, Telemetry } from 'foldkit'
 import {
+  followProgramTail,
   listenBackgroundProcessor,
   terminalSystemAppearance,
 } from 'foldkit/cli'
@@ -54,6 +56,7 @@ import {
   isMadeUpSessionShared,
   madeUpContrastOf,
   madeUpNameOf,
+  madeUpShelfOf,
 } from './settings.js'
 import { signInFromEnv } from './signIn.js'
 
@@ -86,6 +89,21 @@ const serve = Effect.gen(function* () {
     })
   }
   const writes = trackLibraryWrites()
+  // NOTE: The made-up library's log lives in this process, so this player
+  // serves it to `books tail` as the `log` topic. A real library's log is
+  // read from Instant by `books tail` itself.
+  const maybeMadeUpEngine = isMadeUp
+    ? Option.some(
+        isMadeUpSessionShared()
+          ? sharedMadeUpSession({
+              host: Processor.Host.Cli(),
+              instance: newProcessorInstance(),
+            })
+          : Runtime.Memory({
+              processor: `${Processor.Host.print(Processor.Host.Cli())}-${newProcessorInstance()}`,
+            }),
+      )
+    : Option.none()
   const handle =
     signIn === undefined
       ? yield* Effect.promise(() =>
@@ -93,14 +111,11 @@ const serve = Effect.gen(function* () {
             host: Processor.Host.Cli(),
             library: writes.wrap,
             resources: terminalSystemAppearance(Effect.sync(madeUpContrastOf)),
-            ...(isMadeUpSessionShared()
-              ? {
-                  sync: sharedMadeUpSession({
-                    host: Processor.Host.Cli(),
-                    instance: newProcessorInstance(),
-                  }),
-                }
-              : {}),
+            shelf: madeUpShelfOf(),
+            ...Option.match(maybeMadeUpEngine, {
+              onNone: () => ({}),
+              onSome: sync => ({ sync }),
+            }),
           }),
         )
       : startBooks(signIn.signedIn, {
@@ -136,6 +151,12 @@ const serve = Effect.gen(function* () {
     writes,
     { onPainted: telemetry.recordRendered },
     builtAtStart,
+    Option.match(maybeMadeUpEngine, {
+      onNone: () => ({}),
+      onSome: engine => ({
+        log: () => followProgramTail(engine, MessageWire),
+      }),
+    }),
   )
   return yield* listenBackgroundProcessor({
     socketPath,

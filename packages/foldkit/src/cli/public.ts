@@ -76,7 +76,7 @@ export {
   readSystemContrast,
   terminalSystemAppearance,
 } from './systemAppearance.js'
-export { formatTailRow, runProgramTail } from './tail.js'
+export { followProgramTail, formatTailRow, runProgramTail } from './tail.js'
 export { columnRow, terminalWidth, underColumn, wrapWords } from './layout.js'
 
 export * from './backgroundProcessor.js'

@@ -34,7 +34,11 @@ import { fileURLToPath } from 'node:url'
 
 import type { viewDeclared } from './declared.js'
 import { listAudioDevices, paintAudioDevices } from './devices.js'
-import { booksCommandName, booksPlayerSocketPath } from './settings.js'
+import {
+  booksCommandName,
+  booksPlayerSocketPath,
+  madeUpNameOf,
+} from './settings.js'
 import {
   askPlayer,
   followPlayer,
@@ -164,8 +168,14 @@ const answer: ViewHandlers = {
     await runWatch()
   },
   Tail: async () => {
-    const { runTail } = await import('./inProcess.js')
-    await runTail()
+    // NOTE: A made-up library's log lives only in its player, so its
+    // tail follows the player's log, a line for each Message.
+    if (madeUpNameOf() === undefined) {
+      const { runTail } = await import('./inProcess.js')
+      await runTail()
+    } else {
+      await followPlayer({ topic: 'log', flags: {} }, false)
+    }
   },
 }
 
