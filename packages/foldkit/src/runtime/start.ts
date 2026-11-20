@@ -68,7 +68,30 @@ export type SyncStartProgram<
       Readonly<{ synchronization?: ProgramSynchronization<any, any> }>
     snapshot: S.Top
     message: S.Top
+    foldRevision?: string
   }>
+
+/**
+ * Policy knobs for the shared 4-slot snapshot ring. Production defaults work
+ * out of the box; tests override stride, jitter, and audit rate for
+ * deterministic fast runs.
+ */
+export type SharedSnapshotPolicy = Readonly<{
+  /** Ring slot stride in rows (`slot = Math.floor(count / stride) % 4`). Default `50`. */
+  stride?: number
+  /** Minimum new rows beyond the highest known shared snapshot before publishing. Default `50`. */
+  minDelta?: number
+  /** Minimum interval in ms between publishes from one Processor. Default `30_000`. */
+  minIntervalMs?: number
+  /** Maximum random jitter in ms before checking the ring and publishing. Default `5_000`. */
+  jitterMs?: number
+  /** Fraction (`0..1`) of cold boots from a shared snapshot that run a background audit. Default `0.05`. */
+  auditSampleRate?: number
+  /** Random source (`0..1`) for jitter and audit sampling. Default `Math.random`. */
+  random?: () => number
+  /** Disables shared snapshot reads and writes for this runtime. */
+  isDisabled?: boolean
+}>
 
 /**
  * Runtime.start options. Engine is a Host argument. The Program stays pure.
@@ -101,7 +124,8 @@ export type StartConfig<
   resources?: Layer.Layer<Resources>
   policy?: SessionPolicy
   clock?: () => number
-  localSnapshot?: LocalSnapshotStore
+  localSnapshot?: LocalSnapshotStore | 'Disabled'
+  sharedSnapshot?: SharedSnapshotPolicy
   observers?: ReadonlyArray<ProgramRuntimeObserver<Model, Message>>
 }>
 
@@ -389,6 +413,9 @@ export function start<
     let isLogComplete = false
     const idsPastCursor = new Set<string>()
     let isLocalSnapshotStale = false
+    let isSaveBlocked = false
+    let isOutboxFrozen = false
+    let isAuthChangedTripped = false
     let isLogRead = false
     const unconfirmedIds = new Set<string>()
     let isReadingWholeLog = false
@@ -404,6 +431,50 @@ export function start<
       id: program.of.id,
       version: program.of.version,
       Model: program.of.Model,
+      ...(program.foldRevision === undefined
+        ? {}
+        : { foldRevision: program.foldRevision }),
+    }
+    const sharedPolicy = config.sharedSnapshot ?? {}
+    const sharedRingSlots = 4
+    const sharedStride = Math.max(1, sharedPolicy.stride ?? 50)
+    const sharedMinDelta = Math.max(1, sharedPolicy.minDelta ?? 50)
+    const sharedMinIntervalMs = Math.max(0, sharedPolicy.minIntervalMs ?? 30_000)
+    const sharedJitterMs = Math.max(0, sharedPolicy.jitterMs ?? 5_000)
+    const sharedAuditSampleRate = Math.min(
+      1,
+      Math.max(0, sharedPolicy.auditSampleRate ?? 0.05),
+    )
+    const randomSource = sharedPolicy.random ?? Math.random
+    let highestKnownSharedCount = 0
+    let lastSharedPublishAtMs: number | undefined
+    let isPublishingSharedSnapshot = false
+
+    const causeTextOf = (error: unknown): string => {
+      if (error instanceof Error && error.message !== '') {
+        return error.message
+      }
+      if (Predicate.isString(error) && error !== '') {
+        return error
+      }
+      return 'Local snapshot operation failed.'
+    }
+
+    const isTerminalWriteError = (error: SyncTransportError): boolean =>
+      error.operation === 'AuthChanged' || error.isTerminal === true
+
+    const clearConfirmedPastCursor = (
+      copiedBeforeRead: ReadonlySet<string>,
+      returnedRows: ReadonlyArray<unknown>,
+    ): void => {
+      for (const row of returnedRows) {
+        idsPastCursor.delete(idOfRow(row))
+      }
+      for (const id of copiedBeforeRead) {
+        if (!unconfirmedIds.has(id)) {
+          idsPastCursor.delete(id)
+        }
+      }
     }
 
     // NOTE: What this runtime does with its engine is told to whoever
@@ -448,6 +519,33 @@ export function start<
           }),
     })
     yield* runtime.initialization
+
+    const maybeSnapshotScope: Option.Option<LocalSnapshot.LocalSnapshotScope> =
+      engine.snapshotScope === undefined
+        ? Option.none()
+        : yield* engine.snapshotScope.pipe(
+            Effect.catchCause(() =>
+              Effect.succeed(Option.none<LocalSnapshot.LocalSnapshotScope>()),
+            ),
+          )
+
+    const maybeLocalSnapshotStore: Option.Option<LocalSnapshotStore> =
+      config.localSnapshot === 'Disabled'
+        ? Option.none()
+        : config.localSnapshot !== undefined
+          ? Option.some(config.localSnapshot)
+          : engine.localSnapshot === undefined
+            ? Option.none()
+            : yield* engine.localSnapshot.pipe(
+                Effect.catchCause(cause => {
+                  traceSync({
+                    _tag: 'FailedLocalSnapshot',
+                    operation: 'Load',
+                    cause: causeTextOf(cause),
+                  })
+                  return Effect.succeed(Option.none<LocalSnapshotStore>())
+                }),
+              )
 
     const tagOfMessage = (message: unknown): string =>
       Predicate.hasProperty(message, '_tag') && typeof message._tag === 'string'
@@ -703,6 +801,9 @@ export function start<
      */
     const saveLocalState = (store: LocalSnapshotStore): Effect.Effect<void> =>
       Effect.suspend(() => {
+        if (isSaveBlocked) {
+          return Effect.void
+        }
         isLocalSnapshotStale = false
         const entries = Array.filter(
           orderedRows(),
@@ -729,23 +830,90 @@ export function start<
             savedSnapshots = snapshots
             bases = Array.map(snapshots, baseOf)
             return Option.match(
-              LocalSnapshot.encode(snapshotProgram, {
-                snapshots,
-                rows: Array.filter(
-                  Array.map(entries, entry => entry.row),
-                  row =>
-                    idsPastCursor.has(idOfRow(row)) ||
-                    !LocalSnapshot.isAtOrBefore(
-                      row,
-                      Array.headNonEmpty(snapshots).watermark.position,
+              LocalSnapshot.encode(
+                snapshotProgram,
+                {
+                  snapshots,
+                  rows: Array.filter(
+                    Array.map(entries, entry => entry.row),
+                    row =>
+                      idsPastCursor.has(idOfRow(row)) ||
+                      !LocalSnapshot.isAtOrBefore(
+                        row,
+                        Array.headNonEmpty(snapshots).watermark.position,
+                      ),
+                  ),
+                  maybeCursor,
+                },
+                Option.getOrUndefined(maybeSnapshotScope),
+              ),
+              {
+                onNone: () => Effect.void,
+                onSome: encoded =>
+                  store.save(encoded).pipe(
+                    Effect.tap(() =>
+                      Effect.sync(() => {
+                        traceSync({ _tag: 'SavedLocalSnapshot' })
+                      }),
                     ),
-                ),
-                maybeCursor,
-              }),
-              { onNone: () => Effect.void, onSome: store.save },
+                    Effect.catchCause(cause =>
+                      Effect.sync(() => {
+                        traceSync({
+                          _tag: 'FailedLocalSnapshot',
+                          operation: 'Save',
+                          cause: causeTextOf(cause),
+                        })
+                      }),
+                    ),
+                  ),
+              },
             )
           },
         })
+      })
+
+    const tripAuthChanged = (reason: string): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        if (isAuthChangedTripped) {
+          return
+        }
+        isAuthChangedTripped = true
+        isSaveBlocked = true
+        isOutboxFrozen = true
+        outbox.length = 0
+        traceSync({ _tag: 'AuthChanged', cause: reason })
+        if (Option.isSome(maybeLocalSnapshotStore)) {
+          const remove = maybeLocalSnapshotStore.value.remove
+          if (remove !== undefined) {
+            yield* remove.pipe(
+              Effect.tap(() =>
+                Effect.sync(() => {
+                  traceSync({ _tag: 'RemovedLocalSnapshot', reason })
+                }),
+              ),
+              Effect.catchCause(cause =>
+                Effect.sync(() => {
+                  traceSync({
+                    _tag: 'FailedLocalSnapshot',
+                    operation: 'Remove',
+                    cause: causeTextOf(cause),
+                  })
+                }),
+              ),
+            )
+          }
+        }
+        sendFromSync(
+          asMessage<Message>(
+            transportFailed({
+              what: 'The signed-in account changed.',
+              meaning:
+                'This Processor stopped saving and syncing so another account cannot mix with this session.',
+              fix: 'Reload or sign back in to start a session for the current account.',
+              cause: reason,
+            }),
+          ),
+        )
       })
 
     /**
@@ -755,6 +923,7 @@ export function start<
      * no longer proves is dropped. True when the read succeeded.
      */
     const readWholeLog = Effect.gen(function* () {
+      const pastCursorBeforeRead = new Set(idsPastCursor)
       const read =
         engine.readSince === undefined
           ? Effect.map(engine.read(), result => ({
@@ -771,7 +940,7 @@ export function start<
       }
       if (Option.isSome(result.success.maybeCursor)) {
         maybeCursor = result.success.maybeCursor
-        idsPastCursor.clear()
+        clearConfirmedPastCursor(pastCursorBeforeRead, result.success.messages)
       }
       isLogComplete = true
       isLogRead = true
@@ -819,7 +988,7 @@ export function start<
 
     const persist = (message: Message): Effect.Effect<void> =>
       Effect.gen(function* () {
-        if (!isChildMessage(message)) {
+        if (!isChildMessage(message) || isOutboxFrozen) {
           return
         }
         const model = runtime.readModel() as SyncedModel<unknown, Message>
@@ -895,13 +1064,17 @@ export function start<
         const writeStartedAt = clock()
         const written = yield* engine.write(write).pipe(Effect.result)
         if (Result.isFailure(written)) {
-          outbox.push(write)
-          lastWrite = Option.some({ link: 'queued' })
           traceSync({
             _tag: 'FailedToWriteRow',
             ...wroteRow,
             cause: written.failure.cause,
           })
+          if (isTerminalWriteError(written.failure)) {
+            yield* tripAuthChanged(written.failure.cause)
+            return
+          }
+          outbox.push(write)
+          lastWrite = Option.some({ link: 'queued' })
           sendFromSync(
             asMessage<Message>(
               transportFailed({
@@ -929,7 +1102,7 @@ export function start<
 
     const flushOutbox = (): Effect.Effect<void> =>
       Effect.gen(function* () {
-        if (Array.isArrayEmpty(outbox)) {
+        if (isOutboxFrozen || Array.isArrayEmpty(outbox)) {
           return
         }
         const pending = outbox.splice(0, outbox.length)
@@ -937,6 +1110,10 @@ export function start<
           const retryStartedAt = clock()
           const written = yield* engine.write(write).pipe(Effect.result)
           if (Result.isFailure(written)) {
+            if (isTerminalWriteError(written.failure)) {
+              yield* tripAuthChanged(written.failure.cause)
+              return
+            }
             outbox.unshift(write)
             lastWrite = Option.some({ link: 'queued' })
             return
@@ -953,12 +1130,50 @@ export function start<
         }
       })
 
-    const maybeLocalState =
-      config.localSnapshot === undefined
-        ? Option.none<LocalSnapshot.LocalState<ChildModel>>()
-        : Option.flatMap(yield* config.localSnapshot.load, text =>
-            LocalSnapshot.decode(snapshotProgram, text),
-          )
+    const maybeLocalState: Option.Option<LocalSnapshot.LocalState<ChildModel>> =
+      yield* Option.match(maybeLocalSnapshotStore, {
+        onNone: () =>
+          Effect.succeed(Option.none<LocalSnapshot.LocalState<ChildModel>>()),
+        onSome: store =>
+          store.load.pipe(
+            Effect.map(maybeText =>
+              Option.match(maybeText, {
+                onNone: () => {
+                  traceSync({ _tag: 'LoadedLocalSnapshot', hit: false })
+                  return Option.none<LocalSnapshot.LocalState<ChildModel>>()
+                },
+                onSome: text => {
+                  const decoded = LocalSnapshot.decode(
+                    snapshotProgram,
+                    text,
+                    Option.getOrUndefined(maybeSnapshotScope),
+                  )
+                  if (Option.isSome(decoded)) {
+                    traceSync({ _tag: 'LoadedLocalSnapshot', hit: true })
+                  } else {
+                    traceSync({
+                      _tag: 'FailedLocalSnapshot',
+                      operation: 'Decode',
+                      cause:
+                        'Stored local snapshot did not match Program, version, revision, or scope.',
+                    })
+                  }
+                  return decoded
+                },
+              }),
+            ),
+            Effect.catchCause(cause =>
+              Effect.sync(() => {
+                traceSync({
+                  _tag: 'FailedLocalSnapshot',
+                  operation: 'Load',
+                  cause: causeTextOf(cause),
+                })
+                return Option.none<LocalSnapshot.LocalState<ChildModel>>()
+              }),
+            ),
+          ),
+      })
     if (Option.isSome(maybeLocalState)) {
       const local = maybeLocalState.value
       for (const row of local.rows) {
@@ -1046,7 +1261,10 @@ export function start<
      * last applied one landed late, so the log is refolded from the
      * snapshot before them; newer rows are applied in log order.
      */
-    const adoptPage = (page: SyncPage): void => {
+    const adoptPage = (
+      page: SyncPage,
+      pastCursorBeforeRead: ReadonlySet<string>,
+    ): void => {
       const unseen = pipe(
         page.messages,
         Array.filter(
@@ -1065,7 +1283,7 @@ export function start<
       }
       if (Option.isSome(page.maybeCursor)) {
         maybeCursor = page.maybeCursor
-        idsPastCursor.clear()
+        clearConfirmedPastCursor(pastCursorBeforeRead, page.messages)
       }
       if (isAnyLate) {
         Array.forEach(
@@ -1089,7 +1307,355 @@ export function start<
           }),
         )
       }
+      scheduleSharedSnapshotPublish()
     }
+
+    const runtimeScope = yield* Scope.Scope
+
+    type LoadedSharedSnapshot = Readonly<{
+      slot: number
+      entry: LocalSnapshot.SharedSnapshotEntry<ChildModel>
+    }>
+
+    const maybeLoadedSharedRef: { current: Option.Option<LoadedSharedSnapshot> } =
+      { current: Option.none() }
+
+    const modelJsonEquals = (left: ChildModel, right: ChildModel): boolean => {
+      const ModelJson = S.toCodecJson(program.of.Model)
+      return pipe(
+        Result.try(
+          () =>
+            JSON.stringify(S.encodeSync(ModelJson)(left)) ===
+            JSON.stringify(S.encodeSync(ModelJson)(right)),
+        ),
+        Result.getOrElse(() => false),
+      )
+    }
+
+    const runSharedSnapshotPublish = (
+      candidate: LocalSnapshot.SharedSnapshotEntry<ChildModel>,
+      force: boolean,
+    ): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        const foldRevision = program.foldRevision
+        const writeShared = engine.writeSharedSnapshot
+        if (foldRevision === undefined || writeShared === undefined) {
+          return
+        }
+        if (!force && sharedJitterMs > 0) {
+          const delayMs = Math.floor(randomSource() * sharedJitterMs)
+          if (delayMs > 0) {
+            yield* Effect.sleep(Duration.millis(delayMs))
+          }
+        }
+        if (isSaveBlocked) {
+          return
+        }
+        if (!force && engine.readSharedSnapshots !== undefined) {
+          const ringResult = yield* Effect.result(
+            engine.readSharedSnapshots({
+              programVersion: program.of.version,
+              foldRevision,
+            }),
+          )
+          if (Result.isSuccess(ringResult)) {
+            let maxCount = highestKnownSharedCount
+            for (const existing of ringResult.success) {
+              if (existing.count > maxCount) {
+                maxCount = existing.count
+              }
+            }
+            highestKnownSharedCount = maxCount
+            if (maxCount >= candidate.watermark.count) {
+              return
+            }
+          }
+        }
+        const maybePayload = LocalSnapshot.encodeShared(
+          snapshotProgram,
+          candidate,
+          Option.getOrUndefined(maybeSnapshotScope),
+        )
+        if (Option.isNone(maybePayload)) {
+          return
+        }
+        const slot =
+          Math.floor(candidate.watermark.count / sharedStride) % sharedRingSlots
+        const writeResult = yield* Effect.result(
+          writeShared({
+            slot,
+            programVersion: program.of.version,
+            foldRevision,
+            count: candidate.watermark.count,
+            writtenBy: engine.processor,
+            writtenAtMs: clock(),
+            payload: maybePayload.value,
+          }),
+        )
+        if (Result.isFailure(writeResult)) {
+          traceSync({
+            _tag: 'FailedSharedSnapshot',
+            operation: 'Write',
+            cause: writeResult.failure.cause,
+          })
+          return
+        }
+        highestKnownSharedCount = Math.max(
+          highestKnownSharedCount,
+          candidate.watermark.count,
+        )
+        lastSharedPublishAtMs = clock()
+        traceSync({
+          _tag: 'SavedSharedSnapshot',
+          slot,
+          count: candidate.watermark.count,
+        })
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            isPublishingSharedSnapshot = false
+          }),
+        ),
+      )
+
+    const scheduleSharedSnapshotPublish = (force = false): void => {
+      if (
+        sharedPolicy.isDisabled === true ||
+        isSaveBlocked ||
+        isPublishingSharedSnapshot ||
+        program.foldRevision === undefined ||
+        engine.writeSharedSnapshot === undefined ||
+        !isLogRead ||
+        idsPastCursor.size > 0 ||
+        unconfirmedIds.size > 0 ||
+        Option.isNone(maybeCursor)
+      ) {
+        return
+      }
+      if (
+        !force &&
+        lastSharedPublishAtMs !== undefined &&
+        clock() - lastSharedPublishAtMs < sharedMinIntervalMs
+      ) {
+        return
+      }
+      const entries = orderedRows()
+      if (!force) {
+        const newestBaseCount = Option.match(Array.last(bases), {
+          onNone: () => 0,
+          onSome: base => base.watermark.count,
+        })
+        const estimatedCount = Math.max(
+          entries.length,
+          newestBaseCount +
+            Option.match(Array.last(bases), {
+              onNone: () => 0,
+              onSome: base => entriesAfter(entries, base.position).length,
+            }),
+        )
+        if (estimatedCount < highestKnownSharedCount + sharedMinDelta) {
+          return
+        }
+      }
+      const maybeFolded = foldFromBase(entries, strangerViewpoint)
+      if (Option.isNone(maybeFolded) || Option.isNone(maybeFolded.value.watermark)) {
+        return
+      }
+      const watermark = maybeFolded.value.watermark.value
+      if (!force && watermark.count < highestKnownSharedCount + sharedMinDelta) {
+        return
+      }
+      isPublishingSharedSnapshot = true
+      const candidate: LocalSnapshot.SharedSnapshotEntry<ChildModel> = {
+        model: maybeFolded.value.model,
+        watermark,
+        cursor: maybeCursor.value,
+      }
+      Effect.runFork(
+        Effect.forkIn(runSharedSnapshotPublish(candidate, force), runtimeScope),
+      )
+    }
+
+    const tryColdBootFromSharedSnapshot: Effect.Effect<
+      Option.Option<LoadedSharedSnapshot>
+    > = Effect.gen(function* () {
+      const foldRevision = program.foldRevision
+      const readShared = engine.readSharedSnapshots
+      const readSince = engine.readSince
+      if (
+        sharedPolicy.isDisabled === true ||
+        foldRevision === undefined ||
+        readShared === undefined ||
+        readSince === undefined
+      ) {
+        return Option.none<LoadedSharedSnapshot>()
+      }
+      if (engine.hasOwnRows !== undefined) {
+        const hasOwn = yield* Effect.result(engine.hasOwnRows)
+        if (Result.isFailure(hasOwn) || hasOwn.success) {
+          return Option.none<LoadedSharedSnapshot>()
+        }
+      }
+      const ringResult = yield* Effect.result(
+        readShared({
+          programVersion: program.of.version,
+          foldRevision,
+        }),
+      )
+      if (Result.isFailure(ringResult)) {
+        traceSync({
+          _tag: 'FailedSharedSnapshot',
+          operation: 'Read',
+          cause: ringResult.failure.cause,
+        })
+        return Option.none<LoadedSharedSnapshot>()
+      }
+      const decodedCandidates: Array<LoadedSharedSnapshot> = []
+      const expectedScope = Option.getOrUndefined(maybeSnapshotScope)
+      for (const row of ringResult.success) {
+        if (
+          row.programVersion !== program.of.version ||
+          row.foldRevision !== foldRevision
+        ) {
+          continue
+        }
+        const maybeEntry = LocalSnapshot.decodeShared(
+          snapshotProgram,
+          row.payload,
+          expectedScope,
+        )
+        if (Option.isNone(maybeEntry)) {
+          traceSync({
+            _tag: 'FailedSharedSnapshot',
+            operation: 'Decode',
+            cause:
+              'Shared snapshot did not match Program, version, revision, or scope.',
+          })
+          continue
+        }
+        decodedCandidates.push({ slot: row.slot, entry: maybeEntry.value })
+        if (maybeEntry.value.watermark.count > highestKnownSharedCount) {
+          highestKnownSharedCount = maybeEntry.value.watermark.count
+        }
+      }
+      if (Array.isArrayEmpty(decodedCandidates)) {
+        return Option.none<LoadedSharedSnapshot>()
+      }
+      const sorted = Array.sort(
+        decodedCandidates,
+        Order.mapInput(
+          Order.Number,
+          (candidate: LoadedSharedSnapshot) => -candidate.entry.watermark.count,
+        ),
+      )
+      for (const candidate of sorted) {
+        const pageResult = yield* Effect.result(
+          readSince(Option.some(candidate.entry.cursor)),
+        )
+        if (Result.isFailure(pageResult)) {
+          continue
+        }
+        const page = pageResult.success
+        const isEveryRowAfter = Array.every(page.messages, row =>
+          Option.exists(rowOrderOf(row), order =>
+            isRowOrderAfter(order, candidate.entry.watermark.position),
+          ),
+        )
+        if (!isEveryRowAfter) {
+          continue
+        }
+        const snapshot: LocalSnapshot.LocalSnapshot<ChildModel> = {
+          model: candidate.entry.model,
+          watermark: candidate.entry.watermark,
+        }
+        knownRows.clear()
+        for (const row of page.messages) {
+          rememberEngineRow(row)
+        }
+        savedSnapshots = [snapshot]
+        bases = [baseOf(snapshot)]
+        maybeCursor = Option.orElse(page.maybeCursor, () =>
+          Option.some(candidate.entry.cursor),
+        )
+        idsPastCursor.clear()
+        isLogRead = true
+        traceSync({
+          _tag: 'LoadedSharedSnapshot',
+          slot: candidate.slot,
+          count: candidate.entry.watermark.count,
+        })
+        return Option.some(candidate)
+      }
+      return Option.none<LoadedSharedSnapshot>()
+    })
+
+    const auditLoadedSharedSnapshot = (
+      loaded: LoadedSharedSnapshot,
+    ): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        const wholeResult =
+          engine.readSince !== undefined
+            ? yield* Effect.result(engine.readSince(Option.none()))
+            : yield* Effect.result(
+                Effect.map(engine.read(), state => ({
+                  messages: state.messages,
+                  maybeCursor: Option.none<string>(),
+                })),
+              )
+        if (Result.isFailure(wholeResult)) {
+          return
+        }
+        const wholeRows = wholeResult.success.messages
+        const isWatermarkProven = LocalSnapshot.isProvenBy(
+          loaded.entry.watermark,
+          wholeRows,
+        )
+        const entriesAtOrBefore = pipe(
+          wholeRows,
+          Array.filter(row =>
+            LocalSnapshot.isAtOrBefore(row, loaded.entry.watermark.position),
+          ),
+          Array.filterMap(row =>
+            Result.fromOption(
+              Option.map(rowOrderOf(row), order => ({ order, row })),
+              () => undefined,
+            ),
+          ),
+          Array.sort(logEntryOrder),
+        )
+        const expectedModel = foldRows(
+          initialChildModel,
+          entriesAtOrBefore,
+          strangerViewpoint,
+        )
+        const isModelMatch = modelJsonEquals(expectedModel, loaded.entry.model)
+        if (isWatermarkProven && isModelMatch) {
+          return
+        }
+        traceSync({
+          _tag: 'FailedSharedSnapshot',
+          operation: 'Audit',
+          cause: !isWatermarkProven
+            ? 'Shared snapshot watermark did not match authoritative log.'
+            : 'Shared snapshot Model did not match authoritative fold.',
+        })
+        for (const row of wholeRows) {
+          rememberEngineRow(row)
+        }
+        isLogComplete = true
+        bases = []
+        savedSnapshots = []
+        if (Option.isSome(wholeResult.success.maybeCursor)) {
+          maybeCursor = wholeResult.success.maybeCursor
+        }
+        idsPastCursor.clear()
+        Option.map(foldLog(), folded => {
+          lastApplied = folded.maxOrder
+          sendRefolded(folded.model)
+        })
+        yield* saveWhenStale
+        scheduleSharedSnapshotPublish(true)
+      })
 
     let isCheckingCursor = false
 
@@ -1105,9 +1671,12 @@ export function start<
         return
       }
       isCheckingCursor = true
+      const pastCursorBeforeRead = new Set(idsPastCursor)
       Effect.runFork(
         readSince(maybeCursor).pipe(
-          Effect.map(adoptPage),
+          Effect.map(page => {
+            adoptPage(page, pastCursorBeforeRead)
+          }),
           Effect.catch(() => Effect.void),
           Effect.ensuring(
             Effect.sync(() => {
@@ -1150,8 +1719,11 @@ export function start<
     }
 
     const saveWhenStale = Effect.suspend(() =>
-      config.localSnapshot !== undefined && isLogRead && isLocalSnapshotStale
-        ? saveLocalState(config.localSnapshot)
+      Option.isSome(maybeLocalSnapshotStore) &&
+      !isSaveBlocked &&
+      isLogRead &&
+      isLocalSnapshotStale
+        ? saveLocalState(maybeLocalSnapshotStore.value)
         : Effect.void,
     )
 
@@ -1165,21 +1737,29 @@ export function start<
       if (readSince === undefined || !isLogRead || idsPastCursor.size === 0) {
         return Effect.void
       }
+      const pastCursorBeforeRead = new Set(idsPastCursor)
       return readSince(maybeCursor).pipe(
-        Effect.map(adoptPage),
+        Effect.map(page => {
+          adoptPage(page, pastCursorBeforeRead)
+        }),
         Effect.catch(() => Effect.void),
       )
     })
 
     const readUnseen = Effect.gen(function* () {
       const readSince = engine.readSince
-      if (
-        readSince === undefined ||
-        Option.isNone(maybeLocalState) ||
-        Option.isNone(maybeCursor)
-      ) {
+      if (Option.isNone(maybeLocalState)) {
+        const maybeLoaded = yield* tryColdBootFromSharedSnapshot
+        if (Option.isSome(maybeLoaded)) {
+          maybeLoadedSharedRef.current = maybeLoaded
+          return Option.none<SyncTransportError>()
+        }
         return yield* readWholeLog
       }
+      if (readSince === undefined || Option.isNone(maybeCursor)) {
+        return yield* readWholeLog
+      }
+      const pastCursorBeforeRead = new Set(idsPastCursor)
       const page = yield* Effect.result(readSince(maybeCursor))
       if (Result.isFailure(page)) {
         return Option.some(page.failure)
@@ -1189,7 +1769,7 @@ export function start<
       }
       if (Option.isSome(page.success.maybeCursor)) {
         maybeCursor = page.success.maybeCursor
-        idsPastCursor.clear()
+        clearConfirmedPastCursor(pastCursorBeforeRead, page.success.messages)
       }
       isLogRead = true
       return Option.none<SyncTransportError>()
@@ -1252,19 +1832,40 @@ export function start<
         Effect.repeat(Schedule.spaced(Duration.millis(outboxFlushMs))),
         Effect.forkScoped,
       )
-      if (config.localSnapshot !== undefined) {
+      const canPublishShared =
+        sharedPolicy.isDisabled !== true &&
+        program.foldRevision !== undefined &&
+        engine.writeSharedSnapshot !== undefined
+      if (Option.isSome(maybeLocalSnapshotStore)) {
         yield* saveWhenStale
         yield* saveWhenStale.pipe(
           Effect.repeat(Schedule.spaced(Duration.millis(localSnapshotSaveMs))),
           Effect.forkScoped,
         )
+      }
+      if (Option.isSome(maybeLocalSnapshotStore) || canPublishShared) {
         yield* advanceCursor.pipe(
           Effect.repeat(Schedule.spaced(Duration.millis(cursorAdvanceMs))),
           Effect.forkScoped,
         )
       }
+      scheduleSharedSnapshotPublish()
+      if (
+        Option.isSome(maybeLoadedSharedRef.current) &&
+        sharedAuditSampleRate > 0 &&
+        randomSource() < sharedAuditSampleRate
+      ) {
+        yield* Effect.forkScoped(
+          auditLoadedSharedSnapshot(maybeLoadedSharedRef.current.value),
+        )
+      }
     })
 
+    if (engine.watchAuthChanged !== undefined) {
+      yield* engine.watchAuthChanged(reason => {
+        Effect.runFork(tripAuthChanged(reason))
+      })
+    }
     yield* Effect.addFinalizer(() =>
       Effect.andThen(advanceCursor, saveWhenStale),
     )

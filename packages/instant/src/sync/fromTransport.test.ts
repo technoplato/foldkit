@@ -11,11 +11,19 @@ import {
 import {
   fromTransport,
   instantLinksOf,
+  instantRoomOf,
   isNamedShareInstantFrom,
   isOwnedInstantFrom,
   linkOfInstantStatus,
   messageBelongsToInstantRoom,
 } from './fromTransport.js'
+import {
+  makeNodeInstantDatabase,
+  stateDirectoryOf,
+} from '../nodeDatabase/nodeDatabase.js'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const burstSize = 200
 
@@ -144,6 +152,29 @@ describe('messageBelongsToInstantRoom', () => {
     expect(
       messageBelongsToInstantRoom('cli-mine-alice', 'tui-share-kitchen'),
     ).toBe(false)
+  })
+
+  it('derives a stable room key stripped of random Processor instance suffixes', () => {
+    expect(instantRoomOf('react-4f2a9c1e')).toBe('public')
+    expect(instantRoomOf('cli')).toBe('public')
+    expect(instantRoomOf('react-mine-alice')).toBe('mine-alice')
+    expect(instantRoomOf('tui-mine-alice-deadbeef')).toBe('mine-alice-deadbeef')
+    expect(instantRoomOf('cli-share-kitchen')).toBe('share-kitchen')
+  })
+
+  it('records stateDirectory on Node Instant databases and returns None for fakes', () => {
+    expect(stateDirectoryOf({})).toEqual(Option.none())
+    const dir = mkdtempSync(join(tmpdir(), 'foldkit-node-db-'))
+    const database = makeNodeInstantDatabase(
+      globalThis.crypto.randomUUID(),
+      dir,
+    )
+    try {
+      expect(stateDirectoryOf(database)).toEqual(Option.some(dir))
+    } finally {
+      database.shutdown()
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

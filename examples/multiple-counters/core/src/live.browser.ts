@@ -6,7 +6,6 @@ import { CountersProgram } from './program.js'
 import {
   type CountersHandle,
   type StartCountersConfig,
-  countersLocalSnapshotKey,
 } from './startConfig.js'
 import { SyncedCounters } from './synced.js'
 
@@ -25,26 +24,11 @@ export const countersEngine = (
     ...(config.database === undefined ? {} : { database: config.database }),
   })
 
-const browserStorage = (): Storage | undefined =>
-  typeof window === 'undefined' ? undefined : window.localStorage
-
-const localSnapshotFor = (
-  config: StartCountersConfig,
-): Runtime.LocalSnapshotStore | undefined => {
-  const storage = browserStorage()
-  if (config.localSnapshot !== undefined) {
-    return config.localSnapshot
-  } else if (storage !== undefined) {
-    return Runtime.LocalSnapshot.webStorage(storage, countersLocalSnapshotKey)
-  } else {
-    return undefined
-  }
-}
-
 /**
  * Starts the synced Multiple Counters in a browser or Expo Client, on
- * Instant from the first run. A browser keeps its local snapshot in
- * `localStorage`, so a reload paints the last counts at once.
+ * Instant from the first run. The Instant sync engine automatically supplies
+ * a local snapshot store (IndexedDB in browsers, AsyncStorage in React Native),
+ * so a reload paints the last counts at once.
  *
  * @example
  * ```typescript
@@ -52,7 +36,7 @@ const localSnapshotFor = (
  * ```
  */
 export const startCounters = (config: StartCountersConfig): CountersHandle =>
-  startCountersOn(countersEngine(config), localSnapshotFor(config), config.host)
+  startCountersOn(countersEngine(config), config.localSnapshot, config.host)
 
 /** Starts the synced Multiple Counters on an engine the caller built. */
 export const startCountersOn = (

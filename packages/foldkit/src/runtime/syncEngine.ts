@@ -1,6 +1,7 @@
 import { Array, Data, Effect, Option, Scope } from 'effect'
 
 import { type Host, print } from '../processor/host.js'
+import type { LocalSnapshotScope, LocalSnapshotStore } from './localSnapshot.js'
 import type { SyncLinkState } from './syncTrace.js'
 
 /** Result of one sync write. Isolated Memory reports `offline`. */
@@ -34,6 +35,27 @@ export type SyncPage = Readonly<{
   maybeCursor: Option.Option<string>
 }>
 
+/**
+ * One slot of a 4-slot shared snapshot ring stored on the sync engine so a
+ * brand-new device can cold-boot from a recent folded Model and only read the
+ * trailing rows after its cursor.
+ */
+export type SharedSnapshotRow = Readonly<{
+  slot: number
+  programVersion: number
+  foldRevision: string
+  count: number
+  writtenBy: string
+  writtenAtMs: number
+  payload: string
+}>
+
+/** Query parameters for reading a Program's shared snapshot ring. */
+export type SharedSnapshotQuery = Readonly<{
+  programVersion: number
+  foldRevision: string
+}>
+
 /** One live event from a sync engine. */
 export type SyncEvent =
   | Readonly<{ readonly _tag: 'Snapshot'; readonly row: unknown }>
@@ -42,7 +64,8 @@ export type SyncEvent =
 /** A sync engine's read, write, or observe failed. `cause` is the engine's sentence. */
 export class SyncTransportError extends Data.TaggedError('SyncTransportError')<{
   readonly cause: string
-  readonly operation: 'Decode' | 'Observe' | 'Read' | 'Write'
+  readonly operation: 'AuthChanged' | 'Decode' | 'Observe' | 'Read' | 'Write'
+  readonly isTerminal?: boolean
   readonly raw?: unknown
 }> {}
 
@@ -81,6 +104,49 @@ export type SyncEngine = Readonly<{
   links?: (
     listener: (link: SyncLinkState) => void,
   ) => Effect.Effect<void, never, Scope.Scope>
+  /**
+   * Optional engine-owned local snapshot store, resolved by `Runtime.start`
+   * after `runtime.initialization` so sign-in has already settled. Tests
+   * (`Memory()`, fake transports) omit it.
+   */
+  localSnapshot?: Effect.Effect<Option.Option<LocalSnapshotStore>, unknown>
+  /**
+   * Optional scope identity stamped into the local snapshot envelope and
+   * verified on decode, preventing cross-app, cross-room, or cross-member
+   * leaks even when a caller supplies an explicit override store.
+   */
+  snapshotScope?: Effect.Effect<Option.Option<LocalSnapshotScope>, unknown>
+  /**
+   * Notifies `Runtime.start` when the authenticated identity pinned at boot
+   * signs out or switches to another member, so the runtime can freeze
+   * persistence, remove the local cache, and transition to `SyncFailed`.
+   */
+  watchAuthChanged?: (
+    onChanged: (reason: string) => void,
+  ) => Effect.Effect<void, never, Scope.Scope>
+  /**
+   * Answers whether this Processor id already owns at least one Message row in
+   * the log. Shared-snapshot cold boot only runs when this is `false`, because
+   * an existing Processor may have local navigation rows omitted from the
+   * stranger-viewpoint shared snapshot.
+   */
+  hasOwnRows?: Effect.Effect<boolean, SyncTransportError>
+  /**
+   * Reads the shared 4-slot snapshot ring for `(programVersion, foldRevision)`.
+   * Exposed only by engines whose trust boundary permits shared snapshots
+   * (such as `SignedInUser` rooms or in-memory test engines).
+   */
+  readSharedSnapshots?: (
+    query: SharedSnapshotQuery,
+  ) => Effect.Effect<ReadonlyArray<SharedSnapshotRow>, SyncTransportError>
+  /**
+   * Writes one slot of the shared 4-slot snapshot ring. Engines should enforce
+   * monotonicity (`new.count >= existing.count`) and fail with
+   * `SyncTransportError({ operation: 'Write' })` if rejected.
+   */
+  writeSharedSnapshot?: (
+    snapshot: SharedSnapshotRow,
+  ) => Effect.Effect<void, SyncTransportError>
 }>
 
 /** Shared Memory rows. Two Processors share one store. */
@@ -88,12 +154,16 @@ export type MemoryStore = {
   snapshot: unknown | undefined
   messages: Array<unknown>
   listeners: Set<(event: SyncEvent) => void>
+  sharedSnapshots: Map<string, SharedSnapshotRow>
 }
 
 /** Memory engine with test hooks, a stand-in for a real sync engine. */
 export type MemoryEngine = SyncEngine &
   Readonly<{
     readSince: NonNullable<SyncEngine['readSince']>
+    hasOwnRows: NonNullable<SyncEngine['hasOwnRows']>
+    readSharedSnapshots: NonNullable<SyncEngine['readSharedSnapshots']>
+    writeSharedSnapshot: NonNullable<SyncEngine['writeSharedSnapshot']>
     store: MemoryStore
     failNextRead: (cause: string) => void
     failNextWrite: (cause: string) => void
@@ -108,6 +178,7 @@ export const makeMemoryStore = (): MemoryStore => ({
   snapshot: undefined,
   messages: [],
   listeners: new Set(),
+  sharedSnapshots: new Map(),
 })
 
 const processorOf = (processor: Host | string | undefined): string => {
@@ -290,6 +361,45 @@ export const Memory = (options?: {
         link: isIsolated ? 'offline' : 'delivered',
       })
     },
+    hasOwnRows: Effect.sync(() =>
+      Array.some(
+        store.messages,
+        row =>
+          Option.getOrUndefined(readRowString(row, 'from')) === processor,
+      ),
+    ),
+    readSharedSnapshots: query =>
+      Effect.sync(() =>
+        Array.filter(
+          Array.fromIterable(store.sharedSnapshots.values()),
+          row =>
+            row.programVersion === query.programVersion &&
+            row.foldRevision === query.foldRevision,
+        ),
+      ),
+    writeSharedSnapshot: snapshot =>
+      Effect.suspend(() => {
+        if (isOffline) {
+          return Effect.fail(
+            new SyncTransportError({
+              cause: 'offline: shared snapshot write skipped',
+              operation: 'Write',
+            }),
+          )
+        }
+        const key = `${snapshot.programVersion}:${snapshot.foldRevision}:${snapshot.slot}`
+        const existing = store.sharedSnapshots.get(key)
+        if (existing !== undefined && snapshot.count < existing.count) {
+          return Effect.fail(
+            new SyncTransportError({
+              cause: 'monotonic shared snapshot rule rejected older count',
+              operation: 'Write',
+            }),
+          )
+        }
+        store.sharedSnapshots.set(key, snapshot)
+        return Effect.void
+      }),
   }
 }
 

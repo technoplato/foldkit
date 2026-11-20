@@ -11,6 +11,7 @@ export const SyncedReminders = Program.compose.sync({
   of: App,
   snapshot: RemindersProjection,
   message: MessageWire,
+  foldRevision: 'reminders-fold-v1',
 })
 
 /** A synced Reminders Model: Starting, Ready, or Failed. */

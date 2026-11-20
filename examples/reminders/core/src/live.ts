@@ -1,6 +1,6 @@
 import { Layer, Option } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
-import { localSnapshotFile, localSnapshotPath } from 'foldkit/cli'
+import { localSnapshotPath } from 'foldkit/cli'
 import { dirname, join } from 'node:path'
 
 import {
@@ -147,9 +147,6 @@ export const startReminders = (
         makeInstantRemindersStore(signedIn.database),
       ),
       terminalLinkSharing(publicOriginOf(signedIn.sessionOrigin)),
-    ),
-    localSnapshot: localSnapshotFile(
-      join(stateDirectoryOf(signedIn.appId), 'snapshot.json'),
     ),
     host: config.host,
   })

@@ -8,7 +8,6 @@ import {
 } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
 import {
-  localSnapshotFile,
   localSnapshotPath,
   terminalSystemAppearance,
 } from 'foldkit/cli'
@@ -225,9 +224,6 @@ export const startBooks = (
       fetchPreviewSource,
       terminalAudibleImport(signedIn),
       terminalSystemAppearance(),
-    ),
-    localSnapshot: localSnapshotFile(
-      join(stateDirectoryOf(signedIn.appId), 'snapshot.json'),
     ),
     host: config.host,
   })

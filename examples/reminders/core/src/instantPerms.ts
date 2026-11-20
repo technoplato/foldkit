@@ -39,6 +39,15 @@ export const rules = {
       delete: 'false',
     },
   },
+  programSnapshot: {
+    allow: {
+      view: 'auth.id != null && auth.id == data.ownerUserID',
+      create: 'auth.id != null && auth.id == data.ownerUserID',
+      update:
+        'auth.id != null && auth.id == data.ownerUserID && auth.id == newData.ownerUserID && newData.count >= data.count',
+      delete: 'false',
+    },
+  },
   reminders: {
     allow: {
       view: 'isOwner || isWriter || isReader',

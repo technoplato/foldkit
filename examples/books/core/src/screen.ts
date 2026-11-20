@@ -13,6 +13,7 @@ import {
   Column,
   Dock,
   type IconName,
+  Lazy,
   List,
   type ListFilter,
   type ListItem,
@@ -1143,7 +1144,7 @@ const bookmarkLists = (model: Model, title: Title): ReadonlyArray<UiNode> =>
  * opens it.
  */
 const transcriptBookmarksOf = (
-  model: Model,
+  model: Pick<Model, 'library'>,
   title: Title,
 ): ReadonlyArray<TranscriptBookmark> =>
   Array.map(bookmarksOf(model, title.slug), bookmark => ({
@@ -1523,6 +1524,16 @@ export const wordsPartAt = (model: Model, nowMs: number): FollowedPart =>
     },
   })
 
+const buildPlayerTranscript = (
+  loaded: Loaded,
+  title: Title,
+  library: Model['library'],
+): UiNode =>
+  withTranscriptBookmarks(
+    readerTranscriptOf(loaded),
+    transcriptBookmarksOf({ library }, title),
+  )
+
 /**
  * The player for the book its address names, read and listen: the words
  * fill the screen, the one sounding marked, and the controls sit pinned
@@ -1573,10 +1584,7 @@ export const playerScreen = (model: Model): UiNode =>
               { gap: 1 },
               Text(title.name, { dim: true }),
               ...chapterPickerOf(model, title, placeOf(loaded)),
-              withTranscriptBookmarks(
-                readerTranscriptOf(loaded),
-                transcriptBookmarksOf(model, title),
-              ),
+              Lazy(buildPlayerTranscript, [loaded, title, model.library]),
               Dock(
                 ...TranscriptPlayer.problemOf(loaded.player),
                 ...problemLines(model),

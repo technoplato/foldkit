@@ -8,6 +8,7 @@ export {
   Instant,
   fromTransport,
   instantCauseString,
+  instantRoomOf,
 } from './sync/instant.js'
 export type { InstantApp, InstantOptions } from './sync/instant.js'
 export * from './inMemoryProgramStore/index.js'

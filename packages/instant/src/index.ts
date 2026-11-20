@@ -4,6 +4,7 @@ export {
   Instant,
   fromTransport,
   instantCauseString,
+  instantRoomOf,
 } from './sync/nodeInstant.js'
 export type { InstantApp, InstantOptions } from './sync/nodeInstant.js'
 export { loadInstantDemoEnv, resolveInstantSyncEngine } from './sync/demoEnv.js'

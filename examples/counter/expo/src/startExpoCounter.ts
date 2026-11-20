@@ -3,15 +3,13 @@ import {
   SharedInstantProject,
   InstantSnapshotLogSchema,
   bindCounter,
-  counterLocalSnapshotKey,
   newProcessorInstance,
   startCounter,
 } from 'counter-core-example'
-import { Processor, Runtime } from 'foldkit'
+import { Processor } from 'foldkit'
 import { Platform } from 'react-native'
 
 import { init } from '@instantdb/react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 
 import './polyfill'
 
@@ -44,11 +42,6 @@ const nativeDatabase = (): NativeDatabase => {
   return created
 }
 
-const deviceLocalSnapshot = Runtime.LocalSnapshot.fromPromises({
-  load: () => AsyncStorage.getItem(counterLocalSnapshotKey),
-  save: text => AsyncStorage.setItem(counterLocalSnapshotKey, text),
-})
-
 const expoHost = (): Processor.Host.Host =>
   Platform.OS === 'ios'
     ? Processor.Host.ExpoIos()
@@ -57,8 +50,8 @@ const expoHost = (): Processor.Host.Host =>
 /**
  * Starts the Expo Counter once per JavaScript runtime and binds it to the
  * generic interaction. `EXPO_PUBLIC_COUNTER_TAPE=memory` keeps the count on
- * the device. On Instant, the device keeps its local snapshot in
- * AsyncStorage, so a cold launch paints the last count at once.
+ * the device. On Instant, `@foldkit/instant` automatically persists the local
+ * snapshot in AsyncStorage so a cold launch paints the last count at once.
  */
 export const startExpoCounter = (): BoundCounter => {
   const globals = expoGlobals()
@@ -75,7 +68,6 @@ export const startExpoCounter = (): BoundCounter => {
         ? { tape: 'Memory' }
         : {
             database: nativeDatabase().core,
-            localSnapshot: deviceLocalSnapshot,
           }),
     }),
   )

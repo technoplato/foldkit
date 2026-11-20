@@ -143,6 +143,19 @@ export const InstantSnapshotLogEntities = {
     payload: i.json<Readonly<Record<string, unknown>>>(),
     from: i.string().indexed(),
     createdAtMs: i.number().indexed(),
+    ownerUserID: i.string().indexed().optional(),
+  }),
+  programSnapshot: i.entity({
+    app: i.string().indexed(),
+    room: i.string().indexed(),
+    programVersion: i.number().indexed(),
+    foldRevision: i.string().indexed(),
+    ownerUserID: i.string().indexed().optional(),
+    slot: i.number().indexed(),
+    count: i.number().indexed(),
+    writtenBy: i.string(),
+    writtenAtMs: i.number(),
+    payload: i.string(),
   }),
 }
 
@@ -187,7 +200,30 @@ export const InstantSnapshotLogPermissions = {
       view: 'true',
     },
   },
+  programSnapshot: {
+    allow: {
+      create: 'true',
+      delete: 'false',
+      update: 'newData.count >= data.count',
+      view: 'true',
+    },
+  },
 }
+
+/**
+ * SignedInUser Instant permission rules for `programSnapshot`: each member can
+ * only view, create, and monotonically advance their own 4-slot ring rows, and
+ * rows can never be deleted.
+ */
+export const SignedInUserProgramSnapshotPermissions = {
+  allow: {
+    view: 'auth.id != null && auth.id == data.ownerUserID',
+    create: 'auth.id != null && auth.id == data.ownerUserID',
+    update:
+      'auth.id != null && auth.id == data.ownerUserID && auth.id == newData.ownerUserID && newData.count >= data.count',
+    delete: 'false',
+  },
+} as const
 
 /** Reads every count row and every Message row. Filter happens in process. */
 export const snapshotLogQuery = {
@@ -418,6 +454,7 @@ export type SnapshotLogQueryData = Readonly<{
   readonly count?: ReadonlyArray<unknown>
   readonly message?: ReadonlyArray<unknown>
   readonly programMessage?: ReadonlyArray<unknown>
+  readonly programSnapshot?: ReadonlyArray<unknown>
 }>
 
 /** Decodes every Instant count row. Filter happens in {@link decodeSnapshotLogState}. */

@@ -110,16 +110,26 @@ export const programLogEnvelope = (app: string) =>
 
 // QUERY
 
-/** Every row one app wrote to the shared log. */
-export const programLogQuery = (app: string) =>
-  ({ programMessage: { $: { where: { app } } } }) as const
+const programLogWhere = (
+  app: string,
+  ownerUserID?: string,
+): Readonly<{ app: string; ownerUserID?: string }> =>
+  ownerUserID === undefined ? { app } : { app, ownerUserID }
+
+/** Every row one app wrote to the shared log (scoped to `ownerUserID` when given). */
+export const programLogQuery = (app: string, ownerUserID?: string) =>
+  ({ programMessage: { $: { where: programLogWhere(app, ownerUserID) } } }) as const
 
 /** One page of one app's rows in the order Instant received them. */
-export const programLogPageQuery = (app: string, offset: number) =>
+export const programLogPageQuery = (
+  app: string,
+  offset: number,
+  ownerUserID?: string,
+) =>
   ({
     programMessage: {
       $: {
-        where: { app },
+        where: programLogWhere(app, ownerUserID),
         limit: snapshotLogPageSize,
         offset,
         order: { serverCreatedAt: 'asc' },
@@ -128,11 +138,11 @@ export const programLogPageQuery = (app: string, offset: number) =>
   }) as const
 
 /** The newest rows one app wrote, for the live feed. */
-export const programLogRecentQuery = (app: string) =>
+export const programLogRecentQuery = (app: string, ownerUserID?: string) =>
   ({
     programMessage: {
       $: {
-        where: { app },
+        where: programLogWhere(app, ownerUserID),
         limit: snapshotLogRecentRows,
         order: { serverCreatedAt: 'desc' },
       },

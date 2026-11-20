@@ -11,6 +11,7 @@ export const SyncedBooks = Program.compose.sync({
   of: App,
   snapshot: BooksProjection,
   message: MessageWire,
+  foldRevision: 'books-fold-v1',
 })
 
 /** A synced Books Model: Starting, Ready, or Failed. */

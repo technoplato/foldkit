@@ -11,6 +11,7 @@ export const SyncedCounters = Program.compose.sync({
   of: App,
   snapshot: ListProjection,
   message: MessageWire,
+  foldRevision: 'multiple-counters-fold-v1',
 })
 
 /** A synced Multiple Counters Model: Starting, Ready, or Failed. */

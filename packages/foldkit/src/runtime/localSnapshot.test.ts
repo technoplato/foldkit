@@ -1,7 +1,9 @@
 import {
   Array,
+  Deferred,
   Duration,
   Effect,
+  Layer,
   Option,
   Schema as S,
   SchemaTransformation,
@@ -20,6 +22,7 @@ import {
   SyncTransportError,
   makeMemoryStore,
 } from './syncEngine.js'
+import type { SyncTrace } from './syncTrace.js'
 
 const Increment = m('Increment')
 const Decrement = m('Decrement')
@@ -286,6 +289,50 @@ describe('LocalSnapshot text', () => {
       Option.none(),
     )
     expect(LocalSnapshot.decode(Counter, 'not json')).toEqual(Option.none())
+  })
+
+  it('drops state written for another scope or fold revision', () => {
+    const aliceScope: LocalSnapshot.LocalSnapshotScope = {
+      app: 'books-app',
+      log: 'books',
+      room: 'public',
+      owner: 'member-alice',
+    }
+    const bobScope: LocalSnapshot.LocalSnapshotScope = {
+      ...aliceScope,
+      owner: 'member-bob',
+    }
+    const text = Option.getOrThrow(
+      LocalSnapshot.encode(
+        { ...Counter, foldRevision: 'fold-v1' },
+        state,
+        aliceScope,
+      ),
+    )
+    expect(
+      LocalSnapshot.decode(
+        { ...Counter, foldRevision: 'fold-v1' },
+        text,
+        aliceScope,
+      ),
+    ).toEqual(Option.some(state))
+    expect(
+      LocalSnapshot.decode(
+        { ...Counter, foldRevision: 'fold-v1' },
+        text,
+        bobScope,
+      ),
+    ).toEqual(Option.none())
+    expect(
+      LocalSnapshot.decode(
+        { ...Counter, foldRevision: 'fold-v2' },
+        text,
+        aliceScope,
+      ),
+    ).toEqual(Option.none())
+    expect(
+      LocalSnapshot.decode({ ...Counter, foldRevision: 'fold-v1' }, text),
+    ).toEqual(Option.none())
   })
 })
 
@@ -635,5 +682,301 @@ describe('Runtime.start with a local snapshot', () => {
     expect(
       Option.map(saved, state => Array.lastNonEmpty(state.snapshots).model),
     ).toEqual(Option.some({ count: 1, isPanelOpen: false }))
+  })
+
+  it('resolves the engine local snapshot store after resources initialize, and honors Disabled opt-out', async () => {
+    const store = makeMemoryStore()
+    const engineSnapshots = LocalSnapshot.memory()
+    const order: Array<string> = []
+    const authState = { owner: 'pending' }
+
+    await Effect.runPromise(
+      pressAndClose(store, engineSnapshots, [Increment(), Increment()]),
+    )
+    const savedBefore = Option.getOrThrow(engineSnapshots.peek())
+    const scopedState = Option.getOrThrow(
+      LocalSnapshot.decode(Counter, savedBefore),
+    )
+    const aliceScope: LocalSnapshot.LocalSnapshotScope = {
+      app: 'app-1',
+      log: 'counter',
+      room: 'public',
+      owner: 'alice',
+    }
+    await Effect.runPromise(
+      engineSnapshots.save(
+        Option.getOrThrow(
+          LocalSnapshot.encode(Counter, scopedState, aliceScope),
+        ),
+      ),
+    )
+
+    const baseEngine = Memory({ processor: 'reader', store })
+    const autoEngine = {
+      ...baseEngine,
+      snapshotScope: Effect.sync(() => {
+        order.push(`scope:${authState.owner}`)
+        return Option.some({
+          ...aliceScope,
+          owner: authState.owner,
+        })
+      }),
+      localSnapshot: Effect.sync(() => {
+        order.push(`store:${authState.owner}`)
+        return Option.some(engineSnapshots)
+      }),
+    }
+
+    const resources = Layer.effectDiscard(
+      Effect.sync(() => {
+        order.push('init-auth')
+        authState.owner = 'alice'
+      }),
+    )
+
+    const loadedModel = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: {
+              ...autoEngine,
+              read: () => Effect.never,
+              readSince: () => Effect.never,
+            },
+            resources,
+          })
+          return runtime.readModel()
+        }),
+      ),
+    )
+
+    expect(order).toEqual(['init-auth', 'scope:alice', 'store:alice'])
+    expect(loadedModel).toEqual({
+      _tag: 'Ready',
+      count: 2,
+      isPanelOpen: false,
+    })
+
+    // Opt-out via LocalSnapshot.disabled skips engine.localSnapshot entirely.
+    let calledAutoStore = false
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: {
+              ...baseEngine,
+              localSnapshot: Effect.sync(() => {
+                calledAutoStore = true
+                return Option.some(engineSnapshots)
+              }),
+            },
+            localSnapshot: LocalSnapshot.disabled,
+          })
+          yield* runtime.caughtUp
+        }),
+      ),
+    )
+    expect(calledAutoStore).toBe(false)
+  })
+
+  it('freezes outbox, removes local snapshot, and blocks finalizer re-save on terminal AuthChanged', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    await Effect.runPromise(
+      pressAndClose(store, snapshots, [Increment(), Increment()]),
+    )
+    expect(Option.isSome(snapshots.peek())).toBe(true)
+
+    let writesAttempted = 0
+    let removes = 0
+    const traces: Array<SyncTrace> = []
+    const trackedSnapshots: LocalSnapshot.LocalSnapshotStore = {
+      load: snapshots.load,
+      save: snapshots.save,
+      remove: Effect.andThen(
+        Effect.sync(() => {
+          removes += 1
+        }),
+        snapshots.remove ?? Effect.void,
+      ),
+    }
+
+    const baseEngine = Memory({ processor: 'writer', store })
+    const authFailEngine = {
+      ...baseEngine,
+      write: () => {
+        writesAttempted += 1
+        return Effect.fail(
+          new SyncTransportError({
+            cause: 'member signed out',
+            operation: 'AuthChanged',
+            isTerminal: true,
+          }),
+        )
+      },
+    }
+
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: authFailEngine,
+            localSnapshot: trackedSnapshots,
+          })
+          const stopTracing = runtime.observeSync(event => {
+            traces.push(event)
+          })
+          yield* runtime.caughtUp
+          yield* runtime.run(Increment())
+          yield* Effect.sleep(Duration.millis(80))
+          stopTracing()
+        }),
+      ),
+    )
+
+    // Terminal failure is never retried, removes local cache, and finalizer does not re-write it.
+    expect(writesAttempted).toBe(1)
+    expect(removes).toBe(1)
+    expect(Option.isNone(snapshots.peek())).toBe(true)
+    expect(traces.some(event => event._tag === 'AuthChanged')).toBe(true)
+    expect(traces.some(event => event._tag === 'RemovedLocalSnapshot')).toBe(
+      true,
+    )
+    expect(traces.some(event => event._tag === 'FailedToWriteRow')).toBe(true)
+  })
+
+  it('removes local snapshot and blocks finalizer re-save when watchAuthChanged fires on an idle runtime', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    await Effect.runPromise(pressAndClose(store, snapshots, [Increment()]))
+    expect(Option.isSome(snapshots.peek())).toBe(true)
+
+    let triggerAuthChanged: ((reason: string) => void) | undefined
+    const baseEngine = Memory({ processor: 'idle-reader', store })
+    const traces: Array<SyncTrace> = []
+
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: {
+              ...baseEngine,
+              watchAuthChanged: onAuthChanged =>
+                Effect.acquireRelease(
+                  Effect.sync(() => {
+                    triggerAuthChanged = onAuthChanged
+                  }),
+                  () =>
+                    Effect.sync(() => {
+                      triggerAuthChanged = undefined
+                    }),
+                ),
+            },
+            localSnapshot: snapshots,
+          })
+          const stopTracing = runtime.observeSync(event => {
+            traces.push(event)
+          })
+          yield* runtime.caughtUp
+          triggerAuthChanged?.('signed out in another tab')
+          yield* Effect.sleep(Duration.millis(40))
+          stopTracing()
+        }),
+      ),
+    )
+
+    expect(Option.isNone(snapshots.peek())).toBe(true)
+    expect(traces.some(event => event._tag === 'AuthChanged')).toBe(true)
+    expect(traces.some(event => event._tag === 'RemovedLocalSnapshot')).toBe(
+      true,
+    )
+  })
+
+  it('does not wipe a live row that arrived while advanceCursor readSince was in flight', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    await Effect.runPromise(pressAndClose(store, snapshots, [Increment()]))
+
+    const baseEngine = Memory({ processor: 'reader', store })
+    const secondReadStarted = await Effect.runPromise(Deferred.make<void>())
+    const releaseSecondRead = await Effect.runPromise(Deferred.make<void>())
+    let readCount = 0
+    let enqueueLive:
+      | ((
+          event: Parameters<Parameters<typeof baseEngine.subscribe>[0]>[0],
+        ) => void)
+      | undefined
+
+    const firstLiveRow = row('live-1', 'Increment', Date.now() + 2000)
+    const secondLiveRow = row('live-during-read', 'Increment', Date.now() + 5000)
+
+    const racingEngine = {
+      ...baseEngine,
+      subscribe: (enqueue: Parameters<typeof baseEngine.subscribe>[0]) =>
+        Effect.andThen(baseEngine.subscribe(enqueue), () =>
+          Effect.sync(() => {
+            enqueueLive = enqueue
+          }),
+        ),
+      readSince: (maybeCursor: Option.Option<string>) =>
+        Effect.gen(function* () {
+          readCount += 1
+          const page = yield* baseEngine.readSince(maybeCursor)
+          if (readCount === 2) {
+            yield* Deferred.succeed(secondReadStarted, undefined)
+            yield* Deferred.await(releaseSecondRead)
+          }
+          return page
+        }),
+    }
+
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: racingEngine,
+            localSnapshot: snapshots,
+          })
+          yield* runtime.caughtUp
+          // Wait a tick for subscribe to attach after caughtUp.
+          yield* Effect.sleep(Duration.millis(10))
+          // Deliver a live row so idsPastCursor becomes non-empty (triggering advanceCursor on close).
+          store.messages.push(firstLiveRow)
+          enqueueLive?.({ _tag: 'Message', row: firstLiveRow })
+          yield* Effect.sleep(Duration.millis(10))
+          expect(runtime.readModel()).toEqual({
+            _tag: 'Ready',
+            count: 2,
+            isPanelOpen: false,
+          })
+
+          // Schedule secondLiveRow to arrive mid-flight during the finalizer's advanceCursor readSince.
+          Effect.runFork(
+            Effect.gen(function* () {
+              yield* Deferred.await(secondReadStarted)
+              enqueueLive?.({ _tag: 'Message', row: secondLiveRow })
+              yield* Effect.sleep(Duration.millis(10))
+              yield* Deferred.succeed(releaseSecondRead, undefined)
+            }),
+          )
+        }),
+      ),
+    )
+
+    // Saved snapshot must reflect both live rows.
+    const saved = Option.getOrThrow(
+      Option.flatMap(snapshots.peek(), text =>
+        LocalSnapshot.decode(Counter, text),
+      ),
+    )
+    expect(Array.lastNonEmpty(saved.snapshots).model).toEqual({
+      count: 3,
+      isPanelOpen: false,
+    })
   })
 })

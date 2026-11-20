@@ -27,6 +27,7 @@ export {
   start,
   untilSettled,
   type CatchUp,
+  type SharedSnapshotPolicy,
   type StartConfig,
   type StartedProgram,
   type SyncStartProgram,
@@ -39,7 +40,11 @@ export {
   type SyncedHandle,
 } from './handle.js'
 export * as LocalSnapshot from './localSnapshot.js'
-export type { LocalSnapshotStore } from './localSnapshot.js'
+export type {
+  LocalSnapshotScope,
+  LocalSnapshotStore,
+  SharedSnapshotEntry,
+} from './localSnapshot.js'
 export {
   Memory,
   SyncTransportError,
@@ -48,6 +53,8 @@ export {
   readRowString,
   type MemoryEngine,
   type MemoryStore,
+  type SharedSnapshotQuery,
+  type SharedSnapshotRow,
   type SyncEngine,
   type SyncEvent,
   type SyncLink,

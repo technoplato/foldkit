@@ -17,7 +17,12 @@ import type {
   ProgramRuntimeObserver,
   SendOptions,
 } from './programRuntime.js'
-import { type CatchUp, type StartedProgram, start } from './start.js'
+import {
+  type CatchUp,
+  type SharedSnapshotPolicy,
+  type StartedProgram,
+  start,
+} from './start.js'
 import type { SyncEngine } from './syncEngine.js'
 
 /**
@@ -212,7 +217,8 @@ export type StartHandleConfig<Child extends SyncChild, Resources> = Readonly<{
   sync: SyncEngine
   resources?: Layer.Layer<Resources>
   policy?: SessionPolicy
-  localSnapshot?: LocalSnapshotStore
+  localSnapshot?: LocalSnapshotStore | 'Disabled'
+  sharedSnapshot?: SharedSnapshotPolicy
   host?: Host
 }>
 
@@ -295,6 +301,9 @@ export function startHandle<Child extends SyncChild, Resources = never>(
             ...(config.localSnapshot === undefined
               ? {}
               : { localSnapshot: config.localSnapshot }),
+            ...(config.sharedSnapshot === undefined
+              ? {}
+              : { sharedSnapshot: config.sharedSnapshot }),
             observers: [observerRegistry.connect],
           }).pipe(Effect.provideService(Scope.Scope, scope)),
         ),

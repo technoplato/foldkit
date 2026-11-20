@@ -139,17 +139,33 @@ const runInstantClientInNode = (): void => {
   }
 }
 
+const stateDirectoriesByDatabase = new WeakMap<object, string>()
+
+/**
+ * The state directory a Node Instant database was opened with, or None for a
+ * database created outside `makeNodeInstantDatabase` / `makeNodeInstantProgramDatabase`
+ * (such as a fake database in a test).
+ */
+export const stateDirectoryOf = (database: unknown): Option.Option<string> => {
+  if (typeof database !== 'object' || database === null) {
+    return Option.none()
+  }
+  return Option.fromNullishOr(stateDirectoriesByDatabase.get(database))
+}
+
 /** Initializes Instant core with a file-backed store for one Node Client. */
 export const makeNodeInstantProgramDatabase = (
   appId: string,
   stateDirectory: string,
 ): InstantProgramDatabase => {
   runInstantClientInNode()
-  return init(
+  const database = init(
     { appId, schema: InstantProgramSchema },
     makeNodeInstantStoreClass(stateDirectory),
     NodeInstantNetworkListener,
   )
+  stateDirectoriesByDatabase.set(database, stateDirectory)
+  return database
 }
 
 /**
@@ -168,11 +184,13 @@ export const makeNodeInstantDatabase = (
   stateDirectory: string,
 ): InstantCoreDatabase<InstantUnknownSchema, false> => {
   runInstantClientInNode()
-  return init(
+  const database = init(
     { appId },
     makeNodeInstantStoreClass(stateDirectory),
     NodeInstantNetworkListener,
   )
+  stateDirectoriesByDatabase.set(database, stateDirectory)
+  return database
 }
 
 export type { InstantProgramDatabase }

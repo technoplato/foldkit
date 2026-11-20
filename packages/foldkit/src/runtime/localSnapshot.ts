@@ -27,9 +27,33 @@ import {
  * ```
  */
 export type LocalSnapshotStore = Readonly<{
-  load: Effect.Effect<Option.Option<string>>
-  save: (text: string) => Effect.Effect<void>
+  load: Effect.Effect<Option.Option<string>, unknown>
+  save: (text: string) => Effect.Effect<void, unknown>
+  remove?: Effect.Effect<void, unknown>
 }>
+
+/** Explicit opt-out for `StartConfig.localSnapshot` (e.g. isolated tests). */
+export const disabled = 'Disabled' as const
+
+/**
+ * Identity of the log slice a local snapshot belongs to. Stamped inside the
+ * serialized envelope and checked on decode so even an explicit file override
+ * never leaks state across apps, rooms, or signed-in members.
+ */
+export const LocalSnapshotScope = S.Struct({
+  app: S.String,
+  log: S.String,
+  room: S.String,
+  owner: S.String,
+})
+/** Identity of the log slice a local snapshot belongs to. */
+export type LocalSnapshotScope = typeof LocalSnapshotScope.Type
+
+export const scopesEqual = (
+  a: LocalSnapshotScope,
+  b: LocalSnapshotScope,
+): boolean =>
+  a.app === b.app && a.log === b.log && a.room === b.room && a.owner === b.owner
 
 /**
  * A store in memory, for tests and for hosts that restart a Program in
@@ -50,14 +74,17 @@ export const memory = (): LocalSnapshotStore &
       Effect.sync(() => {
         maybeSaved = Option.some(text)
       }),
+    remove: Effect.sync(() => {
+      maybeSaved = Option.none()
+    }),
     peek: () => maybeSaved,
   }
 }
 
 /**
  * A store in Web Storage under one key, such as `window.localStorage`.
- * A full or blocked storage never fails the Program; the snapshot is
- * only a cache.
+ * Storage failures surface through the Effect error channel so `Runtime.start`
+ * can trace them without crashing the Program.
  *
  * @example
  * ```typescript
@@ -65,28 +92,31 @@ export const memory = (): LocalSnapshotStore &
  * ```
  */
 export const webStorage = (
-  storage: Pick<Storage, 'getItem' | 'setItem'>,
+  storage: Pick<Storage, 'getItem' | 'setItem'> &
+    Partial<Pick<Storage, 'removeItem'>>,
   key: string,
 ): LocalSnapshotStore => ({
-  load: Effect.sync(() => Option.fromNullishOr(storage.getItem(key))).pipe(
-    Effect.catchCause(() => Effect.succeed(Option.none<string>())),
-  ),
+  load: Effect.try(() => Option.fromNullishOr(storage.getItem(key))),
   save: text =>
-    Effect.sync(() => {
+    Effect.try(() => {
       storage.setItem(key, text)
-    }).pipe(Effect.catchCause(() => Effect.void)),
+    }),
+  remove: Effect.try(() => {
+    storage.removeItem?.(key)
+  }),
 })
 
 /**
  * A store over any promise-based key-value API, such as React Native's
- * AsyncStorage or a file on Node. A failed read or write never fails the
- * Program; the snapshot is only a cache.
+ * AsyncStorage or a file on Node. Failures surface through the Effect error
+ * channel so `Runtime.start` can trace them without crashing the Program.
  *
  * @example
  * ```typescript
  * LocalSnapshot.fromPromises({
  *   load: () => AsyncStorage.getItem('foldkit-counter'),
  *   save: text => AsyncStorage.setItem('foldkit-counter', text),
+ *   remove: () => AsyncStorage.removeItem('foldkit-counter'),
  * })
  * ```
  */
@@ -94,17 +124,101 @@ export const fromPromises = (
   config: Readonly<{
     load: () => Promise<string | null | undefined>
     save: (text: string) => Promise<void>
+    remove?: () => Promise<void>
   }>,
 ): LocalSnapshotStore => ({
-  load: Effect.tryPromise(config.load).pipe(
-    Effect.map(Option.fromNullishOr),
-    Effect.catchCause(() => Effect.succeed(Option.none<string>())),
-  ),
-  save: text =>
-    Effect.tryPromise(() => config.save(text)).pipe(
-      Effect.catchCause(() => Effect.void),
-    ),
+  load: Effect.tryPromise(config.load).pipe(Effect.map(Option.fromNullishOr)),
+  save: text => Effect.tryPromise(() => config.save(text)),
+  ...(config.remove === undefined
+    ? {}
+    : { remove: Effect.tryPromise(config.remove) }),
 })
+
+const indexedDbName = 'foldkit-local-snapshots'
+const indexedDbStoreName = 'snapshots'
+
+const openIndexedDb = (
+  factory: IDBFactory,
+): Promise<IDBDatabase> =>
+  new Promise((resolve, reject) => {
+    const request = factory.open(indexedDbName, 1)
+    request.onupgradeneeded = () => {
+      const database = request.result
+      if (!database.objectStoreNames.contains(indexedDbStoreName)) {
+        database.createObjectStore(indexedDbStoreName)
+      }
+    }
+    request.onsuccess = () => {
+      resolve(request.result)
+    }
+    request.onerror = () => {
+      reject(request.error ?? new Error('Could not open IndexedDB.'))
+    }
+  })
+
+const runIndexedDb = <Value>(
+  factory: IDBFactory,
+  mode: IDBTransactionMode,
+  operation: (store: IDBObjectStore) => IDBRequest<Value>,
+): Promise<Value> =>
+  openIndexedDb(factory).then(
+    database =>
+      new Promise<Value>((resolve, reject) => {
+        const transaction = database.transaction(indexedDbStoreName, mode)
+        const store = transaction.objectStore(indexedDbStoreName)
+        const request = operation(store)
+        request.onsuccess = () => {
+          resolve(request.result)
+        }
+        request.onerror = () => {
+          reject(request.error ?? new Error('IndexedDB request failed.'))
+        }
+        transaction.oncomplete = () => {
+          database.close()
+        }
+        transaction.onabort = () => {
+          database.close()
+          reject(transaction.error ?? new Error('IndexedDB transaction aborted.'))
+        }
+      }),
+  )
+
+/**
+ * An asynchronous IndexedDB-backed local snapshot store for browsers, avoiding
+ * `localStorage`'s 5 MB synchronous quota and main-thread blocking.
+ *
+ * @example
+ * ```typescript
+ * LocalSnapshot.indexedDb('app:books:public:user-1')
+ * ```
+ */
+export const indexedDb = (
+  key: string,
+  factory: IDBFactory | undefined = globalThis.indexedDB,
+): LocalSnapshotStore =>
+  fromPromises({
+    load: async () => {
+      if (factory === undefined) {
+        return undefined
+      }
+      const value = await runIndexedDb<unknown>(factory, 'readonly', store =>
+        store.get(key),
+      )
+      return typeof value === 'string' ? value : undefined
+    },
+    save: async text => {
+      if (factory === undefined) {
+        return
+      }
+      await runIndexedDb(factory, 'readwrite', store => store.put(text, key))
+    },
+    remove: async () => {
+      if (factory === undefined) {
+        return
+      }
+      await runIndexedDb(factory, 'readwrite', store => store.delete(key))
+    },
+  })
 
 // WATERMARK
 
@@ -322,6 +436,7 @@ export type LocalState<Model> = Readonly<{
 export type SnapshotProgram<Model> = Readonly<{
   id: string
   version: number
+  foldRevision?: string
   Model: ProgramSchema<Model>
 }>
 
@@ -374,7 +489,7 @@ export const rowsAfterOldest = <Model>(
     row => !isAtOrBefore(row, Array.headNonEmpty(snapshots).watermark.position),
   )
 
-const storedFormat = 2
+const storedFormat = 3
 
 const StoredSnapshot = S.Struct({
   watermark: Watermark,
@@ -385,24 +500,28 @@ const StoredState = S.Struct({
   format: S.Literal(storedFormat),
   programId: S.String,
   programVersion: S.Number,
+  foldRevision: S.optionalKey(S.String),
+  scope: S.optionalKey(LocalSnapshotScope),
   cursor: S.optionalKey(S.String),
   snapshots: S.NonEmptyArray(StoredSnapshot),
   rows: S.Array(S.Unknown),
 })
 
 /**
- * Encodes a device's local state as text, stamped with the Program's id
- * and version. None when a Model does not encode.
+ * Encodes a device's local state as text, stamped with the Program's id,
+ * version, optional `foldRevision`, and optional `scope`. None when a Model
+ * does not encode.
  *
  * @example
  * ```typescript
  * LocalSnapshot.encode(CounterProgram, { snapshots, rows, maybeCursor })
- * // Some('{"format":2,"programId":"counter","programVersion":5,...}')
+ * // Some('{"format":3,"programId":"counter","programVersion":5,...}')
  * ```
  */
 export const encode = <Model>(
   program: SnapshotProgram<Model>,
   state: LocalState<Model>,
+  scope?: LocalSnapshotScope,
 ): Option.Option<string> => {
   const ModelJson = S.toCodecJson(program.Model)
   return pipe(
@@ -417,6 +536,10 @@ export const encode = <Model>(
         format: storedFormat,
         programId: program.id,
         programVersion: program.version,
+        ...(program.foldRevision === undefined
+          ? {}
+          : { foldRevision: program.foldRevision }),
+        ...(scope === undefined ? {} : { scope }),
         ...Option.match(state.maybeCursor, {
           onNone: () => ({}),
           onSome: cursor => ({ cursor }),
@@ -430,9 +553,9 @@ export const encode = <Model>(
 }
 
 /**
- * Decodes a device's local state. None for text from another Program or
- * version, an old format, or a Model that no longer decodes; the runtime
- * then reads and folds the whole log instead.
+ * Decodes a device's local state. None for text from another Program,
+ * version, `foldRevision`, `scope`, an old format, or a Model that no longer
+ * decodes; the runtime then reads and folds the whole log instead.
  *
  * @example
  * ```typescript
@@ -444,6 +567,7 @@ export const encode = <Model>(
 export const decode = <Model>(
   program: SnapshotProgram<Model>,
   text: string,
+  expectedScope?: LocalSnapshotScope,
 ): Option.Option<LocalState<Model>> => {
   const ModelJson = S.toCodecJson(program.Model)
   return pipe(
@@ -453,7 +577,12 @@ export const decode = <Model>(
     Option.filter(
       stored =>
         stored.programId === program.id &&
-        stored.programVersion === program.version,
+        stored.programVersion === program.version &&
+        stored.foldRevision === program.foldRevision &&
+        (expectedScope === undefined
+          ? stored.scope === undefined
+          : stored.scope !== undefined &&
+            scopesEqual(stored.scope, expectedScope)),
     ),
     Option.flatMap(stored =>
       pipe(
@@ -479,6 +608,102 @@ export const decode = <Model>(
               }),
           }),
         ),
+      ),
+    ),
+  )
+}
+
+/**
+ * One shared snapshot entry stored in a 4-slot ring on the sync engine.
+ * Carries a single folded Model (as stranger viewpoint), its exact Watermark,
+ * and the server offset cursor as of that Watermark.
+ */
+export type SharedSnapshotEntry<Model> = Readonly<{
+  model: Model
+  watermark: Watermark
+  cursor: string
+}>
+
+const sharedStoredFormat = 1
+
+const StoredSharedSnapshot = S.Struct({
+  format: S.Literal(sharedStoredFormat),
+  programId: S.String,
+  programVersion: S.Number,
+  foldRevision: S.String,
+  scope: S.optionalKey(LocalSnapshotScope),
+  cursor: S.String,
+  watermark: Watermark,
+  model: S.Unknown,
+})
+
+/**
+ * Encodes one shared snapshot entry for a 4-slot ring row. Returns `None` when
+ * the Program has no `foldRevision` or its Model fails to encode.
+ */
+export const encodeShared = <Model>(
+  program: SnapshotProgram<Model>,
+  entry: SharedSnapshotEntry<Model>,
+  scope?: LocalSnapshotScope,
+): Option.Option<string> => {
+  if (program.foldRevision === undefined || program.foldRevision === '') {
+    return Option.none()
+  }
+  const ModelJson = S.toCodecJson(program.Model)
+  return pipe(
+    Result.try(() => S.encodeSync(ModelJson)(entry.model)),
+    Result.map(model =>
+      JSON.stringify({
+        format: sharedStoredFormat,
+        programId: program.id,
+        programVersion: program.version,
+        foldRevision: program.foldRevision,
+        ...(scope === undefined ? {} : { scope }),
+        cursor: entry.cursor,
+        watermark: entry.watermark,
+        model,
+      }),
+    ),
+    Result.getSuccess,
+  )
+}
+
+/**
+ * Decodes one shared snapshot entry. Rejects any mismatch in `programId`,
+ * `programVersion`, `foldRevision`, or `scope`, and never decodes when the
+ * Program declares no `foldRevision`.
+ */
+export const decodeShared = <Model>(
+  program: SnapshotProgram<Model>,
+  text: string,
+  expectedScope?: LocalSnapshotScope,
+): Option.Option<SharedSnapshotEntry<Model>> => {
+  if (program.foldRevision === undefined || program.foldRevision === '') {
+    return Option.none()
+  }
+  const ModelJson = S.toCodecJson(program.Model)
+  return pipe(
+    Result.try(() => JSON.parse(text)),
+    Result.getSuccess,
+    Option.flatMap(S.decodeUnknownOption(StoredSharedSnapshot)),
+    Option.filter(
+      stored =>
+        stored.programId === program.id &&
+        stored.programVersion === program.version &&
+        stored.foldRevision === program.foldRevision &&
+        (expectedScope === undefined
+          ? stored.scope === undefined
+          : stored.scope !== undefined &&
+            scopesEqual(stored.scope, expectedScope)),
+    ),
+    Option.flatMap(stored =>
+      Option.map(
+        S.decodeUnknownOption(ModelJson)(stored.model),
+        (model): SharedSnapshotEntry<Model> => ({
+          model,
+          watermark: stored.watermark,
+          cursor: stored.cursor,
+        }),
       ),
     ),
   )

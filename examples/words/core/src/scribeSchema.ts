@@ -1145,6 +1145,19 @@ const _schema = i.schema({
       from: i.string().indexed(),
       createdAtMs: i.number().indexed(),
     }),
+    // Foldkit's owner-scoped 4-slot shared snapshot ring for fast cold boots.
+    programSnapshot: i.entity({
+      ownerUserID: i.string().indexed(),
+      app: i.string().indexed(),
+      room: i.string().indexed(),
+      programVersion: i.number().indexed(),
+      foldRevision: i.string().indexed(),
+      slot: i.number().indexed(),
+      count: i.number().indexed(),
+      writtenBy: i.string(),
+      writtenAtMs: i.number(),
+      payload: i.string(),
+    }),
     // ADR 0048: one row per range of a recording where Scribe connected a thing: a reading, a mention, a scan, a sung
     // line. The recording link is pinned to recordingID and cascades with it; the thing link is pinned to thingID.
     recordingRecognitions: i.entity({

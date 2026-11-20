@@ -1,7 +1,11 @@
 import { Deferred, Effect, Option, Schema as S, Stream } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 
-import type { ProgramLogDatabase, ProgramLogOwner } from '../programLog/core.js'
+import {
+  ProgramLogAuthChangedError,
+  type ProgramLogDatabase,
+  type ProgramLogOwner,
+} from '../programLog/core.js'
 import {
   type CountIdSelector,
   InstantCountSnapshotRecord,
@@ -70,6 +74,30 @@ export const isOwnedInstantFrom = (from: string): boolean =>
 export const isNamedShareInstantFrom = (from: string): boolean =>
   from.includes('-share-')
 
+/**
+ * Canonical Instant room derived from a Processor's `from` string, dropping
+ * any random instance suffix so every boot in the same room resolves to the
+ * same cache key and shared snapshot ring.
+ *
+ * @example
+ * ```typescript
+ * instantRoomOf('react-4f2a9c1e') // 'public'
+ * instantRoomOf('cli-mine-alice') // 'mine-alice'
+ * instantRoomOf('tui-share-kitchen') // 'share-kitchen'
+ * ```
+ */
+export const instantRoomOf = (processor: string): string => {
+  const shareIndex = processor.indexOf('-share-')
+  if (shareIndex >= 0) {
+    return processor.slice(shareIndex + 1)
+  }
+  const mineIndex = processor.indexOf('-mine-')
+  if (mineIndex >= 0) {
+    return processor.slice(mineIndex + 1)
+  }
+  return 'public'
+}
+
 /** Public Instant rooms ignore owned and named-share Message rows. */
 export const messageBelongsToInstantRoom = (
   from: string,
@@ -119,16 +147,35 @@ const isBlankSnapshot = (snapshot: InstantCountSnapshotRecord): boolean =>
   snapshot.asOf === emptyCountSnapshot.asOf &&
   snapshot.at === emptyCountSnapshot.at
 
+const isAuthChangedCause = (cause: unknown): cause is ProgramLogAuthChangedError => {
+  if (cause instanceof ProgramLogAuthChangedError) {
+    return true
+  }
+  if (cause instanceof SnapshotLogError) {
+    return isAuthChangedCause(cause.cause)
+  }
+  return false
+}
+
 const toTransportError = (
   cause: unknown,
   operation: Runtime.SyncTransportError['operation'],
   raw?: unknown,
-): Runtime.SyncTransportError =>
-  new Runtime.SyncTransportError({
+): Runtime.SyncTransportError => {
+  if (isAuthChangedCause(cause)) {
+    return new Runtime.SyncTransportError({
+      cause: cause.message,
+      operation: 'AuthChanged',
+      isTerminal: true,
+      ...(raw === undefined ? {} : { raw }),
+    })
+  }
+  return new Runtime.SyncTransportError({
     cause: instantCauseString(cause),
     operation,
     ...(raw === undefined ? {} : { raw }),
   })
+}
 
 const decodeSnapshot = (
   row: unknown,
@@ -238,6 +285,16 @@ export const instantLinksOf =
       unsubscribe => Effect.sync(unsubscribe),
     )
 
+export type FromTransportOptions = Readonly<{
+  writesSnapshot?: boolean
+  localSnapshot?: Runtime.SyncEngine['localSnapshot']
+  snapshotScope?: Runtime.SyncEngine['snapshotScope']
+  watchAuthChanged?: Runtime.SyncEngine['watchAuthChanged']
+  hasOwnRows?: Runtime.SyncEngine['hasOwnRows']
+  readSharedSnapshots?: Runtime.SyncEngine['readSharedSnapshots']
+  writeSharedSnapshot?: Runtime.SyncEngine['writeSharedSnapshot']
+}>
+
 /**
  * Wraps a snapshot-log transport as the Runtime.start SyncEngine.
  * Instant has no Model.
@@ -246,13 +303,31 @@ export const fromTransport = (
   transport: SnapshotLogTransport,
   processor: string,
   links?: Runtime.SyncEngine['links'],
-  options?: Readonly<{ writesSnapshot?: boolean }>,
+  options?: FromTransportOptions,
 ): Runtime.SyncEngine => {
   const writesSnapshot = options?.writesSnapshot ?? true
   return {
     processor,
     writesSnapshot,
     ...(links === undefined ? {} : { links }),
+    ...(options?.localSnapshot === undefined
+      ? {}
+      : { localSnapshot: options.localSnapshot }),
+    ...(options?.snapshotScope === undefined
+      ? {}
+      : { snapshotScope: options.snapshotScope }),
+    ...(options?.watchAuthChanged === undefined
+      ? {}
+      : { watchAuthChanged: options.watchAuthChanged }),
+    ...(options?.hasOwnRows === undefined
+      ? {}
+      : { hasOwnRows: options.hasOwnRows }),
+    ...(options?.readSharedSnapshots === undefined
+      ? {}
+      : { readSharedSnapshots: options.readSharedSnapshots }),
+    ...(options?.writeSharedSnapshot === undefined
+      ? {}
+      : { writeSharedSnapshot: options.writeSharedSnapshot }),
   read: () =>
     transport.read().pipe(
       Effect.map(state => ({

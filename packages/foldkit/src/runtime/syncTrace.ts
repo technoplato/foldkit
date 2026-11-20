@@ -68,6 +68,22 @@ export type SyncTrace = At &
         cause: string
       }>
     | Readonly<{ _tag: 'LinkChanged'; link: SyncLinkState }>
+    | Readonly<{ _tag: 'LoadedLocalSnapshot'; hit: boolean }>
+    | Readonly<{ _tag: 'SavedLocalSnapshot' }>
+    | Readonly<{ _tag: 'RemovedLocalSnapshot'; reason: string }>
+    | Readonly<{
+        _tag: 'FailedLocalSnapshot'
+        operation: 'Load' | 'Save' | 'Remove' | 'Decode'
+        cause: string
+      }>
+    | Readonly<{ _tag: 'AuthChanged'; cause: string }>
+    | Readonly<{ _tag: 'LoadedSharedSnapshot'; slot: number; count: number }>
+    | Readonly<{ _tag: 'SavedSharedSnapshot'; slot: number; count: number }>
+    | Readonly<{
+        _tag: 'FailedSharedSnapshot'
+        operation: 'Read' | 'Write' | 'Decode' | 'Audit'
+        cause: string
+      }>
   )
 
 /** A sync trace before the runtime stamps the time on it. */

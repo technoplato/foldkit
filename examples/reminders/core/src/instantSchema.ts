@@ -68,12 +68,33 @@ export const programMessageEntity = i.entity({
 })
 
 /**
+ * Foldkit's 4-slot shared snapshot ring, owned by the signed-in member so a
+ * new device can cold-boot from a recent fold without replaying the whole log.
+ */
+export const programSnapshotEntity = i.entity({
+  app: i.string().indexed(),
+  room: i.string().indexed(),
+  programVersion: i.number().indexed(),
+  foldRevision: i.string().indexed(),
+  ownerUserID: i.string().indexed(),
+  slot: i.number().indexed(),
+  count: i.number().indexed(),
+  writtenBy: i.string(),
+  writtenAtMs: i.number(),
+  payload: i.string(),
+})
+
+/**
  * The schema the Reminders example needs on its Instant app: Reminders
  * V3's entities and links, unchanged, and Foldkit's owner-scoped
- * `programMessage` log beside them.
+ * `programMessage` log and `programSnapshot` ring beside them.
  */
 export const schema = i.schema({
-  entities: { ...remindersV3Entities, programMessage: programMessageEntity },
+  entities: {
+    ...remindersV3Entities,
+    programMessage: programMessageEntity,
+    programSnapshot: programSnapshotEntity,
+  },
   links: {
     remindersList: {
       forward: {

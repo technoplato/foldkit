@@ -117,23 +117,26 @@ describe('Instant demo env', () => {
     expect(engine.processor).toBe('cli')
   })
 
-  it('keeps demoEnv and readFileSync out of the browser entry', () => {
-    const source = readFileSync(
-      new URL('../browser.ts', import.meta.url),
-      'utf8',
-    )
-    expect(source).not.toContain('demoEnv')
-    expect(source).not.toContain('readFileSync')
-    expect(source).not.toContain('loadInstantDemoEnv')
-    expect(source).not.toContain('resolveInstantSyncEngine')
+  it('keeps demoEnv and readFileSync out of the browser and react-native entries', () => {
+    for (const entry of ['../browser.ts', '../reactNative.ts']) {
+      const source = readFileSync(new URL(entry, import.meta.url), 'utf8')
+      expect(source).not.toContain('demoEnv')
+      expect(source).not.toContain('readFileSync')
+      expect(source).not.toContain('loadInstantDemoEnv')
+      expect(source).not.toContain('resolveInstantSyncEngine')
+    }
   })
 
-  it('points browser and react-native at the browser Instant entry', () => {
+  it('points browser and react-native at their platform Instant entries', () => {
     const manifest = JSON.parse(
       readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
     )
     expect(manifest.exports['.'].browser).toBe('./dist/browser.js')
-    expect(manifest.exports['.']['react-native']).toBe('./dist/browser.js')
+    expect(manifest.exports['.']['react-native']).toBe('./dist/reactNative.js')
     expect(manifest.exports['.'].import).toBe('./dist/index.js')
+    expect(manifest.exports['./browser'].browser).toBe('./dist/browser.js')
+    expect(manifest.exports['./browser']['react-native']).toBe(
+      './dist/reactNative.js',
+    )
   })
 })

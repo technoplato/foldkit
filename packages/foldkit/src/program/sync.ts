@@ -117,6 +117,13 @@ export type SyncOptions = Readonly<{
   id?: string
   /** Program version. Default is the child version. */
   version?: number
+  /**
+   * Optional fold revision identifying the exact deterministic fold semantics
+   * of this Program. Bump whenever `update` or fold logic changes while the
+   * Model Schema stays compatible; shared snapshots require a matching
+   * `foldRevision` and never paint across revisions.
+   */
+  foldRevision?: string
 }>
 
 /** DecodeFailed and TransportFailed constructors for one Message Schema. */
@@ -153,6 +160,7 @@ export type SyncProgram<Child extends SyncChild> = Program<
     of: Child
     snapshot: S.Top
     message: S.Top
+    foldRevision?: string
     Starting: () => Starting
     Ready: (model: ModelOf<Child>) => Ready<ModelOf<Child>>
     Failed: (fields: {
@@ -318,6 +326,7 @@ export const sync = <Child extends SyncChild>(config: {
   message: S.Top
   id?: string
   version?: number
+  foldRevision?: string
 }): SyncProgram<Child> => {
   const child = config.of
   type ChildModel = ModelOf<Child>
@@ -596,6 +605,9 @@ export const sync = <Child extends SyncChild>(config: {
     of: child,
     snapshot: config.snapshot,
     message: config.message,
+    ...(config.foldRevision === undefined
+      ? {}
+      : { foldRevision: config.foldRevision }),
     Starting,
     Ready: (model: ChildModel) => toReady(model),
     Failed,

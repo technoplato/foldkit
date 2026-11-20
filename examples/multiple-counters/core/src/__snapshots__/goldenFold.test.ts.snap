@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Multiple Counters golden fold > matches the committed golden Model for foldRevision multiple-counters-fold-v1 1`] = `"{"counters":[{"counterId":1,"counter":{"count":1}},{"counterId":2,"counter":{"count":0}},{"counterId":3,"counter":{"count":0}}],"nextCounterId":4,"navigation":{"root":{"_tag":"CounterList"},"pages":[],"maybeModal":{"_tag":"None"}},"session":{"mode":"Mirror","generation":0}}"`;

@@ -5,7 +5,6 @@ import { SharedInstantProject, Instant } from '@foldkit/instant/browser'
 import {
   type CounterHandle,
   type StartCounterConfig,
-  counterLocalSnapshotKey,
 } from './startConfig.js'
 import { SyncedCounter } from './synced.js'
 
@@ -33,28 +32,16 @@ const engineFor = (config: StartCounterConfig): Runtime.SyncEngine => {
   }
 }
 
-const browserStorage = (): Storage | undefined =>
-  typeof window === 'undefined' ? undefined : window.localStorage
-
 const localSnapshotFor = (
   config: StartCounterConfig,
-): Runtime.LocalSnapshotStore | undefined => {
-  const storage = browserStorage()
-  if (config.tape === 'Memory') {
-    return undefined
-  } else if (config.localSnapshot !== undefined) {
-    return config.localSnapshot
-  } else if (storage !== undefined) {
-    return Runtime.LocalSnapshot.webStorage(storage, counterLocalSnapshotKey)
-  } else {
-    return undefined
-  }
-}
+): Runtime.LocalSnapshotStore | undefined =>
+  config.tape === 'Memory' ? undefined : config.localSnapshot
 
 /**
  * Starts the synced Counter in a browser or Expo Client. The tape defaults
- * to Instant. A browser keeps its local snapshot in `localStorage`, so a
- * reload paints the last count at once and folds only the rows since.
+ * to Instant. The Instant sync engine automatically supplies a local snapshot
+ * store (IndexedDB in browsers, AsyncStorage in React Native), so a reload
+ * paints the last count at once and folds only the rows since.
  *
  * @example
  * ```typescript

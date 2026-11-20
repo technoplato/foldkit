@@ -159,13 +159,17 @@ describe('the Reminders schema', () => {
     expect(schema.links).toEqual(remindersV3Links)
   })
 
-  it('adds only Foldkit’s own log beside the V3 namespaces', () => {
+  it('adds only Foldkit’s own log and shared snapshot ring beside the V3 namespaces', () => {
     expect(Record.keys(schema.entities).sort()).toEqual(
-      [...Record.keys(remindersV3Attributes), 'programMessage'].sort(),
+      [
+        ...Record.keys(remindersV3Attributes),
+        'programMessage',
+        'programSnapshot',
+      ].sort(),
     )
   })
 
-  it('carries V3’s rules for its namespaces and keeps log rows their writer’s', () => {
+  it('carries V3’s rules for its namespaces and keeps log and snapshot rows their writer’s', () => {
     expect(rules.reminders.allow).toEqual({
       view: 'isOwner || isWriter || isReader',
       create: 'auth.id != null',
@@ -176,6 +180,10 @@ describe('the Reminders schema', () => {
     expect(rules.v3_shares.allow.view).toBe('isOwner || isMember')
     expect(rules.programMessage.allow.view).toBe(
       'auth.id != null && auth.id == data.ownerUserID',
+    )
+    expect(rules.programSnapshot.allow.delete).toBe('false')
+    expect(rules.programSnapshot.allow.update).toContain(
+      'newData.count >= data.count',
     )
   })
 })

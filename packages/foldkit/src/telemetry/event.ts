@@ -226,6 +226,14 @@ export const SyncKind = S.Literals([
   'DroppedRow',
   'RefusedRow',
   'LinkChanged',
+  'LoadedLocalSnapshot',
+  'SavedLocalSnapshot',
+  'RemovedLocalSnapshot',
+  'FailedLocalSnapshot',
+  'AuthChanged',
+  'LoadedSharedSnapshot',
+  'SavedSharedSnapshot',
+  'FailedSharedSnapshot',
 ])
 
 /** What a sync runtime did, by kind. */
