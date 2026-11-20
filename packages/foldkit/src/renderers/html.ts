@@ -1,6 +1,11 @@
 import { Array, Match as M, Option } from 'effect'
 
-import { type Html, OnCustomEvent, html } from '../html/index.js'
+import {
+  type Html,
+  OnCustomEvent,
+  createKeyedLazy,
+  html,
+} from '../html/index.js'
 import {
   type KeyPlatform,
   type MenuView,
@@ -20,9 +25,11 @@ import {
   itemMenuMount,
   leftPlayheadEventName,
   listMount,
+  passageMenuMount,
   seekFieldMount,
   textAgainMount,
   transcriptMount,
+  transcriptPressEventName,
   wordMenuMount,
 } from './htmlEdge.js'
 import { iconGlyphs } from './icons.js'
@@ -36,11 +43,145 @@ import type {
   MenuAction,
   TextPart,
   TranscriptNode,
+  TranscriptPassage,
+  TranscriptWord,
   UiNode,
 } from './types.js'
 
+/**
+ * The Mounts the painted parts carry, for a test of a page that paints a
+ * Transcript or a List to name when it answers its Mounts:
+ * `Scene.Mount.resolveAll([transcriptMount(), SomeFact()])`.
+ */
+export {
+  itemMenuMount,
+  listMount,
+  passageMenuMount,
+  transcriptMount,
+  wordMenuMount,
+} from './htmlEdge.js'
+
 const browserKeyPlatform = (): KeyPlatform =>
   typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
+
+/**
+ * A memo slot for the passages of one painted Transcript, made with
+ * `createPassageSlots` and kept for the life of the page. With it a
+ * passage is drawn again only when the passage itself is a new value, so a
+ * long recording costs only the passages that changed on each render, not
+ * all of them. One slot serves one Transcript on the page.
+ */
+export type PassageSlots = ReturnType<typeof createKeyedLazy>
+
+/**
+ * Makes the memo slot for the passages of one painted Transcript.
+ *
+ * @example
+ * ```typescript
+ * const passageSlots = createPassageSlots()
+ * paintHtml(transcript, toMessage, { passageSlots })
+ * ```
+ */
+export const createPassageSlots = (): PassageSlots => createKeyedLazy()
+
+/**
+ * How `paintHtml` paints. `passageSlots` keeps a Transcript's passages
+ * drawn between renders, for a page whose Transcript is long.
+ */
+export type PaintHtmlOptions = Readonly<{
+  passageSlots?: PassageSlots
+}>
+
+const SEALED_BAR_WIDTHS: ReadonlyArray<string> = ['4em', '6em', '2.5em', '5em']
+
+const paintWord = (word: TranscriptWord): Html => {
+  const h = html<never>()
+  return h.span(
+    [
+      h.Class('fk-word'),
+      h.DataAttribute('token', word.token),
+      ...(word.startMs === undefined
+        ? []
+        : [h.DataAttribute('start-ms', word.startMs.toString())]),
+      ...(word.isCurrent === true ? [h.DataAttribute('current', 'true')] : []),
+      ...(word.mark === undefined ? [] : [h.DataAttribute('mark', word.mark)]),
+    ],
+    [`${word.text} `],
+  )
+}
+
+const paintPassageWords = (passage: TranscriptPassage): Html => {
+  const h = html<never>()
+  if (passage.sealed !== undefined) {
+    return h.p(
+      [h.Class('fk-passage-sealed'), h.Title(passage.sealed)],
+      [
+        h.span([h.Class('fk-sr-only')], [passage.sealed]),
+        ...Array.map(SEALED_BAR_WIDTHS, width =>
+          h.span(
+            [h.Class('fk-sealed-bar'), h.AriaHidden(true), h.Style({ width })],
+            [],
+          ),
+        ),
+      ],
+    )
+  } else if (
+    Array.isReadonlyArrayEmpty(passage.words) &&
+    passage.text !== undefined
+  ) {
+    return h.p([h.Class('fk-passage-words')], [passage.text])
+  } else {
+    return h.p(
+      [h.Class('fk-passage-words')],
+      Array.map(passage.words, paintWord),
+    )
+  }
+}
+
+// NOTE: a passage is drawn from the passage alone, with no handlers, so a
+// page can keep it between renders with `passageSlots`. Its label and its
+// words name their presses as attributes, which the edge hears.
+const paintPassage = (passage: TranscriptPassage): Html => {
+  const h = html<never>()
+  return h.article(
+    [
+      h.Key(`passage:${passage.key}`),
+      h.Class('fk-passage'),
+      h.DataAttribute('key', passage.key),
+      ...(passage.startMs === undefined
+        ? []
+        : [h.DataAttribute('start-ms', passage.startMs.toString())]),
+      ...(passage.isCurrent === true
+        ? [h.DataAttribute('current', 'true')]
+        : []),
+      ...(passage.isFocused === true
+        ? [h.DataAttribute('focused', 'true')]
+        : []),
+      ...(passage.isTentative === true
+        ? [h.DataAttribute('tentative', 'true')]
+        : []),
+    ],
+    [
+      ...(passage.heading === undefined
+        ? []
+        : [h.h3([h.Class('fk-passage-heading')], [passage.heading])]),
+      ...(passage.speaker === undefined
+        ? []
+        : [h.p([h.Class('fk-passage-speaker')], [passage.speaker])]),
+      passage.labelAction === undefined
+        ? h.span([h.Class('fk-passage-label')], [passage.label])
+        : h.button(
+            [
+              h.Type('button'),
+              h.Class('fk-passage-label'),
+              h.DataAttribute('press', passage.labelAction),
+            ],
+            [passage.label],
+          ),
+      paintPassageWords(passage),
+    ],
+  )
+}
 
 /**
  * Paints a Program screen tree as Foldkit HTML. A Button's Catalog `action`,
@@ -51,6 +192,7 @@ const browserKeyPlatform = (): KeyPlatform =>
 export const paintHtml = <Message>(
   node: UiNode,
   toMessage: (token: string) => Message | undefined,
+  options: PaintHtmlOptions = {},
 ): Html => {
   const h = html<Message>()
   const leaveAttributes = (transcript: TranscriptNode) => {
@@ -121,6 +263,36 @@ export const paintHtml = <Message>(
           ...(dismiss === undefined
             ? []
             : [h.OnMount(wordMenuMount<Message>(menu.token, dismiss))]),
+        ],
+        paintMenuItems(menu.items),
+      ),
+    ]
+  }
+
+  const paintPassageMenu = (
+    transcript: TranscriptNode,
+  ): ReadonlyArray<Html> => {
+    const menu = transcript.passageMenu
+    if (menu === undefined) {
+      return []
+    }
+    const dismiss = toMessage(menu.dismissAction)
+    const maybePassage = Array.findFirst(
+      transcript.passages,
+      passage => passage.key === menu.key,
+    )
+    return [
+      paintMenuBackdrop(dismiss),
+      h.div(
+        [
+          h.Class('fk-word-menu'),
+          h.Role('menu'),
+          ...Array.map(Array.fromOption(maybePassage), passage =>
+            h.AriaLabel(`Section at ${passage.label}`),
+          ),
+          ...(dismiss === undefined
+            ? []
+            : [h.OnMount(passageMenuMount<Message>(menu.key, dismiss))]),
         ],
         paintMenuItems(menu.items),
       ),
@@ -605,9 +777,25 @@ export const paintHtml = <Message>(
                       transcript.clock.rate.toString(),
                     ),
                   ]),
+              // NOTE: the words carry no handlers. The edge hears every
+              // press on them with one listener and sends the press event,
+              // which the view answers here.
+              h.DataAttribute('word-action', transcript.action),
               ...(transcript.wordMenuAction === undefined
                 ? []
-                : [h.DataAttribute('word-menu', 'true')]),
+                : [
+                    h.DataAttribute(
+                      'word-menu-action',
+                      transcript.wordMenuAction,
+                    ),
+                  ]),
+              OnCustomEvent<Message>({
+                name: transcriptPressEventName,
+                f: event =>
+                  typeof event.detail === 'string'
+                    ? toMessage(event.detail)
+                    : undefined,
+              }),
               // NOTE: whether the words follow the voice, and which word to
               // show, are the Program's; the edge keeps the spoken word in
               // the middle and sends this event when the reader scrolls it
@@ -637,6 +825,7 @@ export const paintHtml = <Message>(
                 if (entry._tag === 'ItemEntry') {
                   return h.aside(
                     [
+                      h.Key(`item:${entry.item.key}`),
                       h.Class('fk-transcript-item'),
                       h.DataAttribute('key', entry.item.key),
                     ],
@@ -646,77 +835,14 @@ export const paintHtml = <Message>(
                     ],
                   )
                 }
-                const passage = entry.passage
-                return h.article(
-                  [
-                    h.Class('fk-passage'),
-                    ...(passage.isCurrent === true
-                      ? [h.DataAttribute('current', 'true')]
-                      : []),
-                  ],
-                  [
-                    ...(passage.heading === undefined
-                      ? []
-                      : [
-                          h.h3(
-                            [h.Class('fk-passage-heading')],
-                            [passage.heading],
-                          ),
-                        ]),
-                    ...(passage.speaker === undefined
-                      ? []
-                      : [
-                          h.p(
-                            [h.Class('fk-passage-speaker')],
-                            [passage.speaker],
-                          ),
-                        ]),
-                    h.span([h.Class('fk-passage-label')], [passage.label]),
-                    h.p(
-                      [h.Class('fk-passage-words')],
-                      Array.map(passage.words, word => {
-                        const message = toMessage(
-                          `${transcript.action}:${word.token}`,
-                        )
-                        const menuMessage =
-                          transcript.wordMenuAction === undefined
-                            ? undefined
-                            : toMessage(
-                                `${transcript.wordMenuAction}:${word.token}`,
-                              )
-                        return h.span(
-                          [
-                            h.Class('fk-word'),
-                            h.DataAttribute('token', word.token),
-                            ...(word.startMs === undefined
-                              ? []
-                              : [
-                                  h.DataAttribute(
-                                    'start-ms',
-                                    word.startMs.toString(),
-                                  ),
-                                ]),
-                            ...(word.isCurrent === true
-                              ? [h.DataAttribute('current', 'true')]
-                              : []),
-                            ...(word.mark === undefined
-                              ? []
-                              : [h.DataAttribute('mark', word.mark)]),
-                            ...(message === undefined
-                              ? []
-                              : [h.OnClick(message)]),
-                            ...(menuMessage === undefined
-                              ? []
-                              : [h.OnContextMenu(menuMessage)]),
-                          ],
-                          [`${word.text} `],
-                        )
-                      }),
-                    ),
-                  ],
-                )
+                return options.passageSlots === undefined
+                  ? paintPassage(entry.passage)
+                  : options.passageSlots(entry.passage.key, paintPassage, [
+                      entry.passage,
+                    ])
               }),
               ...paintWordMenu(transcript),
+              ...paintPassageMenu(transcript),
             ],
           ),
         DeviceShell: shell =>

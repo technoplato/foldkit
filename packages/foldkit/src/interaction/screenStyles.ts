@@ -700,6 +700,40 @@ ${themeStylesheet(defaultTheme)}
   box-shadow: inset 3px 0 0 ${roleVar('ReadingRule')};
 }
 
+:where(.fk-passage[data-focused]) {
+  background: ${roleVar('ReadingCurrentGround')};
+  box-shadow: inset 0 0 0 2px ${roleVar('ReadingRule')};
+}
+
+:where(.fk-passage[data-tentative] .fk-passage-words) {
+  color: ${roleVar('QuietText')};
+}
+
+:where(.fk-passage-sealed) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  margin: 0;
+}
+
+:where(.fk-sealed-bar) {
+  display: inline-block;
+  height: 12px;
+  border-radius: 999px;
+  background: ${roleVar('ReadingCurrentGround')};
+}
+
+:where(.fk-sr-only) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 :where(.fk-passage-heading) {
   margin: 14px 0 8px;
   padding-left: 12px;

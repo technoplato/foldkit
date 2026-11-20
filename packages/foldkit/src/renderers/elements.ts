@@ -33,6 +33,7 @@ import type {
   TranscriptItem,
   TranscriptNode,
   TranscriptPassage,
+  TranscriptPassageMenu,
   TranscriptWordMenu,
   UiNode,
 } from './types.js'
@@ -474,6 +475,7 @@ export const Transcript = (
     focusToken?: string
     wordMenuAction?: string
     wordMenu?: TranscriptWordMenu
+    passageMenu?: TranscriptPassageMenu
     items?: ReadonlyArray<TranscriptItem>
   }>,
 ): TranscriptNode => ({
@@ -495,6 +497,9 @@ export const Transcript = (
     ? {}
     : { wordMenuAction: props.wordMenuAction }),
   ...(props.wordMenu === undefined ? {} : { wordMenu: props.wordMenu }),
+  ...(props.passageMenu === undefined
+    ? {}
+    : { passageMenu: props.passageMenu }),
   ...(props.items === undefined ? {} : { items: props.items }),
 })
 

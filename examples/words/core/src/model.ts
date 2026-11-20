@@ -266,6 +266,7 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   announcementPause: AnnouncementPause,
   announcementRevision: S.Number,
   maybeWordMenu: S.Option(WordMenu),
+  maybeSectionMenuID: S.Option(S.String),
   maybeFind: S.Option(Find),
 })
 /** Where playback stands. */

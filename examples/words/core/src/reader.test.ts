@@ -5,8 +5,10 @@ import { RecordingRoute } from './link.js'
 import {
   AcquiredAudioPlayer,
   ChangedFindQuery,
+  ClickedCopySectionText,
   ClickedCopyWordLink,
   ClickedWord,
+  ClosedSectionMenu,
   ClosedWordMenu,
   HeardAudioPosition,
   type Message,
@@ -208,5 +210,75 @@ describe('a press on the reader', () => {
     expect(
       readerOf(readyOf(press(withMenu, 'ClosedWordMenu')), paused).wordMenu,
     ).toBeUndefined()
+  })
+})
+
+describe('a section’s menu on the reader', () => {
+  const press = (model: Model, pressed: string): Model =>
+    Option.match(readerMessageOf(readyOf(model), pressed), {
+      onNone: () => model,
+      onSome: message => run(model, [message]),
+    })
+
+  it('opens from a section’s time, offering to play from it and to copy its link, its word’s link and its text', () => {
+    const reader = readerOf(readyOf(opened), paused)
+    expect(Array.map(reader.passages, passage => passage.labelAction)).toEqual([
+      'OpenedSectionMenu:section-0',
+      'OpenedSectionMenu:section-1',
+    ])
+    const withMenu = press(opened, 'OpenedSectionMenu:section-1')
+    const menu = readerOf(readyOf(withMenu), paused).passageMenu
+    expect(menu?.key).toBe('section-1')
+    expect(menu?.dismissAction).toBe('ClosedSectionMenu')
+    expect(Array.map(menu?.items ?? [], item => item.action)).toEqual([
+      'ClickedPlaySection:section-1',
+      'ClickedCopySectionLink:section-1',
+      'ClickedCopySectionWordLink:section-1',
+      'ClickedCopySectionText:section-1',
+    ])
+  })
+
+  it('turns each of its presses into the Message the web sends', () => {
+    const ready = readyOf(opened)
+    expect(readerMessageOf(ready, 'ClickedPlaySection:section-1')).toEqual(
+      Option.some(ClickedWord({ seconds: 10 })),
+    )
+    expect(readerMessageOf(ready, 'ClickedCopySectionText:section-1')).toEqual(
+      Option.some(ClickedCopySectionText({ sectionID: 'section-1' })),
+    )
+    expect(readerMessageOf(ready, 'ClosedSectionMenu')).toEqual(
+      Option.some(ClosedSectionMenu()),
+    )
+    expect(readerMessageOf(ready, 'OpenedSectionMenu:no-section')).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('closes once something on it is chosen, or it is dismissed, and a word’s menu replaces it', () => {
+    const withMenu = press(opened, 'OpenedSectionMenu:section-0')
+    const menuOf = (model: Model) =>
+      readerOf(readyOf(model), paused).passageMenu
+    expect(
+      menuOf(press(withMenu, 'ClickedCopySectionText:section-0')),
+    ).toBeUndefined()
+    expect(
+      menuOf(press(withMenu, 'ClickedPlaySection:section-0')),
+    ).toBeUndefined()
+    expect(menuOf(press(withMenu, 'ClosedSectionMenu'))).toBeUndefined()
+    expect(
+      menuOf(press(withMenu, 'OpenedWordMenu:section-1:2')),
+    ).toBeUndefined()
+  })
+
+  it('keeps each unchanged passage the same value from one render to the next, so a page draws again only what changed', () => {
+    const before = readerOf(readyOf(opened), paused)
+    const after = readerOf(
+      readyOf(run(opened, [HeardAudioPosition({ seconds: 11 })])),
+      paused,
+    )
+    expect(Array.zipWith(before.passages, after.passages, Object.is)).toEqual([
+      true,
+      true,
+    ])
   })
 })

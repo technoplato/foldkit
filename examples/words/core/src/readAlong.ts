@@ -7,6 +7,7 @@ import {
   type TranscriptPassage,
 } from 'foldkit/renderers'
 
+import { sealedLineTextOf } from './decode.js'
 import type {
   ImageEntry,
   RecordingDetail,
@@ -37,9 +38,16 @@ export type ReadAlongPlayback = Readonly<{
 const millisecondsOf = (seconds: number): number =>
   Math.round(seconds * MILLISECONDS_PER_SECOND)
 
-const passageOf = (section: Section): TranscriptPassage => ({
+const freshPassageOf = (section: Section): TranscriptPassage => ({
   key: section.id,
   label: formatClock(section.startSeconds),
+  startMs: millisecondsOf(section.startSeconds),
+  ...(section.isFinal ? {} : { isTentative: true }),
+  ...Option.match(section.maybeWordsSeal, {
+    onNone: () =>
+      Array.isReadonlyArrayEmpty(section.words) ? { text: section.text } : {},
+    onSome: seal => ({ sealed: sealedLineTextOf(seal) }),
+  }),
   words: Array.map(section.words, word => ({
     token: word.id,
     text: word.text,
@@ -47,14 +55,48 @@ const passageOf = (section: Section): TranscriptPassage => ({
   })),
 })
 
+// NOTE: a section the Model has not replaced is the same value from one
+// render to the next, and so is its passage: a page that keeps passages
+// drawn between renders draws again only the sections that changed.
+const passages = new WeakMap<Section, TranscriptPassage>()
+
+const passageOf = (section: Section): TranscriptPassage => {
+  const maybeKept = passages.get(section)
+  if (maybeKept !== undefined) {
+    return maybeKept
+  }
+  const passage = freshPassageOf(section)
+  passages.set(section, passage)
+  return passage
+}
+
+const spokenPassages = new WeakMap<
+  TranscriptPassage,
+  Readonly<{ speaker: string; passage: TranscriptPassage }>
+>()
+
+const withSpeaker = (
+  passage: TranscriptPassage,
+  speaker: string,
+): TranscriptPassage => {
+  const maybeKept = spokenPassages.get(passage)
+  if (maybeKept !== undefined && maybeKept.speaker === speaker) {
+    return maybeKept.passage
+  }
+  const spoken = { ...passage, speaker }
+  spokenPassages.set(passage, { speaker, passage: spoken })
+  return spoken
+}
+
 /**
  * A recording as the Transcript every Client of the library reads along
  * with: a passage for each section, labelled with its time, each word
  * with its id as the token and its start, and a clock from the playback,
  * so `transcriptAt` marks the word being spoken between reports of the
  * place, and the shared readings search it, step through it, link to a
- * word and print it for a terminal. A sealed section keeps its place and
- * has no words, as it has none here.
+ * word and print it for a terminal. A sealed section keeps its place,
+ * says why its words are held back, and has no words, as it has none
+ * here; a section still being heard is tentative.
  *
  * @example
  * ```typescript
@@ -178,7 +220,7 @@ export const timelineReadAlongOf = (
       )
       return Option.match(speakerOf(section), {
         onNone: () => passage,
-        onSome: speaker => ({ ...passage, speaker }),
+        onSome: speaker => withSpeaker(passage, speaker),
       })
     }),
     items: Array.getSomes(

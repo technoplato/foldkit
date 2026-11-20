@@ -1,26 +1,15 @@
-import {
-  Array,
-  Effect,
-  Function,
-  Option,
-  Queue,
-  Schema as S,
-  Stream,
-  pipe,
-} from 'effect'
+import { Array, Effect, Function, Option, Queue, Stream, pipe } from 'effect'
 import { Mount, Theme } from 'foldkit'
 import {
   ApproachedListEdge,
   ChangedListRowFocus,
   ChangedPlayheadVisibility,
-  ClickedWord,
   CompletedRunPlaybackClock,
   CompletedRunWallClock,
   CompletedShowRowMenuOnContextMenu,
   GotShareMessage,
   ListEdge,
   type Message,
-  OpenedWordMenu,
   type PlaybackClock,
   ReachedListTop,
   RecordingWindow,
@@ -33,56 +22,89 @@ import {
   spokenAt,
 } from 'words-core-example'
 
-import { scrollSectionElementTo } from './browser.js'
+import { passageSelectorOf, scrollSectionElementTo } from './browser.js'
 
 const TOP_BAR_CLEARANCE_PX = 64
 const BOTTOM_CONTROLS_CLEARANCE_PX = 168
 
 /**
- * Reports whether the followed section is on screen, between the top bar and
- * the floating controls, as the listener scrolls or the transcript grows. It
- * mounts inside the followed section only, so a new followed section starts a
- * new observer and reports at once.
+ * Reports whether the followed section is on screen, between the top bar
+ * and the floating controls, as the listener scrolls or the transcript
+ * grows. The transcript names the followed section in
+ * `data-followed-section`; when that changes, or the passage first
+ * appears, the observer moves to it and reports at once.
  */
-export const ObservePlayheadVisibility = Mount.defineStream(
-  'ObservePlayheadVisibility',
-  { sectionID: S.String },
+export const ObserveFollowedSection = Mount.defineStream(
+  'ObserveFollowedSection',
   ChangedPlayheadVisibility,
-)(
-  ({ sectionID }) =>
-    element =>
-      Stream.callback<typeof ChangedPlayheadVisibility.Type>(queue =>
-        Effect.acquireRelease(
-          Effect.sync(() => {
-            const observer = new IntersectionObserver(
-              entries => {
-                pipe(
-                  Array.last(entries),
-                  Option.match({
-                    onNone: Function.constVoid,
-                    onSome: entry =>
-                      Queue.offerUnsafe(
-                        queue,
-                        ChangedPlayheadVisibility({
-                          sectionID,
-                          visibility: entry.isIntersecting
-                            ? 'OnScreen'
-                            : 'OffScreen',
-                        }),
-                      ),
-                  }),
+)(transcript =>
+  Stream.callback<typeof ChangedPlayheadVisibility.Type>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const state: {
+          maybeObserved: Element | undefined
+          maybeObserver: IntersectionObserver | undefined
+        } = { maybeObserved: undefined, maybeObserver: undefined }
+        const watch = () => {
+          const sectionID =
+            transcript.getAttribute('data-followed-section') ?? ''
+          const maybePassage =
+            sectionID === ''
+              ? undefined
+              : (transcript.querySelector(passageSelectorOf(sectionID)) ??
+                undefined)
+          if (maybePassage === state.maybeObserved) {
+            return
+          }
+          state.maybeObserver?.disconnect()
+          state.maybeObserved = maybePassage
+          state.maybeObserver =
+            maybePassage === undefined
+              ? undefined
+              : new IntersectionObserver(
+                  entries => {
+                    pipe(
+                      Array.last(entries),
+                      Option.match({
+                        onNone: Function.constVoid,
+                        onSome: entry =>
+                          Queue.offerUnsafe(
+                            queue,
+                            ChangedPlayheadVisibility({
+                              sectionID,
+                              visibility: entry.isIntersecting
+                                ? 'OnScreen'
+                                : 'OffScreen',
+                            }),
+                          ),
+                      }),
+                    )
+                  },
+                  {
+                    rootMargin: `-${TOP_BAR_CLEARANCE_PX}px 0px -${BOTTOM_CONTROLS_CLEARANCE_PX}px 0px`,
+                  },
                 )
-              },
-              {
-                rootMargin: `-${TOP_BAR_CLEARANCE_PX}px 0px -${BOTTOM_CONTROLS_CLEARANCE_PX}px 0px`,
-              },
-            )
-            observer.observe(element)
-            return observer
-          }),
-          observer => Effect.sync(() => observer.disconnect()),
-        ).pipe(Effect.flatMap(() => Effect.never)),
-      ),
+          if (maybePassage !== undefined) {
+            state.maybeObserver?.observe(maybePassage)
+          }
+        }
+        const changes = new MutationObserver(watch)
+        changes.observe(transcript, {
+          attributes: true,
+          attributeFilter: ['data-followed-section'],
+          childList: true,
+          subtree: true,
+        })
+        watch()
+        return { changes, state }
+      }),
+      ({ changes, state }) =>
+        Effect.sync(() => {
+          changes.disconnect()
+          state.maybeObserver?.disconnect()
+        }),
+    ).pipe(Effect.flatMap(() => Effect.never)),
+  ),
 )
 
 /**
@@ -128,110 +150,6 @@ export const ShowShareDialog = Mount.defineStream(
             }
           })
         }),
-    ).pipe(Effect.flatMap(() => Effect.never)),
-  ),
-)
-
-const WORD_SELECTOR = '[data-word-seconds]'
-
-/**
- * Plays from a transcript word when it is clicked, but not when the click
- * ends a text selection, so selecting words to copy never moves playback.
- * One listener serves every word of the transcript.
- */
-export const TrackWordClicks = Mount.defineStream(
-  'TrackWordClicks',
-  ClickedWord,
-)(element =>
-  Stream.callback<typeof ClickedWord.Type>(queue =>
-    Effect.acquireRelease(
-      Effect.sync(() => {
-        const handleClick = (event: Event) => {
-          const isSelecting = Option.exists(
-            Option.fromNullishOr(window.getSelection()),
-            selection => !selection.isCollapsed,
-          )
-          const maybeWord = pipe(
-            Option.fromNullishOr(event.target),
-            Option.filter(
-              (target): target is Element => target instanceof Element,
-            ),
-            Option.flatMap(target =>
-              Option.fromNullishOr(target.closest(WORD_SELECTOR)),
-            ),
-          )
-          if (!isSelecting && Option.isSome(maybeWord)) {
-            const seconds = Number(
-              maybeWord.value.getAttribute('data-word-seconds'),
-            )
-            if (Number.isFinite(seconds)) {
-              Queue.offerUnsafe(queue, ClickedWord({ seconds }))
-            }
-          }
-        }
-        element.addEventListener('click', handleClick)
-        return handleClick
-      }),
-      handleClick =>
-        Effect.sync(() => element.removeEventListener('click', handleClick)),
-    ).pipe(Effect.flatMap(() => Effect.never)),
-  ),
-)
-
-/**
- * Opens a word's menu when the word is right-clicked. It is mounted on a
- * child of the transcript and listens on the transcript, so one listener
- * serves every word. A right click while words are selected is left to
- * the browser, so its own menu still copies and looks up the selection.
- * A long press is left to the browser too: on a phone it selects text.
- */
-export const TrackWordMenus = Mount.defineStream(
-  'TrackWordMenus',
-  OpenedWordMenu,
-)(element =>
-  Stream.callback<typeof OpenedWordMenu.Type>(queue =>
-    Effect.acquireRelease(
-      Effect.sync(() => {
-        const transcript = element.parentElement ?? element
-        const handleContextMenu = (event: Event) => {
-          const isSelecting = Option.exists(
-            Option.fromNullishOr(window.getSelection()),
-            selection => !selection.isCollapsed,
-          )
-          const maybeSeconds = pipe(
-            Option.fromNullishOr(event.target),
-            Option.filter(
-              (target): target is Element => target instanceof Element,
-            ),
-            Option.flatMap(target =>
-              Option.fromNullishOr(target.closest(WORD_SELECTOR)),
-            ),
-            Option.map(word => Number(word.getAttribute('data-word-seconds'))),
-            Option.filter(seconds => Number.isFinite(seconds)),
-          )
-          if (
-            !isSelecting &&
-            Option.isSome(maybeSeconds) &&
-            event instanceof MouseEvent
-          ) {
-            event.preventDefault()
-            Queue.offerUnsafe(
-              queue,
-              OpenedWordMenu({
-                seconds: maybeSeconds.value,
-                x: event.clientX,
-                y: event.clientY,
-              }),
-            )
-          }
-        }
-        transcript.addEventListener('contextmenu', handleContextMenu)
-        return { transcript, handleContextMenu }
-      }),
-      ({ transcript, handleContextMenu }) =>
-        Effect.sync(() =>
-          transcript.removeEventListener('contextmenu', handleContextMenu),
-        ),
     ).pipe(Effect.flatMap(() => Effect.never)),
   ),
 )
@@ -952,7 +870,8 @@ const onPlaybackClock = (
     runner => Effect.sync(runner.stop),
   ).pipe(Effect.as(CompletedRunPlaybackClock()))
 
-const SECTION_SELECTOR = '[data-section-seconds]'
+const SECTION_SELECTOR = '.fk-passage[data-start-ms]'
+const WORD_SELECTOR = '.fk-word[data-start-ms]'
 const WORD_CURRENT = 'data-word-current'
 const SECTION_CURRENT = 'data-section-current'
 
@@ -962,8 +881,8 @@ type SpokenElements = Readonly<{
   wordElements: ReadonlyArray<ReadonlyArray<Element>>
 }>
 
-const secondsOf = (element: Element, name: string): number =>
-  Number(element.getAttribute(name))
+const secondsOf = (element: Element): number =>
+  Number(element.getAttribute('data-start-ms')) / MILLISECONDS_PER_SECOND
 
 const spokenElementsOf = (transcript: Element): SpokenElements => {
   const sectionElements = Array.fromIterable(
@@ -976,10 +895,8 @@ const spokenElementsOf = (transcript: Element): SpokenElements => {
     sectionElements,
     wordElements,
     sections: Array.map(sectionElements, (section, index) => ({
-      startSeconds: secondsOf(section, 'data-section-seconds'),
-      wordStarts: Array.map(wordElements[index] ?? [], word =>
-        secondsOf(word, 'data-word-seconds'),
-      ),
+      startSeconds: secondsOf(section),
+      wordStarts: Array.map(wordElements[index] ?? [], secondsOf),
     })),
   }
 }

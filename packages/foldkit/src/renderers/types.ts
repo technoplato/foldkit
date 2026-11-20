@@ -336,6 +336,18 @@ export type TranscriptClock = Readonly<{
  * Religion`. `speaker` says who speaks it, such as `Speaker 2`: a Program
  * names the speaker on the first passage of each run by one voice, so a
  * painter labels the run once.
+ *
+ * `startMs` is where the passage starts on the Transcript's clock, for a
+ * page that marks or scrolls to passages by their time.
+ *
+ * A passage can stand apart from the rest. `isFocused` marks the passage a
+ * link opened on, such as `/recording/r1/section/s7`, so a painter
+ * highlights it. `isTentative` marks words still being heard, which may
+ * change before they settle; a painter shows them quieter. `text` is what
+ * the passage says when it has no timed words to press. `sealed` says why
+ * its words are held back, `Words kept private`: a painter draws a quiet
+ * placeholder in their place, and a screen reader or a terminal reads the
+ * reason.
  */
 export type TranscriptPassage = Readonly<{
   readonly key: string
@@ -343,8 +355,26 @@ export type TranscriptPassage = Readonly<{
   readonly speaker?: string
   readonly label: string
   readonly labelAction?: string
+  readonly startMs?: number
   readonly isCurrent?: boolean
+  readonly isFocused?: boolean
+  readonly isTentative?: boolean
+  readonly text?: string
+  readonly sealed?: string
   readonly words: ReadonlyArray<TranscriptWord>
+}>
+
+/**
+ * The menu open on one passage of a Transcript, opened by pressing its
+ * label: the passage's key, what the menu offers, such as
+ * `CopySectionText:s7`, and the press that closes it, `CloseSectionMenu`.
+ * Whether it is open, and on which passage, is the Program's state, as a
+ * word's menu is.
+ */
+export type TranscriptPassageMenu = Readonly<{
+  readonly key: string
+  readonly items: ReadonlyArray<MenuAction>
+  readonly dismissAction: string
 }>
 
 /**
@@ -401,7 +431,8 @@ export type TranscriptItem = Readonly<{
  * A word has a menu. `wordMenuAction` is what a painter presses with a
  * word's token when a person asks for that word's menu, with a secondary
  * click or a long press: `ShowWordMenu:w4012`. `wordMenu` is the menu
- * while one is open.
+ * while one is open. `passageMenu` is the menu open on a passage, which
+ * a passage's `labelAction` asks for.
  */
 export type TranscriptNode = Readonly<{
   readonly _tag: 'Transcript'
@@ -416,6 +447,7 @@ export type TranscriptNode = Readonly<{
   readonly focusToken?: string
   readonly wordMenuAction?: string
   readonly wordMenu?: TranscriptWordMenu
+  readonly passageMenu?: TranscriptPassageMenu
   readonly items?: ReadonlyArray<TranscriptItem>
 }>
 

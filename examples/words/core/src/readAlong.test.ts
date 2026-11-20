@@ -163,7 +163,7 @@ describe('a recording, read along with', () => {
     expect(lines.join('\n')).toContain('Then the fog came in.')
   })
 
-  it('gives a sealed section its place and no words', () => {
+  it('gives a sealed section its place, why its words are held back, and no words', () => {
     const sealed: Section = {
       ...sectionOf('held', 3, 90, []),
       text: '[checking the voice]',
@@ -176,7 +176,13 @@ describe('a recording, read along with', () => {
       rate: 1,
     })
     expect(Array.last(transcript.passages)).toEqual(
-      Option.some({ key: 'held', label: '1:30', words: [] }),
+      Option.some({
+        key: 'held',
+        label: '1:30',
+        startMs: 90_000,
+        sealed: '[checking the voice]',
+        words: [],
+      }),
     )
   })
 })

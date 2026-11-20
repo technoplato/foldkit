@@ -140,6 +140,7 @@ export type {
   TranscriptItem,
   TranscriptNode,
   TranscriptPassage,
+  TranscriptPassageMenu,
   TranscriptWord,
   TranscriptWordAction,
   TranscriptWordMark,

@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import { Transcript } from './elements.js'
 import { paintHtml } from './html.js'
-import { placeWordMenu, transcriptMount, wordMenuMount } from './htmlEdge.js'
+import {
+  placeWordMenu,
+  transcriptMount,
+  transcriptPressEventName,
+  wordMenuMount,
+} from './htmlEdge.js'
 
 // Made-up words: nothing here is from a real recording or book.
 const withMenu = (isOpen: boolean) =>
@@ -80,13 +85,16 @@ const until = async (isSo: () => boolean): Promise<void> => {
 }
 
 describe('a word’s menu in the Foldkit HTML painter', () => {
-  it('asks for the menu on a right click on a word, where the Transcript offers one', () => {
-    const words = classed(paintedTree(false), 'fk-word')
+  it('names the word menu press on the Transcript, and gives no word a handler of its own', () => {
+    const tree = paintedTree(false)
+    const words = classed(tree, 'fk-word')
     expect(words).toHaveLength(2)
-    expect(
-      words.every(word => typeof word.data?.on?.['contextmenu'] === 'function'),
-    ).toBe(true)
-    expect(classed(paintedTree(false), 'fk-word-menu')).toHaveLength(0)
+    expect(words.every(word => word.data?.on === undefined)).toBe(true)
+    expect(JSON.stringify(tree)).toContain(
+      '"data-word-menu-action":"ShowWordMenu"',
+    )
+    expect(typeof tree.data?.on?.[transcriptPressEventName]).toBe('function')
+    expect(classed(tree, 'fk-word-menu')).toHaveLength(0)
   })
 
   it('draws the menu the Program holds open: its items, and a backdrop that closes it', () => {
@@ -151,14 +159,18 @@ describe('the menu at the edge', () => {
 
   it('opens the menu on a long press with a finger, as a right click does, and not after the finger moves', async () => {
     const transcript = document.createElement('section')
-    transcript.setAttribute('data-word-menu', 'true')
+    transcript.setAttribute('data-word-menu-action', 'ShowWordMenu')
     const word = document.createElement('span')
     word.className = 'fk-word'
     word.setAttribute('data-token', 'w2')
     transcript.append(word)
     document.body.append(transcript)
     const asked: Array<string> = []
-    word.addEventListener('contextmenu', () => asked.push('w2'))
+    transcript.addEventListener(transcriptPressEventName, event => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string') {
+        asked.push(event.detail)
+      }
+    })
     const fiber = Effect.runFork(
       Stream.runDrain(transcriptMount<never>().f(transcript)),
     )
@@ -182,7 +194,7 @@ describe('the menu at the edge', () => {
     expect(asked).toEqual([])
     pointer('pointerdown', 10)
     await until(() => asked.length === 1)
-    expect(asked).toEqual(['w2'])
+    expect(asked).toEqual(['ShowWordMenu:w2'])
     await Effect.runPromise(Fiber.interrupt(fiber))
     transcript.remove()
   })

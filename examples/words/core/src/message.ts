@@ -315,6 +315,15 @@ export const SteppedFind = m('SteppedFind', {
 /** The listener dismissed a word's menu. */
 export const ClosedWordMenu = m('ClosedWordMenu')
 /**
+ * The listener pressed a section's time for its menu: Play from Here,
+ * Copy Link to This Moment, Copy Link to This Word, and Copy Text.
+ */
+export const OpenedSectionMenu = m('OpenedSectionMenu', {
+  sectionID: S.String,
+})
+/** The listener dismissed a section's menu. */
+export const ClosedSectionMenu = m('ClosedSectionMenu')
+/**
  * The listener copied, from a section's menu, a link to the word being
  * spoken in that section, or to its first word when the voice is elsewhere.
  */
@@ -444,6 +453,8 @@ export const Message = S.Union([
   ClickedCopyWordLink,
   OpenedWordMenu,
   ClosedWordMenu,
+  OpenedSectionMenu,
+  ClosedSectionMenu,
   ChoseAppearance,
   ObservedSystemMode,
   ObservedSystemContrast,

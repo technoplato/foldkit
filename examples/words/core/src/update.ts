@@ -1473,6 +1473,7 @@ const readyFor = (
     announcementPause: ReadyToAnnounce(),
     announcementRevision: 0,
     maybeWordMenu: Option.none(),
+    maybeSectionMenuID: Option.none(),
     maybeFind: Option.none(),
   })
 
@@ -2396,6 +2397,12 @@ const steppedFind = (
 const withoutWordMenu = (ready: ReadyPlayback): ReadyPlayback =>
   evo(ready, { maybeWordMenu: () => Option.none() })
 
+const withoutSectionMenu = (ready: ReadyPlayback): ReadyPlayback =>
+  evo(ready, { maybeSectionMenuID: () => Option.none() })
+
+const closingSectionMenu = (model: Model): Model =>
+  evolveReady(model, withoutSectionMenu)[0]
+
 type WordInSection = Readonly<{
   word: Section['words'][number]
   sectionID: string
@@ -2411,6 +2418,12 @@ const wordStartingAt = (
       Array.map(section.words, word => ({ word, sectionID: section.id })),
     ),
     Array.findFirst(({ word }) => word.startSeconds === seconds),
+  )
+
+/** The section whose menu is open, if one is and it is still in the recording. */
+export const sectionMenuOf = (ready: ReadyPlayback): Option.Option<Section> =>
+  Option.flatMap(ready.maybeSectionMenuID, sectionID =>
+    sectionNamed(ready, sectionID),
   )
 
 /**
@@ -3369,9 +3382,19 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 x,
                 y,
               })),
+            maybeSectionMenuID: () => Option.none(),
           }),
         ),
       ClosedWordMenu: () => evolveReady(model, withoutWordMenu),
+      OpenedSectionMenu: ({ sectionID }) =>
+        evolveReady(model, ready =>
+          evo(ready, {
+            maybeSectionMenuID: () =>
+              Option.map(sectionNamed(ready, sectionID), section => section.id),
+            maybeWordMenu: () => Option.none(),
+          }),
+        ),
+      ClosedSectionMenu: () => evolveReady(model, withoutSectionMenu),
       ChoseAppearance: ({ appearance }) => [
         evo(model, {
           appearance: state => ({ ...state, appearance }),
@@ -3431,6 +3454,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               follow: () => 'Following',
               maybeFocusedSectionID: () => Option.none(),
               maybeWordMenu: () => Option.none(),
+              maybeSectionMenuID: () => Option.none(),
             }),
             seconds,
           )
@@ -3608,7 +3632,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
       CompletedShareRecordingLink: () => [model, []],
       ClickedCopySectionLink: ({ sectionID }) =>
-        copyFromReady(model, ready =>
+        copyFromReady(closingSectionMenu(model), ready =>
           Option.map(sectionNamed(ready, sectionID), section => [
             scribeRouteToShareUrl(
               SectionRoute({
@@ -3625,7 +3649,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ]),
         ),
       ClickedCopySectionWordLink: ({ sectionID }) =>
-        copyFromReady(model, ready =>
+        copyFromReady(closingSectionMenu(model), ready =>
           pipe(
             sectionNamed(ready, sectionID),
             Option.flatMap(section =>
@@ -3676,7 +3700,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ]),
         ),
       ClickedCopySectionText: ({ sectionID }) =>
-        copyFromReady(model, ready =>
+        copyFromReady(closingSectionMenu(model), ready =>
           Option.map(sectionNamed(ready, sectionID), section => [
             section.text,
             'Copied text',

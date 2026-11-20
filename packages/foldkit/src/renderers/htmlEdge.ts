@@ -273,6 +273,88 @@ const runLongPress = (
 }
 
 /**
+ * The event the edge sends a painted Transcript for a press on one of its
+ * parts, carrying the press as the Transcript wrote it in `detail`: a
+ * click on a word, `ClickedWord:w4012`; a right click or a long press on
+ * a word that has a menu, `OpenedWordMenu:w4012`; a click on a passage's
+ * label, `OpenedSectionMenu:s7`. One listener hears every word, so a
+ * recording of thirty thousand words carries no handler per word, and the
+ * view tells the Program through its own, current handler.
+ */
+export const transcriptPressEventName = 'fk-transcript-press'
+
+const pressedPartOf = (target: EventTarget | null): Element | undefined =>
+  target instanceof Element
+    ? (target.closest('[data-press]') ?? undefined)
+    : undefined
+
+/**
+ * The press a click or a right click on `target` makes in a painted
+ * Transcript, or none: a part that names its own press, `data-press`, or
+ * a word, joined to the Transcript's word action, or its word menu action
+ * for a right click.
+ *
+ * @example
+ * ```typescript
+ * transcriptPressOf(transcript, wordElement, 'Click') // 'ClickedWord:w4012'
+ * ```
+ */
+export const transcriptPressOf = (
+  transcript: Element,
+  target: EventTarget | null,
+  kind: 'Click' | 'Menu',
+): string | undefined => {
+  const maybePart = kind === 'Click' ? pressedPartOf(target) : undefined
+  if (maybePart !== undefined) {
+    return maybePart.getAttribute('data-press') ?? undefined
+  }
+  const maybeWord = wordOfTarget(target)
+  const maybeToken = maybeWord?.getAttribute('data-token') ?? undefined
+  const maybeAction =
+    transcript.getAttribute(
+      kind === 'Click' ? 'data-word-action' : 'data-word-menu-action',
+    ) ?? undefined
+  return maybeToken === undefined || maybeAction === undefined
+    ? undefined
+    : `${maybeAction}:${maybeToken}`
+}
+
+// NOTE: a click that ends a text selection, or a right click on selected
+// words, is the reader copying, not pressing a word: the selection stays,
+// and the browser's own menu still copies and looks up.
+const isSelectingText = (): boolean => {
+  const maybeSelection = window.getSelection()
+  return maybeSelection !== null && !maybeSelection.isCollapsed
+}
+
+const runTranscriptPresses = (transcript: Element): (() => void) => {
+  const tell = (press: string) => {
+    transcript.dispatchEvent(
+      new CustomEvent(transcriptPressEventName, { detail: press }),
+    )
+  }
+  const onClick = (event: Event) => {
+    const maybePress = transcriptPressOf(transcript, event.target, 'Click')
+    if (maybePress !== undefined && !isSelectingText()) {
+      tell(maybePress)
+    }
+  }
+  const onContextMenu = (event: Event) => {
+    const maybePress = transcriptPressOf(transcript, event.target, 'Menu')
+    if (maybePress !== undefined && !isSelectingText()) {
+      event.preventDefault()
+      tell(maybePress)
+    }
+  }
+  transcript.addEventListener('click', onClick)
+  transcript.addEventListener('contextmenu', onContextMenu)
+  return () => {
+    transcript.removeEventListener('click', onClick)
+    transcript.removeEventListener('contextmenu', onContextMenu)
+  }
+}
+
+/**
  * The event the edge sends a painted Transcript when the reader has
  * scrolled the spoken word out of the middle. The view listens for it and
  * tells the Program with its own, current handler.
@@ -460,7 +542,9 @@ const runFollow = (transcript: Element): (() => void) => {
 
 /**
  * The mount every painted Transcript carries, the edge of the HTML
- * painter: it moves the mark on the word between a Program's reports of
+ * painter: it hears every press on the Transcript's words and passage
+ * labels with one listener and sends the view `transcriptPressEventName`;
+ * moves the mark on the word between a Program's reports of
  * the place, where the Transcript has a clock; opens a word's menu on a
  * long press, where it offers one; keeps the spoken word in the middle
  * while the words follow the voice; and tells the view when the reader
@@ -481,15 +565,17 @@ export const transcriptMount = <Message>(): MountAction<Message> => ({
         Effect.sync(() => {
           const stopClock = runTranscriptClock(transcript)
           const stopLongPress = runLongPress(transcript, target =>
-            transcript.getAttribute('data-word-menu') === 'true'
+            transcript.hasAttribute('data-word-menu-action')
               ? wordOfTarget(target)
               : undefined,
           )
           const stopFollow = runFollow(transcript)
+          const stopPresses = runTranscriptPresses(transcript)
           return () => {
             stopClock()
             stopLongPress()
             stopFollow()
+            stopPresses()
           }
         }),
         stop => Effect.sync(stop),
@@ -556,6 +642,28 @@ export const placeItemMenu = (menu: HTMLElement, key: string): void => {
     menu,
     (menu.closest('.fk-list') ?? menu.parentElement ?? document).querySelector(
       `.fk-item[data-key="${CSS.escape(key)}"]`,
+    ),
+  )
+}
+
+/**
+ * Puts an open passage menu by its passage's label: under it, or above it
+ * where there is no room below, and inside the window.
+ *
+ * @example
+ * ```typescript
+ * placePassageMenu(menuElement, 'section-7')
+ * ```
+ */
+export const placePassageMenu = (menu: HTMLElement, key: string): void => {
+  placeMenuBy(
+    menu,
+    (
+      menu.closest('.fk-transcript') ??
+      menu.parentElement ??
+      document
+    ).querySelector(
+      `.fk-passage[data-key="${CSS.escape(key)}"] .fk-passage-label`,
     ),
   )
 }
@@ -664,6 +772,32 @@ export const wordMenuMount = <Message>(
     { token },
     menu => {
       placeWordMenu(menu, token)
+    },
+    dismiss,
+  )
+
+/** The name of the mount an open passage menu carries. */
+export const passageMenuMountName = 'FoldkitPassageMenu'
+
+/**
+ * The mount an open passage menu carries: it puts the menu by its
+ * passage's label, and tells the Program `dismiss` when Escape is
+ * pressed. The Program decides whether the menu is open.
+ *
+ * @example
+ * ```typescript
+ * h.div([h.Class('fk-word-menu'), h.OnMount(passageMenuMount(menu.key, dismissMessage))], items)
+ * ```
+ */
+export const passageMenuMount = <Message>(
+  key: string,
+  dismiss: Message,
+): MountAction<Message> =>
+  menuMountOf(
+    passageMenuMountName,
+    { key },
+    menu => {
+      placePassageMenu(menu, key)
     },
     dismiss,
   )

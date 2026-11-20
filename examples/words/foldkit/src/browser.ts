@@ -28,7 +28,6 @@ import {
   hostedSessionPath,
   liveBeatPath,
   scribeSchema,
-  sectionElementIDOf,
   transcriptionTokenPath,
 } from 'words-core-example'
 
@@ -228,6 +227,10 @@ export const scrollSectionElementTo = (
   })
 }
 
+/** The passage of the painted reader that holds a section. */
+export const passageSelectorOf = (sectionID: string): string =>
+  `.fk-passage[data-key="${CSS.escape(sectionID)}"]`
+
 /**
  * Scrolls a transcript section into view after the render that shows it: to
  * the middle of the window during playback, or with its last line above the
@@ -238,8 +241,8 @@ export const browserTranscriptScroller = Layer.succeed(TranscriptScroller, {
     afterPaint.pipe(
       Effect.andThen(
         Effect.sync(() => {
-          const element = document.getElementById(sectionElementIDOf(sectionID))
-          if (element !== null) {
+          const element = document.querySelector(passageSelectorOf(sectionID))
+          if (element instanceof HTMLElement) {
             scrollSectionElementTo(element, placement)
           }
         }),

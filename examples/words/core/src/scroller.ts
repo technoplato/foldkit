@@ -9,18 +9,6 @@ export const SectionPlacement = S.Literals(['Center', 'LiveEdge'])
 /** Where a scrolled-to section lands. */
 export type SectionPlacement = typeof SectionPlacement.Type
 
-/**
- * The element id a transcript section renders with, so the host can find it.
- *
- * @example
- * ```ts
- * sectionElementIDOf('0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d')
- * // 'section-0b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d'
- * ```
- */
-export const sectionElementIDOf = (sectionID: string): string =>
-  `section-${sectionID}`
-
 /** Scrolls the transcript, and the page back to its top, provided by the host. */
 export type TranscriptScrollerService = Readonly<{
   scrollToSection: (

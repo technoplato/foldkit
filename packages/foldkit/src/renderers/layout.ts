@@ -355,6 +355,41 @@ const wrappedWords = (
   return [...wrapped.lines, ...Option.toArray(wrapped.maybeOpen)]
 }
 
+const untimedWordsOf = (text: string): ReadonlyArray<TranscriptWord> =>
+  Array.map(
+    Array.filter(text.split(' '), piece => piece !== ''),
+    piece => ({ token: '', text: piece }),
+  )
+
+/**
+ * The words a terminal prints for a passage, and the role they play: a
+ * sealed passage prints why its words are held back, quietly; a passage
+ * with no timed words prints its text; words still being heard are quiet.
+ */
+const shownWordsOf = (
+  passage: TranscriptPassage,
+): Readonly<{
+  words: ReadonlyArray<TranscriptWord>
+  roleOf: (word: TranscriptWord, index: number) => Role
+}> => {
+  const quiet = (): Role => 'QuietText'
+  if (passage.sealed !== undefined) {
+    return { words: untimedWordsOf(passage.sealed), roleOf: quiet }
+  } else if (
+    Array.isReadonlyArrayEmpty(passage.words) &&
+    passage.text !== undefined
+  ) {
+    return {
+      words: untimedWordsOf(passage.text),
+      roleOf: passage.isTentative === true ? quiet : wordRoleOf(passage),
+    }
+  } else if (passage.isTentative === true) {
+    return { words: passage.words, roleOf: quiet }
+  } else {
+    return { words: passage.words, roleOf: wordRoleOf(passage) }
+  }
+}
+
 const passageLines = (
   passage: TranscriptPassage,
   availableW: number,
@@ -372,6 +407,7 @@ const passageLines = (
   const textWidth = Math.max(1, availableW - passageLabelWidth)
   const placed = bookmarksInPassage(passage, bookmarks)
   const bookmarkedTokens = new Set(Array.map(placed, ({ token }) => token))
+  const shown = shownWordsOf(passage)
   return [
     ...(passage.heading === undefined
       ? []
@@ -394,11 +430,11 @@ const passageLines = (
         ]),
     ...Array.map(
       wrappedWords(
-        passage.words,
+        shown.words,
         textWidth,
         bookmarkedTokens,
         maybeShownToken,
-        wordRoleOf(passage),
+        shown.roleOf,
       ),
       (line, index) => ({
         text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,

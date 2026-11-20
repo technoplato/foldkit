@@ -2,14 +2,20 @@ import { Array, Option, String } from 'effect'
 import {
   type MenuAction,
   type TranscriptNode,
+  type TranscriptPassage,
   transcriptWithMatches,
 } from 'foldkit/renderers'
 
 import {
+  ClickedCopySectionLink,
+  ClickedCopySectionText,
+  ClickedCopySectionWordLink,
   ClickedCopyWordLink,
   ClickedWord,
+  ClosedSectionMenu,
   ClosedWordMenu,
   type Message,
+  OpenedSectionMenu,
   OpenedWordMenu,
   ScrolledTranscriptAway,
 } from './message.js'
@@ -20,7 +26,13 @@ import {
   timelineReadAlongOf,
 } from './readAlong.js'
 import type { Section } from './recording.js'
-import { findOf, isAudioPlayableOf, wordMenuOf } from './update.js'
+import { sectionPlaybackStart } from './transcript.js'
+import {
+  findOf,
+  isAudioPlayableOf,
+  sectionMenuOf,
+  wordMenuOf,
+} from './update.js'
 
 // PRESS
 
@@ -34,7 +46,22 @@ const copyWordLinkPress = 'ClickedCopyWordLink'
 
 const leavePress = 'ScrolledTranscriptAway'
 
+const sectionMenuPress = 'OpenedSectionMenu'
+
+const closeSectionMenuPress = 'ClosedSectionMenu'
+
+const playSectionPress = 'ClickedPlaySection'
+
+const copySectionLinkPress = 'ClickedCopySectionLink'
+
+const copySectionWordLinkPress = 'ClickedCopySectionWordLink'
+
+const copySectionTextPress = 'ClickedCopySectionText'
+
 const pressSeparator = ':'
+
+const pressOf = (tag: string, id: string): string =>
+  `${tag}${pressSeparator}${id}`
 
 type Word = Section['words'][number]
 
@@ -44,19 +71,77 @@ const wordOf = (ready: ReadyPlayback, wordID: string): Option.Option<Word> =>
     word => word.id === wordID,
   )
 
+const sectionOf = (
+  ready: ReadyPlayback,
+  sectionID: string,
+): Option.Option<Section> =>
+  Array.findFirst(ready.detail.sections, section => section.id === sectionID)
+
 // READER
+
+// NOTE: a passage keeps its identity from one render to the next while its
+// section does, so the press on its time is added once per passage, and a
+// page that keeps passages drawn draws again only those that changed.
+const pressablePassages = new WeakMap<TranscriptPassage, TranscriptPassage>()
+
+const withSectionMenuPress = (
+  passage: TranscriptPassage,
+): TranscriptPassage => {
+  const maybeKept = pressablePassages.get(passage)
+  if (maybeKept !== undefined) {
+    return maybeKept
+  }
+  const pressable = {
+    ...passage,
+    labelAction: pressOf(sectionMenuPress, passage.key),
+  }
+  pressablePassages.set(passage, pressable)
+  return pressable
+}
+
+const sectionMenuItemsOf = (
+  ready: ReadyPlayback,
+  section: Section,
+): ReadonlyArray<MenuAction> => {
+  const play: MenuAction = {
+    action: pressOf(playSectionPress, section.id),
+    label: 'Play from Here',
+    icon: 'Play',
+  }
+  return [
+    ...(isAudioPlayableOf(ready) ? [play] : []),
+    ...sectionCopyItemsOf(section),
+  ]
+}
+
+const sectionCopyItemsOf = (section: Section): ReadonlyArray<MenuAction> => [
+  {
+    action: pressOf(copySectionLinkPress, section.id),
+    label: 'Copy Link to This Moment',
+    icon: 'Link',
+  },
+  {
+    action: pressOf(copySectionWordLinkPress, section.id),
+    label: 'Copy Link to This Word',
+    icon: 'Link',
+  },
+  {
+    action: pressOf(copySectionTextPress, section.id),
+    label: 'Copy Text',
+  },
+]
 
 const wordMenuItemsOf = (
   ready: ReadyPlayback,
   word: Word,
 ): ReadonlyArray<MenuAction> => {
   const play: MenuAction = {
-    action: `${playWordPress}${pressSeparator}${word.id}`,
+    action: pressOf(playWordPress, word.id),
     label: 'Play from Here',
     icon: 'Play',
   }
   const copyLink: MenuAction = {
-    action: `${copyWordLinkPress}${pressSeparator}${word.id}`,
+    action: pressOf(copyWordLinkPress, word.id),
     label: 'Copy Link to This Word',
     icon: 'Link',
   }
@@ -68,7 +153,8 @@ const wordMenuItemsOf = (
  * everything the Model says about reading it: the whole timeline of
  * `timelineReadAlongOf`, the words the search inside the recording found
  * and the match the listener is on, whether the words follow the voice,
- * the word to bring into view, and the menu open on a word. A painter
+ * the word to bring into view, the section a link opened on, and the menu
+ * open on a word or on a section's time. A painter
  * draws it and presses what it says; `readerMessageOf` turns each press
  * back into the Message the Model takes. A web page, a phone and a
  * terminal read the same recording the same way from it.
@@ -101,8 +187,15 @@ export const readerOf = (
       ),
     ),
   )
+  const maybeFocusedID = Option.getOrUndefined(ready.maybeFocusedSectionID)
   return {
     ...marked,
+    passages: Array.map(marked.passages, passage => {
+      const pressable = withSectionMenuPress(passage)
+      return passage.key === maybeFocusedID
+        ? { ...pressable, isFocused: true }
+        : pressable
+    }),
     action: playWordPress,
     isFollowing: ready.follow === 'Following',
     leaveAction: leavePress,
@@ -110,6 +203,16 @@ export const readerOf = (
     ...Option.match(maybeFocusToken, {
       onNone: () => ({}),
       onSome: focusToken => ({ focusToken }),
+    }),
+    ...Option.match(sectionMenuOf(ready), {
+      onNone: () => ({}),
+      onSome: section => ({
+        passageMenu: {
+          key: section.id,
+          items: sectionMenuItemsOf(ready, section),
+          dismissAction: closeSectionMenuPress,
+        },
+      }),
     }),
     ...Option.match(wordMenuOf(ready), {
       onNone: () => ({}),
@@ -135,6 +238,7 @@ export const readerOf = (
  * ```typescript
  * readerMessageOf(ready, 'ClickedWord:section-0:4') // Some(ClickedWord({ seconds: 4 }))
  * readerMessageOf(ready, 'ClosedWordMenu') // Some(ClosedWordMenu())
+ * readerMessageOf(ready, 'OpenedSectionMenu:section-1') // Some(OpenedSectionMenu({ sectionID: 'section-1' }))
  * readerMessageOf(ready, 'ClickedWord:not-a-word') // None
  * ```
  */
@@ -144,27 +248,64 @@ export const readerMessageOf = (
 ): Option.Option<Message> => {
   if (press === closeWordMenuPress) {
     return Option.some(ClosedWordMenu())
+  } else if (press === closeSectionMenuPress) {
+    return Option.some(ClosedSectionMenu())
   } else if (press === leavePress) {
     return Option.some(ScrolledTranscriptAway())
   } else {
     return Option.flatMap(String.indexOf(pressSeparator)(press), at => {
       const tag = press.slice(0, at)
-      return Option.flatMap(
-        wordOf(ready, press.slice(at + pressSeparator.length)),
-        (word): Option.Option<Message> => {
-          if (tag === playWordPress) {
-            return Option.some(ClickedWord({ seconds: word.startSeconds }))
-          } else if (tag === wordMenuPress) {
-            return Option.some(
-              OpenedWordMenu({ seconds: word.startSeconds, x: 0, y: 0 }),
-            )
-          } else if (tag === copyWordLinkPress) {
-            return Option.some(ClickedCopyWordLink({ wordID: word.id }))
-          } else {
-            return Option.none()
-          }
-        },
+      const id = press.slice(at + pressSeparator.length)
+      return Option.orElse(wordMessageOf(ready, tag, id), () =>
+        sectionMessageOf(ready, tag, id),
       )
     })
   }
 }
+
+const wordMessageOf = (
+  ready: ReadyPlayback,
+  tag: string,
+  wordID: string,
+): Option.Option<Message> =>
+  Option.flatMap(wordOf(ready, wordID), (word): Option.Option<Message> => {
+    if (tag === playWordPress) {
+      return Option.some(ClickedWord({ seconds: word.startSeconds }))
+    } else if (tag === wordMenuPress) {
+      return Option.some(
+        OpenedWordMenu({ seconds: word.startSeconds, x: 0, y: 0 }),
+      )
+    } else if (tag === copyWordLinkPress) {
+      return Option.some(ClickedCopyWordLink({ wordID: word.id }))
+    } else {
+      return Option.none()
+    }
+  })
+
+const sectionMessageOf = (
+  ready: ReadyPlayback,
+  tag: string,
+  sectionID: string,
+): Option.Option<Message> =>
+  Option.flatMap(
+    sectionOf(ready, sectionID),
+    (section): Option.Option<Message> => {
+      if (tag === sectionMenuPress) {
+        return Option.some(OpenedSectionMenu({ sectionID: section.id }))
+      } else if (tag === playSectionPress) {
+        return Option.some(
+          ClickedWord({ seconds: sectionPlaybackStart(section) }),
+        )
+      } else if (tag === copySectionLinkPress) {
+        return Option.some(ClickedCopySectionLink({ sectionID: section.id }))
+      } else if (tag === copySectionWordLinkPress) {
+        return Option.some(
+          ClickedCopySectionWordLink({ sectionID: section.id }),
+        )
+      } else if (tag === copySectionTextPress) {
+        return Option.some(ClickedCopySectionText({ sectionID: section.id }))
+      } else {
+        return Option.none()
+      }
+    },
+  )
