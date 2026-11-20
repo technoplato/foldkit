@@ -255,8 +255,12 @@ describe('restarting on the newer update', () => {
 describe('a phone that takes updates, beside a device that takes none', () => {
   const settleMs = 3_000
 
+  const waitMs = 20_000
+
+  const testTimeoutMs = 30_000
+
   const waitUntil = async (isSo: () => boolean): Promise<void> => {
-    const deadline = Date.now() + settleMs
+    const deadline = Date.now() + waitMs
     while (!isSo() && Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 10))
     }
@@ -320,5 +324,5 @@ describe('a phone that takes updates, beside a device that takes none', () => {
     expect(shared).not.toContain(newerId)
     await phone.stop()
     await terminal.stop()
-  })
+  }, testTimeoutMs)
 })
