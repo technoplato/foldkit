@@ -1,14 +1,10 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import {
-  type UpdatesCheck,
-  runningCodeOf,
-  updatesOutcomeOf,
-  watchUpdates,
-} from './updatesNote.js'
+import type { ExpoUpdatesCheck } from '../updates/expoCodeUpdates.js'
+import { runningCodeOf, updatesOutcomeOf, watchUpdates } from './updatesNote.js'
 
-const settled: UpdatesCheck = {
+const settled: ExpoUpdatesCheck = {
   isChecking: false,
   isDownloading: false,
   isUpdateAvailable: false,
@@ -101,6 +97,16 @@ describe('what came of asking for newer code', () => {
     expect(updatesOutcomeOf(settled)).toEqual(Option.none())
   })
 
+  it('is nothing to say while newer code is found and not yet fetched', () => {
+    expect(
+      updatesOutcomeOf({
+        ...settled,
+        isUpdateAvailable: true,
+        lastCheckForUpdateTime: new Date('2026-11-19T16:00:00Z'),
+      }),
+    ).toEqual(Option.none())
+  })
+
   it('is that there is none newer', () => {
     expect(
       updatesOutcomeOf({
@@ -179,7 +185,7 @@ describe('what came of asking for newer code', () => {
 describe('a phone app that says what came of asking, once', () => {
   it('says what was already known when it started watching, then each change, never the same thing twice', () => {
     const said: Array<Readonly<Record<string, unknown>>> = []
-    const listeners: Array<(event: { context: UpdatesCheck }) => void> = []
+    const listeners: Array<(event: { context: ExpoUpdatesCheck }) => void> = []
     watchUpdates({
       latest: { ...settled, isChecking: true },
       listen: listener => {
@@ -189,7 +195,7 @@ describe('a phone app that says what came of asking, once', () => {
         said.push(note)
       },
     })
-    const tell = (context: UpdatesCheck): void => {
+    const tell = (context: ExpoUpdatesCheck): void => {
       listeners.forEach(listener => {
         listener({ context })
       })

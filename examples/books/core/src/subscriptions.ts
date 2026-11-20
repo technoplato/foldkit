@@ -11,6 +11,7 @@ import {
   pipe,
 } from 'effect'
 import { Subscription } from 'foldkit'
+import * as CodeUpdates from 'foldkit/code-updates'
 import * as Theme from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -139,7 +140,9 @@ export const wantedChapterSlugsOf = (model: Model): ReadonlyArray<TitleSlug> =>
  * the reader, and each book read aloud is asked once for a preview. The
  * Audible import starts a sign-in while its sign-in page shows, reads the
  * titles while its titles page shows, and follows an import until it is
- * done, wherever the person goes meanwhile.
+ * done, wherever the person goes meanwhile. Which update this device runs,
+ * and what came of asking for a newer one, comes from the host for as long
+ * as the Program runs; a host that takes no updates says nothing.
  */
 export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
   entry => ({
@@ -315,6 +318,13 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
       {
         modelToDependencies: () => ({ isWatching: true }),
         dependenciesToStream: () => Theme.systemContrastStream,
+      },
+    ),
+    codeStatus: entry(
+      {},
+      {
+        modelToDependencies: () => ({}),
+        dependenciesToStream: () => CodeUpdates.statusStream,
       },
     ),
     audibleImport: entry(

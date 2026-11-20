@@ -7,10 +7,8 @@ import {
   Record as Record_,
 } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
-import {
-  localSnapshotPath,
-  terminalSystemAppearance,
-} from 'foldkit/cli'
+import { localSnapshotPath, terminalSystemAppearance } from 'foldkit/cli'
+import { noCodeUpdates } from 'foldkit/code-updates'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
@@ -189,7 +187,8 @@ const terminalAudibleImport = (signedIn: SignedInBooks) =>
  * timeline, the books read aloud from Scribe's logs on this machine, the
  * Audible import through the reader it signed in with, the contrast this
  * machine's system asks for, and this machine's fold of the log in a
- * file, so the next run paints at once.
+ * file, so the next run paints at once. A terminal takes no updates, so
+ * it says nothing of them.
  *
  * @example
  * ```typescript
@@ -224,6 +223,7 @@ export const startBooks = (
       fetchPreviewSource,
       terminalAudibleImport(signedIn),
       terminalSystemAppearance(),
+      noCodeUpdates,
     ),
     host: config.host,
   })

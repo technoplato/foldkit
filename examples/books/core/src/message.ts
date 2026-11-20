@@ -1,5 +1,6 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
+import * as CodeUpdates from 'foldkit/code-updates'
 import { ModelPath } from 'foldkit/declaration'
 import * as Theme from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
@@ -399,6 +400,18 @@ export const [SetAppearance] = Catalog.within(Theme.catalog, {
   childOf: (model: Model) => Option.some(model.appearance),
   under: at.appearance,
   nothing: 'the look cannot change here',
+}).actions
+
+/**
+ * Restarts on the update this device fetched: `RestartToUpdate`. Foldkit's
+ * own Action, reading what this device's host says of its code, so
+ * Profile's button and the menu come from it. Where the host says
+ * nothing, as in a browser, it is never offered.
+ */
+export const [RestartToUpdate] = Catalog.within(CodeUpdates.catalog, {
+  childOf: (model: Model) => model.maybeCodeStatus,
+  under: at.maybeCodeStatus,
+  nothing: 'this device takes no updates',
 }).actions
 
 /** Shows the player, whatever this device has loaded. */
@@ -842,6 +855,7 @@ export const catalog = Catalog.make([
   ShowSpeeds,
   SetSpeed,
   SetAppearance,
+  RestartToUpdate,
   SharePlace,
   AddBookmark,
   AddNotedBookmark,
@@ -891,8 +905,8 @@ export const isBookmarkEdit = (message: Readonly<{ _tag: string }>): boolean =>
 
 /**
  * Every Message Books accepts: the Catalog's Actions, the facts the
- * library store, the player, Read Aloud's sources, and the Audible import
- * report, and the carrier facts its stack folds.
+ * library store, the player, Read Aloud's sources, the Audible import, and
+ * this device's host report, and the carrier facts its stack folds.
  */
 export const Message = S.Union([
   ...catalog.Message.members,
@@ -905,6 +919,9 @@ export const Message = S.Union([
   ReceivedMember,
   Theme.ObservedSystemMode,
   Theme.ObservedSystemContrast,
+  CodeUpdates.ObservedCodeStatus,
+  CodeUpdates.CompletedRestartOnNewerCode,
+  CodeUpdates.FailedRestartOnNewerCode,
   ReadAloud.ReceivedReadings,
   ReadAloud.FailedReadReadings,
   ReadAloud.ReceivedPreview,

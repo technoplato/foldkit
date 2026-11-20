@@ -1,4 +1,5 @@
 import { Array, Option, Record as Record_, Redacted, Schema as S } from 'effect'
+import * as CodeUpdates from 'foldkit/code-updates'
 import * as ReadAloud from 'read-aloud-core-example'
 import {
   ReachedPlace,
@@ -278,6 +279,21 @@ const withSpeeds = after(playing, ShowSpeeds())
 /** The profile. */
 const onProfile = after(onLibrary, ShowProfile())
 
+/** The profile on a phone that fetched a newer update. */
+const updateReady = after(
+  onProfile,
+  CodeUpdates.ObservedCodeStatus({
+    status: {
+      running: CodeUpdates.BuiltIn({
+        maybeUpdateId: Option.some('built-in-id'),
+        maybeRuntime: Option.some('runtime-1'),
+        maybeMadeAtMs: Option.some(heardAtMs),
+      }),
+      newer: CodeUpdates.Ready({ maybeUpdateId: Option.some('newer-id') }),
+    },
+  }),
+)
+
 /** Where more books can come from, over the library. */
 const addingBooks = after(onLibrary, ShowAddBooks())
 
@@ -421,8 +437,9 @@ const pictureBookShared = after(onPictureBook, SharedLink({ how: 'Copied' }))
 /**
  * Models that between them show every Books Action doing all it says:
  * the library, a title's page and its panels, a bookmark being deleted,
- * the player sounding and paused, the Audible import at each of its
- * stops, and the picture books read aloud.
+ * the player sounding and paused, a phone with a newer update fetched,
+ * the Audible import at each of its stops, and the picture books read
+ * aloud.
  */
 export const sampleModels: ReadonlyArray<Model> = [
   waiting,
@@ -444,6 +461,7 @@ export const sampleModels: ReadonlyArray<Model> = [
   onOtherTitle,
   withSpeeds,
   onProfile,
+  updateReady,
   addingBooks,
   audibleTitles,
   audibleLeft,

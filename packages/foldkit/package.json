@@ -127,6 +127,11 @@
       "import": "./dist/theme/index.js",
       "default": "./dist/theme/index.js"
     },
+    "./code-updates": {
+      "types": "./dist/codeUpdates/index.d.ts",
+      "import": "./dist/codeUpdates/index.js",
+      "default": "./dist/codeUpdates/index.js"
+    },
     "./undo": {
       "types": "./dist/undo/index.d.ts",
       "import": "./dist/undo/index.js",

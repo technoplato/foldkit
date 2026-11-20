@@ -24,6 +24,10 @@
       "types": "./dist/telemetry/index.d.ts",
       "import": "./dist/telemetry/index.js"
     },
+    "./updates": {
+      "types": "./dist/updates/index.d.ts",
+      "import": "./dist/updates/index.js"
+    },
     "./plugin/sceneLifecycle.cjs": "./plugin/sceneLifecycle.cjs",
     "./plugin/schedulerGuard.cjs": "./plugin/schedulerGuard.cjs",
     "./plugin/signedUpdates.cjs": "./plugin/signedUpdates.cjs"

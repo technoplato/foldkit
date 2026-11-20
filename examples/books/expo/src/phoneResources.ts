@@ -5,6 +5,7 @@ import {
 } from 'books-core-example/browser'
 import { Array, Layer, Option } from 'effect'
 import { isDevice } from 'expo-device'
+import * as Updates from 'expo-updates'
 import { Pause, Play, type Track } from 'transcript-player-core-example/browser'
 import {
   type TrackLabel,
@@ -13,6 +14,7 @@ import {
 } from 'transcript-player-expo-example'
 
 import { nativeSystemAppearance } from '@foldkit/react-native/theme'
+import { expoCodeUpdates } from '@foldkit/react-native/updates'
 
 import { isSilentOf } from './connection'
 import { nativeLinkSharing } from './nativeLinkSharing'
@@ -96,9 +98,11 @@ const notePlayer = (note: Readonly<Record<string, unknown>>): void => {
 
 /**
  * The services that are the phone's own, whichever library Books opens:
- * its report of the system's appearance, its audio, in the background and
- * on the lock screen, with what the lock screen does told to the Program
- * as its own Play and Pause, and its share sheet and clipboard.
+ * its report of the system's appearance, which update it runs and what
+ * came of asking for a newer one, with the restart onto it, its audio, in
+ * the background and on the lock screen, with what the lock screen does
+ * told to the Program as its own Play and Pause, and its share sheet and
+ * clipboard.
  *
  * @example
  * ```typescript
@@ -108,6 +112,7 @@ const notePlayer = (note: Readonly<Record<string, unknown>>): void => {
 export const phoneResources = (running: Running) =>
   Layer.mergeAll(
     nativeSystemAppearance,
+    expoCodeUpdates(Updates),
     nativeLinkSharing(booksOrigin),
     expoAudioOutput({
       isSilent: isBooksSilent(),

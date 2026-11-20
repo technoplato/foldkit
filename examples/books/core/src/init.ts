@@ -37,6 +37,7 @@ export const init = (): readonly [
     navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
     maybeRemovedBookmark: Option.none(),
     maybeTitleMenu: Option.none(),
+    maybeCodeStatus: Option.none(),
   },
   [],
 ]

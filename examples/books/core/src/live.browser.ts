@@ -1,5 +1,6 @@
 import { Layer } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
+import { noCodeUpdates } from 'foldkit/code-updates'
 import { browserSystemAppearance } from 'foldkit/theme'
 import {
   endpointReadingSource,
@@ -45,7 +46,8 @@ export type StartBooksConfig = Readonly<{
  * log keeps only this member's rows.
  * The books read aloud come from the origin's dev endpoint over Scribe's
  * logs, and their previews from Google Books. The Audible import asks the
- * same origin, which keeps every Audible login to itself.
+ * same origin, which keeps every Audible login to itself. A page is the
+ * newest code each time it loads, so it says nothing of updates.
  *
  * @example
  * ```typescript
@@ -67,6 +69,7 @@ export const startBooks = (config: StartBooksConfig): BooksHandleOnHost => {
       Layer.effect(LibraryStore, makeInstantLibraryStore(database)),
       htmlAudioOutput,
       browserSystemAppearance,
+      noCodeUpdates,
       instantTranscriptSource(database),
       Layer.effect(
         ScribeTimeline,

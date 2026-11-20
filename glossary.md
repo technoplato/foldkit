@@ -117,6 +117,23 @@ System`. Same person in two tabs = same actor, two `from`s.
 - **Local snapshot**: one device's own fold of the tape, kept in
   `localStorage`, AsyncStorage, or a file, with its watermark. A reload
   paints it at once and folds only the rows since (ADR 0013).
+- **Running code**: which code one Client is running: the code its build
+  carries (`BuiltIn`), an update taken since (`Update`), or the built-in
+  code it went back to because an update would not start (`FellBack`).
+  e.g. `Update({ maybeUpdateId: Some('1a2b3c4d-…'), maybeRuntime:
+Some('1.0.0'), maybeMadeAtMs: Some(1795203420000) })`. People read it as
+  "the update this app runs". Not **update**, the fold above
+  (`foldkit/code-updates`).
+- **Newer code**: what came of a Client asking for code newer than it
+  runs: `NotAsked | Asking | NoneNewer | Found | Fetching | Ready |
+CouldNotAsk | CouldNotFetch`. e.g. `Ready({ maybeUpdateId:
+Some('9f8e7d6c-…') })` once an update is fetched; it runs after a restart.
+- **Code status**: the running code and the newer code together, as one
+  host says them at one moment. A fact about one device: a Program keeps
+  the last one in its Model as `Option<CodeStatus>`, none where the host
+  says nothing (a browser tab, a terminal), and a mirrored Program keeps
+  it out of the tape. e.g. Books' `maybeCodeStatus`, heard as
+  `ObservedCodeStatus` and local only.
 
 ## Navigation
 

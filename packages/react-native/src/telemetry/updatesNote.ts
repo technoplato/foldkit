@@ -1,25 +1,36 @@
-import { Option } from 'effect'
+import { Match as M, Option } from 'effect'
+import type { NewerCode, RunningCode } from 'foldkit/code-updates'
+
+import {
+  type ExpoRunningCode,
+  type ExpoUpdatesCheck,
+  newerCodeOfExpo,
+  runningCodeOfExpo,
+} from '../updates/expoCodeUpdates.js'
+
+type Note = Readonly<Record<string, unknown>>
 
 // RUNNING CODE
 
-/**
- * What an updates module says about the code a phone app started on, as
- * far as a trace reads it. Expo's `expo-updates` module has this shape.
- */
-export type RunningCode = Readonly<{
-  isEnabled: boolean
-  updateId: string | null
-  isEmbeddedLaunch: boolean
-  isEmergencyLaunch: boolean
-  runtimeVersion: string | null
-  createdAt: Date | null
-}>
+const runningNoteOf = (running: RunningCode): Note => ({
+  code: {
+    updateId: Option.getOrNull(running.maybeUpdateId),
+    isBuiltIn: running._tag !== 'Update',
+    runtime: Option.getOrNull(running.maybeRuntime),
+    ...Option.match(running.maybeMadeAtMs, {
+      onNone: () => ({}),
+      onSome: madeAtMs => ({ madeAt: new Date(madeAtMs).toISOString() }),
+    }),
+    ...(running._tag === 'FellBack' ? { fellBack: true } : {}),
+  },
+})
 
 /**
  * Which code a phone app is running, as a fact for its trace: the code
  * the build carries or an update taken over the air, by its own name,
  * for which native runtime, and when it was made. An app that fell back
- * to its built-in code because an update would not start says so.
+ * to its built-in code because an update would not start says so. It is
+ * read from the same fact a Program is told, `runningCodeOfExpo`.
  *
  * @example
  * ```typescript
@@ -28,84 +39,58 @@ export type RunningCode = Readonly<{
  * attachDevelopmentTelemetry(handle, { app, note: runningCodeOf(Updates) })
  * ```
  */
-export const runningCodeOf = (
-  running: RunningCode,
-): Readonly<Record<string, unknown>> =>
-  running.isEnabled
-    ? {
-        code: {
-          updateId: running.updateId,
-          isBuiltIn: running.isEmbeddedLaunch,
-          runtime: running.runtimeVersion,
-          ...(running.createdAt === null
-            ? {}
-            : { madeAt: running.createdAt.toISOString() }),
-          ...(running.isEmergencyLaunch ? { fellBack: true } : {}),
-        },
-      }
-    : { code: { updates: 'off' } }
+export const runningCodeOf = (running: ExpoRunningCode): Note =>
+  Option.match(runningCodeOfExpo(running), {
+    onNone: () => ({ code: { updates: 'off' } }),
+    onSome: runningNoteOf,
+  })
 
 // ASKING FOR NEWER CODE
 
-/**
- * Where an updates module is in asking its server for newer code, as far
- * as a trace reads it. Expo's native state machine context has this
- * shape.
- */
-export type UpdatesCheck = Readonly<{
-  isChecking: boolean
-  isDownloading: boolean
-  isUpdateAvailable: boolean
-  isUpdatePending: boolean
-  // NOTE: where the module has nothing to say it may say null.
-  checkError?: Readonly<{ message: string }> | null | undefined
-  downloadError?: Readonly<{ message: string }> | null | undefined
-  downloadedManifest?: Readonly<{ id?: string }> | null | undefined
-  lastCheckForUpdateTime?: Date | null | undefined
-}>
-
-const maximumWhyCharacters = 200
-
-const whyOf = (error: Readonly<{ message: string }>): string =>
-  error.message.slice(0, maximumWhyCharacters)
+const outcomeNoteOf = (newer: NewerCode): Option.Option<Note> =>
+  M.value(newer).pipe(
+    M.withReturnType<Option.Option<Note>>(),
+    M.tagsExhaustive({
+      NotAsked: () => Option.none(),
+      Asking: () => Option.none(),
+      Found: () => Option.none(),
+      Fetching: () => Option.none(),
+      NoneNewer: () => Option.some({ updates: 'none newer' }),
+      Ready: ({ maybeUpdateId }) =>
+        Option.some({
+          updates: 'fetched; runs from the next open',
+          updateId: Option.getOrNull(maybeUpdateId),
+        }),
+      CouldNotFetch: ({ why }) =>
+        Option.some({
+          updates: 'could not fetch the newer code; keeping the code it has',
+          why,
+        }),
+      CouldNotAsk: ({ why }) =>
+        Option.some({
+          updates: 'could not ask the updates server; keeping the code it has',
+          why,
+        }),
+    }),
+  )
 
 /**
  * What came of asking for newer code, once it is known: none newer,
  * newer code fetched for the next open, or that the server could not be
  * asked or the code not fetched. Not reaching the server is ordinary, as
  * when the phone is off the network the server is on: the app keeps the
- * code it has. None while it is still asking or fetching.
+ * code it has. None while it is still asking or fetching, and while newer
+ * code is found and not yet fetched. It is read from the same fact a
+ * Program is told, `newerCodeOfExpo`.
+ *
+ * @example
+ * ```typescript
+ * updatesOutcomeOf(Updates.latestContext) // Some({ updates: 'none newer' })
+ * ```
  */
 export const updatesOutcomeOf = (
-  check: UpdatesCheck,
-): Option.Option<Readonly<Record<string, unknown>>> => {
-  const maybeDownloadError = Option.fromNullishOr(check.downloadError)
-  const maybeCheckError = Option.fromNullishOr(check.checkError)
-  if (check.isChecking || check.isDownloading) {
-    return Option.none()
-  } else if (check.isUpdatePending) {
-    return Option.some({
-      updates: 'fetched; runs from the next open',
-      updateId: check.downloadedManifest?.id ?? null,
-    })
-  } else if (Option.isSome(maybeDownloadError)) {
-    return Option.some({
-      updates: 'could not fetch the newer code; keeping the code it has',
-      why: whyOf(maybeDownloadError.value),
-    })
-  } else if (Option.isSome(maybeCheckError)) {
-    return Option.some({
-      updates: 'could not ask the updates server; keeping the code it has',
-      why: whyOf(maybeCheckError.value),
-    })
-  } else if (
-    Option.isSome(Option.fromNullishOr(check.lastCheckForUpdateTime))
-  ) {
-    return Option.some({ updates: 'none newer' })
-  } else {
-    return Option.none()
-  }
-}
+  check: ExpoUpdatesCheck,
+): Option.Option<Note> => outcomeNoteOf(newerCodeOfExpo(check))
 
 /**
  * Says what came of asking for newer code: what was already known when
@@ -132,14 +117,14 @@ export const watchUpdates = ({
   listen,
   say,
 }: Readonly<{
-  latest: UpdatesCheck
+  latest: ExpoUpdatesCheck
   listen: (
-    listener: (event: Readonly<{ context: UpdatesCheck }>) => void,
+    listener: (event: Readonly<{ context: ExpoUpdatesCheck }>) => void,
   ) => unknown
-  say: (note: Readonly<Record<string, unknown>>) => void
+  say: (note: Note) => void
 }>): void => {
   const heard = { last: '' }
-  const tell = (check: UpdatesCheck): void => {
+  const tell = (check: ExpoUpdatesCheck): void => {
     Option.match(updatesOutcomeOf(check), {
       onNone: () => undefined,
       onSome: note => {

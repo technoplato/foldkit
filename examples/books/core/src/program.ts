@@ -1,5 +1,6 @@
 import { Match as M, Option } from 'effect'
 import { Program } from 'foldkit'
+import * as CodeUpdates from 'foldkit/code-updates'
 import * as Theme from 'foldkit/theme'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -51,6 +52,10 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       SetAppearance: () => 'Navigation',
       ObservedSystemMode: () => 'Navigation',
       ObservedSystemContrast: () => 'Navigation',
+      RestartToUpdate: () => 'Navigation',
+      ObservedCodeStatus: () => 'Navigation',
+      CompletedRestartOnNewerCode: () => 'Navigation',
+      FailedRestartOnNewerCode: () => 'Navigation',
       ShowLibrary: () => 'Navigation',
       ShowProfile: () => 'Navigation',
       ShowReadAloud: () => 'Navigation',
@@ -146,12 +151,15 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
  * what one person is looking at in the reader, the search,
  * its matches, and whether the words follow the playhead, so a search on
  * a phone never moves the words on a desk; a book's menu on the shelf,
- * so a long press on a phone opens nothing on a desk; and copying a link,
- * which goes to this device's clipboard.
+ * so a long press on a phone opens nothing on a desk; copying a link,
+ * which goes to this device's clipboard; and which update this device
+ * runs, with its restart, so an update a phone fetched is never shown on
+ * a desk.
  *
  * @example
  * ```typescript
  * isLocalOnlyMessage(SearchFor({ query })) // true
+ * isLocalOnlyMessage(ObservedCodeStatus({ status })) // true: one device's update is no other's
  * isLocalOnlyMessage(PlayFrom({ placeMs })) // false: the audio moves on every device that mirrors
  * isLocalOnlyMessage(SetBookmarkNote({ note })) // true: the note reaches every device through the library store
  * ```
@@ -159,6 +167,7 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
 export const isLocalOnlyMessage = (message: Message): boolean =>
   Audible.isMessage(message) ||
   Theme.isMessage(message) ||
+  CodeUpdates.isMessage(message) ||
   TranscriptPlayer.isViewMessage(message) ||
   message._tag === 'CopyWordLink' ||
   message._tag === 'ShowTitleMenu' ||
@@ -205,6 +214,7 @@ export const BooksProgram = Program.make({
       maybeRemovedBookmark: current.maybeRemovedBookmark,
       maybeTitleMenu: current.maybeTitleMenu,
       appearance: current.appearance,
+      maybeCodeStatus: current.maybeCodeStatus,
     }),
     projectLocal: model => ({
       ...model,
@@ -222,6 +232,9 @@ export const BooksProgram = Program.make({
       maybeNotice: Option.none(),
       maybeRemovedBookmark: Option.none(),
       maybeTitleMenu: Option.none(),
+      // NOTE: the host says which update runs each time the app opens. A
+      // status kept across a restart would name the update before it.
+      maybeCodeStatus: Option.none(),
     }),
   },
 })

@@ -8,6 +8,7 @@ import {
   pipe,
 } from 'effect'
 import { Navigation } from 'foldkit'
+import { CodeStatus } from 'foldkit/code-updates'
 import { described } from 'foldkit/declaration'
 import { namedByTyped } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
@@ -207,8 +208,9 @@ export type PlayerControls = typeof PlayerControls.Type
  * write the library store refused, why Scribe's timeline last refused a
  * stretch and the reports it refused, to send again, the picture books read
  * aloud and the previews checked for them,
- * this device's Audible import, the navigation stack, and the title whose
- * menu is open on the shelf. The shelf and the
+ * this device's Audible import, the navigation stack, the title whose
+ * menu is open on the shelf, and which update this device runs with what
+ * came of asking for a newer one, as its host says it. The shelf and the
  * chapters come from the library store, the readings from the reading
  * source, the player counts on this device, and the Audible import happens
  * on the device where it was started, so none of them is folded from the
@@ -252,6 +254,7 @@ export const Model = S.Struct({
   navigation: Navigation.NavigationStack(Destination),
   maybeRemovedBookmark: S.OptionFromOptionalKey(Bookmark),
   maybeTitleMenu: S.OptionFromOptionalKey(TitleSlug),
+  maybeCodeStatus: S.OptionFromOptionalKey(CodeStatus),
 })
 /**
  * A Books Model value. An interface rather than an alias, so every type

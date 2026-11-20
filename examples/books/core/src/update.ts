@@ -1,5 +1,6 @@
 import { Array, Match as M, Option, Record as Record_ } from 'effect'
 import { type Command, Navigation } from 'foldkit'
+import * as CodeUpdates from 'foldkit/code-updates'
 import { transcriptPlaceAt } from 'foldkit/renderers'
 import { appliedRowChanges } from 'foldkit/synchronization'
 import * as ReadAloud from 'read-aloud-core-example'
@@ -950,6 +951,17 @@ const withoutTitleMenu = (model: Model): Model =>
     ? model
     : { ...model, maybeTitleMenu: Option.none() }
 
+const codeUpdated = (
+  model: Model,
+  message: CodeUpdates.Message,
+): UpdateReturn => {
+  const [nextMaybeCodeStatus, commands] = CodeUpdates.update(
+    model.maybeCodeStatus,
+    message,
+  )
+  return [{ ...model, maybeCodeStatus: nextMaybeCodeStatus }, commands]
+}
+
 const updated = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     withUpdateReturn,
@@ -1041,6 +1053,13 @@ const updated = (model: Model, message: Message): UpdateReturn =>
           ...model,
           appearance: { ...model.appearance, systemContrast: contrast },
         },
+        [],
+      ],
+      RestartToUpdate: message => codeUpdated(model, message),
+      ObservedCodeStatus: message => codeUpdated(model, message),
+      CompletedRestartOnNewerCode: message => codeUpdated(model, message),
+      FailedRestartOnNewerCode: ({ reason }) => [
+        { ...model, maybeNotice: Option.some(`Could not restart: ${reason}`) },
         [],
       ],
       OpenPlayer: () => [

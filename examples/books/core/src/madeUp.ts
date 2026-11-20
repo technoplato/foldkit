@@ -1,5 +1,6 @@
 import { Array, type Context, Effect, Layer } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
+import { noCodeUpdates } from 'foldkit/code-updates'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import { MediaId, Milliseconds } from './ids.js'
@@ -136,11 +137,12 @@ export const madeUpSessionLog = 'books-made-up'
  * How a Client starts the made-up Books: the Host it runs on, and a
  * wrapper around the library store, as `startBooks` takes. `resources`
  * are services of the host's own that replace the made-up ones of the
- * same kind, such as a phone's audio output and its report of the
- * system's appearance. `sync` is the engine the session runs on; without
- * one it stays in this process. `shelf` is how long the made-up shelf
- * is: three short titles, or `Long`, 65 titles with one of about 16 hours
- * in 134 chapters, for measuring a Client on a real-sized library.
+ * same kind, such as a phone's audio output, its report of the system's
+ * appearance, and which update it runs. `sync` is the engine the session
+ * runs on; without one it stays in this process. `shelf` is how long the
+ * made-up shelf is: three short titles, or `Long`, 65 titles with one of
+ * about 16 hours in 134 chapters, for measuring a Client on a real-sized
+ * library.
  */
 export type MadeUpBooksConfig = Readonly<{
   host: Processor.Host.Host
@@ -196,6 +198,7 @@ export const startMadeUpBooks = async (
       sharing.layer,
       noReadAloud,
       noScribeTimeline,
+      noCodeUpdates,
       config.resources ?? Layer.empty,
     ),
     host: config.host,

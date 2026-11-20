@@ -8,6 +8,7 @@ import {
   pipe,
 } from 'effect'
 import { Catalog } from 'foldkit'
+import * as CodeUpdates from 'foldkit/code-updates'
 import {
   type ButtonNode,
   Column,
@@ -1095,11 +1096,16 @@ const importRowsOf = (model: Model): ReadonlyArray<UiNode> => [
 /**
  * Who is signed in, through Cloudflare Access, how the library stands:
  * how many books, how many started and finished, and Import from Audible.
+ * On a device whose host says which update it runs, such as a phone, it
+ * ends with Updates: the update running and when it was made, then where
+ * asking for a newer one stands, with Restart once one is fetched. A
+ * browser and a terminal say nothing of updates, so they show no such
+ * section.
  *
  * @example
  * ```typescript
  * profileScreen(model)
- * // Column: Profile, Account (you@example.com), Listening (5 books), Add books (Import from Audible), Dock(Library | Profile)
+ * // Column: Profile, Account (you@example.com), Listening (5 books), Add books (Import from Audible), Updates (Running update 1a2b3c4d, A newer update is ready [Restart]), Dock(Library | Profile)
  * ```
  */
 export const profileScreen = (model: Model): UiNode => {
@@ -1144,6 +1150,8 @@ export const profileScreen = (model: Model): UiNode => {
       ],
     }),
     ...importRowsOf(model),
+    ...CodeUpdates.sectionOf(model.maybeCodeStatus, entriesOf(model)),
+    ...noticeLines(model),
     dockOf(model, 'Profile'),
   )
 }
