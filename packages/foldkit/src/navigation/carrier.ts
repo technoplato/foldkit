@@ -43,6 +43,7 @@ export type CarrierEntry<Destination> = Readonly<{
   destination: Destination
   maybeStyle: Option.Option<PresentationStyle>
   maybeTitle: Option.Option<string>
+  isTab: boolean
 }>
 
 /** What every carrier shows for one Model: entries root first, and the URI. */
@@ -133,6 +134,10 @@ export const planOf = <Model, Destination>(
           destination: level.destination,
           maybeStyle: level.maybeStyle,
           maybeTitle: maybeTitleOf(navigation, level.destination),
+          isTab: Option.exists(
+            routeOf(navigation, level.destination),
+            route => route.isTab,
+          ),
         }
       },
     )

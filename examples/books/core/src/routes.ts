@@ -72,7 +72,8 @@ export const nameOfSlug = (slug: TitleSlug): string => nameOfTag(slug)
  * Books' screens, each with its route, title, and where it may sit:
  *
  * - `/books` is the library, the root, and `/books/profile` who is signed
- *   in, above it.
+ *   in, above it and a tab beside it: no Client draws a way back on it or
+ *   animates its arrival.
  * - `/books/read-aloud` is the picture books read aloud, above the
  *   library, and `/books/read-aloud/9780063342705/page/4` one of them at
  *   page 4, above that. A book stays one page while its pages turn, so
@@ -111,6 +112,7 @@ export const declared = Navigation.screens({
     Navigation.pushScreen(ProfilePage, Route.literal('profile'), {
       title: () => 'Profile',
       isAllowedAbove: beneath => Array.every(beneath, isLibraryPage),
+      isTab: true,
     }),
     Navigation.pushScreen(ReadAloud.ReadAloudShelf, ReadAloud.shelfRoute, {
       title: () => 'Read aloud',

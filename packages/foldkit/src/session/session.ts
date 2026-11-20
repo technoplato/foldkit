@@ -30,6 +30,7 @@ import {
   type EntryView,
   type NotFound,
   presentRoute,
+  routeOf,
   screenView,
   tagCase,
 } from '../navigation/declaration.js'
@@ -507,8 +508,8 @@ const structFieldsOf = (schema: unknown): S.Struct.Fields =>
  * them; the session's Actions follow. While navigation is mirrored, a launch
  * at the home does not move the stack: a newcomer joins the shared screen.
  * A launch at a deeper address, such as `/books/a-tin-comet/listen/1h00m00s`,
- * opens it. `isTab` names the pages a tab bar reaches, such as a Profile
- * page: they show no Back button, since the tab bar is the way out.
+ * opens it. A page its route declares `isTab`, such as a Profile page a
+ * tab bar reaches, shows no Back button, since the tab bar is the way out.
  * `ownNavigationHosts` names the Hosts whose Processors keep their own
  * navigation even while the session mirrors it, such as a terminal that
  * plays in the background: a browser's move never lands on it, and its
@@ -531,7 +532,6 @@ export const compose = <Child extends SessionChild>(config: {
   of: Child
   initialMode?: SessionMode
   companions?: ReadonlyArray<Companion>
-  isTab?: (destination: SessionDestinationOf<Child>) => boolean
   ownNavigationHosts?: ReadonlyArray<Host>
   id?: string
   version?: number
@@ -656,7 +656,11 @@ export const compose = <Child extends SessionChild>(config: {
 
   const isSameDestination = S.toEquivalence(composedNavigation.Destination)
 
-  const isTab = config.isTab ?? ((): boolean => false)
+  const isTab = (destination: AppDestination): boolean =>
+    Option.exists(
+      routeOf(composedNavigation, destination),
+      route => route.isTab,
+    )
 
   const isTopPage = (model: AppModel, destination: AppDestination): boolean =>
     Option.exists(Array.last(model.navigation.pages), page =>

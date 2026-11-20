@@ -1,6 +1,5 @@
 import { ActionMenu, Session } from 'foldkit'
 
-import { isProfilePage } from './destination.js'
 import { RemindersProgram } from './program.js'
 
 /**
@@ -14,7 +13,6 @@ export const App = ActionMenu.compose({
   of: Session.compose({
     of: RemindersProgram,
     initialMode: 'SharedDomain',
-    isTab: isProfilePage,
   }),
 })
 

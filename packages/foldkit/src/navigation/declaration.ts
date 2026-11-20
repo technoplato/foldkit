@@ -40,7 +40,9 @@ export type Placement = typeof Placement.Type
  * can appear once: the Session route refuses a stack that already holds
  * Session settings. `identityOf` resets the fields that pass while the
  * page stays the same page, such as a player's place: see
- * {@link ScreenOptions}.
+ * {@link ScreenOptions}. `isTab` is true for a page a tab bar reaches,
+ * such as a Profile page above a library: it is a place beside the one
+ * beneath it, so no Client draws a way back on it or animates its arrival.
  */
 export type DestinationRoute<Destination> = Readonly<{
   routeCase: Route.RouteCase<Destination, any>
@@ -49,6 +51,7 @@ export type DestinationRoute<Destination> = Readonly<{
   isAllowedAbove: (beneath: Array.NonEmptyReadonlyArray<Destination>) => boolean
   maybeTitleOf: (destination: Destination) => Option.Option<string>
   identityOf: (destination: Destination) => Destination
+  isTab: boolean
 }>
 
 /** Options shared by the route constructors. */
@@ -58,6 +61,7 @@ export type RouteOptions<Destination> = Readonly<{
   ) => boolean
   title?: (destination: Destination) => string
   identityOf?: (destination: Destination) => Destination
+  isTab?: boolean
 }>
 
 const titledBy =
@@ -95,6 +99,7 @@ export const rootRoute = <Destination, Value>(
   isAllowedAbove: () => false,
   maybeTitleOf: titledBy(options),
   identityOf: itself,
+  isTab: false,
 })
 
 /**
@@ -118,6 +123,7 @@ export const pushRoute = <Destination, Value>(
   isAllowedAbove: options?.isAllowedAbove ?? anywhere,
   maybeTitleOf: titledBy(options),
   identityOf: options?.identityOf ?? itself,
+  isTab: options?.isTab ?? false,
 })
 
 /**
@@ -132,7 +138,7 @@ export const pushRoute = <Destination, Value>(
 export const presentRoute = <Destination, Value>(
   routeCase: Route.RouteCase<Destination, Value>,
   style: PresentationStyle,
-  options?: RouteOptions<Destination>,
+  options?: Omit<RouteOptions<Destination>, 'isTab'>,
 ): DestinationRoute<Destination> => ({
   routeCase,
   placement: 'Entry',
@@ -140,6 +146,7 @@ export const presentRoute = <Destination, Value>(
   isAllowedAbove: options?.isAllowedAbove ?? anywhere,
   maybeTitleOf: titledBy(options),
   identityOf: options?.identityOf ?? itself,
+  isTab: false,
 })
 
 /**
@@ -185,6 +192,7 @@ export const liftRoute = <Child extends Parent, Parent>(
       onNone: () => destination,
       onSome: route.identityOf,
     }),
+  isTab: route.isTab,
 })
 
 /**
@@ -243,6 +251,7 @@ export const notFoundRoute = <Destination>(
   isAllowedAbove: anywhere,
   maybeTitleOf: () => Option.some('Not found'),
   identityOf: itself,
+  isTab: false,
 })
 
 // DECLARATION
@@ -555,12 +564,16 @@ export type Screen<Destination> = Readonly<{
  * `identityOf` resets the fields that pass while the page stays put, so a
  * painter keeps its DOM, scroll, and images: a player whose address
  * follows its place, `/books/a-tin-comet/listen/1h41m05s`, stays one page
- * when `identityOf` resets `atMs`.
+ * when `identityOf` resets `atMs`. `isTab` says a tab bar reaches the
+ * page, as Books' `/books/profile` is reached from the library's: every
+ * Client then draws it as a place beside the page beneath, with no way back
+ * on it and no arrival animation, and Back still returns beneath.
  */
 export type ScreenOptions<Destination> = Readonly<{
   isAllowedAbove?: (beneath: Array.NonEmptyReadonlyArray<unknown>) => boolean
   title?: (destination: Destination) => string
   identityOf?: (destination: Destination) => Destination
+  isTab?: boolean
 }>
 
 /** The screen every stack starts from: a Destination with no fields. */
@@ -637,7 +650,7 @@ export const presentScreen = <Destination extends TaggedDestination>(
   destination: ScreenDestination<Destination>,
   parser: Route.Biparser<Omit<Destination, '_tag'>>,
   style: PresentationStyle,
-  options?: ScreenOptions<Destination>,
+  options?: Omit<ScreenOptions<Destination>, 'isTab'>,
 ): Screen<Destination> => ({
   Destination: destination,
   route: presentRoute(

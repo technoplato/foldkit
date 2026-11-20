@@ -18,7 +18,10 @@ import {
  * name otherwise. The header and the page beneath take the look's
  * colors, so the platform's own chrome is in the Program's mode.
  * `freezeOnBlur` is true for a page another page covers: the stack stops
- * painting it until it is back in sight.
+ * painting it until it is back in sight. A page its route declares a tab,
+ * such as a Profile page a tab bar reaches, arrives and leaves with no
+ * animation, and has no back button and no swipe back: the tab bar is the
+ * way out. The page beneath stays mounted, so it keeps its scroll place.
  */
 export type EntryOptions = Readonly<{
   presentation: NativePresentation
@@ -30,7 +33,19 @@ export type EntryOptions = Readonly<{
   headerTitleStyle: Readonly<{ color: string }>
   contentStyle: Readonly<{ backgroundColor: string }>
   freezeOnBlur: boolean
+  animation?: 'none'
+  headerBackVisible?: false
+  gestureEnabled?: false
 }>
+
+const tabOptions: Pick<
+  EntryOptions,
+  'animation' | 'headerBackVisible' | 'gestureEnabled'
+> = {
+  animation: 'none',
+  headerBackVisible: false,
+  gestureEnabled: false,
+}
 
 /**
  * The native stack options for the entry a navigator's route shows, read
@@ -45,10 +60,13 @@ export type EntryOptions = Readonly<{
  * // { presentation: 'modal', headerShown: false, title: 'Session', … }
  * entryOptionsOf(bound, '/counter/menu', look)
  * // { presentation: 'transparentModal', headerShown: false, title: 'Actions', … }
+ * entryOptionsOf(bound, '/books/profile', look)
+ * // { presentation: 'card', title: 'Profile', animation: 'none',
+ * //   headerBackVisible: false, gestureEnabled: false, … }
  * ```
  */
 export const entryOptionsOf = (
-  bound: AnyBound,
+  bound: Pick<AnyBound, 'navigation'>,
   key: string,
   look: Look = lightLook,
 ): EntryOptions => {
@@ -78,5 +96,6 @@ export const entryOptionsOf = (
       onNone: () => false,
       onSome: plan => isCoveredOf(plan, key),
     }),
+    ...(Option.exists(maybeEntry, entry => entry.isTab) ? tabOptions : {}),
   }
 }

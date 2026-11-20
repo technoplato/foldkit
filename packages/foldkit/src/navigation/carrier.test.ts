@@ -351,6 +351,7 @@ describe('planOf', () => {
             destination: Counter(),
             maybeStyle: Option.none(),
             maybeTitle: Option.some('Counter'),
+            isTab: false,
           },
           {
             key: '/counter/session',
@@ -359,6 +360,7 @@ describe('planOf', () => {
             destination: SessionSettings(),
             maybeStyle: Option.some(Push()),
             maybeTitle: Option.some('Session'),
+            isTab: false,
           },
           {
             key: '/counter/session/menu',
@@ -367,6 +369,7 @@ describe('planOf', () => {
             destination: menu('re'),
             maybeStyle: Option.some(Dialog()),
             maybeTitle: Option.some('Actions'),
+            isTab: false,
           },
         ],
         uri: '/counter/session/menu?menu.q=re',

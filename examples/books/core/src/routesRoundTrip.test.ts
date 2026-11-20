@@ -19,6 +19,33 @@ const namesAt = (uri: string): ReadonlyArray<string> => {
   )
 }
 
+const tabsAt = (uri: string): ReadonlyArray<boolean> => {
+  const [model] = App.init()
+  return Array.map(
+    Option.getOrThrow(
+      Navigation.planOf(
+        navigation,
+        model,
+        Navigation.parseStack(navigation, uri),
+      ),
+    ).entries,
+    entry => entry.isTab,
+  )
+}
+
+describe('the pages a tab bar reaches', () => {
+  it('tells every Client the profile is a tab beside the library, at the address it had', () => {
+    expect(namesAt('/books/profile')).toEqual(['LibraryPage', 'ProfilePage'])
+    expect(tabsAt('/books/profile')).toEqual([false, true])
+  })
+
+  it('names no other page a tab, so each keeps its way back', () => {
+    expect(tabsAt('/books')).toEqual([false])
+    expect(tabsAt('/books/profile/audible')).toEqual([false, true, false])
+    expect(tabsAt('/books/read-aloud')).toEqual([false, false])
+  })
+})
+
 describe('every address Books prints', () => {
   const trip = roundTripOf(navigation, { maxDepth: 4 })
 

@@ -18,6 +18,7 @@ const entry = (key: string, identity: string = key) => ({
   destination: key,
   maybeStyle: Option.none(),
   maybeTitle: Option.none(),
+  isTab: false,
 })
 
 const planOf = (

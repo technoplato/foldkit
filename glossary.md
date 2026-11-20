@@ -294,6 +294,11 @@ owns each is accepted; then they move up into the sections above.
   matched host route, never typed twice. Plan 04.
 - **Tabs**: several stacks side by side with one active, one typed stack per
   tab. Plan 04.
+- **Tab page**: a pushed page a tab bar reaches, declared `isTab` on its
+  screen, such as Books' `/books/profile` above the library. It is one stack
+  still, not Tabs: every Client draws it with no way back on it and no
+  arrival animation, and Back returns to the page beneath. Built in plan 14,
+  slice 1.
 - **Segment**: how an id prints as one word in a URI, a tag, or a command, as
   a `Codec<Id, string>`. e.g. `CounterIdSegment` prints a minted UUID as its
   26-character base-32 form `01j9r3x8k2q5z7w9v6b4n1m0p3`; the envelope and

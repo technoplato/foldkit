@@ -19,6 +19,7 @@ const entry = (key: string, tag: string, identity: string = key) => ({
   destination: { _tag: tag },
   maybeStyle: Option.none(),
   maybeTitle: Option.none(),
+  isTab: false,
 })
 
 const plan: Navigation.CarrierPlan<unknown> = {

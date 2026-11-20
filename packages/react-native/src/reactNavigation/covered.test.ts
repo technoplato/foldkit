@@ -17,6 +17,7 @@ const entry = (
   destination: { _tag: 'Page' },
   maybeStyle,
   maybeTitle: Option.none(),
+  isTab: false,
 })
 
 const planOf = (

@@ -93,6 +93,7 @@ export const declared = Navigation.screens({
     Navigation.pushScreen(ProfilePage, Route.literal('profile'), {
       title: () => 'Profile',
       isAllowedAbove: isAboveHome,
+      isTab: true,
     }),
     Navigation.pushScreen(
       ReminderPage,

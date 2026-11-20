@@ -377,7 +377,11 @@ describe('Session.compose', () => {
       navigation: {
         ...Declaration.screens({
           root: Declaration.rootScreen(Counter, Route.here),
-          screens: [Declaration.pushScreen(Detail, Route.literal('detail'))],
+          screens: [
+            Declaration.pushScreen(Detail, Route.literal('detail'), {
+              isTab: true,
+            }),
+          ],
         }),
         viewOf: (_model: CounterModel, destination: Detail | Counter) =>
           destination._tag === 'Detail'
@@ -385,10 +389,7 @@ describe('Session.compose', () => {
             : Option.none(),
       },
     })
-    const TabbedApp = compose({
-      of: TabbedProgram,
-      isTab: destination => destination._tag === 'Detail',
-    })
+    const TabbedApp = compose({ of: TabbedProgram })
     const navigation = Option.getOrThrow(
       Option.fromNullishOr(TabbedApp.navigation),
     )
