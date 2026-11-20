@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
+import { TranscriptFollow } from 'foldkit/behavior'
 import {
   type BoxLayer,
   type BoxNode,
@@ -18,7 +19,6 @@ import {
   type TextInputNode,
   type TextNode,
   type TextPart,
-  TranscriptFollow,
   type TranscriptNode,
   type TranscriptPassage,
   type UiNode,
@@ -1058,6 +1058,12 @@ const TranscriptView = ({
     }
     const running = TranscriptFollow.start({
       now: () => Date.now(),
+      wait: (afterMs, elapsed) => {
+        const timer = setTimeout(elapsed, afterMs)
+        return () => {
+          clearTimeout(timer)
+        }
+      },
       told: () => ({
         isFollowing: live.current.isFollowing,
         hasLeave: live.current.leaveAction !== undefined,

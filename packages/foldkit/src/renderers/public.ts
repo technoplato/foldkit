@@ -88,7 +88,7 @@ export {
   transcriptAt,
   transcriptPlaceAt,
 } from './transcriptClock.js'
-export * as TranscriptFollow from './transcriptFollow.js'
+export * as TranscriptFollow from '../behavior/transcriptFollow.js'
 export {
   ExcerptPosition,
   TranscriptExcerpt,

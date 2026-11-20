@@ -1,21 +1,25 @@
 ---
 name: foldkit-screens
-description: Build renderer-free Foldkit Programs whose screens are portable instruction trees painted by every Client. Use for UiNode screen authoring, atomic design tiers over core logic, ASCII-first design iteration and agent review loops, machine-backed headless components, cross-renderer navigation, or adopting Instant realtime sync in a new example. Triggers on Program.screen, paintHtml/paintReact/paintTui, UiNode, renderers, host chrome, or view agnosticism.
+description: Build renderer-free Foldkit Programs whose screens are portable screen trees painted by every Client, and write each UI behavior once in core as a block (state, facts, instructions) that painters only run. Use for UiNode screen authoring, where a UI rule goes (core behavior or a painter's mechanic), blocks, parts and slots, atomic design tiers over core logic, ASCII-first design iteration and agent review loops, cross-renderer navigation, or adopting Instant realtime sync in a new example. Triggers on Program.screen, paintHtml/paintReact/paintTui, UiNode, renderers, foldkit/behavior, TranscriptFollow, a timer or a listener in a painter, the painter ratchet, host chrome, or view agnosticism.
 ---
 
 # Foldkit Screens
 
-A Program owns facts and instructions. Clients own pixels. Everything else in
-this skill follows from that split.
+A Program owns facts and the screen tree. Clients own pixels. Everything else
+in this skill follows from that split.
+
+The owner, 2026-11-20: "a painter should just take state and render a UI and
+then when that state changes, it should render again. That's it."
 
 ## The law
 
 One direction of data flow, three layers, no exceptions:
 
 ```
-core        facts + instructions     Model, Message, update, valid, screen -> UiNode
+core        facts + screen tree      Model, Message, update, valid, screen -> UiNode
+            behavior                 blocks: step(state, context, fact) -> state + instructions
 adapter     transport + lifecycle    engines, Layers, handles, argv, sockets, auth
-view        pixels                   painters: UiNode -> HTML / React / ANSI / Renderable
+view        pixels + mechanics       painters: UiNode -> HTML / React / ANSI / Renderable
 ```
 
 Membership tests. Apply them to every line you are about to write:
@@ -26,11 +30,29 @@ Membership tests. Apply them to every line you are about to write:
 2. **Adapter test.** Does this choose _which_ engine, socket, process, or
    identity this occurrence uses? Then it is adapter code, even when it calls
    only core functions.
-3. **View test.** Does this turn instructions into pixels? Then it may read the
-   tree and nothing else. A painter never invents business decisions, never
+3. **View test.** Does this turn the screen tree into pixels? Then it may read
+   the tree and nothing else. A painter never invents business decisions, never
    throws, never reaches back into Model.
+4. **Rule test.** Is it a number with a unit of time, distance or count
+   (500 ms, 10 px, 5 tries), or a branch on what the person meant (a hold is
+   not a press)? Then it is a rule, and it goes in
+   `packages/foldkit/src/behavior/`, never in a painter. How one platform
+   measures, scrolls, listens, waits and draws is a mechanic, and stays in the
+   painter. "Try again up to 5 times, 120 ms apart" is a rule; "ask the list to
+   scroll to an offset" is a mechanic.
 
 If a function passes two tests, split it. If it passes none, delete it.
+
+Where each kind of thing goes:
+
+| What you are about to write                         | It is                     | Where it goes                                   | Example in this repo                                        |
+| --------------------------------------------------- | ------------------------- | ----------------------------------------------- | ----------------------------------------------------------- |
+| A fact about the domain, or what a screen shows     | Model, Message, screen    | the domain core                                 | `examples/books/core/src/screen.ts`                         |
+| A number with a unit, or a branch on what was meant | a rule, in a block        | `packages/foldkit/src/behavior/`                | `LEAVING_QUIET_MS = 1000` in `behavior/transcriptFollow.ts` |
+| State the screen or an agent reads                  | device or logged home     | the Model, through the block's `step` in update | `Reader.State` in Books' and Words' Model                   |
+| Memory of timing or measurement that nothing reads  | painter home              | the block's runner                              | `TranscriptFollow.start(ports)` holds the quiet second      |
+| How this platform measures, scrolls, listens, waits | a mechanic, behind a port | the painter                                     | `sightOf` and the `wait` port in `renderers/htmlEdge.ts`    |
+| Role, focus and which gesture becomes which fact    | a slot's declaration      | the part, in core (plan 14, slice 4)            | not built yet                                               |
 
 ## Workflow
 
@@ -97,57 +119,67 @@ Agent QA checklist per frame:
   z-order that each client will re-fake differently.
 - Identity: mapped children carry stable ids, not positions.
 
-## Machine-backed components
+## Behavior: blocks, parts and slots
 
-Interactive widgets (menu, combobox, popover, dialog) get deterministic cores.
-Verdict from research: borrow semantics, do not add dependencies.
+Interactive behavior (a menu, a combobox, a dialog, following the voice) is
+written once in Foldkit core and run by every painter. The words are in
+`glossary.md` under "Behavior and painters"; the plan is `plans/14-ui-v1.md`.
 
-- effect-machine pins exact peer `effect@4.0.0-rc.111` while the repo is on
-  beta.97; it is pre-1.0 with breaking minors and states its intent to be
-  absorbed into Effect core. Revisit when versions align or Effect ships
-  Machine. Zag.js solves platform agnosticism with N mutable interpreters and
-  imperative DOM effects; copy none of that.
-- Take instead: Mealy purity (planning never awaits), macrostep stabilization
-  (drain raised events to quiescence before surfacing a step), three-channel
-  protocol (inbound facts, raised internal events, emitted outward facts),
-  schema-validated boundaries, anatomy as a typed part registry, prop getters
-  as a pure projection layer, and trace-based conformance testing.
+Borrow semantics, add no dependency. From Zag.js take the state charts, key
+maps and ARIA tables as data, `connect` as a pure projection, and anatomy as
+slots. Do not take its per-framework interpreters or its DOM lookups. Each
+reference repo under `repos/` is text to read, never code to import.
 
-The Foldkit-native contract (direction, evolving in
-`packages/foldkit/src/experimental/machine/`):
+**A block** is one small behavior. This is the one contract:
 
 ```ts
-interface ComponentMachine<
-  State extends Tagged,
-  In extends Tagged,
-  Out extends Tagged,
-> {
-  readonly id: string
-  readonly initial: State
-  readonly step: (state: State, input: In) => Plan<State, Out>
-  readonly handles: (state: State, inputTag: string) => boolean
-}
+type Block<State, Context, Fact, Instruction> = Readonly<{
+  State: Schema<State>
+  Fact: Schema<Fact>
+  Instruction: Schema<Instruction>
+  initial: State
+  step: (
+    state: State,
+    context: Context,
+    fact: Fact,
+  ) => Readonly<{ state: State; instructions: ReadonlyArray<Instruction> }>
+}>
 ```
 
-`step` returns data: next state, emitted facts, side-effect Commands, activity
-descriptors (timers/resources owned by entered states). Wiring stays inside
-existing primitives: update forwards interaction facts to `step`, dispatches
-returned Commands, and emitted facts re-enter the normal Message queue so every
-client paints them identically. Activities become ManagedResources or
-Subscriptions.
+- `step` never waits, never reads a clock, never touches a platform. Time
+  arrives in `context.nowMs`. A timer is an instruction out
+  (`WaitForLeaveCheck({ afterMs: 250 })`) and a fact back in
+  (`ElapsedLeaveWait()`).
+- State holds no sentinel. A time that has not happened is `Option.none()`,
+  never `Number.NEGATIVE_INFINITY`, so the State can be written as JSON.
+- Items are data. A menu's order comes from its `items`, never from asking
+  the page which element is next.
 
-Choose deliberately, per widget:
+`Machine.define` (`packages/foldkit/src/experimental/machine/`) stays for a
+Program's own domain state charts, whose edges return Commands
+(`examples/cardboard`). A block does not use it, because a block must also
+run where there are no Commands.
 
-- Stateless, configuration-only control -> render helper called directly.
-- Interaction state that must ride the tape (shared, synced, replayed) ->
-  machine state composed into the Program Model (how actionMenu composes).
-- Interaction state that must NOT ride the tape (ephemeral hover/focus) ->
-  client-local, but still driven by facts, never by painters reading DOM.
+**A part** is a whole component: its blocks, its slots (each painted element,
+with its role, focus and gestures as data), its Actions, and a pure
+`project(state, props)` that says what each slot shows. A painter hosts any
+part through one generic host and imports no part's rule. The Part declaration
+and the host are plan 14's slice 4 and are not built yet.
 
-Worked example of the third kind: `TranscriptFollow`
-(`packages/foldkit/src/renderers/transcriptFollow.ts`), how a Transcript's
-view follows the voice. The rule is one pure function, and painters only
-measure, scroll, listen, and press.
+**Three homes for a block's state.** Ask in order:
+
+1. Does anything painted, or anything an agent reads, depend on it? If no, it
+   is only memory of timing or measurement: **painter home**. The runner holds
+   it. Example: the quiet second after a scroll.
+2. Should another device or the log see it? If yes: **logged home**, in the
+   Model, an ordinary Message. Example: which page is on the stack.
+3. Otherwise: **device home**, in the Model, never logged. Example: Books'
+   title menu; `Reader.State`.
+
+Worked example of painter home: `TranscriptFollow`
+(`packages/foldkit/src/behavior/transcriptFollow.ts`, `foldkit/behavior`),
+how a Transcript's view follows the voice. The rule is one pure function, and
+painters only measure, scroll, listen, wait and press.
 
 ```ts
 TranscriptFollow.step(
@@ -155,7 +187,7 @@ TranscriptFollow.step(
   { isFollowing: true, hasLeave: true, nowMs: 5_000 },
   TranscriptFollow.ScrolledByReader(),
 )
-// { state: { readerScrolledAtMs: 5_000, ... },
+// { state: { maybeReaderScrolledAtMs: Option.some(5_000), ... },
 //   instructions: [WaitForLeaveCheck({ afterMs: 250 })] }
 ```
 
@@ -163,14 +195,34 @@ TranscriptFollow.step(
   `ScrolledByReader`, `ScrolledView`, `ElapsedLeaveWait`, `MeasuredWord`.
 - Instructions out: `MeasureWord`, `BringToMiddle`, `WaitForLeaveCheck`,
   `PressLeave`.
-- One shared runner, `TranscriptFollow.start(ports)`, holds the state and
-  the one timer. A painter gives it five ports (`now`, `told`, `measure`,
-  `bringToMiddle`, `pressLeave`) and tells it facts. The HTML edge, the React
-  painter, and the React Native painter are each that and nothing more.
+- One shared runner, `TranscriptFollow.start(ports)`, holds the state. A
+  painter gives it six ports (`now`, `wait`, `told`, `measure`,
+  `bringToMiddle`, `pressLeave`) and tells it facts. The runner names no
+  timer: the painter's `wait` says how its platform waits. The HTML edge, the
+  React painter, and the React Native painter are each that and nothing more.
+
+Worked example of device home: `Reader`
+(`packages/foldkit/src/behavior/reader.ts`): following or detached, the way
+back, and a named place, kept in Books' and Words' Model and stepped in
+update.
 
 When a painter needs a behavior, write the rule this way first. A second
 painter that reimplements a rule, such as its own quiet period after a scroll,
 has left the architecture.
+
+**What holds this.** `pnpm lint` runs two gates beside oxlint:
+
+- The painter ratchet (`pnpm check:painter-ratchet`) counts, per painter
+  file, timers and clocks, held state, listeners, and numbers other than 0
+  and 1, against `scripts/painter-ratchet/painters.json`. A rise fails. Zero is
+  where each file is headed: a count above zero is a rule still to move into
+  core, not a budget. A fair rise (a layout number such as `padding: 24`) is
+  recorded in that file with a `rises` entry that says why.
+- `.oxlintrc.json` forbids `document`, `window`, timers, and any import of the
+  DOM, React or React Native inside `packages/foldkit/src/behavior/`.
+
+Each painter's folder has an `AGENTS.md` with the rule and one example from
+that painter.
 
 ## Navigation across renderers
 
@@ -229,6 +281,9 @@ Counter is the reference implementation. Checklist distilled:
 - `packages/foldkit/src/program/program.ts` - Program contract, valid, screen
 - `packages/foldkit/src/program/compose.ts`, `sync.ts`, `actionMenu.ts`
 - `packages/foldkit/src/renderers/` - types, elements, layout, paint, render
+- `packages/foldkit/src/behavior/` - blocks: `TranscriptFollow`, `Reader`
+- `scripts/painter-ratchet/` - the painter ratchet and its two ledgers
+- `plans/14-ui-v1.md` - the rule, the contract, the three homes
 - `packages/foldkit/src/runtime/start.ts`, `syncEngine.ts` - boot, echo rules
 - `packages/react/src/` - bindProgram, useModel/useScreen, paintReact
 - `examples/counter/core/src/` - the reference portable Program

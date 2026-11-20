@@ -1,0 +1,228 @@
+{
+  "about": [
+    "The @foldkit/ui ratchet (plans/14-ui-v1.md, 'Keeping it true'; Scribe #2594).",
+    "The owner decided on 2026-11-20 that every @foldkit/ui widget moves to a core part, one at a time, starting now, and that the widgets keep working while they do. So each count below is expected to fall with each widget moved, and may not rise.",
+    "Counted per file: imports of foldkit/html, foldkit/dom, foldkit/mount, foldkit/render, foldkit/file and @floating-ui/dom (and Html, Mount, Dom, Render, File taken from the foldkit root), each use of what those imports gave, and each mention of document and window.",
+    "A file not listed here counts zero.",
+    "`pnpm check:painter-ratchet`, which `pnpm lint` runs, fails when the code holds more than this file says. A widget's rule goes in packages/foldkit/src/behavior/, not in a new view.",
+    "To record a fair rise, edit only this file: raise the count, and add beside it \"rises\": [{ \"kind\": \"domUses\", \"from\": 12, \"to\": 13, \"why\": \"the reason\" }]. After moving a widget, run `pnpm check:painter-ratchet --write` to record the lower counts."
+  ],
+  "files": {
+    "packages/ui/src/anchor.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 6,
+        "document": 4,
+        "window": 0
+      }
+    },
+    "packages/ui/src/animation/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 5,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/animation/update.ts": {
+      "counts": {
+        "domImports": 2,
+        "domUses": 2,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/button/index.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 4,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/calendar/index.ts": {
+      "counts": {
+        "domImports": 2,
+        "domUses": 48,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/checkbox/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 7,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/combobox/shared.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 28,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/datePicker/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 9,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/dialog/index.ts": {
+      "counts": {
+        "domImports": 2,
+        "domUses": 23,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/disclosure/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 9,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/dragAndDrop/index.ts": {
+      "counts": {
+        "domImports": 2,
+        "domUses": 7,
+        "document": 13,
+        "window": 3
+      }
+    },
+    "packages/ui/src/fieldset/index.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 6,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/fileDrop/index.ts": {
+      "counts": {
+        "domImports": 2,
+        "domUses": 10,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/input/index.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 6,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/listbox/shared.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 24,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/menu/index.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 24,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/nav/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 7,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/popover/index.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 19,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/radioGroup/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 8,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/select/index.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 6,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/slider/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 15,
+        "document": 11,
+        "window": 0
+      }
+    },
+    "packages/ui/src/switch/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 7,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/tabs/index.ts": {
+      "counts": {
+        "domImports": 2,
+        "domUses": 10,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/textarea/index.ts": {
+      "counts": {
+        "domImports": 3,
+        "domUses": 6,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/toast/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 6,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/tooltip/index.ts": {
+      "counts": {
+        "domImports": 2,
+        "domUses": 8,
+        "document": 0,
+        "window": 0
+      }
+    },
+    "packages/ui/src/virtualList/index.ts": {
+      "counts": {
+        "domImports": 1,
+        "domUses": 7,
+        "document": 3,
+        "window": 0
+      }
+    }
+  }
+}

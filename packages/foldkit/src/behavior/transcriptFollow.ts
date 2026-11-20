@@ -1,11 +1,12 @@
-import { Match as M, Option, Schema as S } from 'effect'
+import { Function, Match as M, Option, Schema as S } from 'effect'
 
 import { ts } from '../schema/index.js'
 
 // NOTE: this is the one place that decides how a Transcript's view follows
-// the voice. It names no DOM, no React and no phone: a painter measures,
-// scrolls and listens, and asks here what to do. `step` is the whole rule
-// as a pure function; `start` is the small runner every painter shares.
+// the voice. It names no DOM, no React, no phone and no timer: a painter
+// measures, scrolls, listens and waits, and asks here what to do. `step`
+// is the whole rule as a pure function; `start` is the small runner every
+// painter shares.
 
 // SIGHT
 
@@ -48,18 +49,21 @@ export const isInMiddle = (sight: Sight): boolean =>
 /**
  * What following remembers between facts: when the reader last scrolled,
  * and until when a scroll of the view is taken to be the painter's own.
+ * Each is none until it happens, so the State is plain data:
+ * `{ maybeReaderScrolledAtMs: Option.some(10_000), maybeOwnScrollUntilMs: Option.none() }`
+ * a moment after the reader's first scroll.
  */
 export const State = S.Struct({
-  readerScrolledAtMs: S.Number,
-  ownScrollUntilMs: S.Number,
+  maybeReaderScrolledAtMs: S.Option(S.Number),
+  maybeOwnScrollUntilMs: S.Option(S.Number),
 })
 /** What following remembers between facts. */
 export type State = typeof State.Type
 
 /** Following before anything has happened: nobody has scrolled. */
 export const initial: State = {
-  readerScrolledAtMs: Number.NEGATIVE_INFINITY,
-  ownScrollUntilMs: Number.NEGATIVE_INFINITY,
+  maybeReaderScrolledAtMs: Option.none(),
+  maybeOwnScrollUntilMs: Option.none(),
 }
 
 /**
@@ -202,9 +206,29 @@ export type Step = Readonly<{
 }>
 
 const readerScrolled = (state: State, nowMs: number): Step => ({
-  state: { ...state, readerScrolledAtMs: nowMs },
+  state: { ...state, maybeReaderScrolledAtMs: Option.some(nowMs) },
   instructions: [WaitForLeaveCheck({ afterMs: LEAVE_CHECK_AFTER_MS })],
 })
+
+const ownScroll = (state: State, nowMs: number): State => ({
+  ...state,
+  maybeOwnScrollUntilMs: Option.some(nowMs + OWN_SCROLL_MS),
+})
+
+const isOwnScroll = (state: State, nowMs: number): boolean =>
+  Option.exists(state.maybeOwnScrollUntilMs, untilMs => nowMs <= untilMs)
+
+const shouldFollowNow = (state: State, context: Context): boolean =>
+  Option.match(state.maybeReaderScrolledAtMs, {
+    onNone: () => context.isFollowing,
+    onSome: userScrolledAtMs =>
+      shouldFollowWord({
+        isFollowing: context.isFollowing,
+        hasLeave: context.hasLeave,
+        nowMs: context.nowMs,
+        userScrolledAtMs,
+      }),
+  })
 
 const isAway = (maybeSight: Option.Option<Sight>): boolean =>
   Option.match(maybeSight, {
@@ -222,7 +246,7 @@ const measured = (
     return { state, instructions: [] }
   } else if (purpose === 'Follow') {
     return {
-      state: { ...state, ownScrollUntilMs: context.nowMs + OWN_SCROLL_MS },
+      state: ownScroll(state, context.nowMs),
       instructions: [BringToMiddle({ word: 'Spoken' })],
     }
   } else {
@@ -249,9 +273,9 @@ const measured = (
  * // { state: initial, instructions: [MeasureWord({ purpose: 'Follow' })] }
  *
  * step(initial, { isFollowing: true, hasLeave: true, nowMs: 5_000 }, ScrolledByReader())
- * // { state: { readerScrolledAtMs: 5_000, ... }, instructions: [WaitForLeaveCheck({ afterMs: 250 })] }
+ * // { state: { maybeReaderScrolledAtMs: Option.some(5_000), ... }, instructions: [WaitForLeaveCheck({ afterMs: 250 })] }
  *
- * step({ ...initial, readerScrolledAtMs: 4_900 }, { isFollowing: true, hasLeave: true, nowMs: 5_000 }, ResumedFollowing())
+ * step({ ...initial, maybeReaderScrolledAtMs: Option.some(4_900) }, { isFollowing: true, hasLeave: true, nowMs: 5_000 }, ResumedFollowing())
  * // { state: initial, instructions: [MeasureWord({ purpose: 'Follow' })] }
  * ```
  */
@@ -261,30 +285,25 @@ export const step = (state: State, context: Context, fact: Fact): Step =>
     M.tagsExhaustive({
       ChangedSpokenWord: () => ({
         state,
-        instructions: shouldFollowWord({
-          isFollowing: context.isFollowing,
-          hasLeave: context.hasLeave,
-          nowMs: context.nowMs,
-          userScrolledAtMs: state.readerScrolledAtMs,
-        })
+        instructions: shouldFollowNow(state, context)
           ? [MeasureWord({ purpose: 'Follow' })]
           : [],
       }),
       ResumedFollowing: () => ({
-        state: { ...state, readerScrolledAtMs: initial.readerScrolledAtMs },
+        state: { ...state, maybeReaderScrolledAtMs: Option.none() },
         instructions: context.isFollowing
           ? [MeasureWord({ purpose: 'Follow' })]
           : [],
       }),
       NamedWord: () => ({
-        state: { ...state, ownScrollUntilMs: context.nowMs + OWN_SCROLL_MS },
+        state: ownScroll(state, context.nowMs),
         instructions: [BringToMiddle({ word: 'Named' })],
       }),
       ScrolledByReader: () => readerScrolled(state, context.nowMs),
       ScrolledView: () =>
-        context.nowMs > state.ownScrollUntilMs
-          ? readerScrolled(state, context.nowMs)
-          : { state, instructions: [] },
+        isOwnScroll(state, context.nowMs)
+          ? { state, instructions: [] }
+          : readerScrolled(state, context.nowMs),
       // NOTE: a wait is always asked for with the reader's scroll noted.
       // With none noted, the words have followed again since that scroll,
       // and the word sounding may still be on its way to the middle.
@@ -293,7 +312,7 @@ export const step = (state: State, context: Context, fact: Fact): Step =>
         instructions:
           context.isFollowing &&
           context.hasLeave &&
-          Number.isFinite(state.readerScrolledAtMs)
+          Option.isSome(state.maybeReaderScrolledAtMs)
             ? [MeasureWord({ purpose: 'Leave' })]
             : [],
       }),
@@ -306,14 +325,19 @@ export const step = (state: State, context: Context, fact: Fact): Step =>
 
 /**
  * What a painter gives the runner, the only platform code following
- * needs. `told` reads what the Transcript says now. `measure` finds the
- * word sounding and answers with where it is, with none when it has no
- * place yet, and does not answer at all when no word is sounding.
- * `bringToMiddle` scrolls the view its own way. `pressLeave` presses the
- * Transcript's `leaveAction`.
+ * needs. `now` reads the wall clock. `wait` calls `elapsed` once after
+ * `afterMs` and answers with the way to call that wait off, so no timer
+ * is named here: a page gives
+ * `(afterMs, elapsed) => { const timer = setTimeout(elapsed, afterMs); return () => clearTimeout(timer) }`,
+ * and a test gives a wait it ends by hand. `told` reads what the
+ * Transcript says now. `measure` finds the word sounding and answers with
+ * where it is, with none when it has no place yet, and does not answer at
+ * all when no word is sounding. `bringToMiddle` scrolls the view its own
+ * way. `pressLeave` presses the Transcript's `leaveAction`.
  */
 export type Ports = Readonly<{
   now: () => number
+  wait: (afterMs: number, elapsed: () => void) => () => void
   told: () => Readonly<{ isFollowing: boolean; hasLeave: boolean }>
   measure: (
     purpose: Purpose,
@@ -336,17 +360,17 @@ export type Running = Readonly<{
  *
  * @example
  * ```typescript
- * const follow = start({ now: Date.now, told, measure, bringToMiddle, pressLeave })
- * window.addEventListener('wheel', () => follow.tell(ScrolledByReader()))
+ * const follow = start({ now, wait, told, measure, bringToMiddle, pressLeave })
+ * follow.tell(ScrolledByReader())
  * follow.stop()
  * ```
  */
 export const start = (ports: Ports): Running => {
   const held: {
     state: State
-    wait: ReturnType<typeof setTimeout> | undefined
+    callOffWait: () => void
     isStopped: boolean
-  } = { state: initial, wait: undefined, isStopped: false }
+  } = { state: initial, callOffWait: Function.constVoid, isStopped: false }
   const tell = (fact: Fact): void => {
     if (held.isStopped) {
       return
@@ -365,10 +389,10 @@ export const start = (ports: Ports): Running => {
             ports.bringToMiddle(word)
           },
           WaitForLeaveCheck: ({ afterMs }) => {
-            clearTimeout(held.wait)
-            held.wait = setTimeout(() => {
+            held.callOffWait()
+            held.callOffWait = ports.wait(afterMs, () => {
               tell(ElapsedLeaveWait())
-            }, afterMs)
+            })
           },
           PressLeave: () => {
             ports.pressLeave()
@@ -381,7 +405,7 @@ export const start = (ports: Ports): Running => {
     tell,
     stop: () => {
       held.isStopped = true
-      clearTimeout(held.wait)
+      held.callOffWait()
     },
   }
 }

@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.{ts,js,sh}"],
+      "entry": ["scripts/*.{ts,js,sh}", "scripts/painter-ratchet/*.test.ts"],
       "project": ["scripts/**"]
     },
     "bench": {

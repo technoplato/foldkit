@@ -1,5 +1,5 @@
-import { Option } from 'effect'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Array, Option, Schema as S } from 'effect'
+import { describe, expect, it } from 'vitest'
 
 import {
   BringToMiddle,
@@ -15,6 +15,7 @@ import {
   ScrolledByReader,
   ScrolledView,
   type Sight,
+  State,
   WaitForLeaveCheck,
   initial,
   isInMiddle,
@@ -71,7 +72,7 @@ describe('the follow rule, one fact at a time', () => {
       MeasuredWord({ purpose: 'Follow', maybeSight: Option.some(away) }),
     )
     expect(far.instructions).toEqual([BringToMiddle({ word: 'Spoken' })])
-    expect(far.state.ownScrollUntilMs).toBe(10_900)
+    expect(far.state.maybeOwnScrollUntilMs).toEqual(Option.some(10_900))
   })
 
   it('goes to a word that has no place yet, such as one a phone has not laid out', () => {
@@ -87,7 +88,7 @@ describe('the follow rule, one fact at a time', () => {
   it('leaves the view alone for a second after the reader scrolls, four where nothing hears of leaving', () => {
     const scrolled = step(initial, following, ScrolledByReader())
     expect(scrolled).toEqual({
-      state: { ...initial, readerScrolledAtMs: 10_000 },
+      state: { ...initial, maybeReaderScrolledAtMs: Option.some(10_000) },
       instructions: [WaitForLeaveCheck({ afterMs: 250 })],
     })
     const soon = { ...following, nowMs: 10_500 }
@@ -192,39 +193,60 @@ describe('the follow rule, one fact at a time', () => {
       NamedWord(),
     )
     expect(named.instructions).toEqual([BringToMiddle({ word: 'Named' })])
-    expect(named.state.ownScrollUntilMs).toBe(10_900)
+    expect(named.state.maybeOwnScrollUntilMs).toEqual(Option.some(10_900))
   })
 
   it('takes a scroll of the view for the reader’s, unless it just moved the view itself', () => {
-    const own = { ...initial, ownScrollUntilMs: 10_900 }
+    const own = { ...initial, maybeOwnScrollUntilMs: Option.some(10_900) }
     expect(step(own, following, ScrolledView())).toEqual({
       state: own,
       instructions: [],
     })
     expect(
       step(own, { ...following, nowMs: 11_000 }, ScrolledView()).state
-        .readerScrolledAtMs,
-    ).toBe(11_000)
+        .maybeReaderScrolledAtMs,
+    ).toEqual(Option.some(11_000))
+  })
+
+  it('remembers only plain data, so what it remembers can be written as JSON and read back', () => {
+    const codec = S.toCodecJson(State)
+    const scrolled = step(initial, following, ScrolledByReader()).state
+    const written = JSON.stringify(S.encodeSync(codec)(scrolled))
+    expect(written).not.toContain('null')
+    expect(S.decodeUnknownSync(codec)(JSON.parse(written))).toEqual(scrolled)
+    expect(
+      S.decodeUnknownSync(codec)(
+        JSON.parse(JSON.stringify(S.encodeSync(codec)(initial))),
+      ),
+    ).toEqual(initial)
   })
 })
 
 describe('the follow rule running for a painter', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(10_000)
-  })
+  type Wait = { atMs: number; elapsed: () => void; isOver: boolean }
 
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
+  // NOTE: the wait is the painter's to give, so this painter gives one it
+  // ends by hand. No timer runs, and the rule is still driven to the end.
   const painter = (
     told: Readonly<{ isFollowing: boolean; hasLeave: boolean }>,
     maybeSight: Option.Option<Sight> | undefined,
   ) => {
     const done: Array<string> = []
+    const waits: Array<Wait> = []
+    const clock = { nowMs: 10_000 }
     const running = start({
-      now: () => Date.now(),
+      now: () => clock.nowMs,
+      wait: (afterMs, elapsed) => {
+        const wait: Wait = {
+          atMs: clock.nowMs + afterMs,
+          elapsed,
+          isOver: false,
+        }
+        waits.push(wait)
+        return () => {
+          wait.isOver = true
+        }
+      },
       told: () => told,
       measure: (_purpose, answer) => {
         if (maybeSight !== undefined) {
@@ -238,7 +260,17 @@ describe('the follow rule running for a painter', () => {
         done.push('leave')
       },
     })
-    return { done, running }
+    const advance = (byMs: number): void => {
+      clock.nowMs += byMs
+      Array.filter(
+        waits,
+        wait => !wait.isOver && wait.atMs <= clock.nowMs,
+      ).forEach(wait => {
+        wait.isOver = true
+        wait.elapsed()
+      })
+    }
+    return { done, running, advance }
   }
 
   it('brings a word that is away to the middle through the painter', () => {
@@ -251,38 +283,38 @@ describe('the follow rule running for a painter', () => {
   })
 
   it('does nothing when the painter has no word sounding to measure', () => {
-    const { done, running } = painter(
+    const { done, running, advance } = painter(
       { isFollowing: true, hasLeave: true },
       undefined,
     )
     running.tell(ChangedSpokenWord())
     running.tell(ScrolledByReader())
-    vi.advanceTimersByTime(400)
+    advance(400)
     expect(done).toEqual([])
   })
 
   it('presses leave a moment after the reader scrolls the word away, once for one scroll', () => {
-    const { done, running } = painter(
+    const { done, running, advance } = painter(
       { isFollowing: true, hasLeave: true },
       Option.some(away),
     )
     running.tell(ScrolledByReader())
-    vi.advanceTimersByTime(100)
+    advance(100)
     running.tell(ScrolledByReader())
-    vi.advanceTimersByTime(200)
+    advance(200)
     expect(done).toEqual([])
-    vi.advanceTimersByTime(100)
+    advance(100)
     expect(done).toEqual(['leave'])
   })
 
   it('says and does nothing once stopped, and drops the wait it was holding', () => {
-    const { done, running } = painter(
+    const { done, running, advance } = painter(
       { isFollowing: true, hasLeave: true },
       Option.some(away),
     )
     running.tell(ScrolledByReader())
     running.stop()
-    vi.advanceTimersByTime(400)
+    advance(400)
     running.tell(ChangedSpokenWord())
     expect(done).toEqual([])
   })

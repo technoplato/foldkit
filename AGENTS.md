@@ -45,6 +45,14 @@ State drives; the components at the edge are told. Michael, typed 2026-11-18: "L
 - Appearance is a per-device choice and is not synced across sessions, on purpose (decided 2026-11-18 under his "take your best opinions here be tasteful"): a phone in a dark room and a desk in daylight should each keep their own look, and the default, Follow the system, already makes every device right. So `SetAppearance` and `ObservedSystemMode` are local Messages and the state lives in that device's Model. Do not "fix" this by syncing it.
 - One exception, written down rather than hidden: a page has to be in the right mode before the Program starts. The host mirrors the mode the Program resolved (`paintModeOnPage`), and the page's first paint reads that mirror with `firstPaintScript()`. The mirror has one writer, the host acting on the Model, and one reader, the first paint; no component touches it, and the Program's own mode replaces it as soon as it starts.
 
+UI behavior is written once, in core; a painter holds no rule. Michael, typed 2026-11-20 (Scribe #2568, #2594): "a painter should just take state and render a UI and then when that state changes, it should render again. That's it." And: "let's create linters for packages UI that make them JavaScript framework agnostic and only use core fold kit primitives etc".
+
+- A rule is any number with a unit of time, distance or count (500 ms, 10 px, 5 tries), or any branch on what the person meant (a hold is not a press). It goes in `packages/foldkit/src/behavior/`, as a pure `step(state, context, fact)` that answers instructions. Example: how long the words are left alone after the reader scrolls is `LEAVING_QUIET_MS = 1000` in `behavior/transcriptFollow.ts`, and the HTML, React and phone painters all run it.
+- A mechanic is how one platform measures, scrolls, listens, waits and draws. It stays in that painter. Example: `sightOf` in `renderers/htmlEdge.ts` measures a word with `getBoundingClientRect`.
+- Before you add a timer, a `let`, a `useState` or `useRef`, a listener or a number to a painter, read the `AGENTS.md` in its folder: `packages/foldkit/src/renderers/`, `packages/foldkit/src/cli/`, `packages/react/src/paintReact/`, `packages/react-native/src/interaction/`, `packages/svelte/`, `packages/opentui/`, `packages/ui/`, `examples/words/foldkit/`. Before you write a behavior, read `packages/foldkit/src/behavior/AGENTS.md`.
+- Two gates hold this, and `pnpm lint` runs both. The painter ratchet (`pnpm check:painter-ratchet`, `scripts/painter-ratchet/`) counts timers and clocks, held state, listeners and numbers other than 0 and 1 in every painter file, and `foldkit/html` and DOM use in `@foldkit/ui`, and fails when a count rises above its checked-in ledger. Zero is where each painter file is headed; a count is not a budget. `.oxlintrc.json` fails `document`, `window`, a timer, a clock read (`Date.now`), or an import of the DOM, React or React Native inside `packages/foldkit/src/behavior/`.
+- A fair rise (a layout number such as `padding: 24`, a painter file split in two) is recorded by editing only the ledger: raise the count in `scripts/painter-ratchet/painters.json` and add a `rises` entry beside it that says why. After moving a rule to core, run `pnpm check:painter-ratchet --write`.
+
 Before you add code, answer these in order:
 
 1. Would a second Client need this fact or behavior? Then it is core. Put it in the domain core when it names the domain, in Foldkit core when it does not.
@@ -52,6 +60,7 @@ Before you add code, answer these in order:
 3. Is it background work or anything that stays in sync? It runs in the Background Processor: one running synced Program held by a process the CLI starts on its first command (`listenBackgroundProcessor`; first spelled `listenCliDaemon`, which still works). Commands ask it (Show, Do, Read, Run), follow it (`follow <topic>`), and stop it. Do not start a second kind of background process.
 4. Is it interactive (keys, a full screen)? It belongs to the TUI Client, never to a CLI command.
 5. Did you find core logic sitting in an adapter, or an adapter concern in a core? Say so, and move it with tests, smallest step first.
+6. Is it a number with a unit, or a branch on what the person meant, in something a painter draws? It is a rule: `packages/foldkit/src/behavior/`, never the painter.
 
 ## Declare once; derive everything
 

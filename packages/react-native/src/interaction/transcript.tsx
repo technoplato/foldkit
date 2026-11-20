@@ -1,9 +1,9 @@
 import { Array, Match as M, Option, Order } from 'effect'
+import { TranscriptFollow } from 'foldkit/behavior'
 import {
   type PlacedBookmark,
   type SpokenUnit,
   type TranscriptEntry,
-  TranscriptFollow,
   type TranscriptNode,
   type TranscriptPassage,
   type TranscriptWord,
@@ -769,6 +769,12 @@ export const TranscriptView = ({
     }
     const running = TranscriptFollow.start({
       now: () => Date.now(),
+      wait: (afterMs, elapsed) => {
+        const timer = setTimeout(elapsed, afterMs)
+        return () => {
+          clearTimeout(timer)
+        }
+      },
       told: () => ({
         isFollowing: live.current.isFollowing,
         hasLeave: live.current.leaveAction !== undefined,

@@ -1,10 +1,10 @@
 import { Effect, Option, Queue, Stream } from 'effect'
 
+import * as TranscriptFollow from '../behavior/transcriptFollow.js'
 import type { MountAction } from '../mount/index.js'
 import { transcriptPlaceAt } from './transcriptClock.js'
-import * as TranscriptFollow from './transcriptFollow.js'
 
-export { shouldFollowWord } from './transcriptFollow.js'
+export { shouldFollowWord } from '../behavior/transcriptFollow.js'
 
 // NOTE: This is the edge of the Foldkit HTML painter: small effects that
 // run on the page beside the painted elements, told what to do only by
@@ -541,6 +541,12 @@ const runFollow = (transcript: Element): (() => void) => {
   }
   const follow = TranscriptFollow.start({
     now: () => Date.now(),
+    wait: (afterMs, elapsed) => {
+      const timer = setTimeout(elapsed, afterMs)
+      return () => {
+        clearTimeout(timer)
+      }
+    },
     told: () => ({
       isFollowing: isFollowingOf(transcript),
       hasLeave: hasLeaveOf(transcript),

@@ -65,7 +65,10 @@ add it here first.
   `Increment: () => [{ count: model.count + 1 }, []]`.
 - **screen**: the host-neutral view tree a Program describes. e.g.
   `Column({}, Text('3'), Row({}, ...catalog.buttons(model)))`. Painters
-  (React, TUI, ASCII) draw it; they never invent product controls.
+  (React, TUI, ASCII) draw it; they never invent product controls. Also
+  called the screen tree. Older text called it "instructions"; an
+  Instruction is now what a block's `step` asks for (see "Behavior and
+  painters").
 - **Command**: a described side effect returned by update. e.g.
   `FetchWeather`, `pushUrl('/counter/c1')`.
 - **m / md (older)**: the first way to document a Message, with `.doc`
@@ -230,6 +233,72 @@ draft }) | Saving({ base, draft })`. It may PROJECT into a URI
   empty `CounterScene {}` structs, hand-mirrored `urlToNavigation` /
   `navigationToPath`, children booted as separate apps. Not canonical.
 
+## Behavior and painters (plan 14)
+
+The owner, 2026-11-20: "a painter should just take state and render a UI
+and then when that state changes, it should render again. That's it."
+
+- **Behavior**: what a part does over time when a person uses it, written
+  once in Foldkit core as a pure function with no framework in it. e.g. a
+  menu opens, the down arrow moves the highlight, Escape closes it. How the
+  menu looks is not behavior. It lives in `packages/foldkit/src/behavior/`
+  (`foldkit/behavior`).
+- **Rule**: any number with a unit of time, distance or count, or any
+  branch on what the person meant. Rules live in core. e.g. "leave the
+  words alone for 1000 ms after the reader scrolls" (`TranscriptFollow`);
+  "a hold is not a press"; "try again up to 5 times, 120 ms apart".
+- **Mechanic**: how one platform measures, scrolls, listens, waits and
+  draws. Mechanics live in a painter. e.g. `element.getBoundingClientRect()`
+  on a page; `scrollToOffset` on a phone's list; `setTimeout` behind the
+  `wait` port.
+- **Block**: one small behavior: its Schemas (`State`, `Fact`,
+  `Instruction`), its `initial` state, and its
+  `step(state, context, fact)`, which answers the next state and the
+  instructions. `step` never waits, never reads a clock and never touches
+  a platform: time arrives in `context.nowMs`. e.g. `TranscriptFollow`,
+  `Reader`; `longPress` when it is built.
+- **Part**: a whole component: its blocks, its slots, and its projection
+  from state to what each slot shows. e.g. a Transcript; a List with a row
+  menu. Declared once, and hosted by every painter (plan 14, slice 4).
+- **Slot**: one painted element of a part. e.g. a menu's row; a
+  Transcript's word. A slot says, as data, its role, how it takes focus,
+  and which gesture becomes which fact or Action.
+- **Fact (told to a rule)**: something that happened, told to a rule. A
+  Message when the rule runs in update (the Fact entry under "Plans
+  vocabulary" is this case), and a plain value when the rule runs in a
+  runner. e.g. `TranscriptFollow.ScrolledByReader()`, which no update ever
+  sees.
+- **Instruction**: what a block's `step` asks for, as data. e.g.
+  `BringToMiddle({ word: 'Spoken' })`, `WaitForLeaveCheck({ afterMs: 250 })`.
+  A timer is an instruction out and a fact back in
+  (`ElapsedLeaveWait()`). Not the screen tree, which older text called
+  "instructions".
+- **Port**: what a runner needs from a painter, the same sense as layer 4
+  in `AGENTS.md`: core declares it and an adapter fills it. e.g. `measure`,
+  `wait`, `bringToMiddle` in `TranscriptFollow.Ports`. Not `foldkit/port`.
+- **Runner**: the one shared loop that holds a painter-homed block's state
+  and calls `step`. e.g. `TranscriptFollow.start(ports)`, which the HTML
+  edge, the React painter and the phone's painter all call.
+- **Painter**: what turns the screen tree into pixels for one Client, and
+  reports what happened. e.g. `paintReact`, the HTML painter and its edge
+  (`renderers/html.ts`, `htmlEdge.ts`), `packages/react-native/src/interaction`,
+  the terminal painters in `packages/foldkit/src/cli`. A painter holds no
+  rule.
+- **Home (of a block's state)**: where a block's state is kept, asked in
+  this order. **Painter home**: nothing painted and nothing an agent reads
+  depends on it, so the runner holds it. e.g. the quiet second after a
+  scroll. **Logged home**: another device or the log should see it, so it
+  is in the Model and an ordinary Message changes it. e.g. which page is on
+  the stack. **Device home**: otherwise; in the Model, never logged. e.g.
+  Books' title menu, `Reader.State`.
+- **Painter ratchet**: the gate that counts, per painter file, its timers
+  and clocks, held state, listeners, and numbers other than 0 and 1, and
+  fails when a count rises above the checked-in ledger
+  (`scripts/painter-ratchet/painters.json`). Zero is where each file is
+  headed; a count is not a budget. e.g. a quiet-time check pasted into
+  `paintReact.tsx` fails `pnpm lint`. A second ledger, `ui.json`, holds
+  `@foldkit/ui`'s imports and uses of `foldkit/html` and the DOM.
+
 ## Reading along (plan 14b)
 
 - **Voice**: what a reader reads along with: the word sounding in a
@@ -240,7 +309,8 @@ draft }) | Saving({ base, draft })`. It may PROJECT into a URI
   `foldkit/behavior`: `Reader.step(state, context, fact)` and
   `Reader.project(state, transcript, { leaveAction })`. Books' Transcript
   Player and Words both keep its State in their Model. Not the painter's
-  rule, which is `TranscriptFollow`.
+  rule, which is `TranscriptFollow`, the block beside it in
+  `foldkit/behavior`.
 - **Following**: the reader's state while the words keep the voice in the
   middle of the view. e.g. `Reader.Following()`, where every reader starts.
 - **Detached**: the reader's state while the words stay where the reader
@@ -294,7 +364,9 @@ owns each is accepted; then they move up into the sections above.
   presses, as opposed to an Action, which a person presses. Declared with
   `Fact.define` (plan 02) so it carries `writes`, `produces`, and a category
   like an Action. e.g. `RefreshedBalances`, `HeardFinal`, `OpenedUri`. (The
-  older "Fact handle" entry above predates this split.)
+  older "Fact handle" entry above predates this split.) A fact told to a
+  rule that runs in a runner is a plain value, not a Message: see "Fact
+  (told to a rule)" under "Behavior and painters".
 - **Where**: where an Action is offered: `Where.everywhere` or
   `Where.at([CounterList, CounterDetail])`. The `at` key on a declaration.
   Not the navigation `Placement` (`Root | Entry | Fallback`), which is where

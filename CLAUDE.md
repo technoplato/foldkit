@@ -26,6 +26,14 @@ Also read `AGENTS.md`; it is the canonical convention source when the two files 
 - Foldkit is tightly coupled to Effect-TS. Do not suggest solutions outside the Effect ecosystem. Check existing features in `create-foldkit-app` before suggesting new ones.
 - Push back on any direction that violates Elm Architecture principles: unidirectional data flow, Messages as facts, Model as single source of truth, side effects confined to Commands. Flag the issue and propose the idiomatic Foldkit approach.
 
+## Painters Hold No Rule
+
+The owner, 2026-11-20: "a painter should just take state and render a UI and then when that state changes, it should render again. That's it."
+
+- UI behavior is written once, framework-free, in `packages/foldkit/src/behavior/`. A rule is any number with a unit of time, distance or count (500 ms, 10 px, 5 tries), or any branch on what the person meant. A mechanic is how one platform measures, scrolls, listens, waits and draws, and stays in the painter. Example: `LEAVING_QUIET_MS = 1000` is in `behavior/transcriptFollow.ts`; `getBoundingClientRect` is in `renderers/htmlEdge.ts`.
+- Each painter's folder and `packages/foldkit/src/behavior/` has an `AGENTS.md`. Read it before adding a timer, held state, a listener or a number there. `AGENTS.md` at the root lists them under "Which layer?".
+- `pnpm lint` runs the painter ratchet (`pnpm check:painter-ratchet`) and the lint that keeps `behavior/` framework-free. A count that rises fails. Zero is where each painter file is headed, not a budget. Record a fair rise by editing only `scripts/painter-ratchet/painters.json`, with a `rises` entry that says why.
+
 ## Exemplar Files
 
 Read these before writing code. They calibrate the quality bar.

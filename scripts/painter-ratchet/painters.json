@@ -1,0 +1,812 @@
+{
+  "about": [
+    "The painter ratchet (plans/14-ui-v1.md, 'Keeping it true'; Scribe #2594).",
+    "The owner, 2026-11-20: \"a painter should just take state and render a UI and then when that state changes, it should render again. That's it.\"",
+    "Each count below is what one painter file holds beyond that: timers and clocks, held state, listeners, and numbers other than 0 and 1. Zero is where each file is headed. These counts are not a budget to stay under: every count above zero is a rule still to move into packages/foldkit/src/behavior/.",
+    "A file not listed here counts zero, so a new file beside a painter cannot hold a rule.",
+    "`pnpm check:painter-ratchet`, which `pnpm lint` runs, fails when the code holds more than this file says, and when this file says more than an earlier commit did with no rise beside the count that says why.",
+    "To record a fair rise (a layout number such as padding: 24, or a painter file split in two), edit only this file: raise the count, and add beside it \"rises\": [{ \"kind\": \"numbers\", \"from\": 14, \"to\": 15, \"why\": \"padding: 24 on the sheet, a layout number\" }].",
+    "After moving a rule to core, run `pnpm check:painter-ratchet --write` to record the lower counts. It keeps every note, and each rise that still holds."
+  ],
+  "files": {
+    "examples/books/cli/src/daemon.ts": {
+      "counts": {
+        "timers": 2,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 4
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/declared.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 1
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/devices.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 0
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/entry.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 2
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/help.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 0
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/inProcess.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 1
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/player.ts": {
+      "counts": {
+        "timers": 7,
+        "heldState": 6,
+        "listeners": 0,
+        "numbers": 7
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/settings.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 0
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/signIn.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 0
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/tui.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 0
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/cli/src/view.ts": {
+      "counts": {
+        "timers": 3,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 4
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "examples/books/expo/src/booksGate.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 1,
+        "numbers": 2
+      }
+    },
+    "examples/books/expo/src/polyfill.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 17
+      }
+    },
+    "examples/books/expo/src/startExpoBooks.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "examples/books/expo/src/traceFiles.names.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 5
+      }
+    },
+    "examples/books/expo/src/traceFiles.ts": {
+      "counts": {
+        "timers": 1,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "examples/books/react/src/App.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "examples/books/react/src/main.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "examples/counter/cli/src/entry.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 2
+      }
+    },
+    "examples/counter/cli/src/session.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 1
+      }
+    },
+    "examples/counter/expo/src/polyfill.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 17
+      }
+    },
+    "examples/counter/foldkit/src/view.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "examples/words/foldkit/src/browser.ts": {
+      "counts": {
+        "timers": 1,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 3
+      }
+    },
+    "examples/words/foldkit/src/mount.ts": {
+      "counts": {
+        "timers": 11,
+        "heldState": 5,
+        "listeners": 12,
+        "numbers": 9
+      }
+    },
+    "examples/words/foldkit/src/view/account.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "examples/words/foldkit/src/view/capture.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 4,
+        "numbers": 6
+      }
+    },
+    "examples/words/foldkit/src/view/connect.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 2
+      }
+    },
+    "examples/words/foldkit/src/view/list.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 8,
+        "numbers": 2
+      }
+    },
+    "examples/words/foldkit/src/view/playback.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 15,
+        "numbers": 1
+      }
+    },
+    "examples/words/foldkit/src/view/qr.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 11
+      }
+    },
+    "examples/words/foldkit/src/view/questions.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 3,
+        "numbers": 1
+      }
+    },
+    "examples/words/foldkit/src/view/share.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 9,
+        "numbers": 2
+      }
+    },
+    "examples/words/foldkit/src/view/transcript.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 4,
+        "numbers": 2
+      }
+    },
+    "examples/words/foldkit/src/view/ui.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 4,
+        "numbers": 1
+      }
+    },
+    "examples/words/foldkit/src/view/view.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 2,
+        "numbers": 0
+      }
+    },
+    "packages/foldkit/src/cli/surface.ts": {
+      "counts": {
+        "timers": 1,
+        "heldState": 2,
+        "listeners": 0,
+        "numbers": 8
+      }
+    },
+    "packages/foldkit/src/cli/tail.ts": {
+      "counts": {
+        "timers": 1,
+        "heldState": 3,
+        "listeners": 0,
+        "numbers": 6
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "packages/foldkit/src/cli/terminalScreen.ts": {
+      "counts": {
+        "timers": 2,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 5
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "packages/foldkit/src/cli/tui.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 0,
+        "numbers": 2
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "packages/foldkit/src/cli/view.ts": {
+      "counts": {
+        "timers": 8,
+        "heldState": 6,
+        "listeners": 16,
+        "numbers": 11
+      },
+      "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
+    },
+    "packages/foldkit/src/interaction/documentHints.ts": {
+      "counts": {
+        "timers": 4,
+        "heldState": 4,
+        "listeners": 1,
+        "numbers": 6
+      }
+    },
+    "packages/foldkit/src/interaction/documentKeys.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/foldkit/src/renderers/html.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 24,
+        "numbers": 0
+      }
+    },
+    "packages/foldkit/src/renderers/htmlEdge.ts": {
+      "counts": {
+        "timers": 6,
+        "heldState": 3,
+        "listeners": 21,
+        "numbers": 9
+      },
+      "rises": [
+        {
+          "kind": "timers",
+          "from": 5,
+          "to": 6,
+          "why": "The follow runner's wait port (Scribe #2594): TranscriptFollow moved to packages/foldkit/src/behavior/ and names no timer, so each painter now says how its platform waits. The 250 ms and when to wait stay in the rule; this setTimeout is the mechanic."
+        }
+      ]
+    },
+    "packages/opentui/src/interaction/paintOpenTui.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 8
+      }
+    },
+    "packages/opentui/src/interaction/runOpenTui.ts": {
+      "counts": {
+        "timers": 2,
+        "heldState": 2,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/expoRouter/foldkitRouter.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/expoRouter/routeFiles.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/expoRouter/routerStack.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/interaction/actionMenuModal.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 7,
+        "numbers": 39
+      }
+    },
+    "packages/react-native/src/interaction/field.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 3,
+        "listeners": 6,
+        "numbers": 2
+      }
+    },
+    "packages/react-native/src/interaction/frame.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 10,
+        "listeners": 12,
+        "numbers": 6
+      }
+    },
+    "packages/react-native/src/interaction/icon.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 5
+      }
+    },
+    "packages/react-native/src/interaction/keyboard.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 2,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/interaction/list.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 4,
+        "numbers": 24
+      }
+    },
+    "packages/react-native/src/interaction/look.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 1
+      }
+    },
+    "packages/react-native/src/interaction/menuSheet.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 2,
+        "numbers": 13
+      }
+    },
+    "packages/react-native/src/interaction/screen.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 4,
+        "listeners": 4,
+        "numbers": 23
+      }
+    },
+    "packages/react-native/src/interaction/seek.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 3,
+        "listeners": 1,
+        "numbers": 8
+      }
+    },
+    "packages/react-native/src/interaction/shared.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 3,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/interaction/transcript.tsx": {
+      "counts": {
+        "timers": 6,
+        "heldState": 17,
+        "listeners": 11,
+        "numbers": 28
+      },
+      "rises": [
+        {
+          "kind": "timers",
+          "from": 5,
+          "to": 6,
+          "why": "The follow runner's wait port (Scribe #2594): TranscriptFollow moved to packages/foldkit/src/behavior/ and names no timer, so each painter now says how its platform waits. The 250 ms and when to wait stay in the rule; this setTimeout is the mechanic."
+        }
+      ]
+    },
+    "packages/react-native/src/interaction/transcriptWindow.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 5
+      }
+    },
+    "packages/react-native/src/interaction/whenReady.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 1
+      }
+    },
+    "packages/react-native/src/reactNavigation/deepLinks.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/reactNavigation/entryView.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 1,
+        "numbers": 2
+      }
+    },
+    "packages/react-native/src/reactNavigation/foldkitStack.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/reactNavigation/quietBound.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/reactNavigation/stack.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 7,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/telemetry/chunkedLines.ts": {
+      "counts": {
+        "timers": 2,
+        "heldState": 1,
+        "listeners": 0,
+        "numbers": 3
+      }
+    },
+    "packages/react-native/src/telemetry/developmentTelemetry.ts": {
+      "counts": {
+        "timers": 2,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/telemetry/hostErrors.ts": {
+      "counts": {
+        "timers": 1,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 1
+      }
+    },
+    "packages/react-native/src/telemetry/paintReporter.tsx": {
+      "counts": {
+        "timers": 1,
+        "heldState": 2,
+        "listeners": 2,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/telemetry/stalls.ts": {
+      "counts": {
+        "timers": 2,
+        "heldState": 1,
+        "listeners": 0,
+        "numbers": 4
+      }
+    },
+    "packages/react-native/src/telemetry/updatesNote.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/theme/systemAppearance.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/react-native/src/updates/expoCodeUpdates.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 0,
+        "numbers": 1
+      }
+    },
+    "packages/react/src/hooks/hooks.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react/src/interaction/interaction.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 4,
+        "numbers": 0
+      }
+    },
+    "packages/react/src/interaction/selected.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react/src/keyBindings/keyBindings.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/react/src/navigation/navigation.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 3,
+        "listeners": 2,
+        "numbers": 0
+      }
+    },
+    "packages/react/src/paintReact/paintReact.tsx": {
+      "counts": {
+        "timers": 8,
+        "heldState": 24,
+        "listeners": 45,
+        "numbers": 8
+      },
+      "rises": [
+        {
+          "kind": "timers",
+          "from": 7,
+          "to": 8,
+          "why": "The follow runner's wait port (Scribe #2594): TranscriptFollow moved to packages/foldkit/src/behavior/ and names no timer, so each painter now says how its platform waits. The 250 ms and when to wait stay in the rule; this setTimeout is the mechanic."
+        }
+      ]
+    },
+    "packages/react/src/programHandle/programHandle.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react/src/programHandle/subscribePaint.ts": {
+      "counts": {
+        "timers": 2,
+        "heldState": 2,
+        "listeners": 0,
+        "numbers": 0
+      }
+    },
+    "packages/react/src/reactRouter/reactRouter.tsx": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 2,
+        "numbers": 0
+      }
+    },
+    "packages/svelte/src/interaction/ActionMenuButton.svelte": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 0
+      }
+    },
+    "packages/svelte/src/interaction/ActionMenuDialog.svelte": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 4,
+        "numbers": 0
+      }
+    },
+    "packages/svelte/src/interaction/CopyButton.svelte": {
+      "counts": {
+        "timers": 1,
+        "heldState": 2,
+        "listeners": 1,
+        "numbers": 1
+      }
+    },
+    "packages/svelte/src/interaction/NavigationFrame.svelte": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 5,
+        "numbers": 0
+      }
+    },
+    "packages/svelte/src/interaction/PaintTree.svelte": {
+      "counts": {
+        "timers": 0,
+        "heldState": 4,
+        "listeners": 7,
+        "numbers": 0
+      }
+    },
+    "packages/svelte/src/interaction/Screen.svelte": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 2,
+        "numbers": 0
+      }
+    },
+    "packages/svelte/src/interaction/SeekBar.svelte": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 2,
+        "numbers": 0
+      }
+    },
+    "packages/svelte/src/interaction/TextField.svelte": {
+      "counts": {
+        "timers": 0,
+        "heldState": 2,
+        "listeners": 3,
+        "numbers": 0
+      }
+    },
+    "packages/svelte/src/interaction/TranscriptView.svelte": {
+      "counts": {
+        "timers": 2,
+        "heldState": 3,
+        "listeners": 4,
+        "numbers": 4
+      }
+    },
+    "packages/svelte/src/interaction/presentedFocus.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 0,
+        "listeners": 1,
+        "numbers": 0
+      }
+    }
+  }
+}

@@ -87,6 +87,164 @@
       "rules": {
         "foldkit/no-raw-page-check": "off"
       }
+    },
+    {
+      "files": ["packages/foldkit/src/behavior/**/*.ts"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "document",
+            "message": "No page in packages/foldkit/src/behavior/: a phone and a terminal have no `document`. Ask the painter through a port, as TranscriptFollow asks for `measure`. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "window",
+            "message": "No page in packages/foldkit/src/behavior/: a phone and a terminal have no `window`. Ask the painter through a port, as TranscriptFollow asks for `measure`. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "navigator",
+            "message": "No page in packages/foldkit/src/behavior/: a phone and a terminal have no `navigator`. Ask the painter through a port, as TranscriptFollow asks for `measure`. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "globalThis",
+            "message": "No page in packages/foldkit/src/behavior/: a phone and a terminal have no `globalThis`. Ask the painter through a port, as TranscriptFollow asks for `measure`. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "self",
+            "message": "No page in packages/foldkit/src/behavior/: a phone and a terminal have no `self`. Ask the painter through a port, as TranscriptFollow asks for `measure`. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "setTimeout",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "setInterval",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "setImmediate",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "requestAnimationFrame",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "requestIdleCallback",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "clearTimeout",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "clearInterval",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "cancelAnimationFrame",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "name": "performance",
+            "message": "No clock in packages/foldkit/src/behavior/: a rule never reads the time. It arrives in `context.nowMs`. See packages/foldkit/src/behavior/AGENTS.md."
+          }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "foldkit",
+                "importNames": ["Html", "Mount", "Dom", "Render", "File"],
+                "message": "No DOM in packages/foldkit/src/behavior/: Html, Mount, Dom, Render and File are the HTML painter's. A behavior answers instructions, and a painter carries them out. See packages/foldkit/src/behavior/AGENTS.md."
+              },
+              {
+                "name": "../index.js",
+                "importNames": ["Html", "Mount", "Dom", "Render", "File"],
+                "message": "No DOM in packages/foldkit/src/behavior/: Html, Mount, Dom, Render and File are the HTML painter's. A behavior answers instructions, and a painter carries them out. See packages/foldkit/src/behavior/AGENTS.md."
+              },
+              {
+                "name": "../index",
+                "importNames": ["Html", "Mount", "Dom", "Render", "File"],
+                "message": "No DOM in packages/foldkit/src/behavior/: Html, Mount, Dom, Render and File are the HTML painter's. A behavior answers instructions, and a painter carries them out. See packages/foldkit/src/behavior/AGENTS.md."
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "../html",
+                  "../html/**",
+                  "foldkit/html",
+                  "foldkit/html/**",
+                  "../dom",
+                  "../dom/**",
+                  "foldkit/dom",
+                  "foldkit/dom/**",
+                  "../mount",
+                  "../mount/**",
+                  "foldkit/mount",
+                  "foldkit/mount/**",
+                  "../render",
+                  "../render/**",
+                  "foldkit/render",
+                  "foldkit/render/**",
+                  "../file",
+                  "../file/**",
+                  "foldkit/file",
+                  "foldkit/file/**",
+                  "../snabbdom",
+                  "../snabbdom/**",
+                  "foldkit/snabbdom",
+                  "foldkit/snabbdom/**",
+                  "../customElement",
+                  "../customElement/**",
+                  "foldkit/customElement",
+                  "foldkit/customElement/**",
+                  "../vdom.js",
+                  "../vdom",
+                  "react",
+                  "react/**",
+                  "react-dom",
+                  "react-dom/**",
+                  "react-native",
+                  "react-native/**",
+                  "@foldkit/react",
+                  "@foldkit/react/**",
+                  "@foldkit/react-native",
+                  "@foldkit/react-native/**",
+                  "@foldkit/ui",
+                  "@foldkit/ui/**",
+                  "@floating-ui/**",
+                  "snabbdom",
+                  "snabbdom/**",
+                  "svelte",
+                  "svelte/**"
+                ],
+                "message": "No framework in packages/foldkit/src/behavior/: it may not import the DOM, React, React Native or Svelte by any path. Write the rule as a pure step and let each painter fill its ports. See packages/foldkit/src/behavior/AGENTS.md."
+              }
+            ]
+          }
+        ],
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "Date",
+            "property": "now",
+            "message": "No clock in packages/foldkit/src/behavior/: a rule never reads the time. It arrives in `context.nowMs`. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "object": "Effect",
+            "property": "sleep",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          },
+          {
+            "object": "Effect",
+            "property": "delay",
+            "message": "No timer in packages/foldkit/src/behavior/: a rule never waits. A wait is an instruction out and a fact back in, as `WaitForLeaveCheck` and `ElapsedLeaveWait` are, and the painter's `wait` port does the waiting. See packages/foldkit/src/behavior/AGENTS.md."
+          }
+        ]
+      }
     }
   ],
   "ignorePatterns": [
@@ -94,7 +252,7 @@
     "node_modules/",
     "repos/",
     "comparisons/",
-    "internal/",
+    "/internal/",
     "scripts/",
     "packages/create-foldkit-app/",
     "packages/devtools-mcp/",
