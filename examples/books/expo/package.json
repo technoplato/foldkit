@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "ios": "expo start --ios --port 8097",
-    "prepare-cores": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter transcript-player-core-example build && pnpm --filter read-aloud-core-example build && pnpm --filter books-core-example build",
+    "prepare-cores": "pnpm --filter \"books-expo-example^...\" build",
     "prestart": "pnpm run prepare-cores && pnpm run voice",
     "prestart:made-up": "pnpm run prepare-cores && pnpm run voice",
     "prestart:signed-in": "pnpm run prepare-cores && pnpm run voice",
