@@ -1,0 +1,38 @@
+# Response | UI v1 | Round 1 | 2026-11-20
+
+Every finding is accepted in whole or in part. `plans/14-ui-v1.md` was
+rewritten and `plans/14a-ui-coverage.md` added. Two findings are answered by
+building less than the first draft said, not more: U1-03 to U1-05 by home
+screens in place of tabs with kept stacks, and U1-02 by growing the shared
+rule until the Words page looks the same.
+
+| Id | Answer | Where in the plan |
+| -- | ------ | ----------------- |
+| U1-01 | Accepted. Three homes (painter, device, logged), asked in the order you gave. A home for every block, with the Books title menu, the Words `scrub` and the Words follow each landing where the code has them. Time in the Message. One composition call derives `isLocalOnly`, `keepOnRefold` and `projectLocal`. A slot-aimed instruction is a token field, acted on once, cleared on restore. `ActionMenu` is named as the Model-homed exemplar already painted on non-DOM Clients, and slice 4 proves the composition call on it. `placement` has no home. `fieldDraft` stays in painters and the plan says it breaks test 1 and why | "Three homes for state" |
+| U1-02 | Accepted. Slice 2 no longer swaps the rule. The shared rule grows a unit, an end placement, a leave policy, two visibility facts and a clearance, so nothing the listener sees changes and no yes is needed. The surviving Model fields, Messages and Command are listed. Whether Words and Books should then follow alike is open decision 3 | "Slice 2 in full" |
+| U1-03 | Accepted, and the design changed. Books shows its tabs on the library and the profile only (`screen.ts:573`), so no kept stack is needed. v1 builds several root screens with one selected. No address changes; the Audible rule, `OpenPlayer`, `ShowReadAloud` and the Dock are unchanged; the three `Show*` tags, Catalog entries and logged rows stay; a stored stack with Profile as a page is rewritten on restore | "Navigation: home screens" |
+| U1-04 | Accepted. The cost is stated and answered: the homes share one carrier identity and the phone keeps each shown home mounted and hidden. The plan says it does not build plan 04's tabs and that plan 04 is Proposed. Back is said for Android, the browser and the terminal. Open decision 1 lists what React Navigation supplies | same section; open decision 1 |
+| U1-05 | Accepted. No `SelectedTab` and no select-again rule. `ShowProfile` and `ShowLibrary` each name where they land | "Messages and the log" |
+| U1-06 | Accepted. A Part is defined: blocks, slots, gestures, Actions, projection, configuration. The rule and mechanics line is yours, adopted. A platform that recognizes a gesture reports the outcome as one fact. The trace test is replaced by a gesture test that runs each painter's own event binding. The phone's retry is named as a rule to move | "The rule"; "A part" |
+| U1-07 | Accepted. The generic `Ports` type and its three claims are removed. Extraction moves to slice 6, after `focusScope` and a device-homed block. Focus is active-descendant: the highlight is state and focus stays on the container. Three requirements are kept: `wait`, an answering `bringIntoView`, a typed press | "A part", last paragraph |
+| U1-08 | Accepted. A painter ratchet counts timers, held state, listeners and unit-named constants per painter file and fails when one rises. The runner gets `wait`, so the core rule is true from slice 3 and the plan says it is false today. Root-barrel names are banned. `@foldkit/ui` is counted per import and use, not per file, and `internal/` leaves the ignore list. The gate is named with its commands and where it runs | "Keeping it true" |
+| U1-09 | Accepted. The table has a column per painter with Svelte and the terminal, a table of each app's Clients, and Svelte is frozen by name and put in the ratchet. The Words follow is located in Words core | "What was measured" |
+| U1-10 | Accepted. A part declares Actions (verbs) beside facts. They join the one Catalog, marked as UI. Books' eight are named and stay. The plan says an agent acts on its own Processor only in v1. The owner's sentence is open decision 4 with both readings | "The agent surface" |
+| U1-11 | Accepted. v1 publishes place and mode through `InstantProcessorPresence` and never the Model. Asking another Client for its screen leaves v1, with the three things it needs written down | "Reading another Client" |
+| U1-12 | Accepted in part. The upstream facts are measured: no upstream remote, newest upstream-author commit 2026-07-22. Slice 9 now targets core parts and names the screen-tree nodes as part of it. What happens to `@foldkit/ui` is open decision 2 with your fallback as the proposal. Not done: a design of those nodes. It is the first task of slice 9 and is audited then | slice 9; open decision 2 |
+| U1-13 | Accepted. `Block` replaces the skill's sketch in slice 3. `Machine.define` stays for domain charts, with the reason | "A block", last paragraph |
+| U1-14 | Accepted. 14a maps every Radix and Zag family and every `@foldkit/ui` namespace to blocks and a time. A sources table says what was taken from each of the five, foldkit-plus included. Alerts as data moves into v1 (slice 7). The plan says plainly that v1 does not replace React Navigation | "Sources read"; 14a |
+| U1-15 | Accepted. `timedHint` covers hints, key echo and copy feedback. Dock spacing and the keyboard lift are mechanics and stay. The Words-only three stay and the plan says the rest of the Words page is out. `rovingFocus`, `typeahead` and `presence` leave v1. Slice 6's sentence is now checkable | "Order of work"; "Not in v1" |
+| U1-16 | Accepted. A words table, added to `glossary.md` in slice 3. Part and slot are split. Fact is widened, not renamed, since the code shipped in `baff1d965` uses it; Port keeps AGENTS.md's sense | "Words used here" |
+| U1-17 | Accepted. 25 namespaces, 59 route files, seven styles as four, 31 importers of 47 | "What was measured" |
+| U1-18 | Accepted. `Option` for the two times, Schemas on `Block`, the move to `behavior/`, all in slice 3 | "A block"; slice 3 |
+| U1-19 | Accepted. The sentence is gone. Slice 1 lands first and slice 2 rebases | "Order of work" |
+| U1-20 | Accepted. Each slice has one sentence a test can fail and a child issue. The gate names its commands | "Order of work" |
+| U1-21 | Accepted. Open decision 3 of the first draft is removed. Template is unchanged; Organism and Navigation are the two changes, and the skill's table is edited in slice 3 | "Atomic tiers" |
+
+Not accepted as written:
+
+- U1-12 asks for the node design before slice 9. It is scheduled as slice
+  9's first task, because the answer depends on open decision 2.
+- U1-16 asks to rename the words that collide. Fact and Port keep their
+  names with a widened definition, for the reason in the table.

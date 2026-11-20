@@ -36,6 +36,7 @@ New vocabulary is in `glossary.md` under "Plans vocabulary (proposed)".
 | [10 Hosts matrix](10-hosts-matrix.md)                       | Capabilities; Multiple Counters on Expo and Foldkit HTML; hosts as an open set                             | 01, 02, 03, 06                         |
 | [12 Books credits](12-books-credits.md)                     | Authors, illustrators, editors, and publishers as pages in Books, from Scribe's things graph               |                                        |
 | [13 Books on Scribe's timeline](13-books-timeline.md)       | Each stretch Books plays lands on the live Scribe recording, as Scribe Videos' plays do                    |                                        |
+| [14 UI v1](14-ui-v1.md) | Behavior once in core as blocks and parts, home screens, a painter ratchet; [14a](14a-ui-coverage.md) maps Zag, Radix and `@foldkit/ui` | 04 |
 
 ## Build order, if every plan is accepted
 

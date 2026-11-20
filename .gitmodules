@@ -1,0 +1,15 @@
+[submodule "repos/zag"]
+	path = repos/zag
+	url = https://github.com/chakra-ui/zag.git
+[submodule "repos/swift-navigation"]
+	path = repos/swift-navigation
+	url = https://github.com/pointfreeco/swift-navigation.git
+[submodule "repos/radix-primitives"]
+	path = repos/radix-primitives
+	url = https://github.com/radix-ui/primitives.git
+[submodule "repos/vercel-ui"]
+	path = repos/vercel-ui
+	url = https://github.com/vercel-labs/ui.git
+[submodule "repos/foldkit-plus"]
+	path = repos/foldkit-plus
+	url = https://github.com/doeixd/foldkit-plus.git
