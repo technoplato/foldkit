@@ -44,12 +44,31 @@ const clockOf = (transcript: Element): PaintedClock | undefined => {
     : { placeMs, atMs, rate }
 }
 
-const startOf = (word: Element): number =>
-  numberOf(word, 'data-start-ms') ?? Number.POSITIVE_INFINITY
+const startOf = (unit: Element): number =>
+  numberOf(unit, 'data-start-ms') ?? Number.POSITIVE_INFINITY
 
-/** The last word to start at or before `placeMs`, by binary search. */
-const spokenWordIn = (
-  words: ReadonlyArray<Element>,
+const TIMED_PASSAGE_SELECTOR = `${PASSAGE_SELECTOR}[data-start-ms]`
+
+/**
+ * What can be spoken on a painted Transcript, in the order it is spoken:
+ * each word that says when it starts, and each passage that says when it
+ * starts and holds no words, such as a line of text with no word times or
+ * one whose words are held back.
+ */
+const spokenUnitsOf = (transcript: Element): ReadonlyArray<Element> =>
+  [
+    ...transcript.querySelectorAll(
+      `${WORD_SELECTOR}, ${TIMED_PASSAGE_SELECTOR}`,
+    ),
+  ].filter(
+    unit =>
+      !unit.matches(PASSAGE_SELECTOR) ||
+      unit.querySelector('.fk-word') === null,
+  )
+
+/** The last unit to start at or before `placeMs`, by binary search. */
+const spokenUnitIn = (
+  units: ReadonlyArray<Element>,
   placeMs: number,
 ): Element | undefined => {
   const search = (
@@ -61,13 +80,13 @@ const spokenWordIn = (
       return found
     } else {
       const middle = Math.floor((low + high) / 2)
-      const word = words[middle]
-      return word !== undefined && startOf(word) <= placeMs
-        ? search(middle + 1, high, word)
+      const unit = units[middle]
+      return unit !== undefined && startOf(unit) <= placeMs
+        ? search(middle + 1, high, unit)
         : search(low, middle - 1, found)
     }
   }
-  return search(0, words.length - 1, undefined)
+  return search(0, units.length - 1, undefined)
 }
 
 const markOnly = (
@@ -86,12 +105,14 @@ const markOnly = (
 }
 
 /**
- * Marks, on a painted Transcript, the word its clock has reached at the
- * wall-clock time `nowMs`, and that word's passage, and no other: the
- * last word to start at or before the place the clock reads, as
- * `transcriptAt` says for every painter. A Transcript painted without a
- * clock is left as the view painted it. `words` may be given when the
- * caller already holds the Transcript's words in order.
+ * Marks, on a painted Transcript, what its clock has reached at the
+ * wall-clock time `nowMs`, and nothing else, as `transcriptAt` says for
+ * every painter: the last word to start at or before the place the clock
+ * reads, and that word's passage; or, while the place is in a passage with
+ * no words, that passage alone. Before the first of them nothing is
+ * marked. A Transcript painted without a clock, or with nothing that says
+ * when it starts, is left as the view painted it. `units` may be given
+ * when the caller already holds what can be spoken, in order.
  *
  * @example
  * ```typescript
@@ -101,50 +122,47 @@ const markOnly = (
 export const markSpokenWord = (
   transcript: Element,
   nowMs: number,
-  words: ReadonlyArray<Element> = [
-    ...transcript.querySelectorAll(WORD_SELECTOR),
-  ],
+  units: ReadonlyArray<Element> = spokenUnitsOf(transcript),
 ): void => {
   const clock = clockOf(transcript)
-  if (clock !== undefined) {
-    const maybeWord = spokenWordIn(words, transcriptPlaceAt(clock, nowMs))
-    if (maybeWord !== undefined) {
-      markOnly(transcript, '.fk-word', maybeWord)
-      markOnly(
-        transcript,
-        PASSAGE_SELECTOR,
-        maybeWord.closest(PASSAGE_SELECTOR) ?? undefined,
-      )
-    }
+  if (clock !== undefined && units.length > 0) {
+    const maybeUnit = spokenUnitIn(units, transcriptPlaceAt(clock, nowMs))
+    const maybeWord = maybeUnit?.matches(PASSAGE_SELECTOR)
+      ? undefined
+      : maybeUnit
+    markOnly(transcript, '.fk-word', maybeWord)
+    markOnly(
+      transcript,
+      PASSAGE_SELECTOR,
+      maybeUnit?.closest(PASSAGE_SELECTOR) ?? undefined,
+    )
   }
 }
 
 /**
  * Runs `markSpokenWord` on a painted Transcript: about 25 times a second
  * while its clock runs, once when the clock is told something new while
- * it stands still, and not at all otherwise. The words are read from the
- * page once, and again only after its passages change. It stops with the
- * tab in the background, as animation frames do.
+ * it stands still, and not at all otherwise. What can be spoken is read
+ * from the page once, and again only after its passages change. It stops
+ * with the tab in the background, as animation frames do.
  */
 const runTranscriptClock = (transcript: Element): (() => void) => {
   const state: {
     frame: number
     isRunning: boolean
     paintedAtMs: number
-    maybeWords: ReadonlyArray<Element> | undefined
+    maybeUnits: ReadonlyArray<Element> | undefined
   } = {
     frame: 0,
     isRunning: false,
     paintedAtMs: Number.NEGATIVE_INFINITY,
-    maybeWords: undefined,
+    maybeUnits: undefined,
   }
   const step = (frameMs: number) => {
     if (frameMs - state.paintedAtMs >= PAINT_GAP_MS) {
-      const words = state.maybeWords ?? [
-        ...transcript.querySelectorAll(WORD_SELECTOR),
-      ]
-      state.maybeWords = words
-      markSpokenWord(transcript, Date.now(), words)
+      const units = state.maybeUnits ?? spokenUnitsOf(transcript)
+      state.maybeUnits = units
+      markSpokenWord(transcript, Date.now(), units)
       state.paintedAtMs = frameMs
       if ((clockOf(transcript)?.rate ?? 0) <= 0) {
         state.isRunning = false
@@ -166,7 +184,7 @@ const runTranscriptClock = (transcript: Element): (() => void) => {
     attributeFilter: [...CLOCK_ATTRIBUTES],
   })
   const passages = new MutationObserver(() => {
-    state.maybeWords = undefined
+    state.maybeUnits = undefined
     wake()
   })
   passages.observe(transcript, { childList: true, subtree: true })
@@ -459,8 +477,11 @@ const runFollow = (transcript: Element): (() => void) => {
   const held: { maybeFollowed: Element | undefined } = {
     maybeFollowed: undefined,
   }
+  // NOTE: what is followed is the word being spoken, or, while the place
+  // is in a passage with no words, that passage.
   const spokenWord = (): Element | null =>
-    transcript.querySelector(`.fk-word[${CURRENT}]`)
+    transcript.querySelector(`.fk-word[${CURRENT}]`) ??
+    transcript.querySelector(`${PASSAGE_SELECTOR}[${CURRENT}]`)
   const namedWord = (): Element | null => {
     const maybeToken = transcript.getAttribute('data-focus-token')
     return maybeToken === null ? null : wordWithToken(transcript, maybeToken)
@@ -507,7 +528,7 @@ const runFollow = (transcript: Element): (() => void) => {
       follow.tell(TranscriptFollow.NamedWord())
     }
     if (isFollowingAgain && isFollowingOf(transcript)) {
-      follow.tell(TranscriptFollow.ChangedSpokenWord())
+      follow.tell(TranscriptFollow.ResumedFollowing())
     }
   }
   const noteReaderScroll = () => {

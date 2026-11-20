@@ -82,8 +82,15 @@ export const Purpose = S.Literals(['Follow', 'Leave'])
 /** Why a word is measured. */
 export type Purpose = typeof Purpose.Type
 
-/** The word sounding changed, or the Transcript said its words follow again. */
+/** The word sounding changed. */
 export const ChangedSpokenWord = ts('ChangedSpokenWord')
+
+/**
+ * The Transcript said its words follow the voice again, as after the
+ * reader pressed the way back to the word sounding. It is the reader
+ * saying "follow now", so no scroll of theirs holds it back.
+ */
+export const ResumedFollowing = ts('ResumedFollowing')
 
 /** The Transcript named a word to show, its `focusToken`. */
 export const NamedWord = ts('NamedWord')
@@ -113,6 +120,7 @@ export const MeasuredWord = ts('MeasuredWord', {
 /** Everything a painter tells the follow rule. */
 export const Fact = S.Union([
   ChangedSpokenWord,
+  ResumedFollowing,
   NamedWord,
   ScrolledByReader,
   ScrolledView,
@@ -228,6 +236,9 @@ const measured = (
  *
  * - A new word is sounding: measure it, unless the words do not follow or
  *   the reader has just scrolled. Away from the middle, bring it there.
+ * - The words follow again: measure the word sounding at once, whatever
+ *   the reader scrolled before, and forget that scroll, so the next word
+ *   is followed too and a look that was waiting for it finds nothing.
  * - A word is named: bring it to the middle, following or not.
  * - The reader scrolled: leave the view alone a while, and look shortly
  *   after. If the word sounding has left the middle, press leave.
@@ -239,6 +250,9 @@ const measured = (
  *
  * step(initial, { isFollowing: true, hasLeave: true, nowMs: 5_000 }, ScrolledByReader())
  * // { state: { readerScrolledAtMs: 5_000, ... }, instructions: [WaitForLeaveCheck({ afterMs: 250 })] }
+ *
+ * step({ ...initial, readerScrolledAtMs: 4_900 }, { isFollowing: true, hasLeave: true, nowMs: 5_000 }, ResumedFollowing())
+ * // { state: initial, instructions: [MeasureWord({ purpose: 'Follow' })] }
  * ```
  */
 export const step = (state: State, context: Context, fact: Fact): Step =>
@@ -256,6 +270,12 @@ export const step = (state: State, context: Context, fact: Fact): Step =>
           ? [MeasureWord({ purpose: 'Follow' })]
           : [],
       }),
+      ResumedFollowing: () => ({
+        state: { ...state, readerScrolledAtMs: initial.readerScrolledAtMs },
+        instructions: context.isFollowing
+          ? [MeasureWord({ purpose: 'Follow' })]
+          : [],
+      }),
       NamedWord: () => ({
         state: { ...state, ownScrollUntilMs: context.nowMs + OWN_SCROLL_MS },
         instructions: [BringToMiddle({ word: 'Named' })],
@@ -265,10 +285,15 @@ export const step = (state: State, context: Context, fact: Fact): Step =>
         context.nowMs > state.ownScrollUntilMs
           ? readerScrolled(state, context.nowMs)
           : { state, instructions: [] },
+      // NOTE: a wait is always asked for with the reader's scroll noted.
+      // With none noted, the words have followed again since that scroll,
+      // and the word sounding may still be on its way to the middle.
       ElapsedLeaveWait: () => ({
         state,
         instructions:
-          context.isFollowing && context.hasLeave
+          context.isFollowing &&
+          context.hasLeave &&
+          Number.isFinite(state.readerScrolledAtMs)
             ? [MeasureWord({ purpose: 'Leave' })]
             : [],
       }),

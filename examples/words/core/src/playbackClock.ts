@@ -3,7 +3,6 @@ import { transcriptPlaceAt } from 'foldkit/renderers'
 
 import type { ReadyPlayback } from './model.js'
 import type { ReadAlongPlayback } from './readAlong.js'
-import type { Word } from './recording.js'
 import {
   displayedPositionOf,
   durationOf,
@@ -48,17 +47,26 @@ export const playbackClockOf = (ready: ReadyPlayback): PlaybackClock => ({
 })
 
 /**
- * The newest word of a recording: the last word of the last section that
- * has words with times. A sealed line, or one with text and no word times,
- * has none, so the word before it stays the newest.
+ * When the newest thing a recording says starts: the last word of its
+ * last section, or that section's own start when it has no words, as a
+ * sealed line or one with text and no word times has none. Every painter
+ * takes such a section for one spoken unit.
  *
  * @example
  * ```typescript
- * newestWordOf(ready) // Some({ id: 'section-8:4', text: 'lamp.', startSeconds: 92.2, … })
+ * newestSpokenSecondsOf(ready) // Some(92.2), the start of 'lamp.'
+ * newestSpokenSecondsOf(endingSealed) // Some(100), the sealed line's start
  * ```
  */
-export const newestWordOf = (ready: ReadyPlayback): Option.Option<Word> =>
-  Array.findLast(ready.detail.sections, section => Array.last(section.words))
+export const newestSpokenSecondsOf = (
+  ready: ReadyPlayback,
+): Option.Option<number> =>
+  Option.map(Array.last(ready.detail.sections), section =>
+    Option.match(Array.last(section.words), {
+      onNone: () => section.startSeconds,
+      onSome: word => word.startSeconds,
+    }),
+  )
 
 const standingAt = (positionSeconds: number): ReadAlongPlayback => ({
   positionSeconds,
@@ -74,7 +82,8 @@ const standingAt = (positionSeconds: number): ReadAlongPlayback => ({
  *
  * - While a recording in progress is followed at its live edge, no word
  *   sounds, so the clock stands at the newest word and moves on as words
- *   arrive: the newest word is the one followed.
+ *   arrive: the newest word is the one followed, or the newest section
+ *   itself when it has no words.
  * - Otherwise it is at the place the player last reported, and runs from
  *   the wall-clock time of that report while audio plays. After a jump,
  *   and until the player reports from the new place, it stands still.
@@ -88,10 +97,9 @@ const standingAt = (positionSeconds: number): ReadAlongPlayback => ({
 export const readAlongPlaybackOf = (ready: ReadyPlayback): ReadAlongPlayback =>
   isFollowingLiveEdgeOf(ready)
     ? standingAt(
-        Option.match(newestWordOf(ready), {
-          onNone: () => displayedPositionOf(ready),
-          onSome: word => word.startSeconds,
-        }),
+        Option.getOrElse(newestSpokenSecondsOf(ready), () =>
+          displayedPositionOf(ready),
+        ),
       )
     : Option.match(
         Option.filter(ready.maybePositionReportedAtMs, () => isMoving(ready)),

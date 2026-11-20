@@ -109,6 +109,40 @@ describe('what a search found, in the words', () => {
   })
 })
 
+describe('a passage with no words', () => {
+  it('is marked alone while the clock runs through it', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000_000)
+    const onPress = pressed()
+    const given = lighthouse()
+    const { container } = render(
+      paintTree(
+        {
+          ...given,
+          clock: { placeMs: 12_000, atMs: 1_000_000, rate: 1 },
+          passages: [
+            ...given.passages,
+            {
+              key: 'text',
+              label: '0:12',
+              startMs: 12_000,
+              text: 'Far out a bell answered.',
+              words: [],
+            },
+          ],
+        },
+        { onPress },
+      ),
+    )
+    expect(
+      Array.from(container.querySelectorAll('.fk-passage'), passage =>
+        passage.hasAttribute('data-current'),
+      ),
+    ).toEqual([false, false, true])
+    expect(container.querySelectorAll('.fk-word[data-current]').length).toBe(0)
+  })
+})
+
 describe('the view and the word sounding', () => {
   it('keeps the word sounding in view while the words follow it', () => {
     const onPress = pressed()
@@ -126,6 +160,20 @@ describe('the view and the word sounding', () => {
     expect(scrolledInto).toEqual([])
     rerender(paintTree(lighthouse({ isFollowing: true }, 'a3'), { onPress }))
     expect(scrolledInto).toEqual(['a3'])
+  })
+
+  it('comes back to the word sounding at once when a person returns a moment after scrolling', () => {
+    vi.useFakeTimers()
+    const onPress = pressed()
+    const { rerender } = render(
+      paintTree(lighthouse({ isFollowing: false }), { onPress }),
+    )
+    fireEvent.wheel(window)
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+    rerender(paintTree(lighthouse({ isFollowing: true }), { onPress }))
+    expect(scrolledInto).toEqual(['a1'])
   })
 
   it('brings the word a person stepped to into view, once, without following the word sounding', () => {

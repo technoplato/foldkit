@@ -2009,19 +2009,26 @@ const announce = (ready: ReadyPlayback, text: string): ReadyReturn => {
   ]
 }
 
+const firstSpokenSecondsOf = (ready: ReadyPlayback): Option.Option<number> =>
+  Option.map(Array.head(ready.detail.sections), section =>
+    Option.match(Array.head(section.words), {
+      onNone: () => section.startSeconds,
+      onSome: word => word.startSeconds,
+    }),
+  )
+
 const isPlaceOnWord = (ready: ReadyPlayback): boolean =>
   Option.exists(
-    Array.findFirst(ready.detail.sections, section =>
-      Array.head(section.words),
-    ),
-    first => first.startSeconds <= displayedPositionOf(ready),
+    firstSpokenSecondsOf(ready),
+    seconds => seconds <= displayedPositionOf(ready),
   )
 
 // NOTE: while a recording is in progress the words follow its newest
 // word. When it finishes they would follow the word at the place instead,
 // and a painter would take the listener there from the newest words. So a
-// recording that finishes with its place on a word stops following, and
-// the listener stays where they are, with Back to Playhead to go there.
+// recording that finishes with its place on a word, or in a section with
+// no words, stops following, and the listener stays where they are, with
+// Back to Playhead to go there.
 const stayingWhereItFinished = (
   before: ReadyPlayback,
   after: ReadyPlayback,

@@ -1,4 +1,5 @@
 import { Array, Option } from 'effect'
+import { transcriptAt } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
 import { PlaybackRoute, RecordingRoute, SectionRoute } from './link.js'
@@ -24,7 +25,7 @@ import {
   SteppedFind,
 } from './message.js'
 import type { Model, ReadyPlayback } from './model.js'
-import { newestWordOf, readAlongPlaybackOf } from './playbackClock.js'
+import { newestSpokenSecondsOf, readAlongPlaybackOf } from './playbackClock.js'
 import type { ReadAlongPlayback } from './readAlong.js'
 import { readerMessageOf, readerOf } from './reader.js'
 import {
@@ -160,6 +161,23 @@ const clockOf = (model: Model): ReadAlongPlayback =>
 
 const readerOfModel = (model: Model) => readerOf(readyOf(model), clockOf(model))
 
+const currentOf = (
+  model: Model,
+): ReadonlyArray<readonly [string, ReadonlyArray<string>]> =>
+  Array.map(
+    Array.filter(
+      transcriptAt(readerOfModel(model), reportedAtMs).passages,
+      passage => passage.isCurrent === true,
+    ),
+    passage => [
+      passage.key,
+      Array.map(
+        Array.filter(passage.words, word => word.isCurrent === true),
+        word => word.token,
+      ),
+    ],
+  )
+
 const opening = modelForRoute(RecordingRoute({ recordingID }))
 
 const pausedAt = (seconds: number): Model =>
@@ -282,10 +300,10 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
   describe('while recording, the newest word is the one followed', () => {
     const following = recordingWith([sectionA, sectionB])
 
-    it('the newest word is the last word of the last section that has words', () => {
-      expect(
-        Option.map(newestWordOf(readyOf(following)), word => word.id),
-      ).toEqual(Option.some('section-1:4'))
+    it('the newest thing said starts with the last word of the last section', () => {
+      expect(newestSpokenSecondsOf(readyOf(following))).toEqual(
+        Option.some(22.2),
+      )
     })
 
     it('a new section moves the clock to its last word, and asks for no scroll', () => {
@@ -313,23 +331,50 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
       ).toEqual(standingAt(22.7))
     })
 
-    it('a newest section with no word times leaves the clock on the word before it', () => {
+    it('a newest section whose words are sealed is itself the one followed: the clock stands at its start and the reader marks it', () => {
       const sealed: Section = {
         ...sectionC,
         words: [],
         maybeWordsSeal: Option.some('Voice'),
       }
-      expect(
-        clockOf(
-          folded(following, [
-            observed(recording([sectionA, sectionB, sealed])),
-          ]),
-        ),
-      ).toEqual(standingAt(22.2))
+      const grown = folded(following, [
+        observed(recording([sectionA, sectionB, sealed])),
+      ])
+      expect(clockOf(grown)).toEqual(standingAt(40))
+      expect(currentOf(grown)).toEqual([['section-2', []]])
+    })
+
+    it('a newest section with text and no word times is followed the same way', () => {
+      const textOnly: Section = { ...sectionC, words: [] }
+      const grown = folded(following, [
+        observed(recording([sectionA, sectionB, textOnly])),
+      ])
+      expect(clockOf(grown)).toEqual(standingAt(40))
+      expect(currentOf(grown)).toEqual([['section-2', []]])
     })
 
     it('a recording in progress with no words yet has a clock at its start', () => {
       expect(clockOf(recordingWith([]))).toEqual(standingAt(0))
+    })
+  })
+
+  describe('a section with no word times, in a finished recording', () => {
+    const textOnly: Section = { ...sectionB, words: [] }
+    const playingInText = folded(opening, [
+      observed(finished([sectionA, textOnly, sectionC])),
+      ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio' } }),
+      AcquiredAudioPlayer(),
+      heardAt(25),
+    ])
+
+    it('is marked as one unit while the place is in it, with no word', () => {
+      expect(currentOf(playingInText)).toEqual([['section-1', []]])
+    })
+
+    it('hands the mark to the next word when the voice reaches it', () => {
+      expect(currentOf(folded(playingInText, [heardAt(40.3)]))).toEqual([
+        ['section-2', ['section-2:0']],
+      ])
     })
   })
 
@@ -486,6 +531,18 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
       expect(isReturnShownOf(done.ready)).toBe(true)
       expect(done.commandNames).toEqual([])
       expect(clockOf(done.model)).toEqual(standingAt(2))
+    })
+
+    it('with its place in a first section that has no words, the words stop following too', () => {
+      const sealedFirst: Section = {
+        ...section(0, 0, []),
+        maybeWordsSeal: Option.some('Voice'),
+      }
+      const done = told(
+        recordingWith([sealedFirst, sectionB]),
+        observed(finished([sealedFirst, sectionB])),
+      )
+      expect(done.ready.follow).toBe('Detached')
     })
 
     it('once finished, pressing Back to Playhead follows the word at the place', () => {

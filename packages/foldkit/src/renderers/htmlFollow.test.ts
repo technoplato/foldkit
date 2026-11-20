@@ -203,6 +203,52 @@ describe('the reader scrolling away, at the edge', () => {
     transcript.remove()
   })
 
+  it('brings the spoken word back at once when the words follow again a moment after the reader scrolled', async () => {
+    const { transcript } = page()
+    transcript.setAttribute('data-following', 'false')
+    const scrolls = recordedScrolls()
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<never>().f(transcript)),
+    )
+    await new Promise(resolve => {
+      setTimeout(resolve, 20)
+    })
+    window.dispatchEvent(new Event('wheel'))
+    transcript.setAttribute('data-following', 'true')
+    await until(() => scrolls.length === 1)
+    expect(scrolls).toEqual([
+      { top: topThatCentersTheWord(), behavior: 'smooth' },
+    ])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
+  it('follows a passage with no words that is marked current, as it does a word', async () => {
+    const { transcript, word } = page()
+    word.remove()
+    const text = document.createElement('article')
+    text.className = 'fk-passage'
+    text.setAttribute('data-current', 'true')
+    text.getBoundingClientRect = () =>
+      new DOMRect(0, window.innerHeight * 3, 400, 20)
+    transcript.append(text)
+    transcript.setAttribute('data-following', 'false')
+    const scrolls = recordedScrolls()
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<never>().f(transcript)),
+    )
+    await new Promise(resolve => {
+      setTimeout(resolve, 20)
+    })
+    transcript.setAttribute('data-following', 'true')
+    await until(() => scrolls.length === 1)
+    expect(scrolls).toEqual([
+      { top: topThatCentersTheWord(), behavior: 'smooth' },
+    ])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
   it('scrolls the window itself and never asks the word to scroll into view, which in Chromium would move where Tab starts from', async () => {
     const { transcript, word } = page()
     transcript.setAttribute('data-following', 'false')

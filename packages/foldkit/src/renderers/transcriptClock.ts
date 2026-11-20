@@ -1,5 +1,6 @@
-import { Array, Option } from 'effect'
+import { Array, Option, Schema as S } from 'effect'
 
+import { ts } from '../schema/index.js'
 import type {
   TranscriptClock,
   TranscriptNode,
@@ -31,7 +32,32 @@ export const transcriptPlaceAt = (
   clock.placeMs +
   Math.min(maxAheadMs, Math.max(0, nowMs - clock.atMs) * clock.rate)
 
-type Timed = Readonly<{ token: string; startMs: number }>
+// SPOKEN
+
+/** A word is being spoken: the last word to start at or before the place. */
+export const SpokenWord = ts('SpokenWord', { token: S.String })
+
+/**
+ * The place is in a passage that has no words of its own, such as a line
+ * of text with no word times or one whose words are held back. The
+ * passage is spoken as one unit, from its `startMs` until the next word or
+ * wordless passage starts.
+ */
+export const SpokenPassage = ts('SpokenPassage', { key: S.String })
+
+/** What is being spoken at a place: a word, or a passage with no words. */
+export const SpokenUnit = S.Union([SpokenWord, SpokenPassage])
+/** What is being spoken at a place: a word, or a passage with no words. */
+export type SpokenUnit = typeof SpokenUnit.Type
+
+// NOTE: one thing that can be spoken, in the order it is spoken: a word,
+// which has a `token`, or a passage with no words, which has none.
+type Timed = Readonly<{
+  startMs: number
+  passageIndex: number
+  passageKey: string
+  token?: string
+}>
 
 type TranscriptIndex = Readonly<{
   readonly timed: ReadonlyArray<Timed>
@@ -62,6 +88,18 @@ const buildTranscriptIndex = (
 
     let hasCurrentWord = passage.isCurrent === true
 
+    if (passage.words.length === 0 && passage.startMs !== undefined) {
+      if (passage.startMs < previousStartMs) {
+        isMonotonic = false
+      }
+      previousStartMs = passage.startMs
+      timed.push({
+        startMs: passage.startMs,
+        passageIndex,
+        passageKey: passage.key,
+      })
+    }
+
     for (const word of passage.words) {
       if (word.isCurrent === true) {
         hasCurrentWord = true
@@ -72,7 +110,12 @@ const buildTranscriptIndex = (
           isMonotonic = false
         }
         previousStartMs = word.startMs
-        timed.push({ token: word.token, startMs: word.startMs })
+        timed.push({
+          startMs: word.startMs,
+          passageIndex,
+          passageKey: passage.key,
+          token: word.token,
+        })
       }
 
       const existing = passageIndicesByToken.get(word.token)
@@ -145,11 +188,47 @@ const findLastTimedAtOrBefore = (
   return Option.fromNullishOr(timed.at(answer))
 }
 
+const spokenAt = (
+  transcript: TranscriptNode,
+  nowMs: number,
+): Option.Option<Timed> =>
+  Option.flatMap(Option.fromNullishOr(transcript.clock), clock =>
+    findLastTimedAtOrBefore(
+      indexOfPassages(transcript.passages),
+      transcriptPlaceAt(clock, nowMs),
+    ),
+  )
+
+/**
+ * What is being spoken at the wall-clock time `nowMs`: the last word, or
+ * passage with no words, to start at or before the place the Transcript's
+ * clock has reached. A passage has no words when its text has no word
+ * times or its words are held back; it needs a `startMs` to be spoken.
+ * None for a Transcript with no clock or no times, and before the first
+ * word or wordless passage.
+ *
+ * @example
+ * ```typescript
+ * spokenUnitAt(transcript, Date.now()) // Some(SpokenWord({ token: 'w4012' }))
+ * spokenUnitAt(transcript, Date.now()) // Some(SpokenPassage({ key: 'section-7' })), inside a sealed line
+ * ```
+ */
+export const spokenUnitAt = (
+  transcript: TranscriptNode,
+  nowMs: number,
+): Option.Option<SpokenUnit> =>
+  Option.map(spokenAt(transcript, nowMs), spoken =>
+    spoken.token === undefined
+      ? SpokenPassage({ key: spoken.passageKey })
+      : SpokenWord({ token: spoken.token }),
+  )
+
 /**
  * The token of the word being spoken at the wall-clock time `nowMs`: the
  * last word to start at or before the place the Transcript's clock has
- * reached. None for a Transcript with no clock or no word times, and
- * before its first word.
+ * reached. None for a Transcript with no clock or no word times, before
+ * its first word, and while the place is in a passage with no words,
+ * which `spokenUnitAt` names.
  *
  * @example
  * ```typescript
@@ -160,26 +239,21 @@ export const currentWordTokenAt = (
   transcript: TranscriptNode,
   nowMs: number,
 ): Option.Option<string> =>
-  Option.flatMap(Option.fromNullishOr(transcript.clock), clock => {
-    const placeMs = transcriptPlaceAt(clock, nowMs)
-    const index = indexOfPassages(transcript.passages)
-    return Option.map(
-      findLastTimedAtOrBefore(index, placeMs),
-      word => word.token,
-    )
-  })
+  Option.flatMap(spokenAt(transcript, nowMs), spoken =>
+    Option.fromNullishOr(spoken.token),
+  )
 
 const markedWord =
-  (token: string) =>
+  (token: string | undefined) =>
   (word: TranscriptWord): TranscriptWord => {
     const { isCurrent: _isCurrent, ...unmarked } = word
     return word.token === token ? { ...unmarked, isCurrent: true } : unmarked
   }
 
 const markedPassage =
-  (token: string) =>
-  (passage: TranscriptPassage): TranscriptPassage => {
-    const hasWord = Array.some(passage.words, word => word.token === token)
+  (token: string | undefined, spokenPassageIndices: ReadonlyArray<number>) =>
+  (passage: TranscriptPassage, passageIndex: number): TranscriptPassage => {
+    const isSpoken = spokenPassageIndices.includes(passageIndex)
     const isAlreadySo = Array.every(
       passage.words,
       word => (word.isCurrent === true) === (word.token === token),
@@ -187,23 +261,25 @@ const markedPassage =
     // NOTE: A passage the word neither left nor entered is handed back as
     // the object it was, so a painter repaints only the passages that
     // changed.
-    if (isAlreadySo && (passage.isCurrent === true) === hasWord) {
+    if (isAlreadySo && (passage.isCurrent === true) === isSpoken) {
       return passage
     }
     const { isCurrent: _isCurrent, ...unmarked } = passage
     const words = Array.map(passage.words, markedWord(token))
-    return hasWord
+    return isSpoken
       ? { ...unmarked, isCurrent: true, words }
       : { ...unmarked, words }
   }
 
 /**
- * A Transcript as it reads at the wall-clock time `nowMs`: the word being
- * spoken then, and its passage, marked current, and no other. A painter
- * calls it on its own clock, many times a second, and paints the word
- * when it changes, so the mark moves on the word while the Program hears
- * the place once a second. A Transcript with no clock or no word times
- * comes back as it is.
+ * A Transcript as it reads at the wall-clock time `nowMs`: what is being
+ * spoken then marked current, and nothing else. That is the word being
+ * spoken and its passage, or, while the place is in a passage with no
+ * words, that passage alone. Before the first of them nothing is marked.
+ * A painter calls it on its own clock, many times a second, and paints
+ * when the mark moves, so it moves on the word while the Program hears the
+ * place once a second. A Transcript with no clock or no times comes back
+ * as it is.
  *
  * @example
  * ```typescript
@@ -213,49 +289,58 @@ const markedPassage =
 export const transcriptAt = (
   transcript: TranscriptNode,
   nowMs: number,
-): TranscriptNode =>
-  Option.match(currentWordTokenAt(transcript, nowMs), {
-    onNone: () => transcript,
-    onSome: token => {
-      const index = indexOfPassages(transcript.passages)
-      const targetIndices = index.passageIndicesByToken.get(token) ?? []
-      const candidateIndices = new Set<number>([
-        ...index.currentPassageIndices,
-        ...targetIndices,
-      ])
-
-      const mark = markedPassage(token)
-      let nextPassages: Array<TranscriptPassage> | undefined = undefined
-
-      for (const passageIndex of candidateIndices) {
-        const current = transcript.passages.at(passageIndex)
-        if (current === undefined) {
-          continue
-        }
-
-        const updated = mark(current)
-        if (updated !== current) {
-          if (nextPassages === undefined) {
-            nextPassages = [...transcript.passages]
-          }
-          nextPassages[passageIndex] = updated
-        }
-      }
-
-      if (nextPassages === undefined) {
-        return transcript
-      }
-
-      passageIndexCache.set(nextPassages, {
-        timed: index.timed,
-        isMonotonic: index.isMonotonic,
-        passageIndicesByToken: index.passageIndicesByToken,
-        currentPassageIndices: targetIndices,
-      })
-
-      return {
-        ...transcript,
-        passages: nextPassages,
-      }
-    },
+): TranscriptNode => {
+  const index = indexOfPassages(transcript.passages)
+  if (transcript.clock === undefined || index.timed.length === 0) {
+    return transcript
+  }
+  const maybeSpoken = spokenAt(transcript, nowMs)
+  const token = Option.getOrUndefined(
+    Option.flatMap(maybeSpoken, spoken => Option.fromNullishOr(spoken.token)),
+  )
+  const targetIndices = Option.match(maybeSpoken, {
+    onNone: (): ReadonlyArray<number> => [],
+    onSome: spoken =>
+      spoken.token === undefined
+        ? [spoken.passageIndex]
+        : (index.passageIndicesByToken.get(spoken.token) ?? []),
   })
+  const candidateIndices = new Set<number>([
+    ...index.currentPassageIndices,
+    ...targetIndices,
+  ])
+
+  const mark = markedPassage(token, targetIndices)
+  let nextPassages: Array<TranscriptPassage> | undefined = undefined
+
+  for (const passageIndex of candidateIndices) {
+    const current = transcript.passages.at(passageIndex)
+    if (current === undefined) {
+      continue
+    }
+
+    const updated = mark(current, passageIndex)
+    if (updated !== current) {
+      if (nextPassages === undefined) {
+        nextPassages = [...transcript.passages]
+      }
+      nextPassages[passageIndex] = updated
+    }
+  }
+
+  if (nextPassages === undefined) {
+    return transcript
+  }
+
+  passageIndexCache.set(nextPassages, {
+    timed: index.timed,
+    isMonotonic: index.isMonotonic,
+    passageIndicesByToken: index.passageIndicesByToken,
+    currentPassageIndices: targetIndices,
+  })
+
+  return {
+    ...transcript,
+    passages: nextPassages,
+  }
+}

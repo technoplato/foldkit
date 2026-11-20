@@ -80,7 +80,11 @@ export {
   transcriptEntriesOf,
 } from './transcriptEntries.js'
 export {
+  SpokenPassage,
+  SpokenUnit,
+  SpokenWord,
   currentWordTokenAt,
+  spokenUnitAt,
   transcriptAt,
   transcriptPlaceAt,
 } from './transcriptClock.js'

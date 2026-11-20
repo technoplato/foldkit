@@ -11,6 +11,7 @@ import {
   MeasuredWord,
   NamedWord,
   PressLeave,
+  ResumedFollowing,
   ScrolledByReader,
   ScrolledView,
   type Sight,
@@ -110,8 +111,44 @@ describe('the follow rule, one fact at a time', () => {
     ).toEqual([MeasureWord({ purpose: 'Follow' })])
   })
 
+  it('measures the word sounding at once when the words follow again, even a moment after the reader scrolled', () => {
+    const scrolled = step(initial, following, ScrolledByReader()).state
+    const soon = { ...following, nowMs: 10_300 }
+    expect(step(scrolled, soon, ChangedSpokenWord()).instructions).toEqual([])
+    expect(step(scrolled, soon, ResumedFollowing()).instructions).toEqual([
+      MeasureWord({ purpose: 'Follow' }),
+    ])
+  })
+
+  it('forgets the reader’s scroll when the words follow again, so the next word is followed too', () => {
+    const scrolled = step(initial, following, ScrolledByReader()).state
+    const soon = { ...following, nowMs: 10_300 }
+    const resumed = step(scrolled, soon, ResumedFollowing()).state
+    expect(resumed).toEqual(initial)
+    expect(
+      step(resumed, { ...following, nowMs: 10_400 }, ChangedSpokenWord())
+        .instructions,
+    ).toEqual([MeasureWord({ purpose: 'Follow' })])
+  })
+
+  it('does not press leave for a look that was waiting when the words followed again', () => {
+    const scrolled = step(initial, following, ScrolledByReader()).state
+    const resumed = step(scrolled, following, ResumedFollowing()).state
+    expect(step(resumed, following, ElapsedLeaveWait()).instructions).toEqual(
+      [],
+    )
+  })
+
+  it('asks for nothing on following again while the reader reads elsewhere', () => {
+    expect(
+      step(initial, { ...following, isFollowing: false }, ResumedFollowing())
+        .instructions,
+    ).toEqual([])
+  })
+
   it('presses leave once the reader has scrolled the word sounding out of the middle', () => {
-    expect(step(initial, following, ElapsedLeaveWait()).instructions).toEqual([
+    const scrolled = step(initial, following, ScrolledByReader()).state
+    expect(step(scrolled, following, ElapsedLeaveWait()).instructions).toEqual([
       MeasureWord({ purpose: 'Leave' }),
     ])
     expect(

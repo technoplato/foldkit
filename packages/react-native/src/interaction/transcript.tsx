@@ -1,6 +1,7 @@
 import { Array, Match as M, Option, Order } from 'effect'
 import {
   type PlacedBookmark,
+  type SpokenUnit,
   type TranscriptEntry,
   TranscriptFollow,
   type TranscriptNode,
@@ -9,7 +10,7 @@ import {
   type TranscriptWordMenu,
   type UiNode,
   bookmarksInPassage,
-  currentWordTokenAt,
+  spokenUnitAt,
   transcriptAt,
   transcriptEntriesOf,
 } from 'foldkit/renderers'
@@ -411,12 +412,16 @@ export const WordMenuSheet = ({
 
 const liveWordEveryMs = 50
 
+const spokenKeyOf = (unit: SpokenUnit): string =>
+  unit._tag === 'SpokenWord' ? `word:${unit.token}` : `passage:${unit.key}`
+
 /**
- * A Transcript as it reads right now. While its clock runs, the word
- * being spoken is read from the clock many times a second and the
- * Transcript is marked again only when the word changes, so the mark
- * moves on the word while the Program hears the place once a second. A
- * Transcript with no clock, or one standing still, is painted as given.
+ * A Transcript as it reads right now. While its clock runs, what is being
+ * spoken (a word, or a passage with no words) is read from the clock many
+ * times a second and the Transcript is marked again only when that
+ * changes, so the mark moves on the word while the Program hears the place
+ * once a second. A Transcript with no clock, or one standing still, is
+ * painted as given.
  */
 export const useLiveTranscript = (
   transcript: TranscriptNode,
@@ -424,19 +429,21 @@ export const useLiveTranscript = (
   const isRunning = transcript.clock !== undefined && transcript.clock.rate > 0
   const given = useRef(transcript)
   given.current = transcript
-  const tokenNow = (): string | undefined =>
-    Option.getOrUndefined(currentWordTokenAt(given.current, Date.now()))
+  const unitNow = (): string | undefined =>
+    Option.getOrUndefined(
+      Option.map(spokenUnitAt(given.current, Date.now()), spokenKeyOf),
+    )
   // NOTE: the clock is read many times a second, and the view is told only
-  // when the word it reads is another word: a tick that lands on the same
-  // word paints nothing.
-  const [tickedToken, setTickedToken] = useState<string | undefined>(tokenNow)
+  // when what it reads is another word, or another passage with no words:
+  // a tick that lands on the same one paints nothing.
+  const [tickedUnit, setTickedUnit] = useState<string | undefined>(unitNow)
   useEffect(() => {
     if (!isRunning) {
       return undefined
     }
-    setTickedToken(tokenNow())
+    setTickedUnit(unitNow())
     const timer = setInterval(() => {
-      setTickedToken(tokenNow())
+      setTickedUnit(unitNow())
     }, liveWordEveryMs)
     return () => {
       clearInterval(timer)
@@ -445,13 +452,13 @@ export const useLiveTranscript = (
     // up once for as long as the clock runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRunning])
-  const liveToken = isRunning ? tickedToken : undefined
+  const liveUnit = isRunning ? tickedUnit : undefined
   return useMemo(
     () =>
-      liveToken === undefined
+      liveUnit === undefined
         ? transcript
         : transcriptAt(transcript, Date.now()),
-    [transcript, liveToken],
+    [transcript, liveUnit],
   )
 }
 
@@ -814,8 +821,15 @@ export const TranscriptView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scroll])
 
+  const wasFollowing = useRef(isFollowing)
   useEffect(() => {
-    follow.current?.tell(TranscriptFollow.ChangedSpokenWord())
+    const isFollowingAgain = isFollowing && !wasFollowing.current
+    wasFollowing.current = isFollowing
+    follow.current?.tell(
+      isFollowingAgain
+        ? TranscriptFollow.ResumedFollowing()
+        : TranscriptFollow.ChangedSpokenWord(),
+    )
   }, [currentToken, isFollowing])
 
   useEffect(() => {

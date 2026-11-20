@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 
 import { Transcript } from './elements.js'
 import {
+  SpokenPassage,
+  SpokenWord,
   currentWordTokenAt,
+  spokenUnitAt,
   transcriptAt,
   transcriptPlaceAt,
 } from './transcriptClock.js'
@@ -65,6 +68,149 @@ describe('the place a transcript clock has reached', () => {
   it('never runs more than a second and a half past a report that stopped coming', () => {
     const clock = { placeMs: 10_000, atMs: reportedAtMs, rate: 1 }
     expect(transcriptPlaceAt(clock, reportedAtMs + 60_000)).toBe(11_500)
+  })
+})
+
+// NOTE: made-up words. A line of text with no word times sits between two
+// passages of timed words, and a sealed line with none comes last.
+const withWordlessPassages = (placeMs: number) =>
+  Transcript({
+    label: 'Transcript',
+    action: 'SeekToWord',
+    emptyText: 'No words yet.',
+    clock: { placeMs, atMs: reportedAtMs, rate: 0 },
+    passages: [
+      {
+        key: 'a',
+        label: '0:09',
+        startMs: 9_000,
+        words: wordsOf('a', ['The', 'lamp', 'was', 'lit'], 9_400),
+      },
+      {
+        key: 'text',
+        label: '0:12',
+        startMs: 12_000,
+        text: 'Far out a bell answered.',
+        words: [],
+      },
+      {
+        key: 'b',
+        label: '0:15',
+        startMs: 15_000,
+        words: wordsOf('b', ['Gulls', 'settled'], 15_200),
+      },
+      {
+        key: 'sealed',
+        label: '0:20',
+        startMs: 20_000,
+        sealed: '[sealed]',
+        words: [],
+      },
+    ],
+  })
+
+const marksOf = (transcript: ReturnType<typeof withWordlessPassages>) =>
+  transcript.passages.map(passage => [
+    passage.key,
+    passage.isCurrent === true,
+    passage.words.filter(word => word.isCurrent === true).map(w => w.token),
+  ])
+
+describe('a passage with no words, spoken as one unit', () => {
+  it('is what is spoken from its start until the next word starts', () => {
+    expect(spokenUnitAt(withWordlessPassages(11_900), reportedAtMs)).toEqual(
+      Option.some(SpokenWord({ token: 'a3' })),
+    )
+    expect(spokenUnitAt(withWordlessPassages(12_000), reportedAtMs)).toEqual(
+      Option.some(SpokenPassage({ key: 'text' })),
+    )
+    expect(spokenUnitAt(withWordlessPassages(15_100), reportedAtMs)).toEqual(
+      Option.some(SpokenPassage({ key: 'text' })),
+    )
+    expect(spokenUnitAt(withWordlessPassages(15_200), reportedAtMs)).toEqual(
+      Option.some(SpokenWord({ token: 'b0' })),
+    )
+    expect(spokenUnitAt(withWordlessPassages(25_000), reportedAtMs)).toEqual(
+      Option.some(SpokenPassage({ key: 'sealed' })),
+    )
+  })
+
+  it('has no word being spoken while the place is in it', () => {
+    expect(
+      currentWordTokenAt(withWordlessPassages(13_000), reportedAtMs),
+    ).toEqual(Option.none())
+  })
+
+  it('is marked current alone, with no word, between two passages of words', () => {
+    expect(
+      marksOf(transcriptAt(withWordlessPassages(13_000), reportedAtMs)),
+    ).toEqual([
+      ['a', false, []],
+      ['text', true, []],
+      ['b', false, []],
+      ['sealed', false, []],
+    ])
+  })
+
+  it('takes the mark from the word before it and hands it to the word after', () => {
+    const atWord = transcriptAt(withWordlessPassages(10_000), reportedAtMs)
+    expect(marksOf(atWord)).toContainEqual(['a', true, ['a2']])
+    const inText = transcriptAt(
+      { ...atWord, clock: { placeMs: 13_000, atMs: reportedAtMs, rate: 0 } },
+      reportedAtMs,
+    )
+    expect(marksOf(inText)).toEqual([
+      ['a', false, []],
+      ['text', true, []],
+      ['b', false, []],
+      ['sealed', false, []],
+    ])
+    const after = transcriptAt(
+      { ...inText, clock: { placeMs: 15_600, atMs: reportedAtMs, rate: 0 } },
+      reportedAtMs,
+    )
+    expect(marksOf(after)).toEqual([
+      ['a', false, []],
+      ['text', false, []],
+      ['b', true, ['b1']],
+      ['sealed', false, []],
+    ])
+  })
+
+  it('is not spoken without a start of its own', () => {
+    const given = withWordlessPassages(13_000)
+    const unplaced = {
+      ...given,
+      passages: given.passages.map(passage => {
+        const { startMs: _startMs, ...rest } = passage
+        return passage.key === 'text' ? rest : passage
+      }),
+    }
+    expect(spokenUnitAt(unplaced, reportedAtMs)).toEqual(
+      Option.some(SpokenWord({ token: 'a3' })),
+    )
+  })
+})
+
+describe('before the first word or wordless passage', () => {
+  it('nothing is spoken', () => {
+    expect(spokenUnitAt(withWordlessPassages(8_000), reportedAtMs)).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('a mark left from a later place is cleared', () => {
+    const atWord = transcriptAt(withWordlessPassages(10_000), reportedAtMs)
+    const atStart = transcriptAt(
+      { ...atWord, clock: { placeMs: 0, atMs: reportedAtMs, rate: 0 } },
+      reportedAtMs,
+    )
+    expect(marksOf(atStart)).toEqual([
+      ['a', false, []],
+      ['text', false, []],
+      ['b', false, []],
+      ['sealed', false, []],
+    ])
   })
 })
 

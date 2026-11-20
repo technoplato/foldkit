@@ -159,8 +159,8 @@ TranscriptFollow.step(
 //   instructions: [WaitForLeaveCheck({ afterMs: 250 })] }
 ```
 
-- Facts in: `ChangedSpokenWord`, `NamedWord`, `ScrolledByReader`,
-  `ScrolledView`, `ElapsedLeaveWait`, `MeasuredWord`.
+- Facts in: `ChangedSpokenWord`, `ResumedFollowing`, `NamedWord`,
+  `ScrolledByReader`, `ScrolledView`, `ElapsedLeaveWait`, `MeasuredWord`.
 - Instructions out: `MeasureWord`, `BringToMiddle`, `WaitForLeaveCheck`,
   `PressLeave`.
 - One shared runner, `TranscriptFollow.start(ports)`, holds the state and

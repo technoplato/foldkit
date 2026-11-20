@@ -163,6 +163,39 @@ const until = async (isSo: () => boolean): Promise<void> => {
   }
 }
 
+describe('a passage with no words, marked at the edge', () => {
+  const pageWithText = (): HTMLElement => {
+    const root = page(0)
+    const text = document.createElement('article')
+    text.className = 'fk-passage'
+    text.setAttribute('data-start-ms', '1700')
+    text.textContent = 'Far out a bell answered.'
+    const passages = [...root.querySelectorAll('.fk-passage')]
+    passages.at(1)?.before(text)
+    return root
+  }
+
+  it('marks the passage alone while the place is in it, and the next word after it', () => {
+    const root = pageWithText()
+    root.setAttribute('data-clock-place-ms', '1800')
+    markSpokenWord(root, 50_000)
+    expect(currentTokens(root)).toEqual([])
+    expect(currentPassages(root)).toBe(1)
+    root.setAttribute('data-clock-place-ms', '2100')
+    markSpokenWord(root, 50_000)
+    expect(currentTokens(root)).toEqual(['w4'])
+    expect(currentPassages(root)).toBe(2)
+  })
+
+  it('clears the mark when the place is before the first word', () => {
+    const root = pageWithText()
+    root.setAttribute('data-clock-place-ms', '100')
+    markSpokenWord(root, 50_000)
+    expect(currentTokens(root)).toEqual([])
+    expect(currentPassages(root)).toBe(-1)
+  })
+})
+
 describe('the mount on a painted Transcript', () => {
   it('moves the mark on by itself while the clock runs, tells the Program nothing, and stops when unmounted', async () => {
     const root = page(1)

@@ -783,20 +783,26 @@ describe('the Words page follows the voice as Books does (plan 14, slice 2)', ()
       expect(returnPillLabels()).toEqual([])
     })
 
-    // NOTE: the shared rule leaves the words alone for a second after the
-    // listener's last scroll, and the press counts as a newly spoken word.
-    // So a press inside that second follows again and moves nothing, and
-    // while paused no later word comes to move it.
-    test('pressed within a second of the scroll, Back to Playhead follows again but the spoken word is not brought to the middle while paused', async () => {
+    test('pressed right after the scroll, while paused, Back to Playhead still brings the spoken word to the middle', async () => {
       const page = await openPage(pausedAt(50.3))
       await wheelTo(1500)
       await leaveCheck()
       await pressReturn()
-      await pass(3 * QUIET_MS)
 
       expect(page.ready().follow).toBe('Following')
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
       expect(returnPillLabels()).toEqual([])
-      expect(window.scrollY).toBe(1500)
+    })
+
+    test('after Back to Playhead the very next word is followed, with no second of quiet', async () => {
+      const page = await openPage(playingAt(50.3))
+      await wheelTo(1500)
+      await leaveCheck()
+      await pressReturn()
+      await heard(page, 90.3)
+
+      expect(markedWords()).toEqual(['section-8:0'])
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
     })
 
     test('while recording it reads Back to Live, and pressing it brings the newest word to the middle', async () => {
@@ -878,6 +884,78 @@ describe('the Words page follows the voice as Books does (plan 14, slice 2)', ()
     })
   })
 
+  describe('a section with no word times is marked and followed as one unit', () => {
+    const withoutWordTimes = finished(
+      Array.map(sectionsUpTo(12), (section): Section => {
+        if (section.index === 6) {
+          return { ...section, words: [] }
+        } else if (section.index === 9) {
+          return {
+            ...section,
+            words: [],
+            maybeWordsSeal: Option.some('Voice'),
+          }
+        } else {
+          return section
+        }
+      }),
+    )
+
+    test('a section of text with no word times is marked alone, with no word, and brought to the middle', async () => {
+      await openPage(pausedAt(75, withoutWordTimes))
+
+      expect(markedSections()).toEqual(['section-6'])
+      expect(markedWords()).toEqual([])
+      expect(middleOf(passageOf(6))).toBe(MIDDLE_PX)
+    })
+
+    test('a sealed section is marked alone and brought to the middle', async () => {
+      await openPage(pausedAt(105, withoutWordTimes))
+
+      expect(markedSections()).toEqual(['section-9'])
+      expect(markedWords()).toEqual([])
+      expect(middleOf(passageOf(9))).toBe(MIDDLE_PX)
+    })
+
+    test('the mark passes from the word before it to the section, and on to the next word', async () => {
+      const page = await openPage(playingAt(63, withoutWordTimes))
+      expect(markedWords()).toEqual(['section-5:4'])
+
+      await heard(page, 70.1)
+      expect(markedSections()).toEqual(['section-6'])
+      expect(markedWords()).toEqual([])
+
+      await heard(page, 80.3)
+      expect(markedSections()).toEqual(['section-7'])
+      expect(markedWords()).toEqual(['section-7:0'])
+    })
+
+    test('scrolled out of the middle, it is left as a spoken word is, and Back to Playhead brings it back', async () => {
+      const page = await openPage(pausedAt(75, withoutWordTimes))
+      await pass(QUIET_MS)
+      await wheelTo(3000)
+      await leaveCheck()
+      expect(page.ready().follow).toBe('Detached')
+
+      await pressReturn()
+      expect(middleOf(passageOf(6))).toBe(MIDDLE_PX)
+    })
+
+    test('while recording, a newest section with no word times is the one marked and brought to the middle', async () => {
+      const page = await openPage(opening)
+      await page.tell(observed(recording(sectionsUpTo(9))))
+      await page.tell(
+        observed(
+          recording([...sectionsUpTo(11), { ...sectionOf(11), words: [] }]),
+        ),
+      )
+
+      expect(markedSections()).toEqual(['section-11'])
+      expect(markedWords()).toEqual([])
+      expect(middleOf(passageOf(11))).toBe(MIDDLE_PX)
+    })
+  })
+
   describe('where a recording opens', () => {
     test('a recording opened by its plain link is put at the top of its page, following the voice', async () => {
       moveWindowTo(900)
@@ -952,7 +1030,7 @@ describe('the Words page follows the voice as Books does (plan 14, slice 2)', ()
   })
 
   describe('a recording that just finished stays where the listener is', () => {
-    test('with its place before the first word, nothing moves and the words keep following', async () => {
+    test('with its place before the first word, nothing moves, the words keep following, and no word stays marked', async () => {
       const page = await openPage(opening)
       await page.tell(observed(recording(sectionsUpTo(9))))
       const topBefore = window.scrollY
@@ -964,6 +1042,8 @@ describe('the Words page follows the voice as Books does (plan 14, slice 2)', ()
       expect(fakeWindow.moves).toHaveLength(movesBefore)
       expect(page.ready().follow).toBe('Following')
       expect(returnPillLabels()).toEqual([])
+      expect(markedWords()).toEqual([])
+      expect(markedSections()).toEqual([])
     })
 
     test('with its place on a word, nothing moves, the words stop following, and Back to Playhead takes the listener to that word', async () => {

@@ -13,6 +13,7 @@ import {
   type PlacedBookmark,
   type ReferencePart,
   type SeekNode,
+  type SpokenUnit,
   type TextEmbed,
   type TextInputNode,
   type TextNode,
@@ -22,7 +23,6 @@ import {
   type TranscriptPassage,
   type UiNode,
   bookmarksInPassage,
-  currentWordTokenAt,
   filterListItems,
   groupedItemsOf,
   iconDrawings,
@@ -30,6 +30,7 @@ import {
   isSubmittedOnLeave,
   resolveLazyNode,
   seekLandingAt,
+  spokenUnitAt,
   submittedTagOf,
   transcriptAt,
   transcriptEntriesOf,
@@ -777,12 +778,16 @@ const tokenOfTarget = (target: EventTarget | null): string | undefined =>
  */
 const liveWordEveryMs = 50
 
+const spokenKeyOf = (unit: SpokenUnit): string =>
+  unit._tag === 'SpokenWord' ? `word:${unit.token}` : `passage:${unit.key}`
+
 /**
- * A Transcript as it reads right now. While its clock runs, the word
- * being spoken is read from the clock many times a second and the
- * Transcript is marked again only when the word changes, so the mark
- * moves on the word while the Program hears the place once a second. A
- * Transcript with no clock, or one standing still, is painted as given.
+ * A Transcript as it reads right now. While its clock runs, what is being
+ * spoken (a word, or a passage with no words) is read from the clock many
+ * times a second and the Transcript is marked again only when that
+ * changes, so the mark moves on the word while the Program hears the place
+ * once a second. A Transcript with no clock, or one standing still, is
+ * painted as given.
  */
 const useLiveTranscript = (transcript: TranscriptNode): TranscriptNode => {
   const isRunning = transcript.clock !== undefined && transcript.clock.rate > 0
@@ -799,16 +804,18 @@ const useLiveTranscript = (transcript: TranscriptNode): TranscriptNode => {
       clearInterval(timer)
     }
   }, [isRunning])
-  const liveToken = isRunning
-    ? Option.getOrUndefined(currentWordTokenAt(transcript, nowMs))
+  const liveUnit = isRunning
+    ? Option.getOrUndefined(
+        Option.map(spokenUnitAt(transcript, nowMs), spokenKeyOf),
+      )
     : undefined
   return useMemo(
     () =>
-      liveToken === undefined ? transcript : transcriptAt(transcript, nowMs),
+      liveUnit === undefined ? transcript : transcriptAt(transcript, nowMs),
     // NOTE: `nowMs` is left out on purpose: the Transcript is marked again
-    // when the word changes, not on every tick of the clock.
+    // when what is spoken changes, not on every tick of the clock.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transcript, liveToken],
+    [transcript, liveUnit],
   )
 }
 
@@ -1101,8 +1108,15 @@ const TranscriptView = ({
       root?.removeEventListener('scroll', noteScroll)
     }
   }, [])
+  const wasFollowing = useRef(isFollowing)
   useEffect(() => {
-    follow.current?.tell(TranscriptFollow.ChangedSpokenWord())
+    const isFollowingAgain = isFollowing && !wasFollowing.current
+    wasFollowing.current = isFollowing
+    follow.current?.tell(
+      isFollowingAgain
+        ? TranscriptFollow.ResumedFollowing()
+        : TranscriptFollow.ChangedSpokenWord(),
+    )
   }, [currentToken, isFollowing])
   useEffect(() => {
     if (focusToken !== undefined && isFocusWordHere) {
