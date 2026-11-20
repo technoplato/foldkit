@@ -4,6 +4,36 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 20th, 2026 at 1:45:46 p.m. EST — `1ecec00de181` feat(index,demos-launchd,client-matrix): serve a derived site index and run the hosted demos under one LaunchAgent (Scribe #2573)
+
+- **Implementation commit:** `1ecec00de181cb12d0df2d64de77e31604a9b848`
+- **Change:** One LaunchAgent runs the hosted demos, the apex lists every site from the routing files, and a check reads what each site serves
+- **Details:**
+  - Layer: Client hosting for the examples. No Foldkit core or domain core changes.
+  - examples/demos-launchd: one supervisor starts every server in services.json, starts one again when it exits or cannot start, and applies manifest changes on SIGHUP without restarting unchanged servers.
+  - examples/index: the Foldkit page at pisspoursoftware.xyz. Its list is derived from the Caddyfile, the tunnel configs, the demos manifest, and the LaunchAgents, and rebuilt on a worker thread.
+  - examples/index/check.mjs: compares each demo's served script with its own dist folder and loads each page in a headless browser, so a 200 with a blank page fails.
+- **Files:**
+  - `examples/demos-launchd/foldkit-demos-launchd` — the supervisor
+  - `examples/demos-launchd/services.json` — the manifest of hosted servers, with the home folder as a placeholder
+  - `examples/demos-launchd/com.knophy.foldkit.demos.plist` — the LaunchAgent template
+  - `examples/demos-launchd/README.md` — how to install it and change one demo
+  - `examples/index/src/main.ts` — the index page
+  - `examples/index/sites.mjs` — derives the site list
+  - `examples/index/server.mjs` — serves the page and the list
+  - `examples/index/rebuild-worker.mjs` — one rebuild of the list off the main thread
+  - `examples/index/check.mjs` — the content check
+  - `examples/index/README.md` — what each check proves
+  - `examples/AGENTS.md` — a demo is published when the content check passes
+  - `examples/client-matrix/foldkit/src/carrier.ts` — carriers link at pisspoursoftware.xyz
+  - `examples/client-matrix/foldkit/src/scene.test.ts` — expectations follow the carrier hosts
+  - `examples/client-matrix/core/src/matrix.ts` — drops two fields the mode Schemas do not declare
+- **User context (verbatim):**
+  > Can we consolidate all of the fold kit serving examples into one launch daemon?
+  > let's make it so you don't have to maintain two different things let's derive it rather than handcraft it
+  > We don't want to rely on 200s for success. We want to rely on actually getting the contents of the site and verifying they're what we expect
+- **SpecStory:** unavailable — unavailable: T3 Code thread 881d199e, Claude Code session 65d6cfee; no SpecStory capture for this session
+
 ## November 19th, 2026 at 10:19:23 a.m. EST — `11d730a7b2c6` fix(books): green: play-from with a time moves the place and keeps playing (Scribe #2494)
 
 - **Implementation commit:** `11d730a7b2c6bdac38c19f399a47e11da2a04ba4`
