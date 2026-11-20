@@ -30,6 +30,7 @@ import {
   seekLandingAt,
   submittedTagOf,
   transcriptAt,
+  transcriptEntriesOf,
 } from 'foldkit/renderers'
 import {
   type DragEvent,
@@ -633,6 +634,9 @@ const PassageView = memo(
         {passage.heading === undefined ? null : (
           <h3 className="fk-passage-heading">{passage.heading}</h3>
         )}
+        {passage.speaker === undefined ? null : (
+          <p className="fk-passage-speaker">{passage.speaker}</p>
+        )}
         {labelAction === undefined ? (
           <span className="fk-passage-label">{passage.label}</span>
         ) : (
@@ -702,6 +706,7 @@ const PassageView = memo(
   (before, after) =>
     before.passage.key === after.passage.key &&
     before.passage.heading === after.passage.heading &&
+    before.passage.speaker === after.passage.speaker &&
     before.passage.isCurrent === after.passage.isCurrent &&
     before.passage.words.length === after.passage.words.length &&
     currentTokenOf(before.passage) === currentTokenOf(after.passage) &&
@@ -924,12 +929,15 @@ const TranscriptView = ({
   transcript: given,
   className,
   onPress,
+  paintNode,
 }: Readonly<{
   transcript: TranscriptNode
   className: string
   onPress: (button: ButtonNode) => void
+  paintNode: (node: UiNode) => ReactElement
 }>): ReactElement => {
   const transcript = useLiveTranscript(given)
+  const entries = useMemo(() => transcriptEntriesOf(transcript), [transcript])
   const ref = useRef<HTMLElement>(null)
   const lastUserScrollAtMs = useRef(0)
   const autoScrollUntilMs = useRef(0)
@@ -1107,24 +1115,35 @@ const TranscriptView = ({
           }
         }}
       >
-        {Array.match(transcript.passages, {
+        {Array.match(entries, {
           onEmpty: () => (
             <p className="fk-transcript-empty">{transcript.emptyText}</p>
           ),
-          onNonEmpty: passages =>
-            Array.map(passages, passage => (
-              <PassageView
-                key={passage.key}
-                passage={passage}
-                action={transcript.action}
-                bookmarks={
-                  transcript.bookmarks === undefined
-                    ? noBookmarks
-                    : bookmarksInPassage(passage, transcript.bookmarks)
-                }
-                onPress={onPress}
-              />
-            )),
+          onNonEmpty: timelineEntries =>
+            Array.map(timelineEntries, entry =>
+              entry._tag === 'ItemEntry' ? (
+                <aside
+                  key={entry.item.key}
+                  className="fk-transcript-item"
+                  data-key={entry.item.key}
+                >
+                  <span className="fk-passage-label">{entry.item.label}</span>
+                  {paintNode(entry.item.node)}
+                </aside>
+              ) : (
+                <PassageView
+                  key={entry.passage.key}
+                  passage={entry.passage}
+                  action={transcript.action}
+                  bookmarks={
+                    transcript.bookmarks === undefined
+                      ? noBookmarks
+                      : bookmarksInPassage(entry.passage, transcript.bookmarks)
+                  }
+                  onPress={onPress}
+                />
+              ),
+            ),
         })}
       </section>
       {transcript.wordMenu === undefined ? null : (
@@ -1754,6 +1773,7 @@ export const paintTree = (
             transcript={transcript}
             className={classFor('Transcript', 'fk-transcript')}
             onPress={handlers.onPress}
+            paintNode={paint}
           />
         ),
         DeviceShell: shell => (

@@ -2,6 +2,7 @@ import {
   type ButtonNode,
   List,
   Seek,
+  Text,
   TextInput,
   Transcript,
   type TranscriptNode,
@@ -357,6 +358,61 @@ describe('a search field', () => {
       'NextMatch',
       'NextMatch',
       'SearchFor:lamp rail',
+    ])
+  })
+})
+
+describe('a Transcript timeline in React', () => {
+  it('paints passage speakers and timeline items in order between passages', () => {
+    const { container } = render(
+      paintTree(
+        Transcript({
+          label: 'Transcript',
+          action: 'ClickedWord',
+          emptyText: 'Empty',
+          passages: [
+            {
+              key: 'p1',
+              label: '0:05',
+              speaker: 'Keeper',
+              words: [{ token: 'w1', text: 'Hello', startMs: 5000 }],
+            },
+            {
+              key: 'p2',
+              label: '0:12',
+              speaker: 'Speaker 2',
+              words: [{ token: 'w2', text: 'World', startMs: 12000 }],
+            },
+          ],
+          items: [
+            {
+              key: 'clip-1',
+              label: '0:08',
+              beforePassage: 'p2',
+              node: Text('copied snippet'),
+            },
+          ],
+        }),
+        { onPress: pressed() },
+      ),
+    )
+    const speakers = globalThis.Array.from(
+      container.querySelectorAll('.fk-passage-speaker'),
+    ).map(node => node.textContent)
+    expect(speakers).toEqual(['Keeper', 'Speaker 2'])
+
+    const item = container.querySelector('.fk-transcript-item')
+    expect(item?.getAttribute('data-key')).toBe('clip-1')
+    expect(item?.textContent).toContain('0:08')
+    expect(item?.textContent).toContain('copied snippet')
+
+    const children = globalThis.Array.from(
+      container.querySelector('.fk-transcript')?.children ?? [],
+    ).map(child => child.className)
+    expect(children).toEqual([
+      'fk-passage',
+      'fk-transcript-item',
+      'fk-passage',
     ])
   })
 })
