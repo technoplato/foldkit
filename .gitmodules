@@ -13,3 +13,6 @@
 [submodule "repos/foldkit-plus"]
 	path = repos/foldkit-plus
 	url = https://github.com/doeixd/foldkit-plus.git
+[submodule "repos/foldkit-upstream"]
+	path = repos/foldkit-upstream
+	url = https://github.com/foldkit/foldkit
