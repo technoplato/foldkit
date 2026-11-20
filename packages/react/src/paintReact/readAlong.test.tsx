@@ -259,6 +259,91 @@ describe('a word’s menu', () => {
   })
 })
 
+const shelf = (extra: Partial<ReturnType<typeof List>> = {}) => ({
+  ...List({
+    label: 'No audio yet',
+    items: [
+      {
+        key: 'salt-road',
+        title: 'Salt Road',
+        action: 'Open:salt-road',
+        menuAction: 'ShowTitleMenu:salt-road',
+      },
+      { key: 'a-tin-comet', title: 'A Tin Comet', action: 'Open:a-tin-comet' },
+    ],
+  }),
+  ...extra,
+})
+
+describe('a row’s menu', () => {
+  it('asks the Program for a row’s menu on a secondary click, and leaves a row without one to the browser', () => {
+    const onPress = pressed()
+    const { container } = render(paintTree(shelf(), { onPress }))
+    const withMenu = container.querySelector('[data-key="salt-road"] button')
+    const without = container.querySelector('[data-key="a-tin-comet"] button')
+    if (withMenu === null || without === null) {
+      throw new Error('no row')
+    }
+    expect(fireEvent.contextMenu(withMenu)).toBe(false)
+    expect(fireEvent.contextMenu(without)).toBe(true)
+    expect(pressesOf(onPress)).toEqual(['ShowTitleMenu:salt-road'])
+  })
+
+  it('asks for it on a long press with a finger, and does not open the row under the finger', () => {
+    vi.useFakeTimers()
+    const onPress = pressed()
+    const { container } = render(paintTree(shelf(), { onPress }))
+    const row = container.querySelector('[data-key="salt-road"] button')
+    if (row === null) {
+      throw new Error('no row')
+    }
+    fireEvent.pointerDown(row, {
+      pointerType: 'touch',
+      clientX: 10,
+      clientY: 10,
+    })
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+    fireEvent.pointerUp(row, { pointerType: 'touch' })
+    fireEvent.click(row)
+    expect(pressesOf(onPress)).toEqual(['ShowTitleMenu:salt-road'])
+    fireEvent.click(row)
+    expect(pressesOf(onPress)).toEqual([
+      'ShowTitleMenu:salt-road',
+      'Open:salt-road',
+    ])
+  })
+
+  it('draws the menu the Program holds, named for its row, presses what a person picks, and closes on Escape', () => {
+    const onPress = pressed()
+    render(
+      paintTree(
+        shelf({
+          menu: {
+            key: 'salt-road',
+            dismissAction: 'CloseTitleMenu',
+            items: [
+              { action: 'Open:salt-road', label: 'Open' },
+              {
+                action: 'ImportFromAudible',
+                label: 'Get its audio from Audible',
+              },
+            ],
+          },
+        }),
+        { onPress },
+      ),
+    )
+    expect(screen.getByRole('menu').getAttribute('aria-label')).toBe(
+      'Salt Road',
+    )
+    fireEvent.click(screen.getByRole('menuitem', { name: /Get its audio/ }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(pressesOf(onPress)).toEqual(['ImportFromAudible', 'CloseTitleMenu'])
+  })
+})
+
 describe('dragging the seek bar', () => {
   const bar = Seek({
     value: 0,
@@ -409,10 +494,6 @@ describe('a Transcript timeline in React', () => {
     const children = globalThis.Array.from(
       container.querySelector('.fk-transcript')?.children ?? [],
     ).map(child => child.className)
-    expect(children).toEqual([
-      'fk-passage',
-      'fk-transcript-item',
-      'fk-passage',
-    ])
+    expect(children).toEqual(['fk-passage', 'fk-transcript-item', 'fk-passage'])
   })
 })

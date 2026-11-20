@@ -9,6 +9,7 @@ import type {
   ButtonNode,
   ButtonVariant,
   ColumnNode,
+  ItemMenu,
   LazyNode,
   ListFilter,
   ListItem,
@@ -517,7 +518,9 @@ export const Progress = (
 /**
  * Rows a person picks from, each pressable as a whole. `columns` names the
  * values that line up at the rows' ends, and `filter` offers a field that
- * narrows a long list by its rows' titles.
+ * narrows a long list by its rows' titles. A row with a `menuAction` opens
+ * its menu on a long press or a secondary click, and `menu` is that menu
+ * while the Program holds it open.
  *
  * @example
  * ```typescript
@@ -531,6 +534,11 @@ export const Progress = (
  *   filter: { placeholder: 'Find a chapter', label: 'Find a chapter in The Lantern Keeper', emptyText: 'No chapter has that in its name.' },
  *   items: [{ key: '3', title: 'The Light', columns: ['20:00', '7:33'], action: 'JumpToChapter:3' }],
  * })
+ * List({
+ *   label: 'No audio yet',
+ *   items: [{ key: 'salt-road', title: 'Salt Road', action: 'Open:salt-road', menuAction: 'ShowTitleMenu:salt-road' }],
+ *   menu: { key: 'salt-road', items: [{ action: 'Open:salt-road', label: 'Open' }], dismissAction: 'CloseTitleMenu' },
+ * })
  * ```
  */
 export const List = (
@@ -540,6 +548,7 @@ export const List = (
     dropAction?: string
     columns?: ReadonlyArray<string>
     filter?: ListFilter
+    menu?: ItemMenu
   }>,
 ): ListNode => ({
   _tag: 'List',
@@ -548,6 +557,7 @@ export const List = (
   ...(props.dropAction === undefined ? {} : { dropAction: props.dropAction }),
   ...(props.columns === undefined ? {} : { columns: props.columns }),
   ...(props.filter === undefined ? {} : { filter: props.filter }),
+  ...(props.menu === undefined ? {} : { menu: props.menu }),
 })
 
 /**

@@ -23,11 +23,7 @@ export {
 export { Host } from './host.js'
 export { IconName, iconDrawings, iconGlyphs } from './icons.js'
 export type { IconDrawing } from './icons.js'
-export {
-  type LazyCache,
-  resolveLazyNode,
-  resolveLazyTree,
-} from './lazy.js'
+export { type LazyCache, resolveLazyNode, resolveLazyTree } from './lazy.js'
 export { progressLineOf, seekLineOf } from './layout.js'
 export {
   type ItemGroup,
@@ -118,11 +114,13 @@ export type {
   ItemBadge,
   ItemCheck,
   ItemImage,
+  ItemMenu,
   LayoutBox,
   LazyNode,
   ListFilter,
   ListItem,
   ListNode,
+  MenuAction,
   PlainPart,
   ProgressNode,
   ReferencePart,

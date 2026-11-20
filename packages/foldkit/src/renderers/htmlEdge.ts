@@ -188,14 +188,25 @@ const wordOfTarget = (target: EventTarget | null): Element | undefined =>
     ? (target.closest('.fk-word[data-token]') ?? undefined)
     : undefined
 
+const rowWithMenuOfTarget = (
+  target: EventTarget | null,
+): Element | undefined =>
+  target instanceof Element
+    ? (target.closest('.fk-item[data-menu="true"]') ?? undefined)
+    : undefined
+
 /**
- * Opens a word's menu on a long press with a finger or a pen, the way a
- * right click does: it sends the word the same `contextmenu` the view
+ * Opens the menu of a part of `root`, such as a word or a list row, on a
+ * long press with a finger or a pen, the way a right click does: it sends
+ * the part `partOf` finds under the finger the same `contextmenu` the view
  * already answers, so the Program is told through the view's own, current
  * handler. A press that moves, or lifts early, opens nothing; the tap that
- * ends a long press does not also play from the word.
+ * ends a long press does not also press the part.
  */
-const runLongPress = (transcript: Element): (() => void) => {
+const runLongPress = (
+  root: Element,
+  partOf: (target: EventTarget | null) => Element | undefined,
+): (() => void) => {
   const state: {
     maybePress: Readonly<{ x: number; y: number; timer: number }> | undefined
     isClickSwallowed: boolean
@@ -207,12 +218,11 @@ const runLongPress = (transcript: Element): (() => void) => {
     }
   }
   const onDown = (event: Event) => {
-    const maybeWord = wordOfTarget(event.target)
+    const maybePart = partOf(event.target)
     if (
-      maybeWord === undefined ||
+      maybePart === undefined ||
       !(event instanceof PointerEvent) ||
-      event.pointerType === 'mouse' ||
-      transcript.getAttribute('data-word-menu') !== 'true'
+      event.pointerType === 'mouse'
     ) {
       return
     }
@@ -223,7 +233,7 @@ const runLongPress = (transcript: Element): (() => void) => {
       timer: window.setTimeout(() => {
         state.maybePress = undefined
         state.isClickSwallowed = true
-        maybeWord.dispatchEvent(
+        maybePart.dispatchEvent(
           new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
         )
       }, LONG_PRESS_MS),
@@ -247,18 +257,18 @@ const runLongPress = (transcript: Element): (() => void) => {
       event.preventDefault()
     }
   }
-  transcript.addEventListener('pointerdown', onDown)
-  transcript.addEventListener('pointermove', onMove)
-  transcript.addEventListener('pointerup', end)
-  transcript.addEventListener('pointercancel', end)
-  transcript.addEventListener('click', onClick, true)
+  root.addEventListener('pointerdown', onDown)
+  root.addEventListener('pointermove', onMove)
+  root.addEventListener('pointerup', end)
+  root.addEventListener('pointercancel', end)
+  root.addEventListener('click', onClick, true)
   return () => {
     end()
-    transcript.removeEventListener('pointerdown', onDown)
-    transcript.removeEventListener('pointermove', onMove)
-    transcript.removeEventListener('pointerup', end)
-    transcript.removeEventListener('pointercancel', end)
-    transcript.removeEventListener('click', onClick, true)
+    root.removeEventListener('pointerdown', onDown)
+    root.removeEventListener('pointermove', onMove)
+    root.removeEventListener('pointerup', end)
+    root.removeEventListener('pointercancel', end)
+    root.removeEventListener('click', onClick, true)
   }
 }
 
@@ -470,7 +480,11 @@ export const transcriptMount = <Message>(): MountAction<Message> => ({
       Effect.acquireRelease(
         Effect.sync(() => {
           const stopClock = runTranscriptClock(transcript)
-          const stopLongPress = runLongPress(transcript)
+          const stopLongPress = runLongPress(transcript, target =>
+            transcript.getAttribute('data-word-menu') === 'true'
+              ? wordOfTarget(target)
+              : undefined,
+          )
           const stopFollow = runFollow(transcript)
           return () => {
             stopClock()
@@ -497,13 +511,19 @@ const MENU_EDGE_PX = 8
  * ```
  */
 export const placeWordMenu = (menu: HTMLElement, token: string): void => {
-  const maybeWord = (
-    menu.closest('.fk-transcript') ??
-    menu.parentElement ??
-    document
-  ).querySelector(`[data-token="${CSS.escape(token)}"]`)
-  if (maybeWord !== null) {
-    const bounds = maybeWord.getBoundingClientRect()
+  placeMenuBy(
+    menu,
+    (
+      menu.closest('.fk-transcript') ??
+      menu.parentElement ??
+      document
+    ).querySelector(`[data-token="${CSS.escape(token)}"]`),
+  )
+}
+
+const placeMenuBy = (menu: HTMLElement, maybePart: Element | null): void => {
+  if (maybePart !== null) {
+    const bounds = maybePart.getBoundingClientRect()
     const size = menu.getBoundingClientRect()
     const below = bounds.bottom + MENU_GAP_PX
     const fitsBelow = below + size.height <= window.innerHeight - MENU_EDGE_PX
@@ -516,35 +536,44 @@ export const placeWordMenu = (menu: HTMLElement, token: string): void => {
       : Math.max(MENU_EDGE_PX, bounds.top - MENU_GAP_PX - size.height)
     menu.style.left = `${left.toString()}px`
     menu.style.top = `${top.toString()}px`
-    menu.setAttribute('aria-label', maybeWord.textContent?.trim() ?? '')
+    if (!menu.hasAttribute('aria-label')) {
+      menu.setAttribute('aria-label', maybePart.textContent?.trim() ?? '')
+    }
   }
 }
 
-/** The name of the mount an open word menu carries. */
-export const wordMenuMountName = 'FoldkitWordMenu'
-
 /**
- * The mount an open word menu carries: it puts the menu by its word, and
- * tells the Program `dismiss` when Escape is pressed. The Program decides
- * whether the menu is open; this only places it and reports the key.
+ * Puts an open row menu by its row: under it, or above it where there is
+ * no room below, and inside the window.
  *
  * @example
  * ```typescript
- * h.div([h.Class('fk-word-menu'), h.OnMount(wordMenuMount(menu.token, dismissMessage))], items)
+ * placeItemMenu(menuElement, 'salt-road')
  * ```
  */
-export const wordMenuMount = <Message>(
-  token: string,
+export const placeItemMenu = (menu: HTMLElement, key: string): void => {
+  placeMenuBy(
+    menu,
+    (menu.closest('.fk-list') ?? menu.parentElement ?? document).querySelector(
+      `.fk-item[data-key="${CSS.escape(key)}"]`,
+    ),
+  )
+}
+
+const menuMountOf = <Message>(
+  name: string,
+  args: Readonly<Record<string, string>>,
+  place: (menu: HTMLElement) => void,
   dismiss: Message,
 ): MountAction<Message> => ({
-  name: wordMenuMountName,
-  args: { token },
+  name,
+  args,
   f: menu =>
     Stream.callback<Message>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           if (menu instanceof HTMLElement) {
-            placeWordMenu(menu, token)
+            place(menu)
           }
           const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -562,6 +591,82 @@ export const wordMenuMount = <Message>(
       ).pipe(Effect.flatMap(() => Effect.never)),
     ),
 })
+
+/** The name of the mount an open row menu carries. */
+export const itemMenuMountName = 'FoldkitItemMenu'
+
+/**
+ * The mount an open row menu carries: it puts the menu by its row, and
+ * tells the Program `dismiss` when Escape is pressed. The Program decides
+ * whether the menu is open; this only places it and reports the key.
+ *
+ * @example
+ * ```typescript
+ * h.div([h.Class('fk-word-menu'), h.OnMount(itemMenuMount(menu.key, dismissMessage))], items)
+ * ```
+ */
+export const itemMenuMount = <Message>(
+  key: string,
+  dismiss: Message,
+): MountAction<Message> =>
+  menuMountOf(
+    itemMenuMountName,
+    { key },
+    menu => {
+      placeItemMenu(menu, key)
+    },
+    dismiss,
+  )
+
+/** The name of the mount a painted List with row menus carries. */
+export const listMountName = 'FoldkitList'
+
+/**
+ * The mount a painted List carries when a row has a menu: it opens the
+ * row's menu on a long press, as a right click does. It sends the Program
+ * nothing itself, so any Program's page can carry it.
+ *
+ * @example
+ * ```typescript
+ * h.ul([h.Class('fk-list'), h.OnMount(listMount())], rows)
+ * ```
+ */
+export const listMount = <Message>(): MountAction<Message> => ({
+  name: listMountName,
+  f: list =>
+    Stream.callback<Message>(() =>
+      Effect.acquireRelease(
+        Effect.sync(() => runLongPress(list, rowWithMenuOfTarget)),
+        stop => Effect.sync(stop),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+})
+
+/** The name of the mount an open word menu carries. */
+export const wordMenuMountName = 'FoldkitWordMenu'
+
+/**
+ * The mount an open word menu carries: it puts the menu by its word, and
+ * tells the Program `dismiss` when Escape is pressed. The Program decides
+ * whether the menu is open; this only places it and reports the key.
+ *
+ * @example
+ * ```typescript
+ * h.div([h.Class('fk-word-menu'), h.OnMount(wordMenuMount(menu.token, dismissMessage))], items)
+ * ```
+ */
+export const wordMenuMount = <Message>(
+  token: string,
+  dismiss: Message,
+): MountAction<Message> =>
+  menuMountOf(
+    wordMenuMountName,
+    { token },
+    menu => {
+      placeWordMenu(menu, token)
+    },
+    dismiss,
+  )
 
 // SEEK
 

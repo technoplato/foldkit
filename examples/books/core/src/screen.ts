@@ -17,6 +17,8 @@ import {
   List,
   type ListFilter,
   type ListItem,
+  type ListNode,
+  type MenuAction,
   Progress,
   Row,
   Text,
@@ -72,6 +74,7 @@ import {
   CancelDeleteBookmark,
   ClearBookmarkNote,
   CloseSearch,
+  CloseTitleMenu,
   CollapseControls,
   ConfirmDeleteBookmark,
   DeleteBookmark,
@@ -93,6 +96,7 @@ import {
   ShowProfile,
   ShowReadAloud,
   ShowSpeeds,
+  ShowTitleMenu,
   UndoRemoveBookmark,
   catalog,
 } from './message.js'
@@ -572,14 +576,18 @@ const nowPlayingOf = (model: Model): ReadonlyArray<UiNode> =>
 const dockOf = (model: Model, current: Tab): UiNode =>
   Dock(...nowPlayingOf(model), tabsOf(model, current))
 
-const inProgressLimit = 3
-
 const bySavedAtDescending = Order.mapInput(
   Order.flip(Order.Number),
   (progress: TitleProgress) => progress.savedAtMs,
 )
 
-const continueTitlesOf = (model: Model): ReadonlyArray<Title> => {
+const hasAudio = (title: Title): boolean => Option.isSome(title.maybeAudioUrl)
+
+/**
+ * The titles being listened to, in the order to pick up from: the one in
+ * the player, then every one in progress, most recently heard first.
+ */
+const startedTitlesOf = (model: Model): ReadonlyArray<Title> => {
   const loaded = Option.toArray(
     Option.map(loadedTitleOf(model), ({ title }) => title),
   )
@@ -597,29 +605,125 @@ const continueTitlesOf = (model: Model): ReadonlyArray<Title> => {
       title => !Array.some(loaded, current => current.slug === title.slug),
     ),
   )
-  return Array.take([...loaded, ...saved], inProgressLimit)
+  return [...loaded, ...saved]
 }
 
-const continueItemOf = (model: Model, title: Title): ListItem => ({
-  key: `continue-${title.slug}`,
-  title: title.name,
-  lines: [byline(title), progressText(model, title)],
-  ...imageOf(title),
-  ...progressBarOf(model, title),
-  action: `${Open.tag}:${title.slug}`,
-  isCurrent: Option.isSome(loadedFor(model, title)),
-  trailing: playOrPauseOf(model, title, 'Ghost', true),
-})
+/**
+ * Every title whose audio is in the library, in the order to pick up
+ * from: the ones being listened to first, then the rest as the shelf
+ * lists them.
+ */
+const listenableTitlesOf = (model: Model): ReadonlyArray<Title> => {
+  const started = Array.filter(startedTitlesOf(model), hasAudio)
+  const rest = Array.filter(
+    titlesOf(model),
+    title =>
+      hasAudio(title) && !Array.some(started, kept => kept.slug === title.slug),
+  )
+  return [...started, ...rest]
+}
 
-const titleItemOf = (model: Model, title: Title): ListItem => ({
+const noAudioLine = 'Its audio is not in the library yet'
+
+const titleMenuActionOf = (
+  entries: ReadonlyArray<Catalog.Entry>,
+  title: Title,
+): Pick<ListItem, 'menuAction'> => {
+  const menuAction = `${ShowTitleMenu.tag}:${title.slug}`
+  return isOffered(entries, menuAction) ? { menuAction } : {}
+}
+
+/** A row for a title whose audio is in the library: a press opens it, and its round button plays it. */
+const titleItemOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+  title: Title,
+): ListItem => ({
   key: title.slug,
   title: title.name,
   lines: [byline(title), progressText(model, title)],
   ...imageOf(title),
   ...progressBarOf(model, title),
   action: `${Open.tag}:${title.slug}`,
+  ...titleMenuActionOf(entries, title),
+  isCurrent: Option.isSome(loadedFor(model, title)),
   trailing: playOrPauseOf(model, title, 'Ghost', true),
 })
+
+/**
+ * A row for a title whose audio is not in the library yet: a press opens
+ * it, and its More button opens the same menu a long press does, so the
+ * menu has a way in where there is no long press.
+ */
+const noAudioItemOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+  title: Title,
+): ListItem => ({
+  key: title.slug,
+  title: title.name,
+  lines: [byline(title), noAudioLine],
+  ...imageOf(title),
+  action: `${Open.tag}:${title.slug}`,
+  ...titleMenuActionOf(entries, title),
+  trailing: withIcon(
+    choiceButtonsOf(model, title.slug, [ShowTitleMenu], 'Ghost'),
+    'More',
+    true,
+  ),
+})
+
+/**
+ * What a title's menu offers, each only while it can be pressed: playing
+ * it, opening its page, and, for a title with no audio yet, the Audible
+ * import, where its audio is asked for.
+ */
+const titleMenuItemsOf = (
+  entries: ReadonlyArray<Catalog.Entry>,
+  title: Title,
+): ReadonlyArray<MenuAction> => {
+  const play: MenuAction = {
+    action: `${Listen.tag}:${title.slug}`,
+    label: 'Play',
+    icon: 'Play',
+  }
+  const open: MenuAction = {
+    action: `${Open.tag}:${title.slug}`,
+    label: 'Open its page',
+    icon: 'Chapters',
+  }
+  const getAudio: MenuAction = {
+    action: ImportFromAudible.tag,
+    label: 'Get its audio from Audible',
+    icon: 'Library',
+  }
+  return Array.filter(
+    hasAudio(title) ? [play, open] : [play, open, getAudio],
+    item => isOffered(entries, item.action),
+  )
+}
+
+/** The menu open on one of `titles`, for the List that holds its row. */
+const titleMenuOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+  titles: ReadonlyArray<Title>,
+): Pick<ListNode, 'menu'> =>
+  Option.match(
+    Option.flatMap(model.maybeTitleMenu, slug =>
+      Array.findFirst(titles, title => title.slug === slug),
+    ),
+    {
+      onNone: () => ({}),
+      onSome: title => ({
+        menu: {
+          key: title.slug,
+          items: titleMenuItemsOf(entries, title),
+          dismissAction: CloseTitleMenu.tag,
+        },
+      }),
+    },
+  )
 
 /**
  * The picture book to show on the library's Read aloud row: the one being
@@ -897,30 +1001,32 @@ const addMoreOf = (model: Model): UiNode =>
   })
 
 const shelfSectionsOf = (model: Model): ReadonlyArray<UiNode> => {
-  const continuing = continueTitlesOf(model)
-  const others = Array.filter(
-    titlesOf(model),
-    title => !Array.some(continuing, kept => kept.slug === title.slug),
-  )
+  const entries = entriesOf(model)
+  const listenable = listenableTitlesOf(model)
+  const waiting = Array.filter(titlesOf(model), title => !hasAudio(title))
   return [
-    ...Array.match(continuing, {
+    ...Array.match(listenable, {
       onEmpty: () => [],
       onNonEmpty: titles => [
         Text('Continue listening', { dim: true }),
         List({
           label: 'Continue listening',
-          items: Array.map(titles, title => continueItemOf(model, title)),
+          items: Array.map(titles, title => titleItemOf(model, entries, title)),
+          ...titleMenuOf(model, entries, titles),
         }),
       ],
     }),
     ...readAloudSectionOf(model),
-    ...Array.match(others, {
+    ...Array.match(waiting, {
       onEmpty: () => [],
       onNonEmpty: titles => [
-        Text('Your books', { dim: true }),
+        Text('No audio yet', { dim: true }),
         List({
-          label: 'Your books',
-          items: Array.map(titles, title => titleItemOf(model, title)),
+          label: 'No audio yet',
+          items: Array.map(titles, title =>
+            noAudioItemOf(model, entries, title),
+          ),
+          ...titleMenuOf(model, entries, titles),
         }),
       ],
     }),
@@ -929,18 +1035,21 @@ const shelfSectionsOf = (model: Model): ReadonlyArray<UiNode> => {
 }
 
 /**
- * The library, the home: up to three books to continue, the one playing
- * first, the picture book being read aloud, or the last one read, then
- * every other book with who wrote it and how far along it is, and "Add
- * more of your books" last. Pressing a row opens the book; its round
- * button plays it; the Read aloud row opens the books read aloud. An
+ * The library, the home: under Continue listening, every book whose audio
+ * is in the library, the one playing first, then the ones in progress,
+ * most recently heard first, then the rest; the picture book being read
+ * aloud, or the last one read; then, under No audio yet, every book still
+ * waiting for its audio; and "Add more of your books" last. Pressing a row
+ * opens the book; its round button plays it; a long press or a secondary
+ * click on a row opens the book's menu, and so does the More button on a
+ * book with no audio. The Read aloud row opens the books read aloud. An
  * empty shelf says so and offers "Import from Audible" instead. What is
  * playing and the tabs stay pinned at the bottom.
  *
  * @example
  * ```typescript
  * libraryScreen(model)
- * // Column: Library, Continue listening, Read aloud, Your books, Add more of your books, Dock(now playing, Library | Profile)
+ * // Column: Library, Continue listening, Read aloud, No audio yet, Add more of your books, Dock(now playing, Library | Profile)
  * ```
  */
 export const libraryScreen = (model: Model): UiNode =>

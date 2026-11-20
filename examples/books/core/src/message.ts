@@ -221,8 +221,41 @@ export const Open = Catalog.action('Open', {
   what: "Opens this book's page, with its chapters and bookmarks",
   why: 'To see its chapters and bookmarks',
   enabled: unlessAsking,
-  mutates: [at.navigation.pages],
+  mutates: [at.navigation.pages, at.maybeTitleMenu],
   meta: { label: 'Open', keys: ['o'], title: 'Open title' },
+})
+
+/**
+ * Opens one book's menu on the shelf, as a long press or a secondary
+ * click on its row does: `ShowTitleMenu:salt-road`. The menu offers
+ * playing the book, opening its page, and, for a book whose audio is not
+ * in the library yet, going to get it. Every one of those is offered
+ * elsewhere too, so a terminal, which has no long press, loses nothing.
+ */
+export const ShowTitleMenu = Catalog.action('ShowTitleMenu', {
+  fields: { slug: TitleSlug },
+  choose: whichTitle((model, title) =>
+    Option.contains(model.maybeTitleMenu, title.slug)
+      ? Catalog.Disabled({ because: 'its menu is already open' })
+      : Catalog.Enabled(),
+  ),
+  what: 'Shows what can be done with this book',
+  why: 'To play it, open it, or get its audio',
+  enabled: unlessAsking,
+  mutates: [at.maybeTitleMenu],
+  meta: { label: 'Book menu', keys: [], title: 'Open a book’s menu' },
+})
+
+/** Closes the book's menu. */
+export const CloseTitleMenu = Catalog.action('CloseTitleMenu', {
+  what: 'Closes the book’s menu',
+  why: 'To leave the book as it is',
+  enabled: (model: Model) =>
+    Option.isSome(model.maybeTitleMenu)
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'no book’s menu is open' }),
+  mutates: [at.maybeTitleMenu],
+  meta: { label: 'Close', keys: [], title: 'Close the book’s menu' },
 })
 
 /**
@@ -243,7 +276,7 @@ export const Listen = Catalog.action('Listen', {
   what: 'Plays this book from where it was last stopped',
   why: 'To hear this book',
   enabled: unlessAsking,
-  mutates: mutatedByPlayingTitle,
+  mutates: [...mutatedByPlayingTitle, at.maybeTitleMenu],
   triggers: savesAndReports,
   meta: { label: 'Play', keys: ['p'], title: 'Play title' },
 })
@@ -801,6 +834,8 @@ export const catalog = Catalog.make([
   ShowProfile,
   ShowReadAloud,
   Open,
+  ShowTitleMenu,
+  CloseTitleMenu,
   OpenPlayer,
   ShowContents,
   JumpToChapter,

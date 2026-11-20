@@ -1,4 +1,4 @@
-import { Duration, Effect, Layer, Option, Stream } from 'effect'
+import { Array, Duration, Effect, Layer, Option, Stream } from 'effect'
 import { ActionMenu, Runtime } from 'foldkit'
 import { AudioOutput, noTranscripts } from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
@@ -25,11 +25,7 @@ const idleResources = async () => {
       shelf: Stream.never,
       chapters: () => Stream.never,
       member: Stream.never,
-      savePlace: () => Effect.void,
-      saveFinished: () => Effect.void,
-      addBookmark: () => Effect.void,
-      setBookmarkNote: () => Effect.void,
-      removeBookmark: () => Effect.void,
+      write: () => Effect.void,
     }),
     Layer.succeed(AudioOutput, { sound: () => Stream.never }),
     noTranscripts,
@@ -38,6 +34,22 @@ const idleResources = async () => {
     noScribeTimeline,
   )
 }
+
+const waitTries = 200
+
+const waitStepMs = 10
+
+// NOTE: under a busy test run the shelf and the player arrive later than
+// any fixed pause allows for, so each step waits for what it needs.
+const waitedUntil = (isSo: () => boolean): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    for (const _ of Array.range(1, waitTries)) {
+      if (isSo()) {
+        return
+      }
+      yield* Effect.sleep(Duration.millis(waitStepMs))
+    }
+  })
 
 describe('Books force-close state restoration', () => {
   it('restores the warm shelf, chapters, open player screen, and paused player at 0 ms before network or LibraryStore answers', async () => {
@@ -62,12 +74,18 @@ describe('Books force-close state restoration', () => {
         Effect.gen(function* () {
           const runtime = yield* Runtime.start({
             program: SyncedBooks,
-            sync: Runtime.Memory({ processor: 'expo-ios-run-1', store: syncStore }),
+            sync: Runtime.Memory({
+              processor: 'expo-ios-run-1',
+              store: syncStore,
+            }),
             resources: liveResources,
             localSnapshot: snapshots,
           })
           yield* runtime.caughtUp
-          yield* Effect.sleep(Duration.millis(20))
+          yield* waitedUntil(() => {
+            const model = runtime.readModel()
+            return model._tag === 'Ready' && model.library._tag === 'ShelfReady'
+          })
           const handle = {
             readModel: () => runtime.readModel(),
             subscribe: runtime.observeModel,
@@ -78,7 +96,10 @@ describe('Books force-close state restoration', () => {
           }
           const bound = bindBooks(handle)
           bound.press(`Listen:${lanternKeeper}`)
-          yield* Effect.sleep(Duration.millis(20))
+          yield* waitedUntil(() => {
+            const model = runtime.readModel()
+            return model._tag === 'Ready' && model.listening._tag === 'Loaded'
+          })
           yield* runtime.run(ActionMenu.OpenedActionMenu())
           const beforeClose = runtime.readModel()
           expect(beforeClose._tag).toBe('Ready')
@@ -86,7 +107,9 @@ describe('Books force-close state restoration', () => {
             expect(beforeClose.library._tag).toBe('ShelfReady')
             expect(beforeClose.listening._tag).toBe('Loaded')
             if (beforeClose.listening._tag === 'Loaded') {
-              expect(beforeClose.listening.player.transport._tag).toBe('Playing')
+              expect(beforeClose.listening.player.transport._tag).toBe(
+                'Playing',
+              )
             }
           }
         }),
@@ -153,7 +176,10 @@ describe('Books force-close state restoration', () => {
         Effect.gen(function* () {
           const other = yield* Runtime.start({
             program: SyncedBooks,
-            sync: Runtime.Memory({ processor: 'react-web-other', store: syncStore }),
+            sync: Runtime.Memory({
+              processor: 'react-web-other',
+              store: syncStore,
+            }),
             resources: liveResources,
             localSnapshot: Runtime.LocalSnapshot.disabled,
           })
@@ -168,7 +194,10 @@ describe('Books force-close state restoration', () => {
         Effect.gen(function* () {
           const runtime = yield* Runtime.start({
             program: SyncedBooks,
-            sync: Runtime.Memory({ processor: 'expo-ios-run-3', store: syncStore }),
+            sync: Runtime.Memory({
+              processor: 'expo-ios-run-3',
+              store: syncStore,
+            }),
             resources: offlineResources,
             localSnapshot: snapshots,
           })

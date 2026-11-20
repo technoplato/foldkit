@@ -6,8 +6,10 @@ import {
   type ButtonNode,
   type IconName,
   type ItemCheck,
+  type ItemMenu,
   type ListItem,
   type ListNode,
+  type MenuAction,
   type PlacedBookmark,
   type ReferencePart,
   type SeekNode,
@@ -17,7 +19,6 @@ import {
   type TextPart,
   type TranscriptNode,
   type TranscriptPassage,
-  type TranscriptWordMenu,
   type UiNode,
   bookmarksInPassage,
   currentWordTokenAt,
@@ -36,7 +37,9 @@ import {
   type DragEvent,
   Fragment,
   type ReactElement,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  type PointerEvent as ReactPointerEvent,
   createContext,
   memo,
   useContext,
@@ -769,6 +772,12 @@ const followWord = (root: HTMLElement, word: HTMLElement): void => {
 const wordIn = (root: HTMLElement, token: string): HTMLElement | null =>
   root.querySelector<HTMLElement>(`[data-token="${CSS.escape(token)}"]`)
 
+const wordAnchorOf =
+  (root: () => HTMLElement | null, token: string) => (): Element | null => {
+    const container = root()
+    return container === null ? null : wordIn(container, token)
+  }
+
 const tokenOfTarget = (target: EventTarget | null): string | undefined =>
   target instanceof Element
     ? (target.closest('[data-token]')?.getAttribute('data-token') ?? undefined)
@@ -827,38 +836,119 @@ const menuEdgePx = 8
 type MenuPlace = Readonly<{ left: number; top: number }>
 
 /**
- * The menu the Program holds open on one word, drawn by that word: its
- * items as a menu, a press outside or Escape closing it. It draws only
- * what the Transcript carries and presses what a person picks; whether
- * it is open is the Program's.
+ * The handlers by which a person asks for a menu on part of an element:
+ * a secondary click, in place of the browser's own menu, or a long press
+ * with a finger or a pen. `askOf` says what asking does for the part
+ * under the pointer, or nothing where that part has no menu. A press that
+ * moves, or lifts early, asks for nothing, and the tap that ends a long
+ * press is swallowed, so it does not also press the part under the finger.
  */
-const WordMenu = ({
-  menu,
-  root,
+const useMenuAsk = (
+  askOf: (target: EventTarget | null) => (() => void) | undefined,
+) => {
+  const longPress = useRef<
+    | Readonly<{
+        timer: ReturnType<typeof setTimeout>
+        x: number
+        y: number
+      }>
+    | undefined
+  >(undefined)
+  const isClickSwallowed = useRef(false)
+  const endLongPress = (): void => {
+    if (longPress.current !== undefined) {
+      clearTimeout(longPress.current.timer)
+      longPress.current = undefined
+    }
+  }
+  return {
+    onContextMenu: (event: ReactMouseEvent<HTMLElement>): void => {
+      const ask = askOf(event.target)
+      if (ask !== undefined) {
+        event.preventDefault()
+        endLongPress()
+        ask()
+      }
+    },
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>): void => {
+      const ask = askOf(event.target)
+      if (ask === undefined || event.pointerType === 'mouse') {
+        return
+      }
+      endLongPress()
+      longPress.current = {
+        x: event.clientX,
+        y: event.clientY,
+        timer: setTimeout(() => {
+          longPress.current = undefined
+          isClickSwallowed.current = true
+          ask()
+        }, longPressMs),
+      }
+    },
+    onPointerMove: (event: ReactPointerEvent<HTMLElement>): void => {
+      const pressed = longPress.current
+      if (
+        pressed !== undefined &&
+        Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) >
+          longPressSlackPx
+      ) {
+        endLongPress()
+      }
+    },
+    onPointerUp: endLongPress,
+    onPointerCancel: endLongPress,
+    onClickCapture: (event: ReactMouseEvent<HTMLElement>): void => {
+      if (isClickSwallowed.current) {
+        isClickSwallowed.current = false
+        event.stopPropagation()
+        event.preventDefault()
+      }
+    },
+  }
+}
+
+/**
+ * A menu the Program holds open on one part of the page, such as a word
+ * or a list row, drawn by that part: its items as a menu, a press outside
+ * or Escape closing it. `anchor` finds the part and `anchorKey` names it,
+ * so the menu is placed again only when it opens on another part. It is
+ * named `label`, or else for the part's own words. It draws only what it
+ * is given and presses what a person picks; whether it is open is the
+ * Program's.
+ */
+const AnchoredMenu = ({
+  items,
+  dismissAction,
+  anchorKey,
+  anchor,
+  label,
   onPress,
 }: Readonly<{
-  menu: TranscriptWordMenu
-  root: () => HTMLElement | null
+  items: ReadonlyArray<MenuAction>
+  dismissAction: string
+  anchorKey: string
+  anchor: () => Element | null
+  label?: string | undefined
   onPress: (button: ButtonNode) => void
 }>): ReactElement => {
   const ref = useRef<HTMLDivElement>(null)
   const [place, setPlace] = useState<MenuPlace>({ left: 0, top: 0 })
-  const [wordText, setWordText] = useState('')
+  const [anchorText, setAnchorText] = useState('')
   const dismiss = (): void => {
-    onPress(pressOf(menu.dismissAction, 'Close'))
+    onPress(pressOf(dismissAction, 'Close'))
   }
   useLayoutEffect(() => {
-    const container = root()
-    const word = container === null ? null : wordIn(container, menu.token)
+    const part = anchor()
     const panel = ref.current
-    if (word === null || panel === null) {
+    if (part === null || panel === null) {
       return
     }
-    const bounds = word.getBoundingClientRect()
+    const bounds = part.getBoundingClientRect()
     const size = panel.getBoundingClientRect()
     const below = bounds.bottom + menuGapPx
     const fitsBelow = below + size.height <= window.innerHeight - menuEdgePx
-    setWordText(word.textContent?.trim() ?? '')
+    setAnchorText(part.textContent?.trim() ?? '')
     setPlace({
       left: Math.max(
         menuEdgePx,
@@ -868,33 +958,33 @@ const WordMenu = ({
         ? below
         : Math.max(menuEdgePx, bounds.top - menuGapPx - size.height),
     })
-    // NOTE: `root` is a stable reader of the transcript's element; the
-    // menu is placed again only when it opens on another word.
+    // NOTE: `anchor` is a stable reader of the page; the menu is placed
+    // again only when it opens on another part.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menu.token])
+  }, [anchorKey])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.stopPropagation()
-        onPress(pressOf(menu.dismissAction, 'Close'))
+        onPress(pressOf(dismissAction, 'Close'))
       }
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => {
       document.removeEventListener('keydown', onKeyDown, true)
     }
-  }, [menu.dismissAction, onPress])
+  }, [dismissAction, onPress])
   return (
     <>
       <div className="fk-word-menu-backdrop" aria-hidden onClick={dismiss} />
       <div
         ref={ref}
         role="menu"
-        aria-label={wordText}
+        aria-label={label ?? anchorText}
         className="fk-word-menu"
         style={{ left: place.left, top: place.top }}
       >
-        {Array.map(menu.items, item => (
+        {Array.map(items, item => (
           <button
             key={item.action}
             type="button"
@@ -944,15 +1034,6 @@ const TranscriptView = ({
   const leaveCheck = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   )
-  const longPress = useRef<
-    | Readonly<{
-        timer: ReturnType<typeof setTimeout>
-        x: number
-        y: number
-      }>
-    | undefined
-  >(undefined)
-  const isClickSwallowed = useRef(false)
   const maybeCurrentToken = Array.findFirst(
     Array.flatMap(transcript.passages, passage =>
       Array.fromNullishOr(currentTokenOf(passage)),
@@ -1045,17 +1126,14 @@ const TranscriptView = ({
     autoScrollUntilMs.current = Date.now() + autoScrollMs
     centerWord(root, word)
   }, [focusToken, isFocusWordHere])
-  const askForMenu = (token: string): void => {
-    if (wordMenuAction !== undefined) {
-      onPress(pressOf(`${wordMenuAction}:${token}`, 'Word menu'))
-    }
-  }
-  const endLongPress = (): void => {
-    if (longPress.current !== undefined) {
-      clearTimeout(longPress.current.timer)
-      longPress.current = undefined
-    }
-  }
+  const menuAsk = useMenuAsk(target => {
+    const token = tokenOfTarget(target)
+    return wordMenuAction === undefined || token === undefined
+      ? undefined
+      : () => {
+          onPress(pressOf(`${wordMenuAction}:${token}`, 'Word menu'))
+        }
+  })
   return (
     <>
       <section
@@ -1063,57 +1141,7 @@ const TranscriptView = ({
         className={className}
         aria-label={transcript.label}
         data-following={isFollowing ? undefined : 'false'}
-        onContextMenu={
-          wordMenuAction === undefined
-            ? undefined
-            : event => {
-                const token = tokenOfTarget(event.target)
-                if (token !== undefined) {
-                  event.preventDefault()
-                  endLongPress()
-                  askForMenu(token)
-                }
-              }
-        }
-        onPointerDown={
-          wordMenuAction === undefined
-            ? undefined
-            : event => {
-                const token = tokenOfTarget(event.target)
-                if (token === undefined || event.pointerType === 'mouse') {
-                  return
-                }
-                endLongPress()
-                longPress.current = {
-                  x: event.clientX,
-                  y: event.clientY,
-                  timer: setTimeout(() => {
-                    longPress.current = undefined
-                    isClickSwallowed.current = true
-                    askForMenu(token)
-                  }, longPressMs),
-                }
-              }
-        }
-        onPointerMove={event => {
-          const pressed = longPress.current
-          if (
-            pressed !== undefined &&
-            Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) >
-              longPressSlackPx
-          ) {
-            endLongPress()
-          }
-        }}
-        onPointerUp={endLongPress}
-        onPointerCancel={endLongPress}
-        onClickCapture={event => {
-          if (isClickSwallowed.current) {
-            isClickSwallowed.current = false
-            event.stopPropagation()
-            event.preventDefault()
-          }
-        }}
+        {...menuAsk}
       >
         {Array.match(entries, {
           onEmpty: () => (
@@ -1147,9 +1175,11 @@ const TranscriptView = ({
         })}
       </section>
       {transcript.wordMenu === undefined ? null : (
-        <WordMenu
-          menu={transcript.wordMenu}
-          root={() => ref.current}
+        <AnchoredMenu
+          items={transcript.wordMenu.items}
+          dismissAction={transcript.wordMenu.dismissAction}
+          anchorKey={transcript.wordMenu.token}
+          anchor={wordAnchorOf(() => ref.current, transcript.wordMenu.token)}
           onPress={onPress}
         />
       )}
@@ -1185,6 +1215,8 @@ const ListRow = ({
     <li
       ref={ref}
       className="fk-item"
+      data-key={item.key}
+      data-menu={item.menuAction === undefined ? undefined : true}
       data-current={isCurrent ? true : undefined}
       draggable={isDraggable ? true : undefined}
       onDragStart={
@@ -1337,6 +1369,94 @@ const ListRowView = memo(
     before.onPress === after.onPress &&
     before.onLink === after.onLink,
 )
+
+const rowIn = (root: HTMLElement, key: string): HTMLElement | null =>
+  root.querySelector<HTMLElement>(`.fk-item[data-key="${CSS.escape(key)}"]`)
+
+const rowKeyOfTarget = (target: EventTarget | null): string | undefined =>
+  target instanceof Element
+    ? (target.closest('.fk-item[data-key]')?.getAttribute('data-key') ??
+      undefined)
+    : undefined
+
+const menuLabelOf = (
+  items: ReadonlyArray<ListItem>,
+  menu: ItemMenu,
+): string | undefined =>
+  Option.getOrUndefined(
+    Option.map(
+      Array.findFirst(items, item => item.key === menu.key),
+      item => item.title,
+    ),
+  )
+
+/**
+ * The rows of a List. A secondary click or a long press on a row with a
+ * `menuAction` asks the Program for the row's menu, and the menu the
+ * Program holds is drawn by its row, named for the row's title.
+ */
+const RowsList = ({
+  list,
+  items,
+  className,
+  dropAttributes,
+  onPress,
+  children,
+}: Readonly<{
+  list: ListNode
+  items: ReadonlyArray<ListItem>
+  className: string
+  dropAttributes: Readonly<{
+    onDragOver?: (event: DragEvent<HTMLUListElement>) => void
+    onDrop?: (event: DragEvent<HTMLUListElement>) => void
+  }>
+  onPress: (button: ButtonNode) => void
+  children: ReactNode
+}>): ReactElement => {
+  const ref = useRef<HTMLUListElement>(null)
+  const menuAsk = useMenuAsk(target => {
+    const key = rowKeyOfTarget(target)
+    return Option.getOrUndefined(
+      Option.map(
+        Array.findFirst(
+          items,
+          item => item.key === key && item.menuAction !== undefined,
+        ),
+        item => () => {
+          if (item.menuAction !== undefined) {
+            onPress(pressOf(item.menuAction, item.title))
+          }
+        },
+      ),
+    )
+  })
+  const menu = list.menu
+  return (
+    <>
+      <ul
+        ref={ref}
+        className={className}
+        aria-label={list.label}
+        {...dropAttributes}
+        {...menuAsk}
+      >
+        {children}
+      </ul>
+      {menu === undefined ? null : (
+        <AnchoredMenu
+          items={menu.items}
+          dismissAction={menu.dismissAction}
+          anchorKey={menu.key}
+          anchor={() =>
+            ref.current === null ? null : rowIn(ref.current, menu.key)
+          }
+          label={menuLabelOf(list.items, menu)}
+          onPress={onPress}
+        />
+      )}
+    </>
+  )
+}
 
 const firstRowPressSelector = '.fk-item-press:not(:disabled)'
 
@@ -1526,10 +1646,12 @@ export const paintTree = (
     list: ListNode,
     items: ReadonlyArray<ListItem>,
   ): ReactElement => (
-    <ul
+    <RowsList
+      list={list}
+      items={items}
       className={classFor('List', 'fk-list')}
-      aria-label={list.label}
-      {...dropAttributes(list)}
+      dropAttributes={dropAttributes(list)}
+      onPress={handlers.onPress}
     >
       {Array.flatMap(groupedItemsOf(items), (section, index) => [
         ...(section.group === undefined
@@ -1555,7 +1677,7 @@ export const paintTree = (
           />
         )),
       ])}
-    </ul>
+    </RowsList>
   )
   const paintReference = (reference: ReferencePart): ReactElement => {
     const href = reference.href

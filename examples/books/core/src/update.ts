@@ -945,12 +945,25 @@ const spedTo = (model: Model, speed: Speed): UpdateReturn => {
   return [withoutModal(ended, isSpeedSheet), [...commands, ...reports]]
 }
 
+const withoutTitleMenu = (model: Model): Model =>
+  Option.isNone(model.maybeTitleMenu)
+    ? model
+    : { ...model, maybeTitleMenu: Option.none() }
+
 const updated = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
-      Open: ({ slug }) => [openedTitle(model, slug), []],
-      Listen: ({ slug }) => listened(model, slug, Option.none(), 'ShowsPlayer'),
+      Open: ({ slug }) => [openedTitle(withoutTitleMenu(model), slug), []],
+      ShowTitleMenu: ({ slug }) => [
+        Option.isSome(titleOf(model, slug))
+          ? { ...model, maybeTitleMenu: Option.some(slug) }
+          : model,
+        [],
+      ],
+      CloseTitleMenu: () => [withoutTitleMenu(model), []],
+      Listen: ({ slug }) =>
+        listened(withoutTitleMenu(model), slug, Option.none(), 'ShowsPlayer'),
       Play: message => playerUpdated(model, message),
       Pause: message => playerUpdated(model, message),
       SkipBack: message => playerUpdated(model, message),
@@ -1155,7 +1168,10 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       ShowAddBooks: () => [presentedAddBooks(model), []],
-      ImportFromAudible: () => [openedAudibleImport(model), []],
+      ImportFromAudible: () => [
+        openedAudibleImport(withoutTitleMenu(model)),
+        [],
+      ],
       ReconnectAudible: () => [reconnectedAudible(model), []],
       ConnectAudible: message => audibleUpdated(model, message),
       TryAudibleSignInAgain: message => audibleUpdated(model, message),

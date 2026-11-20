@@ -14,9 +14,11 @@ import {
 } from '../test/elements.js'
 import { paintRows } from './list.js'
 import { lightLook } from './look.js'
+import { MenuSheet } from './menuSheet.js'
 import type { Paint } from './paint.js'
 
 vi.mock('react-native', async () => (await import('../test/native.js')).native)
+vi.mock('react-native-svg', async () => (await import('../test/native.js')).svg)
 
 const paintWith = (
   pressed: Array<ButtonNode>,
@@ -136,5 +138,78 @@ describe('the rows of a list', () => {
       wordsOf(element).startsWith('The Tide'),
     )
     expect(styleOf(title)['color']).toBe(defaultTheme.Accent.light)
+  })
+})
+
+const shelf: ListNode = {
+  _tag: 'List',
+  label: 'No audio yet',
+  items: [
+    {
+      key: 'salt-road',
+      title: 'Salt Road',
+      action: 'Open:salt-road',
+      menuAction: 'ShowTitleMenu:salt-road',
+    },
+    { key: 'a-tin-comet', title: 'A Tin Comet', action: 'Open:a-tin-comet' },
+  ],
+}
+
+describe('the menu on a row', () => {
+  const rowNamed = (painted: ReturnType<typeof paintRows>, title: string) =>
+    firstOf(
+      hostsOf(painted, 'Pressable'),
+      element => propsOf(element)['accessibilityLabel'] === title,
+    )
+
+  it('asks the Program for the menu on a long press, and only on a row that has one', () => {
+    const pressed: Array<ButtonNode> = []
+    const painted = paintRows(
+      shelf,
+      shelf.items,
+      paintWith(pressed, []),
+      () => [],
+    )
+    callProp(rowNamed(painted, 'Salt Road'), 'onLongPress')
+    expect(Array.map(pressed, button => button.action)).toEqual([
+      'ShowTitleMenu:salt-road',
+    ])
+    expect(
+      propsOf(rowNamed(painted, 'A Tin Comet'))['onLongPress'],
+    ).toBeUndefined()
+  })
+
+  it('offers what the Program holds, presses what is picked, and closes through the Program', () => {
+    const pressed: Array<ButtonNode> = []
+    const sheet = MenuSheet({
+      heading: 'Salt Road',
+      dismissAction: 'CloseTitleMenu',
+      items: [
+        { action: 'Open:salt-road', label: 'Open', icon: 'Library' },
+        { action: 'ImportFromAudible', label: 'Get its audio from Audible' },
+      ],
+      paint: paintWith(pressed, []),
+    })
+    callProp(
+      firstOf(
+        hostsOf(sheet, 'Pressable'),
+        element =>
+          propsOf(element)['accessibilityLabel'] ===
+          'Get its audio from Audible',
+      ),
+      'onPress',
+    )
+    callProp(
+      firstOf(
+        hostsOf(sheet, 'Pressable'),
+        element => propsOf(element)['accessibilityLabel'] === 'Close',
+      ),
+      'onPress',
+    )
+    expect(Array.map(pressed, button => button.action)).toEqual([
+      'ImportFromAudible',
+      'CloseTitleMenu',
+    ])
+    expect(wordsOf(sheet)).toContain('Salt Road')
   })
 })

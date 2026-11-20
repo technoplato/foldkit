@@ -1,4 +1,4 @@
-import { Array } from 'effect'
+import { Array, Option } from 'effect'
 import {
   type ItemCheck,
   type ListItem,
@@ -21,6 +21,7 @@ import {
 import { useLaidOut } from '../telemetry/paintReporter.js'
 import { fieldStyleOf } from './field.js'
 import { percentOf } from './look.js'
+import { MenuSheetOverlay } from './menuSheet.js'
 import { type Paint, pressOf } from './paint.js'
 
 const rowPaddingY = 10
@@ -160,7 +161,8 @@ const titleOf = (item: ListItem, paint: Paint): ReactElement => {
  * One row of a List: a box to tick, a picture, the title with its mark
  * and badge, the lines under it, how far along it is, the columns at its
  * end, and its trailing buttons. Pressing the row presses its Action, or
- * follows its link.
+ * follows its link. A long press on a row with a `menuAction` asks the
+ * Program for the row's menu.
  */
 export const paintRow = (
   item: ListItem,
@@ -172,6 +174,7 @@ export const paintRow = (
   const { colors, sizes } = paint.look
   const action = item.action
   const href = item.href
+  const menuAction = item.menuAction
   return (
     <View
       key={item.key}
@@ -191,7 +194,16 @@ export const paintRow = (
         accessibilityLabel={item.title}
         accessibilityRole={href === undefined ? 'button' : 'link'}
         accessibilityState={{ selected: item.isCurrent === true }}
-        disabled={action === undefined && href === undefined}
+        disabled={
+          action === undefined && href === undefined && menuAction === undefined
+        }
+        onLongPress={
+          menuAction === undefined
+            ? undefined
+            : () => {
+                paint.onPress(pressOf(menuAction, item.title))
+              }
+        }
         onPress={() => {
           if (href !== undefined) {
             paint.onLink(href)
@@ -273,9 +285,19 @@ const PaintedRow = memo(
   }>): ReactElement => paintRow(item, paint, paintChildren),
 )
 
+const menuHeadingOf = (list: ListNode, key: string): string =>
+  Option.getOrElse(
+    Option.map(
+      Array.findFirst(list.items, item => item.key === key),
+      item => item.title,
+    ),
+    () => list.label,
+  )
+
 /**
  * The rows of a List, each group headed once by its name and how many
- * rows it has.
+ * rows it has, and the menu the Program holds open on one of them, as a
+ * sheet named for that row.
  */
 export const paintRows = (
   list: ListNode,
@@ -336,6 +358,14 @@ export const paintRows = (
           />
         )),
       ])}
+      {list.menu === undefined ? null : (
+        <MenuSheetOverlay
+          dismissAction={list.menu.dismissAction}
+          heading={menuHeadingOf(list, list.menu.key)}
+          items={list.menu.items}
+          paint={paint}
+        />
+      )}
     </View>
   )
 }

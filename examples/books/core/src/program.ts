@@ -67,6 +67,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       SeekToWord: () => 'Navigation',
       SkipForward: () => 'Navigation',
       Open: () => 'Navigation',
+      ShowTitleMenu: () => 'Navigation',
+      CloseTitleMenu: () => 'Navigation',
       OpenPlayer: () => 'Navigation',
       ShowContents: () => 'Navigation',
       JumpToChapter: () => 'Navigation',
@@ -143,8 +145,9 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
  * never leaves; the look, as the integration branch already kept it;
  * what one person is looking at in the reader, the search,
  * its matches, and whether the words follow the playhead, so a search on
- * a phone never moves the words on a desk; and copying a link, which
- * goes to this device's clipboard.
+ * a phone never moves the words on a desk; a book's menu on the shelf,
+ * so a long press on a phone opens nothing on a desk; and copying a link,
+ * which goes to this device's clipboard.
  *
  * @example
  * ```typescript
@@ -158,6 +161,8 @@ export const isLocalOnlyMessage = (message: Message): boolean =>
   Theme.isMessage(message) ||
   TranscriptPlayer.isViewMessage(message) ||
   message._tag === 'CopyWordLink' ||
+  message._tag === 'ShowTitleMenu' ||
+  message._tag === 'CloseTitleMenu' ||
   isBookmarkEdit(message)
 
 /**
@@ -198,6 +203,7 @@ export const BooksProgram = Program.make({
       previewChecks: current.previewChecks,
       audible: current.audible,
       maybeRemovedBookmark: current.maybeRemovedBookmark,
+      maybeTitleMenu: current.maybeTitleMenu,
       appearance: current.appearance,
     }),
     projectLocal: model => ({
@@ -215,6 +221,7 @@ export const BooksProgram = Program.make({
           : model.listening,
       maybeNotice: Option.none(),
       maybeRemovedBookmark: Option.none(),
+      maybeTitleMenu: Option.none(),
     }),
   },
 })

@@ -36,6 +36,7 @@ export const init = (): readonly [
     appearance: initialAppearance,
     navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
     maybeRemovedBookmark: Option.none(),
+    maybeTitleMenu: Option.none(),
   },
   [],
 ]

@@ -41,6 +41,7 @@ import {
   ShowProfile,
   ShowReadAloud,
   ShowSpeeds,
+  ShowTitleMenu,
   ShowWordMenu,
   type catalog,
 } from './message.js'
@@ -132,6 +133,9 @@ const onLibrary = Array.reduce(
 
 /** On one title's page, nothing in the player. */
 const onTitle = after(onLibrary, Open({ slug: lanternKeeper }))
+
+/** One book's menu open on the shelf. */
+const withTitleMenu = after(onLibrary, ShowTitleMenu({ slug: lanternKeeper }))
 
 /** The title's page with its chapters beside it. */
 const withContents = after(onTitle, ShowContents())
@@ -423,6 +427,7 @@ const pictureBookShared = after(onPictureBook, SharedLink({ how: 'Copied' }))
 export const sampleModels: ReadonlyArray<Model> = [
   waiting,
   onLibrary,
+  withTitleMenu,
   onTitle,
   withContents,
   withBookmarks,

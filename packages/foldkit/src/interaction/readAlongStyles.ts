@@ -205,7 +205,7 @@ export const readAlongStylesOf = (look: ScreenLook): string => `
 }
 
 @media (pointer: coarse) {
-  :where(.fk-word) {
+  :where(.fk-word, .fk-item[data-menu] .fk-item-press) {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;

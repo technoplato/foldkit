@@ -33,8 +33,8 @@ import {
 } from 'react-native'
 
 import { useLaidOut } from '../telemetry/paintReporter.js'
-import { Icon } from './icon.js'
 import { groundStyleOf } from './look.js'
+import { MenuSheet } from './menuSheet.js'
 import { type Paint, pressOf } from './paint.js'
 import { ScreenOverlayContext, ScreenScrollContext } from './scroll.js'
 import {
@@ -391,82 +391,16 @@ export const WordMenuSheet = ({
   menu: TranscriptWordMenu
   wordText: string
   paint: Paint
-}>): ReactElement => {
-  const { colors, sizes } = paint.look
-  const dismiss = (): void => {
-    paint.onPress(pressOf(menu.dismissAction, 'Close'))
-  }
-  return (
-    <View
-      accessibilityViewIsModal
-      style={{ flex: 1, justifyContent: 'flex-end' }}
-    >
-      <Pressable
-        accessibilityLabel="Close"
-        accessibilityRole="button"
-        onPress={dismiss}
-        style={{
-          backgroundColor: colors.Scrim,
-          bottom: 0,
-          left: 0,
-          position: 'absolute',
-          right: 0,
-          top: 0,
-        }}
-      />
-      <View
-        accessibilityLabel={wordText}
-        accessibilityRole="menu"
-        style={{
-          backgroundColor: colors.RaisedSurface,
-          borderTopLeftRadius: 18,
-          borderTopRightRadius: 18,
-          gap: 2,
-          paddingBottom: 34,
-          paddingHorizontal: 12,
-          paddingTop: 14,
-        }}
-      >
-        <Text
-          style={{
-            color: colors.QuietText,
-            fontFamily: readingFamily,
-            fontSize: 17,
-            paddingBottom: 8,
-            paddingHorizontal: 10,
-          }}
-        >
-          {`“${wordText}”`}
-        </Text>
-        {Array.map(menu.items, item => (
-          <Pressable
-            key={item.action}
-            accessibilityLabel={item.label}
-            accessibilityRole="menuitem"
-            onPress={() => {
-              paint.onPress(pressOf(item.action, item.label))
-            }}
-            style={{
-              alignItems: 'center',
-              borderRadius: 10,
-              flexDirection: 'row',
-              gap: 12,
-              minHeight: sizes.buttonHeight,
-              paddingHorizontal: 10,
-            }}
-          >
-            {item.icon === undefined ? null : (
-              <Icon color={colors.QuietText} name={item.icon} size={20} />
-            )}
-            <Text style={{ color: colors.Text, fontSize: sizes.bodySize }}>
-              {item.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  )
-}
+}>): ReactElement =>
+  MenuSheet({
+    heading: `“${wordText}”`,
+    ...(readingFamily === undefined
+      ? {}
+      : { headingStyle: { fontFamily: readingFamily } }),
+    items: menu.items,
+    dismissAction: menu.dismissAction,
+    paint,
+  })
 
 // LIVE
 

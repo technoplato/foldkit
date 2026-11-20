@@ -289,14 +289,18 @@ export type TranscriptWord = Readonly<{
 }>
 
 /**
- * One thing a word's menu offers: its words, the press it sends, such as
- * `CopyWordLink:w4012`, and an icon where a painter shows one.
+ * One thing a menu offers: its words, the press it sends, such as
+ * `CopyWordLink:w4012` on a word or `Listen:a-tin-comet` on a list row,
+ * and an icon where a painter shows one.
  */
-export type TranscriptWordAction = Readonly<{
+export type MenuAction = Readonly<{
   readonly action: string
   readonly label: string
   readonly icon?: IconName
 }>
+
+/** One thing a word's menu offers, such as `CopyWordLink:w4012`. */
+export type TranscriptWordAction = MenuAction
 
 /**
  * The menu open on one word of a Transcript: the word's token, what the
@@ -460,6 +464,19 @@ export type ItemBadge = Readonly<{
 }>
 
 /**
+ * The menu open on one row of a List: the row's `key`, what the menu
+ * offers, and the press that closes it, `CloseTitleMenu`. Whether a menu
+ * is open, and on which row, is the Program's state: a painter draws the
+ * menu by that row, or as a sheet on a phone, and presses what a person
+ * picks.
+ */
+export type ItemMenu = Readonly<{
+  readonly key: string
+  readonly items: ReadonlyArray<MenuAction>
+  readonly dismissAction: string
+}>
+
+/**
  * One row of a List: a box to tick, a picture, a title, the lines under
  * it, how far along it is, the press the whole row sends, and buttons at
  * its end. `key` is the row's stable identity, such as the book's slug.
@@ -475,7 +492,10 @@ export type ItemBadge = Readonly<{
  * `groupedItemsOf` says. `badge` is a short count after the title, such as
  * the bookmarks in a chapter. `titleMark` names the part of the title to
  * set apart, from the character at `start` up to `end`, such as the words
- * a search found.
+ * a search found. `menuAction` is what a painter presses when a person asks
+ * for the row's menu, with a long press or a secondary click:
+ * `ShowTitleMenu:a-tin-comet`. A terminal has neither, so everything a
+ * row's menu offers needs another way in, such as the row's own page.
  */
 export type ListItem = Readonly<{
   readonly key: string
@@ -493,6 +513,7 @@ export type ListItem = Readonly<{
   readonly image?: ItemImage
   readonly progress?: Readonly<{ readonly value: number; readonly max: number }>
   readonly action?: string
+  readonly menuAction?: string
   readonly isCurrent?: boolean
   readonly isDraggable?: boolean
   readonly focused?: boolean
@@ -526,7 +547,8 @@ export type ListFilter = Readonly<{
  * A painter without a pointer has no drop, so every move a drop makes needs
  * another way in, such as a key. `columns` names each of the rows'
  * `columns` in order, `['Starts', 'Length']`. With `filter`, a painter that
- * takes typing offers a field over the list that narrows its rows.
+ * takes typing offers a field over the list that narrows its rows. `menu`
+ * is the menu while one is open on one of the rows.
  */
 export type ListNode = Readonly<{
   readonly _tag: 'List'
@@ -535,6 +557,7 @@ export type ListNode = Readonly<{
   readonly dropAction?: string
   readonly columns?: ReadonlyArray<string>
   readonly filter?: ListFilter
+  readonly menu?: ItemMenu
 }>
 
 /** Device chrome around a product tree. The shell does not own product buttons. */

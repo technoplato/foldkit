@@ -97,7 +97,12 @@ export const ImportFromAudible = Catalog.action('ImportFromAudible', {
     isOnHome(model)
       ? unlessAsking(model)
       : Catalog.Disabled({ because: 'open the library or the profile first' }),
-  mutates: [at.audible.titles, at.navigation.pages, at.navigation.maybeModal],
+  mutates: [
+    at.audible.titles,
+    at.navigation.pages,
+    at.navigation.maybeModal,
+    at.maybeTitleMenu,
+  ],
   meta: {
     label: 'Import from Audible',
     keys: [],

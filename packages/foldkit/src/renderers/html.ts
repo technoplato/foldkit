@@ -17,7 +17,9 @@ import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
 import {
   againEventName,
+  itemMenuMount,
   leftPlayheadEventName,
+  listMount,
   seekFieldMount,
   textAgainMount,
   transcriptMount,
@@ -28,7 +30,14 @@ import { resolveLazyNode } from './lazy.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import { submittedTagOf } from './textInput.js'
 import { transcriptEntriesOf } from './transcriptEntries.js'
-import type { BoxNode, TextPart, TranscriptNode, UiNode } from './types.js'
+import type {
+  BoxNode,
+  ListNode,
+  MenuAction,
+  TextPart,
+  TranscriptNode,
+  UiNode,
+} from './types.js'
 
 const browserKeyPlatform = (): KeyPlatform =>
   typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
@@ -60,6 +69,40 @@ export const paintHtml = <Message>(
         ]
   }
 
+  const paintMenuItems = (items: ReadonlyArray<MenuAction>): Array<Html> =>
+    Array.map(items, item => {
+      const message = toMessage(item.action)
+      return h.button(
+        [
+          h.Type('button'),
+          h.Role('menuitem'),
+          h.Class('fk-word-menu-item'),
+          ...(message === undefined ? [] : [h.OnClick(message)]),
+        ],
+        [
+          ...(item.icon === undefined
+            ? []
+            : [
+                h.span(
+                  [h.Class('fk-icon'), h.AriaHidden(true)],
+                  [iconGlyphs[item.icon]],
+                ),
+              ]),
+          item.label,
+        ],
+      )
+    })
+
+  const paintMenuBackdrop = (dismiss: Message | undefined): Html =>
+    h.div(
+      [
+        h.Class('fk-word-menu-backdrop'),
+        h.AriaHidden(true),
+        ...(dismiss === undefined ? [] : [h.OnClick(dismiss)]),
+      ],
+      [],
+    )
+
   // NOTE: the menu a Program holds open on one word. The view draws its
   // items and a backdrop that closes it; the edge puts it by its word and
   // reports Escape. Whether it is open is the Program's.
@@ -70,14 +113,7 @@ export const paintHtml = <Message>(
     }
     const dismiss = toMessage(menu.dismissAction)
     return [
-      h.div(
-        [
-          h.Class('fk-word-menu-backdrop'),
-          h.AriaHidden(true),
-          ...(dismiss === undefined ? [] : [h.OnClick(dismiss)]),
-        ],
-        [],
-      ),
+      paintMenuBackdrop(dismiss),
       h.div(
         [
           h.Class('fk-word-menu'),
@@ -86,28 +122,43 @@ export const paintHtml = <Message>(
             ? []
             : [h.OnMount(wordMenuMount<Message>(menu.token, dismiss))]),
         ],
-        Array.map(menu.items, item => {
-          const message = toMessage(item.action)
-          return h.button(
+        paintMenuItems(menu.items),
+      ),
+    ]
+  }
+
+  // NOTE: the menu a Program holds open on one row of a List, drawn as the
+  // word's is and held in a row of its own, so the list stays a list. The
+  // edge puts it by its row and reports Escape.
+  const paintItemMenu = (list: ListNode): ReadonlyArray<Html> => {
+    const menu = list.menu
+    if (menu === undefined) {
+      return []
+    }
+    const dismiss = toMessage(menu.dismissAction)
+    const maybeTitle = Array.findFirst(
+      list.items,
+      item => item.key === menu.key,
+    )
+    return [
+      h.li(
+        [h.Class('fk-item-menu-host'), h.Role('presentation')],
+        [
+          paintMenuBackdrop(dismiss),
+          h.div(
             [
-              h.Type('button'),
-              h.Role('menuitem'),
-              h.Class('fk-word-menu-item'),
-              ...(message === undefined ? [] : [h.OnClick(message)]),
-            ],
-            [
-              ...(item.icon === undefined
+              h.Class('fk-word-menu'),
+              h.Role('menu'),
+              ...Array.map(Array.fromOption(maybeTitle), item =>
+                h.AriaLabel(item.title),
+              ),
+              ...(dismiss === undefined
                 ? []
-                : [
-                    h.span(
-                      [h.Class('fk-icon'), h.AriaHidden(true)],
-                      [iconGlyphs[item.icon]],
-                    ),
-                  ]),
-              item.label,
+                : [h.OnMount(itemMenuMount<Message>(menu.key, dismiss))]),
             ],
-          )
-        }),
+            paintMenuItems(menu.items),
+          ),
+        ],
       ),
     ]
   }
@@ -368,109 +419,129 @@ export const paintHtml = <Message>(
           ),
         List: list =>
           h.ul(
-            [h.Class('fk-list'), h.AriaLabel(list.label)],
-            Array.map(list.items, item => {
-              const message =
-                item.action === undefined ? undefined : toMessage(item.action)
-              const pressAttributes =
-                item.href === undefined
-                  ? [
-                      h.Type('button'),
-                      h.Class('fk-item-press'),
-                      ...(message === undefined
-                        ? [h.Disabled(true)]
-                        : [h.OnClick(message)]),
-                    ]
-                  : [h.Class('fk-item-press'), h.Href(item.href)]
-              const press = item.href === undefined ? h.button : h.a
-              return h.li(
-                [
-                  h.Class('fk-item'),
-                  ...(item.isCurrent === true
-                    ? [h.DataAttribute('current', 'true')]
-                    : []),
-                ],
-                [
-                  ...Array.map(Array.fromNullishOr(item.check), check => {
-                    const checkMessage =
-                      check.action === undefined
-                        ? undefined
-                        : toMessage(check.action)
-                    return h.button(
-                      [
+            [
+              h.Class('fk-list'),
+              h.AriaLabel(list.label),
+              ...(Array.some(list.items, item => item.menuAction !== undefined)
+                ? [h.OnMount(listMount<Message>())]
+                : []),
+            ],
+            [
+              ...Array.map(list.items, item => {
+                const message =
+                  item.action === undefined ? undefined : toMessage(item.action)
+                const menuMessage =
+                  item.menuAction === undefined
+                    ? undefined
+                    : toMessage(item.menuAction)
+                const pressAttributes =
+                  item.href === undefined
+                    ? [
                         h.Type('button'),
-                        h.Class('fk-item-check'),
-                        h.Role('checkbox'),
-                        h.AriaChecked(check.isChecked),
-                        h.AriaLabel(check.label),
-                        ...(check.isChecked
-                          ? [h.DataAttribute('checked', 'true')]
-                          : []),
-                        ...(checkMessage === undefined
+                        h.Class('fk-item-press'),
+                        ...(message === undefined
                           ? [h.Disabled(true)]
-                          : [h.OnClick(checkMessage)]),
-                      ],
-                      [],
-                    )
-                  }),
-                  press(pressAttributes, [
-                    ...(item.image === undefined
+                          : [h.OnClick(message)]),
+                      ]
+                    : [h.Class('fk-item-press'), h.Href(item.href)]
+                const press = item.href === undefined ? h.button : h.a
+                return h.li(
+                  [
+                    h.Class('fk-item'),
+                    h.DataAttribute('key', item.key),
+                    ...(item.isCurrent === true
+                      ? [h.DataAttribute('current', 'true')]
+                      : []),
+                    ...(menuMessage === undefined
                       ? []
                       : [
-                          h.img([
-                            h.Class('fk-item-image'),
-                            h.Src(item.image.src),
-                            h.Alt(item.image.alt),
-                            h.Width(item.image.width.toString()),
-                            h.Height(item.image.height.toString()),
-                          ]),
+                          h.DataAttribute('menu', 'true'),
+                          h.OnContextMenu(menuMessage),
                         ]),
-                    h.span(
-                      [h.Class('fk-item-body')],
-                      [
-                        h.span(
-                          [h.Class('fk-item-title')],
-                          item.titleMark === undefined
-                            ? [item.title]
-                            : [
-                                item.title.slice(0, item.titleMark.start),
-                                h.mark(
-                                  [h.Class('fk-item-mark')],
-                                  [
-                                    item.title.slice(
-                                      item.titleMark.start,
-                                      item.titleMark.end,
-                                    ),
-                                  ],
-                                ),
-                                item.title.slice(item.titleMark.end),
-                              ],
-                        ),
-                        ...Array.map(item.lines ?? [], line =>
-                          h.span([h.Class('fk-item-line')], [line]),
-                        ),
-                        ...(item.progress === undefined
-                          ? []
-                          : [
-                              h.progress(
-                                [
-                                  h.Class('fk-progress'),
-                                  h.Max(item.progress.max.toString()),
-                                  h.Value(item.progress.value.toString()),
-                                ],
-                                [],
-                              ),
+                  ],
+                  [
+                    ...Array.map(Array.fromNullishOr(item.check), check => {
+                      const checkMessage =
+                        check.action === undefined
+                          ? undefined
+                          : toMessage(check.action)
+                      return h.button(
+                        [
+                          h.Type('button'),
+                          h.Class('fk-item-check'),
+                          h.Role('checkbox'),
+                          h.AriaChecked(check.isChecked),
+                          h.AriaLabel(check.label),
+                          ...(check.isChecked
+                            ? [h.DataAttribute('checked', 'true')]
+                            : []),
+                          ...(checkMessage === undefined
+                            ? [h.Disabled(true)]
+                            : [h.OnClick(checkMessage)]),
+                        ],
+                        [],
+                      )
+                    }),
+                    press(pressAttributes, [
+                      ...(item.image === undefined
+                        ? []
+                        : [
+                            h.img([
+                              h.Class('fk-item-image'),
+                              h.Src(item.image.src),
+                              h.Alt(item.image.alt),
+                              h.Width(item.image.width.toString()),
+                              h.Height(item.image.height.toString()),
                             ]),
-                      ],
-                    ),
-                    ...Array.map(item.columns ?? [], column =>
-                      h.span([h.Class('fk-item-column')], [column]),
-                    ),
-                  ]),
-                  ...Array.map(item.trailing ?? [], paint),
-                ],
-              )
-            }),
+                          ]),
+                      h.span(
+                        [h.Class('fk-item-body')],
+                        [
+                          h.span(
+                            [h.Class('fk-item-title')],
+                            item.titleMark === undefined
+                              ? [item.title]
+                              : [
+                                  item.title.slice(0, item.titleMark.start),
+                                  h.mark(
+                                    [h.Class('fk-item-mark')],
+                                    [
+                                      item.title.slice(
+                                        item.titleMark.start,
+                                        item.titleMark.end,
+                                      ),
+                                    ],
+                                  ),
+                                  item.title.slice(item.titleMark.end),
+                                ],
+                          ),
+                          ...Array.map(item.lines ?? [], line =>
+                            h.span([h.Class('fk-item-line')], [line]),
+                          ),
+                          ...(item.progress === undefined
+                            ? []
+                            : [
+                                h.progress(
+                                  [
+                                    h.Class('fk-progress'),
+                                    h.Max(item.progress.max.toString()),
+                                    h.Value(item.progress.value.toString()),
+                                  ],
+                                  [],
+                                ),
+                              ]),
+                        ],
+                      ),
+                      ...Array.map(item.columns ?? [], column =>
+                        h.span([h.Class('fk-item-column')], [column]),
+                      ),
+                    ]),
+                    ...Array.map(item.trailing ?? [], paint),
+                  ],
+                )
+              }),
+              ...paintItemMenu(list),
+            ],
           ),
         Seek: seek => {
           const messageAt = (value: string): Message => {
