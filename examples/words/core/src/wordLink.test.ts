@@ -1,4 +1,5 @@
 import { Array, Option } from 'effect'
+import { transcriptAt } from 'foldkit/renderers'
 import { fromString } from 'foldkit/url'
 import { describe, expect, it } from 'vitest'
 
@@ -22,7 +23,8 @@ import {
   OpenedWordMenu,
 } from './message.js'
 import type { Model } from './model.js'
-import { playbackClockOf, spokenAt } from './playbackClock.js'
+import { readAlongPlaybackOf } from './playbackClock.js'
+import { readerOf } from './reader.js'
 import { type RecordingDetail, type Section, StoredAudio } from './recording.js'
 import { modelForRoute, update, wordMenuOf } from './update.js'
 
@@ -151,19 +153,17 @@ describe('a link to one word', () => {
       onSome: urlToScribeRoute,
     })
     const model = opened(reopened)
-    const ready =
-      model.playback._tag === 'ReadyPlayback' ? model.playback : undefined
-    expect(ready).toBeDefined()
-    const place = ready === undefined ? 0 : playbackClockOf(ready).placeSeconds
-    expect(
-      spokenAt(
-        Array.map(sections, section => ({
-          startSeconds: section.startSeconds,
-          wordStarts: Array.map(section.words, word => word.startSeconds),
-        })),
-        place,
-      ),
-    ).toEqual({ maybeSection: Option.some(1), maybeWord: Option.some(1) })
+    if (model.playback._tag !== 'ReadyPlayback') {
+      throw new Error(`Expected ReadyPlayback, got ${model.playback._tag}`)
+    }
+    const reader = readerOf(model.playback, readAlongPlaybackOf(model.playback))
+    const marked = Array.findFirst(
+      Array.flatMap(transcriptAt(reader, 0).passages, passage => passage.words),
+      word => word.isCurrent === true,
+    )
+    expect(Option.map(marked, word => word.token)).toEqual(
+      Option.some('word-1-1'),
+    )
   })
 
   it('is copied with a word saying so', () => {
@@ -228,7 +228,7 @@ describe('the word link from a section’s menu, for a phone', () => {
   it('links to the word being spoken when the voice is in that section', () => {
     const speaking = update(
       onRecording(),
-      HeardAudioPosition({ seconds: 7.4 }),
+      HeardAudioPosition({ seconds: 7.4, wallClockMs: 0 }),
     )[0]
     expect(copiedFrom(speaking, out.id)).toContain('t=7.257')
     expect(copiedFrom(speaking, out.id)).toContain('Copied link to this word')
@@ -237,7 +237,7 @@ describe('the word link from a section’s menu, for a phone', () => {
   it('links to the section’s first word when the voice is elsewhere', () => {
     const speaking = update(
       onRecording(),
-      HeardAudioPosition({ seconds: 2.5 }),
+      HeardAudioPosition({ seconds: 2.5, wallClockMs: 0 }),
     )[0]
     expect(copiedFrom(speaking, out.id)).toContain('t=7"')
   })

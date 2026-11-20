@@ -162,7 +162,12 @@ const eventsOf = (element: HTMLAudioElement): Stream.Stream<AudioPlayerEvent> =>
         // between reports by reading on from the playback clock at the
         // edge, so it is not told the place on every timeupdate.
         const emitPosition = () => {
-          emit(HeardAudioPosition({ seconds: element.currentTime }))
+          emit(
+            HeardAudioPosition({
+              seconds: element.currentTime,
+              wallClockMs: Date.now(),
+            }),
+          )
         }
         const emitDuration = () => {
           if (Number.isFinite(element.duration)) {

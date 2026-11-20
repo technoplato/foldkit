@@ -11,7 +11,7 @@ import { CompressedCopy } from './compressedCopy.js'
 import { Shortcut } from './keyboard.js'
 import { ScribeAppScheme } from './link.js'
 import { ListEdge, RecordingWindow } from './listWindow.js'
-import { CopyNotice, IdentityState, PlayheadVisibility } from './model.js'
+import { CopyNotice, IdentityState } from './model.js'
 import { Connectivity } from './network.js'
 import * as Questions from './questions/message.js'
 import { LiveBeat, RecordingDetail, RecordingSummary } from './recording.js'
@@ -148,9 +148,14 @@ export const ReleasedAudioPlayer = m('ReleasedAudioPlayer')
 export const FailedAcquireAudioPlayer = m('FailedAcquireAudioPlayer', {
   reason: S.String,
 })
-/** The audio player reported its position. */
+/**
+ * The audio player reported its position, at a moment by the wall clock:
+ * `seconds` into the recording at `wallClockMs` since 1970, so a painter
+ * reads on from the report to the word being spoken now.
+ */
 export const HeardAudioPosition = m('HeardAudioPosition', {
   seconds: S.Number,
+  wallClockMs: S.Number,
 })
 /** The audio player learned the audio's length. */
 export const HeardAudioDuration = m('HeardAudioDuration', {
@@ -203,9 +208,9 @@ export type ScrubberArrow = typeof ScrubberArrow.Type
 export const PressedScrubberArrow = m('PressedScrubberArrow', {
   arrow: ScrubberArrow,
 })
-/** The listener scrolled the transcript away from the playhead or the newest line. */
+/** The listener scrolled the word being spoken, or while recording the newest word, out of the middle of the view. */
 export const ScrolledTranscriptAway = m('ScrolledTranscriptAway')
-/** The listener asked to return to the playhead, or to the newest line while recording. */
+/** The listener asked to return to the playhead, or to the newest word while recording. */
 export const ClickedReturnToPlayhead = m('ClickedReturnToPlayhead')
 /** The transcript scrolled a section into view. */
 export const CompletedScrollToSection = m('CompletedScrollToSection')
@@ -213,11 +218,6 @@ export const CompletedScrollToSection = m('CompletedScrollToSection')
 export const CompletedScrollToRecordingTitle = m(
   'CompletedScrollToRecordingTitle',
 )
-/** The followed section came on screen or left it, as the listener scrolled or the transcript grew. */
-export const ChangedPlayheadVisibility = m('ChangedPlayheadVisibility', {
-  sectionID: S.String,
-  visibility: PlayheadVisibility,
-})
 /** The listener closed the player that kept a recording playing while browsing. */
 export const ClickedCloseMiniPlayer = m('ClickedCloseMiniPlayer')
 /** The listener chose Full Screen for the open recording. */
@@ -428,7 +428,6 @@ export const Message = S.Union([
   ClickedReturnToPlayhead,
   CompletedScrollToSection,
   CompletedScrollToRecordingTitle,
-  ChangedPlayheadVisibility,
   ClickedSkipToPlayer,
   CompletedFocusPlayer,
   ClickedSkipToContent,

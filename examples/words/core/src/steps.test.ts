@@ -76,7 +76,7 @@ const at = (seconds: number): Model =>
       }),
       ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio' } }),
       AcquiredAudioPlayer(),
-      HeardAudioPosition({ seconds }),
+      HeardAudioPosition({ seconds, wallClockMs: 0 }),
     ],
     modelForRoute(RecordingRoute({ recordingID })),
     (model: Model, message: Message) => update(model, message)[0],

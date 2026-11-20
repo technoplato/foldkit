@@ -7,7 +7,6 @@ import {
   Option,
   Queue,
   Stream,
-  String,
   pipe,
 } from 'effect'
 import { Program, Runtime, Subscription } from 'foldkit'
@@ -19,6 +18,7 @@ import {
   AcquiredAudioPlayer,
   type AudioPlayerService,
   Capture,
+  ChangedFindQuery,
   ClickedPlay,
   HeardAudioPaused,
   HeardAudioPlaying,
@@ -35,6 +35,7 @@ import {
   SectionRoute,
   Share,
   SignedIn,
+  SteppedFind,
   StoredAudio,
   UploadingAudio,
   makeStaticWordsResources,
@@ -59,16 +60,19 @@ const WINDOW_WIDTH_PX = 1200
 const ROOT_FONT_PX = 16
 const TRANSCRIPT_TOP_PX = 300
 const LINE_HEIGHT_PX = 100
-const CHARACTERS_PER_LINE = 60
+const CHARACTERS_PER_LINE = 30
 const FRAME_MS = 20
 const SETTLE_ROUNDS = 12
+const WALL_CLOCK_MS = 1_795_200_000_000
 
-const TOP_BAR_PX = 64
-const BOTTOM_CONTROLS_PX = 168
 const LANDING_TOP_PX = 72
 const LANDING_BOTTOM_PX = 192
-const BOTTOM_EDGE_PX = WINDOW_HEIGHT_PX - LANDING_BOTTOM_PX
-const MIDDLE_PX = (LANDING_TOP_PX + BOTTOM_EDGE_PX) / 2
+const MIDDLE_PX = (LANDING_TOP_PX + WINDOW_HEIGHT_PX - LANDING_BOTTOM_PX) / 2
+const MIDDLE_HALF_TOP_PX = WINDOW_HEIGHT_PX * 0.25
+const MIDDLE_HALF_BOTTOM_PX = WINDOW_HEIGHT_PX * 0.75
+
+const LEAVE_CHECK_MS = 250
+const QUIET_MS = 1000
 
 const stylesheet = readFileSync(
   path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'styles.css'),
@@ -89,28 +93,18 @@ type Move = Readonly<{ top: number; behavior: string }>
 
 type Frame = Readonly<{ id: number; run: FrameRequestCallback }>
 
-type Sighting = Readonly<{ isIntersecting: boolean; target: Element }>
-
-type Watcher = {
-  report: (sightings: ReadonlyArray<Sighting>) => void
-  topInsetPx: number
-  bottomInsetPx: number
-  targets: ReadonlyArray<Element>
-  reported: ReadonlyArray<Sighting>
-}
-
 // NOTE: the window these tests look through. happy-dom lays nothing out, so
-// the tests say where each passage is (one line of 100 px for every 60
-// characters, below 300 px of title), keep the scroll position, run
-// animation frames by hand at a time they choose, and answer every
-// IntersectionObserver that watches the window with pixel margins from the
-// same rectangles, once a frame.
+// the tests say where each word is: a passage's words run 30 characters to
+// a line of 100 px, the passages stack below 300 px of title, and a word's
+// rectangle is its line. The tests keep the scroll position, run animation
+// frames by hand, and say what time it is: `Date.now()` reads
+// `WALL_CLOCK_MS + nowMs`. Only the quarter second the shared rule waits
+// before it looks for the spoken word is waited for in real time.
 const fakeWindow: {
   nowMs: number
   frameCount: number
   frames: ReadonlyArray<Frame>
   moves: ReadonlyArray<Move>
-  watchers: ReadonlyArray<Watcher>
   isMotionReduced: boolean
   pages: ReadonlyArray<Readonly<{ close: () => Promise<void> }>>
 } = {
@@ -118,16 +112,25 @@ const fakeWindow: {
   frameCount: 0,
   frames: [],
   moves: [],
-  watchers: [],
   isMotionReduced: false,
   pages: [],
 }
 
-const passageHeightOf = (passage: Element): number => {
-  const text = passage.textContent ?? ''
-  return (
-    Math.max(1, Math.ceil(text.length / CHARACTERS_PER_LINE)) * LINE_HEIGHT_PX
-  )
+const wordsOf = (passage: Element): ReadonlyArray<Element> =>
+  Array.fromIterable(passage.querySelectorAll('.fk-word'))
+
+const lengthOf = (element: Element): number => {
+  const text = element.textContent ?? ''
+  return text.length
+}
+
+const lineCountOf = (passage: Element): number => {
+  const letters = Array.match(wordsOf(passage), {
+    onEmpty: () => lengthOf(passage),
+    onNonEmpty: words =>
+      Array.reduce(words, 0, (total, word) => total + lengthOf(word)),
+  })
+  return Math.max(1, Math.ceil(letters / CHARACTERS_PER_LINE))
 }
 
 const passageTopOf = (passage: Element): number =>
@@ -136,25 +139,46 @@ const passageTopOf = (passage: Element): number =>
     Array.takeWhile(other => other !== passage),
     Array.reduce(
       TRANSCRIPT_TOP_PX,
-      (top, other) => top + passageHeightOf(other),
+      (top, other) => top + lineCountOf(other) * LINE_HEIGHT_PX,
     ),
+  )
+
+const lineOf = (passage: Element, word: Element): number =>
+  Math.floor(
+    pipe(
+      wordsOf(passage),
+      Array.takeWhile(other => other !== word),
+      Array.reduce(0, (letters, other) => letters + lengthOf(other)),
+    ) / CHARACTERS_PER_LINE,
   )
 
 const rectOf = (element: Element): DOMRect =>
   Option.match(Option.fromNullishOr(element.closest('.fk-passage')), {
     onNone: () => new DOMRect(0, 0, 0, 0),
     onSome: passage =>
-      new DOMRect(
-        0,
-        passageTopOf(passage) - window.scrollY,
-        WINDOW_WIDTH_PX,
-        passageHeightOf(passage),
-      ),
+      element.classList.contains('fk-word')
+        ? new DOMRect(
+            0,
+            passageTopOf(passage) +
+              lineOf(passage, element) * LINE_HEIGHT_PX -
+              window.scrollY,
+            WINDOW_WIDTH_PX,
+            LINE_HEIGHT_PX,
+          )
+        : new DOMRect(
+            0,
+            passageTopOf(passage) - window.scrollY,
+            WINDOW_WIDTH_PX,
+            lineCountOf(passage) * LINE_HEIGHT_PX,
+          ),
   })
 
 const moveWindowTo = (top: number): void => {
-  vi.stubGlobal('scrollY', Math.max(0, top))
-  document.dispatchEvent(new Event('scroll', { bubbles: true }))
+  const next = Math.max(0, top)
+  if (next !== window.scrollY) {
+    vi.stubGlobal('scrollY', next)
+    document.dispatchEvent(new Event('scroll', { bubbles: true }))
+  }
 }
 
 const scrollWindowTo = (options: ScrollToOptions): void => {
@@ -166,102 +190,17 @@ const scrollWindowTo = (options: ScrollToOptions): void => {
   moveWindowTo(top)
 }
 
-const insetOf = (maybeLength: Option.Option<string>): number =>
-  Option.match(maybeLength, {
-    onNone: () => 0,
-    onSome: length => -Number.parseFloat(length),
-  })
-
-const isSeenBy = (watcher: Watcher, target: Element): boolean => {
-  const rect = target.getBoundingClientRect()
-  return (
-    rect.bottom > watcher.topInsetPx &&
-    rect.top < WINDOW_HEIGHT_PX - watcher.bottomInsetPx
-  )
-}
-
-const lookThroughWatchers = (): void => {
-  fakeWindow.watchers.forEach(watcher => {
-    const sightings = Array.map(watcher.targets, target => ({
-      target,
-      isIntersecting: isSeenBy(watcher, target),
-    }))
-    const changed = Array.filter(
-      sightings,
-      sighting =>
-        !Array.some(
-          watcher.reported,
-          reported =>
-            reported.target === sighting.target &&
-            reported.isIntersecting === sighting.isIntersecting,
-        ),
-    )
-    watcher.reported = sightings
-    if (Array.isArrayNonEmpty(changed)) {
-      watcher.report(changed)
-    }
-  })
-}
-
-class WindowWatcher {
-  readonly watcher: Watcher
-
-  constructor(
-    report: (sightings: ReadonlyArray<Sighting>) => void,
-    options?: IntersectionObserverInit,
-  ) {
-    const rootMargin = options?.rootMargin ?? '0px'
-    const lengths = rootMargin.split(' ')
-    const isWindowWatched = (options?.root ?? undefined) === undefined
-    this.watcher = {
-      report,
-      topInsetPx: insetOf(Array.head(lengths)),
-      bottomInsetPx: insetOf(
-        Option.orElse(Array.get(lengths, 2), () => Array.head(lengths)),
-      ),
-      targets: [],
-      reported: [],
-    }
-    if (isWindowWatched && Array.every(lengths, String.endsWith('px'))) {
-      fakeWindow.watchers = [...fakeWindow.watchers, this.watcher]
-    }
-  }
-
-  observe(target: Element): void {
-    this.watcher.targets = [...this.watcher.targets, target]
-  }
-
-  unobserve(target: Element): void {
-    this.watcher.targets = Array.filter(
-      this.watcher.targets,
-      other => other !== target,
-    )
-  }
-
-  disconnect(): void {
-    fakeWindow.watchers = Array.filter(
-      fakeWindow.watchers,
-      watcher => watcher !== this.watcher,
-    )
-  }
-
-  takeRecords(): ReadonlyArray<Sighting> {
-    return []
-  }
-}
-
 const runFrame = (): void => {
   const due = fakeWindow.frames
   fakeWindow.frames = []
   due.forEach(frame => {
     frame.run(fakeWindow.nowMs)
   })
-  lookThroughWatchers()
 }
 
-const pause = (): Promise<void> =>
+const pause = (milliseconds: number = 0): Promise<void> =>
   new Promise(resolve => {
-    setTimeout(resolve, 0)
+    setTimeout(resolve, milliseconds)
   })
 
 const settle = async (rounds: number = SETTLE_ROUNDS): Promise<void> => {
@@ -283,6 +222,12 @@ const pass = async (milliseconds: number): Promise<void> => {
   }
 }
 
+const leaveCheck = async (): Promise<void> => {
+  fakeWindow.nowMs += LEAVE_CHECK_MS
+  await pause(LEAVE_CHECK_MS + 50)
+  await settle()
+}
+
 const recordingID = '7e0f1b2c-3d4e-4f50-8a6b-7c8d9e0f1a2b'
 
 // NOTE: made-up words. Nothing here is from a real recording.
@@ -295,31 +240,36 @@ const sentences: ReadonlyArray<ReadonlyArray<string>> = [
 
 const startOf = (index: number): number => 10 + index * 10
 
-const sectionOf = (index: number): Section => {
-  const texts = Option.getOrElse(
-    Array.get(sentences, index % sentences.length),
-    () => [],
-  )
-  return {
-    id: `section-${index.toString()}`,
-    index,
-    startSeconds: startOf(index),
-    endSeconds: startOf(index) + 0.2 + texts.length * 0.5,
-    maybeSpeakerID: Option.none(),
-    text: texts.join(' '),
-    words: Array.map(texts, (text, at) => ({
-      id: `section-${index.toString()}:${at.toString()}`,
-      text,
-      startSeconds: startOf(index) + 0.2 + at * 0.5,
-      endSeconds: startOf(index) + 0.6 + at * 0.5,
-    })),
-    isFinal: true,
-    maybeWordsSeal: Option.none(),
-  }
-}
+const sectionWith = (index: number, texts: ReadonlyArray<string>): Section => ({
+  id: `section-${index.toString()}`,
+  index,
+  startSeconds: startOf(index),
+  endSeconds: startOf(index) + 0.2 + texts.length * 0.5,
+  maybeSpeakerID: Option.none(),
+  text: texts.join(' '),
+  words: Array.map(texts, (text, at) => ({
+    id: `section-${index.toString()}:${at.toString()}`,
+    text,
+    startSeconds: startOf(index) + 0.2 + at * 0.5,
+    endSeconds: startOf(index) + 0.6 + at * 0.5,
+  })),
+  isFinal: true,
+  maybeWordsSeal: Option.none(),
+})
+
+const sentenceOf = (index: number): ReadonlyArray<string> =>
+  Option.getOrElse(Array.get(sentences, index % sentences.length), () => [])
+
+const sectionOf = (index: number): Section =>
+  sectionWith(index, sentenceOf(index))
 
 const sectionsUpTo = (count: number): ReadonlyArray<Section> =>
   Array.makeBy(count, sectionOf)
+
+const longSection = sectionWith(
+  0,
+  Array.flatMap(Array.makeBy(8, sentenceOf), sentence => sentence),
+)
 
 const finished = (sections: ReadonlyArray<Section>): RecordingDetail => ({
   summary: {
@@ -349,19 +299,6 @@ const recording = (sections: ReadonlyArray<Section>): RecordingDetail => ({
   audio: UploadingAudio({ byteCount: 0 }),
 })
 
-const startingAtOnce = (
-  sections: ReadonlyArray<Section>,
-): ReadonlyArray<Section> =>
-  Array.map(sections, section =>
-    section.index === 0 ? { ...section, startSeconds: 0 } : section,
-  )
-
-const grownBy = (section: Section, more: string): Section => ({
-  ...section,
-  text: `${section.text} ${more}`,
-  words: [],
-})
-
 const observed = (detail: RecordingDetail): Message =>
   ObservedRecording({
     recordingID,
@@ -387,14 +324,25 @@ const readyOf = (model: Model): ReadyPlayback => {
 
 const opening = modelForRoute(RecordingRoute({ recordingID }))
 
-const playingAt = (seconds: number): Model =>
+const pausedAt = (
+  seconds: number,
+  detail: RecordingDetail = finished(sectionsUpTo(12)),
+): Model =>
   folded(opening, [
-    observed(finished(sectionsUpTo(12))),
+    observed(detail),
     ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio' } }),
     AcquiredAudioPlayer(),
+    HeardAudioPosition({ seconds, wallClockMs: WALL_CLOCK_MS }),
+  ])
+
+const playingAt = (
+  seconds: number,
+  detail: RecordingDetail = finished(sectionsUpTo(12)),
+): Model =>
+  folded(pausedAt(seconds, detail), [
     ClickedPlay(),
     HeardAudioPlaying(),
-    HeardAudioPosition({ seconds }),
+    HeardAudioPosition({ seconds, wallClockMs: WALL_CLOCK_MS }),
   ])
 
 const resources: Layer.Layer<WordsServices> = Layer.mergeAll(
@@ -425,9 +373,10 @@ type Page = Readonly<{
 }>
 
 // NOTE: the real page: the Words `update` and `view` on Foldkit's runtime,
-// with the browser's own scroller. Only what the store and the player
-// would report is told by hand, and no audio is opened, so a test tells
-// the page nothing that would ask the player to play, pause or seek.
+// with the browser's own scroller and the shared reader's own edge. Only
+// what the store and the player would report is told by hand, and no audio
+// is opened, so a test tells the page nothing that would ask the player to
+// play, pause or seek.
 const openPage = async (start: Model): Promise<Page> => {
   const root = document.createElement('div')
   root.id = 'words-page'
@@ -476,25 +425,24 @@ const openPage = async (start: Model): Promise<Page> => {
   return page
 }
 
-const passageOf = (index: number): Element =>
-  Option.getOrThrow(
-    Option.fromNullishOr(
-      document.querySelector(
-        `.fk-passage[data-key="section-${index.toString()}"]`,
-      ),
-    ),
-  )
-
 const elementAt = (selector: string): Element =>
   Option.getOrThrow(Option.fromNullishOr(document.querySelector(selector)))
 
-const topOf = (index: number): number =>
-  passageOf(index).getBoundingClientRect().top
+const passageOf = (index: number): Element =>
+  elementAt(`.fk-passage[data-key="section-${index.toString()}"]`)
 
-const bottomOf = (index: number): number =>
-  passageOf(index).getBoundingClientRect().bottom
+const wordOf = (token: string): Element =>
+  elementAt(`.fk-word[data-token="${token}"]`)
 
-const middleOf = (index: number): number => (topOf(index) + bottomOf(index)) / 2
+const middleOf = (element: Element): number => {
+  const rect = element.getBoundingClientRect()
+  return rect.top + rect.height / 2
+}
+
+const isInMiddleHalf = (element: Element): boolean => {
+  const rect = element.getBoundingClientRect()
+  return rect.top > MIDDLE_HALF_TOP_PX && rect.bottom < MIDDLE_HALF_BOTTOM_PX
+}
 
 const attributesOf = (
   selector: string,
@@ -506,10 +454,12 @@ const attributesOf = (
   )
 
 const markedSections = (): ReadonlyArray<string> =>
-  attributesOf('[data-section-current]', 'data-key')
+  attributesOf('.fk-passage[data-current]', 'data-key')
 
 const markedWords = (): ReadonlyArray<string> =>
-  attributesOf('[data-word-current]', 'data-token')
+  attributesOf('.fk-word[data-current]', 'data-token')
+
+const spokenWord = (): Element => elementAt('.fk-word[data-current]')
 
 const returnPills = (): ReadonlyArray<HTMLButtonElement> =>
   Array.filter(
@@ -523,6 +473,13 @@ const returnPillLabels = (): ReadonlyArray<string> =>
       ? 'Back to Live'
       : 'Back to Playhead',
   )
+
+const pressReturn = async (): Promise<void> => {
+  Array.forEach(returnPills(), pill => {
+    pill.click()
+  })
+  await settle()
+}
 
 const wheelOver = async (element: Element, top: number): Promise<void> => {
   element.dispatchEvent(
@@ -553,25 +510,21 @@ const scrollbarTo = async (top: number): Promise<void> => {
   await settle()
 }
 
-// NOTE: the player reports the place about once a second. The voice
-// enters a section between two reports: half a second after the one
-// before, and half a second before the one after.
-const voiceNears = (page: Page, index: number): Promise<void> =>
-  page.tell(HeardAudioPosition({ seconds: startOf(index) - 0.5 }))
+const heard = (page: Page, seconds: number): Promise<void> =>
+  page.tell(HeardAudioPosition({ seconds, wallClockMs: Date.now() }))
 
-const voiceEnters = async (page: Page, index: number): Promise<void> => {
-  await voiceNears(page, index)
-  await pass(1000)
-  await page.tell(HeardAudioPosition({ seconds: startOf(index) + 0.5 }))
-}
+const secondsOf = (word: Element): number =>
+  Number(word.getAttribute('data-start-ms')) / 1000
 
 beforeEach(() => {
   fakeWindow.nowMs = 0
   fakeWindow.frames = []
   fakeWindow.moves = []
-  fakeWindow.watchers = []
   fakeWindow.isMotionReduced = false
   fakeWindow.pages = []
+  vi.spyOn(Date, 'now').mockImplementation(
+    () => WALL_CLOCK_MS + fakeWindow.nowMs,
+  )
   vi.stubGlobal('innerHeight', WINDOW_HEIGHT_PX)
   vi.stubGlobal('scrollY', 0)
   vi.stubGlobal('scrollTo', scrollWindowTo)
@@ -589,7 +542,6 @@ beforeEach(() => {
       frame => frame.id !== id,
     )
   })
-  vi.stubGlobal('IntersectionObserver', WindowWatcher)
   vi.stubGlobal('matchMedia', (query: string) => ({
     media: query,
     matches:
@@ -619,20 +571,326 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-describe('the Words page follows the voice (plan 14, slice 2)', () => {
-  describe('nothing moves when a recording opens; where it opens is the Model’s to say', () => {
-    test('a recording opened by its plain link is put at the top of its page, though its first section is already the spoken one', async () => {
-      moveWindowTo(900)
-      const page = await openPage(opening)
-      await page.tell(observed(finished(startingAtOnce(sectionsUpTo(12)))))
-      await pass(200)
+describe('the Words page follows the voice as Books does (plan 14, slice 2)', () => {
+  describe('the spoken word is kept in the middle, word by word', () => {
+    test('a page that opens with the spoken word outside the middle half brings that word to the middle', async () => {
+      await openPage(playingAt(50.3))
 
-      expect(markedSections()).toEqual(['section-0'])
-      expect(fakeWindow.moves).toEqual([{ top: 0, behavior: 'auto' }])
-      expect(window.scrollY).toBe(0)
+      expect(markedWords()).toEqual(['section-4:0'])
+      expect(markedSections()).toEqual(['section-4'])
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
+      expect(fakeWindow.moves).toHaveLength(1)
     })
 
-    test('a recording opened at a linked section shows that section in the middle, not the one the voice is in', async () => {
+    test('the mark moves on with the voice between the player’s reports, and a word still in the middle half moves nothing', async () => {
+      await openPage(playingAt(50.3))
+      await pass(500)
+
+      expect(markedWords()).toEqual(['section-4:1'])
+      expect(fakeWindow.moves).toHaveLength(1)
+    })
+
+    test('the voice entering the next section moves nothing while its word is in the middle half', async () => {
+      const page = await openPage(playingAt(50.3))
+      await heard(page, 60.3)
+
+      expect(markedSections()).toEqual(['section-5'])
+      expect(isInMiddleHalf(spokenWord())).toBe(true)
+      expect(fakeWindow.moves).toHaveLength(1)
+    })
+
+    test('once the spoken word is out of the middle half it is brought to the middle', async () => {
+      const page = await openPage(playingAt(50.3))
+      await heard(page, 60.3)
+      await heard(page, 70.3)
+      expect(fakeWindow.moves).toHaveLength(1)
+
+      await heard(page, 80.3)
+      expect(markedSections()).toEqual(['section-7'])
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
+      expect(fakeWindow.moves).toHaveLength(2)
+    })
+
+    test('inside one long paragraph the view follows the word down its lines, without waiting for the next section', async () => {
+      const page = await openPage(
+        playingAt(10.3, finished([longSection, sectionOf(1), sectionOf(2)])),
+      )
+      expect(fakeWindow.moves).toEqual([])
+      const words = Array.fromIterable(
+        passageOf(0).querySelectorAll('.fk-word'),
+      )
+      const firstBelow = Option.getOrThrow(
+        Array.findFirstIndex(words, word => !isInMiddleHalf(word)),
+      )
+      const lastInside = Option.getOrThrow(Array.get(words, firstBelow - 1))
+      const below = Option.getOrThrow(Array.get(words, firstBelow))
+
+      await heard(page, secondsOf(lastInside))
+      expect(fakeWindow.moves).toEqual([])
+
+      await heard(page, secondsOf(below))
+      expect(markedSections()).toEqual(['section-0'])
+      expect(spokenWord()).toBe(below)
+      expect(middleOf(below)).toBe(MIDDLE_PX)
+    })
+
+    test('paused, the mark stays on the word at the place', async () => {
+      const page = await openPage(playingAt(50.3))
+      await page.tell(HeardAudioPaused())
+      await pass(1000)
+
+      expect(markedWords()).toEqual(['section-4:0'])
+    })
+  })
+
+  describe('for a second after the listener scrolls, the words are left alone', () => {
+    test('words spoken within a second of a scroll are not brought to the middle, and the first word after that second is', async () => {
+      const page = await openPage(playingAt(50.3))
+      await wheelTo(window.scrollY + 40)
+      await leaveCheck()
+      expect(page.ready().follow).toBe('Following')
+
+      await pass(250)
+      await heard(page, 80.3)
+      expect(markedWords()).toEqual(['section-7:0'])
+      expect(isInMiddleHalf(spokenWord())).toBe(false)
+      expect(fakeWindow.moves).toHaveLength(1)
+
+      await pass(450)
+      expect(markedWords()).toEqual(['section-7:1'])
+      expect(fakeWindow.moves).toHaveLength(1)
+
+      await pass(500)
+      expect(markedWords()).toEqual(['section-7:2'])
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
+      expect(fakeWindow.moves).toHaveLength(2)
+    })
+  })
+
+  describe('the listener leaves only once the spoken word is out of the middle half', () => {
+    test('a wheel that leaves the spoken word in the middle half does not stop following', async () => {
+      const page = await openPage(playingAt(50.3))
+      await wheelTo(window.scrollY + 40)
+      await leaveCheck()
+
+      expect(isInMiddleHalf(spokenWord())).toBe(true)
+      expect(page.ready().follow).toBe('Following')
+      expect(returnPillLabels()).toEqual([])
+    })
+
+    test('a wheel that takes the spoken word out of the middle half stops following a quarter of a second later, not at once', async () => {
+      const page = await openPage(playingAt(50.3))
+      await wheelTo(1500)
+      expect(page.ready().follow).toBe('Following')
+
+      await leaveCheck()
+      expect(page.ready().follow).toBe('Detached')
+      expect(returnPillLabels()).toEqual(['Back to Playhead'])
+    })
+
+    test('a finger that takes the spoken word out of the middle half stops following', async () => {
+      const page = await openPage(playingAt(50.3))
+      await fingerTo(1500)
+      await leaveCheck()
+
+      expect(page.ready().follow).toBe('Detached')
+    })
+
+    test('the scrollbar counts as the listener’s scroll', async () => {
+      const page = await openPage(playingAt(50.3))
+      await pass(QUIET_MS)
+      await scrollbarTo(1500)
+      await leaveCheck()
+
+      expect(page.ready().follow).toBe('Detached')
+    })
+
+    test('a key that scrolls the page counts as the listener’s scroll', async () => {
+      const page = await openPage(playingAt(50.3))
+      await pass(QUIET_MS)
+      await keyTo('PageDown', 1500)
+      await leaveCheck()
+
+      expect(page.ready().follow).toBe('Detached')
+    })
+
+    test('the page’s own move to the spoken word does not', async () => {
+      const page = await openPage(playingAt(50.3))
+      expect(fakeWindow.moves).toHaveLength(1)
+      await leaveCheck()
+
+      expect(page.ready().follow).toBe('Following')
+    })
+
+    test('a wheel over the recording list that does not move the page does not', async () => {
+      const page = await openPage(playingAt(50.3))
+      await wheelOver(
+        elementAt('aside[aria-label="Recordings"]'),
+        window.scrollY,
+      )
+      await leaveCheck()
+
+      expect(page.ready().follow).toBe('Following')
+    })
+  })
+
+  describe('detached stays detached', () => {
+    test('the voice moves on and the view stays, and the mark still moves', async () => {
+      const page = await openPage(playingAt(50.3))
+      await wheelTo(1500)
+      await leaveCheck()
+      await heard(page, 80.3)
+      await pass(QUIET_MS + 500)
+
+      expect(markedSections()).toEqual(['section-7'])
+      expect(window.scrollY).toBe(1500)
+      expect(fakeWindow.moves).toHaveLength(1)
+      expect(page.ready().follow).toBe('Detached')
+    })
+
+    test('scrolling the spoken word back into the middle does not follow again, and Back to Playhead stays', async () => {
+      const page = await openPage(playingAt(50.3))
+      const followedAt = window.scrollY
+      await wheelTo(1500)
+      await leaveCheck()
+      await scrollbarTo(followedAt)
+      await leaveCheck()
+      await pass(QUIET_MS)
+
+      expect(isInMiddleHalf(spokenWord())).toBe(true)
+      expect(page.ready().follow).toBe('Detached')
+      expect(returnPillLabels()).toEqual(['Back to Playhead'])
+    })
+  })
+
+  describe('Back to Playhead and Back to Live', () => {
+    test('neither shows while the words follow the voice', async () => {
+      await openPage(playingAt(50.3))
+
+      expect(returnPillLabels()).toEqual([])
+    })
+
+    test('pressing Back to Playhead follows again and brings the spoken word to the middle', async () => {
+      const page = await openPage(pausedAt(50.3))
+      await wheelTo(1500)
+      await leaveCheck()
+      expect(returnPillLabels()).toEqual(['Back to Playhead'])
+
+      await pass(QUIET_MS)
+      await pressReturn()
+      expect(page.ready().follow).toBe('Following')
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
+      expect(returnPillLabels()).toEqual([])
+    })
+
+    // NOTE: the shared rule leaves the words alone for a second after the
+    // listener's last scroll, and the press counts as a newly spoken word.
+    // So a press inside that second follows again and moves nothing, and
+    // while paused no later word comes to move it.
+    test('pressed within a second of the scroll, Back to Playhead follows again but the spoken word is not brought to the middle while paused', async () => {
+      const page = await openPage(pausedAt(50.3))
+      await wheelTo(1500)
+      await leaveCheck()
+      await pressReturn()
+      await pass(3 * QUIET_MS)
+
+      expect(page.ready().follow).toBe('Following')
+      expect(returnPillLabels()).toEqual([])
+      expect(window.scrollY).toBe(1500)
+    })
+
+    test('while recording it reads Back to Live, and pressing it brings the newest word to the middle', async () => {
+      const page = await openPage(opening)
+      await page.tell(observed(recording(sectionsUpTo(30))))
+      await pass(QUIET_MS)
+      await wheelTo(0)
+      await leaveCheck()
+      expect(page.ready().follow).toBe('Detached')
+      expect(returnPillLabels()).toEqual(['Back to Live'])
+
+      await pass(QUIET_MS)
+      await pressReturn()
+      expect(page.ready().follow).toBe('Following')
+      expect(markedWords()).toEqual(['section-29:4'])
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
+      expect(returnPillLabels()).toEqual([])
+    })
+  })
+
+  describe('while recording, the newest word is the one followed', () => {
+    test('a recording in progress opens with its newest word marked and in the middle', async () => {
+      const page = await openPage(opening)
+      await page.tell(observed(recording(sectionsUpTo(9))))
+
+      expect(markedWords()).toEqual(['section-8:4'])
+      expect(markedSections()).toEqual(['section-8'])
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
+    })
+
+    test('new words are marked as they arrive, left alone in the middle half and brought to the middle once out of it', async () => {
+      const page = await openPage(opening)
+      await page.tell(observed(recording(sectionsUpTo(9))))
+      const movesBefore = fakeWindow.moves.length
+
+      await page.tell(observed(recording(sectionsUpTo(10))))
+      expect(markedWords()).toEqual(['section-9:4'])
+      expect(isInMiddleHalf(spokenWord())).toBe(true)
+      expect(fakeWindow.moves).toHaveLength(movesBefore)
+
+      await page.tell(observed(recording(sectionsUpTo(12))))
+      expect(markedWords()).toEqual(['section-11:4'])
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
+      expect(fakeWindow.moves).toHaveLength(movesBefore + 1)
+    })
+
+    test('a word added to the newest section becomes the marked one', async () => {
+      const page = await openPage(opening)
+      await page.tell(observed(recording(sectionsUpTo(9))))
+      const grown = sectionWith(8, [...sentenceOf(8), 'Again.'])
+      await page.tell(observed(recording([...sectionsUpTo(8), grown])))
+
+      expect(markedWords()).toEqual(['section-8:5'])
+    })
+
+    test('time passing moves nothing', async () => {
+      const page = await openPage(opening)
+      await page.tell(observed(recording(sectionsUpTo(9))))
+      const movesBefore = fakeWindow.moves.length
+      await pass(2000)
+
+      expect(markedWords()).toEqual(['section-8:4'])
+      expect(fakeWindow.moves).toHaveLength(movesBefore)
+    })
+
+    test('once the listener has scrolled the newest word away, new words move nothing', async () => {
+      const page = await openPage(opening)
+      await page.tell(observed(recording(sectionsUpTo(30))))
+      await pass(QUIET_MS)
+      await wheelTo(0)
+      await leaveCheck()
+      const movesBefore = fakeWindow.moves.length
+      await pass(QUIET_MS)
+      await page.tell(observed(recording(sectionsUpTo(31))))
+
+      expect(markedWords()).toEqual(['section-30:4'])
+      expect(window.scrollY).toBe(0)
+      expect(fakeWindow.moves).toHaveLength(movesBefore)
+    })
+  })
+
+  describe('where a recording opens', () => {
+    test('a recording opened by its plain link is put at the top of its page, following the voice', async () => {
+      moveWindowTo(900)
+      const page = await openPage(opening)
+      await page.tell(observed(finished(sectionsUpTo(12))))
+      await leaveCheck()
+
+      expect(fakeWindow.moves).toEqual([{ top: 0, behavior: 'auto' }])
+      expect(window.scrollY).toBe(0)
+      expect(page.ready().follow).toBe('Following')
+    })
+
+    test('a recording opened at a linked section shows that section in the middle, stays there, and offers Back to Playhead', async () => {
       const page = await openPage(
         modelForRoute(
           SectionRoute({
@@ -643,487 +901,134 @@ describe('the Words page follows the voice (plan 14, slice 2)', () => {
         ),
       )
       await page.tell(observed(finished(sectionsUpTo(12))))
-      await pass(200)
+      await leaveCheck()
+      await pass(QUIET_MS)
 
-      expect(markedSections()).toEqual(['section-5'])
-      expect(middleOf(6)).toBe(MIDDLE_PX)
+      expect(markedWords()).toEqual(['section-5:4'])
+      expect(middleOf(passageOf(6))).toBe(MIDDLE_PX)
       expect(fakeWindow.moves).toHaveLength(1)
+      expect(page.ready().follow).toBe('Detached')
+      expect(returnPillLabels()).toEqual(['Back to Playhead'])
     })
 
-    // NOTE: the Model opens a linked section detached, and the page follows
-    // again at once: the section the voice is in sits right above the linked
-    // one, on screen, and the first report of that starts following.
-    test('a recording opened at a linked section follows the voice as soon as the page has looked, since the spoken section is on screen', async () => {
-      const start = modelForRoute(
-        SectionRoute({ recordingID, sectionID: 'section-6', t: Option.none() }),
-      )
-      expect(
-        readyOf(folded(start, [observed(finished(sectionsUpTo(12)))])).follow,
-      ).toBe('Detached')
-
-      const page = await openPage(start)
-      await page.tell(observed(finished(sectionsUpTo(12))))
-      expect(page.ready().follow).toBe('Following')
-    })
-
-    test('a recording opened at a moment shows the section spoken then in the middle, once', async () => {
+    test('a recording opened at a moment brings the word spoken then to the middle, once', async () => {
       const page = await openPage(
         modelForRoute(
           PlaybackRoute({
             recordingID,
-            t: Option.some('45'),
+            t: Option.some('41'),
             focus: Option.none(),
           }),
         ),
       )
       await page.tell(observed(finished(sectionsUpTo(12))))
-      await pass(200)
 
-      expect(markedSections()).toEqual(['section-3'])
-      expect(middleOf(3)).toBe(MIDDLE_PX)
+      expect(markedWords()).toEqual(['section-3:1'])
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
       expect(fakeWindow.moves).toHaveLength(1)
     })
-
-    test('a recording in progress opens with its newest words at the bottom edge', async () => {
-      const page = await openPage(opening)
-      await page.tell(observed(recording(sectionsUpTo(9))))
-      await pass(200)
-
-      expect(bottomOf(8)).toBe(BOTTOM_EDGE_PX)
-      expect(fakeWindow.moves).toHaveLength(1)
-    })
-
-    test('a page that opens while the voice is inside a section stays where it is until the voice enters the next one', async () => {
-      await openPage(playingAt(50.3))
-      await pass(1400)
-
-      expect(markedSections()).toEqual(['section-4'])
-      expect(fakeWindow.moves).toEqual([])
-      expect(window.scrollY).toBe(0)
-    })
   })
 
-  describe('the view moves when the voice enters a new section, not on every word', () => {
-    test('word after word in one section moves nothing', async () => {
-      const page = await openPage(playingAt(20.3))
-      await pass(1000)
-      await page.tell(HeardAudioPosition({ seconds: 21.3 }))
-      await pass(1000)
-      await page.tell(HeardAudioPosition({ seconds: 22.3 }))
+  describe('a match the search found', () => {
+    test('stepping to a match brings its first word to the middle, stops following, and leaves the voice where it is', async () => {
+      const page = await openPage(pausedAt(20.3))
+      await page.tell(ChangedFindQuery({ query: 'boat' }))
+      await page.tell(SteppedFind({ direction: 'Next' }))
 
-      expect(markedWords()).toEqual(['section-1:4'])
-      expect(fakeWindow.moves).toEqual([])
-    })
-
-    test('the view moves at the moment the voice enters the next section, before the player reports the place again', async () => {
-      const page = await openPage(playingAt(20.3))
-      await voiceNears(page, 2)
-      await pass(400)
-      expect(fakeWindow.moves).toEqual([])
-
-      await pass(200)
-      expect(markedSections()).toEqual(['section-2'])
-      expect(middleOf(2)).toBe(MIDDLE_PX)
-    })
-
-    test('the player’s next report leaves the section where it was put', async () => {
-      const page = await openPage(playingAt(20.3))
-      await voiceEnters(page, 2)
-
-      expect(middleOf(2)).toBe(MIDDLE_PX)
-      expect(
-        Array.dedupe(Array.map(fakeWindow.moves, move => move.top)),
-      ).toEqual([window.scrollY])
-    })
-
-    test('a section the voice enters by a jump in the place is brought to the middle too', async () => {
-      const page = await openPage(playingAt(20.3))
-      await page.tell(HeardAudioPosition({ seconds: 90.3 }))
-
-      expect(markedSections()).toEqual(['section-8'])
-      expect(middleOf(8)).toBe(MIDDLE_PX)
-    })
-  })
-
-  describe('every new section is centred, even one already in view', () => {
-    test('a section that is wholly in view is still moved to the middle when the voice enters it', async () => {
-      const page = await openPage(playingAt(20.3))
-      await voiceEnters(page, 2)
-      const movesBefore = fakeWindow.moves.length
-      expect(topOf(3)).toBeGreaterThan(TOP_BAR_PX)
-      expect(bottomOf(3)).toBeLessThan(WINDOW_HEIGHT_PX - BOTTOM_CONTROLS_PX)
-      expect(middleOf(3)).not.toBe(MIDDLE_PX)
-
-      await voiceEnters(page, 3)
-      expect(middleOf(3)).toBe(MIDDLE_PX)
-      expect(fakeWindow.moves.length).toBeGreaterThan(movesBefore)
-    })
-  })
-
-  describe('while recording, the newest words sit at the bottom edge', () => {
-    const live = folded(opening, [observed(recording(sectionsUpTo(9)))])
-
-    test('no word and no section is marked, and time passing moves nothing', async () => {
-      await openPage(live)
-      await pass(2000)
-
-      expect(markedSections()).toEqual([])
-      expect(markedWords()).toEqual([])
-      expect(fakeWindow.moves).toEqual([])
-    })
-
-    test('a new section arriving is brought to the bottom edge', async () => {
-      const page = await openPage(live)
-      await page.tell(observed(recording(sectionsUpTo(10))))
-
-      expect(bottomOf(9)).toBe(BOTTOM_EDGE_PX)
-    })
-
-    test('the newest section growing is brought to the bottom edge again', async () => {
-      const page = await openPage(live)
-      await page.tell(observed(recording(sectionsUpTo(10))))
-      const topBefore = window.scrollY
-      const grown = grownBy(
-        sectionOf(9),
-        'It came in slowly, past the point and the long street, with its own small lantern swinging at the bow, and tied up below the tower.',
-      )
-      await page.tell(observed(recording([...sectionsUpTo(9), grown])))
-
-      expect(bottomOf(9)).toBe(BOTTOM_EDGE_PX)
-      expect(window.scrollY).toBeGreaterThan(topBefore)
-    })
-
-    test('once a wheel has stopped following, new words move nothing', async () => {
-      const page = await openPage(live)
-      await wheelTo(0)
+      expect(middleOf(wordOf('section-3:1'))).toBe(MIDDLE_PX)
       expect(page.ready().follow).toBe('Detached')
-      const movesBefore = fakeWindow.moves.length
-      await page.tell(observed(recording(sectionsUpTo(10))))
+      expect(markedWords()).toEqual(['section-1:0'])
+      expect(fakeWindow.moves).toHaveLength(1)
+    })
 
-      expect(fakeWindow.moves).toHaveLength(movesBefore)
-      expect(window.scrollY).toBe(0)
+    test('stepping on brings the next match to the middle', async () => {
+      const page = await openPage(pausedAt(20.3))
+      await page.tell(ChangedFindQuery({ query: 'boat' }))
+      await page.tell(SteppedFind({ direction: 'Next' }))
+      await page.tell(SteppedFind({ direction: 'Next' }))
+
+      expect(middleOf(wordOf('section-7:1'))).toBe(MIDDLE_PX)
     })
   })
 
   describe('a recording that just finished stays where the listener is', () => {
-    test('nothing moves when the recording finishes with its place before the first words', async () => {
+    test('with its place before the first word, nothing moves and the words keep following', async () => {
       const page = await openPage(opening)
       await page.tell(observed(recording(sectionsUpTo(9))))
       const topBefore = window.scrollY
       const movesBefore = fakeWindow.moves.length
       await page.tell(observed(finished(sectionsUpTo(9))))
-      await pass(200)
+      await pass(QUIET_MS)
 
       expect(window.scrollY).toBe(topBefore)
       expect(fakeWindow.moves).toHaveLength(movesBefore)
-    })
-
-    // NOTE: this differs from the row. The Model asks for no move when a
-    // recording finishes, but the page's own marking then marks the section
-    // at the place for the first time and brings it to the middle.
-    test('a recording that finishes with its place inside a section is taken from the newest words to that section', async () => {
-      const page = await openPage(opening)
-      await page.tell(observed(recording(startingAtOnce(sectionsUpTo(9)))))
-      expect(bottomOf(8)).toBe(BOTTOM_EDGE_PX)
-
-      await page.tell(observed(finished(startingAtOnce(sectionsUpTo(9)))))
-      await pass(200)
-      expect(markedSections()).toEqual(['section-0'])
-      expect(middleOf(0)).toBe(MIDDLE_PX)
-    })
-  })
-
-  describe('only a wheel or a finger stops following', () => {
-    test('a wheel stops following: the voice enters the next section and the view stays', async () => {
-      const page = await openPage(playingAt(20.3))
-      await wheelTo(1500)
-      expect(page.ready().follow).toBe('Detached')
-
-      await voiceEnters(page, 2)
-      expect(markedSections()).toEqual(['section-2'])
-      expect(fakeWindow.moves).toEqual([])
-      expect(window.scrollY).toBe(1500)
-    })
-
-    test('a finger stops following: the voice enters the next section and the view stays', async () => {
-      const page = await openPage(playingAt(20.3))
-      await fingerTo(1500)
-      expect(page.ready().follow).toBe('Detached')
-
-      await voiceEnters(page, 2)
-      expect(fakeWindow.moves).toEqual([])
-      expect(window.scrollY).toBe(1500)
-    })
-
-    test('a key that scrolls the page does not: the next section is brought to the middle', async () => {
-      const page = await openPage(playingAt(20.3))
-      await keyTo('PageDown', 1500)
       expect(page.ready().follow).toBe('Following')
-
-      await voiceEnters(page, 2)
-      expect(middleOf(2)).toBe(MIDDLE_PX)
-    })
-
-    test('the scrollbar does not: the next section is brought to the middle', async () => {
-      const page = await openPage(playingAt(20.3))
-      await scrollbarTo(1500)
-      expect(page.ready().follow).toBe('Following')
-
-      await voiceEnters(page, 2)
-      expect(middleOf(2)).toBe(MIDDLE_PX)
-    })
-
-    test('a jump the page makes itself does not: the section after it is brought to the middle too', async () => {
-      const page = await openPage(playingAt(20.3))
-      await voiceEnters(page, 2)
-      expect(page.ready().follow).toBe('Following')
-
-      await voiceEnters(page, 3)
-      expect(middleOf(3)).toBe(MIDDLE_PX)
-    })
-
-    test('a wheel over the recording list, the top bar or the controls does not', async () => {
-      const page = await openPage(playingAt(20.3))
-      await wheelOver(elementAt('aside[aria-label="Recordings"]'), 0)
-      await wheelOver(elementAt('header'), 0)
-      await wheelOver(elementAt('#player'), 0)
-
-      expect(page.ready().follow).toBe('Following')
-    })
-  })
-
-  describe('there is no quiet period', () => {
-    test('a section the voice enters a tenth of a second after the scrollbar moved is brought to the middle', async () => {
-      const page = await openPage(playingAt(20.3))
-      await page.tell(HeardAudioPosition({ seconds: 29.9 }))
-      await scrollbarTo(1500)
-      await pass(200)
-
-      expect(markedSections()).toEqual(['section-2'])
-      expect(middleOf(2)).toBe(MIDDLE_PX)
-    })
-
-    test('a section the voice enters a tenth of a second after the page’s own jump is brought to the middle', async () => {
-      const page = await openPage(playingAt(20.3))
-      await page.tell(HeardAudioPosition({ seconds: 90.3 }))
-      expect(middleOf(8)).toBe(MIDDLE_PX)
-
-      await page.tell(HeardAudioPosition({ seconds: 99.9 }))
-      await pass(200)
-      expect(middleOf(9)).toBe(MIDDLE_PX)
-    })
-  })
-
-  describe('following starts again by itself when the spoken section scrolls back into view', () => {
-    test('scrolled away by a wheel and back by the scrollbar, the page follows again', async () => {
-      const page = await openPage(playingAt(20.3))
-      await wheelTo(1500)
-      expect(page.ready().follow).toBe('Detached')
-
-      await scrollbarTo(0)
-      expect(page.ready().follow).toBe('Following')
-      expect(fakeWindow.moves).toEqual([])
-
-      await voiceEnters(page, 2)
-      expect(middleOf(2)).toBe(MIDDLE_PX)
-    })
-
-    // NOTE: a wheel that leaves the spoken section on screen stops following
-    // only until the voice moves on: the page then looks at the new section,
-    // finds it on screen, and follows again without moving.
-    test('after a wheel that left the spoken section on screen, following starts again when the voice enters the next section, which stays where it is', async () => {
-      const page = await openPage(playingAt(20.3))
-      await wheelTo(100)
-      expect(page.ready().follow).toBe('Detached')
-
-      await voiceEnters(page, 2)
-      expect(page.ready().follow).toBe('Following')
-      expect(fakeWindow.moves).toEqual([])
-      expect(window.scrollY).toBe(100)
-
-      await voiceEnters(page, 3)
-      expect(middleOf(3)).toBe(MIDDLE_PX)
-    })
-
-    test('a section the voice is not in coming into view does not start it', async () => {
-      const page = await openPage(playingAt(20.3))
-      await wheelTo(1500)
-      await scrollbarTo(900)
-
-      expect(topOf(8)).toBeGreaterThan(TOP_BAR_PX)
-      expect(page.ready().follow).toBe('Detached')
-    })
-  })
-
-  describe('Back to Playhead shows only while detached with the playhead off screen', () => {
-    test('it does not show while the page follows, with the spoken section on screen or off', async () => {
-      await openPage(playingAt(20.3))
-      expect(returnPillLabels()).toEqual([])
-
-      await scrollbarTo(1500)
       expect(returnPillLabels()).toEqual([])
     })
 
-    test('it does not show after a wheel that left the spoken section on screen', async () => {
-      const page = await openPage(playingAt(20.3))
-      await wheelTo(100)
+    test('with its place on a word, nothing moves, the words stop following, and Back to Playhead takes the listener to that word', async () => {
+      const page = await openPage(
+        modelForRoute(
+          PlaybackRoute({
+            recordingID,
+            t: Option.some('12'),
+            focus: Option.none(),
+          }),
+        ),
+      )
+      await page.tell(observed(recording(sectionsUpTo(9))))
+      expect(markedWords()).toEqual(['section-8:4'])
+      const topBefore = window.scrollY
+      const movesBefore = fakeWindow.moves.length
 
-      expect(page.ready().follow).toBe('Detached')
-      expect(returnPillLabels()).toEqual([])
-    })
-
-    test('it shows after a wheel that took the spoken section off screen, and pressing it brings the section to the middle and follows again', async () => {
-      const page = await openPage(playingAt(20.3))
-      await wheelTo(1500)
+      await page.tell(observed(finished(sectionsUpTo(9))))
+      await pass(QUIET_MS)
+      expect(window.scrollY).toBe(topBefore)
+      expect(fakeWindow.moves).toHaveLength(movesBefore)
+      expect(markedWords()).toEqual(['section-0:3'])
       expect(returnPillLabels()).toEqual(['Back to Playhead'])
 
-      Array.forEach(returnPills(), pill => {
-        pill.click()
-      })
-      await settle()
-      expect(middleOf(1)).toBe(MIDDLE_PX)
+      await pressReturn()
       expect(page.ready().follow).toBe('Following')
-      expect(returnPillLabels()).toEqual([])
-    })
-
-    test('while recording it reads Back to Live, and pressing it brings the newest words to the bottom edge', async () => {
-      const page = await openPage(opening)
-      await page.tell(observed(recording(sectionsUpTo(30))))
-      await wheelTo(0)
-      expect(returnPillLabels()).toEqual(['Back to Live'])
-
-      Array.forEach(returnPills(), pill => {
-        pill.click()
-      })
-      await settle()
-      expect(bottomOf(29)).toBe(BOTTOM_EDGE_PX)
-      expect(page.ready().follow).toBe('Following')
+      expect(middleOf(spokenWord())).toBe(MIDDLE_PX)
     })
   })
 
-  describe('on screen means clear of the top bar and the controls; a section lands clear of the root’s scroll padding', () => {
-    const seventhTopPx = TRANSCRIPT_TOP_PX + 7 * LINE_HEIGHT_PX
-    const withBottomAt = (px: number): number =>
-      seventhTopPx + LINE_HEIGHT_PX - px
-    const withTopAt = (px: number): number => seventhTopPx - px
-
-    test('the page’s stylesheet keeps 4.5rem free at the top and 12rem at the bottom', () => {
+  describe('how the page moves', () => {
+    test('the page’s stylesheet keeps 4.5rem free at the top and 12rem at the bottom, and a word lands halfway between them', async () => {
       expect(rootRemOf('scroll-padding-top') * ROOT_FONT_PX).toBe(
         LANDING_TOP_PX,
       )
       expect(rootRemOf('scroll-padding-bottom') * ROOT_FONT_PX).toBe(
         LANDING_BOTTOM_PX,
       )
+      await openPage(playingAt(50.3))
+
+      expect(middleOf(spokenWord())).toBe(340)
     })
 
-    test('a section in the middle sits halfway between 72 px from the top and 192 px from the bottom', async () => {
-      const page = await openPage(playingAt(20.3))
-      await voiceEnters(page, 2)
-
-      expect(middleOf(2)).toBe(340)
-    })
-
-    test('a section wholly under the top bar is off screen, and one showing below its 64 px is on screen', async () => {
-      const page = await openPage(playingAt(80.3))
-      await wheelTo(withBottomAt(TOP_BAR_PX - 4))
-      expect(returnPillLabels()).toEqual(['Back to Playhead'])
-
-      await scrollbarTo(withBottomAt(TOP_BAR_PX + 4))
-      expect(bottomOf(7)).toBeLessThan(LANDING_TOP_PX)
-      expect(page.ready().follow).toBe('Following')
-      expect(returnPillLabels()).toEqual([])
-    })
-
-    test('a section wholly under the controls is off screen, and one showing above their 168 px is on screen', async () => {
-      const page = await openPage(playingAt(80.3))
-      const controlsTop = WINDOW_HEIGHT_PX - BOTTOM_CONTROLS_PX
-      await scrollbarTo(withTopAt(MIDDLE_PX))
-      await wheelTo(withTopAt(controlsTop + 4))
-      expect(returnPillLabels()).toEqual(['Back to Playhead'])
-
-      await scrollbarTo(withTopAt(controlsTop - 4))
-      expect(topOf(7)).toBeGreaterThan(BOTTOM_EDGE_PX)
-      expect(page.ready().follow).toBe('Following')
-      expect(returnPillLabels()).toEqual([])
-    })
-  })
-
-  describe('the spoken word and its section are marked', () => {
-    test('one section and one word are marked, and the mark moves on with the voice', async () => {
-      await openPage(playingAt(20.3))
-      expect(markedSections()).toEqual(['section-1'])
-      expect(markedWords()).toEqual(['section-1:0'])
-
-      await pass(500)
-      expect(markedSections()).toEqual(['section-1'])
-      expect(markedWords()).toEqual(['section-1:1'])
-    })
-
-    test('before a section’s first word the section is marked and no word is', async () => {
-      await openPage(playingAt(20.1))
-
-      expect(markedSections()).toEqual(['section-1'])
-      expect(markedWords()).toEqual([])
-    })
-
-    test('through the pause after a section’s last word, the section and that word stay marked', async () => {
-      await openPage(playingAt(26))
-
-      expect(markedSections()).toEqual(['section-1'])
-      expect(markedWords()).toEqual(['section-1:4'])
-    })
-
-    test('before the first section nothing is marked', async () => {
-      await openPage(playingAt(3))
-
-      expect(markedSections()).toEqual([])
-      expect(markedWords()).toEqual([])
-    })
-
-    test('the mark keeps moving after the listener scrolled away', async () => {
-      const page = await openPage(playingAt(20.3))
-      await wheelTo(1500)
-      await voiceEnters(page, 2)
-
-      expect(markedSections()).toEqual(['section-2'])
-      expect(markedWords()).toEqual(['section-2:0'])
-    })
-
-    test('paused, the mark stays on the word at the place', async () => {
-      const page = await openPage(playingAt(20.3))
-      await page.tell(HeardAudioPaused())
-      await pass(1000)
-
-      expect(markedWords()).toEqual(['section-1:0'])
-    })
-  })
-
-  describe('how the page moves', () => {
     test('it glides, and jumps with no animation under Reduce Motion', async () => {
-      const page = await openPage(playingAt(20.3))
-      await voiceEnters(page, 2)
-      expect(
-        Array.dedupe(Array.map(fakeWindow.moves, move => move.behavior)),
-      ).toEqual(['smooth'])
+      const page = await openPage(playingAt(50.3))
+      expect(Array.map(fakeWindow.moves, move => move.behavior)).toEqual([
+        'smooth',
+      ])
 
       fakeWindow.isMotionReduced = true
-      fakeWindow.moves = []
-      await voiceEnters(page, 3)
-      expect(
-        Array.dedupe(Array.map(fakeWindow.moves, move => move.behavior)),
-      ).toEqual(['auto'])
+      await heard(page, 90.3)
+      expect(Array.map(fakeWindow.moves, move => move.behavior)).toEqual([
+        'smooth',
+        'auto',
+      ])
     })
 
     test('it scrolls the window itself and never asks an element to scroll into view', async () => {
-      const page = await openPage(playingAt(20.3))
-      await voiceEnters(page, 2)
-      await wheelTo(1500)
-      Array.forEach(returnPills(), pill => {
-        pill.click()
-      })
-      await settle()
+      const page = await openPage(pausedAt(50.3))
+      await page.tell(ChangedFindQuery({ query: 'boat' }))
+      await page.tell(SteppedFind({ direction: 'Next' }))
+      await pass(QUIET_MS)
+      await pressReturn()
 
-      expect(fakeWindow.moves).not.toEqual([])
+      expect(fakeWindow.moves).toHaveLength(3)
       expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled()
     })
   })

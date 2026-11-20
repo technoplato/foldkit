@@ -24,7 +24,6 @@ import { firstRecordingWindow } from './listWindow.js'
 import {
   AcquiredAudioPlayer,
   ChangedConnectivity,
-  ChangedPlayheadVisibility,
   ChangedUrl,
   ClickedCloseMiniPlayer,
   ClickedCopyMomentLink,
@@ -74,7 +73,7 @@ import {
   type ReadyPlayback,
   SignedIn,
 } from './model.js'
-import { playbackClockOf } from './playbackClock.js'
+import { playbackClockOf, readAlongPlaybackOf } from './playbackClock.js'
 import {
   type RecordingDetail,
   type RecordingSummary,
@@ -88,10 +87,8 @@ import {
   displayedLengthOf,
   durationOf,
   fileIDsOf,
-  followedSectionOf,
   isCountingLiveOf,
   isLiveRecording,
-  isReturnShownOf,
   liveDurationSecondsOf,
   liveRoomRecordingIDsOf,
   modelForRoute,
@@ -255,7 +252,7 @@ describe('opening links', () => {
     ])
 
     expect(readyOf(model).maybePendingSeekSeconds).toEqual(Option.none())
-    expect(commandNames).toEqual(['ScrollToSection', 'SeekAudio'])
+    expect(commandNames).toEqual(['SeekAudio'])
   })
 
   it('asks the server before saying a recording is not shared, and recovers if it arrives', () => {
@@ -338,23 +335,20 @@ describe('playing', () => {
     expect(next.transport).toBe('Playing')
     expect(next.follow).toBe('Following')
     expect(commandNames).toEqual(['SeekAudio', 'PlayAudio'])
-    expect(
-      Option.map(followedSectionOf(next), followed => followed.id),
-    ).toEqual(Option.some(sectionB.id))
   })
 
   it('ignores player positions while the listener drags the scrubber, then seeks', () => {
     const { model, commandNames } = run(ready, [
       StartedScrub({ seconds: 10 }),
       MovedScrub({ seconds: 40 }),
-      HeardAudioPosition({ seconds: 3 }),
+      HeardAudioPosition({ seconds: 3, wallClockMs: 0 }),
       EndedScrub({ seconds: 41 }),
     ])
     const next = readyOf(model)
 
     expect(next.positionSeconds).toBe(41)
     expect(next.scrub._tag).toBe('NotScrubbing')
-    expect(commandNames).toEqual(['SeekAudio', 'ScrollToSection'])
+    expect(commandNames).toEqual(['SeekAudio'])
   })
 
   it('returns to the playhead after scrolling away', () => {
@@ -365,23 +359,18 @@ describe('playing', () => {
     ).toBe('Following')
   })
 
-  it('holds the clock the edge reads on from: the place, whether it runs, the length, and whether a word is marked', () => {
+  it('holds the clock the scrubber reads on from: the place, whether it runs, and the length', () => {
     const playing = run(ready, [
       ClickedPlay(),
       HeardAudioPlaying(),
-      HeardAudioPosition({ seconds: 12 }),
+      HeardAudioPosition({ seconds: 12, wallClockMs: 0 }),
     ]).model
     const clockOf = (model: Model) => playbackClockOf(readyOf(model))
     expect(clockOf(playing)).toEqual({
       placeSeconds: 12,
       rate: 1,
       durationSeconds: durationOf(readyOf(playing)),
-      isMarking: true,
-      keepsInView: true,
     })
-    expect(
-      clockOf(run(playing, [ScrolledTranscriptAway()]).model).keepsInView,
-    ).toBe(false)
     expect(clockOf(run(playing, [HeardAudioPaused()]).model).rate).toBe(0)
     const scrubbing = clockOf(run(playing, [MovedScrub({ seconds: 40 })]).model)
     expect([scrubbing.placeSeconds, scrubbing.rate]).toEqual([40, 0])
@@ -391,11 +380,11 @@ describe('playing', () => {
     const phaseAt = (model: Model) => playbackPhaseOf(readyOf(model))
     const playing = run(ready, [ClickedPlay(), HeardAudioPlaying()]).model
     const pausedPartWay = run(playing, [
-      HeardAudioPosition({ seconds: 12 }),
+      HeardAudioPosition({ seconds: 12, wallClockMs: 0 }),
       HeardAudioPaused(),
     ]).model
     const ended = run(pausedPartWay, [
-      HeardAudioPosition({ seconds: 60 }),
+      HeardAudioPosition({ seconds: 60, wallClockMs: 0 }),
       HeardAudioEnded(),
     ]).model
 
@@ -427,7 +416,7 @@ describe('playing', () => {
     )
     const left = run(ready, [
       ClickedPlay(),
-      HeardAudioPosition({ seconds: 42 }),
+      HeardAudioPosition({ seconds: 42, wallClockMs: 0 }),
       ChangedUrl({ url: otherURL }),
       ChangedUrl({ url: listURL }),
     ]).model
@@ -447,7 +436,7 @@ describe('playing', () => {
       observed(),
     ])
     const finished = run(ready, [
-      HeardAudioPosition({ seconds: 60 }),
+      HeardAudioPosition({ seconds: 60, wallClockMs: 0 }),
       ChangedUrl({ url: listURL }),
       ChangedUrl({ url: recordingURL }),
       observed(),
@@ -459,7 +448,7 @@ describe('playing', () => {
     expect(readyOf(reopened.model).maybePendingSeekSeconds).toEqual(
       Option.some(42),
     )
-    expect(reopened.commandNames).toContain('ScrollToSection')
+    expect(reopened.commandNames).not.toContain('ScrollToSection')
     expect(readyOf(linked.model).positionSeconds).toBe(10)
     expect(readyOf(finished.model).positionSeconds).toBe(0)
   })
@@ -472,11 +461,11 @@ describe('playing', () => {
     const playing = run(ready, [
       ClickedPlay(),
       HeardAudioPlaying(),
-      HeardAudioPosition({ seconds: 21 }),
+      HeardAudioPosition({ seconds: 21, wallClockMs: 0 }),
     ]).model
     const browsing = run(playing, [ChangedUrl({ url: listURL })])
     const later = run(browsing.model, [
-      HeardAudioPosition({ seconds: 30 }),
+      HeardAudioPosition({ seconds: 30, wallClockMs: 0 }),
       ClickedPause(),
     ])
     const back = run(later.model, [ChangedUrl({ url: recordingURL })])
@@ -498,7 +487,8 @@ describe('playing', () => {
     ).toEqual(Option.some([30, 'Paused']))
     expect(readyOf(back.model).positionSeconds).toBe(30)
     expect(back.model.maybeBackgroundPlayback).toEqual(Option.none())
-    expect(back.commandNames).toEqual(['ScrollToSection'])
+    expect(readyOf(back.model).follow).toBe('Following')
+    expect(back.commandNames).toEqual([])
   })
 
   it('keeps nothing in the background that was never played, and closes it on request', () => {
@@ -506,7 +496,7 @@ describe('playing', () => {
     const untouched = run(ready, [ChangedUrl({ url: listURL })]).model
     const closed = run(ready, [
       ClickedPlay(),
-      HeardAudioPosition({ seconds: 8 }),
+      HeardAudioPosition({ seconds: 8, wallClockMs: 0 }),
       ChangedUrl({ url: listURL }),
       ClickedCloseMiniPlayer(),
     ]).model
@@ -550,7 +540,7 @@ describe('playing', () => {
     )
     const onLive = run(withCapture, [
       ClickedPlay(),
-      HeardAudioPosition({ seconds: 12 }),
+      HeardAudioPosition({ seconds: 12, wallClockMs: 0 }),
       ChangedUrl({ url: liveURL }),
     ])
     const toggled = run(onLive.model, [
@@ -582,7 +572,7 @@ describe('playing', () => {
     const listURL = urlOf(scribeRouteToShareUrl(RecordingListRoute()))
     const replaced = run(ready, [
       ClickedPlay(),
-      HeardAudioPosition({ seconds: 8 }),
+      HeardAudioPosition({ seconds: 8, wallClockMs: 0 }),
       ChangedUrl({ url: listURL }),
       ChangedUrl({ url: otherURL }),
     ]).model
@@ -599,7 +589,7 @@ describe('playing', () => {
 })
 
 describe('following a recording in progress', () => {
-  it('follows the newest section as snapshots arrive and has no audio yet', () => {
+  it('follows the newest word as snapshots arrive and has no audio yet', () => {
     const live = detail({
       summary: { ...detail().summary, activity: 'Recording' },
       audio: UploadingAudio({ byteCount: 0 }),
@@ -619,12 +609,12 @@ describe('following a recording in progress', () => {
     const grown = run(first.model, [
       observed({ ...live, sections: [sectionA, sectionB, sectionC] }),
     ])
-    expect(
-      Option.map(
-        followedSectionOf(readyOf(grown.model)),
-        followed => followed.id,
-      ),
-    ).toEqual(Option.some(sectionC.id))
+    expect(readAlongPlaybackOf(readyOf(grown.model))).toEqual({
+      positionSeconds: 40.2,
+      isPlaying: false,
+      reportedAtMs: 0,
+      rate: 1,
+    })
   })
 })
 
@@ -649,7 +639,9 @@ describe('copying links', () => {
   })
 
   it('copies the playback form for a moment before the first section', () => {
-    const at = run(ready, [HeardAudioPosition({ seconds: 2.5 })]).model
+    const at = run(ready, [
+      HeardAudioPosition({ seconds: 2.5, wallClockMs: 0 }),
+    ]).model
     const [, commands] = update(at, ClickedCopyMomentLink())
     expect(commands.map(command => command.args)).toEqual([
       {
@@ -682,7 +674,9 @@ describe('copying links', () => {
   })
 
   it('copies a link to the current moment in the section link form, with the lead-in', () => {
-    const at = run(ready, [HeardAudioPosition({ seconds: 42.7 })]).model
+    const at = run(ready, [
+      HeardAudioPosition({ seconds: 42.7, wallClockMs: 0 }),
+    ]).model
     const [, commands] = update(at, ClickedCopyMomentLink())
     expect(commands.map(command => command.args)).toEqual([
       {
@@ -729,92 +723,9 @@ describe('following the playhead', () => {
     AcquiredAudioPlayer(),
   ]).model
 
-  it('scrolls to each new section the playhead reaches, and only then', () => {
-    const intoA = commandsOf(ready, HeardAudioPosition({ seconds: 6 }))
-    expect(intoA.commands).toEqual([
-      {
-        name: 'ScrollToSection',
-        args: { sectionID: sectionA.id, placement: 'Center' },
-      },
-    ])
-    const withinA = commandsOf(
-      intoA.model,
-      HeardAudioPosition({ seconds: 6.5 }),
-    )
-    expect(withinA.commands).toEqual([])
-    const intoB = commandsOf(withinA.model, HeardAudioPosition({ seconds: 21 }))
-    expect(intoB.commands).toEqual([
-      {
-        name: 'ScrollToSection',
-        args: { sectionID: sectionB.id, placement: 'Center' },
-      },
-    ])
-  })
-
-  it('stops following when the listener scrolls away, and Back to Playhead scrolls back', () => {
-    const detached = run(ready, [
-      HeardAudioPosition({ seconds: 6 }),
-      ScrolledTranscriptAway(),
-    ]).model
-    const moved = commandsOf(detached, HeardAudioPosition({ seconds: 21 }))
-    expect(moved.commands).toEqual([])
-    expect(isReturnShownOf(readyOf(moved.model))).toBe(false)
-
-    const offScreen = run(moved.model, [
-      ChangedPlayheadVisibility({
-        sectionID: sectionB.id,
-        visibility: 'OffScreen',
-      }),
-    ]).model
-    expect(isReturnShownOf(readyOf(offScreen))).toBe(true)
-
-    const returned = commandsOf(offScreen, ClickedReturnToPlayhead())
-    expect(readyOf(returned.model).follow).toBe('Following')
-    expect(returned.commands).toEqual([
-      {
-        name: 'ScrollToSection',
-        args: { sectionID: sectionB.id, placement: 'Center' },
-      },
-    ])
-  })
-
-  it('follows again when the listener scrolls back to the playhead', () => {
+  it('follows again from where the scrubber was let go, even after scrolling away', () => {
     const away = run(ready, [
-      HeardAudioPosition({ seconds: 21 }),
-      ScrolledTranscriptAway(),
-      ChangedPlayheadVisibility({
-        sectionID: sectionB.id,
-        visibility: 'OffScreen',
-      }),
-    ]).model
-    const back = run(away, [
-      ChangedPlayheadVisibility({
-        sectionID: sectionB.id,
-        visibility: 'OnScreen',
-      }),
-    ]).model
-    expect(readyOf(back).follow).toBe('Following')
-    expect(isReturnShownOf(readyOf(back))).toBe(false)
-  })
-
-  it('ignores visibility reports from a section the transcript no longer follows', () => {
-    const atB = run(ready, [
-      HeardAudioPosition({ seconds: 21 }),
-      ScrolledTranscriptAway(),
-    ]).model
-    const stale = run(atB, [
-      ChangedPlayheadVisibility({
-        sectionID: sectionA.id,
-        visibility: 'OffScreen',
-      }),
-    ]).model
-    expect(readyOf(stale).playheadVisibility).toBe('OnScreen')
-    expect(isReturnShownOf(readyOf(stale))).toBe(false)
-  })
-
-  it('scrolls to where the scrubber was let go, even after scrolling away', () => {
-    const away = run(ready, [
-      HeardAudioPosition({ seconds: 6 }),
+      HeardAudioPosition({ seconds: 6, wallClockMs: 0 }),
       ScrolledTranscriptAway(),
       StartedScrub({ seconds: 6 }),
     ]).model
@@ -822,37 +733,17 @@ describe('following the playhead', () => {
     expect(readyOf(released.model).follow).toBe('Following')
     expect(released.commands).toEqual([
       { name: 'SeekAudio', args: { seconds: 21 } },
-      {
-        name: 'ScrollToSection',
-        args: { sectionID: sectionB.id, placement: 'Center' },
-      },
     ])
   })
 
-  it('moves the view with the playhead when skipping into another section', () => {
-    const atA = run(ready, [HeardAudioPosition({ seconds: 6 })]).model
+  it('moves the place when skipping into another section, and asks for no scroll', () => {
+    const atA = run(ready, [
+      HeardAudioPosition({ seconds: 6, wallClockMs: 0 }),
+    ]).model
     const skipped = commandsOf(atA, ClickedSkip({ deltaSeconds: 15 }))
     expect(readyOf(skipped.model).positionSeconds).toBe(21)
     expect(skipped.commands).toEqual([
       { name: 'SeekAudio', args: { seconds: 21 } },
-      {
-        name: 'ScrollToSection',
-        args: { sectionID: sectionB.id, placement: 'Center' },
-      },
-    ])
-  })
-
-  it('brings an off-screen playhead into view when Play is pressed', () => {
-    const offScreen = run(ready, [
-      HeardAudioPosition({ seconds: 21 }),
-      ChangedPlayheadVisibility({
-        sectionID: sectionB.id,
-        visibility: 'OffScreen',
-      }),
-    ]).model
-    expect(run(offScreen, [ClickedPlay()]).commandNames).toEqual([
-      'PlayAudio',
-      'ScrollToSection',
     ])
   })
 
@@ -879,7 +770,6 @@ describe('following the playhead', () => {
     expect(readyOf(sought.model).positionSeconds).toBe(21)
     expect(Array.map(sought.commands, command => command.name)).toEqual([
       'SeekAudio',
-      'ScrollToSection',
     ])
     const skipped = run(sought.model, [
       HeardMediaSessionAction({
@@ -909,53 +799,6 @@ describe('following a recording in progress at its live edge', () => {
       audio: UploadingAudio({ byteCount: 0 }),
       sections,
     })
-
-  it('opens at the newest section and keeps it at the live edge as it grows', () => {
-    const opening = run(opened(RecordingRoute({ recordingID })), [
-      observed(live([sectionA, sectionB])),
-    ])
-    expect(opening.commandNames).toEqual(['ScrollToSection'])
-
-    const grown = commandsOf(
-      opening.model,
-      observed(live([sectionA, sectionB, sectionC])),
-    )
-    expect(grown.commands).toContainEqual({
-      name: 'ScrollToSection',
-      args: { sectionID: sectionC.id, placement: 'LiveEdge' },
-    })
-
-    const longer = commandsOf(
-      grown.model,
-      observed(
-        live([sectionA, sectionB, { ...sectionC, text: 'Again and again' }]),
-      ),
-    )
-    expect(longer.commands).toContainEqual({
-      name: 'ScrollToSection',
-      args: { sectionID: sectionC.id, placement: 'LiveEdge' },
-    })
-
-    const away = run(longer.model, [ScrolledTranscriptAway()]).model
-    const newer = commandsOf(
-      away,
-      observed(live([sectionA, sectionB, sectionC, sectionD])),
-    )
-    expect(
-      Array.filter(
-        newer.commands,
-        command => command.name === 'ScrollToSection',
-      ),
-    ).toEqual([])
-  })
-
-  it('stays where the listener is when the recording finishes', () => {
-    const following = run(opened(RecordingRoute({ recordingID })), [
-      observed(live([sectionA, sectionB])),
-    ]).model
-    const finished = commandsOf(following, observed(detail()))
-    expect(finished.commands).toEqual([])
-  })
 
   it('announces finished sections to screen readers at most once per pause', () => {
     const following = run(opened(RecordingRoute({ recordingID })), [
@@ -1045,17 +888,13 @@ describe('keyboard shortcuts', () => {
 
   it('returns to the playhead with L once the listener scrolled it away', () => {
     const away = run(ready, [
-      HeardAudioPosition({ seconds: 21 }),
+      HeardAudioPosition({ seconds: 21, wallClockMs: 0 }),
       ScrolledTranscriptAway(),
-      ChangedPlayheadVisibility({
-        sectionID: sectionB.id,
-        visibility: 'OffScreen',
-      }),
     ]).model
     expect(shortcutContextOf(away).isAwayFromFollowed).toBe(true)
     const back = run(away, [PressedShortcut({ shortcut: 'ReturnToFollowed' })])
     expect(readyOf(back.model).follow).toBe('Following')
-    expect(back.commandNames).toEqual(['ScrollToSection'])
+    expect(back.commandNames).toEqual([])
   })
 
   it('pauses and resumes the recording in progress with P', () => {
@@ -1145,18 +984,13 @@ describe('keyboard shortcuts', () => {
 describe('full screen', () => {
   const ready = run(opened(RecordingRoute({ recordingID })), [
     observed(),
-    HeardAudioPosition({ seconds: 21 }),
+    HeardAudioPosition({ seconds: 21, wallClockMs: 0 }),
   ]).model
 
-  it('enters and leaves Full Screen, keeping a followed playhead in view', () => {
+  it('enters and leaves Full Screen, and asks for no scroll', () => {
     const entered = commandsOf(ready, ClickedEnterFullScreen())
     expect(readyOf(entered.model).screenMode).toBe('FullScreen')
-    expect(entered.commands).toEqual([
-      {
-        name: 'ScrollToSection',
-        args: { sectionID: sectionB.id, placement: 'Center' },
-      },
-    ])
+    expect(entered.commands).toEqual([])
     expect(shortcutContextOf(entered.model).isFullScreen).toBe(true)
     const left = run(entered.model, [ClickedExitFullScreen()]).model
     expect(readyOf(left).screenMode).toBe('Standard')
@@ -1438,7 +1272,7 @@ describe('the scrubber arrows', () => {
     observed(),
     ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio-1' } }),
     AcquiredAudioPlayer(),
-    HeardAudioPosition({ seconds: 10 }),
+    HeardAudioPosition({ seconds: 10, wallClockMs: 0 }),
   ]).model
 
   it('moves playback 5 seconds for Left and Right Arrow on the scrubber', () => {
@@ -1462,7 +1296,7 @@ describe('the scrubber arrows', () => {
     ]).model
     expect(readyOf(atStart).positionSeconds).toBe(0)
     const atEnd = run(ready, [
-      HeardAudioPosition({ seconds: 58 }),
+      HeardAudioPosition({ seconds: 58, wallClockMs: 0 }),
       PressedScrubberArrow({ arrow: 'Right' }),
     ]).model
     expect(readyOf(atEnd).positionSeconds).toBe(60)

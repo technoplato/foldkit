@@ -368,13 +368,13 @@ body {
   background: var(--fill);
 }
 
-/* NOTE: the word and the section being spoken are marked at the edge, by
-   the effect that reads on from the playback clock (RunSpokenWord). */
-[data-word-current] {
+/* NOTE: the word being spoken and its section are marked at the edge of
+   the shared reader, which reads on from the reader's clock. */
+.words-reader .fk-word[data-current] {
   background: var(--highlight);
 }
 
-[data-section-current] {
+.words-reader .fk-passage[data-current] {
   background-color: color-mix(in oklab, var(--color-fill) 70%, transparent);
 }
 
@@ -745,7 +745,7 @@ dialog::backdrop {
     display: none;
   }
 
-  [data-word-current] {
+  .words-reader .fk-word[data-current] {
     background: Highlight;
     color: HighlightText;
     forced-color-adjust: none;

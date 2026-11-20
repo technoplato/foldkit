@@ -70,23 +70,15 @@ export const PlaybackPhase = S.Literals(['Playing', 'Paused'])
 export type PlaybackPhase = typeof PlaybackPhase.Type
 
 /**
- * `Following` keeps the playhead (or, while recording, the newest line) on
- * screen. `Detached` means the listener scrolled away; once the followed
- * section leaves the screen they see Back to Playhead (or Back to Live), and
- * scrolling back to it follows again.
+ * `Following` keeps the word being spoken (or, while recording, the newest
+ * word) in the middle of the view. `Detached` means the listener scrolled it
+ * out of the middle: they see Back to Playhead (or Back to Live), and the
+ * words stay where they put them until they press it, pick a word, or let
+ * go of the scrubber.
  */
 export const Follow = S.Literals(['Following', 'Detached'])
-/** Whether the transcript keeps the playhead or the newest line on screen. */
+/** Whether the transcript keeps the spoken word or the newest word in the middle. */
 export type Follow = typeof Follow.Type
-
-/**
- * Whether the section the transcript follows (the playhead's, or while
- * recording the newest) is on screen. The host reports it as the listener
- * scrolls; Back to Playhead and Back to Live show only while it is off screen.
- */
-export const PlayheadVisibility = S.Literals(['OnScreen', 'OffScreen'])
-/** Whether the followed section is on screen. */
-export type PlayheadVisibility = typeof PlayheadVisibility.Type
 
 /**
  * How the recording page presents: `Standard` with its header and top bar,
@@ -249,9 +241,9 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   maybeSkippedReason: S.Option(S.String),
   fileUrls: S.Record(S.String, S.String),
   positionSeconds: S.Number,
+  maybePositionReportedAtMs: S.Option(S.Number),
   transport: Transport,
   follow: Follow,
-  playheadVisibility: PlayheadVisibility,
   screenMode: ScreenMode,
   scrub: Scrub,
   audioPlayer: AudioPlayerState,

@@ -1,23 +1,32 @@
-import { Array, Option, pipe } from 'effect'
+import { Array, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { PlaybackRoute, RecordingRoute, SectionRoute } from './link.js'
 import {
   AcquiredAudioPlayer,
-  ChangedPlayheadVisibility,
+  ChangedFindQuery,
+  ClickedEnterFullScreen,
+  ClickedPause,
   ClickedPlay,
   ClickedReturnToPlayhead,
-  CompletedScrollToSection,
+  ClickedSkip,
+  ClickedWord,
+  EndedScrub,
+  HeardAudioPaused,
   HeardAudioPlaying,
   HeardAudioPosition,
   type Message,
+  MovedScrub,
   ObservedFileUrls,
   ObservedRecording,
   PressedShortcut,
   ScrolledTranscriptAway,
+  SteppedFind,
 } from './message.js'
 import type { Model, ReadyPlayback } from './model.js'
-import { playbackClockOf } from './playbackClock.js'
+import { newestWordOf, readAlongPlaybackOf } from './playbackClock.js'
+import type { ReadAlongPlayback } from './readAlong.js'
+import { readerMessageOf, readerOf } from './reader.js'
 import {
   type RecordingDetail,
   type Section,
@@ -25,42 +34,42 @@ import {
   UploadingAudio,
 } from './recording.js'
 import {
-  followedSectionOf,
   isReturnShownOf,
   modelForRoute,
+  shortcutContextOf,
   update,
 } from './update.js'
 
 const recordingID = '7e0f1b2c-3d4e-4f50-8a6b-7c8d9e0f1a2b'
 
-// Made-up words: nothing here is from a real recording.
+const reportedAtMs = 1_795_200_000_000
+
+// NOTE: made-up words. Nothing here is from a real recording.
 const section = (
   index: number,
   startSeconds: number,
-  text: string,
+  texts: ReadonlyArray<string>,
 ): Section => ({
   id: `section-${index.toString()}`,
   index,
   startSeconds,
-  endSeconds: startSeconds + 2,
+  endSeconds: startSeconds + 0.2 + texts.length * 0.5,
   maybeSpeakerID: Option.none(),
-  text,
-  words: [
-    {
-      id: `section-${index.toString()}:0`,
-      text,
-      startSeconds: startSeconds + 0.2,
-      endSeconds: startSeconds + 1,
-    },
-  ],
+  text: texts.join(' '),
+  words: Array.map(texts, (text, at) => ({
+    id: `section-${index.toString()}:${at.toString()}`,
+    text,
+    startSeconds: startSeconds + 0.2 + at * 0.5,
+    endSeconds: startSeconds + 0.6 + at * 0.5,
+  })),
   isFinal: true,
   maybeWordsSeal: Option.none(),
 })
 
-const sectionA = section(0, 5, 'The keeper lit the lamp.')
-const sectionB = section(1, 20, 'Far out a bell answered.')
-const sectionC = section(2, 40, 'Gulls settled on the gallery.')
-const sectionD = section(3, 44, 'A boat rounded the point.')
+const sectionA = section(0, 5, ['The', 'keeper', 'lit', 'the', 'lamp.'])
+const sectionB = section(1, 20, ['Far', 'out', 'a', 'bell', 'answered.'])
+const sectionC = section(2, 40, ['Gulls', 'settled', 'on', 'the', 'gallery.'])
+const sectionD = section(3, 44, ['A', 'boat', 'rounded', 'the', 'point.'])
 
 const finished = (sections: ReadonlyArray<Section>): RecordingDetail => ({
   summary: {
@@ -113,79 +122,77 @@ const folded = (model: Model, messages: ReadonlyArray<Message>): Model =>
     (current, message) => update(current, message)[0],
   )
 
-type PageMove = Readonly<{ name: string; args: unknown }>
-
-// NOTE: the one place these tests read how the Model asks the page to
-// move: today as the Commands `ScrollToSection` and `ScrollToRecordingTitle`.
 const told = (
   model: Model,
   message: Message,
 ): Readonly<{
   model: Model
   ready: ReadyPlayback
-  moves: ReadonlyArray<PageMove>
+  commandNames: ReadonlyArray<string>
 }> => {
   const [next, commands] = update(model, message)
   return {
     model: next,
     ready: readyOf(next),
-    moves: pipe(
-      commands,
-      Array.filter(command => command.name.startsWith('ScrollTo')),
-      Array.map(command => ({ name: command.name, args: command.args })),
-    ),
+    commandNames: Array.map(commands, command => command.name),
   }
 }
 
-const toTitle: PageMove = { name: 'ScrollToRecordingTitle', args: undefined }
+const heardAt = (seconds: number): Message =>
+  HeardAudioPosition({ seconds, wallClockMs: reportedAtMs })
 
-const toMiddle = (followed: Section): PageMove => ({
-  name: 'ScrollToSection',
-  args: { sectionID: followed.id, placement: 'Center' },
+const standingAt = (positionSeconds: number): ReadAlongPlayback => ({
+  positionSeconds,
+  isPlaying: false,
+  reportedAtMs: 0,
+  rate: 1,
 })
 
-const toBottomEdge = (followed: Section): PageMove => ({
-  name: 'ScrollToSection',
-  args: { sectionID: followed.id, placement: 'LiveEdge' },
+const runningFrom = (positionSeconds: number): ReadAlongPlayback => ({
+  positionSeconds,
+  isPlaying: true,
+  reportedAtMs,
+  rate: 1,
 })
 
-const followedIDOf = (ready: ReadyPlayback): Option.Option<string> =>
-  Option.map(followedSectionOf(ready), followed => followed.id)
+const clockOf = (model: Model): ReadAlongPlayback =>
+  readAlongPlaybackOf(readyOf(model))
+
+const readerOfModel = (model: Model) => readerOf(readyOf(model), clockOf(model))
 
 const opening = modelForRoute(RecordingRoute({ recordingID }))
 
-const playingAt = (seconds: number): Model =>
+const pausedAt = (seconds: number): Model =>
   folded(opening, [
     observed(finished([sectionA, sectionB, sectionC, sectionD])),
     ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio' } }),
     AcquiredAudioPlayer(),
+    heardAt(seconds),
+  ])
+
+const playingAt = (seconds: number): Model =>
+  folded(pausedAt(seconds), [
     ClickedPlay(),
     HeardAudioPlaying(),
-    HeardAudioPosition({ seconds }),
+    heardAt(seconds),
   ])
 
 const recordingWith = (sections: ReadonlyArray<Section>): Model =>
   folded(opening, [observed(recording(sections))])
 
-const offScreen = (followed: Section): Message =>
-  ChangedPlayheadVisibility({ sectionID: followed.id, visibility: 'OffScreen' })
-
-const onScreen = (followed: Section): Message =>
-  ChangedPlayheadVisibility({ sectionID: followed.id, visibility: 'OnScreen' })
-
 describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
-  describe('where a recording opens is the Model’s to say', () => {
+  describe('where a recording opens', () => {
     it('a recording opened by its plain link starts at its title, following the voice', () => {
       const opened = told(
         opening,
         observed(finished([sectionA, sectionB, sectionC])),
       )
-      expect(opened.moves).toEqual([toTitle])
+      expect(opened.commandNames).toEqual(['ScrollToRecordingTitle'])
       expect(opened.ready.follow).toBe('Following')
     })
 
-    it('a recording opened at a linked section shows that section in the middle and does not follow the voice', () => {
-      const opened = told(
+    it('a recording opened at a linked section asks for that section in the middle, does not follow the voice, and shows the way back', () => {
+      const [next, commands] = update(
         modelForRoute(
           SectionRoute({
             recordingID,
@@ -195,11 +202,17 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         ),
         observed(finished([sectionA, sectionB, sectionC])),
       )
-      expect(opened.moves).toEqual([toMiddle(sectionC)])
-      expect(opened.ready.follow).toBe('Detached')
+      expect(
+        Array.map(
+          Array.filter(commands, command => command.name === 'ScrollToSection'),
+          command => command.args,
+        ),
+      ).toEqual([{ sectionID: sectionC.id }])
+      expect(readyOf(next).follow).toBe('Detached')
+      expect(isReturnShownOf(readyOf(next))).toBe(true)
     })
 
-    it('a recording opened at a moment shows the section spoken then in the middle, following the voice', () => {
+    it('a recording opened at a moment asks for no scroll: the reader’s clock stands there, and the words follow', () => {
       const opened = told(
         modelForRoute(
           PlaybackRoute({
@@ -210,259 +223,279 @@ describe('how the Words Model follows the voice (plan 14, slice 2)', () => {
         ),
         observed(finished([sectionA, sectionB, sectionC])),
       )
-      expect(opened.moves).toEqual([toMiddle(sectionB)])
-      expect(opened.ready.follow).toBe('Following')
+      expect(opened.commandNames).toEqual([])
+      expect(clockOf(opened.model)).toEqual(standingAt(21))
+      expect(readerOfModel(opened.model).isFollowing).toBe(true)
     })
 
-    it('a recording in progress opens with its newest words at the bottom edge', () => {
+    it('a recording in progress asks for no scroll: the reader’s clock stands at its newest word, and the words follow', () => {
       const opened = told(opening, observed(recording([sectionA, sectionB])))
-      expect(opened.moves).toEqual([toBottomEdge(sectionB)])
-      expect(opened.ready.follow).toBe('Following')
+      expect(opened.commandNames).toEqual([])
+      expect(clockOf(opened.model)).toEqual(standingAt(22.2))
+      expect(readerOfModel(opened.model).isFollowing).toBe(true)
     })
   })
 
-  describe('the view moves when the voice enters a new section, not on every word', () => {
-    it('the place moving on inside a section asks for no move', () => {
-      expect(
-        told(playingAt(20.2), HeardAudioPosition({ seconds: 21.4 })).moves,
-      ).toEqual([])
+  describe('the clock the painters follow word by word', () => {
+    it('runs from the place and the wall-clock time the player last reported, while audio plays', () => {
+      expect(clockOf(playingAt(20.2))).toEqual(runningFrom(20.2))
     })
 
-    it('the place reaching the next section brings that section to the middle', () => {
+    it('the player reporting a new place moves the clock and asks for no scroll', () => {
+      const moved = told(playingAt(20.2), heardAt(40.3))
+      expect(moved.commandNames).toEqual([])
+      expect(clockOf(moved.model)).toEqual(runningFrom(40.3))
+    })
+
+    it('stands at the place while paused', () => {
+      expect(clockOf(pausedAt(20.2))).toEqual(standingAt(20.2))
+      expect(clockOf(folded(playingAt(20.2), [HeardAudioPaused()]))).toEqual(
+        standingAt(20.2),
+      )
+    })
+
+    it('stands at the new place after a skip, until the player reports from there', () => {
+      const skipped = told(playingAt(6), ClickedSkip({ deltaSeconds: 15 }))
+      expect(skipped.commandNames).toEqual(['SeekAudio'])
+      expect(clockOf(skipped.model)).toEqual(standingAt(21))
+      expect(clockOf(folded(skipped.model, [heardAt(21.1)]))).toEqual(
+        runningFrom(21.1),
+      )
+    })
+
+    it('stands at the place when Play is pressed, until the player says it plays and where', () => {
+      const pressed = folded(pausedAt(20.2), [ClickedPlay()])
+      expect(readyOf(pressed).transport).toBe('Playing')
+      expect(clockOf(pressed)).toEqual(standingAt(20.2))
       expect(
-        told(playingAt(21.4), HeardAudioPosition({ seconds: 40.1 })).moves,
-      ).toEqual([toMiddle(sectionC)])
+        clockOf(folded(pressed, [HeardAudioPlaying(), heardAt(20.3)])),
+      ).toEqual(runningFrom(20.3))
+    })
+
+    it('stands at the scrubber’s place while the listener drags it', () => {
+      expect(
+        clockOf(folded(playingAt(20.2), [MovedScrub({ seconds: 41 })])),
+      ).toEqual(standingAt(41))
     })
   })
 
-  describe('while recording, the newest words sit at the bottom edge', () => {
+  describe('while recording, the newest word is the one followed', () => {
     const following = recordingWith([sectionA, sectionB])
 
-    it('a new section is brought to the bottom edge', () => {
+    it('the newest word is the last word of the last section that has words', () => {
       expect(
-        told(following, observed(recording([sectionA, sectionB, sectionC])))
-          .moves,
-      ).toEqual([toBottomEdge(sectionC)])
+        Option.map(newestWordOf(readyOf(following)), word => word.id),
+      ).toEqual(Option.some('section-1:4'))
     })
 
-    it('the newest section growing brings it to the bottom edge again', () => {
-      const grown = {
-        ...sectionB,
-        text: 'Far out a bell answered, slow and low.',
+    it('a new section moves the clock to its last word, and asks for no scroll', () => {
+      const grown = told(
+        following,
+        observed(recording([sectionA, sectionB, sectionC])),
+      )
+      expect(
+        Array.filter(grown.commandNames, name => name.startsWith('ScrollTo')),
+      ).toEqual([])
+      expect(clockOf(grown.model)).toEqual(standingAt(42.2))
+    })
+
+    it('a word added to the newest section moves the clock to that word', () => {
+      const longer = section(1, 20, [
+        'Far',
+        'out',
+        'a',
+        'bell',
+        'answered,',
+        'slow',
+      ])
+      expect(
+        clockOf(folded(following, [observed(recording([sectionA, longer]))])),
+      ).toEqual(standingAt(22.7))
+    })
+
+    it('a newest section with no word times leaves the clock on the word before it', () => {
+      const sealed: Section = {
+        ...sectionC,
+        words: [],
+        maybeWordsSeal: Option.some('Voice'),
       }
       expect(
-        told(following, observed(recording([sectionA, grown]))).moves,
-      ).toEqual([toBottomEdge(sectionB)])
+        clockOf(
+          folded(following, [
+            observed(recording([sectionA, sectionB, sealed])),
+          ]),
+        ),
+      ).toEqual(standingAt(22.2))
     })
 
-    it('the same words arriving again move nothing', () => {
+    it('a recording in progress with no words yet has a clock at its start', () => {
+      expect(clockOf(recordingWith([]))).toEqual(standingAt(0))
+    })
+  })
+
+  describe('leaving the voice', () => {
+    it('the reader names the leave press, and the press is the listener scrolling away', () => {
+      const playing = playingAt(20.2)
+      const reader = readerOfModel(playing)
+      expect(reader.leaveAction).toBe('ScrolledTranscriptAway')
       expect(
-        told(following, observed(recording([sectionA, sectionB]))).moves,
-      ).toEqual([])
+        readerMessageOf(readyOf(playing), 'ScrolledTranscriptAway'),
+      ).toEqual(Option.some(ScrolledTranscriptAway()))
     })
 
-    it('an earlier section changing moves nothing', () => {
-      const corrected = { ...sectionA, text: 'The keeper lit the old lamp.' }
+    it('the listener scrolling away stops the words following, and shows the way back', () => {
+      const away = told(playingAt(20.2), ScrolledTranscriptAway())
+      expect(away.ready.follow).toBe('Detached')
+      expect(readerOfModel(away.model).isFollowing).toBe(false)
+      expect(isReturnShownOf(away.ready)).toBe(true)
+      expect(away.commandNames).toEqual([])
+    })
+
+    it('the words stay detached while the voice moves on, skips, pauses, plays and goes Full Screen', () => {
+      const away = folded(playingAt(6), [ScrolledTranscriptAway()])
       expect(
-        told(following, observed(recording([corrected, sectionB]))).moves,
-      ).toEqual([])
+        Array.map(
+          [
+            heardAt(40.3),
+            ClickedSkip({ deltaSeconds: 15 }),
+            PressedShortcut({ shortcut: 'SkipForward' }),
+            ClickedPause(),
+            ClickedPlay(),
+            ClickedEnterFullScreen(),
+          ],
+          message => told(away, message).ready.follow,
+        ),
+      ).toEqual([
+        'Detached',
+        'Detached',
+        'Detached',
+        'Detached',
+        'Detached',
+        'Detached',
+      ])
     })
 
-    it('no word sounds there: the followed section is the newest one and no word is marked', () => {
-      const ready = readyOf(following)
-      expect(followedIDOf(ready)).toEqual(Option.some(sectionB.id))
-      expect(playbackClockOf(ready).isMarking).toBe(false)
+    it('while recording, the words stay detached as new words arrive', () => {
+      const away = folded(recordingWith([sectionA, sectionB]), [
+        ScrolledTranscriptAway(),
+      ])
+      const grown = told(
+        away,
+        observed(recording([sectionA, sectionB, sectionC])),
+      )
+      expect(grown.ready.follow).toBe('Detached')
+      expect(isReturnShownOf(grown.ready)).toBe(true)
+    })
+  })
+
+  describe('following again', () => {
+    const away = folded(playingAt(20.2), [ScrolledTranscriptAway()])
+
+    it('Back to Playhead shows whenever the words do not follow, and not while they do', () => {
+      expect(isReturnShownOf(readyOf(playingAt(20.2)))).toBe(false)
+      expect(isReturnShownOf(readyOf(away))).toBe(true)
+      expect(isReturnShownOf(readyOf(recordingWith([sectionA])))).toBe(false)
     })
 
-    it('once the listener has scrolled away, new words move nothing', () => {
-      const away = folded(following, [ScrolledTranscriptAway()])
+    it('pressing Back to Playhead follows again and asks for no scroll: the painter brings the spoken word to the middle', () => {
+      const returned = told(away, ClickedReturnToPlayhead())
+      expect(returned.ready.follow).toBe('Following')
+      expect(readerOfModel(returned.model).isFollowing).toBe(true)
+      expect(returned.commandNames).toEqual([])
+    })
+
+    it('pressing Back to Live while recording follows the newest word again', () => {
+      const returned = told(
+        folded(recordingWith([sectionA, sectionB]), [ScrolledTranscriptAway()]),
+        ClickedReturnToPlayhead(),
+      )
+      expect(returned.ready.follow).toBe('Following')
+      expect(clockOf(returned.model)).toEqual(standingAt(22.2))
+      expect(returned.commandNames).toEqual([])
+    })
+
+    it('the L key returns only while the words do not follow', () => {
+      expect(shortcutContextOf(away).isAwayFromFollowed).toBe(true)
+      expect(shortcutContextOf(playingAt(20.2)).isAwayFromFollowed).toBe(false)
       expect(
-        told(away, observed(recording([sectionA, sectionB, sectionC]))).moves,
-      ).toEqual([])
+        told(away, PressedShortcut({ shortcut: 'ReturnToFollowed' })).ready
+          .follow,
+      ).toBe('Following')
+    })
+
+    it('picking a word follows again from that word', () => {
+      const picked = told(away, ClickedWord({ seconds: 40.2 }))
+      expect(picked.ready.follow).toBe('Following')
+      expect(clockOf(picked.model)).toEqual(standingAt(40.2))
+    })
+
+    it('letting go of the scrubber follows again from there', () => {
+      const released = told(
+        folded(away, [MovedScrub({ seconds: 41 })]),
+        EndedScrub({ seconds: 41 }),
+      )
+      expect(released.ready.follow).toBe('Following')
+      expect(released.commandNames).toEqual(['SeekAudio'])
+    })
+  })
+
+  describe('a match the search found', () => {
+    it('stepping to a match stops following, asks for no scroll, and the reader names the match’s first word to show', () => {
+      const searching = folded(pausedAt(6), [
+        ChangedFindQuery({ query: 'bell' }),
+      ])
+      const stepped = told(searching, SteppedFind({ direction: 'Next' }))
+      expect(stepped.ready.follow).toBe('Detached')
+      expect(stepped.commandNames).toEqual([])
+      expect(readerOfModel(stepped.model).focusToken).toBe('section-1:3')
     })
   })
 
   describe('a recording that just finished stays where the listener is', () => {
-    const early = { ...sectionA, startSeconds: 0 }
-    const following = recordingWith([early, sectionB, sectionC])
+    const early = section(0, 0, ['The', 'keeper', 'lit', 'the', 'lamp.'])
+    const openedAtTwoSeconds = folded(
+      modelForRoute(
+        PlaybackRoute({
+          recordingID,
+          t: Option.some('2'),
+          focus: Option.none(),
+        }),
+      ),
+      [observed(recording([early, sectionB, sectionC]))],
+    )
 
-    it('finishing asks for no move, though the followed section is now the one at the place', () => {
+    it('with its place before the first word the words keep following, and nothing is asked', () => {
+      const following = recordingWith([sectionA, sectionB, sectionC])
       const done = told(
         following,
-        observed(finished([early, sectionB, sectionC])),
+        observed(finished([sectionA, sectionB, sectionC])),
       )
-      expect(followedIDOf(readyOf(following))).toEqual(Option.some(sectionC.id))
-      expect(followedIDOf(done.ready)).toEqual(Option.some(early.id))
-      expect(done.moves).toEqual([])
       expect(done.ready.follow).toBe('Following')
+      expect(done.commandNames).toEqual([])
+      expect(clockOf(done.model)).toEqual(standingAt(0))
     })
 
-    it('finishing with one more section asks for no move either', () => {
-      expect(
-        told(
-          following,
-          observed(finished([early, sectionB, sectionC, sectionD])),
-        ).moves,
-      ).toEqual([])
+    it('with its place on a word the words stop following, so the newest words stay in view, and Back to Playhead shows', () => {
+      expect(clockOf(openedAtTwoSeconds)).toEqual(standingAt(42.2))
+
+      const done = told(
+        openedAtTwoSeconds,
+        observed(finished([early, sectionB, sectionC])),
+      )
+      expect(done.ready.follow).toBe('Detached')
+      expect(isReturnShownOf(done.ready)).toBe(true)
+      expect(done.commandNames).toEqual([])
+      expect(clockOf(done.model)).toEqual(standingAt(2))
     })
 
-    it('once finished, the voice entering a section is followed as in any recording', () => {
-      const done = folded(following, [
+    it('once finished, pressing Back to Playhead follows the word at the place', () => {
+      const done = folded(openedAtTwoSeconds, [
         observed(finished([early, sectionB, sectionC])),
       ])
-      expect(told(done, HeardAudioPosition({ seconds: 20.5 })).moves).toEqual([
-        toMiddle(sectionB),
-      ])
-    })
-  })
-
-  describe('only a wheel or a finger stops following', () => {
-    it('the gesture stops following, and the voice entering the next section then moves nothing', () => {
-      const away = told(playingAt(20.2), ScrolledTranscriptAway())
-      expect(away.ready.follow).toBe('Detached')
-      expect(away.moves).toEqual([])
-      expect(
-        told(away.model, HeardAudioPosition({ seconds: 40.1 })).moves,
-      ).toEqual([])
-    })
-
-    it('a key that skips ahead keeps following and brings the new section to the middle', () => {
-      const skipped = told(
-        playingAt(6),
-        PressedShortcut({ shortcut: 'SkipForward' }),
-      )
-      expect(skipped.ready.follow).toBe('Following')
-      expect(skipped.moves).toEqual([toMiddle(sectionB)])
-    })
-
-    it('the followed section leaving the screen, as under the scrollbar or a key, does not stop following', () => {
-      const left = told(playingAt(20.2), offScreen(sectionB))
-      expect(left.ready.follow).toBe('Following')
-      expect(left.ready.playheadVisibility).toBe('OffScreen')
-    })
-
-    it('a jump the page made itself changes nothing', () => {
-      const playing = playingAt(20.2)
-      const jumped = told(playing, CompletedScrollToSection())
-      expect(jumped.model).toEqual(playing)
-      expect(jumped.moves).toEqual([])
-    })
-  })
-
-  describe('there is no quiet period', () => {
-    it('the next section is brought to the middle right after a scroll that did not stop following', () => {
-      const left = folded(playingAt(20.2), [offScreen(sectionB)])
-      expect(told(left, HeardAudioPosition({ seconds: 40.1 })).moves).toEqual([
-        toMiddle(sectionC),
-      ])
-    })
-
-    it('and right after the page’s own jump', () => {
-      const jumped = folded(playingAt(20.2), [CompletedScrollToSection()])
-      expect(told(jumped, HeardAudioPosition({ seconds: 40.1 })).moves).toEqual(
-        [toMiddle(sectionC)],
-      )
-    })
-  })
-
-  describe('following starts again by itself', () => {
-    const away = folded(playingAt(20.2), [
-      ScrolledTranscriptAway(),
-      offScreen(sectionB),
-    ])
-
-    it('when the spoken section comes back on screen, with no move asked for', () => {
-      const back = told(away, onScreen(sectionB))
-      expect(back.ready.follow).toBe('Following')
-      expect(back.moves).toEqual([])
-      expect(
-        told(back.model, HeardAudioPosition({ seconds: 40.1 })).moves,
-      ).toEqual([toMiddle(sectionC)])
-    })
-
-    it('not when a section the voice is not in comes on screen', () => {
-      expect(told(away, onScreen(sectionC)).ready.follow).toBe('Detached')
-    })
-
-    it('while recording, when the newest words come back on screen', () => {
-      const scrolledUp = folded(recordingWith([sectionA, sectionB]), [
-        ScrolledTranscriptAway(),
-        offScreen(sectionB),
-      ])
-      expect(told(scrolledUp, onScreen(sectionB)).ready.follow).toBe(
+      expect(readyOf(done).follow).toBe('Detached')
+      expect(told(done, ClickedReturnToPlayhead()).ready.follow).toBe(
         'Following',
       )
-    })
-  })
-
-  describe('Back to Playhead shows only while detached with the playhead off screen', () => {
-    const playing = playingAt(20.2)
-
-    it('does not show while the page follows, on screen or off', () => {
-      expect(isReturnShownOf(readyOf(playing))).toBe(false)
-      expect(
-        isReturnShownOf(readyOf(folded(playing, [offScreen(sectionB)]))),
-      ).toBe(false)
-    })
-
-    it('does not show while detached with the spoken section still on screen', () => {
-      expect(
-        isReturnShownOf(readyOf(folded(playing, [ScrolledTranscriptAway()]))),
-      ).toBe(false)
-    })
-
-    it('shows while detached with the spoken section off screen, whichever came first', () => {
-      expect(
-        isReturnShownOf(
-          readyOf(
-            folded(playing, [ScrolledTranscriptAway(), offScreen(sectionB)]),
-          ),
-        ),
-      ).toBe(true)
-      expect(
-        isReturnShownOf(
-          readyOf(
-            folded(playing, [offScreen(sectionB), ScrolledTranscriptAway()]),
-          ),
-        ),
-      ).toBe(true)
-    })
-
-    it('pressing it follows again and brings the spoken section to the middle', () => {
-      const returned = told(
-        folded(playing, [ScrolledTranscriptAway(), offScreen(sectionB)]),
-        ClickedReturnToPlayhead(),
-      )
-      expect(returned.ready.follow).toBe('Following')
-      expect(returned.moves).toEqual([toMiddle(sectionB)])
-    })
-
-    it('while recording, pressing it brings the newest words to the bottom edge', () => {
-      const returned = told(
-        folded(recordingWith([sectionA, sectionB]), [
-          ScrolledTranscriptAway(),
-          offScreen(sectionB),
-        ]),
-        ClickedReturnToPlayhead(),
-      )
-      expect(returned.ready.follow).toBe('Following')
-      expect(returned.moves).toEqual([toBottomEdge(sectionB)])
-    })
-  })
-
-  describe('the spoken word and its section are marked', () => {
-    it('a word is marked while a finished recording is open, also after the listener scrolled away', () => {
-      const playing = playingAt(20.2)
-      expect(playbackClockOf(readyOf(playing)).isMarking).toBe(true)
-      expect(
-        playbackClockOf(readyOf(folded(playing, [ScrolledTranscriptAway()])))
-          .isMarking,
-      ).toBe(true)
-    })
-
-    it('the clock the page marks from is at the place the player last reported, and runs while it plays', () => {
-      const clock = playbackClockOf(readyOf(playingAt(20.2)))
-      expect([clock.placeSeconds, clock.rate]).toEqual([20.2, 1])
     })
   })
 })

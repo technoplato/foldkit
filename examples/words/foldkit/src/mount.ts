@@ -1,9 +1,8 @@
-import { Array, Effect, Function, Option, Queue, Stream, pipe } from 'effect'
+import { Array, Effect, Option, Queue, Stream, pipe } from 'effect'
 import { Mount, Theme } from 'foldkit'
 import {
   ApproachedListEdge,
   ChangedListRowFocus,
-  ChangedPlayheadVisibility,
   CompletedRunPlaybackClock,
   CompletedRunWallClock,
   CompletedShowRowMenuOnContextMenu,
@@ -14,98 +13,10 @@ import {
   ReachedListTop,
   RecordingWindow,
   Share,
-  type SpokenSection,
-  bringsIntoView,
   clockPlaceAt,
   formatClock,
   progressFractionOf,
-  spokenAt,
 } from 'words-core-example'
-
-import { passageSelectorOf, scrollSectionElementTo } from './browser.js'
-
-const TOP_BAR_CLEARANCE_PX = 64
-const BOTTOM_CONTROLS_CLEARANCE_PX = 168
-
-/**
- * Reports whether the followed section is on screen, between the top bar
- * and the floating controls, as the listener scrolls or the transcript
- * grows. The transcript names the followed section in
- * `data-followed-section`; when that changes, or the passage first
- * appears, the observer moves to it and reports at once.
- */
-export const ObserveFollowedSection = Mount.defineStream(
-  'ObserveFollowedSection',
-  ChangedPlayheadVisibility,
-)(transcript =>
-  Stream.callback<typeof ChangedPlayheadVisibility.Type>(queue =>
-    Effect.acquireRelease(
-      Effect.sync(() => {
-        const state: {
-          maybeObserved: Element | undefined
-          maybeObserver: IntersectionObserver | undefined
-        } = { maybeObserved: undefined, maybeObserver: undefined }
-        const watch = () => {
-          const sectionID =
-            transcript.getAttribute('data-followed-section') ?? ''
-          const maybePassage =
-            sectionID === ''
-              ? undefined
-              : (transcript.querySelector(passageSelectorOf(sectionID)) ??
-                undefined)
-          if (maybePassage === state.maybeObserved) {
-            return
-          }
-          state.maybeObserver?.disconnect()
-          state.maybeObserved = maybePassage
-          state.maybeObserver =
-            maybePassage === undefined
-              ? undefined
-              : new IntersectionObserver(
-                  entries => {
-                    pipe(
-                      Array.last(entries),
-                      Option.match({
-                        onNone: Function.constVoid,
-                        onSome: entry =>
-                          Queue.offerUnsafe(
-                            queue,
-                            ChangedPlayheadVisibility({
-                              sectionID,
-                              visibility: entry.isIntersecting
-                                ? 'OnScreen'
-                                : 'OffScreen',
-                            }),
-                          ),
-                      }),
-                    )
-                  },
-                  {
-                    rootMargin: `-${TOP_BAR_CLEARANCE_PX}px 0px -${BOTTOM_CONTROLS_CLEARANCE_PX}px 0px`,
-                  },
-                )
-          if (maybePassage !== undefined) {
-            state.maybeObserver?.observe(maybePassage)
-          }
-        }
-        const changes = new MutationObserver(watch)
-        changes.observe(transcript, {
-          attributes: true,
-          attributeFilter: ['data-followed-section'],
-          childList: true,
-          subtree: true,
-        })
-        watch()
-        return { changes, state }
-      }),
-      ({ changes, state }) =>
-        Effect.sync(() => {
-          changes.disconnect()
-          state.maybeObserver?.disconnect()
-        }),
-    ).pipe(Effect.flatMap(() => Effect.never)),
-  ),
-)
 
 /**
  * Opens the share sheet's `<dialog>` as a native modal: the page behind is
@@ -775,20 +686,13 @@ const clockOfElement = (element: Element): PlaybackClock => ({
   placeSeconds: Number(element.getAttribute('data-clock-place') ?? '0'),
   rate: Number(element.getAttribute('data-clock-rate') ?? '0'),
   durationSeconds: Number(element.getAttribute('data-clock-duration') ?? '0'),
-  isMarking: element.getAttribute('data-clock-marking') !== 'false',
-  keepsInView: element.getAttribute('data-clock-follow') === 'true',
 })
 
 const CLOCK_ATTRIBUTES: ReadonlyArray<string> = [
   'data-clock-place',
   'data-clock-rate',
   'data-clock-duration',
-  'data-clock-marking',
-  'data-clock-follow',
 ]
-
-/** The spoken word is painted at most this often: it is never marked later than this. */
-const WORD_PAINT_GAP_MS = 40
 
 /** The scrubber and the time beside it are painted at most this often. */
 const BAR_PAINT_GAP_MS = 100
@@ -802,10 +706,10 @@ type ClockRunner = Readonly<{ wake: () => void; stop: () => void }>
  * Calls `paint` with the place the element's clock has reached, every
  * `paintGapMs` while it runs, once when the clock is told something new
  * while it stands still, and not at all otherwise. The element carries
- * the clock the Model said (`data-clock-place`, `-rate`, `-duration`,
- * `-marking`); this notes the moment each new place or rate arrives and
- * reads on from there, so the page hears the place about once a second
- * and still moves on the word. It stops with the tab in the background,
+ * the clock the Model said (`data-clock-place`, `-rate`, `-duration`);
+ * this notes the moment each new place or rate arrives and reads on from
+ * there, so the page hears the place about once a second and the scrubber
+ * still moves between reports. It stops with the tab in the background,
  * as animation frames do. `wake` paints again after something other than
  * the clock changed.
  */
@@ -869,137 +773,6 @@ const onPlaybackClock = (
     Effect.sync(() => runPlaybackClock(element, BAR_PAINT_GAP_MS, paint)),
     runner => Effect.sync(runner.stop),
   ).pipe(Effect.as(CompletedRunPlaybackClock()))
-
-const SECTION_SELECTOR = '.fk-passage[data-start-ms]'
-const WORD_SELECTOR = '.fk-word[data-start-ms]'
-const WORD_CURRENT = 'data-word-current'
-const SECTION_CURRENT = 'data-section-current'
-
-type SpokenElements = Readonly<{
-  sections: ReadonlyArray<SpokenSection>
-  sectionElements: ReadonlyArray<Element>
-  wordElements: ReadonlyArray<ReadonlyArray<Element>>
-}>
-
-const secondsOf = (element: Element): number =>
-  Number(element.getAttribute('data-start-ms')) / MILLISECONDS_PER_SECOND
-
-const spokenElementsOf = (transcript: Element): SpokenElements => {
-  const sectionElements = Array.fromIterable(
-    transcript.querySelectorAll(SECTION_SELECTOR),
-  )
-  const wordElements = Array.map(sectionElements, section =>
-    Array.fromIterable(section.querySelectorAll(WORD_SELECTOR)),
-  )
-  return {
-    sectionElements,
-    wordElements,
-    sections: Array.map(sectionElements, (section, index) => ({
-      startSeconds: secondsOf(section),
-      wordStarts: Array.map(wordElements[index] ?? [], secondsOf),
-    })),
-  }
-}
-
-const moveMark = (
-  maybeFrom: Element | undefined,
-  maybeTo: Element | undefined,
-  attribute: string,
-): void => {
-  if (maybeFrom !== maybeTo) {
-    maybeFrom?.removeAttribute(attribute)
-  }
-  if (maybeTo !== undefined && !maybeTo.hasAttribute(attribute)) {
-    maybeTo.setAttribute(attribute, '')
-  }
-}
-
-/**
- * Marks the section and the word being spoken, on the transcript: the
- * ones the playback clock has reached, by the page's own rule
- * (`spokenAt`). Only the old and the new word and section are touched.
- * It reads the sections and words from the page once, and again only
- * after the page's lines change.
- */
-export const RunSpokenWord = Mount.define(
-  'RunSpokenWord',
-  CompletedRunPlaybackClock,
-)(element => {
-  const state: {
-    maybeElements: SpokenElements | undefined
-    maybeSection: Element | undefined
-    maybeWord: Element | undefined
-    maybeSectionIndex: Option.Option<number>
-    hasLooked: boolean
-  } = {
-    maybeElements: undefined,
-    maybeSection: undefined,
-    maybeWord: undefined,
-    maybeSectionIndex: Option.none(),
-    hasLooked: false,
-  }
-  const paint = (clock: PlaybackClock, placeSeconds: number): void => {
-    const elements = state.maybeElements ?? spokenElementsOf(element)
-    state.maybeElements = elements
-    const spoken = clock.isMarking
-      ? spokenAt(elements.sections, placeSeconds)
-      : { maybeSection: Option.none(), maybeWord: Option.none() }
-    const maybeSectionIndex = Option.getOrUndefined(spoken.maybeSection)
-    const maybeSection =
-      maybeSectionIndex === undefined
-        ? undefined
-        : elements.sectionElements[maybeSectionIndex]
-    const maybeWord =
-      maybeSectionIndex === undefined
-        ? undefined
-        : Option.getOrUndefined(
-            Option.flatMap(spoken.maybeWord, index =>
-              Option.fromNullishOr(
-                elements.wordElements[maybeSectionIndex]?.[index],
-              ),
-            ),
-          )
-    moveMark(state.maybeSection, maybeSection, SECTION_CURRENT)
-    moveMark(state.maybeWord, maybeWord, WORD_CURRENT)
-    // NOTE: the spoken section is brought into view here, at the moment
-    // the mark crosses into it, not when the Model next hears the place.
-    // The first look only marks: where the page opens is the Model's to
-    // say. Once the listener scrolls away the clock says so, and nothing
-    // is moved.
-    if (
-      state.hasLooked &&
-      maybeSection instanceof HTMLElement &&
-      bringsIntoView(clock, state.maybeSectionIndex, spoken.maybeSection)
-    ) {
-      scrollSectionElementTo(maybeSection, 'Center')
-    }
-    state.hasLooked = true
-    state.maybeSectionIndex = spoken.maybeSection
-    state.maybeSection = maybeSection
-    state.maybeWord = maybeWord
-  }
-  return Effect.acquireRelease(
-    Effect.sync(() => {
-      const runner = runPlaybackClock(element, WORD_PAINT_GAP_MS, paint)
-      // NOTE: when the page's lines change, the lists of sections and
-      // words are read again, and the mark is put back at once, also while
-      // the clock stands still.
-      const lines = new MutationObserver(() => {
-        state.maybeElements = undefined
-        runner.wake()
-      })
-      lines.observe(element, { childList: true, subtree: true })
-      return { runner, lines }
-    }),
-    ({ runner, lines }) =>
-      Effect.sync(() => {
-        lines.disconnect()
-        runner.stop()
-        state.maybeSection?.removeAttribute(SECTION_CURRENT)
-        state.maybeWord?.removeAttribute(WORD_CURRENT)
-      }),
-  ).pipe(Effect.as(CompletedRunPlaybackClock()))
-})
 
 /**
  * Moves the scrubber's thumb and its filled track with the playback

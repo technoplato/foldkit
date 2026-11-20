@@ -14,6 +14,7 @@ import {
   SteppedFind,
 } from './message.js'
 import type { Model } from './model.js'
+import { readerOf } from './reader.js'
 import { type RecordingDetail, type Section, StoredAudio } from './recording.js'
 import { findOf, modelForRoute, update } from './update.js'
 
@@ -90,7 +91,7 @@ const at = (seconds: number): Model =>
     }),
     ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio' } }),
     AcquiredAudioPlayer(),
-    HeardAudioPosition({ seconds }),
+    HeardAudioPosition({ seconds, wallClockMs: 0 }),
   ]).model
 
 const readyOf = (model: Model) => {
@@ -138,14 +139,22 @@ describe('finding words inside one recording', () => {
     ).toHaveLength(1)
   })
 
-  it('steps to the first match after the place, shows it without moving the audio, and stops following the voice', () => {
+  it('steps to the first match after the place, names its first word to show without moving the audio, and stops following the voice', () => {
     const stepped = run(searching(11, 'lamp'), [
       SteppedFind({ direction: 'Next' }),
     ])
     expect(Option.getOrThrow(find(stepped.model)).maybeSelectedIndex).toEqual(
       Option.some(1),
     )
-    expect(stepped.commands).toEqual(['ScrollToSection'])
+    expect(stepped.commands).toEqual([])
+    expect(
+      readerOf(readyOf(stepped.model), {
+        positionSeconds: 11,
+        isPlaying: false,
+        reportedAtMs: 0,
+        rate: 1,
+      }).focusToken,
+    ).toBe('section-1:6')
     expect(readyOf(stepped.model).positionSeconds).toBe(11)
     expect(readyOf(stepped.model).follow).toBe('Detached')
   })

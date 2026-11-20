@@ -10,7 +10,6 @@ import {
   type Model,
   PLAYER_ELEMENT_ID,
   type ReadyPlayback,
-  ScrolledTranscriptAway,
   contrastOf,
   displayedPlaybackOf,
   isListRoute,
@@ -312,19 +311,6 @@ const isFullScreenOf = (model: Model): boolean =>
     ready => ready.screenMode === 'FullScreen',
   )
 
-const followAttributesOf = (model: Model) => {
-  const h = html<Message>()
-  return Option.exists(
-    maybeOpenRecordingOf(model),
-    ready => ready.follow === 'Following',
-  )
-    ? [
-        h.OnWheel(ScrolledTranscriptAway()),
-        h.OnTouchMove(ScrolledTranscriptAway()),
-      ]
-    : []
-}
-
 const shareOverlay = (model: Model): ReadonlyArray<Html> =>
   M.value(model.playback).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
@@ -359,22 +345,13 @@ const splitGridClass =
 /**
  * The page's columns. Split, the recording list is the sidebar from 1024 px:
  * on the list itself it is the page's list, with a placeholder beside it;
- * elsewhere a sidebar that is hidden below 1024 px. Scrolling the page away
- * from a followed playhead or live edge detaches following; scrolling the
- * sidebar does not.
+ * elsewhere a sidebar that is hidden below 1024 px.
  */
 const columns = (model: Model, config: ViewConfig): Html => {
   const h = html<Message>()
   const page = content(model, config)
   if (!isSplitOf(model)) {
-    return h.div(
-      [
-        h.Id(CONTENT_ELEMENT_ID),
-        h.Class('outline-none'),
-        ...followAttributesOf(model),
-      ],
-      [page],
-    )
+    return h.div([h.Id(CONTENT_ELEMENT_ID), h.Class('outline-none')], [page])
   } else if (isListRoute(model.route)) {
     return h.div(
       [h.Id(CONTENT_ELEMENT_ID), h.Class(`outline-none ${splitGridClass}`)],
@@ -386,11 +363,7 @@ const columns = (model: Model, config: ViewConfig): Html => {
       [
         recordingSidebar(model, config),
         h.div(
-          [
-            h.Id(CONTENT_ELEMENT_ID),
-            h.Class('min-w-0 outline-none'),
-            ...followAttributesOf(model),
-          ],
+          [h.Id(CONTENT_ELEMENT_ID), h.Class('min-w-0 outline-none')],
           [page],
         ),
       ],

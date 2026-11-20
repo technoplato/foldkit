@@ -7,10 +7,10 @@ import {
 } from 'words-core-example'
 
 /**
- * The playback clock as an element carries it, for the effects at the
- * edge that read on from it between reports of the place: the place in
- * seconds, how fast it moves, the recording's length, whether a word is
- * marked, and whether the spoken section is kept in view. The Model says it; the edge only reads it.
+ * The playback clock as the scrubber and the time beside it carry it, for
+ * the effects at the edge that read on from it between reports of the
+ * place: the place in seconds, how fast it moves, and the recording's
+ * length. The Model says it; the edge only reads it.
  */
 export const clockAttributesOf = (clock: PlaybackClock) => {
   const h = html<Message>()
@@ -18,8 +18,6 @@ export const clockAttributesOf = (clock: PlaybackClock) => {
     h.DataAttribute('clock-place', String(clock.placeSeconds)),
     h.DataAttribute('clock-rate', String(clock.rate)),
     h.DataAttribute('clock-duration', String(clock.durationSeconds)),
-    h.DataAttribute('clock-marking', String(clock.isMarking)),
-    h.DataAttribute('clock-follow', String(clock.keepsInView)),
   ]
 }
 

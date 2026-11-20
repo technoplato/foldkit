@@ -200,4 +200,25 @@ describe('the mount on a painted Transcript', () => {
     await Effect.runPromise(Fiber.interrupt(fiber))
     root.remove()
   })
+
+  it('marks a word that arrives while the clock stands still, when the clock is moved to its start, as the newest word of a recording in progress is', async () => {
+    const root = page(0)
+    root.setAttribute('data-clock-place-ms', '2500')
+    document.body.append(root)
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<unknown>().f(root)),
+    )
+    await until(() => currentTokens(root)[0] === 'w5')
+    const newest = document.createElement('span')
+    newest.className = 'fk-word'
+    newest.setAttribute('data-token', 'w6')
+    newest.setAttribute('data-start-ms', '3000')
+    const passages = [...root.querySelectorAll('.fk-passage')]
+    passages.at(1)?.append(newest)
+    root.setAttribute('data-clock-place-ms', '3000')
+    await until(() => currentTokens(root)[0] === 'w6')
+    expect(currentTokens(root)).toEqual(['w6'])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    root.remove()
+  })
 })

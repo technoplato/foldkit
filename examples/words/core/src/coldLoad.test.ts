@@ -363,7 +363,7 @@ describe('opening each recording link in a new tab', () => {
       newTabWithoutSession,
     )
     expect(commandsNamed(steps, 'ScrollToSection')).toEqual([
-      { sectionID: linkedSection.id, placement: 'Center' },
+      { sectionID: linkedSection.id },
     ])
     expect(commandsNamed(steps, 'ClearFocusHighlightLater')).toEqual([
       { revision: readyOf(model).focusRevision },

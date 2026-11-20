@@ -220,7 +220,7 @@ describe('a link to a retired line', () => {
 
     expect(ready.maybeFocusedSectionID).toEqual(Option.some(lineID(2)))
     expect(ready.positionSeconds).toBe(19)
-    expect(scrolls).toEqual([{ sectionID: lineID(2), placement: 'Center' }])
+    expect(scrolls).toEqual([{ sectionID: lineID(2) }])
   })
 
   it('opens at the next kept line when the retired line names none', () => {
@@ -237,7 +237,7 @@ describe('a link to a retired line', () => {
 
     expect(ready.maybeFocusedSectionID).toEqual(Option.some(lineID(4)))
     expect(ready.positionSeconds).toBe(19)
-    expect(scrolls).toEqual([{ sectionID: lineID(4), placement: 'Center' }])
+    expect(scrolls).toEqual([{ sectionID: lineID(4) }])
   })
 })
 

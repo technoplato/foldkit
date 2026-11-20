@@ -1,8 +1,9 @@
-import { Option, pipe } from 'effect'
+import { Array, Option } from 'effect'
 import { transcriptPlaceAt } from 'foldkit/renderers'
 
 import type { ReadyPlayback } from './model.js'
-import { lastIndexAtOrBefore } from './transcript.js'
+import type { ReadAlongPlayback } from './readAlong.js'
+import type { Word } from './recording.js'
 import {
   displayedPositionOf,
   durationOf,
@@ -18,41 +19,92 @@ const MILLISECONDS_PER_SECOND = 1000
 export const positionReportIntervalMs = 1000
 
 /**
- * What the edge reads on from between reports of the place: the place in
- * seconds, how fast it moves (`1` while playing, `0` while paused or while
- * the listener drags the scrubber), the recording's length, and whether a
- * word is marked at all, which it is not while the page follows the live
- * edge of a recording in progress. `keepsInView` says the page follows
- * the voice, so the spoken section is brought into view as the mark
- * crosses into it; it is false once the listener has scrolled away, and
- * at the live edge, where the Model keeps the newest line in view.
+ * What the scrubber and the time beside it read on from between reports
+ * of the place: the place in seconds, how fast it moves (`1` while
+ * playing, `0` while paused or while the listener drags the scrubber),
+ * and the recording's length.
  */
 export type PlaybackClock = Readonly<{
   placeSeconds: number
   rate: number
   durationSeconds: number
-  isMarking: boolean
-  keepsInView: boolean
 }>
 
+const isMoving = (ready: ReadyPlayback): boolean =>
+  ready.transport === 'Playing' && ready.scrub._tag === 'NotScrubbing'
+
 /**
- * The clock of an open recording, from the Model alone.
+ * The clock of an open recording's scrubber, from the Model alone.
  *
  * @example
  * ```typescript
- * playbackClockOf(ready) // { placeSeconds: 12, rate: 1, durationSeconds: 60, isMarking: true, keepsInView: true }
+ * playbackClockOf(ready) // { placeSeconds: 12, rate: 1, durationSeconds: 60 }
  * ```
  */
 export const playbackClockOf = (ready: ReadyPlayback): PlaybackClock => ({
   placeSeconds: displayedPositionOf(ready),
-  rate:
-    ready.transport === 'Playing' && ready.scrub._tag === 'NotScrubbing'
-      ? 1
-      : 0,
+  rate: isMoving(ready) ? 1 : 0,
   durationSeconds: durationOf(ready),
-  isMarking: !isFollowingLiveEdgeOf(ready),
-  keepsInView: ready.follow === 'Following' && !isFollowingLiveEdgeOf(ready),
 })
+
+/**
+ * The newest word of a recording: the last word of the last section that
+ * has words with times. A sealed line, or one with text and no word times,
+ * has none, so the word before it stays the newest.
+ *
+ * @example
+ * ```typescript
+ * newestWordOf(ready) // Some({ id: 'section-8:4', text: 'lamp.', startSeconds: 92.2, … })
+ * ```
+ */
+export const newestWordOf = (ready: ReadyPlayback): Option.Option<Word> =>
+  Array.findLast(ready.detail.sections, section => Array.last(section.words))
+
+const standingAt = (positionSeconds: number): ReadAlongPlayback => ({
+  positionSeconds,
+  isPlaying: false,
+  reportedAtMs: 0,
+  rate: 1,
+})
+
+/**
+ * Where the reader's clock stands for an open recording, from the Model
+ * alone. Every painter marks the word this clock has reached and keeps it
+ * in the middle while the words follow the voice.
+ *
+ * - While a recording in progress is followed at its live edge, no word
+ *   sounds, so the clock stands at the newest word and moves on as words
+ *   arrive: the newest word is the one followed.
+ * - Otherwise it is at the place the player last reported, and runs from
+ *   the wall-clock time of that report while audio plays. After a jump,
+ *   and until the player reports from the new place, it stands still.
+ *
+ * @example
+ * ```typescript
+ * readAlongPlaybackOf(playing) // { positionSeconds: 12, isPlaying: true, reportedAtMs: 1795200000000, rate: 1 }
+ * readAlongPlaybackOf(recording) // { positionSeconds: 92.2, isPlaying: false, reportedAtMs: 0, rate: 1 }
+ * ```
+ */
+export const readAlongPlaybackOf = (ready: ReadyPlayback): ReadAlongPlayback =>
+  isFollowingLiveEdgeOf(ready)
+    ? standingAt(
+        Option.match(newestWordOf(ready), {
+          onNone: () => displayedPositionOf(ready),
+          onSome: word => word.startSeconds,
+        }),
+      )
+    : Option.match(
+        Option.filter(ready.maybePositionReportedAtMs, () => isMoving(ready)),
+        {
+          onNone: () => standingAt(displayedPositionOf(ready)),
+          onSome: reportedAtMs => ({
+            positionSeconds: displayedPositionOf(ready),
+            isPlaying: true,
+            reportedAtMs,
+            rate: 1,
+          }),
+        },
+      )
 
 /**
  * The place a clock has reached at `nowMs`, when it was told its place at
@@ -92,69 +144,3 @@ export const progressFractionOf = (
   durationSeconds > 0
     ? Math.min(1, Math.max(0, placeSeconds / durationSeconds))
     : 0
-
-/** A section as the edge sees it: when it starts, and when each word does. */
-export type SpokenSection = Readonly<{
-  startSeconds: number
-  wordStarts: ReadonlyArray<number>
-}>
-
-/**
- * The section and the word being spoken at a place, by their positions:
- * the last section to start at or before it, so a pause between sections
- * keeps the one before current, and the last word of that section to
- * start at or before it. Before the section's first word the section is
- * current and no word is marked; before the first section, nothing is.
- *
- * @example
- * ```typescript
- * spokenAt(sections, 12.9) // { maybeSection: Some(1), maybeWord: Some(1) }
- * ```
- */
-export const spokenAt = (
-  sections: ReadonlyArray<SpokenSection>,
-  placeSeconds: number,
-): Readonly<{
-  maybeSection: Option.Option<number>
-  maybeWord: Option.Option<number>
-}> => {
-  const maybeSection = lastIndexAtOrBefore(
-    sections,
-    placeSeconds,
-    section => section.startSeconds,
-  )
-  return {
-    maybeSection,
-    maybeWord: pipe(
-      maybeSection,
-      Option.flatMap(index => Option.fromNullishOr(sections[index])),
-      Option.flatMap(section =>
-        lastIndexAtOrBefore(section.wordStarts, placeSeconds, start => start),
-      ),
-    ),
-  }
-}
-
-const isSameSection = Option.makeEquivalence<number>(
-  (self, that) => self === that,
-)
-
-/**
- * Whether the edge brings the spoken section into view now: the page
- * follows the voice, and the mark has just crossed into a section it was
- * not in. Not once the listener has scrolled away, and not when the mark
- * leaves every section.
- *
- * @example
- * ```typescript
- * bringsIntoView(clock, Option.some(1), Option.some(2)) // true while the page follows the voice
- * ```
- */
-export const bringsIntoView = (
-  clock: PlaybackClock,
-  maybeFrom: Option.Option<number>,
-  maybeTo: Option.Option<number>,
-): boolean =>
-  clock.keepsInView &&
-  Option.isSome(maybeTo) &&
-  !isSameSection(maybeFrom, maybeTo)

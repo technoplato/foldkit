@@ -842,9 +842,10 @@ const newestLineOf = (ready: ReadyPlayback): Option.Option<string> =>
   Option.map(Array.last(ready.detail.sections), section => section.text)
 
 /**
- * Back to Playhead, or Back to Live while recording: shown only after the
- * listener scrolled the followed section off screen. Back to Live previews
- * the newest line.
+ * Back to Playhead, or Back to Live while recording: shown whenever the
+ * words do not follow the voice, which is once the listener has scrolled
+ * the spoken word, or the newest word, out of the middle. Back to Live
+ * previews the newest line.
  */
 export const returnPill = (ready: ReadyPlayback): ReadonlyArray<Html> => {
   const h = html<Message>()

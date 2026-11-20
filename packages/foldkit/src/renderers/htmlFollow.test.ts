@@ -1,5 +1,5 @@
 import { Effect, Fiber, Stream } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Transcript } from './elements.js'
 import { paintHtml } from './html.js'
@@ -140,33 +140,76 @@ describe('the reader scrolling away, at the edge', () => {
     transcript.remove()
   })
 
+  // NOTE: the word sits three windows down, 20 px tall, so its middle is
+  // 10 px below that, and the window scrolls until that is the middle.
+  const topThatCentersTheWord = (): number =>
+    window.innerHeight * 3 + 10 - window.innerHeight / 2
+
+  const recordedScrolls = (): Array<ScrollToOptions> => {
+    const scrolls: Array<ScrollToOptions> = []
+    vi.spyOn(window, 'scrollTo').mockImplementation(
+      (options?: ScrollToOptions | number) => {
+        if (typeof options === 'object') {
+          scrolls.push(options)
+        }
+      },
+    )
+    return scrolls
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    document.documentElement.style.removeProperty('scroll-padding-top')
+    document.documentElement.style.removeProperty('scroll-padding-bottom')
+  })
+
   it('brings the spoken word back to the middle when the Program says the words follow again', async () => {
-    const { transcript, word } = page()
+    const { transcript } = page()
     transcript.setAttribute('data-following', 'false')
-    const shown: Array<string> = []
-    word.scrollIntoView = () => {
-      shown.push(word.getAttribute('data-token') ?? '')
-    }
+    const scrolls = recordedScrolls()
     const fiber = Effect.runFork(
       Stream.runDrain(transcriptMount<never>().f(transcript)),
     )
     await new Promise(resolve => {
       setTimeout(resolve, 20)
     })
-    expect(shown).toEqual([])
+    expect(scrolls).toEqual([])
     transcript.setAttribute('data-following', 'true')
-    await until(() => shown.length === 1)
-    expect(shown).toEqual(['w1'])
+    await until(() => scrolls.length === 1)
+    expect(scrolls).toEqual([
+      { top: topThatCentersTheWord(), behavior: 'smooth' },
+    ])
     await Effect.runPromise(Fiber.interrupt(fiber))
     transcript.remove()
   })
 
   it('brings the word it is told to show into view', async () => {
+    const { transcript } = page()
+    transcript.setAttribute('data-following', 'false')
+    const scrolls = recordedScrolls()
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<never>().f(transcript)),
+    )
+    await new Promise(resolve => {
+      setTimeout(resolve, 20)
+    })
+    expect(scrolls).toEqual([])
+    transcript.setAttribute('data-focus-token', 'w1')
+    await until(() => scrolls.length === 1)
+    expect(scrolls).toEqual([
+      { top: topThatCentersTheWord(), behavior: 'smooth' },
+    ])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
+  it('scrolls the window itself and never asks the word to scroll into view, which in Chromium would move where Tab starts from', async () => {
     const { transcript, word } = page()
     transcript.setAttribute('data-following', 'false')
-    const shown: Array<string> = []
+    const scrolls = recordedScrolls()
+    const asked: Array<string> = []
     word.scrollIntoView = () => {
-      shown.push(word.getAttribute('data-token') ?? '')
+      asked.push('scrollIntoView')
     }
     const fiber = Effect.runFork(
       Stream.runDrain(transcriptMount<never>().f(transcript)),
@@ -174,10 +217,57 @@ describe('the reader scrolling away, at the edge', () => {
     await new Promise(resolve => {
       setTimeout(resolve, 20)
     })
-    expect(shown).toEqual([])
-    transcript.setAttribute('data-focus-token', 'w1')
-    await until(() => shown.length === 1)
-    expect(shown).toEqual(['w1'])
+    transcript.setAttribute('data-following', 'true')
+    await until(() => scrolls.length === 1)
+    expect(asked).toEqual([])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
+  it('jumps with no animation where the reader asked for reduced motion', async () => {
+    const { transcript } = page()
+    transcript.setAttribute('data-following', 'false')
+    const scrolls = recordedScrolls()
+    vi.spyOn(window, 'matchMedia').mockImplementation(query =>
+      Object.assign(new EventTarget(), {
+        media: query,
+        matches: query === '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+      }),
+    )
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<never>().f(transcript)),
+    )
+    await new Promise(resolve => {
+      setTimeout(resolve, 20)
+    })
+    transcript.setAttribute('data-following', 'true')
+    await until(() => scrolls.length === 1)
+    expect(scrolls).toEqual([
+      { top: topThatCentersTheWord(), behavior: 'auto' },
+    ])
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    transcript.remove()
+  })
+
+  it('puts the word in the middle of what the page’s scroll padding leaves free: 60 px lower for 120 px kept at the top', async () => {
+    const { transcript } = page()
+    transcript.setAttribute('data-following', 'false')
+    document.documentElement.style.setProperty('scroll-padding-top', '120px')
+    const scrolls = recordedScrolls()
+    const fiber = Effect.runFork(
+      Stream.runDrain(transcriptMount<never>().f(transcript)),
+    )
+    await new Promise(resolve => {
+      setTimeout(resolve, 20)
+    })
+    transcript.setAttribute('data-following', 'true')
+    await until(() => scrolls.length === 1)
+    expect(scrolls).toEqual([
+      { top: topThatCentersTheWord() - 60, behavior: 'smooth' },
+    ])
     await Effect.runPromise(Fiber.interrupt(fiber))
     transcript.remove()
   })

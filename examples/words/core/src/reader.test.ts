@@ -86,7 +86,7 @@ const opened: Model = run(modelForRoute(RecordingRoute({ recordingID })), [
   }),
   ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio' } }),
   AcquiredAudioPlayer(),
-  HeardAudioPosition({ seconds: 2.6 }),
+  HeardAudioPosition({ seconds: 2.6, wallClockMs: 0 }),
 ])
 
 const readyOf = (model: Model) => {
@@ -273,7 +273,9 @@ describe('a section’s menu on the reader', () => {
   it('keeps each unchanged passage the same value from one render to the next, so a page draws again only what changed', () => {
     const before = readerOf(readyOf(opened), paused)
     const after = readerOf(
-      readyOf(run(opened, [HeardAudioPosition({ seconds: 11 })])),
+      readyOf(
+        run(opened, [HeardAudioPosition({ seconds: 11, wallClockMs: 0 })]),
+      ),
       paused,
     )
     expect(Array.zipWith(before.passages, after.passages, Object.is)).toEqual([

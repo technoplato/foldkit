@@ -18,6 +18,7 @@ import {
   ObservedRecording,
 } from './message.js'
 import type { Model, ReadyPlayback } from './model.js'
+import { readAlongPlaybackOf } from './playbackClock.js'
 import {
   NoAudio,
   type RecordingDetail,
@@ -29,7 +30,6 @@ import {
   audioSourceOf,
   compressedCopyRequestOf,
   durationOf,
-  followedSectionOf,
   isAudioPlayableOf,
   liveAudioCaptionOf,
   modelForRoute,
@@ -222,7 +222,7 @@ describe('a recording in progress plays from its live copy (#1299)', () => {
     expect(readyOf(played.model).transport).toBe('Playing')
 
     const later = run(played.model, [
-      HeardAudioPosition({ seconds: 652 }),
+      HeardAudioPosition({ seconds: 652, wallClockMs: 0 }),
       ClickedPause(),
       found(copy({ segmentCount: 120, durationSeconds: 720 })),
       ClickedPlay(),
@@ -269,18 +269,24 @@ describe('a recording in progress plays from its live copy (#1299)', () => {
     expect(readyOf(model).maybePendingSeekSeconds).toEqual(Option.some(100))
   })
 
-  it('follows the newest line until the listener plays, then the line being heard', () => {
+  it('follows the newest word until the listener plays, then the word being heard', () => {
     const acquired = run(live(), [found(copy()), AcquiredAudioPlayer()]).model
-    expect(
-      Option.map(followedSectionOf(readyOf(acquired)), line => line.id),
-    ).toEqual(Option.some('line-2'))
+    expect(readAlongPlaybackOf(readyOf(acquired))).toEqual({
+      positionSeconds: 640,
+      isPlaying: false,
+      reportedAtMs: 0,
+      rate: 1,
+    })
     const listening = run(acquired, [
       ClickedPlay(),
-      HeardAudioPosition({ seconds: 592 }),
+      HeardAudioPosition({ seconds: 592, wallClockMs: 1_000_000 }),
     ]).model
-    expect(
-      Option.map(followedSectionOf(readyOf(listening)), line => line.id),
-    ).toEqual(Option.some('line-1'))
+    expect(readAlongPlaybackOf(readyOf(listening))).toEqual({
+      positionSeconds: 592,
+      isPlaying: true,
+      reportedAtMs: 1_000_000,
+      rate: 1,
+    })
   })
 
   it('keeps playing the copy when the recording stops and its file arrives', () => {

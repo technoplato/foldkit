@@ -1,4 +1,4 @@
-import { Array, Option, Record, Struct } from 'effect'
+import { Array, Option, Record } from 'effect'
 import { type Html, html } from 'foldkit/html'
 import type { TextImage } from 'foldkit/renderers'
 import { createPassageSlots, paintHtml } from 'foldkit/renderers/html'
@@ -15,18 +15,15 @@ import {
   type Word,
   type WordsSeal,
   findOf,
-  followedSectionOf,
   formatClock,
   isLiveRecording,
-  playbackClockOf,
+  readAlongPlaybackOf,
   readerMessageOf,
   readerOf,
   sealedLineTextOf,
   speakerRunStartIDsOf,
 } from 'words-core-example'
 
-import { ObserveFollowedSection, RunSpokenWord } from '../mount.js'
-import { clockAttributes } from './clock.js'
 import { icon } from './icon.js'
 
 const passageSlots = createPassageSlots()
@@ -287,58 +284,26 @@ const pictureOf =
       height: PICTURE_HEIGHT,
     }))
 
-// NOTE: the page paints the shared reader, but its own edge still marks
-// the word being spoken, keeps the followed section in view (at the live
-// edge too) and notices when the listener scrolls away (RunSpokenWord,
-// ObserveFollowedSection). So the Transcript it paints leaves out the
-// clock, the leave press and the word to show, which would start the
-// painter's own follow beside it.
-const pageReaderOf = (ready: ReadyPlayback) => {
-  const clock = playbackClockOf(ready)
-  return Struct.omit(
-    readerOf(
-      ready,
-      {
-        positionSeconds: clock.placeSeconds,
-        isPlaying: clock.rate > 0,
-        reportedAtMs: 0,
-        rate: clock.rate,
-      },
-      { pictureOf: pictureOf(ready) },
-    ),
-    ['clock', 'leaveAction', 'focusToken'],
+// NOTE: the page adds nothing to the shared reader's follow. The painter's
+// own edge marks the word the reader's clock has reached, keeps it in the
+// middle while the words follow the voice, brings the word the reader names
+// to the middle, and presses the reader's leave action when the listener
+// scrolls the spoken word away.
+const readerView = (ready: ReadyPlayback): Html =>
+  paintHtml<Message>(
+    readerOf(ready, readAlongPlaybackOf(ready), {
+      pictureOf: pictureOf(ready),
+    }),
+    press => Option.getOrUndefined(readerMessageOf(ready, press)),
+    { passageSlots },
   )
-}
-
-const readerView = (ready: ReadyPlayback): Html => {
-  const h = html<Message>()
-  return h.div(
-    [
-      h.DataAttribute(
-        'followed-section',
-        Option.match(followedSectionOf(ready), {
-          onNone: () => '',
-          onSome: section => section.id,
-        }),
-      ),
-      h.OnMount(ObserveFollowedSection()),
-    ],
-    [
-      paintHtml<Message>(
-        pageReaderOf(ready),
-        press => Option.getOrUndefined(readerMessageOf(ready, press)),
-        { passageSlots },
-      ),
-    ],
-  )
-}
 
 /**
  * The timeline, painted from the shared reader (`readerOf`) as every
- * Client paints it. The section playing (or, while recording, the newest
- * one) stays on screen until the listener scrolls away; a linked section
- * is shown and highlighted first. Each time opens its section's menu, and
- * a right click or a long press on a word opens the word's.
+ * Client paints it. The word being spoken (or, while recording, the newest
+ * one) stays in the middle until the listener scrolls it away; a linked
+ * section is shown and highlighted first. Each time opens its section's
+ * menu, and a right click or a long press on a word opens the word's.
  */
 export const transcript = (
   ready: ReadyPlayback,
@@ -349,8 +314,6 @@ export const transcript = (
   return h.section(
     [
       h.AriaLabel('Transcript'),
-      ...clockAttributes(ready),
-      h.OnMount(RunSpokenWord()),
       h.Class(
         `words-reader mx-auto w-full max-w-3xl pb-52 sm:px-4 min-[100rem]:max-w-[61rem] ${isFullScreen ? 'pl-2 pr-10 pt-16' : 'px-2 pt-2'}`,
       ),

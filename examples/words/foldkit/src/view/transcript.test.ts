@@ -4,11 +4,13 @@ import { passageMenuMount, transcriptMount } from 'foldkit/renderers/html'
 import { describe, test } from 'vitest'
 import {
   AcquiredAudioPlayer,
-  ChangedPlayheadVisibility,
+  ClickedPlay,
   ClosedSectionMenu,
   CompletedRunPlaybackClock,
   CopyText,
   ElapsedCopyNotice,
+  HeardAudioPlaying,
+  HeardAudioPosition,
   HideCopyNoticeLater,
   type Message,
   type Model,
@@ -24,7 +26,6 @@ import {
   update,
 } from 'words-core-example'
 
-import { ObserveFollowedSection, RunSpokenWord } from '../mount.js'
 import { transcript } from './transcript.js'
 
 const recordingID = '7e0f1b2c-3d4e-4f50-8a6b-7c8d9e0f1a2b'
@@ -101,18 +102,11 @@ const transcriptView = (model: Model) => {
   }
 }
 
-// NOTE: the edge only reads the page and tells the Model nothing here;
-// each Mount is answered with a Message that changes nothing.
-const edgeStarted = Scene.Mount.resolveAll(
-  [RunSpokenWord, CompletedRunPlaybackClock()],
-  [
-    ObserveFollowedSection,
-    ChangedPlayheadVisibility({
-      sectionID: 'section-0',
-      visibility: 'OnScreen',
-    }),
-  ],
-  [transcriptMount<Message>(), CompletedRunPlaybackClock()],
+// NOTE: the shared reader's edge only reads the page and tells the Model
+// nothing here; its Mount is answered with a Message that changes nothing.
+const edgeStarted = Scene.Mount.resolve(
+  transcriptMount<Message>(),
+  CompletedRunPlaybackClock(),
 )
 
 const copiedNotice = { text: 'Copied text', isFailure: false, revision: 1 }
@@ -138,6 +132,30 @@ describe('the words page paints the shared reader (#2494)', () => {
       ).toExist(),
       Scene.expect(Scene.selector('.fk-passage-sealed')).toExist(),
       Scene.expect(Scene.text('[sealed]')).toExist(),
+    )
+  })
+
+  test('the reader carries the clock, that the words follow the voice, and that leaving is heard, so the shared edge marks and follows the spoken word', () => {
+    Scene.scene(
+      { update, view: transcriptView },
+      Scene.with(
+        openedWith([
+          ClickedPlay(),
+          HeardAudioPlaying(),
+          HeardAudioPosition({ seconds: 6, wallClockMs: 1_795_200_000_000 }),
+        ]),
+      ),
+      edgeStarted,
+      Scene.expect(
+        Scene.selector(
+          '.fk-transcript[data-clock-place-ms="6000"][data-clock-at-ms="1795200000000"][data-clock-rate="1"]',
+        ),
+      ).toExist(),
+      Scene.expect(
+        Scene.selector(
+          '.fk-transcript[data-following="true"][data-leave="true"]',
+        ),
+      ).toExist(),
     )
   })
 

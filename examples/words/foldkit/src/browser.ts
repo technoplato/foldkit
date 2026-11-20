@@ -13,7 +13,6 @@ import {
   LinkShareError,
   LinkSharer,
   NetworkStatus,
-  type SectionPlacement,
   TranscriptScroller,
   type WordsDatabase,
   WordsOrigin,
@@ -189,61 +188,45 @@ const pixelsOf = (length: string): number => {
 }
 
 /**
- * How far the window scrolls to show `element` where `placement` puts it, in
- * the part of the window the root scroll padding leaves free of the top bar
- * and the floating controls.
+ * How far the window scrolls to show `element` in the middle of the part
+ * of the window the root scroll padding leaves free of the top bar and the
+ * floating controls.
  */
-const scrollDeltaOf = (
-  element: HTMLElement,
-  placement: SectionPlacement,
-): number => {
+const scrollDeltaOf = (element: HTMLElement): number => {
   const rect = element.getBoundingClientRect()
   const rootStyle = getComputedStyle(document.documentElement)
   const visibleTop = pixelsOf(rootStyle.scrollPaddingTop)
   const visibleBottom =
     window.innerHeight - pixelsOf(rootStyle.scrollPaddingBottom)
-  return placement === 'LiveEdge'
-    ? rect.bottom - visibleBottom
-    : rect.top + rect.height / 2 - (visibleTop + visibleBottom) / 2
+  return rect.top + rect.height / 2 - (visibleTop + visibleBottom) / 2
 }
 
-// NOTE: these scroll the window rather than call scrollIntoView. In Chromium,
+// NOTE: this scrolls the window rather than call scrollIntoView. In Chromium,
 // scrollIntoView moves the sequential focus navigation starting point, so with
 // nothing focused the next Tab would skip the skip links, the top bar, and the
 // recording list and land in the transcript.
-
-/**
- * Scrolls the window so a section's element sits where `placement` puts
- * it, gliding unless Reduce Motion is on. The scroller service uses it
- * after a render, and the edge when the mark crosses into a section.
- */
-export const scrollSectionElementTo = (
-  element: HTMLElement,
-  placement: SectionPlacement,
-): void => {
+const scrollSectionElementToMiddle = (element: HTMLElement): void => {
   window.scrollTo({
-    top: window.scrollY + scrollDeltaOf(element, placement),
+    top: window.scrollY + scrollDeltaOf(element),
     behavior: scrollBehavior(),
   })
 }
 
-/** The passage of the painted reader that holds a section. */
-export const passageSelectorOf = (sectionID: string): string =>
+const passageSelectorOf = (sectionID: string): string =>
   `.fk-passage[data-key="${CSS.escape(sectionID)}"]`
 
 /**
- * Scrolls a transcript section into view after the render that shows it: to
- * the middle of the window during playback, or with its last line above the
- * controls at the live edge. Reduce Motion jumps instead of gliding.
+ * Scrolls a section a link names to the middle of the window, after the
+ * render that shows it. Reduce Motion jumps instead of gliding.
  */
 export const browserTranscriptScroller = Layer.succeed(TranscriptScroller, {
-  scrollToSection: (sectionID, placement) =>
+  scrollToSection: sectionID =>
     afterPaint.pipe(
       Effect.andThen(
         Effect.sync(() => {
           const element = document.querySelector(passageSelectorOf(sectionID))
           if (element instanceof HTMLElement) {
-            scrollSectionElementTo(element, placement)
+            scrollSectionElementToMiddle(element)
           }
         }),
       ),

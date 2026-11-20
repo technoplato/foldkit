@@ -22,7 +22,7 @@ import {
 
 import { RunClockTime, RunScrubberProgress } from '../mount.js'
 import { playbackBar } from './playback.js'
-import { readOnlySections, transcript } from './transcript.js'
+import { readOnlySections } from './transcript.js'
 
 const recordingID = '7e0f1b2c-3d4e-4f50-8a6b-7c8d9e0f1a2b'
 
@@ -89,7 +89,7 @@ const playingAt = (
       AcquiredAudioPlayer(),
       ClickedPlay(),
       HeardAudioPlaying(),
-      HeardAudioPosition({ seconds }),
+      HeardAudioPosition({ seconds, wallClockMs: 0 }),
     ],
     modelForRoute(RecordingRoute({ recordingID })),
     (model: Model, message: Message) => update(model, message)[0],
@@ -115,27 +115,12 @@ const edgeStarted = Scene.Mount.resolveAll(
 )
 
 describe('the words page tells its edge the clock (#2494)', () => {
-  test('the transcript carries the place, that it runs, and whether a word is marked', () => {
-    // NOTE: a recording with no lines yet, so the element is read without
-    // the page's runtime, which the lines themselves need.
-    const painted = JSON.stringify(
-      transcript(
-        readyOf(playingAt(6, { ...detail, sections: [] })),
-        false,
-        false,
-      ),
-    )
-    expect(painted).toContain('"data-clock-place":"6"')
-    expect(painted).toContain('"data-clock-rate":"1"')
-    expect(painted).toContain('"data-clock-marking":"true"')
-  })
-
   test('each section says when it starts, and the view marks no word and no section itself', () => {
     const painted = JSON.stringify(
       readOnlySections(detail.sections, () => undefined),
     )
     expect(painted).toContain('"data-section-seconds":"12"')
-    expect(painted).not.toContain('word-current')
+    expect(painted).not.toContain('data-current')
     expect(painted).not.toContain('bg-fill/70')
   })
 

@@ -383,10 +383,37 @@ const sightOf = (
   }
 }
 
+const scrollBehavior = (): ScrollBehavior =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ? 'auto'
+    : 'smooth'
+
+const pixelsOf = (length: string): number => {
+  const pixels = Number.parseFloat(length)
+  return Number.isFinite(pixels) ? pixels : 0
+}
+
+/**
+ * How far the window scrolls to put a word in the middle of the part of
+ * the window the page's scroll padding leaves free, as `scrollIntoView`
+ * with `block: 'center'` would: a page that keeps 72 px for a bar at the
+ * top and 192 px for controls at the bottom of an 800 px window has the
+ * word's middle land at 340 px.
+ */
+const windowDeltaOf = (word: Element): number => {
+  const bounds = word.getBoundingClientRect()
+  const rootStyle = getComputedStyle(document.documentElement)
+  const freeTop = pixelsOf(rootStyle.scrollPaddingTop)
+  const freeBottom =
+    window.innerHeight - pixelsOf(rootStyle.scrollPaddingBottom)
+  return bounds.top + bounds.height / 2 - (freeTop + freeBottom) / 2
+}
+
 /**
  * Brings a word to the middle of the Transcript: inside the Transcript's
  * own scroll area when it has one, so what is above stays put, else in
- * the window.
+ * the window. It glides, and jumps with no animation where the reader
+ * asked for reduced motion.
  */
 const centerWord = (transcript: Element, word: Element): void => {
   if (isScrollArea(transcript)) {
@@ -397,10 +424,17 @@ const centerWord = (transcript: Element, word: Element): void => {
         transcript.scrollTop +
         (bounds.top - view.top) -
         transcript.clientHeight / 2,
-      behavior: 'smooth',
+      behavior: scrollBehavior(),
     })
   } else {
-    word.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    // NOTE: this scrolls the window rather than call scrollIntoView. In
+    // Chromium, scrollIntoView moves the sequential focus navigation
+    // starting point, so with nothing focused the next Tab would skip
+    // everything above the Transcript and land in its words.
+    window.scrollTo({
+      top: window.scrollY + windowDeltaOf(word),
+      behavior: scrollBehavior(),
+    })
   }
 }
 
