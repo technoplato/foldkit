@@ -1,14 +1,17 @@
 import {
   Duration,
   Effect,
-  Equal,
   Function,
   Match as M,
-  Number,
   Option,
   Predicate,
   Schema as S,
 } from 'effect'
+import {
+  Tooltip as CoreTooltip,
+  HoverIntent,
+  TimedHint,
+} from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import {
   type ChildAttribute,
@@ -120,11 +123,11 @@ export type OutMessage = typeof OutMessage.Type
  *  tooltip's base id. Use this to associate an external label with the
  *  trigger via a native `<label for={Tooltip.triggerId(id)}>` or an
  *  `aria-labelledby` reference. */
-export const triggerId = (id: string): string => `${id}-trigger`
+export const triggerId = CoreTooltip.triggerId
 
 // INIT
 
-const DEFAULT_SHOW_DELAY = Duration.millis(500)
+const DEFAULT_SHOW_DELAY = Duration.millis(CoreTooltip.defaultShowDelayMs)
 
 /** Configuration for creating a tooltip model with `init`. */
 export type InitConfig = Readonly<{
@@ -196,7 +199,7 @@ const computeUpdate = (model: Model, message: Message): InnerUpdateReturn =>
           return [evo(model, { isHovered: () => true }), []]
         }
 
-        const nextVersion = Number.increment(model.pendingShowVersion)
+        const nextVersion = TimedHint.nextVersion(model.pendingShowVersion)
         return [
           evo(model, {
             isHovered: () => true,
@@ -211,18 +214,13 @@ const computeUpdate = (model: Model, message: Message): InnerUpdateReturn =>
           isHovered: () => false,
           isOpen: () => model.isFocused && model.isOpen,
           isDismissed: () => false,
-          pendingShowVersion: Number.increment,
+          pendingShowVersion: TimedHint.nextVersion,
         }),
         [],
       ],
 
       FocusedTrigger: () => {
-        const isFromMousePress = Option.exists(
-          model.maybeLastPointerType,
-          Equal.equals('mouse'),
-        )
-
-        if (isFromMousePress) {
+        if (!HoverIntent.isPointerAffirmedFocus(model.maybeLastPointerType)) {
           return [
             evo(model, {
               maybeLastPointerType: () => Option.none(),
@@ -245,7 +243,7 @@ const computeUpdate = (model: Model, message: Message): InnerUpdateReturn =>
           evo(model, {
             isFocused: () => true,
             isOpen: () => true,
-            pendingShowVersion: Number.increment,
+            pendingShowVersion: TimedHint.nextVersion,
           }),
           [],
         ]
@@ -256,7 +254,7 @@ const computeUpdate = (model: Model, message: Message): InnerUpdateReturn =>
           isFocused: () => false,
           isOpen: () => model.isHovered && model.isOpen,
           isDismissed: () => false,
-          pendingShowVersion: Number.increment,
+          pendingShowVersion: TimedHint.nextVersion,
           maybeLastPointerType: () => Option.none(),
         }),
         [],
@@ -266,7 +264,7 @@ const computeUpdate = (model: Model, message: Message): InnerUpdateReturn =>
         evo(model, {
           isOpen: () => false,
           isDismissed: () => true,
-          pendingShowVersion: Number.increment,
+          pendingShowVersion: TimedHint.nextVersion,
         }),
         [],
       ],
@@ -279,7 +277,9 @@ const computeUpdate = (model: Model, message: Message): InnerUpdateReturn =>
       ],
 
       ElapsedShowDelay: ({ version }) => {
-        if (version !== model.pendingShowVersion) {
+        if (
+          !HoverIntent.shouldAcceptVersion(model.pendingShowVersion, version)
+        ) {
           return [model, []]
         }
 
@@ -374,20 +374,22 @@ export const view = defineView<Model, Message, ViewInputs>(
     const triggerLabelAttributes = resolveTriggerLabel()
 
     const handleTriggerKeyDown = (key: string): Option.Option<PressedEscape> =>
-      M.value(key).pipe(
-        M.when('Escape', () => OptionExt.when(isOpen, PressedEscape())),
-        M.orElse(() => Option.none()),
-      )
+      CoreTooltip.isEscapeKey(key)
+        ? OptionExt.when(isOpen, PressedEscape())
+        : Option.none()
 
     const handleTriggerPointerDown = (
       pointerType: string,
     ): Option.Option<PressedPointerOnTrigger> =>
       Option.some(PressedPointerOnTrigger({ pointerType }))
 
+    const resolvedTriggerId = CoreTooltip.triggerId(id)
+    const resolvedPanelId = CoreTooltip.contentId(id)
+
     const triggerAttributes = [
-      h.Id(`${id}-trigger`),
+      h.Id(resolvedTriggerId),
       h.Type('button'),
-      h.AriaDescribedBy(`${id}-panel`),
+      h.AriaDescribedBy(resolvedPanelId),
       ...triggerLabelAttributes,
       ...(isOpen ? [h.DataAttribute('open', '')] : []),
       ...(isDisabled
@@ -403,7 +405,7 @@ export const view = defineView<Model, Message, ViewInputs>(
     ]
 
     const panelAttributes = [
-      h.Id(`${id}-panel`),
+      h.Id(resolvedPanelId),
       h.Role('tooltip'),
       h.Style({
         position: 'absolute',
@@ -411,7 +413,7 @@ export const view = defineView<Model, Message, ViewInputs>(
         visibility: 'hidden',
         pointerEvents: 'none',
       }),
-      h.OnMount(AnchorTooltip({ buttonId: `${id}-trigger`, anchor })),
+      h.OnMount(AnchorTooltip({ buttonId: resolvedTriggerId, anchor })),
       ...(isOpen ? [h.DataAttribute('open', '')] : []),
     ]
 

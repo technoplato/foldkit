@@ -32,6 +32,7 @@ export const Role = S.Literals([
   'Status',
   'Alert',
   'TextBox',
+  'Tooltip',
 ])
 /** What a painted element is, for a screen reader. */
 export type Role = typeof Role.Type
@@ -313,6 +314,7 @@ const roleNames: Readonly<Record<Role, string>> = {
   Status: 'status',
   Alert: 'alert',
   TextBox: 'textbox',
+  Tooltip: 'tooltip',
 }
 
 const liveNames: Readonly<Record<LivePoliteness, string>> = {
