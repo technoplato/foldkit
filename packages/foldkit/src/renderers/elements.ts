@@ -268,6 +268,7 @@ export const TextInput = (props: {
   readonly label?: string
   readonly focusToken?: string
   readonly blurToken?: string
+  readonly slot?: SlotBinding
 }): TextInputNode => ({
   _tag: 'TextInput',
   value: props.value,
@@ -287,6 +288,7 @@ export const TextInput = (props: {
   ...(props.label === undefined ? {} : { label: props.label }),
   ...(props.focusToken === undefined ? {} : { focusToken: props.focusToken }),
   ...(props.blurToken === undefined ? {} : { blurToken: props.blurToken }),
+  ...(props.slot === undefined ? {} : { slot: props.slot }),
 })
 
 /** Fixed blank rows. */

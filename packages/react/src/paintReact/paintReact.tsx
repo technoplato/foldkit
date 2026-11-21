@@ -448,6 +448,7 @@ const TextField = ({
         value={draft}
         placeholder={input.placeholder}
         aria-label={input.label}
+        {...(input.slot === undefined ? {} : slotPropsOf(input.slot))}
         autoFocus={input.focused === true}
         enterKeyHint="done"
         onChange={event => {
@@ -513,6 +514,7 @@ const TokenField = ({
       value={input.value}
       placeholder={input.placeholder}
       aria-label={input.label}
+      {...(input.slot === undefined ? {} : slotPropsOf(input.slot))}
       autoFocus={isFocused}
       onChange={event => {
         if (token !== undefined && onInput !== undefined) {

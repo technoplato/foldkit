@@ -9,6 +9,7 @@ import {
 import { type ReactElement, useEffect, useRef, useState } from 'react'
 import { TextInput as NativeTextInput, type TextStyle } from 'react-native'
 
+import { textInputPropsOf } from './host.js'
 import { type Paint, pressOf } from './paint.js'
 
 const fieldRadius = 12
@@ -89,6 +90,7 @@ export const TextField = ({
   return (
     <NativeTextInput
       accessibilityLabel={input.label}
+      {...textInputPropsOf(Option.fromNullishOr(input.slot))}
       autoCapitalize="none"
       autoCorrect={false}
       autoFocus={input.focused === true}
@@ -146,6 +148,7 @@ export const TokenField = ({
     <NativeTextInput
       ref={ref}
       accessibilityLabel={input.label}
+      {...textInputPropsOf(Option.fromNullishOr(input.slot))}
       autoCapitalize="none"
       autoCorrect={false}
       autoFocus={isFocused}

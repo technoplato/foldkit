@@ -556,6 +556,9 @@ export const paintHtml = <Message>(
               : [h.Placeholder(input.placeholder)]),
             ...(input.label === undefined ? [] : [h.AriaLabel(input.label)]),
             ...(input.focused === true ? [h.Autofocus(true)] : []),
+            ...(input.slot === undefined
+              ? []
+              : hostAttributes(slotAttributesOf(input.slot))),
             ...(token === undefined
               ? []
               : [h.OnInput(value => messageFromToken(`${token}${value}`))]),

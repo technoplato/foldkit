@@ -41,6 +41,14 @@ export type ContainerHostProps = Readonly<{
   accessibilityState?: HostProps['accessibilityState']
 }>
 
+/** What the host adds to a text input a part bound. */
+export type TextInputHostProps = Readonly<{
+  nativeID?: string
+  accessibilityLabel?: string
+  editable?: boolean
+  accessibilityState?: HostProps['accessibilityState']
+}>
+
 const stateOf = (
   binding: Slot.SlotBinding,
 ): Pick<HostProps, 'accessibilityState'> => {
@@ -141,6 +149,26 @@ export const containerPropsOf = (
         ...stateOf(binding),
       }
     },
+  })
+
+/**
+ * The accessibility and editability props a binding adds to a `TextInput`.
+ */
+export const textInputPropsOf = (
+  maybeBinding: Option.Option<Slot.SlotBinding>,
+): TextInputHostProps =>
+  Option.match(maybeBinding, {
+    onNone: () => ({}),
+    onSome: binding => ({
+      ...(binding.id === undefined ? {} : { nativeID: binding.id }),
+      ...(binding.label === undefined
+        ? {}
+        : { accessibilityLabel: binding.label }),
+      ...(binding.isDisabled === true || binding.isReadOnly === true
+        ? { editable: false }
+        : {}),
+      ...stateOf(binding),
+    }),
   })
 
 /**

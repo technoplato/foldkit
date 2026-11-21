@@ -1,7 +1,6 @@
 import { Predicate } from 'effect'
-import type { Attribute } from 'foldkit/html'
-import { html } from 'foldkit/html'
-import type { Html } from 'foldkit/html'
+import { Input as CoreInput } from 'foldkit/behavior'
+import { type Attribute, type Html, html } from 'foldkit/html'
 
 // VIEW
 
@@ -27,7 +26,7 @@ export type ViewConfig<ParentMessage> = Readonly<{
 }>
 
 /** Generates the description element ID from the input's base ID. */
-export const descriptionId = (id: string): string => `${id}-description`
+export const descriptionId = (id: string): string => CoreInput.descriptionId(id)
 
 /** Renders an accessible input by building ARIA attribute groups and delegating layout to the consumer's `toView` callback. */
 export const view = <ParentMessage>(
@@ -40,13 +39,13 @@ export const view = <ParentMessage>(
     id,
     onInput,
     value,
-    isDisabled = false,
-    isInvalid = false,
     isAutofocus = false,
     name,
-    type = 'text',
+    type = CoreInput.defaultInputType,
     placeholder,
   } = config
+  const isDisabled = CoreInput.isDisabledOf(config)
+  const isInvalid = CoreInput.isInvalidOf(config)
 
   const disabledAttributes = isDisabled
     ? [h.AriaDisabled(true), h.Disabled(true), h.DataAttribute('disabled', '')]
@@ -57,7 +56,9 @@ export const view = <ParentMessage>(
     : []
 
   const inputAttributes =
-    Predicate.isNotUndefined(onInput) && !isDisabled ? [h.OnInput(onInput)] : []
+    Predicate.isNotUndefined(onInput) && CoreInput.canInput({ isDisabled })
+      ? [h.OnInput(onInput)]
+      : []
 
   const valueAttributes = Predicate.isNotUndefined(value)
     ? [h.Value(value)]

@@ -170,6 +170,7 @@ export type TextInputNode = Readonly<{
   readonly label?: string
   readonly focusToken?: string
   readonly blurToken?: string
+  readonly slot?: SlotBinding
 }>
 
 /** Fixed blank rows. */
