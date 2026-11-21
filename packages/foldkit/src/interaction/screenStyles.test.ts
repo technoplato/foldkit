@@ -80,4 +80,12 @@ describe('the look of words read along with', () => {
     expect(rule).toContain('width: 100vw')
     expect(rule).toContain('border-radius: 0')
   })
+
+  it('prevents double-tap page zoom on buttons and interactive rows, and suppresses iOS callouts on held slots', () => {
+    expect(ruleOf(':where(.fk-button)')).toContain('touch-action: manipulation')
+    expect(ruleOf(':where([data-slot-held])')).toContain(
+      '-webkit-touch-callout: none',
+    )
+    expect(ruleOf(':where(.fk-list-filter)')).toContain('1rem)')
+  })
 })

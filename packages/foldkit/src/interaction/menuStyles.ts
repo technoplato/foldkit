@@ -28,6 +28,8 @@ export const menuStylesheet = `
   background: ${roleVar('Scrim')};
   backdrop-filter: blur(2px);
   cursor: default;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 :where(.fk-action-menu) {
@@ -122,10 +124,16 @@ export const menuStylesheet = `
   border-radius: 0.5rem;
   cursor: pointer;
   scroll-margin: 0.375rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-:where(.fk-action-menu-row:hover) {
-  background: ${roleVar('Field')};
+@media (hover: hover) {
+  :where(.fk-action-menu-row:hover) {
+    background: ${roleVar('Field')};
+  }
 }
 
 :where(.fk-action-menu-row[aria-selected='true']) {

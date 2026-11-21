@@ -429,6 +429,13 @@ const renderOverlays = (model: PlaygroundModel): Html => {
           ],
           [
             div(
+              [
+                H.Class('pg-overlay-scrim'),
+                H.OnClick(dispatchPart('dialog', Dialog.DismissDialog())),
+              ],
+              [],
+            ),
+            div(
               [H.Class('pg-overlay-card')],
               [
                 h2([H.Class('pg-panel-title')], ['Dialog Part (#2) — Open']),
@@ -475,6 +482,13 @@ const renderOverlays = (model: PlaygroundModel): Html => {
       ? div(
           [H.Class('pg-overlay-backdrop')],
           [
+            div(
+              [
+                H.Class('pg-overlay-scrim'),
+                H.OnClick(dispatchPart('drawer', Drawer.DismissDrawer())),
+              ],
+              [],
+            ),
             div(
               [H.Class('pg-drawer-sheet'), H.Role('dialog')],
               [
@@ -659,6 +673,8 @@ export const view = (model: PlaygroundModel): Document => {
               [
                 input([
                   H.Class('pg-input'),
+                  H.Attribute('type', 'search'),
+                  H.Attribute('enterkeyhint', 'search'),
                   H.Value(model.query),
                   H.Placeholder(
                     'Filter all 54 Parts by name, block, Zag/Radix source…',

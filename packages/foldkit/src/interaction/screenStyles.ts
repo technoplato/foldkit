@@ -345,6 +345,31 @@ ${themeStylesheet(defaultTheme)}
   font-size: ${px(screenLook.buttonLabelSize)};
   font-weight: ${screenLook.buttonLabelWeight.toString()};
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:where(
+  .fk-copy-button,
+  .fk-item-press,
+  .fk-item-check,
+  .fk-seek,
+  .fk-action-menu-opener,
+  button.fk-passage-label,
+  .fk-word,
+  .fk-word-ribbon,
+  .fk-passage-note
+) {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where([data-slot-held]) {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 @media (hover: hover) {
@@ -1199,7 +1224,7 @@ ${themeStylesheet(defaultTheme)}
   background: ${roleVar('Field')};
   color: ${roleVar('Text')};
   font: inherit;
-  font-size: ${px(screenLook.bodySize)};
+  font-size: max(${px(screenLook.bodySize)}, 1rem);
 }
 
 :where(.fk-list-filter:focus-visible) {

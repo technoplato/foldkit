@@ -1,12 +1,76 @@
 // @vitest-environment happy-dom
+import { Array, Option } from 'effect'
 import { Runtime } from 'foldkit'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import { catalog } from './catalog'
 import { makePlaygroundApp } from './main'
 
+const dispatchTouchDrag = (
+  element: Element,
+  points: ReadonlyArray<Readonly<{ clientX: number; clientY: number }>>,
+): void => {
+  const maybeFirst = Array.head(points)
+  if (Option.isNone(maybeFirst)) {
+    return
+  }
+  const first = maybeFirst.value
+  const rest = Array.drop(points, 1)
+  element.dispatchEvent(
+    new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 7,
+      pointerType: 'touch',
+      clientX: first.clientX,
+      clientY: first.clientY,
+    }),
+  )
+  for (const point of rest) {
+    element.dispatchEvent(
+      new PointerEvent('pointermove', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 7,
+        pointerType: 'touch',
+        clientX: point.clientX,
+        clientY: point.clientY,
+      }),
+    )
+  }
+  const last = Option.getOrElse(Array.last(rest), () => first)
+  element.dispatchEvent(
+    new PointerEvent('pointerup', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 7,
+      pointerType: 'touch',
+      clientX: last.clientX,
+      clientY: last.clientY,
+    }),
+  )
+}
+
 describe('Playground live browser boot', () => {
-  it('mounts all 54 cards via Runtime.embed and handles live DOM clicks', async () => {
+  it('enforces mobile touch-action and 16px coarse-pointer input rules in CSS and HTML', () => {
+    const css = readFileSync(resolve(import.meta.dirname, 'styles.css'), 'utf8')
+    const html = readFileSync(
+      resolve(import.meta.dirname, '..', 'index.html'),
+      'utf8',
+    )
+
+    expect(html).toContain('viewport-fit=cover')
+    expect(css).toContain('touch-action: manipulation;')
+    expect(css).toContain('-webkit-tap-highlight-color: transparent;')
+    expect(css).toContain('@media (pointer: coarse), (max-width: 768px)')
+    expect(css).toContain('font-size: 16px;')
+    expect(css).toContain('@media (hover: hover) and (pointer: fine)')
+  })
+
+  it('mounts all 54 cards via Runtime.embed and handles desktop & mobile touch gestures', async () => {
+    document.body.innerHTML = ''
     const root = document.createElement('div')
     root.id = 'root'
     document.body.appendChild(root)
@@ -28,7 +92,17 @@ describe('Playground live browser boot', () => {
         expect(document.getElementById(`part-${entry.key}`)).not.toBeNull()
       }
 
-      const themeBtn = Array.from(
+      // Zero inline font-size overrides on inputs/textareas/selects that could re-trigger iOS focus zoom.
+      const formFields = globalThis.Array.from(
+        document.body.querySelectorAll('input, textarea, select'),
+      )
+      expect(formFields.length).toBeGreaterThan(0)
+      for (const field of formFields) {
+        expect(field.getAttribute('style') ?? '').not.toContain('font-size')
+      }
+
+      // Theme switch + burst test
+      const themeBtn = globalThis.Array.from(
         document.body.querySelectorAll('button'),
       ).find(btn => btn.textContent?.includes('Light Mode'))
       expect(themeBtn).toBeDefined()
@@ -39,13 +113,160 @@ describe('Playground live browser boot', () => {
         )
       })
 
-      const burstBtn = Array.from(
+      const burstBtn = globalThis.Array.from(
         document.body.querySelectorAll('button'),
       ).find(btn => btn.textContent?.includes('Run 16-Event Burst'))
       expect(burstBtn).toBeDefined()
       burstBtn?.click()
       await vi.waitFor(() => {
         expect(document.body.textContent).toContain('Local: 16')
+      })
+
+      // Mobile touch tap-to-toggle on Tooltip (must not double-fire when touch pointermove precedes click)
+      const tooltipCard = document.getElementById('part-tooltip')
+      const tooltipTrigger = tooltipCard?.querySelector('button')
+      expect(tooltipTrigger).not.toBeNull()
+      tooltipTrigger?.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerType: 'touch',
+        }),
+      )
+      tooltipTrigger?.click()
+      await vi.waitFor(() => {
+        expect(tooltipCard?.querySelector('[role="tooltip"]')).not.toBeNull()
+      })
+      tooltipTrigger?.click()
+      await vi.waitFor(() => {
+        expect(tooltipCard?.querySelector('[role="tooltip"]')).toBeNull()
+      })
+
+      // Mobile touch tap-to-toggle on HoverCard
+      const hoverCard = document.getElementById('part-hoverCard')
+      const hoverTrigger = hoverCard?.querySelector('button')
+      expect(hoverTrigger).not.toBeNull()
+      hoverTrigger?.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerType: 'touch',
+        }),
+      )
+      hoverTrigger?.click()
+      await vi.waitFor(() => {
+        expect(hoverCard?.textContent).toContain('Foldkit Core')
+      })
+
+      // Real finger stroke on #47 SignaturePad SVG
+      const sigSvg = document.querySelector('#part-signaturePad svg')
+      expect(sigSvg).not.toBeNull()
+      if (sigSvg !== null) {
+        vi.spyOn(sigSvg, 'getBoundingClientRect').mockReturnValue(
+          new DOMRect(0, 0, 260, 104),
+        )
+        dispatchTouchDrag(sigSvg, [
+          { clientX: 20, clientY: 20 },
+          { clientX: 90, clientY: 55 },
+          { clientX: 160, clientY: 40 },
+        ])
+        await vi.waitFor(() => {
+          expect(
+            document.getElementById('part-signaturePad')?.textContent,
+          ).toContain('1 stroke(s)')
+          expect(sigSvg.querySelectorAll('path').length).toBe(1)
+        })
+      }
+
+      // Real finger rotation on #42 AngleSlider dial
+      const dial = document.querySelector('#part-angleSlider .pg-dial')
+      expect(dial).not.toBeNull()
+      if (dial !== null) {
+        const angleBefore = dial.getAttribute('aria-valuenow')
+        vi.spyOn(dial, 'getBoundingClientRect').mockReturnValue(
+          new DOMRect(0, 0, 84, 84),
+        )
+        dispatchTouchDrag(dial, [
+          { clientX: 80, clientY: 42 },
+          { clientX: 42, clientY: 80 },
+        ])
+        await vi.waitFor(() => {
+          const angleAfter = dial.getAttribute('aria-valuenow')
+          expect(angleAfter).not.toBe(angleBefore)
+          expect(angleAfter).toBe('180')
+        })
+      }
+
+      // Real finger drag on #43 ColorPicker 2D area
+      const colorArea = document.querySelector(
+        '#part-colorPicker .pg-color-area',
+      )
+      expect(colorArea).not.toBeNull()
+      if (colorArea !== null) {
+        vi.spyOn(colorArea, 'getBoundingClientRect').mockReturnValue(
+          new DOMRect(0, 0, 200, 100),
+        )
+        const thumbBefore = colorArea
+          .querySelector('.pg-color-thumb')
+          ?.getAttribute('style')
+        dispatchTouchDrag(colorArea, [
+          { clientX: 40, clientY: 80 },
+          { clientX: 180, clientY: 15 },
+        ])
+        await vi.waitFor(() => {
+          const thumbAfter = colorArea
+            .querySelector('.pg-color-thumb')
+            ?.getAttribute('style')
+          expect(thumbAfter).not.toBe(thumbBefore)
+          expect(thumbAfter).toContain('left: 90%')
+        })
+      }
+
+      // Real finger drag on #41 Splitter
+      const splitterWrap = document.querySelector(
+        '#part-splitter .pg-split-wrap',
+      )
+      expect(splitterWrap).not.toBeNull()
+      if (splitterWrap !== null) {
+        vi.spyOn(splitterWrap, 'getBoundingClientRect').mockReturnValue(
+          new DOMRect(0, 0, 200, 64),
+        )
+        dispatchTouchDrag(splitterWrap, [
+          { clientX: 80, clientY: 32 },
+          { clientX: 140, clientY: 32 },
+        ])
+        await vi.waitFor(() => {
+          expect(
+            document.getElementById('part-splitter')?.textContent,
+          ).not.toContain('40%⋮60%')
+        })
+      }
+
+      // Backdrop scrim tap-to-dismiss on #2 Dialog and #26 Drawer
+      const openDialogBtn = globalThis.Array.from(
+        document.querySelectorAll<HTMLButtonElement>('#part-dialog button'),
+      ).find(btn => btn.textContent?.includes('Open Modal Dialog'))
+      openDialogBtn?.click()
+      await vi.waitFor(() => {
+        expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+      })
+      const dialogScrim = document.querySelector('.pg-overlay-scrim')
+      expect(dialogScrim).not.toBeNull()
+      dialogScrim?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await vi.waitFor(() => {
+        expect(document.querySelector('[role="dialog"]')).toBeNull()
+      })
+
+      const openDrawerBtn = globalThis.Array.from(
+        document.querySelectorAll<HTMLButtonElement>('#part-drawer button'),
+      ).find(btn => btn.textContent?.includes('Open Slide Drawer'))
+      openDrawerBtn?.click()
+      await vi.waitFor(() => {
+        expect(document.querySelector('.pg-drawer-sheet')).not.toBeNull()
+      })
+      const drawerScrim = document.querySelector('.pg-overlay-scrim')
+      expect(drawerScrim).not.toBeNull()
+      drawerScrim?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await vi.waitFor(() => {
+        expect(document.querySelector('.pg-drawer-sheet')).toBeNull()
       })
     } finally {
       handle.dispose()

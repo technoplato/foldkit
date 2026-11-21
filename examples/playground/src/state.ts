@@ -277,9 +277,14 @@ const makeInitialParts = (): PartsState => {
     AngleSlider.SetAngle({ angle: 45 }),
     playgroundProps.angleSlider,
   )
-  const [initColor] = ColorPicker.chart.transition(
+  const [initColorClosed] = ColorPicker.chart.transition(
     ColorPicker.initial,
     ColorPicker.SelectSwatch({ value: '#3b82f6' }),
+    playgroundProps.colorPicker,
+  )
+  const [initColor] = ColorPicker.chart.transition(
+    initColorClosed,
+    ColorPicker.OpenColorPicker(),
     playgroundProps.colorPicker,
   )
   const [initSteps] = Steps.chart.transition(
@@ -1172,11 +1177,12 @@ export const runBurstSimulation = (
     [70, 18],
     [85, 35],
     [90, 50],
-    [80, 75],
     [60, 88],
   ]
   for (let i = 0; i < dragPoints.length; i++) {
-    const pt = dragPoints[i] ?? [50, 10]
+    const pt = Option.getOrElse(Array.get(dragPoints, i), () => [50, 10])
+    const px = Option.getOrElse(Array.get(pt, 0), () => 50)
+    const py = Option.getOrElse(Array.get(pt, 1), () => 10)
     current = stepPart(
       current,
       'angleSlider',
@@ -1184,12 +1190,18 @@ export const runBurstSimulation = (
         pointerId: 1,
         centerX: 50,
         centerY: 50,
-        pointX: pt[0],
-        pointY: pt[1],
+        pointX: px,
+        pointY: py,
       }),
       baseNowMs + (i + 1) * 8,
     )
   }
+  current = stepPart(
+    current,
+    'angleSlider',
+    AngleSlider.EndAngleDrag({ pointerId: 1 }),
+    baseNowMs + 45,
+  )
   const burstChars = ['F', 'o', 'l', 'd', 'k', 'i', 't', ' ', '5', '4']
   let typed = ''
   for (let i = 0; i < burstChars.length; i++) {

@@ -387,8 +387,16 @@ export const renderGroup1 = (
           button(
             [
               H.Class('pg-btn'),
-              H.OnMouseEnter(dispatchPart('tooltip', Tooltip.ShowTooltip())),
-              H.OnMouseLeave(dispatchPart('tooltip', Tooltip.HideTooltip())),
+              H.OnPointerMove((_sx, _sy, pointerType) =>
+                pointerType === 'mouse' && !tooltipOpen
+                  ? Option.some(dispatchPart('tooltip', Tooltip.ShowTooltip()))
+                  : Option.none(),
+              ),
+              H.OnPointerLeave(pointerType =>
+                pointerType === 'mouse' && tooltipOpen
+                  ? Option.some(dispatchPart('tooltip', Tooltip.HideTooltip()))
+                  : Option.none(),
+              ),
               H.OnClick(
                 dispatchPart(
                   'tooltip',
@@ -396,7 +404,7 @@ export const renderGroup1 = (
                 ),
               ),
             ],
-            ['Hover or Click for Tooltip'],
+            ['Hover or Tap for Tooltip'],
           ),
         ],
       ),
@@ -651,6 +659,7 @@ export const renderGroup1 = (
     [H.Class('pg-col')],
     [
       input([
+        H.Class('pg-range'),
         H.Type('range'),
         H.Min('0'),
         H.Max('100'),

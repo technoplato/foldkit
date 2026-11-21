@@ -24,8 +24,304 @@ import type { Html } from 'foldkit/html'
 import { H, dispatchPart } from '../messages'
 import { playgroundProps } from '../partsProps'
 import type { PlaygroundModel } from '../state'
+import { mountSurfaceDrag } from '../touchMount'
 
 const { div, button, input, span, svg, path, img } = H
+
+const splitterDragMount = mountSurfaceDrag({
+  name: 'PlaygroundSplitterDrag',
+  onStart: sample =>
+    Option.some(
+      dispatchPart(
+        'splitter',
+        Splitter.BeginResize({
+          handleIndex: 0,
+          pointerId: sample.pointerId,
+          x: sample.localX,
+          y: sample.localY,
+        }),
+      ),
+    ),
+  onMove: sample =>
+    Option.some(
+      dispatchPart(
+        'splitter',
+        Splitter.MoveResize({
+          pointerId: sample.pointerId,
+          x: sample.localX,
+          y: sample.localY,
+          containerSizePx: sample.width,
+        }),
+      ),
+    ),
+  onEnd: sample =>
+    Option.some(
+      dispatchPart(
+        'splitter',
+        Splitter.EndResize({ pointerId: sample.pointerId }),
+      ),
+    ),
+  onCancel: sample =>
+    Option.some(
+      dispatchPart(
+        'splitter',
+        Splitter.CancelResize({ pointerId: sample.pointerId }),
+      ),
+    ),
+})
+
+const angleDialDragMount = mountSurfaceDrag({
+  name: 'PlaygroundAngleDialDrag',
+  onStart: sample =>
+    Option.some(
+      dispatchPart(
+        'angleSlider',
+        AngleSlider.BeginAngleDrag({
+          pointerId: sample.pointerId,
+          centerX: sample.width / 2,
+          centerY: sample.height / 2,
+          pointX: sample.localX,
+          pointY: sample.localY,
+        }),
+      ),
+    ),
+  onMove: sample =>
+    Option.some(
+      dispatchPart(
+        'angleSlider',
+        AngleSlider.MoveAngleDrag({
+          pointerId: sample.pointerId,
+          centerX: sample.width / 2,
+          centerY: sample.height / 2,
+          pointX: sample.localX,
+          pointY: sample.localY,
+        }),
+      ),
+    ),
+  onEnd: sample =>
+    Option.some(
+      dispatchPart(
+        'angleSlider',
+        AngleSlider.EndAngleDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+  onCancel: sample =>
+    Option.some(
+      dispatchPart(
+        'angleSlider',
+        AngleSlider.CancelAngleDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+})
+
+const colorAreaDragMount = mountSurfaceDrag({
+  name: 'PlaygroundColorAreaDrag',
+  onStart: sample =>
+    Option.some(
+      dispatchPart(
+        'colorPicker',
+        ColorPicker.BeginAreaDrag({
+          pointerId: sample.pointerId,
+          x: sample.localX,
+          y: sample.localY,
+          saturation: Math.round(sample.ratioX * 100),
+          brightness: Math.round((1 - sample.ratioY) * 100),
+        }),
+      ),
+    ),
+  onMove: sample =>
+    Option.some(
+      dispatchPart(
+        'colorPicker',
+        ColorPicker.MoveAreaDrag({
+          pointerId: sample.pointerId,
+          x: sample.localX,
+          y: sample.localY,
+          saturation: Math.round(sample.ratioX * 100),
+          brightness: Math.round((1 - sample.ratioY) * 100),
+        }),
+      ),
+    ),
+  onEnd: sample =>
+    Option.some(
+      dispatchPart(
+        'colorPicker',
+        ColorPicker.EndColorDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+  onCancel: sample =>
+    Option.some(
+      dispatchPart(
+        'colorPicker',
+        ColorPicker.CancelColorDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+})
+
+const carouselSwipeMount = mountSurfaceDrag({
+  name: 'PlaygroundCarouselSwipe',
+  isPreventingDefaultOnDown: false,
+  onStart: sample =>
+    Option.some(
+      dispatchPart(
+        'carousel',
+        Carousel.BeginCarouselDrag({
+          pointerId: sample.pointerId,
+          x: sample.clientX,
+          y: sample.clientY,
+          pointerType: sample.pointerType,
+        }),
+      ),
+    ),
+  onMove: sample =>
+    Option.some(
+      dispatchPart(
+        'carousel',
+        Carousel.MoveCarouselDrag({
+          pointerId: sample.pointerId,
+          x: sample.clientX,
+          y: sample.clientY,
+        }),
+      ),
+    ),
+  onEnd: sample =>
+    Option.some(
+      dispatchPart(
+        'carousel',
+        Carousel.ReleaseCarouselDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+  onCancel: sample =>
+    Option.some(
+      dispatchPart(
+        'carousel',
+        Carousel.CancelCarouselDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+})
+
+const floatingPanelDragMount = mountSurfaceDrag({
+  name: 'PlaygroundFloatingPanelDrag',
+  onStart: sample =>
+    Option.some(
+      dispatchPart(
+        'floatingPanel',
+        FloatingPanel.BeginFloatingPanelDrag({
+          pointerId: sample.pointerId,
+          x: sample.clientX,
+          y: sample.clientY,
+        }),
+      ),
+    ),
+  onMove: sample =>
+    Option.some(
+      dispatchPart(
+        'floatingPanel',
+        FloatingPanel.MoveFloatingPanelDrag({
+          pointerId: sample.pointerId,
+          x: sample.clientX,
+          y: sample.clientY,
+        }),
+      ),
+    ),
+  onEnd: sample =>
+    Option.some(
+      dispatchPart(
+        'floatingPanel',
+        FloatingPanel.EndFloatingPanelDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+  onCancel: sample =>
+    Option.some(
+      dispatchPart(
+        'floatingPanel',
+        FloatingPanel.CancelFloatingPanelDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+})
+
+const cropBoxDragMount = mountSurfaceDrag({
+  name: 'PlaygroundCropBoxDrag',
+  onStart: sample =>
+    Option.some(
+      dispatchPart(
+        'imageCropper',
+        ImageCropper.BeginCropDrag({
+          pointerId: sample.pointerId,
+          x: sample.clientX,
+          y: sample.clientY,
+        }),
+      ),
+    ),
+  onMove: sample =>
+    Option.some(
+      dispatchPart(
+        'imageCropper',
+        ImageCropper.MoveCropDrag({
+          pointerId: sample.pointerId,
+          x: sample.clientX,
+          y: sample.clientY,
+        }),
+      ),
+    ),
+  onEnd: sample =>
+    Option.some(
+      dispatchPart(
+        'imageCropper',
+        ImageCropper.EndCropDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+  onCancel: sample =>
+    Option.some(
+      dispatchPart(
+        'imageCropper',
+        ImageCropper.CancelCropDrag({ pointerId: sample.pointerId }),
+      ),
+    ),
+})
+
+const signatureSvgWidth = 260
+const signatureSvgHeight = 104
+
+const signatureDragMount = mountSurfaceDrag({
+  name: 'PlaygroundSignatureDrag',
+  onStart: sample =>
+    Option.some(
+      dispatchPart(
+        'signaturePad',
+        SignaturePad.BeginSignatureStroke({
+          pointerId: sample.pointerId,
+          x: Math.round(sample.ratioX * signatureSvgWidth * 10) / 10,
+          y: Math.round(sample.ratioY * signatureSvgHeight * 10) / 10,
+        }),
+      ),
+    ),
+  onMove: sample =>
+    Option.some(
+      dispatchPart(
+        'signaturePad',
+        SignaturePad.MoveSignatureStroke({
+          pointerId: sample.pointerId,
+          x: Math.round(sample.ratioX * signatureSvgWidth * 10) / 10,
+          y: Math.round(sample.ratioY * signatureSvgHeight * 10) / 10,
+        }),
+      ),
+    ),
+  onEnd: sample =>
+    Option.some(
+      dispatchPart(
+        'signaturePad',
+        SignaturePad.EndSignatureStroke({ pointerId: sample.pointerId }),
+      ),
+    ),
+  onCancel: sample =>
+    Option.some(
+      dispatchPart(
+        'signaturePad',
+        SignaturePad.CancelSignatureStroke({ pointerId: sample.pointerId }),
+      ),
+    ),
+})
 
 export const renderGroup3 = (
   model: PlaygroundModel,
@@ -229,15 +525,19 @@ export const renderGroup3 = (
     ],
   )
 
-  // 41. Splitter
+  // 41. Splitter (real finger drag + buttons)
   const splitSizes = Splitter.sizesOf(parts.splitter)
-  const leftPct = Math.round(splitSizes[0] ?? 40)
-  const rightPct = Math.round(splitSizes[1] ?? 60)
+  const leftPct = Math.round(
+    Option.getOrElse(Array.get(splitSizes, 0), () => 40),
+  )
+  const rightPct = Math.round(
+    Option.getOrElse(Array.get(splitSizes, 1), () => 60),
+  )
   const splitterView = div(
     [H.Class('pg-col')],
     [
       div(
-        [H.Class('pg-split-wrap')],
+        [H.Class('pg-split-wrap'), H.OnMount(splitterDragMount)],
         [
           div(
             [H.Class('pg-split-pane mono'), H.Style({ width: `${leftPct}%` })],
@@ -246,12 +546,7 @@ export const renderGroup3 = (
           button(
             [
               H.Class('pg-split-handle'),
-              H.OnClick(
-                dispatchPart(
-                  'splitter',
-                  Splitter.ResizeHandle({ handleIndex: 0, deltaPercent: 10 }),
-                ),
-              ),
+              H.Attribute('aria-label', 'Drag splitter'),
             ],
             ['⋮'],
           ),
@@ -300,7 +595,7 @@ export const renderGroup3 = (
     ],
   )
 
-  // 42. AngleSlider
+  // 42. AngleSlider (real finger rotation on dial + buttons)
   const angleDeg = AngleSlider.angleOf(parts.angleSlider)
   const angleSliderView = div(
     [H.Class('pg-row')],
@@ -308,9 +603,9 @@ export const renderGroup3 = (
       div(
         [
           H.Class('pg-dial'),
-          H.OnClick(
-            dispatchPart('angleSlider', AngleSlider.StepAngle({ delta: 30 })),
-          ),
+          H.Attribute('role', 'slider'),
+          H.Attribute('aria-valuenow', String(angleDeg)),
+          H.OnMount(angleDialDragMount),
         ],
         [
           div(
@@ -371,36 +666,41 @@ export const renderGroup3 = (
     ],
   )
 
-  // 43. ColorPicker
+  // 43. ColorPicker (live 2D touch area + swatches)
   const cpColor = ColorPicker.colorOf(parts.colorPicker)
   const cpHex = ColorPicker.formatColor(cpColor, 'Hex')
-  const cpRgba = ColorPicker.formatColor(cpColor, 'Rgb')
+  const cpRgb = ColorPicker.formatColor(cpColor, 'Rgb')
   const swatches = playgroundProps.colorPicker.swatches ?? []
   const colorPickerView = div(
     [H.Class('pg-col')],
     [
       div(
-        [H.Class('pg-row')],
+        [
+          H.Class('pg-color-area'),
+          H.Style({
+            background: `linear-gradient(to top, rgb(0 0 0), transparent), linear-gradient(to right, rgb(255 255 255), hsl(${Math.round(cpColor.h)} 100% 50%))`,
+          }),
+          H.OnMount(colorAreaDragMount),
+        ],
         [
           div(
             [
+              H.Class('pg-color-thumb'),
               H.Style({
-                width: '28px',
-                height: '28px',
-                borderRadius: '7px',
+                left: `${cpColor.s}%`,
+                top: `${100 - cpColor.b}%`,
                 background: cpHex,
-                border: '1px solid var(--fk-border)',
               }),
             ],
             [],
           ),
-          div(
-            [H.Class('pg-col'), H.Style({ gap: '2px' })],
-            [
-              span([H.Class('mono')], [cpHex]),
-              span([H.Class('pg-faint mono')], [cpRgba]),
-            ],
-          ),
+        ],
+      ),
+      div(
+        [H.Class('pg-row')],
+        [
+          span([H.Class('mono')], [cpHex]),
+          span([H.Class('pg-faint mono')], [cpRgb]),
         ],
       ),
       div(
@@ -408,14 +708,8 @@ export const renderGroup3 = (
         Array.map(swatches, swatch =>
           button(
             [
-              H.Class('pg-btn pg-btn-sm'),
-              H.Style({
-                background: swatch,
-                width: '24px',
-                height: '24px',
-                padding: '0',
-                borderRadius: '6px',
-              }),
+              H.Class('pg-swatch-btn'),
+              H.Style({ background: swatch }),
               H.Attribute('aria-label', swatch),
               H.OnClick(
                 dispatchPart(
@@ -431,24 +725,29 @@ export const renderGroup3 = (
     ],
   )
 
-  // 44. Carousel
+  // 44. Carousel (real horizontal swipe + controls)
   const carPage = Carousel.pageOf(parts.carousel, playgroundProps.carousel)
   const carPlaying = Carousel.isAutoplaying(parts.carousel)
   const slideTitles = [
-    '1 · Pure Machine State',
-    '2 · Reference-Stable Slots',
-    '3 · Pace.Settled & Sampled',
-    '4 · HTML · React · RN · CLI',
+    '1 · Pure Machine State (swipe ←/→)',
+    '2 · Reference-Stable Slots (swipe ←/→)',
+    '3 · Pace.Settled & Sampled (swipe ←/→)',
+    '4 · HTML · React · RN · CLI (swipe ←/→)',
   ]
   const carouselView = div(
     [H.Class('pg-col')],
     [
       div(
-        [H.Class('pg-surface-box')],
+        [H.Class('pg-carousel-viewport'), H.OnMount(carouselSwipeMount)],
         [
           span(
             [H.Class('mono')],
-            [slideTitles[carPage] ?? `Slide ${carPage + 1}`],
+            [
+              Option.getOrElse(
+                Array.get(slideTitles, carPage),
+                () => `Slide ${carPage + 1}`,
+              ),
+            ],
           ),
         ],
       ),
@@ -487,7 +786,7 @@ export const renderGroup3 = (
     ],
   )
 
-  // 45. FloatingPanel
+  // 45. FloatingPanel (real finger drag inside stage + min/max/restore)
   const fpOpen = FloatingPanel.isOpen(parts.floatingPanel)
   const fpStage = FloatingPanel.stageOf(parts.floatingPanel)
   const fpRect = Option.getOrElse(
@@ -510,16 +809,17 @@ export const renderGroup3 = (
                 [
                   H.Class('pg-floating-box'),
                   H.Style({
-                    left: `${Math.min(110, Math.max(4, fpRect.x))}px`,
-                    top: `${Math.min(54, Math.max(4, fpRect.y))}px`,
+                    left: `${Math.min(120, Math.max(4, fpRect.x))}px`,
+                    top: `${Math.min(58, Math.max(4, fpRect.y))}px`,
                     width: `${Math.min(248, fpRect.width)}px`,
-                    height: `${Math.min(104, fpRect.height)}px`,
+                    height: `${Math.min(108, fpRect.height)}px`,
                   }),
+                  H.OnMount(floatingPanelDragMount),
                 ],
                 [
                   div(
                     [H.Class('pg-row')],
-                    [span([H.Class('mono')], [`Panel (${fpStage})`])],
+                    [span([H.Class('mono')], [`Drag me (${fpStage})`])],
                   ),
                   span(
                     [H.Class('pg-faint mono')],
@@ -593,7 +893,7 @@ export const renderGroup3 = (
     ],
   )
 
-  // 46. ImageCropper
+  // 46. ImageCropper (real finger pan drag + zoom/rotate)
   const cropRect = ImageCropper.cropRectOf(parts.imageCropper)
   const cropZoom = ImageCropper.zoomOf(parts.imageCropper)
   const cropRot = ImageCropper.rotationOf(parts.imageCropper)
@@ -613,8 +913,9 @@ export const renderGroup3 = (
                 height: `${Math.round(cropRect.height)}px`,
                 transform: `rotate(${cropRot}deg)`,
               }),
+              H.OnMount(cropBoxDragMount),
             ],
-            [],
+            ['Drag crop'],
           ),
         ],
       ),
@@ -660,53 +961,17 @@ export const renderGroup3 = (
     ],
   )
 
-  // 47. SignaturePad
+  // 47. SignaturePad (accurate finger-to-SVG coordinate capture + undo/clear)
   const sigPaths = SignaturePad.allPathsOf(parts.signaturePad)
   const sigCount = SignaturePad.strokeCountOf(parts.signaturePad)
-  const isDrawing = parts.signaturePad._tag === 'Drawing'
   const signaturePadView = div(
     [H.Class('pg-col')],
     [
       svg(
         [
           H.Class('pg-sig-box'),
-          H.ViewBox('0 0 260 92'),
-          H.OnPointerDown((_pt, _btn, sx, sy) =>
-            Option.some(
-              dispatchPart(
-                'signaturePad',
-                SignaturePad.BeginSignatureStroke({
-                  pointerId: 1,
-                  x: sx % 240,
-                  y: sy % 84,
-                }),
-              ),
-            ),
-          ),
-          H.OnPointerMove((sx, sy) =>
-            isDrawing
-              ? Option.some(
-                  dispatchPart(
-                    'signaturePad',
-                    SignaturePad.MoveSignatureStroke({
-                      pointerId: 1,
-                      x: sx % 240,
-                      y: sy % 84,
-                    }),
-                  ),
-                )
-              : Option.none(),
-          ),
-          H.OnPointerUp(() =>
-            isDrawing
-              ? Option.some(
-                  dispatchPart(
-                    'signaturePad',
-                    SignaturePad.EndSignatureStroke({ pointerId: 1 }),
-                  ),
-                )
-              : Option.none(),
-          ),
+          H.ViewBox(`0 0 ${signatureSvgWidth} ${signatureSvgHeight}`),
+          H.OnMount(signatureDragMount),
         ],
         Array.map(sigPaths, d =>
           path(
@@ -727,22 +992,6 @@ export const renderGroup3 = (
             [
               H.Class('pg-btn pg-btn-sm'),
               H.OnClick(
-                dispatchPart(
-                  'signaturePad',
-                  SignaturePad.BeginSignatureStroke({
-                    pointerId: 2,
-                    x: 32 + sigCount * 18,
-                    y: 44,
-                  }),
-                ),
-              ),
-            ],
-            ['+ Dot'],
-          ),
-          button(
-            [
-              H.Class('pg-btn pg-btn-sm'),
-              H.OnClick(
                 dispatchPart('signaturePad', SignaturePad.UndoStroke()),
               ),
             ],
@@ -757,7 +1006,10 @@ export const renderGroup3 = (
             ],
             ['Clear'],
           ),
-          span([H.Class('pg-muted mono')], [`${sigCount} stroke(s)`]),
+          span(
+            [H.Class('pg-muted mono')],
+            [`${sigCount} stroke(s) — draw with finger`],
+          ),
         ],
       ),
     ],
@@ -1038,7 +1290,7 @@ export const renderGroup3 = (
     ],
   )
 
-  // 53. Clipboard
+  // 53. Clipboard (no <16px inline font override so iOS never zooms on focus!)
   const clipCopied = Clipboard.copiedOf(parts.clipboard)
   const clipText = Clipboard.valueOf(parts.clipboard, playgroundProps.clipboard)
   const clipboardView = div(
@@ -1048,8 +1300,8 @@ export const renderGroup3 = (
         [H.Class('pg-row')],
         [
           input([
-            H.Class('pg-input mono'),
-            H.Style({ flex: '1', fontSize: '11px' }),
+            H.Class('pg-input pg-input-compact mono'),
+            H.Style({ flex: '1' }),
             H.Value(clipText),
             H.OnInput(value =>
               dispatchPart('clipboard', Clipboard.SetClipboardValue({ value })),
@@ -1079,7 +1331,7 @@ export const renderGroup3 = (
     ],
   )
 
-  // 54. QrCode
+  // 54. QrCode (no <16px inline font override so iOS never zooms on focus!)
   const qrValue = QrCode.valueOf(parts.qrCode)
   const qrSvgPath =
     parts.qrCode._tag === 'Ready'
@@ -1105,8 +1357,7 @@ export const renderGroup3 = (
         [H.Class('pg-col'), H.Style({ flex: '1', minWidth: '140px' })],
         [
           input([
-            H.Class('pg-input mono'),
-            H.Style({ fontSize: '11px' }),
+            H.Class('pg-input pg-input-compact mono'),
             H.Value(qrValue),
             H.Placeholder('Any URL or text…'),
             H.OnInput(value =>
