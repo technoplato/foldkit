@@ -39,6 +39,7 @@ export const Role = S.Literals([
   'Group',
   'Grid',
   'GridCell',
+  'Slider',
 ])
 /** What a painted element is, for a screen reader. */
 export type Role = typeof Role.Type
@@ -137,6 +138,10 @@ export const SlotBinding = S.Struct({
   id: S.optionalKey(S.String),
   activeId: S.optionalKey(S.String),
   tabIndex: S.optionalKey(S.Number),
+  valueMin: S.optionalKey(S.Number),
+  valueMax: S.optionalKey(S.Number),
+  valueNow: S.optionalKey(S.Number),
+  valueText: S.optionalKey(S.String),
 })
 /** What the screen tree carries to a painter for one painted element of a part. */
 export type SlotBinding = typeof SlotBinding.Type
@@ -174,6 +179,10 @@ export const SlotProps = S.Struct({
   id: S.optionalKey(S.String),
   activeId: S.optionalKey(S.String),
   tabIndex: S.optionalKey(S.Number),
+  valueMin: S.optionalKey(S.Number),
+  valueMax: S.optionalKey(S.Number),
+  valueNow: S.optionalKey(S.Number),
+  valueText: S.optionalKey(S.String),
 })
 /** What a part's projection says of one slot. */
 export type SlotProps = typeof SlotProps.Type
@@ -331,6 +340,7 @@ const roleNames: Readonly<Record<Role, string>> = {
   Group: 'group',
   Grid: 'grid',
   GridCell: 'gridcell',
+  Slider: 'slider',
 }
 
 const liveNames: Readonly<Record<LivePoliteness, string>> = {
@@ -425,6 +435,18 @@ export const ariaOf = (
   ...(binding.tabIndex === undefined
     ? {}
     : { tabindex: String(binding.tabIndex) }),
+  ...(binding.valueMin === undefined
+    ? {}
+    : { 'aria-valuemin': String(binding.valueMin) }),
+  ...(binding.valueMax === undefined
+    ? {}
+    : { 'aria-valuemax': String(binding.valueMax) }),
+  ...(binding.valueNow === undefined
+    ? {}
+    : { 'aria-valuenow': String(binding.valueNow) }),
+  ...(binding.valueText === undefined
+    ? {}
+    : { 'aria-valuetext': binding.valueText }),
   ...(binding.isHidden === true ? { hidden: '' } : {}),
 })
 

@@ -21,24 +21,37 @@ export const recognizes: ReadonlyArray<Gesture.GestureKind> = [
 /** What the host adds to the pressable a painter already draws. */
 export type HostProps = Readonly<{
   onLongPress?: () => void
-  accessibilityRole?: 'switch' | 'radio' | 'tab' | 'menuitem' | 'button'
+  accessibilityRole?:
+    | 'switch'
+    | 'radio'
+    | 'tab'
+    | 'menuitem'
+    | 'button'
+    | 'adjustable'
   accessibilityState?: Readonly<{
     selected?: boolean
     checked?: boolean | 'mixed'
     expanded?: boolean
     disabled?: boolean
   }>
+  accessibilityValue?: Readonly<{
+    min?: number
+    max?: number
+    now?: number
+    text?: string
+  }>
 }>
 
 /** What the host adds to a container View a part bound. */
 export type ContainerHostProps = Readonly<{
   nativeID?: string
-  accessibilityRole?: 'tablist' | 'menu' | 'radiogroup' | 'alert'
+  accessibilityRole?: 'tablist' | 'menu' | 'radiogroup' | 'alert' | 'adjustable'
   accessibilityLiveRegion?: 'none' | 'polite' | 'assertive'
   accessibilityLabel?: string
   accessibilityElementsHidden?: boolean
   importantForAccessibility?: 'no-hide-descendants'
   accessibilityState?: HostProps['accessibilityState']
+  accessibilityValue?: HostProps['accessibilityValue']
 }>
 
 /** What the host adds to a text input a part bound. */
@@ -72,9 +85,28 @@ const stateOf = (
   return Object.keys(state).length === 0 ? {} : { accessibilityState: state }
 }
 
+const valueOf = (
+  binding: Slot.SlotBinding,
+): Pick<HostProps, 'accessibilityValue'> => {
+  const value = {
+    ...(binding.valueMin === undefined ? {} : { min: binding.valueMin }),
+    ...(binding.valueMax === undefined ? {} : { max: binding.valueMax }),
+    ...(binding.valueNow === undefined ? {} : { now: binding.valueNow }),
+    ...(binding.valueText === undefined ? {} : { text: binding.valueText }),
+  }
+  return Object.keys(value).length === 0 ? {} : { accessibilityValue: value }
+}
+
 const pressableRoleOf = (
   role: Slot.Role | undefined,
-): 'switch' | 'radio' | 'tab' | 'menuitem' | 'button' | undefined => {
+):
+  | 'switch'
+  | 'radio'
+  | 'tab'
+  | 'menuitem'
+  | 'button'
+  | 'adjustable'
+  | undefined => {
   if (role === 'Switch') {
     return 'switch'
   } else if (role === 'Radio') {
@@ -85,6 +117,8 @@ const pressableRoleOf = (
     return 'menuitem'
   } else if (role === 'Button') {
     return 'button'
+  } else if (role === 'Slider') {
+    return 'adjustable'
   } else {
     return undefined
   }
@@ -92,7 +126,7 @@ const pressableRoleOf = (
 
 const containerRoleOf = (
   role: Slot.Role | undefined,
-): 'tablist' | 'menu' | 'radiogroup' | 'alert' | undefined => {
+): 'tablist' | 'menu' | 'radiogroup' | 'alert' | 'adjustable' | undefined => {
   if (role === 'TabList') {
     return 'tablist'
   } else if (role === 'Menu') {
@@ -101,6 +135,8 @@ const containerRoleOf = (
     return 'radiogroup'
   } else if (role === 'Alert') {
     return 'alert'
+  } else if (role === 'Slider') {
+    return 'adjustable'
   } else {
     return undefined
   }
@@ -148,6 +184,7 @@ export const containerPropsOf = (
             }
           : {}),
         ...stateOf(binding),
+        ...valueOf(binding),
       }
     },
   })
@@ -198,6 +235,7 @@ export const hostPropsOf = (
       return {
         ...(role === undefined ? {} : { accessibilityRole: role }),
         ...stateOf(binding),
+        ...valueOf(binding),
         ...Option.match(Host.plan(binding, recognizes).maybeHeld, {
           onNone: () => ({}),
           onSome: press => ({

@@ -384,6 +384,7 @@ const paintButton = (button: ButtonNode, paint: Paint): ReactElement => {
         selected: button.isCurrent === true,
         ...host.accessibilityState,
       }}
+      accessibilityValue={host.accessibilityValue}
       disabled={isDisabled}
       hitSlop={isIconOnly ? 6 : 0}
       onLongPress={host.onLongPress}

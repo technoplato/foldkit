@@ -6,9 +6,9 @@ import {
   Option,
   Schema as S,
   Stream,
-  String as String_,
   pipe,
 } from 'effect'
+import { Slider as CoreSlider, PointerDrag } from 'foldkit/behavior'
 import type { Command } from 'foldkit/command'
 import {
   type ChildAttribute,
@@ -67,14 +67,7 @@ export const CancelledDrag = m('CancelledDrag')
 /** The user pressed a keyboard navigation key on the focused thumb. The view
  *  supplies `value`, the current value, to compute the next one from. */
 export const PressedKeyboardNavigation = m('PressedKeyboardNavigation', {
-  direction: S.Literals([
-    'StepDecrement',
-    'StepIncrement',
-    'PageDecrement',
-    'PageIncrement',
-    'Min',
-    'Max',
-  ]),
+  direction: CoreSlider.NavigationDirection,
   value: S.Number,
 })
 
@@ -139,26 +132,6 @@ export const init = (config: InitConfig): Model => ({
 
 // HELPERS
 
-const stepDecimals = (step: number): number => {
-  const text = step.toString()
-  return pipe(
-    text,
-    String_.indexOf('.'),
-    Option.match({
-      onNone: () => 0,
-      onSome: dotIndex => text.length - dotIndex - 1,
-    }),
-  )
-}
-
-const roundToStepPrecision = (value: number, step: number): number => {
-  const decimals = stepDecimals(step)
-  return Number(value.toFixed(decimals))
-}
-
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(Math.max(value, min), max)
-
 /** Snaps a value to the nearest step and clamps it into `[min, max]`. Exported
  *  so a parent can conform the value it owns to the slider's range, for example
  *  when seeding the initial value or reacting to an external update. */
@@ -167,10 +140,7 @@ export const snapAndClamp = (
   min: number,
   max: number,
   step: number,
-): number => {
-  const snapped = min + Math.round((value - min) / step) * step
-  return roundToStepPrecision(clamp(snapped, min, max), step)
-}
+): number => PointerDrag.snapToStep(value, min, max, step)
 
 /** Computes the fraction (0–1) of a value between min and max. Returns 0 when
  *  the range has zero width. */
@@ -178,16 +148,7 @@ export const fractionOfValue = (
   value: number,
   min: number,
   max: number,
-): number => {
-  const range = max - min
-  if (range <= 0) {
-    return 0
-  } else {
-    return clamp((value - min) / range, 0, 1)
-  }
-}
-
-const PAGE_STEP_MULTIPLIER = 10
+): number => PointerDrag.fractionFromValue(value, min, max)
 
 const nextValueForDirection = (
   value: number,
@@ -196,20 +157,7 @@ const nextValueForDirection = (
   step: number,
   direction: (typeof PressedKeyboardNavigation.Type)['direction'],
 ): number =>
-  M.value(direction).pipe(
-    M.withReturnType<number>(),
-    M.when('StepIncrement', () => snapAndClamp(value + step, min, max, step)),
-    M.when('StepDecrement', () => snapAndClamp(value - step, min, max, step)),
-    M.when('PageIncrement', () =>
-      snapAndClamp(value + step * PAGE_STEP_MULTIPLIER, min, max, step),
-    ),
-    M.when('PageDecrement', () =>
-      snapAndClamp(value - step * PAGE_STEP_MULTIPLIER, min, max, step),
-    ),
-    M.when('Min', () => min),
-    M.when('Max', () => max),
-    M.exhaustive,
-  )
+  CoreSlider.nextValueForDirection(value, direction, { min, max, step })
 
 // UPDATE
 
@@ -368,12 +316,11 @@ const valueFromClientX = (
   max: number,
 ): number => {
   const rect = trackElement_.getBoundingClientRect()
-  if (rect.width === 0) {
-    return min
-  } else {
-    const fraction = clamp((clientX - rect.left) / rect.width, 0, 1)
-    return min + fraction * (max - min)
-  }
+  const fraction = PointerDrag.fractionFromPoint(
+    { x: clientX, y: 0 },
+    { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+  )
+  return PointerDrag.valueFromFraction(fraction, min, max)
 }
 
 /** Builds slider drag subscriptions, looking up the track
@@ -467,7 +414,7 @@ export const subscriptionsForRoot = (
         dependenciesToStream: ({ dragActivity }) =>
           Stream.when(
             Stream.fromEventListener<KeyboardEvent>(document, 'keydown').pipe(
-              Stream.filter(({ key }) => key === 'Escape'),
+              Stream.filter(({ key }) => PointerDrag.isCancelKey(key)),
               Stream.map(() => CancelledDrag()),
             ),
             Effect.sync(() => dragActivity === 'Active'),
@@ -483,24 +430,15 @@ export const subscriptions = subscriptionsForRoot(() => document)
 
 const LEFT_MOUSE_BUTTON = 0
 
-const labelId = (id: string): string => `${id}-label`
+const labelId = (id: string): string => CoreSlider.labelId(id)
 
 const keyToDirection = (
   key: string,
 ): Option.Option<(typeof PressedKeyboardNavigation.Type)['direction']> =>
-  M.value(key).pipe(
-    M.withReturnType<(typeof PressedKeyboardNavigation.Type)['direction']>(),
-    M.whenOr('ArrowRight', 'ArrowUp', () => 'StepIncrement'),
-    M.whenOr('ArrowLeft', 'ArrowDown', () => 'StepDecrement'),
-    M.when('PageUp', () => 'PageIncrement'),
-    M.when('PageDown', () => 'PageDecrement'),
-    M.when('Home', () => 'Min'),
-    M.when('End', () => 'Max'),
-    M.option,
-  )
+  CoreSlider.resolveSliderKey(key)
 
 const percentString = (fraction: number): string =>
-  `${Math.round(fraction * 10000) / 100}%`
+  CoreSlider.percentStringOf(fraction)
 
 /** Attribute groups the slider component provides to the consumer's `toView`
  *  callback. Each bundle carries the boundary's captured dispatch, so the
@@ -646,7 +584,7 @@ export const view = defineView<Model, Message, ViewInputs>(
         ]
 
     const thumbAttributes = [
-      h.Id(`${id}-thumb`),
+      h.Id(CoreSlider.thumbId(id)),
       h.Role('slider'),
       h.Tabindex(0),
       h.AriaOrientation('horizontal'),
