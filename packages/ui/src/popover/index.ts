@@ -1,12 +1,12 @@
 import {
   Array,
   Effect,
-  Equal,
   Match as M,
   Option,
   Predicate,
   Schema as S,
 } from 'effect'
+import { Popover as CorePopover } from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import {
@@ -154,8 +154,6 @@ export type Closed = typeof Closed.Type
 
 // INIT
 
-const LEFT_MOUSE_BUTTON = 0
-
 /** Configuration for creating a popover model with `init`. `isAnimated` enables animation coordination (default `false`). `isModal` locks page scroll and inerts other elements when open (default `false`). `contentFocus` hands focus ownership to the consumer. The panel is not focusable and does not close on blur, so the consumer must focus a descendant on open and close the popover on its own blur rules (default `false`). */
 export type InitConfig = Readonly<{
   id: string
@@ -171,7 +169,7 @@ export const init = (config: InitConfig): Model => ({
   isAnimated: config.isAnimated ?? false,
   isModal: config.isModal ?? false,
   contentFocus: config.contentFocus ?? false,
-  animation: animationInit({ id: `${config.id}-panel` }),
+  animation: animationInit({ id: CorePopover.panelId(config.id) }),
   maybeLastButtonPointerType: Option.none(),
 })
 
@@ -183,14 +181,16 @@ const closedModel = (model: Model): Model =>
     maybeLastButtonPointerType: () => Option.none(),
   })
 
-const buttonSelector = (id: string): string => idSelector(`${id}-button`)
-const panelSelector = (id: string): string => idSelector(`${id}-panel`)
+const buttonSelector = (id: string): string =>
+  idSelector(CorePopover.buttonId(id))
+const panelSelector = (id: string): string =>
+  idSelector(CorePopover.panelId(id))
 
 /** Returns the bare DOM id of the popover trigger button, derived from the
  *  popover's base id. Use this to associate an external label with the
  *  trigger via a native `<label for={Popover.buttonId(id)}>` or an
  *  `aria-labelledby` reference. */
-export const buttonId = (id: string): string => `${id}-button`
+export const buttonId = (id: string): string => CorePopover.buttonId(id)
 
 type UpdateReturn = readonly [
   Model,
@@ -373,40 +373,52 @@ export const update = (model: Model, message: Message): UpdateReturn => {
 
       RequestedClose: () => closePopover(model, closeWithFocusCommands),
 
-      BlurredPanel: () => {
-        if (
-          Option.exists(model.maybeLastButtonPointerType, Equal.equals('mouse'))
-        ) {
-          return [model, [], Option.none()]
-        }
-
-        return closePopover(model, closeWithoutFocusCommands)
-      },
+      BlurredPanel: () =>
+        M.value(
+          CorePopover.panelBlurDecision({
+            isOpen: model.isOpen,
+            contentFocus: model.contentFocus,
+            maybeLastButtonPointerType: model.maybeLastButtonPointerType,
+          }),
+        ).pipe(
+          withUpdateReturn,
+          M.when('Ignore', () => [model, [], Option.none()]),
+          M.when('CloseWithoutFocus', () =>
+            closePopover(model, closeWithoutFocusCommands),
+          ),
+          M.exhaustive,
+        ),
 
       PressedPointerOnButton: ({ pointerType, button }) => {
         const withPointerType = evo(model, {
           maybeLastButtonPointerType: () => Option.some(pointerType),
         })
 
-        if (pointerType !== 'mouse' || button !== LEFT_MOUSE_BUTTON) {
-          return [withPointerType, [], Option.none()]
-        }
-
-        if (model.isOpen) {
-          const [closed, commands, maybeOutMessage] = closePopover(
-            withPointerType,
-            closeWithFocusCommands,
-          )
-          return [
-            evo(closed, {
-              maybeLastButtonPointerType: () => Option.some(pointerType),
-            }),
-            commands,
-            maybeOutMessage,
-          ]
-        }
-
-        return openPopover(withPointerType)
+        return M.value(
+          CorePopover.pointerDownDecision({
+            isOpen: model.isOpen,
+            pointerType,
+            button,
+          }),
+        ).pipe(
+          withUpdateReturn,
+          M.when('RecordOnly', () => [withPointerType, [], Option.none()]),
+          M.when('Close', () => {
+            const [closed, commands, maybeOutMessage] = closePopover(
+              withPointerType,
+              closeWithFocusCommands,
+            )
+            return [
+              evo(closed, {
+                maybeLastButtonPointerType: () => Option.some(pointerType),
+              }),
+              commands,
+              maybeOutMessage,
+            ]
+          }),
+          M.when('Open', () => openPopover(withPointerType)),
+          M.exhaustive,
+        )
       },
 
       GotAnimationMessage: ({ message: animationMessage }) =>
@@ -539,9 +551,8 @@ export const view = defineView<Model, Message, ViewInputs>(
       ariaLabelledBy,
     } = viewInputs
 
-    const isLeaving =
-      transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
-    const isVisible = isOpen || isLeaving
+    const isLeaving = CorePopover.isLeavingPhase(transitionState)
+    const isVisible = CorePopover.isVisible({ isOpen, isLeaving })
 
     const animationAttributes = M.value(transitionState).pipe(
       M.when('EnterStart', () => [
@@ -568,12 +579,12 @@ export const view = defineView<Model, Message, ViewInputs>(
     const handleButtonKeyDown = (
       key: string,
     ): Option.Option<RequestedOpen | RequestedClose> =>
-      M.value(key).pipe(
-        M.whenOr('Enter', ' ', 'ArrowDown', () =>
-          Option.some(isOpen ? RequestedClose() : RequestedOpen()),
-        ),
-        M.when('Escape', () => OptionExt.when(isOpen, RequestedClose())),
-        M.orElse(() => Option.none()),
+      M.value(CorePopover.triggerKeyDecision({ isOpen, key })).pipe(
+        M.withReturnType<Option.Option<RequestedOpen | RequestedClose>>(),
+        M.when('Open', () => Option.some(RequestedOpen())),
+        M.when('Close', () => Option.some(RequestedClose())),
+        M.when('Ignore', () => Option.none()),
+        M.exhaustive,
       )
 
     const handleButtonPointerDown = (
@@ -585,31 +596,27 @@ export const view = defineView<Model, Message, ViewInputs>(
     const handleButtonClick = ():
       | RequestedOpen
       | RequestedClose
-      | IgnoredMouseClick => {
-      const isMouse = Option.exists(
-        maybeLastButtonPointerType,
-        type => type === 'mouse',
+      | IgnoredMouseClick =>
+      M.value(
+        CorePopover.buttonClickDecision({
+          isOpen,
+          maybeLastButtonPointerType,
+        }),
+      ).pipe(
+        M.withReturnType<RequestedOpen | RequestedClose | IgnoredMouseClick>(),
+        M.when('IgnoreMouseClick', () => IgnoredMouseClick()),
+        M.when('Close', () => RequestedClose()),
+        M.when('Open', () => RequestedOpen()),
+        M.exhaustive,
       )
-
-      if (isMouse) {
-        return IgnoredMouseClick()
-      } else if (isOpen) {
-        return RequestedClose()
-      } else {
-        return RequestedOpen()
-      }
-    }
 
     const handleSpaceKeyUp = (
       key: string,
     ): Option.Option<SuppressedSpaceScroll> =>
-      OptionExt.when(key === ' ', SuppressedSpaceScroll())
+      OptionExt.when(CorePopover.isSpaceScrollKey(key), SuppressedSpaceScroll())
 
     const handlePanelKeyDown = (key: string): Option.Option<RequestedClose> =>
-      M.value(key).pipe(
-        M.when('Escape', () => Option.some(RequestedClose())),
-        M.orElse(() => Option.none()),
-      )
+      OptionExt.when(CorePopover.isEscapeKey(key), RequestedClose())
 
     const resolveButtonLabel = () => {
       if (Predicate.isNotUndefined(ariaLabel)) {
@@ -624,10 +631,10 @@ export const view = defineView<Model, Message, ViewInputs>(
     const buttonLabelAttributes = resolveButtonLabel()
 
     const buttonAttributes = [
-      h.Id(`${id}-button`),
+      h.Id(CorePopover.buttonId(id)),
       h.Type('button'),
       h.AriaExpanded(isVisible),
-      h.AriaControls(`${id}-panel`),
+      h.AriaControls(CorePopover.panelId(id)),
       ...buttonLabelAttributes,
       ...(isDisabled
         ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
@@ -646,12 +653,12 @@ export const view = defineView<Model, Message, ViewInputs>(
     ]
 
     const panelAttributes = [
-      h.Id(`${id}-panel`),
+      h.Id(CorePopover.panelId(id)),
       ...(contentFocus ? [] : [h.Tabindex(0)]),
       h.Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
       h.OnMount(
         AnchorPopover({
-          buttonId: `${id}-button`,
+          buttonId: CorePopover.buttonId(id),
           anchor,
           ...(focusSelector !== undefined && { focusSelector }),
         }),
