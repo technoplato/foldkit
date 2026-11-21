@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 
+import type { SlotBinding } from '../behavior/slot.js'
 import type { InkRun } from '../theme/terminal.js'
 import type { Role } from '../theme/theme.js'
 import type { Device } from './device.js'
@@ -10,13 +11,17 @@ import { itemLinesOf } from './listRows.js'
 import { bookmarksInPassage } from './transcriptBookmarks.js'
 import { transcriptEntriesOf } from './transcriptEntries.js'
 import type {
+  BoxLayer,
   ButtonNode,
   HotspotAction,
   ItemCheck,
   LayoutBox,
+  LayoutFrame,
   ListItem,
   ProgressNode,
   SeekNode,
+  TextInputNode,
+  TextNode,
   TranscriptBookmark,
   TranscriptPassage,
   TranscriptWord,
@@ -517,6 +522,570 @@ type Timeline = Readonly<{ boxes: ReadonlyArray<LayoutBox>; rows: number }>
 
 const noTimeline: Timeline = { boxes: [], rows: 0 }
 
+type LayoutContext = Readonly<{
+  activeId?: string
+  skipSlotIds?: ReadonlySet<string>
+}>
+
+const emptyLayoutContext: LayoutContext = {}
+
+const slotOf = (node: UiNode): SlotBinding | undefined => {
+  if (
+    node._tag === 'Button' ||
+    node._tag === 'TextInput' ||
+    node._tag === 'Row' ||
+    node._tag === 'Column' ||
+    node._tag === 'Box'
+  ) {
+    return node.slot
+  } else {
+    return undefined
+  }
+}
+
+const isHiddenNode = (node: UiNode, ctx: LayoutContext): boolean => {
+  const slot = slotOf(node)
+  if (slot === undefined) {
+    return false
+  } else if (slot.isHidden === true) {
+    return true
+  } else if (slot.id !== undefined && ctx.skipSlotIds?.has(slot.id) === true) {
+    return true
+  } else {
+    return false
+  }
+}
+
+const extractNodeText = (node: UiNode): string => {
+  if (node._tag === 'Text') {
+    return node.content
+  } else if (node._tag === 'Button') {
+    return buttonText(node)
+  } else if (node._tag === 'TextInput') {
+    return node.value.length > 0 ? node.value : (node.placeholder ?? '')
+  } else if (
+    node._tag === 'Box' ||
+    node._tag === 'Row' ||
+    node._tag === 'Column'
+  ) {
+    return Array.join(
+      Array.filter(
+        Array.map(node.children, extractNodeText),
+        part => part.length > 0,
+      ),
+      ' ',
+    )
+  } else if (node._tag === 'Lazy') {
+    return extractNodeText(resolveLazyNode(node))
+  } else {
+    return ''
+  }
+}
+
+const findLabelTextById = (
+  nodes: ReadonlyArray<UiNode>,
+  targetId: string,
+): Option.Option<string> =>
+  Array.reduce(nodes, Option.none<string>(), (found, child) => {
+    if (Option.isSome(found)) {
+      return found
+    }
+    const slot = slotOf(child)
+    if (slot?.id === targetId) {
+      const text = extractNodeText(child).trim()
+      return text.length > 0 ? Option.some(text) : Option.none()
+    } else if (
+      child._tag === 'Box' ||
+      child._tag === 'Row' ||
+      child._tag === 'Column'
+    ) {
+      return findLabelTextById(child.children, targetId)
+    } else if (child._tag === 'Lazy') {
+      return findLabelTextById([resolveLazyNode(child)], targetId)
+    } else {
+      return Option.none()
+    }
+  })
+
+const badgeRoleOf = (text: TextNode): Role | undefined => {
+  if (text.parts === undefined || text.parts.length !== 1) {
+    return undefined
+  }
+  const maybePart = Array.head(text.parts)
+  if (Option.isNone(maybePart) || maybePart.value._tag !== 'Reference') {
+    return undefined
+  }
+  const kind = maybePart.value.kind
+  if (kind === undefined || !kind.startsWith('Badge')) {
+    return undefined
+  } else if (kind === 'Badge:Positive') {
+    return 'Positive'
+  } else if (kind === 'Badge:Warning') {
+    return 'Warning'
+  } else if (kind === 'Badge:Danger') {
+    return 'Danger'
+  } else if (kind === 'Badge:Muted') {
+    return 'QuietText'
+  } else {
+    return 'Accent'
+  }
+}
+
+type ButtonPresentation = Readonly<{
+  glyph: string
+  inks: (col: number, width: number) => ReadonlyArray<InkRun>
+}>
+
+const badgeInksOf = (
+  col: number,
+  width: number,
+  prefixLength: number,
+  prefixRole: Role,
+  isDisabled: boolean,
+): ReadonlyArray<InkRun> => {
+  if (width <= 0) {
+    return []
+  }
+  const markWidth = Math.min(prefixLength, width)
+  const restRuns: ReadonlyArray<InkRun> =
+    isDisabled && width > markWidth
+      ? [{ col: col + markWidth, width: width - markWidth, role: 'QuietText' }]
+      : []
+  return [{ col, width: markWidth, role: prefixRole }, ...restRuns]
+}
+
+const buttonPresentationOf = (
+  button: ButtonNode,
+  ctx: LayoutContext,
+  isPressable: boolean,
+): ButtonPresentation => {
+  const slot = button.slot
+  const text = buttonText(button)
+  const isDisabled = button.disabled === true || slot?.isDisabled === true
+  if (slot === undefined) {
+    return {
+      glyph: buttonGlyph(button),
+      inks: (col, width) =>
+        standingInkOf(
+          { ...button, disabled: isDisabled, isPressable },
+          col,
+          width,
+        ).inks ?? [],
+    }
+  }
+  if (slot.role === 'Switch') {
+    const isOn = slot.isChecked === true
+    const badge = isOn ? '[● ON]' : '[○ OFF]'
+    const glyph = text === '' ? badge : `${badge} ${text}`
+    const badgeRole: Role = isDisabled
+      ? 'QuietText'
+      : isOn
+        ? 'Positive'
+        : 'QuietText'
+    return {
+      glyph,
+      inks: (col, width) =>
+        badgeInksOf(col, width, badge.length, badgeRole, isDisabled),
+    }
+  } else if (slot.role === 'Checkbox') {
+    const mark =
+      slot.isChecked === true
+        ? '[x]'
+        : slot.isChecked === 'mixed'
+          ? '[-]'
+          : '[ ]'
+    const glyph = text === '' ? mark : `${mark} ${text}`
+    const markRole: Role = isDisabled
+      ? 'QuietText'
+      : slot.isChecked === true
+        ? 'Positive'
+        : slot.isChecked === 'mixed'
+          ? 'Warning'
+          : 'Accent'
+    return {
+      glyph,
+      inks: (col, width) =>
+        badgeInksOf(col, width, mark.length, markRole, isDisabled),
+    }
+  } else if (slot.role === 'Radio') {
+    const isChecked = slot.isChecked === true || slot.isSelected === true
+    const mark = isChecked ? '(●)' : '( )'
+    const glyph = text === '' ? mark : `${mark} ${text}`
+    const markRole: Role = isDisabled
+      ? 'QuietText'
+      : isChecked
+        ? 'Accent'
+        : 'QuietText'
+    return {
+      glyph,
+      inks: (col, width) =>
+        badgeInksOf(col, width, mark.length, markRole, isDisabled),
+    }
+  } else if (slot.role === 'Tab') {
+    const isSelected = slot.isSelected === true || button.isCurrent === true
+    const glyph = isSelected ? `[${text}]` : text
+    const role: Role = isDisabled
+      ? 'QuietText'
+      : isSelected
+        ? 'Focus'
+        : 'QuietText'
+    return {
+      glyph,
+      inks: (col, width) => (width > 0 ? [{ col, width, role }] : []),
+    }
+  } else if (slot.role === 'Option' || slot.role === 'MenuItem') {
+    const isActive =
+      (ctx.activeId !== undefined && slot.id === ctx.activeId) ||
+      slot.isCurrent === true ||
+      button.focused === true
+    const isSelected = slot.isSelected === true
+    const prefix =
+      isActive && isSelected
+        ? '› ● '
+        : isSelected
+          ? '  ✓ '
+          : isActive
+            ? '›   '
+            : '    '
+    const glyph = `${prefix}${text}`
+    const role: Role | undefined = isDisabled
+      ? 'QuietText'
+      : isActive
+        ? 'Focus'
+        : isSelected
+          ? 'Positive'
+          : undefined
+    return {
+      glyph,
+      inks: (col, width) =>
+        role !== undefined && width > 0 ? [{ col, width, role }] : [],
+    }
+  } else if (slot.isPressed !== undefined) {
+    const glyph =
+      slot.isPressed === true
+        ? `[● ${text} ]`
+        : slot.isPressed === 'mixed'
+          ? `[◐ ${text} ]`
+          : buttonGlyph(button)
+    const role: Role = isDisabled
+      ? 'QuietText'
+      : slot.isPressed === true
+        ? 'Focus'
+        : slot.isPressed === 'mixed'
+          ? 'Warning'
+          : 'Accent'
+    return {
+      glyph,
+      inks: (col, width) => (width > 0 ? [{ col, width, role }] : []),
+    }
+  } else {
+    return {
+      glyph: buttonGlyph(button),
+      inks: (col, width) =>
+        standingInkOf(
+          { ...button, disabled: isDisabled, isPressable },
+          col,
+          width,
+        ).inks ?? [],
+    }
+  }
+}
+
+type ContainerFrameSpec = Readonly<{
+  frame: LayoutFrame
+  skipSlotId?: string
+}>
+
+const containerFrameOf = (
+  slot: SlotBinding | undefined,
+  layer: BoxLayer | undefined,
+  children: ReadonlyArray<UiNode>,
+): ContainerFrameSpec | undefined => {
+  const resolveLabelled = (): Readonly<{
+    title?: string
+    skipSlotId?: string
+  }> => {
+    if (slot?.labelledBy !== undefined) {
+      const maybeFromChild = findLabelTextById(children, slot.labelledBy)
+      if (Option.isSome(maybeFromChild)) {
+        return { title: maybeFromChild.value, skipSlotId: slot.labelledBy }
+      }
+    }
+    return slot?.label === undefined ? {} : { title: slot.label }
+  }
+
+  if (slot?.role === 'AlertDialog') {
+    const resolved = resolveLabelled()
+    return {
+      frame: {
+        style: 'Double',
+        title: resolved.title ?? 'Alert',
+        role: 'Warning',
+      },
+      ...(resolved.skipSlotId === undefined
+        ? {}
+        : { skipSlotId: resolved.skipSlotId }),
+    }
+  } else if (slot?.role === 'Dialog') {
+    const resolved = resolveLabelled()
+    return {
+      frame: {
+        style: 'Rounded',
+        title: resolved.title ?? layer?.label ?? 'Dialog',
+        role: 'Accent',
+      },
+      ...(resolved.skipSlotId === undefined
+        ? {}
+        : { skipSlotId: resolved.skipSlotId }),
+    }
+  } else if (slot?.role === 'Status') {
+    return {
+      frame: {
+        style: 'Rounded',
+        title: slot.label ?? 'Status',
+        role: 'Accent',
+      },
+    }
+  } else if (slot?.role === 'Alert') {
+    return {
+      frame: {
+        style: 'Rounded',
+        title: slot.label ?? 'Alert',
+        role: 'Danger',
+      },
+    }
+  } else if (slot?.role === 'Group') {
+    const resolved = resolveLabelled()
+    const role: Role =
+      slot.isInvalid === true
+        ? 'Danger'
+        : slot.isDisabled === true
+          ? 'QuietText'
+          : 'Border'
+    return {
+      frame: {
+        style: 'Square',
+        role,
+        ...(resolved.title === undefined ? {} : { title: resolved.title }),
+      },
+      ...(resolved.skipSlotId === undefined
+        ? {}
+        : { skipSlotId: resolved.skipSlotId }),
+    }
+  } else if (slot?.role === 'Listbox' || slot?.role === 'Menu') {
+    const resolved = resolveLabelled()
+    return {
+      frame: {
+        style: 'Square',
+        role: 'Border',
+        ...(resolved.title === undefined ? {} : { title: resolved.title }),
+      },
+      ...(resolved.skipSlotId === undefined
+        ? {}
+        : { skipSlotId: resolved.skipSlotId }),
+    }
+  } else if (slot?.role === 'Tooltip') {
+    return {
+      frame: {
+        style: 'Rounded',
+        title: slot.label === undefined ? 'ⓘ Hint' : `ⓘ ${slot.label}`,
+        role: 'QuietText',
+      },
+    }
+  } else if (layer !== undefined) {
+    return {
+      frame: {
+        style: 'Rounded',
+        title: layer.label,
+        role: layer.kind === 'Dialog' ? 'Accent' : 'Border',
+      },
+    }
+  } else {
+    return undefined
+  }
+}
+
+const childContextOf = (
+  ctx: LayoutContext,
+  slot: SlotBinding | undefined,
+  skipSlotId?: string,
+): LayoutContext => {
+  const nextActiveId = slot?.activeId ?? ctx.activeId
+  const nextSkipSlotIds =
+    skipSlotId === undefined
+      ? ctx.skipSlotIds
+      : new Set([...(ctx.skipSlotIds ?? []), skipSlotId])
+  return {
+    ...(nextActiveId === undefined ? {} : { activeId: nextActiveId }),
+    ...(nextSkipSlotIds === undefined ? {} : { skipSlotIds: nextSkipSlotIds }),
+  }
+}
+
+const layoutMultilineTextInput = (
+  input: TextInputNode,
+  slot: SlotBinding,
+  x: number,
+  y: number,
+  availableW: number,
+  ids: Ids,
+): LayoutBox => {
+  const isDisabled = slot.isDisabled === true
+  const isReadOnly = slot.isReadOnly === true
+  const isInvalid = slot.isInvalid === true
+  const isPlaceholder = input.value.length === 0
+  const rawBody = isPlaceholder ? (input.placeholder ?? '') : input.value
+  const rawLines = rawBody.split(/\r\n|\r|\n/u)
+  const minLines = 2
+  const paddedLines: ReadonlyArray<string> =
+    rawLines.length < minLines
+      ? [...rawLines, ...Array.makeBy(minLines - rawLines.length, () => '')]
+      : rawLines
+  const widestLine = Array.reduce(paddedLines, 0, (widest, line) =>
+    Math.max(widest, line.length),
+  )
+  const title = isInvalid ? `${input.label ?? 'Input'} !` : undefined
+  const titleMinW = title === undefined ? 0 : title.length + 6
+  const preferredW = input.width ?? Math.max(widestLine + 4, titleMinW, 20)
+  const frameW = Math.max(4, Math.min(preferredW, availableW))
+  const innerW = Math.max(1, frameW - 4)
+  const lineRole: Role =
+    isDisabled || isReadOnly || isPlaceholder ? 'QuietText' : 'Text'
+  const lineBoxes: ReadonlyArray<LayoutBox> = Array.map(
+    paddedLines,
+    (line, index) => {
+      const clipped = line.length > innerW ? line.substring(0, innerW) : line
+      const w = clipped.length
+      return {
+        id: ids.next('text'),
+        x: x + 2,
+        y: y + 1 + index,
+        w,
+        h: 1,
+        kind: 'Text',
+        text: clipped,
+        ...(w > 0 ? { inks: [{ col: x + 2, width: w, role: lineRole }] } : {}),
+        children: emptyBoxes,
+      }
+    },
+  )
+  const frameRole: Role = isInvalid
+    ? 'Danger'
+    : isDisabled
+      ? 'QuietText'
+      : 'Border'
+  const action: HotspotAction | undefined =
+    input.token === undefined ? undefined : { _tag: 'custom', id: input.token }
+  return {
+    id: ids.next('input'),
+    x,
+    y,
+    w: frameW,
+    h: paddedLines.length + 2,
+    kind: 'TextInput',
+    label: input.label ?? 'input',
+    frame: {
+      style: 'Square',
+      role: frameRole,
+      ...(title === undefined ? {} : { title }),
+    },
+    ...(action === undefined ? {} : { action }),
+    children: lineBoxes,
+  }
+}
+
+const layoutSlotTextInput = (
+  input: TextInputNode,
+  slot: SlotBinding,
+  x: number,
+  y: number,
+  availableW: number,
+  ids: Ids,
+): LayoutBox => {
+  if (slot.isMultiline === true) {
+    return layoutMultilineTextInput(input, slot, x, y, availableW, ids)
+  }
+  const isDisabled = slot.isDisabled === true
+  const isReadOnly = slot.isReadOnly === true
+  const isInvalid = slot.isInvalid === true
+  const isPlaceholder = input.value.length === 0
+  const body = isPlaceholder ? (input.placeholder ?? '') : input.value
+  const typed = input.focused === true ? `${body}▌` : body
+  const suffix = isInvalid ? ' !' : ''
+  const shown = `[ ${typed} ]${suffix}`
+  const width = Math.min(input.width ?? Math.max(shown.length, 4), availableW)
+  const fitted = fit(shown, width)
+  const inks: ReadonlyArray<InkRun> = (() => {
+    if (width <= 0) {
+      return []
+    } else if (isDisabled || isReadOnly) {
+      return [{ col: x, width, role: 'QuietText' }]
+    } else if (isInvalid) {
+      return [{ col: x, width, role: 'Danger' }]
+    } else if (isPlaceholder) {
+      return [{ col: x, width, role: 'QuietText' }]
+    } else {
+      return [{ col: x, width, role: 'Text' }]
+    }
+  })()
+  const action: HotspotAction | undefined =
+    input.token === undefined ? undefined : { _tag: 'custom', id: input.token }
+  return {
+    id: ids.next('input'),
+    x,
+    y,
+    w: width,
+    h: 1,
+    kind: 'TextInput',
+    text: fitted,
+    label: input.label ?? 'input',
+    ...(Array.isReadonlyArrayNonEmpty(inks) ? { inks } : {}),
+    ...(action === undefined ? {} : { action }),
+    children: emptyBoxes,
+  }
+}
+
+const layoutFramedContainer = (
+  kind: 'Box' | 'Row' | 'Column',
+  frame: LayoutFrame,
+  innerNode: UiNode,
+  extraPadding: number,
+  x: number,
+  y: number,
+  availableW: number,
+  ids: Ids,
+  options: LayoutOptions,
+  ctx: LayoutContext,
+): LayoutBox => {
+  const horizontalInset = 2 + extraPadding
+  const verticalInset = 1 + extraPadding
+  const innerAvailableW = Math.max(1, availableW - horizontalInset * 2)
+  const inner = layoutNode(
+    innerNode,
+    x + horizontalInset,
+    y + verticalInset,
+    innerAvailableW,
+    ids,
+    options,
+    ctx,
+  )
+  const titleMinW = frame.title === undefined ? 0 : frame.title.length + 6
+  const frameW = Math.min(
+    availableW,
+    Math.max(inner.w + horizontalInset * 2, titleMinW, 4),
+  )
+  const frameH = Math.max(3, inner.h + verticalInset * 2)
+  return {
+    id: ids.next(kind.toLowerCase()),
+    x,
+    y,
+    w: frameW,
+    h: frameH,
+    kind,
+    frame,
+    children: [inner],
+  }
+}
+
 const layoutNode = (
   node: UiNode,
   x: number,
@@ -524,18 +1093,31 @@ const layoutNode = (
   availableW: number,
   ids: Ids,
   options: LayoutOptions,
-): LayoutBox =>
-  M.value(node).pipe(
+  ctx: LayoutContext = emptyLayoutContext,
+): LayoutBox => {
+  if (isHiddenNode(node, ctx)) {
+    return {
+      id: ids.next('hidden'),
+      x,
+      y,
+      w: 0,
+      h: 0,
+      kind: node._tag,
+      children: emptyBoxes,
+    }
+  }
+  return M.value(node).pipe(
     M.withReturnType<LayoutBox>(),
     M.tagsExhaustive({
       Text: text => {
         const w = text.width ?? measureText(text.content, availableW)
         const role: Role | undefined =
-          text.dim === true
+          badgeRoleOf(text) ??
+          (text.dim === true
             ? 'QuietText'
             : text.emphasis !== undefined
               ? 'Text'
-              : undefined
+              : undefined)
         return {
           id: ids.next('text'),
           x,
@@ -551,14 +1133,21 @@ const layoutNode = (
         }
       },
       Button: button => {
-        const glyph = buttonGlyph(button)
-        const w = Math.min(glyph.length, availableW)
-        const action: HotspotAction | undefined = button.disabled
+        const isDisabled =
+          button.disabled === true || button.slot?.isDisabled === true
+        const action: HotspotAction | undefined = isDisabled
           ? undefined
           : {
               _tag: 'custom',
               id: button.action ?? button.token ?? button.label,
             }
+        const presentation = buttonPresentationOf(
+          button,
+          ctx,
+          action !== undefined,
+        )
+        const w = Math.min(presentation.glyph.length, availableW)
+        const inks = presentation.inks(x, w)
         return {
           id: ids.next('button'),
           x,
@@ -566,21 +1155,17 @@ const layoutNode = (
           w,
           h: 1,
           kind: 'Button',
-          text: glyph.substring(0, w),
+          text: presentation.glyph.substring(0, w),
           label: button.label,
-          ...standingInkOf(
-            {
-              ...button,
-              isPressable: action !== undefined,
-            },
-            x,
-            w,
-          ),
+          ...(Array.isReadonlyArrayNonEmpty(inks) ? { inks } : {}),
           ...(action === undefined ? {} : { action }),
           children: [],
         }
       },
       TextInput: input => {
+        if (input.slot !== undefined) {
+          return layoutSlotTextInput(input, input.slot, x, y, availableW, ids)
+        }
         const width = Math.min(input.width ?? availableW, availableW)
         const body =
           input.value.length > 0 ? input.value : (input.placeholder ?? '')
@@ -613,6 +1198,29 @@ const layoutNode = (
         children: [],
       }),
       Row: row => {
+        const frameSpec = containerFrameOf(row.slot, undefined, row.children)
+        const innerCtx = childContextOf(ctx, row.slot, frameSpec?.skipSlotId)
+        if (frameSpec !== undefined) {
+          return layoutFramedContainer(
+            'Row',
+            frameSpec.frame,
+            Row(
+              {
+                gap: row.gap,
+                ...(row.isBoard === undefined ? {} : { isBoard: row.isBoard }),
+                ...(row.arrange === undefined ? {} : { arrange: row.arrange }),
+              },
+              ...row.children,
+            ),
+            0,
+            x,
+            y,
+            availableW,
+            ids,
+            options,
+            innerCtx,
+          )
+        }
         if (row.isBoard === true) {
           return layoutNode(
             Column({ gap: row.gap }, ...row.children),
@@ -621,6 +1229,7 @@ const layoutNode = (
             availableW,
             ids,
             options,
+            innerCtx,
           )
         }
         if (Array.isReadonlyArrayEmpty(row.children)) {
@@ -634,8 +1243,23 @@ const layoutNode = (
             children: emptyBoxes,
           }
         }
-        const laid = Array.reduce(
+        const visibleChildren = Array.filter(
           row.children,
+          child => !isHiddenNode(child, innerCtx),
+        )
+        if (Array.isReadonlyArrayEmpty(visibleChildren)) {
+          return {
+            id: ids.next('row'),
+            x,
+            y,
+            w: 0,
+            h: 0,
+            kind: 'Row',
+            children: emptyBoxes,
+          }
+        }
+        const laid = Array.reduce(
+          visibleChildren,
           {
             cursor: x,
             rowY: y,
@@ -646,7 +1270,10 @@ const layoutNode = (
           (state, child) => {
             const remaining = Math.max(0, x + availableW - state.cursor)
             const neededWidth =
-              child._tag === 'Button' ? buttonGlyph(child).length : 1
+              child._tag === 'Button'
+                ? buttonPresentationOf(child, innerCtx, child.disabled !== true)
+                    .glyph.length
+                : 1
             const shouldWrap = state.cursor > x && remaining < neededWidth
             const targetX = shouldWrap ? x : state.cursor
             const targetY = shouldWrap ? state.rowY + state.rowMaxH : state.rowY
@@ -658,7 +1285,11 @@ const layoutNode = (
               targetW,
               ids,
               options,
+              innerCtx,
             )
+            if (box.h === 0 && box.w === 0) {
+              return state
+            }
             const rowEnd = targetX + box.w - x
             return {
               cursor: targetX + box.w + row.gap,
@@ -674,14 +1305,40 @@ const layoutNode = (
           x,
           y,
           w: Math.min(availableW, laid.widest),
-          h: laid.rowY - y + laid.rowMaxH,
+          h: Array.isReadonlyArrayEmpty(laid.children)
+            ? 0
+            : laid.rowY - y + laid.rowMaxH,
           kind: 'Row',
           children: laid.children,
         }
       },
       Column: column => {
-        const laid = Array.reduce(
+        const frameSpec = containerFrameOf(
+          column.slot,
+          undefined,
           column.children,
+        )
+        const innerCtx = childContextOf(ctx, column.slot, frameSpec?.skipSlotId)
+        if (frameSpec !== undefined) {
+          return layoutFramedContainer(
+            'Column',
+            frameSpec.frame,
+            Column({ gap: column.gap }, ...column.children),
+            0,
+            x,
+            y,
+            availableW,
+            ids,
+            options,
+            innerCtx,
+          )
+        }
+        const visibleChildren = Array.filter(
+          column.children,
+          child => !isHiddenNode(child, innerCtx),
+        )
+        const laid = Array.reduce(
+          visibleChildren,
           { cursor: y, children: emptyBoxes },
           (state, child) => {
             const box = layoutNode(
@@ -691,14 +1348,20 @@ const layoutNode = (
               availableW,
               ids,
               options,
+              innerCtx,
             )
+            if (box.h === 0) {
+              return state
+            }
             return {
               cursor: state.cursor + box.h + column.gap,
               children: [...state.children, box],
             }
           },
         )
-        const used = laid.cursor - column.gap - y
+        const used = Array.isReadonlyArrayEmpty(laid.children)
+          ? 0
+          : laid.cursor - column.gap - y
         const width = Array.reduce(laid.children, 0, (max, child) =>
           Math.max(max, child.w),
         )
@@ -713,6 +1376,22 @@ const layoutNode = (
         }
       },
       Box: box => {
+        const frameSpec = containerFrameOf(box.slot, box.layer, box.children)
+        const innerCtx = childContextOf(ctx, box.slot, frameSpec?.skipSlotId)
+        if (frameSpec !== undefined) {
+          return layoutFramedContainer(
+            'Box',
+            frameSpec.frame,
+            Column({ gap: 0 }, ...box.children),
+            Math.max(0, box.padding - 1),
+            x,
+            y,
+            availableW,
+            ids,
+            options,
+            innerCtx,
+          )
+        }
         const inner = layoutNode(
           Column(
             { gap: 0 },
@@ -726,6 +1405,7 @@ const layoutNode = (
           Math.max(0, availableW - box.padding * 2),
           ids,
           options,
+          innerCtx,
         )
         return {
           id: ids.next('box'),
@@ -1045,9 +1725,10 @@ const layoutNode = (
         }
       },
       Lazy: lazy =>
-        layoutNode(resolveLazyNode(lazy), x, y, availableW, ids, options),
+        layoutNode(resolveLazyNode(lazy), x, y, availableW, ids, options, ctx),
     }),
   )
+}
 
 /** Lays out a UiNode tree into character-cell boxes. */
 export const layoutTree = (

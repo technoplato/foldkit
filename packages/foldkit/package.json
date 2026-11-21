@@ -217,6 +217,16 @@
       "import": "./dist/renderers/html.js",
       "default": "./dist/renderers/html.js"
     },
+    "./jsx-runtime": {
+      "types": "./dist/renderers/jsxRuntime.d.ts",
+      "import": "./dist/renderers/jsxRuntime.js",
+      "default": "./dist/renderers/jsxRuntime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/renderers/jsxRuntime.d.ts",
+      "import": "./dist/renderers/jsxRuntime.js",
+      "default": "./dist/renderers/jsxRuntime.js"
+    },
     "./route": {
       "types": "./dist/route/public.d.ts",
       "import": "./dist/route/public.js",

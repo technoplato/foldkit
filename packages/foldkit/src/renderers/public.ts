@@ -104,6 +104,15 @@ export {
   isSubmittedOnLeave,
   submittedTagOf,
 } from './textInput.js'
+export {
+  type CliFrame,
+  type CliPaintOptions,
+  paintCli,
+  renderCli,
+  renderPlainCli,
+  stripAnsi,
+} from './cliPaint.js'
+export * as Jsx from './jsx.js'
 export { renderAscii, renderScreen } from './render.js'
 export type {
   AsciiFrame,
@@ -121,6 +130,7 @@ export type {
   ItemImage,
   ItemMenu,
   LayoutBox,
+  LayoutFrame,
   LazyNode,
   ListFilter,
   ListItem,

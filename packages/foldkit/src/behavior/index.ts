@@ -1,4 +1,5 @@
 export * as Block from './block.js'
+export * as BoundField from './boundField.js'
 export * as Calendar from './calendar.js'
 export * as Checkbox from './checkbox.js'
 export * as DateGrid from './dateGrid.js'

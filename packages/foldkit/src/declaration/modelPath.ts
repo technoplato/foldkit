@@ -4,6 +4,8 @@ import type { Option } from 'effect'
 
 const segmentsKey: unique symbol = Symbol.for('foldkit/ModelPath')
 
+const valueTypeKey: unique symbol = Symbol.for('foldkit/ModelPathValue')
+
 /**
  * A typed reference to one part of a Model: a field, or a field inside
  * one. It is written as property access, `at.listening.placeMs`, so a
@@ -24,6 +26,7 @@ const segmentsKey: unique symbol = Symbol.for('foldkit/ModelPath')
  */
 export type ModelPath<A> = Readonly<{
   [segmentsKey]: ReadonlyArray<string>
+  [valueTypeKey]?: () => A
 }> &
   Inside<A>
 

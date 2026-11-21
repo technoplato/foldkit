@@ -1,6 +1,7 @@
 import type { Signal as HoldSignal } from '../behavior/longPress.js'
 import type { SlotBinding } from '../behavior/slot.js'
 import type { InkRun } from '../theme/terminal.js'
+import type { Role } from '../theme/theme.js'
 import type { Device } from './device.js'
 import type { IconName } from './icons.js'
 
@@ -663,6 +664,17 @@ export type UiNode =
   | LazyNode
 
 /**
+ * Optional box-drawing frame around a laid-out character box, used by static
+ * terminal painters for generic `Slot` containers (`Dialog`, `AlertDialog`,
+ * `Group`, `Status`, `Alert`, `Tooltip`, `Listbox`, `Menu`, multiline `TextBox`).
+ */
+export type LayoutFrame = Readonly<{
+  readonly style: 'Rounded' | 'Square' | 'Double'
+  readonly title?: string
+  readonly role?: Role
+}>
+
+/**
  * A laid-out character box. `isCurrent` marks what a person is following
  * on its row, such as the chapter playing in a list or the transcript line
  * with the word sounding now, so a terminal can keep it in view.
@@ -682,6 +694,8 @@ export type LayoutBox = Readonly<{
   readonly label?: string
   readonly isCurrent?: boolean
   readonly isShown?: boolean
+  /** Optional box-drawing frame painted around this box's outer cells. */
+  readonly frame?: LayoutFrame
   /** The roles parts of this box's text play, by column on its row. */
   readonly inks?: ReadonlyArray<InkRun>
   readonly children: ReadonlyArray<LayoutBox>

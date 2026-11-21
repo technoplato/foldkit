@@ -9,7 +9,12 @@ import {
   deviceHasStatus,
   fitText,
 } from './layout.js'
-import type { AsciiFrame, AsciiHotspot, LayoutBox } from './types.js'
+import type {
+  AsciiFrame,
+  AsciiHotspot,
+  LayoutBox,
+  LayoutFrame,
+} from './types.js'
 
 /** One run of characters written at a row and column, in paint order. */
 type Mark = Readonly<{
@@ -159,8 +164,82 @@ const deviceMarks = (box: LayoutBox): ReadonlyArray<Mark> => {
   ]
 }
 
+const frameBorderFor = (style: LayoutFrame['style']): Border =>
+  M.value(style).pipe(
+    M.withReturnType<Border>(),
+    M.when('Rounded', () => rounded),
+    M.when('Square', () => square),
+    M.when('Double', () => double),
+    M.exhaustive,
+  )
+
+const frameMarks = (
+  box: LayoutBox,
+  frame: LayoutFrame,
+): ReadonlyArray<Mark> => {
+  if (box.w < 2 || box.h < 2) {
+    return []
+  }
+  const border = frameBorderFor(frame.style)
+  const borderInk = (col: number, width: number): ReadonlyArray<InkRun> =>
+    frame.role !== undefined && width > 0
+      ? [{ col, width, role: frame.role }]
+      : []
+  const innerW = box.w - 2
+  const hasTitle =
+    frame.title !== undefined && frame.title !== '' && innerW >= 4
+  const topMark = (() => {
+    if (!hasTitle || frame.title === undefined) {
+      return markOf(
+        box.y,
+        box.x,
+        `${border.topLeft}${border.horizontal.repeat(innerW)}${border.topRight}`,
+        borderInk(box.x, box.w),
+      )
+    }
+    const maxTitle = innerW - 3
+    const clipped =
+      frame.title.length > maxTitle
+        ? frame.title.substring(0, maxTitle)
+        : frame.title
+    const fill = Math.max(0, innerW - clipped.length - 3)
+    const topLine = `${border.topLeft}${border.horizontal} ${clipped} ${border.horizontal.repeat(fill)}${border.topRight}`
+    const titleRole: Role =
+      frame.role === undefined || frame.role === 'Border' ? 'Text' : frame.role
+    const titleStart = box.x + 3
+    const rightStart = titleStart + clipped.length + 1
+    const topInks: ReadonlyArray<InkRun> = [
+      ...borderInk(box.x, 2),
+      { col: titleStart, width: clipped.length, role: titleRole },
+      ...borderInk(rightStart, box.x + box.w - rightStart),
+    ]
+    return markOf(box.y, box.x, topLine, topInks)
+  })()
+  const bottomBar = `${border.bottomLeft}${border.horizontal.repeat(innerW)}${border.bottomRight}`
+  const ends = [
+    topMark,
+    markOf(box.y + box.h - 1, box.x, bottomBar, borderInk(box.x, box.w)),
+  ]
+  if (box.h === 2) {
+    return ends
+  }
+  return [
+    ...ends,
+    ...Array.flatMap(Array.range(1, box.h - 2), rowOffset => [
+      markOf(box.y + rowOffset, box.x, border.vertical, borderInk(box.x, 1)),
+      markOf(
+        box.y + rowOffset,
+        box.x + box.w - 1,
+        border.vertical,
+        borderInk(box.x + box.w - 1, 1),
+      ),
+    ]),
+  ]
+}
+
 const marksOf = (box: LayoutBox): ReadonlyArray<Mark> => [
   ...(box.kind === 'DeviceShell' ? deviceMarks(box) : []),
+  ...(box.frame === undefined ? [] : frameMarks(box, box.frame)),
   ...(box.text === undefined
     ? []
     : [markOf(box.y, box.x, box.text, box.inks ?? [])]),
