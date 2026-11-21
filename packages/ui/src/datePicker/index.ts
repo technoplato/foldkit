@@ -1,4 +1,9 @@
-import { Function, Match as M, Option, Predicate, Schema as S } from 'effect'
+import { Function, Match as M, Option, Schema as S } from 'effect'
+import {
+  Calendar as CoreCalendar,
+  DatePicker as CoreDatePicker,
+  Popover as CorePopover,
+} from 'foldkit/behavior'
 import * as Calendar from 'foldkit/calendar'
 import type { CalendarDate } from 'foldkit/calendar'
 import * as Command from 'foldkit/command'
@@ -122,7 +127,7 @@ export type InitConfig = Readonly<{
 export const init = (config: InitConfig): Model => ({
   id: config.id,
   calendar: UiCalendar.init({
-    id: `${config.id}-calendar`,
+    id: CoreDatePicker.calendarId(config.id),
     today: config.today,
     ...(config.initialViewDate !== undefined && {
       initialViewDate: config.initialViewDate,
@@ -138,7 +143,7 @@ export const init = (config: InitConfig): Model => ({
     }),
   }),
   popover: Popover.init({
-    id: `${config.id}-popover`,
+    id: CoreDatePicker.popoverId(config.id),
     contentFocus: true,
     ...(config.isAnimated !== undefined && { isAnimated: config.isAnimated }),
   }),
@@ -187,7 +192,12 @@ const delegateToCalendar = (
           Option.some(ChangedViewMonth({ year, month })),
         ],
         SelectedDate: ({ date }) => {
-          const [nextPopover, popoverCommands] = Popover.close(model.popover)
+          const shouldClose = CoreDatePicker.shouldCloseAfterSelect(
+            CoreCalendar.SingleDate({ date }),
+          )
+          const [nextPopover, popoverCommands] = shouldClose
+            ? Popover.close(model.popover)
+            : [model.popover, []]
           return [
             evo(modelWithCalendar, {
               popover: () => nextPopover,
@@ -285,7 +295,18 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
 
-      Cleared: () => [model, [], Option.some(ClearedDate())],
+      Cleared: () => {
+        if (CoreDatePicker.closeOnClearOf({})) {
+          const [nextPopover, popoverCommands] = Popover.close(model.popover)
+          return [
+            evo(model, { popover: () => nextPopover }),
+            mapPopoverCommands(popoverCommands),
+            Option.some(ClearedDate()),
+          ]
+        } else {
+          return [model, [], Option.some(ClearedDate())]
+        }
+      },
     }),
   )
 
@@ -392,11 +413,10 @@ export const reflectDisabledDaysOfWeek: Reflect<
  *  so the id is suffixed `-popover-button`. Use this to associate an external
  *  label with the trigger via a native `<label for={DatePicker.triggerId(id)}>`
  *  or an `aria-labelledby` reference. */
-export const triggerId = (id: string): string => `${id}-popover-button`
+export const triggerId = (id: string): string =>
+  CorePopover.buttonId(CoreDatePicker.popoverId(id))
 
 // VIEW
-
-const encodeIsoDate = S.encodeSync(Calendar.CalendarDateFromIsoString)
 
 /** Per-render view inputs passed to `view` via `h.submodel`'s `viewInputs` field.
  *
@@ -462,17 +482,22 @@ export const view = defineView<Model, Message, ViewInputs>(
       backdropAttributes = [],
     } = viewInputs
 
-    const resolveTriggerLabel = () => {
-      if (Predicate.isNotUndefined(ariaLabel)) {
-        return [h.AriaLabel(ariaLabel)]
-      } else if (Predicate.isNotUndefined(ariaLabelledBy)) {
-        return [h.AriaLabelledBy(ariaLabelledBy)]
-      } else {
-        return []
-      }
-    }
-
-    const triggerLabelAttributes = resolveTriggerLabel()
+    const triggerLabelAttributes = Option.match(
+      CoreDatePicker.resolveTriggerLabel({
+        ...(ariaLabel === undefined ? {} : { ariaLabel }),
+        ...(ariaLabelledBy === undefined ? {} : { ariaLabelledBy }),
+      }),
+      {
+        onNone: () => [],
+        onSome: source =>
+          M.value(source).pipe(
+            M.tagsExhaustive({
+              AriaLabel: ({ value }) => [h.AriaLabel(value)],
+              AriaLabelledBy: ({ value }) => [h.AriaLabelledBy(value)],
+            }),
+          ),
+      },
+    )
 
     const calendarVNode = h.submodel({
       slotId: model.calendar.id,
@@ -489,7 +514,7 @@ export const view = defineView<Model, Message, ViewInputs>(
       viewInputs: {
         anchor,
         ...(isDisabled !== undefined && { isDisabled }),
-        focusSelector: idSelector(`${model.calendar.id}-grid`),
+        focusSelector: idSelector(CoreCalendar.gridId(model.calendar.id)),
         toView: ({ button, panel, backdrop, isVisible }) =>
           h.div(
             [],
@@ -535,10 +560,8 @@ export const view = defineView<Model, Message, ViewInputs>(
       toParentMessage: message => GotPopoverMessage({ message }),
     })
 
-    const hiddenInputValue = Option.match(maybeSelectedDate, {
-      onNone: () => '',
-      onSome: encodeIsoDate,
-    })
+    const hiddenInputValue =
+      CoreDatePicker.formatOptionalDate(maybeSelectedDate)
 
     const maybeHiddenInput: ReadonlyArray<Html> =
       name !== undefined
