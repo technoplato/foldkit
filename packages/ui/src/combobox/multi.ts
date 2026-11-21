@@ -1,4 +1,5 @@
 import { Option, Schema as S } from 'effect'
+import { Combobox as CoreCombobox } from 'foldkit/behavior'
 import type * as Command from 'foldkit/command'
 import { evo } from 'foldkit/struct'
 import type { View as SubmodelView } from 'foldkit/submodel'
@@ -42,7 +43,12 @@ export const init = (config: InitConfig): Model => baseInit(config)
 /** Processes a combobox message and returns the next model, commands, and optional OutMessage. Stays open on selection (multi-select behavior); emits a `Selected({ value })` OutMessage the parent folds by toggling the value's membership, and `ClearedSelection` when a nullable combobox closes with an empty input. The multi-select input always rests empty on close, so it ignores the message's `restingInputValue`; multi consumers pass `''`. */
 export const update = makeUpdate<Model>({
   handleClose: model => {
-    if (model.nullable && model.inputValue === '') {
+    if (
+      CoreCombobox.shouldClearOnClose({
+        isNullable: model.nullable,
+        inputValue: model.inputValue,
+      })
+    ) {
       return [
         evo(closedBaseModel(model), { inputValue: () => '' }),
         Option.some(ClearedSelection()),

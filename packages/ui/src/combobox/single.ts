@@ -1,4 +1,5 @@
 import { Array, Option, Schema as S, pipe } from 'effect'
+import { Combobox as CoreCombobox } from 'foldkit/behavior'
 import type * as Command from 'foldkit/command'
 import { evo } from 'foldkit/struct'
 import { type View as SubmodelView, defineView } from 'foldkit/submodel'
@@ -42,7 +43,12 @@ export const init = (config: InitConfig): Model => baseInit(config)
 /** Processes a combobox message and returns the next model, commands, and optional OutMessage. Closes the combobox on selection (single-select behavior); emits `Selected({ value })` for the parent to store, and `ClearedSelection` when a nullable combobox closes with an empty input. */
 export const update = makeUpdate<Model>({
   handleClose: (model, restingInputValue) => {
-    if (model.nullable && model.inputValue === '') {
+    if (
+      CoreCombobox.shouldClearOnClose({
+        isNullable: model.nullable,
+        inputValue: model.inputValue,
+      })
+    ) {
       return [
         evo(closedBaseModel(model), { inputValue: () => '' }),
         Option.some(ClearedSelection()),
@@ -56,7 +62,10 @@ export const update = makeUpdate<Model>({
   },
 
   handleSelectedItem: (model, item, displayText, wasSelected, context) => {
-    const nullableDeselect = model.nullable && wasSelected
+    const nullableDeselect = CoreCombobox.shouldDeselectOnSelect({
+      isNullable: model.nullable,
+      wasSelected,
+    })
 
     return [
       evo(closedBaseModel(model), {

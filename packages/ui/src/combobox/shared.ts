@@ -7,6 +7,11 @@ import {
   Schema as S,
   pipe,
 } from 'effect'
+import {
+  Combobox as CoreCombobox,
+  RovingFocus,
+  Selection,
+} from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { type ChildAttribute, type Html, html } from 'foldkit/html'
@@ -32,15 +37,14 @@ import { update as animationUpdate } from '../animation/update.js'
 import { groupContiguous } from '../group.js'
 import * as OptionExt from '../internal/optionExtensions.js'
 import { idSelector } from '../internal/selectors.js'
-import { findFirstEnabledIndex, keyToIndex } from '../keyboard.js'
 
 export { groupContiguous }
 
 // MODEL
 
 /** Schema for the activation trigger: whether the user interacted via mouse or keyboard. */
-export const ActivationTrigger = S.Literals(['Pointer', 'Keyboard'])
-export type ActivationTrigger = typeof ActivationTrigger.Type
+export const ActivationTrigger = CoreCombobox.ActivationTrigger
+export type ActivationTrigger = CoreCombobox.ActivationTrigger
 
 /** Schema fields shared by all combobox variants (single-select and multi-select). Spread into each variant's `S.Struct` to avoid duplicating field definitions. */
 export const BaseModel = S.Struct({
@@ -275,9 +279,10 @@ export type OutMessage<Value extends string = string> =
  *  input via a native `<label for={Combobox.inputId(id)}>` or an
  *  `aria-labelledby` reference. Mirrors `inputSelector`, which returns the
  *  CSS selector form (`#${id}-input`) rather than the bare id. */
-export const inputId = (id: string): string => `${id}-input`
+export const inputId = (id: string): string => CoreCombobox.inputId(id)
 
-export const inputSelector = (id: string): string => idSelector(`${id}-input`)
+export const inputSelector = (id: string): string =>
+  idSelector(CoreCombobox.inputId(id))
 export const inputWrapperSelector = (id: string): string =>
   idSelector(`${id}-input-wrapper`)
 export const itemsSelector = (id: string): string => idSelector(`${id}-items`)
@@ -588,13 +593,12 @@ export const makeUpdate = <Model extends BaseModel>(
         },
 
         MovedPointerOverItem: ({ index, screenX, screenY }) => {
-          const isSamePosition = Option.exists(
-            model.maybeLastPointerPosition,
-            position =>
-              position.screenX === screenX && position.screenY === screenY,
-          )
-
-          if (isSamePosition) {
+          if (
+            CoreCombobox.isSamePointerPosition(model.maybeLastPointerPosition, {
+              screenX,
+              screenY,
+            })
+          ) {
             return [model, [], Option.none()]
           }
 
@@ -610,7 +614,7 @@ export const makeUpdate = <Model extends BaseModel>(
         },
 
         DeactivatedItem: () =>
-          model.activationTrigger === 'Pointer'
+          CoreCombobox.shouldDeactivateOnLeave(model.activationTrigger)
             ? [
                 constrainedEvo(model, {
                   maybeActiveItemIndex: () => Option.none(),
@@ -961,7 +965,7 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
       const inputLabelAttributes = resolveInputLabel()
 
       const isValueSelected = (itemValue: string): boolean =>
-        Array.contains(selectedValues, itemValue)
+        Selection.hasValue(selectedValues, itemValue)
 
       const isLeaving =
         transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
@@ -999,25 +1003,28 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
           Option.exists(item => isItemDisabled(item, index)),
         )
 
-      const firstEnabledIndex = findFirstEnabledIndex(
-        items.length,
-        0,
-        isDisabledAtIndex,
-      )(0, 1)
-
-      const lastEnabledIndex = findFirstEnabledIndex(
-        items.length,
-        0,
-        isDisabledAtIndex,
-      )(items.length - 1, -1)
-
-      const resolveActiveIndex = keyToIndex(
-        'ArrowDown',
-        'ArrowUp',
-        items.length,
-        Option.getOrElse(maybeActiveItemIndex, () => -1),
-        isDisabledAtIndex,
+      const firstEnabledIndex = Option.getOrElse(
+        RovingFocus.firstEnabled(items.length, isDisabledAtIndex),
+        () => 0,
       )
+
+      const lastEnabledIndex = Option.getOrElse(
+        RovingFocus.lastEnabled(items.length, isDisabledAtIndex),
+        () => 0,
+      )
+
+      const resolveActiveIndex = (key: string): number =>
+        Option.getOrElse(
+          RovingFocus.resolveKey({
+            key,
+            count: items.length,
+            current: maybeActiveItemIndex,
+            isDisabled: isDisabledAtIndex,
+            orientation: 'Vertical',
+            loop: true,
+          }),
+          () => Option.getOrElse(maybeActiveItemIndex, () => -1),
+        )
 
       const resolveImmediateSelection = (
         targetIndex: number,
@@ -1102,7 +1109,7 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
       })
 
       const resolvedInputAttributes = [
-        h.Id(`${id}-input`),
+        h.Id(CoreCombobox.inputId(id)),
         h.Role('combobox'),
         h.AriaExpanded(isVisible),
         h.AriaControls(`${id}-items`),
@@ -1152,7 +1159,7 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
         h.Id(`${id}-items`),
         h.Role('listbox'),
         ...(behavior.ariaMultiSelectable ? [h.AriaMultiSelectable(true)] : []),
-        h.AriaLabelledBy(`${id}-input`),
+        h.AriaLabelledBy(CoreCombobox.inputId(id)),
         h.Tabindex(-1),
         ...anchorAttributes,
         ...animationAttributes,
@@ -1235,7 +1242,7 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
             groupToHeading && groupToHeading(segment.key),
           )
 
-          const headingId = `${id}-heading-${segment.key}`
+          const headingId = CoreCombobox.headingId(id, segment.key)
 
           const headingElement = Option.match(maybeHeading, {
             onNone: () => [],
@@ -1255,7 +1262,7 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
           const groupContent = [...headingElement, ...segment.items]
 
           const groupElement = h.keyed('div')(
-            `${id}-group-${segment.key}`,
+            CoreCombobox.groupId(id, segment.key),
             [
               h.Role('group'),
               ...(Option.isSome(maybeHeading)
