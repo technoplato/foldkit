@@ -55,6 +55,69 @@ describe('formatTailRow', () => {
     const [line] = formatTailRow(GotCounterMessage, rowOf({ tag: 'Square' }))
     expect(line).toContain('Square')
   })
+
+  it('prints browser, window label, app version, and user email when present on a row', () => {
+    const webText = formatTailRow(
+      Increment,
+      rowOf({
+        _tag: 'Increment',
+        from: 'react-ad55df2e',
+        browser: 'Chrome',
+        windowLabel: 'Tab 2',
+        appVersion: 'v0.131.0',
+        userEmail: 'michael@example.com',
+      }),
+    )
+      .map(line => line.trim())
+      .join(' ')
+    expect(webText).toContain('React')
+    expect(webText).toContain('ad55df2e')
+    expect(webText).toContain(
+      '[Chrome · Tab 2 · v0.131.0 · michael@example.com]',
+    )
+    expect(webText).toContain('Increment')
+
+    const tuiText = formatTailRow(
+      Increment,
+      rowOf({
+        _tag: 'Increment',
+        from: 'cli-fdb5a3a8',
+        client: 'tui',
+        appVersion: 'v20261121-0150',
+        userEmail: 'michael@example.com',
+      }),
+    )
+      .map(line => line.trim())
+      .join(' ')
+    expect(tuiText).toContain('TUI')
+    expect(tuiText).toContain('fdb5a3a8')
+    expect(tuiText).toContain('[v20261121-0150 · michael@example.com]')
+    expect(tuiText).toContain('Increment')
+
+    const iosText = formatTailRow(
+      Increment,
+      rowOf({
+        _tag: 'Increment',
+        from: 'expo-ios-9a1b2c3d',
+        appVersion: '1.4.2',
+        userEmail: 'michael@example.com',
+      }),
+    )
+      .map(line => line.trim())
+      .join(' ')
+    expect(iosText).toContain('Expo iOS')
+    expect(iosText).toContain('[1.4.2 · michael@example.com]')
+  })
+
+  it('omits the metadata bracket on old rows with no extra metadata fields', () => {
+    const [line] = formatTailRow(
+      Increment,
+      rowOf({ _tag: 'Increment', from: 'cli-fdb5a3a8' }),
+    )
+    expect(line).not.toContain('[')
+    expect(line?.slice(10, 24).trim()).toBe('CLI')
+    expect(line).toContain('Increment')
+  })
 })
 
 describe('followProgramTail', () => {

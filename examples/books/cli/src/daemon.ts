@@ -51,10 +51,12 @@ import {
   whenTitleFinished,
 } from './player.js'
 import {
+  appVersionOf,
   booksPlayerSocketPath,
   buildOf,
   isMadeUpSessionShared,
   madeUpContrastOf,
+  madeUpEmailOf,
   madeUpNameOf,
   madeUpShelfOf,
 } from './settings.js'
@@ -68,10 +70,14 @@ const refusalLingers = Duration.seconds(15)
 
 const stopTimeoutMs = 5_000
 
+const daemonScriptPath = fileURLToPath(import.meta.url)
+
 // NOTE: What this player was built from, read once as it starts: when
 // `books` is updated under a running player the file is newer than this,
 // and a command can tell the player is the older one.
-const builtAtStart = buildOf(fileURLToPath(import.meta.url))
+const builtAtStart = buildOf(daemonScriptPath)
+
+const appVersionAtStart = appVersionOf(daemonScriptPath)
 
 const serve = Effect.gen(function* () {
   const socketPath = booksPlayerSocketPath()
@@ -104,6 +110,13 @@ const serve = Effect.gen(function* () {
             }),
       )
     : Option.none()
+  const madeUpEmail = madeUpEmailOf()
+  const daemonClientMetadata: Runtime.ClientMetadata = {
+    ...(appVersionAtStart === '' ? {} : { appVersion: appVersionAtStart }),
+    ...(isMadeUp && madeUpEmail !== undefined
+      ? { userEmail: madeUpEmail }
+      : {}),
+  }
   const handle =
     signIn === undefined
       ? yield* Effect.promise(() =>
@@ -112,6 +125,7 @@ const serve = Effect.gen(function* () {
             library: writes.wrap,
             resources: terminalSystemAppearance(Effect.sync(madeUpContrastOf)),
             shelf: madeUpShelfOf(),
+            clientMetadata: daemonClientMetadata,
             ...Option.match(maybeMadeUpEngine, {
               onNone: () => ({}),
               onSome: sync => ({ sync }),
@@ -122,6 +136,7 @@ const serve = Effect.gen(function* () {
           host: Processor.Host.Cli(),
           instance: newProcessorInstance(),
           library: writes.wrap,
+          clientMetadata: daemonClientMetadata,
         })
   const telemetry = Telemetry.attach(handle, {
     app: 'books',

@@ -10,6 +10,7 @@ import type {
   SyncedModel,
 } from '../program/sync.js'
 import type { SessionPolicy } from '../synchronization/synchronization.js'
+import type { ClientMetadataSource } from './clientMetadata.js'
 import type { LocalSnapshotStore } from './localSnapshot.js'
 import { fromClient } from './programJournal.js'
 import type {
@@ -220,6 +221,7 @@ export type StartHandleConfig<Child extends SyncChild, Resources> = Readonly<{
   localSnapshot?: LocalSnapshotStore | 'Disabled'
   sharedSnapshot?: SharedSnapshotPolicy
   host?: Host
+  clientMetadata?: ClientMetadataSource
 }>
 
 /**
@@ -304,6 +306,9 @@ export function startHandle<Child extends SyncChild, Resources = never>(
             ...(config.sharedSnapshot === undefined
               ? {}
               : { sharedSnapshot: config.sharedSnapshot }),
+            ...(config.clientMetadata === undefined
+              ? {}
+              : { clientMetadata: config.clientMetadata }),
             observers: [observerRegistry.connect],
           }).pipe(Effect.provideService(Scope.Scope, scope)),
         ),

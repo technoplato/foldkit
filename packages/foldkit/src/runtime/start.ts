@@ -37,6 +37,11 @@ import {
   resolveAudience,
   validateProgramSynchronization,
 } from '../synchronization/synchronization.js'
+import {
+  type ClientMetadata,
+  type ClientMetadataSource,
+  resolveClientMetadata,
+} from './clientMetadata.js'
 import * as LocalSnapshot from './localSnapshot.js'
 import type { LocalSnapshotStore } from './localSnapshot.js'
 import { clientHostOf, fromSync } from './programJournal.js'
@@ -133,6 +138,7 @@ export type StartConfig<
   localSnapshot?: LocalSnapshotStore | 'Disabled'
   sharedSnapshot?: SharedSnapshotPolicy
   observers?: ReadonlyArray<ProgramRuntimeObserver<Model, Message>>
+  clientMetadata?: ClientMetadataSource
 }>
 
 /** A live synced runtime. `lastWrite` is the last Instant write result. */
@@ -185,6 +191,7 @@ const fillWriteTime = (
   now: number,
   programVersion: number,
   maybeClient: Option.Option<Host>,
+  clientMetadata: ClientMetadata,
 ): SyncWrite => {
   const messageRow = asRecord(message)
   const existingId = readRowString(messageRow, 'id')
@@ -217,6 +224,7 @@ const fillWriteTime = (
         onNone: () => ({}),
         onSome: client => ({ client: print(client) }),
       }),
+      ...clientMetadata,
     },
   }
 }
@@ -1143,6 +1151,7 @@ export function start<
           stampTime(),
           program.of.version,
           maybeClient,
+          resolveClientMetadata(config.clientMetadata),
         )
         rememberRow(write.message)
         const writeRowId = idOfRow(write.message)

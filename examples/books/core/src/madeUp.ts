@@ -150,6 +150,7 @@ export type MadeUpBooksConfig = Readonly<{
   resources?: Layer.Layer<never>
   sync?: Runtime.SyncEngine
   shelf?: 'Three' | 'Long'
+  clientMetadata?: Runtime.ClientMetadataSource
 }>
 
 /**
@@ -202,5 +203,8 @@ export const startMadeUpBooks = async (
       config.resources ?? Layer.empty,
     ),
     host: config.host,
+    ...(config.clientMetadata === undefined
+      ? {}
+      : { clientMetadata: config.clientMetadata }),
   })
 }

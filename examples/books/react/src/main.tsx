@@ -3,7 +3,7 @@ import {
   newProcessorInstance,
   startBooks,
 } from 'books-core-example/browser'
-import { Processor, Telemetry } from 'foldkit'
+import { Processor, Runtime, Telemetry } from 'foldkit'
 import {
   contrastOfState,
   modeOfState,
@@ -24,10 +24,13 @@ if (appId === '') {
   )
 }
 
+const appVersion = import.meta.env.VITE_APP_VERSION ?? import.meta.env.MODE
+
 const handle = startBooks({
   appId,
   host: Processor.Host.React(),
   instance: newProcessorInstance(),
+  clientMetadata: () => Runtime.readBrowserClientMetadata({ appVersion }),
 })
 
 const telemetry = Telemetry.attach(handle, {

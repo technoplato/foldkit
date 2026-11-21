@@ -162,6 +162,7 @@ export type StartBooksConfig = Readonly<{
   host: Processor.Host.Host
   instance: string
   library?: (store: LibraryStoreService) => LibraryStoreService
+  clientMetadata?: Runtime.ClientMetadataSource
 }>
 
 /**
@@ -226,6 +227,10 @@ export const startBooks = (
       noCodeUpdates,
     ),
     host: config.host,
+    clientMetadata: () => ({
+      ...Runtime.resolveClientMetadata(config.clientMetadata),
+      userEmail: signedIn.email,
+    }),
   })
 
 /**

@@ -71,9 +71,28 @@ const describe = (message: unknown): string => {
 const clientLabelOf = (row: unknown): Option.Option<string> =>
   Option.map(Option.flatMap(readRowString(row, 'client'), hostOfFrom), labelOf)
 
+const nonEmptyRowField = (row: unknown, key: string): Option.Option<string> =>
+  Option.filter(
+    Option.map(readRowString(row, key), value => value.trim()),
+    value => value !== '',
+  )
+
+const metadataTagOf = (row: unknown): Option.Option<string> => {
+  const parts = Array.getSomes([
+    nonEmptyRowField(row, 'browser'),
+    nonEmptyRowField(row, 'windowLabel'),
+    nonEmptyRowField(row, 'appVersion'),
+    nonEmptyRowField(row, 'userEmail'),
+  ])
+  return Array.isReadonlyArrayNonEmpty(parts)
+    ? Option.some(`[${Array.join(parts, ' · ')}]`)
+    : Option.none()
+}
+
 /**
- * One log row as a tail line that fits 80 columns: when it landed, the
- * client it was pressed on, the instance of the Processor that wrote it,
+ * One log row as a tail line: when it landed, the client it was pressed on,
+ * the instance of the Processor that wrote it, optional client metadata
+ * (browser, window/tab label, app/build version, user email) when present,
  * and the Message as words with its fields. The client is the one the row
  * names when it was sent on behalf of a client on another Host, such as a
  * `books tui` view whose keys the CLI daemon sends, and otherwise the
@@ -82,9 +101,9 @@ const clientLabelOf = (row: unknown): Option.Option<string> =>
  * @example
  * ```typescript
  * formatTailRow(SyncedCounter.message, row)
- * // '00:53:05  React         ad55df2e  Increment'
+ * // '00:53:05  React         ad55df2e  [Chrome · Tab 1 · v0.131.0 · user@example.com]  Increment'
  * // '00:53:09  CLI           4f2a9c1e  Changed action menu query  query "re"'
- * // '00:53:12  TUI           4f2a9c1e  Moved action menu focus  move "Next"'
+ * // '00:53:12  TUI           4f2a9c1e  [v0.131.0 · user@example.com]  Moved action menu focus  move "Next"'
  * ```
  */
 export const formatTailRow = (
@@ -104,10 +123,14 @@ export const formatTailRow = (
     onNone: () => Option.getOrElse(readRowString(row, 'tag'), () => '?'),
     onSome: describe,
   })
+  const body = Option.match(metadataTagOf(row), {
+    onNone: () => text,
+    onSome: metadata => `${metadata}  ${text}`,
+  })
   return columnRow(
     [time, app, instance],
     [timeWidth, appWidth, instanceWidth],
-    text,
+    body,
   )
 }
 

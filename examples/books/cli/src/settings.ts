@@ -124,3 +124,39 @@ export const buildOf = (scriptPath: string): string => {
     return ''
   }
 }
+
+/**
+ * Short readable app/build version for log row metadata: `BOOKS_APP_VERSION`
+ * when set, else a UTC stamp `vYYYYMMDD-HHmm` from the built script's mtime.
+ */
+export const appVersionOf = (
+  scriptPath: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string => {
+  const fromEnv = env['BOOKS_APP_VERSION']?.trim() ?? ''
+  if (fromEnv !== '') {
+    return fromEnv
+  }
+  try {
+    const [datePart = '', timePart = ''] = statSync(scriptPath)
+      .mtime.toISOString()
+      .split('T')
+    const [hour = '', minute = ''] = timePart.split(':')
+    return datePart === '' || hour === '' || minute === ''
+      ? ''
+      : `v${datePart.replaceAll('-', '')}-${hour}${minute}`
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Optional email stamped on made-up library rows from `BOOKS_MADE_UP_EMAIL`,
+ * so tail captures and tests can exercise user email metadata without signing in.
+ */
+export const madeUpEmailOf = (
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string | undefined => {
+  const email = env['BOOKS_MADE_UP_EMAIL']?.trim() ?? ''
+  return email === '' ? undefined : email
+}

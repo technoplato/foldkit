@@ -217,6 +217,69 @@ describe('Runtime.startHandle provenance', () => {
     ).toStrictEqual([undefined, 'tui', undefined])
   })
 
+  it('stamps optional clientMetadata fields on written log rows and omits empty ones', async () => {
+    const engine = Memory({ processor: 'react-ad55df2e' })
+    let label = 'Library'
+    const handle = startHandle({
+      program: SyncedCounter,
+      sync: engine,
+      host: Host.React(),
+      clientMetadata: () => ({
+        browser: 'Chrome',
+        windowLabel: label,
+        appVersion: 'v0.131.0',
+        userEmail: 'michael@example.com',
+      }),
+    })
+    await vi.waitFor(() => {
+      expect(handle.readModel()._tag).toBe('Ready')
+    })
+    handle.send(Increment())
+    await vi.waitFor(() => {
+      expect(engine.store.messages).toHaveLength(1)
+    })
+    label = 'Player'
+    handle.send(Increment())
+    await vi.waitFor(() => {
+      expect(engine.store.messages).toHaveLength(2)
+    })
+    await handle.stop()
+
+    expect(
+      engine.store.messages.map(row => ({
+        browser:
+          typeof row === 'object' && row !== null
+            ? Reflect.get(row, 'browser')
+            : undefined,
+        windowLabel:
+          typeof row === 'object' && row !== null
+            ? Reflect.get(row, 'windowLabel')
+            : undefined,
+        appVersion:
+          typeof row === 'object' && row !== null
+            ? Reflect.get(row, 'appVersion')
+            : undefined,
+        userEmail:
+          typeof row === 'object' && row !== null
+            ? Reflect.get(row, 'userEmail')
+            : undefined,
+      })),
+    ).toStrictEqual([
+      {
+        browser: 'Chrome',
+        windowLabel: 'Library',
+        appVersion: 'v0.131.0',
+        userEmail: 'michael@example.com',
+      },
+      {
+        browser: 'Chrome',
+        windowLabel: 'Player',
+        appVersion: 'v0.131.0',
+        userEmail: 'michael@example.com',
+      },
+    ])
+  })
+
   it('runs the Commands a Message returned under that Message’s operation', async () => {
     const { handle, seen, spans } = watchedHandle()
     await vi.waitFor(() => {

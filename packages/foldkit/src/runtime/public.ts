@@ -24,6 +24,14 @@ export type {
 export { makeHostRuntime } from './hostRuntime.js'
 export * from '../programRuntime/public.js'
 export {
+  ClientMetadata,
+  browserClientMetadataOf,
+  browserNameOf,
+  readBrowserClientMetadata,
+  resolveClientMetadata,
+  type ClientMetadataSource,
+} from './clientMetadata.js'
+export {
   start,
   untilSettled,
   type CatchUp,

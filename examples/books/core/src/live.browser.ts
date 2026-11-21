@@ -35,6 +35,7 @@ export type StartBooksConfig = Readonly<{
   appId: string
   host: Processor.Host.Host
   instance: string
+  clientMetadata?: Runtime.ClientMetadataSource
 }>
 
 /**
@@ -82,11 +83,33 @@ export const startBooks = (config: StartBooksConfig): BooksHandleOnHost => {
     ),
     database,
   )
+  const emailState: { current: string | undefined } = { current: undefined }
+  const setEmailFromUser = (
+    user: Readonly<{ email?: string | null | undefined }> | null | undefined,
+  ): void => {
+    const email = user?.email?.trim() ?? ''
+    emailState.current = email === '' ? undefined : email
+  }
+  void database.getAuth().then(setEmailFromUser, () => undefined)
+  if (
+    'subscribeAuth' in database &&
+    typeof database.subscribeAuth === 'function'
+  ) {
+    database.subscribeAuth(auth => {
+      setEmailFromUser(auth.user)
+    })
+  }
   return Runtime.startHandle({
     program: SyncedBooks,
     sync,
     resources,
     host: config.host,
+    clientMetadata: () => ({
+      ...Runtime.resolveClientMetadata(config.clientMetadata),
+      ...(emailState.current === undefined
+        ? {}
+        : { userEmail: emailState.current }),
+    }),
   })
 }
 

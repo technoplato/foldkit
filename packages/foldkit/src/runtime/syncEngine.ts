@@ -10,11 +10,11 @@ export type SyncLink = 'offline' | 'queued' | 'delivered'
 /**
  * One write of a snapshot row and a Message row. The runtime fills the
  * Message row's `id`, `programVersion`, `from` (the Processor that wrote
- * it) and `createdAtMs`, and `client` with the Host of the client it was
- * sent for when it was sent on behalf of one, such as `tui` for a key a
- * `books tui` view sent to the CLI daemon:
- * `{ tag, id, programVersion: 1, from: 'cli-fdb5a3a8', createdAtMs, client: 'tui' }`.
- * An engine keeps the fields its store has a place for.
+ * it) and `createdAtMs`, `client` with the Host of the client it was
+ * sent for when it differs from the Processor's own Host, and any optional
+ * client metadata fields (`browser`, `windowLabel`, `appVersion`,
+ * `userEmail`) supplied by the host. An engine keeps the fields its store
+ * has a place for.
  */
 export type SyncWrite = Readonly<{
   snapshot: unknown
@@ -372,8 +372,7 @@ export const Memory = (options?: {
     hasOwnRows: Effect.sync(() =>
       Array.some(
         store.messages,
-        row =>
-          Option.getOrUndefined(readRowString(row, 'from')) === processor,
+        row => Option.getOrUndefined(readRowString(row, 'from')) === processor,
       ),
     ),
     readSharedSnapshots: query =>

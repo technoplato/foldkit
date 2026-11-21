@@ -1,7 +1,14 @@
 import { Array, Deferred, Effect, Option } from 'effect'
 import { Runtime } from 'foldkit'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import {
+  makeNodeInstantDatabase,
+  stateDirectoryOf,
+} from '../nodeDatabase/nodeDatabase.js'
 import { makeMemorySnapshotLogTransport } from '../snapshotLog/memory.js'
 import {
   InstantCountSnapshotRecord,
@@ -17,13 +24,6 @@ import {
   linkOfInstantStatus,
   messageBelongsToInstantRoom,
 } from './fromTransport.js'
-import {
-  makeNodeInstantDatabase,
-  stateDirectoryOf,
-} from '../nodeDatabase/nodeDatabase.js'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 const burstSize = 200
 
@@ -76,6 +76,10 @@ describe('fromTransport write', () => {
             tag: 'Pause',
             programVersion: 1,
             client: 'tui',
+            browser: 'Chrome',
+            windowLabel: 'Tab 1',
+            appVersion: 'v0.131.0',
+            userEmail: 'michael@example.com',
           },
           snapshot: InstantCountSnapshotRecord.make({
             asOf: 'cli-fdb5a3a8',
