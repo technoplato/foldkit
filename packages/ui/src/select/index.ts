@@ -1,7 +1,6 @@
 import { Predicate } from 'effect'
-import type { Attribute } from 'foldkit/html'
-import { html } from 'foldkit/html'
-import type { Html } from 'foldkit/html'
+import { Select as CoreSelect } from 'foldkit/behavior'
+import { type Attribute, type Html, html } from 'foldkit/html'
 
 // VIEW
 
@@ -25,7 +24,8 @@ export type ViewConfig<ParentMessage> = Readonly<{
 }>
 
 /** Generates the description element ID from the select's base ID. */
-export const descriptionId = (id: string): string => `${id}-description`
+export const descriptionId = (id: string): string =>
+  CoreSelect.descriptionId(id)
 
 /** Renders an accessible select by building ARIA attribute groups and delegating layout to the consumer's `toView` callback. */
 export const view = <ParentMessage>(
@@ -33,16 +33,9 @@ export const view = <ParentMessage>(
 ): Html => {
   const h = html<ParentMessage>()
 
-  const {
-    toView,
-    id,
-    onChange,
-    value,
-    isDisabled = false,
-    isInvalid = false,
-    isAutofocus = false,
-    name,
-  } = config
+  const { toView, id, onChange, value, isAutofocus = false, name } = config
+  const isDisabled = CoreSelect.isDisabledOf(config)
+  const isInvalid = CoreSelect.isInvalidOf(config)
 
   const disabledAttributes = isDisabled
     ? [h.AriaDisabled(true), h.Disabled(true), h.DataAttribute('disabled', '')]
@@ -53,7 +46,7 @@ export const view = <ParentMessage>(
     : []
 
   const changeAttributes =
-    Predicate.isNotUndefined(onChange) && !isDisabled
+    Predicate.isNotUndefined(onChange) && CoreSelect.canSelect({ isDisabled })
       ? [h.OnChange(onChange)]
       : []
 
