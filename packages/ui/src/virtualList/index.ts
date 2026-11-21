@@ -7,8 +7,8 @@ import {
   Queue,
   Schema as S,
   Stream,
-  pipe,
 } from 'effect'
+import { VirtualWindow } from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import {
   type ChildAttribute,
@@ -247,12 +247,10 @@ export const scrollToIndexVariable = <Item>(
   itemToRowHeightPx: (item: Item, index: number) => number,
   index: number,
 ): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
-  const cumulativeOffsets = prefixSum(items, itemToRowHeightPx)
-  const targetScrollTop = pipe(
-    cumulativeOffsets,
-    Array.get(Math.max(0, index)),
-    Option.getOrElse(() => lastOrZero(cumulativeOffsets)),
+  const cumulativeOffsets = VirtualWindow.prefixOffsets(
+    Array.map(items, itemToRowHeightPx),
   )
+  const targetScrollTop = VirtualWindow.offsetAt(cumulativeOffsets, index)
   return buildScrollToIndex(model, index, targetScrollTop)
 }
 
@@ -267,24 +265,6 @@ export type VisibleWindow = Readonly<{
   topSpacerHeight: number
   bottomSpacerHeight: number
 }>
-
-const clampIndex = (index: number, itemCount: number): number =>
-  Math.max(0, Math.min(index, itemCount))
-
-const prefixSum = <Item>(
-  items: ReadonlyArray<Item>,
-  itemToRowHeightPx: (item: Item, index: number) => number,
-): ReadonlyArray<number> => {
-  const heights = Array.map(items, itemToRowHeightPx)
-  return Array.scan(heights, 0, (cumulative, height) => cumulative + height)
-}
-
-const lastOrZero = (values: ReadonlyArray<number>): number =>
-  pipe(
-    values,
-    Array.last,
-    Option.getOrElse(() => 0),
-  )
 
 /** Computes the visible slice of a data array given the current scroll
  *  position, container height, row height, and an overscan buffer.
@@ -305,18 +285,14 @@ export const visibleWindow = (
     M.tagsExhaustive({
       Unmeasured: () => Option.none(),
       Measured: ({ containerHeight }) => {
-        const firstVisibleIndex = Math.floor(
-          model.scrollTop / model.rowHeightPx,
-        )
-        const lastVisibleIndex = Math.ceil(
-          (model.scrollTop + containerHeight) / model.rowHeightPx,
-        )
-
-        const startIndex = clampIndex(firstVisibleIndex - overscan, itemCount)
-        const endIndex = clampIndex(lastVisibleIndex + overscan, itemCount)
-
-        const topSpacerHeight = startIndex * model.rowHeightPx
-        const bottomSpacerHeight = (itemCount - endIndex) * model.rowHeightPx
+        const { startIndex, endIndex, topSpacerHeight, bottomSpacerHeight } =
+          VirtualWindow.computeFixedWindow({
+            itemCount,
+            rowHeightPx: model.rowHeightPx,
+            scrollTop: model.scrollTop,
+            containerHeight,
+            overscan,
+          })
 
         return Option.some({
           startIndex,
@@ -328,15 +304,9 @@ export const visibleWindow = (
     }),
   )
 
-/** Variable-height counterpart of `visibleWindow`. Walks the heights of every
- *  item to build a prefix-sum array, then locates the visible slice with two
- *  linear searches.
- *
- *  Cost is O(N) per call, walking the whole `items` array once to build the
- *  prefix sums. For lists in the 10k-item range, this comfortably fits inside
- *  a 60Hz scroll budget. Larger lists or hotter scroll paths can layer a
- *  prefix-sum cache invalidated when items change; that lives behind the same
- *  return shape so consumers don't have to know.
+/** Variable-height counterpart of `visibleWindow`. Builds prefix-sum offsets
+ *  via `VirtualWindow.prefixOffsets` and locates the visible slice via
+ *  `VirtualWindow.computeVariableWindow`'s O(log N) binary searches.
  *
  *  Returns `Option.none()` when the container has not yet been measured. */
 export const visibleWindowVariable = <Item>(
@@ -350,41 +320,16 @@ export const visibleWindowVariable = <Item>(
     M.tagsExhaustive({
       Unmeasured: () => Option.none(),
       Measured: ({ containerHeight }) => {
-        const itemCount = items.length
-        const cumulativeOffsets = prefixSum(items, itemToRowHeightPx)
-        const totalHeight = lastOrZero(cumulativeOffsets)
-
-        const firstVisibleIndex = pipe(
-          cumulativeOffsets,
-          Array.findFirstIndex(Number.isGreaterThan(model.scrollTop)),
-          Option.match({
-            onNone: () => itemCount,
-            onSome: index => Math.max(0, index - 1),
-          }),
+        const offsets = VirtualWindow.prefixOffsets(
+          Array.map(items, itemToRowHeightPx),
         )
-
-        const lastVisibleIndex = pipe(
-          cumulativeOffsets,
-          Array.findFirstIndex(
-            Number.isGreaterThanOrEqualTo(model.scrollTop + containerHeight),
-          ),
-          Option.getOrElse(() => itemCount),
-        )
-
-        const startIndex = clampIndex(firstVisibleIndex - overscan, itemCount)
-        const endIndex = clampIndex(lastVisibleIndex + overscan, itemCount)
-
-        const topSpacerHeight = pipe(
-          cumulativeOffsets,
-          Array.get(startIndex),
-          Option.getOrElse(() => 0),
-        )
-        const offsetAtEnd = pipe(
-          cumulativeOffsets,
-          Array.get(endIndex),
-          Option.getOrElse(() => totalHeight),
-        )
-        const bottomSpacerHeight = totalHeight - offsetAtEnd
+        const { startIndex, endIndex, topSpacerHeight, bottomSpacerHeight } =
+          VirtualWindow.computeVariableWindow({
+            offsets,
+            scrollTop: model.scrollTop,
+            containerHeight,
+            overscan,
+          })
 
         return Option.some({
           startIndex,
@@ -535,7 +480,7 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
 
 // VIEW
 
-const DEFAULT_OVERSCAN = 5
+const DEFAULT_OVERSCAN = VirtualWindow.defaultOverscan
 
 /** Per-render view inputs passed to `view` via `h.submodel`'s `viewInputs` field.
  *

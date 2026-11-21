@@ -1,4 +1,5 @@
 import { Effect, Match as M, Option, Schema as S } from 'effect'
+import { Presence } from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import * as Render from 'foldkit/render'
@@ -42,6 +43,30 @@ export const WaitForAnimationSettled = Command.define(
   ),
 )
 
+const stepPresence = (
+  model: Model,
+  presenceMessage: Presence.Message,
+): Option.Option<Presence.State> => {
+  const current = Presence.fromAnimation({
+    isShowing: model.isShowing,
+    transitionPhase: model.transitionState,
+  })
+  const stepped = Presence.chart.step(current, presenceMessage, {
+    isAnimated: true,
+  })
+  return stepped._tag === 'Transitioned'
+    ? Option.some(stepped.state)
+    : Option.none()
+}
+
+const applyPresence = (model: Model, nextPresence: Presence.State): Model => {
+  const projected = Presence.toAnimation(nextPresence)
+  return evo(model, {
+    isShowing: () => projected.isShowing,
+    transitionState: () => projected.transitionPhase,
+  })
+}
+
 /** Processes an animation message and returns the next model, commands, and optional OutMessage. */
 export const update = (model: Model, message: Message): UpdateReturn => {
   const maybeNextFrame = RequestFrame()
@@ -49,71 +74,65 @@ export const update = (model: Model, message: Message): UpdateReturn => {
   return M.value(message).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
-      Showed: () => {
-        if (model.isShowing) {
-          return [model, [], Option.none()]
-        }
+      Showed: () =>
+        Option.match(stepPresence(model, Presence.Show()), {
+          onNone: () => [model, [], Option.none()],
+          onSome: nextPresence => [
+            applyPresence(model, nextPresence),
+            [maybeNextFrame],
+            Option.none(),
+          ],
+        }),
 
-        return [
-          evo(model, {
-            isShowing: () => true,
-            transitionState: () => 'EnterStart',
-          }),
-          [maybeNextFrame],
-          Option.none(),
-        ]
-      },
-
-      Hid: () => {
-        const isLeaving =
-          model.transitionState === 'LeaveStart' ||
-          model.transitionState === 'LeaveAnimating'
-
-        if (isLeaving || !model.isShowing) {
-          return [model, [], Option.none()]
-        }
-
-        return [
-          evo(model, {
-            isShowing: () => false,
-            transitionState: () => 'LeaveStart',
-          }),
-          [maybeNextFrame],
-          Option.none(),
-        ]
-      },
+      Hid: () =>
+        Option.match(stepPresence(model, Presence.Hide()), {
+          onNone: () => [model, [], Option.none()],
+          onSome: nextPresence => [
+            applyPresence(model, nextPresence),
+            [maybeNextFrame],
+            Option.none(),
+          ],
+        }),
 
       AdvancedAnimationFrame: () =>
-        M.value(model.transitionState).pipe(
-          withUpdateReturn,
-          M.when('EnterStart', () => [
-            evo(model, { transitionState: () => 'EnterAnimating' }),
-            [WaitForAnimationSettled({ id: model.id })],
-            Option.none(),
-          ]),
-          M.when('LeaveStart', () => [
-            evo(model, { transitionState: () => 'LeaveAnimating' }),
-            [],
-            Option.some(StartedLeaveAnimating()),
-          ]),
-          M.orElse(() => [model, [], Option.none()]),
-        ),
+        Option.match(stepPresence(model, Presence.AdvanceFrame()), {
+          onNone: () => [model, [], Option.none()],
+          onSome: nextPresence => {
+            if (nextPresence._tag === 'EnterAnimating') {
+              return [
+                applyPresence(model, nextPresence),
+                [WaitForAnimationSettled({ id: model.id })],
+                Option.none(),
+              ]
+            } else if (nextPresence._tag === 'LeaveAnimating') {
+              return [
+                applyPresence(model, nextPresence),
+                [],
+                Option.some(StartedLeaveAnimating()),
+              ]
+            } else {
+              return [model, [], Option.none()]
+            }
+          },
+        }),
 
       EndedAnimation: () =>
-        M.value(model.transitionState).pipe(
-          withUpdateReturn,
-          M.when('EnterAnimating', () => [
-            evo(model, { transitionState: () => 'Idle' }),
-            [],
-            Option.none(),
-          ]),
-          M.when('LeaveAnimating', () => [
-            evo(model, { transitionState: () => 'Idle' }),
-            [],
-            Option.some(TransitionedOut()),
-          ]),
-          M.orElse(() => [model, [], Option.none()]),
-        ),
+        Option.match(stepPresence(model, Presence.EndAnimation()), {
+          onNone: () => [model, [], Option.none()],
+          onSome: nextPresence => {
+            if (nextPresence._tag === 'Open') {
+              return [applyPresence(model, nextPresence), [], Option.none()]
+            } else if (nextPresence._tag === 'Closed') {
+              return [
+                applyPresence(model, nextPresence),
+                [],
+                Option.some(TransitionedOut()),
+              ]
+            } else {
+              return [model, [], Option.none()]
+            }
+          },
+        }),
     }),
   )
 }

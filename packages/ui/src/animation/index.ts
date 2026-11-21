@@ -1,4 +1,5 @@
 import { Match as M } from 'effect'
+import { Presence } from 'foldkit/behavior'
 import {
   type ChildAttribute,
   type Html,
@@ -80,13 +81,16 @@ export const view = defineView<Model, Message, ViewInputs>(
       animateSize = false,
     } = viewInputs
 
-    const isLeaving =
-      transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
-    const isVisible = isShowing || isLeaving
+    const presence = Presence.fromAnimation({
+      isShowing,
+      transitionPhase: transitionState,
+    })
+    const isLeaving = Presence.isLeaving(presence)
+    const isVisible = Presence.isVisible(presence) || isLeaving
 
     const transitionAttributes: ReadonlyArray<
       ReturnType<typeof h.DataAttribute>
-    > = M.value(transitionState).pipe(
+    > = M.value(Presence.transitionPhaseOf(presence)).pipe(
       M.when('EnterStart', () => [
         h.DataAttribute('closed', ''),
         h.DataAttribute('enter', ''),
@@ -109,10 +113,7 @@ export const view = defineView<Model, Message, ViewInputs>(
     )
 
     if (animateSize) {
-      const isClosed =
-        transitionState === 'EnterStart' ||
-        transitionState === 'LeaveAnimating' ||
-        !isVisible
+      const isClosed = Presence.isClosedForSize(presence)
 
       return h.div(
         [

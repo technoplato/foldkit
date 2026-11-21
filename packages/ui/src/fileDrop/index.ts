@@ -1,4 +1,5 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
+import { FileDrop as CoreFileDrop } from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as File from 'foldkit/file'
 import {
@@ -103,22 +104,22 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
       EnteredDragZone: () => [
-        evo(model, { isDragOver: () => true }),
+        evo(model, { isDragOver: () => CoreFileDrop.nextDragOver('Enter') }),
         [],
         Option.none(),
       ],
       LeftDragZone: () => [
-        evo(model, { isDragOver: () => false }),
+        evo(model, { isDragOver: () => CoreFileDrop.nextDragOver('Leave') }),
         [],
         Option.none(),
       ],
       DroppedFiles: ({ files }) => [
-        evo(model, { isDragOver: () => false }),
+        evo(model, { isDragOver: () => CoreFileDrop.nextDragOver('Drop') }),
         [],
         Option.some(ReceivedFiles({ files })),
       ],
       DroppedNonFiles: () => [
-        evo(model, { isDragOver: () => false }),
+        evo(model, { isDragOver: () => CoreFileDrop.nextDragOver('Drop') }),
         [],
         Option.some(RejectedNonFiles()),
       ],
@@ -183,9 +184,10 @@ export const view = defineView<Model, Message, ViewInputs>(
       h.Type('file'),
       h.Class('sr-only'),
       ...(multiple ? [h.Multiple(true)] : []),
-      ...(accept !== undefined && accept.length > 0
-        ? [h.Accept(accept.join(','))]
-        : []),
+      ...Option.match(CoreFileDrop.formatAcceptAttribute(accept), {
+        onNone: () => [],
+        onSome: formatted => [h.Accept(formatted)],
+      }),
       ...(isDisabled
         ? [h.Disabled(true)]
         : [h.OnFileChange(dispatchDroppedFiles)]),

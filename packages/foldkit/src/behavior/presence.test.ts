@@ -1,9 +1,14 @@
 import { Array, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import * as Catalog from '../catalog/catalog.js'
+import * as Declaration from '../declaration/index.js'
+import { make as makeProgram } from '../program/program.js'
 import * as Block from './block.js'
 import { Device, Synced } from './pace.js'
+import * as Part from './part.js'
 import * as Presence from './presence.js'
+import * as Slot from './slot.js'
 
 const fold = (
   messages: ReadonlyArray<Presence.Message>,
@@ -307,6 +312,109 @@ describe('Presence block', () => {
       expect(Presence.deviceSync('OwnView').Show).toEqual(
         Device({ because: 'OwnView' }),
       )
+    })
+  })
+
+  describe('Presence Part wrapper (Part.define, slots, isClosedForSize, Part.compose)', () => {
+    it('passes Part.problemsOf, Block.problemsOf, and Declaration checks', () => {
+      expect(Part.problemsOf(Presence.part)).toEqual([])
+      expect(Part.problemsOf(Presence.deviceOnly())).toEqual([])
+      expect(Part.problemsOf(Presence.make({ defaultOpen: true }))).toEqual([])
+      expect(
+        Block.problemsOf({
+          name: 'PresenceOpen',
+          chart: Presence.chartOf(Presence.Open()),
+        }),
+      ).toEqual([])
+
+      for (const action of Presence.actions) {
+        const declared = Catalog.declarationOf(action)
+        expect(Declaration.problemsOf(declared)).toEqual([])
+        expect(Declaration.clientWordsOf(declared)).toEqual([])
+      }
+    })
+
+    it('computes containerId and isClosedForSize across all 6 lifecycle states', () => {
+      expect(Presence.containerId('banner')).toBe('banner-container')
+      expect(Presence.isClosedForSize(Presence.Closed())).toBe(true)
+      expect(Presence.isClosedForSize(Presence.EnterStart())).toBe(true)
+      expect(Presence.isClosedForSize(Presence.EnterAnimating())).toBe(false)
+      expect(Presence.isClosedForSize(Presence.Open())).toBe(false)
+      expect(Presence.isClosedForSize(Presence.LeaveStart())).toBe(false)
+      expect(Presence.isClosedForSize(Presence.LeaveAnimating())).toBe(true)
+    })
+
+    it('projects reference-stable SlotBindings and composes cleanly in synced and deviceOnly modes', () => {
+      const props: Presence.Props = {
+        id: 'notice',
+        label: 'Announcement',
+        isAnimated: true,
+      }
+      const closedState = Presence.initial
+      const closedView = Part.view(Presence.part, closedState, props)
+      expect(Part.view(Presence.part, closedState, { ...props })).toBe(
+        closedView,
+      )
+
+      const containerClosed = Slot.ariaOf(closedView.slot('Container'))
+      expect(containerClosed['role']).toBe('region')
+      expect(containerClosed['id']).toBe('notice-container')
+      expect(containerClosed['aria-label']).toBe('Announcement')
+      expect(containerClosed['aria-expanded']).toBe('false')
+      expect(containerClosed['hidden']).toBe('')
+
+      const showTriggerClosed = closedView.slot('ShowTrigger')
+      expect(Slot.ariaOf(showTriggerClosed)['aria-controls']).toBe(
+        'notice-container',
+      )
+
+      const enteringView = Part.view(
+        Presence.part,
+        Presence.EnterStart(),
+        props,
+      )
+      const containerEntering = Slot.ariaOf(enteringView.slot('Container'))
+      expect(containerEntering['aria-expanded']).toBe('true')
+      expect(containerEntering['hidden']).toBeUndefined()
+
+      const leavingView = Part.view(
+        Presence.part,
+        Presence.LeaveAnimating(),
+        props,
+      )
+      const containerLeaving = Slot.ariaOf(leavingView.slot('Container'))
+      expect(containerLeaving['aria-expanded']).toBe('false')
+      expect(containerLeaving['hidden']).toBeUndefined()
+
+      const sizeProps: Presence.Props = { ...props, animateSize: true }
+      const sizeEnterStart = Part.view(
+        Presence.part,
+        Presence.EnterStart(),
+        sizeProps,
+      )
+      expect(Slot.ariaOf(sizeEnterStart.slot('Container'))['hidden']).toBe('')
+
+      const KeepText = Catalog.action('KeepText', {
+        what: 'Keeps the banner text unchanged',
+        why: 'To verify local part composition in a minimal Program',
+        meta: { label: 'Keep text', keys: [] },
+      })
+      const Base = makeProgram({
+        id: 'presence-compose-test',
+        version: 1,
+        Model: S.Struct({ text: S.String }),
+        Message: Catalog.make([KeepText]).Message,
+        init: () => [{ text: 'Saved' }, []],
+        update: (model: Readonly<{ text: string }>) => [model, []],
+      })
+      const LocalApp = Part.compose({
+        of: Base,
+        parts: [Part.given(Presence.deviceOnly(), () => props)],
+      })
+      const [localModel] = LocalApp.init()
+      expect(S.encodeUnknownSync(LocalApp.Model)(localModel)).toEqual({
+        text: 'Saved',
+      })
     })
   })
 })

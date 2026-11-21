@@ -1,4 +1,5 @@
 import { Array, Option } from 'effect'
+import { Nav as CoreNav } from 'foldkit/behavior'
 import {
   type ChildAttribute,
   type Html,
@@ -43,8 +44,6 @@ export type ViewInputs<Value extends string = string> = Readonly<{
 
 // VIEW
 
-const ARIA_CURRENT_PAGE = 'page'
-
 /** Renders a navigation landmark whose items are links, marking the current
  *  destination with `aria-current="page"`. Stateless: the current item is
  *  derived from `isItemCurrent`, which the consumer drives from the URL, the
@@ -73,9 +72,12 @@ export const view = <Value extends string = string>(
     (value, index) => {
       const isCurrent = isItemCurrent(value, index)
 
-      const maybeCurrentAttributes = Option.liftPredicate(
-        [h.AriaCurrent(ARIA_CURRENT_PAGE), h.DataAttribute('current', '')],
-        () => isCurrent,
+      const maybeCurrentAttributes = Option.map(
+        CoreNav.ariaCurrentOf(isCurrent),
+        ariaCurrent => [
+          h.AriaCurrent(ariaCurrent),
+          h.DataAttribute('current', ''),
+        ],
       )
 
       const linkAttributes = [

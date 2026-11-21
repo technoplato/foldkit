@@ -40,6 +40,7 @@ already does it).
 | `pointerDrag` (pointer capture, axis, snap)          | done (#2654)      | slider, splitter, color area                       |
 | `hoverIntent` (open and close delays, safe triangle) | done (#2630)      | tooltip, hover card, submenu                       |
 | `dateGrid`                                           | done (#2655)      | calendar, date picker                              |
+| `virtualWindow`                                      | done (#2663)      | virtual list                                       |
 
 ## Widgets
 
@@ -86,7 +87,7 @@ after it reuse it: `layers` and `placement` (1 to 4), then `rovingFocus`
 cheap to do beside its neighbours, not first. Each row
 gets its own child issue under #2568 when it starts.
 
-Blocks that exist: `longPress`, `placement`, `layers`, `rovingFocus`, `typeahead`, `focusScope`, `presence`, `timedHint`, `hoverIntent`, `fieldDraft`, `selection`, `pointerDrag`, `dateGrid`, `listFilter`, the pace
+Blocks that exist: `longPress`, `placement`, `layers`, `rovingFocus`, `typeahead`, `focusScope`, `presence`, `timedHint`, `hoverIntent`, `fieldDraft`, `selection`, `pointerDrag`, `dateGrid`, `listFilter`, `virtualWindow`, the pace
 rules for typing and dragging (`Pace`), and the reader's two (`Reader`,
 `TranscriptFollow`). Every other block named below
 is still to build, and is built with the first row that needs it.
@@ -113,11 +114,11 @@ is still to build, and is built with the first row that needs it.
 | 18  | ~~Slider~~ (done, #2654)            | `Slider`      | slider                   | slider                            | **`pointerDrag`** (**`Pace`**)                                                                      |
 | 19  | ~~Calendar~~ (done, #2655)          | `Calendar`    | none                     | none                              | \***\*`dateGrid`\*\***, **`rovingFocus`**                                                           |
 | 20  | ~~Date picker~~ (done, #2660)       | `DatePicker`  | date-picker, date-input  | none                              | **`placement`**, \***\*`dateGrid`\*\***, **`layers`**                                               |
-| 21  | Navigation menu                     | `Nav`         | navigation-menu          | navigation-menu                   | **`rovingFocus`**, **`hoverIntent`**                                                                |
+| 21  | ~~Navigation menu~~ (done, #2659)   | `Nav`         | navigation-menu          | navigation-menu                   | **`rovingFocus`**, **`hoverIntent`**                                                                |
 | 22  | ~~Drag and drop~~ (done, #2661)     | `DragAndDrop` | none                     | none                              | \***\*`pointerDrag`\*\*** (**`Pace`**)                                                              |
-| 23  | File drop                           | `FileDrop`    | file-upload              | none                              | \***\*`pointerDrag`\*\***                                                                           |
-| 24  | Virtual list                        | `VirtualList` | async-list               | none                              | a window over a list, new                                                                           |
-| 25  | Presence                            | `Animation`   | presence                 | presence                          | **`presence`**                                                                                      |
+| 23  | ~~File drop~~ (done, #2662)         | `FileDrop`    | file-upload              | none                              | \***\*`pointerDrag`\*\***                                                                           |
+| 24  | ~~Virtual list~~ (done, #2663)      | `VirtualList` | async-list               | none                              | **`virtualWindow`**                                                                                 |
+| 25  | ~~Presence~~ (done, #2664)          | `Animation`   | presence                 | presence                          | **`presence`**                                                                                      |
 | 26  | Drawer                              | none          | drawer                   | none                              | **`layers`**, **`focusScope`**, \***\*`pointerDrag`\*\***                                           |
 | 27  | Hover card                          | none          | hover-card               | hover-card                        | **`placement`**, **`hoverIntent`**                                                                  |
 | 28  | Menubar                             | none          | none                     | menubar                           | **the Menu part**, **`rovingFocus`**                                                                |
@@ -148,8 +149,7 @@ is still to build, and is built with the first row that needs it.
 | 53  | Clipboard                           | none          | clipboard                | none                              | **`timedHint`**                                                                                     |
 | 54  | QR code                             | none          | qr-code                  | none                              | none                                                                                                |
 
-**Widgets left: 33 of 54.** Of those, 4 are `packages/ui`'s remaining namespaces
-(rows 21, 23, 24, and 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
+**Widgets left: 29 of 54.** All 25 `packages/ui` namespaces are done; the remaining 29 are Zag's or Radix's alone. #2595 built the declaration,
 the hosts and `longPress` + `placement`; #2606 built row 1 (`Menu`) with
 `layers`, `rovingFocus`, and `typeahead`; #2612 built row 2 (`Dialog`) with
 `focusScope`; #2613 built row 3 (`Tabs`) reusing `rovingFocus`; #2616 built
@@ -159,7 +159,7 @@ row 5 (`Disclosure`) with `presence` reusing `rovingFocus`; #2618 built row 6
 reusing `rovingFocus`; #2623 built row 9 (`Toggle` / `Button`); #2625 built row
 10 (`Toast`) with `timedHint` reusing `presence`; #2630 built row 11 (`Tooltip`)
 with `hoverIntent` reusing `placement` and `timedHint`; #2627 built row 12
-(`Input`) with `fieldDraft`; #2631 built row 13 (`Textarea`) reusing `fieldDraft`; #2632 built row 14 (`Fieldset`); #2633 built row 15 (`Listbox`) with `selection` reusing `rovingFocus` and `typeahead`; #2653 built row 16 (`Select`) reusing `placement`, `layers`, `typeahead`, `rovingFocus`, and `selection`; #2655 built row 19 (`Calendar`) with `dateGrid` reusing `rovingFocus`; #2654 built row 18 (`Slider`) with `pointerDrag`; #2658 built row 17 (`Combobox`) with `listFilter` reusing `placement`, `layers`, `selection`, `rovingFocus`, `typeahead`, and `fieldDraft`; #2660 built row 20 (`DatePicker`) reusing `calendar`, `dateGrid`, `placement`, and `layers`; #2661 built row 22 (`DragAndDrop`) reusing `pointerDrag`.
+(`Input`) with `fieldDraft`; #2631 built row 13 (`Textarea`) reusing `fieldDraft`; #2632 built row 14 (`Fieldset`); #2633 built row 15 (`Listbox`) with `selection` reusing `rovingFocus` and `typeahead`; #2653 built row 16 (`Select`) reusing `placement`, `layers`, `typeahead`, `rovingFocus`, and `selection`; #2655 built row 19 (`Calendar`) with `dateGrid` reusing `rovingFocus`; #2654 built row 18 (`Slider`) with `pointerDrag`; #2658 built row 17 (`Combobox`) with `listFilter` reusing `placement`, `layers`, `selection`, `rovingFocus`, `typeahead`, and `fieldDraft`; #2660 built row 20 (`DatePicker`) reusing `calendar`, `dateGrid`, `placement`, and `layers`; #2661 built row 22 (`DragAndDrop`) reusing `pointerDrag`; #2659 built row 21 (`Nav`) reusing `rovingFocus` and `hoverIntent`; #2662 built row 23 (`FileDrop`); #2663 built row 24 (`VirtualList`) with `virtualWindow`; #2664 built row 25 (`Presence` / `Animation`) extending `presence`.
 
 What the count covers, so it can be checked: all 51 of Zag's machines are
 in a row (three rows hold two each: Disclosure, Input and Date picker).
