@@ -31,7 +31,7 @@ already does it).
 | `liveClock`                                          | yes                     | Books' player, the Words reader                    |
 | `dragHold`                                           | yes                     | Books' seek bar                                    |
 | `listFilter`                                         | yes                     | Books' chapters and bookmarks                      |
-| `timedHint`                                          | yes                     | Counter's key hints, copy feedback                 |
+| `timedHint`                                          | yes (done, #2625)       | Toast, Counter's key hints, copy feedback          |
 | `fieldDraft`                                         | stays in painters in v1 | Books' search and notes                            |
 | `rovingFocus`                                        | done (#2606)            | tabs, menu, toolbar, radio group                   |
 | `typeahead`                                          | done (#2606)            | menu, listbox, select, combobox                    |
@@ -86,7 +86,7 @@ after it reuse it: `layers` and `placement` (1 to 4), then `rovingFocus`
 cheap to do beside its neighbours, not first. Each row
 gets its own child issue under #2568 when it starts.
 
-Blocks that exist: `longPress`, `placement`, `layers`, `rovingFocus`, `typeahead`, `focusScope`, `presence`, the pace
+Blocks that exist: `longPress`, `placement`, `layers`, `rovingFocus`, `typeahead`, `focusScope`, `presence`, `timedHint`, the pace
 rules for typing and dragging (`Pace`), and the reader's two (`Reader`,
 `TranscriptFollow`). Every other block named below
 is still to build, and is built with the first row that needs it.
@@ -102,8 +102,8 @@ is still to build, and is built with the first row that needs it.
 | 7   | ~~Checkbox~~ (done, #2619)          | `Checkbox`    | checkbox                 | checkbox                          | none                                                                                    |
 | 8   | ~~Radio group~~ (done, #2620)       | `RadioGroup`  | radio-group              | radio-group                       | **`rovingFocus`**                                                                       |
 | 9   | ~~Button and toggle~~ (done, #2623) | `Button`      | toggle                   | toggle                            | none                                                                                    |
-| 10  | Toast                               | `Toast`       | toast                    | toast                             | `timedHint`, **`presence`**                                                             |
-| 11  | Tooltip                             | `Tooltip`     | tooltip                  | tooltip                           | **`placement`**, `hoverIntent`, `timedHint`                                             |
+| 10  | ~~Toast~~ (done, #2625)             | `Toast`       | toast                    | toast                             | **`timedHint`**, **`presence`**                                                         |
+| 11  | Tooltip                             | `Tooltip`     | tooltip                  | tooltip                           | **`placement`**, `hoverIntent`, **`timedHint`**                                         |
 | 12  | Input                               | `Input`       | editable, password-input | label, password-toggle-field      | `fieldDraft` (**`Pace`**)                                                               |
 | 13  | Textarea                            | `Textarea`    | none                     | none                              | `fieldDraft` (**`Pace`**)                                                               |
 | 14  | Fieldset                            | `Fieldset`    | none                     | form                              | none                                                                                    |
@@ -145,18 +145,19 @@ is still to build, and is built with the first row that needs it.
 | 50  | Timer                               | none          | timer                    | none                              | a clock                                                                                 |
 | 51  | Progress and meter                  | none          | progress                 | progress                          | none                                                                                    |
 | 52  | Avatar                              | none          | avatar                   | avatar                            | none: a loading state                                                                   |
-| 53  | Clipboard                           | none          | clipboard                | none                              | `timedHint`                                                                             |
+| 53  | Clipboard                           | none          | clipboard                | none                              | **`timedHint`**                                                                         |
 | 54  | QR code                             | none          | qr-code                  | none                              | none                                                                                    |
 
-**Widgets left: 45 of 54.** Of those, 16 are `packages/ui`'s remaining namespaces
-(rows 10 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
+**Widgets left: 44 of 54.** Of those, 15 are `packages/ui`'s remaining namespaces
+(rows 11 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
 the hosts and `longPress` + `placement`; #2606 built row 1 (`Menu`) with
 `layers`, `rovingFocus`, and `typeahead`; #2612 built row 2 (`Dialog`) with
 `focusScope`; #2613 built row 3 (`Tabs`) reusing `rovingFocus`; #2616 built
 row 4 (`Popover`) reusing `placement`, `layers`, and `focusScope`; #2617 built
 row 5 (`Disclosure`) with `presence` reusing `rovingFocus`; #2618 built row 6
 (`Switch`); #2619 built row 7 (`Checkbox`); #2620 built row 8 (`RadioGroup`)
-reusing `rovingFocus`; #2623 built row 9 (`Toggle` / `Button`).
+reusing `rovingFocus`; #2623 built row 9 (`Toggle` / `Button`); #2625 built row
+10 (`Toast`) with `timedHint` reusing `presence`.
 
 What the count covers, so it can be checked: all 51 of Zag's machines are
 in a row (three rows hold two each: Disclosure, Input and Date picker).

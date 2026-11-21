@@ -33,7 +33,8 @@ export type HostProps = Readonly<{
 /** What the host adds to a container View a part bound. */
 export type ContainerHostProps = Readonly<{
   nativeID?: string
-  accessibilityRole?: 'tablist' | 'menu' | 'radiogroup'
+  accessibilityRole?: 'tablist' | 'menu' | 'radiogroup' | 'alert'
+  accessibilityLiveRegion?: 'none' | 'polite' | 'assertive'
   accessibilityLabel?: string
   accessibilityElementsHidden?: boolean
   importantForAccessibility?: 'no-hide-descendants'
@@ -82,13 +83,29 @@ const pressableRoleOf = (
 
 const containerRoleOf = (
   role: Slot.Role | undefined,
-): 'tablist' | 'menu' | 'radiogroup' | undefined => {
+): 'tablist' | 'menu' | 'radiogroup' | 'alert' | undefined => {
   if (role === 'TabList') {
     return 'tablist'
   } else if (role === 'Menu') {
     return 'menu'
   } else if (role === 'RadioGroup') {
     return 'radiogroup'
+  } else if (role === 'Alert') {
+    return 'alert'
+  } else {
+    return undefined
+  }
+}
+
+const liveRegionOf = (
+  live: Slot.LivePoliteness | undefined,
+): 'none' | 'polite' | 'assertive' | undefined => {
+  if (live === 'Off') {
+    return 'none'
+  } else if (live === 'Polite') {
+    return 'polite'
+  } else if (live === 'Assertive') {
+    return 'assertive'
   } else {
     return undefined
   }
@@ -105,9 +122,13 @@ export const containerPropsOf = (
     onNone: () => ({}),
     onSome: binding => {
       const role = containerRoleOf(binding.role)
+      const liveRegion = liveRegionOf(binding.live)
       return {
         ...(binding.id === undefined ? {} : { nativeID: binding.id }),
         ...(role === undefined ? {} : { accessibilityRole: role }),
+        ...(liveRegion === undefined
+          ? {}
+          : { accessibilityLiveRegion: liveRegion }),
         ...(binding.label === undefined
           ? {}
           : { accessibilityLabel: binding.label }),

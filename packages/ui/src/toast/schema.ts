@@ -1,4 +1,5 @@
 import { Duration, Schema as S } from 'effect'
+import { Toast as CoreToast } from 'foldkit/behavior'
 import { m } from 'foldkit/message'
 
 import {
@@ -13,21 +14,14 @@ import {
  *  `data-variant` on each entry for per-variant CSS. This is the only
  *  content-adjacent field the component owns. The rest of the entry's
  *  content lives in the user-provided payload. */
-export const Variant = S.Literals(['Info', 'Success', 'Warning', 'Error'])
-export type Variant = typeof Variant.Type
+export const Variant = CoreToast.Variant
+export type Variant = CoreToast.Variant
 
 // POSITION
 
 /** Where the toast viewport is anchored on the screen and how entries stack. */
-export const Position = S.Literals([
-  'TopLeft',
-  'TopCenter',
-  'TopRight',
-  'BottomLeft',
-  'BottomCenter',
-  'BottomRight',
-])
-export type Position = typeof Position.Type
+export const Position = CoreToast.Position
+export type Position = CoreToast.Position
 
 // ENTRY
 
@@ -135,4 +129,4 @@ export type InitConfig = Readonly<{
   defaultDuration?: Duration.Input
 }>
 
-export const DEFAULT_DURATION = Duration.seconds(4)
+export const DEFAULT_DURATION = Duration.millis(CoreToast.defaultDurationMs)

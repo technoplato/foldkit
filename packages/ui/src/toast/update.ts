@@ -1,12 +1,16 @@
 import {
   Array,
   Duration,
-  Effect,
   Match as M,
   Number,
   Option,
   Schema as S,
 } from 'effect'
+import {
+  Presence as CorePresence,
+  TimedHint as CoreTimedHint,
+  Toast as CoreToast,
+} from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import { evo } from 'foldkit/struct'
 
@@ -21,7 +25,6 @@ import {
   defaultLeaveCommand as animationDefaultLeaveCommand,
   update as animationUpdate,
 } from '../animation/update.js'
-import * as OptionExt from '../internal/optionExtensions.js'
 import {
   DEFAULT_DURATION,
   Dismissed,
@@ -63,10 +66,13 @@ export const DismissAfter = Command.define(
   },
   ElapsedDuration,
 )(({ entryId, version, duration }) =>
-  Effect.sleep(duration).pipe(Effect.as(ElapsedDuration({ entryId, version }))),
+  Command.answerAfter(
+    Duration.toMillis(duration),
+    ElapsedDuration({ entryId, version }),
+  ),
 )
 
-const DEFAULT_VARIANT: Variant = 'Info'
+const DEFAULT_VARIANT: Variant = CoreToast.defaultVariant
 
 /** Factory that binds Toast's runtime (update fn, helpers, commands) to a
  *  specific payload schema. Called by `make` in index.ts; inner helpers close
@@ -109,12 +115,21 @@ export const makeRuntime = <A, I>(payloadSchema: S.Codec<A, I>) => {
       entries: Array.filter(({ id }) => id !== entryId),
     })
 
-  const isEntryLeaving = (entry: Entry): boolean => {
-    const { transitionState } = entry.animation
-    return (
-      transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
+  const isEntryLeaving = (entry: Entry): boolean =>
+    CorePresence.isLeaving(
+      CorePresence.fromAnimation({
+        isShowing: entry.animation.isShowing,
+        transitionPhase: entry.animation.transitionState,
+      }),
     )
-  }
+
+  const hintOfEntry = (entry: Entry): CoreTimedHint.State =>
+    CoreTimedHint.fromFields({
+      isVisible: !isEntryLeaving(entry),
+      isPaused: entry.isHovered,
+      version: entry.pendingDismissVersion,
+      maybeDurationMs: Option.map(entry.maybeDuration, Duration.toMillis),
+    })
 
   const scheduleDismiss = (
     entryId: string,
@@ -195,14 +210,22 @@ export const makeRuntime = <A, I>(payloadSchema: S.Codec<A, I>) => {
   }
 
   const createEntry = (model: Model, input: ShowInput<A>): Entry => {
-    const entryId = `${model.id}-entry-${model.nextEntryKey}`
+    const entryId = CoreToast.entryId(model.id, model.nextEntryKey)
 
-    const duration =
-      input.duration === undefined
-        ? model.defaultDuration
-        : Duration.fromInputUnsafe(input.duration)
-
-    const maybeDuration = OptionExt.when(!input.sticky, duration)
+    const maybeDuration = Option.map(
+      CoreToast.resolveDurationMs({
+        defaultDurationMs: Duration.toMillis(model.defaultDuration),
+        ...(input.duration === undefined
+          ? {}
+          : {
+              durationMs: Duration.toMillis(
+                Duration.fromInputUnsafe(input.duration),
+              ),
+            }),
+        ...(input.sticky === undefined ? {} : { isSticky: input.sticky }),
+      }),
+      Duration.millis,
+    )
 
     return {
       id: entryId,
@@ -309,24 +332,24 @@ export const makeRuntime = <A, I>(payloadSchema: S.Codec<A, I>) => {
 
           return Option.match(maybeEntry, {
             onNone: (): UpdateReturn => [model, [], Option.none()],
-            onSome: entry => {
-              const isStale = version !== entry.pendingDismissVersion
-              if (isStale || isEntryLeaving(entry)) {
-                return [model, [], Option.none()]
-              } else {
-                return delegateToEntryAnimation(model, entryId, AnimationHid())
-              }
-            },
+            onSome: entry =>
+              CoreTimedHint.shouldAcceptElapsed(hintOfEntry(entry), version)
+                ? delegateToEntryAnimation(model, entryId, AnimationHid())
+                : [model, [], Option.none()],
           })
         },
 
         HoveredEntry: ({ entryId }) => [
-          updateEntry(model, entryId, entry =>
-            evo(entry, {
-              isHovered: () => true,
-              pendingDismissVersion: Number.increment,
-            }),
-          ),
+          updateEntry(model, entryId, entry => {
+            const [nextHint] = CoreTimedHint.chart.transition(
+              hintOfEntry(entry),
+              CoreTimedHint.PauseHint(),
+            )
+            return evo(entry, {
+              isHovered: () => CoreTimedHint.isPaused(nextHint),
+              pendingDismissVersion: () => CoreTimedHint.versionOf(nextHint),
+            })
+          }),
           [],
           Option.none(),
         ],
@@ -340,13 +363,19 @@ export const makeRuntime = <A, I>(payloadSchema: S.Codec<A, I>) => {
           return Option.match(maybeEntry, {
             onNone: (): UpdateReturn => [model, [], Option.none()],
             onSome: entry => {
+              const [nextHint, hintCommands] = CoreTimedHint.chart.transition(
+                hintOfEntry(entry),
+                CoreTimedHint.ResumeHint(),
+              )
               const nextEntry: Entry = evo(entry, {
-                isHovered: () => false,
-                pendingDismissVersion: Number.increment,
+                isHovered: () => CoreTimedHint.isPaused(nextHint),
+                pendingDismissVersion: () => CoreTimedHint.versionOf(nextHint),
               })
               return [
                 updateEntry(model, entryId, () => nextEntry),
-                rescheduleDismissCommands(nextEntry),
+                Array.isReadonlyArrayNonEmpty(hintCommands)
+                  ? rescheduleDismissCommands(nextEntry)
+                  : [],
                 Option.none(),
               ]
             },

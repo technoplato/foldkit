@@ -1,4 +1,5 @@
 import { Match as M, Schema as S } from 'effect'
+import { Toast as CoreToast } from 'foldkit/behavior'
 import {
   type ChildAttribute,
   type Html,
@@ -38,17 +39,7 @@ export {
 
 // VIEW
 
-type VariantRole = 'status' | 'alert'
-
-const variantToRole = (variant: Variant): VariantRole =>
-  M.value(variant).pipe(
-    M.withReturnType<VariantRole>(),
-    M.when('Info', () => 'status'),
-    M.when('Success', () => 'status'),
-    M.when('Warning', () => 'alert'),
-    M.when('Error', () => 'alert'),
-    M.exhaustive,
-  )
+const variantToRole = CoreToast.variantAriaRoleOf
 
 const positionToContainerStyle = (
   position: Position,
@@ -117,7 +108,7 @@ export type EntryHandlers = Readonly<{
   dismiss: ReadonlyArray<ChildAttribute>
 }>
 
-const DEFAULT_ARIA_LABEL = 'Notifications'
+const DEFAULT_ARIA_LABEL = CoreToast.defaultLabel
 
 /** Factory that binds `Toast` to a user-provided payload schema. The
  *  returned module contains everything needed to wire a toast stack into an

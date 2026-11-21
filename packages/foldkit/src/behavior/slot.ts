@@ -29,9 +29,16 @@ export const Role = S.Literals([
   'Checkbox',
   'RadioGroup',
   'Radio',
+  'Status',
+  'Alert',
 ])
 /** What a painted element is, for a screen reader. */
 export type Role = typeof Role.Type
+
+/** How urgently a live region announces updates to assistive technology. */
+export const LivePoliteness = S.Literals(['Off', 'Polite', 'Assertive'])
+/** How urgently a live region announces updates to assistive technology. */
+export type LivePoliteness = typeof LivePoliteness.Type
 
 /** Whether a checkable control (such as a switch, checkbox, or radio) is checked, unchecked, or mixed. */
 export const CheckedState = S.Union([S.Boolean, S.Literal('mixed')])
@@ -108,6 +115,8 @@ export const SlotBinding = S.Struct({
   isInvalid: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
   isHidden: S.optionalKey(S.Boolean),
+  live: S.optionalKey(LivePoliteness),
+  isAtomic: S.optionalKey(S.Boolean),
   orientation: S.optionalKey(SlotOrientation),
   label: S.optionalKey(S.String),
   labelledBy: S.optionalKey(S.String),
@@ -141,6 +150,8 @@ export const SlotProps = S.Struct({
   isInvalid: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
   isHidden: S.optionalKey(S.Boolean),
+  live: S.optionalKey(LivePoliteness),
+  isAtomic: S.optionalKey(S.Boolean),
   orientation: S.optionalKey(SlotOrientation),
   label: S.optionalKey(S.String),
   labelledBy: S.optionalKey(S.String),
@@ -298,6 +309,14 @@ const roleNames: Readonly<Record<Role, string>> = {
   Checkbox: 'checkbox',
   RadioGroup: 'radiogroup',
   Radio: 'radio',
+  Status: 'status',
+  Alert: 'alert',
+}
+
+const liveNames: Readonly<Record<LivePoliteness, string>> = {
+  Off: 'off',
+  Polite: 'polite',
+  Assertive: 'assertive',
 }
 
 /**
@@ -330,6 +349,12 @@ export const ariaOf = (
   ...(binding.isModal === undefined
     ? {}
     : { 'aria-modal': String(binding.isModal) }),
+  ...(binding.live === undefined
+    ? {}
+    : { 'aria-live': liveNames[binding.live] }),
+  ...(binding.isAtomic === undefined
+    ? {}
+    : { 'aria-atomic': String(binding.isAtomic) }),
   ...(binding.labelledBy === undefined
     ? {}
     : { 'aria-labelledby': binding.labelledBy }),
