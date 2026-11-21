@@ -8,6 +8,7 @@ import {
   Schema as S,
   pipe,
 } from 'effect'
+import { Calendar as CoreCalendar, DateGrid } from 'foldkit/behavior'
 import * as Calendar from 'foldkit/calendar'
 import type { CalendarDate } from 'foldkit/calendar'
 import * as Command from 'foldkit/command'
@@ -188,7 +189,7 @@ type UpdateReturn = readonly [
 ]
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
-const gridId = (modelId: string): string => `${modelId}-grid`
+const gridId = CoreCalendar.gridId
 const gridSelector = (modelId: string): string => idSelector(gridId(modelId))
 
 /** Focuses the calendar grid container. Parent components like DatePicker
@@ -291,101 +292,56 @@ export const reflectDisabledDaysOfWeek: Reflect<
  * outside the days grid (paged-away year, etc.), which would otherwise
  * cause `aria-activedescendant` to point at a non-rendered cell and the
  * next ArrowLeft to jump to the cursor's stale year. */
-export const dropToDays = (model: Model): Model => {
-  const focusedDay = Option.match(model.maybeFocusedDate, {
-    onNone: () => 1,
-    onSome: date =>
-      Math.min(date.day, Calendar.daysInMonth(model.viewYear, model.viewMonth)),
-  })
-  return evo(model, {
+export const dropToDays = (model: Model): Model =>
+  evo(model, {
     viewMode: () => 'Days',
     maybeFocusedDate: () =>
-      Option.some(Calendar.make(model.viewYear, model.viewMonth, focusedDay)),
+      Option.some(
+        DateGrid.reconcileFocusInMonth(
+          model.viewYear,
+          model.viewMonth,
+          model.maybeFocusedDate,
+        ),
+      ),
   })
-}
 
-const DAY_SKIP_CAP = 31
-const MONTH_SKIP_CAP = 12
-
-/** Number of years per Years-mode page. A 3×4 grid renders one window. */
-const YEARS_PAGE_SIZE = 12
+const constraintsOf = (model: Model): DateGrid.Constraints => ({
+  ...(Option.isSome(model.maybeMinDate)
+    ? { minDate: model.maybeMinDate.value }
+    : {}),
+  ...(Option.isSome(model.maybeMaxDate)
+    ? { maxDate: model.maybeMaxDate.value }
+    : {}),
+  disabledDates: model.disabledDates,
+  disabledDaysOfWeek: model.disabledDaysOfWeek,
+})
 
 const isDateDisabled = (model: Model, date: CalendarDate): boolean =>
-  Option.exists(model.maybeMinDate, min => Calendar.isBefore(date, min)) ||
-  Option.exists(model.maybeMaxDate, max => Calendar.isAfter(date, max)) ||
-  model.disabledDaysOfWeek.includes(Calendar.dayOfWeek(date)) ||
-  model.disabledDates.some(Calendar.isEqual(date))
+  DateGrid.isDateDisabled(date, constraintsOf(model))
 
-/** Walks from `start` in `direction`, returning the first non-disabled date
- * within `cap` steps. Falls back to `start` if every candidate is disabled. */
 const skipDisabled = (
   model: Model,
   start: CalendarDate,
   direction: 1 | -1,
   cap: number,
 ): CalendarDate =>
-  pipe(
-    cap,
-    Array.makeBy(step => Calendar.addDays(start, step * direction)),
-    Array.findFirst(date => !isDateDisabled(model, date)),
-    Option.getOrElse(() => start),
-  )
+  DateGrid.skipDisabledDate(start, direction, constraintsOf(model), cap)
 
-const clampToRange = (model: Model, candidate: CalendarDate): CalendarDate => {
-  const afterMin = Option.match(model.maybeMinDate, {
-    onNone: () => candidate,
-    onSome: min => Calendar.max(candidate, min),
-  })
-  return Option.match(model.maybeMaxDate, {
-    onNone: () => afterMin,
-    onSome: max => Calendar.min(afterMin, max),
-  })
-}
+const clampToRange = (model: Model, candidate: CalendarDate): CalendarDate =>
+  DateGrid.clampDate(candidate, constraintsOf(model))
 
-/** Resolves a navigation key press to the next focused date candidate,
- * along with the direction and search cap for disabled-date skipping. */
 const resolveNavigationKey = (
   key: string,
   isShift: boolean,
   focused: CalendarDate,
   firstDayOfWeek: Calendar.DayOfWeek,
 ): Option.Option<readonly [CalendarDate, 1 | -1, number]> =>
-  M.value(key).pipe(
-    M.withReturnType<readonly [CalendarDate, 1 | -1, number]>(),
-    M.when('ArrowLeft', () => [
-      Calendar.addDays(focused, -1),
-      -1,
-      DAY_SKIP_CAP,
-    ]),
-    M.when('ArrowRight', () => [Calendar.addDays(focused, 1), 1, DAY_SKIP_CAP]),
-    M.when('ArrowUp', () => [Calendar.addDays(focused, -7), -1, DAY_SKIP_CAP]),
-    M.when('ArrowDown', () => [Calendar.addDays(focused, 7), 1, DAY_SKIP_CAP]),
-    M.when('Home', () => [
-      Calendar.startOfWeek(focused, firstDayOfWeek),
-      -1,
-      DAY_SKIP_CAP,
-    ]),
-    M.when('End', () => [
-      Calendar.endOfWeek(focused, firstDayOfWeek),
-      1,
-      DAY_SKIP_CAP,
-    ]),
-    M.when('PageUp', () => [
-      isShift
-        ? Calendar.addYears(focused, -1)
-        : Calendar.addMonths(focused, -1),
-      -1,
-      MONTH_SKIP_CAP,
-    ]),
-    M.when('PageDown', () => [
-      isShift ? Calendar.addYears(focused, 1) : Calendar.addMonths(focused, 1),
-      1,
-      MONTH_SKIP_CAP,
-    ]),
-    M.option,
+  Option.map(
+    DateGrid.resolveDayKey({ key, isShift, focused, firstDayOfWeek }),
+    ({ candidate, direction, skipCap }) => [candidate, direction, skipCap],
   )
 
-const isCommitKey = (key: string): boolean => key === 'Enter' || key === ' '
+const isCommitKey = DateGrid.isCommitKey
 
 const currentOrFallbackFocus = (model: Model): CalendarDate =>
   Option.getOrElse(model.maybeFocusedDate, () =>
@@ -434,25 +390,19 @@ const applyFocusMove = (
   return [nextModel, maybeOutMessage]
 }
 
-/** Computes the focused-date cursor for a view-month change. Preserves the
- * current day-of-month (clamping to the new month's length when needed),
- * then runs the candidate through min/max clamping and disabled-date skipping
- * so the cursor always lands on a real, navigable cell. */
 const moveFocusForViewChange = (
   model: Model,
   year: number,
   month: number,
   direction: 1 | -1,
-): CalendarDate => {
-  const currentDay = Option.match(model.maybeFocusedDate, {
-    onNone: () => 1,
-    onSome: focused => focused.day,
+): CalendarDate =>
+  DateGrid.moveFocusForViewMonth({
+    maybeFocusedDate: model.maybeFocusedDate,
+    year,
+    month,
+    direction,
+    constraints: constraintsOf(model),
   })
-  const dayInNewMonth = Math.min(currentDay, Calendar.daysInMonth(year, month))
-  const candidate = Calendar.make(year, month, dayInNewMonth)
-  const clamped = clampToRange(model, candidate)
-  return skipDisabled(model, clamped, direction, DAY_SKIP_CAP)
-}
 
 const applyViewMonthChange = (
   model: Model,
@@ -472,44 +422,14 @@ const applyViewMonthChange = (
   return [nextModel, [], Option.some(ChangedViewMonth({ year, month }))]
 }
 
-/** Direction the user moved when jumping to a new view year/month via grid
- * selection. Used by `skipDisabled` so a forward jump skips forward through
- * disabled dates and a backward jump skips backward. */
-const jumpDirection = (model: Model, year: number, month: number): 1 | -1 => {
-  const next = Calendar.make(year, month, 1)
-  const current = Calendar.make(model.viewYear, model.viewMonth, 1)
-  return Calendar.isAfter(next, current) ? 1 : -1
-}
+const jumpDirection = (model: Model, year: number, month: number): 1 | -1 =>
+  DateGrid.jumpDirection(model.viewYear, model.viewMonth, year, month)
 
-/** Maps a keyboard key to a months-grid focus shift (in months). Months
- * mode supports horizontal (±1), vertical (±row width), and PageUp/Down
- * (±12) navigation. */
 const resolveMonthsKey = (key: string): Option.Option<number> =>
-  M.value(key).pipe(
-    M.withReturnType<number>(),
-    M.when('ArrowLeft', () => -1),
-    M.when('ArrowRight', () => 1),
-    M.when('ArrowUp', () => -MONTHS_GRID_COLUMNS),
-    M.when('ArrowDown', () => MONTHS_GRID_COLUMNS),
-    M.when('PageUp', () => -MONTHS_IN_YEAR),
-    M.when('PageDown', () => MONTHS_IN_YEAR),
-    M.option,
-  )
+  DateGrid.resolveMonthShift(key)
 
-/** Maps a keyboard key to a years-grid focus shift (in years). Years mode
- * supports horizontal (±1), vertical (±row width), and PageUp/Down (±12 =
- * one window) navigation. */
 const resolveYearsKey = (key: string): Option.Option<number> =>
-  M.value(key).pipe(
-    M.withReturnType<number>(),
-    M.when('ArrowLeft', () => -1),
-    M.when('ArrowRight', () => 1),
-    M.when('ArrowUp', () => -YEARS_GRID_COLUMNS),
-    M.when('ArrowDown', () => YEARS_GRID_COLUMNS),
-    M.when('PageUp', () => -YEARS_PAGE_SIZE),
-    M.when('PageDown', () => YEARS_PAGE_SIZE),
-    M.option,
-  )
+  DateGrid.resolveYearShift(key)
 
 /** Applies a months-grid focus shift, updating `maybeFocusedDate` and
  * `viewYear` to reflect the new focused date. `viewMonth` is preserved.
@@ -688,7 +608,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       },
 
       PagedYears: ({ direction }) =>
-        applyYearsFocusShift(model, direction * YEARS_PAGE_SIZE),
+        applyYearsFocusShift(model, direction * DateGrid.YEARS_PAGE_SIZE),
 
       FocusedGrid: () => [
         evo(model, { isGridFocused: () => true }),
@@ -714,51 +634,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
 
 // VIEW
 
-const headingId = (modelId: string): string => `${modelId}-heading`
-const dayCellId = (modelId: string, date: CalendarDate): string =>
-  `${modelId}-cell-${date.year}-${date.month}-${date.day}`
-const monthCellId = (modelId: string, month: number): string =>
-  `${modelId}-cell-month-${month}`
-const yearCellId = (modelId: string, year: number): string =>
-  `${modelId}-cell-year-${year}`
+const headingId = CoreCalendar.headingId
+const dayCellId = CoreCalendar.dayCellId
+const monthCellId = CoreCalendar.monthCellId
+const yearCellId = CoreCalendar.yearCellId
 
-const DAY_NAMES_SUNDAY_FIRST: ReadonlyArray<Calendar.DayOfWeek> = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-]
-
-const DAY_OF_WEEK_INDEX: Readonly<Record<Calendar.DayOfWeek, number>> = {
-  Sunday: 0,
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-  Saturday: 6,
-}
-
-/** Rotates the Sunday-first day-name array so that `firstDayOfWeek` becomes
- * the first entry. Used to build column headers in locale-appropriate order. */
-const rotateDayNames = <A>(
-  names: ReadonlyArray<A>,
-  firstDayOfWeek: Calendar.DayOfWeek,
-): ReadonlyArray<A> => {
-  const [front, back] = Array.splitAt(names, DAY_OF_WEEK_INDEX[firstDayOfWeek])
-  return [...back, ...front]
-}
-
-const WEEKS_IN_GRID = 6
-const DAYS_IN_WEEK = 7
-
-/** Builds the 6×7 grid of dates that a calendar view renders for a given
- * month. The grid always has 6 rows to keep height stable across months.
- * Returns the 2D grid alongside the starting date (top-left cell) so
- * callers can derive per-week positions without recomputing. */
 const buildGrid = (
   viewYear: number,
   viewMonth: number,
@@ -767,14 +647,18 @@ const buildGrid = (
   gridStart: CalendarDate
   weeks: ReadonlyArray<ReadonlyArray<CalendarDate>>
 }> => {
-  const firstOfMonth = Calendar.make(viewYear, viewMonth, 1)
-  const gridStart = Calendar.startOfWeek(firstOfMonth, firstDayOfWeek)
-  const weeks = Array.makeBy(WEEKS_IN_GRID, weekIndex =>
-    Array.makeBy(DAYS_IN_WEEK, dayIndex =>
-      Calendar.addDays(gridStart, weekIndex * DAYS_IN_WEEK + dayIndex),
+  const generated = DateGrid.monthGrid({
+    year: viewYear,
+    month: viewMonth,
+    firstDayOfWeek,
+    fixedWeeks: true,
+  })
+  return {
+    gridStart: generated.gridStart,
+    weeks: Array.map(generated.weeks, week =>
+      Array.map(week.cells, cell => cell.date),
     ),
-  )
-  return { gridStart, weeks }
+  }
 }
 
 /** Information about a single day cell in the rendered calendar grid. */
@@ -898,49 +782,11 @@ export type ViewInputs = Readonly<{
   monthsHeadingButtonLabel?: string
 }>
 
-const NAV_KEYS: ReadonlySet<string> = new Set([
-  'ArrowLeft',
-  'ArrowRight',
-  'ArrowUp',
-  'ArrowDown',
-  'Home',
-  'End',
-  'PageUp',
-  'PageDown',
-  'Enter',
-  ' ',
-])
+const isMonthDisabled = (model: Model, year: number, month: number): boolean =>
+  DateGrid.isMonthDisabled(year, month, constraintsOf(model))
 
-const MONTHS_GRID_COLUMNS = 3
-const YEARS_GRID_COLUMNS = 3
-const MONTHS_IN_YEAR = 12
-
-/** Returns the start year of the 12-year window the years grid renders. */
-const yearsPageStart = (viewYear: number): number =>
-  Math.floor(viewYear / YEARS_PAGE_SIZE) * YEARS_PAGE_SIZE
-
-/** A month range is fully disabled when its last day is below the minimum
- * or its first day is above the maximum. */
-const isMonthDisabled = (
-  model: Model,
-  year: number,
-  month: number,
-): boolean => {
-  const monthStart = Calendar.make(year, month, 1)
-  const monthEnd = Calendar.make(year, month, Calendar.daysInMonth(year, month))
-  return (
-    Option.exists(model.maybeMinDate, min =>
-      Calendar.isBefore(monthEnd, min),
-    ) ||
-    Option.exists(model.maybeMaxDate, max => Calendar.isAfter(monthStart, max))
-  )
-}
-
-/** A year is fully disabled when it falls entirely below the minimum date's
- * year or entirely above the maximum date's year. */
 const isYearDisabled = (model: Model, year: number): boolean =>
-  Option.exists(model.maybeMinDate, min => year < min.year) ||
-  Option.exists(model.maybeMaxDate, max => year > max.year)
+  DateGrid.isYearDisabled(year, constraintsOf(model))
 
 const buildDaysAttributes = (
   model: Model,
@@ -967,11 +813,8 @@ const buildDaysAttributes = (
 
   const headingText = `${locale.monthNames[viewMonth - 1]} ${viewYear}`
 
-  const rotatedDayNames = rotateDayNames(
-    DAY_NAMES_SUNDAY_FIRST,
-    locale.firstDayOfWeek,
-  )
-  const rotatedShortDayNames = rotateDayNames(
+  const rotatedDayNames = DateGrid.weekdayOrder(locale.firstDayOfWeek)
+  const rotatedShortDayNames = DateGrid.rotateWeekItems(
     locale.shortDayNames,
     locale.firstDayOfWeek,
   )
@@ -1006,7 +849,7 @@ const buildDaysAttributes = (
     key: string,
     modifiers: { readonly shiftKey: boolean },
   ): Option.Option<ClickedDay | PressedKeyOnGrid> => {
-    if (!NAV_KEYS.has(key)) {
+    if (!DateGrid.isGridKey(key)) {
       return Option.none()
     }
     if (isCommitKey(key)) {
@@ -1032,8 +875,8 @@ const buildDaysAttributes = (
     h.Id(gridId(id)),
     h.Role('grid'),
     h.AriaLabel(`Calendar, ${headingText}`),
-    h.AriaRowcount(Number.increment(WEEKS_IN_GRID)),
-    h.AriaColcount(DAYS_IN_WEEK),
+    h.AriaRowcount(Number.increment(DateGrid.FIXED_WEEKS_IN_GRID)),
+    h.AriaColcount(DateGrid.DAYS_IN_WEEK),
     h.Tabindex(0),
     h.OnFocus(FocusedGrid()),
     h.OnBlur(BlurredGrid()),
@@ -1091,7 +934,10 @@ const buildDaysAttributes = (
   }
 
   const weeks: ReadonlyArray<Week> = weeksDates.map((weekDates, weekIndex) => {
-    const weekStart = Calendar.addDays(gridStart, weekIndex * DAYS_IN_WEEK)
+    const weekStart = Calendar.addDays(
+      gridStart,
+      weekIndex * DateGrid.DAYS_IN_WEEK,
+    )
     return {
       attributes: childAttributes([
         h.Role('row'),
@@ -1167,7 +1013,7 @@ const buildMonthsAttributes = (
     key: string,
     modifiers: { readonly shiftKey: boolean },
   ): Option.Option<SelectedMonth | PressedKeyOnGrid> => {
-    if (!NAV_KEYS.has(key)) {
+    if (!DateGrid.isGridKey(key)) {
       return Option.none()
     } else if (isCommitKey(key)) {
       return OptionExt.when(
@@ -1240,7 +1086,7 @@ const buildMonthsAttributes = (
     }
   }
 
-  const cells = Array.makeBy(MONTHS_IN_YEAR, monthIndex =>
+  const cells = Array.makeBy(DateGrid.MONTHS_IN_YEAR, monthIndex =>
     buildMonthCell(Number.increment(monthIndex)),
   )
 
@@ -1270,8 +1116,8 @@ const buildYearsAttributes = (
     onNone: () => viewYear,
     onSome: date => date.year,
   })
-  const pageStart = yearsPageStart(cursorYear)
-  const pageEnd = pageStart + YEARS_PAGE_SIZE - 1
+  const pageStart = DateGrid.yearsPageStart(cursorYear)
+  const pageEnd = pageStart + DateGrid.YEARS_PAGE_SIZE - 1
   const headingText = `${pageStart}–${pageEnd}`
 
   const rootAttributes = [h.Id(id)]
@@ -1294,7 +1140,7 @@ const buildYearsAttributes = (
     key: string,
     modifiers: { readonly shiftKey: boolean },
   ): Option.Option<SelectedYear | PressedKeyOnGrid> => {
-    if (!NAV_KEYS.has(key)) {
+    if (!DateGrid.isGridKey(key)) {
       return Option.none()
     } else if (isCommitKey(key)) {
       return OptionExt.when(
@@ -1365,7 +1211,7 @@ const buildYearsAttributes = (
     }
   }
 
-  const cells = Array.makeBy(YEARS_PAGE_SIZE, offset =>
+  const cells = Array.makeBy(DateGrid.YEARS_PAGE_SIZE, offset =>
     buildYearCell(pageStart + offset),
   )
 
