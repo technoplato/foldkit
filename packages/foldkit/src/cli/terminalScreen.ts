@@ -8,6 +8,7 @@ import {
 } from '../interaction/terminal.js'
 import {
   type TerminalFocus,
+  effectiveFocusOf,
   focusedTagOf,
   noTerminalFocus,
   terminalFrameOf,
@@ -463,8 +464,9 @@ const paintedFrame = <Model, Message>(
   size: TerminalSize,
   headerOf?: TerminalHeaderOf,
 ): TerminalPaint => {
-  const decorated = terminalFrameOf(frame, view.focus)
-  const maybeFocused = focusedTagOf(frame, view.focus)
+  const effectiveFocus = effectiveFocusOf(bound, view.focus)
+  const decorated = terminalFrameOf(frame, effectiveFocus)
+  const maybeFocused = focusedTagOf(frame, effectiveFocus)
   const keyboard = Option.getOrElse(
     Array.last(decorated.overlays),
     () => decorated.base,

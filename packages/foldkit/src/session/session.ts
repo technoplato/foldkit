@@ -9,7 +9,7 @@ import {
 } from 'effect'
 
 import { isActionMenu } from '../actionMenu/actionMenu.js'
-import { Synced } from '../behavior/pace.js'
+import { Settled, Synced } from '../behavior/pace.js'
 import * as Catalog from '../catalog/catalog.js'
 import type { AnyCatalog, CatalogOf } from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
@@ -17,6 +17,7 @@ import {
   type ProgramInteraction,
   fromCatalog,
 } from '../interaction/interaction.js'
+import { m } from '../message/public.js'
 import {
   type DestinationOf,
   composeNavigation,
@@ -125,9 +126,14 @@ export type SessionMode = typeof SessionMode.Type
  * SessionState.make({ mode: 'Mirror', generation: 0 })
  * ```
  */
+const focusSettleMs = 150
+
+const emptyFocus: Readonly<Record<string, string>> = {}
+
 export const SessionState = S.Struct({
   mode: SessionMode,
   generation: S.Int,
+  focusByScreen: S.optionalKey(S.Record(S.String, S.String)),
 })
 /** The session every Processor folds from the same log rows. */
 export type SessionState = typeof SessionState.Type
@@ -251,6 +257,19 @@ export const GoBack = Catalog.action('GoBack', {
   meta: { label: 'Back', keys: ['Escape'], title: 'Back' },
 })
 
+/**
+ * A person moved keyboard focus to a landed target on one screen, such as
+ * highlighting a book row on Library. Synced as a Navigation Message paced
+ * with `Settled({ afterMs: 150 })` so rapid arrow bursts collapse into one
+ * log row while staying instantaneous locally.
+ */
+export const Focused = m('Focused', {
+  screen: S.String,
+  target: S.String,
+})
+/** A person focused a target on one screen. */
+export type Focused = typeof Focused.Type
+
 /** Every session Message. */
 export const Message = S.Union([
   MirrorNavigation,
@@ -258,12 +277,15 @@ export const Message = S.Union([
   OpenSessionSettings,
   CloseSessionSettings,
   GoBack,
+  Focused,
 ])
 /** A session Message. */
 export type Message = typeof Message.Type
 
 /** True for the session Messages. */
 export const isMessage = S.is(Message)
+
+const isFocusedMessage = S.is(Focused)
 
 const ModeMessage = S.Union([MirrorNavigation, KeepNavigationLocal])
 type ModeMessage = typeof ModeMessage.Type
@@ -303,6 +325,9 @@ const changedSession = (
       KeepNavigationLocal: () => ({
         mode: 'SharedDomain',
         generation: session.generation + 1,
+        ...(session.focusByScreen === undefined
+          ? {}
+          : { focusByScreen: session.focusByScreen }),
       }),
     }),
   )
@@ -753,6 +778,24 @@ export const compose = <Child extends SessionChild>(config: {
       foldMessage(navigation, current, back),
     )
 
+  const focusedScreen = (
+    model: AppModel,
+    screen: string,
+    target: string,
+  ): AppModel =>
+    model.session.focusByScreen?.[screen] === target
+      ? model
+      : {
+          ...model,
+          session: {
+            ...model.session,
+            focusByScreen: {
+              ...(model.session.focusByScreen ?? {}),
+              [screen]: target,
+            },
+          },
+        }
+
   const updateSession = (model: AppModel, message: Message): AppModel => {
     if (message._tag === 'GoBack') {
       return wentBack(model)
@@ -762,8 +805,10 @@ export const compose = <Child extends SessionChild>(config: {
       return withMode(model, message)
     } else if (message._tag === 'OpenSessionSettings') {
       return openedSettings(model)
-    } else {
+    } else if (message._tag === 'CloseSessionSettings') {
       return closedSettings(model)
+    } else {
+      return focusedScreen(model, message.screen, message.target)
     }
   }
 
@@ -867,6 +912,11 @@ export const compose = <Child extends SessionChild>(config: {
       asAppMessages(childInteraction.typeInMenu(childOf(model), query)),
     chooseFromMenu: (model, tag) =>
       asAppMessages(childInteraction.chooseFromMenu(childOf(model), tag)),
+    focus: model => model.session.focusByScreen ?? emptyFocus,
+    focusTarget: (model, screen, target) =>
+      model.session.focusByScreen?.[screen] === target
+        ? []
+        : [composedAs<AppMessage>(Focused({ screen, target }))],
   }
 
   const childSynchronization = child.synchronization
@@ -997,10 +1047,22 @@ export const compose = <Child extends SessionChild>(config: {
                 refolded,
                 childKeepOnRefold(childOf(current), childOf(refolded)),
               )
+        const withKeptFocus =
+          refolded.session.mode === 'SharedDomain' &&
+          nextModel.session.focusByScreen === undefined &&
+          current.session.focusByScreen !== undefined
+            ? {
+                ...nextModel,
+                session: {
+                  ...nextModel.session,
+                  focusByScreen: current.session.focusByScreen,
+                },
+              }
+            : nextModel
         return refolded.session.mode === 'SharedDomain' &&
           isAtRootStack(refolded.navigation)
-          ? allowed({ ...nextModel, navigation: current.navigation })
-          : nextModel
+          ? allowed({ ...withKeptFocus, navigation: current.navigation })
+          : withKeptFocus
       },
       ...(childProjectLocal === undefined
         ? {}
@@ -1014,12 +1076,19 @@ export const compose = <Child extends SessionChild>(config: {
             isLocalOnly: (message: AppMessage): boolean =>
               isChildMessage(message) && childIsLocalOnly(message),
           }),
-      ...(childPaceOf === undefined
-        ? {}
-        : {
-            paceOf: (message: AppMessage): MessagePace =>
-              isChildMessage(message) ? childPaceOf(message) : Synced(),
-          }),
+      paceOf: (message: AppMessage): MessagePace => {
+        if (isFocusedMessage(message)) {
+          const focused = composedAs<Focused>(message)
+          return {
+            part: 'SessionFocus',
+            key: `SessionFocus.${focused.screen}`,
+            sync: Settled({ afterMs: focusSettleMs }),
+          }
+        }
+        return isChildMessage(message) && childPaceOf !== undefined
+          ? childPaceOf(message)
+          : Synced()
+      },
       ...(liftedFoldSynced === undefined
         ? {}
         : { foldSynced: liftedFoldSynced }),

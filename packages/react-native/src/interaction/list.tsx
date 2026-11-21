@@ -176,16 +176,25 @@ export const paintRow = (
   const { colors, sizes } = paint.look
   const action = item.action
   const href = item.href
+  const isFocused =
+    item.focused === true ||
+    (paint.maybeFocusedAction !== undefined &&
+      (action === paint.maybeFocusedAction ||
+        href === paint.maybeFocusedAction))
   const host = hostPropsOf(Slot.ofItem(item), paint, item.title)
   return (
     <View
       key={item.key}
       style={{
         alignItems: 'center',
+        backgroundColor: isFocused ? colors.Surface : undefined,
         borderBottomColor: colors.Rule,
         borderBottomWidth: 1,
+        borderLeftColor: isFocused ? colors.SelectedMark : 'transparent',
+        borderLeftWidth: isFocused ? bodyGap : 0,
         flexDirection: 'row',
         gap: rowGap,
+        paddingLeft: isFocused ? rowGap : 0,
         paddingVertical: rowPaddingY,
       }}
     >
@@ -196,7 +205,7 @@ export const paintRow = (
         accessibilityLabel={item.title}
         accessibilityRole={href === undefined ? 'button' : 'link'}
         accessibilityState={{
-          selected: item.isCurrent === true,
+          selected: item.isCurrent === true || isFocused,
           ...host.accessibilityState,
         }}
         disabled={

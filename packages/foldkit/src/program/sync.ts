@@ -508,9 +508,13 @@ export const sync = <Child extends SyncChild>(config: {
     },
   )
 
+  const emptyFocus: Readonly<Record<string, string>> = {}
+
   const liftInteraction = (
     inner: ProgramInteraction<ChildModel, ChildMessage>,
   ): ProgramInteraction<Model, Message> => {
+    const innerFocus = inner.focus
+    const innerFocusTarget = inner.focusTarget
     const whenReady = <A>(
       model: Model,
       onReady: (childModel: ChildModel) => A,
@@ -582,6 +586,22 @@ export const sync = <Child extends SyncChild>(config: {
           childModel => asMessages(inner.chooseFromMenu(childModel, tag)),
           [],
         ),
+      ...(innerFocus === undefined
+        ? {}
+        : {
+            focus: model => whenReady(model, innerFocus, emptyFocus),
+          }),
+      ...(innerFocusTarget === undefined
+        ? {}
+        : {
+            focusTarget: (model, screen, target) =>
+              whenReady(
+                model,
+                childModel =>
+                  asMessages(innerFocusTarget(childModel, screen, target)),
+                [],
+              ),
+          }),
     }
   }
 

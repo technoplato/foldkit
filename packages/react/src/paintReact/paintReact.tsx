@@ -1106,9 +1106,11 @@ const TranscriptView = ({
  */
 const ListRow = ({
   item,
+  isFocused,
   children,
 }: Readonly<{
   item: ListItem
+  isFocused: boolean
   children: ReactNode
 }>): ReactElement => {
   const ref = useRef<HTMLLIElement>(null)
@@ -1120,9 +1122,11 @@ const ListRow = ({
       ref.current?.scrollIntoView({
         block: hasPainted.current ? 'nearest' : 'center',
       })
+    } else if (isFocused) {
+      ref.current?.scrollIntoView({ block: 'nearest' })
     }
     hasPainted.current = true
-  }, [isCurrent])
+  }, [isCurrent, isFocused])
   return (
     <li
       ref={ref}
@@ -1133,6 +1137,7 @@ const ListRow = ({
         onSome: binding => ({ 'data-menu': true, ...slotPropsOf(binding) }),
       })}
       data-current={isCurrent ? true : undefined}
+      data-focused={isFocused ? true : undefined}
       draggable={isDraggable ? true : undefined}
       onDragStart={
         isDraggable
@@ -1212,18 +1217,20 @@ const ItemPress = ({
 const ListRowView = memo(
   ({
     item,
+    isFocused,
     onPress,
     onLink,
     paintChildren,
   }: Readonly<{
     item: ListItem
+    isFocused: boolean
     onPress: (button: ButtonNode) => void
     onLink: ((href: string) => boolean) | undefined
     paintChildren: (
       children: ReadonlyArray<UiNode>,
     ) => ReadonlyArray<ReactElement>
   }>): ReactElement => (
-    <ListRow item={item}>
+    <ListRow item={item} isFocused={isFocused}>
       {item.check === undefined ? null : (
         <CheckButton check={item.check} onPress={onPress} />
       )}
@@ -1439,6 +1446,7 @@ export type PaintHandlers = Readonly<{
   onInput?: (token: string, value: string) => void
   onLink?: (href: string) => boolean
   classNames?: PaintClassNames
+  focusedAction?: string
 }>
 
 /**
@@ -1568,6 +1576,12 @@ export const paintTree = (
           <ListRowView
             key={item.key}
             item={item}
+            isFocused={
+              item.focused === true ||
+              (handlers.focusedAction !== undefined &&
+                (item.action === handlers.focusedAction ||
+                  item.href === handlers.focusedAction))
+            }
             onPress={handlers.onPress}
             onLink={handlers.onLink}
             paintChildren={paintChildren}
@@ -1714,6 +1728,13 @@ export const paintTree = (
               data-variant={button.variant}
               data-icon-only={button.isIconOnly === true ? true : undefined}
               data-current={button.isCurrent === true ? true : undefined}
+              data-focused={
+                button.focused === true ||
+                (handlers.focusedAction !== undefined &&
+                  button.action === handlers.focusedAction)
+                  ? true
+                  : undefined
+              }
               aria-current={button.isCurrent === true ? 'page' : undefined}
               aria-label={button.isIconOnly === true ? button.label : undefined}
               data-keys={button.keys?.join(' ')}

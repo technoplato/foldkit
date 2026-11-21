@@ -49,6 +49,8 @@ export {
   terminalMenuLines,
   pressTerminalKey,
   pressTerminalKeyAt,
+  pressDocumentFocusKey,
+  effectiveFocusOf,
   focusMoveOf,
   focusedTagOf,
   noTerminalFocus,

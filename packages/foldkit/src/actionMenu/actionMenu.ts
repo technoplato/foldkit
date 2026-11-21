@@ -1383,6 +1383,8 @@ export const compose = <Child extends ActionMenuChild>(config: {
       ),
     )
 
+  const childFocus = childInteraction.focus
+  const childFocusTarget = childInteraction.focusTarget
   const interaction: ProgramInteraction<AppModel, AppMessage> = {
     menuTitle: Option.some(menuTitle),
     menuKeys,
@@ -1397,6 +1399,21 @@ export const compose = <Child extends ActionMenuChild>(config: {
     typeInMenu: (model, query) =>
       isOpen(model) ? [ChangedActionMenuQuery({ query })] : [],
     chooseFromMenu: choose,
+    ...(childFocus === undefined
+      ? {}
+      : {
+          focus: model => childFocus(childOf(model)),
+        }),
+    ...(childFocusTarget === undefined
+      ? {}
+      : {
+          focusTarget: (model, screen, target) =>
+            childFocusTarget(
+              childOf(model),
+              screen,
+              target,
+            ) as ReadonlyArray<AppMessage>,
+        }),
   }
 
   const childSynchronization = child.synchronization

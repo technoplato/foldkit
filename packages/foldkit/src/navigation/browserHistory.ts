@@ -1,4 +1,4 @@
-import { Array, Match as M, Option, Schema as S } from 'effect'
+import { Array, Match as M, Option, Predicate, Schema as S } from 'effect'
 
 import { ts } from '../schema/index.js'
 import {
@@ -34,6 +34,9 @@ export type BrowserWindow = Readonly<{
   addEventListener: (type: WindowEvent, listener: () => void) => void
   removeEventListener: (type: WindowEvent, listener: () => void) => void
   dispatchEvent: (event: Event) => boolean
+  performance?: Readonly<{
+    getEntriesByType?: (type: string) => ReadonlyArray<unknown>
+  }>
 }>
 
 /**
@@ -70,6 +73,38 @@ export const followHostLink = (
  */
 export const windowUri = (window: BrowserWindow): string =>
   `${window.location.pathname}${window.location.search}`
+
+const isReloadOrRestore = (window: BrowserWindow): boolean => {
+  const getEntries = window.performance?.getEntriesByType
+  if (typeof getEntries !== 'function') {
+    return false
+  }
+  return Option.exists(
+    Array.head(getEntries.call(window.performance, 'navigation')),
+    entry => {
+      if (!Predicate.isObject(entry) || !Predicate.hasProperty(entry, 'type')) {
+        return false
+      }
+      const navigationType = entry.type
+      return navigationType === 'reload' || navigationType === 'back_forward'
+    },
+  )
+}
+
+/**
+ * The URI a browser load asks the Program to open on mount, or None when the
+ * tab was reloaded or restored from back/forward cache. Reloading a stale tab
+ * must reconcile to the synced or restored Program stack rather than firing an
+ * unpressed `OpenedUri` that pulls mirrored devices back to an older URL.
+ *
+ * @example
+ * ```typescript
+ * launchUriOf(window) // Some('/books/a-new-earth') on a fresh link open
+ * launchUriOf(reloadedWindow) // None on Cmd+R or bfcache reload
+ * ```
+ */
+export const launchUriOf = (window: BrowserWindow): Option.Option<string> =>
+  isReloadOrRestore(window) ? Option.none() : Option.some(windowUri(window))
 
 // STATE
 

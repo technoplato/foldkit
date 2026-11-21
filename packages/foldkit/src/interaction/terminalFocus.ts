@@ -8,7 +8,7 @@ import {
 } from '../catalog/catalog.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
-import { Link } from '../navigation/message.js'
+import { Link, type UriVia } from '../navigation/message.js'
 import { isModalStyle } from '../navigation/structure.js'
 import { Button, Column, Row, Text } from '../renderers/elements.js'
 import { resolveLazyNode } from '../renderers/lazy.js'
@@ -21,7 +21,12 @@ import type {
   UiNode,
 } from '../renderers/types.js'
 import type { BoundInteraction } from './bind.js'
-import { type KeyInput, isChord, normalizeKey } from './interaction.js'
+import {
+  type KeyInput,
+  isChord,
+  keyedEntryOf,
+  normalizeKey,
+} from './interaction.js'
 import { type TerminalKeyOutcome, pressTerminalKey } from './terminal.js'
 
 // MODEL
@@ -39,6 +44,32 @@ export type TerminalFocus = Readonly<Record<string, string>>
 
 /** No button highlighted yet. */
 export const noTerminalFocus: TerminalFocus = {}
+
+/**
+ * Merges synced focus from the bound Program over any view-local terminal
+ * focus so Programs wrapped in `Session.compose` use Model-owned synced focus
+ * while plain unwrapped Programs still keep local focus working.
+ */
+export const effectiveFocusOf = (
+  bound: Readonly<{ focus?: () => Readonly<Record<string, string>> }>,
+  localFocus: TerminalFocus = noTerminalFocus,
+): TerminalFocus => {
+  const syncedFocus = bound.focus?.()
+  if (syncedFocus === undefined || Record.isEmptyRecord(syncedFocus)) {
+    return localFocus
+  }
+  return Record.isEmptyRecord(localFocus)
+    ? syncedFocus
+    : { ...localFocus, ...syncedFocus }
+}
+
+const isEnabledActionKey = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  input: KeyInput,
+): boolean =>
+  Option.exists(keyedEntryOf(bound.entries(), input), entry =>
+    isEnabled(entry.availability),
+  )
 
 /**
  * How a key moves the highlight: Tab, Shift-Tab, and the arrows. Left and
@@ -350,11 +381,19 @@ export const pressTerminalKeyAt = <Model, Message>(
   input: KeyInput,
   focus: TerminalFocus,
 ): TerminalFocusOutcome => {
+  const effectiveFocus = effectiveFocusOf(bound, focus)
   const passedOn = (): TerminalFocusOutcome => ({
     outcome: pressTerminalKey(bound, input),
-    focus,
+    focus: effectiveFocus,
   })
   if (Option.isSome(bound.menu())) {
+    return passedOn()
+  }
+  const key = normalizeKey(input.key)
+  if (
+    (key === 'ArrowLeft' || key === 'ArrowRight') &&
+    isEnabledActionKey(bound, input)
+  ) {
     return passedOn()
   }
   return Option.match(frameOf(bound), {
@@ -362,18 +401,19 @@ export const pressTerminalKeyAt = <Model, Message>(
     onSome: frame => {
       const layer = keyboardLayerOf(frame)
       const grid = gridOfView(layer.view)
-      const maybeFocused = focusedTagOf(frame, focus)
+      const maybeFocused = focusedTagOf(frame, effectiveFocus)
       const maybeMoved = Option.flatMap(focusMoveOf(input), move =>
         movedTag(grid, maybeFocused, move),
       )
       if (Option.isSome(maybeMoved)) {
+        bound.focusTarget(layer.identity, maybeMoved.value)
         return {
           outcome: 'Handled',
-          focus: Record.set(focus, layer.identity, maybeMoved.value),
+          focus: Record.set(effectiveFocus, layer.identity, maybeMoved.value),
         }
       }
       const maybePressed = Option.flatMap(maybeFocused, focusedTag =>
-        normalizeKey(input.key) === 'Enter' && !isChord(input)
+        key === 'Enter' && !isChord(input)
           ? Option.some(focusedTag)
           : rowChoiceTagOf(bound.entries(), focusedTag, input),
       )
@@ -381,11 +421,120 @@ export const pressTerminalKeyAt = <Model, Message>(
         onNone: passedOn,
         onSome: tag =>
           (isLinkTag(tag) ? bound.openUri(tag, Link()) : bound.press(tag))
-            ? { outcome: 'Handled', focus }
+            ? { outcome: 'Handled', focus: effectiveFocus }
             : passedOn(),
       })
     },
   })
+}
+
+const isInteractiveDomElement = (target: EventTarget | null): boolean => {
+  if (target === null || typeof HTMLElement === 'undefined') {
+    return false
+  }
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+  if (
+    target.isContentEditable ||
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target instanceof HTMLButtonElement ||
+    target instanceof HTMLAnchorElement
+  ) {
+    return true
+  }
+  return (
+    target.closest('button, a, input, textarea, select, [role="button"]') !==
+    null
+  )
+}
+
+/**
+ * Handles ArrowUp / ArrowDown (and Enter when no native button/link holds DOM
+ * focus) on a browser document for synced screen focus. Leaves Tab, typing in
+ * fields, overlays that manage their own focus, and Catalog shortcuts alone.
+ */
+export const pressDocumentFocusKey = (
+  bound: Readonly<{
+    menu?: () => Option.Option<unknown>
+    navigation?: () => Option.Option<any>
+    viewAt?: (key: string) => Option.Option<EntryView>
+    focus?: () => Readonly<Record<string, string>>
+    focusTarget?: (screen: string, target: string) => boolean
+    press?: (tag: string) => boolean
+    openUri?: (uri: string, via: UriVia) => boolean
+  }>,
+  input: KeyInput,
+  eventTarget: EventTarget | null,
+): boolean => {
+  if (
+    bound.focusTarget === undefined ||
+    bound.focus === undefined ||
+    bound.navigation === undefined ||
+    bound.viewAt === undefined ||
+    isChord(input)
+  ) {
+    return false
+  }
+  if (bound.menu !== undefined && Option.isSome(bound.menu())) {
+    return false
+  }
+  if (
+    eventTarget !== null &&
+    typeof HTMLElement !== 'undefined' &&
+    eventTarget instanceof HTMLElement &&
+    (eventTarget.isContentEditable ||
+      eventTarget instanceof HTMLInputElement ||
+      eventTarget instanceof HTMLTextAreaElement ||
+      eventTarget instanceof HTMLSelectElement ||
+      eventTarget.closest('.fk-overlay') !== null)
+  ) {
+    return false
+  }
+  const key = normalizeKey(input.key)
+  if (key !== 'ArrowUp' && key !== 'ArrowDown' && key !== 'Enter') {
+    return false
+  }
+  return Option.match(
+    frameOf({
+      navigation: bound.navigation,
+      viewAt: bound.viewAt,
+    }),
+    {
+      onNone: () => false,
+      onSome: frame => {
+        if (Array.isReadonlyArrayNonEmpty(frame.overlays)) {
+          return false
+        }
+        const layer = frame.base
+        const grid = gridOfView(layer.view)
+        const syncedFocus = bound.focus!()
+        const maybeFocused = focusedTagOf(frame, syncedFocus)
+        if (key === 'ArrowUp' || key === 'ArrowDown') {
+          const move: FocusMove = key === 'ArrowDown' ? 'Down' : 'Up'
+          return Option.match(movedTag(grid, maybeFocused, move), {
+            onNone: () => false,
+            onSome: nextTarget => {
+              bound.focusTarget!(layer.identity, nextTarget)
+              return true
+            },
+          })
+        }
+        if (isInteractiveDomElement(eventTarget)) {
+          return false
+        }
+        return Option.match(maybeFocused, {
+          onNone: () => false,
+          onSome: tag =>
+            isLinkTag(tag)
+              ? (bound.openUri?.(tag, Link()) ?? false)
+              : (bound.press?.(tag) ?? false),
+        })
+      },
+    },
+  )
 }
 
 // PAINT

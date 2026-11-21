@@ -1,5 +1,7 @@
 import { Array, Option } from 'effect'
 
+import type { EntryView } from '../navigation/declaration.js'
+import type { UriVia } from '../navigation/message.js'
 import { clearEcho, listenForHints, showEcho } from './documentHints.js'
 import {
   type Echo,
@@ -11,6 +13,7 @@ import {
   shortcutOf,
   shortcutsOf,
 } from './interaction.js'
+import { pressDocumentFocusKey } from './terminalFocus.js'
 
 const typingKeys: ReadonlySet<string> = new Set(['Backspace', 'Delete'])
 
@@ -63,6 +66,13 @@ export const listenToDocumentKeys = (
   bound: Readonly<{
     pressKey: (input: KeyInput) => boolean
     echoOfKey?: (input: KeyInput) => Option.Option<Echo>
+    menu?: () => Option.Option<unknown>
+    navigation?: () => Option.Option<any>
+    viewAt?: (key: string) => Option.Option<EntryView>
+    focus?: () => Readonly<Record<string, string>>
+    focusTarget?: (screen: string, target: string) => boolean
+    press?: (tag: string) => boolean
+    openUri?: (uri: string, via: UriVia) => boolean
   }>,
   target: Document,
 ): (() => void) => {
@@ -83,7 +93,8 @@ export const listenToDocumentKeys = (
     }
     const maybeEcho =
       bound.echoOfKey === undefined ? Option.none() : bound.echoOfKey(input)
-    const isHandled = bound.pressKey(input)
+    const isHandled =
+      bound.pressKey(input) || pressDocumentFocusKey(bound, input, event.target)
     if (isHandled) {
       event.preventDefault()
     }

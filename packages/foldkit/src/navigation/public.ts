@@ -106,6 +106,7 @@ export {
   layersOf,
   runCarrier,
   windowUri,
+  launchUriOf,
   browserHistoryDriver,
   followHostLink,
   followLink,

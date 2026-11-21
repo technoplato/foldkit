@@ -12,7 +12,11 @@ import {
 import { Pressable, View } from 'react-native'
 
 import { ProgramProvider, useBound } from '@foldkit/react/interaction'
-import { useNavigationPlan, useViewAt } from '@foldkit/react/navigation'
+import {
+  useNavigationPlan,
+  useScreenFocus,
+  useViewAt,
+} from '@foldkit/react/navigation'
 
 import { ActionMenuSheet } from '../interaction/actionMenuModal.js'
 import { ScreenFrame } from '../interaction/frame.js'
@@ -107,6 +111,11 @@ const EntryBody = memo(function EntryBody({
     entryOfNavigatorKey(plan, entryKey),
   )
   const maybeEntryKey = Option.map(maybeEntry, entry => entry.key)
+  const layerIdentity = Option.getOrElse(
+    Option.map(maybeEntry, entry => entry.identity),
+    () => entryKey,
+  )
+  const focusedAction = useScreenFocus(layerIdentity)
   const partName = Option.getOrElse(
     Option.flatMap(maybeEntry, entry => tagOfDestination(entry.destination)),
     () => entryRouteName,
@@ -139,6 +148,7 @@ const EntryBody = memo(function EntryBody({
       ...(isUnderHeader && headerTitle !== ''
         ? { platformTitle: headerTitle }
         : {}),
+      ...(focusedAction === undefined ? {} : { focusedAction }),
       onPress: button => {
         if (button.action !== undefined) {
           bound.press(button.action)
@@ -146,7 +156,7 @@ const EntryBody = memo(function EntryBody({
       },
       onLink: openLinkOf(bound),
     }),
-    [bound, look, styles, isUnderHeader, headerTitle],
+    [bound, look, styles, isUnderHeader, headerTitle, focusedAction],
   )
   const painted = useMemo(
     () =>

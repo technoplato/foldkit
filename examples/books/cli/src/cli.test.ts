@@ -1322,6 +1322,11 @@ describe('the Books player daemon', () => {
     )
     expect(Array.map(pressed, ({ message }) => message)).toEqual([
       'ShowContents',
+      'Focused',
+      'Focused',
+      'Focused',
+      'Focused',
+      'Focused',
       'GoBack',
       'Pause',
     ])

@@ -604,6 +604,20 @@ ${themeStylesheet(defaultTheme)}
   outline-offset: -2px;
 }
 
+:where(.fk-item[data-focused]) {
+  background: ${roleVar('Surface')};
+}
+
+:where(.fk-item[data-focused] > .fk-item-press) {
+  outline: 2px solid ${roleVar('Focus')};
+  outline-offset: -2px;
+}
+
+:where(.fk-button[data-focused]) {
+  outline: 2px solid ${roleVar('Focus')};
+  outline-offset: 2px;
+}
+
 :where(.fk-item-press:disabled) {
   cursor: default;
 }

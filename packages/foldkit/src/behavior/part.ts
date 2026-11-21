@@ -888,11 +888,17 @@ export const compose = <Child extends PartChild>(config: {
       onNone: () => [],
       onSome: own => own.entries(model),
     })
+  const childFocus = childInteraction?.focus
+  const childFocusTarget = childInteraction?.focusTarget
   const interaction: ProgramInteraction<AppModel, AppMessage> | undefined =
     childInteraction === undefined
       ? Option.getOrUndefined(
           Option.map(maybePartInteraction, own => ({
-            ...own,
+            menuTitle: own.menuTitle,
+            menuKeys: own.menuKeys,
+            status: own.status,
+            entries: own.entries,
+            menu: own.menu,
             /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
             pressKey: own.pressKey as ProgramInteraction<
               AppModel,
@@ -952,6 +958,19 @@ export const compose = <Child extends PartChild>(config: {
               childOf(model),
               tag,
             ) as ReadonlyArray<AppMessage>,
+          ...(childFocus === undefined
+            ? {}
+            : { focus: model => childFocus(childOf(model)) }),
+          ...(childFocusTarget === undefined
+            ? {}
+            : {
+                focusTarget: (model, screen, target) =>
+                  childFocusTarget(
+                    childOf(model),
+                    screen,
+                    target,
+                  ) as ReadonlyArray<AppMessage>,
+              }),
           /* eslint-enable @typescript-eslint/consistent-type-assertions */
         }
 

@@ -228,7 +228,11 @@ export const askPlayer = async (
     // that named nothing, must leave no player running that this command
     // started: he asked for nothing that needs one.
     if (!wasRunning && result.exitCode === notUnderstoodExitCode) {
-      await runtime.ask(socketPath, { _tag: 'Do', token: 'stop' })
+      await runtime.ask(socketPath, {
+        _tag: 'Do',
+        token: 'stop',
+        flags: { quiet: '1' },
+      })
       runtime.say(stoppedAgainSentence)
     }
   } catch (cause) {

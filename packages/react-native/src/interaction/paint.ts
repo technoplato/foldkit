@@ -48,6 +48,7 @@ export type PaintHandlers = Readonly<{
   platformActions?: ReadonlyArray<string>
   platformTitle?: string
   isCentered?: boolean
+  focusedAction?: string
 }>
 
 /** Everything one paint of a tree reads, resolved from the handlers. */
@@ -60,6 +61,7 @@ export type Paint = Readonly<{
   platformActions: ReadonlyArray<string>
   maybePlatformTitle: string | undefined
   isCentered: boolean
+  maybeFocusedAction: string | undefined
 }>
 
 /** A press of an Action that is not a Button's own, such as a word's. */

@@ -116,6 +116,8 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
     dismissMenu: () => boolean
     typeInMenu: (query: string) => boolean
     chooseFromMenu: (tag: string) => boolean
+    focus: () => Readonly<Record<string, string>>
+    focusTarget: (screen: string, target: string) => boolean
     navigation: () => Option.Option<CarrierPlan<unknown>>
     viewAt: (key: string) => Option.Option<EntryView>
     canonicalUri: (uri: string) => Option.Option<string>
@@ -126,6 +128,8 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
   }>
 
 const fallbackAppLabel = 'Foldkit'
+
+const emptyFocus: Readonly<Record<string, string>> = {}
 
 /**
  * The parts of a Program a Client binds to. `id` lets typed hooks check
@@ -378,6 +382,22 @@ export const bind = <Model, Message>(
     chooseFromMenu: tag =>
       sendAll(
         whenInteractive((inner, model) => inner.chooseFromMenu(model, tag), []),
+      ),
+    focus: () =>
+      whenInteractive(
+        (inner, model) =>
+          inner.focus === undefined ? emptyFocus : inner.focus(model),
+        emptyFocus,
+      ),
+    focusTarget: (screen, target) =>
+      sendAll(
+        whenInteractive(
+          (inner, model) =>
+            inner.focusTarget === undefined
+              ? []
+              : inner.focusTarget(model, screen, target),
+          [],
+        ),
       ),
     navigation: plan,
     viewAt,

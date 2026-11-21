@@ -1191,9 +1191,12 @@ export const makeBooksPlayer = (
     )
     return answered(result, () => paintScreen(bound))
   }
-  const stop = (client: Processor.Host.Host) =>
+  const stop = (client: Processor.Host.Host, flags: CliDaemonFlags) =>
     Effect.gen(function* () {
-      const sentence = yield* pausedAndSaved(bound, writes, Option.some(client))
+      const sentence =
+        flags['quiet'] === '1'
+          ? ''
+          : yield* pausedAndSaved(bound, writes, Option.some(client))
       yield* Deferred.succeed(stopped, undefined)
       return { stdout: sentence, exitCode: 0 }
     })
@@ -1244,7 +1247,7 @@ export const makeBooksPlayer = (
             exitCode: 0,
           }))
         } else if (head === 'stop') {
-          return stop(client)
+          return stop(client, flags)
         } else if (head === 'screen') {
           return Effect.sync(() => ({
             stdout: paintScreen(bound),

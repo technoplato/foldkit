@@ -752,6 +752,12 @@ export type ProgramInteraction<Model, Message> = Readonly<{
   dismissMenu: (model: Model) => ReadonlyArray<Message>
   typeInMenu: (model: Model, query: string) => ReadonlyArray<Message>
   chooseFromMenu: (model: Model, tag: string) => ReadonlyArray<Message>
+  focus?: (model: Model) => Readonly<Record<string, string>>
+  focusTarget?: (
+    model: Model,
+    screen: string,
+    target: string,
+  ) => ReadonlyArray<Message>
 }>
 
 const isKeyOffered = (entry: Entry): boolean =>

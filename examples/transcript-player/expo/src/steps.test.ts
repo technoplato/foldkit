@@ -1,7 +1,13 @@
 import { Array } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { type PlayerStatus, isResumeOf, notHeardYet, stepOf } from './steps'
+import {
+  type PlayerStatus,
+  isDeviceResumeOf,
+  isResumeOf,
+  notHeardYet,
+  stepOf,
+} from './steps'
 
 const playingAt = (currentTimeMs: number): PlayerStatus => ({
   currentTimeMs,
@@ -129,5 +135,40 @@ describe('audio that stops to load more', () => {
       1_400,
     )
     expect(paused.isPausedByDevice).toBe(true)
+  })
+})
+
+describe('whether a device resumed playback intentionally', () => {
+  it('ignores in-flight playing status right after an app-requested pause', () => {
+    expect(
+      isDeviceResumeOf({
+        isSounding: false,
+        isSettling: false,
+        stoppedAtMs: 1_000,
+        nowMs: 1_200,
+        isPlaying: true,
+      }),
+    ).toBe(false)
+    expect(
+      isDeviceResumeOf({
+        isSounding: false,
+        isSettling: true,
+        stoppedAtMs: 1_000,
+        nowMs: 2_000,
+        isPlaying: true,
+      }),
+    ).toBe(false)
+  })
+
+  it('recognizes a real lock-screen or headphone play once settled', () => {
+    expect(
+      isDeviceResumeOf({
+        isSounding: false,
+        isSettling: false,
+        stoppedAtMs: 1_000,
+        nowMs: 1_600,
+        isPlaying: true,
+      }),
+    ).toBe(true)
   })
 })

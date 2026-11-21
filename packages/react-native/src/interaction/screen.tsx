@@ -537,6 +537,7 @@ export const paintTree = (
     platformActions: handlers.platformActions ?? [],
     maybePlatformTitle: handlers.platformTitle,
     isCentered: handlers.isCentered === true,
+    maybeFocusedAction: handlers.focusedAction,
   }))
   const paintOneWith = (paint: Paint): ((child: UiNode) => ReactElement) =>
     keptFor(

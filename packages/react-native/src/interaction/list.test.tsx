@@ -213,3 +213,28 @@ describe('the menu on a row', () => {
     expect(wordsOf(sheet)).toContain('Salt Road')
   })
 })
+
+describe('synced focus highlight on a row (Scribe #2592)', () => {
+  it('marks the matching row as selected with accent border when focusedAction matches', () => {
+    const paint = {
+      ...paintWith([], []),
+      maybeFocusedAction: 'Open:salt-road',
+    }
+    const painted = paintRows(shelf, shelf.items, paint, () => [])
+    const pressables = hostsOf(painted, 'Pressable')
+    const saltRow = firstOf(
+      pressables,
+      element => propsOf(element)['accessibilityLabel'] === 'Salt Road',
+    )
+    const cometRow = firstOf(
+      pressables,
+      element => propsOf(element)['accessibilityLabel'] === 'A Tin Comet',
+    )
+    expect(propsOf(saltRow)['accessibilityState']).toEqual(
+      expect.objectContaining({ selected: true }),
+    )
+    expect(propsOf(cometRow)['accessibilityState']).toEqual(
+      expect.objectContaining({ selected: false }),
+    )
+  })
+})

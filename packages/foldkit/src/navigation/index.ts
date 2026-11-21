@@ -145,6 +145,7 @@ export type {
 } from './carrier.js'
 export {
   windowUri,
+  launchUriOf,
   browserHistoryDriver,
   followHostLink,
   followLink,

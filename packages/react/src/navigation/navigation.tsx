@@ -91,6 +91,15 @@ export const useViewAt = (key: string): Option.Option<Navigation.EntryView> => {
   return useBoundRead(bound, () => bound.viewAt(key))
 }
 
+/**
+ * The synced focus target on one screen layer, by its identity, or undefined
+ * when nothing on that screen has synced focus.
+ */
+export const useScreenFocus = (identity: string): string | undefined => {
+  const bound = useBound()
+  return useBoundRead(bound, () => bound.focus()[identity])
+}
+
 const pressOf =
   (bound: AnyBound) =>
   (button: ButtonNode): void => {
@@ -148,14 +157,17 @@ const useFrameShape = (): Option.Option<FrameShape> => {
 
 const ScreenView = ({
   entryKey,
+  layerIdentity,
   classNames,
 }: Readonly<{
   entryKey: string
+  layerIdentity: string
   classNames: PaintClassNames
 }>): ReactElement | null => {
   const bound = useBound()
   const hostPages = useContext(HostPagesContext)
   const maybeView = useViewAt(entryKey)
+  const focusedAction = useScreenFocus(layerIdentity)
   return useMemo(
     () =>
       Option.match(maybeView, {
@@ -171,6 +183,7 @@ const ScreenView = ({
                     classNames,
                     onPress: pressOf(bound),
                     onLink: followLinkOf(bound, hostPages),
+                    ...(focusedAction === undefined ? {} : { focusedAction }),
                   })}
                 </>
               ),
@@ -178,7 +191,7 @@ const ScreenView = ({
             }),
           ),
       }),
-    [bound, hostPages, maybeView, classNames],
+    [bound, hostPages, maybeView, classNames, focusedAction],
   )
 }
 
@@ -340,7 +353,11 @@ const PresentedScreen = ({
         }
       }}
     >
-      <ScreenView entryKey={layer.key} classNames={classNames} />
+      <ScreenView
+        entryKey={layer.key}
+        layerIdentity={layer.identity}
+        classNames={classNames}
+      />
     </div>
   )
 }
@@ -355,7 +372,11 @@ const OverlayView = ({
   M.value(layer.kind).pipe(
     M.withReturnType<ReactElement>(),
     M.when('Menu', () => (
-      <ScreenView entryKey={layer.key} classNames={classNames} />
+      <ScreenView
+        entryKey={layer.key}
+        layerIdentity={layer.identity}
+        classNames={classNames}
+      />
     )),
     M.when('Screen', () => (
       <PresentedScreen layer={layer} classNames={classNames} />
@@ -420,6 +441,7 @@ export const NavigationFrame = ({
         <ScreenView
           key={frame.base.identity}
           entryKey={frame.base.key}
+          layerIdentity={frame.base.identity}
           classNames={resolvedClassNames}
         />
         {Array.map(frame.overlays, layer => (
@@ -475,7 +497,7 @@ export const useBrowserHistory = (
       bound,
       Navigation.browserHistoryDriver(pageWindow),
       {
-        launchUri: Option.some(Navigation.windowUri(pageWindow)),
+        launchUri: Navigation.launchUriOf(pageWindow),
         ...(isCarried === undefined ? {} : { isCarried }),
         ...(expectationTimeoutMs === undefined ? {} : { expectationTimeoutMs }),
         ...(reportTimeoutMs === undefined ? {} : { reportTimeoutMs }),

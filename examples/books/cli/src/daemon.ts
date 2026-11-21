@@ -44,7 +44,6 @@ import { NodeRuntime } from '@effect/platform-node'
 
 import {
   makeBooksPlayer,
-  pausedAndSaved,
   refusingSurface,
   trackLibraryWrites,
   whenIdleFor,
@@ -154,7 +153,6 @@ const serve = Effect.gen(function* () {
     ),
   )
   const bound = bindBooks(handle)
-  yield* Effect.addFinalizer(() => Effect.asVoid(pausedAndSaved(bound, writes)))
   yield* Effect.promise(() =>
     Interaction.whenSettled(bound, readyTimeoutMs).then(
       () => whenLibraryOpened(handle, readyTimeoutMs),

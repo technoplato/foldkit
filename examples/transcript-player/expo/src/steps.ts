@@ -113,6 +113,46 @@ export const stepOf = (
 
 const resumeToleranceMs = 1500
 
+const resumeSettleGraceMs = 500
+
+/**
+ * True when an `expo-audio` playback status flip to `playing: true` represents
+ * an intentional resume from outside the app (such as lock-screen Play or
+ * AirPods tap) rather than a late status event still settling from our own
+ * pause.
+ *
+ * @example
+ * ```typescript
+ * isDeviceResumeOf({
+ *   isSounding: false,
+ *   isSettling: false,
+ *   stoppedAtMs: 1_000,
+ *   nowMs: 1_100,
+ *   isPlaying: true,
+ * }) // false: still inside the 500 ms settle grace window
+ * ```
+ */
+export const isDeviceResumeOf = (
+  state: Readonly<{
+    isSounding: boolean
+    isSettling: boolean
+    stoppedAtMs: number | undefined
+    nowMs: number
+    isPlaying: boolean
+  }>,
+): boolean => {
+  if (state.isSounding || state.isSettling || !state.isPlaying) {
+    return false
+  }
+  if (
+    state.stoppedAtMs !== undefined &&
+    state.nowMs - state.stoppedAtMs < resumeSettleGraceMs
+  ) {
+    return false
+  }
+  return true
+}
+
 /**
  * True when a player already stands where it is asked to play from, as it
  * does when the lock screen resumed it: it is left to play on. Any other

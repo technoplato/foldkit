@@ -287,4 +287,35 @@ describe('useBrowserHistory', () => {
     )
     expect(screen.getByText('count 0')).toBeDefined()
   })
+
+  it('does not dispatch OpenedUri on browser reload or back_forward restore', async () => {
+    const originalGetEntriesByType = window.performance.getEntriesByType
+    for (const navigationType of ['reload', 'back_forward'] as const) {
+      window.performance.getEntriesByType = ((type: string) =>
+        type === 'navigation'
+          ? [{ type: navigationType }]
+          : []) as typeof window.performance.getEntriesByType
+      window.history.replaceState(null, '', '/counter/session')
+      const bound = bindRouted()
+      renderWith(bound, <BrowserPage />)
+      await settle()
+      expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
+        Option.some('/counter'),
+      )
+      expect(window.location.pathname).toBe('/counter')
+    }
+    window.performance.getEntriesByType = originalGetEntriesByType
+  })
+
+  it('paints data-focused on the synced focused target from Session.Focused', () => {
+    const bound = bindRouted()
+    const { container } = renderWith(bound)
+    act(() => {
+      bound.focusTarget('/counter', 'OpenSessionSettings')
+    })
+    const focused = container.querySelector(
+      'button[data-action="OpenSessionSettings"][data-focused="true"]',
+    )
+    expect(focused).not.toBeNull()
+  })
 })

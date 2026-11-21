@@ -18,6 +18,7 @@ import {
 import {
   type PlayerStatus,
   isAsLoudAs,
+  isDeviceResumeOf,
   isResumeOf,
   isSilentOn,
   loudnessOf,
@@ -77,6 +78,7 @@ type Held = {
   player: AudioPlayer
   isSounding: boolean
   isSettling: boolean
+  stoppedAtMs: number | undefined
 }
 
 const statusOf = (status: AudioStatus): PlayerStatus => ({
@@ -162,15 +164,27 @@ export const expoAudioOutput = (
       { updateInterval: statusEveryMs },
     )
     setLoudness(player)
-    const held: Held = { url, player, isSounding: false, isSettling: false }
+    const held: Held = {
+      url,
+      player,
+      isSounding: false,
+      isSettling: false,
+      stoppedAtMs: undefined,
+    }
     player.addListener('playbackStatusUpdate', status => {
       // NOTE: a pause this output asked for takes a moment to show in the
-      // player's status. Until it does, sounding is not a device's resume.
+      // player's status. Until it does (and past the short settle window),
+      // sounding is not a device's resume.
       if (!status.playing) {
         held.isSettling = false
       }
-      const isResumedByDevice =
-        !held.isSounding && !held.isSettling && status.playing
+      const isResumedByDevice = isDeviceResumeOf({
+        isSounding: held.isSounding,
+        isSettling: held.isSettling,
+        stoppedAtMs: held.stoppedAtMs,
+        nowMs: Date.now(),
+        isPlaying: status.playing,
+      })
       if (isResumedByDevice && options.onDevicePlay !== undefined) {
         options.onDevicePlay()
       }
@@ -253,6 +267,7 @@ export const expoAudioOutput = (
             state.isOver = true
             held.isSounding = false
             held.isSettling = held.player.playing
+            held.stoppedAtMs = Date.now()
             subscription.remove()
             held.player.pause()
           }),
