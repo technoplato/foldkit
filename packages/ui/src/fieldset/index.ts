@@ -1,6 +1,5 @@
-import type { Attribute } from 'foldkit/html'
-import { html } from 'foldkit/html'
-import type { Html } from 'foldkit/html'
+import { Fieldset as CoreFieldset } from 'foldkit/behavior'
+import { type Attribute, type Html, html } from 'foldkit/html'
 
 // VIEW
 
@@ -19,10 +18,11 @@ export type ViewConfig<ParentMessage> = Readonly<{
 }>
 
 /** Generates the legend element ID from the fieldset's base ID. */
-export const legendId = (id: string): string => `${id}-legend`
+export const legendId = (id: string): string => CoreFieldset.legendId(id)
 
 /** Generates the description element ID from the fieldset's base ID. */
-export const descriptionId = (id: string): string => `${id}-description`
+export const descriptionId = (id: string): string =>
+  CoreFieldset.descriptionId(id)
 
 /** Renders an accessible fieldset by building ARIA attribute groups and delegating layout to the consumer's `toView` callback. */
 export const view = <ParentMessage>(
@@ -30,7 +30,8 @@ export const view = <ParentMessage>(
 ): Html => {
   const h = html<ParentMessage>()
 
-  const { toView, id, isDisabled = false } = config
+  const { toView, id } = config
+  const isDisabled = CoreFieldset.isDisabledOf(config)
 
   const disabledAttributes = isDisabled
     ? [h.Disabled(true), h.DataAttribute('disabled', '')]

@@ -98,7 +98,7 @@
     },
     "packages/ui/src/fieldset/index.ts": {
       "counts": {
-        "domImports": 3,
+        "domImports": 1,
         "domUses": 6,
         "document": 0,
         "window": 0
