@@ -42,3 +42,6 @@ overrides:
   '@effect/platform-node': 4.0.0-beta.97
   '@effect/platform-node-shared': 4.0.0-beta.97
   '@effect/vitest': 4.0.0-beta.97
+
+patchedDependencies:
+  '@instantdb/core@1.0.65': patches/@instantdb__core@1.0.65.patch

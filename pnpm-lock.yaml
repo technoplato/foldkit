@@ -11,6 +11,9 @@ overrides:
   '@effect/platform-node-shared': 4.0.0-beta.97
   '@effect/vitest': 4.0.0-beta.97
 
+patchedDependencies:
+  '@instantdb/core@1.0.65': 0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1
+
 importers:
 
   .:
@@ -678,7 +681,7 @@ importers:
         version: 1.0.65
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
@@ -721,7 +724,7 @@ importers:
         version: link:../../../packages/react-native
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@instantdb/react-native':
         specifier: 1.0.65
         version: 1.0.65(@react-native-async-storage/async-storage@2.2.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(@react-native-community/netinfo@12.0.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native-get-random-values@1.11.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
@@ -937,7 +940,7 @@ importers:
         version: link:../../../packages/markdown
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
@@ -2369,7 +2372,7 @@ importers:
         version: link:../../../packages/react-native
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@instantdb/react-native':
         specifier: 1.0.65
         version: 1.0.65(@react-native-async-storage/async-storage@2.2.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(@react-native-community/netinfo@12.0.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native-get-random-values@1.11.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
@@ -2819,7 +2822,7 @@ importers:
         version: link:../../packages/ui
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@tailwindcss/vite':
         specifier: ^4.3.1
         version: 4.3.1(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -2967,7 +2970,7 @@ importers:
         version: link:../../../packages/instant
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@instantdb/react-native':
         specifier: 1.0.65
         version: 1.0.65(@react-native-async-storage/async-storage@2.2.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(@react-native-community/netinfo@12.0.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native-get-random-values@1.11.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
@@ -3101,7 +3104,7 @@ importers:
         version: 1.0.65
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       counter-core-example:
         specifier: workspace:*
         version: link:../../counter/core
@@ -3307,7 +3310,7 @@ importers:
         version: link:../../../packages/instant
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       counters-core-example:
         specifier: workspace:*
         version: link:../core
@@ -3341,7 +3344,7 @@ importers:
         version: link:../../../packages/instant
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       counters-core-example:
         specifier: workspace:*
         version: link:../core
@@ -3387,7 +3390,7 @@ importers:
         version: link:../../../packages/instant
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       counters-core-example:
         specifier: workspace:*
         version: link:../core
@@ -3482,7 +3485,7 @@ importers:
         version: link:../../../packages/instant
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       counter-core-example:
         specifier: workspace:*
         version: link:../../counter/core
@@ -3528,7 +3531,7 @@ importers:
         version: link:../../../packages/instant
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       counters-core-example:
         specifier: workspace:*
         version: link:../core
@@ -6450,7 +6453,7 @@ importers:
     dependencies:
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
@@ -6751,7 +6754,7 @@ importers:
         version: 1.0.65
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
@@ -6782,7 +6785,7 @@ importers:
         version: link:../../../packages/react
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@instantdb/react-native':
         specifier: 1.0.65
         version: 1.0.65(@react-native-async-storage/async-storage@2.2.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(@react-native-community/netinfo@12.0.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native-get-random-values@1.11.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
@@ -7323,7 +7326,7 @@ importers:
         version: link:../../../packages/instant
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
@@ -7489,7 +7492,7 @@ importers:
         version: link:../../../packages/instant
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
@@ -10847,7 +10850,7 @@ importers:
         version: 1.0.65
       '@instantdb/core':
         specifier: 1.0.65
-        version: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
@@ -21347,7 +21350,7 @@ snapshots:
 
   '@instantdb/admin@1.0.65':
     dependencies:
-      '@instantdb/core': 1.0.65
+      '@instantdb/core': 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@instantdb/eventsource': 4.1.0-2
       '@instantdb/version': 1.0.65
       '@instantdb/webhooks': 1.0.65
@@ -21360,7 +21363,7 @@ snapshots:
       mutative: 1.3.0
       uuid: 11.1.1
 
-  '@instantdb/core@1.0.65':
+  '@instantdb/core@1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)':
     dependencies:
       '@instantdb/version': 1.0.65
       mutative: 1.3.0
@@ -21378,7 +21381,7 @@ snapshots:
 
   '@instantdb/react-common@1.0.65(react@19.2.3)':
     dependencies:
-      '@instantdb/core': 1.0.65
+      '@instantdb/core': 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@instantdb/version': 1.0.65
       react: 19.2.3
 
@@ -21397,7 +21400,7 @@ snapshots:
 
   '@instantdb/react-native@1.0.65(@react-native-async-storage/async-storage@2.2.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(@react-native-community/netinfo@12.0.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3))(react-native-get-random-values@1.11.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@instantdb/core': 1.0.65
+      '@instantdb/core': 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       '@instantdb/react-common': 1.0.65(react@19.2.3)
       '@instantdb/version': 1.0.65
       '@react-native-community/netinfo': 12.0.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
@@ -21418,7 +21421,7 @@ snapshots:
 
   '@instantdb/webhooks@1.0.65':
     dependencies:
-      '@instantdb/core': 1.0.65
+      '@instantdb/core': 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
 
   '@internationalized/date@3.12.2':
     dependencies:
