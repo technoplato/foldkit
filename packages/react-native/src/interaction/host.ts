@@ -43,10 +43,15 @@ export type ContainerHostProps = Readonly<{
 const stateOf = (
   binding: Slot.SlotBinding,
 ): Pick<HostProps, 'accessibilityState'> => {
-  const selected = binding.isSelected ?? binding.isCurrent
+  const selected =
+    binding.isSelected ??
+    binding.isCurrent ??
+    (typeof binding.isPressed === 'boolean' ? binding.isPressed : undefined)
+  const checked =
+    binding.isChecked ?? (binding.isPressed === 'mixed' ? 'mixed' : undefined)
   const state = {
     ...(selected === undefined ? {} : { selected }),
-    ...(binding.isChecked === undefined ? {} : { checked: binding.isChecked }),
+    ...(checked === undefined ? {} : { checked }),
     ...(binding.isExpanded === undefined
       ? {}
       : { expanded: binding.isExpanded }),

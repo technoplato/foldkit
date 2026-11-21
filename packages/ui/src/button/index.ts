@@ -1,7 +1,6 @@
 import { Predicate } from 'effect'
-import type { Attribute } from 'foldkit/html'
-import { html } from 'foldkit/html'
-import type { Html } from 'foldkit/html'
+import { Toggle as CoreToggle } from 'foldkit/behavior'
+import { type Attribute, type Html, html } from 'foldkit/html'
 
 // VIEW
 
@@ -15,7 +14,7 @@ export type ViewConfig<ParentMessage> = Readonly<{
   toView: (attributes: ButtonAttributes<ParentMessage>) => Html
   onClick?: ParentMessage
   isDisabled?: boolean
-  type?: 'button' | 'submit' | 'reset'
+  type?: CoreToggle.ButtonType
   isAutofocus?: boolean
 }>
 
@@ -25,25 +24,23 @@ export const view = <ParentMessage>(
 ): Html => {
   const h = html<ParentMessage>()
 
-  const {
-    toView,
-    onClick,
-    isDisabled = false,
-    type = 'button',
-    isAutofocus = false,
-  } = config
+  const { toView, onClick, isAutofocus = false } = config
+  const isDisabled = CoreToggle.isDisabledOf(config)
+  const resolvedType = CoreToggle.buttonTypeOf(config)
 
   const disabledAttributes = isDisabled
     ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
     : []
 
   const clickAttributes =
-    Predicate.isNotUndefined(onClick) && !isDisabled ? [h.OnClick(onClick)] : []
+    Predicate.isNotUndefined(onClick) && CoreToggle.canClick({ isDisabled })
+      ? [h.OnClick(onClick)]
+      : []
 
   const autofocusAttributes = isAutofocus ? [h.Autofocus(true)] : []
 
   const buttonAttributes = [
-    h.Type(type),
+    h.Type(resolvedType),
     h.Tabindex(0),
     ...disabledAttributes,
     ...clickAttributes,

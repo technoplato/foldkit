@@ -38,6 +38,11 @@ export const CheckedState = S.Union([S.Boolean, S.Literal('mixed')])
 /** Whether a checkable control is checked, unchecked, or mixed. */
 export type CheckedState = typeof CheckedState.Type
 
+/** Whether a toggle button is pressed, unpressed, or mixed. */
+export const PressedState = S.Union([S.Boolean, S.Literal('mixed')])
+/** Whether a toggle button is pressed, unpressed, or mixed. */
+export type PressedState = typeof PressedState.Type
+
 /** Which axis a composite slot (such as a tablist or toolbar) lays out along. */
 export const SlotOrientation = S.Literals(['Horizontal', 'Vertical'])
 /** Which axis a composite slot lays out along. */
@@ -95,6 +100,7 @@ export const SlotBinding = S.Struct({
   isCurrent: S.optionalKey(S.Boolean),
   isSelected: S.optionalKey(S.Boolean),
   isChecked: S.optionalKey(CheckedState),
+  isPressed: S.optionalKey(PressedState),
   isExpanded: S.optionalKey(S.Boolean),
   isDisabled: S.optionalKey(S.Boolean),
   isReadOnly: S.optionalKey(S.Boolean),
@@ -127,6 +133,7 @@ export const SlotProps = S.Struct({
   isCurrent: S.optionalKey(S.Boolean),
   isSelected: S.optionalKey(S.Boolean),
   isChecked: S.optionalKey(CheckedState),
+  isPressed: S.optionalKey(PressedState),
   isExpanded: S.optionalKey(S.Boolean),
   isDisabled: S.optionalKey(S.Boolean),
   isReadOnly: S.optionalKey(S.Boolean),
@@ -344,6 +351,9 @@ export const ariaOf = (
   ...(binding.isChecked === undefined
     ? {}
     : { 'aria-checked': String(binding.isChecked) }),
+  ...(binding.isPressed === undefined
+    ? {}
+    : { 'aria-pressed': String(binding.isPressed) }),
   ...(binding.isExpanded === undefined
     ? {}
     : { 'aria-expanded': String(binding.isExpanded) }),

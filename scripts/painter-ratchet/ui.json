@@ -34,7 +34,7 @@
     },
     "packages/ui/src/button/index.ts": {
       "counts": {
-        "domImports": 3,
+        "domImports": 1,
         "domUses": 4,
         "document": 0,
         "window": 0

@@ -19,6 +19,7 @@ export * as RovingFocus from './rovingFocus.js'
 export * as Slot from './slot.js'
 export * as Switch from './switch.js'
 export * as Tabs from './tabs.js'
+export * as Toggle from './toggle.js'
 export * as TranscriptFollow from './transcriptFollow.js'
 export * as Typeahead from './typeahead.js'
 export type {
