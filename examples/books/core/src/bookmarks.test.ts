@@ -31,7 +31,7 @@ import {
   excerptAround,
   excerptLineOf,
 } from './bookmarks.js'
-import { BookmarkId, ChapterNumber, Milliseconds, TitleSlug } from './ids.js'
+import { BookmarkId, ChapterId, Milliseconds, TitleSlug } from './ids.js'
 import { LibraryWrite } from './library.js'
 import {
   MarkedMoment,
@@ -247,8 +247,8 @@ describe('bookmarkCountsOf', () => {
     )
     expect(bookmarkCountsOf(chapters, marked)).toEqual(
       new Map([
-        [ChapterNumber.make(2), 2],
-        [ChapterNumber.make(4), 1],
+        [ChapterId.make('the-lantern-keeper-chapter-2'), 2],
+        [ChapterId.make('the-lantern-keeper-chapter-4'), 1],
       ]),
     )
   })

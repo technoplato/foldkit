@@ -16,7 +16,7 @@ import {
   chapterReadingAt,
   contentsSummaryOf,
 } from './contents.js'
-import { ChapterNumber, Milliseconds, TitleSlug } from './ids.js'
+import { ChapterId, Milliseconds, TitleSlug } from './ids.js'
 import { OpenedPlace, ReceivedChapters, ReceivedShelf } from './message.js'
 import type { Chapter } from './model.js'
 import { sampleChapters, sampleShelf } from './sample.js'
@@ -25,21 +25,41 @@ import { addressCueOfModel } from './subscriptions.js'
 const minuteMs = 60_000
 
 const chapterOf = (
-  chapterNumber: number,
+  chapterId: string,
   name: string,
   startMs: number,
   endMs: number,
 ): Chapter => ({
-  chapterNumber: ChapterNumber.make(chapterNumber),
+  chapterId: ChapterId.make(chapterId),
   name,
   startMs: Milliseconds.make(startMs),
   endMs: Milliseconds.make(endMs),
 })
 
-const tide = chapterOf(1, 'The Tide', 0, 20 * minuteMs)
-const light = chapterOf(2, 'The Light', 20 * minuteMs, 40 * minuteMs)
-const storm = chapterOf(3, 'The Storm', 40 * minuteMs, 60 * minuteMs)
-const keeper = chapterOf(4, 'The Keeper', 60 * minuteMs, 80 * minuteMs)
+const tide = chapterOf(
+  'the-lantern-keeper-chapter-1',
+  'The Tide',
+  0,
+  20 * minuteMs,
+)
+const light = chapterOf(
+  'the-lantern-keeper-chapter-2',
+  'The Light',
+  20 * minuteMs,
+  40 * minuteMs,
+)
+const storm = chapterOf(
+  'the-lantern-keeper-chapter-3',
+  'The Storm',
+  40 * minuteMs,
+  60 * minuteMs,
+)
+const keeper = chapterOf(
+  'the-lantern-keeper-chapter-4',
+  'The Keeper',
+  60 * minuteMs,
+  80 * minuteMs,
+)
 
 const lanternChapters: Array.NonEmptyReadonlyArray<Chapter> = [
   tide,
@@ -69,7 +89,9 @@ describe('chapterColumnsOf', () => {
   it('reads a chapter as when it starts and how long it runs', () => {
     expect(chapterColumnsOf(light)).toEqual(['20:00', '20:00'])
     expect(
-      chapterColumnsOf(chapterOf(9, 'Late', 3_723_000, 3_723_000 + 95_000)),
+      chapterColumnsOf(
+        chapterOf('late-chapter', 'Late', 3_723_000, 3_723_000 + 95_000),
+      ),
     ).toEqual(['1:02:03', '1:35'])
   })
 })
@@ -184,12 +206,37 @@ describe('Contents', () => {
     )
     expect(chapters.columns).toEqual(['Starts', 'Length'])
     expect(
-      Array.map(chapters.items, item => [item.title, item.columns]),
+      Array.map(chapters.items, item => [
+        item.key,
+        item.title,
+        item.columns,
+        item.action,
+      ]),
     ).toEqual([
-      ['The Tide', ['0:00', '20:00']],
-      ['The Light', ['20:00', '20:00']],
-      ['The Storm', ['40:00', '20:00']],
-      ['The Keeper', ['1:00:00', '20:00']],
+      [
+        'the-lantern-keeper-chapter-1',
+        'The Tide',
+        ['0:00', '20:00'],
+        'JumpToChapter:the-lantern-keeper-chapter-1',
+      ],
+      [
+        'the-lantern-keeper-chapter-2',
+        'The Light',
+        ['20:00', '20:00'],
+        undefined,
+      ],
+      [
+        'the-lantern-keeper-chapter-3',
+        'The Storm',
+        ['40:00', '20:00'],
+        'JumpToChapter:the-lantern-keeper-chapter-3',
+      ],
+      [
+        'the-lantern-keeper-chapter-4',
+        'The Keeper',
+        ['1:00:00', '20:00'],
+        'JumpToChapter:the-lantern-keeper-chapter-4',
+      ],
     ])
   })
 
@@ -261,7 +308,7 @@ describe('Contents', () => {
   it('still plays a chapter from its row, and closes', () => {
     const { bound } = playingAt(28 * minuteMs)
     bound.press('ShowContents')
-    bound.press('JumpToChapter:3')
+    bound.press('JumpToChapter:the-lantern-keeper-chapter-3')
     expect(uriOf(bound)).toEqual(
       Option.some('/books/the-lantern-keeper/listen/40m00s'),
     )

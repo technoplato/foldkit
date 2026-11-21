@@ -1,8 +1,20 @@
-import { Effect, Schema as S, SchemaTransformation } from 'effect'
+import {
+  Effect,
+  Function,
+  Option,
+  Schema as S,
+  SchemaTransformation,
+} from 'effect'
 
-import { snapshotLogMessageWire } from '@foldkit/instant/snapshot-log'
+import {
+  InstantLogMessageRecord,
+  encodedOfTagColumn,
+  snapshotLogMessageWire,
+  tagColumnOf,
+} from '@foldkit/instant/snapshot-log'
 
 import { App } from './app.js'
+import { JumpToChapter } from './message.js'
 
 const [initialModel] = App.init()
 
@@ -36,8 +48,47 @@ export const BooksProjection = BooksRow.pipe(
   ),
 )
 
+const LegacyJumpToChapter = S.Struct({
+  _tag: S.Literal(JumpToChapter.tag),
+  chapterNumber: S.Int.check(S.isGreaterThanOrEqualTo(1)),
+})
+
+const normalizedLegacyRow = (
+  row: InstantLogMessageRecord,
+): InstantLogMessageRecord =>
+  Option.match(
+    Option.flatMap(encodedOfTagColumn(row.tag), candidate =>
+      'chapterId' in candidate
+        ? Option.none()
+        : S.decodeUnknownOption(LegacyJumpToChapter)(candidate),
+    ),
+    {
+      onNone: () => row,
+      onSome: ({ chapterNumber }) => ({
+        ...row,
+        tag: tagColumnOf({
+          _tag: JumpToChapter.tag,
+          chapterId: `legacy-chapter-${chapterNumber.toString()}`,
+        }),
+      }),
+    },
+  )
+
+const baseMessageWire = snapshotLogMessageWire(App.Message)
+
 /**
  * Door from a log row to an App Message: `Play:{"slug":"the-lantern-keeper"}`.
- * An unknown tag fails to decode instead of becoming a guess.
+ * Legacy `JumpToChapter:{"chapterNumber":N}` log rows written before chapters
+ * carried stable ids decode cleanly so historical sync logs still fold. An
+ * unknown tag or malformed payload still fails to decode instead of becoming
+ * a guess.
  */
-export const MessageWire = snapshotLogMessageWire(App.Message)
+export const MessageWire = InstantLogMessageRecord.pipe(
+  S.decodeTo(
+    baseMessageWire,
+    SchemaTransformation.transform({
+      decode: normalizedLegacyRow,
+      encode: Function.identity,
+    }),
+  ),
+)

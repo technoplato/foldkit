@@ -2,7 +2,7 @@ import { Array, Record as Record_ } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { App, type AppModel } from './app.js'
-import { ChapterNumber, Milliseconds, TitleSlug } from './ids.js'
+import { ChapterId, Milliseconds, TitleSlug } from './ids.js'
 import { Open, ReceivedChapters, ReceivedShelf } from './message.js'
 import { sampleChapters, sampleShelf } from './sample.js'
 import { contentsScreen } from './screen.js'
@@ -13,7 +13,9 @@ const chapterMs = 60_000
 
 const madeUpChapters = (count: number) =>
   Array.makeBy(count, index => ({
-    chapterNumber: ChapterNumber.make(index + 1),
+    chapterId: ChapterId.make(
+      `the-lantern-keeper-part-${(index + 1).toString()}`,
+    ),
     name: `Part ${(index + 1).toString()}`,
     startMs: Milliseconds.make(index * chapterMs),
     endMs: Milliseconds.make((index + 1) * chapterMs),

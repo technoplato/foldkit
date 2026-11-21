@@ -12,7 +12,7 @@ import * as ReadAloud from 'read-aloud-core-example'
 
 import {
   BookmarkId,
-  ChapterNumber,
+  ChapterId,
   MediaId,
   Milliseconds,
   TitleSlug,
@@ -48,11 +48,12 @@ export type ChaptersBySlug = Record_.ReadonlyRecord<
 >
 
 const chaptersOf = (
+  slug: string,
   names: Array.NonEmptyReadonlyArray<string>,
   minutesEach: number,
 ): Array.NonEmptyReadonlyArray<Chapter> =>
   Array.map(names, (name, index) => ({
-    chapterNumber: ChapterNumber.make(index + 1),
+    chapterId: ChapterId.make(`${slug}-chapter-${(index + 1).toString()}`),
     name,
     startMs: Milliseconds.make(index * minutesEach * minuteMs),
     endMs: Milliseconds.make((index + 1) * minutesEach * minuteMs),
@@ -120,7 +121,7 @@ export const sampleTitles: ReadonlyArray<Title> = Array.map(
 export const sampleChapters: ChaptersBySlug = Record_.fromEntries(
   Array.map(sampleBooks, book => [
     book.slug,
-    chaptersOf(book.chapterNames, book.minutesEach),
+    chaptersOf(book.slug, book.chapterNames, book.minutesEach),
   ]),
 )
 
@@ -187,7 +188,7 @@ export const longSampleShelf: Shelf = {
 export const longSampleChapters: ChaptersBySlug = Record_.fromEntries(
   Array.map(longBooks, book => [
     book.slug,
-    chaptersOf(book.chapterNames, book.minutesEach),
+    chaptersOf(book.slug, book.chapterNames, book.minutesEach),
   ]),
 )
 
@@ -293,7 +294,11 @@ export const makeTestLibraryStore = (
                   Stream.concat(
                     Stream.make(
                       Option.getOrElse(Record_.get(chapters, slug), () =>
-                        wholeBookChapters(title.name, title.durationMs),
+                        wholeBookChapters(
+                          title.slug,
+                          title.name,
+                          title.durationMs,
+                        ),
                       ),
                     ),
                     Stream.never,

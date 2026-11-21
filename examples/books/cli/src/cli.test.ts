@@ -1,6 +1,6 @@
 import {
   type BoundBooks,
-  ChapterNumber,
+  ChapterId,
   type ChaptersBySlug,
   InProgress,
   LibraryStore,
@@ -192,7 +192,7 @@ const longShelf: Shelf = {
 const longChapters: ChaptersBySlug = {
   ...sampleChapters,
   [longTitleSlug]: Array.map(Array.range(1, chapterCount), number => ({
-    chapterNumber: ChapterNumber.make(number),
+    chapterId: ChapterId.make(`${longTitleSlug}-chapter-${number.toString()}`),
     name: `Chapter ${number.toString()}`,
     startMs: Milliseconds.make((number - 1) * 5 * minuteMs),
     endMs: Milliseconds.make(number * 5 * minuteMs),
@@ -231,13 +231,13 @@ const resumedShelf: Shelf = {
 const resumedChapters: ChaptersBySlug = {
   [longTitleSlug]: [
     {
-      chapterNumber: ChapterNumber.make(1),
+      chapterId: ChapterId.make(`${longTitleSlug}-chapter-1`),
       name: 'Chapter 1: A made-up part',
       startMs: Milliseconds.make(0),
       endMs: Milliseconds.make(hourMs),
     },
     {
-      chapterNumber: ChapterNumber.make(2),
+      chapterId: ChapterId.make(`${longTitleSlug}-chapter-2`),
       name: 'Chapter 2: A long made-up part about waiting for the bus',
       startMs: Milliseconds.make(hourMs),
       endMs: Milliseconds.make(resumedDurationMs),

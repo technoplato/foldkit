@@ -199,12 +199,14 @@ describe('Books', () => {
     expect(uriOf(bound)).toEqual(
       Option.some('/books/the-lantern-keeper/contents'),
     )
-    bound.press('JumpToChapter:3')
+    bound.press('JumpToChapter:the-lantern-keeper-chapter-3')
     expect(placeOf(bound)).toBe(2_400_000)
     expect(uriOf(bound)).toEqual(
       Option.some('/books/the-lantern-keeper/listen/40m00s'),
     )
-    expect(Catalog.commandOf('JumpToChapter:3')).toBe('jump-to-chapter 3')
+    expect(
+      Catalog.commandOf('JumpToChapter:the-lantern-keeper-chapter-3'),
+    ).toBe('jump-to-chapter the-lantern-keeper-chapter-3')
   })
 
   it('opens an old player link at the listener’s place, ready to play', () => {
@@ -336,7 +338,7 @@ describe('Books', () => {
     bound.press(`Open:${lanternKeeper}`)
     expect(availabilityOf(bound, 'Listen')).toEqual(Option.some('Disabled'))
     bound.pressKey(Interaction.keyInput('p'))
-    bound.press('JumpToChapter:2')
+    bound.press('JumpToChapter:the-lantern-keeper-chapter-2')
     expect(bound.readModel().listening._tag).toBe('Idle')
     expect(uriOf(bound)).toEqual(Option.some('/books/the-lantern-keeper'))
     expect(written).toEqual([])

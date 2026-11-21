@@ -41,20 +41,14 @@ import {
   ReceivedUnendedPlays,
   SharedLink,
 } from './fact.js'
-import {
-  BookmarkId,
-  ChapterNumber,
-  ChapterNumberSegment,
-  TitleSlug,
-  clockOf,
-} from './ids.js'
+import { BookmarkId, ChapterId, TitleSlug, clockOf } from './ids.js'
 import {
   BookmarkNote,
   Model,
   type Title,
   bookmarkOf,
   bookmarksOf,
-  chapterNumberAt,
+  chapterIdAt,
   chaptersOf,
   loadedPlayerOf,
   loadedTitleOf,
@@ -158,12 +152,12 @@ const whichChapter = (
   availabilityOf: (
     model: Model,
     title: Title,
-    chapterNumber: ChapterNumber,
+    chapterId: ChapterId,
   ) => Catalog.Availability,
-): Catalog.Choose<Model, 'chapterNumber', ChapterNumber> => ({
-  field: 'chapterNumber',
+): Catalog.Choose<Model, 'chapterId', ChapterId> => ({
+  field: 'chapterId',
   prompt: 'Which chapter?',
-  token: ChapterNumberSegment,
+  token: ChapterId,
   choicesOf: model =>
     Option.match(
       Option.flatMap(titleOfModel(model), title =>
@@ -176,10 +170,10 @@ const whichChapter = (
         onNone: () => [],
         onSome: ({ title, chapters }) =>
           Array.map(chapters, chapter => ({
-            value: chapter.chapterNumber,
+            value: chapter.chapterId,
             title: chapter.name,
             detail: clockOf(chapter.startMs),
-            availability: availabilityOf(model, title, chapter.chapterNumber),
+            availability: availabilityOf(model, title, chapter.chapterId),
           })),
       },
     ),
@@ -455,8 +449,8 @@ export const ShowContents = Catalog.action('ShowContents', {
  * the contents.
  */
 export const JumpToChapter = Catalog.action('JumpToChapter', {
-  fields: { chapterNumber: ChapterNumber },
-  choose: whichChapter(shownTitle, (model, title, chapterNumber) => {
+  fields: { chapterId: ChapterId },
+  choose: whichChapter(shownTitle, (model, title, chapterId) => {
     if (Option.isNone(title.maybeAudioUrl)) {
       return Catalog.Disabled({ because: noAudio })
     } else if (
@@ -465,8 +459,8 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
         ({ title: loaded, loaded: player }) =>
           loaded.slug === title.slug &&
           Option.contains(
-            chapterNumberAt(model, loaded.slug, placeOf(player)),
-            chapterNumber,
+            chapterIdAt(model, loaded.slug, placeOf(player)),
+            chapterId,
           ),
       )
     ) {

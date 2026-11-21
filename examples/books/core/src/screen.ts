@@ -65,7 +65,7 @@ import {
 } from './find.js'
 import {
   type BookmarkId,
-  type ChapterNumber,
+  type ChapterId,
   Milliseconds,
   type TitleSlug,
   clockOf,
@@ -359,10 +359,10 @@ const panelTabsOf = (model: Model, title: Title, current: PanelTab): UiNode => {
 }
 
 const badgeOf = (
-  counts: ReadonlyMap<ChapterNumber, number>,
+  counts: ReadonlyMap<ChapterId, number>,
   chapter: Chapter,
 ): Pick<ListItem, 'badge'> =>
-  Option.match(Option.fromNullishOr(counts.get(chapter.chapterNumber)), {
+  Option.match(Option.fromNullishOr(counts.get(chapter.chapterId)), {
     onNone: () => ({}),
     onSome: count => ({
       badge: { text: count.toString(), label: bookmarkCountWords(count) },
@@ -394,9 +394,9 @@ const contentsOf = (model: Model, title: Title): ReadonlyArray<UiNode> =>
           ChaptersReady: ({ chapters }) => {
             const entries = entriesOf(model)
             const maybePlace = markedPlaceOf(model, title)
-            const maybeMarkedNumber = Option.map(
+            const maybeMarkedId = Option.map(
               maybePlace,
-              place => chapterAt(chapters, place).chapterNumber,
+              place => chapterAt(chapters, place).chapterId,
             )
             const counts = bookmarkCountsOf(
               chapters,
@@ -413,10 +413,7 @@ const contentsOf = (model: Model, title: Title): ReadonlyArray<UiNode> =>
                     entries,
                     Option.map(
                       Option.filter(maybePlace, () =>
-                        Option.contains(
-                          maybeMarkedNumber,
-                          chapter.chapterNumber,
-                        ),
+                        Option.contains(maybeMarkedId, chapter.chapterId),
                       ),
                       place => chapterReadingAt(chapter, place),
                     ),
@@ -1723,7 +1720,7 @@ const chapterItemOf = (
   maybeReading: Option.Option<ChapterReading>,
   chapter: Chapter,
 ): ListItem => {
-  const token = chapter.chapterNumber.toString()
+  const token = chapter.chapterId
   return {
     key: token,
     title: chapter.name,

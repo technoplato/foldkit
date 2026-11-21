@@ -21,20 +21,12 @@ export const TitleSlug = S.String.check(
 /** A title's name tag. */
 export type TitleSlug = typeof TitleSlug.Type
 
-/**
- * A chapter's place in its title, `3` for Chapter 3. Branded, so a count
- * or a millisecond can never stand in for a chapter.
- */
-export const ChapterNumber = S.Int.check(S.isGreaterThanOrEqualTo(1)).pipe(
-  S.brand('ChapterNumber'),
+/** A chapter's id, as the library store names it. */
+export const ChapterId = S.String.check(S.isMinLength(1)).pipe(
+  S.brand('ChapterId'),
 )
-/** A chapter's place in its title. */
-export type ChapterNumber = typeof ChapterNumber.Type
-
-/** A chapter number as one URI segment or CLI word, `3` in `/chapters/3`. */
-export const ChapterNumberSegment = S.FiniteFromString.pipe(
-  S.decodeTo(ChapterNumber),
-)
+/** A chapter's id. */
+export type ChapterId = typeof ChapterId.Type
 
 /** A bookmark's id, as the library store names it. */
 export const BookmarkId = S.String.check(S.isMinLength(1)).pipe(

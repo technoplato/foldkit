@@ -46,7 +46,7 @@ import {
 } from './destination.js'
 import {
   type BookmarkId,
-  type ChapterNumber,
+  type ChapterId,
   Milliseconds,
   type Speed,
   type TitleSlug,
@@ -579,14 +579,11 @@ const listened = (
     },
   )
 
-const jumpedToChapter = (
-  model: Model,
-  chapterNumber: ChapterNumber,
-): UpdateReturn =>
+const jumpedToChapter = (model: Model, chapterId: ChapterId): UpdateReturn =>
   Option.match(
     Option.flatMap(shownTitleOf(model), slug =>
       Option.flatMap(chaptersOf(model, slug), chapters =>
-        Option.map(chapterOf(chapters, chapterNumber), chapter => ({
+        Option.map(chapterOf(chapters, chapterId), chapter => ({
           slug,
           chapter,
         })),
@@ -1079,8 +1076,7 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       OpenBookmark: ({ bookmarkId }) => [openedBookmark(model, bookmarkId), []],
       SetBookmarkNote: ({ note }) => notedBookmark(model, Option.some(note)),
       ClearBookmarkNote: () => notedBookmark(model, Option.none()),
-      JumpToChapter: ({ chapterNumber }) =>
-        jumpedToChapter(model, chapterNumber),
+      JumpToChapter: ({ chapterId }) => jumpedToChapter(model, chapterId),
       ShowSpeeds: () => [presentedSheet(model, SpeedSheet()), []],
       SetSpeed: ({ speed }) => spedTo(model, speed),
       SharePlace: () => sharedPlace(model),

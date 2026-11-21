@@ -22,7 +22,7 @@ import { id } from '@instantdb/core'
 
 import {
   BookmarkId,
-  ChapterNumber,
+  ChapterId,
   MediaId,
   Milliseconds,
   TitleSlug,
@@ -57,6 +57,7 @@ const linkedOf = <A>(
 const NameRow = S.Struct({ name: S.String })
 const BlobRow = S.Struct({ url: S.String })
 const ChapterRow = S.Struct({
+  id: ChapterId,
   index: S.Number,
   title: S.String,
   startMs: S.Number,
@@ -318,12 +319,12 @@ const firstUrlOf = (
 
 /**
  * One title's chapters as one chapters query gives them: in index order,
- * numbered from one, or the whole book as one section when the title has
- * none. A row that does not decode is left out.
+ * keyed by their Instant row id, or the whole book as one section when the
+ * title has none. A row that does not decode is left out.
  *
  * @example
  * ```typescript
- * decodeChapters(data, title) // [{ chapterNumber: 1, name: 'The Tide', startMs: 0, endMs: 1_200_000 }, …]
+ * decodeChapters(data, title) // [{ chapterId: '...', name: 'The Tide', startMs: 0, endMs: 1_200_000 }, …]
  * ```
  */
 export const decodeChapters = (
@@ -342,15 +343,15 @@ export const decodeChapters = (
         (chapter: typeof ChapterRow.Type) => chapter.index,
       ),
     ),
-    Array.map((chapter, position) => ({
-      chapterNumber: ChapterNumber.make(position + 1),
+    Array.map(chapter => ({
+      chapterId: chapter.id,
       name: chapter.title,
       startMs: Milliseconds.make(Math.max(0, Math.round(chapter.startMs))),
       endMs: Milliseconds.make(Math.max(0, Math.round(chapter.endMs))),
     })),
   )
   return Array.match(chapters, {
-    onEmpty: () => wholeBookChapters(title.name, title.durationMs),
+    onEmpty: () => wholeBookChapters(title.slug, title.name, title.durationMs),
     onNonEmpty: Function.identity,
   })
 }

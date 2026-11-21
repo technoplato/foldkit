@@ -20,7 +20,7 @@ import { AudibleModel } from './audible/model.js'
 import { Destination } from './destination.js'
 import {
   BookmarkId,
-  ChapterNumber,
+  ChapterId,
   MediaId,
   Milliseconds,
   Speed,
@@ -32,9 +32,9 @@ import { StretchEvent, StretchState } from './stretch.js'
 
 const bookmarkNoteLimit = 500
 
-/** One chapter: its number, its name, and where it starts and ends. */
+/** One chapter: its id, its name, and where it starts and ends. */
 export const Chapter = S.Struct({
-  chapterNumber: ChapterNumber,
+  chapterId: ChapterId,
   name: S.String,
   startMs: Milliseconds,
   endMs: Milliseconds,
@@ -403,29 +403,34 @@ export const chaptersOf = (
       : Option.none(),
   )
 
+/** The deterministic chapter id for a title with no chapter rows. */
+export const wholeBookChapterId = (slug: TitleSlug): ChapterId =>
+  ChapterId.make(`${slug}-whole-book`)
+
 /**
  * The one section a title with no chapters reads as: the whole book, under
  * its own name, so a title Audible gives no chapters still has a place on
  * the shelf.
  */
 export const wholeBookChapters = (
+  slug: TitleSlug,
   name: string,
   durationMs: Milliseconds,
 ): Array.NonEmptyReadonlyArray<Chapter> => [
   {
-    chapterNumber: ChapterNumber.make(1),
+    chapterId: wholeBookChapterId(slug),
     name,
     startMs: Milliseconds.make(0),
     endMs: durationMs,
   },
 ]
 
-/** The chapter `chapterNumber` names among `chapters`. */
+/** The chapter `chapterId` names among `chapters`. */
 export const chapterOf = (
   chapters: Array.NonEmptyReadonlyArray<Chapter>,
-  chapterNumber: ChapterNumber,
+  chapterId: ChapterId,
 ): Option.Option<Chapter> =>
-  Array.findFirst(chapters, chapter => chapter.chapterNumber === chapterNumber)
+  Array.findFirst(chapters, chapter => chapter.chapterId === chapterId)
 
 /**
  * The chapter a place falls in: the last one starting at or before it.
@@ -463,15 +468,15 @@ export const chapterNameAt = (
     chapters => chapterAt(chapters, place).name,
   )
 
-/** The number of the chapter a place in `slug` falls in, once its chapters are here. */
-export const chapterNumberAt = (
+/** The id of the chapter a place in `slug` falls in, once its chapters are here. */
+export const chapterIdAt = (
   model: HasChapters,
   slug: TitleSlug,
   place: Milliseconds,
-): Option.Option<ChapterNumber> =>
+): Option.Option<ChapterId> =>
   Option.map(
     chaptersOf(model, slug),
-    chapters => chapterAt(chapters, place).chapterNumber,
+    chapters => chapterAt(chapters, place).chapterId,
   )
 
 /** The title loaded in this device's player, while it is on the shelf. */

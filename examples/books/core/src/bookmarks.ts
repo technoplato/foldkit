@@ -3,7 +3,7 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
   BookmarkId,
-  type ChapterNumber,
+  type ChapterId,
   Milliseconds,
   TitleSlug,
   clockOf,
@@ -144,24 +144,17 @@ export const bookmarkCountWords = (count: number): string =>
  *
  * @example
  * ```typescript
- * bookmarkCountsOf(chapters, bookmarks) // Map { 2 => 2, 4 => 1 }
+ * bookmarkCountsOf(chapters, bookmarks) // Map { 'chapter-2' => 2, 'chapter-4' => 1 }
  * ```
  */
 export const bookmarkCountsOf = (
   chapters: Array.NonEmptyReadonlyArray<Chapter>,
   bookmarks: ReadonlyArray<Bookmark>,
-): ReadonlyMap<ChapterNumber, number> =>
-  Array.reduce(
-    bookmarks,
-    new Map<ChapterNumber, number>(),
-    (counts, bookmark) => {
-      const chapterNumber = chapterAt(chapters, bookmark.atMs).chapterNumber
-      return new Map([
-        ...counts,
-        [chapterNumber, (counts.get(chapterNumber) ?? 0) + 1],
-      ])
-    },
-  )
+): ReadonlyMap<ChapterId, number> =>
+  Array.reduce(bookmarks, new Map<ChapterId, number>(), (counts, bookmark) => {
+    const chapterId = chapterAt(chapters, bookmark.atMs).chapterId
+    return new Map([...counts, [chapterId, (counts.get(chapterId) ?? 0) + 1]])
+  })
 
 /** The bookmark on the word that starts at `atMs` in `slug`, if there is one. */
 export const bookmarkOnWord = (

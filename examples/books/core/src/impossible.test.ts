@@ -30,8 +30,8 @@ describe('states Books rules out by type', () => {
         // @ts-expect-error a plain string is not a title's name tag
         Listen({ slug: 'the-lantern-keeper' }),
       () =>
-        // @ts-expect-error a plain number is not a chapter
-        JumpToChapter({ chapterNumber: 3 }),
+        // @ts-expect-error a plain string is not a chapter
+        JumpToChapter({ chapterId: 'the-lantern-keeper-chapter-3' }),
       () =>
         // @ts-expect-error 3× is not a speed the player offers
         SetSpeed({ speed: 3 }),

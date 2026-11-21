@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { ProgramLogDatabase } from '@foldkit/instant/browser'
 
 import { App } from './app.js'
-import { Milliseconds, TitleSlug } from './ids.js'
+import { ChapterId, Milliseconds, TitleSlug } from './ids.js'
 import {
   bookmarksQuery,
   chaptersQueryOf,
@@ -18,7 +18,7 @@ import {
 } from './instantLibrary.js'
 import { decodeSegments } from './instantTranscript.js'
 import { AddBookmarkAt, FinishTitle, SavePlace } from './library.js'
-import type { Shelf } from './model.js'
+import { type Shelf, wholeBookChapterId } from './model.js'
 import { titleTagStands } from './nameTags.js'
 import { sampleTitles } from './sample.js'
 
@@ -407,38 +407,55 @@ describe('decodeLibrary: a bookmark’s note and words', () => {
 })
 
 describe('decodeChapters', () => {
-  it("reads one book's chapters in index order, numbered from one, leaving out a broken row", () => {
+  it("reads one book's chapters in index order by their row ids, leaving out broken rows", () => {
     const read = decodeChapters(
       {
         libraryChapters: [
           ...chapterRows('book-of-item-1'),
           { id: 'broken', book: 'book-of-item-1', title: 'No times' },
+          {
+            id: '',
+            book: 'book-of-item-1',
+            index: 2,
+            title: 'Empty id',
+            startMs: 2_400_000,
+            endMs: 3_600_000,
+          },
+          {
+            book: 'book-of-item-1',
+            index: 3,
+            title: 'Missing id',
+            startMs: 3_600_000,
+            endMs: 4_800_000,
+          },
         ],
       },
       lantern,
     )
     expect(
       Array.map(read, chapter => [
-        chapter.chapterNumber,
+        chapter.chapterId,
         chapter.name,
         chapter.startMs,
         chapter.endMs,
       ]),
     ).toEqual([
-      [1, 'One', 0, 1_200_000],
-      [2, 'Two', 1_200_000, 2_400_000],
+      [ChapterId.make('book-of-item-1-chapter-0'), 'One', 0, 1_200_000],
+      [ChapterId.make('book-of-item-1-chapter-1'), 'Two', 1_200_000, 2_400_000],
     ])
   })
 
-  it('reads a title with no chapters as one section, the whole book under its name', () => {
+  it('reads a title with no chapters as one section, the whole book under a deterministic id', () => {
     expect(
       Array.map(decodeChapters({ libraryChapters: [] }, lantern), chapter => [
-        chapter.chapterNumber,
+        chapter.chapterId,
         chapter.name,
         chapter.startMs,
         chapter.endMs,
       ]),
-    ).toEqual([[1, lantern.name, 0, lantern.durationMs]])
+    ).toEqual([
+      [wholeBookChapterId(lantern.slug), lantern.name, 0, lantern.durationMs],
+    ])
   })
 })
 
