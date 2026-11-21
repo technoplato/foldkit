@@ -14,6 +14,21 @@ import { statSync } from 'node:fs'
 /** The word every command starts with, `books pause`. */
 export const booksCommandName = 'books'
 
+/** The default Books web origin for sign-in and full page URLs. */
+export const hostedOrigin = 'https://books.pisspoursoftware.xyz'
+
+/**
+ * The web origin used for full page URLs in terminal views: `BOOKS_WEB_ORIGIN`
+ * when set and non-empty (trailing slashes trimmed), else {@link hostedOrigin}.
+ */
+export const booksWebOriginOf = (
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string => {
+  const configured = env['BOOKS_WEB_ORIGIN']?.trim() ?? ''
+  const origin = configured === '' ? hostedOrigin : configured
+  return origin.replace(/\/+$/u, '')
+}
+
 /**
  * The name of the made-up library the environment asks for with
  * `BOOKS_MADE_UP`, such as `1` or a test's own name, or undefined. With
@@ -58,8 +73,16 @@ export const madeUpContrastOf = (
  */
 export const madeUpShelfOf = (
   env: Readonly<Record<string, string | undefined>> = process.env,
-): 'Three' | 'Long' =>
-  env['BOOKS_MADE_UP_SHELF']?.trim() === 'Long' ? 'Long' : 'Three'
+): 'Three' | 'Long' | 'Demo' => {
+  const shelf = env['BOOKS_MADE_UP_SHELF']?.trim()
+  if (shelf === 'Long') {
+    return 'Long'
+  } else if (shelf === 'Demo') {
+    return 'Demo'
+  } else {
+    return 'Three'
+  }
+}
 
 /**
  * Whether the made-up library is the one session every device shares,

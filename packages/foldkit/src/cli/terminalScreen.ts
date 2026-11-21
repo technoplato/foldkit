@@ -92,6 +92,7 @@ export type TerminalPaintReporting = Readonly<{
 export type TerminalHeaderLine = Readonly<{
   text: string
   isEmphasis?: boolean
+  isQuiet?: boolean
 }>
 
 /** Optional 1-to-2 line pinned header a host provides for a terminal screen. */
@@ -242,7 +243,7 @@ const treePart = (
   width: number,
   maybeFocused: Option.Option<string>,
 ): Part => {
-  const laid = layoutTree(node, 0, 0, width)
+  const laid = layoutTree(node, 0, 0, width, { activePassageBar: true })
   const painted = paintAscii(laid)
   return {
     lines: Array.map(painted.lines, (line, row) => ({
@@ -442,9 +443,15 @@ const headerLinesOf = (
   if (Array.isReadonlyArrayEmpty(custom)) {
     return [quiet(`${name}  ${uri}`)]
   } else {
-    return Array.map(custom, line =>
-      line.isEmphasis === true ? emphasized(line.text) : quiet(line.text),
-    )
+    return Array.map(custom, line => {
+      if (line.isEmphasis === true) {
+        return emphasized(line.text)
+      } else if (line.isQuiet === false) {
+        return plain(line.text)
+      } else {
+        return quiet(line.text)
+      }
+    })
   }
 }
 

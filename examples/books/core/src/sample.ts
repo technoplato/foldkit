@@ -192,6 +192,44 @@ export const longSampleChapters: ChaptersBySlug = Record_.fromEntries(
   ]),
 )
 
+// DEMO SHELF
+
+const demoBooks: ReadonlyArray<SampleBook> = [
+  {
+    slug: 'a-new-earth',
+    name: 'A New Earth',
+    authors: ['Eckhart Tolle'],
+    narrators: ['Eckhart Tolle'],
+    chapterNames: [
+      'The Flowering of Consciousness',
+      'Ego: The Current State',
+      'The Core of Ego',
+      'Role-Playing',
+    ],
+    minutesEach: 30,
+  },
+  ...sampleBooks,
+]
+
+/**
+ * A made-up demo shelf featuring A New Earth beside the three sample
+ * titles, for live terminal demos and screenshot captures with made-up
+ * placeholder words.
+ */
+export const demoSampleShelf: Shelf = {
+  titles: Array.map(demoBooks, titleOf),
+  progress: [],
+  bookmarks: [],
+}
+
+/** The demo shelf's chapters, by slug. */
+export const demoSampleChapters: ChaptersBySlug = Record_.fromEntries(
+  Array.map(demoBooks, book => [
+    book.slug,
+    chaptersOf(book.slug, book.chapterNames, book.minutesEach),
+  ]),
+)
+
 const firstBookmarkNumber = 1
 
 const appliedWrite = (

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   appVersionOf,
+  booksWebOriginOf,
+  hostedOrigin,
   isMadeUpSessionShared,
   madeUpEmailOf,
   madeUpNameOf,
@@ -10,10 +12,21 @@ import {
 } from './settings.js'
 
 describe('how long the made-up shelf is', () => {
-  it('is the long shelf only when the environment names it', () => {
+  it('is the long or demo shelf only when the environment names it', () => {
     expect(madeUpShelfOf({ BOOKS_MADE_UP_SHELF: 'Long' })).toBe('Long')
+    expect(madeUpShelfOf({ BOOKS_MADE_UP_SHELF: 'Demo' })).toBe('Demo')
     expect(madeUpShelfOf({ BOOKS_MADE_UP_SHELF: 'long' })).toBe('Three')
     expect(madeUpShelfOf({})).toBe('Three')
+  })
+})
+
+describe('web origin setting', () => {
+  it('defaults to hostedOrigin, respects BOOKS_WEB_ORIGIN, and trims trailing slashes', () => {
+    expect(booksWebOriginOf({})).toBe(hostedOrigin)
+    expect(
+      booksWebOriginOf({ BOOKS_WEB_ORIGIN: 'https://preview.example.com/' }),
+    ).toBe('https://preview.example.com')
+    expect(booksWebOriginOf({ BOOKS_WEB_ORIGIN: '   ' })).toBe(hostedOrigin)
   })
 })
 

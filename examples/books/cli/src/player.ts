@@ -18,13 +18,13 @@ import {
   bookmarksListingLines,
   bookmarksListingOf,
   briefScreen,
-  chapterNameAt,
   clockOf,
   currentWordAddressOf,
   isBookSearchSettled,
   loadedTitleOf,
   placeOf,
   placeTextOf,
+  playerHeaderLinesOf,
   spokenWordsLines,
   spokenWordsOf,
   suggestedPressesOf,
@@ -43,6 +43,7 @@ import {
   Record,
   Schema as S,
   Stream,
+  String,
   pipe,
 } from 'effect'
 import { Catalog, Interaction, type Processor } from 'foldkit'
@@ -97,7 +98,11 @@ import {
   Stop,
   Tui,
 } from './declared.js'
-import { booksCommandName, playerBuildWord } from './settings.js'
+import {
+  booksCommandName,
+  booksWebOriginOf,
+  playerBuildWord,
+} from './settings.js'
 
 // BRIEF
 
@@ -532,37 +537,65 @@ const activeOverlayLabelsOf = (
   ...(model.controls === 'Expanded' ? ['controls open'] : []),
 ]
 
+const fullPageUrlOf = (pathOrUrl: string, origin: string): string => {
+  if (pathOrUrl === '') {
+    return ''
+  } else if (addressPattern.test(pathOrUrl) && URL.canParse(pathOrUrl)) {
+    const parsed = new URL(pathOrUrl)
+    return `${origin}${parsed.pathname}${parsed.search}`
+  } else if (pathOrUrl.startsWith('/')) {
+    return `${origin}${pathOrUrl}`
+  } else {
+    return `${origin}/${pathOrUrl}`
+  }
+}
+
+const isSameListenRoute = (pagePath: string, linkPath: string): boolean => {
+  const listenMarker = '/listen/'
+  return Option.exists(String.indexOf(listenMarker)(pagePath), pageIndex =>
+    linkPath.startsWith(pagePath.slice(0, pageIndex + listenMarker.length)),
+  )
+}
+
 /**
- * Secondary app state line for `books follow`: speed, session mode, the
- * page the app is on, and the word link when it differs from the page.
+ * Secondary app state lines for `books follow`: speed, session mode, and
+ * the full web URL for the page the app is on, plus a second line with the
+ * full word link URL when the app is showing a different route.
  */
-const appStateLineOf = (
+const appStateLinesOf = (
   bound: BoundBooks,
   model: Extract<SyncedBooksModel, { _tag: 'Ready' }>,
-): string => {
-  const page = Option.getOrElse(
+): ReadonlyArray<string> => {
+  const origin = booksWebOriginOf()
+  const pagePath = Option.getOrElse(
     Option.map(bound.navigation(), plan => plan.uri),
     () => '',
   )
-  const maybeLink = Option.map(currentWordAddressOf(model), address =>
+  const pageUrl = fullPageUrlOf(pagePath, origin)
+  const maybeLinkPath = Option.map(currentWordAddressOf(model), address =>
     addressPattern.test(address) && URL.canParse(address)
       ? new URL(address).pathname
       : address,
   )
-  return Array.join(
-    [
-      `${model.speed.toString()}×`,
-      model.session.mode === 'Mirror' ? 'mirrored' : 'local',
-      ...(page === '' ? [] : [`page ${page}`]),
-      ...Array.fromOption(
-        Option.map(
-          Option.filter(maybeLink, link => link !== page),
-          link => `link ${link}`,
-        ),
-      ),
-    ],
-    ' · ',
+  const maybeLinkLine = Option.map(
+    Option.filter(
+      maybeLinkPath,
+      linkPath =>
+        linkPath !== pagePath && !isSameListenRoute(pagePath, linkPath),
+    ),
+    linkPath => `link ${fullPageUrlOf(linkPath, origin)}`,
   )
+  return [
+    Array.join(
+      [
+        `${model.speed.toString()}×`,
+        model.session.mode === 'Mirror' ? 'mirrored' : 'local',
+        ...(pageUrl === '' ? [] : [pageUrl]),
+      ],
+      ' · ',
+    ),
+    ...Array.fromOption(maybeLinkLine),
+  ]
 }
 
 const followHeaderOf = (
@@ -571,7 +604,9 @@ const followHeaderOf = (
   partHeader: UiNode | undefined,
 ): UiNode => {
   const overlays = activeOverlayLabelsOf(bound, model)
-  const stateLine = Text(appStateLineOf(bound, model), { dim: true })
+  const stateLines = Array.map(appStateLinesOf(bound, model), line =>
+    Text(line, { dim: true }),
+  )
   const headerTexts = partHeader === undefined ? [] : textsOf(partHeader)
   const headline = Option.match(Array.head(headerTexts), {
     onNone: () => Text('❚❚ Paused · Books', { emphasis: 'Headline' }),
@@ -589,7 +624,7 @@ const followHeaderOf = (
     ...(Array.isReadonlyArrayNonEmpty(detailParts)
       ? [Text(Array.join(detailParts, ' · '))]
       : []),
-    stateLine,
+    ...stateLines,
   )
 }
 
@@ -959,20 +994,14 @@ export const makeBooksPlayer = (
         return Option.match(loadedTitleOf(model), {
           onNone: () => [],
           onSome: ({ title, loaded }) => {
-            const isSounding = TranscriptPlayer.isSounding(loaded.player)
-            const statusLine = Array.join(
-              [
-                ...Array.fromOption(
-                  chapterNameAt(model, title.slug, placeOf(loaded)),
-                ),
-                `${clockOf(placeOf(loaded))} of ${clockOf(title.durationMs)}`,
-                isSounding ? 'playing' : 'paused',
-              ],
-              ' · ',
+            const { headline, chapterLine } = playerHeaderLinesOf(
+              model,
+              title,
+              loaded,
             )
             return [
-              { text: title.name, isEmphasis: true },
-              { text: statusLine },
+              { text: headline, isEmphasis: true },
+              { text: chapterLine, isQuiet: false },
             ]
           },
         })

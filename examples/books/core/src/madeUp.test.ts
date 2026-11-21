@@ -155,4 +155,25 @@ describe('the made-up library on a host', () => {
     ).toBe(true)
     expect(madeUpPassages.length).toBe(60)
   })
+
+  it('can open the Demo shelf featuring A New Earth with start and hour-long made-up passages', async () => {
+    const handle = await startMadeUpBooks({
+      host: Processor.Host.Cli(),
+      shelf: 'Demo',
+    })
+    const bound = bindBooks(handle)
+    await Interaction.whenSettled(bound, settleMs)
+    await whenShelfOpened(handle, settleMs)
+    const model = handle.readModel()
+    expect(model._tag).toBe('Ready')
+    const titles =
+      model._tag === 'Ready' && model.library._tag === 'ShelfReady'
+        ? model.library.shelf.titles
+        : []
+    expect(titles.map(title => title.slug)).toContain('a-new-earth')
+    expect(titles.find(title => title.slug === 'a-new-earth')?.name).toBe(
+      'A New Earth',
+    )
+    await handle.stop()
+  })
 })

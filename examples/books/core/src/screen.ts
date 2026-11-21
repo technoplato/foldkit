@@ -1576,6 +1576,39 @@ export type FollowedPart = Readonly<{
 }>
 
 /**
+ * The two-line playback header shared by `books follow` and `books tui`:
+ * playback state with title on the headline, and chapter with clock on the
+ * detail line.
+ */
+export const playerHeaderLinesOf = (
+  model: Model,
+  title: Title,
+  loaded: Loaded,
+): Readonly<{ headline: string; chapterLine: string }> => {
+  const headline = M.value(loaded.player.transport).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      Playing: () => `▶ Playing · ${title.name}`,
+      Paused: () => `❚❚ Paused · ${title.name}`,
+      Unplayable: () => `■ Stopped · ${title.name}`,
+    }),
+  )
+  const chapterLine = Array.join(
+    [
+      ...Array.fromOption(
+        Option.map(
+          chapterNameAt(model, title.slug, placeOf(loaded)),
+          chapter => `Chapter: ${chapter}`,
+        ),
+      ),
+      `${clockOf(placeOf(loaded))} of ${clockOf(title.durationMs)}`,
+    ],
+    ' · ',
+  )
+  return { headline, chapterLine }
+}
+
+/**
  * The words of the title in the player, as a part of the view to follow:
  * the reader's own Transcript, with its bookmarks and what a search
  * found, the word being spoken at `nowMs` marked from the Transcript's
@@ -1606,25 +1639,10 @@ export const wordsPartAt = (model: Model, nowMs: number): FollowedPart =>
         transcriptBookmarksOf(model, title),
       )
       const isSounding = TranscriptPlayer.isSounding(loaded.player)
-      const statusLabel = M.value(loaded.player.transport).pipe(
-        M.withReturnType<string>(),
-        M.tagsExhaustive({
-          Playing: () => `▶ Playing · ${title.name}`,
-          Paused: () => `❚❚ Paused · ${title.name}`,
-          Unplayable: () => `■ Stopped · ${title.name}`,
-        }),
-      )
-      const chapterLine = Array.join(
-        [
-          ...Array.fromOption(
-            Option.map(
-              chapterNameAt(model, title.slug, placeOf(loaded)),
-              chapter => `Chapter: ${chapter}`,
-            ),
-          ),
-          `${clockOf(placeOf(loaded))} of ${clockOf(title.durationMs)}`,
-        ],
-        ' · ',
+      const { headline, chapterLine } = playerHeaderLinesOf(
+        model,
+        title,
+        loaded,
       )
       const activeModeOffers: ReadonlyArray<string> = [
         ...(Option.isSome(loaded.player.maybeSearch)
@@ -1644,7 +1662,7 @@ export const wordsPartAt = (model: Model, nowMs: number): FollowedPart =>
         node: words._tag === 'Transcript' ? transcriptAt(words, nowMs) : words,
         header: Column(
           {},
-          Text(statusLabel, { emphasis: 'Headline' }),
+          Text(headline, { emphasis: 'Headline' }),
           Text(chapterLine),
         ),
         offers: Array.dedupe([

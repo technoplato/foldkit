@@ -100,6 +100,67 @@ describe('the roles a painted screen says its parts play, for a terminal to ink'
     ])
   })
 
+  it('paints an Accent left vertical bar down every wrapped line of the active paragraph when activePassageBar is set', () => {
+    const wrappedReader = Transcript({
+      label: 'Words',
+      action: 'SeekToWord',
+      emptyText: 'No words yet.',
+      passages: [
+        {
+          key: 'p1',
+          label: '1:08:33',
+          words: [
+            { token: 'w1', text: 'Quiet' },
+            { token: 'w2', text: 'before' },
+          ],
+        },
+        {
+          key: 'p2',
+          label: '1:09:11',
+          isCurrent: true,
+          words: [
+            'Stillness',
+            'begins',
+            'the',
+            'moment',
+            'you',
+            'notice',
+            'the',
+            'space',
+            'between',
+            'thoughts.',
+          ].map((text, index) => ({
+            token: `c-${index.toString()}`,
+            text,
+            ...(index === 2 ? { isCurrent: true } : {}),
+          })),
+        },
+      ],
+    })
+    const barPainted = paintAscii(
+      layoutTree(wrappedReader, 0, 0, 36, { activePassageBar: true }),
+    )
+    const barPartsOf = (
+      row: number,
+    ): ReadonlyArray<readonly [string, string]> =>
+      (barPainted.inks[row] ?? []).map(run => [
+        (barPainted.lines[row] ?? '').slice(run.col, run.col + run.width),
+        run.role,
+      ])
+    expect(barPainted.lines[0]?.trimEnd()).toBe('  1:08:33  Quiet before')
+    expect(barPainted.lines[1]?.trimEnd()).toMatch(
+      /^▎ 1:09:11 {2}Stillness begins \[the\]/,
+    )
+    expect(barPainted.lines[2]?.trimEnd()).toMatch(/^▎ {10}\S/)
+    expect(barPartsOf(1).slice(0, 4)).toEqual([
+      ['▎', 'Accent'],
+      ['1:09:11', 'QuietText'],
+      ['Stillness begins', 'ReadingSpoken'],
+      ['[the]', 'ReadingCurrentWord'],
+    ])
+    expect(barPartsOf(2)[0]).toEqual(['▎', 'Accent'])
+  })
+
   it('colors every pressable button with Accent, focused with Focus, and disabled with QuietText', () => {
     const buttons = paintAscii(
       layoutTree(

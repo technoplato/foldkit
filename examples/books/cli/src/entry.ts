@@ -37,6 +37,7 @@ import { listAudioDevices, paintAudioDevices } from './devices.js'
 import {
   booksCommandName,
   booksPlayerSocketPath,
+  hostedOrigin,
   madeUpNameOf,
 } from './settings.js'
 import {
@@ -47,8 +48,6 @@ import {
   showPlayerTui,
   stopPlayer,
 } from './view.js'
-
-const hostedOrigin = 'https://books.pisspoursoftware.xyz'
 
 const notUnderstoodExitCode = 2
 

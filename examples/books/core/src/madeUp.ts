@@ -1,4 +1,4 @@
-import { Array, type Context, Effect, Layer } from 'effect'
+import { Array, type Context, Effect, Layer, Option } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
 import { noCodeUpdates } from 'foldkit/code-updates'
 import * as TranscriptPlayer from 'transcript-player-core-example'
@@ -6,6 +6,8 @@ import * as TranscriptPlayer from 'transcript-player-core-example'
 import { MediaId, Milliseconds } from './ids.js'
 import { LibraryStore } from './library.js'
 import {
+  demoSampleChapters,
+  demoSampleShelf,
   longSampleChapters,
   longSampleShelf,
   makeTestLibraryStore,
@@ -122,6 +124,84 @@ export const longMadeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> =
 /** The title of the long made-up shelf whose passages are the long ones. */
 export const longWordedSlug = 'a-field-guide-to-weather'
 
+// Made-up reflective sentences for the Demo shelf: nothing here is from a real book or recording.
+const demoSentences: ReadonlyArray<string> = [
+  'Stillness begins the moment you notice the space between one thought and the next.',
+  'Watch the breath settle as the noise of the afternoon fades into quiet attention.',
+  'When awareness rests in the present moment, ordinary things feel clear and unhurried.',
+  'A single pause is enough to step out of habit and return to what is right in front of you.',
+  'Listen without rushing ahead to the next sentence, letting each word land on its own.',
+  'By evening the room is calm, and presence feels less like effort than like coming home.',
+]
+
+const demoPassageLengths: ReadonlyArray<number> = [1, 3, 2]
+
+const demoPassagesAt = (
+  prefix: string,
+  startMs: number,
+  passageCount: number,
+): ReadonlyArray<TranscriptPlayer.Passage> => {
+  const initial: Passages = { passages: [], nextMs: startMs }
+  return Array.reduce(
+    Array.range(0, passageCount - 1),
+    initial,
+    (state, index) => {
+      const sentenceCount = Option.getOrElse(
+        Array.get(demoPassageLengths, index % demoPassageLengths.length),
+        () => 2,
+      )
+      const sentence = Array.join(
+        Array.map(Array.range(0, sentenceCount - 1), at =>
+          Option.getOrElse(
+            Array.get(demoSentences, (index + at) % demoSentences.length),
+            () => 'Stillness begins right here.',
+          ),
+        ),
+        ' ',
+      )
+      const words = Array.map(sentence.split(' '), (text, at) => {
+        const wordStartMs = state.nextMs + at * (wordMs + wordGapMs)
+        return {
+          wordId: TranscriptPlayer.WordId.make(
+            `${prefix}p${index.toString()}w${at.toString()}`,
+          ),
+          text,
+          startMs: Milliseconds.make(wordStartMs),
+          endMs: Milliseconds.make(wordStartMs + wordMs),
+        }
+      })
+      const endMs = state.nextMs + words.length * (wordMs + wordGapMs)
+      return {
+        passages: [
+          ...state.passages,
+          {
+            passageId: `${prefix}p${index.toString()}`,
+            startMs: Milliseconds.make(state.nextMs),
+            endMs: Milliseconds.make(endMs),
+            words,
+          },
+        ],
+        nextMs: endMs + passageGapMs,
+      }
+    },
+  ).passages
+}
+
+const demoHourOffsetMs = 68 * 60_000 + 30_000
+
+/**
+ * Made-up reflective passages for the Demo shelf: opening passages from 0:00
+ * plus hour-long passages around 1:09:00 so terminal demos can inspect both
+ * opening playback and hour-long timestamps.
+ */
+export const demoMadeUpPassages: ReadonlyArray<TranscriptPlayer.Passage> = [
+  ...demoPassagesAt('start-', 0, 20),
+  ...demoPassagesAt('hour-', demoHourOffsetMs, 6),
+]
+
+/** The demo shelf's featured slug. */
+export const demoFeaturedSlug = 'a-new-earth'
+
 // SESSION
 
 /**
@@ -149,7 +229,7 @@ export type MadeUpBooksConfig = Readonly<{
   library?: (store: LibraryStoreService) => LibraryStoreService
   resources?: Layer.Layer<never>
   sync?: Runtime.SyncEngine
-  shelf?: 'Three' | 'Long'
+  shelf?: 'Three' | 'Long' | 'Demo'
   clientMetadata?: Runtime.ClientMetadataSource
 }>
 
@@ -166,16 +246,36 @@ export type MadeUpBooksConfig = Readonly<{
  * const handle = await startMadeUpBooks({ host: Processor.Host.Cli() })
  * ```
  */
+const shelfSelectionOf = (shelfKind: MadeUpBooksConfig['shelf']) => {
+  if (shelfKind === 'Long') {
+    return { shelf: longSampleShelf, chapters: longSampleChapters }
+  } else if (shelfKind === 'Demo') {
+    return { shelf: demoSampleShelf, chapters: demoSampleChapters }
+  } else {
+    return { shelf: sampleShelf, chapters: sampleChapters }
+  }
+}
+
 export const startMadeUpBooks = async (
   config: MadeUpBooksConfig,
 ): Promise<BooksHandleOnHost> => {
   const isLong = config.shelf === 'Long'
-  const shelf = isLong ? longSampleShelf : sampleShelf
-  const store = await Effect.runPromise(
-    makeTestLibraryStore(shelf, isLong ? longSampleChapters : sampleChapters),
-  )
+  const isDemo = config.shelf === 'Demo'
+  const { shelf, chapters } = shelfSelectionOf(config.shelf)
+  const store = await Effect.runPromise(makeTestLibraryStore(shelf, chapters))
   const sharing = await Effect.runPromise(makeTestLinkSharing())
   const wrap = config.library ?? ((service: LibraryStoreService) => service)
+  const passagesFor = (
+    slug: string,
+  ): ReadonlyArray<TranscriptPlayer.Passage> => {
+    if (isLong && slug === longWordedSlug) {
+      return longMadeUpPassages
+    } else if (isDemo && slug === demoFeaturedSlug) {
+      return demoMadeUpPassages
+    } else {
+      return madeUpPassages
+    }
+  }
   return Runtime.startHandle({
     program: SyncedBooks,
     sync: config.sync ?? Runtime.Memory({ processor: 'made-up' }),
@@ -190,9 +290,7 @@ export const startMadeUpBooks = async (
         new Map(
           Array.map(shelf.titles, title => [
             MediaId.make(title.slug),
-            isLong && title.slug === longWordedSlug
-              ? longMadeUpPassages
-              : madeUpPassages,
+            passagesFor(title.slug),
           ]),
         ),
       ),

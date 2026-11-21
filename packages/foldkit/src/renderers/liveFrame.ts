@@ -536,45 +536,91 @@ type FooterItem = Readonly<{ text: string; isMore: boolean }>
 
 const noLines: ReadonlyArray<Line> = []
 
-const footerRows = (
-  items: ReadonlyArray<FooterItem>,
-  width: number,
-): ReadonlyArray<Line> =>
-  Array.reduce(items, noLines, (lines, item) => {
-    const open = Array.last(lines)
-    const joined = (line: Line): Line => {
-      const lead = item.isMore
-        ? `${line.text}${commandGap}${moreMark}${commandGap}`
-        : `${line.text}${commandGap}`
+const singleRowFooter = (items: ReadonlyArray<FooterItem>): Line =>
+  Array.reduce(items, blank, (line, item): Line => {
+    if (line.text === '') {
       return {
-        text: `${lead}${item.text}`,
-        inks: item.isMore
-          ? [
-              ...line.inks,
-              {
-                col: line.text.length + commandGap.length,
-                width: 1,
-                role: 'QuietText',
-              },
-              ...moreInk(lead.length, item.text),
-            ]
-          : line.inks,
+        text: item.text,
+        inks: item.isMore ? moreInk(0, item.text) : [],
       }
     }
-    const alone: Line = {
-      text: item.text,
-      inks: item.isMore ? moreInk(0, item.text) : [],
+    const lead = item.isMore
+      ? `${line.text}${commandGap}${moreMark}${commandGap}`
+      : `${line.text}${commandGap}`
+    return {
+      text: `${lead}${item.text}`,
+      inks: item.isMore
+        ? [
+            ...line.inks,
+            {
+              col: line.text.length + commandGap.length,
+              width: 1,
+              role: 'QuietText',
+            },
+            ...moreInk(lead.length, item.text),
+          ]
+        : line.inks,
     }
-    return Option.match(open, {
-      onNone: () => [alone],
-      onSome: line => {
-        const next = joined(line)
-        return next.text.length <= width
-          ? [...Array.dropRight(lines, 1), next]
-          : [...lines, alone]
-      },
-    })
   })
+
+const gridRowLine = (
+  row: ReadonlyArray<FooterItem>,
+  columnWidths: ReadonlyArray<number>,
+): Line =>
+  Array.reduce(row, { line: blank, col: 0 }, (state, item, index) => {
+    const padding =
+      index === 0 ? '' : ' '.repeat(state.col - state.line.text.length)
+    const text = `${state.line.text}${padding}${item.text}`
+    const inks = item.isMore
+      ? [...state.line.inks, ...moreInk(state.col, item.text)]
+      : state.line.inks
+    const colWidth = Option.getOrElse(
+      Array.get(columnWidths, index),
+      () => item.text.length,
+    )
+    return {
+      line: { text, inks },
+      col: state.col + colWidth + commandGap.length,
+    }
+  }).line
+
+const footerGridRows = (
+  items: ReadonlyArray<FooterItem>,
+  width: number,
+): Option.Option<ReadonlyArray<Line>> => {
+  if (Array.isReadonlyArrayEmpty(items)) {
+    return Option.some(noLines)
+  }
+  const single = singleRowFooter(items)
+  if (single.text.length <= width) {
+    return Option.some([single])
+  }
+  if (items.length < 2) {
+    return Option.none()
+  }
+  const columnCount = Math.ceil(items.length / mostFooterLines)
+  const topRow = Array.take(items, columnCount)
+  const bottomRow = Array.drop(items, columnCount)
+  const columnWidths = Array.makeBy(columnCount, index =>
+    Math.max(
+      Option.match(Array.get(topRow, index), {
+        onNone: () => 0,
+        onSome: item => item.text.length,
+      }),
+      Option.match(Array.get(bottomRow, index), {
+        onNone: () => 0,
+        onSome: item => item.text.length,
+      }),
+    ),
+  )
+  const rows = [
+    gridRowLine(topRow, columnWidths),
+    gridRowLine(bottomRow, columnWidths),
+  ]
+  return Array.every(rows, row => row.text.length <= width)
+    ? Option.some(rows)
+    : Option.none()
+}
 
 const forMore = 'for more'
 
@@ -587,10 +633,11 @@ const moreInk = (col: number, text: string): ReadonlyArray<InkRun> => [
 ]
 
 /**
- * What can be run now as a line or two in the margin: the commands as
- * they are typed, a few columns apart, then the command that lists the
- * rest, named quietly. Commands are left off the end until it fits in
- * two lines; a command is never broken.
+ * What can be run now as a line or two in the margin: on one row with a
+ * divider when all commands fit, else in evenly aligned columns across
+ * two rows with the command that lists the rest named quietly. Commands
+ * are left off the end until the aligned grid fits in two rows; a
+ * command is never broken.
  */
 const footerLines = (
   footer: LiveFrameFooter,
@@ -602,13 +649,22 @@ const footerLines = (
       ? []
       : [{ text: `${footer.more} ${forMore}`, isMore: true }]
   const fitted = (commands: ReadonlyArray<string>): ReadonlyArray<Line> => {
-    const rows = footerRows(
-      [...Array.map(commands, text => ({ text, isMore: false })), ...more],
-      width,
-    )
-    return rows.length <= mostFooterLines || commands.length === 0
-      ? Array.take(rows, mostFooterLines)
-      : fitted(Array.dropRight(commands, 1))
+    const items: ReadonlyArray<FooterItem> = [
+      ...Array.map(commands, text => ({ text, isMore: false })),
+      ...more,
+    ]
+    return Option.match(footerGridRows(items, width), {
+      onSome: rows => rows,
+      onNone: () => {
+        if (Array.isReadonlyArrayNonEmpty(commands)) {
+          return fitted(Array.dropRight(commands, 1))
+        } else if (Array.isReadonlyArrayNonEmpty(more)) {
+          return [singleRowFooter(more)]
+        } else {
+          return noLines
+        }
+      },
+    })
   }
   return Array.map(fitted(footer.commands), line =>
     cut(indented(line, margin), columns),

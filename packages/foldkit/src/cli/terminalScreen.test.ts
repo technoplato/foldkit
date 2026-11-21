@@ -244,7 +244,7 @@ describe('paintTerminal', () => {
     }
   })
 
-  it('pins a 2-line host header when headerOf is supplied', () => {
+  it('pins a 2-line host header when headerOf is supplied, supporting non-dim chapter lines', () => {
     const bound = bindChapters()
     const painted = paintTerminal(
       bound,
@@ -252,23 +252,80 @@ describe('paintTerminal', () => {
       initialTerminalView,
       { rows: 12, columns: 80 },
       () => [
-        { text: 'The Lantern Keeper', isEmphasis: true },
-        { text: 'The Tide · 0:49 of 1:20:00 · playing' },
+        { text: '▶ Playing · A New Earth', isEmphasis: true },
+        { text: 'Chapter: Awakening · 0:49 of 2:00:00', isQuiet: false },
       ],
     )
     expect(painted.lines).toHaveLength(12)
-    expect(painted.lines[0]).toBe('The Lantern Keeper')
+    expect(painted.lines[0]).toBe('▶ Playing · A New Earth')
     expect(painted.inks[0]).toEqual([
-      { col: 0, width: 'The Lantern Keeper'.length, role: 'Text' },
+      { col: 0, width: '▶ Playing · A New Earth'.length, role: 'Text' },
     ])
-    expect(painted.lines[1]).toBe('The Tide · 0:49 of 1:20:00 · playing')
-    expect(painted.inks[1]).toEqual([
-      {
-        col: 0,
-        width: 'The Tide · 0:49 of 1:20:00 · playing'.length,
-        role: 'QuietText',
-      },
-    ])
+    expect(painted.lines[1]).toBe('Chapter: Awakening · 0:49 of 2:00:00')
+    expect(painted.inks[1]).toEqual([])
+  })
+
+  it('paints the active transcript paragraph in TUI with an Accent vertical bar and readable NO_COLOR glyph', () => {
+    const transcriptNode = Transcript({
+      label: 'Words',
+      action: 'SeekToWord',
+      emptyText: 'No words.',
+      passages: [
+        {
+          key: 'p-0',
+          label: '0:00',
+          words: [
+            { token: 'w0', text: 'Before' },
+            { token: 'w1', text: 'line.' },
+          ],
+        },
+        {
+          key: 'p-1',
+          label: '0:05',
+          isCurrent: true,
+          words: [
+            { token: 'w2', text: 'Stillness' },
+            { token: 'w3', text: 'begins', isCurrent: true },
+            { token: 'w4', text: 'now.' },
+          ],
+        },
+      ],
+    })
+    const base = bindChapters()
+    const bound: Bound = {
+      ...base,
+      navigation: () =>
+        Option.some({
+          uri: '/books/a-new-earth/listen/5s',
+          history: 'Record',
+          entries: [
+            {
+              key: '/books/a-new-earth/listen/5s',
+              identity: '/books/a-new-earth/listen/0s',
+              uri: '/books/a-new-earth/listen/5s',
+              destination: undefined,
+              maybeTitle: Option.some('A New Earth'),
+              maybeStyle: Option.none(),
+              isTab: false,
+            },
+          ],
+        }),
+      viewAt: () => Option.some({ _tag: 'Screen', node: transcriptNode }),
+      screen: () => Option.some(transcriptNode),
+      menu: () => Option.none(),
+    }
+    const painted = paintTerminal(bound, 'books', initialTerminalView, {
+      rows: 12,
+      columns: 80,
+    })
+    const activeRow = painted.lines.findIndex(line => line.startsWith('▎ 0:05'))
+    expect(activeRow).toBeGreaterThan(-1)
+    expect(painted.lines[activeRow]).toContain('[begins]')
+    expect(painted.inks[activeRow]?.[0]).toEqual({
+      col: 0,
+      width: 1,
+      role: 'Accent',
+    })
   })
 
   it('highlights the active action menu row with Focus ink as soon as the menu opens', () => {

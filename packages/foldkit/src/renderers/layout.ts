@@ -224,9 +224,20 @@ const passageLabelWidth = 8
 
 const transcriptReadingMeasure = 76
 
+const activeBarGlyph = '▎'
+
+/** Layout options for terminal renderers. */
+export type LayoutOptions = Readonly<{
+  /** Paint the active transcript paragraph with a left vertical bar in Accent down every wrapped line. */
+  activePassageBar?: boolean
+}>
+
+const defaultLayoutOptions: LayoutOptions = {}
+
 const labelColumnWidthOf = (
   passages: ReadonlyArray<TranscriptPassage>,
   items: ReadonlyArray<Readonly<{ label: string }>>,
+  options: LayoutOptions,
 ): number => {
   const widestPassage = Array.reduce(passages, 0, (widest, passage) =>
     Math.max(widest, passage.label.length),
@@ -234,7 +245,8 @@ const labelColumnWidthOf = (
   const widestItem = Array.reduce(items, widestPassage, (widest, item) =>
     Math.max(widest, item.label.length),
   )
-  return Math.max(passageLabelWidth, widestItem + 3)
+  const padding = options.activePassageBar === true ? 4 : 3
+  return Math.max(passageLabelWidth, widestItem + padding)
 }
 
 const bookmarkGlyph = '*'
@@ -424,11 +436,23 @@ const passageLines = (
   bookmarks: ReadonlyArray<TranscriptBookmark>,
   maybeShownToken: string | undefined,
   labelWidth: number,
+  options: LayoutOptions,
 ): ReadonlyArray<TranscriptLine> => {
-  const marker = passage.isCurrent === true ? '›' : ' '
-  const named = `${marker}${passage.label}`
+  const useBar = options.activePassageBar === true
+  const isCurrent = passage.isCurrent === true
+  const barPrefix = isCurrent ? `${activeBarGlyph} ` : '  '
+  const named = useBar
+    ? `${barPrefix}${passage.label}`
+    : `${isCurrent ? '›' : ' '}${passage.label}`
   const label = named.padEnd(labelWidth, ' ')
-  const labelInk: InkRun = { col: 0, width: named.length, role: 'QuietText' }
+  const continuation = useBar
+    ? barPrefix.padEnd(labelWidth, ' ')
+    : ' '.repeat(labelWidth)
+  const barInk: ReadonlyArray<InkRun> =
+    useBar && isCurrent ? [{ col: 0, width: 1, role: 'Accent' }] : []
+  const labelInk: InkRun = useBar
+    ? { col: 2, width: passage.label.length, role: 'QuietText' }
+    : { col: 0, width: named.length, role: 'QuietText' }
   const shiftedBy = (run: InkRun): InkRun => ({
     ...run,
     col: run.col + labelWidth,
@@ -469,10 +493,11 @@ const passageLines = (
         shown.roleOf,
       ),
       (line, index) => ({
-        text: `${index === 0 ? label : ' '.repeat(labelWidth)}${line.text}`,
+        text: `${index === 0 ? label : continuation}${line.text}`,
         isCurrent: line.isCurrent,
         isShown: line.isShown,
         inks: [
+          ...barInk,
           ...(index === 0 ? [labelInk] : []),
           ...Array.map(line.inks, shiftedBy),
         ],
@@ -498,6 +523,7 @@ const layoutNode = (
   y: number,
   availableW: number,
   ids: Ids,
+  options: LayoutOptions,
 ): LayoutBox =>
   M.value(node).pipe(
     M.withReturnType<LayoutBox>(),
@@ -594,6 +620,7 @@ const layoutNode = (
             y,
             availableW,
             ids,
+            options,
           )
         }
         if (Array.isReadonlyArrayEmpty(row.children)) {
@@ -624,7 +651,14 @@ const layoutNode = (
             const targetX = shouldWrap ? x : state.cursor
             const targetY = shouldWrap ? state.rowY + state.rowMaxH : state.rowY
             const targetW = shouldWrap ? availableW : remaining
-            const box = layoutNode(child, targetX, targetY, targetW, ids)
+            const box = layoutNode(
+              child,
+              targetX,
+              targetY,
+              targetW,
+              ids,
+              options,
+            )
             const rowEnd = targetX + box.w - x
             return {
               cursor: targetX + box.w + row.gap,
@@ -650,7 +684,14 @@ const layoutNode = (
           column.children,
           { cursor: y, children: emptyBoxes },
           (state, child) => {
-            const box = layoutNode(child, x, state.cursor, availableW, ids)
+            const box = layoutNode(
+              child,
+              x,
+              state.cursor,
+              availableW,
+              ids,
+              options,
+            )
             return {
               cursor: state.cursor + box.h + column.gap,
               children: [...state.children, box],
@@ -684,6 +725,7 @@ const layoutNode = (
           y + box.padding,
           Math.max(0, availableW - box.padding * 2),
           ids,
+          options,
         )
         return {
           id: ids.next('box'),
@@ -802,6 +844,7 @@ const layoutNode = (
               itemY,
               Math.max(0, titleAvailableW - titleW - 2),
               ids,
+              options,
             )
             const rowWidth =
               rest.w > 0 ? rest.x + rest.w - x : titleBox.x + titleBox.w - x
@@ -824,6 +867,7 @@ const layoutNode = (
                 itemY + 1,
                 Math.max(0, availableW - 2),
                 ids,
+                options,
               )
               return {
                 children: [
@@ -877,6 +921,7 @@ const layoutNode = (
         const labelWidth = labelColumnWidthOf(
           transcript.passages,
           transcript.items ?? [],
+          options,
         )
         const lineBox = (line: TranscriptLine, row: number): LayoutBox => ({
           id: ids.next('text'),
@@ -918,6 +963,7 @@ const layoutNode = (
                 transcript.bookmarks ?? [],
                 maybeShownToken,
                 labelWidth,
+                options,
               )
               return {
                 boxes: [
@@ -929,13 +975,17 @@ const layoutNode = (
                 rows: state.rows + lines.length,
               }
             } else {
-              const named = ` ${entry.item.label}`
+              const named =
+                options.activePassageBar === true
+                  ? `  ${entry.item.label}`
+                  : ` ${entry.item.label}`
               const shown = layoutNode(
                 entry.item.node,
                 x + labelWidth,
                 y + state.rows,
                 Math.max(1, availableW - labelWidth),
                 ids,
+                options,
               )
               return {
                 boxes: [
@@ -977,6 +1027,7 @@ const layoutNode = (
           y + 1 + statusH,
           Math.max(minInner, availableW - 2),
           ids,
+          options,
         )
         const innerW = Math.max(minInner, content.w)
         const innerH = statusH + content.h + homeH
@@ -993,7 +1044,8 @@ const layoutNode = (
           children: [content],
         }
       },
-      Lazy: lazy => layoutNode(resolveLazyNode(lazy), x, y, availableW, ids),
+      Lazy: lazy =>
+        layoutNode(resolveLazyNode(lazy), x, y, availableW, ids, options),
     }),
   )
 
@@ -1003,7 +1055,9 @@ export const layoutTree = (
   originX = 0,
   originY = 0,
   availableW = 80,
-): LayoutBox => layoutNode(root, originX, originY, availableW, makeIds())
+  options: LayoutOptions = defaultLayoutOptions,
+): LayoutBox =>
+  layoutNode(root, originX, originY, availableW, makeIds(), options)
 
 /** Fits a string into a character width. */
 export const fitText = fit

@@ -191,7 +191,7 @@ describe('a part of the view fitted to a terminal of any size, to be read', () =
     expect(frame.lines.join('\n')).not.toContain('  1:20  ')
   })
 
-  it('ends, after a blank line, with what can be run now on a line or two: the commands as they are typed, the rest named quietly', () => {
+  it('ends, after a blank line, with what can be run now in aligned columns: single row with divider when it fits, balanced columns on two rows otherwise', () => {
     const wide = liveFrameOf(
       part(12),
       { columns: 100, rows: 30 },
@@ -213,13 +213,51 @@ describe('a part of the view fitted to a terminal of any size, to be read', () =
     const four = liveFrameOf(part(12), { columns: 100, rows: 30 }, inked)
     expect(four.lines.slice(-3)).toEqual([
       '',
-      '  books pause   books skip-back   books bookmark   books link',
-      '  books actions for more',
+      '  books pause   books skip-back          books bookmark',
+      '  books link    books actions for more',
+    ])
+    expect(partsOf(four, four.lines.length - 1)).toEqual([
+      ['for more', 'QuietText'],
+    ])
+    const six = liveFrameOf(
+      part(12),
+      { columns: 100, rows: 30 },
+      {
+        header,
+        footer: {
+          commands: [
+            'books pause',
+            'books skip-back',
+            'books skip-forward',
+            'books next-section',
+            'books bookmark',
+            'books link',
+          ],
+          more: 'books actions',
+        },
+        marks: 'Ink',
+      },
+    )
+    const [sixRow0 = '', sixRow1 = ''] = six.lines.slice(-2)
+    expect(sixRow0).toBe(
+      '  books pause      books skip-back   books skip-forward       books next-section',
+    )
+    expect(sixRow1).toBe(
+      '  books bookmark   books link        books actions for more',
+    )
+    expect(sixRow0.indexOf('books skip-back')).toBe(
+      sixRow1.indexOf('books link'),
+    )
+    expect(sixRow0.indexOf('books skip-forward')).toBe(
+      sixRow1.indexOf('books actions for more'),
+    )
+    expect(partsOf(six, six.lines.length - 1)).toEqual([
+      ['for more', 'QuietText'],
     ])
     const narrow = liveFrameOf(part(12), { columns: 40, rows: 30 }, inked)
     expect(narrow.lines.slice(-3)).toEqual([
       '',
-      '  books pause   books skip-back',
+      '  books pause',
       '  books actions for more',
     ])
   })

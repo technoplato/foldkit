@@ -810,13 +810,36 @@ describe('books words', () => {
     expect(initial).toContain('Chapter: The Tide · 0:05 of 1:20:00')
     expect(initial).toContain('1×')
     expect(initial).toContain('local')
-    expect(initial).toContain('page /books/the-lantern-keeper/listen/')
-    expect(initial).toContain('/books/the-lantern-keeper/listen/5.5s')
+    expect(initial).toContain(
+      'https://books.pisspoursoftware.xyz/books/the-lantern-keeper/listen/',
+    )
     expect(initial).toContain('books play')
     expect(initial).toContain('books skip-forward')
     expect(initial).toContain('books next-section')
     expect(initial).not.toContain('books close-search')
     expect(initial).not.toContain('books menu close')
+    const [footerTop = '', footerBottom = ''] = initial.split('\n').slice(-2)
+    expect(footerTop.indexOf('books skip-back')).toBe(
+      footerBottom.indexOf('books link'),
+    )
+    expect(footerTop.indexOf('books skip-forward')).toBe(
+      footerBottom.indexOf('books actions for more'),
+    )
+
+    const previousOrigin = process.env['BOOKS_WEB_ORIGIN']
+    process.env['BOOKS_WEB_ORIGIN'] = 'https://custom.books.test/'
+    try {
+      const [withCustomOrigin = ''] = await heard(player, terminal, 1)
+      expect(withCustomOrigin).toContain(
+        'https://custom.books.test/books/the-lantern-keeper/listen/',
+      )
+    } finally {
+      if (previousOrigin === undefined) {
+        delete process.env['BOOKS_WEB_ORIGIN']
+      } else {
+        process.env['BOOKS_WEB_ORIGIN'] = previousOrigin
+      }
+    }
 
     bound.press('SetSpeed:1.5')
     bound.press('ExpandControls')
@@ -840,7 +863,10 @@ describe('books words', () => {
     const [withMenu = ''] = await heard(player, terminal, 1)
     expect(withMenu.split('\n')[1]).toContain('menu open')
     expect(withMenu.split('\n')[1]).toContain('search "wick"')
-    expect(withMenu).toContain('page /books/menu')
+    expect(withMenu).toContain('https://books.pisspoursoftware.xyz/books/menu')
+    expect(withMenu).toContain(
+      'link https://books.pisspoursoftware.xyz/books/the-lantern-keeper/listen/5.5s',
+    )
     expect(withMenu).toContain('books menu close')
     expect(withMenu).toContain('books menu next')
     expect(withMenu).toContain('books menu enter')
@@ -848,6 +874,45 @@ describe('books words', () => {
     bound.typeInMenu('pause')
     const [withFilteredMenu = ''] = await heard(player, terminal, 1)
     expect(withFilteredMenu.split('\n')[1]).toContain('menu "pause"')
+  })
+
+  it('unifies books tui player header and active paragraph bar with books follow in color and NO_COLOR', async () => {
+    const { player } = await pausedOn('5500')
+    const plainFrame = await Effect.runPromise(
+      Option.getOrThrow(Option.fromNullishOr(player.surface.show))(
+        { view: 'tui', rows: '24', columns: '80', viewId: 'tui-plain' },
+        Processor.Host.Tui(),
+      ),
+    )
+    const plainLines = plainFrame.stdout.split('\n')
+    expect(plainFrame.stdout).not.toContain('\u001b[')
+    expect(plainLines[0]).toBe('❚❚ Paused · The Lantern Keeper')
+    expect(plainLines[1]).toBe('Chapter: The Tide · 0:05 of 1:20:00')
+    expect(plainLines.some(line => line.startsWith('▎ 0:05'))).toBe(true)
+
+    const coloredFrame = await Effect.runPromise(
+      Option.getOrThrow(Option.fromNullishOr(player.surface.show))(
+        {
+          view: 'tui',
+          rows: '24',
+          columns: '80',
+          viewId: 'tui-color',
+          color: '1',
+          'terminal-ground': '15;0',
+        },
+        Processor.Host.Tui(),
+      ),
+    )
+    const coloredLines = coloredFrame.stdout.split('\n')
+    expect(coloredLines[0]).toBe(
+      '\u001b[1m❚❚ Paused · The Lantern Keeper\u001b[22m',
+    )
+    expect(coloredLines[1]).toBe('Chapter: The Tide · 0:05 of 1:20:00')
+    expect(
+      coloredLines.some(line =>
+        line.startsWith('\u001b[38;2;251;146;60m▎\u001b[39m '),
+      ),
+    ).toBe(true)
   })
 
   it('derives live listen commands in books follow when nothing is in the player', async () => {
