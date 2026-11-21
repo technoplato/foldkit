@@ -10,6 +10,7 @@ import {
   Stream,
   pipe,
 } from 'effect'
+import { DragAndDrop as CoreDragAndDrop, PointerDrag } from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { type Attribute, html } from 'foldkit/html'
@@ -20,7 +21,7 @@ import * as Subscription from 'foldkit/subscription'
 
 // MODEL
 
-const Orientation = S.Literals(['Horizontal', 'Vertical'])
+const Orientation = CoreDragAndDrop.Orientation
 
 const ScreenPoint = S.Struct({
   screenX: S.Number,
@@ -32,10 +33,7 @@ const ClientPoint = S.Struct({
   clientY: S.Number,
 })
 
-const DropTarget = S.Struct({
-  containerId: S.String,
-  index: S.Number,
-})
+const DropTarget = CoreDragAndDrop.DropTarget
 
 const Idle = ts('Idle')
 
@@ -112,14 +110,7 @@ export const ResolvedKeyboardMove = m('ResolvedKeyboardMove', {
 export const ConfirmedKeyboardDrop = m('ConfirmedKeyboardDrop')
 /** The user pressed an arrow key during keyboard drag. */
 export const PressedArrowKey = m('PressedArrowKey', {
-  direction: S.Literals([
-    'Up',
-    'Down',
-    'Left',
-    'Right',
-    'NextContainer',
-    'PreviousContainer',
-  ]),
+  direction: CoreDragAndDrop.KeyboardMoveDirection,
 })
 /** An animation frame fired during auto-scroll. */
 export const AdvancedAutoScrollFrame = m('AdvancedAutoScrollFrame')
@@ -175,8 +166,6 @@ export type OutMessage = typeof OutMessage.Type
 // INIT
 
 /** Configuration for creating a drag-and-drop model with `init`. */
-const DEFAULT_ACTIVATION_THRESHOLD_PIXELS = 5
-
 export type InitConfig = Readonly<{
   id: string
   orientation?: 'Horizontal' | 'Vertical'
@@ -186,9 +175,9 @@ export type InitConfig = Readonly<{
 /** Creates an initial drag-and-drop model. Starts in the Idle state with Vertical orientation and 5px activation threshold by default. */
 export const init = (config: InitConfig): Model => ({
   id: config.id,
-  orientation: config.orientation ?? 'Vertical',
+  orientation: config.orientation ?? CoreDragAndDrop.defaultOrientation,
   activationThreshold:
-    config.activationThreshold ?? DEFAULT_ACTIVATION_THRESHOLD_PIXELS,
+    config.activationThreshold ?? CoreDragAndDrop.defaultActivationDistancePx,
   dragState: Idle(),
 })
 
@@ -233,9 +222,11 @@ const resolveWithinContainer = (
     Array.length,
   )
 
-  const nextIndex = config.isForward
-    ? Math.min(config.currentIndex + 1, itemCount)
-    : Math.max(config.currentIndex - 1, 0)
+  const nextIndex = CoreDragAndDrop.stepIndexWithinContainer(
+    config.currentIndex,
+    itemCount,
+    config.isForward,
+  )
 
   return ResolvedKeyboardMove({
     targetContainerId: config.containerId,
@@ -260,13 +251,18 @@ const resolveBetweenContainers = (
     Option.getOrElse(() => 0),
   )
 
-  const nextContainerIndex = config.isForward
-    ? Math.min(currentContainerIndex + 1, allContainers.length - 1)
-    : Math.max(currentContainerIndex - 1, 0)
+  const nextContainerIndex = CoreDragAndDrop.stepContainerIndex(
+    currentContainerIndex,
+    allContainers.length,
+    config.isForward,
+  )
 
-  const nextContainerId =
-    allContainers[nextContainerIndex]?.dataset['droppableId'] ??
-    config.currentContainerId
+  const nextContainerId = Option.getOrElse(
+    Option.flatMap(Array.get(allContainers, nextContainerIndex), element =>
+      Option.fromNullishOr(element.dataset['droppableId']),
+    ),
+    () => config.currentContainerId,
+  )
 
   return ResolvedKeyboardMove({
     targetContainerId: nextContainerId,
@@ -324,14 +320,7 @@ export const ResolveKeyboardMove = Command.define(
     itemId: S.String,
     currentContainerId: S.String,
     currentIndex: S.Number,
-    direction: S.Literals([
-      'Up',
-      'Down',
-      'Left',
-      'Right',
-      'NextContainer',
-      'PreviousContainer',
-    ]),
+    direction: CoreDragAndDrop.KeyboardMoveDirection,
   },
   ResolvedKeyboardMove,
 )(resolveKeyboardMoveTarget)
@@ -368,11 +357,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         M.value(model.dragState).pipe(
           withUpdateReturn,
           M.tag('Pending', pending => {
-            const deltaX = screenX - pending.origin.screenX
-            const deltaY = screenY - pending.origin.screenY
-            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
-
-            if (distance < model.activationThreshold) {
+            if (
+              !CoreDragAndDrop.hasCrossedActivationThreshold(
+                { x: pending.origin.screenX, y: pending.origin.screenY },
+                { x: screenX, y: screenY },
+                model.activationThreshold,
+              )
+            ) {
               return [model, [], Option.none()]
             }
 
@@ -426,13 +417,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 evo(model, { dragState: () => Idle() }),
                 [],
                 Option.some(
-                  Reordered({
-                    itemId: dragging.itemId,
-                    fromContainerId: dragging.sourceContainerId,
-                    fromIndex: dragging.sourceIndex,
-                    toContainerId: dropTarget.containerId,
-                    toIndex: dropTarget.index,
-                  }),
+                  Reordered(
+                    CoreDragAndDrop.computeReorder(
+                      {
+                        itemId: dragging.itemId,
+                        containerId: dragging.sourceContainerId,
+                        index: dragging.sourceIndex,
+                      },
+                      dropTarget,
+                    ),
+                  ),
                 ),
               ],
             }),
@@ -498,13 +492,19 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             evo(model, { dragState: () => Idle() }),
             [FocusItem({ itemId: keyboardDragging.itemId })],
             Option.some(
-              Reordered({
-                itemId: keyboardDragging.itemId,
-                fromContainerId: keyboardDragging.sourceContainerId,
-                fromIndex: keyboardDragging.sourceIndex,
-                toContainerId: keyboardDragging.targetContainerId,
-                toIndex: keyboardDragging.targetIndex,
-              }),
+              Reordered(
+                CoreDragAndDrop.computeReorder(
+                  {
+                    itemId: keyboardDragging.itemId,
+                    containerId: keyboardDragging.sourceContainerId,
+                    index: keyboardDragging.sourceIndex,
+                  },
+                  {
+                    containerId: keyboardDragging.targetContainerId,
+                    index: keyboardDragging.targetIndex,
+                  },
+                ),
+              ),
             ),
           ]),
           M.orElse(() => [model, [], Option.none()]),
@@ -561,41 +561,33 @@ const resolveDropTarget = (
       container.querySelectorAll<HTMLElement>('[data-sortable-id]'),
     )
 
-    const insertionIndex = pipe(
-      sortableItems,
-      Array.findFirstIndex(item => {
-        const rect = item.getBoundingClientRect()
-        return M.value(orientation).pipe(
-          M.when('Vertical', () => clientY < rect.top + rect.height / 2),
-          M.when('Horizontal', () => clientX < rect.left + rect.width / 2),
-          M.exhaustive,
-        )
-      }),
-      Option.getOrElse(() => sortableItems.length),
+    const itemRects = Array.map(sortableItems, item => {
+      const rect = item.getBoundingClientRect()
+      return {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+      }
+    })
+
+    const insertionIndex = CoreDragAndDrop.computeInsertionIndex(
+      { x: clientX, y: clientY },
+      itemRects,
+      orientation,
     )
 
     return Option.some({ containerId, index: insertionIndex })
   })
 }
 
-const DEFAULT_AUTO_SCROLL_EDGE_PIXELS = 40
-const DEFAULT_AUTO_SCROLL_MAX_SPEED = 15
-
 const autoScroll = (clientY: number): void => {
-  const viewportHeight = window.innerHeight
-  const distanceFromTop = clientY
-  const distanceFromBottom = viewportHeight - clientY
-
-  if (distanceFromTop < DEFAULT_AUTO_SCROLL_EDGE_PIXELS) {
-    const speed =
-      DEFAULT_AUTO_SCROLL_MAX_SPEED *
-      (1 - distanceFromTop / DEFAULT_AUTO_SCROLL_EDGE_PIXELS)
-    window.scrollBy(0, -speed)
-  } else if (distanceFromBottom < DEFAULT_AUTO_SCROLL_EDGE_PIXELS) {
-    const speed =
-      DEFAULT_AUTO_SCROLL_MAX_SPEED *
-      (1 - distanceFromBottom / DEFAULT_AUTO_SCROLL_EDGE_PIXELS)
-    window.scrollBy(0, speed)
+  const delta = CoreDragAndDrop.computeAutoScrollDelta(
+    clientY,
+    window.innerHeight,
+  )
+  if (delta !== 0) {
+    window.scrollBy(0, delta)
   }
 }
 
@@ -704,7 +696,7 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
       dependenciesToStream: ({ dragActivity }) =>
         Stream.when(
           Stream.fromEventListener<KeyboardEvent>(document, 'keydown').pipe(
-            Stream.filter(({ key }) => key === 'Escape'),
+            Stream.filter(({ key }) => PointerDrag.isCancelKey(key)),
             Stream.map(() => CancelledDrag()),
           ),
           Effect.sync(() => dragActivity === 'Active'),
@@ -730,22 +722,14 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
                   if (event.defaultPrevented) {
                     return Option.none()
                   }
-                  if (event.key === 'Tab') {
-                    event.preventDefault()
-                    return Option.some(
-                      PressedArrowKey({
-                        direction: event.shiftKey
-                          ? 'PreviousContainer'
-                          : 'NextContainer',
-                      }),
-                    )
-                  }
-                  if (event.key === ' ' || event.key === 'Enter') {
+                  if (CoreDragAndDrop.isActivationKey(event.key)) {
                     event.preventDefault()
                     return Option.some(ConfirmedKeyboardDrop())
                   }
                   return Option.map(
-                    arrowKeyToDirection(event.key),
+                    CoreDragAndDrop.keyToMoveDirection(event.key, {
+                      isShift: event.shiftKey,
+                    }),
                     direction => {
                       event.preventDefault()
                       return PressedArrowKey({ direction })
@@ -804,16 +788,6 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
 
 const LEFT_MOUSE_BUTTON = 0
 
-const arrowKeyToDirection = (key: string): Option.Option<Direction> =>
-  M.value(key).pipe(
-    M.withReturnType<Direction>(),
-    M.when('ArrowUp', () => 'Up'),
-    M.when('ArrowDown', () => 'Down'),
-    M.when('ArrowLeft', () => 'Left'),
-    M.when('ArrowRight', () => 'Right'),
-    M.option,
-  )
-
 // NOTE: DragAndDrop has no `view` function and is not embedded via
 // `h.submodel`. It's a behavior+helpers component: the consumer renders
 // their own elements (cards, columns) and attaches the attribute bundles
@@ -841,12 +815,9 @@ export const draggable = <ParentMessage>(
 ): ReadonlyArray<Attribute<ParentMessage>> => {
   const h = html<ParentMessage>()
 
-  const isKeyboardDragActivationKey = (key: string): boolean =>
-    key === ' ' || key === 'Enter'
-
   const handleKeyDown = (key: string): Option.Option<ParentMessage> => {
     if (
-      isKeyboardDragActivationKey(key) &&
+      CoreDragAndDrop.isActivationKey(key) &&
       config.model.dragState._tag === 'Idle'
     ) {
       return Option.some(

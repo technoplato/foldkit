@@ -93,7 +93,7 @@
         "domImports": 2,
         "domUses": 7,
         "document": 13,
-        "window": 3
+        "window": 2
       }
     },
     "packages/ui/src/fieldset/index.ts": {
