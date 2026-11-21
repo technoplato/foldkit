@@ -7,6 +7,7 @@ import {
   String,
   pipe,
 } from 'effect'
+import { Tabs as CoreTabs } from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import {
@@ -20,19 +21,18 @@ import { evo } from 'foldkit/struct'
 import { type View as SubmodelView, defineView } from 'foldkit/submodel'
 
 import { idSelector } from '../internal/selectors.js'
-import { keyToIndex } from '../keyboard.js'
 
 export { wrapIndex, findFirstEnabledIndex, keyToIndex } from '../keyboard.js'
 
 // MODEL
 
 /** Controls the tab list layout direction and which arrow keys navigate between tabs. */
-export const Orientation = S.Literals(['Horizontal', 'Vertical'])
-export type Orientation = typeof Orientation.Type
+export const Orientation = CoreTabs.Orientation
+export type Orientation = CoreTabs.Orientation
 
 /** Controls whether tabs activate on focus (`Automatic`) or require an explicit selection (`Manual`). */
-export const ActivationMode = S.Literals(['Automatic', 'Manual'])
-export type ActivationMode = typeof ActivationMode.Type
+export const ActivationMode = CoreTabs.ActivationMode
+export type ActivationMode = CoreTabs.ActivationMode
 
 /** Schema for the tabs component's private interaction state. The active
  *  tab is owned by the parent and passed in via `ViewInputs.selectedValue`,
@@ -111,17 +111,13 @@ export const init = (config: InitConfig): Model => ({
 
 // UPDATE
 
-const tabId = (id: string, index: number): string => `${id}-tab-${index}`
-
-const tabPanelId = (id: string, index: number): string => `${id}-panel-${index}`
-
 /** Moves focus to the tab at the given index. */
 export const FocusTab = Command.define(
   'FocusTab',
   { id: S.String, index: S.Number },
   CompletedFocusTab,
 )(({ id, index }) =>
-  Dom.focus(idSelector(tabId(id, index))).pipe(
+  Dom.focus(idSelector(CoreTabs.tabId(id, index))).pipe(
     Effect.ignore,
     Effect.as(CompletedFocusTab()),
   ),
@@ -238,26 +234,6 @@ const internalView = defineView<Model, Message, ViewInputs>(
         Option.exists(tab => isTabDisabled(tab, index)),
       )
 
-    const { nextKey, previousKey } = M.value(orientation).pipe(
-      M.when('Horizontal', () => ({
-        nextKey: 'ArrowRight',
-        previousKey: 'ArrowLeft',
-      })),
-      M.when('Vertical', () => ({
-        nextKey: 'ArrowDown',
-        previousKey: 'ArrowUp',
-      })),
-      M.exhaustive,
-    )
-
-    const resolveKeyIndex = keyToIndex(
-      nextKey,
-      previousKey,
-      tabs.length,
-      focusedIndex,
-      isDisabled,
-    )
-
     const tabSelectedAt = (index: number): Option.Option<SelectedTab> =>
       pipe(
         tabs,
@@ -265,45 +241,26 @@ const internalView = defineView<Model, Message, ViewInputs>(
         Option.map(value => SelectedTab({ index, value })),
       )
 
-    const handleAutomaticKeyDown = (key: string): Option.Option<SelectedTab> =>
-      M.value(key).pipe(
-        M.whenOr(
-          nextKey,
-          previousKey,
-          'Home',
-          'End',
-          'PageUp',
-          'PageDown',
-          () => tabSelectedAt(resolveKeyIndex(key)),
-        ),
-        M.whenOr('Enter', ' ', () => tabSelectedAt(focusedIndex)),
-        M.orElse(() => Option.none()),
-      )
-
-    const handleManualKeyDown = (
-      key: string,
-    ): Option.Option<SelectedTab | FocusedTab> =>
-      M.value(key).pipe(
-        M.whenOr(
-          nextKey,
-          previousKey,
-          'Home',
-          'End',
-          'PageUp',
-          'PageDown',
-          () => Option.some(FocusedTab({ index: resolveKeyIndex(key) })),
-        ),
-        M.whenOr('Enter', ' ', () => tabSelectedAt(focusedIndex)),
-        M.orElse(() => Option.none()),
-      )
-
     const handleKeyDown = (
       key: string,
     ): Option.Option<SelectedTab | FocusedTab> =>
-      M.value(activationMode).pipe(
-        M.when('Automatic', () => handleAutomaticKeyDown(key)),
-        M.when('Manual', () => handleManualKeyDown(key)),
-        M.exhaustive,
+      Option.flatMap(
+        CoreTabs.resolveKeyOutcome({
+          key,
+          count: tabs.length,
+          current: Option.some(focusedIndex),
+          isDisabled,
+          orientation,
+          activationMode,
+        }),
+        outcome =>
+          M.value(outcome).pipe(
+            M.withReturnType<Option.Option<SelectedTab | FocusedTab>>(),
+            M.tagsExhaustive({
+              SelectIndex: ({ index }) => tabSelectedAt(index),
+              FocusIndex: ({ index }) => Option.some(FocusedTab({ index })),
+            }),
+          ),
       )
 
     const tabInfos: ReadonlyArray<TabInfo> = Array.map(tabs, (value, index) => {
@@ -312,11 +269,11 @@ const internalView = defineView<Model, Message, ViewInputs>(
       const isTabDisabledNow = isDisabled(index)
 
       const tabAttributes = [
-        h.Id(tabId(id, index)),
+        h.Id(CoreTabs.tabId(id, index)),
         h.Role('tab'),
         h.Type('button'),
         h.AriaSelected(isActive),
-        h.AriaControls(tabPanelId(id, index)),
+        h.AriaControls(CoreTabs.panelId(id, index)),
         h.Tabindex(isFocused ? 0 : -1),
         ...(isActive ? [h.DataAttribute('selected', '')] : []),
         ...(isTabDisabledNow
@@ -330,9 +287,9 @@ const internalView = defineView<Model, Message, ViewInputs>(
       ]
 
       const panelAttributes = [
-        h.Id(tabPanelId(id, index)),
+        h.Id(CoreTabs.panelId(id, index)),
         h.Role('tabpanel'),
-        h.AriaLabelledBy(tabId(id, index)),
+        h.AriaLabelledBy(CoreTabs.tabId(id, index)),
         h.Tabindex(isActive ? 0 : -1),
         ...(isActive ? [h.DataAttribute('selected', '')] : []),
       ]

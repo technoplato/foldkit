@@ -14,17 +14,24 @@ import * as LongPress from './longPress.js'
 // says of it, and the press each gesture sends. A painter's host reads a
 // binding and nothing else of a part, so it never learns a part's name.
 
-/** What a painted element is, for a screen reader: a menu's row is a `MenuItem`. */
+/** What a painted element is, for a screen reader: a menu's row is a `MenuItem`, a tab bar is a `TabList`. */
 export const Role = S.Literals([
   'Menu',
   'MenuItem',
+  'TabList',
   'Tab',
+  'TabPanel',
   'Button',
   'Dialog',
   'AlertDialog',
 ])
 /** What a painted element is, for a screen reader. */
 export type Role = typeof Role.Type
+
+/** Which axis a composite slot (such as a tablist or toolbar) lays out along. */
+export const SlotOrientation = S.Literals(['Horizontal', 'Vertical'])
+/** Which axis a composite slot lays out along. */
+export type SlotOrientation = typeof SlotOrientation.Type
 
 /**
  * One gesture a slot listens for, and the press it sends:
@@ -76,9 +83,12 @@ export const SlotBinding = S.Struct({
   gestures: S.Array(GesturePress),
   maybeHold: S.Option(HoldBinding),
   isCurrent: S.optionalKey(S.Boolean),
+  isSelected: S.optionalKey(S.Boolean),
   isExpanded: S.optionalKey(S.Boolean),
   isDisabled: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
+  isHidden: S.optionalKey(S.Boolean),
+  orientation: S.optionalKey(SlotOrientation),
   label: S.optionalKey(S.String),
   labelledBy: S.optionalKey(S.String),
   describedBy: S.optionalKey(S.String),
@@ -87,6 +97,7 @@ export const SlotBinding = S.Struct({
   keys: S.optionalKey(S.Array(S.String)),
   id: S.optionalKey(S.String),
   activeId: S.optionalKey(S.String),
+  tabIndex: S.optionalKey(S.Number),
 })
 /** What the screen tree carries to a painter for one painted element of a part. */
 export type SlotBinding = typeof SlotBinding.Type
@@ -100,9 +111,12 @@ export type SlotBinding = typeof SlotBinding.Type
 export const SlotProps = S.Struct({
   role: S.optionalKey(Role),
   isCurrent: S.optionalKey(S.Boolean),
+  isSelected: S.optionalKey(S.Boolean),
   isExpanded: S.optionalKey(S.Boolean),
   isDisabled: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
+  isHidden: S.optionalKey(S.Boolean),
+  orientation: S.optionalKey(SlotOrientation),
   label: S.optionalKey(S.String),
   labelledBy: S.optionalKey(S.String),
   describedBy: S.optionalKey(S.String),
@@ -111,6 +125,7 @@ export const SlotProps = S.Struct({
   keys: S.optionalKey(S.Array(S.String)),
   id: S.optionalKey(S.String),
   activeId: S.optionalKey(S.String),
+  tabIndex: S.optionalKey(S.Number),
 })
 /** What a part's projection says of one slot. */
 export type SlotProps = typeof SlotProps.Type
@@ -247,7 +262,9 @@ export const ofButton = (button: ButtonNode): Option.Option<SlotBinding> =>
 const roleNames: Readonly<Record<Role, string>> = {
   Menu: 'menu',
   MenuItem: 'menuitem',
+  TabList: 'tablist',
   Tab: 'tab',
+  TabPanel: 'tabpanel',
   Button: 'button',
   Dialog: 'dialog',
   AlertDialog: 'alertdialog',
@@ -289,9 +306,18 @@ export const ariaOf = (
   ...(binding.describedBy === undefined
     ? {}
     : { 'aria-describedby': binding.describedBy }),
+  ...(binding.orientation === undefined
+    ? {}
+    : {
+        'aria-orientation':
+          binding.orientation === 'Horizontal' ? 'horizontal' : 'vertical',
+      }),
   ...(binding.isCurrent === undefined
     ? {}
     : { 'aria-current': String(binding.isCurrent) }),
+  ...(binding.isSelected === undefined
+    ? {}
+    : { 'aria-selected': String(binding.isSelected) }),
   ...(binding.isExpanded === undefined
     ? {}
     : { 'aria-expanded': String(binding.isExpanded) }),
@@ -302,6 +328,10 @@ export const ariaOf = (
   ...(binding.keys === undefined || Array.isReadonlyArrayEmpty(binding.keys)
     ? {}
     : { 'aria-keyshortcuts': Array.join(binding.keys, ' ') }),
+  ...(binding.tabIndex === undefined
+    ? {}
+    : { tabindex: String(binding.tabIndex) }),
+  ...(binding.isHidden === true ? { hidden: '' } : {}),
 })
 
 /**

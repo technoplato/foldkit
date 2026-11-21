@@ -1,5 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
-import { Interaction, Navigation } from 'foldkit'
+import { Environment, Interaction, Navigation } from 'foldkit'
 import { Placement, Slot, TranscriptFollow } from 'foldkit/behavior'
 import {
   type BoxLayer,
@@ -221,10 +221,11 @@ const DockBox = ({
 const layerSurfaceClass = 'fk-layer-surface'
 
 const focusedElement = (): Option.Option<HTMLElement> =>
-  typeof document !== 'undefined' &&
-  document.activeElement instanceof HTMLElement
-    ? Option.some(document.activeElement)
-    : Option.none()
+  Option.flatMap(Environment.maybePage(), ({ document }) =>
+    document.activeElement instanceof HTMLElement
+      ? Option.some(document.activeElement)
+      : Option.none(),
+  )
 
 const isKeyboardOnPage = (): boolean =>
   document.activeElement === null || document.activeElement === document.body
@@ -1510,7 +1511,11 @@ export const paintTree = (
         {paintChildren(box.children)}
       </DockBox>
     ) : (
-      <div className={classFor('Box', 'fk-box')} data-measure={box.measure}>
+      <div
+        className={classFor('Box', 'fk-box')}
+        data-measure={box.measure}
+        {...(box.slot === undefined ? {} : slotPropsOf(box.slot))}
+      >
         {paintChildren(box.children)}
       </div>
     )
@@ -1769,12 +1774,16 @@ export const paintTree = (
               row.isBoard === true ? 'fk-row fk-board' : 'fk-row',
             )}
             data-arrange={row.arrange}
+            {...(row.slot === undefined ? {} : slotPropsOf(row.slot))}
           >
             {paintChildren(row.children)}
           </div>
         ),
         Column: column => (
-          <div className={classFor('Column', 'fk-column')}>
+          <div
+            className={classFor('Column', 'fk-column')}
+            {...(column.slot === undefined ? {} : slotPropsOf(column.slot))}
+          >
             {paintChildren(column.children)}
           </div>
         ),

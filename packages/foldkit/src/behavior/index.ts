@@ -12,6 +12,7 @@ export * as Placement from './placement.js'
 export * as Reader from './reader.js'
 export * as RovingFocus from './rovingFocus.js'
 export * as Slot from './slot.js'
+export * as Tabs from './tabs.js'
 export * as TranscriptFollow from './transcriptFollow.js'
 export * as Typeahead from './typeahead.js'
 export type {

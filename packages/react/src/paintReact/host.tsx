@@ -18,6 +18,19 @@ import {
 // file only writes a binding as props and keeps the effect alive. It holds
 // no rule: what a hold is, and what each gesture sends, are core's.
 
+const reactPropEntry = ([name, value]: readonly [string, string]): readonly [
+  string,
+  string | number | boolean,
+] => {
+  if (name === 'tabindex') {
+    return ['tabIndex', Number(value)]
+  } else if (name === 'hidden') {
+    return ['hidden', true]
+  } else {
+    return [name, value]
+  }
+}
+
 /**
  * A binding as the props of the element it is bound on.
  *
@@ -29,8 +42,10 @@ import {
 export const slotPropsOf = (
   binding: Slot.SlotBinding,
   itemAttribute?: string,
-): Readonly<Record<string, string>> =>
-  Object.fromEntries(slotAttributesOf(binding, itemAttribute))
+): Readonly<Record<string, string | number | boolean>> =>
+  Object.fromEntries(
+    slotAttributesOf(binding, itemAttribute).map(reactPropEntry),
+  )
 
 /**
  * A completed hold as the props of the element the host is bound on.

@@ -586,11 +586,22 @@ export const paintHtml = <Message>(
               ...(row.arrange === undefined
                 ? []
                 : [h.DataAttribute('arrange', row.arrange)]),
+              ...(row.slot === undefined
+                ? []
+                : hostAttributes(slotAttributesOf(row.slot))),
             ],
             Array.map(row.children, paint),
           ),
         Column: column =>
-          h.div([h.Class('fk-column')], Array.map(column.children, paint)),
+          h.div(
+            [
+              h.Class('fk-column'),
+              ...(column.slot === undefined
+                ? []
+                : hostAttributes(slotAttributesOf(column.slot))),
+            ],
+            Array.map(column.children, paint),
+          ),
         Box: box =>
           box.layer === undefined
             ? h.div(
@@ -599,6 +610,9 @@ export const paintHtml = <Message>(
                   ...(box.measure === undefined
                     ? []
                     : [h.DataAttribute('measure', box.measure)]),
+                  ...(box.slot === undefined
+                    ? []
+                    : hostAttributes(slotAttributesOf(box.slot))),
                 ],
                 Array.map(box.children, paint),
               )

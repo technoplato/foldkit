@@ -189,6 +189,7 @@ export type RowNode = Readonly<{
   readonly gap: number
   readonly isBoard?: boolean
   readonly arrange?: RowArrangement
+  readonly slot?: SlotBinding
   readonly children: ReadonlyArray<UiNode>
 }>
 
@@ -205,6 +206,7 @@ export type RowArrangement = 'Toolbar' | 'Split'
 export type ColumnNode = Readonly<{
   readonly _tag: 'Column'
   readonly gap: number
+  readonly slot?: SlotBinding
   readonly children: ReadonlyArray<UiNode>
 }>
 
@@ -238,6 +240,7 @@ export type BoxNode = Readonly<{
   readonly isDock?: boolean
   readonly layer?: BoxLayer
   readonly measure?: BoxMeasure
+  readonly slot?: SlotBinding
   readonly children: ReadonlyArray<UiNode>
 }>
 

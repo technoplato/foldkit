@@ -27,7 +27,7 @@ import { useBound, useScreen } from '@foldkit/react/interaction'
 
 import { useLook } from '../theme/themed.js'
 import { TextField, TokenField } from './field.js'
-import { hostPropsOf } from './host.js'
+import { containerPropsOf, hostPropsOf } from './host.js'
 import { Icon } from './icon.js'
 import { ListFrame, ProgressBar, paintRows } from './list.js'
 import { type Look, lightLook } from './look.js'
@@ -597,11 +597,13 @@ export const paintTree = (
     } else {
       return (
         <View
+          {...containerPropsOf(Option.fromNullishOr(box.slot))}
           style={[
             base,
             box.measure === 'Reading'
               ? { alignSelf: 'center', maxWidth: readingMeasure, width: '100%' }
               : undefined,
+            box.slot?.isHidden === true ? { display: 'none' } : undefined,
             paint.styles.Box,
           ]}
         >
@@ -628,7 +630,10 @@ export const paintTree = (
           />
         ),
         Row: row => (
-          <View style={[rowStyleOf(row, paint), paint.styles.Row]}>
+          <View
+            {...containerPropsOf(Option.fromNullishOr(row.slot))}
+            style={[rowStyleOf(row, paint), paint.styles.Row]}
+          >
             {Array.map(
               Array.filter(row.children, child => !isEmptyOf(child, paint)),
               (child, index) =>
@@ -655,6 +660,7 @@ export const paintTree = (
             : paint
           return (
             <View
+              {...containerPropsOf(Option.fromNullishOr(column.slot))}
               style={[
                 {
                   alignItems: hasDisplay(column.children)

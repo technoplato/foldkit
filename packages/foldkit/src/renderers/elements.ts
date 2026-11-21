@@ -308,6 +308,7 @@ export const Row = (
     gap?: number
     isBoard?: boolean
     arrange?: RowArrangement
+    slot?: SlotBinding
   }> = {},
   ...children: ReadonlyArray<UiNode>
 ): RowNode => ({
@@ -315,6 +316,7 @@ export const Row = (
   gap: props.gap ?? 1,
   ...(props.isBoard === undefined ? {} : { isBoard: props.isBoard }),
   ...(props.arrange === undefined ? {} : { arrange: props.arrange }),
+  ...(props.slot === undefined ? {} : { slot: props.slot }),
   children,
 })
 
@@ -358,11 +360,12 @@ export const Split = (side: UiNode, main: UiNode): RowNode =>
 
 /** A vertical stack. */
 export const Column = (
-  props: Readonly<{ gap?: number }> = {},
+  props: Readonly<{ gap?: number; slot?: SlotBinding }> = {},
   ...children: ReadonlyArray<UiNode>
 ): ColumnNode => ({
   _tag: 'Column',
   gap: props.gap ?? 0,
+  ...(props.slot === undefined ? {} : { slot: props.slot }),
   children,
 })
 
@@ -384,6 +387,7 @@ export const Box = (
     isDock?: boolean
     layer?: BoxLayer
     measure?: BoxMeasure
+    slot?: SlotBinding
   }> = {},
   ...children: ReadonlyArray<UiNode>
 ): BoxNode => ({
@@ -392,6 +396,7 @@ export const Box = (
   ...(props.isDock === undefined ? {} : { isDock: props.isDock }),
   ...(props.layer === undefined ? {} : { layer: props.layer }),
   ...(props.measure === undefined ? {} : { measure: props.measure }),
+  ...(props.slot === undefined ? {} : { slot: props.slot }),
   children,
 })
 

@@ -95,7 +95,7 @@ is still to build, and is built with the first row that needs it.
 | --- | ------------------------ | ------------- | ------------------------ | --------------------------------- | --------------------------------------------------------------------------------------- |
 | 1   | ~~Menu~~ (done, #2606)   | `Menu`        | menu                     | menu, dropdown-menu, context-menu | **`longPress`**, **`placement`**, **`layers`**, **`rovingFocus`**, **`typeahead`**      |
 | 2   | ~~Dialog~~ (done, #2612) | `Dialog`      | dialog                   | dialog, alert-dialog              | **`layers`**, **`focusScope`**                                                          |
-| 3   | Tabs                     | `Tabs`        | tabs                     | tabs                              | **`rovingFocus`**                                                                       |
+| 3   | ~~Tabs~~ (done, #2613)   | `Tabs`        | tabs                     | tabs                              | **`rovingFocus`**                                                                       |
 | 4   | Popover                  | `Popover`     | popover                  | popover                           | **`placement`**, **`layers`**, **`focusScope`**                                         |
 | 5   | Disclosure               | `Disclosure`  | collapsible, accordion   | collapsible, accordion            | **`rovingFocus`**, `presence`                                                           |
 | 6   | Switch                   | `Switch`      | switch                   | switch                            | none                                                                                    |
@@ -148,11 +148,11 @@ is still to build, and is built with the first row that needs it.
 | 53  | Clipboard                | none          | clipboard                | none                              | `timedHint`                                                                             |
 | 54  | QR code                  | none          | qr-code                  | none                              | none                                                                                    |
 
-**Widgets left: 52 of 54.** Of those, 23 are `packages/ui`'s remaining namespaces
-(rows 3 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
+**Widgets left: 51 of 54.** Of those, 22 are `packages/ui`'s remaining namespaces
+(rows 4 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
 the hosts and `longPress` + `placement`; #2606 built row 1 (`Menu`) with
 `layers`, `rovingFocus`, and `typeahead`; #2612 built row 2 (`Dialog`) with
-`focusScope`.
+`focusScope`; #2613 built row 3 (`Tabs`) reusing `rovingFocus`.
 
 What the count covers, so it can be checked: all 51 of Zag's machines are
 in a row (three rows hold two each: Disclosure, Input and Date picker).
