@@ -393,6 +393,57 @@ export const fractionsFromPoint = (
 })
 
 /**
+ * Normalized 2D pointer sample measured against a snapshotted bounding `rect`.
+ */
+export type SurfaceSample = Readonly<{
+  localX: number
+  localY: number
+  width: number
+  height: number
+  ratioX: number
+  ratioY: number
+}>
+
+/**
+ * Computes local coordinates and clamped `[0, 1]` ratios (`ratioX`, `ratioY`)
+ * for `point` inside a snapshotted `rect`, guarding zero-dimension rectangles
+ * and honoring optional RTL / axis inversion via {@link fractionsFromPoint}.
+ *
+ * @example
+ * ```typescript
+ * sampleInRect({ x: 60, y: 25 }, { x: 10, y: 5, width: 100, height: 80 })
+ * // { localX: 50, localY: 20, width: 100, height: 80, ratioX: 0.5, ratioY: 0.25 }
+ * ```
+ */
+export const sampleInRect = (
+  point: Point,
+  rect: Rect,
+  options: Readonly<{
+    direction?: DragDirection
+    isInvertedX?: boolean
+    isInvertedY?: boolean
+  }> = {},
+): SurfaceSample => {
+  const safeWidth = rect.width > 0 ? rect.width : 1
+  const safeHeight = rect.height > 0 ? rect.height : 1
+  const safeRect: Rect = {
+    x: rect.x,
+    y: rect.y,
+    width: safeWidth,
+    height: safeHeight,
+  }
+  const fractions = fractionsFromPoint(point, safeRect, options)
+  return {
+    localX: point.x - rect.x,
+    localY: point.y - rect.y,
+    width: safeWidth,
+    height: safeHeight,
+    ratioX: fractions.x,
+    ratioY: fractions.y,
+  }
+}
+
+/**
  * Converts a `[0, 1]` `fraction` into a value within `[min, max]`, optionally
  * snapping to `step` when a positive `step` is provided.
  *

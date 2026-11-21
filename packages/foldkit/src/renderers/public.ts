@@ -167,4 +167,13 @@ export {
   holdAttributesOf,
   recognizes as browserRecognizes,
   slotAttributesOf,
+  slotHostMount,
+  slotHostMountName,
+  slotPressEventName,
 } from './htmlHost.js'
+export {
+  type SurfaceDragHandlers,
+  type SurfaceDragSample,
+  bindSurfaceDrag,
+  surfaceDragMount,
+} from './htmlSurfaceDrag.js'

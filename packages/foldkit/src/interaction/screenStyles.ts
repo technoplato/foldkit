@@ -366,10 +366,35 @@ ${themeStylesheet(defaultTheme)}
   -webkit-tap-highlight-color: transparent;
 }
 
-:where([data-slot-held]) {
+:where([data-slot-held]:not(.fk-transcript)) {
+  -webkit-touch-callout: none;
+}
+
+:where([data-slot-drag='plane']) {
+  touch-action: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+:where([data-slot-drag='horizontal']) {
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:where([data-slot-drag='vertical']) {
+  touch-action: pan-x;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (pointer: coarse) {
+  input[inputmode],
+  input.fk-text-input,
+  .fk-list-filter {
+    font-size: max(16px, 1rem);
+  }
 }
 
 @media (hover: hover) {

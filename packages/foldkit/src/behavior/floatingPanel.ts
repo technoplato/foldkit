@@ -1624,6 +1624,7 @@ const projectSlot = (
   } else if (slot === 'Header') {
     return {
       id: headerId(props.id),
+      dragAxis: 'Plane',
       ...(canDrag(state, props) ? {} : { isDisabled: true }),
     }
   } else if (slot === 'Body') {
@@ -1637,6 +1638,7 @@ const projectSlot = (
     return {
       id: resizeHandleId(props.id, axis),
       label: resizeHandleLabelOf(axis),
+      dragAxis: 'Plane',
       ...(resizableNow ? {} : { isDisabled: true, isHidden: true }),
     }
   } else if (slot === 'MinimizeButton') {

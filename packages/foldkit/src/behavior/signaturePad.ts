@@ -694,6 +694,7 @@ const projectSlot = (
     return {
       id: rootId(props.id),
       label: labelOf(props),
+      dragAxis: 'Plane',
       ...(disabled ? { isDisabled: true } : { tabIndex: 0 }),
       ...(readOnly ? { isReadOnly: true } : {}),
       ...(required ? { isRequired: true } : {}),

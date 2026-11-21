@@ -10,6 +10,7 @@ import {
   Menubar,
   Nav,
   NumberInput,
+  Part,
   PinInput,
   Presence,
   RatingGroup,
@@ -21,7 +22,7 @@ import {
 } from 'foldkit/behavior'
 import type { Html } from 'foldkit/html'
 
-import { H, IgnoredKeyPress, dispatchPart } from '../messages'
+import { H, IgnoredKeyPress, dispatchPart, slotAttrs } from '../messages'
 import { playgroundProps } from '../partsProps'
 import type { PlaygroundModel } from '../state'
 
@@ -509,26 +510,46 @@ export const renderGroup2 = (
 
   // 27. HoverCard
   const hoverOpen = HoverCard.isOpen(parts.hoverCard)
+  const hoverCardPartView = Part.view(
+    HoverCard.part,
+    parts.hoverCard,
+    playgroundProps.hoverCard,
+  )
   const hoverCardView = div(
     [H.Class('pg-col')],
     [
       button(
         [
           H.Class('pg-btn'),
+          ...slotAttrs(hoverCardPartView.slot('Trigger')),
+          H.OnPointerDown(pointerType =>
+            Option.some(
+              dispatchPart(
+                'hoverCard',
+                HoverCard.PressHoverCardPointer({ pointerType }),
+              ),
+            ),
+          ),
           H.OnPointerMove((_sx, _sy, pointerType) =>
-            pointerType === 'mouse' && !hoverOpen
-              ? Option.some(
-                  dispatchPart('hoverCard', HoverCard.OpenHoverCard()),
-                )
-              : Option.none(),
+            Option.some(
+              dispatchPart(
+                'hoverCard',
+                HoverCard.EnterHoverCardTrigger({ pointerType }),
+              ),
+            ),
           ),
           H.OnPointerLeave(pointerType =>
-            pointerType === 'mouse' && hoverOpen
-              ? Option.some(
-                  dispatchPart('hoverCard', HoverCard.CloseHoverCard()),
-                )
-              : Option.none(),
+            Option.some(
+              dispatchPart(
+                'hoverCard',
+                HoverCard.LeaveHoverCardTrigger({ pointerType }),
+              ),
+            ),
           ),
+          H.OnFocus(
+            dispatchPart('hoverCard', HoverCard.FocusHoverCardTrigger()),
+          ),
+          H.OnBlur(dispatchPart('hoverCard', HoverCard.BlurHoverCardTrigger())),
           H.OnClick(
             dispatchPart(
               'hoverCard',
@@ -542,7 +563,10 @@ export const renderGroup2 = (
       ),
       hoverOpen
         ? div(
-            [H.Class('pg-popup')],
+            [
+              H.Class('pg-popup'),
+              ...slotAttrs(hoverCardPartView.slot('Content')),
+            ],
             [
               span([], ['Foldkit Core UI · 54 Parts']),
               span(
@@ -725,12 +749,18 @@ export const renderGroup2 = (
 
   // 32. NumberInput
   const numDraft = NumberInput.textOf(parts.numberInput)
+  const numberInputPartView = Part.view(
+    NumberInput.part,
+    parts.numberInput,
+    playgroundProps.numberInput,
+  )
   const numberInputView = div(
     [H.Class('pg-row')],
     [
       button(
         [
           H.Class('pg-btn'),
+          ...slotAttrs(numberInputPartView.slot('DecrementTrigger')),
           H.OnClick(dispatchPart('numberInput', NumberInput.DecrementNumber())),
         ],
         ['−'],
@@ -738,8 +768,7 @@ export const renderGroup2 = (
       input([
         H.Class('pg-input mono'),
         H.Style({ width: '100px', textAlign: 'center' }),
-        H.Attribute('inputmode', 'decimal'),
-        H.Attribute('enterkeyhint', 'done'),
+        ...slotAttrs(numberInputPartView.slot('Input')),
         H.Value(numDraft),
         H.OnInput(value =>
           dispatchPart('numberInput', NumberInput.ChangeNumberInput({ value })),
@@ -749,6 +778,7 @@ export const renderGroup2 = (
       button(
         [
           H.Class('pg-btn'),
+          ...slotAttrs(numberInputPartView.slot('IncrementTrigger')),
           H.OnClick(dispatchPart('numberInput', NumberInput.IncrementNumber())),
         ],
         ['+'],
@@ -763,6 +793,11 @@ export const renderGroup2 = (
     parts.pinInput,
     playgroundProps.pinInput,
   )
+  const pinPartView = Part.view(
+    PinInput.part,
+    parts.pinInput,
+    playgroundProps.pinInput,
+  )
   const pinInputView = div(
     [H.Class('pg-col')],
     [
@@ -772,9 +807,8 @@ export const renderGroup2 = (
           input([
             H.Class('pg-pin-cell mono'),
             H.Attribute('maxlength', '1'),
-            H.Attribute('inputmode', 'numeric'),
-            H.Attribute('autocomplete', 'one-time-code'),
-            H.Value(pinDigits[index] ?? ''),
+            ...slotAttrs(pinPartView.slot('Input', String(index))),
+            H.Value(Option.getOrElse(Array.get(pinDigits, index), () => '')),
             H.OnInput(value =>
               dispatchPart(
                 'pinInput',
@@ -819,6 +853,11 @@ export const renderGroup2 = (
   // 34. TagsInput
   const tagsList = parts.tagsInput.tags
   const tagDraft = TagsInput.inputDraftOf(parts.tagsInput)
+  const tagsPartView = Part.view(
+    TagsInput.part,
+    parts.tagsInput,
+    playgroundProps.tagsInput,
+  )
   const tagsInputView = div(
     [H.Class('pg-col')],
     [
@@ -847,7 +886,7 @@ export const renderGroup2 = (
           input([
             H.Class('pg-input'),
             H.Style({ flex: '1' }),
-            H.Attribute('enterkeyhint', 'done'),
+            ...slotAttrs(tagsPartView.slot('Input')),
             H.Value(tagDraft),
             H.Placeholder('Add tag…'),
             H.OnInput(value =>

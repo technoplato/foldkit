@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { Array, Option } from 'effect'
 import { Runtime } from 'foldkit'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -67,6 +67,24 @@ describe('Playground live browser boot', () => {
     expect(css).toContain('@media (pointer: coarse), (max-width: 768px)')
     expect(css).toContain('font-size: 16px;')
     expect(css).toContain('@media (hover: hover) and (pointer: fine)')
+
+    // App-local touchMount.ts is deleted; zero raw DOM listeners in playground source.
+    expect(existsSync(resolve(import.meta.dirname, 'touchMount.ts'))).toBe(
+      false,
+    )
+    const srcFiles = [
+      ...readdirSync(import.meta.dirname)
+        .filter(name => /\.(ts|tsx)$/u.test(name) && !name.includes('.test.'))
+        .map(name => resolve(import.meta.dirname, name)),
+      ...readdirSync(resolve(import.meta.dirname, 'views'))
+        .filter(name => /\.(ts|tsx)$/u.test(name))
+        .map(name => resolve(import.meta.dirname, 'views', name)),
+    ]
+    for (const filePath of srcFiles) {
+      const source = readFileSync(filePath, 'utf8')
+      expect(source).not.toContain('addEventListener')
+      expect(source).not.toContain('setPointerCapture')
+    }
   })
 
   it('mounts all 54 cards via Runtime.embed and handles desktop & mobile touch gestures', async () => {
@@ -122,10 +140,57 @@ describe('Playground live browser boot', () => {
         expect(document.body.textContent).toContain('Local: 16')
       })
 
-      // Mobile touch tap-to-toggle on Tooltip (must not double-fire when touch pointermove precedes click)
+      // Core Slot projections emit data-slot-drag, inputmode, enterkeyhint, and autocomplete
+      expect(
+        document
+          .querySelector('#part-splitter .pg-split-wrap')
+          ?.getAttribute('data-slot-drag'),
+      ).toBe('horizontal')
+      expect(
+        document
+          .querySelector('#part-colorPicker .pg-color-area')
+          ?.getAttribute('data-slot-drag'),
+      ).toBe('plane')
+      expect(
+        document
+          .querySelector('#part-signaturePad svg')
+          ?.getAttribute('data-slot-drag'),
+      ).toBe('plane')
+      const pinCell = document.querySelector('#part-pinInput input')
+      expect(pinCell?.getAttribute('inputmode')).toBe('numeric')
+      expect(pinCell?.getAttribute('autocomplete')).toBe('one-time-code')
+
+      // Two-browser mobile touch tap-to-toggle on Tooltip:
+      // 1) Chrome Android sequence: pointerdown(touch) -> pointermove(touch) -> focus -> click
       const tooltipCard = document.getElementById('part-tooltip')
       const tooltipTrigger = tooltipCard?.querySelector('button')
       expect(tooltipTrigger).not.toBeNull()
+      tooltipTrigger?.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          pointerType: 'touch',
+        }),
+      )
+      tooltipTrigger?.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerType: 'touch',
+        }),
+      )
+      tooltipTrigger?.dispatchEvent(new FocusEvent('focus'))
+      // Focus after touch press must NOT prematurely open before click
+      expect(tooltipCard?.querySelector('[role="tooltip"]')).toBeNull()
+      tooltipTrigger?.click()
+      await vi.waitFor(() => {
+        expect(tooltipCard?.querySelector('[role="tooltip"]')).not.toBeNull()
+      })
+      // 2) iOS Safari sequence (no focus on button tap): pointerdown(touch) -> pointermove(touch) -> click
+      tooltipTrigger?.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          pointerType: 'touch',
+        }),
+      )
       tooltipTrigger?.dispatchEvent(
         new PointerEvent('pointermove', {
           bubbles: true,
@@ -134,9 +199,15 @@ describe('Playground live browser boot', () => {
       )
       tooltipTrigger?.click()
       await vi.waitFor(() => {
+        expect(tooltipCard?.querySelector('[role="tooltip"]')).toBeNull()
+      })
+      // 3) Keyboard focus (without preceding pointerdown) opens Tooltip; blur closes it
+      tooltipTrigger?.dispatchEvent(new FocusEvent('blur'))
+      tooltipTrigger?.dispatchEvent(new FocusEvent('focus'))
+      await vi.waitFor(() => {
         expect(tooltipCard?.querySelector('[role="tooltip"]')).not.toBeNull()
       })
-      tooltipTrigger?.click()
+      tooltipTrigger?.dispatchEvent(new FocusEvent('blur'))
       await vi.waitFor(() => {
         expect(tooltipCard?.querySelector('[role="tooltip"]')).toBeNull()
       })

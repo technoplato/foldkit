@@ -5,7 +5,7 @@ export type CallableTaggedStruct<
   Tag extends string,
   Fields extends S.Struct.Fields,
 > = S.TaggedStruct<Tag, Fields> &
-  (keyof Fields extends never
+  ({} extends Parameters<S.TaggedStruct<Tag, Fields>['make']>[0]
     ? (
         value?: Parameters<S.TaggedStruct<Tag, Fields>['make']>[0] | void,
       ) => Types.Simplify<S.Struct.Type<{ readonly _tag: S.tag<Tag> } & Fields>>

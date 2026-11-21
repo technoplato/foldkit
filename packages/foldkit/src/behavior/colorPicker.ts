@@ -1747,6 +1747,7 @@ const projectSlot = (
     return {
       id: areaId(props.id),
       label: 'Color saturation and brightness',
+      dragAxis: 'Plane',
       ...(disabled ? { isDisabled: true } : {}),
       ...(readOnly ? { isReadOnly: true } : {}),
     }
@@ -1756,6 +1757,7 @@ const projectSlot = (
     return {
       id: areaThumbId(props.id),
       label: 'Saturation and brightness',
+      dragAxis: 'Plane',
       valueMin: 0,
       valueMax: maxPercent,
       valueNow: saturation,
@@ -1776,6 +1778,7 @@ const projectSlot = (
           id: channelSliderId(props.id, 'Hue'),
           label: 'Hue',
           orientation: 'Horizontal',
+          dragAxis: 'Horizontal',
           valueMin: 0,
           valueMax: maxHue,
           valueNow: hue,
@@ -1791,6 +1794,7 @@ const projectSlot = (
           id: channelSliderId(props.id, 'Alpha'),
           label: 'Alpha',
           orientation: 'Horizontal',
+          dragAxis: 'Horizontal',
           valueMin: 0,
           valueMax: maxPercent,
           valueNow: alphaPercent,

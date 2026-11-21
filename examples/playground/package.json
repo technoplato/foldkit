@@ -4,11 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
+    "@foldkit/react": "workspace:*",
     "effect": "4.0.0-beta.97",
-    "foldkit": "workspace:*"
+    "foldkit": "workspace:*",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "happy-dom": "^20.10.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",

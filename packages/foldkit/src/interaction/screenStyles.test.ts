@@ -81,10 +81,19 @@ describe('the look of words read along with', () => {
     expect(rule).toContain('border-radius: 0')
   })
 
-  it('prevents double-tap page zoom on buttons and interactive rows, and suppresses iOS callouts on held slots', () => {
+  it('prevents double-tap page zoom on buttons, preserves Transcript text selection, and maps drag-axis claims', () => {
     expect(ruleOf(':where(.fk-button)')).toContain('touch-action: manipulation')
-    expect(ruleOf(':where([data-slot-held])')).toContain(
-      '-webkit-touch-callout: none',
+    const heldRule = ruleOf(':where([data-slot-held]:not(.fk-transcript))')
+    expect(heldRule).toContain('-webkit-touch-callout: none')
+    expect(heldRule).not.toContain('user-select: none')
+    expect(ruleOf(":where([data-slot-drag='plane'])")).toContain(
+      'touch-action: none',
+    )
+    expect(ruleOf(":where([data-slot-drag='horizontal'])")).toContain(
+      'touch-action: pan-y',
+    )
+    expect(ruleOf(":where([data-slot-drag='vertical'])")).toContain(
+      'touch-action: pan-x',
     )
     expect(ruleOf(':where(.fk-list-filter)')).toContain('1rem)')
   })

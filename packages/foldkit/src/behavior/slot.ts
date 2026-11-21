@@ -65,6 +65,50 @@ export const SlotOrientation = S.Literals(['Horizontal', 'Vertical'])
 export type SlotOrientation = typeof SlotOrientation.Type
 
 /**
+ * Virtual-keyboard layout a text-bearing slot requests on touch devices,
+ * declared once in Core and derived by HTML, React, Svelte, and React Native hosts.
+ */
+export const InputMode = S.Literals([
+  'None',
+  'Text',
+  'Decimal',
+  'Numeric',
+  'Tel',
+  'Search',
+  'Email',
+  'Url',
+])
+/** Virtual-keyboard layout a text-bearing slot requests on touch devices. */
+export type InputMode = typeof InputMode.Type
+
+/** Action label shown on the virtual keyboard's return key. */
+export const EnterKeyHint = S.Literals([
+  'Enter',
+  'Done',
+  'Go',
+  'Next',
+  'Previous',
+  'Search',
+  'Send',
+])
+/** Action label shown on the virtual keyboard's return key. */
+export type EnterKeyHint = typeof EnterKeyHint.Type
+
+/** Closed autofill policy a text-bearing slot declares across hosts. */
+export const Autofill = S.Literals(['Off', 'OneTimeCode'])
+/** Closed autofill policy a text-bearing slot declares across hosts. */
+export type Autofill = typeof Autofill.Type
+
+/**
+ * Continuous pointer-drag axis a leaf grip, thumb, handle, or drawing canvas
+ * claims from the platform's scroll recognizer. Never projected onto
+ * scrollable `Viewport` or `Content` containers.
+ */
+export const DragAxis = S.Literals(['Horizontal', 'Vertical', 'Plane'])
+/** Continuous pointer-drag axis a leaf grip, thumb, handle, or canvas claims. */
+export type DragAxis = typeof DragAxis.Type
+
+/**
  * One gesture a slot listens for, and the press it sends:
  * `{ gesture: 'PressedSecondary', press: 'ShowTitleMenu:salt-road' }`.
  */
@@ -99,54 +143,6 @@ export const HoldBinding = S.Struct({
 export type HoldBinding = typeof HoldBinding.Type
 
 /**
- * What the screen tree carries to a painter for one painted element of a
- * part: its role, the presses its gestures send, and what the part's
- * projection says of it.
- *
- * @example
- * ```typescript
- * const row: SlotBinding = Slot.menuAsk('ShowTitleMenu:salt-road')
- * // gestures: HeldLong and PressedSecondary, both pressing ShowTitleMenu:salt-road
- * ```
- */
-export const SlotBinding = S.Struct({
-  role: S.optionalKey(Role),
-  gestures: S.Array(GesturePress),
-  maybeHold: S.Option(HoldBinding),
-  isCurrent: S.optionalKey(S.Boolean),
-  isSelected: S.optionalKey(S.Boolean),
-  isMultiselectable: S.optionalKey(S.Boolean),
-  isChecked: S.optionalKey(CheckedState),
-  isPressed: S.optionalKey(PressedState),
-  isExpanded: S.optionalKey(S.Boolean),
-  isDisabled: S.optionalKey(S.Boolean),
-  isReadOnly: S.optionalKey(S.Boolean),
-  isRequired: S.optionalKey(S.Boolean),
-  isInvalid: S.optionalKey(S.Boolean),
-  isMultiline: S.optionalKey(S.Boolean),
-  isModal: S.optionalKey(S.Boolean),
-  isHidden: S.optionalKey(S.Boolean),
-  live: S.optionalKey(LivePoliteness),
-  isAtomic: S.optionalKey(S.Boolean),
-  orientation: S.optionalKey(SlotOrientation),
-  label: S.optionalKey(S.String),
-  labelledBy: S.optionalKey(S.String),
-  describedBy: S.optionalKey(S.String),
-  controls: S.optionalKey(S.String),
-  hasPopup: S.optionalKey(S.String),
-  keys: S.optionalKey(S.Array(S.String)),
-  id: S.optionalKey(S.String),
-  activeId: S.optionalKey(S.String),
-  tabIndex: S.optionalKey(S.Number),
-  valueMin: S.optionalKey(S.Number),
-  valueMax: S.optionalKey(S.Number),
-  valueNow: S.optionalKey(S.Number),
-  valueText: S.optionalKey(S.String),
-})
-/** What the screen tree carries to a painter for one painted element of a part. */
-export type SlotBinding = typeof SlotBinding.Type
-
-/**
  * What a part's projection says of one slot, before its presses are
  * bound. `id` names the slot's element, and `activeId` is the id of the
  * slot a container's highlight is on, since focus stays on the container:
@@ -170,6 +166,10 @@ export const SlotProps = S.Struct({
   live: S.optionalKey(LivePoliteness),
   isAtomic: S.optionalKey(S.Boolean),
   orientation: S.optionalKey(SlotOrientation),
+  inputMode: S.optionalKey(InputMode),
+  enterKeyHint: S.optionalKey(EnterKeyHint),
+  autofill: S.optionalKey(Autofill),
+  dragAxis: S.optionalKey(DragAxis),
   label: S.optionalKey(S.String),
   labelledBy: S.optionalKey(S.String),
   describedBy: S.optionalKey(S.String),
@@ -186,6 +186,25 @@ export const SlotProps = S.Struct({
 })
 /** What a part's projection says of one slot. */
 export type SlotProps = typeof SlotProps.Type
+
+/**
+ * What the screen tree carries to a painter for one painted element of a
+ * part: its role, the presses its gestures send, and what the part's
+ * projection says of it.
+ *
+ * @example
+ * ```typescript
+ * const row: SlotBinding = Slot.menuAsk('ShowTitleMenu:salt-road')
+ * // gestures: HeldLong and PressedSecondary, both pressing ShowTitleMenu:salt-road
+ * ```
+ */
+export const SlotBinding = S.Struct({
+  ...SlotProps.fields,
+  gestures: S.Array(GesturePress),
+  maybeHold: S.Option(HoldBinding),
+})
+/** What the screen tree carries to a painter for one painted element of a part. */
+export type SlotBinding = typeof SlotBinding.Type
 
 /** How far a finger may move from where it went down and still be holding. */
 export const holdSlackPx = 10
@@ -348,6 +367,78 @@ const liveNames: Readonly<Record<LivePoliteness, string>> = {
   Polite: 'polite',
   Assertive: 'assertive',
 }
+
+const inputModeNames: Readonly<
+  Record<
+    InputMode,
+    'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url'
+  >
+> = {
+  None: 'none',
+  Text: 'text',
+  Decimal: 'decimal',
+  Numeric: 'numeric',
+  Tel: 'tel',
+  Search: 'search',
+  Email: 'email',
+  Url: 'url',
+}
+
+const enterKeyHintNames: Readonly<
+  Record<
+    EnterKeyHint,
+    'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send'
+  >
+> = {
+  Enter: 'enter',
+  Done: 'done',
+  Go: 'go',
+  Next: 'next',
+  Previous: 'previous',
+  Search: 'search',
+  Send: 'send',
+}
+
+const autofillNames: Readonly<Record<Autofill, 'off' | 'one-time-code'>> = {
+  Off: 'off',
+  OneTimeCode: 'one-time-code',
+}
+
+const dragAxisNames: Readonly<
+  Record<DragAxis, 'horizontal' | 'vertical' | 'plane'>
+> = {
+  Horizontal: 'horizontal',
+  Vertical: 'vertical',
+  Plane: 'plane',
+}
+
+/** Lowercase platform token for an {@link InputMode}. */
+export const inputModeNameOf = (
+  mode: InputMode,
+):
+  | 'none'
+  | 'text'
+  | 'decimal'
+  | 'numeric'
+  | 'tel'
+  | 'search'
+  | 'email'
+  | 'url' => inputModeNames[mode]
+
+/** Lowercase platform token for an {@link EnterKeyHint}. */
+export const enterKeyHintNameOf = (
+  hint: EnterKeyHint,
+): 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send' =>
+  enterKeyHintNames[hint]
+
+/** Lowercase platform token for an {@link Autofill} policy. */
+export const autofillNameOf = (autofill: Autofill): 'off' | 'one-time-code' =>
+  autofillNames[autofill]
+
+/** Lowercase platform token for a {@link DragAxis}. */
+export const dragAxisNameOf = (
+  axis: DragAxis,
+): 'horizontal' | 'vertical' | 'plane' => dragAxisNames[axis]
 
 /**
  * The ARIA a binding means, from its role and what the projection says:

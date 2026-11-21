@@ -230,12 +230,17 @@ describe('HoverIntent block', () => {
   })
 
   describe('pointer-type focus discrimination and focus handoff', () => {
-    it('discriminates mouse-click focus from keyboard, touch, and pen focus', () => {
+    it('discriminates pointer-press focus (mouse, touch, pen) from keyboard/assistive focus and rejects touch hover', () => {
+      expect(HoverIntent.canHoverPointer(undefined)).toBe(true)
+      expect(HoverIntent.canHoverPointer('mouse')).toBe(true)
+      expect(HoverIntent.canHoverPointer('pen')).toBe(true)
+      expect(HoverIntent.canHoverPointer('touch')).toBe(false)
+
       expect(HoverIntent.isPointerAffirmedFocus(Option.none())).toBe(true)
       expect(HoverIntent.isPointerAffirmedFocus(Option.some('touch'))).toBe(
-        true,
+        false,
       )
-      expect(HoverIntent.isPointerAffirmedFocus(Option.some('pen'))).toBe(true)
+      expect(HoverIntent.isPointerAffirmedFocus(Option.some('pen'))).toBe(false)
       expect(HoverIntent.isPointerAffirmedFocus(Option.some('mouse'))).toBe(
         false,
       )
@@ -249,13 +254,14 @@ describe('HoverIntent block', () => {
       expect(afterMouseFocus.maybeFocusLocation).toEqual(Option.none())
       expect(afterMouseFocus.maybeLastPointerType).toEqual(Option.none())
 
-      // Touch press followed by focus opens immediately
+      // Touch tap (pointerdown -> pointerenter -> focus) does not stick open on mobile
       const afterTouchFocus = fold([
         HoverIntent.PressedPointer({ pointerType: 'touch' }),
+        HoverIntent.EnteredTrigger({ pointerType: 'touch' }),
         HoverIntent.FocusedTrigger(),
       ])
-      expect(HoverIntent.isOpen(afterTouchFocus)).toBe(true)
-      expect(afterTouchFocus.maybeFocusLocation).toEqual(Option.some('Trigger'))
+      expect(HoverIntent.isOpen(afterTouchFocus)).toBe(false)
+      expect(afterTouchFocus.maybeFocusLocation).toEqual(Option.none())
 
       // Keyboard focus (no pointer press) opens immediately
       const afterKeyboardFocus = fold([HoverIntent.FocusedTrigger()])

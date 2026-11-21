@@ -18,13 +18,14 @@ import {
   UpdatedSearchQuery,
   dispatchBoundField,
   dispatchPart,
+  slotAttrs,
 } from './messages'
 import type { PlaygroundModel } from './state'
 import { renderGroup1 } from './views/group1'
 import { renderGroup2 } from './views/group2'
 import { renderGroup3 } from './views/group3'
 
-const { div, button, input, textarea, span, h1, h2, p, pre, label } = H
+const { a, div, button, input, textarea, span, h1, h2, p, pre, label } = H
 
 const pacePillClass = (pace: CatalogEntry['pace']): string =>
   pace === 'Settled 200ms'
@@ -51,6 +52,9 @@ const renderBoundFieldHero = (model: PlaygroundModel): Html => {
     const isSecret = field.kind === 'Secret'
     const isPasswordVisible = BoundField.isPasswordVisible(state)
     const inputType = BoundField.effectiveInputTypeOf(field, state)
+    const fieldSlots = BoundField.toSlots(field, state, {
+      fieldset: model.profileFieldset,
+    })
 
     return div(
       [H.Class('pg-field')],
@@ -82,7 +86,7 @@ const renderBoundFieldHero = (model: PlaygroundModel): Html => {
         field.kind === 'Textarea'
           ? textarea(
               [
-                H.Id(field.ids.textarea),
+                ...slotAttrs(fieldSlots.control),
                 H.Class(
                   Option.isSome(maybeError)
                     ? 'pg-textarea pg-input-invalid'
@@ -105,7 +109,7 @@ const renderBoundFieldHero = (model: PlaygroundModel): Html => {
               [H.Class('pg-row')],
               [
                 input([
-                  H.Id(field.ids.input),
+                  ...slotAttrs(fieldSlots.control),
                   H.Type(inputType),
                   H.Class(
                     Option.isSome(maybeError)
@@ -624,6 +628,13 @@ export const view = (model: PlaygroundModel): Document => {
             div(
               [H.Class('pg-controls')],
               [
+                a(
+                  [
+                    H.Class('pg-btn pg-btn-primary'),
+                    H.Attribute('href', '/studio'),
+                  ],
+                  ['React Navigation + Live CLI →'],
+                ),
                 button(
                   [H.Class('pg-btn'), H.OnClick(ToggledThemeMode())],
                   [model.mode === 'Dark' ? '☀ Light Mode' : '☾ Dark Mode'],

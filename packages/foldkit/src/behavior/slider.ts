@@ -1696,6 +1696,7 @@ const projectSlot = (
     return {
       id: trackId(props.id),
       orientation,
+      dragAxis: orientation === 'Vertical' ? 'Vertical' : 'Horizontal',
       ...(isDisabledOf(props) ? { isDisabled: true } : {}),
       ...(isReadOnlyOf(props) ? { isReadOnly: true } : {}),
     }
@@ -1717,6 +1718,7 @@ const projectSlot = (
     return {
       id: isIndexed ? thumbId(props.id, index) : thumbId(props.id),
       orientation,
+      dragAxis: orientation === 'Vertical' ? 'Vertical' : 'Horizontal',
       valueMin: bounds.min,
       valueMax: bounds.max,
       valueNow,

@@ -712,12 +712,14 @@ const projectSlot = (
   } else if (slot === 'Control') {
     return {
       id: controlId(props.id),
+      dragAxis: 'Plane',
       ...(disabled ? { isDisabled: true } : {}),
       ...(readOnly ? { isReadOnly: true } : {}),
     }
   } else if (slot === 'Thumb') {
     return {
       id: thumbId(props.id),
+      dragAxis: 'Plane',
       valueMin: minAngle,
       valueMax: maxAngle,
       valueNow: state.angle,

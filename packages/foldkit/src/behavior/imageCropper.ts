@@ -1629,6 +1629,7 @@ const projectSlot = (
       valueMax: maxX,
       valueNow: Math.round(state.cropRect.x),
       valueText: selectionValueTextOf(state),
+      dragAxis: 'Plane',
       ...(disabled ? { isDisabled: true } : { tabIndex: 0 }),
       ...(editable ? {} : { isDisabled: true }),
     }
@@ -1637,6 +1638,7 @@ const projectSlot = (
     return {
       id: handleId(props.id, handle),
       label: handleLabelOf(handle),
+      dragAxis: 'Plane',
       ...(editable ? {} : { isDisabled: true }),
     }
   } else if (slot === 'ZoomControl') {

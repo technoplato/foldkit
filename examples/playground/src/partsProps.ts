@@ -350,6 +350,7 @@ export const playgroundProps = {
     id: 'pg-pin-input',
     length: 4,
     pinType: 'Numeric',
+    isOtp: true,
     label: 'Pair Code',
   } satisfies PinInput.Props,
 

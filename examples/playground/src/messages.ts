@@ -1,7 +1,8 @@
-import { Schema as S } from 'effect'
-import { BoundField } from 'foldkit/behavior'
-import { html } from 'foldkit/html'
+import { Array, Schema as S } from 'effect'
+import { BoundField, type Slot } from 'foldkit/behavior'
+import { type Attribute, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
+import { slotAttributesOf } from 'foldkit/renderers'
 
 import { type ProfileFieldKey, ProfileFieldKeySchema } from './boundForm'
 import {
@@ -63,3 +64,10 @@ export const dispatchBoundField = (
 ): PlaygroundMessage => BoundFieldDispatched({ fieldKey, fieldMessage })
 
 export const categoryOf = (category: Category): Category => category
+
+export const slotAttrs = (
+  binding: Slot.SlotBinding,
+): ReadonlyArray<Attribute<PlaygroundMessage>> =>
+  Array.map(slotAttributesOf(binding), ([name, value]) =>
+    H.Attribute(name, value),
+  )

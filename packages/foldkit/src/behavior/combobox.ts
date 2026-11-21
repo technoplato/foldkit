@@ -2573,6 +2573,7 @@ const projectSlot = (
       isExpanded: isOpen(state),
       controls: contentId(props.id),
       tabIndex: isDisabledOf(props) ? -1 : 0,
+      autofill: 'Off',
       ...labelSlotPropsOf(props),
       ...descriptionSlotPropsOf(props),
       ...Option.match(maybeActiveId, {

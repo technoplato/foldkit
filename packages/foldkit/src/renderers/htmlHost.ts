@@ -43,6 +43,14 @@ const HOLD_POINTERS = 'data-slot-pointers'
 
 const ITEMS = 'data-slot-items'
 
+const DRAG = 'data-slot-drag'
+
+const INPUT_MODE = 'inputmode'
+
+const ENTER_KEY_HINT = 'enterkeyhint'
+
+const AUTOCOMPLETE = 'autocomplete'
+
 const HOLD_COUNT = 'data-hold-count'
 
 const HOLD_PRESS = 'data-hold-press'
@@ -93,6 +101,38 @@ export const slotAttributesOf = (
     ...(itemAttribute === undefined
       ? []
       : [[ITEMS, itemAttribute] satisfies readonly [string, string]]),
+    ...(binding.dragAxis === undefined
+      ? []
+      : [
+          [DRAG, Slot.dragAxisNameOf(binding.dragAxis)] satisfies readonly [
+            string,
+            string,
+          ],
+        ]),
+    ...(binding.inputMode === undefined
+      ? []
+      : [
+          [
+            INPUT_MODE,
+            Slot.inputModeNameOf(binding.inputMode),
+          ] satisfies readonly [string, string],
+        ]),
+    ...(binding.enterKeyHint === undefined
+      ? []
+      : [
+          [
+            ENTER_KEY_HINT,
+            Slot.enterKeyHintNameOf(binding.enterKeyHint),
+          ] satisfies readonly [string, string],
+        ]),
+    ...(binding.autofill === undefined
+      ? []
+      : [
+          [
+            AUTOCOMPLETE,
+            Slot.autofillNameOf(binding.autofill),
+          ] satisfies readonly [string, string],
+        ]),
     ...Object.entries(Slot.ariaOf(binding)),
   ]
 }

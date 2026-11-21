@@ -406,6 +406,28 @@
         }
       ]
     },
+    "packages/foldkit/src/renderers/htmlSurfaceDrag.ts": {
+      "counts": {
+        "timers": 0,
+        "heldState": 1,
+        "listeners": 5,
+        "numbers": 0
+      },
+      "rises": [
+        {
+          "kind": "listeners",
+          "from": 0,
+          "to": 5,
+          "why": "Shared browser pointer-capture drag mechanic (Council foldkit-mobile-touch-architecture): moved out of app-local touchMount.ts into foldkit/renderers so no app writes raw pointer listeners. Listens to pointerdown, pointermove, pointerup, pointercancel, and lostpointercapture with zero timers and zero numbers; clamping, RTL, and distance math live in PointerDrag.sampleInRect in packages/foldkit/src/behavior/."
+        },
+        {
+          "kind": "heldState",
+          "from": 0,
+          "to": 1,
+          "why": "Shared browser pointer-capture drag mechanic (Council foldkit-mobile-touch-architecture): holds the active gesture's pointerId and snapshotted DOMRect only from pointerdown until pointerup/cancel/lostpointercapture so idle hover and second-finger pinch-zoom never flood MoveDrag or force 120Hz getBoundingClientRect reflows."
+        }
+      ]
+    },
     "packages/opentui/src/interaction/paintOpenTui.ts": {
       "counts": {
         "timers": 0,

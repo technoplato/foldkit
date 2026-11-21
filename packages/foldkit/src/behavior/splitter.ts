@@ -1448,6 +1448,7 @@ const projectSlot = (
     return {
       id: resizeTriggerId(props.id, handleIndex),
       orientation,
+      dragAxis: orientation === 'Vertical' ? 'Vertical' : 'Horizontal',
       valueMin: bounds.valueMin,
       valueMax: bounds.valueMax,
       valueNow: bounds.valueNow,

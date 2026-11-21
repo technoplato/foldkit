@@ -1377,6 +1377,24 @@ const numericValueSlotPropsOf = (
   }
 }
 
+/**
+ * Derives the virtual-keyboard `InputMode` for a NumberInput: falls back to
+ * `'Text'` whenever `min` is omitted or negative (because iOS `'numeric'` and
+ * `'decimal'` virtual keypads omit a minus `-` key), else `'Decimal'` when
+ * fractional steps or precision are allowed, else `'Numeric'`.
+ */
+export const inputModeOf = (
+  props: Pick<Props, 'min' | 'step' | 'precision'> = {},
+): 'Text' | 'Decimal' | 'Numeric' => {
+  if (props.min === undefined || props.min < 0) {
+    return 'Text'
+  }
+  const hasDecimals =
+    (props.precision !== undefined && props.precision > 0) ||
+    !Number.isInteger(stepOf(props))
+  return hasDecimals ? 'Decimal' : 'Numeric'
+}
+
 const projectSlot = (
   state: State,
   props: Props,
@@ -1388,6 +1406,8 @@ const projectSlot = (
     return {
       id: inputId(props.id),
       tabIndex: isDisabledOf(props) ? -1 : 0,
+      inputMode: inputModeOf(props),
+      enterKeyHint: 'Done',
       ...labelSlotPropsOf(props),
       ...(props.describedBy === undefined
         ? {}
@@ -1422,6 +1442,7 @@ const projectSlot = (
       controls: inputId(props.id),
       label: 'Scrub value',
       orientation: 'Horizontal',
+      dragAxis: 'Horizontal',
       ...numericValueSlotPropsOf(state, props),
       ...(!canEdit(props) ? { isDisabled: true } : {}),
     }

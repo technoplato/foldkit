@@ -9,6 +9,7 @@ import {
   ImageCropper,
   Marquee,
   Pagination,
+  Part,
   Progress,
   QrCode,
   ScrollArea,
@@ -20,15 +21,15 @@ import {
   Tour,
 } from 'foldkit/behavior'
 import type { Html } from 'foldkit/html'
+import { surfaceDragMount } from 'foldkit/renderers'
 
-import { H, dispatchPart } from '../messages'
+import { H, dispatchPart, slotAttrs } from '../messages'
 import { playgroundProps } from '../partsProps'
 import type { PlaygroundModel } from '../state'
-import { mountSurfaceDrag } from '../touchMount'
 
 const { div, button, input, span, svg, path, img } = H
 
-const splitterDragMount = mountSurfaceDrag({
+const splitterDragMount = surfaceDragMount({
   name: 'PlaygroundSplitterDrag',
   onStart: sample =>
     Option.some(
@@ -70,7 +71,7 @@ const splitterDragMount = mountSurfaceDrag({
     ),
 })
 
-const angleDialDragMount = mountSurfaceDrag({
+const angleDialDragMount = surfaceDragMount({
   name: 'PlaygroundAngleDialDrag',
   onStart: sample =>
     Option.some(
@@ -114,7 +115,7 @@ const angleDialDragMount = mountSurfaceDrag({
     ),
 })
 
-const colorAreaDragMount = mountSurfaceDrag({
+const colorAreaDragMount = surfaceDragMount({
   name: 'PlaygroundColorAreaDrag',
   onStart: sample =>
     Option.some(
@@ -158,9 +159,10 @@ const colorAreaDragMount = mountSurfaceDrag({
     ),
 })
 
-const carouselSwipeMount = mountSurfaceDrag({
+const carouselSwipeMount = surfaceDragMount({
   name: 'PlaygroundCarouselSwipe',
   isPreventingDefaultOnDown: false,
+  thresholdPx: 8,
   onStart: sample =>
     Option.some(
       dispatchPart(
@@ -200,7 +202,7 @@ const carouselSwipeMount = mountSurfaceDrag({
     ),
 })
 
-const floatingPanelDragMount = mountSurfaceDrag({
+const floatingPanelDragMount = surfaceDragMount({
   name: 'PlaygroundFloatingPanelDrag',
   onStart: sample =>
     Option.some(
@@ -240,7 +242,7 @@ const floatingPanelDragMount = mountSurfaceDrag({
     ),
 })
 
-const cropBoxDragMount = mountSurfaceDrag({
+const cropBoxDragMount = surfaceDragMount({
   name: 'PlaygroundCropBoxDrag',
   onStart: sample =>
     Option.some(
@@ -283,7 +285,7 @@ const cropBoxDragMount = mountSurfaceDrag({
 const signatureSvgWidth = 260
 const signatureSvgHeight = 104
 
-const signatureDragMount = mountSurfaceDrag({
+const signatureDragMount = surfaceDragMount({
   name: 'PlaygroundSignatureDrag',
   onStart: sample =>
     Option.some(
@@ -527,6 +529,11 @@ export const renderGroup3 = (
 
   // 41. Splitter (real finger drag + buttons)
   const splitSizes = Splitter.sizesOf(parts.splitter)
+  const splitterPartView = Part.view(
+    Splitter.part,
+    parts.splitter,
+    playgroundProps.splitter,
+  )
   const leftPct = Math.round(
     Option.getOrElse(Array.get(splitSizes, 0), () => 40),
   )
@@ -537,19 +544,17 @@ export const renderGroup3 = (
     [H.Class('pg-col')],
     [
       div(
-        [H.Class('pg-split-wrap'), H.OnMount(splitterDragMount)],
+        [
+          H.Class('pg-split-wrap'),
+          ...slotAttrs(splitterPartView.slot('ResizeTrigger', '0')),
+          H.OnMount(splitterDragMount),
+        ],
         [
           div(
             [H.Class('pg-split-pane mono'), H.Style({ width: `${leftPct}%` })],
             [`${leftPct}%`],
           ),
-          button(
-            [
-              H.Class('pg-split-handle'),
-              H.Attribute('aria-label', 'Drag splitter'),
-            ],
-            ['⋮'],
-          ),
+          div([H.Class('pg-split-handle')], ['⋮']),
           div(
             [H.Class('pg-split-pane mono'), H.Style({ width: `${rightPct}%` })],
             [`${rightPct}%`],
@@ -597,12 +602,18 @@ export const renderGroup3 = (
 
   // 42. AngleSlider (real finger rotation on dial + buttons)
   const angleDeg = AngleSlider.angleOf(parts.angleSlider)
+  const anglePartView = Part.view(
+    AngleSlider.part,
+    parts.angleSlider,
+    playgroundProps.angleSlider,
+  )
   const angleSliderView = div(
     [H.Class('pg-row')],
     [
       div(
         [
           H.Class('pg-dial'),
+          ...slotAttrs(anglePartView.slot('Control')),
           H.Attribute('role', 'slider'),
           H.Attribute('aria-valuenow', String(angleDeg)),
           H.OnMount(angleDialDragMount),
@@ -670,6 +681,11 @@ export const renderGroup3 = (
   const cpColor = ColorPicker.colorOf(parts.colorPicker)
   const cpHex = ColorPicker.formatColor(cpColor, 'Hex')
   const cpRgb = ColorPicker.formatColor(cpColor, 'Rgb')
+  const colorPartView = Part.view(
+    ColorPicker.part,
+    parts.colorPicker,
+    playgroundProps.colorPicker,
+  )
   const swatches = playgroundProps.colorPicker.swatches ?? []
   const colorPickerView = div(
     [H.Class('pg-col')],
@@ -677,6 +693,7 @@ export const renderGroup3 = (
       div(
         [
           H.Class('pg-color-area'),
+          ...slotAttrs(colorPartView.slot('Area')),
           H.Style({
             background: `linear-gradient(to top, rgb(0 0 0), transparent), linear-gradient(to right, rgb(255 255 255), hsl(${Math.round(cpColor.h)} 100% 50%))`,
           }),
@@ -728,6 +745,11 @@ export const renderGroup3 = (
   // 44. Carousel (real horizontal swipe + controls)
   const carPage = Carousel.pageOf(parts.carousel, playgroundProps.carousel)
   const carPlaying = Carousel.isAutoplaying(parts.carousel)
+  const carouselPartView = Part.view(
+    Carousel.part,
+    parts.carousel,
+    playgroundProps.carousel,
+  )
   const slideTitles = [
     '1 · Pure Machine State (swipe ←/→)',
     '2 · Reference-Stable Slots (swipe ←/→)',
@@ -738,7 +760,11 @@ export const renderGroup3 = (
     [H.Class('pg-col')],
     [
       div(
-        [H.Class('pg-carousel-viewport'), H.OnMount(carouselSwipeMount)],
+        [
+          H.Class('pg-carousel-viewport'),
+          ...slotAttrs(carouselPartView.slot('Slide', String(carPage))),
+          H.OnMount(carouselSwipeMount),
+        ],
         [
           span(
             [H.Class('mono')],
@@ -789,6 +815,11 @@ export const renderGroup3 = (
   // 45. FloatingPanel (real finger drag inside stage + min/max/restore)
   const fpOpen = FloatingPanel.isOpen(parts.floatingPanel)
   const fpStage = FloatingPanel.stageOf(parts.floatingPanel)
+  const floatingPartView = Part.view(
+    FloatingPanel.part,
+    parts.floatingPanel,
+    playgroundProps.floatingPanel,
+  )
   const fpRect = Option.getOrElse(
     FloatingPanel.rectOf(parts.floatingPanel),
     () => ({
@@ -808,6 +839,7 @@ export const renderGroup3 = (
             ? div(
                 [
                   H.Class('pg-floating-box'),
+                  ...slotAttrs(floatingPartView.slot('Header')),
                   H.Style({
                     left: `${Math.min(120, Math.max(4, fpRect.x))}px`,
                     top: `${Math.min(58, Math.max(4, fpRect.y))}px`,
@@ -897,6 +929,11 @@ export const renderGroup3 = (
   const cropRect = ImageCropper.cropRectOf(parts.imageCropper)
   const cropZoom = ImageCropper.zoomOf(parts.imageCropper)
   const cropRot = ImageCropper.rotationOf(parts.imageCropper)
+  const cropPartView = Part.view(
+    ImageCropper.part,
+    parts.imageCropper,
+    playgroundProps.imageCropper,
+  )
   const imageCropperView = div(
     [H.Class('pg-col')],
     [
@@ -906,6 +943,7 @@ export const renderGroup3 = (
           div(
             [
               H.Class('pg-crop-box'),
+              ...slotAttrs(cropPartView.slot('Selection')),
               H.Style({
                 left: `${Math.round(cropRect.x)}px`,
                 top: `${Math.round(cropRect.y)}px`,
@@ -964,12 +1002,18 @@ export const renderGroup3 = (
   // 47. SignaturePad (accurate finger-to-SVG coordinate capture + undo/clear)
   const sigPaths = SignaturePad.allPathsOf(parts.signaturePad)
   const sigCount = SignaturePad.strokeCountOf(parts.signaturePad)
+  const signaturePartView = Part.view(
+    SignaturePad.part,
+    parts.signaturePad,
+    playgroundProps.signaturePad,
+  )
   const signaturePadView = div(
     [H.Class('pg-col')],
     [
       svg(
         [
           H.Class('pg-sig-box'),
+          ...slotAttrs(signaturePartView.slot('Root')),
           H.ViewBox(`0 0 ${signatureSvgWidth} ${signatureSvgHeight}`),
           H.OnMount(signatureDragMount),
         ],

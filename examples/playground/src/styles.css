@@ -692,9 +692,7 @@ pre,
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--fk-border);
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
+  cursor: col-resize;
 }
 
 .pg-split-pane {
@@ -716,7 +714,9 @@ pre,
   padding: 0;
   font-size: 13px;
   font-weight: 700;
-  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -729,9 +729,6 @@ pre,
   position: relative;
   cursor: grab;
   flex-shrink: 0;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .pg-dial:active {
@@ -758,9 +755,6 @@ pre,
   border: 1px solid var(--fk-border);
   position: relative;
   cursor: crosshair;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
   overflow: hidden;
 }
 
@@ -791,9 +785,6 @@ pre,
   background: var(--fk-page-ground);
   border: 1px dashed var(--fk-border);
   overflow: hidden;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .pg-floating-box {
@@ -805,7 +796,6 @@ pre,
   padding: 6px 8px;
   font-size: 11px;
   cursor: grab;
-  touch-action: none;
 }
 
 .pg-crop-box {
@@ -813,7 +803,6 @@ pre,
   border: 2px solid var(--fk-accent);
   background: var(--fk-accent-soft);
   cursor: move;
-  touch-action: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -829,9 +818,6 @@ pre,
   background: var(--fk-page-ground);
   border: 1px solid var(--fk-border);
   cursor: crosshair;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
   display: block;
 }
 
@@ -840,9 +826,6 @@ pre,
   border-radius: 9px;
   background: var(--fk-raised-surface);
   border: 1px solid var(--fk-border);
-  touch-action: pan-y;
-  -webkit-user-select: none;
-  user-select: none;
   cursor: grab;
 }
 
@@ -1073,4 +1056,206 @@ pre,
   .pg-cat-strip .pg-btn {
     flex-shrink: 0;
   }
+}
+
+/* ==========================================================================
+   React Navigation + Live CLI Studio (/studio)
+   ========================================================================== */
+
+.pg-btn {
+  text-decoration: none;
+}
+
+.st-shell {
+  padding-bottom: max(48px, calc(28px + env(safe-area-inset-bottom)));
+}
+
+.st-nav-section,
+.st-cli-section {
+  margin-top: 16px;
+}
+
+.st-section-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 13px;
+  background: var(--fk-surface);
+  border: 1px solid var(--fk-border);
+  margin-bottom: 14px;
+}
+
+.st-section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.st-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .st-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.st-frame-viewport {
+  padding: 14px;
+  border-radius: 11px;
+  background: var(--fk-page-ground);
+  border: 1px solid var(--fk-border);
+  min-height: 280px;
+  overflow-x: auto;
+}
+
+.st-frame-viewport .fk-column {
+  align-items: stretch;
+  gap: 12px;
+}
+
+.st-frame-viewport .fk-row {
+  justify-content: flex-start;
+}
+
+.st-layer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: var(--fk-page-ground);
+  border: 1px solid var(--fk-border);
+}
+
+.st-layer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.st-layer-overlay {
+  padding-top: 6px;
+  border-top: 1px dashed var(--fk-rule);
+}
+
+.st-quick-heading {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.st-route-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+}
+
+.st-route-btn {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.st-cli-live-pre {
+  min-height: 280px;
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.st-cli-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.st-cli-prompt {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--fk-accent);
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--fk-accent-soft);
+  flex-shrink: 0;
+}
+
+.st-cli-input {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.st-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.st-cli-chip {
+  font-size: 11px;
+}
+
+.st-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 290px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--fk-page-ground);
+  border: 1px solid var(--fk-border);
+}
+
+.st-transcript-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--fk-surface);
+  border: 1px solid var(--fk-border);
+}
+
+.st-transcript-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.st-stdout,
+.st-stderr {
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.38;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.st-stdout {
+  background: var(--fk-page-ground);
+  color: var(--fk-text);
+}
+
+.st-stderr {
+  background: var(--fk-danger-soft);
+  color: var(--fk-danger);
 }

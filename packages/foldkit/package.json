@@ -57,6 +57,11 @@
       "import": "./dist/cli/view.js",
       "default": "./dist/cli/view.js"
     },
+    "./cli/program": {
+      "types": "./dist/cli/programPublic.d.ts",
+      "import": "./dist/cli/programPublic.js",
+      "default": "./dist/cli/programPublic.js"
+    },
     "./canvas": {
       "types": "./dist/canvas/public.d.ts",
       "import": "./dist/canvas/public.js",

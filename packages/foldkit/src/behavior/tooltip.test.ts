@@ -150,7 +150,7 @@ describe('core Tooltip Part', () => {
         }).pipe(Effect.provide(TestClock.layer())),
       ))
 
-    it('opens immediately on keyboard, touch, or pen focus, but suppresses mouse-click focus', () => {
+    it('opens immediately on keyboard focus and suppresses mouse/touch/pen tap focus and touch hover', () => {
       // Mouse press + focus does not open
       const afterMouse = fold([
         Tooltip.PressTooltipPointer({ pointerType: 'mouse' }),
@@ -160,15 +160,14 @@ describe('core Tooltip Part', () => {
       expect(Tooltip.focusLocationOf(afterMouse)).toEqual(Option.none())
       expect(Tooltip.lastPointerTypeOf(afterMouse)).toEqual(Option.none())
 
-      // Touch press + focus opens immediately
+      // Touch tap (press + synthesized enter + focus) does not stick open
       const afterTouch = fold([
         Tooltip.PressTooltipPointer({ pointerType: 'touch' }),
+        Tooltip.EnterTooltipTrigger({ pointerType: 'touch' }),
         Tooltip.FocusTooltipTrigger(),
       ])
-      expect(Tooltip.isOpen(afterTouch)).toBe(true)
-      expect(Tooltip.focusLocationOf(afterTouch)).toEqual(
-        Option.some('Trigger'),
-      )
+      expect(Tooltip.isOpen(afterTouch)).toBe(false)
+      expect(Tooltip.focusLocationOf(afterTouch)).toEqual(Option.none())
 
       // Keyboard focus opens immediately and blurs immediately
       const [focused, focusCommands] = Tooltip.chart.transition(

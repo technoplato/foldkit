@@ -26,6 +26,12 @@ const reactPropEntry = ([name, value]: readonly [string, string]): readonly [
     return ['tabIndex', Number(value)]
   } else if (name === 'hidden') {
     return ['hidden', true]
+  } else if (name === 'inputmode') {
+    return ['inputMode', value]
+  } else if (name === 'enterkeyhint') {
+    return ['enterKeyHint', value]
+  } else if (name === 'autocomplete') {
+    return ['autoComplete', value]
   } else {
     return [name, value]
   }

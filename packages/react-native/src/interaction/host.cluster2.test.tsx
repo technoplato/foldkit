@@ -2,6 +2,7 @@ import { Option } from 'effect'
 import {
   CascadeSelect,
   NumberInput,
+  Part,
   PinInput,
   TagsInput,
   TreeView,
@@ -186,5 +187,28 @@ describe('Cluster 2 core Parts on the React Native generic host', () => {
     expect(
       propsOf(staged.buttonNamed('Next page'))['accessibilityState'],
     ).toMatchObject({ disabled: true })
+  })
+
+  it('derives React Native inputMode, enterKeyHint, autoComplete, and iOS oneTimeCode textContentType from Core SlotBindings', () => {
+    const negNum = Part.view(NumberInput.part, NumberInput.initial, {
+      id: 'temp',
+      min: -20,
+    })
+    expect(textInputPropsOf(Option.some(negNum.slot('Input')))).toMatchObject({
+      inputMode: 'text',
+      enterKeyHint: 'done',
+    })
+
+    const otpPin = Part.view(PinInput.part, PinInput.initial, {
+      id: 'otp',
+      isOtp: true,
+    })
+    expect(
+      textInputPropsOf(Option.some(otpPin.slot('Input', '0'))),
+    ).toMatchObject({
+      inputMode: 'numeric',
+      autoComplete: 'one-time-code',
+      textContentType: 'oneTimeCode',
+    })
   })
 })

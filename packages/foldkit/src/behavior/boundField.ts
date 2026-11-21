@@ -40,7 +40,15 @@ import {
   Synced,
 } from './pace.js'
 import type { Part } from './part.js'
-import { type SlotBinding, type SlotProps, bound } from './slot.js'
+import {
+  type Autofill,
+  type EnterKeyHint,
+  type InputMode,
+  type SlotBinding,
+  type SlotProps,
+  autofillNameOf,
+  bound,
+} from './slot.js'
 import * as Textarea from './textarea.js'
 
 // NOTE: this is the core BoundField primitive (Scribe #2656). It binds a typed
@@ -185,7 +193,9 @@ export type FieldOptions = Readonly<{
   settleMs?: number
   sync?: 'Synced' | DeviceReason
   inputType?: Input.InputType
-  autoComplete?: string
+  inputMode?: InputMode
+  enterKeyHint?: EnterKeyHint
+  autofill?: Autofill
   trimOnCommit?: boolean
   commitOnBlur?: boolean
   blurBehavior?: FieldDraft.BlurBehavior
@@ -252,7 +262,9 @@ export type BoundField<A = string> = Readonly<{
   maybeWhy: Option.Option<string>
   placeholder?: string
   inputType: Input.InputType
-  autoComplete?: string
+  inputMode?: InputMode
+  enterKeyHint?: EnterKeyHint
+  autofill?: Autofill
   validateOn: ValidateOn
   settleMs: number
   sync: 'Synced' | DeviceReason
@@ -532,9 +544,13 @@ export const define = <A>(
       ? {}
       : { placeholder: options.placeholder }),
     inputType,
-    ...(options.autoComplete === undefined
+    ...(options.inputMode === undefined
       ? {}
-      : { autoComplete: options.autoComplete }),
+      : { inputMode: options.inputMode }),
+    ...(options.enterKeyHint === undefined
+      ? {}
+      : { enterKeyHint: options.enterKeyHint }),
+    ...(options.autofill === undefined ? {} : { autofill: options.autofill }),
     validateOn: options.validateOn ?? defaultValidateOn,
     settleMs,
     sync,
@@ -1425,9 +1441,9 @@ export const toInputProps = (
     ...(field.placeholder === undefined
       ? {}
       : { placeholder: field.placeholder }),
-    ...(field.autoComplete === undefined
+    ...(field.autofill === undefined
       ? {}
-      : { autoComplete: field.autoComplete }),
+      : { autoComplete: autofillNameOf(field.autofill) }),
     ...(field.maxLength === undefined ? {} : { maxLength: field.maxLength }),
     ...(field.commitOnBlur === undefined
       ? {}
@@ -1519,6 +1535,18 @@ export const toSlots = (
   const maybeDescribedBy = describedByOf(field, isInvalid, showDescription)
   const isMultiline = field.kind === 'Textarea'
   const isPassword = field.inputType === 'password'
+  const derivedInputMode: InputMode | undefined =
+    field.inputMode !== undefined
+      ? field.inputMode
+      : field.inputType === 'email'
+        ? 'Email'
+        : field.inputType === 'tel'
+          ? 'Tel'
+          : field.inputType === 'url'
+            ? 'Url'
+            : field.inputType === 'search'
+              ? 'Search'
+              : undefined
 
   const controlProps: SlotProps = {
     role: 'TextBox',
@@ -1526,6 +1554,11 @@ export const toSlots = (
     label: field.label,
     labelledBy: field.ids.label,
     tabIndex: isDisabled ? -1 : 0,
+    ...(derivedInputMode === undefined ? {} : { inputMode: derivedInputMode }),
+    ...(field.enterKeyHint === undefined
+      ? {}
+      : { enterKeyHint: field.enterKeyHint }),
+    ...(field.autofill === undefined ? {} : { autofill: field.autofill }),
     ...(Option.isSome(maybeDescribedBy)
       ? { describedBy: maybeDescribedBy.value }
       : {}),

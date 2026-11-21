@@ -1,9 +1,10 @@
-import { Input } from 'foldkit/behavior'
+import { Input, NumberInput, Part, PinInput } from 'foldkit/behavior'
 import { InputFixture } from 'foldkit/test'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 
+import { slotPropsOf } from './host.js'
 import { paintTree } from './paintReact.js'
 
 // NOTE: proves the core Input Part on the React painter through the existing
@@ -110,5 +111,28 @@ describe('core Input Part on the React generic host', () => {
     fireEvent.change(readOnlyInput, { target: { value: 'nope' } })
     readOnly.repaint()
     expect(Input.draftOf(readOnly.fixture.inputState())).toBe('readonly')
+  })
+
+  it('camelCases inputMode, enterKeyHint, and autoComplete and emits data-slot-drag in slotPropsOf', () => {
+    const numView = Part.view(NumberInput.part, NumberInput.initial, {
+      id: 'qty',
+      min: 0,
+      step: 0.5,
+    })
+    const inputProps = slotPropsOf(numView.slot('Input'))
+    expect(inputProps['inputMode']).toBe('decimal')
+    expect(inputProps['enterKeyHint']).toBe('done')
+    expect(inputProps['inputmode']).toBeUndefined()
+    expect(slotPropsOf(numView.slot('Scrubber'))['data-slot-drag']).toBe(
+      'horizontal',
+    )
+
+    const otpView = Part.view(PinInput.part, PinInput.initial, {
+      id: 'otp',
+      isOtp: true,
+    })
+    expect(slotPropsOf(otpView.slot('Input', '0'))['autoComplete']).toBe(
+      'one-time-code',
+    )
   })
 })

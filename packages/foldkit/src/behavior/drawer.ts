@@ -1457,9 +1457,11 @@ const projectSlot = (
         Option.contains(focusedIdOf(state), closeButtonId(props.id)),
     }
   } else if (slot === 'Grabber') {
+    const orientation = orientationOf(props)
     return {
       id: grabberId(props.id),
-      orientation: orientationOf(props),
+      orientation,
+      dragAxis: orientation === 'Horizontal' ? 'Horizontal' : 'Vertical',
       ...(isDraggableOf(props) ? {} : { isDisabled: true }),
     }
   } else {

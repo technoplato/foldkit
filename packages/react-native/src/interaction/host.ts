@@ -1,5 +1,5 @@
 import { Option } from 'effect'
-import { type Gesture, Host, type Slot } from 'foldkit/behavior'
+import { type Gesture, Host, Slot } from 'foldkit/behavior'
 
 import { type Paint, pressOf } from './paint.js'
 
@@ -60,6 +60,25 @@ export type TextInputHostProps = Readonly<{
   accessibilityLabel?: string
   editable?: boolean
   multiline?: boolean
+  inputMode?:
+    | 'none'
+    | 'text'
+    | 'decimal'
+    | 'numeric'
+    | 'tel'
+    | 'search'
+    | 'email'
+    | 'url'
+  enterKeyHint?:
+    | 'enter'
+    | 'done'
+    | 'go'
+    | 'next'
+    | 'previous'
+    | 'search'
+    | 'send'
+  autoComplete?: 'off' | 'one-time-code'
+  textContentType?: 'oneTimeCode'
   accessibilityState?: HostProps['accessibilityState']
 }>
 
@@ -206,6 +225,20 @@ export const textInputPropsOf = (
         ? { editable: false }
         : {}),
       ...(binding.isMultiline === true ? { multiline: true } : {}),
+      ...(binding.inputMode === undefined
+        ? {}
+        : { inputMode: Slot.inputModeNameOf(binding.inputMode) }),
+      ...(binding.enterKeyHint === undefined
+        ? {}
+        : { enterKeyHint: Slot.enterKeyHintNameOf(binding.enterKeyHint) }),
+      ...(binding.autofill === undefined
+        ? {}
+        : {
+            autoComplete: Slot.autofillNameOf(binding.autofill),
+            ...(binding.autofill === 'OneTimeCode'
+              ? { textContentType: 'oneTimeCode' }
+              : {}),
+          }),
       ...stateOf(binding),
     }),
   })

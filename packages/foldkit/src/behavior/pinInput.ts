@@ -1233,6 +1233,8 @@ const projectSlot = (
       id: inputId(props.id, index),
       label: `PIN character ${(index + 1).toString()} of ${total.toString()}`,
       tabIndex: isTabbable ? 0 : -1,
+      inputMode: pinTypeOf(props) === 'Numeric' ? 'Numeric' : 'Text',
+      ...(isOtpOf(props) ? { autofill: 'OneTimeCode' } : {}),
       isCurrent: Option.contains(focusedIndexOf(state), index),
       ...(isDisabledOf(props) ? { isDisabled: true } : {}),
       ...(isReadOnlyOf(props) ? { isReadOnly: true } : {}),

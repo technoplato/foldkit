@@ -8,6 +8,7 @@ import {
   Input,
   Listbox,
   Menu,
+  Part,
   Popover,
   RadioGroup,
   Select,
@@ -21,7 +22,7 @@ import {
 } from 'foldkit/behavior'
 import type { Html } from 'foldkit/html'
 
-import { H, dispatchPart } from '../messages'
+import { H, dispatchPart, slotAttrs } from '../messages'
 import { playgroundProps } from '../partsProps'
 import type { PlaygroundModel } from '../state'
 
@@ -378,6 +379,11 @@ export const renderGroup1 = (
 
   // 11. Tooltip
   const tooltipOpen = Tooltip.isOpen(parts.tooltip)
+  const tooltipPartView = Part.view(
+    Tooltip.part,
+    parts.tooltip,
+    playgroundProps.tooltip,
+  )
   const tooltipView = div(
     [H.Class('pg-col')],
     [
@@ -387,16 +393,33 @@ export const renderGroup1 = (
           button(
             [
               H.Class('pg-btn'),
+              ...slotAttrs(tooltipPartView.slot('Trigger')),
+              H.OnPointerDown(pointerType =>
+                Option.some(
+                  dispatchPart(
+                    'tooltip',
+                    Tooltip.PressTooltipPointer({ pointerType }),
+                  ),
+                ),
+              ),
               H.OnPointerMove((_sx, _sy, pointerType) =>
-                pointerType === 'mouse' && !tooltipOpen
-                  ? Option.some(dispatchPart('tooltip', Tooltip.ShowTooltip()))
-                  : Option.none(),
+                Option.some(
+                  dispatchPart(
+                    'tooltip',
+                    Tooltip.EnterTooltipTrigger({ pointerType }),
+                  ),
+                ),
               ),
               H.OnPointerLeave(pointerType =>
-                pointerType === 'mouse' && tooltipOpen
-                  ? Option.some(dispatchPart('tooltip', Tooltip.HideTooltip()))
-                  : Option.none(),
+                Option.some(
+                  dispatchPart(
+                    'tooltip',
+                    Tooltip.LeaveTooltipTrigger({ pointerType }),
+                  ),
+                ),
               ),
+              H.OnFocus(dispatchPart('tooltip', Tooltip.FocusTooltipTrigger())),
+              H.OnBlur(dispatchPart('tooltip', Tooltip.BlurTooltipTrigger())),
               H.OnClick(
                 dispatchPart(
                   'tooltip',
@@ -410,7 +433,10 @@ export const renderGroup1 = (
       ),
       tooltipOpen
         ? div(
-            [H.Class('pg-popup'), H.Role('tooltip')],
+            [
+              H.Class('pg-popup'),
+              ...slotAttrs(tooltipPartView.slot('Content')),
+            ],
             ['Pure HoverIntent + Placement tooltip (Device-only).'],
           )
         : span([H.Class('pg-muted')], ['Hover or tap the trigger above.']),
@@ -617,11 +643,17 @@ export const renderGroup1 = (
     playgroundProps.combobox,
   )
   const comboSelected = Combobox.selectedValuesOf(parts.combobox)
+  const comboboxPartView = Part.view(
+    Combobox.part,
+    parts.combobox,
+    playgroundProps.combobox,
+  )
   const comboboxView = div(
     [H.Class('pg-col')],
     [
       input([
         H.Class('pg-input'),
+        ...slotAttrs(comboboxPartView.slot('Input')),
         H.Value(comboQuery),
         H.Placeholder(playgroundProps.combobox.placeholder ?? ''),
         H.OnFocus(dispatchPart('combobox', Combobox.OpenCombobox())),
@@ -646,7 +678,12 @@ export const renderGroup1 = (
                 ),
               ),
             ],
-            [item.label.split(' ')[0] ?? item.label],
+            [
+              Option.getOrElse(
+                Array.head(item.label.split(' ')),
+                () => item.label,
+              ),
+            ],
           ),
         ),
       ),
@@ -654,12 +691,18 @@ export const renderGroup1 = (
   )
 
   // 18. Slider
-  const sliderVal = parts.slider.values[0] ?? 0
+  const sliderVal = Option.getOrElse(Array.head(parts.slider.values), () => 0)
+  const sliderPartView = Part.view(
+    Slider.part,
+    parts.slider,
+    playgroundProps.slider,
+  )
   const sliderView = div(
     [H.Class('pg-col')],
     [
       input([
         H.Class('pg-range'),
+        ...slotAttrs(sliderPartView.slot('Track')),
         H.Type('range'),
         H.Min('0'),
         H.Max('100'),

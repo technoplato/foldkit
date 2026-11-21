@@ -116,16 +116,24 @@ export const actions: ReadonlyArray<Catalog.AnyAction> = [
 // MESSAGES (Facts in addition to the Actions above)
 
 /** Pointer entered the tooltip trigger element. */
-export const EnterTooltipTrigger = m('EnterTooltipTrigger')
+export const EnterTooltipTrigger = m('EnterTooltipTrigger', {
+  pointerType: S.optionalKey(S.String),
+})
 
 /** Pointer left the tooltip trigger element. */
-export const LeaveTooltipTrigger = m('LeaveTooltipTrigger')
+export const LeaveTooltipTrigger = m('LeaveTooltipTrigger', {
+  pointerType: S.optionalKey(S.String),
+})
 
 /** Pointer entered the tooltip panel (honored when `isInteractive` is true). */
-export const EnterTooltipPanel = m('EnterTooltipPanel')
+export const EnterTooltipPanel = m('EnterTooltipPanel', {
+  pointerType: S.optionalKey(S.String),
+})
 
 /** Pointer left the tooltip panel. */
-export const LeaveTooltipPanel = m('LeaveTooltipPanel')
+export const LeaveTooltipPanel = m('LeaveTooltipPanel', {
+  pointerType: S.optionalKey(S.String),
+})
 
 /** Focus moved onto the tooltip trigger element. */
 export const FocusTooltipTrigger = m('FocusTooltipTrigger')
@@ -337,6 +345,11 @@ type StepResult = Readonly<{
   commands: ReadonlyArray<Command.Command<Message>>
 }>
 
+const hoverPointerArg = (
+  pointerType?: string,
+): Readonly<{ pointerType: string }> | undefined =>
+  pointerType === undefined ? undefined : { pointerType }
+
 const hoverIntentPropsOf = (props: Props): HoverIntent.Props => ({
   openDelayMs: showDelayMsOf(props),
   closeDelayMs: closeDelayMsOf(props),
@@ -524,18 +537,30 @@ export const chart = define({ state: State, message: Message, context: Props })(
           HideTooltip: [ignore()],
           EnterTooltipTrigger: [
             when(
-              (state, _message, context) =>
+              (state, message, context) =>
                 isDisabledOf(context)
                   ? Option.none()
-                  : stepToOpen(state, HoverIntent.EnteredTrigger(), context),
+                  : stepToOpen(
+                      state,
+                      HoverIntent.EnteredTrigger(
+                        hoverPointerArg(message.pointerType),
+                      ),
+                      context,
+                    ),
               'Open',
               ({ guardValue }) => guardValue,
             ),
             when(
-              (state, _message, context) =>
+              (state, message, context) =>
                 isDisabledOf(context)
                   ? Option.none()
-                  : stepToClosed(state, HoverIntent.EnteredTrigger(), context),
+                  : stepToClosed(
+                      state,
+                      HoverIntent.EnteredTrigger(
+                        hoverPointerArg(message.pointerType),
+                      ),
+                      context,
+                    ),
               'Closed',
               ({ guardValue }) => guardValue,
             ),
@@ -543,8 +568,12 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           LeaveTooltipTrigger: [
             when(
-              (state, _message, context) =>
-                stepToClosed(state, HoverIntent.LeftTrigger(), context),
+              (state, message, context) =>
+                stepToClosed(
+                  state,
+                  HoverIntent.LeftTrigger(hoverPointerArg(message.pointerType)),
+                  context,
+                ),
               'Closed',
               ({ guardValue }) => guardValue,
             ),
@@ -552,18 +581,30 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           EnterTooltipPanel: [
             when(
-              (state, _message, context) =>
+              (state, message, context) =>
                 isDisabledOf(context)
                   ? Option.none()
-                  : stepToOpen(state, HoverIntent.EnteredPanel(), context),
+                  : stepToOpen(
+                      state,
+                      HoverIntent.EnteredPanel(
+                        hoverPointerArg(message.pointerType),
+                      ),
+                      context,
+                    ),
               'Open',
               ({ guardValue }) => guardValue,
             ),
             when(
-              (state, _message, context) =>
+              (state, message, context) =>
                 isDisabledOf(context)
                   ? Option.none()
-                  : stepToClosed(state, HoverIntent.EnteredPanel(), context),
+                  : stepToClosed(
+                      state,
+                      HoverIntent.EnteredPanel(
+                        hoverPointerArg(message.pointerType),
+                      ),
+                      context,
+                    ),
               'Closed',
               ({ guardValue }) => guardValue,
             ),
@@ -571,8 +612,12 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           LeaveTooltipPanel: [
             when(
-              (state, _message, context) =>
-                stepToClosed(state, HoverIntent.LeftPanel(), context),
+              (state, message, context) =>
+                stepToClosed(
+                  state,
+                  HoverIntent.LeftPanel(hoverPointerArg(message.pointerType)),
+                  context,
+                ),
               'Closed',
               ({ guardValue }) => guardValue,
             ),
@@ -693,8 +738,14 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           EnterTooltipTrigger: [
             when(
-              (state, _message, context) =>
-                stepToOpen(state, HoverIntent.EnteredTrigger(), context),
+              (state, message, context) =>
+                stepToOpen(
+                  state,
+                  HoverIntent.EnteredTrigger(
+                    hoverPointerArg(message.pointerType),
+                  ),
+                  context,
+                ),
               'Open',
               ({ guardValue }) => guardValue,
             ),
@@ -702,14 +753,22 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           LeaveTooltipTrigger: [
             when(
-              (state, _message, context) =>
-                stepToClosed(state, HoverIntent.LeftTrigger(), context),
+              (state, message, context) =>
+                stepToClosed(
+                  state,
+                  HoverIntent.LeftTrigger(hoverPointerArg(message.pointerType)),
+                  context,
+                ),
               'Closed',
               ({ guardValue }) => guardValue,
             ),
             when(
-              (state, _message, context) =>
-                stepToOpen(state, HoverIntent.LeftTrigger(), context),
+              (state, message, context) =>
+                stepToOpen(
+                  state,
+                  HoverIntent.LeftTrigger(hoverPointerArg(message.pointerType)),
+                  context,
+                ),
               'Open',
               ({ guardValue }) => guardValue,
             ),
@@ -717,8 +776,14 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           EnterTooltipPanel: [
             when(
-              (state, _message, context) =>
-                stepToOpen(state, HoverIntent.EnteredPanel(), context),
+              (state, message, context) =>
+                stepToOpen(
+                  state,
+                  HoverIntent.EnteredPanel(
+                    hoverPointerArg(message.pointerType),
+                  ),
+                  context,
+                ),
               'Open',
               ({ guardValue }) => guardValue,
             ),
@@ -726,14 +791,22 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           LeaveTooltipPanel: [
             when(
-              (state, _message, context) =>
-                stepToClosed(state, HoverIntent.LeftPanel(), context),
+              (state, message, context) =>
+                stepToClosed(
+                  state,
+                  HoverIntent.LeftPanel(hoverPointerArg(message.pointerType)),
+                  context,
+                ),
               'Closed',
               ({ guardValue }) => guardValue,
             ),
             when(
-              (state, _message, context) =>
-                stepToOpen(state, HoverIntent.LeftPanel(), context),
+              (state, message, context) =>
+                stepToOpen(
+                  state,
+                  HoverIntent.LeftPanel(hoverPointerArg(message.pointerType)),
+                  context,
+                ),
               'Open',
               ({ guardValue }) => guardValue,
             ),

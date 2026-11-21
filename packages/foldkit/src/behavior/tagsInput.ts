@@ -1286,6 +1286,8 @@ const projectSlot = (
     return {
       id: inputId(props.id),
       tabIndex: isDisabledOf(props) ? -1 : 0,
+      inputMode: 'Text',
+      enterKeyHint: 'Done',
       ...labelSlotPropsOf(props),
       ...(props.describedBy === undefined
         ? {}

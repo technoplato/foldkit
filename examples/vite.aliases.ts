@@ -88,6 +88,10 @@ export const foldkitAliases = (dirname: string) => ({
     dirname,
     '../../packages/foldkit/src/calendar',
   ),
+  'foldkit/cli/program': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/cli/programPublic',
+  ),
   'foldkit/canvas': path.resolve(dirname, '../../packages/foldkit/src/canvas'),
   'foldkit/command': path.resolve(
     dirname,
@@ -161,7 +165,7 @@ export const foldkitAliases = (dirname: string) => ({
   'foldkit/render': path.resolve(dirname, '../../packages/foldkit/src/render'),
   'foldkit/renderers': path.resolve(
     dirname,
-    '../../packages/foldkit/src/renderers',
+    '../../packages/foldkit/src/renderers/public',
   ),
   'foldkit/route': path.resolve(dirname, '../../packages/foldkit/src/route'),
   'foldkit/runtime': path.resolve(
@@ -308,6 +312,14 @@ export const foldkitAliases = (dirname: string) => ({
   '@foldkit/devtools': path.resolve(
     dirname,
     '../../packages/devtools/src/index',
+  ),
+  '@foldkit/react/interaction': path.resolve(
+    dirname,
+    '../../packages/react/src/interaction/index',
+  ),
+  '@foldkit/react/navigation': path.resolve(
+    dirname,
+    '../../packages/react/src/navigation/index',
   ),
   '@foldkit/react': path.resolve(dirname, '../../packages/react/src/index'),
   foldkit: path.resolve(dirname, '../../packages/foldkit/src/index'),

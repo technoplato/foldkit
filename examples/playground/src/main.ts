@@ -1,7 +1,7 @@
 import { Duration, Match as M, Schema as S, Schedule, Stream } from 'effect'
-import { Runtime, Subscription } from 'foldkit'
+import { Interaction, Runtime, Subscription } from 'foldkit'
 import { Carousel, Clipboard, Timer } from 'foldkit/behavior'
-import { defaultTheme, paintModeOnPage, themeStylesheet } from 'foldkit/theme'
+import { paintModeOnPage } from 'foldkit/theme'
 
 import { FlushedDuePace, PlaygroundMessage, categoryOf } from './messages'
 import {
@@ -14,6 +14,7 @@ import {
   stepPart,
   submitBoundForm,
 } from './state'
+import { mountStudioPage } from './studioPage'
 import './styles.css'
 import { view } from './view'
 
@@ -25,7 +26,7 @@ const ensureThemeStylesheet = (): void => {
   if (document.getElementById(styleId) === null) {
     const style = document.createElement('style')
     style.id = styleId
-    style.textContent = themeStylesheet(defaultTheme)
+    style.textContent = Interaction.screenStylesheet
     document.head.appendChild(style)
   }
 }
@@ -161,6 +162,12 @@ if (typeof document !== 'undefined') {
   syncPageMode('Dark')
   const root = document.getElementById('root')
   if (root !== null) {
-    Runtime.run(makePlaygroundApp(root))
+    const pathname =
+      typeof window !== 'undefined' ? window.location.pathname : '/'
+    if (pathname.startsWith('/studio') || pathname.startsWith('/navigation')) {
+      mountStudioPage(root)
+    } else {
+      Runtime.run(makePlaygroundApp(root))
+    }
   }
 }

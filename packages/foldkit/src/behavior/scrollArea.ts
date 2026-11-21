@@ -1133,6 +1133,7 @@ const projectSlot = (
     return {
       id: scrollbarId(props.id),
       orientation,
+      dragAxis: orientation === 'Horizontal' ? 'Horizontal' : 'Vertical',
       controls: viewportId(props.id),
       valueMin: 0,
       valueMax: geometry.maxScrollOffset,
@@ -1145,6 +1146,7 @@ const projectSlot = (
   } else if (slot === 'Thumb') {
     return {
       id: thumbId(props.id),
+      dragAxis: orientation === 'Horizontal' ? 'Horizontal' : 'Vertical',
       isHidden: !visible,
       tabIndex: visible && !disabled ? 0 : -1,
       ...(disabled ? { isDisabled: true } : {}),

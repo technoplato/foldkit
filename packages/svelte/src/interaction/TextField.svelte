@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Option } from 'effect'
+  import { Slot } from 'foldkit/behavior'
   import {
     type ButtonNode,
     type TextInputNode,
@@ -50,9 +51,17 @@
   <!-- svelte-ignore a11y_autofocus -->
   <input
     aria-label={input.label}
+    autocomplete={input.slot?.autofill === undefined
+      ? undefined
+      : Slot.autofillNameOf(input.slot.autofill)}
     autofocus={input.focused === true}
     class={className}
-    enterkeyhint="done"
+    enterkeyhint={input.slot?.enterKeyHint === undefined
+      ? 'done'
+      : Slot.enterKeyHintNameOf(input.slot.enterKeyHint)}
+    inputmode={input.slot?.inputMode === undefined
+      ? undefined
+      : Slot.inputModeNameOf(input.slot.inputMode)}
     onblur={() => {
       if (isSubmittedOnLeave(input)) {
         submit()

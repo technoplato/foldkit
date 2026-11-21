@@ -119,13 +119,21 @@ export const initial: State = Closed({
 // MESSAGE
 
 /** Pointer entered the trigger element. */
-export const EnteredTrigger = m('EnteredTrigger')
+export const EnteredTrigger = m('EnteredTrigger', {
+  pointerType: S.optionalKey(S.String),
+})
 /** Pointer left the trigger element. */
-export const LeftTrigger = m('LeftTrigger')
+export const LeftTrigger = m('LeftTrigger', {
+  pointerType: S.optionalKey(S.String),
+})
 /** Pointer entered the floating panel (honored when `isInteractive` is true). */
-export const EnteredPanel = m('EnteredPanel')
+export const EnteredPanel = m('EnteredPanel', {
+  pointerType: S.optionalKey(S.String),
+})
 /** Pointer left the floating panel. */
-export const LeftPanel = m('LeftPanel')
+export const LeftPanel = m('LeftPanel', {
+  pointerType: S.optionalKey(S.String),
+})
 /** Focus moved onto the trigger element. */
 export const FocusedTrigger = m('FocusedTrigger')
 /** Focus left the trigger element. */
@@ -241,19 +249,38 @@ export const isEngaged = (
 ): boolean => isPointerOver(state) || Option.isSome(state.maybeFocusLocation)
 
 /**
- * True when focus on the trigger should affirm opening: keyboard (`None`),
- * `'touch'`, and `'pen'` affirm open; `'mouse'` click-induced focus does not.
+ * True when `maybePointerType` represents a pointer capable of hover intent:
+ * `'mouse'`, `'pen'`, or `undefined` (unspecified) return `true`; touch
+ * pointers (`'touch'` / `'Touch'`) return `false` so tap-synthesized
+ * pointerenter/pointerleave events never masquerade as hover.
  *
  * @example
  * ```typescript
- * isPointerAffirmedFocus(Option.none()) // true (keyboard)
- * isPointerAffirmedFocus(Option.some('touch')) // true
+ * canHoverPointer(undefined) // true
+ * canHoverPointer('mouse') // true
+ * canHoverPointer('pen') // true
+ * canHoverPointer('touch') // false
+ * ```
+ */
+export const canHoverPointer = (maybePointerType?: string): boolean =>
+  maybePointerType === undefined || maybePointerType.toLowerCase() !== 'touch'
+
+/**
+ * True when focus on the trigger should affirm opening: keyboard and assistive
+ * technology focus (`None`, no preceding pointer press) affirms open, whereas
+ * pointer-induced focus (`'mouse'`, `'touch'`, or `'pen'` tap) does not stick
+ * or double-toggle on mobile browsers.
+ *
+ * @example
+ * ```typescript
+ * isPointerAffirmedFocus(Option.none()) // true (keyboard / VoiceOver)
+ * isPointerAffirmedFocus(Option.some('touch')) // false
  * isPointerAffirmedFocus(Option.some('mouse')) // false
  * ```
  */
 export const isPointerAffirmedFocus = (
   maybeLastPointerType: Option.Option<string>,
-): boolean => !Option.contains(maybeLastPointerType, 'mouse')
+): boolean => Option.isNone(maybeLastPointerType)
 
 /**
  * True when an elapsed wait carrying `version` matches the current monotonic
@@ -508,8 +535,10 @@ export const chart = define({ state: State, message: Message, context: Props })(
         on: {
           EnteredTrigger: [
             when(
-              (state, _message, context) =>
-                !state.isDismissed && openDelayMsOf(context) <= 0,
+              (state, message, context) =>
+                canHoverPointer(message.pointerType) &&
+                !state.isDismissed &&
+                openDelayMsOf(context) <= 0,
               'Open',
               ({ state }) =>
                 Open({
@@ -520,8 +549,10 @@ export const chart = define({ state: State, message: Message, context: Props })(
                 }),
             ),
             when(
-              (state, _message, context) =>
-                !state.isDismissed && openDelayMsOf(context) > 0,
+              (state, message, context) =>
+                canHoverPointer(message.pointerType) &&
+                !state.isDismissed &&
+                openDelayMsOf(context) > 0,
               'Opening',
               ({ state, context }) => {
                 const version = TimedHint.nextVersion(state.openVersion)
@@ -541,22 +572,30 @@ export const chart = define({ state: State, message: Message, context: Props })(
                 }
               },
             ),
-            otherwise(
-              to('Closed', ({ state }) =>
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Closed',
+              ({ state }) =>
                 Closed({
                   ...fieldsOf(state),
                   isTriggerHovered: true,
                   closeVersion: TimedHint.nextVersion(state.closeVersion),
                 }),
-              ),
             ),
+            ignore(),
           ],
-          LeftTrigger: to('Closed', ({ state }) =>
-            Closed(leftFieldsOf(state, 'Trigger')),
-          ),
+          LeftTrigger: [
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Closed',
+              ({ state }) => Closed(leftFieldsOf(state, 'Trigger')),
+            ),
+            ignore(),
+          ],
           EnteredPanel: [
             when(
-              (state, _message, context) =>
+              (state, message, context) =>
+                canHoverPointer(message.pointerType) &&
                 isInteractiveOf(context) &&
                 !state.isDismissed &&
                 openDelayMsOf(context) <= 0,
@@ -570,7 +609,8 @@ export const chart = define({ state: State, message: Message, context: Props })(
                 }),
             ),
             when(
-              (state, _message, context) =>
+              (state, message, context) =>
+                canHoverPointer(message.pointerType) &&
                 isInteractiveOf(context) &&
                 !state.isDismissed &&
                 openDelayMsOf(context) > 0,
@@ -594,7 +634,9 @@ export const chart = define({ state: State, message: Message, context: Props })(
               },
             ),
             when(
-              (_state, _message, context) => isInteractiveOf(context),
+              (_state, message, context) =>
+                canHoverPointer(message.pointerType) &&
+                isInteractiveOf(context),
               'Closed',
               ({ state }) =>
                 Closed({
@@ -605,9 +647,14 @@ export const chart = define({ state: State, message: Message, context: Props })(
             ),
             ignore(),
           ],
-          LeftPanel: to('Closed', ({ state }) =>
-            Closed(leftFieldsOf(state, 'Panel')),
-          ),
+          LeftPanel: [
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Closed',
+              ({ state }) => Closed(leftFieldsOf(state, 'Panel')),
+            ),
+            ignore(),
+          ],
           FocusedTrigger: [
             when(
               state => !isPointerAffirmedFocus(state.maybeLastPointerType),
@@ -700,28 +747,39 @@ export const chart = define({ state: State, message: Message, context: Props })(
       },
       Opening: {
         on: {
-          EnteredTrigger: to('Opening', ({ state }) =>
-            Opening({
-              ...fieldsOf(state),
-              isTriggerHovered: true,
-              closeVersion: TimedHint.nextVersion(state.closeVersion),
-            }),
-          ),
+          EnteredTrigger: [
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Opening',
+              ({ state }) =>
+                Opening({
+                  ...fieldsOf(state),
+                  isTriggerHovered: true,
+                  closeVersion: TimedHint.nextVersion(state.closeVersion),
+                }),
+            ),
+            ignore(),
+          ],
           LeftTrigger: [
             when(
-              state => isEngaged(leftFieldsOf(state, 'Trigger')),
+              (state, message) =>
+                canHoverPointer(message.pointerType) &&
+                isEngaged(leftFieldsOf(state, 'Trigger')),
               'Opening',
               ({ state }) => Opening(leftFieldsOf(state, 'Trigger')),
             ),
-            otherwise(
-              to('Closed', ({ state }) =>
-                Closed(leftFieldsOf(state, 'Trigger')),
-              ),
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Closed',
+              ({ state }) => Closed(leftFieldsOf(state, 'Trigger')),
             ),
+            ignore(),
           ],
           EnteredPanel: [
             when(
-              (_state, _message, context) => isInteractiveOf(context),
+              (_state, message, context) =>
+                canHoverPointer(message.pointerType) &&
+                isInteractiveOf(context),
               'Opening',
               ({ state }) =>
                 Opening({
@@ -734,13 +792,18 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           LeftPanel: [
             when(
-              state => isEngaged(leftFieldsOf(state, 'Panel')),
+              (state, message) =>
+                canHoverPointer(message.pointerType) &&
+                isEngaged(leftFieldsOf(state, 'Panel')),
               'Opening',
               ({ state }) => Opening(leftFieldsOf(state, 'Panel')),
             ),
-            otherwise(
-              to('Closed', ({ state }) => Closed(leftFieldsOf(state, 'Panel'))),
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Closed',
+              ({ state }) => Closed(leftFieldsOf(state, 'Panel')),
             ),
+            ignore(),
           ],
           FocusedTrigger: [
             when(
@@ -837,14 +900,25 @@ export const chart = define({ state: State, message: Message, context: Props })(
       },
       Open: {
         on: {
-          EnteredTrigger: to('Open', ({ state }) =>
-            Open({
-              ...fieldsOf(state),
-              isTriggerHovered: true,
-              closeVersion: TimedHint.nextVersion(state.closeVersion),
-            }),
-          ),
+          EnteredTrigger: [
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Open',
+              ({ state }) =>
+                Open({
+                  ...fieldsOf(state),
+                  isTriggerHovered: true,
+                  closeVersion: TimedHint.nextVersion(state.closeVersion),
+                }),
+            ),
+            ignore(),
+          ],
           LeftTrigger: [
+            when(
+              (_state, message) => !canHoverPointer(message.pointerType),
+              'Open',
+              ({ state }) => state,
+            ),
             when(
               state => isEngaged(leftFieldsOf(state, 'Trigger')),
               'Open',
@@ -879,7 +953,9 @@ export const chart = define({ state: State, message: Message, context: Props })(
           ],
           EnteredPanel: [
             when(
-              (_state, _message, context) => isInteractiveOf(context),
+              (_state, message, context) =>
+                canHoverPointer(message.pointerType) &&
+                isInteractiveOf(context),
               'Open',
               ({ state }) =>
                 Open({
@@ -891,6 +967,11 @@ export const chart = define({ state: State, message: Message, context: Props })(
             ignore(),
           ],
           LeftPanel: [
+            when(
+              (_state, message) => !canHoverPointer(message.pointerType),
+              'Open',
+              ({ state }) => state,
+            ),
             when(
               state => isEngaged(leftFieldsOf(state, 'Panel')),
               'Open',
@@ -1035,19 +1116,32 @@ export const chart = define({ state: State, message: Message, context: Props })(
       },
       Closing: {
         on: {
-          EnteredTrigger: to('Open', ({ state }) =>
-            Open({
-              ...fieldsOf(state),
-              isTriggerHovered: true,
-              closeVersion: TimedHint.nextVersion(state.closeVersion),
-            }),
-          ),
-          LeftTrigger: to('Closing', ({ state }) =>
-            Closing(leftFieldsOf(state, 'Trigger')),
-          ),
+          EnteredTrigger: [
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Open',
+              ({ state }) =>
+                Open({
+                  ...fieldsOf(state),
+                  isTriggerHovered: true,
+                  closeVersion: TimedHint.nextVersion(state.closeVersion),
+                }),
+            ),
+            ignore(),
+          ],
+          LeftTrigger: [
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Closing',
+              ({ state }) => Closing(leftFieldsOf(state, 'Trigger')),
+            ),
+            ignore(),
+          ],
           EnteredPanel: [
             when(
-              (_state, _message, context) => isInteractiveOf(context),
+              (_state, message, context) =>
+                canHoverPointer(message.pointerType) &&
+                isInteractiveOf(context),
               'Open',
               ({ state }) =>
                 Open({
@@ -1058,9 +1152,14 @@ export const chart = define({ state: State, message: Message, context: Props })(
             ),
             ignore(),
           ],
-          LeftPanel: to('Closing', ({ state }) =>
-            Closing(leftFieldsOf(state, 'Panel')),
-          ),
+          LeftPanel: [
+            when(
+              (_state, message) => canHoverPointer(message.pointerType),
+              'Closing',
+              ({ state }) => Closing(leftFieldsOf(state, 'Panel')),
+            ),
+            ignore(),
+          ],
           FocusedTrigger: [
             when(
               state => !isPointerAffirmedFocus(state.maybeLastPointerType),

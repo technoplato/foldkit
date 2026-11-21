@@ -1609,6 +1609,7 @@ const projectSlot = (
       id: slideId(props.id, index),
       label: `${(index + 1).toString()} of ${total.toString()}`,
       orientation,
+      dragAxis: orientation === 'Vertical' ? 'Vertical' : 'Horizontal',
       isCurrent: inView,
       ...(inView ? {} : { isHidden: true }),
     }
