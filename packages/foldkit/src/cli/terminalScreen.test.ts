@@ -12,6 +12,7 @@ import {
   Toolbar,
   Transcript,
 } from '../renderers/elements.js'
+import { renderScreen } from '../renderers/render.js'
 import { bindChapters } from '../test/apps/chapterContents.js'
 import { displayWidth } from './frameWriter.js'
 import {
@@ -180,7 +181,7 @@ describe('paintTerminal', () => {
       navigation: () =>
         Option.some({
           uri: '/books/lantern/listen/1m00s',
-          history: 'Push',
+          history: 'Record',
           entries: [
             {
               key: '/books/lantern/listen/1m00s',
@@ -281,5 +282,89 @@ describe('paintTerminal', () => {
     expect(
       painted.inks[focusedRowIndex]?.some(run => run.role === 'Focus'),
     ).toBe(true)
+  })
+
+  it('renders and focuses an open List row menu right under its row', () => {
+    const listNode = List({
+      label: 'Books',
+      items: [
+        { key: 'lantern', title: 'The Lantern Keeper', action: 'Open:lantern' },
+        { key: 'hours', title: 'Small Hours', action: 'Open:hours' },
+      ],
+      menu: {
+        key: 'lantern',
+        items: [
+          { action: 'Listen:lantern', label: 'Listen' },
+          { action: 'ShowContents:lantern', label: 'Contents' },
+        ],
+        dismissAction: 'CloseTitleMenu',
+      },
+    })
+    const pressedTags: Array<string> = []
+    const base = bindChapters()
+    const bound: Bound = {
+      ...base,
+      press: tag => {
+        pressedTags.push(tag)
+        return true
+      },
+      navigation: () =>
+        Option.some({
+          uri: '/books',
+          history: 'Replace',
+          entries: [
+            {
+              key: '/books',
+              identity: '/books',
+              uri: '/books',
+              destination: undefined,
+              maybeTitle: Option.some('Library'),
+              maybeStyle: Option.none(),
+              isTab: true,
+            },
+          ],
+        }),
+      viewAt: () => Option.some({ _tag: 'Screen', node: listNode }),
+      screen: () => Option.some(listNode),
+      menu: () => Option.none(),
+    }
+    const plain = renderScreen(listNode, 80)
+    expect(plain).toContain('[ Listen ]')
+    expect(plain).toContain('[ Contents ]')
+    expect(plain).toContain('[ Close ]')
+    expect(plain.indexOf('[ Listen ]')).toBeGreaterThan(
+      plain.indexOf('The Lantern Keeper'),
+    )
+    expect(plain.indexOf('Small Hours')).toBeGreaterThan(
+      plain.indexOf('[ Close ]'),
+    )
+    const initial = paintTerminal(bound, 'books', initialTerminalView, size)
+    const initialText = initial.lines.join('\n')
+    expect(initialText).toContain('[ Listen ]')
+    expect(initialText).toContain('[ Contents ]')
+    expect(initialText).toContain('[ Close ]')
+    const step1 = pressTerminalKeyAt(
+      bound,
+      keyInput('ArrowDown'),
+      initial.view.focus,
+    )
+    const step2 = pressTerminalKeyAt(bound, keyInput('ArrowDown'), step1.focus)
+    const afterDown = paintTerminal(
+      bound,
+      'books',
+      { ...initial.view, focus: step2.focus },
+      size,
+    )
+    expect(afterDown.lines.join('\n')).toContain('[>Listen<]')
+    expect(
+      afterDown.inks.some(runs => runs.some(run => run.role === 'Focus')),
+    ).toBe(true)
+    const enterOutcome = pressTerminalKeyAt(
+      bound,
+      keyInput('Enter'),
+      step2.focus,
+    )
+    expect(enterOutcome.outcome).toBe('Handled')
+    expect(pressedTags).toEqual(['Listen:lantern'])
   })
 })

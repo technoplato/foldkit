@@ -10,9 +10,16 @@ import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
 import { Link } from '../navigation/message.js'
 import { isModalStyle } from '../navigation/structure.js'
+import { Button, Column, Row, Text } from '../renderers/elements.js'
 import { resolveLazyNode } from '../renderers/lazy.js'
 import { buttonsOf } from '../renderers/query.js'
-import type { ButtonNode, UiNode } from '../renderers/types.js'
+import type {
+  ButtonNode,
+  ItemMenu,
+  ListItem,
+  ListNode,
+  UiNode,
+} from '../renderers/types.js'
 import type { BoundInteraction } from './bind.js'
 import { type KeyInput, isChord, normalizeKey } from './interaction.js'
 import { type TerminalKeyOutcome, pressTerminalKey } from './terminal.js'
@@ -103,14 +110,30 @@ const gridRowsOfNode = (node: UiNode): ReadonlyArray<GridRow> =>
       Box: box => Array.flatMap(box.children, gridRowsOfNode),
       Progress: () => [],
       List: list =>
-        Array.map(list.items, item => ({
-          tags: [
-            ...Array.fromNullishOr(item.check?.action),
-            ...Array.fromNullishOr(item.action ?? item.href),
-            ...Array.getSomes(Array.map(item.trailing ?? [], pressableTagOf)),
-          ],
-          isCurrent: item.isCurrent === true,
-        })),
+        Array.flatMap(list.items, item => {
+          const itemRow: GridRow = {
+            tags: [
+              ...Array.fromNullishOr(item.check?.action),
+              ...Array.fromNullishOr(item.action ?? item.href),
+              ...Array.getSomes(Array.map(item.trailing ?? [], pressableTagOf)),
+            ],
+            isCurrent: item.isCurrent === true,
+          }
+          if (list.menu !== undefined && list.menu.key === item.key) {
+            return [
+              itemRow,
+              {
+                tags: [
+                  ...Array.map(list.menu.items, menuItem => menuItem.action),
+                  list.menu.dismissAction,
+                ],
+                isCurrent: false,
+              },
+            ]
+          } else {
+            return [itemRow]
+          }
+        }),
       Seek: () => [],
       Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, gridRowsOfNode),
@@ -373,6 +396,29 @@ const keysLabelOf = (button: ButtonNode): string =>
     onNonEmpty: keys => `${button.label} (${Array.join(keys, ' ')})`,
   })
 
+const menuButtonsOf = (menu: ItemMenu): ReadonlyArray<ButtonNode> => [
+  ...Array.map(menu.items, menuItem =>
+    Button({
+      label: menuItem.label,
+      action: menuItem.action,
+      ...(menuItem.icon === undefined ? {} : { icon: menuItem.icon }),
+    }),
+  ),
+  Button({ label: 'Close', action: menu.dismissAction }),
+]
+
+const listWithoutMenu = (
+  list: ListNode,
+  items: ReadonlyArray<ListItem>,
+): ListNode => ({
+  _tag: 'List',
+  label: list.label,
+  items,
+  ...(list.dropAction === undefined ? {} : { dropAction: list.dropAction }),
+  ...(list.columns === undefined ? {} : { columns: list.columns }),
+  ...(list.filter === undefined ? {} : { filter: list.filter }),
+})
+
 const decoratedButton = (
   button: ButtonNode,
   maybeFocused: Option.Option<string>,
@@ -417,9 +463,8 @@ const decorated = (
         ),
       }),
       Progress: progress => progress,
-      List: list => ({
-        ...list,
-        items: Array.map(list.items, item => ({
+      List: list => {
+        const decoratedItems = Array.map(list.items, item => ({
           ...item,
           ...(Option.exists(
             Option.fromNullishOr(item.action ?? item.href),
@@ -438,8 +483,38 @@ const decorated = (
                   decoratedButton(button, maybeFocused, isShowingKeys),
                 ),
               }),
-        })),
-      }),
+        }))
+        if (list.menu === undefined) {
+          return { ...list, items: decoratedItems }
+        } else {
+          const { menu } = list
+          return Option.match(
+            Array.findFirstIndex(decoratedItems, item => item.key === menu.key),
+            {
+              onNone: () => ({ ...list, items: decoratedItems }),
+              onSome: menuIndex => {
+                const before = Array.take(decoratedItems, menuIndex + 1)
+                const after = Array.drop(decoratedItems, menuIndex + 1)
+                const menuRow = Row(
+                  { gap: 1 },
+                  Text(' '),
+                  ...Array.map(menuButtonsOf(menu), button =>
+                    decoratedButton(button, maybeFocused, isShowingKeys),
+                  ),
+                )
+                return Column(
+                  { gap: 0 },
+                  listWithoutMenu(list, before),
+                  menuRow,
+                  ...(Array.isReadonlyArrayNonEmpty(after)
+                    ? [listWithoutMenu(list, after)]
+                    : []),
+                )
+              },
+            },
+          )
+        }
+      },
       Seek: seek => seek,
       Transcript: transcript => transcript,
       DeviceShell: shell => ({

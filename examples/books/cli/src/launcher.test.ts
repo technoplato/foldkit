@@ -45,6 +45,7 @@ const environmentOf = (
   ...process.env,
   BOOKS_MADE_UP: library,
   NO_COLOR: '',
+  TERM: 'xterm-256color',
   ...extra,
 })
 

@@ -3,7 +3,7 @@ import { Array, Match as M, Option } from 'effect'
 import type { InkRun } from '../theme/terminal.js'
 import type { Role } from '../theme/theme.js'
 import type { Device } from './device.js'
-import { Column, Row, Text } from './elements.js'
+import { Button, Column, Row, Text } from './elements.js'
 import { iconGlyphs } from './icons.js'
 import { resolveLazyNode } from './lazy.js'
 import { itemLinesOf } from './listRows.js'
@@ -711,106 +711,149 @@ const layoutNode = (
         }
       },
       List: list => {
-        const rows = Array.map(list.items, (item, index) => {
-          const checkBoxes: ReadonlyArray<LayoutBox> =
-            item.check === undefined
-              ? []
-              : [
-                  {
-                    id: ids.next('check'),
-                    x,
-                    y: y + index,
-                    w: checkGlyph(item.check).length,
-                    h: 1,
-                    kind: 'Button',
-                    text: checkGlyph(item.check),
-                    label: item.check.label,
-                    ...standingInkOf(
-                      {
-                        ...(item.check.focused === true
-                          ? { focused: true }
-                          : {}),
-                        isPressable: item.check.action !== undefined,
-                      },
+        const emptyListLayout: Readonly<{
+          children: ReadonlyArray<LayoutBox>
+          rowOffset: number
+          widest: number
+        }> = {
+          children: [],
+          rowOffset: 0,
+          widest: 0,
+        }
+        const laid = Array.reduce(
+          list.items,
+          emptyListLayout,
+          (state, item) => {
+            const itemY = y + state.rowOffset
+            const checkBoxes: ReadonlyArray<LayoutBox> =
+              item.check === undefined
+                ? []
+                : [
+                    {
+                      id: ids.next('check'),
                       x,
-                      checkGlyph(item.check).length,
-                    ),
-                    ...(item.check.action === undefined
-                      ? {}
-                      : { action: { _tag: 'custom', id: item.check.action } }),
-                    children: [],
-                  },
-                ]
-          const titleX = Array.match(checkBoxes, {
-            onEmpty: () => x,
-            onNonEmpty: ([checkBox]) => checkBox.x + checkBox.w + checkGap,
-          })
-          const titleAvailableW = Math.max(0, availableW - (titleX - x))
-          const title = itemTitleGlyph(item)
-          const titleW = measureText(title, titleAvailableW)
-          const isPressableItem =
-            item.action !== undefined || item.href !== undefined
-          const titleBox: LayoutBox = {
-            id: ids.next('item'),
-            x: titleX,
-            y: y + index,
-            w: titleW,
-            h: 1,
-            kind: 'Button',
-            text: fit(title, titleW),
-            label: item.title,
-            ...(item.isCurrent === true ? { isCurrent: true } : {}),
-            ...standingInkOf(
-              { ...item, isPressable: isPressableItem },
-              titleX,
-              titleW,
-            ),
-            ...Option.match(
-              Option.orElse(Option.fromNullishOr(item.action), () =>
-                Option.fromNullishOr(item.href),
+                      y: itemY,
+                      w: checkGlyph(item.check).length,
+                      h: 1,
+                      kind: 'Button',
+                      text: checkGlyph(item.check),
+                      label: item.check.label,
+                      ...standingInkOf(
+                        {
+                          ...(item.check.focused === true
+                            ? { focused: true }
+                            : {}),
+                          isPressable: item.check.action !== undefined,
+                        },
+                        x,
+                        checkGlyph(item.check).length,
+                      ),
+                      ...(item.check.action === undefined
+                        ? {}
+                        : {
+                            action: { _tag: 'custom', id: item.check.action },
+                          }),
+                      children: [],
+                    },
+                  ]
+            const titleX = Array.match(checkBoxes, {
+              onEmpty: () => x,
+              onNonEmpty: ([checkBox]) => checkBox.x + checkBox.w + checkGap,
+            })
+            const titleAvailableW = Math.max(0, availableW - (titleX - x))
+            const title = itemTitleGlyph(item)
+            const titleW = measureText(title, titleAvailableW)
+            const isPressableItem =
+              item.action !== undefined || item.href !== undefined
+            const titleBox: LayoutBox = {
+              id: ids.next('item'),
+              x: titleX,
+              y: itemY,
+              w: titleW,
+              h: 1,
+              kind: 'Button',
+              text: fit(title, titleW),
+              label: item.title,
+              ...(item.isCurrent === true ? { isCurrent: true } : {}),
+              ...standingInkOf(
+                { ...item, isPressable: isPressableItem },
+                titleX,
+                titleW,
               ),
-              {
-                onNone: () => ({}),
-                onSome: id => ({ action: { _tag: 'custom' as const, id } }),
-              },
-            ),
-            children: [],
-          }
-          const detail = Array.join(itemLinesOf(item), ' · ')
-          const rest = layoutNode(
-            Row(
-              { gap: 2 },
-              ...(detail === '' ? [] : [Text(detail, { dim: true })]),
-              ...(item.trailing ?? []),
-            ),
-            titleX + titleW + 2,
-            y + index,
-            Math.max(0, titleAvailableW - titleW - 2),
-            ids,
-          )
-          const rowWidth =
-            rest.w > 0 ? rest.x + rest.w - x : titleBox.x + titleBox.w - x
-          return { checkBoxes, titleBox, rest, rowWidth }
-        })
-        const listWidth = Math.min(
-          availableW,
-          Array.reduce(rows, 0, (widest, row) =>
-            Math.max(widest, row.rowWidth),
-          ),
+              ...Option.match(
+                Option.orElse(Option.fromNullishOr(item.action), () =>
+                  Option.fromNullishOr(item.href),
+                ),
+                {
+                  onNone: () => ({}),
+                  onSome: id => ({ action: { _tag: 'custom' as const, id } }),
+                },
+              ),
+              children: [],
+            }
+            const detail = Array.join(itemLinesOf(item), ' · ')
+            const rest = layoutNode(
+              Row(
+                { gap: 2 },
+                ...(detail === '' ? [] : [Text(detail, { dim: true })]),
+                ...(item.trailing ?? []),
+              ),
+              titleX + titleW + 2,
+              itemY,
+              Math.max(0, titleAvailableW - titleW - 2),
+              ids,
+            )
+            const rowWidth =
+              rest.w > 0 ? rest.x + rest.w - x : titleBox.x + titleBox.w - x
+            if (list.menu !== undefined && list.menu.key === item.key) {
+              const menuBox = layoutNode(
+                Row(
+                  { gap: 1 },
+                  ...Array.map(list.menu.items, menuItem =>
+                    Button({
+                      label: menuItem.label,
+                      action: menuItem.action,
+                      ...(menuItem.icon === undefined
+                        ? {}
+                        : { icon: menuItem.icon }),
+                    }),
+                  ),
+                  Button({ label: 'Close', action: list.menu.dismissAction }),
+                ),
+                x + 2,
+                itemY + 1,
+                Math.max(0, availableW - 2),
+                ids,
+              )
+              return {
+                children: [
+                  ...state.children,
+                  ...checkBoxes,
+                  titleBox,
+                  rest,
+                  menuBox,
+                ],
+                rowOffset: state.rowOffset + 1 + menuBox.h,
+                widest: Math.max(state.widest, rowWidth, 2 + menuBox.w),
+              }
+            } else {
+              return {
+                children: [...state.children, ...checkBoxes, titleBox, rest],
+                rowOffset: state.rowOffset + 1,
+                widest: Math.max(state.widest, rowWidth),
+              }
+            }
+          },
         )
         return {
           id: ids.next('list'),
           x,
           y,
-          w: listWidth,
-          h: rows.length,
+          w: Math.min(availableW, laid.widest),
+          h: laid.rowOffset,
           kind: 'List',
           label: list.label,
-          children: Array.flatMap(rows, ({ checkBoxes, titleBox, rest }) => [
-            ...checkBoxes,
-            titleBox,
-            rest,
-          ]),
+          children: laid.children,
         }
       },
       Seek: seek => {
