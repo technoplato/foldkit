@@ -1,4 +1,6 @@
 export * as Block from './block.js'
+export * as Dialog from './dialog.js'
+export * as FocusScope from './focusScope.js'
 export * as Gesture from './gesture.js'
 export * as Host from './host.js'
 export * as Layers from './layers.js'

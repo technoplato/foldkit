@@ -15,7 +15,14 @@ import * as LongPress from './longPress.js'
 // binding and nothing else of a part, so it never learns a part's name.
 
 /** What a painted element is, for a screen reader: a menu's row is a `MenuItem`. */
-export const Role = S.Literals(['Menu', 'MenuItem', 'Tab', 'Button'])
+export const Role = S.Literals([
+  'Menu',
+  'MenuItem',
+  'Tab',
+  'Button',
+  'Dialog',
+  'AlertDialog',
+])
 /** What a painted element is, for a screen reader. */
 export type Role = typeof Role.Type
 
@@ -71,7 +78,12 @@ export const SlotBinding = S.Struct({
   isCurrent: S.optionalKey(S.Boolean),
   isExpanded: S.optionalKey(S.Boolean),
   isDisabled: S.optionalKey(S.Boolean),
+  isModal: S.optionalKey(S.Boolean),
   label: S.optionalKey(S.String),
+  labelledBy: S.optionalKey(S.String),
+  describedBy: S.optionalKey(S.String),
+  controls: S.optionalKey(S.String),
+  hasPopup: S.optionalKey(S.String),
   keys: S.optionalKey(S.Array(S.String)),
   id: S.optionalKey(S.String),
   activeId: S.optionalKey(S.String),
@@ -86,10 +98,16 @@ export type SlotBinding = typeof SlotBinding.Type
  * a menu says `activeId: 'title-menu-open'` and its row `id: 'title-menu-open'`.
  */
 export const SlotProps = S.Struct({
+  role: S.optionalKey(Role),
   isCurrent: S.optionalKey(S.Boolean),
   isExpanded: S.optionalKey(S.Boolean),
   isDisabled: S.optionalKey(S.Boolean),
+  isModal: S.optionalKey(S.Boolean),
   label: S.optionalKey(S.String),
+  labelledBy: S.optionalKey(S.String),
+  describedBy: S.optionalKey(S.String),
+  controls: S.optionalKey(S.String),
+  hasPopup: S.optionalKey(S.String),
   keys: S.optionalKey(S.Array(S.String)),
   id: S.optionalKey(S.String),
   activeId: S.optionalKey(S.String),
@@ -231,6 +249,8 @@ const roleNames: Readonly<Record<Role, string>> = {
   MenuItem: 'menuitem',
   Tab: 'tab',
   Button: 'button',
+  Dialog: 'dialog',
+  AlertDialog: 'alertdialog',
 }
 
 /**
@@ -254,6 +274,21 @@ export const ariaOf = (
   ...(binding.activeId === undefined
     ? {}
     : { 'aria-activedescendant': binding.activeId }),
+  ...(binding.controls === undefined
+    ? {}
+    : { 'aria-controls': binding.controls }),
+  ...(binding.hasPopup === undefined
+    ? {}
+    : { 'aria-haspopup': binding.hasPopup }),
+  ...(binding.isModal === undefined
+    ? {}
+    : { 'aria-modal': String(binding.isModal) }),
+  ...(binding.labelledBy === undefined
+    ? {}
+    : { 'aria-labelledby': binding.labelledBy }),
+  ...(binding.describedBy === undefined
+    ? {}
+    : { 'aria-describedby': binding.describedBy }),
   ...(binding.isCurrent === undefined
     ? {}
     : { 'aria-current': String(binding.isCurrent) }),

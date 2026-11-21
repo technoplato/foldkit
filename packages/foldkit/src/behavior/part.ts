@@ -308,8 +308,8 @@ export const bindingOf = (
           press: pressOf(each.becomes, maybeChoice),
         }))
   return bound(gestures, {
-    ...props,
     ...(declaration?.role === undefined ? {} : { role: declaration.role }),
+    ...props,
   })
 }
 

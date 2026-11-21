@@ -1,4 +1,5 @@
 import { Effect, Match as M, Option, Schema as S } from 'effect'
+import { Dialog as CoreDialog } from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import {
@@ -148,7 +149,7 @@ export const init = (config: InitConfig): Model => ({
   isOpen: config.isOpen ?? false,
   isAnimated: config.isAnimated ?? false,
   animation: animationInit({
-    id: `${config.id}-panel`,
+    id: CoreDialog.panelId(config.id),
     ...(config.isOpen !== undefined ? { isShowing: config.isOpen } : {}),
   }),
   maybeFocusSelector: Option.fromNullishOr(config.focusSelector),
@@ -271,13 +272,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     withUpdateReturn,
     M.tagsExhaustive({
       RequestedOpen: () => {
-        const wasClosed = !model.isOpen
+        const wasClosed = CoreDialog.canOpen(model.isOpen)
         const maybeShow = Option.liftPredicate(
           ShowDialog({
             id: model.id,
-            focusSelector: Option.getOrElse(
+            focusSelector: CoreDialog.initialFocusSelectorOf(
               model.maybeFocusSelector,
-              () => initialFocusMarkerSelector,
+              initialFocusMarkerSelector,
             ),
           }),
           () => wasClosed,
@@ -307,16 +308,19 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       },
 
       RequestedClose: () => {
-        const { transitionState } = model.animation
-        const isLeaving =
-          transitionState === 'LeaveStart' ||
-          transitionState === 'LeaveAnimating'
+        const isLeaving = CoreDialog.isLeavingPhase(
+          model.animation.transitionState,
+        )
+        const decision = CoreDialog.closeDecision({
+          isOpen: model.isOpen,
+          isLeaving,
+        })
 
-        if (isLeaving) {
+        if (decision === 'Ignore') {
           return [model, [], Option.none()]
         }
 
-        const wasOpen = model.isOpen
+        const wasOpen = decision === 'Close'
         const maybeOutMessage = wasOpen ? Option.some(Closed()) : Option.none()
 
         if (model.isAnimated) {
@@ -344,13 +348,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         delegateToAnimation(model, animationMessage),
 
       Unmounted: () => {
-        const isHoldingResources =
-          model.isOpen || model.animation.transitionState !== 'Idle'
+        const isHoldingResources = CoreDialog.shouldReleaseOnUnmount({
+          isOpen: model.isOpen,
+          isTransitionIdle: model.animation.transitionState === 'Idle',
+        })
 
         if (isHoldingResources) {
           const nextModel = evo(model, {
             isOpen: () => false,
-            animation: () => animationInit({ id: `${model.id}-panel` }),
+            animation: () =>
+              animationInit({ id: CoreDialog.panelId(model.id) }),
           })
 
           return [
@@ -387,7 +394,7 @@ export const close = (model: Model): UpdateReturn =>
  *  helper only when you need the id as a value outside `toView`: a Command that
  *  calls `getElementById`, a cross-element `aria-describedby`, or a test. Do not
  *  hand-roll the id string. */
-export const titleId = (model: Model): string => `${model.id}-dialog-title`
+export const titleId = (model: Model): string => CoreDialog.titleId(model.id)
 
 /** Returns the framework-managed id the dialog's `aria-describedby` points at,
  *  the `-dialog-description` suffix on `model.id`.
@@ -398,7 +405,7 @@ export const titleId = (model: Model): string => `${model.id}-dialog-title`
  *  `toView`: a Command that calls `getElementById`, a cross-element
  *  `aria-describedby`, or a test. Do not hand-roll the id string. */
 export const descriptionId = (model: Model): string =>
-  `${model.id}-dialog-description`
+  CoreDialog.descriptionId(model.id)
 
 /** Render-time payload published to the consumer's `toView`.
  *
@@ -465,9 +472,8 @@ export const view = defineView<Model, Message, ViewInputs>(
     } = model
     const { toView } = viewInputs
 
-    const isLeaving =
-      transitionState === 'LeaveStart' || transitionState === 'LeaveAnimating'
-    const isVisible = isOpen || isLeaving
+    const isLeaving = CoreDialog.isLeavingPhase(transitionState)
+    const isVisible = CoreDialog.isVisible({ isOpen, isLeaving })
 
     const animationAttributes = M.value(transitionState).pipe(
       M.when('EnterStart', () => [
@@ -520,7 +526,10 @@ export const view = defineView<Model, Message, ViewInputs>(
       ...(isLeaving ? [] : [h.OnClick(RequestedClose())]),
     ]
 
-    const panelAttributes = [h.Id(`${id}-panel`), ...animationAttributes]
+    const panelAttributes = [
+      h.Id(CoreDialog.panelId(id)),
+      ...animationAttributes,
+    ]
 
     const titleAttributes = [h.Id(titleId(model))]
     const descriptionAttributes = [h.Id(descriptionId(model))]
