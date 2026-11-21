@@ -9,6 +9,7 @@ import {
   String as Str,
   pipe,
 } from 'effect'
+import { Menu as CoreMenu, RovingFocus, Typeahead } from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { type ChildAttribute, type Html, html } from 'foldkit/html'
@@ -34,11 +35,7 @@ import { update as animationUpdate } from '../animation/update.js'
 import { groupContiguous } from '../group.js'
 import * as OptionExt from '../internal/optionExtensions.js'
 import { idSelector } from '../internal/selectors.js'
-import {
-  findFirstEnabledIndex,
-  isPrintableKey,
-  keyToIndex,
-} from '../keyboard.js'
+import { isPrintableKey, keyToIndex } from '../keyboard.js'
 import { resolveTypeaheadMatch } from '../typeahead.js'
 
 // MODEL
@@ -253,10 +250,7 @@ export type ReleasedPointerOnItems = typeof ReleasedPointerOnItems.Type
 
 // INIT
 
-const SEARCH_DEBOUNCE_MILLISECONDS = 350
 const LEFT_MOUSE_BUTTON = 0
-const POINTER_HOLD_THRESHOLD_MILLISECONDS = 200
-const POINTER_MOVEMENT_THRESHOLD_PIXELS = 5
 
 /** Configuration for creating a menu model with `init`. `isAnimated` enables animation coordination (default `false`). `isModal` locks page scroll and inerts other elements when open (default `false`). */
 export type InitConfig = Readonly<{
@@ -298,12 +292,14 @@ const closedModel = (model: Model): Model =>
  *  menu's base id. Use this to associate an external label with the trigger
  *  via a native `<label for={Menu.buttonId(id)}>` or an `aria-labelledby`
  *  reference. */
-export const buttonId = (id: string): string => `${id}-button`
+export const buttonId = (id: string): string => CoreMenu.triggerId(id)
 
-const buttonSelector = (id: string): string => idSelector(`${id}-button`)
-const itemsSelector = (id: string): string => idSelector(`${id}-items`)
+const buttonSelector = (id: string): string =>
+  idSelector(CoreMenu.triggerId(id))
+const itemsSelector = (id: string): string =>
+  idSelector(CoreMenu.containerId(id))
 const itemSelector = (id: string, index: number): string =>
-  idSelector(`${id}-item-${index}`)
+  idSelector(CoreMenu.itemId(id, index))
 
 type UpdateReturn = readonly [
   Model,
@@ -388,9 +384,7 @@ export const DelayClearSearch = Command.define(
   { version: S.Number },
   ClearedSearch,
 )(({ version }) =>
-  Effect.sleep(SEARCH_DEBOUNCE_MILLISECONDS).pipe(
-    Effect.as(ClearedSearch({ version })),
-  ),
+  Command.answerAfter(Typeahead.resetMs, ClearedSearch({ version })),
 )
 /** Detects whether the menu button moved or the leave animation ended. Whichever comes first; both outcomes signal the Animation submodel that leave is complete. */
 export const DetectMovementOrAnimationEnd = Command.define(
@@ -561,13 +555,12 @@ export const update = (model: Model, message: Message): UpdateReturn => {
       ],
 
       MovedPointerOverItem: ({ index, screenX, screenY }) => {
-        const isSamePosition = Option.exists(
-          model.maybeLastPointerPosition,
-          position =>
-            position.screenX === screenX && position.screenY === screenY,
-        )
-
-        if (isSamePosition) {
+        if (
+          CoreMenu.isSamePointerPosition(model.maybeLastPointerPosition, {
+            screenX,
+            screenY,
+          })
+        ) {
           return [model, [], Option.none()]
         }
 
@@ -583,7 +576,7 @@ export const update = (model: Model, message: Message): UpdateReturn => {
       },
 
       DeactivatedItem: () =>
-        model.activationTrigger === 'Pointer'
+        CoreMenu.shouldDeactivateOnLeave(model.activationTrigger)
           ? [
               evo(model, { maybeActiveItemIndex: () => Option.none() }),
               [],
@@ -605,12 +598,15 @@ export const update = (model: Model, message: Message): UpdateReturn => {
       ],
 
       Searched: ({ key, maybeTargetIndex }) => {
-        const nextSearchQuery = model.searchQuery + key
-        const nextSearchVersion = model.searchVersion + 1
+        const [nextTypeahead] = Typeahead.chart.transition(
+          Typeahead.fromFields(model.searchQuery, model.searchVersion),
+          Typeahead.Typed({ key }),
+        )
+        const nextSearchVersion = Typeahead.versionOf(nextTypeahead)
 
         return [
           evo(model, {
-            searchQuery: () => nextSearchQuery,
+            searchQuery: () => Typeahead.queryOf(nextTypeahead),
             searchVersion: () => nextSearchVersion,
             maybeActiveItemIndex: () =>
               Option.orElse(maybeTargetIndex, () => model.maybeActiveItemIndex),
@@ -621,11 +617,21 @@ export const update = (model: Model, message: Message): UpdateReturn => {
       },
 
       ClearedSearch: ({ version }) => {
-        if (version !== model.searchVersion) {
+        const stepped = Typeahead.chart.step(
+          Typeahead.fromFields(model.searchQuery, model.searchVersion),
+          Typeahead.ElapsedReset({ version }),
+        )
+        if (stepped._tag === 'Ignored') {
           return [model, [], Option.none()]
         }
 
-        return [evo(model, { searchQuery: () => '' }), [], Option.none()]
+        return [
+          evo(model, {
+            searchQuery: () => Typeahead.queryOf(stepped.state),
+          }),
+          [],
+          Option.none(),
+        ]
       },
 
       GotAnimationMessage: ({ message: animationMessage }) =>
@@ -674,30 +680,15 @@ export const update = (model: Model, message: Message): UpdateReturn => {
       },
 
       ReleasedPointerOnItems: ({ screenX, screenY, timeStamp }) => {
-        const hasNoOrigin = Option.isNone(model.maybePointerOrigin)
-
-        const hasNoActiveItem = Option.isNone(model.maybeActiveItemIndex)
-
-        const isMovementBelowThreshold = Option.exists(
-          model.maybePointerOrigin,
-          origin =>
-            Math.abs(screenX - origin.screenX) <
-              POINTER_MOVEMENT_THRESHOLD_PIXELS &&
-            Math.abs(screenY - origin.screenY) <
-              POINTER_MOVEMENT_THRESHOLD_PIXELS,
-        )
-
-        const isHoldTimeBelowThreshold = Option.exists(
-          model.maybePointerOrigin,
-          origin =>
-            timeStamp - origin.timeStamp < POINTER_HOLD_THRESHOLD_MILLISECONDS,
-        )
-
         if (
-          hasNoOrigin ||
-          isMovementBelowThreshold ||
-          isHoldTimeBelowThreshold ||
-          hasNoActiveItem
+          !CoreMenu.shouldDragSelect({
+            maybeOrigin: model.maybePointerOrigin,
+            maybeActiveIndex: model.maybeActiveItemIndex,
+            screenX,
+            screenY,
+            timeStamp,
+          }) ||
+          Option.isNone(model.maybeActiveItemIndex)
         ) {
           return [model, [], Option.none()]
         }
@@ -829,7 +820,7 @@ export type ViewInputs<Item extends string> = Readonly<{
 
 export { groupContiguous, resolveTypeaheadMatch }
 
-const itemId = (id: string, index: number): string => `${id}-item-${index}`
+const itemId = (id: string, index: number): string => CoreMenu.itemId(id, index)
 
 /** Headless menu view with typeahead search, keyboard navigation,
  *  and aria-activedescendant focus management. Obtained from
@@ -924,17 +915,15 @@ const menuViewImpl = defineView<Model, Message, ViewInputs<string>>(
         Option.exists(item => isItemDisabled(item, index)),
       )
 
-    const firstEnabledIndex = findFirstEnabledIndex(
-      items.length,
-      0,
-      isDisabled,
-    )(0, 1)
+    const firstEnabledIndex = Option.getOrElse(
+      RovingFocus.firstEnabled(items.length, isDisabled),
+      () => 0,
+    )
 
-    const lastEnabledIndex = findFirstEnabledIndex(
-      items.length,
-      0,
-      isDisabled,
-    )(items.length - 1, -1)
+    const lastEnabledIndex = Option.getOrElse(
+      RovingFocus.lastEnabled(items.length, isDisabled),
+      () => 0,
+    )
 
     const handleButtonKeyDown = (key: string): Option.Option<Message> => {
       if (isOpen) {

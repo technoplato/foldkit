@@ -1,6 +1,5 @@
-import { Array, Option, String as Str, pipe } from 'effect'
-
-import { wrapIndex } from './keyboard.js'
+import type { Option } from 'effect'
+import { Typeahead } from 'foldkit/behavior'
 
 /** Finds the first enabled item whose search text starts with the query, searching forward from the active item and wrapping around. On a fresh search, starts after the active item; on a refinement, includes the active item. */
 export const resolveTypeaheadMatch = <Item>(
@@ -10,32 +9,12 @@ export const resolveTypeaheadMatch = <Item>(
   isDisabled: (index: number) => boolean,
   itemToSearchText: (item: Item, index: number) => string,
   isRefinement: boolean,
-): Option.Option<number> => {
-  const lowerQuery = Str.toLowerCase(query)
-  const offset = isRefinement ? 0 : 1
-  const startIndex = Option.match(maybeActiveItemIndex, {
-    onNone: () => 0,
-    onSome: index => index + offset,
-  })
-
-  const isEnabledMatch = (index: number): boolean =>
-    !isDisabled(index) &&
-    pipe(
-      items,
-      Array.get(index),
-      Option.exists(item =>
-        pipe(
-          itemToSearchText(item, index),
-          Str.toLowerCase,
-          Str.startsWith(lowerQuery),
-        ),
-      ),
-    )
-
-  return pipe(
+): Option.Option<number> =>
+  Typeahead.match({
     items,
-    Array.length,
-    Array.makeBy(step => wrapIndex(startIndex + step, items.length)),
-    Array.findFirst(isEnabledMatch),
-  )
-}
+    query,
+    maybeActiveIndex: maybeActiveItemIndex,
+    isDisabled,
+    textOf: itemToSearchText,
+    isRefinement,
+  })

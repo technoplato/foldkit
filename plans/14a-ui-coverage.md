@@ -26,15 +26,15 @@ already does it).
 | `transcriptFollow`                                   | yes                     | Books' player, the Words reader    |
 | `longPress`                                          | yes                     | Books' row and word menus          |
 | `placement`                                          | yes                     | Books' menus on the web            |
-| `layers` (a pure reading, no state)                  | yes                     | Books' menus, sheets and dialogs   |
+| `layers` (a pure reading, no state)                  | yes (done, #2606)       | Books' menus, sheets and dialogs   |
 | `focusScope`                                         | yes                     | Books' dialogs                     |
 | `liveClock`                                          | yes                     | Books' player, the Words reader    |
 | `dragHold`                                           | yes                     | Books' seek bar                    |
 | `listFilter`                                         | yes                     | Books' chapters and bookmarks      |
 | `timedHint`                                          | yes                     | Counter's key hints, copy feedback |
 | `fieldDraft`                                         | stays in painters in v1 | Books' search and notes            |
-| `rovingFocus`                                        | no, first slice past v1 | tabs, menu, toolbar, radio group   |
-| `typeahead`                                          | no, first slice past v1 | menu, listbox, select, combobox    |
+| `rovingFocus`                                        | done (#2606)            | tabs, menu, toolbar, radio group   |
+| `typeahead`                                          | done (#2606)            | menu, listbox, select, combobox    |
 | `presence`                                           | no                      | anything with an exit animation    |
 | `selection` (one, many, a range)                     | no                      | listbox, select, tree, table       |
 | `pointerDrag` (pointer capture, axis, snap)          | no                      | slider, splitter, color area       |
@@ -86,71 +86,72 @@ after it reuse it: `layers` and `placement` (1 to 4), then `rovingFocus`
 cheap to do beside its neighbours, not first. Each row
 gets its own child issue under #2568 when it starts.
 
-Blocks that exist once #2595 lands: `longPress`, `placement`, the pace
+Blocks that exist: `longPress`, `placement`, `layers`, `rovingFocus`, `typeahead`, the pace
 rules for typing and dragging (`Pace`), and the reader's two (`Reader`,
 `TranscriptFollow`). Every other block named below
 is still to build, and is built with the first row that needs it.
 
-| #   | Part               | `packages/ui` | Zag                      | Radix                             | Blocks it needs (bold exist)                                                    |
-| --- | ------------------ | ------------- | ------------------------ | --------------------------------- | ------------------------------------------------------------------------------- |
-| 1   | Menu               | `Menu`        | menu                     | menu, dropdown-menu, context-menu | **`longPress`**, **`placement`**, `layers`, `rovingFocus`, `typeahead`          |
-| 2   | Dialog             | `Dialog`      | dialog                   | dialog, alert-dialog              | `layers`, `focusScope`                                                          |
-| 3   | Tabs               | `Tabs`        | tabs                     | tabs                              | `rovingFocus`                                                                   |
-| 4   | Popover            | `Popover`     | popover                  | popover                           | **`placement`**, `layers`, `focusScope`                                         |
-| 5   | Disclosure         | `Disclosure`  | collapsible, accordion   | collapsible, accordion            | `rovingFocus`, `presence`                                                       |
-| 6   | Switch             | `Switch`      | switch                   | switch                            | none                                                                            |
-| 7   | Checkbox           | `Checkbox`    | checkbox                 | checkbox                          | none                                                                            |
-| 8   | Radio group        | `RadioGroup`  | radio-group              | radio-group                       | `rovingFocus`                                                                   |
-| 9   | Button and toggle  | `Button`      | toggle                   | toggle                            | none                                                                            |
-| 10  | Toast              | `Toast`       | toast                    | toast                             | `timedHint`, `presence`                                                         |
-| 11  | Tooltip            | `Tooltip`     | tooltip                  | tooltip                           | **`placement`**, `hoverIntent`, `timedHint`                                     |
-| 12  | Input              | `Input`       | editable, password-input | label, password-toggle-field      | `fieldDraft` (**`Pace`**)                                                       |
-| 13  | Textarea           | `Textarea`    | none                     | none                              | `fieldDraft` (**`Pace`**)                                                       |
-| 14  | Fieldset           | `Fieldset`    | none                     | form                              | none                                                                            |
-| 15  | Listbox            | `Listbox`     | listbox                  | none                              | `rovingFocus`, `typeahead`, `selection`                                         |
-| 16  | Select             | `Select`      | select                   | select                            | **`placement`**, `layers`, `typeahead`, `selection`                             |
-| 17  | Combobox           | `Combobox`    | combobox                 | none                              | **`placement`**, `layers`, `typeahead`, `selection`, `listFilter`, `fieldDraft` |
-| 18  | Slider             | `Slider`      | slider                   | slider                            | `pointerDrag` (**`Pace`**)                                                      |
-| 19  | Calendar           | `Calendar`    | none                     | none                              | `dateGrid`, `rovingFocus`                                                       |
-| 20  | Date picker        | `DatePicker`  | date-picker, date-input  | none                              | **`placement`**, `dateGrid`, `layers`                                           |
-| 21  | Navigation menu    | `Nav`         | navigation-menu          | navigation-menu                   | `rovingFocus`, `hoverIntent`                                                    |
-| 22  | Drag and drop      | `DragAndDrop` | none                     | none                              | `pointerDrag` (**`Pace`**)                                                      |
-| 23  | File drop          | `FileDrop`    | file-upload              | none                              | `pointerDrag`                                                                   |
-| 24  | Virtual list       | `VirtualList` | async-list               | none                              | a window over a list, new                                                       |
-| 25  | Presence           | `Animation`   | presence                 | presence                          | `presence`                                                                      |
-| 26  | Drawer             | none          | drawer                   | none                              | `layers`, `focusScope`, `pointerDrag`                                           |
-| 27  | Hover card         | none          | hover-card               | hover-card                        | **`placement`**, `hoverIntent`                                                  |
-| 28  | Menubar            | none          | none                     | menubar                           | the Menu part, `rovingFocus`                                                    |
-| 29  | Toolbar            | none          | none                     | toolbar                           | `rovingFocus`                                                                   |
-| 30  | Toggle group       | none          | toggle-group             | toggle-group                      | `rovingFocus`, `selection`                                                      |
-| 31  | Rating group       | none          | rating-group             | none                              | `rovingFocus`                                                                   |
-| 32  | Number input       | none          | number-input             | none                              | `fieldDraft`, `pointerDrag`                                                     |
-| 33  | Pin input          | none          | pin-input                | one-time-password-field           | `fieldDraft`, `rovingFocus`                                                     |
-| 34  | Tags input         | none          | tags-input               | none                              | `fieldDraft`, `rovingFocus`                                                     |
-| 35  | Cascade select     | none          | cascade-select           | none                              | the Select part, `selection`                                                    |
-| 36  | Tree view          | none          | tree-view                | none                              | `selection`, `rovingFocus`, `typeahead`                                         |
-| 37  | Pagination         | none          | pagination               | none                              | none                                                                            |
-| 38  | Steps              | none          | steps                    | none                              | none                                                                            |
-| 39  | Table of contents  | none          | toc                      | none                              | current row in view                                                             |
-| 40  | Scroll area        | none          | scroll-area              | scroll-area                       | `pointerDrag`                                                                   |
-| 41  | Splitter           | none          | splitter                 | none                              | `pointerDrag`                                                                   |
-| 42  | Angle slider       | none          | angle-slider             | none                              | `pointerDrag`                                                                   |
-| 43  | Color picker       | none          | color-picker             | none                              | **`placement`**, `pointerDrag`, `layers`                                        |
-| 44  | Carousel           | none          | carousel                 | none                              | `pointerDrag`, a timer                                                          |
-| 45  | Floating panel     | none          | floating-panel           | none                              | `pointerDrag`                                                                   |
-| 46  | Image cropper      | none          | image-cropper            | none                              | `pointerDrag`                                                                   |
-| 47  | Signature pad      | none          | signature-pad            | none                              | `pointerDrag`, sampled (**`Pace`**)                                             |
-| 48  | Tour               | none          | tour                     | none                              | **`placement`**, `layers`                                                       |
-| 49  | Marquee            | none          | marquee                  | none                              | a timer                                                                         |
-| 50  | Timer              | none          | timer                    | none                              | a clock                                                                         |
-| 51  | Progress and meter | none          | progress                 | progress                          | none                                                                            |
-| 52  | Avatar             | none          | avatar                   | avatar                            | none: a loading state                                                           |
-| 53  | Clipboard          | none          | clipboard                | none                              | `timedHint`                                                                     |
-| 54  | QR code            | none          | qr-code                  | none                              | none                                                                            |
+| #   | Part                   | `packages/ui` | Zag                      | Radix                             | Blocks it needs (bold exist)                                                            |
+| --- | ---------------------- | ------------- | ------------------------ | --------------------------------- | --------------------------------------------------------------------------------------- |
+| 1   | ~~Menu~~ (done, #2606) | `Menu`        | menu                     | menu, dropdown-menu, context-menu | **`longPress`**, **`placement`**, **`layers`**, **`rovingFocus`**, **`typeahead`**      |
+| 2   | Dialog                 | `Dialog`      | dialog                   | dialog, alert-dialog              | **`layers`**, `focusScope`                                                              |
+| 3   | Tabs                   | `Tabs`        | tabs                     | tabs                              | **`rovingFocus`**                                                                       |
+| 4   | Popover                | `Popover`     | popover                  | popover                           | **`placement`**, **`layers`**, `focusScope`                                             |
+| 5   | Disclosure             | `Disclosure`  | collapsible, accordion   | collapsible, accordion            | **`rovingFocus`**, `presence`                                                           |
+| 6   | Switch                 | `Switch`      | switch                   | switch                            | none                                                                                    |
+| 7   | Checkbox               | `Checkbox`    | checkbox                 | checkbox                          | none                                                                                    |
+| 8   | Radio group            | `RadioGroup`  | radio-group              | radio-group                       | **`rovingFocus`**                                                                       |
+| 9   | Button and toggle      | `Button`      | toggle                   | toggle                            | none                                                                                    |
+| 10  | Toast                  | `Toast`       | toast                    | toast                             | `timedHint`, `presence`                                                                 |
+| 11  | Tooltip                | `Tooltip`     | tooltip                  | tooltip                           | **`placement`**, `hoverIntent`, `timedHint`                                             |
+| 12  | Input                  | `Input`       | editable, password-input | label, password-toggle-field      | `fieldDraft` (**`Pace`**)                                                               |
+| 13  | Textarea               | `Textarea`    | none                     | none                              | `fieldDraft` (**`Pace`**)                                                               |
+| 14  | Fieldset               | `Fieldset`    | none                     | form                              | none                                                                                    |
+| 15  | Listbox                | `Listbox`     | listbox                  | none                              | **`rovingFocus`**, **`typeahead`**, `selection`                                         |
+| 16  | Select                 | `Select`      | select                   | select                            | **`placement`**, **`layers`**, **`typeahead`**, `selection`                             |
+| 17  | Combobox               | `Combobox`    | combobox                 | none                              | **`placement`**, **`layers`**, **`typeahead`**, `selection`, `listFilter`, `fieldDraft` |
+| 18  | Slider                 | `Slider`      | slider                   | slider                            | `pointerDrag` (**`Pace`**)                                                              |
+| 19  | Calendar               | `Calendar`    | none                     | none                              | `dateGrid`, **`rovingFocus`**                                                           |
+| 20  | Date picker            | `DatePicker`  | date-picker, date-input  | none                              | **`placement`**, `dateGrid`, **`layers`**                                               |
+| 21  | Navigation menu        | `Nav`         | navigation-menu          | navigation-menu                   | **`rovingFocus`**, `hoverIntent`                                                        |
+| 22  | Drag and drop          | `DragAndDrop` | none                     | none                              | `pointerDrag` (**`Pace`**)                                                              |
+| 23  | File drop              | `FileDrop`    | file-upload              | none                              | `pointerDrag`                                                                           |
+| 24  | Virtual list           | `VirtualList` | async-list               | none                              | a window over a list, new                                                               |
+| 25  | Presence               | `Animation`   | presence                 | presence                          | `presence`                                                                              |
+| 26  | Drawer                 | none          | drawer                   | none                              | **`layers`**, `focusScope`, `pointerDrag`                                               |
+| 27  | Hover card             | none          | hover-card               | hover-card                        | **`placement`**, `hoverIntent`                                                          |
+| 28  | Menubar                | none          | none                     | menubar                           | **the Menu part**, **`rovingFocus`**                                                    |
+| 29  | Toolbar                | none          | none                     | toolbar                           | **`rovingFocus`**                                                                       |
+| 30  | Toggle group           | none          | toggle-group             | toggle-group                      | **`rovingFocus`**, `selection`                                                          |
+| 31  | Rating group           | none          | rating-group             | none                              | **`rovingFocus`**                                                                       |
+| 32  | Number input           | none          | number-input             | none                              | `fieldDraft`, `pointerDrag`                                                             |
+| 33  | Pin input              | none          | pin-input                | one-time-password-field           | `fieldDraft`, **`rovingFocus`**                                                         |
+| 34  | Tags input             | none          | tags-input               | none                              | `fieldDraft`, **`rovingFocus`**                                                         |
+| 35  | Cascade select         | none          | cascade-select           | none                              | the Select part, `selection`                                                            |
+| 36  | Tree view              | none          | tree-view                | none                              | `selection`, **`rovingFocus`**, **`typeahead`**                                         |
+| 37  | Pagination             | none          | pagination               | none                              | none                                                                                    |
+| 38  | Steps                  | none          | steps                    | none                              | none                                                                                    |
+| 39  | Table of contents      | none          | toc                      | none                              | current row in view                                                                     |
+| 40  | Scroll area            | none          | scroll-area              | scroll-area                       | `pointerDrag`                                                                           |
+| 41  | Splitter               | none          | splitter                 | none                              | `pointerDrag`                                                                           |
+| 42  | Angle slider           | none          | angle-slider             | none                              | `pointerDrag`                                                                           |
+| 43  | Color picker           | none          | color-picker             | none                              | **`placement`**, `pointerDrag`, **`layers`**                                            |
+| 44  | Carousel               | none          | carousel                 | none                              | `pointerDrag`, a timer                                                                  |
+| 45  | Floating panel         | none          | floating-panel           | none                              | `pointerDrag`                                                                           |
+| 46  | Image cropper          | none          | image-cropper            | none                              | `pointerDrag`                                                                           |
+| 47  | Signature pad          | none          | signature-pad            | none                              | `pointerDrag`, sampled (**`Pace`**)                                                     |
+| 48  | Tour                   | none          | tour                     | none                              | **`placement`**, **`layers`**                                                           |
+| 49  | Marquee                | none          | marquee                  | none                              | a timer                                                                                 |
+| 50  | Timer                  | none          | timer                    | none                              | a clock                                                                                 |
+| 51  | Progress and meter     | none          | progress                 | progress                          | none                                                                                    |
+| 52  | Avatar                 | none          | avatar                   | avatar                            | none: a loading state                                                                   |
+| 53  | Clipboard              | none          | clipboard                | none                              | `timedHint`                                                                             |
+| 54  | QR code                | none          | qr-code                  | none                              | none                                                                                    |
 
-**Widgets left: 54 of 54.** Of those, 25 are `packages/ui`'s namespaces
-(rows 1 to 25), and 29 are Zag's or Radix's alone. #2595 ported none: it
-built the declaration, the hosts and two of the blocks.
+**Widgets left: 53 of 54.** Of those, 24 are `packages/ui`'s remaining namespaces
+(rows 2 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
+the hosts and `longPress` + `placement`; #2606 built row 1 (`Menu`) with
+`layers`, `rovingFocus`, and `typeahead`.
 
 What the count covers, so it can be checked: all 51 of Zag's machines are
 in a row (three rows hold two each: Disclosure, Input and Date picker).

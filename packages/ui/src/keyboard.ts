@@ -1,10 +1,12 @@
-import { Array, Match as M, Option, Predicate, pipe } from 'effect'
+import { Match as M, Option } from 'effect'
+import { RovingFocus, Typeahead } from 'foldkit/behavior'
 
 /** Whether a keyboard event key is a single printable character (not a named key like "Enter" or "ArrowDown"). */
-export const isPrintableKey = (key: string): boolean => key.length === 1
+export const isPrintableKey = (key: string): boolean =>
+  Typeahead.isPrintableKey(key)
 
 export const wrapIndex = (index: number, length: number): number =>
-  ((index % length) + length) % length
+  RovingFocus.wrapIndex(index, length)
 
 export const findFirstEnabledIndex =
   (
@@ -13,11 +15,9 @@ export const findFirstEnabledIndex =
     isDisabled: (index: number) => boolean,
   ) =>
   (startIndex: number, direction: 1 | -1): number =>
-    pipe(
-      itemCount,
-      Array.makeBy(step => wrapIndex(startIndex + step * direction, itemCount)),
-      Array.findFirst(Predicate.not(isDisabled)),
-      Option.getOrElse(() => focusedIndex),
+    Option.getOrElse(
+      RovingFocus.findEnabledFrom(itemCount, startIndex, direction, isDisabled),
+      () => focusedIndex,
     )
 
 export const keyToIndex = (
@@ -27,14 +27,27 @@ export const keyToIndex = (
   focusedIndex: number,
   isDisabled: (index: number) => boolean,
 ): ((key: string) => number) => {
-  const find = findFirstEnabledIndex(itemCount, focusedIndex, isDisabled)
+  const moveFor = (key: string): Option.Option<RovingFocus.Move> =>
+    M.value(key).pipe(
+      M.withReturnType<Option.Option<RovingFocus.Move>>(),
+      M.when(nextKey, () => Option.some('Next')),
+      M.when(previousKey, () => Option.some('Previous')),
+      M.whenOr('Home', 'PageUp', () => Option.some('First')),
+      M.whenOr('End', 'PageDown', () => Option.some('Last')),
+      M.orElse(() => Option.none()),
+    )
 
   return (key: string): number =>
-    M.value(key).pipe(
-      M.when(nextKey, () => find(focusedIndex + 1, 1)),
-      M.when(previousKey, () => find(focusedIndex - 1, -1)),
-      M.whenOr('Home', 'PageUp', () => find(0, 1)),
-      M.whenOr('End', 'PageDown', () => find(itemCount - 1, -1)),
-      M.orElse(() => focusedIndex),
+    Option.getOrElse(
+      Option.flatMap(moveFor(key), move =>
+        RovingFocus.stepEnabled({
+          count: itemCount,
+          current: Option.some(focusedIndex),
+          move,
+          isDisabled,
+          loop: true,
+        }),
+      ),
+      () => focusedIndex,
     )
 }
