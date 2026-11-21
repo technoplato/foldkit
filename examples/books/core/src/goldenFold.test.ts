@@ -13,8 +13,8 @@ import { SyncedBooks } from './synced.js'
  * shared snapshot can be served to cold-booting devices.
  */
 describe('Books golden fold', () => {
-  it('matches the committed golden domain fold for foldRevision books-fold-v2', () => {
-    expect(SyncedBooks.foldRevision).toBe('books-fold-v2')
+  it('matches the committed golden domain fold for foldRevision books-fold-v3', () => {
+    expect(SyncedBooks.foldRevision).toBe('books-fold-v3')
 
     const messages = [SetSpeed({ speed: 1.5 }), ShowBookmarks(), ShowLibrary()]
 

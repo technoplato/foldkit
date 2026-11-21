@@ -7,7 +7,7 @@ import {
   Record as Record_,
   Stream,
 } from 'effect'
-import { ActionMenu, Runtime } from 'foldkit'
+import { ActionMenu, Program, Runtime } from 'foldkit'
 import { AudioOutput, noTranscripts } from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
 
@@ -66,7 +66,7 @@ const waitedUntil = (isSo: () => boolean): Effect.Effect<void> =>
   })
 
 describe('Books force-close state restoration', () => {
-  it('restores the warm shelf, chapters, open player screen, and paused player at 0 ms before network or LibraryStore answers', async () => {
+  it('restores the open player screen, synced speed/place, and paused player at 0 ms before network or LibraryStore answers, with loaded shelf/chapters stripped', async () => {
     const syncStore = Runtime.makeMemoryStore()
     const snapshots = Runtime.LocalSnapshot.memory()
     const library = await Effect.runPromise(
@@ -153,12 +153,10 @@ describe('Books force-close state restoration', () => {
           const atBoot = runtime.readModel()
           expect(atBoot._tag).toBe('Ready')
           if (atBoot._tag === 'Ready') {
-            expect(atBoot.library._tag).toBe('ShelfReady')
-            if (atBoot.library._tag === 'ShelfReady') {
-              expect(atBoot.library.shelf.titles).toHaveLength(
-                sampleShelf.titles.length,
-              )
-            }
+            // Loaded fields (`library`, `chapters`) strip to reset values so
+            // snapshots stay tiny and re-hydrate once LibraryStore answers.
+            expect(atBoot.library._tag).toBe('ShelfLoading')
+            expect(atBoot.chapters).toEqual({})
             expect(atBoot.listening._tag).toBe('Loaded')
             if (atBoot.listening._tag === 'Loaded') {
               expect(atBoot.listening.slug).toBe(lanternKeeper)
@@ -228,7 +226,7 @@ describe('Books force-close state restoration', () => {
           const afterSync = runtime.readModel()
           expect(afterSync._tag).toBe('Ready')
           if (afterSync._tag === 'Ready') {
-            expect(afterSync.library._tag).toBe('ShelfReady')
+            expect(afterSync.library._tag).toBe('ShelfLoading')
             expect(afterSync.listening._tag).toBe('Loaded')
           }
           expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
@@ -398,12 +396,11 @@ describe('Books force-close state restoration', () => {
           const whileWaiting = runtime.readModel()
           expect(whileWaiting._tag).toBe('Ready')
           if (whileWaiting._tag === 'Ready') {
-            expect(
-              Option.map(
-                Record_.get(whileWaiting.chapters, newEarth),
-                state => state._tag,
-              ),
-            ).toEqual(Option.some('ChaptersReady'))
+            // Chapters are `loaded` and stripped from the local snapshot; they
+            // start empty until the live Instant shelf + chapters answer.
+            expect(Record_.get(whileWaiting.chapters, newEarth)).toEqual(
+              Option.none(),
+            )
           }
 
           yield* waitedUntil(
@@ -474,7 +471,7 @@ describe('Books force-close state restoration', () => {
     )
   })
 
-  it('drops ChaptersUnavailable entries in projectLocal while keeping ChaptersReady entries', () => {
+  it('automatically strips loaded chapters (both ChaptersReady and ChaptersUnavailable) for local snapshots', () => {
     const [initial] = init()
     const readySlug = TitleSlug.make('the-lantern-keeper')
     const failedSlug = TitleSlug.make('small-hours')
@@ -491,12 +488,11 @@ describe('Books force-close state restoration', () => {
         ],
       ]),
     }
-    const projectLocal = BooksProgram.synchronization?.projectLocal
-    expect(projectLocal).toBeDefined()
-    if (projectLocal !== undefined) {
-      const projected = projectLocal(modelWithBoth)
-      expect(Record_.has(projected.chapters, readySlug)).toBe(true)
-      expect(Record_.has(projected.chapters, failedSlug)).toBe(false)
-    }
+    const stripped = Program.stripForLocalSnapshot(
+      BooksProgram.Model.ast,
+      modelWithBoth,
+    )
+    expect(stripped.chapters).toEqual({})
+    expect(BooksProgram.synchronization?.projectLocal).toBeUndefined()
   })
 })

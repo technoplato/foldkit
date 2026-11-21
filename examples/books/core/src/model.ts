@@ -7,7 +7,7 @@ import {
   Schema as S,
   pipe,
 } from 'effect'
-import { Navigation } from 'foldkit'
+import { Navigation, Program } from 'foldkit'
 import { CodeStatus } from 'foldkit/code-updates'
 import { described } from 'foldkit/declaration'
 import { namedByTyped } from 'foldkit/renderers'
@@ -26,7 +26,7 @@ import {
   Speed,
   TitleSlug,
 } from './ids.js'
-import { StretchEvent, StretchState } from './stretch.js'
+import { Quiet, StretchEvent, StretchState } from './stretch.js'
 
 // MODEL
 
@@ -173,11 +173,16 @@ export const Idle = ts('Idle')
  * seconds of listening, and the stretch it is playing, which Scribe's
  * timeline shows.
  */
-export const Loaded = ts('Loaded', {
-  slug: TitleSlug,
-  savedPlaceMs: Milliseconds,
-  player: TranscriptPlayer.Model,
-  stretch: StretchState,
+export const Loaded = Program.taggedModel('Loaded', {
+  key: 'slug',
+  synced: {
+    slug: TitleSlug,
+    player: TranscriptPlayer.Model,
+  },
+  ephemeral: {
+    savedPlaceMs: Program.ephemeral(Milliseconds, () => Milliseconds.make(0)),
+    stretch: Program.ephemeral(StretchState, Quiet),
+  },
 })
 /** One title in this device's player. */
 export type Loaded = typeof Loaded.Type
@@ -216,45 +221,68 @@ export type PlayerControls = typeof PlayerControls.Type
  * on the device where it was started, so none of them is folded from the
  * log.
  */
-export const Model = S.Struct({
-  library: Library.annotate(
-    described({
-      what: 'The books on the shelf, with the place reached in each and its bookmarks',
-      why: 'It is what the user has to listen to, and where they stopped',
-    }),
-  ),
-  chapters: ChaptersByTitle,
-  listening: Listening.annotate(
-    described({
-      what: 'The book in the player, with its place and whether it is playing',
-      why: 'It is what the user is hearing now',
-    }),
-  ),
-  speed: Speed.annotate(
-    described({
-      what: 'How fast books play',
-      why: 'To hear books faster or slower',
-    }),
-  ),
-  maybeProblem: S.Option(S.String),
-  maybeTimelineProblem: S.Option(S.String),
-  unsentReports: S.Array(StretchReport),
-  maybeNotice: S.Option(S.String),
-  controls: PlayerControls,
-  maybeMember: S.Option(S.String),
-  readings: ReadAloud.ReadingsState,
-  previewChecks: S.Array(ReadAloud.PreviewCheck),
-  audible: AudibleModel,
-  appearance: AppearanceState.annotate(
-    described({
-      what: 'Whether the screen is light or dark, and what the user chose',
-      why: 'To read more easily in the light or in the dark',
-    }),
-  ),
-  navigation: Navigation.NavigationStack(Destination),
-  maybeRemovedBookmark: S.OptionFromOptionalKey(Bookmark),
-  maybeTitleMenu: S.OptionFromOptionalKey(TitleSlug),
-  maybeCodeStatus: S.OptionFromOptionalKey(CodeStatus),
+export const Model = Program.model({
+  synced: {
+    listening: Listening.annotate(
+      described({
+        what: 'The book in the player, with its place and whether it is playing',
+        why: 'It is what the user is hearing now',
+      }),
+    ),
+    speed: Speed.annotate(
+      described({
+        what: 'How fast books play',
+        why: 'To hear books faster or slower',
+      }),
+    ),
+    navigation: Navigation.NavigationStack(Destination),
+  },
+  local: {
+    controls: PlayerControls,
+    appearance: AppearanceState.annotate(
+      described({
+        what: 'Whether the screen is light or dark, and what the user chose',
+        why: 'To read more easily in the light or in the dark',
+      }),
+    ),
+    maybeProblem: S.Option(S.String),
+    maybeTimelineProblem: S.Option(S.String),
+    audible: AudibleModel,
+  },
+  loaded: {
+    library: Program.loaded(
+      Library.annotate(
+        described({
+          what: 'The books on the shelf, with the place reached in each and its bookmarks',
+          why: 'It is what the user has to listen to, and where they stopped',
+        }),
+      ),
+      ShelfLoading,
+    ),
+    chapters: Program.loaded(ChaptersByTitle, () => ({})),
+    maybeMember: Program.loaded(S.Option(S.String), Option.none),
+    readings: Program.loaded(
+      ReadAloud.ReadingsState,
+      ReadAloud.ReadingsLoading,
+    ),
+    previewChecks: Program.loaded(S.Array(ReadAloud.PreviewCheck), () => []),
+  },
+  ephemeral: {
+    unsentReports: Program.ephemeral(S.Array(StretchReport), () => []),
+    maybeNotice: Program.ephemeral(S.Option(S.String), Option.none),
+    maybeRemovedBookmark: Program.ephemeral(
+      S.OptionFromOptionalKey(Bookmark),
+      Option.none,
+    ),
+    maybeTitleMenu: Program.ephemeral(
+      S.OptionFromOptionalKey(TitleSlug),
+      Option.none,
+    ),
+    maybeCodeStatus: Program.ephemeral(
+      S.OptionFromOptionalKey(CodeStatus),
+      Option.none,
+    ),
+  },
 })
 /**
  * A Books Model value. An interface rather than an alias, so every type
@@ -512,7 +540,8 @@ export const loadedPlayerOf = (
     : Option.none()
 
 /** Where the loaded title is now. */
-export const placeOf = (loaded: Loaded): Milliseconds => loaded.player.placeMs
+export const placeOf = (loaded: Loaded): Milliseconds =>
+  TranscriptPlayer.currentPlaceOf(loaded.player)
 
 /** Chapters as the Transcript Player's sections. */
 export const sectionsOf = (

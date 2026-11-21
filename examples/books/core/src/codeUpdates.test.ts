@@ -1,5 +1,5 @@
 import { Array, Effect, Layer, Option, Schema as S, Stream } from 'effect'
-import { Catalog, Interaction, Processor, Runtime } from 'foldkit'
+import { Catalog, Interaction, Processor, Program, Runtime } from 'foldkit'
 import * as CodeUpdates from 'foldkit/code-updates'
 import type { ListItem, UiNode } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
@@ -18,7 +18,6 @@ import { BooksProgram, isLocalOnlyMessage } from './program.js'
 import { profileScreen } from './screen.js'
 import { subscriptions } from './subscriptions.js'
 import { bindBooks } from './synced.js'
-import { update } from './update.js'
 
 const madeAtMs = Date.UTC(2026, 10, 20, 19, 37)
 
@@ -38,7 +37,11 @@ const said = (newer: CodeUpdates.NewerCode) =>
   CodeUpdates.ObservedCodeStatus({ status: { running, newer } })
 
 const after = (model: Model, ...messages: ReadonlyArray<Message>): Model =>
-  Array.reduce(messages, model, (state, message) => update(state, message)[0])
+  Array.reduce(
+    messages,
+    model,
+    (state, message) => BooksProgram.update(state, message)[0],
+  )
 
 const onProfile = after(init()[0], ShowProfile())
 
@@ -97,9 +100,10 @@ describe('which update Books runs, on the device it runs on', () => {
 
   it('is not kept across a restart, where it would name the update before', () => {
     const told = after(onProfile, said(ready))
-    expect(synchronization.projectLocal?.(told).maybeCodeStatus).toEqual(
-      Option.none(),
-    )
+    expect(
+      Program.stripForLocalSnapshot(BooksProgram.Model.ast, told)
+        .maybeCodeStatus,
+    ).toEqual(Option.none())
   })
 
   it('leaves a Model saved before it existed readable, and the saved shape as it was', () => {
@@ -221,7 +225,7 @@ describe('restarting on the newer update', () => {
 
   it('asks the host to restart, and changes nothing else', () => {
     const told = after(onProfile, said(ready))
-    const [next, commands] = update(
+    const [next, commands] = BooksProgram.update(
       told,
       Option.getOrThrow(Catalog.messageFor(catalog, told, 'RestartToUpdate')),
     )
@@ -266,63 +270,67 @@ describe('a phone that takes updates, beside a device that takes none', () => {
     }
   }
 
-  it('keeps what its host says to itself: the other device’s Model and the shared log never hold it, and Restart reaches the host', async () => {
-    const store = Runtime.makeMemoryStore()
-    const restarts = { count: 0 }
-    const phone = await startMadeUpBooks({
-      host: Processor.Host.ExpoIos(),
-      sync: Runtime.Memory({ processor: 'phone', store }),
-      resources: Layer.succeed(CodeUpdates.CodeUpdates, {
-        statuses: Stream.make({ running, newer: ready }),
-        restart: Effect.sync(() => {
-          restarts.count += 1
+  it(
+    'keeps what its host says to itself: the other device’s Model and the shared log never hold it, and Restart reaches the host',
+    async () => {
+      const store = Runtime.makeMemoryStore()
+      const restarts = { count: 0 }
+      const phone = await startMadeUpBooks({
+        host: Processor.Host.ExpoIos(),
+        sync: Runtime.Memory({ processor: 'phone', store }),
+        resources: Layer.succeed(CodeUpdates.CodeUpdates, {
+          statuses: Stream.make({ running, newer: ready }),
+          restart: Effect.sync(() => {
+            restarts.count += 1
+          }),
         }),
-      }),
-    })
-    const terminal = await startMadeUpBooks({
-      host: Processor.Host.Cli(),
-      sync: Runtime.Memory({ processor: 'terminal', store }),
-    })
-    const onPhone = bindBooks(phone)
-    const onTerminal = bindBooks(terminal)
-    await Interaction.whenSettled(onPhone, settleMs)
-    await Interaction.whenSettled(onTerminal, settleMs)
-    const statusOn = (bound: typeof onPhone) => {
-      const model = bound.readModel()
-      return model._tag === 'Ready' ? model.maybeCodeStatus : Option.none()
-    }
-    const addressOn = (bound: typeof onPhone): string =>
-      Option.match(bound.navigation(), {
-        onNone: () => '',
-        onSome: plan => plan.uri,
       })
-    await waitUntil(() => Option.isSome(statusOn(onPhone)))
-    expect(statusOn(onPhone)).toEqual(Option.some({ running, newer: ready }))
+      const terminal = await startMadeUpBooks({
+        host: Processor.Host.Cli(),
+        sync: Runtime.Memory({ processor: 'terminal', store }),
+      })
+      const onPhone = bindBooks(phone)
+      const onTerminal = bindBooks(terminal)
+      await Interaction.whenSettled(onPhone, settleMs)
+      await Interaction.whenSettled(onTerminal, settleMs)
+      const statusOn = (bound: typeof onPhone) => {
+        const model = bound.readModel()
+        return model._tag === 'Ready' ? model.maybeCodeStatus : Option.none()
+      }
+      const addressOn = (bound: typeof onPhone): string =>
+        Option.match(bound.navigation(), {
+          onNone: () => '',
+          onSome: plan => plan.uri,
+        })
+      await waitUntil(() => Option.isSome(statusOn(onPhone)))
+      expect(statusOn(onPhone)).toEqual(Option.some({ running, newer: ready }))
 
-    const startedAt = addressOn(onTerminal)
-    expect(onPhone.press('MirrorNavigation')).toBe(true)
-    expect(onPhone.press('ShowProfile')).toBe(true)
-    await waitUntil(() => addressOn(onTerminal) !== startedAt)
-    expect(addressOn(onTerminal)).not.toBe(startedAt)
-    expect(addressOn(onTerminal)).toBe(addressOn(onPhone))
-    expect(onPhone.press('RestartToUpdate')).toBe(true)
-    await waitUntil(() => restarts.count === 1)
+      const startedAt = addressOn(onTerminal)
+      expect(onPhone.press('MirrorNavigation')).toBe(true)
+      expect(onPhone.press('ShowProfile')).toBe(true)
+      await waitUntil(() => addressOn(onTerminal) !== startedAt)
+      expect(addressOn(onTerminal)).not.toBe(startedAt)
+      expect(addressOn(onTerminal)).toBe(addressOn(onPhone))
+      expect(onPhone.press('RestartToUpdate')).toBe(true)
+      await waitUntil(() => restarts.count === 1)
 
-    expect(restarts.count).toBe(1)
-    expect(statusOn(onPhone)).toEqual(Option.some({ running, newer: ready }))
-    expect(statusOn(onTerminal)).toEqual(Option.none())
-    expect(onTerminal.press('RestartToUpdate')).toBe(false)
-    const shared = JSON.stringify([
-      store.messages,
-      store.snapshot,
-      Array.fromIterable(store.sharedSnapshots.values()),
-    ])
-    expect(shared).toContain('ShowProfile')
-    expect(shared).not.toContain('CodeStatus')
-    expect(shared).not.toContain('RestartToUpdate')
-    expect(shared).not.toContain(runningId)
-    expect(shared).not.toContain(newerId)
-    await phone.stop()
-    await terminal.stop()
-  }, testTimeoutMs)
+      expect(restarts.count).toBe(1)
+      expect(statusOn(onPhone)).toEqual(Option.some({ running, newer: ready }))
+      expect(statusOn(onTerminal)).toEqual(Option.none())
+      expect(onTerminal.press('RestartToUpdate')).toBe(false)
+      const shared = JSON.stringify([
+        store.messages,
+        store.snapshot,
+        Array.fromIterable(store.sharedSnapshots.values()),
+      ])
+      expect(shared).toContain('ShowProfile')
+      expect(shared).not.toContain('CodeStatus')
+      expect(shared).not.toContain('RestartToUpdate')
+      expect(shared).not.toContain(runningId)
+      expect(shared).not.toContain(newerId)
+      await phone.stop()
+      await terminal.stop()
+    },
+    testTimeoutMs,
+  )
 })

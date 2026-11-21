@@ -52,6 +52,7 @@ import {
   type Search,
   type SearchParts,
   type Section,
+  currentPlaceOf,
   currentWordOf,
   isSounding,
   passagesOf,
@@ -105,7 +106,7 @@ export const leftWordsOf = (ms: number): string => {
 
 const spannedSectionOf = (model: Model): Option.Option<Section> =>
   model.seekScope === 'Section'
-    ? sectionAt(model.media, model.placeMs)
+    ? sectionAt(model.media, currentPlaceOf(model))
     : Option.none()
 
 const landingWords = 8
@@ -174,30 +175,32 @@ const landingsOf = (model: Model): ReadonlyArray<SeekLanding> => {
  * what a drag will land on: the paragraph, where the words are at hand,
  * else the chapter.
  */
-export const seekBarOf = (model: Model): UiNode =>
-  Option.match(spannedSectionOf(model), {
+export const seekBarOf = (model: Model): UiNode => {
+  const placeMs = currentPlaceOf(model)
+  return Option.match(spannedSectionOf(model), {
     onNone: () =>
       Seek({
-        value: model.placeMs,
+        value: placeMs,
         max: model.media.durationMs,
         step: 1000,
         action: SeekTo.tag,
         label: 'Place in the recording',
-        valueText: `${clockOf(model.placeMs)} of ${clockOf(model.media.durationMs)}`,
+        valueText: `${clockOf(placeMs)} of ${clockOf(model.media.durationMs)}`,
         landings: landingsOf(model),
       }),
     onSome: section =>
       Seek({
-        value: model.placeMs,
+        value: placeMs,
         min: section.startMs,
         max: section.endMs,
         step: 1000,
         action: SeekTo.tag,
         label: `Place in ${section.title}`,
-        valueText: `${clockOf(Milliseconds.make(model.placeMs - section.startMs))} of ${clockOf(Milliseconds.make(section.endMs - section.startMs))} in ${section.title}`,
+        valueText: `${clockOf(Milliseconds.make(placeMs - section.startMs))} of ${clockOf(Milliseconds.make(section.endMs - section.startMs))} in ${section.title}`,
         landings: landingsOf(model),
       }),
   })
+}
 
 /**
  * Where the player is under the bar: in a chapter, how far into it, how
@@ -205,34 +208,36 @@ export const seekBarOf = (model: Model): UiNode =>
  * `3:13`, `7h 34m left`, `−1:30`; over the whole recording, the place and
  * what is left.
  */
-export const timesOf = (model: Model): UiNode =>
-  Option.match(spannedSectionOf(model), {
+export const timesOf = (model: Model): UiNode => {
+  const placeMs = currentPlaceOf(model)
+  return Option.match(spannedSectionOf(model), {
     onNone: () =>
       Row(
         { gap: 1 },
-        Text(clockOf(model.placeMs), { mono: true, dim: true }),
+        Text(clockOf(placeMs), { mono: true, dim: true }),
         Text(
-          `−${clockOf(Milliseconds.make(model.media.durationMs - model.placeMs))}`,
+          `−${clockOf(Milliseconds.make(model.media.durationMs - placeMs))}`,
           { mono: true, dim: true, label: 'time left' },
         ),
       ),
     onSome: section =>
       Row(
         { gap: 1 },
-        Text(clockOf(Milliseconds.make(model.placeMs - section.startMs)), {
+        Text(clockOf(Milliseconds.make(placeMs - section.startMs)), {
           mono: true,
           dim: true,
           label: 'time into the chapter',
         }),
-        Text(leftWordsOf(model.media.durationMs - model.placeMs), {
+        Text(leftWordsOf(model.media.durationMs - placeMs), {
           dim: true,
         }),
         Text(
-          `−${clockOf(Milliseconds.make(Math.max(0, section.endMs - model.placeMs)))}`,
+          `−${clockOf(Milliseconds.make(Math.max(0, section.endMs - placeMs)))}`,
           { mono: true, dim: true, label: 'time left in the chapter' },
         ),
       ),
   })
+}
 
 const ghost: ButtonNode['variant'] = 'Ghost'
 
@@ -450,7 +455,8 @@ export const transcriptOf = (
       }),
       label: clockOf(first.startMs),
       labelAction: `${SeekTo.tag}:${first.startMs.toString()}`,
-      isCurrent: first.startMs <= model.placeMs && model.placeMs < endMs,
+      isCurrent:
+        first.startMs <= currentPlaceOf(model) && currentPlaceOf(model) < endMs,
       words: Array.map(words, word => ({
         token: word.wordId,
         text: word.text,

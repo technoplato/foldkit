@@ -1,20 +1,310 @@
-import { Match as M, Option, Record as Record_ } from 'effect'
-import { Program } from 'foldkit'
+import { Array, Match as M, Option } from 'effect'
+import { Navigation, Program } from 'foldkit'
 import * as CodeUpdates from 'foldkit/code-updates'
 import * as Theme from 'foldkit/theme'
+import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import * as Audible from './audible/index.js'
+import {
+  AddBooksSheet,
+  BookmarksDrawer,
+  ContentsSheet,
+  Destination,
+  PlayerPage,
+  ProfilePage,
+  SpeedSheet,
+  TitlePage,
+  isAddBooksSheet,
+  isBesidePanel,
+  isBookmarksDrawer,
+  isContentsSheet,
+  isDeleteBookmarkQuestion,
+  isPlayerScreen,
+  isProfilePage,
+  isSpeedSheet,
+  isTitlePage,
+} from './destination.js'
+import { Milliseconds } from './ids.js'
 import { init } from './init.js'
+import { secondOf } from './links.js'
 import { Message, catalog, isBookmarkEdit } from './message.js'
 import { Model } from './model.js'
 import { navigation } from './navigation.js'
+import { declared } from './routes.js'
 import { libraryScreen } from './screen.js'
-import { Quiet } from './stretch.js'
 import { subscriptions } from './subscriptions.js'
 import { update } from './update.js'
 
 // PROGRAM
+
+type SyncedModel = Program.SyncedOfSchema<typeof Model>
+
+const skipMs = 30_000
+
+const panelSide = 'Left'
+
+const clampedPlace = (
+  durationMs: Milliseconds,
+  placeMs: number,
+): Milliseconds =>
+  Milliseconds.make(Math.round(Math.min(durationMs, Math.max(0, placeMs))))
+
+const withoutModal = (
+  synced: SyncedModel,
+  isModal: (destination: unknown) => boolean,
+): SyncedModel => ({
+  ...synced,
+  navigation: Navigation.withoutDestinations(synced.navigation, isModal),
+})
+
+const toggledBeside = (
+  synced: SyncedModel,
+  isShowing: boolean,
+  destination: Destination,
+): SyncedModel =>
+  isShowing
+    ? withoutModal(synced, isBesidePanel)
+    : {
+        ...synced,
+        navigation: Navigation.pushed(
+          Navigation.withoutDestinations(synced.navigation, isBesidePanel),
+          Navigation.presented<Destination>(
+            destination,
+            Navigation.Drawer({ from: panelSide }),
+          ),
+        ),
+      }
+
+const withSyncedPlace = (
+  synced: SyncedModel,
+  compute: (placeMs: Milliseconds, durationMs: Milliseconds) => Milliseconds,
+): SyncedModel => {
+  if (synced.listening._tag !== 'Loaded') {
+    return synced
+  }
+  const nextPlaceMs = compute(
+    synced.listening.player.placeMs,
+    synced.listening.player.media.durationMs,
+  )
+  const nextLoaded = {
+    ...synced.listening,
+    player: {
+      ...synced.listening.player,
+      placeMs: nextPlaceMs,
+    },
+  }
+  const maybeTop = Array.last(synced.navigation.pages)
+  const nextNavigation =
+    Option.isSome(maybeTop) && isPlayerScreen(maybeTop.value)
+      ? {
+          ...synced.navigation,
+          pages: [
+            ...Array.dropRight(synced.navigation.pages, 1),
+            PlayerPage({ atMs: secondOf(nextPlaceMs) }),
+          ],
+        }
+      : synced.navigation
+  return {
+    ...synced,
+    listening: nextLoaded,
+    navigation: nextNavigation,
+  }
+}
+
+const syncedNavigation = Navigation.composeNavigation({
+  child: declared,
+  hold: 'Owns',
+  Destination,
+  childOf: (_synced: SyncedModel) => undefined,
+  stack: Navigation.fieldLens<SyncedModel, Destination>(),
+  embedNotFound: notFound => notFound,
+  routes: [],
+  viewOf: () => Option.none(),
+})
+
+/**
+ * Pure synced-only fold used by shared log snapshots (`strangerViewpoint`).
+ * Operates strictly on `Program.SyncedOfSchema<typeof Model>` so TypeScript
+ * guarantees shared folds never read `loaded`, `local`, or `ephemeral` fields.
+ */
+const foldSynced = (synced: SyncedModel, message: Message): SyncedModel =>
+  M.value(message).pipe(
+    M.withReturnType<SyncedModel>(),
+    M.tags({
+      SetSpeed: ({ speed }) => ({
+        ...withoutModal(synced, isSpeedSheet),
+        speed,
+        listening:
+          synced.listening._tag === 'Loaded'
+            ? {
+                ...synced.listening,
+                player: { ...synced.listening.player, speed },
+              }
+            : synced.listening,
+      }),
+      SetSeekScope: ({ scope }) =>
+        synced.listening._tag === 'Loaded'
+          ? {
+              ...synced,
+              listening: {
+                ...synced.listening,
+                player: { ...synced.listening.player, seekScope: scope },
+              },
+            }
+          : synced,
+      SkipBack: () =>
+        withSyncedPlace(synced, (placeMs, durationMs) =>
+          clampedPlace(durationMs, placeMs - skipMs),
+        ),
+      SkipForward: () =>
+        withSyncedPlace(synced, (placeMs, durationMs) =>
+          clampedPlace(durationMs, placeMs + skipMs),
+        ),
+      SeekTo: ({ placeMs }) =>
+        withSyncedPlace(synced, (_current, durationMs) =>
+          clampedPlace(durationMs, placeMs),
+        ),
+      PlayFrom: ({ placeMs }) =>
+        withSyncedPlace(synced, (_current, durationMs) =>
+          clampedPlace(durationMs, placeMs),
+        ),
+      ShowLibrary: () => ({
+        ...synced,
+        navigation: {
+          ...synced.navigation,
+          pages: [],
+          maybeModal: Option.none(),
+        },
+      }),
+      ShowProfile: () => ({
+        ...synced,
+        navigation: {
+          ...synced.navigation,
+          pages: [ProfilePage()],
+          maybeModal: Option.none(),
+        },
+      }),
+      ShowReadAloud: () => ({
+        ...synced,
+        navigation: {
+          ...synced.navigation,
+          pages: [ReadAloud.ReadAloudShelf()],
+          maybeModal: Option.none(),
+        },
+      }),
+      ShowContents: () =>
+        toggledBeside(
+          synced,
+          Option.exists(synced.navigation.maybeModal, modal =>
+            isContentsSheet(modal.destination),
+          ),
+          ContentsSheet(),
+        ),
+      ShowBookmarks: () =>
+        toggledBeside(
+          synced,
+          Option.exists(synced.navigation.maybeModal, modal =>
+            isBookmarksDrawer(modal.destination),
+          ),
+          BookmarksDrawer(),
+        ),
+      ShowSpeeds: () => ({
+        ...synced,
+        navigation: Navigation.pushed(
+          synced.navigation,
+          Navigation.presented<Destination>(SpeedSheet(), Navigation.Sheet()),
+        ),
+      }),
+      ShowAddBooks: () => ({
+        ...synced,
+        navigation: Navigation.pushed(
+          synced.navigation,
+          Navigation.presented<Destination>(
+            AddBooksSheet(),
+            Navigation.Sheet(),
+          ),
+        ),
+      }),
+      ImportFromAudible: () => {
+        const closed = Navigation.withoutDestinations(
+          synced.navigation,
+          isAddBooksSheet,
+        )
+        return {
+          ...synced,
+          navigation: {
+            ...closed,
+            pages: [
+              ...Array.filter(closed.pages, isProfilePage),
+              Audible.AudibleTitlesPage(),
+            ],
+          },
+        }
+      },
+      ReconnectAudible: () =>
+        Option.exists(
+          Array.last(synced.navigation.pages),
+          Audible.isAudibleTitlesPage,
+        )
+          ? {
+              ...synced,
+              navigation: {
+                ...synced.navigation,
+                pages: [
+                  ...Array.dropRight(synced.navigation.pages, 1),
+                  Audible.AudibleConnectPage(),
+                ],
+              },
+            }
+          : synced,
+      OpenPlayer: () => {
+        if (synced.listening._tag !== 'Loaded') {
+          return synced
+        }
+        const slug = synced.listening.slug
+        const playerPage = PlayerPage({
+          atMs: secondOf(synced.listening.player.placeMs),
+        })
+        const existingTitle = Array.findFirst(
+          synced.navigation.pages,
+          isTitlePage,
+        )
+        const isAlreadyOnPlayer =
+          Option.exists(Array.last(synced.navigation.pages), isPlayerScreen) &&
+          Option.exists(existingTitle, page => page.slug === slug)
+        if (isAlreadyOnPlayer) {
+          return synced
+        }
+        const basePages = Option.exists(
+          existingTitle,
+          page => page.slug === slug,
+        )
+          ? Array.filter(synced.navigation.pages, isTitlePage)
+          : [TitlePage({ slug })]
+        return {
+          ...synced,
+          navigation: Navigation.pushed(
+            { ...synced.navigation, pages: basePages },
+            Navigation.presented<Destination>(playerPage, Navigation.Push()),
+          ),
+        }
+      },
+      CancelDeleteBookmark: () =>
+        withoutModal(synced, isDeleteBookmarkQuestion),
+      FollowedReadAloudPage: ({ place }) => ({
+        ...synced,
+        navigation: {
+          ...synced.navigation,
+          pages: [...Array.dropRight(synced.navigation.pages, 1), place],
+        },
+      }),
+      OpenedUri: fact => Navigation.foldMessage(syncedNavigation, synced, fact),
+      NavigatedBack: fact =>
+        Navigation.foldMessage(syncedNavigation, synced, fact),
+    }),
+    M.orElse(() => synced),
+  )
 
 const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
   M.value(message).pipe(
@@ -65,6 +355,7 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       TurnToPage: () => 'Navigation',
       FollowReading: () => 'Navigation',
       SharePage: () => 'Navigation',
+      FollowedReadAloudPage: () => 'Navigation',
       ReceivedReadings: () => 'Domain',
       FailedReadReadings: () => 'Domain',
       ReceivedPreview: () => 'Navigation',
@@ -99,6 +390,7 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       ReceivedChapters: () => 'Navigation',
       FailedReadChapters: () => 'Navigation',
       OpenedPlace: () => 'Navigation',
+      DetectedAddressCue: () => 'Navigation',
       ReceivedMember: () => 'Navigation',
       SharePlace: () => 'Navigation',
       SharedLink: () => 'Navigation',
@@ -118,6 +410,7 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       ShowAddBooks: () => 'Navigation',
       ImportFromAudible: () => 'Navigation',
       ReconnectAudible: () => 'Navigation',
+      NeededAudibleSignIn: () => 'Navigation',
       ConnectAudible: () => 'Navigation',
       TryAudibleSignInAgain: () => 'Navigation',
       ToggleAudibleTitle: () => 'Navigation',
@@ -169,6 +462,7 @@ export const isLocalOnlyMessage = (message: Message): boolean =>
   Theme.isMessage(message) ||
   CodeUpdates.isMessage(message) ||
   TranscriptPlayer.isViewMessage(message) ||
+  message._tag === 'NeededAudibleSignIn' ||
   message._tag === 'CopyWordLink' ||
   message._tag === 'ShowTitleMenu' ||
   message._tag === 'CloseTitleMenu' ||
@@ -179,12 +473,9 @@ export const isLocalOnlyMessage = (message: Message): boolean =>
  * chapter, and a player, with Read Aloud's picture books at
  * `/books/read-aloud`. The shelf comes from the library store and every
  * change to it goes back there as a Command, so every device reads the
- * same progress and bookmarks. The player counts on this device; playing,
- * pausing, turning a picture book's page, and moving around are
- * Navigation, which the session mirrors or keeps local. The Audible
- * import's Messages stay on the device that sent them: the log never holds
- * them, so a pasted sign-in address never reaches it. It knows nothing
- * about React, terminals, Scribe's files, or Instant.
+ * same progress and bookmarks. Durability roles on `Model` derive
+ * `keepOnRefold`, local/shared snapshot stripping, and Subscription write
+ * enforcement automatically.
  */
 export const BooksProgram = Program.make({
   id: 'books',
@@ -201,44 +492,6 @@ export const BooksProgram = Program.make({
     messageCategory: categoryOf,
     projectDomain: model => ({ library: model.library }),
     isLocalOnly: isLocalOnlyMessage,
-    keepOnRefold: (current, refolded) => ({
-      ...refolded,
-      library: current.library,
-      chapters: current.chapters,
-      listening: current.listening,
-      maybeTimelineProblem: current.maybeTimelineProblem,
-      unsentReports: current.unsentReports,
-      readings: current.readings,
-      previewChecks: current.previewChecks,
-      audible: current.audible,
-      maybeRemovedBookmark: current.maybeRemovedBookmark,
-      maybeTitleMenu: current.maybeTitleMenu,
-      appearance: current.appearance,
-      maybeCodeStatus: current.maybeCodeStatus,
-    }),
-    projectLocal: model => ({
-      ...model,
-      chapters: Record_.filter(
-        model.chapters,
-        state => state._tag === 'ChaptersReady',
-      ),
-      listening:
-        model.listening._tag === 'Loaded'
-          ? {
-              ...model.listening,
-              player: {
-                ...model.listening.player,
-                transport: TranscriptPlayer.Paused(),
-              },
-              stretch: Quiet(),
-            }
-          : model.listening,
-      maybeNotice: Option.none(),
-      maybeRemovedBookmark: Option.none(),
-      maybeTitleMenu: Option.none(),
-      // NOTE: the host says which update runs each time the app opens. A
-      // status kept across a restart would name the update before it.
-      maybeCodeStatus: Option.none(),
-    }),
+    foldSynced,
   },
 })

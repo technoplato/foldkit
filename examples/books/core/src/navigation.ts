@@ -1,4 +1,4 @@
-import { Option } from 'effect'
+import { Array, Option } from 'effect'
 import { Navigation } from 'foldkit'
 import * as ReadAloud from 'read-aloud-core-example'
 
@@ -18,19 +18,21 @@ import {
   Destination,
   type LibraryPage,
   type ListenPage,
-  type PlayerPage,
+  PlayerPage,
   type ProfilePage,
   type PublisherPage,
   type SpeedSheet,
   type TitlePage,
   isAddBooksSheet,
   isContributorPage,
+  isPlayerPage,
   isPlayerScreen,
   isProfilePage,
   isPublisherPage,
   isTitlePage,
 } from './destination.js'
 import type { TitleSlug } from './ids.js'
+import { secondOf } from './links.js'
 import { type Model, titleOf } from './model.js'
 import { declared } from './routes.js'
 import {
@@ -50,6 +52,7 @@ import {
   titleScreen,
 } from './screen.js'
 import { addBooksScreen } from './sources.js'
+import { titlePageSlugOf } from './stack.js'
 
 // NAVIGATION
 
@@ -121,6 +124,46 @@ const viewOf = (
  * Navigation.printStack(navigation, model.navigation) // Some('/books/the-lantern-keeper/listen')
  * ```
  */
+const baseStackLens = Navigation.fieldLens<Model, Destination>()
+
+/**
+ * Projects the live ephemeral playhead tick onto the top PlayerPage when
+ * reading the stack, so the address stays on the second being heard without
+ * mutating `synced` `model.navigation` on every audio tick.
+ */
+const liveStackOf = (model: Model): Navigation.NavigationStack<Destination> => {
+  if (model.listening._tag !== 'Loaded') {
+    return model.navigation
+  }
+  const maybeTick = model.listening.player.maybeTickPlaceMs
+  if (Option.isNone(maybeTick)) {
+    return model.navigation
+  }
+  if (!Option.contains(titlePageSlugOf(model), model.listening.slug)) {
+    return model.navigation
+  }
+  const maybeTop = Array.last(model.navigation.pages)
+  if (Option.isNone(maybeTop) || !isPlayerScreen(maybeTop.value)) {
+    return model.navigation
+  }
+  const atMs = secondOf(maybeTick.value)
+  if (isPlayerPage(maybeTop.value) && maybeTop.value.atMs === atMs) {
+    return model.navigation
+  }
+  return {
+    ...model.navigation,
+    pages: [
+      ...Array.dropRight(model.navigation.pages, 1),
+      PlayerPage({ atMs }),
+    ],
+  }
+}
+
+const booksStackLens: Navigation.StackLens<Model, Destination> = {
+  get: model => Option.some(liveStackOf(model)),
+  set: baseStackLens.set,
+}
+
 export const navigation = Navigation.composeNavigation<
   Model,
   unknown,
@@ -146,7 +189,7 @@ export const navigation = Navigation.composeNavigation<
   hold: 'Owns',
   Destination,
   childOf: model => model,
-  stack: Navigation.fieldLens<Model, Destination>(),
+  stack: booksStackLens,
   embedNotFound: notFound => notFound,
   routes: [],
   viewOf,

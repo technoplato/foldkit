@@ -54,33 +54,42 @@ export class ForbiddenSubscriptionWriteError extends Data.TaggedError(
 
 // FIELD WRAPPERS
 
-declare const LocalFieldTypeId: unique symbol
-declare const LoadedFieldTypeId: unique symbol
-declare const EphemeralFieldTypeId: unique symbol
-/** Phantom brand symbol carried on every `DurabilityModel` and `DurabilityTaggedModel`. */
-export declare const DurabilityTypeId: unique symbol
-declare const DurabilityTagTypeId: unique symbol
+/** Phantom brand key carried on `LocalField`. */
+export type LocalFieldTypeId = '~foldkit/LocalField'
+/** Phantom brand key carried on `LoadedField`. */
+export type LoadedFieldTypeId = '~foldkit/LoadedField'
+/** Phantom brand key carried on `EphemeralField`. */
+export type EphemeralFieldTypeId = '~foldkit/EphemeralField'
+/** Phantom brand key carried on every `DurabilityModel` and `DurabilityTaggedModel`. */
+export type DurabilityTypeId = '~foldkit/DurabilityModel'
+/** Phantom brand key carried on every `DurabilityTaggedModel` variant. */
+export type DurabilityTagTypeId = '~foldkit/DurabilityTag'
+
+type ResetValueOf<Schema extends S.Top, Type> =
+  Schema extends Readonly<{ readonly '~type.optional': 'optional' }>
+    ? Type | undefined
+    : Type
 
 /** A `local` field paired with an explicit reset thunk for shared snapshots and variant hydration. */
-export type LocalField<Schema extends S.Top> = Readonly<{
-  readonly [LocalFieldTypeId]: typeof LocalFieldTypeId
+export interface LocalField<Schema extends S.Top> {
+  readonly '~foldkit/LocalField': LocalFieldTypeId
   readonly schema: Schema
-  readonly reset: () => Schema['Type']
-}>
+  readonly reset: () => ResetValueOf<Schema, Schema['Type']>
+}
 
 /** A `loaded` field paired with the reset thunk used when stripping snapshots. */
-export type LoadedField<Schema extends S.Top> = Readonly<{
-  readonly [LoadedFieldTypeId]: typeof LoadedFieldTypeId
+export interface LoadedField<Schema extends S.Top> {
+  readonly '~foldkit/LoadedField': LoadedFieldTypeId
   readonly schema: Schema
-  readonly reset: () => Schema['Type']
-}>
+  readonly reset: () => ResetValueOf<Schema, Schema['Type']>
+}
 
 /** An `ephemeral` field paired with the reset thunk used when stripping snapshots. */
-export type EphemeralField<Schema extends S.Top> = Readonly<{
-  readonly [EphemeralFieldTypeId]: typeof EphemeralFieldTypeId
+export interface EphemeralField<Schema extends S.Top> {
+  readonly '~foldkit/EphemeralField': EphemeralFieldTypeId
   readonly schema: Schema
-  readonly reset: () => Schema['Type']
-}>
+  readonly reset: () => ResetValueOf<Schema, Schema['Type']>
+}
 
 /** Map of `local` fields: plain Schemas or `Program.local(schema, reset)` wrappers. */
 export type LocalFields = Readonly<Record<string, S.Top | LocalField<any>>>
@@ -113,7 +122,7 @@ const typedAs = <A>(value: unknown): A => value as A
  */
 export const local = <Type, Schema extends S.Codec<Type, unknown, any, any>>(
   schema: Schema,
-  reset: () => NoInfer<Type>,
+  reset: () => ResetValueOf<Schema, NoInfer<Type>>,
 ): LocalField<Schema> =>
   typedAs<LocalField<Schema>>({
     [localMarker]: true,
@@ -133,7 +142,7 @@ export const local = <Type, Schema extends S.Codec<Type, unknown, any, any>>(
  */
 export const loaded = <Type, Schema extends S.Codec<Type, unknown, any, any>>(
   schema: Schema,
-  reset: () => NoInfer<Type>,
+  reset: () => ResetValueOf<Schema, NoInfer<Type>>,
 ): LoadedField<Schema> =>
   typedAs<LoadedField<Schema>>({
     [loadedMarker]: true,
@@ -156,7 +165,7 @@ export const ephemeral = <
   Schema extends S.Codec<Type, unknown, any, any>,
 >(
   schema: Schema,
-  reset: () => NoInfer<Type>,
+  reset: () => ResetValueOf<Schema, NoInfer<Type>>,
 ): EphemeralField<Schema> =>
   typedAs<EphemeralField<Schema>>({
     [ephemeralMarker]: true,
@@ -221,27 +230,25 @@ export type DurabilityBuckets<
 }>
 
 /** A Struct Schema whose every field declares its durability role. */
-export type DurabilityModel<
+export interface DurabilityModel<
   Synced extends S.Struct.Fields = {},
   Local extends LocalFields = {},
   Loaded extends LoadedFields = {},
   Ephemeral extends EphemeralFields = {},
-> = S.Struct<MergedFields<Synced, Local, Loaded, Ephemeral>> &
-  Readonly<{
-    readonly [DurabilityTypeId]: DurabilityBuckets<
-      Synced,
-      Local,
-      Loaded,
-      Ephemeral
-    >
-    readonly Rebuild: DurabilityModel<Synced, Local, Loaded, Ephemeral>
-  }>
+> extends S.Struct<MergedFields<Synced, Local, Loaded, Ephemeral>> {
+  readonly '~foldkit/DurabilityModel': DurabilityBuckets<
+    Synced,
+    Local,
+    Loaded,
+    Ephemeral
+  >
+  readonly Rebuild: DurabilityModel<Synced, Local, Loaded, Ephemeral>
+}
 
 /** Existential constraint accepted by `Subscription.forModel`, `Program.make`, and sync combinators. */
-export type AnyDurabilityModel = S.Struct<any> &
-  Readonly<{
-    readonly [DurabilityTypeId]: DurabilityBuckets<any, any, any, any>
-  }>
+export interface AnyDurabilityModel extends S.Struct<any> {
+  readonly '~foldkit/DurabilityModel': DurabilityBuckets<any, any, any, any>
+}
 
 /** A callable `TaggedStruct` variant whose payload fields declare durability roles. */
 export type DurabilityTaggedModel<
@@ -252,8 +259,8 @@ export type DurabilityTaggedModel<
   Ephemeral extends EphemeralFields = {},
 > = CallableTaggedStruct<Tag, MergedFields<Synced, Local, Loaded, Ephemeral>> &
   Readonly<{
-    readonly [DurabilityTagTypeId]: Tag
-    readonly [DurabilityTypeId]: DurabilityBuckets<
+    readonly '~foldkit/DurabilityTag': Tag
+    readonly '~foldkit/DurabilityModel': DurabilityBuckets<
       Synced,
       Local,
       Loaded,
@@ -451,8 +458,8 @@ type DurabilityTaggedCarrier<
   Loaded extends LoadedFields,
   Ephemeral extends EphemeralFields,
 > = Readonly<{
-  readonly [DurabilityTagTypeId]: Tag
-  readonly [DurabilityTypeId]: Readonly<{
+  readonly '~foldkit/DurabilityTag': Tag
+  readonly '~foldkit/DurabilityModel': Readonly<{
     synced: Synced
     local: Local
     loaded: Loaded
@@ -466,7 +473,7 @@ type DurabilityCarrier<
   Loaded extends LoadedFields,
   Ephemeral extends EphemeralFields,
 > = Readonly<{
-  readonly [DurabilityTypeId]: Readonly<{
+  readonly '~foldkit/DurabilityModel': Readonly<{
     synced: Synced
     local: Local
     loaded: Loaded
@@ -567,7 +574,7 @@ type UnionVariantPatches<Members extends ReadonlyArray<S.Constraint>> = {
   readonly _tag?: never
 } & {
   readonly [Member in Members[number] as Member extends Readonly<{
-    readonly [DurabilityTagTypeId]: infer Tag extends string
+    readonly '~foldkit/DurabilityTag': infer Tag extends string
   }>
     ? HasWritableField<Member> extends true
       ? Tag
@@ -630,6 +637,9 @@ const isFieldDurability = (value: unknown): value is FieldDurability =>
     value.role === 'Local' ||
     value.role === 'Loaded' ||
     value.role === 'Ephemeral')
+
+const isOptionalKeyAst = (ast: SchemaAST.AST): boolean =>
+  ast.context?.isOptional === true
 
 /** Reads the `FieldDurability` key annotation from a PropertySignature's type AST. */
 export const durabilityOf = (
@@ -943,9 +953,22 @@ export const stripForLocalSnapshot = <Value>(
     }
     let changed = false
     let next: Record<string, unknown> | undefined = undefined
-    const write = (key: string, nextVal: unknown) => {
+    const write = (key: string, nextVal: unknown, isOptional = false) => {
+      if (isOptional && nextVal === undefined) {
+        if (Object.hasOwn(value, key)) {
+          if (next === undefined) {
+            next = { ...value }
+          }
+          delete next[key]
+          changed = true
+        }
+        return
+      }
       const currentVal = Reflect.get(value, key)
-      if (!isSameResetValue(currentVal, nextVal)) {
+      if (
+        !Object.hasOwn(value, key) ||
+        !isSameResetValue(currentVal, nextVal)
+      ) {
         if (next === undefined) {
           next = { ...value }
         }
@@ -964,7 +987,7 @@ export const stripForLocalSnapshot = <Value>(
       if (Option.isSome(maybeDur)) {
         const dur = maybeDur.value
         if (dur.role === 'Loaded' || dur.role === 'Ephemeral') {
-          write(ps.name, dur.reset())
+          write(ps.name, dur.reset(), isOptionalKeyAst(ps.type))
         } else if (
           hasDurabilityBelow(ps.type) &&
           Object.hasOwn(value, ps.name)
@@ -1100,9 +1123,22 @@ export const stripForSharedSnapshot = <Value>(
     const initObj = Predicate.isObject(initialValue) ? initialValue : undefined
     let changed = false
     let next: Record<string, unknown> | undefined = undefined
-    const write = (key: string, nextVal: unknown) => {
+    const write = (key: string, nextVal: unknown, isOptional = false) => {
+      if (isOptional && nextVal === undefined) {
+        if (Object.hasOwn(value, key)) {
+          if (next === undefined) {
+            next = { ...value }
+          }
+          delete next[key]
+          changed = true
+        }
+        return
+      }
       const currentVal = Reflect.get(value, key)
-      if (!isSameResetValue(currentVal, nextVal)) {
+      if (
+        !Object.hasOwn(value, key) ||
+        !isSameResetValue(currentVal, nextVal)
+      ) {
         if (next === undefined) {
           next = { ...value }
         }
@@ -1121,10 +1157,10 @@ export const stripForSharedSnapshot = <Value>(
       if (Option.isSome(maybeDur)) {
         const dur = maybeDur.value
         if (dur.role === 'Loaded' || dur.role === 'Ephemeral') {
-          write(ps.name, dur.reset())
+          write(ps.name, dur.reset(), isOptionalKeyAst(ps.type))
         } else if (dur.role === 'Local') {
           if (dur.reset !== undefined) {
-            write(ps.name, dur.reset())
+            write(ps.name, dur.reset(), isOptionalKeyAst(ps.type))
           } else if (initObj !== undefined && Object.hasOwn(initObj, ps.name)) {
             const initField = Reflect.get(initObj, ps.name)
             write(
@@ -1383,6 +1419,15 @@ export const mergeOnRefold = <Value>(
         ) {
           if (Object.hasOwn(current, ps.name)) {
             write(ps.name, Reflect.get(current, ps.name))
+          } else if (
+            isOptionalKeyAst(ps.type) &&
+            Object.hasOwn(refolded, ps.name)
+          ) {
+            if (next === undefined) {
+              next = { ...refolded }
+            }
+            delete next[ps.name]
+            changed = true
           }
         } else if (
           hasDurabilityBelow(ps.type) &&
@@ -1791,10 +1836,16 @@ export const hydrateFromSynced = <Value>(
             ? hydrateFromSynced(ps.type, initField, syncedField)
             : syncedField
         } else if (dur.role === 'Loaded' || dur.role === 'Ephemeral') {
-          result[ps.name] = dur.reset()
+          const resetVal = dur.reset()
+          if (!(isOptionalKeyAst(ps.type) && resetVal === undefined)) {
+            result[ps.name] = resetVal
+          }
         } else {
           if (dur.reset !== undefined) {
-            result[ps.name] = dur.reset()
+            const resetVal = dur.reset()
+            if (!(isOptionalKeyAst(ps.type) && resetVal === undefined)) {
+              result[ps.name] = resetVal
+            }
           } else if (initObj !== undefined && Object.hasOwn(initObj, ps.name)) {
             const initField = Reflect.get(initObj, ps.name)
             result[ps.name] = hasDurabilityBelow(ps.type)
@@ -1892,7 +1943,10 @@ const collectDurabilityViolations = (
         const dur = maybeDur.value
         if (dur.role === 'Loaded' || dur.role === 'Ephemeral') {
           const resetValue = dur.reset()
-          if (!S.is(S.make(ps.type))(resetValue)) {
+          const isValid =
+            (isOptionalKeyAst(ps.type) && resetValue === undefined) ||
+            S.is(S.make(ps.type))(resetValue)
+          if (!isValid) {
             violations.push(
               `${fieldPath}: reset() value for ${dur.role} field failed Schema validation`,
             )
@@ -1900,7 +1954,10 @@ const collectDurabilityViolations = (
         } else if (dur.role === 'Local') {
           if (dur.reset !== undefined) {
             const resetValue = dur.reset()
-            if (!S.is(S.make(ps.type))(resetValue)) {
+            const isValid =
+              (isOptionalKeyAst(ps.type) && resetValue === undefined) ||
+              S.is(S.make(ps.type))(resetValue)
+            if (!isValid) {
               violations.push(
                 `${fieldPath}: reset() value for Local field failed Schema validation`,
               )

@@ -2,6 +2,7 @@ import { Array, Option, Record as Record_, Redacted, Schema as S } from 'effect'
 import * as CodeUpdates from 'foldkit/code-updates'
 import * as ReadAloud from 'read-aloud-core-example'
 import {
+  ReachedEnd,
   ReachedPlace,
   ReceivedMatches,
   ReceivedPassages,
@@ -26,6 +27,7 @@ import {
   LeavePlayhead,
   Listen,
   type Message,
+  NeededAudibleSignIn,
   Open,
   OpenBookmark,
   Pause,
@@ -54,8 +56,8 @@ import {
   type Shelf,
   StretchReport,
 } from './model.js'
+import { BooksProgram } from './program.js'
 import { sampleChapters, sampleShelf } from './sample.js'
-import { update } from './update.js'
 
 // SAMPLES
 
@@ -120,7 +122,11 @@ const plain = bookmarkOf('bookmark-2', 120_000, Option.none())
 const shelf: Shelf = { ...sampleShelf, bookmarks: [noted, plain] }
 
 const after = (model: Model, ...messages: ReadonlyArray<Message>): Model =>
-  Array.reduce(messages, model, (state, message) => update(state, message)[0])
+  Array.reduce(
+    messages,
+    model,
+    (state, message) => BooksProgram.update(state, message)[0],
+  )
 
 /** Before the shelf arrives. */
 const waiting = init()[0]
@@ -210,6 +216,9 @@ const busy = after(
 /** Paused in the player after sounding. */
 const paused = after(playing, Pause())
 
+/** Paused after reaching the end of the title. */
+const ended = after(playing, ReachedEnd())
+
 /** Paused at the end of the title. */
 const atEnd = after(
   paused,
@@ -228,7 +237,7 @@ const heardThrough = (model: Model, seconds: number): Heard =>
     Array.makeBy(seconds, second => (second + 3) * 1_000),
     { model, sent: Array.empty<Sent>() },
     (state: Heard, placeMs): Heard => {
-      const [next, more] = update(
+      const [next, more] = BooksProgram.update(
         state.model,
         ReachedPlace({
           placeMs: Milliseconds.make(placeMs),
@@ -377,6 +386,7 @@ const audibleConnect = after(
   onLibrary,
   ImportFromAudible(),
   Audible.FailedReadAudibleLibrary({ problem: Audible.NotConnected() }),
+  NeededAudibleSignIn(),
 )
 
 /** The Audible sign-in, ready for the address Amazon shows. */
@@ -461,6 +471,7 @@ export const sampleModels: ReadonlyArray<Model> = [
   playing,
   busy,
   paused,
+  ended,
   atEnd,
   withNotice,
   pausedAway,

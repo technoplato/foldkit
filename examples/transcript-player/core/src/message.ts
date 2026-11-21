@@ -28,6 +28,7 @@ import {
   Model,
   type Passage,
   SeekScope,
+  currentPlaceOf,
   hasAudio,
   isFollowingPlayhead,
   isSounding,
@@ -51,6 +52,7 @@ const at = ModelPath.of(Model)
 
 const mutatedBySounding = [
   at.placeMs,
+  at.maybeTickPlaceMs,
   at.maybePlacedAtMs,
   at.transport,
   at.nextCue,
@@ -94,7 +96,7 @@ export const Pause = Catalog.action('Pause', {
     isSounding(model)
       ? Catalog.Enabled()
       : Catalog.Disabled({ because: 'nothing is playing' }),
-  mutates: [at.transport],
+  mutates: [at.transport, at.placeMs, at.maybeTickPlaceMs],
   meta: { label: 'Pause', keys: ['p', 'k'] },
 })
 
@@ -103,7 +105,7 @@ export const SkipBack = Catalog.action('SkipBack', {
   what: 'Goes back 30 seconds',
   why: 'To hear again what was missed',
   enabled: (model: Model) =>
-    model.placeMs === 0
+    currentPlaceOf(model) === 0
       ? Catalog.Disabled({ because: 'it is already at the start' })
       : Catalog.Enabled(),
   mutates: mutatedByMoving,
@@ -115,7 +117,7 @@ export const SkipForward = Catalog.action('SkipForward', {
   what: 'Goes forward 30 seconds',
   why: 'To skip ahead',
   enabled: (model: Model) =>
-    model.placeMs >= model.media.durationMs
+    currentPlaceOf(model) >= model.media.durationMs
       ? Catalog.Disabled({ because: 'it is already at the end' })
       : Catalog.Enabled(),
   mutates: mutatedByMoving,

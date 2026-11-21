@@ -21,6 +21,7 @@ import {
   TranscriptUnavailable,
   type Transport,
   Unplayable,
+  currentPlaceOf,
   hasAudio,
   isSounding,
   nextSectionOf,
@@ -97,6 +98,7 @@ const clamped = (model: Model, placeMs: number): Milliseconds =>
 const sounding = (model: Model, placeMs: Milliseconds): Model => ({
   ...model,
   placeMs,
+  maybeTickPlaceMs: Option.none(),
   maybePlacedAtMs: Option.none(),
   transport: Playing({ cue: model.nextCue }),
   nextCue: model.nextCue + 1,
@@ -106,22 +108,25 @@ const played = (model: Model): UpdateReturn => {
   if (isSounding(model) || !hasAudio(model)) {
     return unchanged(model)
   } else {
+    const currentMs = currentPlaceOf(model)
     const placeMs =
-      model.placeMs >= model.media.durationMs
-        ? Milliseconds.make(0)
-        : model.placeMs
+      currentMs >= model.media.durationMs ? Milliseconds.make(0) : currentMs
     return [sounding(model, placeMs), [], Option.none()]
   }
 }
 
-const stoppedAs = (model: Model, transport: Transport): UpdateReturn =>
-  isSounding(model)
-    ? [
-        { ...model, transport },
-        [],
-        Option.some(Stopped({ placeMs: model.placeMs })),
-      ]
-    : unchanged(model)
+const stoppedAs = (model: Model, transport: Transport): UpdateReturn => {
+  if (!isSounding(model)) {
+    return unchanged(model)
+  } else {
+    const placeMs = currentPlaceOf(model)
+    return [
+      { ...model, placeMs, maybeTickPlaceMs: Option.none(), transport },
+      [],
+      Option.some(Stopped({ placeMs })),
+    ]
+  }
+}
 
 const leftAtOf = (
   model: Model,
@@ -133,7 +138,7 @@ const leftAtOf = (
   ) {
     return Option.none()
   } else if (Reader.isFollowing(model.reader)) {
-    return Option.some(model.placeMs)
+    return Option.some(currentPlaceOf(model))
   } else {
     return model.maybeLeftAtMs
   }
@@ -163,7 +168,9 @@ const following = (model: Model, fact: Reader.Fact): Model => ({
 
 const movedTo = (model: Model, placeMs: Milliseconds): UpdateReturn => [
   following(
-    isSounding(model) ? sounding(model, placeMs) : { ...model, placeMs },
+    isSounding(model)
+      ? sounding(model, placeMs)
+      : { ...model, placeMs, maybeTickPlaceMs: Option.none() },
     Reader.MovedVoice(),
   ),
   [],
@@ -382,7 +389,10 @@ const receivedMatches = (
         }
         return Option.match(
           Option.orElse(
-            Array.findFirst(matches, match => match.startMs >= model.placeMs),
+            Array.findFirst(
+              matches,
+              match => match.startMs >= currentPlaceOf(model),
+            ),
             () => Array.head(matches),
           ),
           {
@@ -424,7 +434,11 @@ const reachedPlace = (
 ): UpdateReturn =>
   isSounding(model)
     ? [
-        { ...model, placeMs, maybePlacedAtMs: Option.some(wallClockMs) },
+        {
+          ...model,
+          maybeTickPlaceMs: Option.some(placeMs),
+          maybePlacedAtMs: Option.some(wallClockMs),
+        },
         [],
         Option.some(Advanced({ placeMs, wallClockMs })),
       ]
@@ -433,7 +447,11 @@ const reachedPlace = (
 const reachedEnd = (model: Model): UpdateReturn =>
   isSounding(model)
     ? [
-        { ...model, placeMs: model.media.durationMs, transport: Paused() },
+        {
+          ...model,
+          maybeTickPlaceMs: Option.some(model.media.durationMs),
+          transport: Paused(),
+        },
         [],
         Option.some(Finished()),
       ]
@@ -458,8 +476,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     M.tagsExhaustive({
       Play: () => played(model),
       Pause: () => stoppedAs(model, Paused()),
-      SkipBack: () => movedTo(model, clamped(model, model.placeMs - skipMs)),
-      SkipForward: () => movedTo(model, clamped(model, model.placeMs + skipMs)),
+      SkipBack: () =>
+        movedTo(model, clamped(model, currentPlaceOf(model) - skipMs)),
+      SkipForward: () =>
+        movedTo(model, clamped(model, currentPlaceOf(model) + skipMs)),
       SeekTo: ({ placeMs }) => movedTo(model, clamped(model, placeMs)),
       SeekToWord: ({ wordId }) => playedFromWord(model, wordId),
       PreviousSection: () =>
@@ -481,7 +501,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ReachedPlace: ({ placeMs, wallClockMs }) =>
         reachedPlace(model, placeMs, wallClockMs),
       ReachedEnd: () => reachedEnd(model),
-      FailedPlayAudio: ({ reason }) => stoppedAs(model, Unplayable({ reason })),
+      FailedPlayAudio: ({ reason }) =>
+        isSounding(model)
+          ? [
+              { ...model, transport: Unplayable({ reason }) },
+              [],
+              Option.some(Stopped({ placeMs: currentPlaceOf(model) })),
+            ]
+          : unchanged(model),
       ReceivedPassages: ({ passages }) => [
         { ...model, transcript: TranscriptLoaded({ passages }) },
         [],

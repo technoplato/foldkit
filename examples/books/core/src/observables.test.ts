@@ -11,7 +11,7 @@ const observables = observablesOf(Model, computedFields)
 describe('what Books lets a Client observe', () => {
   it('is the state its Model describes, then what is computed from it', () => {
     expect(Array.map(observables, ({ path }) => Array.join(path, '.'))).toEqual(
-      ['library', 'listening', 'speed', 'appearance', 'wordsBeingRead'],
+      ['listening', 'speed', 'appearance', 'library', 'wordsBeingRead'],
     )
   })
 

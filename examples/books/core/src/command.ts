@@ -1,5 +1,6 @@
 import { Clock, Effect, Schema as S } from 'effect'
 import { Command } from 'foldkit'
+import * as ReadAloud from 'read-aloud-core-example'
 
 import {
   CompletedCloseUnendedPlays,
@@ -9,9 +10,13 @@ import {
   FailedReportStretch,
   FailedShareLink,
   FailedWriteLibrary,
+  FollowedReadAloudPage,
   MarkedMoment,
+  NeededAudibleSignIn,
+  OpenedPlace,
   SharedLink,
 } from './fact.js'
+import { Milliseconds, TitleSlug } from './ids.js'
 import { LibraryStore, LibraryWrite } from './library.js'
 import { Title } from './model.js'
 import { PlayClosing, ScribeTimeline } from './scribeTimeline.js'
@@ -148,3 +153,32 @@ export const CloseUnendedPlays = Command.define(
     ),
   ),
 )
+
+/**
+ * Moves the player to the place the address names after the shelf arrives
+ * or an address link opens.
+ */
+export const ResolveAddressCue = Command.define(
+  'ResolveAddressCue',
+  { slug: TitleSlug, atMs: Milliseconds },
+  OpenedPlace,
+)(({ slug, atMs }) => Effect.succeed(OpenedPlace({ slug, atMs })))
+
+/**
+ * Swaps the Audible titles page for the sign-in page when the library store
+ * reports no saved Audible login.
+ */
+export const OpenAudibleSignIn = Command.define(
+  'OpenAudibleSignIn',
+  NeededAudibleSignIn,
+)(Effect.succeed(NeededAudibleSignIn()))
+
+/**
+ * Moves the Read Aloud page on top of the stack when live readings settle
+ * or turn the page.
+ */
+export const FollowReadAloudPage = Command.define(
+  'FollowReadAloudPage',
+  { place: ReadAloud.ReadAloudPlace },
+  FollowedReadAloudPage,
+)(({ place }) => Effect.succeed(FollowedReadAloudPage({ place })))

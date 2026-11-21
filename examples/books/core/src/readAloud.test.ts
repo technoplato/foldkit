@@ -1,4 +1,4 @@
-import { Array, Option } from 'effect'
+import { Array, Effect, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import { type UiNode, buttonsOf, textsOf } from 'foldkit/renderers'
 import * as ReadAloud from 'read-aloud-core-example'
@@ -78,6 +78,13 @@ const bindApp = () => {
       model = next
       Array.forEach(commands, command => {
         written.push({ name: command.name, args: JSON.stringify(command.args) })
+        if (command.name === 'FollowReadAloudPage') {
+          const followUp = Effect.runSync(
+            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+            command.effect as Effect.Effect<AppMessage>,
+          )
+          handle.send(followUp)
+        }
       })
     },
     stop: () => Promise.resolve(),

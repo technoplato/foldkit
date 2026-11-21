@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from 'vitest'
 
 import { Milliseconds, TitleSlug } from './ids.js'
-import { InProgress, chaptersOf } from './model.js'
+import { InProgress, chaptersOf, placeOf } from './model.js'
 import {
   makeTestLibraryStore,
   makeTestScribeTimeline,
@@ -118,7 +118,7 @@ describe('live Books', () => {
       return (
         model._tag === 'Ready' &&
         model.listening._tag === 'Loaded' &&
-        model.listening.player.placeMs === 35_000
+        placeOf(model.listening) === 35_000
       )
     })
     await eventually(() =>

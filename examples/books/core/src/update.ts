@@ -1,8 +1,7 @@
-import { Array, Match as M, Option, Record as Record_ } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 import { type Command, Navigation } from 'foldkit'
 import * as CodeUpdates from 'foldkit/code-updates'
 import { transcriptPlaceAt } from 'foldkit/renderers'
-import { appliedRowChanges } from 'foldkit/synchronization'
 import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -11,6 +10,7 @@ import {
   openedAudibleImport,
   presentedAddBooks,
   reconnectedAudible,
+  swappedToAudibleSignIn,
 } from './addBooks.js'
 import {
   alreadyBookmarkedNotice,
@@ -18,12 +18,11 @@ import {
   bookmarkPlaceAt,
   excerptAround,
 } from './bookmarks.js'
-import { closingsOf } from './closings.js'
 import {
-  CloseUnendedPlays,
   CopyLink,
   ReadMoment,
   ReportStretch,
+  ResolveAddressCue,
   ShareLink,
   WriteLibrary,
 } from './command.js'
@@ -62,17 +61,10 @@ import {
 import { placePathOf, secondOf, wordPathOf } from './links.js'
 import type { Message } from './message.js'
 import {
-  type Chapter,
-  ChaptersReady,
-  ChaptersUnavailable,
   Loaded,
   type Model,
-  type Shelf,
-  ShelfReady,
-  ShelfUnavailable,
   type StretchReport,
   Title,
-  type TitleChapters,
   bookmarkOf,
   bookmarksOf,
   chapterOf,
@@ -81,7 +73,6 @@ import {
   mediaOf,
   placeOf,
   resumePlaceOf,
-  sectionsOf,
   titleOf,
 } from './model.js'
 import { navigation } from './navigation.js'
@@ -99,17 +90,23 @@ import {
 import {
   Quiet,
   type StretchEndReason,
-  type StretchEvent,
-  type StretchState,
-  finishedAt,
   isAtOtherSpeed,
-  reachedPlace,
   stoppedAt,
 } from './stretch.js'
+import {
+  type BooksSubscriptionFact,
+  addressCueOfModel,
+  recordedStretch,
+  saveEveryMs,
+  stretchReportsOf,
+} from './subscriptions.js'
 
 export * from './command.js'
 
 // UPDATE
+
+/** Messages handled by `update`: every Books Message except Subscription facts. */
+export type BooksUpdateMessage = Exclude<Message, BooksSubscriptionFact>
 
 type UpdateReturn = readonly [
   Model,
@@ -117,8 +114,6 @@ type UpdateReturn = readonly [
 ]
 
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
-
-const saveEveryMs = 10_000
 
 const withStack = (
   model: Model,
@@ -201,6 +196,11 @@ const openedTitle = (model: Model, slug: TitleSlug): Model =>
  * The player on top of the pages: above the title's page when that title
  * is open, else right above the library. Already there, nothing moves.
  */
+const committedPlaceOfSlug = (model: Model, slug: TitleSlug): Milliseconds =>
+  model.listening._tag === 'Loaded' && model.listening.slug === slug
+    ? model.listening.player.placeMs
+    : resumePlaceOf(model, slug)
+
 const placeOfSlug = (model: Model, slug: TitleSlug): Milliseconds =>
   model.listening._tag === 'Loaded' && model.listening.slug === slug
     ? placeOf(model.listening)
@@ -251,7 +251,7 @@ const withPlayerAddress = (model: Model): Model =>
     {
       onNone: () => model,
       onSome: ({ top, title }) => {
-        const placeMs = placeOfSlug(model, title.slug)
+        const placeMs = committedPlaceOfSlug(model, title.slug)
         const atMs = secondOf(placeMs)
         const isLoaded = Option.contains(loadedSlugOf(model), title.slug)
         return isPlayerPage(top) &&
@@ -334,47 +334,6 @@ const heldOut = (
     ),
   })
 
-type Recorded = readonly [StretchState, ReadonlyArray<StretchEvent>]
-
-/**
- * The stretch after what the player reports: each new second the audio
- * reached opens, counts, or ends one at a jump; a pause, a failure, a seek,
- * and the end end it.
- */
-const recordedStretch = (
-  stretch: StretchState,
-  player: TranscriptPlayer.Model,
-  maybeOutMessage: Option.Option<TranscriptPlayer.OutMessage>,
-): Recorded =>
-  Option.match(maybeOutMessage, {
-    onNone: () => [stretch, []],
-    onSome: M.type<TranscriptPlayer.OutMessage>().pipe(
-      M.withReturnType<Recorded>(),
-      M.tagsExhaustive({
-        Advanced: ({ placeMs, wallClockMs }) =>
-          reachedPlace(stretch, { placeMs, wallClockMs, speed: player.speed }),
-        Stopped: () =>
-          stoppedAt(
-            stretch,
-            player.transport._tag === 'Unplayable' ? 'Interrupted' : 'Paused',
-          ),
-        Moved: () => stoppedAt(stretch, 'Seeked'),
-        Finished: () => finishedAt(stretch, player.media.durationMs),
-      }),
-    ),
-  })
-
-/** Each begin and end of a stretch of `slug`, as Scribe's timeline hears it. */
-const stretchReportsOf = (
-  model: Model,
-  slug: TitleSlug,
-  events: ReadonlyArray<StretchEvent>,
-): ReadonlyArray<StretchReport> =>
-  Option.match(titleOf(model, slug), {
-    onNone: () => [],
-    onSome: title => Array.map(events, event => ({ title, event })),
-  })
-
 const unsentReportsLimit = 50
 
 const sentReports = (
@@ -449,50 +408,6 @@ const playerUpdated = (
       },
     }),
   )
-
-// What changed on a shelf that has opened; a shelf that has not opened is
-// told the whole shelf first, so a change that arrives before it is left.
-// NOTE: The library is spread, not made again: making it checks and
-// copies every title, and a painter that compares by identity would then
-// redraw the whole shelf for one saved place.
-const withShelf = (model: Model, changed: (shelf: Shelf) => Shelf): Model =>
-  model.library._tag === 'ShelfReady'
-    ? {
-        ...model,
-        library: { ...model.library, shelf: changed(model.library.shelf) },
-      }
-    : model
-
-const withChapters = (
-  model: Model,
-  slug: TitleSlug,
-  state: TitleChapters,
-): Model => ({ ...model, chapters: Record_.set(model.chapters, slug, state) })
-
-/**
- * The chapters as the loaded player's sections, when the chapters are
- * the loaded title's: a player loaded before they arrived gets them now.
- */
-const withPlayerSections = (
-  model: Model,
-  slug: TitleSlug,
-  chapters: Array.NonEmptyReadonlyArray<Chapter>,
-): Model =>
-  model.listening._tag === 'Loaded' && model.listening.slug === slug
-    ? {
-        ...model,
-        listening: {
-          ...model.listening,
-          player: {
-            ...model.listening.player,
-            media: {
-              ...model.listening.player.media,
-              sections: sectionsOf(chapters),
-            },
-          },
-        },
-      }
-    : model
 
 const savedBeforeSwitch = (model: Model): Commands =>
   model.listening._tag === 'Loaded' &&
@@ -959,7 +874,7 @@ const codeUpdated = (
   return [{ ...model, maybeCodeStatus: nextMaybeCodeStatus }, commands]
 }
 
-const updated = (model: Model, message: Message): UpdateReturn =>
+const updated = (model: Model, message: BooksUpdateMessage): UpdateReturn =>
   M.value(message).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
@@ -1029,31 +944,18 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       TurnToPage: message => readAloudUpdated(model, message),
       FollowReading: message => readAloudUpdated(model, message),
       SharePage: () => sharedReadAloudPage(model),
-      ReceivedReadings: message => readAloudUpdated(model, message),
-      FailedReadReadings: message => readAloudUpdated(model, message),
-      ReceivedPreview: message => readAloudUpdated(model, message),
-      FailedCheckPreview: message => readAloudUpdated(model, message),
-      ReceivedMember: ({ maybeEmail }) => [
-        { ...model, maybeMember: maybeEmail },
+      FollowedReadAloudPage: ({ place }) => [
+        withStack(model, {
+          ...model.navigation,
+          pages: [...Array.dropRight(model.navigation.pages, 1), place],
+        }),
         [],
       ],
       SetAppearance: ({ appearance }) => [
         { ...model, appearance: { ...model.appearance, appearance } },
         [],
       ],
-      ObservedSystemMode: ({ mode }) => [
-        { ...model, appearance: { ...model.appearance, systemMode: mode } },
-        [],
-      ],
-      ObservedSystemContrast: ({ contrast }) => [
-        {
-          ...model,
-          appearance: { ...model.appearance, systemContrast: contrast },
-        },
-        [],
-      ],
       RestartToUpdate: message => codeUpdated(model, message),
-      ObservedCodeStatus: message => codeUpdated(model, message),
       CompletedRestartOnNewerCode: message => codeUpdated(model, message),
       FailedRestartOnNewerCode: ({ reason }) => [
         { ...model, maybeNotice: Option.some(`Could not restart: ${reason}`) },
@@ -1100,57 +1002,8 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         removedBookmark(model, bookmarkId),
       CancelDeleteBookmark: () => [declinedToDelete(model), []],
       OpenedPlace: ({ slug, atMs }) => openedPlace(model, slug, atMs),
-      ReceivedShelf: ({ shelf }) => [
-        { ...model, library: ShelfReady({ shelf }) },
-        [],
-      ],
-      ReceivedPlaces: changes => [
-        withShelf(model, shelf => ({
-          ...shelf,
-          progress: appliedRowChanges(
-            shelf.progress,
-            changes,
-            progress => progress.slug,
-          ),
-        })),
-        [],
-      ],
-      ReceivedBookmarks: changes => [
-        withShelf(model, shelf => ({
-          ...shelf,
-          bookmarks: appliedRowChanges(
-            shelf.bookmarks,
-            changes,
-            bookmark => bookmark.bookmarkId,
-          ),
-        })),
-        [],
-      ],
-      FailedReadShelf: ({ reason }) => [
-        { ...model, library: ShelfUnavailable({ reason }) },
-        [],
-      ],
-      ReceivedChapters: ({ slug, chapters }) => [
-        withPlayerSections(
-          withChapters(model, slug, ChaptersReady({ chapters })),
-          slug,
-          chapters,
-        ),
-        [],
-      ],
-      FailedReadChapters: ({ slug, reason }) => [
-        withChapters(model, slug, ChaptersUnavailable({ reason })),
-        [],
-      ],
-      ReachedPlace: message => playerUpdated(model, message),
-      ReachedEnd: message => playerUpdated(model, message),
-      FailedPlayAudio: message => playerUpdated(model, message),
-      ReceivedPassages: message => playerUpdated(model, message),
-      FailedLoadTranscript: message => playerUpdated(model, message),
       ReceivedMatches: message => playerUpdated(model, message),
       FailedSearch: message => playerUpdated(model, message),
-      ReadSearchWords: message => playerUpdated(model, message),
-      FailedReadSearchWords: message => playerUpdated(model, message),
       CompletedWriteLibrary: () => [
         { ...model, maybeProblem: Option.none() },
         [],
@@ -1164,11 +1017,6 @@ const updated = (model: Model, message: Message): UpdateReturn =>
           { ...model, maybeTimelineProblem: Option.none() },
           model.unsentReports,
         ),
-      ReceivedUnendedPlays: ({ plays, checkedAtMs }) =>
-        Array.match(closingsOf(model, plays, checkedAtMs), {
-          onEmpty: (): UpdateReturn => [model, []],
-          onNonEmpty: closings => [model, [CloseUnendedPlays({ closings })]],
-        }),
       CompletedCloseUnendedPlays: () => [model, []],
       FailedCloseUnendedPlays: () => [model, []],
       FailedReportStretch: ({ report, reason }) => [
@@ -1188,6 +1036,7 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       ReconnectAudible: () => [reconnectedAudible(model), []],
+      NeededAudibleSignIn: () => [swappedToAudibleSignIn(model), []],
       ConnectAudible: message => audibleUpdated(model, message),
       TryAudibleSignInAgain: message => audibleUpdated(model, message),
       ToggleAudibleTitle: message => audibleUpdated(model, message),
@@ -1195,25 +1044,31 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       DeselectAudibleTitles: message => audibleUpdated(model, message),
       ImportAudibleTitles: message => audibleUpdated(model, message),
       ReadAudibleLibraryAgain: message => audibleUpdated(model, message),
-      StartedAudibleSignIn: message => audibleUpdated(model, message),
-      FailedStartAudibleSignIn: message => audibleUpdated(model, message),
       ConnectedAudible: message => audibleUpdated(model, message),
       FailedConnectAudible: message => audibleUpdated(model, message),
-      ReceivedAudibleLibrary: message => audibleUpdated(model, message),
-      FailedReadAudibleLibrary: message => audibleUpdated(model, message),
-      AdvancedAudibleImport: message => audibleUpdated(model, message),
-      ImportedAudibleTitles: message => audibleUpdated(model, message),
-      FailedImportAudibleTitles: message => audibleUpdated(model, message),
       GetAudiobookAudio: message => audibleUpdated(model, message),
-      ReceivedAudiobookAudio: message => audibleUpdated(model, message),
-      FailedReadAudiobookAudio: message => audibleUpdated(model, message),
       QueuedAudiobookAudio: message => audibleUpdated(model, message),
       FailedQueueAudiobookAudio: message => audibleUpdated(model, message),
-      OpenedUri: fact => [Navigation.foldMessage(navigation, model, fact), []],
-      NavigatedBack: fact => [
-        Navigation.foldMessage(navigation, model, fact),
-        [],
-      ],
+      OpenedUri: fact => {
+        const folded = Navigation.foldMessage(navigation, model, fact)
+        return [
+          folded,
+          Option.match(addressCueOfModel(folded), {
+            onNone: () => [],
+            onSome: cue => [ResolveAddressCue(cue)],
+          }),
+        ]
+      },
+      NavigatedBack: fact => {
+        const folded = Navigation.foldMessage(navigation, model, fact)
+        return [
+          folded,
+          Option.match(addressCueOfModel(folded), {
+            onNone: () => [],
+            onSome: cue => [ResolveAddressCue(cue)],
+          }),
+        ]
+      },
     }),
   )
 
@@ -1222,7 +1077,7 @@ const updated = (model: Model, message: Message): UpdateReturn =>
  * back or forward. The address it brings names where the player should
  * go, so it is left as it is until the player has gone there.
  */
-const isAddressFact = (message: Message): boolean =>
+const isAddressFact = (message: BooksUpdateMessage): boolean =>
   message._tag === 'OpenedUri' || message._tag === 'NavigatedBack'
 
 const movedQuietly = (model: Model, placeMs: Milliseconds): Model =>
@@ -1270,7 +1125,10 @@ const openedPlace = (
  * Read Aloud's Messages go to Read Aloud on Books' own stack, so a page
  * Scribe hears turns the page on screen.
  */
-export const update = (model: Model, message: Message): UpdateReturn => {
+export const update = (
+  model: Model,
+  message: BooksUpdateMessage,
+): UpdateReturn => {
   const [next, commands] = updated(model, message)
   return [isAddressFact(message) ? next : withPlayerAddress(next), commands]
 }

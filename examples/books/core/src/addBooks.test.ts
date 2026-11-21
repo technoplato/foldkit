@@ -1,4 +1,4 @@
-import { Array, Match as M, Option, Redacted } from 'effect'
+import { Array, Effect, Match as M, Option, Redacted } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import {
   type ListItem,
@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
 import * as Audible from './audible/index.js'
-import { ReceivedShelf } from './message.js'
+import { ReceivedShelf, SetSpeed } from './message.js'
 import { sampleShelf } from './sample.js'
 
 const bindApp = (shelf = sampleShelf) => {
@@ -24,6 +24,13 @@ const bindApp = (shelf = sampleShelf) => {
       model = next
       Array.forEach(sent, command => {
         commands.push(command.name)
+        if (command.name === 'OpenAudibleSignIn') {
+          const followUp = Effect.runSync(
+            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+            command.effect as Effect.Effect<AppMessage>,
+          )
+          handle.send(followUp)
+        }
       })
     },
     stop: () => Promise.resolve(),
@@ -157,6 +164,7 @@ describe('Import from Audible in Books', () => {
     ).toBe(true)
     expect(isLocalOnly(Audible.ConnectedAudible())).toBe(true)
     expect(isLocalOnly(Audible.ImportAudibleTitles())).toBe(true)
-    expect(isLocalOnly(ReceivedShelf({ shelf: sampleShelf }))).toBe(false)
+    expect(isLocalOnly(ReceivedShelf({ shelf: sampleShelf }))).toBe(true)
+    expect(isLocalOnly(SetSpeed({ speed: 1.5 }))).toBe(false)
   })
 })

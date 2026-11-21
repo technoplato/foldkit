@@ -6,6 +6,7 @@ import {
   type Passage,
   type Section,
   type Word,
+  currentPlaceOf,
   passagesOf,
 } from './model.js'
 
@@ -115,14 +116,16 @@ const restartParagraphMs = 1000
  * Where the paragraph after the one being heard starts, among the words
  * near the place. None in the last of them.
  */
-export const nextParagraphOf = (model: Model): Option.Option<Milliseconds> =>
-  Option.map(
+export const nextParagraphOf = (model: Model): Option.Option<Milliseconds> => {
+  const placeMs = currentPlaceOf(model)
+  return Option.map(
     Array.findFirst(
       paragraphsIn(model.media.sections, passagesOf(model)),
-      paragraph => startOf(paragraph) > model.placeMs,
+      paragraph => startOf(paragraph) > placeMs,
     ),
     startOf,
   )
+}
 
 /**
  * Where to go back to by paragraph: the start of the one being heard,
@@ -131,11 +134,13 @@ export const nextParagraphOf = (model: Model): Option.Option<Milliseconds> =>
  */
 export const previousParagraphOf = (
   model: Model,
-): Option.Option<Milliseconds> =>
-  Option.map(
+): Option.Option<Milliseconds> => {
+  const placeMs = currentPlaceOf(model)
+  return Option.map(
     Array.findLast(
       paragraphsIn(model.media.sections, passagesOf(model)),
-      paragraph => startOf(paragraph) < model.placeMs - restartParagraphMs,
+      paragraph => startOf(paragraph) < placeMs - restartParagraphMs,
     ),
     startOf,
   )
+}

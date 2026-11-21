@@ -1,5 +1,6 @@
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+import * as ReadAloud from 'read-aloud-core-example'
 
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 import { Bookmark, Chapter, Progress, Shelf, StretchReport } from './model.js'
@@ -53,6 +54,11 @@ export const OpenedPlace = m('OpenedPlace', {
   slug: TitleSlug,
   atMs: Milliseconds,
 })
+/** The address-cue watcher observed a player address asking for another place. */
+export const DetectedAddressCue = m('DetectedAddressCue', {
+  slug: TitleSlug,
+  atMs: Milliseconds,
+})
 /** The link to a moment went out, through a share sheet or a clipboard. */
 export const SharedLink = m('SharedLink', { how: SharedHow })
 /** The link to a moment could not go out, and why, safe to show. */
@@ -103,4 +109,10 @@ export const CompletedCloseUnendedPlays = m('CompletedCloseUnendedPlays', {
 /** Scribe's timeline could not take the unended plays' ends, and why. */
 export const FailedCloseUnendedPlays = m('FailedCloseUnendedPlays', {
   reason: S.String,
+})
+/** Audible reported no saved login, so Books swaps the titles page to sign-in. */
+export const NeededAudibleSignIn = m('NeededAudibleSignIn')
+/** Readings settled or turned the Read Aloud page on top of the stack. */
+export const FollowedReadAloudPage = m('FollowedReadAloudPage', {
+  place: ReadAloud.ReadAloudPlace,
 })

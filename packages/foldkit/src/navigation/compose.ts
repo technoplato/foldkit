@@ -261,6 +261,22 @@ export const composeNavigation = <
     })
 
   const childHistoryOf = child.historyOf
+  const childStack = child.stack
+  const composedStack: StackLens<AppModel, AppDestination> =
+    childStack === undefined
+      ? config.stack
+      : {
+          get: model =>
+            Option.orElse(
+              Option.map(childStack.get(childOf(model)), stack => ({
+                root: stack.root,
+                pages: stack.pages,
+                maybeModal: stack.maybeModal,
+              })),
+              () => config.stack.get(model),
+            ),
+          set: config.stack.set,
+        }
 
   return {
     [NavigationTypeId]: NavigationTypeId,
@@ -282,7 +298,7 @@ export const composeNavigation = <
           : []),
       ],
     }),
-    stack: config.stack,
+    stack: composedStack,
     viewOf: (model, destination) =>
       Option.orElse(
         config.viewOf === undefined

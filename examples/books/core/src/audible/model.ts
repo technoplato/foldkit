@@ -1,4 +1,5 @@
 import { Array, Option, Schema as S } from 'effect'
+import { Program } from 'foldkit'
 import { ts } from 'foldkit/schema'
 
 import { AudibleProblem } from './problem.js'
@@ -107,10 +108,16 @@ export type Audio = typeof Audio.Type
  * the owned titles' audio. It never comes from the log, so a refold keeps
  * it as it is.
  */
-export const AudibleModel = S.Struct({
-  signIn: SignIn,
-  titles: Titles,
-  audio: Audio,
+export const AudibleModel = Program.model({
+  ephemeral: {
+    signIn: Program.ephemeral(SignIn, () =>
+      SignInWaiting({ maybeProblem: Option.none() }),
+    ),
+  },
+  loaded: {
+    titles: Program.loaded(Titles, TitlesUnread),
+    audio: Program.loaded(Audio, AudioUnread),
+  },
 })
 /** The Audible import on this device. */
 export type AudibleModel = typeof AudibleModel.Type

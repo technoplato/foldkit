@@ -3,6 +3,7 @@ import { Context, Effect, Match as M, Schema as S, Stream } from 'effect'
 import * as Catalog from '../catalog/catalog.js'
 import * as ModelPath from '../declaration/modelPath.js'
 import { m } from '../message/index.js'
+import * as Durability from '../program/durability.js'
 import { Appearance, Contrast, Mode, modeOf } from './theme.js'
 
 // MODEL
@@ -13,10 +14,17 @@ import { Appearance, Contrast, Mode, modeOf } from './theme.js'
  * choice arrives as an Action, the system's mode as a fact from the host,
  * and every painter is handed the mode they resolve to; none looks it up.
  */
-export const AppearanceState = S.Struct({
-  appearance: Appearance,
-  systemMode: Mode,
-  systemContrast: S.optionalKey(Contrast),
+export const AppearanceState = Durability.model({
+  local: {
+    appearance: Appearance,
+  },
+  ephemeral: {
+    systemMode: Durability.ephemeral(Mode, () => 'Light'),
+    systemContrast: Durability.ephemeral(
+      S.optionalKey(Contrast),
+      () => undefined,
+    ),
+  },
 })
 /** Appearance as a Program holds it. */
 export type AppearanceState = typeof AppearanceState.Type

@@ -55,7 +55,9 @@ describe('a position tick while a long title plays', () => {
     const after = playerOf(ticked)
     expect(after?.transcript).toBe(before?.transcript)
     expect(after?.media).toBe(before?.media)
-    expect(after?.placeMs).toBe(4_000)
+    expect(
+      after === undefined ? undefined : TranscriptPlayer.currentPlaceOf(after),
+    ).toBe(4_000)
     expect(ticked._tag === 'Ready' ? ticked.library : undefined).toBe(
       model._tag === 'Ready' ? model.library : undefined,
     )

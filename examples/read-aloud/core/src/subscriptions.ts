@@ -6,7 +6,6 @@ import {
   FailedCheckPreview,
   FailedReadReadings,
   type Message,
-  type ReadAloudMessage,
   ReceivedPreview,
   ReceivedReadings,
 } from './message.js'
@@ -44,7 +43,7 @@ export const uncheckedIsbnOf = (model: ReadAloudView): Option.Option<Isbn13> =>
  * listens to it in its own Subscriptions.
  */
 export const readingsStream = (): Stream.Stream<
-  ReadAloudMessage,
+  typeof ReceivedReadings.Type | typeof FailedReadReadings.Type,
   never,
   ReadingSource
 > =>
@@ -68,7 +67,7 @@ export const readingsStream = (): Stream.Stream<
 export const previewStream = ({
   maybeIsbn13,
 }: Readonly<{ maybeIsbn13: Option.Option<Isbn13> }>): Stream.Stream<
-  ReadAloudMessage,
+  typeof ReceivedPreview.Type | typeof FailedCheckPreview.Type,
   never,
   PreviewSource
 > =>

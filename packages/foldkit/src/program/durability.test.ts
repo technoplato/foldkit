@@ -21,6 +21,7 @@ import { Memory, makeMemoryStore } from '../runtime/syncEngine.js'
 import { ts } from '../schema/index.js'
 import * as Session from '../session/session.js'
 import * as Subscription from '../subscription/subscription.js'
+import { AppearanceState, initialAppearance } from '../theme/appearance.js'
 import { compose } from './compose.js'
 import {
   ForbiddenSubscriptionWriteError,
@@ -904,5 +905,33 @@ describe('Program.make, Subscription.forModel, combinators, and LocalSnapshot', 
     expect(afterData.child.data).toBe('hello')
     const [afterPing] = CombinedProgram.update(afterData, Pinged({ count: 7 }))
     expect(afterPing.ping).toBe(7)
+  })
+
+  it('strips optionalKey ephemeral fields by omitting the key when reset returns undefined (AppearanceState)', () => {
+    expect(() => assertDurabilityExhaustive(AppearanceState)).not.toThrow()
+
+    const populated: AppearanceState = {
+      appearance: 'Dark',
+      systemMode: 'Dark',
+      systemContrast: 'More',
+    }
+    const strippedLocal = stripForLocalSnapshot(AppearanceState.ast, populated)
+    expect(strippedLocal).toEqual({
+      appearance: 'Dark',
+      systemMode: 'Light',
+    })
+    expect('systemContrast' in strippedLocal).toBe(false)
+
+    const codec = S.toCodecJson(AppearanceState)
+    const encoded = S.encodeSync(codec)(strippedLocal)
+    expect(S.decodeUnknownSync(codec)(encoded)).toEqual(strippedLocal)
+
+    const strippedShared = stripForSharedSnapshot(
+      AppearanceState.ast,
+      populated,
+      initialAppearance,
+    )
+    expect(strippedShared).toEqual(initialAppearance)
+    expect('systemContrast' in strippedShared).toBe(false)
   })
 })

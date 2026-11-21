@@ -14,9 +14,9 @@ import {
 } from './message.js'
 import { InProgress, type Model, type Shelf } from './model.js'
 import { isLocalOnlyMessage } from './program.js'
+import { BooksProgram } from './program.js'
 import { longSampleShelf, sampleTitles } from './sample.js'
 import { libraryScreen } from './screen.js'
-import { update } from './update.js'
 
 // Made-up books: nothing here is a real title.
 const saltRoad = TitleSlug.make('salt-road')
@@ -47,7 +47,11 @@ const shelf: Shelf = {
 }
 
 const after = (model: Model, ...messages: ReadonlyArray<Message>): Model =>
-  Array.reduce(messages, model, (state, message) => update(state, message)[0])
+  Array.reduce(
+    messages,
+    model,
+    (state, message) => BooksProgram.update(state, message)[0],
+  )
 
 const onLibrary = (given: Shelf): Model =>
   after(init()[0], ReceivedShelf({ shelf: given }))

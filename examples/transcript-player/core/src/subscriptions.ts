@@ -13,7 +13,7 @@ import {
   ReadSearchWords,
   ReceivedPassages,
 } from './message.js'
-import { type Model, viewPlaceOf } from './model.js'
+import { type Model, currentPlaceOf, viewPlaceOf } from './model.js'
 import { TranscriptSource, rangeOfWindow, windowOf } from './transcript.js'
 
 // SUBSCRIPTION
@@ -31,7 +31,7 @@ export const trackOf = (model: Model): Option.Option<Track> =>
         Track.make({
           mediaId: model.media.mediaId,
           cue: model.transport.cue,
-          fromMs: model.placeMs,
+          fromMs: currentPlaceOf(model),
           durationMs: model.media.durationMs,
           maybeAudioUrl: model.media.maybeAudioUrl,
         }),
@@ -70,9 +70,22 @@ export const isSameClock = (
   that: ClockDependencies,
 ): boolean => isSameCue(self.maybeTrack, that.maybeTrack)
 
-const messageOfAudioEvent = (event: AudioEvent): Message =>
+export type ClockFact =
+  | typeof ReachedPlace.Type
+  | typeof ReachedEnd.Type
+  | typeof FailedPlayAudio.Type
+
+export type TranscriptFact =
+  | typeof ReceivedPassages.Type
+  | typeof FailedLoadTranscript.Type
+
+export type SearchWordsFact =
+  | typeof ReadSearchWords.Type
+  | typeof FailedReadSearchWords.Type
+
+const messageOfAudioEvent = (event: AudioEvent): ClockFact =>
   M.value(event).pipe(
-    M.withReturnType<Message>(),
+    M.withReturnType<ClockFact>(),
     M.tagsExhaustive({
       Advanced: ({ placeMs, wallClockMs }) =>
         ReachedPlace({ placeMs, wallClockMs }),
@@ -93,14 +106,16 @@ const messageOfAudioEvent = (event: AudioEvent): Message =>
  * clockSupersedes(ReachedEnd(), ReachedPlace({ … })) // false
  * ```
  */
-export const clockSupersedes = (waiting: Message, arrived: Message): boolean =>
-  waiting._tag === 'ReachedPlace' && arrived._tag === 'ReachedPlace'
+export const clockSupersedes = (
+  waiting: Readonly<{ _tag: string }>,
+  arrived: Readonly<{ _tag: string }>,
+): boolean => waiting._tag === 'ReachedPlace' && arrived._tag === 'ReachedPlace'
 
 /** The audio for a track, as the player's facts. */
 export const clockStream = (
   { maybeTrack }: ClockDependencies,
   readDependencies: () => ClockDependencies,
-): Stream.Stream<Message, never, AudioOutput> =>
+): Stream.Stream<ClockFact, never, AudioOutput> =>
   Option.match(maybeTrack, {
     onNone: () => Stream.empty,
     onSome: track =>
@@ -140,7 +155,11 @@ export const transcriptDependenciesOf = (
 /** The words around the window, as the player's facts. */
 export const transcriptStream = ({
   maybeWindow,
-}: TranscriptDependencies): Stream.Stream<Message, never, TranscriptSource> =>
+}: TranscriptDependencies): Stream.Stream<
+  TranscriptFact,
+  never,
+  TranscriptSource
+> =>
   Option.match(maybeWindow, {
     onNone: () => Stream.empty,
     onSome: ({ mediaId, index }) =>
@@ -207,7 +226,11 @@ export const searchWordsDependenciesOf = (
 /** The read of a recording's words for searching, as the player's facts. */
 export const searchWordsStream = ({
   maybeRecording,
-}: SearchWordsDependencies): Stream.Stream<Message, never, TranscriptSource> =>
+}: SearchWordsDependencies): Stream.Stream<
+  SearchWordsFact,
+  never,
+  TranscriptSource
+> =>
   Option.match(maybeRecording, {
     onNone: () => Stream.empty,
     onSome: ({ mediaId, durationMs }) =>

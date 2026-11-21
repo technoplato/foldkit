@@ -16,6 +16,7 @@ import {
 import {
   Model,
   type Passage,
+  currentPlaceOf,
   init,
   isFollowingPlayhead,
   searchOf,
@@ -546,7 +547,7 @@ describe('reading away from the playhead', () => {
     const back = pressed(later, 'BackToPlayhead')
     expect(isFollowingPlayhead(back)).toBe(true)
     expect(back.transport._tag).toBe('Playing')
-    expect(back.placeMs).toBe(41_000)
+    expect(currentPlaceOf(back)).toBe(41_000)
   })
 
   it('follows again when the person moves the place', () => {

@@ -1,4 +1,5 @@
 import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
+import { Program } from 'foldkit'
 import { Reader } from 'foldkit/behavior'
 import { ts } from 'foldkit/schema'
 
@@ -23,11 +24,15 @@ export type Section = typeof Section.Type
  * audio is, and its sections in order, such as chapters. A recording with
  * no audio file yet has no URL, and the player will not play it.
  */
-export const Media = S.Struct({
-  mediaId: MediaId,
-  durationMs: Milliseconds,
-  maybeAudioUrl: S.Option(S.String),
-  sections: S.Array(Section),
+export const Media = Program.model({
+  synced: {
+    mediaId: MediaId,
+    durationMs: Milliseconds,
+  },
+  loaded: {
+    maybeAudioUrl: Program.loaded(S.Option(S.String), Option.none),
+    sections: Program.loaded(S.Array(Section), () => []),
+  },
 })
 /** The recording the player holds. */
 export type Media = typeof Media.Type
@@ -185,21 +190,48 @@ export const readerContext: Reader.Context = { isLive: false }
  * while the audio plays on; None while they follow or look at a match.
  * `maybeWordMenu` is the word whose menu is open.
  */
-export const Model = S.Struct({
-  media: Media,
-  placeMs: Milliseconds,
-  maybePlacedAtMs: S.OptionFromOptionalKey(S.Number),
-  transport: Transport,
-  nextCue: S.Int,
-  speed: Speed,
-  seekScope: SeekScope,
-  transcript: Transcript,
-  maybeSearch: S.OptionFromOptionalKey(Search),
-  reader: Reader.State.pipe(
-    S.withDecodingDefaultTypeKey(Effect.succeed(Reader.initial)),
-  ),
-  maybeLeftAtMs: S.OptionFromOptionalKey(Milliseconds),
-  maybeWordMenu: S.OptionFromOptionalKey(WordId),
+export const Model = Program.model({
+  synced: {
+    media: Media,
+    placeMs: Milliseconds,
+    speed: Speed,
+    seekScope: SeekScope,
+  },
+  local: {
+    nextCue: Program.local(S.Int, () => 0),
+    reader: Program.local(
+      Reader.State.pipe(
+        S.withDecodingDefaultTypeKey(Effect.succeed(Reader.initial)),
+      ),
+      () => Reader.initial,
+    ),
+  },
+  loaded: {
+    transcript: Program.loaded(Transcript, TranscriptLoading),
+  },
+  ephemeral: {
+    transport: Program.ephemeral(Transport, Paused),
+    maybeTickPlaceMs: Program.ephemeral(
+      S.OptionFromOptionalKey(Milliseconds),
+      Option.none,
+    ),
+    maybePlacedAtMs: Program.ephemeral(
+      S.OptionFromOptionalKey(S.Number),
+      Option.none,
+    ),
+    maybeSearch: Program.ephemeral(
+      S.OptionFromOptionalKey(Search),
+      Option.none,
+    ),
+    maybeLeftAtMs: Program.ephemeral(
+      S.OptionFromOptionalKey(Milliseconds),
+      Option.none,
+    ),
+    maybeWordMenu: Program.ephemeral(
+      S.OptionFromOptionalKey(WordId),
+      Option.none,
+    ),
+  },
 })
 /**
  * A Transcript Player Model value. An interface rather than an alias, so
@@ -208,6 +240,13 @@ export const Model = S.Struct({
  * player's Actions with `Catalog.within` depends on that to typecheck.
  */
 export interface Model extends S.Schema.Type<typeof Model> {}
+
+/**
+ * The live place being heard: the latest ephemeral audio tick while playing,
+ * falling back to the last committed `placeMs`.
+ */
+export const currentPlaceOf = (model: Model): Milliseconds =>
+  Option.getOrElse(model.maybeTickPlaceMs, () => model.placeMs)
 
 /**
  * A player holding `media`, paused at `placeMs` at `speed`, its words on
@@ -228,6 +267,7 @@ export const init = (
 ): Model => ({
   media,
   placeMs: options.placeMs ?? Milliseconds.make(0),
+  maybeTickPlaceMs: Option.none(),
   maybePlacedAtMs: Option.none(),
   transport: Paused(),
   nextCue: 0,
@@ -260,14 +300,16 @@ export const isSounding = (model: Model): boolean =>
  */
 export const playbackClockOf = (
   model: Model,
-): Readonly<{ placeMs: number; atMs: number; rate: number }> =>
-  Option.match(
+): Readonly<{ placeMs: number; atMs: number; rate: number }> => {
+  const placeMs = currentPlaceOf(model)
+  return Option.match(
     Option.filter(model.maybePlacedAtMs, () => isSounding(model)),
     {
-      onNone: () => ({ placeMs: model.placeMs, atMs: 0, rate: 0 }),
-      onSome: atMs => ({ placeMs: model.placeMs, atMs, rate: model.speed }),
+      onNone: () => ({ placeMs, atMs: 0, rate: 0 }),
+      onSome: atMs => ({ placeMs, atMs, rate: model.speed }),
     },
   )
+}
 
 /** True when the recording has an audio file to play. */
 export const hasAudio = (model: Model): boolean =>
@@ -300,7 +342,7 @@ export const wordAt = (
 
 /** The word sounding now, while the words near the place are here. */
 export const currentWordOf = (model: Model): Option.Option<Word> =>
-  wordAt(passagesOf(model), model.placeMs)
+  wordAt(passagesOf(model), currentPlaceOf(model))
 
 /** The section a place falls in: the last one starting at or before it. */
 export const sectionAt = (
@@ -314,25 +356,28 @@ export const sectionAt = (
  * seconds into it, else the one before.
  */
 export const previousSectionOf = (model: Model): Option.Option<Section> => {
-  const maybeCurrent = sectionAt(model.media, model.placeMs)
+  const placeMs = currentPlaceOf(model)
+  const maybeCurrent = sectionAt(model.media, placeMs)
   const isWellInto = Option.exists(
     maybeCurrent,
-    section => model.placeMs - section.startMs > restartSectionMs,
+    section => placeMs - section.startMs > restartSectionMs,
   )
   return isWellInto
     ? maybeCurrent
     : Array.findLast(
         model.media.sections,
-        section => section.startMs < model.placeMs - restartSectionMs,
+        section => section.startMs < placeMs - restartSectionMs,
       )
 }
 
 /** The section after the one being heard. */
-export const nextSectionOf = (model: Model): Option.Option<Section> =>
-  Array.findFirst(
+export const nextSectionOf = (model: Model): Option.Option<Section> => {
+  const placeMs = currentPlaceOf(model)
+  return Array.findFirst(
     model.media.sections,
-    section => section.startMs > model.placeMs,
+    section => section.startMs > placeMs,
   )
+}
 
 const restartSectionMs = 3000
 
@@ -378,7 +423,7 @@ export const isFollowingPlayhead = (model: Model): boolean =>
   Reader.isFollowing(model.reader)
 
 const leftPlaceOf = (model: Model): Milliseconds =>
-  Option.getOrElse(model.maybeLeftAtMs, () => model.placeMs)
+  Option.getOrElse(model.maybeLeftAtMs, () => currentPlaceOf(model))
 
 /**
  * The place the words on screen are around: the place being heard while
@@ -395,7 +440,7 @@ const leftPlaceOf = (model: Model): Milliseconds =>
 export const viewPlaceOf = (model: Model): Milliseconds =>
   Option.match(Reader.placeOf(model.reader), {
     onNone: () =>
-      isFollowingPlayhead(model) ? model.placeMs : leftPlaceOf(model),
+      isFollowingPlayhead(model) ? currentPlaceOf(model) : leftPlaceOf(model),
     onSome: M.type<Reader.Place>().pipe(
       M.withReturnType<Milliseconds>(),
       M.tagsExhaustive({

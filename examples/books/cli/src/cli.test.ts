@@ -11,6 +11,7 @@ import {
   TitleSlug,
   bindBooks,
   chaptersOf,
+  placeOf as loadedPlaceOf,
   makeTestLibraryStore,
   makeTestLinkSharing,
   noReadAloud,
@@ -162,7 +163,7 @@ const isSounding = (bound: BoundBooks): boolean => {
 const placeOf = (bound: BoundBooks): number => {
   const model = bound.readModel()
   return model._tag === 'Ready' && model.listening._tag === 'Loaded'
-    ? model.listening.player.placeMs
+    ? loadedPlaceOf(model.listening)
     : 0
 }
 

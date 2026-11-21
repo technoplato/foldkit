@@ -7,7 +7,6 @@ import {
   FailedReadAudiobookAudio,
   FailedStartAudibleSignIn,
   ImportedAudibleTitles,
-  type Message,
   ReceivedAudibleLibrary,
   ReceivedAudiobookAudio,
   StartedAudibleSignIn,
@@ -54,7 +53,11 @@ export const importingAsinsOf = (
     : Option.none()
 
 /** Starts an Amazon sign-in while `isStarting`, and reports its address. */
-export const signInStream = (isStarting: boolean): Stream.Stream<Message> =>
+export const signInStream = (
+  isStarting: boolean,
+): Stream.Stream<
+  typeof StartedAudibleSignIn.Type | typeof FailedStartAudibleSignIn.Type
+> =>
   isStarting
     ? Stream.unwrap(
         Effect.gen(function* () {
@@ -74,7 +77,11 @@ export const signInStream = (isStarting: boolean): Stream.Stream<Message> =>
     : Stream.empty
 
 /** Reads the family member's Audible titles while `isReading`. */
-export const libraryStream = (isReading: boolean): Stream.Stream<Message> =>
+export const libraryStream = (
+  isReading: boolean,
+): Stream.Stream<
+  typeof ReceivedAudibleLibrary.Type | typeof FailedReadAudibleLibrary.Type
+> =>
   isReading
     ? Stream.unwrap(
         Effect.gen(function* () {
@@ -95,9 +102,14 @@ export const libraryStream = (isReading: boolean): Stream.Stream<Message> =>
       )
     : Stream.empty
 
-const messageOfUpdate = (update: ImportUpdate): Message =>
+type ImportFact =
+  | typeof AdvancedAudibleImport.Type
+  | typeof ImportedAudibleTitles.Type
+  | typeof FailedImportAudibleTitles.Type
+
+const messageOfUpdate = (update: ImportUpdate): ImportFact =>
   M.value(update).pipe(
-    M.withReturnType<Message>(),
+    M.withReturnType<ImportFact>(),
     M.tagsExhaustive({
       ImportAdvanced: ({ progress }) => AdvancedAudibleImport({ progress }),
       ImportFinished: ({ summary }) => ImportedAudibleTitles({ summary }),
@@ -110,7 +122,7 @@ const messageOfUpdate = (update: ImportUpdate): Message =>
  */
 export const importStream = (
   maybeAsins: Option.Option<ReadonlyArray<Asin>>,
-): Stream.Stream<Message> =>
+): Stream.Stream<ImportFact> =>
   Option.match(maybeAsins, {
     onNone: () => Stream.empty,
     onSome: asins =>
@@ -141,7 +153,11 @@ export const audioEvery = Duration.seconds(20)
  * Reads every owned book's audio while `isWatching`, at once and then
  * every `audioEvery`, so the page shows the queue as it moves.
  */
-export const audioStream = (isWatching: boolean): Stream.Stream<Message> =>
+export const audioStream = (
+  isWatching: boolean,
+): Stream.Stream<
+  typeof ReceivedAudiobookAudio.Type | typeof FailedReadAudiobookAudio.Type
+> =>
   isWatching
     ? Stream.unwrap(
         Effect.gen(function* () {

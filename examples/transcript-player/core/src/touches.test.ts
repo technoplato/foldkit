@@ -11,6 +11,7 @@ import {
   Pause,
   Play,
   PlayFrom,
+  ReachedEnd,
   ReachedPlace,
   ReceivedMatches,
   ReceivedPassages,
@@ -104,10 +105,13 @@ const busy = after(
   ShowWordMenu({ wordId: WordId.make('a.2') }),
   Play(),
   ReachedPlace({
-    placeMs: Milliseconds.make(22_500),
+    placeMs: Milliseconds.make(23_000),
     wallClockMs: 1_792_350_000_000,
   }),
 )
+
+/** Paused after reaching the end of the recording. */
+const endedAfterSounding = after(busy, ReachedEnd())
 
 /** The same, paused after the audio reported its place. */
 const pausedAfterSounding = after(busy, Pause())
@@ -129,6 +133,7 @@ const foundThenAway = after(busy, BackToPlayhead(), LeavePlayhead())
 const models: ReadonlyArray<Model> = [
   fresh,
   atEnd,
+  endedAfterSounding,
   busy,
   pausedAfterSounding,
   scrolledAway,
@@ -155,7 +160,7 @@ describe('what the Transcript Player’s Actions touch', () => {
 
   it('names the state as typed paths and the Command by its definition', () => {
     expect(Catalog.declarationOf(Pause).touches).toEqual({
-      mutates: ['transport'],
+      mutates: ['transport', 'placeMs', 'maybeTickPlaceMs'],
       triggers: [],
     })
     expect(Catalog.declarationOf(SearchFor).touches).toEqual({

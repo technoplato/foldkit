@@ -201,6 +201,10 @@ export const reconnectedAudible = (model: Model): Model =>
     Audible.AudibleConnectPage(),
   )
 
+/** Swaps the titles page for the sign-in page when no saved login exists. */
+export const swappedToAudibleSignIn = (model: Model): Model =>
+  swappedTop(model, Audible.isAudibleTitlesPage, Audible.AudibleConnectPage())
+
 /**
  * Applies one Audible import Message and does what it asks of the stack:
  * the sign-in in place of the titles page when there is no login, the

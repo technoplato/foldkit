@@ -31,7 +31,6 @@ import type {
 } from '../synchronization/synchronization.js'
 import {
   type AnyDurabilityModel,
-  type DurabilityTypeId,
   type SyncedOfSchema,
   applySubscriptionPatch,
   isDurabilityModelAst,
@@ -245,10 +244,11 @@ export type Program<
 }>
 
 type NonDurabilitySchema<Model> = ProgramSchema<Model> &
-  Readonly<{ readonly [DurabilityTypeId]?: never }>
+  Readonly<{ readonly '~foldkit/DurabilityModel'?: never }>
 
 type DurabilityProgramConfig<
   ModelSchema extends AnyDurabilityModel,
+  Model extends ModelSchema['Type'],
   Message extends Readonly<{ _tag: string }>,
   SubscriptionFacts extends Readonly<{ _tag: string }>,
   Resources,
@@ -260,24 +260,24 @@ type DurabilityProgramConfig<
   Model: ModelSchema
   Message: ProgramSchema<Message>
   init: () => readonly [
-    ModelSchema['Type'],
+    Model,
     ReadonlyArray<
       ProgramCommand<Message, Resources | NoInfer<ManagedResourceServices>>
     >,
   ]
   restore?: (
-    model: ModelSchema['Type'],
+    model: Model,
   ) => readonly [
-    ModelSchema['Type'],
+    Model,
     ReadonlyArray<
       ProgramCommand<Message, Resources | NoInfer<ManagedResourceServices>>
     >,
   ]
   update: (
-    model: ModelSchema['Type'],
+    model: Model,
     message: Exclude<Message, SubscriptionFacts>,
   ) => readonly [
-    ModelSchema['Type'],
+    Model,
     ReadonlyArray<
       ProgramCommand<Message, Resources | NoInfer<ManagedResourceServices>>
     >,
@@ -288,26 +288,22 @@ type DurabilityProgramConfig<
     Message,
     Resources | NoInfer<ManagedResourceServices>
   >
-  managedResources?: ManagedResources<
-    ModelSchema['Type'],
-    Message,
-    ManagedResourceServices
-  >
+  managedResources?: ManagedResources<Model, Message, ManagedResourceServices>
   ports?: P
   migrations?: ReadonlyArray<Migration>
   synchronization?: ProgramSynchronization<
-    ModelSchema['Type'],
+    Model,
     Message,
     SyncedOfSchema<ModelSchema>,
     Exclude<Message, SubscriptionFacts>
   >
   versionedEvents?: VersionedEventRegistry<Message>
   /** @deprecated Declare a `catalog`; its entries carry availability. */
-  valid?: ProgramValid<ModelSchema['Type']>
-  screen?: ProgramScreen<ModelSchema['Type']>
+  valid?: ProgramValid<Model>
+  screen?: ProgramScreen<Model>
   catalog?: AnyCatalog
-  interaction?: ProgramInteraction<ModelSchema['Type'], Message>
-  navigation?: ProgramNavigation<ModelSchema['Type'], any>
+  interaction?: ProgramInteraction<Model, Message>
+  navigation?: ProgramNavigation<Model, any>
 }>
 
 const factTagsOfAst = (ast: SchemaAST.AST): ReadonlyArray<string> => {
@@ -373,6 +369,7 @@ export function make<
   ModelSchema extends AnyDurabilityModel,
   Message extends Readonly<{ _tag: string }>,
   C extends AnyCatalog,
+  Model extends ModelSchema['Type'] = ModelSchema['Type'],
   SubscriptionFacts extends Readonly<{ _tag: string }> = never,
   Resources = never,
   ManagedResourceServices = never,
@@ -380,6 +377,7 @@ export function make<
 >(
   program: DurabilityProgramConfig<
     ModelSchema,
+    Model,
     Message,
     SubscriptionFacts,
     Resources,
@@ -387,17 +385,12 @@ export function make<
     P
   > &
     Readonly<{ catalog: C }>,
-): Program<
-  ModelSchema['Type'],
-  Message,
-  Resources,
-  ManagedResourceServices,
-  P
-> &
-  Readonly<{ Model: ModelSchema; catalog: C }>
+): Program<Model, Message, Resources, ManagedResourceServices, P> &
+  Readonly<{ Model: ProgramSchema<Model> & AnyDurabilityModel; catalog: C }>
 export function make<
   ModelSchema extends AnyDurabilityModel,
   Message extends Readonly<{ _tag: string }>,
+  Model extends ModelSchema['Type'] = ModelSchema['Type'],
   SubscriptionFacts extends Readonly<{ _tag: string }> = never,
   Resources = never,
   ManagedResourceServices = never,
@@ -405,20 +398,15 @@ export function make<
 >(
   program: DurabilityProgramConfig<
     ModelSchema,
+    Model,
     Message,
     SubscriptionFacts,
     Resources,
     ManagedResourceServices,
     P
   >,
-): Program<
-  ModelSchema['Type'],
-  Message,
-  Resources,
-  ManagedResourceServices,
-  P
-> &
-  Readonly<{ Model: ModelSchema }>
+): Program<Model, Message, Resources, ManagedResourceServices, P> &
+  Readonly<{ Model: ProgramSchema<Model> & AnyDurabilityModel }>
 export function make<
   Model,
   Message extends Readonly<{ _tag: string }>,

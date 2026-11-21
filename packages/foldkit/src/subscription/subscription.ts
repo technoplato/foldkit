@@ -434,9 +434,6 @@ export const lift =
 
 // SCOPED SUBSCRIPTIONS (DURABILITY-ENFORCED)
 
-declare const ScopedSubscriptionBrand: unique symbol
-declare const ScopedSubscriptionsBrand: unique symbol
-
 /** A fact Schema whose decoded Type belongs to `Message`. */
 export type FactSchema<Message extends Readonly<{ _tag: string }>> =
   Schema.Codec<Message, unknown, never, never>
@@ -506,7 +503,7 @@ type ScopedEntryMeta<
     model: ModelSchema['Type'],
     fact: Fact,
   ) => ScopedApplyReturn<ModelSchema, Message, Services>
-  readonly [ScopedSubscriptionBrand]: Readonly<{
+  readonly '~foldkit/ScopedSubscription': Readonly<{
     readonly modelSchema: ModelSchema
     readonly fact: Fact
   }>
@@ -564,10 +561,10 @@ export type ScopedSubscriptions<
   Message extends Readonly<{ _tag: string }>,
   Services = never,
 > = Readonly<
-  Record<string, ScopedSubscription<ModelSchema, any, Message, any, Services>>
+  Record<string, Subscription<ModelSchema['Type'], Message, any, Services>>
 > &
   Readonly<{
-    readonly [ScopedSubscriptionsBrand]: Readonly<{
+    readonly '~foldkit/ScopedSubscriptions': Readonly<{
       readonly modelSchema: ModelSchema
       readonly facts: Facts
     }>
@@ -576,14 +573,14 @@ export type ScopedSubscriptions<
 /** Extracts the union of all declared fact types from a record of scoped entries. */
 export type SubscriptionFactsOf<Entries> =
   Entries extends Readonly<{
-    readonly [ScopedSubscriptionsBrand]: Readonly<{
+    readonly '~foldkit/ScopedSubscriptions': Readonly<{
       readonly facts: infer Facts
     }>
   }>
     ? Facts
     : {
         [K in keyof Entries]: Entries[K] extends Readonly<{
-          readonly [ScopedSubscriptionBrand]: Readonly<{
+          readonly '~foldkit/ScopedSubscription': Readonly<{
             readonly fact: infer Fact
           }>
         }>
@@ -671,14 +668,12 @@ export const forModel =
     build: (
       entry: ScopedEntryBuilder<ModelSchema, Message, Services>,
     ) => Entries,
-  ): {
-    readonly [K in keyof Entries]: Entries[K] & SubscriptionBrand
-  } & Readonly<{
-    readonly [ScopedSubscriptionsBrand]: Readonly<{
-      readonly modelSchema: ModelSchema
-      readonly facts: SubscriptionFactsOf<Entries>
-    }>
-  }> => {
+  ): ScopedSubscriptions<
+    ModelSchema,
+    SubscriptionFactsOf<Entries>,
+    Message,
+    Services
+  > => {
     /* eslint-disable @typescript-eslint/consistent-type-assertions */
     const entryBuilder = ((
       fields: Schema.Struct.Fields,
@@ -720,7 +715,7 @@ export const aggregateForModel =
   > => {
     const result: Record<
       string,
-      ScopedSubscription<ModelSchema, any, Message, any, Services>
+      Subscription<ModelSchema['Type'], Message, any, Services>
     > = {}
     for (const record of records) {
       for (const key of Object.keys(record)) {
@@ -733,7 +728,7 @@ export const aggregateForModel =
       }
     }
     /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-    return result as ScopedSubscriptions<
+    return result as unknown as ScopedSubscriptions<
       ModelSchema,
       ScopedRecordsFactsOf<Records>,
       Message,
