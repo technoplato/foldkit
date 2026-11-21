@@ -376,7 +376,9 @@ const paintButton = (button: ButtonNode, paint: Paint): ReactElement => {
     <Pressable
       accessibilityHint={hintOf(button)}
       accessibilityLabel={button.label}
-      accessibilityRole={button.variant === 'Tab' ? 'tab' : 'button'}
+      accessibilityRole={
+        host.accessibilityRole ?? (button.variant === 'Tab' ? 'tab' : 'button')
+      }
       accessibilityState={{
         disabled: isDisabled,
         selected: button.isCurrent === true,

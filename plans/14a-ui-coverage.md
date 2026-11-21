@@ -98,7 +98,7 @@ is still to build, and is built with the first row that needs it.
 | 3   | ~~Tabs~~ (done, #2613)       | `Tabs`        | tabs                     | tabs                              | **`rovingFocus`**                                                                       |
 | 4   | ~~Popover~~ (done, #2616)    | `Popover`     | popover                  | popover                           | **`placement`**, **`layers`**, **`focusScope`**                                         |
 | 5   | ~~Disclosure~~ (done, #2617) | `Disclosure`  | collapsible, accordion   | collapsible, accordion            | **`rovingFocus`**, **`presence`**                                                       |
-| 6   | Switch                       | `Switch`      | switch                   | switch                            | none                                                                                    |
+| 6   | ~~Switch~~ (done, #2618)     | `Switch`      | switch                   | switch                            | none                                                                                    |
 | 7   | Checkbox                     | `Checkbox`    | checkbox                 | checkbox                          | none                                                                                    |
 | 8   | Radio group                  | `RadioGroup`  | radio-group              | radio-group                       | **`rovingFocus`**                                                                       |
 | 9   | Button and toggle            | `Button`      | toggle                   | toggle                            | none                                                                                    |
@@ -148,13 +148,14 @@ is still to build, and is built with the first row that needs it.
 | 53  | Clipboard                    | none          | clipboard                | none                              | `timedHint`                                                                             |
 | 54  | QR code                      | none          | qr-code                  | none                              | none                                                                                    |
 
-**Widgets left: 49 of 54.** Of those, 20 are `packages/ui`'s remaining namespaces
-(rows 6 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
+**Widgets left: 48 of 54.** Of those, 19 are `packages/ui`'s remaining namespaces
+(rows 7 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
 the hosts and `longPress` + `placement`; #2606 built row 1 (`Menu`) with
 `layers`, `rovingFocus`, and `typeahead`; #2612 built row 2 (`Dialog`) with
 `focusScope`; #2613 built row 3 (`Tabs`) reusing `rovingFocus`; #2616 built
 row 4 (`Popover`) reusing `placement`, `layers`, and `focusScope`; #2617 built
-row 5 (`Disclosure`) with `presence` reusing `rovingFocus`.
+row 5 (`Disclosure`) with `presence` reusing `rovingFocus`; #2618 built row 6
+(`Switch`).
 
 What the count covers, so it can be checked: all 51 of Zag's machines are
 in a row (three rows hold two each: Disclosure, Input and Date picker).

@@ -25,9 +25,15 @@ export const Role = S.Literals([
   'Dialog',
   'AlertDialog',
   'Region',
+  'Switch',
 ])
 /** What a painted element is, for a screen reader. */
 export type Role = typeof Role.Type
+
+/** Whether a checkable control (such as a switch, checkbox, or radio) is checked, unchecked, or mixed. */
+export const CheckedState = S.Union([S.Boolean, S.Literal('mixed')])
+/** Whether a checkable control is checked, unchecked, or mixed. */
+export type CheckedState = typeof CheckedState.Type
 
 /** Which axis a composite slot (such as a tablist or toolbar) lays out along. */
 export const SlotOrientation = S.Literals(['Horizontal', 'Vertical'])
@@ -85,8 +91,11 @@ export const SlotBinding = S.Struct({
   maybeHold: S.Option(HoldBinding),
   isCurrent: S.optionalKey(S.Boolean),
   isSelected: S.optionalKey(S.Boolean),
+  isChecked: S.optionalKey(CheckedState),
   isExpanded: S.optionalKey(S.Boolean),
   isDisabled: S.optionalKey(S.Boolean),
+  isReadOnly: S.optionalKey(S.Boolean),
+  isRequired: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
   isHidden: S.optionalKey(S.Boolean),
   orientation: S.optionalKey(SlotOrientation),
@@ -113,8 +122,11 @@ export const SlotProps = S.Struct({
   role: S.optionalKey(Role),
   isCurrent: S.optionalKey(S.Boolean),
   isSelected: S.optionalKey(S.Boolean),
+  isChecked: S.optionalKey(CheckedState),
   isExpanded: S.optionalKey(S.Boolean),
   isDisabled: S.optionalKey(S.Boolean),
+  isReadOnly: S.optionalKey(S.Boolean),
+  isRequired: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
   isHidden: S.optionalKey(S.Boolean),
   orientation: S.optionalKey(SlotOrientation),
@@ -270,6 +282,7 @@ const roleNames: Readonly<Record<Role, string>> = {
   Dialog: 'dialog',
   AlertDialog: 'alertdialog',
   Region: 'region',
+  Switch: 'switch',
 }
 
 /**
@@ -320,12 +333,21 @@ export const ariaOf = (
   ...(binding.isSelected === undefined
     ? {}
     : { 'aria-selected': String(binding.isSelected) }),
+  ...(binding.isChecked === undefined
+    ? {}
+    : { 'aria-checked': String(binding.isChecked) }),
   ...(binding.isExpanded === undefined
     ? {}
     : { 'aria-expanded': String(binding.isExpanded) }),
   ...(binding.isDisabled === undefined
     ? {}
     : { 'aria-disabled': String(binding.isDisabled) }),
+  ...(binding.isReadOnly === undefined
+    ? {}
+    : { 'aria-readonly': String(binding.isReadOnly) }),
+  ...(binding.isRequired === undefined
+    ? {}
+    : { 'aria-required': String(binding.isRequired) }),
   ...(binding.label === undefined ? {} : { 'aria-label': binding.label }),
   ...(binding.keys === undefined || Array.isReadonlyArrayEmpty(binding.keys)
     ? {}

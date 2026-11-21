@@ -21,8 +21,10 @@ export const recognizes: ReadonlyArray<Gesture.GestureKind> = [
 /** What the host adds to the pressable a painter already draws. */
 export type HostProps = Readonly<{
   onLongPress?: () => void
+  accessibilityRole?: 'switch' | 'tab' | 'menuitem' | 'button'
   accessibilityState?: Readonly<{
     selected?: boolean
+    checked?: boolean | 'mixed'
     expanded?: boolean
     disabled?: boolean
   }>
@@ -38,10 +40,13 @@ export type ContainerHostProps = Readonly<{
   accessibilityState?: HostProps['accessibilityState']
 }>
 
-const stateOf = (binding: Slot.SlotBinding): HostProps => {
+const stateOf = (
+  binding: Slot.SlotBinding,
+): Pick<HostProps, 'accessibilityState'> => {
   const selected = binding.isSelected ?? binding.isCurrent
   const state = {
     ...(selected === undefined ? {} : { selected }),
+    ...(binding.isChecked === undefined ? {} : { checked: binding.isChecked }),
     ...(binding.isExpanded === undefined
       ? {}
       : { expanded: binding.isExpanded }),
@@ -50,6 +55,22 @@ const stateOf = (binding: Slot.SlotBinding): HostProps => {
       : { disabled: binding.isDisabled }),
   }
   return Object.keys(state).length === 0 ? {} : { accessibilityState: state }
+}
+
+const pressableRoleOf = (
+  role: Slot.Role | undefined,
+): 'switch' | 'tab' | 'menuitem' | 'button' | undefined => {
+  if (role === 'Switch') {
+    return 'switch'
+  } else if (role === 'Tab') {
+    return 'tab'
+  } else if (role === 'MenuItem') {
+    return 'menuitem'
+  } else if (role === 'Button') {
+    return 'button'
+  } else {
+    return undefined
+  }
 }
 
 const containerRoleOf = (
@@ -112,17 +133,24 @@ export const hostPropsOf = (
 ): HostProps =>
   Option.match(maybeBinding, {
     onNone: () => ({}),
-    onSome: binding => ({
-      ...stateOf(binding),
-      ...Option.match(Host.plan(binding, recognizes).maybeHeld, {
-        onNone: () => ({}),
-        onSome: press => ({
-          onLongPress: () => {
-            paint.onPress(
-              pressOf(token === undefined ? press : `${press}:${token}`, label),
-            )
-          },
+    onSome: binding => {
+      const role = pressableRoleOf(binding.role)
+      return {
+        ...(role === undefined ? {} : { accessibilityRole: role }),
+        ...stateOf(binding),
+        ...Option.match(Host.plan(binding, recognizes).maybeHeld, {
+          onNone: () => ({}),
+          onSome: press => ({
+            onLongPress: () => {
+              paint.onPress(
+                pressOf(
+                  token === undefined ? press : `${press}:${token}`,
+                  label,
+                ),
+              )
+            },
+          }),
         }),
-      }),
-    }),
+      }
+    },
   })

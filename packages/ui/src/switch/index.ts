@@ -1,4 +1,5 @@
-import { Match as M, Option } from 'effect'
+import { Option } from 'effect'
+import { Switch as CoreSwitch } from 'foldkit/behavior'
 import { type Attribute, type Html, html } from 'foldkit/html'
 
 // VIEW
@@ -35,9 +36,6 @@ export type ViewConfig<Message> = Readonly<{
   value?: string
 }>
 
-const labelId = (id: string): string => `${id}-label`
-const descriptionId = (id: string): string => `${id}-description`
-
 /** Renders an accessible switch as a stateless controlled component. The
  *  parent owns the checked state (`isChecked`) and receives the new state via
  *  `onToggle` when the user toggles it.
@@ -67,16 +65,12 @@ export const view = <Message>(config: ViewConfig<Message>): Html => {
     toView,
     isDisabled = false,
     name,
-    value: formValue = 'on',
+    value,
   } = config
 
-  const nextChecked = !isChecked
-
-  const handleKeyUp = (key: string): Option.Option<Message> =>
-    M.value(key).pipe(
-      M.when(' ', () => Option.some(onToggle(nextChecked))),
-      M.orElse(() => Option.none()),
-    )
+  const maybeNextChecked = CoreSwitch.nextCheckedOf({ isChecked, isDisabled })
+  const labelId = CoreSwitch.labelId(id)
+  const descriptionId = CoreSwitch.descriptionId(id)
 
   const checkedAttributes = isChecked ? [h.DataAttribute('checked', '')] : []
 
@@ -84,31 +78,44 @@ export const view = <Message>(config: ViewConfig<Message>): Html => {
     ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
     : []
 
+  const interactiveButtonAttributes = Option.match(maybeNextChecked, {
+    onNone: () => [],
+    onSome: nextChecked => [
+      h.OnClick(onToggle(nextChecked)),
+      h.OnKeyUpPreventDefault((key: string) =>
+        CoreSwitch.isToggleKey(key)
+          ? Option.some(onToggle(nextChecked))
+          : Option.none(),
+      ),
+    ],
+  })
+
+  const interactiveLabelAttributes = Option.match(maybeNextChecked, {
+    onNone: () => [],
+    onSome: nextChecked => [h.OnClick(onToggle(nextChecked))],
+  })
+
   const buttonAttributes = [
     h.Role('switch'),
     h.AriaChecked(isChecked),
-    h.AriaLabelledBy(labelId(id)),
-    h.AriaDescribedBy(descriptionId(id)),
+    h.AriaLabelledBy(labelId),
+    h.AriaDescribedBy(descriptionId),
     h.Tabindex(0),
     ...checkedAttributes,
     ...disabledAttributes,
-    ...(isDisabled
-      ? []
-      : [
-          h.OnClick(onToggle(nextChecked)),
-          h.OnKeyUpPreventDefault(handleKeyUp),
-        ]),
+    ...interactiveButtonAttributes,
   ]
 
-  const labelAttributes = [
-    h.Id(labelId(id)),
-    ...(isDisabled ? [] : [h.OnClick(onToggle(nextChecked))]),
-  ]
+  const labelAttributes = [h.Id(labelId), ...interactiveLabelAttributes]
 
-  const descriptionAttributes = [h.Id(descriptionId(id))]
+  const descriptionAttributes = [h.Id(descriptionId)]
 
   const hiddenInputAttributes = name
-    ? [h.Type('hidden'), h.Name(name), h.Value(isChecked ? formValue : '')]
+    ? [
+        h.Type('hidden'),
+        h.Name(name),
+        h.Value(CoreSwitch.formValueOf(isChecked, value)),
+      ]
     : []
 
   return toView({
