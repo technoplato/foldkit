@@ -5,6 +5,7 @@ import {
   Schema as S,
   SchemaTransformation,
   Stream,
+  pipe,
 } from 'effect'
 import { describe, expect, it } from 'vitest'
 
@@ -933,5 +934,153 @@ describe('Program.make, Subscription.forModel, combinators, and LocalSnapshot', 
     )
     expect(strippedShared).toEqual(initialAppearance)
     expect('systemContrast' in strippedShared).toBe(false)
+  })
+
+  it('hydrates syncedModel before folding navigation or session messages in Session and ActionMenu', () => {
+    const Home = ts('Home')
+    const Book = ts('Book', { bookId: S.String })
+    const SettledBook = ts('SettledBook', { bookId: S.String, page: S.Number })
+    const Dest = S.Union([Home, Book, SettledBook])
+    const ReadingsLoading = ts('ReadingsLoading')
+    const ReadingsReady = ts('ReadingsReady')
+    const Readings = S.Union([ReadingsLoading, ReadingsReady])
+    const WithSettleModel = model({
+      synced: {
+        speed: S.Number,
+        navigation: Navigation.NavigationStack(Dest),
+      },
+      loaded: {
+        readings: loaded(Readings, ReadingsLoading),
+      },
+    })
+    type WithSettleModel = typeof WithSettleModel.Type
+    const SetRate = Catalog.action('SetRate', {
+      fields: { speed: S.Number },
+      describe: 'Set rate',
+    })
+    const WithSettleMessage = S.Union([
+      SetRate,
+      Navigation.OpenedUri,
+      Navigation.NavigatedBack,
+    ])
+    type WithSettleMessage = typeof WithSettleMessage.Type
+
+    const declared = Navigation.screens({
+      slug: 'library',
+      root: Navigation.rootScreen(Home, Route.here, { title: () => 'Home' }),
+      screens: [
+        Navigation.pushScreen(
+          Book,
+          pipe(Route.literal('book'), Route.slash(Route.string('bookId'))),
+          { title: () => 'Book' },
+        ),
+        Navigation.pushScreen(
+          SettledBook,
+          pipe(
+            Route.literal('book'),
+            Route.slash(Route.string('bookId')),
+            Route.slash(Route.literal('page')),
+            Route.slash(Route.int('page')),
+          ),
+          { title: () => 'Book page' },
+        ),
+      ],
+    })
+    const nav = Navigation.composeNavigation({
+      child: declared,
+      hold: 'Owns',
+      Destination: S.Union([Home, Book, SettledBook, Navigation.NotFound]),
+      childOf: (current: WithSettleModel) => current,
+      stack: Navigation.fieldLens<
+        WithSettleModel,
+        typeof Dest.Type | Navigation.NotFound
+      >(),
+      embedNotFound: notFound => notFound,
+      routes: [],
+      settleEntry: (current, destination) =>
+        destination._tag === 'Book' && current.readings._tag === 'ReadingsReady'
+          ? SettledBook({ bookId: destination.bookId, page: 1 })
+          : destination,
+    })
+
+    const ChildProgram = make({
+      id: 'with-settle',
+      version: 1,
+      Model: WithSettleModel,
+      Message: WithSettleMessage,
+      catalog: Catalog.make([SetRate]),
+      navigation: nav,
+      init: () => [
+        WithSettleModel.make({
+          speed: 1,
+          navigation: Navigation.stackAtRoot(Home()),
+          readings: ReadingsLoading(),
+        }),
+        [],
+      ],
+      update: (current, message) =>
+        M.value(message).pipe(
+          M.withReturnType<readonly [WithSettleModel, ReadonlyArray<never>]>(),
+          M.tagsExhaustive({
+            SetRate: ({ speed }) => [{ ...current, speed }, []],
+            OpenedUri: fact => [Navigation.foldMessage(nav, current, fact), []],
+            NavigatedBack: fact => [
+              Navigation.foldMessage(nav, current, fact),
+              [],
+            ],
+          }),
+        ),
+      synchronization: {
+        messageCategory: () => 'Navigation',
+        projectDomain: () => ({}),
+        foldSynced: (synced, message) =>
+          M.value(message).pipe(
+            M.withReturnType<typeof synced>(),
+            M.tags({
+              SetRate: ({ speed }) => ({ ...synced, speed }),
+            }),
+            M.orElse(() => synced),
+          ),
+      },
+    })
+
+    const SessionProgram = Session.compose({ of: ChildProgram })
+    const MenuProgram = ActionMenu.compose({ of: SessionProgram })
+
+    for (const composed of [SessionProgram, MenuProgram]) {
+      const foldSynced = composed.synchronization?.foldSynced
+      expect(foldSynced).toBeDefined()
+      if (foldSynced === undefined) {
+        continue
+      }
+      const [initial] = composed.init()
+      const startSynced = projectSynced(composed.Model.ast, initial)
+      const afterOpen = foldSynced(
+        startSynced,
+        Navigation.OpenedUri({
+          uri: '/library/book/a-new-earth',
+          via: Navigation.Link(),
+        }),
+      )
+      expect(afterOpen.navigation.pages).toEqual([
+        Book({ bookId: 'a-new-earth' }),
+      ])
+      expect('readings' in afterOpen).toBe(false)
+
+      const afterBack = foldSynced(
+        afterOpen,
+        Navigation.NavigatedBack({ uri: '/library' }),
+      )
+      expect(afterBack.navigation.pages).toEqual([])
+      expect('readings' in afterBack).toBe(false)
+
+      const afterGoBack = foldSynced(afterOpen, Session.GoBack())
+      expect(afterGoBack.navigation.pages).toEqual([])
+      expect('readings' in afterGoBack).toBe(false)
+
+      const afterMirror = foldSynced(afterOpen, Session.MirrorNavigation())
+      expect(afterMirror.navigation.pages).toEqual([])
+      expect('readings' in afterMirror).toBe(false)
+    }
   })
 })

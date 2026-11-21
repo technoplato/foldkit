@@ -1,5 +1,5 @@
 import { Array, Option, Record as Record_ } from 'effect'
-import { Program, Runtime } from 'foldkit'
+import { Navigation, Program, Runtime, Session } from 'foldkit'
 import * as CodeUpdates from 'foldkit/code-updates'
 import * as Theme from 'foldkit/theme'
 import * as ReadAloud from 'read-aloud-core-example'
@@ -293,5 +293,37 @@ describe('Books durability roles and snapshot byte invariance', () => {
         'TranscriptLoading',
       )
     }
+  })
+
+  it('folds ReadAloud OpenedUri and Session navigation through App.synchronization.foldSynced without crashing', () => {
+    const foldSynced = App.synchronization?.foldSynced
+    expect(foldSynced).toBeDefined()
+    if (foldSynced === undefined) {
+      return
+    }
+    const [initial] = App.init()
+    const [withShelf] = App.update(
+      initial,
+      ReceivedShelf({ shelf: sampleShelf }),
+    )
+    const slug = TitleSlug.make('the-lantern-keeper')
+    const [listening] = App.update(withShelf, Listen({ slug }))
+    const startSynced = Program.projectSynced(App.Model.ast, listening)
+
+    const afterReadAloud = foldSynced(
+      startSynced,
+      Navigation.OpenedUri({
+        uri: '/books/read-aloud/9780063342705',
+        via: Navigation.Link(),
+      }),
+    )
+    expect('readings' in afterReadAloud).toBe(false)
+    expect(afterReadAloud.navigation.pages.length).toBeGreaterThan(0)
+
+    const afterGoBack = foldSynced(afterReadAloud, Session.GoBack())
+    expect('readings' in afterGoBack).toBe(false)
+
+    const afterMirror = foldSynced(afterReadAloud, Session.MirrorNavigation())
+    expect('readings' in afterMirror).toBe(false)
   })
 })

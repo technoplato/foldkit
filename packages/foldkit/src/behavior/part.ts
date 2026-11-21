@@ -1018,6 +1018,17 @@ export const compose = <Child extends PartChild>(config: {
   const childSynchronization = child.synchronization
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
   const childFoldSynced = childSynchronization?.foldSynced
+  const initialCache: { maybeModel: Option.Option<AppModel> } = {
+    maybeModel: Option.none(),
+  }
+  const initialModel = (): AppModel => {
+    if (Option.isSome(initialCache.maybeModel)) {
+      return initialCache.maybeModel.value
+    }
+    const [initial] = init()
+    initialCache.maybeModel = Option.some(initial)
+    return initial
+  }
   const liftedFoldSynced =
     childFoldSynced === undefined
       ? undefined
@@ -1032,7 +1043,7 @@ export const compose = <Child extends PartChild>(config: {
               }
               const hydrated = hydrateFromSynced<AppModel>(
                 Model.ast,
-                init()[0],
+                initialModel(),
                 syncedModel,
               )
               const [state] = each.part.chart.transition(

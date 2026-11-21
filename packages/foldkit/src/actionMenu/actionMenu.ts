@@ -1403,17 +1403,36 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
   const childKeepsOwnNavigation = childSynchronization?.keepsOwnNavigation
   const childFoldSynced = childSynchronization?.foldSynced
+  const initialCache: { maybeModel: Option.Option<AppModel> } = {
+    maybeModel: Option.none(),
+  }
+  const initialModel = (): AppModel => {
+    if (Option.isSome(initialCache.maybeModel)) {
+      return initialCache.maybeModel.value
+    }
+    const [initial] = init()
+    initialCache.maybeModel = Option.some(initial)
+    return initial
+  }
   const liftedFoldSynced =
     childFoldSynced === undefined
       ? undefined
       : (syncedModel: any, message: AppMessage): any => {
           if (NavigationMessage.isMessage(message)) {
-            return foldMessage(navigation, syncedModel, message)
+            const hydrated = hydrateFromSynced<AppModel>(
+              Model.ast,
+              initialModel(),
+              syncedModel,
+            )
+            return projectSynced(
+              Model.ast,
+              foldMessage(navigation, hydrated, message),
+            )
           }
           if (isMessage(message)) {
             const hydrated = hydrateFromSynced<AppModel>(
               Model.ast,
-              init()[0],
+              initialModel(),
               syncedModel,
             )
             const [next] = updateMenu(hydrated, message)

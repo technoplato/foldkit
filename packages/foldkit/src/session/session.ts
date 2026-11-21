@@ -48,7 +48,9 @@ import { backMessages, foldMessage, settled } from '../navigation/transition.js'
 import { allowedStackOf } from '../navigation/uri.js'
 import { type Host, hostOfFrom, labelOf } from '../processor/host.js'
 import {
+  hydrateFromSynced,
   isDurabilityModelAst,
+  projectSynced,
   withFieldDurability,
   withModelDurability,
 } from '../program/durability.js'
@@ -870,15 +872,39 @@ export const compose = <Child extends SessionChild>(config: {
   const childProjectLocal = childSynchronization?.projectLocal
   const childIsLocalOnly = childSynchronization?.isLocalOnly
   const childFoldSynced = childSynchronization?.foldSynced
+  const initialCache: { maybeModel: Option.Option<AppModel> } = {
+    maybeModel: Option.none(),
+  }
+  const initialModel = (): AppModel => {
+    if (Option.isSome(initialCache.maybeModel)) {
+      return initialCache.maybeModel.value
+    }
+    const [initial] = init()
+    initialCache.maybeModel = Option.some(initial)
+    return initial
+  }
   const liftedFoldSynced =
     childFoldSynced === undefined
       ? undefined
       : (syncedModel: any, message: AppMessage): any => {
           if (NavigationMessage.isMessage(message)) {
-            return foldMessage(navigation, syncedModel, message)
+            const hydrated = hydrateFromSynced<AppModel>(
+              Model.ast,
+              initialModel(),
+              syncedModel,
+            )
+            return projectSynced(
+              Model.ast,
+              foldMessage(navigation, hydrated, message),
+            )
           }
           if (isMessage(message)) {
-            return updateSession(syncedModel, message)
+            const hydrated = hydrateFromSynced<AppModel>(
+              Model.ast,
+              initialModel(),
+              syncedModel,
+            )
+            return projectSynced(Model.ast, updateSession(hydrated, message))
           }
           const {
             session: _session,
