@@ -74,7 +74,14 @@ import {
   usageOf,
 } from 'foldkit/cli/view'
 import type { Declaration, Declared } from 'foldkit/declaration'
-import { Column, Text, renderScreen } from 'foldkit/renderers'
+import {
+  Column,
+  Text,
+  type UiNode,
+  offeredBy,
+  renderScreen,
+  textsOf,
+} from 'foldkit/renderers'
 import * as Theme from 'foldkit/theme'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
@@ -485,10 +492,49 @@ const wordEvents =
       ),
     )
 
+const menuHostCommands: ReadonlyArray<HostCommand> = [
+  { command: 'menu close', what: 'Dismisses the action menu' },
+  {
+    command: 'menu next',
+    what: 'Moves focus to the next row of the action menu',
+  },
+  { command: 'menu enter', what: 'Runs the focused row of the action menu' },
+]
+
 /**
- * Compact picture of the app's state for `books follow`: speed, session
- * mode, whether controls, search, or the action menu are open, the page
- * the app is on, and the word link when it differs from the page.
+ * Active overlay and mode labels for `books follow`: open search with its
+ * query, open action menu with its filter query, and expanded controls.
+ */
+const activeOverlayLabelsOf = (
+  bound: BoundBooks,
+  model: Extract<SyncedBooksModel, { _tag: 'Ready' }>,
+): ReadonlyArray<string> => [
+  ...Option.match(
+    Option.flatMap(
+      loadedTitleOf(model),
+      ({ loaded }) => loaded.player.maybeSearch,
+    ),
+    {
+      onNone: () => [],
+      onSome: search =>
+        search._tag === 'SearchIdle'
+          ? ['search open']
+          : [`search "${search.query}"`],
+    },
+  ),
+  ...Option.match(bound.menu(), {
+    onNone: () => [],
+    onSome: menu =>
+      menu.query.trim() === ''
+        ? ['menu open']
+        : [`menu "${menu.query.trim()}"`],
+  }),
+  ...(model.controls === 'Expanded' ? ['controls open'] : []),
+]
+
+/**
+ * Secondary app state line for `books follow`: speed, session mode, the
+ * page the app is on, and the word link when it differs from the page.
  */
 const appStateLineOf = (
   bound: BoundBooks,
@@ -503,18 +549,10 @@ const appStateLineOf = (
       ? new URL(address).pathname
       : address,
   )
-  const isSearchOpen = Option.exists(loadedTitleOf(model), ({ loaded }) =>
-    Option.isSome(loaded.player.maybeSearch),
-  )
-  const isLoaded = Option.isSome(loadedTitleOf(model))
   return Array.join(
     [
-      ...(isLoaded ? [] : ['paused']),
       `${model.speed.toString()}×`,
       model.session.mode === 'Mirror' ? 'mirrored' : 'local',
-      ...(model.controls === 'Expanded' ? ['controls open'] : []),
-      ...(isSearchOpen ? ['search open'] : []),
-      ...(Option.isSome(bound.menu()) ? ['menu open'] : []),
       ...(page === '' ? [] : [`page ${page}`]),
       ...Array.fromOption(
         Option.map(
@@ -527,14 +565,59 @@ const appStateLineOf = (
   )
 }
 
+const followHeaderOf = (
+  bound: BoundBooks,
+  model: Extract<SyncedBooksModel, { _tag: 'Ready' }>,
+  partHeader: UiNode | undefined,
+): UiNode => {
+  const overlays = activeOverlayLabelsOf(bound, model)
+  const stateLine = Text(appStateLineOf(bound, model), { dim: true })
+  const headerTexts = partHeader === undefined ? [] : textsOf(partHeader)
+  const headline = Option.match(Array.head(headerTexts), {
+    onNone: () => Text('❚❚ Paused · Books', { emphasis: 'Headline' }),
+    onSome: first => Text(first.content, { emphasis: 'Headline' }),
+  })
+  const detailParts = [
+    ...Array.fromOption(
+      Option.map(Array.get(headerTexts, 1), second => second.content),
+    ),
+    ...overlays,
+  ]
+  return Column(
+    {},
+    headline,
+    ...(Array.isReadonlyArrayNonEmpty(detailParts)
+      ? [Text(Array.join(detailParts, ' · '))]
+      : []),
+    stateLine,
+  )
+}
+
+const followOffersOf = (
+  bound: BoundBooks,
+  partOffers: ReadonlyArray<string>,
+): ReadonlyArray<string> => {
+  if (Option.isSome(bound.menu())) {
+    return Array.take(partOffers, 1)
+  } else {
+    const screenOffers = Option.match(bound.screen(), {
+      onNone: () => [],
+      onSome: offeredBy,
+    })
+    const catalogTags = Array.map(bound.entries(), entry => entry.tag)
+    return Array.filter(
+      Array.dedupe([...partOffers, ...screenOffers, ...catalogTags]),
+      tag => tag !== 'AddBookmark',
+    )
+  }
+}
+
 /**
  * The `words` topic a view follows. A terminal gets the words as a live
  * frame: the reader's own words fitted to its size, the mark on the word
- * being spoken, moving by the word, with compact app state above and
- * what can be run now under them, repainted in place. A pipe gets what
- * {@link wordEvents} says. Which words, what sits above them and what
- * they offer is the Books core's `wordsPartAt`; how a part is followed
- * is the library's.
+ * being spoken, moving by the word, with prominent playback, chapter, and
+ * active mode state above and live valid CLI commands under them,
+ * repainted in place. A pipe gets what {@link wordEvents} says.
  */
 const followWords = (bound: BoundBooks): CliFollowing =>
   followLive(
@@ -544,23 +627,31 @@ const followWords = (bound: BoundBooks): CliFollowing =>
         onNone: () => ({ node: Text(statusOf(bound)) }),
         onSome: model => {
           const part = wordsPartAt(model, nowMs)
-          const stateLine = Text(appStateLineOf(bound, model), { dim: true })
-          const header =
-            part.header === undefined
-              ? Column({}, Text('Books', { emphasis: 'Headline' }), stateLine)
-              : Column({}, part.header, stateLine)
-          return { ...part, header }
+          return {
+            ...part,
+            header: followHeaderOf(bound, model, part.header),
+            offers: followOffersOf(bound, part.offers),
+          }
         },
       }),
     {
       name: booksCommandName,
-      // NOTE: What this terminal adds for a word, beside what the reader
-      // offers: its own bookmark and link commands, read from their
-      // declarations, while a title is in the player.
-      hostOffers: () =>
-        Option.isSome(loadedNowOf(bound))
-          ? Array.map([Bookmark, Link], hostCommandOf)
-          : [],
+      // NOTE: Host commands valid right now: open action menu controls
+      // first when the menu is open; bookmark, link, and search while a
+      // title is in the player; and tui when idle.
+      hostOffers: () => {
+        const isLoaded = Option.isSome(loadedNowOf(bound))
+        const isMenuOpen = Option.isSome(bound.menu())
+        return [
+          ...(isMenuOpen ? menuHostCommands : []),
+          ...(isLoaded
+            ? Array.map(
+                isMenuOpen ? [Bookmark, Link] : [Bookmark, Link, Search],
+                hostCommandOf,
+              )
+            : Array.map([Tui], hostCommandOf)),
+        ]
+      },
       list: hostCommandOf(Actions),
       inkOf: inkOf(bound),
       piped: wordEvents(bound),

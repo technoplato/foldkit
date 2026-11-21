@@ -761,7 +761,7 @@ describe('books words', () => {
     ])
   })
 
-  it('sends a terminal the words laid out to be read, the mark moving by the word, with what can be run now under them', async () => {
+  it('sends a terminal the words laid out to be read, the mark moving by the word, with live valid commands under them', async () => {
     const { player } = await pausedOn('5500')
     const terminal = { 'in-place': '1', columns: '60', rows: '20' }
     const markOf = (frame: string): Option.Option<string> =>
@@ -775,57 +775,100 @@ describe('books words', () => {
     expect(lines.every(line => line.length <= 60)).toBe(true)
     expect(lines.length).toBeLessThanOrEqual(19)
     expect(lines.slice(0, 2)).toEqual([
-      '  The Lantern Keeper',
-      '  The Tide · 0:05 of 1:20:00 · paused',
+      '  ❚❚ Paused · The Lantern Keeper',
+      '  Chapter: The Tide · 0:05 of 1:20:00',
     ])
+    expect(paused).not.toContain('\u001b[')
     expect(lines).toContain('  ▎ 0:05  [He] trimmed the wick and waited.')
     expect(lines).toContain('    0:00  The keeper climbed the stairs at dusk.')
-    expect(lines.slice(-3)).toEqual([
-      '',
-      '  books play   books skip-back   books bookmark   books link',
-      '  books actions for more',
-    ])
+    const pausedFooter = lines.slice(-2).join(' ')
+    expect(pausedFooter).toContain('books play')
+    expect(pausedFooter).toContain('books skip-back')
+    expect(pausedFooter).toContain('books skip-forward')
+    expect(pausedFooter).toContain('books actions for more')
+    expect(pausedFooter).not.toContain('books pause')
     const marks = heard(player, terminal, 3, markOf)
     await settle()
     await run(player, 'play')
     expect(await marks).toEqual(['He', 'trimmed', 'the'])
     const [playing = ''] = await heard(player, terminal, 1)
-    expect(playing.split('\n')[1]).toMatch(/· playing$/)
-    expect(playing.split('\n').slice(-3)).toEqual([
-      '',
-      '  books pause   books skip-back   books bookmark',
-      '  books link   ·   books actions for more',
-    ])
+    expect(playing.split('\n')[0]).toBe('  ▶ Playing · The Lantern Keeper')
+    expect(playing.split('\n')[1]).toMatch(/^  Chapter: The Tide · /)
+    const playingFooter = playing.split('\n').slice(-2).join(' ')
+    expect(playingFooter).toContain('books pause')
+    expect(playingFooter).toContain('books skip-back')
+    expect(playingFooter).toContain('books skip-forward')
+    expect(playingFooter).not.toContain('books play')
     await run(player, 'pause')
   })
 
-  it('shows compact app state in books follow alongside the words', async () => {
+  it('shows prominent chapter, playback, menu, and search state plus dynamic live CLI commands in books follow', async () => {
     const { player, bound } = await pausedOn('5500')
-    const terminal = { 'in-place': '1', columns: '120', rows: '20' }
+    const terminal = { 'in-place': '1', columns: '100', rows: '20' }
     const [initial = ''] = await heard(player, terminal, 1)
+    expect(initial).toContain('❚❚ Paused · The Lantern Keeper')
+    expect(initial).toContain('Chapter: The Tide · 0:05 of 1:20:00')
     expect(initial).toContain('1×')
     expect(initial).toContain('local')
     expect(initial).toContain('page /books/the-lantern-keeper/listen/')
     expect(initial).toContain('/books/the-lantern-keeper/listen/5.5s')
+    expect(initial).toContain('books play')
+    expect(initial).toContain('books skip-forward')
+    expect(initial).toContain('books next-section')
+    expect(initial).not.toContain('books close-search')
+    expect(initial).not.toContain('books menu close')
+
     bound.press('SetSpeed:1.5')
     bound.press('ExpandControls')
     bound.press('ShowSearch')
     bound.press('MirrorNavigation')
+    const [withIdleSearch = ''] = await heard(player, terminal, 1)
+    expect(withIdleSearch.split('\n')[1]).toContain('search open')
+    expect(withIdleSearch.split('\n')[1]).toContain('controls open')
+    expect(withIdleSearch).toContain('1.5×')
+    expect(withIdleSearch).toContain('mirrored')
+    expect(withIdleSearch).toContain('books close-search')
+    expect(withIdleSearch).not.toContain('books next-match')
+
+    await run(player, 'search wick')
+    const [withSearchQuery = ''] = await heard(player, terminal, 1)
+    expect(withSearchQuery.split('\n')[1]).toContain('search "wick"')
+    expect(withSearchQuery).toContain('books next-match')
+    expect(withSearchQuery).toContain('books close-search')
+
     await run(player, 'open /books/menu')
-    const [updated = ''] = await heard(player, terminal, 1)
-    expect(updated).toContain('1.5×')
-    expect(updated).toContain('mirrored')
-    expect(updated).toContain('controls open')
-    expect(updated).toContain('search open')
-    expect(updated).toContain('menu open')
-    expect(updated).toContain('page /books/menu')
+    const [withMenu = ''] = await heard(player, terminal, 1)
+    expect(withMenu.split('\n')[1]).toContain('menu open')
+    expect(withMenu.split('\n')[1]).toContain('search "wick"')
+    expect(withMenu).toContain('page /books/menu')
+    expect(withMenu).toContain('books menu close')
+    expect(withMenu).toContain('books menu next')
+    expect(withMenu).toContain('books menu enter')
+
+    bound.typeInMenu('pause')
+    const [withFilteredMenu = ''] = await heard(player, terminal, 1)
+    expect(withFilteredMenu.split('\n')[1]).toContain('menu "pause"')
   })
 
-  it('inks the frame for the ground the view says its terminal has, the word being read underlined and unbracketed, and never dims', async () => {
+  it('derives live listen commands in books follow when nothing is in the player', async () => {
+    const { player } = await openBooks()
+    const terminal = { 'in-place': '1', columns: '100', rows: '20' }
+    const [idle = ''] = await heard(player, terminal, 1)
+    expect(idle).not.toContain('\u001b[')
+    expect(idle.split('\n')[0]).toBe('  ❚❚ Paused · Nothing in player')
+    expect(idle).toContain('1×')
+    expect(idle).toContain('local')
+    expect(idle).toContain('books play the-lantern-keeper')
+    expect(idle).toContain('books play small-hours')
+    expect(idle).not.toContain('books pause')
+    expect(idle).not.toContain('books skip-back')
+  })
+
+  it('inks the frame for the ground the view says its terminal has, keeps chapter and playback out of dim text, and never uses ANSI dim', async () => {
     const { player } = await pausedOn('5500')
     const terminal = {
       'in-place': '1',
-      columns: '60',
+      columns: '80',
       rows: '20',
       color: '1',
     }
@@ -834,10 +877,15 @@ describe('books words', () => {
       { ...terminal, 'terminal-ground': '15;0' },
       1,
     )
+    const darkLines = dark.split('\n')
     expect(dark).toContain(
       '\u001b[38;2;251;146;60m▎\u001b[39m \u001b[38;2;154;161;170m0:05\u001b[39m  \u001b[4m\u001b[38;2;157;184;255mHe\u001b[39m\u001b[24m trimmed the wick and waited.',
     )
-    expect(dark.split('\n')[0]).toBe('  \u001b[1mThe Lantern Keeper\u001b[22m')
+    expect(darkLines[0]).toBe(
+      '  \u001b[1m❚❚ Paused · The Lantern Keeper\u001b[22m',
+    )
+    expect(darkLines[1]).toBe('  Chapter: The Tide · 0:05 of 1:20:00')
+    expect(darkLines[1]).not.toContain('38;2;154;161;170m')
     const [light = ''] = await heard(
       player,
       { ...terminal, 'terminal-ground': '0;15' },

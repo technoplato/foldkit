@@ -47,6 +47,7 @@ import {
   bookmarkPathOf,
   bookmarkTitleOf,
 } from './bookmarks.js'
+import { suggestedPressesOf } from './brief.js'
 import {
   type ChapterReading,
   chapterColumnNames,
@@ -1595,7 +1596,8 @@ export const wordsPartAt = (model: Model, nowMs: number): FollowedPart =>
   Option.match(loadedTitleOf(model), {
     onNone: () => ({
       node: Text('Nothing is in the player.'),
-      offers: [],
+      header: Text('❚❚ Paused · Nothing in player', { emphasis: 'Headline' }),
+      offers: suggestedPressesOf(model),
       isClocked: false,
     }),
     onSome: ({ title, loaded }) => {
@@ -1604,35 +1606,62 @@ export const wordsPartAt = (model: Model, nowMs: number): FollowedPart =>
         transcriptBookmarksOf(model, title),
       )
       const isSounding = TranscriptPlayer.isSounding(loaded.player)
+      const statusLabel = M.value(loaded.player.transport).pipe(
+        M.withReturnType<string>(),
+        M.tagsExhaustive({
+          Playing: () => `▶ Playing · ${title.name}`,
+          Paused: () => `❚❚ Paused · ${title.name}`,
+          Unplayable: () => `■ Stopped · ${title.name}`,
+        }),
+      )
+      const chapterLine = Array.join(
+        [
+          ...Array.fromOption(
+            Option.map(
+              chapterNameAt(model, title.slug, placeOf(loaded)),
+              chapter => `Chapter: ${chapter}`,
+            ),
+          ),
+          `${clockOf(placeOf(loaded))} of ${clockOf(title.durationMs)}`,
+        ],
+        ' · ',
+      )
+      const activeModeOffers: ReadonlyArray<string> = [
+        ...(Option.isSome(loaded.player.maybeSearch)
+          ? [
+              TranscriptPlayer.NextMatch.tag,
+              TranscriptPlayer.PreviousMatch.tag,
+              TranscriptPlayer.ClearSearch.tag,
+              CloseSearch.tag,
+            ]
+          : []),
+        ...(Option.isSome(loaded.player.maybeLeftAtMs)
+          ? [TranscriptPlayer.BackToPlayhead.tag]
+          : []),
+        ...(model.controls === 'Expanded' ? [CollapseControls.tag] : []),
+      ]
       return {
         node: words._tag === 'Transcript' ? transcriptAt(words, nowMs) : words,
         header: Column(
           {},
-          Text(title.name, { emphasis: 'Headline' }),
-          Text(
-            Array.join(
-              [
-                ...Array.fromOption(
-                  chapterNameAt(model, title.slug, placeOf(loaded)),
-                ),
-                `${clockOf(placeOf(loaded))} of ${clockOf(title.durationMs)}`,
-                isSounding ? 'playing' : 'paused',
-              ],
-              ' · ',
-            ),
-            { dim: true },
-          ),
+          Text(statusLabel, { emphasis: 'Headline' }),
+          Text(chapterLine),
         ),
-        offers: offeredBy(
-          Row(
-            {},
-            ...playOrPauseOf(model, title, 'Ghost', true),
-            ...TranscriptPlayer.miniTransportOf(
-              loaded.player,
-              entriesOf(model),
+        offers: Array.dedupe([
+          ...activeModeOffers,
+          ...offeredBy(
+            Row(
+              {},
+              ...playOrPauseOf(model, title, 'Ghost', true),
+              ...TranscriptPlayer.miniTransportOf(
+                loaded.player,
+                entriesOf(model),
+              ),
             ),
           ),
-        ),
+          ...suggestedPressesOf(model),
+          TranscriptPlayer.PreviousSection.tag,
+        ]),
         isClocked: isSounding,
       }
     },

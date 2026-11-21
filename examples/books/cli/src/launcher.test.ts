@@ -264,16 +264,59 @@ describe(
       const last = (frames.at(-1) ?? '').split('\n').filter(line => line !== '')
       expect(last.every(line => line.length <= 60)).toBe(true)
       expect(last.length).toBeLessThanOrEqual(19)
-      expect(last[0]).toBe('  The Lantern Keeper')
-      expect(last[1]).toMatch(/^ {2}The Tide · \d+:\d\d of 1:20:00 · playing$/)
+      expect(last[0]).toBe('  ▶ Playing · The Lantern Keeper')
+      expect(last[1]).toMatch(/^ {2}Chapter: The Tide · \d+:\d\d of 1:20:00$/)
       expect(last.join('\n')).toContain('1×')
       expect(last.join('\n')).toMatch(/mirrored|local/)
       expect(last.some(line => /^ {2}▎ \d+:\d\d {2}\S/.test(line))).toBe(true)
       expect(last.join('\n')).not.toMatch(/^[#>+-] /m)
-      expect(last.join('\n')).toMatch(
-        /^ {2}books pause {3}books skip-back {3}books bookmark$/m,
-      )
-      expect(last.at(-1)).toBe('  books link   ·   books actions for more')
+      const footerText = last.slice(-2).join(' ')
+      expect(footerText).toContain('books pause')
+      expect(footerText).toContain('books skip-back')
+      expect(footerText).toContain('books skip-forward')
+      expect(footerText).toContain('books actions for more')
+    })
+
+    it('follows in a real terminal under NO_COLOR with no color escapes and zero scrollback growth', async () => {
+      if (process.platform !== 'darwin') {
+        return
+      }
+      const library = newLibrary()
+      expect(books(library, ['listen', 'lantern']).status).toBe(0)
+      const written = await new Promise<string>(resolve => {
+        const child = spawn(
+          'script',
+          [
+            '-q',
+            '/dev/null',
+            'sh',
+            '-c',
+            `stty cols 80 rows 16; exec "${launcher}" follow`,
+          ],
+          {
+            env: {
+              ...environmentOf(library, { NO_COLOR: '1' }),
+              TERM: 'xterm-256color',
+            },
+            stdio: ['ignore', 'pipe', 'pipe'],
+          },
+        )
+        const state = { text: '' }
+        child.stdout.on('data', chunk => {
+          state.text += String(chunk)
+        })
+        setTimeout(() => {
+          child.kill('SIGINT')
+          resolve(state.text)
+        }, 3_000)
+      })
+      expect(written).not.toContain('\u001b[2J')
+      expect(written).not.toContain('\u001b[38;')
+      expect(written).not.toContain('\u001b[1m')
+      expect(written).toContain('▶ Playing · The Lantern Keeper')
+      expect(written).toContain('Chapter: The Tide')
+      expect(written).toContain('books pause')
+      expect(written).toContain('books skip-forward')
     })
 
     it('opens the session’s settings and the action menu by their addresses, not a title of that name', () => {
