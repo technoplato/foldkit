@@ -3,7 +3,9 @@ import {
   Deferred,
   Duration,
   Effect,
+  Fiber,
   Layer,
+  Match as M,
   Option,
   Order,
   Predicate,
@@ -11,9 +13,11 @@ import {
   Schema as S,
   Schedule,
   Scope,
+  Semaphore,
   pipe,
 } from 'effect'
 
+import * as Pace from '../behavior/pace.js'
 import type { Ports } from '../port/port.js'
 import { type Host, hostOfFrom, print } from '../processor/host.js'
 import {
@@ -31,10 +35,12 @@ import {
 import {
   type MessageCategory,
   type MissingProgramSynchronization,
+  type PacedMessage,
   type SessionPolicy,
   includesProcessor,
   legacyMirrorSessionPolicy,
   resolveAudience,
+  resolveMessagePace,
   validateProgramSynchronization,
 } from '../synchronization/synchronization.js'
 import {
@@ -377,9 +383,19 @@ export function start<
     const engine = config.sync
     const configuredPolicy = config.policy ?? legacyMirrorSessionPolicy()
     yield* validateProgramSynchronization(configuredPolicy, program.of)
+    const runtimeScope = yield* Scope.Scope
+    const runtimeContext = yield* Effect.context<never>()
+    const runSyncInRuntime = Effect.runSyncWith(runtimeContext)
+    const runForkInRuntime = Effect.runForkWith(runtimeContext)
     const childSynchronization = program.of.synchronization
     const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
+    const childPaceOf = childSynchronization?.paceOf
     const clock = config.clock ?? nowMs
+
+    const tagOfMessage = (message: unknown): string =>
+      Predicate.hasProperty(message, '_tag') && typeof message._tag === 'string'
+        ? message._tag
+        : ''
 
     const policyOf = (childModel: Omit<ChildModel, '_tag'>): SessionPolicy =>
       childSessionPolicyOf === undefined
@@ -391,8 +407,22 @@ export function start<
         ? 'Domain'
         : childSynchronization.messageCategory(message)
 
+    const paceTargetOf = (message: unknown): Option.Option<PacedMessage> =>
+      childPaceOf === undefined
+        ? Option.none()
+        : Option.some(
+            resolveMessagePace(childPaceOf(message), tagOfMessage(message)),
+          )
+
+    const isDevicePace = (message: unknown): boolean =>
+      Option.exists(
+        paceTargetOf(message),
+        target => !Pace.isSynced(target.sync),
+      )
+
     const isLocalOnlyFromLog = (message: unknown): boolean =>
-      childSynchronization?.isLocalOnly?.(message) ?? false
+      (childSynchronization?.isLocalOnly?.(message) ?? false) ||
+      isDevicePace(message)
 
     const keepsOwnNavigation =
       childSynchronization?.keepsOwnNavigation ?? ((): boolean => false)
@@ -451,6 +481,34 @@ export function start<
     let clockMs = 0
     const outbox: Array<SyncWrite> = []
     const outboxFlushMs = 250
+    type PendingPacedWrite = Readonly<{
+      message: Message
+      maybeClient: Option.Option<Host>
+    }>
+    const paceWriteLock = yield* Semaphore.make(1)
+    let paceQueue: Pace.Queue = Pace.empty
+    const pendingPacedWrites = new Map<string, PendingPacedWrite>()
+    let maybePaceTimerFiber: Option.Option<Fiber.Fiber<void, never>> =
+      Option.none()
+    let maybePaceWakeAtMs: Option.Option<number> = Option.none()
+    let paceTimerGeneration = 0
+    let isPaceClosed = false
+
+    const cancelPaceTimer = (): void => {
+      paceTimerGeneration += 1
+      maybePaceWakeAtMs = Option.none()
+      if (Option.isSome(maybePaceTimerFiber)) {
+        const fiber = maybePaceTimerFiber.value
+        maybePaceTimerFiber = Option.none()
+        runForkInRuntime(Fiber.interrupt(fiber))
+      }
+    }
+
+    const clearPaceState = (): void => {
+      paceQueue = Pace.empty
+      pendingPacedWrites.clear()
+      cancelPaceTimer()
+    }
     const localSnapshotSaveMs = 1000
     const cursorAdvanceMs = 5000
     const [initialChildModel] = program.of.init()
@@ -584,11 +642,6 @@ export function start<
                 }),
               )
 
-    const tagOfMessage = (message: unknown): string =>
-      Predicate.hasProperty(message, '_tag') && typeof message._tag === 'string'
-        ? message._tag
-        : ''
-
     const tagOfRow = (row: unknown): string =>
       Option.match(decodeUnknown(program.message, row), {
         onNone: () => '',
@@ -615,8 +668,7 @@ export function start<
       !appliesTo(currentPolicy(), message, engine.processor, engine.processor)
 
     const isLocalOnly = (message: Message): boolean =>
-      isChildMessage(message) &&
-      (childSynchronization?.isLocalOnly?.(message) ?? false)
+      isChildMessage(message) && isLocalOnlyFromLog(message)
 
     const learnTime = (row: unknown): void => {
       const createdAtMs = readRowNumber(row, 'createdAtMs')
@@ -990,6 +1042,7 @@ export function start<
         isSaveBlocked = true
         isOutboxFrozen = true
         outbox.length = 0
+        clearPaceState()
         traceSync({ _tag: 'AuthChanged', cause: reason })
         if (Option.isSome(maybeLocalSnapshotStore)) {
           const remove = maybeLocalSnapshotStore.value.remove
@@ -1437,8 +1490,6 @@ export function start<
       }
       scheduleSharedSnapshotPublish()
     }
-
-    const runtimeScope = yield* Scope.Scope
 
     type LoadedSharedSnapshot = Readonly<{
       slot: number
@@ -2054,6 +2105,147 @@ export function start<
       yield* reconcile
     }
 
+    const takePendingPayloads = (
+      keys: ReadonlyArray<string>,
+    ): ReadonlyArray<PendingPacedWrite> =>
+      Array.filterMap(keys, key => {
+        const pending = pendingPacedWrites.get(key)
+        pendingPacedWrites.delete(key)
+        return pending === undefined ? Result.failVoid : Result.succeed(pending)
+      })
+
+    const writePacedBatch = (
+      batch: ReadonlyArray<PendingPacedWrite>,
+    ): Effect.Effect<void> =>
+      paceWriteLock.withPermit(
+        Effect.forEach(batch, item => persist(item.message, item.maybeClient), {
+          discard: true,
+        }),
+      )
+
+    const reschedulePaceTimer = (
+      maybeNextAtMs: Option.Option<number>,
+      now: number,
+    ): void => {
+      if (isPaceClosed || isOutboxFrozen || Option.isNone(maybeNextAtMs)) {
+        cancelPaceTimer()
+        return
+      }
+      const nextAtMs = maybeNextAtMs.value
+      if (
+        Option.isSome(maybePaceTimerFiber) &&
+        Option.contains(maybePaceWakeAtMs, nextAtMs)
+      ) {
+        return
+      }
+      cancelPaceTimer()
+      const generation = paceTimerGeneration
+      maybePaceWakeAtMs = Option.some(nextAtMs)
+      const delayMs =
+        nextAtMs <= now ? 0 : Math.max(1, Math.ceil(nextAtMs - now))
+      const timerEffect = Effect.gen(function* () {
+        yield* Effect.sleep(Duration.millis(delayMs))
+        if (
+          isPaceClosed ||
+          isOutboxFrozen ||
+          generation !== paceTimerGeneration
+        ) {
+          return
+        }
+        maybePaceTimerFiber = Option.none()
+        maybePaceWakeAtMs = Option.none()
+        const wakeNow = clock()
+        const looked = Pace.due(paceQueue, wakeNow)
+        paceQueue = looked.queue
+        const duePayloads = takePendingPayloads(looked.write)
+        reschedulePaceTimer(looked.maybeNextAtMs, wakeNow)
+        if (Array.isReadonlyArrayNonEmpty(duePayloads)) {
+          yield* writePacedBatch(duePayloads)
+        }
+      })
+      const forked = runSyncInRuntime(Effect.forkIn(timerEffect, runtimeScope))
+      maybePaceTimerFiber = Option.some(forked)
+    }
+
+    const enqueuePacedWrite = (
+      paceOf: NonNullable<ProgramSynchronization<any, any>['paceOf']>,
+      message: Message,
+      maybeClient: Option.Option<Host>,
+      written: Deferred.Deferred<void>,
+    ): void => {
+      if (
+        !isChildMessage(message) ||
+        isPaceClosed ||
+        isOutboxFrozen ||
+        tagOfMessage(runtime.readModel()) !== 'Ready'
+      ) {
+        Deferred.doneUnsafe(written, Effect.void)
+        return
+      }
+      const target = resolveMessagePace(paceOf(message), tagOfMessage(message))
+      const now = clock()
+      const waited = Pace.due(paceQueue, now)
+      paceQueue = waited.queue
+      const duePayloads = takePendingPayloads(waited.write)
+      const arrivalPayload: PendingPacedWrite = { message, maybeClient }
+      const next = Pace.arrived(paceQueue, {
+        part: target.part,
+        key: target.key,
+        sync: target.sync,
+        atMs: now,
+      })
+      paceQueue = next.queue
+      const arrivedPayloads = M.value(target.sync).pipe(
+        M.withReturnType<ReadonlyArray<PendingPacedWrite>>(),
+        M.tagsExhaustive({
+          Device: () => [],
+          Settled: () => {
+            pendingPacedWrites.set(target.key, arrivalPayload)
+            return []
+          },
+          Sampled: () => {
+            if (Array.isReadonlyArrayNonEmpty(next.write)) {
+              pendingPacedWrites.delete(target.key)
+              return [arrivalPayload]
+            } else {
+              pendingPacedWrites.set(target.key, arrivalPayload)
+              return []
+            }
+          },
+          Synced: () => {
+            const flushedKeys = Array.dropRight(next.write, 1)
+            return [...takePendingPayloads(flushedKeys), arrivalPayload]
+          },
+        }),
+      )
+      reschedulePaceTimer(next.maybeNextAtMs, now)
+      const toWrite = [...duePayloads, ...arrivedPayloads]
+      if (Array.isReadonlyArrayEmpty(toWrite)) {
+        Deferred.doneUnsafe(written, Effect.void)
+      } else {
+        runForkInRuntime(
+          writePacedBatch(toWrite).pipe(
+            Effect.ensuring(Deferred.succeed(written, undefined)),
+          ),
+        )
+      }
+    }
+
+    yield* Effect.addFinalizer(() =>
+      Effect.gen(function* () {
+        isPaceClosed = true
+        paceTimerGeneration += 1
+        paceQueue = Pace.empty
+        pendingPacedWrites.clear()
+        maybePaceWakeAtMs = Option.none()
+        if (Option.isSome(maybePaceTimerFiber)) {
+          const fiber = maybePaceTimerFiber.value
+          maybePaceTimerFiber = Option.none()
+          yield* Fiber.interrupt(fiber)
+        }
+      }),
+    )
+
     // NOTE: A Message's row is written the moment its update has been
     // applied, before the Commands that update returned are started. The
     // row tells every other device what was pressed; writing it only
@@ -2082,11 +2274,20 @@ export function start<
         awaitingWrite.set(transition.message, others)
       }
       if (written !== undefined) {
-        Effect.runFork(
-          persist(transition.message, clientHostOf(transition.source)).pipe(
-            Effect.ensuring(Deferred.succeed(written, undefined)),
-          ),
-        )
+        if (childPaceOf === undefined) {
+          Effect.runFork(
+            persist(transition.message, clientHostOf(transition.source)).pipe(
+              Effect.ensuring(Deferred.succeed(written, undefined)),
+            ),
+          )
+        } else {
+          enqueuePacedWrite(
+            childPaceOf,
+            transition.message,
+            clientHostOf(transition.source),
+            written,
+          )
+        }
       }
     })
     yield* Effect.addFinalizer(() => Effect.sync(stopWritingWhenTaken))

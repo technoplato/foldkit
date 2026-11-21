@@ -1,4 +1,4 @@
-export { make } from './program.js'
+export { make, resolveMessagePace } from './program.js'
 export {
   ForbiddenSubscriptionWriteError,
   applySubscriptionPatch,
@@ -150,9 +150,11 @@ export {
 
 export type {
   MessageOf,
+  MessagePace,
   ManagedResourceServicesOf,
   Migration,
   ModelOf,
+  PacedMessage,
   PortsOf,
   Program,
   ProgramCommand,

@@ -7,7 +7,6 @@ import {
   SchemaAST,
 } from 'effect'
 
-import type { Sync } from '../behavior/pace.js'
 import type { AnyCatalog } from '../catalog/catalog.js'
 import type { EffectManifest } from '../command/effectManifest.js'
 import {
@@ -25,9 +24,12 @@ import {
   type Subscriptions,
   isRuntimeScopedEntry,
 } from '../subscription/subscription.js'
-import type {
-  MessageCategory,
-  SessionPolicy,
+import {
+  type MessageCategory,
+  type MessagePace,
+  type PacedMessage,
+  type SessionPolicy,
+  resolveMessagePace,
 } from '../synchronization/synchronization.js'
 import {
   type AnyDurabilityModel,
@@ -156,9 +158,12 @@ export type ProgramSynchronization<
   isLocalOnly?: (message: Message) => boolean
   /**
    * How a Message reaches the log, for whoever writes it: at once, when
-   * its input settles, or sampled. A Program that composes parts gets
-   * this derived from what each Message declares; a Message with no word
-   * is synced at once. The pure rule a writer runs is `Pace.due`.
+   * its input settles, sampled, or device-only. Returns either a bare
+   * `Pace.Sync` (defaulting `part` and `key` to `message._tag`) or a
+   * {@link PacedMessage} (`{ part, key, sync }`) for per-Part coalescing.
+   * A Program that composes parts gets this derived from what each Message
+   * declares; a Message with no word is synced at once. The pure rule the
+   * sync runtime runs is `Pace.arrived` and `Pace.due`.
    *
    * @example
    * ```typescript
@@ -166,8 +171,10 @@ export type ProgramSynchronization<
    * // five keystrokes in a burst are one row, 200 ms after the last
    * ```
    */
-  paceOf?: (message: Message) => Sync
+  paceOf?: (message: Message) => MessagePace
 }>
+
+export { resolveMessagePace, type MessagePace, type PacedMessage }
 
 /**
  * The destinations a Program can present and how they print. See

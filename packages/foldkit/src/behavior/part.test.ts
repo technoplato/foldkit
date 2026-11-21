@@ -5,9 +5,10 @@ import { Lazy } from '../renderers/elements.js'
 import { resolveLazyTree } from '../renderers/lazy.js'
 import type { ListNode, UiNode } from '../renderers/types.js'
 import { m } from '../schema/index.js'
+import { resolveMessagePace } from '../synchronization/synchronization.js'
 import * as Shelf from '../test/shelf.js'
 import * as LongPress from './longPress.js'
-import { Device, Step, Synced, defaultPace } from './pace.js'
+import { Device, Settled, Step, Synced, defaultPace } from './pace.js'
 import * as Part from './part.js'
 import * as Slot from './slot.js'
 
@@ -412,5 +413,31 @@ describe('the answers to sync, derived from what each Message declares', () => {
     })
     expect(derived.isLocalOnly?.(openedMenu)).toBe(true)
     expect(derived.isLocalOnly?.(increment)).toBe(false)
+  })
+
+  it('preserves a child paceOf returning an explicit { part, key, sync } target', () => {
+    const keyed = {
+      part: 'Counter',
+      key: 'Counter.Increment',
+      sync: Settled({ afterMs: 120 }),
+    }
+    const derived = Part.synchronizationOf<Model, Message, Model, Message>({
+      ...lens,
+      maybeChild: Option.some({
+        messageCategory: () => 'Domain',
+        projectDomain: model => model,
+        paceOf: message => (message._tag === 'Increment' ? keyed : Synced()),
+      }),
+      hasDeviceMessages: false,
+      own,
+    })
+    expect(derived.paceOf?.(increment)).toEqual(keyed)
+    expect(derived.paceOf?.(openedMenu)).toEqual(Synced())
+    expect(resolveMessagePace(Synced(), 'OpenedMenu')).toEqual({
+      part: 'OpenedMenu',
+      key: 'OpenedMenu',
+      sync: Synced(),
+    })
+    expect(resolveMessagePace(keyed, 'Increment')).toEqual(keyed)
   })
 })

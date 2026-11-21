@@ -9,6 +9,7 @@ import {
 } from 'effect'
 
 import { isActionMenu } from '../actionMenu/actionMenu.js'
+import { Synced } from '../behavior/pace.js'
 import * as Catalog from '../catalog/catalog.js'
 import type { AnyCatalog, CatalogOf } from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
@@ -70,6 +71,7 @@ import type { UiNode } from '../renderers/types.js'
 import * as Route from '../route/parser.js'
 import { ts } from '../schema/index.js'
 import {
+  type MessagePace,
   Mirror,
   SessionPolicy,
   SharedDomain,
@@ -871,6 +873,7 @@ export const compose = <Child extends SessionChild>(config: {
   const childKeepOnRefold = childSynchronization?.keepOnRefold
   const childProjectLocal = childSynchronization?.projectLocal
   const childIsLocalOnly = childSynchronization?.isLocalOnly
+  const childPaceOf = childSynchronization?.paceOf
   const childFoldSynced = childSynchronization?.foldSynced
   const initialCache: { maybeModel: Option.Option<AppModel> } = {
     maybeModel: Option.none(),
@@ -1010,6 +1013,12 @@ export const compose = <Child extends SessionChild>(config: {
         : {
             isLocalOnly: (message: AppMessage): boolean =>
               isChildMessage(message) && childIsLocalOnly(message),
+          }),
+      ...(childPaceOf === undefined
+        ? {}
+        : {
+            paceOf: (message: AppMessage): MessagePace =>
+              isChildMessage(message) ? childPaceOf(message) : Synced(),
           }),
       ...(liftedFoldSynced === undefined
         ? {}

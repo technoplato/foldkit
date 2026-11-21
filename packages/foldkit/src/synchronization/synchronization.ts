@@ -9,6 +9,7 @@ import {
   Schema as S,
 } from 'effect'
 
+import type { Sync } from '../behavior/pace.js'
 import { ProcessorId } from '../processor/processor.js'
 
 const NonNegativeGeneration = S.Int.check(S.isGreaterThanOrEqualTo(0))
@@ -273,3 +274,56 @@ export const validateProgramSynchronization = (
     )
   }
 }
+
+/**
+ * Explicit pacing target for one Message: the part that owns it, the
+ * coalescing key inside `Pace.Queue`, and the `Pace.Sync` rule.
+ *
+ * @example
+ * ```typescript
+ * const target: PacedMessage = {
+ *   part: 'Search',
+ *   key: 'Search.Typed',
+ *   sync: Pace.Settled({ afterMs: 200 }),
+ * }
+ * ```
+ */
+export type PacedMessage = Readonly<{
+  part: string
+  key: string
+  sync: Sync
+}>
+
+/**
+ * How one Message is paced before writing to the sync log: either a bare
+ * `Pace.Sync` (defaulting `part` and `key` to `message._tag`) or an explicit
+ * {@link PacedMessage} for per-Part coalescing.
+ *
+ * @example
+ * ```typescript
+ * const bare: MessagePace = Pace.Settled({ afterMs: 200 })
+ * const keyed: MessagePace = {
+ *   part: 'Email',
+ *   key: 'Email.Typed',
+ *   sync: Pace.Settled({ afterMs: 200 }),
+ * }
+ * ```
+ */
+export type MessagePace = Sync | PacedMessage
+
+/**
+ * Normalizes a {@link MessagePace} into a concrete {@link PacedMessage},
+ * defaulting `part` and `key` to `messageTag` when a bare `Pace.Sync` was
+ * returned.
+ *
+ * @example
+ * ```typescript
+ * resolveMessagePace(Pace.Synced(), 'Submit')
+ * // { part: 'Submit', key: 'Submit', sync: { _tag: 'Synced' } }
+ * ```
+ */
+export const resolveMessagePace = (
+  pace: MessagePace,
+  messageTag: string,
+): PacedMessage =>
+  'sync' in pace ? pace : { part: messageTag, key: messageTag, sync: pace }

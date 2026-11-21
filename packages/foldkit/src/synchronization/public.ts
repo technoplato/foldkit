@@ -18,7 +18,10 @@ export {
   legacyMirrorSessionPolicy,
   processorsInFollowMode,
   resolveAudience,
+  resolveMessagePace,
   validateProgramSynchronization,
+  type MessagePace,
+  type PacedMessage,
 } from './synchronization.js'
 
 export {
