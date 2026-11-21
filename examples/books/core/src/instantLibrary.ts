@@ -1,6 +1,7 @@
 import {
   Array,
   Cause,
+  Deferred,
   Effect,
   Function,
   Match as M,
@@ -647,148 +648,160 @@ const progressStep = (
  * ```
  */
 export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
-  Effect.map(
-    Ref.make<Decoded>({
+  Effect.gen(function* () {
+    const latest = yield* Ref.make<Decoded>({
       shelf: { titles: [], progress: [], bookmarks: [] },
       index: new Map(),
-    }),
-    latest => {
-      // NOTE: Three live queries, by how often each changes, joined into
-      // the one shelf: the first shelf is sent once all three have
-      // answered, then again whenever one of them does. Each title's
-      // cover and audio address is the one this store already holds for
-      // that file while it still works, so a renewed signature changes
-      // nothing a Client sees and loads nothing again.
-      const held = Effect.runSync(Ref.make<HeldAddresses>(new Map()))
-      const rowsIn = (table: string) => (data: unknown) =>
-        Option.getOrElse(
-          Option.flatMap(
-            S.decodeUnknownOption(S.Record(S.String, S.Unknown))(data),
-            tables => Record_.get(tables, table),
+    })
+    const firstShelf = yield* Deferred.make<void>()
+    // NOTE: Three live queries, by how often each changes, joined into
+    // the one shelf: the first shelf is sent once all three have
+    // answered, then again whenever one of them does. Each title's
+    // cover and audio address is the one this store already holds for
+    // that file while it still works, so a renewed signature changes
+    // nothing a Client sees and loads nothing again.
+    const held = yield* Ref.make<HeldAddresses>(new Map())
+    const rowsIn = (table: string) => (data: unknown) =>
+      Option.getOrElse(
+        Option.flatMap(
+          S.decodeUnknownOption(S.Record(S.String, S.Unknown))(data),
+          tables => Record_.get(tables, table),
+        ),
+        (): unknown => [],
+      )
+    const shelf = Stream.zipLatestAll(
+      observed(database, titlesQuery, rowsIn('libraryItems')),
+      observed(database, placesQuery, rowsIn('libraryProgress')),
+      observed(database, bookmarksQuery, rowsIn('libraryBookmarks')),
+    ).pipe(
+      Stream.map(([libraryItems, libraryProgress, libraryBookmarks]) =>
+        decodeLibrary({ libraryItems, libraryProgress, libraryBookmarks }),
+      ),
+      Stream.mapEffect(decoded =>
+        Ref.modify(held, addresses => {
+          const kept = withKeptAddresses(decoded, addresses, Date.now())
+          return [kept.decoded, kept.addresses]
+        }),
+      ),
+      Stream.tap(decoded =>
+        Effect.tap(Ref.set(latest, decoded), () =>
+          Deferred.succeed(firstShelf, undefined),
+        ),
+      ),
+      Stream.map(decoded => decoded.shelf),
+    )
+
+    // NOTE: A warm local snapshot can start chapters and writes before
+    // Instant's live shelf queries answer for the first time. Waiting on
+    // `firstShelf` keeps them from failing against an empty index while
+    // still failing once a live shelf arrives without that slug.
+    const awaitedShelf = Effect.flatMap(Deferred.await(firstShelf), () =>
+      Ref.get(latest),
+    )
+
+    const entryOf = (slug: TitleSlug) =>
+      Effect.flatMap(awaitedShelf, decoded => entryFor(decoded, slug))
+
+    const chapters = (slug: TitleSlug) =>
+      Stream.unwrap(
+        Effect.map(entryOf(slug), entry =>
+          observed(database, chaptersQueryOf(entry.bookId), data =>
+            decodeChapters(data, entry.title),
           ),
-          (): unknown => [],
-        )
-      const shelf = Stream.zipLatestAll(
-        observed(database, titlesQuery, rowsIn('libraryItems')),
-        observed(database, placesQuery, rowsIn('libraryProgress')),
-        observed(database, bookmarksQuery, rowsIn('libraryBookmarks')),
-      ).pipe(
-        Stream.map(([libraryItems, libraryProgress, libraryBookmarks]) =>
-          decodeLibrary({ libraryItems, libraryProgress, libraryBookmarks }),
         ),
-        Stream.mapEffect(decoded =>
-          Ref.modify(held, addresses => {
-            const kept = withKeptAddresses(decoded, addresses, Date.now())
-            return [kept.decoded, kept.addresses]
-          }),
-        ),
-        Stream.tap(decoded => Ref.set(latest, decoded)),
-        Stream.map(decoded => decoded.shelf),
       )
 
-      const chapters = (slug: TitleSlug) =>
-        Stream.unwrap(
-          Effect.map(
-            Effect.flatMap(Ref.get(latest), decoded => entryFor(decoded, slug)),
-            entry =>
-              observed(database, chaptersQueryOf(entry.bookId), data =>
-                decodeChapters(data, entry.title),
-              ),
-          ),
-        )
-
-      const stepsFor = (write: LibraryWrite, owner: string, decoded: Decoded) =>
-        M.value(write).pipe(
-          M.tagsExhaustive({
-            SavePlace: ({ slug, placeMs }) =>
-              Effect.flatMap(entryFor(decoded, slug), entry =>
-                Effect.map(
-                  progressStep(database, owner, entry, {
-                    relativeMs: placeMs,
-                    finishedKind: unfinishedKind,
-                  }),
-                  Array.of,
-                ),
-              ),
-            FinishTitle: ({ slug }) =>
-              Effect.flatMap(entryFor(decoded, slug), entry =>
-                Effect.map(
-                  progressStep(database, owner, entry, {
-                    relativeMs: 0,
-                    finishedKind,
-                    finishedAtMs: Date.now(),
-                  }),
-                  Array.of,
-                ),
-              ),
-            AddBookmarkAt: ({
-              slug,
-              atMs,
-              maybeNote,
-              maybeExcerpt,
-              maybeCreatedAtMs,
-            }) =>
-              Effect.flatMap(entryFor(decoded, slug), entry =>
-                Effect.map(tableOf(database, 'libraryBookmarks', id()), row => [
-                  row
-                    .update({
-                      ownerUserID: owner,
-                      formatVersion: 1,
-                      markKind: 'place',
-                      relativeMs: atMs,
-                      createdAtMs: Option.getOrElse(maybeCreatedAtMs, () =>
-                        Date.now(),
-                      ),
-                      ...Option.match(maybeNote, {
-                        onNone: () => ({}),
-                        onSome: note => ({ note }),
-                      }),
-                      ...Option.match(maybeExcerpt, {
-                        onNone: () => ({}),
-                        onSome: excerpt => ({
-                          excerptJSON: S.encodeSync(ExcerptJson)(excerpt),
-                        }),
-                      }),
-                    })
-                    .link({ item: entry.itemId }),
-                ]),
-              ),
-            NoteBookmark: ({ bookmarkId, maybeNote }) =>
+    const stepsFor = (write: LibraryWrite, owner: string) =>
+      M.value(write).pipe(
+        M.tagsExhaustive({
+          SavePlace: ({ slug, placeMs }) =>
+            Effect.flatMap(entryOf(slug), entry =>
               Effect.map(
-                tableOf(database, 'libraryBookmarks', bookmarkId),
-                row => [
-                  row.update({ note: Option.getOrElse(maybeNote, () => '') }),
-                ],
+                progressStep(database, owner, entry, {
+                  relativeMs: placeMs,
+                  finishedKind: unfinishedKind,
+                }),
+                Array.of,
               ),
-            RemoveBookmark: ({ bookmarkId }) =>
+            ),
+          FinishTitle: ({ slug }) =>
+            Effect.flatMap(entryOf(slug), entry =>
               Effect.map(
-                tableOf(database, 'libraryBookmarks', bookmarkId),
-                row => [row.delete()],
+                progressStep(database, owner, entry, {
+                  relativeMs: 0,
+                  finishedKind,
+                  finishedAtMs: Date.now(),
+                }),
+                Array.of,
               ),
-          }),
-        )
-
-      const write = (libraryWrite: LibraryWrite) =>
-        Effect.gen(function* () {
-          const owner = yield* ownerOf(database)
-          const decoded = yield* Ref.get(latest)
-          const steps = yield* stepsFor(libraryWrite, owner, decoded)
-          yield* transacted(database, steps)
-        })
-
-      const member = Stream.callback<Option.Option<string>>(queue =>
-        Effect.acquireRelease(
-          Effect.sync(() =>
-            database.subscribeAuth(auth => {
-              Queue.offerUnsafe(
-                queue,
-                Option.fromNullishOr(auth.user?.email ?? undefined),
-              )
-            }),
-          ),
-          unsubscribe => Effect.sync(unsubscribe),
-        ),
+            ),
+          AddBookmarkAt: ({
+            slug,
+            atMs,
+            maybeNote,
+            maybeExcerpt,
+            maybeCreatedAtMs,
+          }) =>
+            Effect.flatMap(entryOf(slug), entry =>
+              Effect.map(tableOf(database, 'libraryBookmarks', id()), row => [
+                row
+                  .update({
+                    ownerUserID: owner,
+                    formatVersion: 1,
+                    markKind: 'place',
+                    relativeMs: atMs,
+                    createdAtMs: Option.getOrElse(maybeCreatedAtMs, () =>
+                      Date.now(),
+                    ),
+                    ...Option.match(maybeNote, {
+                      onNone: () => ({}),
+                      onSome: note => ({ note }),
+                    }),
+                    ...Option.match(maybeExcerpt, {
+                      onNone: () => ({}),
+                      onSome: excerpt => ({
+                        excerptJSON: S.encodeSync(ExcerptJson)(excerpt),
+                      }),
+                    }),
+                  })
+                  .link({ item: entry.itemId }),
+              ]),
+            ),
+          NoteBookmark: ({ bookmarkId, maybeNote }) =>
+            Effect.map(
+              tableOf(database, 'libraryBookmarks', bookmarkId),
+              row => [
+                row.update({ note: Option.getOrElse(maybeNote, () => '') }),
+              ],
+            ),
+          RemoveBookmark: ({ bookmarkId }) =>
+            Effect.map(
+              tableOf(database, 'libraryBookmarks', bookmarkId),
+              row => [row.delete()],
+            ),
+        }),
       )
-      return LibraryStore.of({ shelf, chapters, member, write })
-    },
-  )
+
+    const write = (libraryWrite: LibraryWrite) =>
+      Effect.gen(function* () {
+        const owner = yield* ownerOf(database)
+        const steps = yield* stepsFor(libraryWrite, owner)
+        yield* transacted(database, steps)
+      })
+
+    const member = Stream.callback<Option.Option<string>>(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() =>
+          database.subscribeAuth(auth => {
+            Queue.offerUnsafe(
+              queue,
+              Option.fromNullishOr(auth.user?.email ?? undefined),
+            )
+          }),
+        ),
+        unsubscribe => Effect.sync(unsubscribe),
+      ),
+    )
+
+    return LibraryStore.of({ shelf, chapters, member, write })
+  })

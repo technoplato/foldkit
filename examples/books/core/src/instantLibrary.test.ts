@@ -1,11 +1,11 @@
-import { Array, Effect, Fiber, Option, Stream } from 'effect'
+import { Array, Duration, Effect, Exit, Fiber, Option, Stream } from 'effect'
 import { Navigation } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import type { ProgramLogDatabase } from '@foldkit/instant/browser'
 
 import { App } from './app.js'
-import { TitleSlug } from './ids.js'
+import { Milliseconds, TitleSlug } from './ids.js'
 import {
   bookmarksQuery,
   chaptersQueryOf,
@@ -17,6 +17,7 @@ import {
   titlesQuery,
 } from './instantLibrary.js'
 import { decodeSegments } from './instantTranscript.js'
+import { AddBookmarkAt, FinishTitle, SavePlace } from './library.js'
 import type { Shelf } from './model.js'
 import { titleTagStands } from './nameTags.js'
 import { sampleTitles } from './sample.js'
@@ -83,21 +84,64 @@ const chapterRows = (bookId: string) =>
 
 const lantern = Option.getOrThrow(Array.head(sampleTitles))
 
+type FakeStep = Readonly<{
+  namespace: string
+  id: string
+  attrs: Readonly<Record<string, unknown>>
+  links: Readonly<Record<string, string>>
+  deleted: boolean
+}>
+
 const fakeDatabase = () => {
   const subscriptions: Array<
     Readonly<{ query: unknown; respond: (response: unknown) => void }>
   > = []
+  const transactions: Array<ReadonlyArray<FakeStep>> = []
+  const stepOf = (namespace: string, id: string) => {
+    const step = { namespace, id, attrs: {}, links: {}, deleted: false }
+    const chain = {
+      update: (attrs: Record<string, unknown>) => {
+        step.attrs = attrs
+        return chain
+      },
+      link: (links: Record<string, string>) => {
+        step.links = links
+        return chain
+      },
+      delete: () => {
+        step.deleted = true
+        return chain
+      },
+      step,
+    }
+    return chain
+  }
+  const tx = new Proxy(
+    {},
+    {
+      get: (_target, namespace: string) =>
+        new Proxy({}, { get: (_inner, id: string) => stepOf(namespace, id) }),
+    },
+  )
   const database = {
+    getAuth: () =>
+      Promise.resolve({ id: 'owner-1', email: 'listener@example.invalid' }),
     subscribeQuery: (query: unknown, respond: (response: unknown) => void) => {
       subscriptions.push({ query, respond })
       return () => undefined
     },
     subscribeAuth: () => () => undefined,
+    transact: (steps: ReadonlyArray<{ step: FakeStep }>) => {
+      transactions.push(Array.map(steps, ({ step }) => step))
+      return Promise.resolve({ status: 'synced' })
+    },
+    tx,
   }
   return {
     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
     database: database as unknown as ProgramLogDatabase,
     subscriptions,
+    transactions,
   }
 }
 
@@ -604,13 +648,106 @@ describe('makeInstantLibraryStore', () => {
     )
   })
 
-  it('refuses the chapters of a title that is not on the shelf', async () => {
-    const { database } = fakeDatabase()
+  it('refuses the chapters of a title that is not on the shelf once the shelf has arrived', async () => {
+    const { database, subscriptions } = fakeDatabase()
     const store = await Effect.runPromise(makeInstantLibraryStore(database))
+    const shelfRead = Effect.runFork(Stream.runHead(store.shelf))
+    const queries = await answering(subscriptions)
+    queries.titles.respond({ data: { libraryItems: [] } })
+    queries.places.respond({ data: { libraryProgress: [] } })
+    queries.bookmarks.respond({ data: { libraryBookmarks: [] } })
+    await Effect.runPromise(Fiber.join(shelfRead))
     const error = await Effect.runPromise(
       Effect.flip(Stream.runHead(store.chapters(TitleSlug.make('gone')))),
     )
     expect(error.reason).toEqual('that title is not in the library')
+  })
+
+  it('waits for the first shelf before reading chapters, and interrupts cleanly while waiting', async () => {
+    const { database, subscriptions } = fakeDatabase()
+    const store = await Effect.runPromise(makeInstantLibraryStore(database))
+    const waiting = Effect.runFork(
+      Stream.runHead(store.chapters(TitleSlug.make('small-hours'))),
+    )
+    const cancelled = Effect.runFork(
+      Stream.runHead(store.chapters(TitleSlug.make('small-hours'))),
+    )
+    const shelfRead = Effect.runFork(Stream.runHead(store.shelf))
+    const queries = await answering(subscriptions)
+    await Effect.runPromise(Effect.sleep(Duration.millis(20)))
+    await Effect.runPromise(Fiber.interrupt(cancelled))
+    const cancelledExit = await Effect.runPromise(Fiber.await(cancelled))
+    expect(Exit.hasInterrupts(cancelledExit)).toBe(true)
+
+    queries.titles.respond({
+      data: { libraryItems: [itemRow('item-1', 'Small Hours', 1)] },
+    })
+    queries.places.respond({ data: { libraryProgress: [] } })
+    queries.bookmarks.respond({ data: { libraryBookmarks: [] } })
+    await Effect.runPromise(Fiber.join(shelfRead))
+
+    await until(() => subscriptions.length === 4)
+    const chaptersQuery = subscriptions[3]
+    expect(chaptersQuery?.query).toEqual(chaptersQueryOf('book-of-item-1'))
+    chaptersQuery?.respond({
+      data: { libraryChapters: chapterRows('book-of-item-1') },
+    })
+    const maybeChapters = await Effect.runPromise(Fiber.join(waiting))
+    expect(
+      Option.map(maybeChapters, read =>
+        Array.map(read, chapter => chapter.name),
+      ),
+    ).toEqual(Option.some(['One', 'Two']))
+  })
+
+  it('waits for the first shelf before running slug-based writes', async () => {
+    const { database, subscriptions, transactions } = fakeDatabase()
+    const store = await Effect.runPromise(makeInstantLibraryStore(database))
+    const slug = TitleSlug.make('small-hours')
+    const saveFiber = Effect.runFork(
+      store.write(SavePlace({ slug, placeMs: Milliseconds.make(45_000) })),
+    )
+    const finishFiber = Effect.runFork(store.write(FinishTitle({ slug })))
+    const bookmarkFiber = Effect.runFork(
+      store.write(
+        AddBookmarkAt({
+          slug,
+          atMs: Milliseconds.make(12_000),
+          maybeNote: Option.some('keep this'),
+          maybeExcerpt: Option.none(),
+          maybeCreatedAtMs: Option.some(100),
+        }),
+      ),
+    )
+    const shelfRead = Effect.runFork(Stream.runHead(store.shelf))
+    const queries = await answering(subscriptions)
+    await Effect.runPromise(Effect.sleep(Duration.millis(20)))
+    expect(transactions).toEqual([])
+
+    queries.titles.respond({
+      data: { libraryItems: [itemRow('item-1', 'Small Hours', 1)] },
+    })
+    queries.places.respond({ data: { libraryProgress: [] } })
+    queries.bookmarks.respond({ data: { libraryBookmarks: [] } })
+    await Effect.runPromise(Fiber.join(shelfRead))
+
+    await Effect.runPromise(
+      Effect.all([
+        Fiber.join(saveFiber),
+        Fiber.join(finishFiber),
+        Fiber.join(bookmarkFiber),
+      ]),
+    )
+    expect(transactions).toHaveLength(3)
+    expect(
+      Array.map(transactions, steps =>
+        Option.map(Array.head(steps), step => [step.namespace, step.links]),
+      ),
+    ).toEqual([
+      Option.some(['libraryProgress', { item: 'item-1' }]),
+      Option.some(['libraryProgress', { item: 'item-1' }]),
+      Option.some(['libraryBookmarks', { item: 'item-1' }]),
+    ])
   })
 })
 

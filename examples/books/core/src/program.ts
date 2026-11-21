@@ -1,4 +1,4 @@
-import { Match as M, Option } from 'effect'
+import { Match as M, Option, Record as Record_ } from 'effect'
 import { Program } from 'foldkit'
 import * as CodeUpdates from 'foldkit/code-updates'
 import * as Theme from 'foldkit/theme'
@@ -218,6 +218,10 @@ export const BooksProgram = Program.make({
     }),
     projectLocal: model => ({
       ...model,
+      chapters: Record_.filter(
+        model.chapters,
+        state => state._tag === 'ChaptersReady',
+      ),
       listening:
         model.listening._tag === 'Loaded'
           ? {

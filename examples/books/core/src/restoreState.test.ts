@@ -1,11 +1,25 @@
-import { Array, Duration, Effect, Layer, Option, Stream } from 'effect'
+import {
+  Array,
+  Duration,
+  Effect,
+  Layer,
+  Option,
+  Record as Record_,
+  Stream,
+} from 'effect'
 import { ActionMenu, Runtime } from 'foldkit'
 import { AudioOutput, noTranscripts } from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
 
+import type { ProgramLogDatabase } from '@foldkit/instant/browser'
+
 import { TitleSlug } from './ids.js'
+import { init } from './init.js'
+import { chaptersQueryOf, makeInstantLibraryStore } from './instantLibrary.js'
 import { LibraryStore } from './library.js'
 import { SetSpeed } from './message.js'
+import { ChaptersReady, ChaptersUnavailable } from './model.js'
+import { BooksProgram } from './program.js'
 import {
   makeTestLibraryStore,
   noReadAloud,
@@ -223,5 +237,266 @@ describe('Books force-close state restoration', () => {
         }),
       ),
     )
+  })
+
+  it('waits for the live Instant shelf on warm reopen instead of failing chapters with that title is not in the library', async () => {
+    const newEarth = TitleSlug.make('a-new-earth')
+    const itemRow = {
+      id: 'item-1',
+      addedAtMs: 1,
+      book: [
+        {
+          id: 'book-of-item-1',
+          title: 'A New Earth',
+          authors: [{ name: 'Eckhart Tolle' }],
+          narrators: [{ name: 'Eckhart Tolle' }],
+          cover: [],
+        },
+      ],
+      preferredAudio: [
+        {
+          id: 'rendition-1',
+          durationMs: 2_400_000,
+          files: [{ blob: [{ url: 'https://files.example/earth.m4b' }] }],
+        },
+      ],
+    }
+    const progressRow = {
+      id: 'progress-1',
+      relativeMs: 54_000,
+      finishedKind: 'unfinished',
+      startedAtMs: 1,
+      updatedAtMs: 100,
+      item: [{ id: 'item-1' }],
+    }
+    const makeFakeDb = () => {
+      const subscriptions: Array<
+        Readonly<{ query: unknown; respond: (response: unknown) => void }>
+      > = []
+      const database = {
+        subscribeQuery: (
+          query: unknown,
+          respond: (response: unknown) => void,
+        ) => {
+          subscriptions.push({ query, respond })
+          return () => undefined
+        },
+        subscribeAuth: () => () => undefined,
+      }
+      const queryFor = (table: string) =>
+        Array.findFirst(subscriptions, subscription =>
+          JSON.stringify(subscription.query).startsWith(`{"${table}"`),
+        )
+      return {
+        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+        database: database as unknown as ProgramLogDatabase,
+        subscriptions,
+        queryFor,
+      }
+    }
+    const resourcesFor = (database: ProgramLogDatabase) =>
+      Effect.gen(function* () {
+        const sharing = yield* makeTestLinkSharing()
+        return Layer.mergeAll(
+          Layer.effect(LibraryStore, makeInstantLibraryStore(database)),
+          Layer.succeed(AudioOutput, { sound: () => Stream.never }),
+          noTranscripts,
+          sharing.layer,
+          noReadAloud,
+          noScribeTimeline,
+        )
+      })
+    const syncStore = Runtime.makeMemoryStore()
+    const snapshots = Runtime.LocalSnapshot.memory()
+
+    // Session 1: boot cold, answer live shelf + chapters, persist warm local snapshot on close.
+    const fakeDb1 = makeFakeDb()
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const resources = yield* resourcesFor(fakeDb1.database)
+          const runtime = yield* Runtime.start({
+            program: SyncedBooks,
+            sync: Runtime.Memory({
+              processor: 'expo-ios-run-1',
+              store: syncStore,
+            }),
+            resources,
+            localSnapshot: snapshots,
+          })
+          yield* runtime.caughtUp
+          yield* waitedUntil(
+            () =>
+              Option.isSome(fakeDb1.queryFor('libraryItems')) &&
+              Option.isSome(fakeDb1.queryFor('libraryProgress')) &&
+              Option.isSome(fakeDb1.queryFor('libraryBookmarks')),
+          )
+          Option.getOrThrow(fakeDb1.queryFor('libraryItems')).respond({
+            data: { libraryItems: [itemRow] },
+          })
+          Option.getOrThrow(fakeDb1.queryFor('libraryProgress')).respond({
+            data: { libraryProgress: [progressRow] },
+          })
+          Option.getOrThrow(fakeDb1.queryFor('libraryBookmarks')).respond({
+            data: { libraryBookmarks: [] },
+          })
+          yield* waitedUntil(() =>
+            Option.isSome(fakeDb1.queryFor('libraryChapters')),
+          )
+          Option.getOrThrow(fakeDb1.queryFor('libraryChapters')).respond({
+            data: {
+              libraryChapters: [
+                {
+                  id: 'book-of-item-1-chapter-0',
+                  index: 0,
+                  title: 'The Flowering of Human Consciousness',
+                  startMs: 0,
+                  endMs: 1_200_000,
+                },
+                {
+                  id: 'book-of-item-1-chapter-1',
+                  index: 1,
+                  title: 'Ego: The Current State of Humanity',
+                  startMs: 1_200_000,
+                  endMs: 2_400_000,
+                },
+              ],
+            },
+          })
+          yield* waitedUntil(() => {
+            const model = runtime.readModel()
+            return (
+              model._tag === 'Ready' &&
+              Option.exists(
+                Record_.get(model.chapters, newEarth),
+                state => state._tag === 'ChaptersReady',
+              )
+            )
+          })
+        }),
+      ),
+    )
+
+    // Session 2: fresh Instant store with empty latest Ref reopens from the warm local snapshot.
+    const fakeDb2 = makeFakeDb()
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const resources = yield* resourcesFor(fakeDb2.database)
+          const runtime = yield* Runtime.start({
+            program: SyncedBooks,
+            sync: Runtime.Memory({
+              processor: 'expo-ios-run-2',
+              store: syncStore,
+            }),
+            resources,
+            localSnapshot: snapshots,
+          })
+          yield* runtime.caughtUp
+          // Give shelf and chapters subscriptions time to run before Instant answers.
+          yield* Effect.sleep(Duration.millis(40))
+          const whileWaiting = runtime.readModel()
+          expect(whileWaiting._tag).toBe('Ready')
+          if (whileWaiting._tag === 'Ready') {
+            expect(
+              Option.map(
+                Record_.get(whileWaiting.chapters, newEarth),
+                state => state._tag,
+              ),
+            ).toEqual(Option.some('ChaptersReady'))
+          }
+
+          yield* waitedUntil(
+            () =>
+              Option.isSome(fakeDb2.queryFor('libraryItems')) &&
+              Option.isSome(fakeDb2.queryFor('libraryProgress')) &&
+              Option.isSome(fakeDb2.queryFor('libraryBookmarks')),
+          )
+          Option.getOrThrow(fakeDb2.queryFor('libraryItems')).respond({
+            data: { libraryItems: [itemRow] },
+          })
+          Option.getOrThrow(fakeDb2.queryFor('libraryProgress')).respond({
+            data: { libraryProgress: [progressRow] },
+          })
+          Option.getOrThrow(fakeDb2.queryFor('libraryBookmarks')).respond({
+            data: { libraryBookmarks: [] },
+          })
+
+          yield* waitedUntil(() =>
+            Option.isSome(fakeDb2.queryFor('libraryChapters')),
+          )
+          const chaptersSubscription = Option.getOrThrow(
+            fakeDb2.queryFor('libraryChapters'),
+          )
+          expect(chaptersSubscription.query).toEqual(
+            chaptersQueryOf('book-of-item-1'),
+          )
+          chaptersSubscription.respond({
+            data: {
+              libraryChapters: [
+                {
+                  id: 'book-of-item-1-chapter-0',
+                  index: 0,
+                  title: 'Updated Chapter One',
+                  startMs: 0,
+                  endMs: 1_200_000,
+                },
+              ],
+            },
+          })
+          yield* waitedUntil(() => {
+            const model = runtime.readModel()
+            if (model._tag !== 'Ready') {
+              return false
+            }
+            const state = Record_.get(model.chapters, newEarth)
+            return Option.exists(
+              state,
+              chapters =>
+                chapters._tag === 'ChaptersReady' &&
+                Array.headNonEmpty(chapters.chapters).name ===
+                  'Updated Chapter One',
+            )
+          })
+          const afterLive = runtime.readModel()
+          expect(afterLive._tag).toBe('Ready')
+          if (afterLive._tag === 'Ready') {
+            expect(
+              Option.map(Record_.get(afterLive.chapters, newEarth), state =>
+                state._tag === 'ChaptersReady'
+                  ? Array.map(state.chapters, chapter => chapter.name)
+                  : [state.reason],
+              ),
+            ).toEqual(Option.some(['Updated Chapter One']))
+          }
+        }),
+      ),
+    )
+  })
+
+  it('drops ChaptersUnavailable entries in projectLocal while keeping ChaptersReady entries', () => {
+    const [initial] = init()
+    const readySlug = TitleSlug.make('the-lantern-keeper')
+    const failedSlug = TitleSlug.make('small-hours')
+    const readyChapters = Option.getOrThrow(
+      Record_.get(sampleChapters, readySlug),
+    )
+    const modelWithBoth = {
+      ...initial,
+      chapters: Record_.fromEntries([
+        [readySlug, ChaptersReady({ chapters: readyChapters })],
+        [
+          failedSlug,
+          ChaptersUnavailable({ reason: 'that title is not in the library' }),
+        ],
+      ]),
+    }
+    const projectLocal = BooksProgram.synchronization?.projectLocal
+    expect(projectLocal).toBeDefined()
+    if (projectLocal !== undefined) {
+      const projected = projectLocal(modelWithBoth)
+      expect(Record_.has(projected.chapters, readySlug)).toBe(true)
+      expect(Record_.has(projected.chapters, failedSlug)).toBe(false)
+    }
   })
 })
