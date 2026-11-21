@@ -426,7 +426,27 @@ const leftBeforeSwitch = (model: Model): UpdateReturn => {
 }
 
 const loadedWith = (model: Model, title: Title): Model => {
-  if (Option.contains(loadedSlugOf(model), title.slug)) {
+  if (
+    model.listening._tag === 'Loaded' &&
+    model.listening.slug === title.slug
+  ) {
+    if (
+      Option.isNone(model.listening.player.media.maybeAudioUrl) &&
+      Option.isSome(title.maybeAudioUrl)
+    ) {
+      return withLoaded(
+        model,
+        changedLoaded(model.listening, {
+          player: {
+            ...model.listening.player,
+            media: {
+              ...model.listening.player.media,
+              maybeAudioUrl: title.maybeAudioUrl,
+            },
+          },
+        }),
+      )
+    }
     return model
   } else {
     const placeMs = resumePlaceOf(model, title.slug)

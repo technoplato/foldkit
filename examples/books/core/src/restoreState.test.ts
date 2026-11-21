@@ -235,6 +235,66 @@ describe('Books force-close state restoration', () => {
         }),
       ),
     )
+
+    // Session 4: reopen online (LibraryStore emits shelf); Play must re-enable and play.
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* Runtime.start({
+            program: SyncedBooks,
+            sync: Runtime.Memory({
+              processor: 'expo-ios-run-4',
+              store: syncStore,
+            }),
+            resources: liveResources,
+            localSnapshot: snapshots,
+          })
+          yield* runtime.caughtUp
+          yield* waitedUntil(() => {
+            const model = runtime.readModel()
+            return (
+              model._tag === 'Ready' &&
+              model.library._tag === 'ShelfReady' &&
+              model.listening._tag === 'Loaded' &&
+              Option.isSome(model.listening.player.media.maybeAudioUrl)
+            )
+          })
+          const bound = bindBooks({
+            readModel: () => runtime.readModel(),
+            subscribe: runtime.observeModel,
+            send: message => {
+              runtime.send(message)
+            },
+            stop: () => Promise.resolve(),
+          })
+          const playEntry = Array.findFirst(
+            bound.entries(),
+            entry => entry.tag === 'Play',
+          )
+          expect(Option.isSome(playEntry)).toBe(true)
+          if (Option.isSome(playEntry)) {
+            expect(playEntry.value.availability._tag).toBe('Enabled')
+          }
+          expect(bound.press('Play')).toBe(true)
+          yield* waitedUntil(() => {
+            const model = runtime.readModel()
+            return (
+              model._tag === 'Ready' &&
+              model.listening._tag === 'Loaded' &&
+              model.listening.player.transport._tag === 'Playing'
+            )
+          })
+          const afterPlay = runtime.readModel()
+          expect(afterPlay._tag).toBe('Ready')
+          if (
+            afterPlay._tag === 'Ready' &&
+            afterPlay.listening._tag === 'Loaded'
+          ) {
+            expect(afterPlay.listening.player.transport._tag).toBe('Playing')
+          }
+        }),
+      ),
+    )
   })
 
   it('waits for the live Instant shelf on warm reopen instead of failing chapters with that title is not in the library', async () => {

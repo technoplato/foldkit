@@ -249,10 +249,33 @@ export const subscriptions = Subscription.forModel(Model)<
           M.tagsExhaustive({
             ReceivedShelf: ({ shelf }) => {
               const library = ShelfReady({ shelf })
+              const maybeLoadedAudio = Option.flatMap(
+                loadedSlugOf(model),
+                slug =>
+                  Option.map(
+                    Array.findFirst(shelf.titles, title => title.slug === slug),
+                    title => title.maybeAudioUrl,
+                  ),
+              )
+              const patch = Option.match(maybeLoadedAudio, {
+                onNone: () => ({ library }),
+                onSome: maybeAudioUrl => ({
+                  library,
+                  listening: {
+                    Loaded: {
+                      player: {
+                        media: {
+                          maybeAudioUrl,
+                        },
+                      },
+                    },
+                  },
+                }),
+              })
               const maybeCue = addressCueOfModel({ ...model, library })
               return Option.match(maybeCue, {
-                onNone: () => ({ library }),
-                onSome: cue => [{ library }, [ResolveAddressCue(cue)]],
+                onNone: () => patch,
+                onSome: cue => [patch, [ResolveAddressCue(cue)]],
               })
             },
             ReceivedPlaces: changes =>
