@@ -1,4 +1,5 @@
-import { Match as M, Option } from 'effect'
+import { Option } from 'effect'
+import { Checkbox as CoreCheckbox } from 'foldkit/behavior'
 import { type Attribute, type Html, html } from 'foldkit/html'
 
 // VIEW
@@ -45,8 +46,8 @@ export type ViewConfig<Message> = Readonly<{
   value?: string
 }>
 
-const labelId = (id: string): string => `${id}-label`
-const descriptionId = (id: string): string => `${id}-description`
+const labelId = CoreCheckbox.labelId
+const descriptionId = CoreCheckbox.descriptionId
 
 /** Renders an accessible checkbox as a stateless controlled component. The
  *  parent owns the checked state (`isChecked`) and receives the new state via
@@ -78,21 +79,23 @@ export const view = <Message>(config: ViewConfig<Message>): Html => {
     isDisabled = false,
     isIndeterminate = false,
     name,
-    value: formValue = 'on',
+    value,
   } = config
 
-  const nextChecked = !isChecked
+  const state = CoreCheckbox.stateFrom({ isChecked, isIndeterminate })
+  const nextChecked = CoreCheckbox.nextCheckedOnToggle(state)
 
   const handleKeyUp = (key: string): Option.Option<Message> =>
-    M.value(key).pipe(
-      M.when(' ', () => Option.some(onToggle(nextChecked))),
-      M.orElse(() => Option.none()),
+    Option.map(
+      CoreCheckbox.resolveKeyToggle({ key, state, isDisabled }),
+      onToggle,
     )
 
   const resolveStateAttributes = () => {
-    if (isIndeterminate) {
+    const dataState = CoreCheckbox.dataStateOf(state)
+    if (dataState === 'indeterminate') {
       return [h.DataAttribute('indeterminate', '')]
-    } else if (isChecked) {
+    } else if (dataState === 'checked') {
       return [h.DataAttribute('checked', '')]
     } else {
       return []
@@ -105,7 +108,7 @@ export const view = <Message>(config: ViewConfig<Message>): Html => {
 
   const checkboxAttributes = [
     h.Role('checkbox'),
-    h.AriaChecked(isIndeterminate ? 'mixed' : isChecked),
+    h.AriaChecked(CoreCheckbox.ariaCheckedOf(state)),
     h.AriaLabelledBy(labelId(id)),
     h.AriaDescribedBy(descriptionId(id)),
     h.Tabindex(0),
@@ -127,7 +130,13 @@ export const view = <Message>(config: ViewConfig<Message>): Html => {
   const descriptionAttributes = [h.Id(descriptionId(id))]
 
   const hiddenInputAttributes = name
-    ? [h.Type('hidden'), h.Name(name), h.Value(isChecked ? formValue : '')]
+    ? [
+        h.Type('hidden'),
+        h.Name(name),
+        h.Value(
+          CoreCheckbox.formValueOf(state, value === undefined ? {} : { value }),
+        ),
+      ]
     : []
 
   return toView({

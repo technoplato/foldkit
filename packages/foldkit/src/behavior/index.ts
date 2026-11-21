@@ -1,4 +1,5 @@
 export * as Block from './block.js'
+export * as Checkbox from './checkbox.js'
 export * as Dialog from './dialog.js'
 export * as Disclosure from './disclosure.js'
 export * as FocusScope from './focusScope.js'

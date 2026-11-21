@@ -26,6 +26,7 @@ export const Role = S.Literals([
   'AlertDialog',
   'Region',
   'Switch',
+  'Checkbox',
 ])
 /** What a painted element is, for a screen reader. */
 export type Role = typeof Role.Type
@@ -96,6 +97,7 @@ export const SlotBinding = S.Struct({
   isDisabled: S.optionalKey(S.Boolean),
   isReadOnly: S.optionalKey(S.Boolean),
   isRequired: S.optionalKey(S.Boolean),
+  isInvalid: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
   isHidden: S.optionalKey(S.Boolean),
   orientation: S.optionalKey(SlotOrientation),
@@ -127,6 +129,7 @@ export const SlotProps = S.Struct({
   isDisabled: S.optionalKey(S.Boolean),
   isReadOnly: S.optionalKey(S.Boolean),
   isRequired: S.optionalKey(S.Boolean),
+  isInvalid: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
   isHidden: S.optionalKey(S.Boolean),
   orientation: S.optionalKey(SlotOrientation),
@@ -283,6 +286,7 @@ const roleNames: Readonly<Record<Role, string>> = {
   AlertDialog: 'alertdialog',
   Region: 'region',
   Switch: 'switch',
+  Checkbox: 'checkbox',
 }
 
 /**
@@ -348,6 +352,9 @@ export const ariaOf = (
   ...(binding.isRequired === undefined
     ? {}
     : { 'aria-required': String(binding.isRequired) }),
+  ...(binding.isInvalid === undefined
+    ? {}
+    : { 'aria-invalid': String(binding.isInvalid) }),
   ...(binding.label === undefined ? {} : { 'aria-label': binding.label }),
   ...(binding.keys === undefined || Array.isReadonlyArrayEmpty(binding.keys)
     ? {}
