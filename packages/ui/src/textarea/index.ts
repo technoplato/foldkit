@@ -1,7 +1,6 @@
 import { Predicate } from 'effect'
-import type { Attribute } from 'foldkit/html'
-import { html } from 'foldkit/html'
-import type { Html } from 'foldkit/html'
+import { Textarea as CoreTextarea } from 'foldkit/behavior'
+import { type Attribute, type Html, html } from 'foldkit/html'
 
 // VIEW
 
@@ -27,7 +26,8 @@ export type ViewConfig<ParentMessage> = Readonly<{
 }>
 
 /** Generates the description element ID from the textarea's base ID. */
-export const descriptionId = (id: string): string => `${id}-description`
+export const descriptionId = (id: string): string =>
+  CoreTextarea.descriptionId(id)
 
 /** Renders an accessible textarea by building ARIA attribute groups and delegating layout to the consumer's `toView` callback. */
 export const view = <ParentMessage>(
@@ -40,13 +40,13 @@ export const view = <ParentMessage>(
     id,
     onInput,
     value,
-    isDisabled = false,
-    isInvalid = false,
     isAutofocus = false,
     name,
     rows,
     placeholder,
   } = config
+  const isDisabled = CoreTextarea.isDisabledOf(config)
+  const isInvalid = CoreTextarea.isInvalidOf(config)
 
   const disabledAttributes = isDisabled
     ? [h.AriaDisabled(true), h.Disabled(true), h.DataAttribute('disabled', '')]
@@ -57,7 +57,9 @@ export const view = <ParentMessage>(
     : []
 
   const inputAttributes =
-    Predicate.isNotUndefined(onInput) && !isDisabled ? [h.OnInput(onInput)] : []
+    Predicate.isNotUndefined(onInput) && CoreTextarea.canInput({ isDisabled })
+      ? [h.OnInput(onInput)]
+      : []
 
   const valueAttributes = Predicate.isNotUndefined(value)
     ? [h.Value(value)]

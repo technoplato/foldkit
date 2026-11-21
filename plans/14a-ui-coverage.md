@@ -32,7 +32,7 @@ already does it).
 | `dragHold`                                           | yes               | Books' seek bar                                    |
 | `listFilter`                                         | yes               | Books' chapters and bookmarks                      |
 | `timedHint`                                          | yes (done, #2625) | Toast, Counter's key hints, copy feedback          |
-| `fieldDraft`                                         | done (#2627)      | Books' search and notes, Input                     |
+| `fieldDraft`                                         | done (#2627)      | Books' search and notes, Input, Textarea           |
 | `rovingFocus`                                        | done (#2606)      | tabs, menu, toolbar, radio group                   |
 | `typeahead`                                          | done (#2606)      | menu, listbox, select, combobox                    |
 | `presence`                                           | done (#2617)      | disclosure, toast, anything with an exit animation |
@@ -105,7 +105,7 @@ is still to build, and is built with the first row that needs it.
 | 10  | ~~Toast~~ (done, #2625)             | `Toast`       | toast                    | toast                             | **`timedHint`**, **`presence`**                                                             |
 | 11  | ~~Tooltip~~ (done, #2630)           | `Tooltip`     | tooltip                  | tooltip                           | **`placement`**, **`hoverIntent`**, **`timedHint`**                                         |
 | 12  | ~~Input~~ (done, #2627)             | `Input`       | editable, password-input | label, password-toggle-field      | **`fieldDraft`** (**`Pace`**)                                                               |
-| 13  | Textarea                            | `Textarea`    | none                     | none                              | **`fieldDraft`** (**`Pace`**)                                                               |
+| 13  | ~~Textarea~~ (done, #2631)          | `Textarea`    | none                     | none                              | **`fieldDraft`** (**`Pace`**)                                                               |
 | 14  | Fieldset                            | `Fieldset`    | none                     | form                              | none                                                                                        |
 | 15  | Listbox                             | `Listbox`     | listbox                  | none                              | **`rovingFocus`**, **`typeahead`**, `selection`                                             |
 | 16  | Select                              | `Select`      | select                   | select                            | **`placement`**, **`layers`**, **`typeahead`**, `selection`                                 |
@@ -148,8 +148,8 @@ is still to build, and is built with the first row that needs it.
 | 53  | Clipboard                           | none          | clipboard                | none                              | **`timedHint`**                                                                             |
 | 54  | QR code                             | none          | qr-code                  | none                              | none                                                                                        |
 
-**Widgets left: 42 of 54.** Of those, 13 are `packages/ui`'s remaining namespaces
-(rows 13 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
+**Widgets left: 41 of 54.** Of those, 12 are `packages/ui`'s remaining namespaces
+(rows 14 to 25), and 29 are Zag's or Radix's alone. #2595 built the declaration,
 the hosts and `longPress` + `placement`; #2606 built row 1 (`Menu`) with
 `layers`, `rovingFocus`, and `typeahead`; #2612 built row 2 (`Dialog`) with
 `focusScope`; #2613 built row 3 (`Tabs`) reusing `rovingFocus`; #2616 built
@@ -159,7 +159,7 @@ row 5 (`Disclosure`) with `presence` reusing `rovingFocus`; #2618 built row 6
 reusing `rovingFocus`; #2623 built row 9 (`Toggle` / `Button`); #2625 built row
 10 (`Toast`) with `timedHint` reusing `presence`; #2630 built row 11 (`Tooltip`)
 with `hoverIntent` reusing `placement` and `timedHint`; #2627 built row 12
-(`Input`) with `fieldDraft`.
+(`Input`) with `fieldDraft`; #2631 built row 13 (`Textarea`) reusing `fieldDraft`.
 
 What the count covers, so it can be checked: all 51 of Zag's machines are
 in a row (three rows hold two each: Disclosure, Input and Date picker).

@@ -115,6 +115,7 @@ export const SlotBinding = S.Struct({
   isReadOnly: S.optionalKey(S.Boolean),
   isRequired: S.optionalKey(S.Boolean),
   isInvalid: S.optionalKey(S.Boolean),
+  isMultiline: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
   isHidden: S.optionalKey(S.Boolean),
   live: S.optionalKey(LivePoliteness),
@@ -150,6 +151,7 @@ export const SlotProps = S.Struct({
   isReadOnly: S.optionalKey(S.Boolean),
   isRequired: S.optionalKey(S.Boolean),
   isInvalid: S.optionalKey(S.Boolean),
+  isMultiline: S.optionalKey(S.Boolean),
   isModal: S.optionalKey(S.Boolean),
   isHidden: S.optionalKey(S.Boolean),
   live: S.optionalKey(LivePoliteness),
@@ -398,6 +400,7 @@ export const ariaOf = (
   ...(binding.isInvalid === undefined
     ? {}
     : { 'aria-invalid': String(binding.isInvalid) }),
+  ...(binding.isMultiline === true ? { 'aria-multiline': 'true' } : {}),
   ...(binding.label === undefined ? {} : { 'aria-label': binding.label }),
   ...(binding.keys === undefined || Array.isReadonlyArrayEmpty(binding.keys)
     ? {}

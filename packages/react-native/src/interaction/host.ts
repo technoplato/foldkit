@@ -46,6 +46,7 @@ export type TextInputHostProps = Readonly<{
   nativeID?: string
   accessibilityLabel?: string
   editable?: boolean
+  multiline?: boolean
   accessibilityState?: HostProps['accessibilityState']
 }>
 
@@ -167,6 +168,7 @@ export const textInputPropsOf = (
       ...(binding.isDisabled === true || binding.isReadOnly === true
         ? { editable: false }
         : {}),
+      ...(binding.isMultiline === true ? { multiline: true } : {}),
       ...stateOf(binding),
     }),
   })
