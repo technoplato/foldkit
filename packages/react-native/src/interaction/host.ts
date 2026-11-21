@@ -21,7 +21,7 @@ export const recognizes: ReadonlyArray<Gesture.GestureKind> = [
 /** What the host adds to the pressable a painter already draws. */
 export type HostProps = Readonly<{
   onLongPress?: () => void
-  accessibilityRole?: 'switch' | 'tab' | 'menuitem' | 'button'
+  accessibilityRole?: 'switch' | 'radio' | 'tab' | 'menuitem' | 'button'
   accessibilityState?: Readonly<{
     selected?: boolean
     checked?: boolean | 'mixed'
@@ -33,7 +33,7 @@ export type HostProps = Readonly<{
 /** What the host adds to a container View a part bound. */
 export type ContainerHostProps = Readonly<{
   nativeID?: string
-  accessibilityRole?: 'tablist' | 'menu'
+  accessibilityRole?: 'tablist' | 'menu' | 'radiogroup'
   accessibilityLabel?: string
   accessibilityElementsHidden?: boolean
   importantForAccessibility?: 'no-hide-descendants'
@@ -59,9 +59,11 @@ const stateOf = (
 
 const pressableRoleOf = (
   role: Slot.Role | undefined,
-): 'switch' | 'tab' | 'menuitem' | 'button' | undefined => {
+): 'switch' | 'radio' | 'tab' | 'menuitem' | 'button' | undefined => {
   if (role === 'Switch') {
     return 'switch'
+  } else if (role === 'Radio') {
+    return 'radio'
   } else if (role === 'Tab') {
     return 'tab'
   } else if (role === 'MenuItem') {
@@ -75,11 +77,13 @@ const pressableRoleOf = (
 
 const containerRoleOf = (
   role: Slot.Role | undefined,
-): 'tablist' | 'menu' | undefined => {
+): 'tablist' | 'menu' | 'radiogroup' | undefined => {
   if (role === 'TabList') {
     return 'tablist'
   } else if (role === 'Menu') {
     return 'menu'
+  } else if (role === 'RadioGroup') {
+    return 'radiogroup'
   } else {
     return undefined
   }

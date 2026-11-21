@@ -1,32 +1,16 @@
-import {
-  Array,
-  Match as M,
-  Option,
-  Predicate,
-  Schema as S,
-  String,
-  pipe,
-} from 'effect'
+import { Array, Match as M, Option, String, pipe } from 'effect'
+import { RadioGroup as CoreRadioGroup } from 'foldkit/behavior'
 import { type Attribute, type Html, html } from 'foldkit/html'
 
 import { idSelector } from '../internal/selectors.js'
-import { keyToIndex } from '../keyboard.js'
 
 // MODEL
 
 /** Controls the radio group layout direction and which arrow keys navigate between options. */
-export const Orientation = S.Literals(['Horizontal', 'Vertical'])
-export type Orientation = typeof Orientation.Type
+export const Orientation = CoreRadioGroup.Orientation
+export type Orientation = CoreRadioGroup.Orientation
 
 // VIEW
-
-const optionId = (id: string, index: number): string => `${id}-option-${index}`
-
-const labelId = (id: string, index: number): string =>
-  `${id}-option-${index}-label`
-
-const descriptionId = (id: string, index: number): string =>
-  `${id}-option-${index}-description`
 
 /** Per-option render info passed to the consumer's `toView`. The consumer
  *  spreads `option`, `label`, and `description` onto whichever elements carry
@@ -144,40 +128,13 @@ export const view = <Value extends string, ParentMessage>(
     Array.findFirstIndex(options, option => option === value),
   )
 
-  const firstEnabledIndex = pipe(
-    options.length,
-    Array.makeBy(index => index),
-    Array.findFirst(Predicate.not(isDisabled)),
-    Option.getOrElse(() => 0),
-  )
-
-  // NOTE: The selected index only becomes the roving tab stop when it is
-  // enabled. A disabled selected option would otherwise be the group's sole
-  // tab stop with no keydown handler, stranding keyboard navigation.
-  const focusedIndex = pipe(
-    selectedIndex,
-    Option.filter(Predicate.not(isDisabled)),
-    Option.getOrElse(() => firstEnabledIndex),
-  )
-
-  const { nextKey, previousKey } = M.value(orientation).pipe(
-    M.when('Horizontal', () => ({
-      nextKey: 'ArrowRight',
-      previousKey: 'ArrowLeft',
-    })),
-    M.when('Vertical', () => ({
-      nextKey: 'ArrowDown',
-      previousKey: 'ArrowUp',
-    })),
-    M.exhaustive,
-  )
-
-  const resolveKeyIndex = keyToIndex(
-    nextKey,
-    previousKey,
-    options.length,
-    focusedIndex,
-    isDisabled,
+  const focusedIndex = Option.getOrElse(
+    CoreRadioGroup.resolveFocusedIndex({
+      count: options.length,
+      maybeSelectedIndex: selectedIndex,
+      isDisabled,
+    }),
+    () => 0,
   )
 
   const selectionAt = (
@@ -189,7 +146,7 @@ export const view = <Value extends string, ParentMessage>(
       options,
       Array.get(index),
       Option.map(value => ({
-        focusSelector: idSelector(optionId(id, index)),
+        focusSelector: idSelector(CoreRadioGroup.optionId(id, index)),
         message: onSelect(value),
       })),
     )
@@ -201,18 +158,26 @@ export const view = <Value extends string, ParentMessage>(
     ): Option.Option<
       Readonly<{ focusSelector: string; message: ParentMessage }>
     > =>
-      M.value(key).pipe(
-        M.whenOr(
-          nextKey,
-          previousKey,
-          'Home',
-          'End',
-          'PageUp',
-          'PageDown',
-          () => selectionAt(resolveKeyIndex(key)),
-        ),
-        M.when(' ', () => selectionAt(currentIndex)),
-        M.orElse(() => Option.none()),
+      Option.flatMap(
+        CoreRadioGroup.resolveKeyOutcome({
+          key,
+          count: options.length,
+          current: Option.some(currentIndex),
+          isDisabled,
+          orientation,
+        }),
+        outcome =>
+          M.value(outcome).pipe(
+            M.withReturnType<
+              Option.Option<
+                Readonly<{ focusSelector: string; message: ParentMessage }>
+              >
+            >(),
+            M.tagsExhaustive({
+              SelectIndex: ({ index }) => selectionAt(index),
+              FocusIndex: () => Option.none(),
+            }),
+          ),
       )
 
   const optionInfos: ReadonlyArray<OptionInfo<Value, ParentMessage>> =
@@ -235,11 +200,11 @@ export const view = <Value extends string, ParentMessage>(
         : []
 
       const optionAttributes = [
-        h.Id(optionId(id, index)),
+        h.Id(CoreRadioGroup.optionId(id, index)),
         h.Role('radio'),
         h.AriaChecked(isSelected),
-        h.AriaLabelledBy(labelId(id, index)),
-        h.AriaDescribedBy(descriptionId(id, index)),
+        h.AriaLabelledBy(CoreRadioGroup.labelId(id, index)),
+        h.AriaDescribedBy(CoreRadioGroup.descriptionId(id, index)),
         h.Tabindex(isFocusable ? 0 : -1),
         ...checkedAttributes,
         ...activeAttributes,
@@ -247,13 +212,18 @@ export const view = <Value extends string, ParentMessage>(
         ...(isOptionDisabledNow
           ? []
           : [
-              h.OnClickFocus(idSelector(optionId(id, index)), onSelect(value)),
+              h.OnClickFocus(
+                idSelector(CoreRadioGroup.optionId(id, index)),
+                onSelect(value),
+              ),
               h.OnKeyDownFocus(handleKeyDown(index)),
             ]),
       ]
 
-      const labelAttributes = [h.Id(labelId(id, index))]
-      const descriptionAttributes = [h.Id(descriptionId(id, index))]
+      const labelAttributes = [h.Id(CoreRadioGroup.labelId(id, index))]
+      const descriptionAttributes = [
+        h.Id(CoreRadioGroup.descriptionId(id, index)),
+      ]
 
       return {
         value,
