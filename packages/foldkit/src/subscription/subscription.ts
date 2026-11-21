@@ -1,4 +1,18 @@
-import { type Equivalence, Predicate, Record, Schema, Stream } from 'effect'
+import {
+  Array,
+  type Equivalence,
+  Predicate,
+  Record,
+  Schema,
+  Stream,
+} from 'effect'
+
+import { mapMessages } from '../command/index.js'
+import type {
+  AnyDurabilityModel,
+  SubscriptionPatch,
+} from '../program/durability.js'
+import type { ProgramCommand } from '../program/program.js'
 
 type SubscriptionBrand = {
   readonly __subscription: never
@@ -417,3 +431,417 @@ export const lift =
     }) as any
   }
 /* eslint-enable @typescript-eslint/consistent-type-assertions */
+
+// SCOPED SUBSCRIPTIONS (DURABILITY-ENFORCED)
+
+declare const ScopedSubscriptionBrand: unique symbol
+declare const ScopedSubscriptionsBrand: unique symbol
+
+/** A fact Schema whose decoded Type belongs to `Message`. */
+export type FactSchema<Message extends Readonly<{ _tag: string }>> =
+  Schema.Codec<Message, unknown, never, never>
+
+/**
+ * Return type of a durability-enforced Subscription's `apply(model, fact)`
+ * reducer: either a `SubscriptionPatch` or a `[patch, commands]` pair.
+ */
+export type ScopedApplyReturn<
+  ModelSchema extends AnyDurabilityModel,
+  Message,
+  Services = never,
+> =
+  | SubscriptionPatch<ModelSchema>
+  | readonly [
+      SubscriptionPatch<ModelSchema>,
+      ReadonlyArray<ProgramCommand<Message, Services>>,
+    ]
+
+type ScopedEntryCallbacksWithoutKeepAlive<
+  ModelSchema extends AnyDurabilityModel,
+  Facts extends ReadonlyArray<FactSchema<any>>,
+  Message extends Readonly<{ _tag: string }>,
+  Dependencies,
+  Services,
+> = {
+  readonly facts: Facts
+  readonly modelToDependencies: (model: ModelSchema['Type']) => Dependencies
+  readonly keepAliveEquivalence?: never
+  readonly dependenciesToStream: (
+    dependencies: Dependencies,
+  ) => Stream.Stream<NoInfer<Facts[number]['Type']>, never, Services>
+  readonly apply: (
+    model: ModelSchema['Type'],
+    fact: NoInfer<Facts[number]['Type']>,
+  ) => ScopedApplyReturn<ModelSchema, Message, Services>
+} & Superseding<NoInfer<Facts[number]['Type']>>
+
+type ScopedEntryCallbacksWithKeepAlive<
+  ModelSchema extends AnyDurabilityModel,
+  Facts extends ReadonlyArray<FactSchema<any>>,
+  Message extends Readonly<{ _tag: string }>,
+  Dependencies,
+  Services,
+> = {
+  readonly facts: Facts
+  readonly modelToDependencies: (model: ModelSchema['Type']) => Dependencies
+  readonly keepAliveEquivalence: Equivalence.Equivalence<Dependencies>
+  readonly dependenciesToStream: (
+    dependencies: Dependencies,
+    readDependencies: () => Dependencies,
+  ) => Stream.Stream<NoInfer<Facts[number]['Type']>, never, Services>
+  readonly apply: (
+    model: ModelSchema['Type'],
+    fact: NoInfer<Facts[number]['Type']>,
+  ) => ScopedApplyReturn<ModelSchema, Message, Services>
+} & Superseding<NoInfer<Facts[number]['Type']>>
+
+type ScopedEntryMeta<
+  ModelSchema extends AnyDurabilityModel,
+  Fact extends Readonly<{ _tag: string }>,
+  Message extends Readonly<{ _tag: string }>,
+  Services,
+> = {
+  readonly facts: ReadonlyArray<FactSchema<Fact>>
+  readonly apply: (
+    model: ModelSchema['Type'],
+    fact: Fact,
+  ) => ScopedApplyReturn<ModelSchema, Message, Services>
+  readonly [ScopedSubscriptionBrand]: Readonly<{
+    readonly modelSchema: ModelSchema
+    readonly fact: Fact
+  }>
+}
+
+type ScopedEntryWithoutKeepAlive<
+  ModelSchema extends AnyDurabilityModel,
+  Fact extends Readonly<{ _tag: string }>,
+  Message extends Readonly<{ _tag: string }>,
+  Dependencies,
+  Services,
+> = EntryWithoutKeepAlive<ModelSchema['Type'], Fact, Dependencies, Services> &
+  ScopedEntryMeta<ModelSchema, Fact, Message, Services>
+
+type ScopedEntryWithKeepAlive<
+  ModelSchema extends AnyDurabilityModel,
+  Fact extends Readonly<{ _tag: string }>,
+  Message extends Readonly<{ _tag: string }>,
+  Dependencies,
+  Services,
+> = EntryWithKeepAlive<ModelSchema['Type'], Fact, Dependencies, Services> &
+  ScopedEntryMeta<ModelSchema, Fact, Message, Services>
+
+/** A single durability-enforced Subscription entry before branding. */
+export type ScopedEntry<
+  ModelSchema extends AnyDurabilityModel,
+  Fact extends Readonly<{ _tag: string }>,
+  Message extends Readonly<{ _tag: string }>,
+  Dependencies,
+  Services = never,
+> =
+  | ScopedEntryWithoutKeepAlive<
+      ModelSchema,
+      Fact,
+      Message,
+      Dependencies,
+      Services
+    >
+  | ScopedEntryWithKeepAlive<ModelSchema, Fact, Message, Dependencies, Services>
+
+/** A branded durability-enforced Subscription entry. */
+export type ScopedSubscription<
+  ModelSchema extends AnyDurabilityModel,
+  Fact extends Readonly<{ _tag: string }>,
+  Message extends Readonly<{ _tag: string }>,
+  Dependencies,
+  Services = never,
+> = ScopedEntry<ModelSchema, Fact, Message, Dependencies, Services> &
+  SubscriptionBrand
+
+/** A record of durability-enforced Subscriptions bound to `ModelSchema`. */
+export type ScopedSubscriptions<
+  ModelSchema extends AnyDurabilityModel,
+  Facts extends Readonly<{ _tag: string }>,
+  Message extends Readonly<{ _tag: string }>,
+  Services = never,
+> = Readonly<
+  Record<string, ScopedSubscription<ModelSchema, any, Message, any, Services>>
+> &
+  Readonly<{
+    readonly [ScopedSubscriptionsBrand]: Readonly<{
+      readonly modelSchema: ModelSchema
+      readonly facts: Facts
+    }>
+  }>
+
+/** Extracts the union of all declared fact types from a record of scoped entries. */
+export type SubscriptionFactsOf<Entries> =
+  Entries extends Readonly<{
+    readonly [ScopedSubscriptionsBrand]: Readonly<{
+      readonly facts: infer Facts
+    }>
+  }>
+    ? Facts
+    : {
+        [K in keyof Entries]: Entries[K] extends Readonly<{
+          readonly [ScopedSubscriptionBrand]: Readonly<{
+            readonly fact: infer Fact
+          }>
+        }>
+          ? Fact
+          : never
+      }[keyof Entries]
+
+/** Entry builder passed to `Subscription.forModel(Model)<Message, Services>()`. */
+export type ScopedEntryBuilder<
+  ModelSchema extends AnyDurabilityModel,
+  Message extends Readonly<{ _tag: string }>,
+  Services,
+> = {
+  <
+    const Fields extends Schema.Struct.Fields,
+    const Facts extends ReadonlyArray<FactSchema<Message>>,
+  >(
+    fields: Fields,
+    callbacks: ScopedEntryCallbacksWithoutKeepAlive<
+      ModelSchema,
+      Facts,
+      Message,
+      Schema.Struct.Type<Fields>,
+      Services
+    >,
+  ): ScopedEntryWithoutKeepAlive<
+    ModelSchema,
+    Facts[number]['Type'],
+    Message,
+    Schema.Struct.Type<Fields>,
+    Services
+  >
+  <
+    const Fields extends Schema.Struct.Fields,
+    const Facts extends ReadonlyArray<FactSchema<Message>>,
+  >(
+    fields: Fields,
+    callbacks: ScopedEntryCallbacksWithKeepAlive<
+      ModelSchema,
+      Facts,
+      Message,
+      Schema.Struct.Type<Fields>,
+      Services
+    >,
+  ): ScopedEntryWithKeepAlive<
+    ModelSchema,
+    Facts[number]['Type'],
+    Message,
+    Schema.Struct.Type<Fields>,
+    Services
+  >
+}
+
+/**
+ * Declares durability-enforced Subscriptions bound to a `DurabilityModel`.
+ * Each entry declares its emitted `facts` and its `apply(model, fact)` reducer
+ * returning a `SubscriptionPatch<typeof Model>` that can write only `loaded`
+ * and `ephemeral` fields.
+ *
+ * @example
+ * ```typescript
+ * const subscriptions = Subscription.forModel(Model)<Message, Services>()(
+ *   entry => ({
+ *     shelf: entry(
+ *       {},
+ *       {
+ *         facts: [ReceivedShelf, FailedReadShelf],
+ *         modelToDependencies: () => ({}),
+ *         dependenciesToStream: () => shelfStream,
+ *         apply: (_model, fact) => ({ library: ShelfReady({ shelf: fact.shelf }) }),
+ *       },
+ *     ),
+ *   }),
+ * )
+ * ```
+ */
+export const forModel =
+  <ModelSchema extends AnyDurabilityModel>(_model: ModelSchema) =>
+  <Message extends Readonly<{ _tag: string }>, Services = never>() =>
+  <
+    Entries extends Readonly<
+      Record<string, ScopedEntry<ModelSchema, any, Message, any, Services>>
+    >,
+  >(
+    build: (
+      entry: ScopedEntryBuilder<ModelSchema, Message, Services>,
+    ) => Entries,
+  ): {
+    readonly [K in keyof Entries]: Entries[K] & SubscriptionBrand
+  } & Readonly<{
+    readonly [ScopedSubscriptionsBrand]: Readonly<{
+      readonly modelSchema: ModelSchema
+      readonly facts: SubscriptionFactsOf<Entries>
+    }>
+  }> => {
+    /* eslint-disable @typescript-eslint/consistent-type-assertions */
+    const entryBuilder = ((
+      fields: Schema.Struct.Fields,
+      callbacks: Record<string, unknown>,
+    ) => ({
+      dependenciesSchema: Schema.Struct(fields),
+      ...callbacks,
+    })) as unknown as ScopedEntryBuilder<ModelSchema, Message, Services>
+    return build(entryBuilder) as any
+    /* eslint-enable @typescript-eslint/consistent-type-assertions */
+  }
+
+type ScopedRecordsFactsOf<
+  Records extends ReadonlyArray<ScopedSubscriptions<any, any, any, any>>,
+> = Records[number] extends infer Item
+  ? Item extends ScopedSubscriptions<any, infer Facts, any, any>
+    ? Facts
+    : never
+  : never
+
+/**
+ * Combines multiple `ScopedSubscriptions` records for the same `DurabilityModel`,
+ * preserving the union of their declared `Facts` and throwing on duplicate keys.
+ */
+export const aggregateForModel =
+  <ModelSchema extends AnyDurabilityModel>(_model: ModelSchema) =>
+  <Message extends Readonly<{ _tag: string }>, Services = never>() =>
+  <
+    const Records extends ReadonlyArray<
+      ScopedSubscriptions<ModelSchema, any, Message, Services>
+    >,
+  >(
+    ...records: Records
+  ): ScopedSubscriptions<
+    ModelSchema,
+    ScopedRecordsFactsOf<Records>,
+    Message,
+    Services
+  > => {
+    const result: Record<
+      string,
+      ScopedSubscription<ModelSchema, any, Message, any, Services>
+    > = {}
+    for (const record of records) {
+      for (const key of Object.keys(record)) {
+        if (Object.hasOwn(result, key)) {
+          throw new Error(
+            `Subscription.aggregateForModel: duplicate key "${key}" across records`,
+          )
+        }
+        result[key] = record[key]!
+      }
+    }
+    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+    return result as ScopedSubscriptions<
+      ModelSchema,
+      ScopedRecordsFactsOf<Records>,
+      Message,
+      Services
+    >
+  }
+
+/**
+ * Lifts a child `DurabilityModel`'s `ScopedSubscriptions` into a parent
+ * `DurabilityModel` by mapping `ChildPatch` to `ParentPatch` through a typed
+ * `toParentPatch` function.
+ */
+export const liftScoped =
+  <
+    ChildModelSchema extends AnyDurabilityModel,
+    ChildFacts extends Readonly<{ _tag: string }>,
+    ChildMessage extends Readonly<{ _tag: string }>,
+    Services = never,
+  >(
+    subscriptions: ScopedSubscriptions<
+      ChildModelSchema,
+      ChildFacts,
+      ChildMessage,
+      Services
+    >,
+  ) =>
+  <
+    ParentModelSchema extends AnyDurabilityModel,
+    ParentMessage extends Readonly<{ _tag: string }>,
+  >(
+    _parentModel: ParentModelSchema,
+    config: {
+      readonly toChildModel: (
+        parentModel: ParentModelSchema['Type'],
+      ) => ChildModelSchema['Type']
+      readonly toParentMessage: (message: ChildMessage) => ParentMessage
+      readonly toParentPatch: (
+        patch: SubscriptionPatch<ChildModelSchema>,
+      ) => SubscriptionPatch<ParentModelSchema>
+    },
+  ): ScopedSubscriptions<
+    ParentModelSchema,
+    ChildFacts,
+    ParentMessage,
+    Services
+  > => {
+    const readChildModel = shareParentModelProjection(config.toChildModel)
+    /* eslint-disable @typescript-eslint/consistent-type-assertions */
+    const entries = subscriptions as unknown as Readonly<
+      Record<
+        string,
+        ScopedSubscription<
+          ChildModelSchema,
+          ChildFacts,
+          ChildMessage,
+          any,
+          Services
+        >
+      >
+    >
+    return Record.map(entries, subscription => {
+      const modelToDependencies = (parentModel: ParentModelSchema['Type']) =>
+        subscription.modelToDependencies(readChildModel(parentModel))
+      const apply = (
+        parentModel: ParentModelSchema['Type'],
+        fact: ChildFacts,
+      ): ScopedApplyReturn<ParentModelSchema, ParentMessage, Services> => {
+        const applied = subscription.apply(readChildModel(parentModel), fact)
+        if (Array.isArray(applied)) {
+          const [childPatch, childCommands] = applied as readonly [
+            SubscriptionPatch<ChildModelSchema>,
+            ReadonlyArray<ProgramCommand<ChildMessage, Services>>,
+          ]
+          return [
+            config.toParentPatch(childPatch),
+            mapMessages(childCommands, config.toParentMessage),
+          ]
+        }
+        return config.toParentPatch(
+          applied as SubscriptionPatch<ChildModelSchema>,
+        )
+      }
+      return {
+        ...subscription,
+        modelToDependencies,
+        apply,
+      }
+    }) as unknown as ScopedSubscriptions<
+      ParentModelSchema,
+      ChildFacts,
+      ParentMessage,
+      Services
+    >
+    /* eslint-enable @typescript-eslint/consistent-type-assertions */
+  }
+
+/** Runtime shape of a scoped Subscription entry inspected by `Program.make`. */
+export type RuntimeScopedEntry = Readonly<{
+  facts: ReadonlyArray<Schema.Top>
+  apply: (model: any, fact: any) => unknown
+}>
+
+/** True when a Subscription entry carries scoped `facts` and `apply` metadata. */
+export const isRuntimeScopedEntry = (
+  entry: unknown,
+): entry is RuntimeScopedEntry =>
+  Predicate.isObject(entry) &&
+  Predicate.hasProperty(entry, 'facts') &&
+  Array.isArray(entry.facts) &&
+  Predicate.hasProperty(entry, 'apply') &&
+  typeof entry.apply === 'function'

@@ -13,6 +13,11 @@ import {
 import { maybeTitleOf } from '../navigation/carrier.js'
 import { focusModel } from '../navigation/declaration.js'
 import { ts } from '../schema/index.js'
+import {
+  type AnyDurabilityModel,
+  isDurabilityModelAst,
+  mergeOnRefold,
+} from './durability.js'
 import { liftEffects } from './liftEffects.js'
 import type {
   MessageOf,
@@ -30,6 +35,14 @@ import { make } from './program.js'
  * makes ModelOf and MessageOf `never`.
  */
 export type SyncChild = Program<any, any, any, any, any>
+
+/**
+ * Strict child Program constraint requiring a Model built with `Program.model(...)`.
+ * Used by compile-time durability tests and promoted to `SyncChild` once all
+ * examples are migrated.
+ */
+export type StrictSyncChild = Program<any, any, any, any, any> &
+  Readonly<{ Model: AnyDurabilityModel }>
 
 /** Boot Model. The Processor has not applied a snapshot yet. */
 export type Starting = {
@@ -387,7 +400,12 @@ export const sync = <Child extends SyncChild>(config: {
 
     if (readTag(message) === 'LogRefolded') {
       const refolded = message as LogRefolded<ChildModel>
-      const keepOnRefold = child.synchronization?.keepOnRefold
+      const keepOnRefold =
+        child.synchronization?.keepOnRefold ??
+        (isDurabilityModelAst(child.Model.ast)
+          ? (current: ChildModel, next: ChildModel): ChildModel =>
+              mergeOnRefold(child.Model.ast, current, next)
+          : undefined)
       return [
         toReady(
           readTag(model) === 'Ready' && keepOnRefold !== undefined

@@ -15,6 +15,11 @@ import {
 } from 'effect'
 
 import type { Ports } from '../port/port.js'
+import {
+  hydrateFromSynced,
+  projectSynced,
+  stripForSharedSnapshot,
+} from '../program/durability.js'
 import type { Program, ProgramSynchronization } from '../program/program.js'
 import {
   type SyncedMessage,
@@ -433,6 +438,7 @@ export function start<
       id: program.of.id,
       version: program.of.version,
       Model: program.of.Model,
+      initialModel: initialChildModel,
       ...(program.foldRevision === undefined
         ? {}
         : { foldRevision: program.foldRevision }),
@@ -441,7 +447,10 @@ export function start<
     const sharedRingSlots = 4
     const sharedStride = Math.max(1, sharedPolicy.stride ?? 50)
     const sharedMinDelta = Math.max(1, sharedPolicy.minDelta ?? 50)
-    const sharedMinIntervalMs = Math.max(0, sharedPolicy.minIntervalMs ?? 30_000)
+    const sharedMinIntervalMs = Math.max(
+      0,
+      sharedPolicy.minIntervalMs ?? 30_000,
+    )
     const sharedJitterMs = Math.max(0, sharedPolicy.jitterMs ?? 5_000)
     const sharedAuditSampleRate = Math.min(
       1,
@@ -660,8 +669,38 @@ export function start<
       start: ChildModel,
       entries: ReadonlyArray<LogEntry>,
       viewpoint: string,
-    ): ChildModel =>
-      Array.reduce(entries, start, (folded, entry) => {
+    ): ChildModel => {
+      const childFoldSynced = childSynchronization?.foldSynced
+      if (viewpoint === strangerViewpoint && childFoldSynced !== undefined) {
+        const startSynced = projectSynced(program.of.Model.ast, start)
+        const foldedSynced = Array.reduce(
+          entries,
+          startSynced,
+          (folded, entry) => {
+            const decoded = decodeUnknown(program.message, entry.row)
+            if (
+              Option.isNone(decoded) ||
+              isLocalOnlyFromLog(decoded.value) ||
+              !appliesTo(
+                /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+                policyOf(folded as Omit<ChildModel, '_tag'>),
+                decoded.value,
+                Option.getOrElse(readRowString(entry.row, 'from'), () => ''),
+                viewpoint,
+              )
+            ) {
+              return folded
+            }
+            return childFoldSynced(folded, decoded.value)
+          },
+        )
+        return hydrateFromSynced<ChildModel>(
+          program.of.Model.ast,
+          initialChildModel,
+          foldedSynced,
+        )
+      }
+      return Array.reduce(entries, start, (folded, entry) => {
         const decoded = decodeUnknown(program.message, entry.row)
         if (
           Option.isNone(decoded) ||
@@ -678,6 +717,7 @@ export function start<
         const [next] = program.of.update(folded, decoded.value)
         return next
       })
+    }
 
     // NOTE: a base is folded as a Processor that wrote none of its rows,
     // so a base that covers this Processor's own rows cannot stand in for
@@ -828,19 +868,20 @@ export function start<
               }),
             ),
         )
-        const snapshots: ReadonlyArray<LocalSnapshot.LocalSnapshot<ChildModel>> =
-          Option.match(maybeNext, {
-            onNone: () => savedSnapshots,
-            onSome: next => {
-              const nextSnapshots = LocalSnapshot.retainedSnapshots(
-                savedSnapshots,
-                next,
-              )
-              savedSnapshots = nextSnapshots
-              bases = Array.map(nextSnapshots, baseOf)
-              return nextSnapshots
-            },
-          })
+        const snapshots: ReadonlyArray<
+          LocalSnapshot.LocalSnapshot<ChildModel>
+        > = Option.match(maybeNext, {
+          onNone: () => savedSnapshots,
+          onSome: next => {
+            const nextSnapshots = LocalSnapshot.retainedSnapshots(
+              savedSnapshots,
+              next,
+            )
+            savedSnapshots = nextSnapshots
+            bases = Array.map(nextSnapshots, baseOf)
+            return nextSnapshots
+          },
+        })
         const projectLocal = childSynchronization?.projectLocal
         const keepOnRefold = childSynchronization?.keepOnRefold
         const currentModel = runtime.readModel() as SyncedModel<
@@ -1379,16 +1420,33 @@ export function start<
       entry: LocalSnapshot.SharedSnapshotEntry<ChildModel>
     }>
 
-    const maybeLoadedSharedRef: { current: Option.Option<LoadedSharedSnapshot> } =
-      { current: Option.none() }
+    const maybeLoadedSharedRef: {
+      current: Option.Option<LoadedSharedSnapshot>
+    } = { current: Option.none() }
 
     const modelJsonEquals = (left: ChildModel, right: ChildModel): boolean => {
       const ModelJson = S.toCodecJson(program.of.Model)
       return pipe(
         Result.try(
           () =>
-            JSON.stringify(S.encodeSync(ModelJson)(left)) ===
-            JSON.stringify(S.encodeSync(ModelJson)(right)),
+            JSON.stringify(
+              S.encodeSync(ModelJson)(
+                stripForSharedSnapshot(
+                  program.of.Model.ast,
+                  left,
+                  initialChildModel,
+                ),
+              ),
+            ) ===
+            JSON.stringify(
+              S.encodeSync(ModelJson)(
+                stripForSharedSnapshot(
+                  program.of.Model.ast,
+                  right,
+                  initialChildModel,
+                ),
+              ),
+            ),
         ),
         Result.getOrElse(() => false),
       )
@@ -1520,11 +1578,17 @@ export function start<
         }
       }
       const maybeFolded = foldFromBase(entries, strangerViewpoint)
-      if (Option.isNone(maybeFolded) || Option.isNone(maybeFolded.value.watermark)) {
+      if (
+        Option.isNone(maybeFolded) ||
+        Option.isNone(maybeFolded.value.watermark)
+      ) {
         return
       }
       const watermark = maybeFolded.value.watermark.value
-      if (!force && watermark.count < highestKnownSharedCount + sharedMinDelta) {
+      if (
+        !force &&
+        watermark.count < highestKnownSharedCount + sharedMinDelta
+      ) {
         return
       }
       isPublishingSharedSnapshot = true

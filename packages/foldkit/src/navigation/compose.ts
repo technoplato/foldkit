@@ -1,5 +1,9 @@
 import { Array, Option, Predicate, Schema as S } from 'effect'
 
+import {
+  hasClassifiedFields,
+  withFieldDurability,
+} from '../program/durability.js'
 import type { ProgramSchema } from '../program/program.js'
 import { Column, Text } from '../renderers/elements.js'
 import type { UiNode } from '../renderers/types.js'
@@ -119,10 +123,15 @@ export const composedDestination = (
 export const composedFields = (
   childFields: S.Struct.Fields,
   Destination: S.Top,
-): S.Struct.Fields => ({
-  ...childFields,
-  [stackField]: NavigationStack(Destination),
-})
+): S.Struct.Fields => {
+  const stackSchema = NavigationStack(Destination)
+  return {
+    ...childFields,
+    [stackField]: hasClassifiedFields(childFields)
+      ? withFieldDurability(stackSchema, { role: 'Synced' })
+      : stackSchema,
+  }
+}
 
 /**
  * The carrier facts a combinator adds to its Message union when it owns

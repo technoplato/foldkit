@@ -59,6 +59,12 @@ import {
   topEntry,
 } from '../navigation/structure.js'
 import { backMessages, foldMessage } from '../navigation/transition.js'
+import {
+  hydrateFromSynced,
+  isDurabilityModelAst,
+  projectSynced,
+  withModelDurability,
+} from '../program/durability.js'
 import { liftEffects } from '../program/liftEffects.js'
 import type {
   MessageOf,
@@ -975,9 +981,11 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const style = config.style ?? Dialog()
 
   const Destination = composedDestination(childNavigation, [ActionMenu], hold)
-  const Model = S.Struct(
-    composedFields(childFields, Destination),
-  ) as unknown as ProgramSchema<AppModel>
+  const isChildClassified = isDurabilityModelAst(child.Model.ast)
+  const rawModel = S.Struct(composedFields(childFields, Destination))
+  const Model = (isChildClassified
+    ? withModelDurability(rawModel)
+    : rawModel) as unknown as ProgramSchema<AppModel>
   const AppMessageSchema = S.Union([
     ...schemaMembersOf(child.Message),
     ...Message.members,
@@ -1394,6 +1402,35 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const childSynchronization = child.synchronization
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
   const childKeepsOwnNavigation = childSynchronization?.keepsOwnNavigation
+  const childFoldSynced = childSynchronization?.foldSynced
+  const liftedFoldSynced =
+    childFoldSynced === undefined
+      ? undefined
+      : (syncedModel: any, message: AppMessage): any => {
+          if (NavigationMessage.isMessage(message)) {
+            return foldMessage(navigation, syncedModel, message)
+          }
+          if (isMessage(message)) {
+            const hydrated = hydrateFromSynced<AppModel>(
+              Model.ast,
+              init()[0],
+              syncedModel,
+            )
+            const [next] = updateMenu(hydrated, message)
+            return projectSynced(Model.ast, next)
+          }
+          if (hold === 'Extends') {
+            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+            return childFoldSynced(syncedModel, message as ChildMessage)
+          }
+          const { navigation: nav, ...syncedChild } = syncedModel
+          const nextChild = childFoldSynced(
+            syncedChild,
+            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+            message as ChildMessage,
+          )
+          return { ...nextChild, navigation: nav }
+        }
   const childScreen = child.screen
 
   const isMenuMessage = (message: AppMessage): boolean =>
@@ -1451,6 +1488,9 @@ export const compose = <Child extends ActionMenuChild>(config: {
       ...(childKeepsOwnNavigation === undefined
         ? {}
         : { keepsOwnNavigation: childKeepsOwnNavigation }),
+      ...(liftedFoldSynced === undefined
+        ? {}
+        : { foldSynced: liftedFoldSynced }),
       ...derived,
     },
     ...(child.catalog === undefined ? {} : { catalog: child.catalog }),

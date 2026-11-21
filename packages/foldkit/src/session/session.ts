@@ -47,6 +47,11 @@ import {
 import { backMessages, foldMessage, settled } from '../navigation/transition.js'
 import { allowedStackOf } from '../navigation/uri.js'
 import { type Host, hostOfFrom, labelOf } from '../processor/host.js'
+import {
+  isDurabilityModelAst,
+  withFieldDurability,
+  withModelDurability,
+} from '../program/durability.js'
 import { liftEffects } from '../program/liftEffects.js'
 import type {
   MessageOf,
@@ -571,11 +576,15 @@ export const compose = <Child extends SessionChild>(config: {
     [SessionSettings],
     hold,
   )
+  const isChildClassified = isDurabilityModelAst(child.Model.ast)
+  const rawModel = S.Struct({
+    ...composedFields(childFields, Destination),
+    session: isChildClassified
+      ? withFieldDurability(SessionState, { role: 'Synced' })
+      : SessionState,
+  })
   const Model = composedAs<ProgramSchema<AppModel>>(
-    S.Struct({
-      ...composedFields(childFields, Destination),
-      session: SessionState,
-    }),
+    isChildClassified ? withModelDurability(rawModel) : rawModel,
   )
   const AppMessageSchema = composedAs<ProgramSchema<AppMessage>>(
     S.Union([
@@ -860,6 +869,40 @@ export const compose = <Child extends SessionChild>(config: {
   const childKeepOnRefold = childSynchronization?.keepOnRefold
   const childProjectLocal = childSynchronization?.projectLocal
   const childIsLocalOnly = childSynchronization?.isLocalOnly
+  const childFoldSynced = childSynchronization?.foldSynced
+  const liftedFoldSynced =
+    childFoldSynced === undefined
+      ? undefined
+      : (syncedModel: any, message: AppMessage): any => {
+          if (NavigationMessage.isMessage(message)) {
+            return foldMessage(navigation, syncedModel, message)
+          }
+          if (isMessage(message)) {
+            return updateSession(syncedModel, message)
+          }
+          const {
+            session: _session,
+            navigation: nav,
+            ...childFieldsOnly
+          } = syncedModel
+          const syncedChild =
+            hold === 'Owns'
+              ? childFieldsOnly
+              : { ...childFieldsOnly, navigation: nav }
+          const nextChild = childFoldSynced(
+            syncedChild,
+            composedAs<ChildMessage>(message),
+          )
+          const merged =
+            hold === 'Owns'
+              ? {
+                  ...nextChild,
+                  session: syncedModel.session,
+                  navigation: syncedModel.navigation,
+                }
+              : { ...nextChild, session: syncedModel.session }
+          return allowed(merged)
+        }
   const childScreen = child.screen
   const ownNavigationHosts = config.ownNavigationHosts ?? []
 
@@ -942,6 +985,9 @@ export const compose = <Child extends SessionChild>(config: {
             isLocalOnly: (message: AppMessage): boolean =>
               isChildMessage(message) && childIsLocalOnly(message),
           }),
+      ...(liftedFoldSynced === undefined
+        ? {}
+        : { foldSynced: liftedFoldSynced }),
     },
     ...(childScreen === undefined
       ? {}

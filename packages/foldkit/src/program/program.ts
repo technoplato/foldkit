@@ -1,4 +1,11 @@
-import type { Effect, Schema } from 'effect'
+import {
+  Array,
+  type Effect,
+  Predicate,
+  Record,
+  type Schema,
+  SchemaAST,
+} from 'effect'
 
 import type { Sync } from '../behavior/pace.js'
 import type { AnyCatalog } from '../catalog/catalog.js'
@@ -12,11 +19,24 @@ import type { ProgramNavigation as Navigation } from '../navigation/declaration.
 import type { Ports } from '../port/port.js'
 import type { UiNode } from '../renderers/types.js'
 import type { ActionContext } from '../schema/index.js'
-import type { Subscriptions } from '../subscription/subscription.js'
+import {
+  type RuntimeScopedEntry,
+  type ScopedSubscriptions,
+  type Subscriptions,
+  isRuntimeScopedEntry,
+} from '../subscription/subscription.js'
 import type {
   MessageCategory,
   SessionPolicy,
 } from '../synchronization/synchronization.js'
+import {
+  type AnyDurabilityModel,
+  type DurabilityTypeId,
+  type SyncedOfSchema,
+  applySubscriptionPatch,
+  isDurabilityModelAst,
+  mergeOnRefold,
+} from './durability.js'
 import type { VersionedEventRegistry } from './versionedEvent.js'
 
 /** One Action projected from Program.valid for the current Model. */
@@ -59,10 +79,27 @@ export type ProgramCommand<Message, Resources = never> = Readonly<{
   effect: Effect.Effect<Message, never, Resources>
 }>
 
+/** Pure synced-only log fold used for shared snapshots and stranger-viewpoint folds. */
+export type SyncedFold<SyncedModel, Message> = (
+  model: SyncedModel,
+  message: Message,
+) => SyncedModel
+
 /** Program-owned classification and domain projection for synchronized sessions. */
-export type ProgramSynchronization<Model, Message> = Readonly<{
+export type ProgramSynchronization<
+  Model,
+  Message,
+  SyncedModel = Model,
+  SyncedFoldMessage = Message,
+> = Readonly<{
   messageCategory: (message: Message) => MessageCategory
   projectDomain: (model: Model) => unknown
+  /**
+   * Pure fold over only the `synced` fields of the Model (`SyncedOfSchema<typeof Model>`).
+   * Used by `Runtime.start` for `strangerViewpoint` folds and shared-snapshot audits so
+   * shared folds can never depend on `local`, `loaded`, or `ephemeral` state.
+   */
+  foldSynced?: SyncedFold<SyncedModel, SyncedFoldMessage>
   /**
    * The session policy the Model holds, for a Program that keeps it as
    * state (see `Session.compose`). Every Processor folds the same session
@@ -197,7 +234,7 @@ export type Program<
   managedResources?: ManagedResources<Model, Message, ManagedResourceServices>
   ports?: P
   migrations?: ReadonlyArray<Migration>
-  synchronization?: ProgramSynchronization<Model, Message>
+  synchronization?: ProgramSynchronization<Model, Message, any, any>
   versionedEvents?: VersionedEventRegistry<Message>
   /** @deprecated Declare a `catalog`; its entries carry availability. */
   valid?: ProgramValid<Model>
@@ -207,12 +244,181 @@ export type Program<
   navigation?: ProgramNavigation<Model, any>
 }>
 
+type NonDurabilitySchema<Model> = ProgramSchema<Model> &
+  Readonly<{ readonly [DurabilityTypeId]?: never }>
+
+type DurabilityProgramConfig<
+  ModelSchema extends AnyDurabilityModel,
+  Message extends Readonly<{ _tag: string }>,
+  SubscriptionFacts extends Readonly<{ _tag: string }>,
+  Resources,
+  ManagedResourceServices,
+  P extends Ports | undefined,
+> = Readonly<{
+  id: string
+  version: number
+  Model: ModelSchema
+  Message: ProgramSchema<Message>
+  init: () => readonly [
+    ModelSchema['Type'],
+    ReadonlyArray<
+      ProgramCommand<Message, Resources | NoInfer<ManagedResourceServices>>
+    >,
+  ]
+  restore?: (
+    model: ModelSchema['Type'],
+  ) => readonly [
+    ModelSchema['Type'],
+    ReadonlyArray<
+      ProgramCommand<Message, Resources | NoInfer<ManagedResourceServices>>
+    >,
+  ]
+  update: (
+    model: ModelSchema['Type'],
+    message: Exclude<Message, SubscriptionFacts>,
+  ) => readonly [
+    ModelSchema['Type'],
+    ReadonlyArray<
+      ProgramCommand<Message, Resources | NoInfer<ManagedResourceServices>>
+    >,
+  ]
+  subscriptions?: ScopedSubscriptions<
+    ModelSchema,
+    SubscriptionFacts,
+    Message,
+    Resources | NoInfer<ManagedResourceServices>
+  >
+  managedResources?: ManagedResources<
+    ModelSchema['Type'],
+    Message,
+    ManagedResourceServices
+  >
+  ports?: P
+  migrations?: ReadonlyArray<Migration>
+  synchronization?: ProgramSynchronization<
+    ModelSchema['Type'],
+    Message,
+    SyncedOfSchema<ModelSchema>,
+    Exclude<Message, SubscriptionFacts>
+  >
+  versionedEvents?: VersionedEventRegistry<Message>
+  /** @deprecated Declare a `catalog`; its entries carry availability. */
+  valid?: ProgramValid<ModelSchema['Type']>
+  screen?: ProgramScreen<ModelSchema['Type']>
+  catalog?: AnyCatalog
+  interaction?: ProgramInteraction<ModelSchema['Type'], Message>
+  navigation?: ProgramNavigation<ModelSchema['Type'], any>
+}>
+
+const factTagsOfAst = (ast: SchemaAST.AST): ReadonlyArray<string> => {
+  if (SchemaAST.isSuspend(ast)) {
+    return factTagsOfAst(ast.thunk())
+  }
+  if (SchemaAST.isUnion(ast)) {
+    return Array.flatMap(ast.types, factTagsOfAst)
+  }
+  if (SchemaAST.isObjects(ast)) {
+    for (const ps of ast.propertySignatures) {
+      if (
+        ps.name === '_tag' &&
+        SchemaAST.isLiteral(ps.type) &&
+        Predicate.isString(ps.type.literal)
+      ) {
+        return [ps.type.literal]
+      }
+    }
+  }
+  return []
+}
+
+const scopedFactHandlersOf = (
+  subscriptions: Subscriptions<any, any, any> | undefined,
+): ReadonlyMap<string, RuntimeScopedEntry> => {
+  const handlers = new Map<string, RuntimeScopedEntry>()
+  if (subscriptions === undefined) {
+    return handlers
+  }
+  for (const [entryName, entry] of Record.toEntries(subscriptions)) {
+    if (!isRuntimeScopedEntry(entry)) {
+      continue
+    }
+    for (const factSchema of entry.facts) {
+      for (const tag of factTagsOfAst(factSchema.ast)) {
+        if (handlers.has(tag)) {
+          throw new Error(
+            `[foldkit] Program.make: duplicate Subscription fact tag "${tag}" declared on "${entryName}"`,
+          )
+        }
+        handlers.set(tag, entry)
+      }
+    }
+  }
+  return handlers
+}
+
 /**
  * Defines a renderer-free Foldkit Program while preserving inferred types.
  * A Program that declares a `catalog` and no `interaction` gets one derived
  * from the catalog, so every Client can press its Actions. The exact
  * Catalog type survives, so `useActions(program).increment` type-checks.
+ *
+ * When `Model` is built with `Program.model(...)`:
+ * - `subscriptions` must be built with `Subscription.forModel(Model)`.
+ * - Subscription facts are excluded from `config.update` and dispatched through
+ *   each entry's `apply` + `applySubscriptionPatch`.
+ * - `synchronization.keepOnRefold` is auto-derived via `mergeOnRefold` unless
+ *   explicitly overridden, and every Subscription fact tag is marked `isLocalOnly`.
  */
+export function make<
+  ModelSchema extends AnyDurabilityModel,
+  Message extends Readonly<{ _tag: string }>,
+  C extends AnyCatalog,
+  SubscriptionFacts extends Readonly<{ _tag: string }> = never,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  program: DurabilityProgramConfig<
+    ModelSchema,
+    Message,
+    SubscriptionFacts,
+    Resources,
+    ManagedResourceServices,
+    P
+  > &
+    Readonly<{ catalog: C }>,
+): Program<
+  ModelSchema['Type'],
+  Message,
+  Resources,
+  ManagedResourceServices,
+  P
+> &
+  Readonly<{ Model: ModelSchema; catalog: C }>
+export function make<
+  ModelSchema extends AnyDurabilityModel,
+  Message extends Readonly<{ _tag: string }>,
+  SubscriptionFacts extends Readonly<{ _tag: string }> = never,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  program: DurabilityProgramConfig<
+    ModelSchema,
+    Message,
+    SubscriptionFacts,
+    Resources,
+    ManagedResourceServices,
+    P
+  >,
+): Program<
+  ModelSchema['Type'],
+  Message,
+  Resources,
+  ManagedResourceServices,
+  P
+> &
+  Readonly<{ Model: ModelSchema }>
 export function make<
   Model,
   Message extends Readonly<{ _tag: string }>,
@@ -222,7 +428,7 @@ export function make<
   P extends Ports | undefined = undefined,
 >(
   program: Program<Model, Message, Resources, ManagedResourceServices, P> &
-    Readonly<{ catalog: C }>,
+    Readonly<{ Model: NonDurabilitySchema<Model>; catalog: C }>,
 ): Program<Model, Message, Resources, ManagedResourceServices, P> &
   Readonly<{ catalog: C }>
 export function make<
@@ -232,24 +438,71 @@ export function make<
   ManagedResourceServices = never,
   P extends Ports | undefined = undefined,
 >(
-  program: Program<Model, Message, Resources, ManagedResourceServices, P>,
+  program: Program<Model, Message, Resources, ManagedResourceServices, P> &
+    Readonly<{ Model: NonDurabilitySchema<Model> }>,
 ): Program<Model, Message, Resources, ManagedResourceServices, P>
-export function make<
-  Model,
-  Message extends Readonly<{ _tag: string }>,
-  Resources = never,
-  ManagedResourceServices = never,
-  P extends Ports | undefined = undefined,
->(
-  program: Program<Model, Message, Resources, ManagedResourceServices, P>,
-): Program<Model, Message, Resources, ManagedResourceServices, P> {
-  if (program.interaction === undefined && program.catalog !== undefined) {
-    const interaction = fromCatalog(
-      program.catalog,
-    ) as unknown as ProgramInteraction<Model, Message>
-    return { ...program, interaction }
+export function make(program: any): any {
+  const factHandlers = scopedFactHandlersOf(program.subscriptions)
+  const isClassified = isDurabilityModelAst(program.Model.ast)
+
+  const originalUpdate = program.update
+  const update =
+    factHandlers.size === 0
+      ? originalUpdate
+      : (
+          model: any,
+          message: any,
+        ): readonly [any, ReadonlyArray<ProgramCommand<any, any>>] => {
+          const handler = factHandlers.get(message._tag)
+          if (handler !== undefined) {
+            const applied = handler.apply(model, message)
+            if (globalThis.Array.isArray(applied)) {
+              const [patch, commands] = applied
+              return [
+                applySubscriptionPatch(program.Model.ast, model, patch),
+                commands,
+              ]
+            }
+            return [
+              applySubscriptionPatch(program.Model.ast, model, applied),
+              [],
+            ]
+          }
+          return originalUpdate(model, message)
+        }
+
+  const existingSync = program.synchronization
+  const synchronization =
+    existingSync === undefined
+      ? undefined
+      : {
+          ...existingSync,
+          ...(existingSync.keepOnRefold === undefined && isClassified
+            ? {
+                keepOnRefold: (current: any, refolded: any): any =>
+                  mergeOnRefold(program.Model.ast, current, refolded),
+              }
+            : {}),
+          ...(factHandlers.size > 0
+            ? {
+                isLocalOnly: (message: any): boolean =>
+                  factHandlers.has(message._tag) ||
+                  (existingSync.isLocalOnly?.(message) ?? false),
+              }
+            : {}),
+        }
+
+  const interaction =
+    program.interaction === undefined && program.catalog !== undefined
+      ? fromCatalog(program.catalog)
+      : program.interaction
+
+  return {
+    ...program,
+    update,
+    ...(synchronization === undefined ? {} : { synchronization }),
+    ...(interaction === undefined ? {} : { interaction }),
   }
-  return program
 }
 
 /** Extracts the Model type from a Program. */

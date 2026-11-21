@@ -1,5 +1,9 @@
 import { Array, Effect, Option, Order, Result, Schema as S, pipe } from 'effect'
 
+import {
+  stripForLocalSnapshot,
+  stripForSharedSnapshot,
+} from '../program/durability.js'
 import type { ProgramSchema } from '../program/program.js'
 import {
   type LogRowOrder,
@@ -137,9 +141,7 @@ export const fromPromises = (
 const indexedDbName = 'foldkit-local-snapshots'
 const indexedDbStoreName = 'snapshots'
 
-const openIndexedDb = (
-  factory: IDBFactory,
-): Promise<IDBDatabase> =>
+const openIndexedDb = (factory: IDBFactory): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
     const request = factory.open(indexedDbName, 1)
     request.onupgradeneeded = () => {
@@ -178,7 +180,9 @@ const runIndexedDb = <Value>(
         }
         transaction.onabort = () => {
           database.close()
-          reject(transaction.error ?? new Error('IndexedDB transaction aborted.'))
+          reject(
+            transaction.error ?? new Error('IndexedDB transaction aborted.'),
+          )
         }
       }),
   )
@@ -439,6 +443,7 @@ export type SnapshotProgram<Model> = Readonly<{
   version: number
   foldRevision?: string
   Model: ProgramSchema<Model>
+  initialModel?: Model
 }>
 
 /** How many rows apart kept snapshots are, beside the newest one. */
@@ -526,15 +531,17 @@ export const encode = <Model>(
   scope?: LocalSnapshotScope,
 ): Option.Option<string> => {
   const ModelJson = S.toCodecJson(program.Model)
+  const encodeModel = (model: Model) =>
+    S.encodeSync(ModelJson)(stripForLocalSnapshot(program.Model.ast, model))
   return pipe(
     Result.try(() => ({
       snapshots: Array.map(state.snapshots, snapshot => ({
         watermark: snapshot.watermark,
-        model: S.encodeSync(ModelJson)(snapshot.model),
+        model: encodeModel(snapshot.model),
       })),
       ...(state.deviceModel === undefined
         ? {}
-        : { deviceModel: S.encodeSync(ModelJson)(state.deviceModel) }),
+        : { deviceModel: encodeModel(state.deviceModel) }),
     })),
     Result.map(encoded =>
       JSON.stringify({
@@ -669,7 +676,15 @@ export const encodeShared = <Model>(
   }
   const ModelJson = S.toCodecJson(program.Model)
   return pipe(
-    Result.try(() => S.encodeSync(ModelJson)(entry.model)),
+    Result.try(() =>
+      S.encodeSync(ModelJson)(
+        stripForSharedSnapshot(
+          program.Model.ast,
+          entry.model,
+          program.initialModel,
+        ),
+      ),
+    ),
     Result.map(model =>
       JSON.stringify({
         format: sharedStoredFormat,
@@ -725,4 +740,91 @@ export const decodeShared = <Model>(
       ),
     ),
   )
+}
+
+// RATCHET
+
+const byteLengthOf = (text: string): number =>
+  new globalThis.TextEncoder().encode(text).byteLength
+
+const syntheticWatermark: Watermark = {
+  position: { createdAtMs: 1, id: 'invariance-check' },
+  count: 1,
+  fingerprint: fingerprintOf(['invariance-check']),
+}
+
+/**
+ * Verifies that populating `loaded` and `ephemeral` fields changes neither
+ * `LocalSnapshot.encode` nor `LocalSnapshot.encodeShared` (when `foldRevision`
+ * is set) by even a single byte. Returns the encoded byte sizes so tests can
+ * also enforce an upper-bound budget.
+ *
+ * @example
+ * ```typescript
+ * const { localBytes } = LocalSnapshot.assertSnapshotByteInvariance({
+ *   program: { id: App.id, version: App.version, foldRevision: 'books-fold-v3', Model: App.Model, initialModel },
+ *   baseline: initialModel,
+ *   populated: populatedModel,
+ * })
+ * expect(localBytes).toBeLessThan(16 * 1024)
+ * ```
+ */
+export const assertSnapshotByteInvariance = <Model>(
+  config: Readonly<{
+    program: SnapshotProgram<Model>
+    baseline: Model
+    populated: Model
+    scope?: LocalSnapshotScope
+  }>,
+): Readonly<{
+  localBytes: number
+  sharedBytes: Option.Option<number>
+}> => {
+  const { program, baseline, populated, scope } = config
+  const stateOf = (model: Model): LocalState<Model> => ({
+    snapshots: [{ model, watermark: syntheticWatermark }],
+    rows: [],
+    maybeCursor: Option.none(),
+    deviceModel: model,
+  })
+  const maybeBaseLocal = encode(program, stateOf(baseline), scope)
+  const maybePopLocal = encode(program, stateOf(populated), scope)
+  if (Option.isNone(maybeBaseLocal) || Option.isNone(maybePopLocal)) {
+    throw new Error(
+      '[foldkit] assertSnapshotByteInvariance: LocalSnapshot.encode returned None',
+    )
+  }
+  const baseLocalBytes = byteLengthOf(maybeBaseLocal.value)
+  const popLocalBytes = byteLengthOf(maybePopLocal.value)
+  if (maybeBaseLocal.value !== maybePopLocal.value) {
+    throw new Error(
+      `[foldkit] Snapshot byte invariance violated for "${program.id}" (local): baseline ${String(baseLocalBytes)} bytes vs populated ${String(popLocalBytes)} bytes (delta ${String(popLocalBytes - baseLocalBytes)} bytes)`,
+    )
+  }
+
+  let sharedBytes: Option.Option<number> = Option.none()
+  if (program.foldRevision !== undefined && program.foldRevision !== '') {
+    const entryOf = (model: Model): SharedSnapshotEntry<Model> => ({
+      model,
+      watermark: syntheticWatermark,
+      cursor: 'cursor-0',
+    })
+    const maybeBaseShared = encodeShared(program, entryOf(baseline), scope)
+    const maybePopShared = encodeShared(program, entryOf(populated), scope)
+    if (Option.isNone(maybeBaseShared) || Option.isNone(maybePopShared)) {
+      throw new Error(
+        '[foldkit] assertSnapshotByteInvariance: LocalSnapshot.encodeShared returned None',
+      )
+    }
+    const baseSharedBytes = byteLengthOf(maybeBaseShared.value)
+    const popSharedBytes = byteLengthOf(maybePopShared.value)
+    if (maybeBaseShared.value !== maybePopShared.value) {
+      throw new Error(
+        `[foldkit] Snapshot byte invariance violated for "${program.id}" (shared): baseline ${String(baseSharedBytes)} bytes vs populated ${String(popSharedBytes)} bytes (delta ${String(popSharedBytes - baseSharedBytes)} bytes)`,
+      )
+    }
+    sharedBytes = Option.some(baseSharedBytes)
+  }
+
+  return { localBytes: baseLocalBytes, sharedBytes }
 }

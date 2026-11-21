@@ -1,8 +1,23 @@
-export { aggregate, lift, make, persistent } from './subscription.js'
+export {
+  aggregate,
+  aggregateForModel,
+  forModel,
+  lift,
+  liftScoped,
+  make,
+  persistent,
+} from './subscription.js'
 
 export type {
   EntryWithoutKeepAlive,
+  FactSchema,
+  ScopedApplyReturn,
+  ScopedEntry,
+  ScopedEntryBuilder,
+  ScopedSubscription,
+  ScopedSubscriptions,
   Subscription,
+  SubscriptionFactsOf,
   Subscriptions,
   Superseding,
 } from './subscription.js'

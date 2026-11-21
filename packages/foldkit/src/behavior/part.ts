@@ -15,6 +15,13 @@ import {
   type ProgramInteraction,
   fromCatalog,
 } from '../interaction/interaction.js'
+import {
+  hydrateFromSynced,
+  isDurabilityModelAst,
+  projectSynced,
+  withFieldDurability,
+  withModelDurability,
+} from '../program/durability.js'
 import { liftEffects } from '../program/liftEffects.js'
 import type {
   MessageOf,
@@ -692,38 +699,58 @@ export const compose = <Child extends PartChild>(config: {
     })
   }
 
+  const isChildClassified = isDurabilityModelAst(child.Model.ast)
   const isEveryPartDeviceOnly = Array.every(givens, each =>
     isDeviceOnly(each.part.sync),
   )
-  const PartsSchema = S.Struct({
-    [holdKey]: stateField(LongPress.State, LongPress.initial, true),
+  const rawPartsSchema = S.Struct({
+    [holdKey]: withFieldDurability(
+      stateField(LongPress.State, LongPress.initial, true),
+      { role: 'Ephemeral', reset: () => LongPress.initial },
+    ),
     ...Record.fromEntries(
-      Array.map(givens, each => [
-        each.key,
-        stateField(
+      Array.map(givens, each => {
+        const deviceOnly = isDeviceOnly(each.part.sync)
+        const field = stateField(
           each.part.State,
           each.part.chart.initial,
-          isDeviceOnly(each.part.sync),
-        ),
-      ]),
+          deviceOnly,
+        )
+        return [
+          each.key,
+          withFieldDurability(
+            field,
+            deviceOnly
+              ? { role: 'Local', reset: () => each.part.chart.initial }
+              : { role: 'Synced' },
+          ),
+        ]
+      }),
     ),
   })
+  const PartsSchema = withModelDurability(rawPartsSchema)
   const initialParts = (): PartsModel => ({
     [holdKey]: LongPress.initial,
     ...Record.fromEntries(
       Array.map(givens, each => [each.key, each.part.chart.initial]),
     ),
   })
-  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-  const Model = S.Struct({
-    ...childFields,
-    parts: PartsSchema.pipe(
-      S.withDecodingDefaultKey(
-        Effect.sync(() => ({})),
-        { encodingStrategy: isEveryPartDeviceOnly ? 'omit' : 'passthrough' },
-      ),
+  const partsField = PartsSchema.pipe(
+    S.withDecodingDefaultKey(
+      Effect.sync(() => ({})),
+      { encodingStrategy: isEveryPartDeviceOnly ? 'omit' : 'passthrough' },
     ),
-  }) as unknown as ProgramSchema<AppModel>
+  )
+  const rawModel = S.Struct({
+    ...childFields,
+    parts: isChildClassified
+      ? withFieldDurability(partsField, { role: 'Synced' })
+      : partsField,
+  })
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+  const Model = (isChildClassified
+    ? withModelDurability(rawModel)
+    : rawModel) as unknown as ProgramSchema<AppModel>
 
   const childMembers: ReadonlyArray<S.Top> = Predicate.hasProperty(
     child.Message,
@@ -990,6 +1017,41 @@ export const compose = <Child extends PartChild>(config: {
   })
   const childSynchronization = child.synchronization
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
+  const childFoldSynced = childSynchronization?.foldSynced
+  const liftedFoldSynced =
+    childFoldSynced === undefined
+      ? undefined
+      : (syncedModel: any, message: AppMessage): any => {
+          if (LongPress.isMessage(message)) {
+            return syncedModel
+          }
+          return Option.match(givenOf(message), {
+            onSome: each => {
+              if (isDeviceOnly(each.part.sync)) {
+                return syncedModel
+              }
+              const hydrated = hydrateFromSynced<AppModel>(
+                Model.ast,
+                init()[0],
+                syncedModel,
+              )
+              const [state] = each.part.chart.transition(
+                hydrated.parts[each.key],
+                message,
+                each.propsOf(hydrated),
+              )
+              return projectSynced(
+                Model.ast,
+                withPart(hydrated, each.key, state),
+              )
+            },
+            onNone: () => {
+              const { parts, ...syncedChild } = syncedModel
+              const nextSyncedChild = childFoldSynced(syncedChild, message)
+              return { ...nextSyncedChild, parts }
+            },
+          })
+        }
 
   const viewsOf = (model: AppModel): Views =>
     Record.fromEntries(
@@ -1062,6 +1124,9 @@ export const compose = <Child extends PartChild>(config: {
       ...(childSynchronization?.keepsOwnNavigation === undefined
         ? {}
         : { keepsOwnNavigation: childSynchronization.keepsOwnNavigation }),
+      ...(liftedFoldSynced === undefined
+        ? {}
+        : { foldSynced: liftedFoldSynced }),
       ...derived,
     },
     ...(catalog === undefined ? {} : { catalog }),

@@ -10,6 +10,7 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: [
         'src/**/*.test.ts',
+        'src/**/*.test-d.ts',
         'src/**/*.d.ts',
         'src/test/apps/**',
         'src/test/vitest-setup.ts',
