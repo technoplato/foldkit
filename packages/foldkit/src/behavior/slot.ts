@@ -18,6 +18,8 @@ import * as LongPress from './longPress.js'
 export const Role = S.Literals([
   'Menu',
   'MenuItem',
+  'Listbox',
+  'Option',
   'TabList',
   'Tab',
   'TabPanel',
@@ -109,6 +111,7 @@ export const SlotBinding = S.Struct({
   maybeHold: S.Option(HoldBinding),
   isCurrent: S.optionalKey(S.Boolean),
   isSelected: S.optionalKey(S.Boolean),
+  isMultiselectable: S.optionalKey(S.Boolean),
   isChecked: S.optionalKey(CheckedState),
   isPressed: S.optionalKey(PressedState),
   isExpanded: S.optionalKey(S.Boolean),
@@ -145,6 +148,7 @@ export const SlotProps = S.Struct({
   role: S.optionalKey(Role),
   isCurrent: S.optionalKey(S.Boolean),
   isSelected: S.optionalKey(S.Boolean),
+  isMultiselectable: S.optionalKey(S.Boolean),
   isChecked: S.optionalKey(CheckedState),
   isPressed: S.optionalKey(PressedState),
   isExpanded: S.optionalKey(S.Boolean),
@@ -303,6 +307,8 @@ export const ofButton = (button: ButtonNode): Option.Option<SlotBinding> =>
 const roleNames: Readonly<Record<Role, string>> = {
   Menu: 'menu',
   MenuItem: 'menuitem',
+  Listbox: 'listbox',
+  Option: 'option',
   TabList: 'tablist',
   Tab: 'tab',
   TabPanel: 'tabpanel',
@@ -381,6 +387,9 @@ export const ariaOf = (
   ...(binding.isSelected === undefined
     ? {}
     : { 'aria-selected': String(binding.isSelected) }),
+  ...(binding.isMultiselectable === true
+    ? { 'aria-multiselectable': 'true' }
+    : {}),
   ...(binding.isChecked === undefined
     ? {}
     : { 'aria-checked': String(binding.isChecked) }),

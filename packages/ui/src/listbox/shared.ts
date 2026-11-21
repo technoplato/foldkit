@@ -9,6 +9,12 @@ import {
   String as Str,
   pipe,
 } from 'effect'
+import {
+  Listbox as CoreListbox,
+  RovingFocus,
+  Selection,
+  Typeahead,
+} from 'foldkit/behavior'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { type ChildAttribute, type Html, html } from 'foldkit/html'
@@ -34,11 +40,6 @@ import { update as animationUpdate } from '../animation/update.js'
 import { groupContiguous } from '../group.js'
 import * as OptionExt from '../internal/optionExtensions.js'
 import { idSelector } from '../internal/selectors.js'
-import {
-  findFirstEnabledIndex,
-  isPrintableKey,
-  keyToIndex,
-} from '../keyboard.js'
 import { resolveTypeaheadMatch } from '../typeahead.js'
 
 export { resolveTypeaheadMatch }
@@ -46,12 +47,12 @@ export { resolveTypeaheadMatch }
 // MODEL
 
 /** Schema for the activation trigger: whether the user interacted via mouse or keyboard. */
-export const ActivationTrigger = S.Literals(['Pointer', 'Keyboard'])
-export type ActivationTrigger = typeof ActivationTrigger.Type
+export const ActivationTrigger = CoreListbox.ActivationTrigger
+export type ActivationTrigger = CoreListbox.ActivationTrigger
 
 /** Schema for the listbox orientation: whether items flow vertically or horizontally. */
-export const Orientation = S.Literals(['Vertical', 'Horizontal'])
-export type Orientation = typeof Orientation.Type
+export const Orientation = CoreListbox.Orientation
+export type Orientation = CoreListbox.Orientation
 
 /** Schema fields shared by all listbox variants (single-select and multi-select). Spread into each variant's `S.Struct` to avoid duplicating field definitions. */
 export const BaseModel = S.Struct({
@@ -262,25 +263,27 @@ export type OutMessage<Value extends string = string> = Selected<Value>
 
 // CONSTANTS
 
-export const SEARCH_DEBOUNCE_MILLISECONDS = 350
+export const SEARCH_DEBOUNCE_MILLISECONDS = Typeahead.resetMs
 export const LEFT_MOUSE_BUTTON = 0
 
 // SELECTORS
 
-export const buttonSelector = (id: string): string => idSelector(`${id}-button`)
+export const buttonSelector = (id: string): string =>
+  idSelector(CoreListbox.buttonId(id))
 
 /** Returns the bare DOM id of the listbox trigger button, derived from the
  *  listbox's base id. Use this to associate an external label with the
  *  trigger via a native `<label for={Listbox.buttonId(id)}>` or an
  *  `aria-labelledby` reference. Mirrors `buttonSelector`, which returns the
  *  CSS selector form (`#${id}-button`) rather than the bare id. */
-export const buttonId = (id: string): string => `${id}-button`
+export const buttonId = (id: string): string => CoreListbox.buttonId(id)
 
-export const itemsSelector = (id: string): string => idSelector(`${id}-items`)
+export const itemsSelector = (id: string): string =>
+  idSelector(CoreListbox.listboxId(id))
 export const itemSelector = (id: string, index: number): string =>
-  idSelector(`${id}-item-${index}`)
+  idSelector(CoreListbox.optionId(id, index))
 export const itemId = (id: string, index: number): string =>
-  `${id}-item-${index}`
+  CoreListbox.optionId(id, index)
 
 // HELPERS
 
@@ -594,13 +597,12 @@ export const makeUpdate = <Model extends BaseModel>(
         ],
 
         MovedPointerOverItem: ({ index, screenX, screenY }) => {
-          const isSamePosition = Option.exists(
-            model.maybeLastPointerPosition,
-            position =>
-              position.screenX === screenX && position.screenY === screenY,
-          )
-
-          if (isSamePosition) {
+          if (
+            CoreListbox.isSamePointerPosition(model.maybeLastPointerPosition, {
+              screenX,
+              screenY,
+            })
+          ) {
             return [model, [], Option.none()]
           }
 
@@ -616,7 +618,7 @@ export const makeUpdate = <Model extends BaseModel>(
         },
 
         DeactivatedItem: () =>
-          model.activationTrigger === 'Pointer'
+          CoreListbox.shouldDeactivateOnLeave(model.activationTrigger)
             ? [
                 constrainedEvo(model, {
                   maybeActiveItemIndex: () => Option.none(),
@@ -645,8 +647,12 @@ export const makeUpdate = <Model extends BaseModel>(
         ],
 
         Searched: ({ key, maybeTargetIndex }) => {
-          const nextSearchQuery = model.searchQuery + key
-          const nextSearchVersion = model.searchVersion + 1
+          const [nextTypeahead] = Typeahead.chart.transition(
+            Typeahead.fromFields(model.searchQuery, model.searchVersion),
+            Typeahead.Typed({ key }),
+          )
+          const nextSearchQuery = Typeahead.queryOf(nextTypeahead)
+          const nextSearchVersion = Typeahead.versionOf(nextTypeahead)
 
           return [
             constrainedEvo(model, {
@@ -664,12 +670,21 @@ export const makeUpdate = <Model extends BaseModel>(
         },
 
         ClearedSearch: ({ version }) => {
-          if (version !== model.searchVersion) {
+          const currentTypeahead = Typeahead.fromFields(
+            model.searchQuery,
+            model.searchVersion,
+          )
+          const [nextTypeahead] = Typeahead.chart.transition(
+            currentTypeahead,
+            Typeahead.ElapsedReset({ version }),
+          )
+          const nextSearchQuery = Typeahead.queryOf(nextTypeahead)
+          if (nextSearchQuery === model.searchQuery) {
             return [model, [], Option.none()]
           }
 
           return [
-            constrainedEvo(model, { searchQuery: () => '' }),
+            constrainedEvo(model, { searchQuery: () => nextSearchQuery }),
             [],
             Option.none(),
           ]
@@ -907,7 +922,7 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
       const itemToValue =
         viewInputs.itemToValue ?? ((item: unknown) => String(item))
       const isValueSelected = (itemValue: string): boolean =>
-        Array.contains(selectedValues, itemValue)
+        Selection.hasValue(selectedValues, itemValue)
       const itemToSearchText =
         viewInputs.itemToSearchText ?? ((item: unknown) => itemToValue(item))
 
@@ -949,31 +964,15 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
 
       const isButtonEffectivelyDisabled = isDisabled || isButtonDisabled
 
-      const nextKey = orientation === 'Horizontal' ? 'ArrowRight' : 'ArrowDown'
-      const previousKey = orientation === 'Horizontal' ? 'ArrowLeft' : 'ArrowUp'
+      const firstEnabledIndex = Option.getOrElse(
+        RovingFocus.firstEnabled(items.length, isItemDisabledByIndex),
+        () => 0,
+      )
 
-      const navigationKeys = [
-        nextKey,
-        previousKey,
-        'Home',
-        'End',
-        'PageUp',
-        'PageDown',
-      ]
-      const isNavigationKey = (key: string): boolean =>
-        Array.contains(navigationKeys, key)
-
-      const firstEnabledIndex = findFirstEnabledIndex(
-        items.length,
-        0,
-        isItemDisabledByIndex,
-      )(0, 1)
-
-      const lastEnabledIndex = findFirstEnabledIndex(
-        items.length,
-        0,
-        isItemDisabledByIndex,
-      )(items.length - 1, -1)
+      const lastEnabledIndex = Option.getOrElse(
+        RovingFocus.lastEnabled(items.length, isItemDisabledByIndex),
+        () => 0,
+      )
 
       const selectedItemIndex = pipe(
         selectedValues,
@@ -1038,22 +1037,19 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
       const handleSpaceKeyUp = (key: string): Option.Option<Message> =>
         OptionExt.when(key === ' ', SuppressedSpaceScroll())
 
-      const resolveActiveIndex = (key: string): number =>
-        Option.match(maybeActiveItemIndex, {
-          onNone: () =>
-            M.value(key).pipe(
-              M.whenOr(previousKey, 'End', 'PageDown', () => lastEnabledIndex),
-              M.orElse(() => firstEnabledIndex),
-            ),
-          onSome: activeIndex =>
-            keyToIndex(
-              nextKey,
-              previousKey,
-              items.length,
-              activeIndex,
-              isItemDisabledByIndex,
-            )(key),
-        })
+      const resolveNavigationIndex = (key: string): Option.Option<number> =>
+        Option.map(RovingFocus.moveOfKey(key, { orientation }), move =>
+          Option.getOrElse(
+            RovingFocus.stepEnabled({
+              count: items.length,
+              current: maybeActiveItemIndex,
+              move,
+              isDisabled: isItemDisabledByIndex,
+              loop: true,
+            }),
+            () => Option.getOrElse(maybeActiveItemIndex, () => 0),
+          ),
+        )
 
       const searchForKey = (key: string): Option.Option<Message> => {
         const nextQuery = searchQuery + key
@@ -1068,32 +1064,29 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
         return Option.some(Searched({ key, maybeTargetIndex }))
       }
 
-      const handleItemsKeyDown = (key: string): Option.Option<Message> =>
-        M.value(key).pipe(
-          M.when('Escape', () => Option.some(Closed())),
-          M.when('Enter', () =>
-            Option.map(maybeActiveItemIndex, index =>
-              RequestedItemClick({ index }),
+      const handleItemsKeyDown = (key: string): Option.Option<Message> => {
+        if (key === 'Escape') {
+          return Option.some(Closed())
+        } else if (key === 'Enter') {
+          return Option.map(maybeActiveItemIndex, index =>
+            RequestedItemClick({ index }),
+          )
+        } else if (key === ' ') {
+          return Str.isNonEmpty(searchQuery)
+            ? searchForKey(' ')
+            : Option.map(maybeActiveItemIndex, index =>
+                RequestedItemClick({ index }),
+              )
+        } else {
+          return Option.orElse(
+            Option.map(resolveNavigationIndex(key), index =>
+              ActivatedItem({ index, activationTrigger: 'Keyboard' }),
             ),
-          ),
-          M.when(' ', () =>
-            Str.isNonEmpty(searchQuery)
-              ? searchForKey(' ')
-              : Option.map(maybeActiveItemIndex, index =>
-                  RequestedItemClick({ index }),
-                ),
-          ),
-          M.when(isNavigationKey, () =>
-            Option.some(
-              ActivatedItem({
-                index: resolveActiveIndex(key),
-                activationTrigger: 'Keyboard',
-              }),
-            ),
-          ),
-          M.when(isPrintableKey, () => searchForKey(key)),
-          M.orElse(() => Option.none()),
-        )
+            () =>
+              Typeahead.isPrintableKey(key) ? searchForKey(key) : Option.none(),
+          )
+        }
+      }
 
       const resolveButtonLabel = () => {
         if (Predicate.isNotUndefined(ariaLabel)) {
@@ -1108,11 +1101,11 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
       const buttonLabelAttributes = resolveButtonLabel()
 
       const resolvedButtonAttributes = [
-        h.Id(`${id}-button`),
+        h.Id(CoreListbox.buttonId(id)),
         h.Type('button'),
         h.AriaHasPopup('listbox'),
         h.AriaExpanded(isVisible),
-        h.AriaControls(`${id}-items`),
+        h.AriaControls(CoreListbox.listboxId(id)),
         ...buttonLabelAttributes,
         ...(isButtonEffectivelyDisabled
           ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
@@ -1144,15 +1137,17 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
           margin: '0',
           visibility: 'hidden',
         }),
-        h.OnMount(AnchorListbox({ buttonId: `${id}-button`, anchor })),
+        h.OnMount(
+          AnchorListbox({ buttonId: CoreListbox.buttonId(id), anchor }),
+        ),
       ]
 
       const itemsContainerAttributes = [
-        h.Id(`${id}-items`),
+        h.Id(CoreListbox.listboxId(id)),
         h.Role('listbox'),
         h.AriaOrientation(Str.toLowerCase(orientation)),
         ...(behavior.ariaMultiSelectable ? [h.AriaMultiSelectable(true)] : []),
-        h.AriaLabelledBy(`${id}-button`),
+        h.AriaLabelledBy(CoreListbox.buttonId(id)),
         ...maybeActiveDescendant,
         h.Tabindex(0),
         ...anchorAttributes,
@@ -1241,7 +1236,7 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
             groupToHeading?.(segment.key),
           )
 
-          const headingId = `${id}-heading-${segment.key}`
+          const headingId = CoreListbox.headingId(id, segment.key)
 
           const headingElement = Option.match(maybeHeading, {
             onNone: () => [],
@@ -1261,7 +1256,7 @@ export const makeView = <Model extends BaseModel>(behavior: ViewBehavior) => {
           const groupContent = [...headingElement, ...segment.items]
 
           const groupElement = h.keyed('div')(
-            `${id}-group-${segment.key}`,
+            CoreListbox.groupId(id, segment.key),
             [
               h.Role('group'),
               ...(Option.isSome(maybeHeading)
