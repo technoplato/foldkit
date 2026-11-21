@@ -24,6 +24,7 @@ export const Role = S.Literals([
   'Button',
   'Dialog',
   'AlertDialog',
+  'Region',
 ])
 /** What a painted element is, for a screen reader. */
 export type Role = typeof Role.Type
@@ -268,6 +269,7 @@ const roleNames: Readonly<Record<Role, string>> = {
   Button: 'button',
   Dialog: 'dialog',
   AlertDialog: 'alertdialog',
+  Region: 'region',
 }
 
 /**

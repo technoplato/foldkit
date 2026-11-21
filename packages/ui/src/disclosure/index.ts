@@ -1,4 +1,5 @@
-import { Match as M, Option, Predicate } from 'effect'
+import { Option, Predicate } from 'effect'
+import { Disclosure as CoreDisclosure } from 'foldkit/behavior'
 import { type Attribute, type Html, html } from 'foldkit/html'
 
 // VIEW
@@ -7,9 +8,9 @@ import { type Attribute, type Html, html } from 'foldkit/html'
  *  disclosure's base id. Use this to associate an external label with the
  *  button via a native `<label for={Disclosure.buttonId(id)}>` or an
  *  `aria-labelledby` reference. */
-export const buttonId = (id: string): string => `${id}-button`
+export const buttonId: (id: string) => string = CoreDisclosure.buttonId
 
-const panelId = (id: string): string => `${id}-panel`
+const panelId = CoreDisclosure.panelId
 
 const panelSizeTransition = 'grid-template-rows 200ms ease-out'
 
@@ -87,9 +88,9 @@ export const view = <Message>(config: ViewConfig<Message>): Html => {
   const nextOpen = !isOpen
 
   const handleKeyDown = (key: string): Option.Option<Message> =>
-    M.value(key).pipe(
-      M.whenOr('Enter', ' ', () => Option.some(onToggle(nextOpen))),
-      M.orElse(() => Option.none()),
+    Option.map(
+      CoreDisclosure.resolveKeyToggle({ key, isOpen, isDisabled }),
+      onToggle,
     )
 
   const disabledAttributes = isDisabled
