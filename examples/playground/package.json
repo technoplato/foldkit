@@ -1,0 +1,25 @@
+{
+  "name": "@foldkit/playground",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "happy-dom": "^20.10.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  },
+  "scripts": {
+    "dev": "vite --port 5221",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5221 --strictPort",
+    "cli": "vite build --ssr cli.ts --outDir dist-cli --emptyOutDir && node dist-cli/cli.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -97,6 +97,10 @@ export const foldkitAliases = (dirname: string) => ({
     dirname,
     '../../packages/foldkit/src/customElement',
   ),
+  'foldkit/declaration': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/declaration/public',
+  ),
   'foldkit/devtools-host': path.resolve(
     dirname,
     '../../packages/foldkit/src/devTools/host',
@@ -124,6 +128,14 @@ export const foldkitAliases = (dirname: string) => ({
   'foldkit/interaction-graph': path.resolve(
     dirname,
     '../../packages/foldkit/src/interactionGraph/public',
+  ),
+  'foldkit/jsx-dev-runtime': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/renderers/jsxRuntime',
+  ),
+  'foldkit/jsx-runtime': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/renderers/jsxRuntime',
   ),
   'foldkit/managedResource': path.resolve(
     dirname,
@@ -182,6 +194,7 @@ export const foldkitAliases = (dirname: string) => ({
     dirname,
     '../../packages/foldkit/src/test/vitest',
   ),
+  'foldkit/theme': path.resolve(dirname, '../../packages/foldkit/src/theme'),
   'foldkit/update': path.resolve(
     dirname,
     '../../packages/foldkit/src/update/public',
