@@ -102,6 +102,12 @@ describe('the words the summary shows', () => {
     ).toBe('The queue counts you as away.')
   })
 
+  test('a waiting build the exporter gave no class reads in words', () => {
+    expect(waitingWords(2, [{ class: 'unclassed', count: 2 }])).toBe(
+      '2 (2 with no priority)',
+    )
+  })
+
   test('a class of waiting build reads in words', () => {
     expect(
       waitingWords(8, [

@@ -799,6 +799,21 @@ describe('the pipeline page', () => {
     )
   })
 
+  test('what the capped folders hold is never called their budget', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(readyModelAt('/pipeline')),
+      Scene.expect(
+        Scene.text('The folders below with a cap hold 590 GiB.', {
+          exact: false,
+        }),
+      ).toExist(),
+      Scene.expect(
+        Scene.text('is budgeted to', { exact: false }),
+      ).not.toExist(),
+    )
+  })
+
   test('lists what changed and where the targets are declared', () => {
     Scene.scene(
       { update, view },
