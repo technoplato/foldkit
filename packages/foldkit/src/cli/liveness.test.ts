@@ -8,6 +8,7 @@ import {
   keptWorkingSentence,
   quietAfter,
   quietSince,
+  statusLinesOf,
 } from './liveness.js'
 
 const nothing = { reasons: [], followers: 0, askedAtMs: 0 }
@@ -84,5 +85,40 @@ describe('when a Background Processor makes way for another build', () => {
     ).toBe(
       'The publisher Background Processor is another build and was not replaced, because it is working: a broadcast is on air; a clip is uploading. It answered this command. The first command after that work ends replaces it. `publisher stop` ends it now.',
     )
+  })
+})
+
+describe('what a Background Processor says about itself', () => {
+  const running = {
+    name: 'publisher',
+    pid: 4242,
+    sinceMs: Date.UTC(2026, 10, 22, 22, 30, 0),
+    idleMs: DEFAULT_IDLE_GRACE_MS,
+    reasons: [],
+    followers: 0,
+  }
+
+  it('says who it is, since when, when it stops, and that it is not working', () => {
+    expect(statusLinesOf({ ...running, lifetime: 'UntilIdle' })).toEqual([
+      'The publisher Background Processor is running, pid 4242, since 2026-11-22T22:30:00.000Z.',
+      'It stops once it has had nothing to do for 600 seconds.',
+      'It is not working.',
+    ])
+  })
+
+  it('says an always-on one stays up, which work is going on, and which views are attached', () => {
+    expect(
+      statusLinesOf({
+        ...running,
+        lifetime: 'AlwaysOn',
+        reasons: ['a broadcast is on air'],
+        followers: 1,
+      }),
+    ).toEqual([
+      'The publisher Background Processor is running, pid 4242, since 2026-11-22T22:30:00.000Z.',
+      'It stays up until it is stopped.',
+      'It is working: a broadcast is on air.',
+      'A view is attached.',
+    ])
   })
 })
