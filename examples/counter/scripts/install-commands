@@ -41,6 +41,10 @@ chmod +x "$bin_dir/counters"
 
 echo "Installed $bin_dir/counter and $bin_dir/counters"
 
+# Tab completion for the shell this is run from: `counter ` then Tab.
+"$bin_dir/counter" completions || true
+"$bin_dir/counters" completions || true
+
 case "$repo" in
   */.claude/worktrees/* | */.t3/worktrees/*)
     echo "Note: $repo is a temporary worktree. Run this from a checkout you keep, so the commands go on working after it goes."

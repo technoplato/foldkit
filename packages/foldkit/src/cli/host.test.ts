@@ -112,6 +112,21 @@ describe('a Program as a command, through terminal()', () => {
   )
 
   it(
+    'tells a shell what may come next, from the Program\u2019s own declarations and its own words',
+    () => {
+      const host = hostOf()
+      const words = run(host, 'completions', 'words').stdout.split('\n')
+      expect(words).toContain('increment')
+      expect(words).toContain('reset')
+      expect(words).toContain('stop')
+      expect(run(host, 'completions', 'zsh').stdout).toContain(
+        'fixture-counter completions words',
+      )
+    },
+    testTimeoutMs,
+  )
+
+  it(
     'repaints a watching view at once when another command changes the Model',
     async () => {
       const host = hostOf()

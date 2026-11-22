@@ -489,6 +489,59 @@ export const programUsage = <Model, Message>(
   ].join('\n')
 }
 
+/**
+ * The words that may come next after what has been typed, for a shell's
+ * tab completion: with nothing typed, every Action's command and the
+ * first word of every control every Program has, then the host's own
+ * words; after an Action that chooses, what it chooses from. They are
+ * the Catalog's words as they stand now, so a new counter is offered as
+ * soon as it exists.
+ *
+ * @example
+ * ```typescript
+ * commandWordsOf(bound, [], ['stop', 'watch']) // ['increment', 'decrement', 'reset', 'menu', 'key', 'open', 'stop', 'watch']
+ * commandWordsOf(bound, ['increment']) // ['17', '21', '23'] for the Counters
+ * ```
+ */
+export const commandWordsOf = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  said: ReadonlyArray<string>,
+  hostWords: ReadonlyArray<string> = [],
+): ReadonlyArray<string> => {
+  const entries = bound.entries()
+  return Array.match(said, {
+    onEmpty: () =>
+      Array.dedupe([
+        ...Array.map(entries, entry => commandOf(saidTagOf(entry))),
+        ...Array.getSomes(
+          Array.map(pathsOf(programControls), ({ path }) =>
+            Array.head(declaredCommandOf(path).split(' ')),
+          ),
+        ),
+        ...hostWords,
+      ]),
+    onNonEmpty: words => {
+      if (words.length === 1) {
+        const first = Array.headNonEmpty(words)
+        return Array.flatMap(
+          Array.filter(
+            entries,
+            (entry: Entry) => commandOf(saidTagOf(entry)) === first,
+          ),
+          (entry: Entry) =>
+            Option.match(entry.maybeChoices, {
+              onNone: () => [],
+              onSome: choices =>
+                Array.map(choices.choices, choice => choice.token),
+            }),
+        )
+      } else {
+        return []
+      }
+    },
+  })
+}
+
 /** A command a host offers beside the Program's own, such as `books tui`. */
 export type HostCommand = Readonly<{ command: string; what: string }>
 

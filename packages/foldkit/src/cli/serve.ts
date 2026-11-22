@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { Deferred, Duration, Effect, Schema as S, Stream } from 'effect'
+import { Array, Deferred, Duration, Effect, Schema as S, Stream } from 'effect'
 
 import {
   type BindableProgram,
@@ -21,6 +21,7 @@ import {
   quietAfter,
   quietSince,
 } from './liveness.js'
+import { commandWordsOf } from './program.js'
 import {
   type CliDaemonError,
   type CliDaemonPaintedResult,
@@ -103,6 +104,19 @@ export const stopWord = 'stop'
 
 /** The word a command asks a Background Processor what it was built from with. */
 export const buildWord = 'background-build'
+
+/** The word a shell's tab completion asks a Background Processor for what may come next with. */
+export const wordsWord = 'background-words'
+
+const hostWords = [
+  'stop',
+  'watch',
+  'tail',
+  'tui',
+  'follow',
+  'help',
+  'completions',
+]
 
 /** The flag a stopped Processor's answer carries. */
 export const stoppedOutcome = 'Stopped'
@@ -307,6 +321,23 @@ export const serveTerminal = <Model, Message>(
           return Effect.succeed({ stdout: options.build, exitCode: 0 })
         } else if (token === stopWord) {
           return asked(stopped())
+        } else if (token === wordsWord || token.startsWith(`${wordsWord} `)) {
+          return asked(
+            Effect.sync(() => ({
+              stdout: Array.join(
+                commandWordsOf(
+                  bound,
+                  Array.filter(
+                    token.slice(wordsWord.length).split(' '),
+                    word => word !== '',
+                  ),
+                  hostWords,
+                ),
+                '\n',
+              ),
+              exitCode: 0,
+            })),
+          )
         } else {
           return asked(
             Effect.map(
