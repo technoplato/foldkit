@@ -105,3 +105,16 @@ Hand rolling, by name, with the file that does it today:
 - Domain-or-Navigation is derived from what a Message writes; a hand-written
   `categoryOf` is a smell.
 - Screens ask the Catalog what is offered here; they do not list tags.
+- An effect another device asks for is a Subscription over state, never the
+  arrival of its Message. Sync drops the Commands of a Message from another
+  device, and a Message that arrives late or at start is folded without
+  passing through `update` at all. So read what is waiting from the Model,
+  say `runsOn: Processor.RunsOn.serverOnly` when one place must do the work,
+  and take a claim behind a port before acting, since the Subscription may
+  fire more than once. e.g. a phone approves a copy; on the Mac
+  `approvedUnclaimed` notices it and `update` returns `[ClaimCopy({ copy })]`
+  (`packages/foldkit/src/runtime/runsOn.test.ts`).
+- A Command's result Message stays on the Processor that ran it and is never
+  written to the shared log (`packages/foldkit/src/runtime/commandResultLog.test.ts`).
+  What every device must see, such as "published", is a row the Command
+  writes through a port.
