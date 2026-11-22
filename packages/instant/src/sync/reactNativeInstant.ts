@@ -15,6 +15,7 @@ import {
 } from '../snapshotLog/snapshotLog.js'
 import {
   type InstantOptions,
+  clientFieldsKeptFor,
   engineProcessorId,
   fromTransport,
   instantLinksOf,
@@ -162,7 +163,12 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
       }),
       processor,
       instantLinksOf(database),
-      { writesSnapshot: false, ...snapshotHooks, ...sharedSnapshotHooks },
+      {
+        writesSnapshot: false,
+        ...snapshotHooks,
+        ...sharedSnapshotHooks,
+        ...clientFieldsKeptFor(options.app),
+      },
     )
   }
   const database = options.database ?? openDatabase(options)
@@ -181,6 +187,6 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
     ),
     processor,
     instantLinksOf(database),
-    snapshotHooks,
+    { ...snapshotHooks, ...clientFieldsKeptFor(options.app) },
   )
 }

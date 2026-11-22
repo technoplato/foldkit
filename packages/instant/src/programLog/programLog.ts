@@ -13,6 +13,7 @@ import {
   InstantLogMessageRecord,
   type SnapshotLogQueryData,
   type SnapshotLogState,
+  clientFieldsOf,
   countSnapshotId,
   emptyCountSnapshotFor,
   snapshotLogPageSize,
@@ -40,6 +41,11 @@ export const ProgramMessageRow = S.Struct({
   payload: S.Record(S.String, S.Unknown),
   from: S.String,
   createdAtMs: S.Number,
+  client: S.optionalKey(S.NullOr(S.String)),
+  browser: S.optionalKey(S.NullOr(S.String)),
+  windowLabel: S.optionalKey(S.NullOr(S.String)),
+  terminal: S.optionalKey(S.NullOr(S.String)),
+  appVersion: S.optionalKey(S.NullOr(S.String)),
 })
 /** One Message on the shared program log, as Instant stores it. */
 export type ProgramMessageRow = typeof ProgramMessageRow.Type
@@ -72,6 +78,7 @@ export const programLogEnvelope = (app: string) =>
                 createdAtMs: row.createdAtMs,
                 tag: tagColumnOf({ ...row.payload, _tag: row.tag }),
                 programVersion: row.programVersion,
+                ...clientFieldsOf(row),
               })
             : Effect.fail(
                 new SchemaIssue.InvalidValue(Option.some(row.app), {
@@ -102,6 +109,7 @@ export const programLogEnvelope = (app: string) =>
                     payload,
                     from: record.from,
                     createdAtMs: record.createdAtMs,
+                    ...clientFieldsOf(record),
                   }),
           }),
       }),
@@ -118,7 +126,9 @@ const programLogWhere = (
 
 /** Every row one app wrote to the shared log (scoped to `ownerUserID` when given). */
 export const programLogQuery = (app: string, ownerUserID?: string) =>
-  ({ programMessage: { $: { where: programLogWhere(app, ownerUserID) } } }) as const
+  ({
+    programMessage: { $: { where: programLogWhere(app, ownerUserID) } },
+  }) as const
 
 /** One page of one app's rows in the order Instant received them. */
 export const programLogPageQuery = (

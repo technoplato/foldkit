@@ -147,7 +147,9 @@ const isBlankSnapshot = (snapshot: InstantCountSnapshotRecord): boolean =>
   snapshot.asOf === emptyCountSnapshot.asOf &&
   snapshot.at === emptyCountSnapshot.at
 
-const isAuthChangedCause = (cause: unknown): cause is ProgramLogAuthChangedError => {
+const isAuthChangedCause = (
+  cause: unknown,
+): cause is ProgramLogAuthChangedError => {
   if (cause instanceof ProgramLogAuthChangedError) {
     return true
   }
@@ -185,13 +187,43 @@ const decodeSnapshot = (
     catch: cause => toTransportError(cause, 'Decode', row),
   })
 
+const withoutClientFields = ({
+  client: _client,
+  browser: _browser,
+  windowLabel: _windowLabel,
+  terminal: _terminal,
+  appVersion: _appVersion,
+  ...own
+}: InstantLogMessageRecord): InstantLogMessageRecord => own
+
 const decodeMessage = (
   row: unknown,
+  keepsClientFields: boolean,
 ): Effect.Effect<InstantLogMessageRecord, Runtime.SyncTransportError> =>
   Effect.try({
-    try: () => S.decodeUnknownSync(InstantLogMessageRecord)(row),
+    try: () => {
+      const record = S.decodeUnknownSync(InstantLogMessageRecord)(row)
+      return keepsClientFields ? record : withoutClientFields(record)
+    },
     catch: cause => toTransportError(cause, 'Decode', row),
   })
+
+/**
+ * Whether an engine on `app` writes what a row says about its Client:
+ * yes on the shared project, whose schema this package owns and which has
+ * the columns, and no on any other app, whose schema may refuse a column
+ * it does not name, as a library's own app would.
+ *
+ * @example
+ * ```typescript
+ * fromTransport(transport, processor, links, { ...hooks, ...clientFieldsKeptFor(options.app) })
+ * ```
+ */
+export const clientFieldsKeptFor = (
+  app: InstantApp,
+): Pick<FromTransportOptions, 'keepsClientFields'> => ({
+  keepsClientFields: app.id === SharedInstantProject.id,
+})
 
 const linkOf = (
   outcome: Readonly<{ readonly _tag: string }>,
@@ -287,6 +319,12 @@ export const instantLinksOf =
 
 export type FromTransportOptions = Readonly<{
   writesSnapshot?: boolean
+  /**
+   * Whether a written row keeps what it says about its Client, such as
+   * `client: 'tui'`. Off unless said, so a row holds the log's own fields
+   * only on an app whose schema has no such columns.
+   */
+  keepsClientFields?: boolean
   localSnapshot?: Runtime.SyncEngine['localSnapshot']
   snapshotScope?: Runtime.SyncEngine['snapshotScope']
   watchAuthChanged?: Runtime.SyncEngine['watchAuthChanged']
@@ -328,72 +366,81 @@ export const fromTransport = (
     ...(options?.writeSharedSnapshot === undefined
       ? {}
       : { writeSharedSnapshot: options.writeSharedSnapshot }),
-  read: () =>
-    transport.read().pipe(
-      Effect.map(state => ({
-        snapshot: isBlankSnapshot(state.snapshot) ? undefined : state.snapshot,
-        messages: state.messages.filter(message =>
-          messageBelongsToInstantRoom(message.from, processor),
-        ),
-      })),
-      Effect.mapError(error => toTransportError(error, 'Read')),
-    ),
-  ...Option.match(readSinceOf(transport, processor), {
-    onNone: () => ({}),
-    onSome: readSince => ({ readSince }),
-  }),
-  subscribe: enqueue =>
-    Effect.gen(function* () {
-      const ready = yield* Deferred.make<void>()
-      const seenMessageIds = new Set<string>()
-      yield* (transport.subscribeRecent ?? transport.subscribe).pipe(
-        Stream.tap(() => Deferred.succeed(ready, undefined)),
-        Stream.runForEach(state =>
-          Effect.sync(() => {
-            enqueue({
-              _tag: 'Snapshot',
-              row: isBlankSnapshot(state.snapshot) ? undefined : state.snapshot,
-            })
-            for (const message of state.messages) {
-              if (seenMessageIds.has(message.id)) {
-                continue
-              }
-              if (!messageBelongsToInstantRoom(message.from, processor)) {
-                continue
-              }
-              seenMessageIds.add(message.id)
-              enqueue({
-                _tag: 'Message',
-                row: message,
-              })
-            }
-          }),
-        ),
-        Effect.catch(() => Effect.void),
-        Effect.ensuring(Deferred.succeed(ready, undefined)),
-        Effect.forkScoped,
-      )
-      yield* Deferred.await(ready)
+    read: () =>
+      transport.read().pipe(
+        Effect.map(state => ({
+          snapshot: isBlankSnapshot(state.snapshot)
+            ? undefined
+            : state.snapshot,
+          messages: state.messages.filter(message =>
+            messageBelongsToInstantRoom(message.from, processor),
+          ),
+        })),
+        Effect.mapError(error => toTransportError(error, 'Read')),
+      ),
+    ...Option.match(readSinceOf(transport, processor), {
+      onNone: () => ({}),
+      onSome: readSince => ({ readSince }),
     }),
-  write: write => {
-    const snapshotEffect = writesSnapshot
-      ? decodeSnapshot(write.snapshot)
-      : Effect.succeed(emptyCountSnapshot)
-    return snapshotEffect.pipe(
-      Effect.flatMap(snapshot =>
-        decodeMessage(write.message).pipe(
-          Effect.flatMap(message =>
-            transport.write({ message, snapshot }).pipe(
-              Effect.map(outcome => ({
-                link: linkOf(outcome),
-              })),
-              Effect.mapError(error => toTransportError(error, 'Write', write)),
+    subscribe: enqueue =>
+      Effect.gen(function* () {
+        const ready = yield* Deferred.make<void>()
+        const seenMessageIds = new Set<string>()
+        yield* (transport.subscribeRecent ?? transport.subscribe).pipe(
+          Stream.tap(() => Deferred.succeed(ready, undefined)),
+          Stream.runForEach(state =>
+            Effect.sync(() => {
+              enqueue({
+                _tag: 'Snapshot',
+                row: isBlankSnapshot(state.snapshot)
+                  ? undefined
+                  : state.snapshot,
+              })
+              for (const message of state.messages) {
+                if (seenMessageIds.has(message.id)) {
+                  continue
+                }
+                if (!messageBelongsToInstantRoom(message.from, processor)) {
+                  continue
+                }
+                seenMessageIds.add(message.id)
+                enqueue({
+                  _tag: 'Message',
+                  row: message,
+                })
+              }
+            }),
+          ),
+          Effect.catch(() => Effect.void),
+          Effect.ensuring(Deferred.succeed(ready, undefined)),
+          Effect.forkScoped,
+        )
+        yield* Deferred.await(ready)
+      }),
+    write: write => {
+      const snapshotEffect = writesSnapshot
+        ? decodeSnapshot(write.snapshot)
+        : Effect.succeed(emptyCountSnapshot)
+      return snapshotEffect.pipe(
+        Effect.flatMap(snapshot =>
+          decodeMessage(
+            write.message,
+            options?.keepsClientFields === true,
+          ).pipe(
+            Effect.flatMap(message =>
+              transport.write({ message, snapshot }).pipe(
+                Effect.map(outcome => ({
+                  link: linkOf(outcome),
+                })),
+                Effect.mapError(error =>
+                  toTransportError(error, 'Write', write),
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    )
-  },
+      )
+    },
   }
 }
 
