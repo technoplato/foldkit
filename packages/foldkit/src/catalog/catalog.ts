@@ -1092,9 +1092,9 @@ export const parseChoiceTag = (
  * // [{ tag: 'DecrementCounter:1', title: 'Counter 1', what: 'count 0', ... }, ...]
  * ```
  */
-export const choicesAsEntries = (
+export const choicesAsEntriesForQuery = (
   entry: Entry,
-  query = '',
+  query: string,
 ): ReadonlyArray<Entry> =>
   Option.match(entry.maybeChoices, {
     onNone: () => [],
@@ -1141,6 +1141,13 @@ export const choicesAsEntries = (
       })
     },
   })
+
+/**
+ * Each listed choice of a choosing entry as an entry of its own (1-arg form
+ * safe for point-free `Array.flatMap(entries, Catalog.choicesAsEntries)`).
+ */
+export const choicesAsEntries = (entry: Entry): ReadonlyArray<Entry> =>
+  choicesAsEntriesForQuery(entry, '')
 
 /**
  * The entries one choice offers, for a screen that shows that choice, such

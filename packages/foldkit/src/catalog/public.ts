@@ -25,6 +25,7 @@ export {
   choiceNamed,
   choiceTagOf,
   choicesAsEntries,
+  choicesAsEntriesForQuery,
   entriesFor,
   parseChoiceTag,
   tagFor,

@@ -16,7 +16,7 @@ import { synchronizationOf } from '../behavior/part.js'
 import {
   type CatalogCarrierOf,
   type Entry,
-  choicesAsEntries,
+  choicesAsEntriesForQuery,
   isEnabled,
 } from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
@@ -655,7 +655,10 @@ export const stepEntriesOf = (
     onSome: tag =>
       Option.match(
         Array.findFirst(catalogEntries, entry => entry.tag === tag),
-        { onNone: () => [], onSome: entry => choicesAsEntries(entry, query) },
+        {
+          onNone: () => [],
+          onSome: entry => choicesAsEntriesForQuery(entry, query),
+        },
       ),
   })
 
