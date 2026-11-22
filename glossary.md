@@ -100,6 +100,20 @@ System`. Same person in two tabs = same actor, two `from`s.
   Program and sync engine connection stay warm, which is why a command
   answers in about 60 ms. First spelled "CLI daemon" in code
   (`listenCliDaemon`); `listenBackgroundProcessor` is the name to use.
+- **Always-on host**: a terminal host that says `lifetime: 'AlwaysOn'` in its
+  `terminal()` call. Its Background Processor never stops for having nothing
+  to do, `publisher background install` starts it at login and again when it
+  dies, and it runs its Program as the Server Host.
+- **Server Host**: `Processor.Host.Server()`, the one always-on Processor that
+  does an owner's single-writer work. e.g. the Mac's always-on Background
+  Processor for a publisher; a phone and a browser tab are never one.
+- **runsOn**: where a Subscription or a ManagedResource runs, said once on its
+  entry. `runsOn: Processor.RunsOn.serverOnly` starts it only on the Server
+  Host; an entry that says nothing runs everywhere. e.g. `approvedUnclaimed`,
+  which claims a copy approved on a phone, runs on the Mac and emits nothing
+  on the phone. It does not make two Server Processors one: an owner runs at
+  most one by how it is deployed, and work that must not happen twice is
+  still claimed behind a port.
 - **Client**: one complete runnable adapter (browser app, CLI, Expo app).
   One Client can host several Processors.
 - **Host**: the surface that embeds a Client and grants it a carrier

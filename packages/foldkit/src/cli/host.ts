@@ -20,6 +20,17 @@ import {
   completionsWord,
   installCompletion,
 } from './completions.js'
+import type { Lifetime } from './liveness.js'
+import {
+  type LoginItem,
+  type LoginItems,
+  installLoginItem,
+  isLoginItemInstalled,
+  loginItemOf,
+  startLoginItem,
+  systemLoginItems,
+  uninstallLoginItem,
+} from './loginItem.js'
 import {
   cliDaemonPidOf,
   cliDaemonSocketPath,
@@ -38,9 +49,25 @@ import {
   writeCliFollow,
   writeCliViewResult,
 } from './view.js'
+import {
+  backgroundProcessorFlag,
+  backgroundWord,
+  buildWord,
+  makeWayWord,
+  statusOutcome,
+  statusWord,
+  stopWord,
+  stoppedOutcome,
+  wordsWord,
+  workingFlag,
+  workingOutcome,
+} from './words.js'
 
 export type { TerminalProcessor, TerminalProgram } from './serve.js'
+export type { Lifetime } from './liveness.js'
+export type { LoginItems } from './loginItem.js'
 export { terminalLogPath } from './paths.js'
+export { backgroundProcessorFlag } from './words.js'
 
 // OPTIONS
 
@@ -58,6 +85,18 @@ export { terminalLogPath } from './paths.js'
  * the Background Processor waits with nothing to do before it stops, ten
  * minutes unless said.
  *
+ * `lifetime: 'AlwaysOn'` is for a Program that must act while nobody is
+ * at the terminal, such as one that posts what was approved on a phone.
+ * Its Background Processor never stops for having nothing to do, runs
+ * the Program as the `Server` Host, so work that says
+ * `RunsOn.serverOnly` runs in it and nowhere else, and
+ * `counter background install` starts it at login and again whenever it
+ * dies. `launcher` is the script that starts this file with its
+ * environment, such as one that reads a token file first; the login
+ * item runs it. Without one the login item runs this file with the Node
+ * that ran `install`, and takes only `PATH` from that command's
+ * environment, so a secret is never written to the login item's file.
+ *
  * A test that runs the command sets `FOLDKIT_TERMINAL_ISOLATION` to a
  * word of its own, such as the test's name, and gets a Background
  * Processor nothing else reaches, so it never answers for a person's.
@@ -67,6 +106,8 @@ export type TerminalOptions<Model, Message> = Readonly<{
   entry: string
   socketKey?: string
   idleMs?: number
+  lifetime?: Lifetime
+  launcher?: string
   processor: () => Promise<TerminalProcessor<Model, Message>>
 }>
 
@@ -74,15 +115,6 @@ export type TerminalOptions<Model, Message> = Readonly<{
 
 /** The environment variable that gives a test a Background Processor of its own. */
 export const terminalIsolationVariable = 'FOLDKIT_TERMINAL_ISOLATION'
-
-/** The flag `terminal` starts its own entry with to run the Background Processor. */
-export const backgroundProcessorFlag = '--foldkit-background-processor'
-
-const stopWord = 'stop'
-
-const buildWord = 'background-build'
-
-const stoppedOutcome = 'Stopped'
 
 const tuiWord = 'tui'
 
@@ -95,6 +127,12 @@ const ANSWER_TIMEOUT_MS = 5_000
 const GONE_TIMEOUT_MS = 5_000
 
 const GONE_CHECK_EVERY_MS = 50
+
+const LISTENING_TIMEOUT_MS = 60_000
+
+const MS_PER_SECOND = 1_000
+
+const failedExitCode = 1
 
 const notUnderstoodExitCode = 2
 
@@ -204,6 +242,17 @@ const whenGone = async (socketPath: string): Promise<boolean> => {
   return false
 }
 
+const whenListening = async (socketPath: string): Promise<boolean> => {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < LISTENING_TIMEOUT_MS) {
+    if (await isCliViewListening(socketPath)) {
+      return true
+    }
+    await sleep(GONE_CHECK_EVERY_MS)
+  }
+  return false
+}
+
 const tellToEnd = (socketPath: string): void => {
   const pid = cliDaemonPidOf(socketPath)
   if (pid !== undefined) {
@@ -264,21 +313,217 @@ const buildOfRunning = async (
   )
 
 /**
- * Stops the Background Processor running on a socket when it is another
- * build of this host, so the command that follows starts, and is
- * answered by, the code it came with. A Processor of this build, one
- * started from another place, and no Processor at all are left as they
- * are.
+ * Asks the Background Processor running on a socket to make way when it
+ * is another build of this host, so the command that follows starts,
+ * and is answered by, the code it came with. A Processor of this build,
+ * one started from another place, and no Processor at all are left as
+ * they are.
+ *
+ * A Processor whose Program has work going on stays, and what it says
+ * about that work is returned for the command to print: the running
+ * build answers the command, and the first command after the work ends
+ * replaces it. One that does not say whether it is working is left too,
+ * since ending it could end work nobody heard about. One from before
+ * Processors knew the word is stopped as before.
  */
-const replacedWhenOtherBuild = async (
+const madeWayForOtherBuild = async (
+  name: string,
   socketPath: string,
   build: string,
-): Promise<void> => {
+): Promise<string | undefined> => {
   if (
-    (await isCliViewListening(socketPath)) &&
-    handoverOf(build, await buildOfRunning(socketPath)) === 'Replace'
+    !(await isCliViewListening(socketPath)) ||
+    handoverOf(build, await buildOfRunning(socketPath)) === 'Keep'
   ) {
-    await stopBackgroundProcessorGently(socketPath)
+    return undefined
+  }
+  const answered = await within(
+    askCliView(socketPath, { _tag: 'Do', token: makeWayWord }),
+    ANSWER_TIMEOUT_MS,
+  ).then(
+    painted => painted,
+    () => undefined,
+  )
+  const outcome = answered?.flags?.['outcome']
+  if (answered === undefined) {
+    return `The ${name} Background Processor is another build and did not say whether it is working, so it was not replaced. \`${name} ${stopWord}\` ends it now.`
+  } else if (outcome === workingOutcome) {
+    return answered.stdout
+  } else {
+    if (outcome !== stoppedOutcome || !(await whenGone(socketPath))) {
+      await stopBackgroundProcessorGently(socketPath)
+    }
+    return undefined
+  }
+}
+
+// BACKGROUND
+
+const installWord = 'install'
+
+const uninstallWord = 'uninstall'
+
+const statusSubword = 'status'
+
+type AboutBackground = Readonly<{
+  name: string
+  socketPath: string
+  build: string
+  lifetime: Lifetime
+  item: LoginItem
+  loginItems: LoginItems
+  logPath: string
+}>
+
+const refused = (stderr: string, exitCode: number): CliViewPainted => ({
+  stdout: '',
+  stderr,
+  exitCode,
+})
+
+const said = (stdout: string): CliViewPainted => ({
+  stdout,
+  stderr: '',
+  exitCode: 0,
+})
+
+const askedHowItIs = (
+  socketPath: string,
+): Promise<CliViewPainted | undefined> =>
+  within(
+    askCliView(socketPath, { _tag: 'Do', token: statusWord }),
+    ANSWER_TIMEOUT_MS,
+  ).then(
+    painted => painted,
+    () => undefined,
+  )
+
+const loginLineOf = (about: AboutBackground): ReadonlyArray<string> => {
+  if (about.lifetime !== 'AlwaysOn') {
+    return []
+  } else if (isLoginItemInstalled(about.item, about.loginItems)) {
+    return [`It starts at login, and again if it dies: ${about.item.path}`]
+  } else {
+    return [
+      `It does not start at login. \`${about.name} ${backgroundWord} ${installWord}\` sets that up.`,
+    ]
+  }
+}
+
+const runningLinesOf = (
+  about: AboutBackground,
+  answered: CliViewPainted | undefined,
+): ReadonlyArray<string> => {
+  if (answered === undefined) {
+    return [
+      `The ${about.name} Background Processor is running and did not answer.`,
+    ]
+  } else if (answered.flags?.['outcome'] !== statusOutcome) {
+    return [
+      `The ${about.name} Background Processor is running, and is from before it could say more.`,
+    ]
+  } else if (handoverOf(about.build, answered.flags['build']) === 'Replace') {
+    return [answered.stdout, 'It is another build of this command.']
+  } else {
+    return [answered.stdout]
+  }
+}
+
+const howItIs = async (about: AboutBackground): Promise<CliViewPainted> => {
+  const lines = (await isCliViewListening(about.socketPath))
+    ? runningLinesOf(about, await askedHowItIs(about.socketPath))
+    : [`The ${about.name} Background Processor is not running.`]
+  return said([...lines, ...loginLineOf(about)].join('\n'))
+}
+
+/**
+ * Why a Background Processor may not be ended for a change to its login
+ * item, or nothing when it may: it is not running, or its Program has
+ * no work going on. One that does not say is not ended either.
+ */
+const whyNotEnded = async (
+  about: AboutBackground,
+): Promise<string | undefined> => {
+  if (!(await isCliViewListening(about.socketPath))) {
+    return undefined
+  }
+  const answered = await askedHowItIs(about.socketPath)
+  const working = answered?.flags?.[workingFlag]
+  if (answered === undefined) {
+    return `The ${about.name} Background Processor did not say whether it is working. \`${about.name} ${stopWord}\` ends it; then run this again.`
+  } else if (working !== undefined && working !== '') {
+    return `The ${about.name} Background Processor is working: ${working}. Run this again once that ends, or \`${about.name} ${stopWord}\` first.`
+  } else {
+    return undefined
+  }
+}
+
+const installed = async (about: AboutBackground): Promise<CliViewPainted> => {
+  if (about.lifetime !== 'AlwaysOn') {
+    return refused(
+      `The ${about.name} Background Processor stops when it has nothing to do, so it is not one to start at login. A host that must always be up says \`lifetime: 'AlwaysOn'\` in its terminal() call.`,
+      notUnderstoodExitCode,
+    )
+  }
+  const why = await whyNotEnded(about)
+  if (why !== undefined) {
+    return refused(why, failedExitCode)
+  }
+  await stopBackgroundProcessorGently(about.socketPath)
+  const outcome = installLoginItem(about.item, about.loginItems)
+  if (outcome._tag === 'Refused') {
+    return refused(outcome.why, failedExitCode)
+  } else {
+    const isRunning = await whenListening(about.socketPath)
+    return said(
+      [
+        `The ${about.name} Background Processor starts at login, and again if it dies: ${outcome.path}`,
+        isRunning
+          ? 'It is running now.'
+          : `It has not answered yet. ${about.logPath} says why.`,
+      ].join('\n'),
+    )
+  }
+}
+
+const uninstalled = async (about: AboutBackground): Promise<CliViewPainted> => {
+  if (!isLoginItemInstalled(about.item, about.loginItems)) {
+    return said(
+      `The ${about.name} Background Processor does not start at login.`,
+    )
+  }
+  const why = await whyNotEnded(about)
+  if (why !== undefined) {
+    return refused(why, failedExitCode)
+  }
+  await stopBackgroundProcessorGently(about.socketPath)
+  uninstallLoginItem(about.item, about.loginItems)
+  return said(
+    `The ${about.name} Background Processor no longer starts at login, and is stopped.`,
+  )
+}
+
+const notABackgroundWord = (name: string): CliViewPainted =>
+  refused(
+    `\`${name} ${backgroundWord}\` says how the Background Processor is. \`${name} ${backgroundWord} ${installWord}\` starts it at login, and \`${name} ${backgroundWord} ${uninstallWord}\` stops doing so.`,
+    notUnderstoodExitCode,
+  )
+
+const aboutBackground = (
+  about: AboutBackground,
+  words: ReadonlyArray<string>,
+): Promise<CliViewPainted> => {
+  const [word = statusSubword, ...rest] = words
+  if (rest.length > 0) {
+    return Promise.resolve(notABackgroundWord(about.name))
+  } else if (word === statusSubword) {
+    return howItIs(about)
+  } else if (word === installWord) {
+    return installed(about)
+  } else if (word === uninstallWord) {
+    return uninstalled(about)
+  } else {
+    return Promise.resolve(notABackgroundWord(about.name))
   }
 }
 
@@ -293,8 +538,6 @@ const stoppedSentence = (name: string, said: string | undefined): string => {
     return said
   }
 }
-
-const wordsWord = 'background-words'
 
 const completionsAnswer = (
   name: string,
@@ -348,7 +591,9 @@ const takesColor = (
  * watch` repaint as the Model changes, from this device or any other;
  * `counter tail` prints every Message the log takes, when the host names
  * its log; `counter tui` is the live terminal UI; `counter stop` ends
- * the Background Processor after it has saved; `counter completions`
+ * the Background Processor after it has saved; `counter background`
+ * says how the Background Processor is, and for a host that is always
+ * on, `counter background install` starts it at login; `counter completions`
  * installs tab completion for the shell it is run in, and `counter
  * completions zsh` prints the script instead. Every other word, its
  * help, and each refusal come from the Program's own declarations; a
@@ -359,8 +604,9 @@ const takesColor = (
  * command and reached by every later one, so its sync connection stays
  * warm, what it started keeps going after a command returns, and a view
  * hears each change as it happens. It stops by itself once the Program
- * has had nothing to do for ten minutes, and a command from a newer build
- * replaces it.
+ * has had nothing to do for ten minutes, and a command from another build
+ * replaces it, unless its Program has work going on: then it stays,
+ * answers, and the command says which work keeps it.
  *
  * @example
  * ```typescript
@@ -384,6 +630,7 @@ const takesColor = (
 export const terminal = async <Model, Message>(
   options: TerminalOptions<Model, Message>,
   runtime: NodeJS.Process = process,
+  loginItems: LoginItems = systemLoginItems(),
 ): Promise<void> => {
   const entryPath = realpathSync(fileURLToPath(options.entry))
   const isolation = runtime.env[terminalIsolationVariable] ?? ''
@@ -402,6 +649,7 @@ export const terminal = async <Model, Message>(
       socketPath,
       build,
       ...(options.idleMs === undefined ? {} : { idleMs: options.idleMs }),
+      ...(options.lifetime === undefined ? {} : { lifetime: options.lifetime }),
       processor: await options.processor(),
     })
     return
@@ -434,7 +682,66 @@ export const terminal = async <Model, Message>(
     return
   }
 
-  await replacedWhenOtherBuild(socketPath, build)
+  const lifetime = options.lifetime ?? 'UntilIdle'
+  const pathVariable = runtime.env['PATH']
+  const item = loginItemOf({
+    name: options.name,
+    socketPath,
+    home: loginItems.home,
+    launch:
+      options.launcher === undefined
+        ? [runtime.execPath, ...runtime.execArgv, entryPath]
+        : [options.launcher],
+    environment: {
+      ...(pathVariable === undefined ? {} : { PATH: pathVariable }),
+      ...(isolation === '' ? {} : { [terminalIsolationVariable]: isolation }),
+    },
+    logPath: terminalLogPath(options.name),
+  })
+
+  if (firstWord === backgroundWord) {
+    answer(
+      await aboutBackground(
+        {
+          name: options.name,
+          socketPath,
+          build,
+          lifetime,
+          item,
+          loginItems,
+          logPath: terminalLogPath(options.name),
+        },
+        otherWords,
+      ),
+    )
+    return
+  }
+
+  const kept = await madeWayForOtherBuild(options.name, socketPath, build)
+  if (kept !== undefined) {
+    runtime.stderr.write(`${kept}\n`)
+  }
+
+  // NOTE: A Processor with a login item is started by launchd, not by a
+  // command, so launchd is the one that starts it again when it dies. A
+  // command that finds it not answering waits for launchd's, and says so
+  // when it does not come, where starting one beside it would leave one
+  // nothing restarts.
+  if (
+    lifetime === 'AlwaysOn' &&
+    isLoginItemInstalled(item, loginItems) &&
+    !(await isCliViewListening(socketPath))
+  ) {
+    startLoginItem(item, loginItems)
+    if (!(await whenListening(socketPath))) {
+      answer({
+        stdout: '',
+        stderr: `launchd was asked to start the ${options.name} Background Processor, and it has not answered after ${(LISTENING_TIMEOUT_MS / MS_PER_SECOND).toString()} seconds. ${terminalLogPath(options.name)} says what it printed, and \`${options.name} ${backgroundWord}\` says how it is.`,
+        exitCode: failedExitCode,
+      })
+      return
+    }
+  }
 
   if (firstWord === completionsWord) {
     const [second = '', ...said] = otherWords

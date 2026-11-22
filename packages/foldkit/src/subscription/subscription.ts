@@ -8,6 +8,7 @@ import {
 } from 'effect'
 
 import { mapMessages } from '../command/index.js'
+import type { Placed } from '../processor/runsOn.js'
 import type {
   AnyDurabilityModel,
   SubscriptionPatch,
@@ -68,6 +69,7 @@ export type EntryWithoutKeepAlive<Model, Message, Dependencies, Services> = {
     dependencies: Dependencies,
   ) => Stream.Stream<Message, never, Services>
 } & EntrySource &
+  Placed &
   Superseding<Message>
 
 type EntryWithKeepAlive<Model, Message, Dependencies, Services> = {
@@ -79,6 +81,7 @@ type EntryWithKeepAlive<Model, Message, Dependencies, Services> = {
     readDependencies: () => Dependencies,
   ) => Stream.Stream<Message, never, Services>
 } & EntrySource &
+  Placed &
   Superseding<Message>
 
 type Entry<Model, Message, Dependencies, Services = never> =
@@ -132,7 +135,8 @@ type EntryCallbacksWithoutKeepAlive<Model, Message, Dependencies, Services> = {
   readonly dependenciesToStream: (
     dependencies: Dependencies,
   ) => Stream.Stream<Message, never, Services>
-} & Superseding<Message>
+} & Placed &
+  Superseding<Message>
 
 /**
  * Callbacks for a subscription entry with `keepAliveEquivalence`. Dependencies
@@ -145,7 +149,8 @@ type EntryCallbacksWithKeepAlive<Model, Message, Dependencies, Services> = {
     dependencies: Dependencies,
     readDependencies: () => Dependencies,
   ) => Stream.Stream<Message, never, Services>
-} & Superseding<Message>
+} & Placed &
+  Superseding<Message>
 
 /**
  * Builds a single subscription entry from a field map and callbacks.
@@ -415,6 +420,9 @@ export const lift =
           ...(subscription.source === undefined
             ? {}
             : { source: subscription.source }),
+          ...(subscription.runsOn === undefined
+            ? {}
+            : { runsOn: subscription.runsOn }),
         }
       }
 
@@ -427,6 +435,9 @@ export const lift =
         ...(subscription.source === undefined
           ? {}
           : { source: subscription.source }),
+        ...(subscription.runsOn === undefined
+          ? {}
+          : { runsOn: subscription.runsOn }),
       }
     }) as any
   }
@@ -470,7 +481,8 @@ type ScopedEntryCallbacksWithoutKeepAlive<
     model: ModelSchema['Type'],
     fact: NoInfer<Facts[number]['Type']>,
   ) => ScopedApplyReturn<ModelSchema, Message, Services>
-} & Superseding<NoInfer<Facts[number]['Type']>>
+} & Placed &
+  Superseding<NoInfer<Facts[number]['Type']>>
 
 type ScopedEntryCallbacksWithKeepAlive<
   ModelSchema extends AnyDurabilityModel,
@@ -490,7 +502,8 @@ type ScopedEntryCallbacksWithKeepAlive<
     model: ModelSchema['Type'],
     fact: NoInfer<Facts[number]['Type']>,
   ) => ScopedApplyReturn<ModelSchema, Message, Services>
-} & Superseding<NoInfer<Facts[number]['Type']>>
+} & Placed &
+  Superseding<NoInfer<Facts[number]['Type']>>
 
 type ScopedEntryMeta<
   ModelSchema extends AnyDurabilityModel,

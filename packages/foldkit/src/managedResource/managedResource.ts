@@ -9,6 +9,8 @@ import {
   type Scope,
 } from 'effect'
 
+import type { Placed } from '../processor/runsOn.js'
+
 /** Typed error raised when a command accesses a managed resource that is not currently acquired. */
 export class ResourceNotAvailable extends Data.TaggedError(
   'ResourceNotAvailable',
@@ -89,7 +91,7 @@ export type ManagedResourceConfig<Model, Message> = {
   readonly onAcquired: (value: any) => Message
   readonly onReleased: () => Message
   readonly onAcquireError: (error: unknown) => Message
-}
+} & Placed
 
 /** A record of named Managed Resource configurations, keyed by resource name. */
 declare const ManagedResourceServicesTypeId: unique symbol
@@ -137,7 +139,8 @@ export type Entry<Model, Message, Requirements, Value, Service = unknown> = {
   readonly onAcquired: (value: Value) => Message
   readonly onReleased: () => Message
   readonly onAcquireError: (error: unknown) => Message
-} & EntryBrand
+} & Placed &
+  EntryBrand
 
 /** Type-level utility to extract the service union from a Managed Resources record. */
 export type ServicesOf<Resources> = {
@@ -174,7 +177,7 @@ export type EntryBuilder<Model, Message> = <
     readonly onAcquired: (value: Value) => Message
     readonly onReleased: () => Message
     readonly onAcquireError: (error: unknown) => Message
-  },
+  } & Placed,
 ) => Entry<
   Model,
   Message,
@@ -357,6 +360,7 @@ export const lift =
       onReleased: () => config.toParentMessage(resource.onReleased()),
       onAcquireError: (error: unknown) =>
         config.toParentMessage(resource.onAcquireError(error)),
+      ...(resource.runsOn === undefined ? {} : { runsOn: resource.runsOn }),
     })) as any
 
 type MergeRecords<Records extends ReadonlyArray<unknown>> =

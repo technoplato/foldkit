@@ -596,6 +596,10 @@ export function start<
     const runtime = yield* makeProgramRuntime({
       program,
       resources: (config.resources ?? Layer.empty) as Layer.Layer<Resources>,
+      ...Option.match(hostOfFrom(engine.processor), {
+        onNone: () => ({}),
+        onSome: host => ({ host }),
+      }),
       ...(config.observers === undefined
         ? {}
         : {

@@ -28,7 +28,9 @@ import {
 import type { ManagedResourceConfig } from '../managedResource/managedResource.js'
 import { type Ports, __CurrentPortChannels } from '../port/port.js'
 import { type PortHandles, makePortRuntime } from '../port/runtime.js'
+import type { Host } from '../processor/host.js'
 import type { MessageEnvelope } from '../processor/processor.js'
+import { effectsOn } from '../program/liftEffects.js'
 import type { Program, ProgramCommand } from '../program/program.js'
 import {
   type ProgramRouter,
@@ -184,6 +186,12 @@ export type ProgramRuntimeConfig<
    * span. See {@link ProgramRuntimeObserver}.
    */
   observers?: ReadonlyArray<ProgramRuntimeObserver<Model, Message>>
+  /**
+   * The Host this Processor runs on, such as `Processor.Host.Server()`.
+   * A Subscription or ManagedResource that says `runsOn` is started
+   * only where it runs; without a Host, server-only work does not run.
+   */
+  host?: Host
 }>
 
 /** Options for sending a Message into the Program runtime. */
@@ -633,9 +641,10 @@ export const makeProgramRuntime = <
       )
     }
 
+    const placed = effectsOn(config.program, Option.fromNullishOr(config.host))
     const managedResources: {
       readonly [name: string]: ManagedResourceConfig<Model, Message>
-    } = config.program.managedResources ?? {}
+    } = placed.managedResources ?? {}
     const managedResourceEntries = Record.toEntries(managedResources)
     const managedResourceRefs = yield* Effect.forEach(
       managedResourceEntries,
@@ -1381,9 +1390,9 @@ export const makeProgramRuntime = <
       )
     }
 
-    if (config.program.subscriptions !== undefined) {
+    if (placed.subscriptions !== undefined) {
       const followedSubscriptions = yield* pipe(
-        config.program.subscriptions,
+        placed.subscriptions,
         Record.toEntries,
         Effect.forEach(startSubscription, {
           concurrency: 'unbounded',

@@ -47,6 +47,16 @@ export const ExpoAndroid = ts('ExpoAndroid')
 /** An Expo Android Processor Host. Instant `from` is `expo-android`. */
 export type ExpoAndroid = typeof ExpoAndroid.Type
 
+/**
+ * A server Processor Host: the one always-on Processor that does an
+ * owner's single-writer work, such as a terminal host's always-on
+ * Background Processor. Work that says `RunsOn.serverOnly` runs here and
+ * nowhere else. Instant `from` is `server`.
+ */
+export const Server = ts('Server')
+/** A server Processor Host. Instant `from` is `server`. */
+export type Server = typeof Server.Type
+
 /** One Processor Host. Pass `Processor.Host.React()`, not `'react'`. */
 export const Host = S.Union([
   Cli,
@@ -58,6 +68,7 @@ export const Host = S.Union([
   Svelte,
   ExpoIos,
   ExpoAndroid,
+  Server,
 ])
 /** One Processor Host. Pass `Processor.Host.React()`, not `'react'`. */
 export type Host = typeof Host.Type
@@ -76,6 +87,7 @@ export const print = (host: Host): string =>
       Svelte: () => 'svelte',
       ExpoIos: () => 'expo-ios',
       ExpoAndroid: () => 'expo-android',
+      Server: () => 'server',
     }),
   )
 
@@ -101,12 +113,13 @@ export const labelOf = (host: Host): string =>
       Svelte: () => 'Svelte',
       ExpoIos: () => 'Expo iOS',
       ExpoAndroid: () => 'Expo Android',
+      Server: () => 'Server',
     }),
   )
 
 /**
  * Every Host, in the order the Host union lists them, from `Cli` to
- * `ExpoAndroid`.
+ * `Server`.
  */
 export const everyHost: ReadonlyArray<Host> = [
   Cli(),
@@ -118,6 +131,7 @@ export const everyHost: ReadonlyArray<Host> = [
   Svelte(),
   ExpoIos(),
   ExpoAndroid(),
+  Server(),
 ]
 
 /**

@@ -39,3 +39,6 @@ export * as Audio from './audio.js'
 
 /** Processor Host ADT. Pass `Processor.Host.React()`, not `'react'`. */
 export * as Host from './host.js'
+
+/** Where a Subscription or a ManagedResource runs. Pass `Processor.RunsOn.serverOnly`. */
+export * as RunsOn from './runsOn.js'

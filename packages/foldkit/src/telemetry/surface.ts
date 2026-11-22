@@ -32,6 +32,7 @@ export const TelemetrySurface = S.Literals([
   'web-svelte',
   'mobile-ios',
   'mobile-android',
+  'server',
 ])
 
 /** The surface a telemetry session declares. */
@@ -72,6 +73,7 @@ export const surfaceOf = (host: Host): TelemetrySurface =>
       Svelte: () => 'web-svelte',
       ExpoIos: () => 'mobile-ios',
       ExpoAndroid: () => 'mobile-android',
+      Server: () => 'server',
     }),
   )
 
