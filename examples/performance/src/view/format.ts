@@ -446,6 +446,7 @@ const waitingClassWords = (waitingClass: WaitingClass): string => {
   return M.value(name).pipe(
     M.when('main', () => counted(count, 'landing check')),
     M.when('release', () => counted(count, 'release')),
+    M.when('unclassed', () => `${count} with no priority`),
     M.orElse(() => `${count} ${name}`),
   )
 }

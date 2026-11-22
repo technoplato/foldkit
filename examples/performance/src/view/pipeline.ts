@@ -831,7 +831,7 @@ const diskView = (pipeline: Pipeline): Html => {
     Option.map(
       storage.maybeBudgetedGiB,
       budgeted =>
-        `${formatAmount(budgeted, 0, GIB)} is budgeted to the folders below.`,
+        `The folders below with a cap hold ${formatAmount(budgeted, 0, GIB)}.`,
     ),
   ])
   return h.div(

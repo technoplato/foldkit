@@ -587,7 +587,10 @@ export const Folder = S.Struct({
 )
 export type Folder = typeof Folder.Type
 
-/** Free disk against its target, and the folders against their caps. */
+/**
+ * Free disk against its target, and the folders against their caps.
+ * `budgetedGiB` is what the folders with a cap hold, not their caps' sum.
+ */
 export const Storage = S.Struct({
   maybeFreeGiB: S.OptionFromNullOr(S.Number),
   maybeUsedGiB: S.OptionFromNullOr(S.Number),
