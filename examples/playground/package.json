@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
+    "@foldkit/instant": "workspace:*",
     "@foldkit/react": "workspace:*",
+    "@instantdb/core": "1.0.65",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
     "react": "19.2.3",

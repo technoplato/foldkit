@@ -6715,9 +6715,15 @@ importers:
 
   examples/playground:
     dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../packages/instant
       '@foldkit/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@instantdb/core':
+        specifier: 1.0.65
+        version: 1.0.65(patch_hash=0d14dab84f5ad3038eccb22f8f256983c9f1a083b8b3b43b0aebedacd08c3cf1)
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97

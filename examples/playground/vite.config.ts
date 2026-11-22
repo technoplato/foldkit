@@ -1,13 +1,14 @@
 import path from 'node:path'
 import { defineConfig } from 'vite'
 
-import { foldkitAliases } from '../vite.aliases'
+import { foldkitAliases, instantBrowserAlias } from '../vite.aliases'
 
 export default defineConfig({
   base: '/',
   appType: 'spa',
   resolve: {
     alias: {
+      ...instantBrowserAlias,
       ...foldkitAliases(path.resolve(__dirname)),
     },
   },

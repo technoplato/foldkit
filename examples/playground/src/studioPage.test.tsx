@@ -1,8 +1,9 @@
 /** @jsxImportSource react */
 // @vitest-environment happy-dom
 import { Catalog } from 'foldkit'
+import { paintProgram } from 'foldkit/cli/program'
 import * as Declaration from 'foldkit/declaration'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
@@ -18,6 +19,7 @@ import {
   ToggleIssueStatus,
   createBoundStudio,
   initialStudioModel,
+  startSyncedStudio,
   studioCatalog,
 } from './studioProgram'
 
@@ -163,5 +165,45 @@ describe('StudioProgram & StudioDemoShell (/studio)', () => {
     const refusal = executeStudioCliLine(bound, 'cut-relase')
     expect(refusal.exitCode).toBe(2)
     expect(refusal.stderr).toContain('studio cut-release')
+  })
+
+  it('offers free-form CreateIssue choices in ActionMenu (?menu.q=test&menu.choose=CreateIssue) and boots SyncedStudio cleanly', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/studio/menu?menu.q=test&menu.choose=CreateIssue',
+    )
+    render(
+      <StudioAppRoot initialUri="/studio/menu?menu.q=test&menu.choose=CreateIssue" />,
+    )
+
+    expect(document.body.textContent).toContain('1 choice matches “test”')
+    expect(document.body.textContent).not.toContain('No choices match')
+
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(screen.getByTestId('studio-uri').textContent).toBe('/studio')
+    expect(screen.getByTestId('studio-react-frame').textContent).toContain(
+      'test · Open',
+    )
+
+    // Verify SyncedStudio (Program.compose.sync + snapshotLogMessageWire) boots and folds actions
+    const synced = startSyncedStudio('Memory')
+    try {
+      await vi.waitFor(() => {
+        expect(synced.bound.status()._tag).toBe('Ready')
+      })
+      const createResult = executeStudioCliLine(
+        synced.bound,
+        'create-issue "Synced across devices"',
+      )
+      expect(createResult.exitCode).toBe(0)
+      await vi.waitFor(() => {
+        expect(paintProgram(synced.bound, 'studio')).toContain(
+          'Synced across devices',
+        )
+      })
+    } finally {
+      await synced.stop()
+    }
   })
 })

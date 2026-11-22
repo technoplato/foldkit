@@ -648,13 +648,14 @@ const hintsOf = (
 export const stepEntriesOf = (
   catalogEntries: ReadonlyArray<Entry>,
   maybeChoosing: Option.Option<string>,
+  query = '',
 ): ReadonlyArray<Entry> =>
   Option.match(maybeChoosing, {
     onNone: () => catalogEntries,
     onSome: tag =>
       Option.match(
         Array.findFirst(catalogEntries, entry => entry.tag === tag),
-        { onNone: () => [], onSome: choicesAsEntries },
+        { onNone: () => [], onSome: entry => choicesAsEntries(entry, query) },
       ),
   })
 
@@ -725,7 +726,7 @@ export const menuViewOf = (
     Array.findFirst(catalogEntries, entry => entry.tag === tag),
   )
   const matched = matchedEntries(
-    stepEntriesOf(catalogEntries, menu.maybeChoosing),
+    stepEntriesOf(catalogEntries, menu.maybeChoosing, menu.query),
     menu.query,
   )
   const pickTags = Array.map(
@@ -1013,7 +1014,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     query: string,
     maybeChoosing: Option.Option<string> = Option.none(),
   ): ReadonlyArray<Entry> =>
-    visibleEntries(stepEntriesOf(entriesOf(model), maybeChoosing), query)
+    visibleEntries(stepEntriesOf(entriesOf(model), maybeChoosing, query), query)
 
   const menuRoute = presentRoute(
     Route.caseOf<AppDestination, MenuQuery>(

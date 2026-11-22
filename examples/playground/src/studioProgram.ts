@@ -1,11 +1,22 @@
-import { Array, Match as M, Option, Schema as S, String, pipe } from 'effect'
+import {
+  Array,
+  Effect,
+  Match as M,
+  Option,
+  Schema as S,
+  SchemaTransformation,
+  String,
+  pipe,
+} from 'effect'
 import {
   ActionMenu,
   Catalog,
   Interaction,
   Navigation,
+  Processor,
   Program,
   Route,
+  Runtime,
   Session,
 } from 'foldkit'
 import { ModelPath } from 'foldkit/declaration'
@@ -23,6 +34,12 @@ import {
   actionButtons,
 } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
+
+import { Instant, SharedInstantProject } from '@foldkit/instant/browser'
+import {
+  countSnapshotId,
+  snapshotLogMessageWire,
+} from '@foldkit/instant/snapshot-log'
 
 // DOMAIN MODEL
 
@@ -800,6 +817,10 @@ export const StudioCoreProgram = Program.make({
   update: updateStudio,
   catalog: studioCatalog,
   screen: issuesRootScreen,
+  synchronization: {
+    messageCategory: () => 'Domain',
+    projectDomain: model => model,
+  },
   navigation: {
     ...studioScreens,
     viewOf: (model: StudioModel, destination: StudioDestination) =>
@@ -836,28 +857,119 @@ export const StudioApp = ActionMenu.compose({
 
 export type StudioAppModel = typeof StudioApp.Model.Type
 export type StudioAppMessage = typeof StudioApp.Message.Type
+
+const [initialStudioAppModel] = StudioApp.init()
+
+export const StudioSnapshotRow = S.Struct({
+  id: S.String,
+  value: S.Number,
+  asOf: S.String,
+  at: S.Number,
+})
+
+const StudioIssuesOnly = S.Struct({ issues: S.Array(S.Unknown) })
+
+export const StudioSnapshotProjection = StudioSnapshotRow.pipe(
+  S.decodeTo(
+    StudioApp.Model,
+    SchemaTransformation.transformOrFail({
+      decode: () =>
+        Effect.mapError(
+          S.encodeUnknownEffect(StudioApp.Model)(initialStudioAppModel),
+          error => error.issue,
+        ),
+      encode: encoded =>
+        Effect.map(
+          Effect.mapError(
+            S.decodeUnknownEffect(StudioIssuesOnly)(encoded),
+            error => error.issue,
+          ),
+          ({ issues }) => ({
+            id: countSnapshotId,
+            value: issues.length,
+            asOf: '',
+            at: 0,
+          }),
+        ),
+    }),
+  ),
+)
+
+export const StudioMessageWire = snapshotLogMessageWire(StudioApp.Message)
+
+export const SyncedStudio = Program.compose.sync({
+  of: StudioApp,
+  snapshot: StudioSnapshotProjection,
+  message: StudioMessageWire,
+  foldRevision: 'foldkit-studio-fold-v1',
+})
+
+export type SyncedStudioModel = ReturnType<typeof SyncedStudio.init>[0]
+export type SyncedStudioMessage = typeof SyncedStudio.Message.Type
+
 export type BoundStudio = Interaction.BoundInteraction<
-  StudioAppModel,
-  StudioAppMessage
+  SyncedStudioModel,
+  SyncedStudioMessage
 >
+
+export type StudioTapeMode = 'Instant' | 'Memory'
+
+const makeProcessorInstance = (): string =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).slice(2, 10)
+
+export const startSyncedStudio = (
+  tape: StudioTapeMode = 'Instant',
+): Readonly<{
+  bound: BoundStudio
+  stop: () => Promise<void>
+}> => {
+  const instance = makeProcessorInstance()
+  const host = Processor.Host.React()
+  const sync: Runtime.SyncEngine =
+    tape === 'Memory'
+      ? Runtime.Memory({ processor: `studio-memory-${instance}` })
+      : Instant({
+          app: SharedInstantProject,
+          processor: host,
+          instance,
+          programLog: StudioCoreProgram.id,
+        })
+  const handle = Runtime.startHandle({
+    program: SyncedStudio,
+    sync,
+    host,
+  })
+  return {
+    bound: Interaction.bind(SyncedStudio, handle),
+    stop: () => handle.stop(),
+  }
+}
 
 export const createBoundStudio = (initialUri?: string): BoundStudio => {
   const listeners = new Set<() => void>()
-  let model: StudioAppModel = StudioApp.init()[0]
-  const bound = Interaction.bind<StudioAppModel, StudioAppMessage>(StudioApp, {
-    readModel: () => model,
-    subscribe: listener => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
+  let model: SyncedStudioModel = {
+    _tag: 'Ready',
+    ...initialStudioAppModel,
+  }
+  const bound = Interaction.bind<SyncedStudioModel, SyncedStudioMessage>(
+    SyncedStudio,
+    {
+      readModel: () => model,
+      subscribe: listener => {
+        listeners.add(listener)
+        return () => {
+          listeners.delete(listener)
+        }
+      },
+      send: message => {
+        model = SyncedStudio.update(model, message)[0]
+        listeners.forEach(listener => listener())
+      },
+      stop: () => Promise.resolve(),
     },
-    send: message => {
-      model = StudioApp.update(model, message)[0]
-      listeners.forEach(listener => listener())
-    },
-    stop: () => Promise.resolve(),
-  })
+  )
   if (initialUri !== undefined && initialUri.startsWith('/studio')) {
     bound.openUri(initialUri, Navigation.Launch())
   }

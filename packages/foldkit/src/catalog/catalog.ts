@@ -646,6 +646,7 @@ export type EntryChoices = Readonly<{
   maybePreferred: Option.Option<string>
   keys: ReadonlyArray<string>
   isOpen: boolean
+  acceptsOf: (token: string) => Option.Option<Availability>
 }>
 
 const summarized = (
@@ -688,6 +689,7 @@ const choicesEntryOf = <Model>(
       maybePreferred,
       keys: declaration.meta.keys,
       isOpen: choose.isOpen,
+      acceptsOf: token => choose.acceptsOf(model, token),
     }),
   }
 }
@@ -1090,11 +1092,15 @@ export const parseChoiceTag = (
  * // [{ tag: 'DecrementCounter:1', title: 'Counter 1', what: 'count 0', ... }, ...]
  * ```
  */
-export const choicesAsEntries = (entry: Entry): ReadonlyArray<Entry> =>
+export const choicesAsEntries = (
+  entry: Entry,
+  query = '',
+): ReadonlyArray<Entry> =>
   Option.match(entry.maybeChoices, {
     onNone: () => [],
-    onSome: ({ choices }) =>
-      Array.map(choices, choice => ({
+    onSome: held => {
+      const trimmed = query.trim()
+      const listed = Array.map(held.choices, choice => ({
         ...entry,
         tag: choiceTagOf(entry.tag, choice.token),
         title: choice.title,
@@ -1104,7 +1110,36 @@ export const choicesAsEntries = (entry: Entry): ReadonlyArray<Entry> =>
         availability: choice.availability,
         isPayloadFree: true,
         maybeChoices: Option.none(),
-      })),
+      }))
+      const isAlreadyListed = Array.some(
+        held.choices,
+        choice =>
+          choice.token.toLowerCase() === trimmed.toLowerCase() ||
+          choice.title.toLowerCase() === trimmed.toLowerCase(),
+      )
+      if (!held.isOpen || trimmed === '' || isAlreadyListed) {
+        return listed
+      }
+      return Option.match(held.acceptsOf(trimmed), {
+        onNone: () => listed,
+        onSome: accepted => [
+          ...listed,
+          {
+            ...entry,
+            tag: choiceTagOf(entry.tag, trimmed),
+            title: trimmed,
+            what: entry.what,
+            label: trimmed,
+            keys: [],
+            availability: isEnabled(entry.availability)
+              ? accepted
+              : entry.availability,
+            isPayloadFree: true,
+            maybeChoices: Option.none(),
+          },
+        ],
+      })
+    },
   })
 
 /**

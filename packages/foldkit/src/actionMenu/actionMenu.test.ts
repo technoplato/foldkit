@@ -646,3 +646,100 @@ describe('saying what a key did', () => {
     )
   })
 })
+
+describe('open choosing Actions in the action menu', () => {
+  const TodoModel = S.Struct({ items: S.Array(S.String) })
+  type TodoModel = typeof TodoModel.Type
+
+  const CreateItem = Catalog.action('CreateItem', {
+    fields: { title: S.String },
+    what: 'Adds a new item to the list',
+    why: 'To capture work before it is forgotten',
+    choose: {
+      field: 'title',
+      noun: 'title',
+      prompt: 'What should the item be titled?',
+      token: S.String,
+      choicesOf: () => [
+        { value: 'Verify OTP autofill', title: 'Verify OTP autofill' },
+      ],
+      accepts: (_model: TodoModel, value: string) =>
+        value === 'forbidden'
+          ? Catalog.Disabled({ because: 'that title is reserved' })
+          : Catalog.Enabled(),
+      nothingToChoose: 'type a title',
+    },
+    meta: { label: 'Create Item', keys: [] },
+  })
+  const todoCatalog = Catalog.make([CreateItem])
+  const TodoHome = ts('TodoHome')
+  const TodoApp = ActionMenu.compose({
+    of: make({
+      id: 'todo',
+      version: 1,
+      Model: TodoModel,
+      Message: todoCatalog.Message,
+      init: () => [{ items: [] }, []],
+      update: (model, message) => [
+        { items: [...model.items, message.title] },
+        [],
+      ],
+      catalog: todoCatalog,
+      navigation: Declaration.screens({
+        root: Declaration.rootScreen(TodoHome, Route.here),
+      }),
+    }),
+  })
+  const todoInteraction = required(TodoApp.interaction, 'interaction')
+  const stepTodo = (
+    model: typeof TodoApp.Model.Type,
+    messages: ReadonlyArray<typeof TodoApp.Message.Type>,
+  ) =>
+    Array.reduce(
+      messages,
+      model,
+      (current, message) => TodoApp.update(current, message)[0],
+    )
+
+  it('offers a typed free-form value on an open choose step and runs it on Enter', () => {
+    const start = TodoApp.init()[0]
+    const opened = stepTodo(start, todoInteraction.openMenu(start))
+    const choosing = stepTodo(
+      opened,
+      todoInteraction.chooseFromMenu(opened, 'CreateItem'),
+    )
+    const typed = stepTodo(
+      choosing,
+      todoInteraction.typeInMenu(choosing, 'test'),
+    )
+    const menu = Option.getOrThrow(todoInteraction.menu(typed))
+    expect(menu.summary).toBe('1 choice matches “test”')
+    expect(menu.rows.map(row => [row.entry.tag, row.isHighlighted])).toEqual([
+      ['CreateItem:test', true],
+    ])
+
+    const submitted = stepTodo(
+      typed,
+      todoInteraction.pressKey(typed, keyInput('Enter')),
+    )
+    expect(submitted.items).toEqual(['test'])
+    expect(todoInteraction.menu(submitted)).toEqual(Option.none())
+  })
+
+  it('shows why an open choice is disabled when accepts rejects the typed value', () => {
+    const start = TodoApp.init()[0]
+    const opened = stepTodo(start, todoInteraction.openMenu(start))
+    const choosing = stepTodo(
+      opened,
+      todoInteraction.chooseFromMenu(opened, 'CreateItem'),
+    )
+    const typed = stepTodo(
+      choosing,
+      todoInteraction.typeInMenu(choosing, 'forbidden'),
+    )
+    const menu = Option.getOrThrow(todoInteraction.menu(typed))
+    expect(menu.rows.map(row => row.entry.availability)).toEqual([
+      Catalog.Disabled({ because: 'that title is reserved' }),
+    ])
+  })
+})

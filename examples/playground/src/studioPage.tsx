@@ -15,6 +15,7 @@ import {
   type FormEvent,
   type ReactElement,
   StrictMode,
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -35,7 +36,12 @@ import {
   useNavigationPlan,
 } from '@foldkit/react/navigation'
 
-import { type BoundStudio, createBoundStudio } from './studioProgram'
+import {
+  type BoundStudio,
+  type StudioTapeMode,
+  createBoundStudio,
+  startSyncedStudio,
+} from './studioProgram'
 
 type TerminalEntry = Readonly<{
   id: number
@@ -264,13 +270,7 @@ const LiveCliSection = (
   const [commandInput, setCommandInput] = useState(
     'open /studio/issues/mobile-touch',
   )
-  const [history, setHistory] = useState<ReadonlyArray<TerminalEntry>>(() => [
-    {
-      id: 1,
-      command: 'where',
-      result: executeStudioCliLine(bound, 'where'),
-    },
-  ])
+  const [history, setHistory] = useState<ReadonlyArray<TerminalEntry>>([])
 
   const livePaintedOutput = M.value(outputTab).pipe(
     M.withReturnType<string>(),
@@ -518,9 +518,16 @@ const LiveCliSection = (
 }
 
 export const StudioDemoShell = (
-  props: Readonly<{ bound: BoundStudio }>,
+  props: Readonly<{
+    bound: BoundStudio
+    syncLabel: string
+    onToggleTape?: () => void
+  }>,
 ): ReactElement => {
-  const { bound } = props
+  const { bound, syncLabel, onToggleTape } = props
+  useSyncExternalStore(bound.subscribe, bound.readModel, bound.readModel)
+  const statusTag = bound.status()._tag
+
   const [mode, setMode] = useState<'Dark' | 'Light'>(() =>
     typeof document !== 'undefined' &&
     document.documentElement.dataset['mode'] === 'light'
@@ -551,9 +558,22 @@ export const StudioDemoShell = (
             Foldkit React Navigation &amp; Live CLI Studio
             <span className="pg-pill pg-pill-positive">@foldkit/react</span>
             <span className="pg-pill pg-pill-accent">foldkit/cli/program</span>
+            <span
+              className={
+                statusTag === 'Ready'
+                  ? 'pg-pill pg-pill-positive mono'
+                  : 'pg-pill pg-pill-warning mono'
+              }
+              data-testid="studio-sync-status"
+            >
+              {statusTag === 'Ready'
+                ? `● ${syncLabel}`
+                : `◌ Connecting ${syncLabel}…`}
+            </span>
           </h1>
           <p className="pg-subtitle">
-            One pure Foldkit Program declared once — rendered simultaneously by{' '}
+            One pure Foldkit Program declared once — synced live across devices
+            via <code>@foldkit/instant</code> and rendered simultaneously by{' '}
             <code>&lt;NavigationFrame /&gt;</code> in React and{' '}
             <code>paintProgram</code> / <code>runProgramCommand</code> in the
             CLI.
@@ -563,6 +583,13 @@ export const StudioDemoShell = (
           <a className="pg-btn" href="/playground">
             ← All 54 Core UI Parts
           </a>
+          {onToggleTape !== undefined ? (
+            <button type="button" className="pg-btn" onClick={onToggleTape}>
+              {syncLabel.includes('InstantDB')
+                ? 'Switch to Local Memory'
+                : 'Switch to InstantDB Sync'}
+            </button>
+          ) : null}
           <button type="button" className="pg-btn" onClick={toggleTheme}>
             {mode === 'Dark' ? '☀ Light Mode' : '☾ Dark Mode'}
           </button>
@@ -610,15 +637,51 @@ export const StudioDemoShell = (
 }
 
 export const StudioAppRoot = (
-  props: Readonly<{ initialUri?: string }>,
+  props: Readonly<{ initialUri?: string; tape?: StudioTapeMode }>,
 ): ReactElement => {
-  const bound = useMemo(
-    () => createBoundStudio(props.initialUri),
-    [props.initialUri],
+  const [activeTape, setActiveTape] = useState<StudioTapeMode | undefined>(
+    props.tape,
   )
+
+  const session = useMemo(() => {
+    if (activeTape === undefined) {
+      return {
+        bound: createBoundStudio(props.initialUri),
+        stop: () => Promise.resolve(),
+        syncLabel: 'Local Memory',
+      }
+    }
+    const started = startSyncedStudio(activeTape)
+    return {
+      bound: started.bound,
+      stop: started.stop,
+      syncLabel:
+        activeTape === 'Instant' ? 'InstantDB Live Sync' : 'Local Memory',
+    }
+  }, [activeTape, props.initialUri])
+
+  useEffect(
+    () => () => {
+      void session.stop()
+    },
+    [session],
+  )
+
   return (
-    <ProgramProvider bound={bound}>
-      <StudioDemoShell bound={bound} />
+    <ProgramProvider bound={session.bound}>
+      <StudioDemoShell
+        bound={session.bound}
+        syncLabel={session.syncLabel}
+        onToggleTape={
+          activeTape === undefined
+            ? undefined
+            : () => {
+                setActiveTape(current =>
+                  current === 'Instant' ? 'Memory' : 'Instant',
+                )
+              }
+        }
+      />
     </ProgramProvider>
   )
 }
@@ -641,7 +704,7 @@ export const mountStudioPage = (container: HTMLElement): void => {
       : '/studio'
   createRoot(container).render(
     <StrictMode>
-      <StudioAppRoot initialUri={initialUri} />
+      <StudioAppRoot initialUri={initialUri} tape="Instant" />
     </StrictMode>,
   )
 }
