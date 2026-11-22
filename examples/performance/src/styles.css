@@ -210,6 +210,10 @@ a.link:hover {
   }
 }
 
+.sparkline-point {
+  fill: var(--series);
+}
+
 .sparkline {
   display: block;
   width: 4rem;
@@ -236,7 +240,7 @@ a.link:hover {
 }
 
 .hour-cell {
-  height: 1.75rem;
+  height: 2rem;
 }
 
 .hour-cell:hover,
@@ -275,8 +279,8 @@ a.link:hover {
 .hour-readout {
   position: absolute;
   right: 0;
-  bottom: 100%;
-  padding: 0 0 0.5rem 0.5rem;
+  bottom: calc(100% + 0.5rem);
+  padding-left: 0.5rem;
   background: var(--plane);
   color: var(--ink);
   font-size: 0.875rem;

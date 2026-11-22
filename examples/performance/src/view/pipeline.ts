@@ -18,6 +18,7 @@ import {
   diskMeasure,
   homeMeasures,
   homeProblems,
+  homeWindow,
   issueUrl,
   lastDay,
   outOfDateMinutes,
@@ -27,6 +28,7 @@ import { sparkline, trendChart } from './chart'
 import {
   HOUR_STATES,
   type Tone,
+  amountParts,
   consumerKindLabel,
   counted,
   formatAmount,
@@ -47,7 +49,6 @@ import {
   stateLabel,
   stateTone,
   toneIcon,
-  unitSuffix,
   waitingWords,
 } from './format'
 import {
@@ -249,20 +250,16 @@ const measureValue = (measure: Measure, className: string): Html => {
   const h = html<Message>()
   return Option.match(measure.maybeValue, {
     onNone: () => h.span([h.Class(`${className} ink-muted`)], ['No number']),
-    onSome: value =>
-      h.span(
+    onSome: value => {
+      const [amount, unit] = amountParts(value, measure.digits, measure.unit)
+      return h.span(
         [h.Class(`${className} tabular`)],
         [
-          h.span(
-            [h.Class('font-semibold')],
-            [formatNumber(value, measure.digits)],
-          ),
-          h.span(
-            [h.Class('text-xs ink-secondary')],
-            [unitSuffix(measure.unit)],
-          ),
+          h.span([h.Class('font-semibold')], [amount]),
+          h.span([h.Class('text-xs ink-secondary')], [unit]),
         ],
-      ),
+      )
+    },
   })
 }
 
@@ -300,7 +297,15 @@ const scorecard = (pipeline: Pipeline): Html => {
   return h.div(
     [h.Class('min-w-0')],
     [
-      h.h3([h.Class('mb-1 text-sm font-semibold')], ['Against the targets']),
+      h.h3(
+        [h.Class('mb-1 text-sm font-semibold')],
+        [
+          Option.match(homeWindow(pipeline), {
+            onNone: () => 'Against the targets',
+            onSome: window => `Against the targets, over the ${window}`,
+          }),
+        ],
+      ),
       h.ul(
         [h.Class('scorecard')],
         Array.map(homeMeasures(pipeline), scorecardRow),
@@ -584,7 +589,7 @@ const measureDetail = (measure: Measure): Html => {
   const h = html<Message>()
   const facts: ReadonlyArray<readonly [string, string]> = [
     ['Measured as', measure.how],
-    ['Over', measure.window],
+    ['Time covered', measure.window],
     ...Option.toArray(
       Option.map(measure.maybeReason, (reason): readonly [string, string] => [
         Option.isNone(measure.maybeValue) ? 'Why no number' : 'Note',
@@ -706,7 +711,7 @@ const folderRow = (folder: Folder): Html => {
   const size = (maybeGiB: Option.Option<number>, absent: string): string =>
     Option.match(maybeGiB, {
       onNone: () => absent,
-      onSome: value => formatAmount(value, 1, GIB),
+      onSome: value => formatNumber(value, 1),
     })
   return h.tr(
     [
@@ -764,18 +769,18 @@ const foldersTable = (storage: Storage): ReadonlyArray<Html> => {
                       h.Class('py-2 pr-3 text-right font-medium'),
                       h.Scope('col'),
                     ],
-                    ['Holds'],
+                    ['Holds, GiB'],
                   ),
                   h.th(
                     [
                       h.Class('py-2 pr-3 text-right font-medium'),
                       h.Scope('col'),
                     ],
-                    ['Cap'],
+                    ['Cap, GiB'],
                   ),
                   h.th(
                     [h.Class('py-2 font-medium'), h.Scope('col')],
-                    ['Against it'],
+                    ['Against its cap'],
                   ),
                 ],
               ),
@@ -936,7 +941,7 @@ const pageBody = (written: Written): Html => {
         onNonEmpty: problems => [
           section(
             'What could not be read',
-            'A number that needs one of these is not measured.',
+            'What the numbers above leave out, or count only in part.',
             h.ul(
               [h.Class('list-disc pl-5 text-sm')],
               Array.map(problems, problem => h.li([h.Key(problem)], [problem])),

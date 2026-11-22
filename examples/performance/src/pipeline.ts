@@ -1,4 +1,4 @@
-import { Array, Option, Schema as S, pipe } from 'effect'
+import { Array, Option, Schema as S, String, pipe } from 'effect'
 
 import {
   type ChartGeometry,
@@ -61,6 +61,25 @@ export const homeMeasures = (pipeline: Pipeline): ReadonlyArray<Measure> =>
 /** What is wrong now that the home page shows: the three worst. */
 export const homeProblems = (pipeline: Pipeline): ReadonlyArray<Problem> =>
   Array.take(pipeline.verdict.problems, HOME_PROBLEM_COUNT)
+
+/**
+ * The time the home page's measures share, so its heading can say it: the
+ * shares' window when every one of the six is over it.
+ *
+ * @example
+ * ```ts
+ * homeWindow(pipeline) // Option.some('last 24 hours')
+ * ```
+ */
+export const homeWindow = (pipeline: Pipeline): Option.Option<string> =>
+  pipe(
+    Option.some(pipeline.shares.window),
+    Option.filter(window =>
+      Array.every(homeMeasures(pipeline), measure =>
+        String.startsWith(window)(measure.window),
+      ),
+    ),
+  )
 
 /**
  * The disk's own measure (`disk-free`), wherever the file puts it, so the

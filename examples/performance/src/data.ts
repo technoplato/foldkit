@@ -437,6 +437,7 @@ export const Presence = S.Struct({
 )
 export type Presence = typeof Presence.Type
 
+/** macOS's own reading of whether memory is short. */
 export const MemoryPressure = S.Literals([
   'Normal',
   'Warning',
@@ -475,9 +476,11 @@ export const CurrentMinute = S.Struct({
 )
 export type CurrentMinute = typeof CurrentMinute.Type
 
+/** Which side of its target a measure should be on. */
 export const Direction = S.Literals(['AtLeast', 'AtMost'])
 export type Direction = typeof Direction.Type
 
+/** A measure against its target, as the exporter judged it. */
 export const MeasureStatus = S.Literals([
   'Met',
   'Near',
@@ -555,6 +558,7 @@ export const Shares = S.Struct({
 )
 export type Shares = typeof Shares.Type
 
+/** Where CPU work came from: the queue, outside it, or what always runs. */
 export const ConsumerKind = S.Literals([
   'Queue',
   'Outside',
@@ -583,6 +587,7 @@ export const Folder = S.Struct({
 )
 export type Folder = typeof Folder.Type
 
+/** Free disk against its target, and the folders against their caps. */
 export const Storage = S.Struct({
   maybeFreeGiB: S.OptionFromNullOr(S.Number),
   maybeUsedGiB: S.OptionFromNullOr(S.Number),

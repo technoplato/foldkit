@@ -25,6 +25,7 @@ import {
 // CONSTANT
 
 export const INDEX_PATH = '/data/index.json'
+/** Where the build pipeline's file is served. */
 export const PIPELINE_PATH = '/data/pipeline.json'
 
 const HTTP_OK = 200

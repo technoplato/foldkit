@@ -100,8 +100,28 @@ export const formatSpan = (minutes: number): string => {
 }
 
 /** What follows a number: a percent joins it, any other unit takes a space. */
-export const unitSuffix = (unit: string): string =>
+const unitSuffix = (unit: string): string =>
   unit === '' || String.startsWith('%')(unit) ? unit : ` ${unit}`
+
+/**
+ * A number and its small print: a percent is part of the number.
+ *
+ * @example
+ * ```ts
+ * amountParts(62, 0, '% of minutes') // ['62%', ' of minutes']
+ * amountParts(25, 0, 'an hour') // ['25', ' an hour']
+ * ```
+ */
+export const amountParts = (
+  value: number,
+  digits: number,
+  unit: string,
+): readonly [string, string] => {
+  const shown = formatNumber(value, digits)
+  return String.startsWith('%')(unit)
+    ? [`${shown}%`, String.slice(1)(unit)]
+    : [shown, unitSuffix(unit)]
+}
 
 /** A number and its unit: `62% of minutes`, `35.2 min`. */
 export const formatAmount = (
@@ -199,6 +219,7 @@ export const budgetStatusLabel = (status: BudgetStatus): string =>
 export const Tone = S.Literals(['Good', 'Warning', 'Critical', 'Open', 'None'])
 export type Tone = typeof Tone.Type
 
+/** A tone's glyph, from the evidence's own marks. */
 export const toneIcon = (tone: Tone): string =>
   M.value(tone).pipe(
     M.when('Good', () => evidenceIcon('Proven')),
@@ -209,6 +230,7 @@ export const toneIcon = (tone: Tone): string =>
     M.exhaustive,
   )
 
+/** A tone's color, which never stands without its glyph and words. */
 export const toneClass = (tone: Tone): string =>
   M.value(tone).pipe(
     M.when('Good', () => evidenceDotClass('Proven')),
@@ -229,6 +251,7 @@ export const HOUR_STATES: ReadonlyArray<HourState> = [
   'Unknown',
 ]
 
+/** The machine's state in a word or two: `Under-used`. */
 export const stateLabel = (state: MachineState): string =>
   M.value(state).pipe(
     M.when('JustRight', () => 'Just right'),
@@ -240,6 +263,7 @@ export const stateLabel = (state: MachineState): string =>
     M.exhaustive,
   )
 
+/** The mark the machine's state wears. */
 export const stateTone = (state: MachineState): Tone =>
   M.value(state).pipe(
     M.withReturnType<Tone>(),
@@ -251,6 +275,7 @@ export const stateTone = (state: MachineState): Tone =>
     M.exhaustive,
   )
 
+/** A measure against its target, in words: `On target`. */
 export const measureStatusLabel = (status: MeasureStatus): string =>
   M.value(status).pipe(
     M.when('Met', () => 'On target'),
@@ -260,6 +285,7 @@ export const measureStatusLabel = (status: MeasureStatus): string =>
     M.exhaustive,
   )
 
+/** The mark a measure's status wears. */
 export const measureStatusTone = (status: MeasureStatus): Tone =>
   M.value(status).pipe(
     M.withReturnType<Tone>(),
@@ -270,6 +296,7 @@ export const measureStatusTone = (status: MeasureStatus): Tone =>
     M.exhaustive,
   )
 
+/** The mark a number against its budget wears. */
 export const budgetStatusTone = (status: BudgetStatus): Tone =>
   M.value(status).pipe(
     M.withReturnType<Tone>(),
@@ -280,6 +307,7 @@ export const budgetStatusTone = (status: BudgetStatus): Tone =>
     M.exhaustive,
   )
 
+/** Memory now, in plain words: `Short of memory`. */
 export const memoryLabel = (pressure: MemoryPressure): string =>
   M.value(pressure).pipe(
     M.when('Normal', () => 'Enough memory'),
@@ -289,6 +317,7 @@ export const memoryLabel = (pressure: MemoryPressure): string =>
     M.exhaustive,
   )
 
+/** The mark memory's state wears. */
 export const memoryTone = (pressure: MemoryPressure): Tone =>
   M.value(pressure).pipe(
     M.withReturnType<Tone>(),
@@ -299,12 +328,13 @@ export const memoryTone = (pressure: MemoryPressure): Tone =>
     M.exhaustive,
   )
 
+/** Where a CPU user's work came from, in words. */
 export const consumerKindLabel = (kind: ConsumerKind): string =>
   M.value(kind).pipe(
     M.when('Queue', () => 'from the queue'),
     M.when('Outside', () => 'outside the queue'),
     M.when('Standing', () => 'always running'),
-    M.when('Other', () => 'everything else'),
+    M.when('Other', () => 'other'),
     M.exhaustive,
   )
 

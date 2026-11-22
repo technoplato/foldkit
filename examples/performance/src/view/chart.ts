@@ -63,7 +63,7 @@ export const LARGE_CHART: ChartSize = {
 /** A trend as small as a word, on a scorecard's row. */
 const SPARKLINE: ChartSize = {
   width: 80,
-  height: 22,
+  height: 28,
   top: 3,
   right: 2,
   bottom: 3,
@@ -72,13 +72,16 @@ const SPARKLINE: ChartSize = {
 
 /** A measure's trend on the pipeline page. */
 const TREND_CHART: ChartSize = {
-  width: 360,
-  height: 108,
-  top: 16,
+  width: 400,
+  height: 112,
+  top: 12,
   right: 52,
   bottom: 22,
-  left: 4,
+  left: 64,
 }
+
+const TREND_LABEL_GAP = 6
+const TREND_LABEL_MIDDLE = 3
 
 const SPARKLINE_DOT_RADIUS = 2
 const TREND_DOT_RADIUS = 3
@@ -501,6 +504,7 @@ const trendWords = (measure: Measure, range: TrendRange): string => {
 const trendDots = (
   geometry: ChartGeometry,
   radius: number,
+  className: string,
 ): ReadonlyArray<Html> => {
   const h = html<Message>()
   const maybeNewest = Array.findLast(geometry.columns, column =>
@@ -514,12 +518,7 @@ const trendDots = (
     Array.map(columns, column =>
       Option.map(column.maybeY, y =>
         h.circle(
-          [
-            h.Class('chart-point'),
-            h.Cx(n(column.x)),
-            h.Cy(n(y)),
-            h.R(n(radius)),
-          ],
+          [h.Class(className), h.Cx(n(column.x)), h.Cy(n(y)), h.R(n(radius))],
           [],
         ),
       ),
@@ -563,7 +562,7 @@ export const sparkline = (measure: Measure): Option.Option<Html> => {
       [
         ...targetRule(geometry),
         ...runLines(geometry),
-        ...trendDots(geometry, SPARKLINE_DOT_RADIUS),
+        ...trendDots(geometry, SPARKLINE_DOT_RADIUS, 'sparkline-point'),
       ],
     )
   })
@@ -619,15 +618,15 @@ export const trendChart = (measure: Measure): Option.Option<Html> => {
                 }),
                 ({ target, y }) =>
                   label(
-                    geometry.plotLeft,
-                    y - TICK_LENGTH,
-                    'start',
+                    geometry.plotLeft - TREND_LABEL_GAP,
+                    y + TREND_LABEL_MIDDLE,
+                    'end',
                     `target ${formatDeclared(target)}`,
                   ),
               ),
             ),
             ...runLines(geometry),
-            ...trendDots(geometry, TREND_DOT_RADIUS),
+            ...trendDots(geometry, TREND_DOT_RADIUS, 'chart-point'),
             ...Option.toArray(
               Option.map(maybeNewestY, y =>
                 h.text(

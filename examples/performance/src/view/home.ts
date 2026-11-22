@@ -11,6 +11,7 @@ import {
   budgetStatusLabel,
   budgetStatusTone,
   counted,
+  formatAmount,
   formatDate,
   formatNumber,
   plainMetricLabel,
@@ -62,7 +63,7 @@ const metricLink = (app: App, metric: Metric): Html => {
   )
 }
 
-const measuredRow = (app: App, row: ScorecardRow): Html => {
+const judgedRow = (app: App, row: ScorecardRow): Html => {
   const h = html<Message>()
   const { metric, measured, maybeBudget, status } = row
   return h.tr(
@@ -110,7 +111,7 @@ const measuredRow = (app: App, row: ScorecardRow): Html => {
   )
 }
 
-const measuredTable = (app: App, scorecard: Scorecard): Html => {
+const judgedTable = (app: App, scorecard: Scorecard): Html => {
   const h = html<Message>()
   return h.table(
     [h.Class('mt-3 w-full max-w-4xl text-left text-sm')],
@@ -139,7 +140,7 @@ const measuredTable = (app: App, scorecard: Scorecard): Html => {
               ),
               h.th(
                 [h.Class('py-2 font-medium'), h.Scope('col')],
-                ['Against it'],
+                ['Against the target'],
               ),
             ],
           ),
@@ -147,35 +148,46 @@ const measuredTable = (app: App, scorecard: Scorecard): Html => {
       ),
       h.tbody(
         [],
-        Array.map(scorecard.measured, row => measuredRow(app, row)),
+        Array.map(scorecard.judged, row => judgedRow(app, row)),
       ),
     ],
   )
 }
 
-const unmeasuredList = (
-  app: App,
-  scorecard: Scorecard,
-): ReadonlyArray<Html> => {
+const restList = (app: App, scorecard: Scorecard): ReadonlyArray<Html> => {
   const h = html<Message>()
-  return Array.match(scorecard.unmeasured, {
+  const item = (metric: Metric, words: string): Html =>
+    h.li(
+      [
+        h.Key(metric.id),
+        h.Class(
+          'flex justify-between gap-4 border-b border-[var(--hairline)] py-2',
+        ),
+      ],
+      [
+        metricLink(app, metric),
+        h.span([h.Class('text-right ink-secondary tabular')], [words]),
+      ],
+    )
+  const items = [
+    ...Array.map(scorecard.withoutTarget, ({ metric, measured }) =>
+      item(metric, formatAmount(measured.value, metric.digits, metric.unit)),
+    ),
+    ...Array.map(scorecard.unmeasured, metric => item(metric, 'not measured')),
+  ]
+  return Array.match(items, {
     onEmpty: () => [],
-    onNonEmpty: metrics => [
+    onNonEmpty: rows => [
       h.details(
         [h.Class('mt-3 max-w-4xl text-sm')],
         [
           h.summary(
             [h.Class('cursor-pointer ink-secondary')],
             [
-              `${metrics.length} more ${metrics.length === 1 ? 'was' : 'were'} not measured on build ${scorecard.build}`,
+              `${rows.length} more with no target or no number on build ${scorecard.build}`,
             ],
           ),
-          h.ul(
-            [h.Class('mt-2 grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2')],
-            Array.map(metrics, metric =>
-              h.li([h.Key(metric.id)], [metricLink(app, metric)]),
-            ),
-          ),
+          h.ul([h.Class('mt-1')], rows),
         ],
       ),
     ],
@@ -183,9 +195,12 @@ const unmeasuredList = (
 }
 
 const scorecardSentence = (scorecard: Scorecard): string =>
-  scorecard.judgedCount === 0
-    ? `Build ${scorecard.build} is the newest measured, and none of its numbers has a target.`
-    : `Build ${scorecard.build}, the newest measured: ${scorecard.withinCount} of ${scorecard.judgedCount} numbers with a target are within budget.`
+  Array.match(scorecard.judged, {
+    onEmpty: () =>
+      `Build ${scorecard.build} is the newest measured, and none of its numbers has a target.`,
+    onNonEmpty: judged =>
+      `Build ${scorecard.build}, the newest measured: ${scorecard.withinCount} of ${judged.length} numbers with a target are within budget.`,
+  })
 
 const numbersView = (index: Index, app: App): Html => {
   const h = html<Message>()
@@ -202,7 +217,7 @@ const numbersView = (index: Index, app: App): Html => {
         [],
         [
           h.p(
-            [h.Class('mt-1 text-sm ink-secondary')],
+            [h.Class('mt-1 text-sm')],
             [
               h.span([], [scorecardSentence(scorecard)]),
               ...Option.match(scorecard.maybeNewerBuild, {
@@ -217,8 +232,11 @@ const numbersView = (index: Index, app: App): Html => {
               }),
             ],
           ),
-          measuredTable(app, scorecard),
-          ...unmeasuredList(app, scorecard),
+          ...Array.match(scorecard.judged, {
+            onEmpty: () => [],
+            onNonEmpty: () => [judgedTable(app, scorecard)],
+          }),
+          ...restList(app, scorecard),
         ],
       ),
   })

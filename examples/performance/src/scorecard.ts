@@ -17,7 +17,6 @@ const WORST_FIRST: ReadonlyArray<BudgetStatus> = [
   'OverFail',
   'OverTarget',
   'Within',
-  'NoBudget',
 ]
 
 // MODEL
@@ -31,13 +30,16 @@ export const ScorecardRow = S.Struct({
 })
 export type ScorecardRow = typeof ScorecardRow.Type
 
-/** An app's numbers as a table: one build, the worst first. */
+/**
+ * An app's numbers as a table: one build, the ones with a target worst
+ * first, then what nothing can be said of.
+ */
 export const Scorecard = S.Struct({
   build: S.String,
   maybeNewerBuild: S.Option(S.String),
-  judgedCount: S.Number,
   withinCount: S.Number,
-  measured: S.Array(ScorecardRow),
+  judged: S.Array(ScorecardRow),
+  withoutTarget: S.Array(ScorecardRow),
   unmeasured: S.Array(Metric),
 })
 export type Scorecard = typeof Scorecard.Type
@@ -66,7 +68,7 @@ const measuredIn = (
  * @example
  * ```ts
  * appScorecard(index.metrics, scribe, 'Recording')
- * // build 374, 11 judged and 5 within, with build 375 newer and unmeasured
+ * // build 374: 9 judged, none within, 4 without a target, 14 unmeasured
  * ```
  */
 export const appScorecard = (
@@ -92,7 +94,6 @@ export const appScorecard = (
           })),
         ),
       )
-      const judged = Array.filter(rows, row => row.status !== 'NoBudget')
       return {
         build: build.build,
         maybeNewerBuild: pipe(
@@ -100,12 +101,11 @@ export const appScorecard = (
           Option.map(newest => newest.build),
           Option.filter(newest => newest !== build.build),
         ),
-        judgedCount: judged.length,
-        withinCount: Array.filter(judged, row => row.status === 'Within')
-          .length,
-        measured: Array.flatMap(WORST_FIRST, status =>
+        withinCount: Array.filter(rows, row => row.status === 'Within').length,
+        judged: Array.flatMap(WORST_FIRST, status =>
           Array.filter(rows, row => row.status === status),
         ),
+        withoutTarget: Array.filter(rows, row => row.status === 'NoBudget'),
         unmeasured: Array.filter(metrics, metric =>
           Option.isNone(measuredIn(build, scope, metric.id)),
         ),
