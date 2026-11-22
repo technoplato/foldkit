@@ -37,11 +37,21 @@ and that part is in `packages/foldkit/src/cli`:
   ends it at once. This is the plan's `Refusing` for a build mismatch, with
   the running build still answering, so a broadcast on air can still be
   ended by a command.
+- An always-on host: `lifetime: 'AlwaysOn'` in the one call. Its Processor
+  never stops for having nothing to do. `<name> background` is the plan's
+  `daemon status` (running, since when, working, views, another build,
+  starts at login), and `<name> background install` and `uninstall` write
+  and remove a launchd agent (`loginItem.ts`) that starts it at login and
+  again whenever it ends any way but cleanly. With the agent in place a
+  command asks launchd to start a Processor that is not running, and never
+  starts one beside it. `stop` exits cleanly, so the next command, not
+  launchd, starts the new build: that is the plan's `restart`. macOS only;
+  a systemd unit is not built.
 - Counter, Multiple Counters, Playground and Studio are one `entry.ts` each.
 
 Not built: protocol version 2 and its handshake, `Liveness.holdsDaemon`
 declared on Subscriptions and ManagedResources, the development guard, the
-manifest, `daemon status` and `restart`, tail with changes, identity,
+manifest, `restart` as its own word, tail with changes, identity,
 the durable local log, the engine descriptor, and the conformance suite.
 Books still runs its own player on the same core listener.
 

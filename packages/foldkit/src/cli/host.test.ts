@@ -260,6 +260,13 @@ describe('a Program as a command, through terminal()', () => {
   )
 })
 
+const killed = (pid: number | undefined): void => {
+  if (pid === undefined) {
+    throw new Error('no Background Processor to kill')
+  }
+  process.kill(pid, 'SIGKILL')
+}
+
 const startAsLaunchdDoes = (host: Host): ChildProcess =>
   spawn(
     process.execPath,
@@ -434,7 +441,7 @@ describe('an always-on host, through terminal()', () => {
       run(host)
       const firstPid = cliDaemonPidOf(host.socketPath)
       expect(firstPid).not.toBe(undefined)
-      process.kill(firstPid ?? 0, 'SIGKILL')
+      killed(firstPid)
       await eventually(async () => !(await isCliViewListening(host.socketPath)))
       expect(existsSync(host.socketPath)).toBe(true)
       const restarted = startAsLaunchdDoes(host)
@@ -504,7 +511,7 @@ describe('an always-on host under the real launchd', () => {
         const firstPid = cliDaemonPidOf(socketPath)
         expect(say('increment').status).toBe(0)
 
-        process.kill(firstPid ?? 0, 'SIGKILL')
+        killed(firstPid)
         await eventually(
           async () =>
             (await isCliViewListening(socketPath)) &&

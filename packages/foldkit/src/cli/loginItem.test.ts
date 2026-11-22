@@ -79,6 +79,9 @@ describe('what starts a Background Processor at login', () => {
     )
     expect(plist).toContain('<key>RunAtLoad</key>\n  <true/>')
     expect(plist).toContain(
+      '<key>ProcessType</key>\n  <string>Interactive</string>',
+    )
+    expect(plist).toContain(
       '<key>KeepAlive</key>\n  <dict>\n    <key>SuccessfulExit</key>\n    <false/>\n  </dict>',
     )
     expect(plist).toContain(

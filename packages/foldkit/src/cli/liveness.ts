@@ -14,6 +14,15 @@ import { Array } from 'effect'
 /** How long a Processor waits with nothing to do before it stops: ten minutes. */
 export const DEFAULT_IDLE_GRACE_MS = 600_000
 
+/**
+ * How long a Background Processor lives. `UntilIdle` stops once it has
+ * had nothing to do for the grace, and the next command starts it again.
+ * `AlwaysOn` never stops for having nothing to do: it is for a Program
+ * that must act while nobody is at the terminal, such as one that posts
+ * what was approved on a phone.
+ */
+export type Lifetime = 'UntilIdle' | 'AlwaysOn'
+
 /** How often a Processor asks whether its wait is over. */
 export const IDLE_CHECK_EVERY_MS = 15_000
 
@@ -36,16 +45,20 @@ export type Heard = Readonly<{
 /** A Processor that has just started has had nothing to do since then. */
 export const quietSince = (nowMs: number): Quiet => ({ sinceMs: nowMs })
 
+const viewsOf = (followers: number): ReadonlyArray<string> => {
+  if (followers === 0) {
+    return []
+  } else if (followers === 1) {
+    return ['a view is attached']
+  } else {
+    return [`${followers.toString()} views are attached`]
+  }
+}
+
 /** Why a Processor is staying up right now, in words; empty when nothing holds it. */
 export const holdsOf = (heard: Heard): ReadonlyArray<string> => [
   ...heard.reasons,
-  ...(heard.followers > 0
-    ? [
-        heard.followers === 1
-          ? 'a view is attached'
-          : `${heard.followers.toString()} views are attached`,
-      ]
-    : []),
+  ...viewsOf(heard.followers),
 ]
 
 /**
@@ -117,3 +130,50 @@ export const keptWorkingSentence = (
   reasons: ReadonlyArray<string>,
 ): string =>
   `The ${name} Background Processor is another build and was not replaced, because it is working: ${reasons.join('; ')}. It answered this command. The first command after that work ends replaces it. \`${name} stop\` ends it now.`
+
+const MS_PER_SECOND = 1_000
+
+const sentenceOf = (words: string): string =>
+  `${words.charAt(0).toUpperCase()}${words.slice(1)}.`
+
+/**
+ * What a running Processor says about itself, a line each: who it is
+ * and since when, when it stops, whether its Program has work going on,
+ * and which views are attached.
+ *
+ * @example
+ * ```typescript
+ * statusLinesOf({
+ *   name: 'publisher',
+ *   pid: 4242,
+ *   sinceMs: 1795386600000,
+ *   lifetime: 'AlwaysOn',
+ *   idleMs: DEFAULT_IDLE_GRACE_MS,
+ *   reasons: ['a broadcast is on air'],
+ *   followers: 0,
+ * })
+ * // ['The publisher Background Processor is running, pid 4242, since 2026-11-22T22:30:00.000Z.',
+ * //  'It stays up until it is stopped.',
+ * //  'It is working: a broadcast is on air.']
+ * ```
+ */
+export const statusLinesOf = (
+  status: Readonly<{
+    name: string
+    pid: number
+    sinceMs: number
+    lifetime: Lifetime
+    idleMs: number
+    reasons: ReadonlyArray<string>
+    followers: number
+  }>,
+): ReadonlyArray<string> => [
+  `The ${status.name} Background Processor is running, pid ${status.pid.toString()}, since ${new Date(status.sinceMs).toISOString()}.`,
+  status.lifetime === 'AlwaysOn'
+    ? 'It stays up until it is stopped.'
+    : `It stops once it has had nothing to do for ${(status.idleMs / MS_PER_SECOND).toString()} seconds.`,
+  isWorking(status.reasons)
+    ? `It is working: ${status.reasons.join('; ')}.`
+    : 'It is not working.',
+  ...viewsOf(status.followers).map(sentenceOf),
+]

@@ -4,6 +4,16 @@
  * half of a terminal host reads it without loading Effect.
  */
 
+/** The flag `terminal` starts its own entry with to run the Background Processor. */
+export const backgroundProcessorFlag = '--foldkit-background-processor'
+
+/**
+ * The word for the Background Processor itself: `counter background`
+ * says how it is, and `counter background install` and `counter
+ * background uninstall` start it at login or stop doing so.
+ */
+export const backgroundWord = 'background'
+
 /** The word that stops a Background Processor, `counter stop`. */
 export const stopWord = 'stop'
 
@@ -25,3 +35,15 @@ export const stoppedOutcome = 'Stopped'
 
 /** The flag a Processor's answer carries when it stays because it is working. */
 export const workingOutcome = 'Working'
+
+/**
+ * The word a command asks a Background Processor how it is with: since
+ * when it runs, when it stops, and whether it is working.
+ */
+export const statusWord = 'background-status'
+
+/** The flag a Processor's answer about itself carries. */
+export const statusOutcome = 'Status'
+
+/** The flag that carries the work a Processor has going on, empty when none. */
+export const workingFlag = 'working'

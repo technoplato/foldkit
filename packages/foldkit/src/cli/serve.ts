@@ -16,13 +16,16 @@ import {
   DEFAULT_IDLE_GRACE_MS,
   type Heard,
   IDLE_CHECK_EVERY_MS,
+  type Lifetime,
   type Quiet,
   isGraceOver,
   isWorking,
   keptWorkingSentence,
   quietAfter,
   quietSince,
+  statusLinesOf,
 } from './liveness.js'
+import { removeCliDaemonSocketAndPid } from './paths.js'
 import { commandWordsOf } from './program.js'
 import {
   type CliDaemonError,
@@ -36,12 +39,16 @@ import {
   programFollowings,
 } from './surface.js'
 import { followProgramTail } from './tail.js'
+import { isCliViewListening } from './view.js'
 import {
   buildWord,
   makeWayWord,
+  statusOutcome,
+  statusWord,
   stopWord,
   stoppedOutcome,
   wordsWord,
+  workingFlag,
   workingOutcome,
 } from './words.js'
 
@@ -98,14 +105,16 @@ export type TerminalProcessor<Model, Message> = Readonly<{
 
 /**
  * What {@link serveTerminal} needs beside the Processor: the command's
- * name, the socket its commands reach it on, what it was built from, and
- * how long it waits with nothing to do before it stops.
+ * name, the socket its commands reach it on, what it was built from,
+ * how long it waits with nothing to do before it stops, and whether it
+ * stops for that at all (`lifetime`, `UntilIdle` unless said).
  */
 export type ServeTerminalOptions<Model, Message> = Readonly<{
   name: string
   socketPath: string
   build: string
   idleMs?: number
+  lifetime?: Lifetime
   processor: TerminalProcessor<Model, Message>
 }>
 
@@ -119,6 +128,7 @@ const hostWords = [
   'follow',
   'help',
   'completions',
+  'background',
 ]
 
 // WAITS
@@ -216,6 +226,8 @@ export const serveTerminal = <Model, Message>(
 ): Promise<void> => {
   const { name, processor } = options
   const idleMs = options.idleMs ?? DEFAULT_IDLE_GRACE_MS
+  const lifetime = options.lifetime ?? 'UntilIdle'
+  const startedAtMs = Date.now()
   const state: {
     askedAtMs: number
     followers: number
@@ -223,6 +235,17 @@ export const serveTerminal = <Model, Message>(
   } = { askedAtMs: Date.now(), followers: 0, hasRunBeforeStop: false }
 
   const serve = Effect.gen(function* () {
+    // NOTE: A Processor started beside one that already answers on its
+    // socket, such as a login item's beside one a command started,
+    // leaves before it starts the Program, so the Program never runs
+    // twice here. It leaves cleanly, so launchd does not start it again.
+    if (yield* Effect.promise(() => isCliViewListening(options.socketPath))) {
+      process.stderr.write(
+        `Another ${name} Background Processor is answering on ${options.socketPath}; this one leaves.\n`,
+      )
+      return
+    }
+
     const stopping = yield* Deferred.make<void>()
     const askToStop = (): void => {
       Deferred.doneUnsafe(stopping, Effect.void)
@@ -316,6 +339,30 @@ export const serveTerminal = <Model, Message>(
         }
       })
 
+    const status = (): CliDaemonPaintedResult => {
+      const reasons = workNow()
+      return {
+        stdout: Array.join(
+          statusLinesOf({
+            name,
+            pid: process.pid,
+            sinceMs: startedAtMs,
+            lifetime,
+            idleMs,
+            reasons,
+            followers: state.followers,
+          }),
+          '\n',
+        ),
+        exitCode: 0,
+        flags: {
+          outcome: statusOutcome,
+          build: options.build,
+          [workingFlag]: reasons.join('; '),
+        },
+      }
+    }
+
     const stamped = (
       painted: CliDaemonPaintedResult,
     ): CliDaemonPaintedResult => ({
@@ -344,6 +391,8 @@ export const serveTerminal = <Model, Message>(
           return asked(stopped())
         } else if (token === makeWayWord) {
           return asked(madeWay())
+        } else if (token === statusWord) {
+          return Effect.andThen(whenReady, () => Effect.sync(status))
         } else if (token === wordsWord || token.startsWith(`${wordsWord} `)) {
           return asked(
             Effect.sync(() => ({
@@ -391,28 +440,46 @@ export const serveTerminal = <Model, Message>(
         ),
     }
 
-    const whenIdle = untilIdle({
-      idleMs,
-      heard: () => ({
-        reasons: workNow(),
-        followers: state.followers,
-        askedAtMs: state.askedAtMs,
-      }),
+    const whenIdle =
+      lifetime === 'AlwaysOn'
+        ? Effect.never
+        : untilIdle({
+            idleMs,
+            heard: () => ({
+              reasons: workNow(),
+              followers: state.followers,
+              askedAtMs: state.askedAtMs,
+            }),
+          })
+
+    const listening = startCliDaemonServer({
+      socketPath: options.socketPath,
+      Model: processor.program.Model,
+      Message: processor.program.Message,
+      surface,
+      onAnswered: answer => {
+        if (isStopped(answer)) {
+          askToStop()
+        }
+      },
+    })
+
+    // NOTE: A Processor that died without cleaning up, such as one that
+    // was killed, leaves its socket behind, and listening on it fails.
+    // The one started next, by launchd or by a command, takes it back
+    // once nobody answers there.
+    const takingBackSocket = Effect.gen(function* () {
+      if (yield* Effect.promise(() => isCliViewListening(options.socketPath))) {
+        return yield* listening
+      } else {
+        removeCliDaemonSocketAndPid(options.socketPath)
+        return yield* listening
+      }
     })
 
     yield* Effect.scoped(
       Effect.gen(function* () {
-        yield* startCliDaemonServer({
-          socketPath: options.socketPath,
-          Model: processor.program.Model,
-          Message: processor.program.Message,
-          surface,
-          onAnswered: answer => {
-            if (isStopped(answer)) {
-              askToStop()
-            }
-          },
-        })
+        yield* Effect.catch(listening, () => takingBackSocket)
         yield* Effect.raceFirst(Deferred.await(stopping), whenIdle)
         yield* Effect.promise(() => withinMs(beforeStop(), STOP_TIMEOUT_MS))
       }),

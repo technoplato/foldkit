@@ -7,7 +7,7 @@ This folder is the terminal Client adapter. Its painters are `surface.ts`,
 `terminalScreen.ts`, `tui.ts`, `tail.ts` and `view.ts`: they turn the screen
 tree and the declared commands into lines and columns. The rest of the folder
 (`argv.ts`, `backgroundProcessor.ts`, `protocol.ts`, `host.ts`, `serve.ts`,
-`liveness.ts`, `words.ts`) is the adapter's own work and is not counted. `AGENTS.md` at the repo root says what a CLI may do
+`liveness.ts`, `words.ts`, `loginItem.ts`) is the adapter's own work and is not counted. `AGENTS.md` at the repo root says what a CLI may do
 and what belongs to the TUI.
 
 ## A terminal host is one call
@@ -40,6 +40,12 @@ await terminal({
   attached, and no command. The same words say when it makes way for
   another build: never while they name work. A host says "I am working"
   once, in `keepsAlive`, and both rules read it.
+- `loginItem.ts` is what starts a Processor at login and again when it
+  dies, for a host that says `lifetime: 'AlwaysOn'`: the launchd agent as a
+  pure reading of the host, and a port for writing it and telling launchd,
+  so a test never adds a login item to the person running it. A host
+  writes no plist and no launcher of its own for this; `<name> background
+install` is the whole of it.
 - `words.ts` holds the words the two halves say to each other that no
   Program declares (`stop`, `background-build`, `background-make-way`), and
   imports nothing.
@@ -49,8 +55,8 @@ Add to `terminal()` only what no declaration can say. A host that needs a
 add it here, for every host, with a test in `host.test.ts`.
 
 What is not built yet is in `plans/01-terminal-runtime.md` under "Built so
-far": liveness declared on a Subscription, a second protocol version,
-`status`, and a durable local log.
+far": liveness declared on a Subscription, a second protocol version, and
+a durable local log.
 
 ## The rule
 
