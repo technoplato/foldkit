@@ -9,6 +9,7 @@ import {
   type SnapshotLogState,
   type SnapshotLogTransport,
   type SnapshotLogWrite,
+  clientFieldsOf,
   countSnapshotWriteFields,
   createSnapshotLogStateDecoder,
   readLogSince,
@@ -38,6 +39,7 @@ const transactSnapshotLogWrite = (
       ...(write.message.programVersion === undefined
         ? {}
         : { programVersion: write.message.programVersion }),
+      ...clientFieldsOf(write.message),
     }),
   ])
 }

@@ -103,6 +103,49 @@ describe('fromTransport write', () => {
   })
 })
 
+describe('fromTransport write on an app whose schema has the Client columns', () => {
+  it('keeps what the row says about its Client, and never the email', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const transport = yield* makeMemorySnapshotLogTransport()
+        const engine = fromTransport(transport, 'cli-fdb5a3a8', undefined, {
+          keepsClientFields: true,
+        })
+        yield* engine.write({
+          message: {
+            createdAtMs: 1,
+            from: 'cli-fdb5a3a8',
+            id: 'm1',
+            tag: 'Increment',
+            programVersion: 1,
+            client: 'tui',
+            terminal: 'Ghostty',
+            userEmail: 'michael@example.com',
+          },
+          snapshot: InstantCountSnapshotRecord.make({
+            asOf: 'cli-fdb5a3a8',
+            at: 1,
+            id: countSnapshotId,
+            value: 0,
+          }),
+        })
+        const state = yield* engine.read()
+        expect(state.messages).toStrictEqual([
+          {
+            createdAtMs: 1,
+            from: 'cli-fdb5a3a8',
+            id: 'm1',
+            tag: 'Increment',
+            programVersion: 1,
+            client: 'tui',
+            terminal: 'Ghostty',
+          },
+        ])
+      }),
+    )
+  })
+})
+
 describe('fromTransport subscribe', () => {
   it('enqueues each Message once across a 200-write burst, not the triangular replay', async () => {
     await Effect.runPromise(

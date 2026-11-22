@@ -14,6 +14,7 @@ import { makeAdminSnapshotLogTransport } from '../snapshotLog/admin.js'
 import { makeInstantCoreSnapshotLogTransport } from '../snapshotLog/core.js'
 import {
   type InstantOptions,
+  clientFieldsKeptFor,
   engineProcessorId,
   fromTransport,
   instantLinksOf,
@@ -94,7 +95,12 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
       }),
       processor,
       instantLinksOf(options.database),
-      { writesSnapshot: false, ...snapshotHooks, ...sharedSnapshotHooks },
+      {
+        writesSnapshot: false,
+        ...snapshotHooks,
+        ...sharedSnapshotHooks,
+        ...clientFieldsKeptFor(options.app),
+      },
     )
   }
   if (options.programLog === undefined && options.database !== undefined) {
@@ -113,7 +119,7 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
       ),
       processor,
       instantLinksOf(options.database),
-      snapshotHooks,
+      { ...snapshotHooks, ...clientFieldsKeptFor(options.app) },
     )
   }
   const adminToken = adminTokenFromEnv()
@@ -129,7 +135,7 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
       ),
       processor,
       undefined,
-      { writesSnapshot: false },
+      { writesSnapshot: false, ...clientFieldsKeptFor(options.app) },
     )
   }
   return fromTransport(
@@ -139,5 +145,7 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
       options.selectCountId ?? options.countId,
     ),
     processor,
+    undefined,
+    clientFieldsKeptFor(options.app),
   )
 }

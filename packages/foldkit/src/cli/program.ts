@@ -489,37 +489,50 @@ export const programUsage = <Model, Message>(
   ].join('\n')
 }
 
+/** A word that may come next on a command line, and what it does, for a shell to show beside it. */
+export type CommandWord = Readonly<{ word: string; what: string }>
+
 /**
- * The words that may come next after what has been typed, for a shell's
- * tab completion: with nothing typed, every Action's command and the
- * first word of every control every Program has, then the host's own
- * words; after an Action that chooses, what it chooses from. They are
- * the Catalog's words as they stand now, so a new counter is offered as
- * soon as it exists.
+ * The words that may come next after what has been typed, each with what
+ * it does, for a shell's tab completion: with nothing typed, every
+ * Action's command and the first word of every control every Program
+ * has, then the host's own words; after an Action that chooses, what it
+ * chooses from. They are the Catalog's words as they stand now, so a new
+ * counter is offered as soon as it exists.
  *
  * @example
  * ```typescript
- * commandWordsOf(bound, [], ['stop', 'watch']) // ['increment', 'decrement', 'reset', 'menu', 'key', 'open', 'stop', 'watch']
- * commandWordsOf(bound, ['increment']) // ['17', '21', '23'] for the Counters
+ * commandWordsOf(bound, [], [{ word: 'stop', what: 'Ends the Background Processor' }])
+ * // [{ word: 'increment', what: 'Increments the count by one' }, …, { word: 'stop', what: 'Ends the Background Processor' }]
+ * commandWordsOf(bound, ['increment']) // [{ word: '17', what: 'Counter 17' }, …] for the Counters
  * ```
  */
 export const commandWordsOf = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   said: ReadonlyArray<string>,
-  hostWords: ReadonlyArray<string> = [],
-): ReadonlyArray<string> => {
+  hostWords: ReadonlyArray<CommandWord> = [],
+): ReadonlyArray<CommandWord> => {
   const entries = bound.entries()
   return Array.match(said, {
     onEmpty: () =>
-      Array.dedupe([
-        ...Array.map(entries, entry => commandOf(saidTagOf(entry))),
-        ...Array.getSomes(
-          Array.map(pathsOf(programControls), ({ path }) =>
-            Array.head(declaredCommandOf(path).split(' ')),
+      Array.dedupeWith(
+        [
+          ...Array.map(entries, entry => ({
+            word: commandOf(saidTagOf(entry)),
+            what: entry.what,
+          })),
+          ...Array.getSomes(
+            Array.map(pathsOf(programControls), ({ path, declaration }) =>
+              Option.map(
+                Array.head(declaredCommandOf(path).split(' ')),
+                word => ({ word, what: declaration.what }),
+              ),
+            ),
           ),
-        ),
-        ...hostWords,
-      ]),
+          ...hostWords,
+        ],
+        (self, that) => self.word === that.word,
+      ),
     onNonEmpty: words => {
       if (words.length === 1) {
         const first = Array.headNonEmpty(words)
@@ -532,7 +545,10 @@ export const commandWordsOf = <Model, Message>(
             Option.match(entry.maybeChoices, {
               onNone: () => [],
               onSome: choices =>
-                Array.map(choices.choices, choice => choice.token),
+                Array.map(choices.choices, choice => ({
+                  word: choice.token,
+                  what: choice.title,
+                })),
             }),
         )
       } else {

@@ -44,6 +44,61 @@ export const InstantCountSnapshotRecord = S.Struct({
 /** A decoded Instant count snapshot, including optional occupancy. */
 export type InstantCountSnapshotRecord = typeof InstantCountSnapshotRecord.Type
 
+/**
+ * What a row says about the Client that sent its Message, beside the
+ * Processor that wrote it: the Client's Host when it is another, such as
+ * `tui` for a key a terminal UI sent through a Background Processor on
+ * `cli`, and what that Client runs in, a browser, a window, a terminal,
+ * an app version. Every one is optional, and a row from before they were
+ * kept has none.
+ *
+ * @example
+ * ```typescript
+ * { client: 'tui', terminal: 'Ghostty' }
+ * { browser: 'Safari', windowLabel: 'Books', appVersion: 'v20261120-1432' }
+ * ```
+ */
+export const clientFields = {
+  client: S.optionalKey(S.String),
+  browser: S.optionalKey(S.String),
+  windowLabel: S.optionalKey(S.String),
+  terminal: S.optionalKey(S.String),
+  appVersion: S.optionalKey(S.String),
+}
+
+const ClientFields = S.Struct(clientFields)
+
+/** What a row says about the Client that sent its Message. */
+export type ClientFields = typeof ClientFields.Type
+
+const clientFieldNames: ReadonlyArray<keyof ClientFields> = [
+  'client',
+  'browser',
+  'windowLabel',
+  'terminal',
+  'appVersion',
+]
+
+/**
+ * The Client fields a row or a record holds, and only those it holds: a
+ * field that is absent, null or empty is left out, so a write never puts
+ * an empty column on a row.
+ *
+ * @example
+ * ```typescript
+ * clientFieldsOf({ client: 'tui', browser: null, tag: 'Increment' }) // { client: 'tui' }
+ * ```
+ */
+export const clientFieldsOf = (
+  row: Readonly<Record<string, unknown>>,
+): ClientFields =>
+  Array.reduce(clientFieldNames, {}, (fields: ClientFields, name) => {
+    const value = row[name]
+    return typeof value === 'string' && value !== ''
+      ? { ...fields, [name]: value }
+      : fields
+  })
+
 /** One user-intent row on the Instant Message log. */
 export const InstantLogMessageRecord = S.Struct({
   createdAtMs: S.Int,
@@ -51,6 +106,7 @@ export const InstantLogMessageRecord = S.Struct({
   id: S.String,
   tag: S.String,
   programVersion: S.optionalKey(S.Int),
+  ...clientFields,
 })
 /** One user-intent row on the Instant Message log. */
 export type InstantLogMessageRecord = typeof InstantLogMessageRecord.Type
@@ -135,6 +191,11 @@ export const InstantSnapshotLogEntities = {
     from: i.string().indexed(),
     tag: i.string(),
     programVersion: i.number().optional(),
+    client: i.string().optional(),
+    browser: i.string().optional(),
+    windowLabel: i.string().optional(),
+    terminal: i.string().optional(),
+    appVersion: i.string().optional(),
   }),
   programMessage: i.entity({
     app: i.string().indexed(),
@@ -144,6 +205,11 @@ export const InstantSnapshotLogEntities = {
     from: i.string().indexed(),
     createdAtMs: i.number().indexed(),
     ownerUserID: i.string().indexed().optional(),
+    client: i.string().optional(),
+    browser: i.string().optional(),
+    windowLabel: i.string().optional(),
+    terminal: i.string().optional(),
+    appVersion: i.string().optional(),
   }),
   programSnapshot: i.entity({
     app: i.string().indexed(),
@@ -325,6 +391,11 @@ const LooseMessageRow = S.Struct({
   id: S.String,
   tag: S.String,
   programVersion: S.optionalKey(S.NullOr(S.Number)),
+  client: S.optionalKey(S.NullOr(S.String)),
+  browser: S.optionalKey(S.NullOr(S.String)),
+  windowLabel: S.optionalKey(S.NullOr(S.String)),
+  terminal: S.optionalKey(S.NullOr(S.String)),
+  appVersion: S.optionalKey(S.NullOr(S.String)),
 })
 
 /** Orders Messages by createdAtMs, then id. */
@@ -399,6 +470,7 @@ const decodeMessageRow = (row: unknown): InstantLogMessageRecord => {
     ...(record.programVersion === undefined || record.programVersion === null
       ? {}
       : { programVersion: record.programVersion }),
+    ...clientFieldsOf(record),
   })
 }
 

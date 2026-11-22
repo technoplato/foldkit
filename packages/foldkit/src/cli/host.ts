@@ -560,7 +560,8 @@ const completionsAnswer = (
         ...(installed.startupPath === undefined
           ? []
           : [`Added one line to ${installed.startupPath} that loads it.`]),
-        `Open a new terminal, type ${name} and a space, and press Tab.`,
+        `A new terminal has it: type ${name} and a space, and press Tab.`,
+        `A terminal that was already open, this one too, has it after: exec ${shell}`,
       ].join('\n'),
       stderr: '',
       exitCode: 0,

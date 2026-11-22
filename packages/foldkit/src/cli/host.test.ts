@@ -134,10 +134,12 @@ describe('a Program as a command, through terminal()', () => {
     'tells a shell what may come next, from the Program\u2019s own declarations and its own words',
     () => {
       const host = hostOf()
-      const words = run(host, 'completions', 'words').stdout.split('\n')
-      expect(words).toContain('increment')
-      expect(words).toContain('reset')
-      expect(words).toContain('stop')
+      const lines = run(host, 'completions', 'words').stdout.split('\n')
+      expect(lines).toContain('increment\tIncrements the count by one')
+      expect(lines).toContain('reset\tSets the count to 0')
+      expect(lines).toContain(
+        'stop\tEnds the Background Processor after it has saved',
+      )
       expect(run(host, 'completions', 'zsh').stdout).toContain(
         'fixture-counter completions words',
       )

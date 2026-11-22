@@ -81,6 +81,7 @@ const metadataTagOf = (row: unknown): Option.Option<string> => {
   const parts = Array.getSomes([
     nonEmptyRowField(row, 'browser'),
     nonEmptyRowField(row, 'windowLabel'),
+    nonEmptyRowField(row, 'terminal'),
     nonEmptyRowField(row, 'appVersion'),
     nonEmptyRowField(row, 'userEmail'),
   ])
