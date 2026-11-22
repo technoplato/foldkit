@@ -57,10 +57,11 @@ Before you add code, answer these in order:
 
 1. Would a second Client need this fact or behavior? Then it is core. Put it in the domain core when it names the domain, in Foldkit core when it does not.
 2. Does it name a terminal, a flag, a process, the DOM, a pixel, or an SDK? Then it is an adapter, and the core must not learn of it. Give the core a port (a Service or the sync engine interface) or a pure reading, and let the adapter fill or print it.
-3. Is it background work or anything that stays in sync? It runs in the Background Processor: one running synced Program held by a process the CLI starts on its first command (`listenBackgroundProcessor`; first spelled `listenCliDaemon`, which still works). Commands ask it (Show, Do, Read, Run), follow it (`follow <topic>`), and stop it. Do not start a second kind of background process.
-4. Is it interactive (keys, a full screen)? It belongs to the TUI Client, never to a CLI command.
-5. Did you find core logic sitting in an adapter, or an adapter concern in a core? Say so, and move it with tests, smallest step first.
-6. Is it a number with a unit, or a branch on what the person meant, in something a painter draws? It is a rule: `packages/foldkit/src/behavior/`, never the painter.
+3. Is it background work or anything that stays in sync? It runs in the Background Processor: one running synced Program held by a process the CLI starts on its first command. Commands ask it (Show, Do, Read, Run), follow it (`follow <topic>`), and stop it. Do not start a second kind of background process.
+4. Is it a new terminal host? It is one file with one call, `terminal()` from `foldkit/cli/host`: `examples/counter/cli/src/entry.ts` is the whole of one. The call owns argv, the Background Processor's start, lifetime, stop and replacement after a rebuild, `watch`, `tail` and `tui`. Do not write a `daemon`, `inProcess`, `settings`, `watch` or `tail` file, a `*_TAPE` switch, or code that reads a pid or socket file. Read `packages/foldkit/src/cli/AGENTS.md` and `skills/foldkit-composition/SKILL.md` first.
+5. Is it interactive (keys, a full screen)? It belongs to the TUI Client, never to a CLI command.
+6. Did you find core logic sitting in an adapter, or an adapter concern in a core? Say so, and move it with tests, smallest step first.
+7. Is it a number with a unit, or a branch on what the person meant, in something a painter draws? It is a rule: `packages/foldkit/src/behavior/`, never the painter.
 
 ## Declare once; derive everything
 

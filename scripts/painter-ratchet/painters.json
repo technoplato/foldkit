@@ -164,22 +164,6 @@
         "numbers": 0
       }
     },
-    "examples/counter/cli/src/entry.ts": {
-      "counts": {
-        "timers": 0,
-        "heldState": 0,
-        "listeners": 0,
-        "numbers": 2
-      }
-    },
-    "examples/counter/cli/src/session.ts": {
-      "counts": {
-        "timers": 0,
-        "heldState": 0,
-        "listeners": 0,
-        "numbers": 1
-      }
-    },
     "examples/counter/expo/src/polyfill.ts": {
       "counts": {
         "timers": 0,

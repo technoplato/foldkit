@@ -9,6 +9,7 @@ import type { Host } from '../processor/host.js'
 import { formatTerminalFrame } from './frameWriter.js'
 import {
   cliDaemonLockPath,
+  holdCliDaemonLockFor,
   removeCliDaemonFiles,
   removeCliDaemonSocketAndPid,
   tryAcquireCliDaemonLock,
@@ -273,7 +274,7 @@ export const ensureCliViewDaemon = async (options: {
   const wonLock = tryAcquireCliDaemonLock(options.socketPath)
   if (wonLock) {
     removeCliDaemonSocketAndPid(options.socketPath)
-    options.spawn()
+    holdCliDaemonLockFor(options.socketPath, options.spawn().pid)
   }
   await waitForListen(
     options.socketPath,

@@ -216,7 +216,9 @@ missing combinator.
 Hand rolling is the thing the rubric forbids: row updates by id, ids minted in
 `update` (today's `forEach` included), a `Got*` union a combinator would
 derive, tag filters over the whole Catalog in a screen, a daemon, view,
-settings, or in-process file per terminal host beyond `entry` and `daemon`,
+settings, or in-process file per terminal host beside its one `entry` file
+(a terminal host is one call to `terminal()` from `foldkit/cli/host`, as in
+`examples/counter/cli/src/entry.ts`),
 and click-to-Message maps in a `react-bindings` package. Today's required
 `messageCategory` classifier and stack moves through `Navigation.pushed`,
 `presented`, and `withoutDestinations` are allowed until the declaration and

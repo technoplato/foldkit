@@ -82,3 +82,26 @@ export { followProgramTail, formatTailRow, runProgramTail } from './tail.js'
 export { columnRow, terminalWidth, underColumn, wrapWords } from './layout.js'
 
 export * from './backgroundProcessor.js'
+export {
+  DEFAULT_IDLE_GRACE_MS,
+  IDLE_CHECK_EVERY_MS,
+  type Heard,
+  type Quiet,
+  holdsOf,
+  isGraceOver,
+  quietAfter,
+  quietSince,
+} from './liveness.js'
+export {
+  type ServeTerminalOptions,
+  type TerminalProcessor,
+  type TerminalProgram,
+  serveTerminal,
+  untilIdle,
+} from './serve.js'
+export {
+  cliDaemonPidOf,
+  holdCliDaemonLockFor,
+  ownsCliDaemonFiles,
+  removeOwnCliDaemonFiles,
+} from './paths.js'

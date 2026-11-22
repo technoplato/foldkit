@@ -6,9 +6,46 @@ then when that state changes, it should render again. That's it."
 This folder is the terminal Client adapter. Its painters are `surface.ts`,
 `terminalScreen.ts`, `tui.ts`, `tail.ts` and `view.ts`: they turn the screen
 tree and the declared commands into lines and columns. The rest of the folder
-(`argv.ts`, `backgroundProcessor.ts`, `protocol.ts`) is the adapter's own
-work and is not counted. `AGENTS.md` at the repo root says what a CLI may do
+(`argv.ts`, `backgroundProcessor.ts`, `protocol.ts`, `host.ts`, `serve.ts`,
+`liveness.ts`) is the adapter's own work and is not counted. `AGENTS.md` at the repo root says what a CLI may do
 and what belongs to the TUI.
+
+## A terminal host is one call
+
+`terminal()` in `host.ts` (`foldkit/cli/host`) is the whole of a Program's
+terminal host. `examples/counter/cli/src/entry.ts` is one:
+
+```ts
+await terminal({
+  name: 'counter',
+  entry: import.meta.url,
+  processor: async () => {
+    const { SyncedCounter, startCounter, newProcessorInstance } =
+      await import('counter-core-example')
+    return {
+      program: SyncedCounter,
+      start: host => startCounter({ host, instance: newProcessorInstance() }),
+    }
+  },
+})
+```
+
+- `host.ts` is the thin half. It imports no Effect and no Program, so a
+  command starts fast. It owns argv, `stop`, `watch`, `tail`, `tui`, and
+  replacing a Background Processor of another build.
+- `serve.ts` is the Background Processor: it starts the Program, answers
+  every command through the Program's own declarations, and stops.
+- `liveness.ts` is the rule for when it stops, with no Effect and no socket:
+  ten minutes with no work the host's `keepsAlive(model)` names, no view
+  attached, and no command.
+
+Add to `terminal()` only what no declaration can say. A host that needs a
+`daemon.ts`, an in-process runner, or a pid file is missing something here:
+add it here, for every host, with a test in `host.test.ts`.
+
+What is not built yet is in `plans/01-terminal-runtime.md` under "Built so
+far": liveness declared on a Subscription, a second protocol version,
+`status`, and a durable local log.
 
 ## The rule
 

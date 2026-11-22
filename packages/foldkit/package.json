@@ -57,6 +57,11 @@
       "import": "./dist/cli/view.js",
       "default": "./dist/cli/view.js"
     },
+    "./cli/host": {
+      "types": "./dist/cli/host.d.ts",
+      "import": "./dist/cli/host.js",
+      "default": "./dist/cli/host.js"
+    },
     "./cli/program": {
       "types": "./dist/cli/programPublic.d.ts",
       "import": "./dist/cli/programPublic.js",

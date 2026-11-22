@@ -18,6 +18,10 @@ export default defineConfig({
         __dirname,
         '../../packages/instant/src/nodeDatabase/index.ts',
       ),
+      'foldkit/cli/host': path.resolve(
+        __dirname,
+        '../../packages/foldkit/src/cli/host.ts',
+      ),
       'foldkit/cli/view': path.resolve(
         __dirname,
         '../../packages/foldkit/src/cli/view.ts',
@@ -40,14 +44,7 @@ export default defineConfig({
       input: {
         cli: path.resolve(__dirname, 'cli.ts'),
         studioEntry: path.resolve(__dirname, 'cli/studioEntry.ts'),
-        studioDaemon: path.resolve(__dirname, 'cli/studioDaemon.ts'),
-        studioInProcess: path.resolve(__dirname, 'cli/studioInProcess.ts'),
         playgroundEntry: path.resolve(__dirname, 'cli/playgroundEntry.ts'),
-        playgroundDaemon: path.resolve(__dirname, 'cli/playgroundDaemon.ts'),
-        playgroundInProcess: path.resolve(
-          __dirname,
-          'cli/playgroundInProcess.ts',
-        ),
       },
       output: {
         entryFileNames: '[name].js',

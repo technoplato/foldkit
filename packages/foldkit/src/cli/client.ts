@@ -8,6 +8,7 @@ import type { ProgramSchema } from '../program/program.js'
 import {
   cliDaemonLockPath,
   cliDaemonPidPath,
+  holdCliDaemonLockFor,
   removeCliDaemonFiles,
   removeCliDaemonSocketAndPid,
   tryAcquireCliDaemonLock,
@@ -151,7 +152,7 @@ export const ensureCliDaemon = (options: {
     yield* Effect.annotateCurrentSpan('wonLock', wonLock)
     if (wonLock) {
       removeCliDaemonSocketAndPid(options.socketPath)
-      options.spawn()
+      holdCliDaemonLockFor(options.socketPath, options.spawn().pid)
     }
     yield* waitForListen(
       options.socketPath,

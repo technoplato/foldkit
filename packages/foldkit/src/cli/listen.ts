@@ -12,7 +12,7 @@ import { type Server, type Socket, createServer } from 'node:net'
 
 import { Cli, type Host, Tui } from '../processor/host.js'
 import type { ProgramSchema } from '../program/program.js'
-import { removeCliDaemonFiles, writeCliDaemonPid } from './paths.js'
+import { removeOwnCliDaemonFiles, writeCliDaemonPid } from './paths.js'
 import {
   CliDaemonDo,
   CliDaemonError,
@@ -31,9 +31,18 @@ import { isTerminalViewRequest } from './surface.js'
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null
 
+const REQUEST_LINE_TIMEOUT_MS = 5_000
+
+// NOTE: Requests are answered one at a time, so a connection that opens
+// and never sends its line would hold every later command. A line that
+// has not come within the timeout is read as none, and the next is taken.
 const readRequestLine = (socket: Socket): Promise<string> =>
   new Promise(resolve => {
     let buffer = ''
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve('')
+    }, REQUEST_LINE_TIMEOUT_MS)
     const onData = (chunk: Buffer): void => {
       buffer = `${buffer}${chunk.toString('utf8')}`
       const maybeNewline = String.indexOf('\n')(buffer)
@@ -52,6 +61,7 @@ const readRequestLine = (socket: Socket): Promise<string> =>
       resolve('')
     }
     const cleanup = (): void => {
+      clearTimeout(timer)
       socket.off('data', onData)
       socket.off('close', onClose)
       socket.off('error', onError)
@@ -163,6 +173,7 @@ const handleConnection = <Model, Message>(
   Message: ProgramSchema<Message>,
   surface: CliDaemonSurface<Model, Message>,
   onFollowing: (socket: Socket) => void,
+  onAnswered: (answer: unknown) => void,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const line = yield* Effect.promise(() => requestLine)
@@ -288,6 +299,7 @@ const handleConnection = <Model, Message>(
         }),
     })
     socket.end()
+    onAnswered(encoded)
   }).pipe(
     Effect.catch(() =>
       Effect.sync(() => {
@@ -322,13 +334,17 @@ const listenServer = (
  * Opens the daemon socket. Keeps the Processor alive until the Scope
  * closes. Read, Run, Show, and Do are answered one at a time, in the order
  * they arrive. A Follow keeps its connection open beside them and never
- * holds them up; closing the Scope ends every Follow.
+ * holds them up; closing the Scope ends every Follow. `onAnswered` hears
+ * each answer once it has been written and its connection ended, so a
+ * Processor that stops on a command, such as `counter stop`, stops only
+ * after the command has its answer.
  */
 export const startCliDaemonServer = <Model, Message>(options: {
   readonly socketPath: string
   readonly Model: ProgramSchema<Model>
   readonly Message: ProgramSchema<Message>
   readonly surface: CliDaemonSurface<Model, Message>
+  readonly onAnswered?: (answer: unknown) => void
 }): Effect.Effect<void, CliDaemonError, Scope.Scope> => {
   let exclusive: Promise<void> = Promise.resolve()
   const followers = new Set<Socket>()
@@ -355,6 +371,7 @@ export const startCliDaemonServer = <Model, Message>(options: {
               options.Message,
               options.surface,
               keepFollower,
+              options.onAnswered ?? (() => {}),
             ),
           ),
         )
@@ -369,7 +386,10 @@ export const startCliDaemonServer = <Model, Message>(options: {
           follower.destroy()
         }
         server.close()
-        removeCliDaemonFiles(options.socketPath)
+        // NOTE: Only this Processor's own files go. While it was saving
+        // on the way out, a newer one may have taken the socket, and
+        // removing that one's files would leave it running and unreachable.
+        removeOwnCliDaemonFiles(options.socketPath)
       }),
   ).pipe(Effect.as(undefined))
 }

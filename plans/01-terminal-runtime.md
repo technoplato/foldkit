@@ -1,12 +1,43 @@
 # Plan 01 | One terminal runtime for every Program
 
-Status: Proposed. Design only; nothing here is built. Revised after
+Status: Partly built (2026-11-22). See "Built so far" below; the rest is
+still design. Revised after
 adversarial rounds 1 to 4 (R2-03, R2-04, R2-22, R2-23, R2-32 to R2-34,
 R3-01, R3-03 to R3-05, R3-16, R3-19, R4-03, R4-09, R4-11, R4-14, R4-18). Closes audit items 1 (terminal
 leftovers), 2 (env reads in core), and 7 (tail with changes), and ADR 0014
 Decision 1. ADR 0014 names `foldkit/cli` as the home of the runtime; this
 plan puts it in a new `foldkit/terminal` subpath and amends ADR 0014 when
 accepted.
+
+## Built so far
+
+A council reviewed the smallest part of this plan that needs nothing
+unbuilt (`/Users/blackflag/Scribe/plans/council/foldkit-cli-host/verdict.md`),
+and that part is in `packages/foldkit/src/cli`:
+
+- `terminal()` in `host.ts` (`foldkit/cli/host`): one call, one file per
+  host. The host's own entry is started again as the Background Processor
+  (`--foldkit-background-processor`), so a command never imports the
+  Program. It lives in `foldkit/cli`, as ADR 0014 says, not in a new
+  `foldkit/terminal` subpath.
+- `serve.ts`: the Background Processor. It listens before the Program is
+  ready and answers once it is, serves `screen` and `log` to follow, and
+  `stop` travels over the socket so the host's `beforeStop` runs while the
+  Program is alive.
+- `liveness.ts`: the rule for when it stops. A host returns
+  `keepsAlive(model)`, a pure reading of the Model in words; a view attached
+  and a command within the grace also hold it. This is the seam
+  `Liveness.holdsDaemon` on a Subscription later fills, with no change to a
+  host.
+- A build stamp on every answer, so a command from a rebuilt host replaces
+  the older Processor, and a checkout elsewhere never takes it over.
+- Counter, Multiple Counters, Playground and Studio are one `entry.ts` each.
+
+Not built: protocol version 2 and its handshake, `Liveness.holdsDaemon`
+declared on Subscriptions and ManagedResources, the development guard, the
+manifest, `daemon status` and `restart`, tail with changes, identity,
+the durable local log, the engine descriptor, and the conformance suite.
+Books still runs its own player on the same core listener.
 
 ## The problem in one paragraph
 

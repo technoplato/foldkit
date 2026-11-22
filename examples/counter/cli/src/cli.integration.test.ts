@@ -7,9 +7,19 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 const entryPath = fileURLToPath(new URL('../dist/entry.js', import.meta.url))
 
+type Counter = (...args: ReadonlyArray<string>) => ReturnType<typeof spawnSync>
+
 const tapeDirectories: Array<string> = []
 
+const counters: Array<Counter> = []
+
+// NOTE: Each test gets a Background Processor of its own, on a file tape
+// of its own, and stops it after, so no test answers for another or for a
+// person's Counter.
 afterEach(() => {
+  counters.splice(0).forEach(counter => {
+    counter('stop')
+  })
   tapeDirectories.splice(0).forEach(directory => {
     rmSync(directory, { recursive: true, force: true })
   })
@@ -18,14 +28,17 @@ afterEach(() => {
 const counterOnNewTape = () => {
   const tapeDirectory = mkdtempSync(join(tmpdir(), 'counter-cli-'))
   tapeDirectories.push(tapeDirectory)
-  return (...args: ReadonlyArray<string>) =>
+  const counter = (...args: ReadonlyArray<string>) =>
     spawnSync(process.execPath, [entryPath, ...args], {
       encoding: 'utf8',
       env: {
         ...process.env,
         COUNTER_TAPE_PATH: join(tapeDirectory, 'tape.json'),
+        FOLDKIT_TERMINAL_ISOLATION: tapeDirectory,
       },
     })
+  counters.push(counter)
+  return counter
 }
 
 describe('counter CLI on a file tape', () => {
@@ -72,6 +85,16 @@ describe('counter CLI on a file tape', () => {
     const chosen = counter('menu', 'choose', 'reset')
     expect(chosen.status).toBe(0)
     expect(counter('show').stdout.split('\n')).toContain('0')
+  })
+
+  it('keeps the Counter in one Background Processor, and stops it when told', () => {
+    const counter = counterOnNewTape()
+    expect(counter('increment').status).toBe(0)
+    expect(counter('stop').stdout).toContain(
+      "Stopped counter's Background Processor.",
+    )
+    expect(counter('stop').stdout).toContain('is not running')
+    expect(counter('show').stdout.split('\n')).toContain('1')
   })
 
   it('prints usage derived from the Catalog', () => {

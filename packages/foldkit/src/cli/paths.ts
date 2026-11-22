@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { createHash } from 'node:crypto'
-import { existsSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -80,4 +80,67 @@ export const removeCliDaemonSocketAndPid = (socketPath: string): void => {
 export const removeCliDaemonFiles = (socketPath: string): void => {
   removeCliDaemonSocketAndPid(socketPath)
   unlinkIfPresent(cliDaemonLockPath(socketPath))
+}
+
+/**
+ * Names, in the spawn lock, the Background Processor a command just
+ * started, in place of the command that started it. The command is gone
+ * in a moment and the Processor may take a while to listen; a lock that
+ * named the command would read as left behind, and a second command
+ * would start a second Processor beside the first.
+ *
+ * @example
+ * ```typescript
+ * const child = spawn()
+ * holdCliDaemonLockFor(socketPath, child.pid)
+ * ```
+ */
+export const holdCliDaemonLockFor = (
+  socketPath: string,
+  pid: number | undefined,
+): void => {
+  if (pid !== undefined) {
+    writeFileSync(cliDaemonLockPath(socketPath), `${pid.toString()}\n`, 'utf8')
+  }
+}
+
+const pidIn = (path: string): number | undefined => {
+  try {
+    const pid = Number(readFileSync(path, 'utf8').trim())
+    return Number.isFinite(pid) && pid > 0 ? pid : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** The pid of the Background Processor listening on a socket, when its file says. */
+export const cliDaemonPidOf = (socketPath: string): number | undefined =>
+  pidIn(cliDaemonPidPath(socketPath))
+
+/**
+ * True when the socket's pid file names this process. A Background
+ * Processor that is leaving asks before it removes the socket, since a
+ * newer one may have taken the socket while it was saving.
+ */
+export const ownsCliDaemonFiles = (
+  socketPath: string,
+  pid: number = process.pid,
+): boolean => cliDaemonPidOf(socketPath) === pid
+
+/**
+ * Removes the socket, pid, and lock when they are this process's own, and
+ * leaves them when another Background Processor has taken the socket.
+ *
+ * @example
+ * ```typescript
+ * removeOwnCliDaemonFiles(socketPath) // on the way out
+ * ```
+ */
+export const removeOwnCliDaemonFiles = (
+  socketPath: string,
+  pid: number = process.pid,
+): void => {
+  if (ownsCliDaemonFiles(socketPath, pid)) {
+    removeCliDaemonFiles(socketPath)
+  }
 }

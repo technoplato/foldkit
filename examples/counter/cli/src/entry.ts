@@ -1,64 +1,40 @@
 #!/usr/bin/env node
 /**
- * The Counter CLI. Every command comes from the Counter's Catalog and
- * the controls every Program's terminal has, through the generic Foldkit
- * CLI surface. `counter help` prints them, each line derived from its
- * declaration, so no list of commands is kept here.
+ * The Counter CLI, all of it. Every command comes from the Counter's
+ * Catalog and the words every Program's terminal has: `counter` paints
+ * the count and every Action, `counter increment` presses one, `counter
+ * watch` repaints as the count changes on any device, `counter tail`
+ * prints every Message the log takes, `counter tui` is the live terminal
+ * UI, and `counter stop` ends the Background Processor that holds the
+ * Counter between commands. `counter help` prints them, each line derived
+ * from its declaration, so no list of commands is kept here.
  *
- * This file must not import Effect, Instant, or the Program, so the view
- * starts fast. Memory and File tapes run in this process.
+ * The Counter is imported only in the Background Processor, so a command
+ * starts fast.
  */
-import {
-  cliDaemonSocketPath,
-  cliViewFailed,
-  followArgvOf,
-  parseProgramArgv,
-  runCliView,
-  spawnCliViewDaemon,
-  writeCliFollow,
-  writeCliViewResult,
-} from 'foldkit/cli/view'
-import { fileURLToPath } from 'node:url'
+import { terminal } from 'foldkit/cli/host'
 
-import {
-  counterCliIsolationKey,
-  counterCliProgramId,
-  counterCliTape,
-} from './settings.js'
-
-const request = parseProgramArgv(process.argv.slice(2))
-const tape = counterCliTape()
-
-if (request._tag === 'Tail') {
-  const { runTail } = await import('./tail.js')
-  await runTail()
-} else if (request._tag === 'Watch') {
-  const { runWatch } = await import('./watch.js')
-  await runWatch(tape)
-} else if (tape._tag === 'Instant') {
-  const socketPath = cliDaemonSocketPath({
-    programId: counterCliProgramId,
-    isolationKey: counterCliIsolationKey,
-  })
-  const spawn = () =>
-    spawnCliViewDaemon({
-      scriptPath: fileURLToPath(new URL('./daemon.js', import.meta.url)),
-    })
-  const maybeFollow = followArgvOf(process.argv.slice(2))
-  if (maybeFollow !== undefined) {
-    await writeCliFollow({ socketPath, spawn, request: maybeFollow })
-  } else {
-    try {
-      writeCliViewResult(await runCliView({ socketPath, spawn, request }))
-    } catch (cause) {
-      writeCliViewResult(cliViewFailed(cause))
+await terminal({
+  name: 'counter',
+  entry: import.meta.url,
+  processor: async () => {
+    const {
+      MessageWire,
+      SyncedCounter,
+      counterEngine,
+      newProcessorInstance,
+      startCounter,
+    } = await import('counter-core-example')
+    return {
+      program: SyncedCounter,
+      start: host => startCounter({ host, instance: newProcessorInstance() }),
+      log: () => ({
+        engine: counterEngine({
+          host: { _tag: 'Cli' },
+          instance: newProcessorInstance(),
+        }),
+        wire: MessageWire,
+      }),
     }
-  }
-} else {
-  const { runInProcess } = await import('./inProcess.js')
-  await runInProcess(
-    tape,
-    request._tag === 'Show' ? [] : request.token.split(' '),
-    request.flags,
-  )
-}
+  },
+})
