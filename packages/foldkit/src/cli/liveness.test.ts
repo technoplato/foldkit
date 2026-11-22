@@ -4,6 +4,8 @@ import {
   DEFAULT_IDLE_GRACE_MS,
   holdsOf,
   isGraceOver,
+  isWorking,
+  keptWorkingSentence,
   quietAfter,
   quietSince,
 } from './liveness.js'
@@ -61,5 +63,26 @@ describe('when a Background Processor may stop', () => {
     })
     const after = quietAfter(playing, { ...nothing, nowMs: 130_000 })
     expect(after).toEqual({ sinceMs: 100_000 })
+  })
+})
+
+describe('when a Background Processor makes way for another build', () => {
+  it('makes way when its Program names no work', () => {
+    expect(isWorking([])).toBe(false)
+  })
+
+  it('stays while its Program has work going on', () => {
+    expect(isWorking(['a broadcast is on air'])).toBe(true)
+  })
+
+  it('says which work keeps it, that it answered, and how to end it now', () => {
+    expect(
+      keptWorkingSentence('publisher', [
+        'a broadcast is on air',
+        'a clip is uploading',
+      ]),
+    ).toBe(
+      'The publisher Background Processor is another build and was not replaced, because it is working: a broadcast is on air; a clip is uploading. It answered this command. The first command after that work ends replaces it. `publisher stop` ends it now.',
+    )
   })
 })

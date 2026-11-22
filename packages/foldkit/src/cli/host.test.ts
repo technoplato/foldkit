@@ -1,6 +1,14 @@
 /// <reference types="node" />
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, utimesSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -58,6 +66,15 @@ const eventually = async (
     }
     await new Promise(resolve => setTimeout(resolve, 50))
   }
+}
+
+const BUILT_AGAIN_STEP_MS = 5_000
+
+const buildAgain = (): void => {
+  const later = new Date(
+    Math.max(statSync(fixturePath).mtimeMs, Date.now()) + BUILT_AGAIN_STEP_MS,
+  )
+  utimesSync(fixturePath, later, later)
 }
 
 afterEach(() => {
@@ -182,12 +199,45 @@ describe('a Program as a command, through terminal()', () => {
       const firstPid = cliDaemonPidOf(host.socketPath)
       run(host)
       expect(cliDaemonPidOf(host.socketPath)).toBe(firstPid)
-      const later = new Date(Date.now() + 5_000)
-      utimesSync(fixturePath, later, later)
+      buildAgain()
       expect(run(host).exitCode).toBe(0)
       const secondPid = cliDaemonPidOf(host.socketPath)
       expect(secondPid).not.toBe(undefined)
       expect(secondPid).not.toBe(firstPid)
+    },
+    testTimeoutMs,
+  )
+
+  it(
+    'does not replace a Processor of another build while its Program has work going on: it answers, the command says why, and the first command after the work ends replaces it',
+    () => {
+      const busyPath = join(
+        mkdtempSync(join(tmpdir(), 'foldkit-host-test-')),
+        'busy',
+      )
+      writeFileSync(busyPath, '')
+      const host = hostOf({ FOLDKIT_FIXTURE_BUSY_PATH: busyPath })
+      expect(run(host, 'increment').exitCode).toBe(0)
+      const workingPid = cliDaemonPidOf(host.socketPath)
+      expect(workingPid).not.toBe(undefined)
+
+      buildAgain()
+      const kept = run(host, 'increment')
+      expect(kept.exitCode).toBe(0)
+      expect(kept.stderr).toContain('was not replaced')
+      expect(kept.stderr).toContain('a job is running')
+      expect(kept.stderr).toContain('`fixture-counter stop` ends it now')
+      expect(cliDaemonPidOf(host.socketPath)).toBe(workingPid)
+      expect(run(host).stdout).toContain('2')
+      expect(cliDaemonPidOf(host.socketPath)).toBe(workingPid)
+
+      rmSync(busyPath)
+      const replaced = run(host)
+      expect(replaced.exitCode).toBe(0)
+      expect(replaced.stderr).not.toContain('was not replaced')
+      const nextPid = cliDaemonPidOf(host.socketPath)
+      expect(nextPid).not.toBe(undefined)
+      expect(nextPid).not.toBe(workingPid)
     },
     testTimeoutMs,
   )
