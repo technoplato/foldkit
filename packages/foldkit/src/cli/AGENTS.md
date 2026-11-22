@@ -7,7 +7,7 @@ This folder is the terminal Client adapter. Its painters are `surface.ts`,
 `terminalScreen.ts`, `tui.ts`, `tail.ts` and `view.ts`: they turn the screen
 tree and the declared commands into lines and columns. The rest of the folder
 (`argv.ts`, `backgroundProcessor.ts`, `protocol.ts`, `host.ts`, `serve.ts`,
-`liveness.ts`) is the adapter's own work and is not counted. `AGENTS.md` at the repo root says what a CLI may do
+`liveness.ts`, `words.ts`) is the adapter's own work and is not counted. `AGENTS.md` at the repo root says what a CLI may do
 and what belongs to the TUI.
 
 ## A terminal host is one call
@@ -37,7 +37,12 @@ await terminal({
   every command through the Program's own declarations, and stops.
 - `liveness.ts` is the rule for when it stops, with no Effect and no socket:
   ten minutes with no work the host's `keepsAlive(model)` names, no view
-  attached, and no command.
+  attached, and no command. The same words say when it makes way for
+  another build: never while they name work. A host says "I am working"
+  once, in `keepsAlive`, and both rules read it.
+- `words.ts` holds the words the two halves say to each other that no
+  Program declares (`stop`, `background-build`, `background-make-way`), and
+  imports nothing.
 
 Add to `terminal()` only what no declaration can say. A host that needs a
 `daemon.ts`, an in-process runner, or a pid file is missing something here:

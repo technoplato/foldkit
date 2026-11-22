@@ -30,7 +30,13 @@ and that part is in `packages/foldkit/src/cli`:
   `Liveness.holdsDaemon` on a Subscription later fills, with no change to a
   host.
 - A build stamp on every answer, so a command from a rebuilt host replaces
-  the older Processor, and a checkout elsewhere never takes it over.
+  the older Processor, and a checkout elsewhere never takes it over. A
+  Processor whose Program has work going on (`keepsAlive` names any) is not
+  replaced: it answers the command, the command says on stderr which work
+  keeps it, and the first command after the work ends replaces it; `stop`
+  ends it at once. This is the plan's `Refusing` for a build mismatch, with
+  the running build still answering, so a broadcast on air can still be
+  ended by a command.
 - Counter, Multiple Counters, Playground and Studio are one `entry.ts` each.
 
 Not built: protocol version 2 and its handshake, `Liveness.holdsDaemon`

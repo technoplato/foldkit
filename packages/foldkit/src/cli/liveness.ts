@@ -84,3 +84,36 @@ export const isGraceOver = (
   nowMs: number,
   graceMs: number,
 ): boolean => nowMs - quiet.sinceMs >= graceMs
+
+/**
+ * True while a Processor's Program has work going on, by the words its
+ * `keepsAlive` gave. Such a Processor does not make way for another
+ * build of its host: ending it would end the work, such as a broadcast
+ * on air. A view attached and a recent command hold it up, and are not
+ * work.
+ *
+ * @example
+ * ```typescript
+ * isWorking(['a broadcast is on air']) // true
+ * isWorking([]) // false
+ * ```
+ */
+export const isWorking = (reasons: ReadonlyArray<string>): boolean =>
+  Array.isReadonlyArrayNonEmpty(reasons)
+
+/**
+ * What a command from another build is told when the Processor stayed:
+ * which work keeps it, that it answered the command, when it will be
+ * replaced, and how to end it now.
+ *
+ * @example
+ * ```typescript
+ * keptWorkingSentence('publisher', ['a broadcast is on air'])
+ * // 'The publisher Background Processor is another build and was not replaced, because it is working: a broadcast is on air. …'
+ * ```
+ */
+export const keptWorkingSentence = (
+  name: string,
+  reasons: ReadonlyArray<string>,
+): string =>
+  `The ${name} Background Processor is another build and was not replaced, because it is working: ${reasons.join('; ')}. It answered this command. The first command after that work ends replaces it. \`${name} stop\` ends it now.`

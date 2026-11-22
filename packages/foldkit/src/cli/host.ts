@@ -30,6 +30,13 @@ import {
   writeCliFollow,
   writeCliViewResult,
 } from './view.js'
+import {
+  buildWord,
+  makeWayWord,
+  stopWord,
+  stoppedOutcome,
+  workingOutcome,
+} from './words.js'
 
 export type { TerminalProcessor, TerminalProgram } from './serve.js'
 export { terminalLogPath } from './paths.js'
@@ -69,12 +76,6 @@ export const terminalIsolationVariable = 'FOLDKIT_TERMINAL_ISOLATION'
 
 /** The flag `terminal` starts its own entry with to run the Background Processor. */
 export const backgroundProcessorFlag = '--foldkit-background-processor'
-
-const stopWord = 'stop'
-
-const buildWord = 'background-build'
-
-const stoppedOutcome = 'Stopped'
 
 const tuiWord = 'tui'
 
@@ -256,21 +257,47 @@ const buildOfRunning = async (
   )
 
 /**
- * Stops the Background Processor running on a socket when it is another
- * build of this host, so the command that follows starts, and is
- * answered by, the code it came with. A Processor of this build, one
- * started from another place, and no Processor at all are left as they
- * are.
+ * Asks the Background Processor running on a socket to make way when it
+ * is another build of this host, so the command that follows starts,
+ * and is answered by, the code it came with. A Processor of this build,
+ * one started from another place, and no Processor at all are left as
+ * they are.
+ *
+ * A Processor whose Program has work going on stays, and what it says
+ * about that work is returned for the command to print: the running
+ * build answers the command, and the first command after the work ends
+ * replaces it. One that does not say whether it is working is left too,
+ * since ending it could end work nobody heard about. One from before
+ * Processors knew the word is stopped as before.
  */
-const replacedWhenOtherBuild = async (
+const madeWayForOtherBuild = async (
+  name: string,
   socketPath: string,
   build: string,
-): Promise<void> => {
+): Promise<string | undefined> => {
   if (
-    (await isCliViewListening(socketPath)) &&
-    handoverOf(build, await buildOfRunning(socketPath)) === 'Replace'
+    !(await isCliViewListening(socketPath)) ||
+    handoverOf(build, await buildOfRunning(socketPath)) === 'Keep'
   ) {
-    await stopBackgroundProcessorGently(socketPath)
+    return undefined
+  }
+  const answered = await within(
+    askCliView(socketPath, { _tag: 'Do', token: makeWayWord }),
+    ANSWER_TIMEOUT_MS,
+  ).then(
+    painted => painted,
+    () => undefined,
+  )
+  const outcome = answered?.flags?.['outcome']
+  if (answered === undefined) {
+    return `The ${name} Background Processor is another build and did not say whether it is working, so it was not replaced. \`${name} ${stopWord}\` ends it now.`
+  } else if (outcome === workingOutcome) {
+    return answered.stdout
+  } else {
+    if (outcome !== stoppedOutcome || !(await whenGone(socketPath))) {
+      await stopBackgroundProcessorGently(socketPath)
+    }
+    return undefined
   }
 }
 
@@ -317,8 +344,9 @@ const takesColor = (
  * command and reached by every later one, so its sync connection stays
  * warm, what it started keeps going after a command returns, and a view
  * hears each change as it happens. It stops by itself once the Program
- * has had nothing to do for ten minutes, and a command from a newer build
- * replaces it.
+ * has had nothing to do for ten minutes, and a command from another build
+ * replaces it, unless its Program has work going on: then it stays,
+ * answers, and the command says which work keeps it.
  *
  * @example
  * ```typescript
@@ -392,7 +420,10 @@ export const terminal = async <Model, Message>(
     return
   }
 
-  await replacedWhenOtherBuild(socketPath, build)
+  const kept = await madeWayForOtherBuild(options.name, socketPath, build)
+  if (kept !== undefined) {
+    runtime.stderr.write(`${kept}\n`)
+  }
 
   const request = parseProgramArgv(argv)
   const maybeFollow = followArgvOf(argv)

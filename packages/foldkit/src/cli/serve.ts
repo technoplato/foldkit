@@ -18,6 +18,8 @@ import {
   IDLE_CHECK_EVERY_MS,
   type Quiet,
   isGraceOver,
+  isWorking,
+  keptWorkingSentence,
   quietAfter,
   quietSince,
 } from './liveness.js'
@@ -33,6 +35,15 @@ import {
   programFollowings,
 } from './surface.js'
 import { followProgramTail } from './tail.js'
+import {
+  buildWord,
+  makeWayWord,
+  stopWord,
+  stoppedOutcome,
+  workingOutcome,
+} from './words.js'
+
+export { buildWord, stopWord, stoppedOutcome } from './words.js'
 
 // PROCESSOR
 
@@ -96,16 +107,7 @@ export type ServeTerminalOptions<Model, Message> = Readonly<{
   processor: TerminalProcessor<Model, Message>
 }>
 
-// WORDS
-
-/** The word that stops a Background Processor, `counter stop`. */
-export const stopWord = 'stop'
-
-/** The word a command asks a Background Processor what it was built from with. */
-export const buildWord = 'background-build'
-
-/** The flag a stopped Processor's answer carries. */
-export const stoppedOutcome = 'Stopped'
+// WAITS
 
 const READY_TIMEOUT_MS = 20_000
 
@@ -281,6 +283,25 @@ export const serveTerminal = <Model, Message>(
         flags: { outcome: stoppedOutcome, build: options.build },
       }))
 
+    const workNow = (): ReadonlyArray<string> =>
+      processor.keepsAlive === undefined
+        ? []
+        : processor.keepsAlive(bound.readModel())
+
+    const madeWay = (): Effect.Effect<CliDaemonPaintedResult, CliDaemonError> =>
+      Effect.suspend(() => {
+        const reasons = workNow()
+        if (isWorking(reasons)) {
+          return Effect.succeed({
+            stdout: keptWorkingSentence(name, reasons),
+            exitCode: 0,
+            flags: { outcome: workingOutcome, build: options.build },
+          })
+        } else {
+          return stopped()
+        }
+      })
+
     const stamped = (
       painted: CliDaemonPaintedResult,
     ): CliDaemonPaintedResult => ({
@@ -307,6 +328,8 @@ export const serveTerminal = <Model, Message>(
           return Effect.succeed({ stdout: options.build, exitCode: 0 })
         } else if (token === stopWord) {
           return asked(stopped())
+        } else if (token === makeWayWord) {
+          return asked(madeWay())
         } else {
           return asked(
             Effect.map(
@@ -340,10 +363,7 @@ export const serveTerminal = <Model, Message>(
     const whenIdle = untilIdle({
       idleMs,
       heard: () => ({
-        reasons:
-          processor.keepsAlive === undefined
-            ? []
-            : processor.keepsAlive(bound.readModel()),
+        reasons: workNow(),
         followers: state.followers,
         askedAtMs: state.askedAtMs,
       }),
