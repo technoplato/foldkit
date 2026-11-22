@@ -11,6 +11,7 @@ import {
   MethodPage,
   MetricPage,
   NotFound,
+  PipelinePage,
   UnderstandingMoved,
   destinationPath,
   urlToDestination,
@@ -23,6 +24,7 @@ const parse = (path: string): Destination =>
 
 const destinations: ReadonlyArray<readonly [Destination, string]> = [
   [Home(), '/'],
+  [PipelinePage(), '/pipeline'],
   [AppPage({ appId: 'scribe', scope: Option.none() }), '/apps/scribe'],
   [
     AppPage({ appId: 'scribe-mac', scope: Option.some('NotRecording') }),

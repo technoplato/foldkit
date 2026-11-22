@@ -1,4 +1,5 @@
-import { Option } from 'effect'
+import { Effect, Layer, Option } from 'effect'
+import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 import { Story } from 'foldkit'
 import { fromString } from 'foldkit/url'
 import { expect, test } from 'vitest'
@@ -6,15 +7,21 @@ import { expect, test } from 'vitest'
 import {
   FetchBuild,
   FetchIndex,
+  FetchPipeline,
   LoadExternal,
   NavigateInternal,
+  fetchPipelineEffect,
 } from './command'
+import { NotWritten } from './data'
 import { init } from './init'
 import {
+  encodedPipeline,
   loadingModel,
   readyModelAt,
   sampleBuildDetail,
   sampleIndex,
+  samplePipeline,
+  writtenPipeline,
 } from './main.fixtures'
 import {
   ChangedUrl,
@@ -24,11 +31,14 @@ import {
   CompletedNavigateInternal,
   FailedFetchBuild,
   FailedFetchIndex,
+  FailedFetchPipeline,
   HoveredChartColumn,
   LeftChart,
   SucceededFetchBuild,
   SucceededFetchIndex,
+  SucceededFetchPipeline,
 } from './message'
+import { IndexData } from './model'
 import { UNDERSTANDING_MOVED_TO } from './moved'
 import { update } from './update'
 
@@ -67,8 +77,82 @@ test('a failed first load says why, and a failed reload keeps the numbers', () =
     }),
     Story.Command.expectHas(FetchIndex),
     Story.Command.resolve(FetchIndex, FailedFetchIndex({ error: 'offline' })),
+    Story.Command.resolve(
+      FetchPipeline,
+      SucceededFetchPipeline({ file: writtenPipeline() }),
+    ),
     Story.model(model => {
       expect(model.index._tag).toBe('Stale')
+      expect(model.pipeline._tag).toBe('Success')
+    }),
+  )
+})
+
+test('the pipeline loads on its own, whether or not the index did', () => {
+  Story.story(
+    update,
+    Story.with({
+      ...loadingModel,
+      index: IndexData.Failure({ error: 'offline' }),
+    }),
+    Story.message(SucceededFetchPipeline({ file: writtenPipeline() })),
+    Story.model(model => {
+      expect(model.pipeline).toStrictEqual({
+        _tag: 'Success',
+        data: writtenPipeline(),
+      })
+      expect(model.index._tag).toBe('Failure')
+    }),
+    Story.Command.expectNone(),
+  )
+})
+
+test('a pipeline file that is not written yet is an answer, not a failure', () => {
+  Story.story(
+    update,
+    Story.with(loadingModel),
+    Story.message(SucceededFetchPipeline({ file: NotWritten() })),
+    Story.model(model => {
+      expect(model.pipeline).toStrictEqual({
+        _tag: 'Success',
+        data: NotWritten(),
+      })
+    }),
+  )
+})
+
+test("a failed first load of the pipeline says why, and a failed reload keeps the pipeline's numbers", () => {
+  Story.story(
+    update,
+    Story.with(loadingModel),
+    Story.message(FailedFetchPipeline({ error: 'offline' })),
+    Story.model(model => {
+      expect(model.pipeline._tag).toBe('Failure')
+      expect(model.index._tag).toBe('Loading')
+    }),
+  )
+  Story.story(
+    update,
+    Story.with(readyModelAt('/pipeline')),
+    Story.message(ClickedReload()),
+    Story.model(model => {
+      expect(model.pipeline._tag).toBe('Refreshing')
+    }),
+    Story.Command.expectExact(FetchIndex, FetchPipeline),
+    Story.Command.resolve(
+      FetchIndex,
+      SucceededFetchIndex({ index: sampleIndex }),
+    ),
+    Story.Command.resolve(
+      FetchPipeline,
+      FailedFetchPipeline({ error: 'offline' }),
+    ),
+    Story.model(model => {
+      expect(model.pipeline).toStrictEqual({
+        _tag: 'Stale',
+        error: 'offline',
+        data: writtenPipeline(),
+      })
     }),
   )
 })
@@ -152,5 +236,56 @@ test("the understanding page moved to each user's own page: opening its old addr
 
 test('the page no longer fetches an understanding file of its own', () => {
   const [, commands] = init(urlOf('/'))
-  expect(commands.map(command => command.name)).toStrictEqual([FetchIndex.name])
+  expect(commands.map(command => command.name)).toStrictEqual([
+    FetchIndex.name,
+    FetchPipeline.name,
+  ])
+})
+
+const fetchPipelineAnswered = (status: number, body: string) => {
+  const client = HttpClient.make(request =>
+    Effect.succeed(
+      HttpClientResponse.fromWeb(
+        request,
+        new Response(request.url === '/data/pipeline.json' ? body : '{}', {
+          status,
+        }),
+      ),
+    ),
+  )
+  return fetchPipelineEffect.pipe(
+    Effect.provide(Layer.succeed(HttpClient.HttpClient, client)),
+    Effect.runPromise,
+  )
+}
+
+test('fetching the pipeline reads /data/pipeline.json and when it read it', async () => {
+  const before = Date.now()
+  const message = await fetchPipelineAnswered(
+    200,
+    JSON.stringify(encodedPipeline),
+  )
+  expect(message._tag).toBe('SucceededFetchPipeline')
+  if (message._tag === 'SucceededFetchPipeline') {
+    expect(message.file._tag).toBe('Written')
+    if (message.file._tag === 'Written') {
+      expect(message.file.pipeline).toStrictEqual(samplePipeline)
+      expect(message.file.readAtMs).toBeGreaterThanOrEqual(before)
+    }
+  }
+})
+
+test('no pipeline file is Not written; any other answer is a failure', async () => {
+  expect(await fetchPipelineAnswered(404, 'Not found')).toStrictEqual(
+    SucceededFetchPipeline({ file: NotWritten() }),
+  )
+  expect((await fetchPipelineAnswered(500, '{}'))._tag).toBe(
+    'FailedFetchPipeline',
+  )
+  expect((await fetchPipelineAnswered(200, '<html></html>'))._tag).toBe(
+    'FailedFetchPipeline',
+  )
+  expect((await fetchPipelineAnswered(200, '{"schemaVersion":2}'))._tag).toBe(
+    'FailedFetchPipeline',
+  )
 })

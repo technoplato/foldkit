@@ -1,0 +1,273 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-22T13:10:00-05:00",
+  "machine": {
+    "name": "M5 Mac mini",
+    "chip": "Apple M5 Pro",
+    "cores": 18,
+    "memoryGiB": 64,
+    "diskGiB": 1858
+  },
+  "verdict": {
+    "state": "UnderUsed",
+    "headline": "Under-used: 10 builds are waiting and a third of the Mac is idle.",
+    "detail": "1 build is running, 10 wait (4 of them P0); the oldest has waited 43 minutes.",
+    "problems": [
+      {
+        "text": "Xcode is building for an agent outside the queue (4 cores), so the queue holds its second place shut.",
+        "issue": 2737,
+        "url": "https://issues.pisspoursoftware.xyz/issues/2737"
+      },
+      {
+        "text": "Memory pressure is at warning: the compressor holds 26.8 of 24 GiB.",
+        "issue": 2445,
+        "url": "https://issues.pisspoursoftware.xyz/issues/2445"
+      }
+    ]
+  },
+  "presence": {
+    "state": "Away",
+    "sinceMinutes": 98,
+    "signal": "no key or pointer on the M5, no prompt in a session",
+    "places": 3,
+    "placesWhenPresent": 3,
+    "placesWhenAway": 5
+  },
+  "now": {
+    "running": 1,
+    "waiting": 10,
+    "oldestWaitMinutes": 43,
+    "waitingByClass": [
+      { "class": "P0", "count": 4 },
+      { "class": "P1", "count": 6 }
+    ],
+    "cpuBusyPct": 97,
+    "memoryPressure": "Warning",
+    "compressorGiB": 26.8,
+    "swapGiB": 1.0,
+    "diskFreeGiB": 440,
+    "outsideBuilds": 14
+  },
+  "measures": [
+    {
+      "id": "builds-per-hour",
+      "label": "Builds finished an hour",
+      "unit": "an hour",
+      "digits": 0,
+      "value": 25,
+      "target": 30,
+      "direction": "AtLeast",
+      "status": "Near",
+      "window": "last 24 hours, hours with a line",
+      "how": "heavy jobs that ended, counted from the queue's journal",
+      "reason": null,
+      "trend": [
+        { "at": "2026-11-22T11:00:00-05:00", "value": 23 },
+        { "at": "2026-11-22T12:00:00-05:00", "value": 11 }
+      ]
+    },
+    {
+      "id": "p0-wait",
+      "label": "9 in 10 P0 builds start within",
+      "unit": "min",
+      "digits": 1,
+      "value": 35.2,
+      "target": 10,
+      "direction": "AtMost",
+      "status": "Missed",
+      "window": "last 24 hours",
+      "how": "queued to started, from the queue's journal",
+      "reason": null,
+      "trend": []
+    },
+    {
+      "id": "p1-wait",
+      "label": "9 in 10 P1 builds start within",
+      "unit": "min",
+      "digits": 1,
+      "value": 71.7,
+      "target": 30,
+      "direction": "AtMost",
+      "status": "Missed",
+      "window": "last 24 hours",
+      "how": "queued to started, from the queue's journal",
+      "reason": null,
+      "trend": []
+    },
+    {
+      "id": "main-wait",
+      "label": "9 in 10 landing checks start within",
+      "unit": "min",
+      "digits": 1,
+      "value": 15.2,
+      "target": 5,
+      "direction": "AtMost",
+      "status": "Missed",
+      "window": "last 24 hours",
+      "how": "queued to started, main's lane",
+      "reason": null,
+      "trend": []
+    },
+    {
+      "id": "well-used",
+      "label": "Time the Mac was used just right",
+      "unit": "% of minutes",
+      "digits": 0,
+      "value": 62,
+      "target": 70,
+      "direction": "AtLeast",
+      "status": "Near",
+      "window": "last 24 hours",
+      "how": "one reading a minute: not idle with builds waiting, not short of memory",
+      "reason": null,
+      "trend": []
+    },
+    {
+      "id": "under-used",
+      "label": "Time idle while builds waited",
+      "unit": "% of minutes",
+      "digits": 0,
+      "value": 21,
+      "target": 5,
+      "direction": "AtMost",
+      "status": "Missed",
+      "window": "last 24 hours",
+      "how": "a build waiting and under 60% of the CPU busy",
+      "reason": null,
+      "trend": []
+    },
+    {
+      "id": "memory-pressure",
+      "label": "Time short of memory",
+      "unit": "% of minutes",
+      "digits": 1,
+      "value": 2.0,
+      "target": 2,
+      "direction": "AtMost",
+      "status": "Met",
+      "window": "last 24 hours",
+      "how": "macOS's memory pressure at warning or critical, one reading a minute",
+      "reason": null,
+      "trend": []
+    },
+    {
+      "id": "swap-peak",
+      "label": "Most swap used",
+      "unit": "GiB",
+      "digits": 1,
+      "value": 1.1,
+      "target": 8,
+      "direction": "AtMost",
+      "status": "Met",
+      "window": "last 24 hours",
+      "how": "vm.swapusage, one reading a minute",
+      "reason": null,
+      "trend": []
+    },
+    {
+      "id": "disk-free",
+      "label": "Disk free",
+      "unit": "GiB",
+      "digits": 0,
+      "value": 440,
+      "target": 400,
+      "direction": "AtLeast",
+      "status": "Met",
+      "window": "now",
+      "how": "df on the data volume",
+      "reason": null,
+      "trend": []
+    },
+    {
+      "id": "machine-failures",
+      "label": "Checks that failed, then passed unchanged",
+      "unit": "% of landing checks",
+      "digits": 1,
+      "value": null,
+      "target": 5,
+      "direction": "AtMost",
+      "status": "NotMeasured",
+      "window": "last 24 hours",
+      "how": "the same check on the same commit failing and then passing",
+      "reason": "no pair of runs on one commit in the window",
+      "trend": []
+    }
+  ],
+  "hours": [
+    {
+      "at": "2026-11-22T11:00:00-05:00",
+      "state": "JustRight",
+      "cpuBusyPct": 70,
+      "running": 1.8,
+      "waiting": 4.2,
+      "pressureMinutes": 8,
+      "finished": 23
+    },
+    {
+      "at": "2026-11-22T12:00:00-05:00",
+      "state": "OverUsed",
+      "cpuBusyPct": 72,
+      "running": 1.3,
+      "waiting": 9.0,
+      "pressureMinutes": 22,
+      "finished": 11
+    }
+  ],
+  "shares": {
+    "window": "last 24 hours",
+    "justRightPct": 62,
+    "underUsedPct": 21,
+    "overUsedPct": 9,
+    "idlePct": 6,
+    "unknownPct": 2
+  },
+  "consumers": [
+    {
+      "name": "Builds and tests from the queue",
+      "kind": "Queue",
+      "coreHours": 151.0,
+      "pct": 56
+    },
+    {
+      "name": "Xcode driven by agents, outside the queue",
+      "kind": "Outside",
+      "coreHours": 5.6,
+      "pct": 2
+    },
+    {
+      "name": "The window server",
+      "kind": "Standing",
+      "coreHours": 16.3,
+      "pct": 6
+    },
+    {
+      "name": "Gatekeeper checking fresh binaries (syspolicyd)",
+      "kind": "Standing",
+      "coreHours": 12.5,
+      "pct": 5
+    }
+  ],
+  "storage": {
+    "freeGiB": 440,
+    "usedGiB": 1400,
+    "targetFreeGiB": 400,
+    "budgetedGiB": 590,
+    "folders": [
+      { "name": "build slots", "gib": 159.9, "capGiB": 160, "over": false },
+      { "name": "Xcode DerivedData", "gib": 34.4, "capGiB": 20, "over": true }
+    ]
+  },
+  "changes": [
+    {
+      "at": "2026-11-22T13:05:00-05:00",
+      "text": "Filed #2737; first targets written from three days of readings.",
+      "issue": 2737
+    }
+  ],
+  "targets": {
+    "path": "scripts/perf/pipeline-targets.json",
+    "commit": null,
+    "url": null
+  },
+  "problems": []
+}

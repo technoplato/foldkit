@@ -1,12 +1,15 @@
 import { Option, Schema as S } from 'effect'
 import { fromString } from 'foldkit/url'
 
-import { BuildDetail, Index } from './data'
-import { BuildDetailData, IndexData, type Model } from './model'
+import { BuildDetail, Index, Pipeline, Written } from './data'
+import encodedExamplePipeline from './fixtures/pipeline.example.json'
+import { BuildDetailData, IndexData, type Model, PipelineData } from './model'
 import { type Destination, urlToDestination } from './route'
 
 const LEDGER_URL =
   'https://github.com/technoplato/scribe/blob/3ed8df101/docs/PERFORMANCE.md'
+
+const READ_AT_MS = Date.parse('2026-11-22T13:12:00-05:00')
 
 const measured = (value: number, minutes: number | null) => ({
   _tag: 'Measured',
@@ -331,15 +334,92 @@ export const encodedBuildDetail = {
 export const sampleBuildDetail =
   S.decodeUnknownSync(BuildDetail)(encodedBuildDetail)
 
+/** The contract's own example of `pipeline.json`, as the exporter writes it. */
+export const encodedPipeline = encodedExamplePipeline
+
+export const samplePipeline = S.decodeUnknownSync(Pipeline)(encodedPipeline)
+
+/** `pipeline.json` as a page read it two minutes after it was written. */
+export const writtenPipeline = (
+  encoded: unknown = encodedPipeline,
+  readAtMs: number = READ_AT_MS,
+): Written =>
+  Written({ pipeline: S.decodeUnknownSync(Pipeline)(encoded), readAtMs })
+
+/** `pipeline.json` on a Mac where no source could be read: every number null. */
+export const encodedUnmeasuredPipeline = {
+  ...encodedPipeline,
+  machine: {
+    name: 'M5 Mac mini',
+    chip: null,
+    cores: null,
+    memoryGiB: null,
+    diskGiB: null,
+  },
+  verdict: {
+    state: 'Unknown',
+    headline: 'Nothing could be read in the last hour.',
+    detail: 'The samples and the journal are both missing.',
+    problems: [],
+  },
+  presence: {
+    state: 'Unknown',
+    sinceMinutes: null,
+    signal: null,
+    places: null,
+    placesWhenPresent: null,
+    placesWhenAway: null,
+  },
+  now: {
+    running: null,
+    waiting: null,
+    oldestWaitMinutes: null,
+    waitingByClass: [],
+    cpuBusyPct: null,
+    memoryPressure: 'Unknown',
+    compressorGiB: null,
+    swapGiB: null,
+    diskFreeGiB: null,
+    outsideBuilds: null,
+  },
+  measures: encodedPipeline.measures.map(measure => ({
+    ...measure,
+    value: null,
+    status: 'NotMeasured',
+    reason: 'the samples are missing',
+    trend: [],
+  })),
+  hours: [],
+  shares: {
+    window: 'last 24 hours',
+    justRightPct: null,
+    underUsedPct: null,
+    overUsedPct: null,
+    idlePct: null,
+    unknownPct: null,
+  },
+  consumers: [],
+  storage: {
+    freeGiB: null,
+    usedGiB: null,
+    targetFreeGiB: 400,
+    budgetedGiB: null,
+    folders: [],
+  },
+  changes: [],
+  problems: ['macwatch.db could not be read'],
+}
+
 const destinationOf = (path: string): Destination =>
   urlToDestination(
     Option.getOrThrow(fromString(`https://performance.example${path}`)),
   )
 
-/** The page at a path with the index loaded and nothing open or hovered. */
+/** The page at a path with both files loaded and nothing open or hovered. */
 export const readyModelAt = (path: string): Model => ({
   destination: destinationOf(path),
   index: IndexData.Success({ data: sampleIndex }),
+  pipeline: PipelineData.Success({ data: writtenPipeline() }),
   maybeOpenBuild: Option.none(),
   maybeHover: Option.none(),
 })
@@ -347,6 +427,7 @@ export const readyModelAt = (path: string): Model => ({
 export const loadingModel: Model = {
   destination: destinationOf('/'),
   index: IndexData.Loading(),
+  pipeline: PipelineData.Loading(),
   maybeOpenBuild: Option.none(),
   maybeHover: Option.none(),
 }
