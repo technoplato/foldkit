@@ -34,6 +34,10 @@ export const InspectedPart = m('InspectedPart', { partKey: PartKeySchema })
 export const ClosedInspector = m('ClosedInspector')
 export const ResetPlayground = m('ResetPlayground')
 export const IgnoredKeyPress = m('IgnoredKeyPress')
+export const SyncedPlaygroundUpdated = m('SyncedPlaygroundUpdated', {
+  status: S.Literals(['Connecting', 'Synced']),
+  maybeSliceJson: S.Option(S.String),
+})
 
 export const PlaygroundMessage = S.Union([
   PartDispatched,
@@ -48,6 +52,7 @@ export const PlaygroundMessage = S.Union([
   ClosedInspector,
   ResetPlayground,
   IgnoredKeyPress,
+  SyncedPlaygroundUpdated,
 ])
 export type PlaygroundMessage = typeof PlaygroundMessage.Type
 

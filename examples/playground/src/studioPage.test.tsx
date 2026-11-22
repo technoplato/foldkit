@@ -202,6 +202,16 @@ describe('StudioProgram & StudioDemoShell (/studio)', () => {
           'Synced across devices',
         )
       })
+
+      // Reset via CLI alias 'reset' restores default sample backlog
+      const resetResult = executeStudioCliLine(synced.bound, 'reset')
+      expect(resetResult.exitCode).toBe(0)
+      await vi.waitFor(() => {
+        expect(paintProgram(synced.bound, 'studio')).not.toContain(
+          'Synced across devices',
+        )
+        expect(paintProgram(synced.bound, 'studio')).toContain('mobile-touch')
+      })
     } finally {
       await synced.stop()
     }

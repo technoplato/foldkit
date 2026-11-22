@@ -1,0 +1,36 @@
+#!/bin/sh
+# Puts `studio` and `playground` on your PATH (~/.local/bin or PLAYGROUND_BIN_DIR),
+# running from this checkout's built dist-cli bundles.
+set -eu
+
+here="$(cd "$(dirname "$0")" && pwd -P)"
+pkg="$(cd "$here/.." && pwd -P)"
+repo="$(cd "$pkg/../.." && pwd -P)"
+bin_dir="${PLAYGROUND_BIN_DIR:-$HOME/.local/bin}"
+
+chmod +x "$here/studio" "$here/playground"
+
+if [ "${PLAYGROUND_SKIP_BUILD:-}" != "1" ]; then
+  echo "Building studio & playground CLIs in ${pkg}…"
+  (cd "$pkg" && pnpm_config_verify_deps_before_run=false pnpm run build:cli)
+fi
+
+mkdir -p "$bin_dir"
+
+cat > "$bin_dir/studio" <<EOF
+#!/bin/sh
+# Foldkit Release Studio CLI from $repo.
+# Reinstall with $here/install-commands
+exec "$here/studio" "\$@"
+EOF
+chmod +x "$bin_dir/studio"
+
+cat > "$bin_dir/playground" <<EOF
+#!/bin/sh
+# Foldkit 54-Part Playground CLI from $repo.
+# Reinstall with $here/install-commands
+exec "$here/playground" "\$@"
+EOF
+chmod +x "$bin_dir/playground"
+
+echo "Installed $bin_dir/studio and $bin_dir/playground"

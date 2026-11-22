@@ -310,7 +310,10 @@ const renderCliHero = (model: PlaygroundModel): Html => {
     formValid: validation._tag === 'Valid',
     localEventCount: model.localEventCount,
     syncedWriteCount: model.syncedWriteCount,
-    sliderValue: model.parts.slider.values[0] ?? 0,
+    sliderValue: Option.getOrElse(
+      Array.head(model.parts.slider.values),
+      () => 0,
+    ),
     ratingValue: Option.getOrElse(model.parts.ratingGroup.maybeValue, () => 0),
     switchOn: model.parts.switch._tag === 'On',
     activeTab: Option.getOrElse(
@@ -331,22 +334,21 @@ const renderCliHero = (model: PlaygroundModel): Html => {
         [H.Class('pg-panel-head')],
         [
           h2([H.Class('pg-panel-title')], ['Zero-React JSX → UiNode → CLI']),
-          span(
-            [H.Class('pg-pill pg-pill-accent mono')],
-            ['foldkit/jsx-runtime'],
-          ),
+          span([H.Class('pg-pill pg-pill-accent mono')], ['foldkit/cli']),
         ],
       ),
       span(
         [H.Class('pg-muted')],
         [
-          'Live output of src/cliScreen.tsx rendered by paintCli() — updates live as you edit the form or move controls.',
+          'Live output of src/cliScreen.tsx rendered by paintCli() — synced live with your terminal via InstantDB.',
         ],
       ),
       pre([H.Class('pg-cli-pre mono')], [plainCliText]),
       span(
         [H.Class('pg-faint mono')],
-        ['Terminal: pnpm --filter @foldkit/playground cli'],
+        [
+          'Terminal: $ playground show · $ playground set-slider 88 · $ playground reset · $ playground follow',
+        ],
       ),
     ],
   )
@@ -548,7 +550,7 @@ const renderInspectorDock = (model: PlaygroundModel): Html => {
   const partState = model.parts[key]
   const entry = Option.getOrElse(
     Array.findFirst(catalog, c => c.key === key),
-    () => catalog[0]!,
+    () => Option.getOrThrow(Array.head(catalog)),
   )
   return div(
     [H.Class('pg-inspector-dock')],
@@ -615,12 +617,31 @@ export const view = (model: PlaygroundModel): Document => {
                       [H.Class('pg-pill pg-pill-accent')],
                       ['Zero Painter Rules'],
                     ),
+                    span(
+                      [
+                        H.Class(
+                          model.syncStatus === 'Synced'
+                            ? 'pg-pill pg-pill-positive mono'
+                            : model.syncStatus === 'Connecting'
+                              ? 'pg-pill pg-pill-warning mono'
+                              : 'pg-pill mono',
+                        ),
+                        H.Attribute('data-testid', 'playground-sync-status'),
+                      ],
+                      [
+                        model.syncStatus === 'Synced'
+                          ? '● InstantDB Live Sync'
+                          : model.syncStatus === 'Connecting'
+                            ? '◌ Connecting InstantDB…'
+                            : '● Local Memory',
+                      ],
+                    ),
                   ],
                 ),
                 p(
                   [H.Class('pg-subtitle')],
                   [
-                    'Every widget below runs its real core Machine from foldkit/behavior simultaneously on one page — no Storybook sidebar clicking.',
+                    'Every widget below runs its real core Machine from foldkit/behavior simultaneously and syncs live across browsers, phones, and the playground CLI via @foldkit/instant (secrets & hover stay Device-only).',
                   ],
                 ),
               ],
@@ -659,8 +680,12 @@ export const view = (model: PlaygroundModel): Document => {
                   ],
                 ),
                 button(
-                  [H.Class('pg-btn'), H.OnClick(ResetPlayground())],
-                  ['Reset All'],
+                  [
+                    H.Class('pg-btn'),
+                    H.Attribute('data-testid', 'playground-reset'),
+                    H.OnClick(ResetPlayground()),
+                  ],
+                  ['↺ Reset to Default'],
                 ),
               ],
             ),

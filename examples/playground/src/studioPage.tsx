@@ -343,10 +343,10 @@ const LiveCliSection = (
           </h2>
           <p className="pg-subtitle">
             Bound to the <strong>exact same running Program</strong> via{' '}
-            <code>foldkit/cli/program</code>. Click in the React frame above to
-            watch <code>paintProgram</code> update live, or run{' '}
-            <code>$ studio …</code> commands below to drive React navigation and
-            state!
+            <code>foldkit/cli/program</code>, and synced with your macOS
+            terminal Background Processor (<code>$ studio show</code> ·{' '}
+            <code>$ studio create-issue &quot;…&quot;</code> ·{' '}
+            <code>$ studio reset</code> · <code>$ studio follow</code>).
           </p>
         </div>
         <span className="pg-pill pg-pill-positive mono">
@@ -596,12 +596,13 @@ export const StudioDemoShell = (
           <button
             type="button"
             className="pg-btn"
+            data-testid="studio-reset"
             onClick={() => {
               bound.openUri('/studio', Navigation.Link())
               bound.press('ResetStudio')
             }}
           >
-            Reset Studio
+            ↺ Reset to Default
           </button>
         </div>
       </header>

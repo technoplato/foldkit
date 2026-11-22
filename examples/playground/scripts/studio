@@ -1,0 +1,13 @@
+#!/bin/sh
+# Runs the `studio` CLI from this checkout, building dist-cli first if missing.
+set -eu
+
+here="$(cd "$(dirname "$0")" && pwd -P)"
+pkg="$(cd "$here/.." && pwd -P)"
+entry="$pkg/dist-cli/studioEntry.js"
+
+if [ ! -f "$entry" ]; then
+  (cd "$pkg" && pnpm run build:cli >/dev/null)
+fi
+
+exec node "$entry" "$@"

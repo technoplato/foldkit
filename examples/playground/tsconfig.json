@@ -12,5 +12,12 @@
     "jsxImportSource": "foldkit",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "cli.ts", "vite.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "cli/**/*.ts",
+    "cli.ts",
+    "vite.config.ts",
+    "vite.cli.config.ts"
+  ]
 }

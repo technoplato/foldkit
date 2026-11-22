@@ -25,8 +25,11 @@
   "scripts": {
     "dev": "vite --port 5221",
     "build": "vite build",
+    "build:cli": "vite build --config vite.cli.config.ts",
     "preview": "vite preview --host 127.0.0.1 --port 5221 --strictPort",
-    "cli": "vite build --ssr cli.ts --outDir dist-cli --emptyOutDir && node dist-cli/cli.js",
+    "cli": "pnpm run build:cli && node dist-cli/cli.js",
+    "studio": "node dist-cli/studioEntry.js",
+    "playground": "node dist-cli/playgroundEntry.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   }

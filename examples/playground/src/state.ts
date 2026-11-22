@@ -143,8 +143,17 @@ export const PartsStateSchema = S.Struct({
 })
 export type PartsState = typeof PartsStateSchema.Type
 
+export const SyncStatusSchema = S.Literals([
+  'LocalOnly',
+  'Connecting',
+  'Synced',
+])
+export type SyncStatus = typeof SyncStatusSchema.Type
+
 export const PlaygroundModelSchema = S.Struct({
   mode: Mode,
+  syncStatus: SyncStatusSchema,
+  lastAppliedRevision: S.Number,
   query: S.String,
   category: CategorySchema,
   inspectedPart: PartKeySchema,
@@ -423,6 +432,8 @@ export const initialModel = (): PlaygroundModel => {
   )
   return {
     mode: 'Dark',
+    syncStatus: 'LocalOnly',
+    lastAppliedRevision: 0,
     query: '',
     category: 'All',
     inspectedPart: 'slider',

@@ -1,9 +1,34 @@
-import { Duration, Match as M, Schema as S, Schedule, Stream } from 'effect'
+import {
+  Duration,
+  Effect,
+  Match as M,
+  Option,
+  Queue,
+  Schema as S,
+  Schedule,
+  Stream,
+} from 'effect'
 import { Interaction, Runtime, Subscription } from 'foldkit'
 import { Carousel, Clipboard, Timer } from 'foldkit/behavior'
 import { paintModeOnPage } from 'foldkit/theme'
 
-import { FlushedDuePace, PlaygroundMessage, categoryOf } from './messages'
+import {
+  FlushedDuePace,
+  PlaygroundMessage,
+  SyncedPlaygroundUpdated,
+  categoryOf,
+} from './messages'
+import {
+  type PlaygroundTapeMode,
+  type SyncedPlaygroundBridge,
+  type SyncedPlaygroundModel,
+  SyncedWebSlice,
+  applySyncedSliceToModel,
+  decodeSyncedSliceJson,
+  encodeSyncedSliceJson,
+  extractSyncedSlice,
+  startSyncedPlayground,
+} from './playgroundSync'
 import {
   type PlaygroundModel,
   PlaygroundModelSchema,
@@ -40,11 +65,6 @@ const syncPageMode = (mode: 'Light' | 'Dark'): void => {
     storage: window.localStorage,
   })
 }
-
-const init: Runtime.ApplicationInit<
-  PlaygroundModel,
-  PlaygroundMessage
-> = () => [initialModel(), []]
 
 export const update = (
   model: PlaygroundModel,
@@ -123,39 +143,207 @@ export const update = (
       ClosedInspector: () => [{ ...model, isInspectorOpen: false }, []],
       ResetPlayground: () => {
         const fresh = initialModel()
-        syncPageMode(fresh.mode)
-        return [fresh, []]
+        syncPageMode(model.mode)
+        return [
+          {
+            ...fresh,
+            mode: model.mode,
+            syncStatus: model.syncStatus,
+            lastAppliedRevision: model.lastAppliedRevision + 1,
+          },
+          [],
+        ]
       },
       IgnoredKeyPress: () => [model, []],
+      SyncedPlaygroundUpdated: ({ status, maybeSliceJson }) => {
+        if (Option.isNone(maybeSliceJson)) {
+          return [{ ...model, syncStatus: status }, []]
+        }
+        const maybeDecoded = decodeSyncedSliceJson(maybeSliceJson.value)
+        if (Option.isNone(maybeDecoded)) {
+          return [{ ...model, syncStatus: status }, []]
+        }
+        const decoded = maybeDecoded.value
+        if (decoded.revision <= model.lastAppliedRevision) {
+          return [{ ...model, syncStatus: status }, []]
+        }
+        return [
+          {
+            ...applySyncedSliceToModel(model, decoded),
+            syncStatus: status,
+            lastAppliedRevision: decoded.revision,
+          },
+          [],
+        ]
+      },
     }),
   )
 }
 
-const subscriptions = Subscription.make<PlaygroundModel, PlaygroundMessage>()(
-  entry => ({
-    tick: entry(
-      { active: S.Boolean },
-      {
-        modelToDependencies: () => ({ active: true }),
-        dependenciesToStream: () =>
-          Stream.fromSchedule(Schedule.spaced(Duration.millis(100))).pipe(
-            Stream.map(() => FlushedDuePace({ nowMs: Date.now() })),
-          ),
-      },
-    ),
-  }),
-)
+export type MakePlaygroundAppOptions = Readonly<{
+  sync?: PlaygroundTapeMode
+  syncEngine?: Runtime.SyncEngine
+}>
 
-export const makePlaygroundApp = (container: HTMLElement) =>
-  Runtime.makeApplication({
+const makePlaygroundSyncStream = (
+  bridge: SyncedPlaygroundBridge,
+): Stream.Stream<PlaygroundMessage> =>
+  Stream.callback<PlaygroundMessage>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const report = (): void => {
+          const syncedState = bridge.handle.readModel()
+          if (syncedState._tag !== 'Ready') {
+            Queue.offerUnsafe(
+              queue,
+              SyncedPlaygroundUpdated({
+                status: 'Connecting',
+                maybeSliceJson: Option.none(),
+              }),
+            )
+            return
+          }
+          const slice: SyncedPlaygroundModel = {
+            revision: syncedState.revision,
+            originInstance: syncedState.originInstance,
+            displayName: syncedState.displayName,
+            bio: syncedState.bio,
+            dndOrder: syncedState.dndOrder,
+            syncedWriteCount: syncedState.syncedWriteCount,
+            parts: syncedState.parts,
+          }
+          Queue.offerUnsafe(
+            queue,
+            SyncedPlaygroundUpdated({
+              status: 'Synced',
+              maybeSliceJson: Option.some(encodeSyncedSliceJson(slice)),
+            }),
+          )
+        }
+        report()
+        const unsubscribe = bridge.handle.subscribe(report)
+        return unsubscribe
+      }),
+      unsubscribe =>
+        Effect.promise(async () => {
+          unsubscribe()
+          await bridge.stop()
+        }),
+    ),
+  )
+
+export const makePlaygroundApp = (
+  container: HTMLElement,
+  options: MakePlaygroundAppOptions = {},
+) => {
+  const bridge =
+    options.sync !== undefined || options.syncEngine !== undefined
+      ? startSyncedPlayground(options.sync ?? 'Instant', options.syncEngine)
+      : undefined
+
+  const init: Runtime.ApplicationInit<
+    PlaygroundModel,
+    PlaygroundMessage
+  > = () => [
+    {
+      ...initialModel(),
+      syncStatus: bridge !== undefined ? 'Connecting' : 'LocalOnly',
+    },
+    [],
+  ]
+
+  const appUpdate = (
+    model: PlaygroundModel,
+    message: PlaygroundMessage,
+  ): readonly [PlaygroundModel, ReadonlyArray<never>] => {
+    if (message._tag === 'SyncedPlaygroundUpdated' && bridge !== undefined) {
+      if (Option.isSome(message.maybeSliceJson)) {
+        const maybeDecoded = decodeSyncedSliceJson(message.maybeSliceJson.value)
+        if (
+          Option.isSome(maybeDecoded) &&
+          maybeDecoded.value.originInstance === bridge.instance
+        ) {
+          return [
+            {
+              ...model,
+              syncStatus: message.status,
+              lastAppliedRevision: Math.max(
+                model.lastAppliedRevision,
+                maybeDecoded.value.revision,
+              ),
+            },
+            [],
+          ]
+        }
+      }
+      return update(model, message)
+    }
+
+    if (message._tag === 'ResetPlayground') {
+      const [resetModel, commands] = update(model, message)
+      if (bridge !== undefined) {
+        bridge.bound.press('ResetPlayground')
+      }
+      return [resetModel, commands]
+    }
+
+    const [next, commands] = update(model, message)
+    if (
+      bridge !== undefined &&
+      next.syncedWriteCount > model.syncedWriteCount
+    ) {
+      const nextRevision = next.lastAppliedRevision + 1
+      const published: PlaygroundModel = {
+        ...next,
+        lastAppliedRevision: nextRevision,
+      }
+      const slice = extractSyncedSlice(published, nextRevision, bridge.instance)
+      bridge.handle.send(
+        SyncedWebSlice({
+          sliceJson: encodeSyncedSliceJson(slice),
+        }),
+      )
+      return [published, commands]
+    }
+
+    return [next, commands]
+  }
+
+  const subscriptions = Subscription.make<PlaygroundModel, PlaygroundMessage>()(
+    entry => ({
+      tick: entry(
+        { active: S.Boolean },
+        {
+          modelToDependencies: () => ({ active: true }),
+          dependenciesToStream: () =>
+            Stream.fromSchedule(Schedule.spaced(Duration.millis(100))).pipe(
+              Stream.map(() => FlushedDuePace({ nowMs: Date.now() })),
+            ),
+        },
+      ),
+      playgroundSync: entry(
+        { enabled: S.Boolean },
+        {
+          modelToDependencies: () => ({ enabled: bridge !== undefined }),
+          dependenciesToStream: ({ enabled }) =>
+            enabled && bridge !== undefined
+              ? makePlaygroundSyncStream(bridge)
+              : Stream.empty,
+        },
+      ),
+    }),
+  )
+
+  return Runtime.makeApplication({
     Model: PlaygroundModelSchema,
     Message: PlaygroundMessage,
     init,
-    update,
+    update: appUpdate,
     view,
     subscriptions,
     container,
   })
+}
 
 if (typeof document !== 'undefined') {
   ensureThemeStylesheet()
@@ -167,7 +355,7 @@ if (typeof document !== 'undefined') {
     if (pathname.startsWith('/studio') || pathname.startsWith('/navigation')) {
       mountStudioPage(root)
     } else {
-      Runtime.run(makePlaygroundApp(root))
+      Runtime.run(makePlaygroundApp(root, { sync: 'Instant' }))
     }
   }
 }

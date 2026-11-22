@@ -1,12 +1,35 @@
 // @vitest-environment happy-dom
 import { Array, Option } from 'effect'
-import { Runtime } from 'foldkit'
+import { Catalog, Runtime } from 'foldkit'
+import { BoundField, Slider, Tooltip } from 'foldkit/behavior'
+import * as Declaration from 'foldkit/declaration'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import { catalog } from './catalog'
 import { makePlaygroundApp } from './main'
+import { playgroundProps } from './partsProps'
+import {
+  AddTag,
+  ClearSignature,
+  PlaygroundCoreProgram,
+  ResetPlaygroundAction,
+  RunBurst,
+  SelectTab,
+  SetBio,
+  SetDisplayName,
+  SetRating,
+  SetSlider,
+  ToggleCheckbox,
+  ToggleSwitch,
+  applySyncedSliceToModel,
+  encodeSyncedSliceJson,
+  extractSyncedSlice,
+  initialSyncedPlaygroundModel,
+  playgroundCatalog,
+} from './playgroundCore'
+import { initialModel, stepBoundField, stepPart } from './state'
 
 const dispatchTouchDrag = (
   element: Element,
@@ -341,6 +364,134 @@ describe('Playground live browser boot', () => {
       })
     } finally {
       handle.dispose()
+    }
+  })
+
+  it('declares Playground CLI Catalog cleanly and syncs 52 Parts while keeping Secrets & Hover Device-only', async () => {
+    for (const declaration of Catalog.declarationsOf(playgroundCatalog)) {
+      expect(Declaration.problemsOf(declaration)).toEqual([])
+      expect(Declaration.clientWordsOf(declaration)).toEqual([])
+    }
+
+    const baseCore = initialSyncedPlaygroundModel()
+    const sampleMessages = [
+      SetDisplayName({ name: 'Michael' }),
+      SetBio({ bio: 'Synced live across web and CLI' }),
+      SetSlider({ value: 88 }),
+      ToggleSwitch(),
+      ToggleCheckbox(),
+      SelectTab({ tab: 'sync' }),
+      SetRating({ rating: 5 }),
+      AddTag({ tag: 'instantdb' }),
+      ClearSignature(),
+      RunBurst(),
+      ResetPlaygroundAction(),
+    ]
+    expect(
+      Catalog.undeclaredTouches(
+        playgroundCatalog,
+        PlaygroundCoreProgram.update,
+        [baseCore],
+        sampleMessages,
+      ),
+    ).toEqual([])
+
+    // Verify Device-only isolation across extractSyncedSlice / applySyncedSliceToModel
+    let deviceA = initialModel()
+    deviceA = {
+      ...deviceA,
+      mode: 'Light',
+      query: 'slider',
+      isInspectorOpen: true,
+    }
+    deviceA = stepBoundField(
+      deviceA,
+      'apiToken',
+      BoundField.ChangeFieldDraft({ value: 'sk_live_device_only_secret' }),
+      100,
+    )
+    deviceA = stepPart(deviceA, 'tooltip', Tooltip.ShowTooltip(), 110)
+
+    let deviceB = initialModel()
+    deviceB = stepPart(
+      deviceB,
+      'slider',
+      Slider.SetSliderValue({ value: 91 }),
+      200,
+    )
+    deviceB = stepBoundField(
+      deviceB,
+      'displayName',
+      BoundField.ChangeFieldDraft({ value: 'Synced Author' }),
+      210,
+    )
+    deviceB = stepBoundField(
+      deviceB,
+      'displayName',
+      BoundField.BlurField(),
+      220,
+    )
+    const remoteSlice = extractSyncedSlice(deviceB, 3, 'device-b')
+    expect(encodeSyncedSliceJson(remoteSlice)).not.toContain(
+      'sk_live_device_only_secret',
+    )
+
+    const mergedOnA = applySyncedSliceToModel(deviceA, remoteSlice)
+    expect(mergedOnA.parts.slider.values).toEqual([91])
+    expect(mergedOnA.profile.profile.displayName).toBe('Synced Author')
+    // Device-only state on A remains completely untouched!
+    expect(mergedOnA.profile.profile.apiToken).toBe(
+      deviceA.profile.profile.apiToken,
+    )
+    expect(BoundField.draftOf(mergedOnA.profileStates.apiToken)).toBe(
+      'sk_live_device_only_secret',
+    )
+    expect(mergedOnA.parts.tooltip._tag).toBe('Open')
+    expect(mergedOnA.mode).toBe('Light')
+    expect(mergedOnA.query).toBe('slider')
+    expect(mergedOnA.isInspectorOpen).toBe(true)
+
+    // Verify live makePlaygroundApp({ sync: 'Memory' }) + Reset to Default button
+    document.body.innerHTML = ''
+    const root = document.createElement('div')
+    root.id = 'root'
+    document.body.appendChild(root)
+
+    const syncedHandle = Runtime.embed(
+      makePlaygroundApp(root, { sync: 'Memory' }),
+    )
+    try {
+      await vi.waitFor(() => {
+        expect(
+          document.querySelector('[data-testid="playground-sync-status"]')
+            ?.textContent,
+        ).toContain('InstantDB Live Sync')
+      })
+
+      const burstBtn = globalThis.Array.from(
+        document.querySelectorAll('button'),
+      ).find(btn => btn.textContent?.includes('Run 16-Event Burst'))
+      burstBtn?.click()
+      await vi.waitFor(() => {
+        expect(document.body.textContent).toContain('Local: 16')
+      })
+
+      const resetBtn = document.querySelector<HTMLButtonElement>(
+        '[data-testid="playground-reset"]',
+      )
+      expect(resetBtn?.textContent).toContain('Reset to Default')
+      resetBtn?.click()
+      await vi.waitFor(() => {
+        expect(document.body.textContent).toContain('Local: 0')
+      })
+      const [defaultSlider] = Slider.chart.transition(
+        Slider.initial,
+        Slider.SetSliderValue({ value: 64 }),
+        playgroundProps.slider,
+      )
+      expect(defaultSlider.values).toEqual([64])
+    } finally {
+      syncedHandle.dispose()
     }
   })
 })
