@@ -453,6 +453,21 @@ request that does not verify.
 
 ## Single writers
 
+Built so far (2026-11-22, Scribe #2794), in this fork's shapes: a `Server`
+case in `Processor.Host` (`processor/host.ts`); `Processor.RunsOn.serverOnly`
+and `everywhere` (`processor/runsOn.ts`); `runsOn` on a Subscription entry and
+a ManagedResource entry, kept through `Subscription.lift`,
+`ManagedResource.lift` and `compose.sync`; and one gate, `effectsOn` in
+`program/liftEffects.ts`, which `makeProgramRuntime` applies for the Host it is
+told (`Runtime.start` reads it from the engine's processor name). An entry
+that does not run here is read through a child that is never there, so its
+Stream is empty and its resource stays released. A terminal host that says
+`lifetime: 'AlwaysOn'` starts its Program on `Server` (plan 01). Not built:
+`HostKind` and the `Host` struct below, `server: Server.needed` on an App, the
+refusal of an Action whose facts come from an unreachable worker, and
+`Lease.hold`. So at most one Server Processor per owner is by deployment, and
+work that must not happen twice is still claimed behind a port.
+
 Some work must run exactly once for an owner: a Projection, a worker that
 calls vendors with the secrets (plan 08), an import from an outside system.
 Two primitives, both declared:

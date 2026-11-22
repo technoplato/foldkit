@@ -10,6 +10,7 @@ import {
   type Host,
   OpenTui,
   React,
+  Server,
   Svelte,
   Tui,
   everyHost,
@@ -27,6 +28,7 @@ const surfaceOfEveryHost: ReadonlyArray<readonly [Host, TelemetrySurface]> = [
   [Svelte(), 'web-svelte'],
   [ExpoIos(), 'mobile-ios'],
   [ExpoAndroid(), 'mobile-android'],
+  [Server(), 'server'],
 ]
 
 describe('surfaceOf', () => {

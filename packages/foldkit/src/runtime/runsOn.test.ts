@@ -17,6 +17,7 @@ import { m } from '../message/public.js'
 import * as Host from '../processor/host.js'
 import * as RunsOn from '../processor/runsOn.js'
 import { compose } from '../program/compose.js'
+import { loaded, model } from '../program/durability.js'
 import { make } from '../program/program.js'
 import * as Subscription from '../subscription/subscription.js'
 import { makeProgramRuntime } from './programRuntime.js'
@@ -125,7 +126,10 @@ const Synced = compose.sync({
     S.decodeTo(
       Model,
       SchemaTransformation.transform({
-        decode: row => ({ approved: row.approved, claimed: [] }),
+        decode: (row): typeof Model.Encoded => ({
+          approved: row.approved,
+          claimed: [],
+        }),
         encode: model => ({ approved: model.approved }),
       }),
     ),
@@ -310,6 +314,38 @@ describe('a Subscription that runs on the Server only', () => {
   })
 })
 
+describe('a Subscription declared for a durability Model', () => {
+  it('says where it runs the same way, and keeps it through Subscription.liftScoped', () => {
+    const ReceivedReceipt = m('ReceivedReceipt', { receipt: S.String })
+    const WorkerModel = model({
+      synced: { id: S.String },
+      loaded: { receipt: loaded(S.String, () => '') },
+    })
+    const OwnerModel = model({ synced: { worker: WorkerModel } })
+    const workerSubscriptions = Subscription.forModel(WorkerModel)<
+      typeof ReceivedReceipt.Type
+    >()(entry => ({
+      receipts: entry(
+        {},
+        {
+          runsOn: RunsOn.serverOnly,
+          facts: [ReceivedReceipt],
+          modelToDependencies: () => ({}),
+          dependenciesToStream: () => Stream.empty,
+          apply: (_worker, { receipt }) => ({ receipt }),
+        },
+      ),
+    }))
+    const lifted = Subscription.liftScoped(workerSubscriptions)(OwnerModel, {
+      toChildModel: owner => owner.worker,
+      toParentMessage: message => message,
+      toParentPatch: patch => ({ worker: patch }),
+    })
+    expect(workerSubscriptions['receipts']?.runsOn).toEqual(RunsOn.serverOnly)
+    expect(lifted['receipts']?.runsOn).toEqual(RunsOn.serverOnly)
+  })
+})
+
 describe('a Program runtime that is told its Host', () => {
   it('runs server-only work when the Host is the Server, and not when it is another or not said', async () => {
     const claimedOn = (host: Host.Host | undefined) =>
@@ -377,13 +413,13 @@ describe('a ManagedResource that runs on the Server only', () => {
             version: 1,
             Model: VaultModel,
             Message: VaultMessage,
-            init: () => [{ vault: 'Shut' }, []],
+            init: () => [VaultModel.make({ vault: 'Shut' }), []],
             update: (model: VaultModel, message: VaultMessage) =>
               M.value(message).pipe(
                 M.withReturnType<readonly [VaultModel, ReadonlyArray<never>]>(),
                 M.tagsExhaustive({
-                  Opened: () => [{ vault: 'Open' }, []],
-                  Closed: () => [{ vault: 'Shut' }, []],
+                  Opened: () => [VaultModel.make({ vault: 'Open' }), []],
+                  Closed: () => [VaultModel.make({ vault: 'Shut' }), []],
                   FailedOpen: () => [model, []],
                 }),
               ),
@@ -396,8 +432,8 @@ describe('a ManagedResource that runs on the Server only', () => {
           })
           yield* runtime.initialization
           yield* settled(
-            () => opened.length,
-            count => count > 0,
+            () => runtime.readModel().vault,
+            vault => vault === 'Open',
           )
           return { opened, vault: runtime.readModel().vault }
         }),

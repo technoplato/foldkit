@@ -87,7 +87,9 @@ export { backgroundProcessorFlag } from './words.js'
  *
  * `lifetime: 'AlwaysOn'` is for a Program that must act while nobody is
  * at the terminal, such as one that posts what was approved on a phone.
- * Its Background Processor never stops for having nothing to do, and
+ * Its Background Processor never stops for having nothing to do, runs
+ * the Program as the `Server` Host, so work that says
+ * `RunsOn.serverOnly` runs in it and nowhere else, and
  * `counter background install` starts it at login and again whenever it
  * dies. `launcher` is the script that starts this file with its
  * environment, such as one that reads a token file first; the login

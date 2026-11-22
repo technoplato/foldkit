@@ -1,6 +1,8 @@
 import { Option, Record, Schema, Stream } from 'effect'
 
 import type { ManagedResources } from '../managedResource/managedResource.js'
+import type { Host } from '../processor/host.js'
+import { runsHere } from '../processor/runsOn.js'
 import {
   type Subscription,
   type Subscriptions,
@@ -77,6 +79,9 @@ const liftSubscription = <ParentModel, ChildModel>(
     ...(subscription.source === undefined
       ? {}
       : { source: subscription.source }),
+    ...(subscription.runsOn === undefined
+      ? {}
+      : { runsOn: subscription.runsOn }),
   } as unknown as Subscription<ParentModel, any, any, any>
 }
 
@@ -122,3 +127,46 @@ export const liftEffects = <ParentModel, ChildModel>(
         }),
   }
 }
+
+// PLACE
+
+const nowhere = <Model>(_model: Model): Option.Option<Model> => Option.none()
+
+/**
+ * A Program's Subscriptions and ManagedResources as they run on one
+ * Host. An entry that says `runsOn` and does not run on this Host, such
+ * as server-only work on a phone, runs nothing and stays released: it is
+ * read through a child that is never there, the way a synced Program
+ * still Starting reads its own. Every other entry is returned as it is.
+ * A runtime that is not told its Host passes None, and server-only work
+ * does not run there.
+ *
+ * @example
+ * ```typescript
+ * effectsOn(program, Option.some(Host.ExpoIos()))
+ * // `approvedUnclaimed`, which says RunsOn.serverOnly, emits nothing on the phone
+ * ```
+ */
+export const effectsOn = <Model>(
+  effects: ProgramEffects<Model>,
+  maybeHost: Option.Option<Host>,
+): ProgramEffects<Model> => ({
+  ...(effects.subscriptions === undefined
+    ? {}
+    : {
+        subscriptions: Record.map(effects.subscriptions, subscription =>
+          runsHere(subscription.runsOn, maybeHost)
+            ? subscription
+            : liftSubscription(subscription, nowhere<Model>),
+        ),
+      }),
+  ...(effects.managedResources === undefined
+    ? {}
+    : {
+        managedResources: Record.map(effects.managedResources, resource =>
+          runsHere(resource.runsOn, maybeHost)
+            ? resource
+            : { ...resource, modelToMaybeRequirements: () => Option.none() },
+        ),
+      }),
+})

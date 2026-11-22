@@ -8,7 +8,7 @@ import {
   bind,
   whenSettled,
 } from '../interaction/bind.js'
-import { Cli, type Host } from '../processor/host.js'
+import { Cli, type Host, Server } from '../processor/host.js'
 import type { ProgramSchema } from '../program/program.js'
 import type { SyncEngine } from '../runtime/syncEngine.js'
 import { startCliDaemonServer } from './listen.js'
@@ -201,7 +201,7 @@ export const untilIdle = (
 /**
  * Runs a Program as its terminal's Background Processor until it is told
  * to stop or has had nothing to do for the grace: starts it on the `Cli`
- * Host, listens on the socket at once and answers once the Program is
+ * Host, or on `Server` when it is always on, listens on the socket at once and answers once the Program is
  * settled and has caught up with its log, paints and runs every command
  * through the Program's own declarations, serves `screen` and `log` to
  * follow, and on the way out runs `beforeStop`, stops the Program, and
@@ -253,7 +253,10 @@ export const serveTerminal = <Model, Message>(
     process.once('SIGTERM', askToStop)
     process.once('SIGINT', askToStop)
 
-    const handle = processor.start(Cli())
+    // NOTE: An always-on Processor is the one that is always there on
+    // its machine, so it takes the server role: work that says
+    // `RunsOn.serverOnly` runs in it and in no other Processor.
+    const handle = processor.start(lifetime === 'AlwaysOn' ? Server() : Cli())
     const bound = bind(processor.program, handle)
 
     // NOTE: The socket listens before the Program is ready, and every
