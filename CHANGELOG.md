@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 22nd, 2026 at 1:47:49 p.m. EST — `e9d58f6001f3` feat(performance): green: Scribe #2737's budgetedGiB means what is held
+
+- **Implementation commit:** `e9d58f6001f3df6073e2e9c1b7d08000ced37bf9`
+- **Change:** The disk line says what the capped folders hold, as the exporter's corrected number means
+- **Details:**
+  - Layer: the Performance example's Schema docs and client code.
+- **Files:**
+  - `examples/performance/src/data.ts` — what budgetedGiB means
+  - `examples/performance/src/view/format.ts` — a waiting build with no class, in words
+  - `examples/performance/src/view/pipeline.ts` — the disk line
+- **User context (verbatim):**
+  > ensuring those measurements are reported in an executive summary status on the homepage of the performance.pispor
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent pipeline-page, session 4ef0ced1-be61-4b71-8eb4-44e367e0a1d4, T3 Code child of thread 9bf689ea; no SpecStory capture for sub-agent sessions
+
 ## November 22nd, 2026 at 1:43:22 p.m. EST — `2d48356c8641` feat(performance): green: Scribe #2737's page reads real output true
 
 - **Implementation commit:** `2d48356c86414029db6af761f902bcd723b0996f`
