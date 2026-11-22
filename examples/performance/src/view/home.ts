@@ -1,60 +1,227 @@
 import { Array, Option } from 'effect'
 import { type Html, html } from 'foldkit/html'
 
-import type { App, EvidenceTag, Index } from '../data'
+import type { App, Index, Metric } from '../data'
 import type { Message } from '../message'
-import type { Hover } from '../model'
+import type { IndexData, PipelineData } from '../model'
 import { UNDERSTANDING_MOVED_TO } from '../moved'
-import { appRouter, issuesRouter } from '../route'
-import { chartGrid } from './app'
-import { EVIDENCE_TAGS, counted, scopeLabel } from './format'
-import { evidenceTagChip } from './parts'
+import { appRouter, issuesRouter, metricRouter } from '../route'
+import { type Scorecard, type ScorecardRow, appScorecard } from '../scorecard'
+import {
+  budgetStatusLabel,
+  budgetStatusTone,
+  counted,
+  formatDate,
+  formatNumber,
+  plainMetricLabel,
+  scopeLabel,
+} from './format'
+import { indexContent, statusChip } from './parts'
+import { pipelineSummary } from './pipeline'
 
 // VIEW
 
-const countOf = (index: Index, tag: EvidenceTag): number =>
-  Array.filter(index.issues, issue => issue.evidence._tag === tag).length
-
-/** The page's one big number: how many of the issues we say we fixed a device proves. */
-const proofHero = (index: Index): Html => {
+/** One line: how many of the performance issues a device proves. */
+const proofLine = (index: Index): Html => {
   const h = html<Message>()
-  const total = index.issues.length
-  return h.section(
-    [h.Class('mb-10')],
+  const proven = Array.filter(
+    index.issues,
+    issue => issue.evidence._tag === 'Proven',
+  ).length
+  return h.p(
+    [h.Class('ink-secondary')],
     [
-      h.p([h.Class('text-sm ink-muted')], ['What a device proves']),
-      h.p(
-        [h.Class('mt-1 text-5xl font-semibold')],
-        [`${countOf(index, 'Proven')} of ${total}`],
+      h.strong(
+        [h.Class('text-[var(--ink)]')],
+        [`${proven} of ${index.issues.length}`],
       ),
-      h.p(
-        [h.Class('mt-1 max-w-2xl ink-secondary')],
+      ` performance issues ${proven === 1 ? 'is' : 'are'} proven on a device: `,
+      h.a(
+        [h.Href(issuesRouter()), h.Class('link')],
+        ['every issue and its evidence'],
+      ),
+      '.',
+    ],
+  )
+}
+
+const metricLink = (app: App, metric: Metric): Html => {
+  const h = html<Message>()
+  return h.a(
+    [
+      h.Href(
+        metricRouter({
+          appId: app.id,
+          metricId: metric.id,
+          scope: Option.none(),
+        }),
+      ),
+      h.Class('link'),
+    ],
+    [plainMetricLabel(metric.label)],
+  )
+}
+
+const measuredRow = (app: App, row: ScorecardRow): Html => {
+  const h = html<Message>()
+  const { metric, measured, maybeBudget, status } = row
+  return h.tr(
+    [
+      h.Key(metric.id),
+      h.DataAttribute('metric', metric.id),
+      h.Class('border-b border-[var(--hairline)] align-baseline'),
+    ],
+    [
+      h.th(
+        [h.Class('py-2 pr-3 font-normal'), h.Scope('row')],
         [
-          'performance issues are proven on a device by a measurement in the ledger. The rest are claims until a measurement says so: ',
-          h.a(
-            [h.Href(issuesRouter()), h.Class('link')],
-            ['every issue and its evidence'],
-          ),
-          '.',
+          metricLink(app, metric),
+          h.span([h.Class('block text-xs ink-muted')], [metric.unit]),
         ],
       ),
-      h.ul(
-        [h.Class('mt-4 flex flex-wrap gap-x-6 gap-y-2')],
-        Array.map(EVIDENCE_TAGS, tag =>
-          h.li(
-            [h.Key(tag), h.Class('flex items-baseline gap-2')],
-            [
-              h.span(
-                [h.Class('text-2xl font-semibold tabular')],
-                [String(countOf(index, tag))],
-              ),
-              evidenceTagChip(tag),
-            ],
-          ),
-        ),
+      h.td(
+        [h.Class('py-2 pr-3 text-right font-semibold tabular')],
+        [
+          formatNumber(measured.value, metric.digits),
+          ...(measured.isFew
+            ? [
+                h.span(
+                  [h.Class('block text-xs font-normal ink-muted')],
+                  ['few minutes'],
+                ),
+              ]
+            : []),
+        ],
+      ),
+      h.td(
+        [h.Class('py-2 pr-3 text-right tabular ink-secondary')],
+        [
+          Option.match(maybeBudget, {
+            onNone: () => 'none',
+            onSome: budget => formatNumber(budget.target, metric.digits),
+          }),
+        ],
+      ),
+      h.td(
+        [h.Class('py-2')],
+        [statusChip(budgetStatusTone(status), budgetStatusLabel(status))],
       ),
     ],
   )
+}
+
+const measuredTable = (app: App, scorecard: Scorecard): Html => {
+  const h = html<Message>()
+  return h.table(
+    [h.Class('mt-3 w-full max-w-4xl text-left text-sm')],
+    [
+      h.caption(
+        [h.Class('sr-only')],
+        [`${app.name} on ${app.platform}, build ${scorecard.build}`],
+      ),
+      h.thead(
+        [],
+        [
+          h.tr(
+            [h.Class('border-b border-[var(--hairline)] ink-muted')],
+            [
+              h.th(
+                [h.Class('py-2 pr-3 font-medium'), h.Scope('col')],
+                ['Metric'],
+              ),
+              h.th(
+                [h.Class('py-2 pr-3 text-right font-medium'), h.Scope('col')],
+                [`Build ${scorecard.build}`],
+              ),
+              h.th(
+                [h.Class('py-2 pr-3 text-right font-medium'), h.Scope('col')],
+                ['Target, at most'],
+              ),
+              h.th(
+                [h.Class('py-2 font-medium'), h.Scope('col')],
+                ['Against it'],
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.tbody(
+        [],
+        Array.map(scorecard.measured, row => measuredRow(app, row)),
+      ),
+    ],
+  )
+}
+
+const unmeasuredList = (
+  app: App,
+  scorecard: Scorecard,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return Array.match(scorecard.unmeasured, {
+    onEmpty: () => [],
+    onNonEmpty: metrics => [
+      h.details(
+        [h.Class('mt-3 max-w-4xl text-sm')],
+        [
+          h.summary(
+            [h.Class('cursor-pointer ink-secondary')],
+            [
+              `${metrics.length} more ${metrics.length === 1 ? 'was' : 'were'} not measured on build ${scorecard.build}`,
+            ],
+          ),
+          h.ul(
+            [h.Class('mt-2 grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2')],
+            Array.map(metrics, metric =>
+              h.li([h.Key(metric.id)], [metricLink(app, metric)]),
+            ),
+          ),
+        ],
+      ),
+    ],
+  })
+}
+
+const scorecardSentence = (scorecard: Scorecard): string =>
+  scorecard.judgedCount === 0
+    ? `Build ${scorecard.build} is the newest measured, and none of its numbers has a target.`
+    : `Build ${scorecard.build}, the newest measured: ${scorecard.withinCount} of ${scorecard.judgedCount} numbers with a target are within budget.`
+
+const numbersView = (index: Index, app: App): Html => {
+  const h = html<Message>()
+  return Option.match(appScorecard(index.metrics, app, app.defaultScope), {
+    onNone: () =>
+      h.p(
+        [h.Class('mt-2 text-sm ink-muted')],
+        [
+          `No build has a number ${scopeLabel(app.defaultScope).toLowerCase()} yet.`,
+        ],
+      ),
+    onSome: scorecard =>
+      h.div(
+        [],
+        [
+          h.p(
+            [h.Class('mt-1 text-sm ink-secondary')],
+            [
+              h.span([], [scorecardSentence(scorecard)]),
+              ...Option.match(scorecard.maybeNewerBuild, {
+                onNone: () => [],
+                onSome: build => [
+                  ' ',
+                  h.span(
+                    [],
+                    [`Build ${build} is newer and has no numbers yet.`],
+                  ),
+                ],
+              }),
+            ],
+          ),
+          measuredTable(app, scorecard),
+          ...unmeasuredList(app, scorecard),
+        ],
+      ),
+  })
 }
 
 const appCard = (app: App): Html => {
@@ -85,11 +252,7 @@ const appCard = (app: App): Html => {
   )
 }
 
-/** Scribe first and largest, with its charts; then the other apps and the library. */
-export const homeView = (
-  index: Index,
-  maybeHover: Option.Option<Hover>,
-): Html => {
+const appsView = (index: Index): Html => {
   const h = html<Message>()
   return Array.match(index.apps, {
     onEmpty: () => h.p([], ['The export holds no app.']),
@@ -97,23 +260,13 @@ export const homeView = (
       h.div(
         [],
         [
-          proofHero(index),
-          h.p(
-            [h.Class('mb-10 ink-secondary')],
-            [
-              h.a(
-                [h.Href(UNDERSTANDING_MOVED_TO), h.Class('link')],
-                ['Understanding, on your own page'],
-              ),
-            ],
-          ),
           h.section(
             [h.Class('mb-10')],
             [
               h.div(
                 [
                   h.Class(
-                    'mb-3 flex flex-wrap items-baseline justify-between gap-2',
+                    'mb-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1',
                   ),
                 ],
                 [
@@ -130,11 +283,18 @@ export const homeView = (
                       ),
                       h.Class('link text-sm'),
                     ],
-                    [`All of ${main.name}'s builds and scopes`],
+                    [`All of ${main.name}'s charts and builds`],
                   ),
                 ],
               ),
-              chartGrid(index, main, main.defaultScope, maybeHover),
+              proofLine(index),
+              numbersView(index, main),
+              h.p(
+                [h.Class('mt-3 text-sm ink-muted')],
+                [
+                  `${main.name}'s numbers written ${formatDate(index.generatedAt)}.`,
+                ],
+              ),
             ],
           ),
           h.section(
@@ -154,4 +314,35 @@ export const homeView = (
         ],
       ),
   })
+}
+
+/**
+ * The build pipeline's summary first, then Scribe as a plain table and the
+ * other apps as cards. Each part stands when the other's file did not load.
+ */
+export const homeView = (
+  pipeline: typeof PipelineData.schema.Type,
+  index: typeof IndexData.schema.Type,
+): Html => {
+  const h = html<Message>()
+  return h.div(
+    [],
+    [
+      h.h1([h.Class('sr-only')], ['Performance summary']),
+      pipelineSummary(pipeline),
+      h.div(
+        [h.Class('mt-10 border-t border-[var(--hairline)] pt-8')],
+        [indexContent(index, appsView)],
+      ),
+      h.p(
+        [h.Class('mt-10 text-sm ink-secondary')],
+        [
+          h.a(
+            [h.Href(UNDERSTANDING_MOVED_TO), h.Class('link')],
+            ['Understanding, on your own page'],
+          ),
+        ],
+      ),
+    ],
+  )
 }

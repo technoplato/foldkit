@@ -10,7 +10,10 @@ const ROUNDING_SLACK = 1e-9
 
 // MODEL
 
-/** One build on the x axis, measured or not. */
+/**
+ * One place on the x axis, measured or not: a build (`270`), or an hour of
+ * a trend named by its time.
+ */
 export const ChartPoint = S.Struct({
   build: S.String,
   maybeValue: S.Option(S.Number),
@@ -116,7 +119,7 @@ const appendToLastRun = (
  */
 export const chartGeometry = (
   points: ReadonlyArray<ChartPoint>,
-  maybeBudget: Option.Option<Budget>,
+  maybeBudget: Option.Option<Pick<Budget, 'target' | 'fail'>>,
   size: ChartSize,
 ): ChartGeometry => {
   const plotLeft = size.left
@@ -170,6 +173,22 @@ export const chartGeometry = (
     maybeFailY: Option.map(maybeBudget, budget => yOf(budget.fail)),
   }
 }
+
+/**
+ * The measured points no line reaches, because neither neighbour was
+ * measured: they are only seen when drawn as dots.
+ */
+export const lonePoints = (
+  geometry: ChartGeometry,
+): ReadonlyArray<ChartColumn> =>
+  Array.filter(
+    geometry.columns,
+    column =>
+      Option.isSome(column.maybeY) &&
+      !Array.some(geometry.segments, run =>
+        Array.some(run, drawn => drawn.build === column.build),
+      ),
+  )
 
 /** The newest measured point, the one a chart labels at its right edge. */
 export const newestMeasured = (

@@ -18,6 +18,11 @@
   --critical: #d03b3b;
   --critical-text: #b42727;
   --border: rgba(11, 11, 11, 0.1);
+  --fill-good: color-mix(in srgb, var(--good) 30%, var(--surface));
+  --fill-warning: color-mix(in srgb, var(--warning) 42%, var(--surface));
+  --fill-critical: color-mix(in srgb, var(--critical) 38%, var(--surface));
+  --fill-none: var(--hairline);
+  --fill-open: var(--surface);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -150,4 +155,150 @@ a.link:hover {
 
 .status-dot-critical {
   color: var(--critical);
+}
+
+.notice {
+  background: var(--fill-warning);
+}
+
+.scorecard {
+  container-type: inline-size;
+}
+
+.measure-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label label status'
+    'value target trend';
+  align-items: baseline;
+  column-gap: 0.75rem;
+  row-gap: 0.125rem;
+}
+
+.measure-label {
+  grid-area: label;
+}
+
+.measure-value {
+  grid-area: value;
+}
+
+.measure-target {
+  grid-area: target;
+}
+
+.measure-status {
+  grid-area: status;
+  justify-self: end;
+}
+
+.measure-trend {
+  grid-area: trend;
+  justify-self: end;
+  align-self: center;
+}
+
+@container (min-width: 38rem) {
+  .measure-row {
+    grid-template-columns: minmax(0, 1fr) 7.5rem 8.5rem 7rem 4rem;
+    grid-template-areas: 'label value target status trend';
+  }
+
+  .measure-status {
+    justify-self: start;
+  }
+}
+
+.sparkline {
+  display: block;
+  width: 4rem;
+  height: auto;
+  overflow: visible;
+}
+
+.hour-strip {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.hour-cell,
+.hour-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  color: var(--ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.hour-cell {
+  height: 1.75rem;
+}
+
+.hour-cell:hover,
+.hour-cell:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.hour-key {
+  width: 1rem;
+  height: 1rem;
+}
+
+.hour-good {
+  background: var(--fill-good);
+}
+
+.hour-warning {
+  background: var(--fill-warning);
+}
+
+.hour-critical {
+  background: var(--fill-critical);
+}
+
+.hour-none {
+  background: var(--fill-none);
+}
+
+.hour-open {
+  background: var(--fill-open);
+  border: 1px dashed var(--baseline);
+  color: var(--ink-muted);
+}
+
+.hour-readout {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  padding: 0 0 0.5rem 0.5rem;
+  background: var(--plane);
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hour-cell:hover > .hour-readout,
+.hour-cell:focus > .hour-readout {
+  opacity: 1;
+}
+
+.bar-track {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--hairline);
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--series);
 }

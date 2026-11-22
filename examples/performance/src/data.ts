@@ -1,4 +1,5 @@
 import { Schema as S } from 'effect'
+import { ts } from 'foldkit/schema'
 
 /**
  * The version of the data files this page reads. The exporter in the Scribe
@@ -7,6 +8,12 @@ import { Schema as S } from 'effect'
  * export never reads as numbers it does not mean.
  */
 export const DATA_SCHEMA_VERSION = 1
+
+/**
+ * The version of `pipeline.json` this page reads. The exporter in the Scribe
+ * repository (`scripts/perf/pipeline.py`, Scribe #2737) writes it.
+ */
+export const PIPELINE_SCHEMA_VERSION = 1
 
 /**
  * Which minutes a number is over: minutes recording, minutes not recording, or
@@ -352,3 +359,295 @@ export const BuildDetail = S.Struct({
   }),
 )
 export type BuildDetail = typeof BuildDetail.Type
+
+/**
+ * How the build machine stands: used just right, idle while builds wait,
+ * overloaded, blocked, with nothing to build, or not measured.
+ */
+export const MachineState = S.Literals([
+  'JustRight',
+  'UnderUsed',
+  'OverUsed',
+  'Blocked',
+  'Idle',
+  'Unknown',
+])
+export type MachineState = typeof MachineState.Type
+
+/** One hour's state. Blocked is only ever said of now, never of an hour. */
+export const HourState = S.Literals([
+  'JustRight',
+  'UnderUsed',
+  'OverUsed',
+  'Idle',
+  'Unknown',
+])
+export type HourState = typeof HourState.Type
+
+/** One thing that is wrong now, and the issue it is tracked on. */
+export const Problem = S.Struct({
+  text: S.String,
+  maybeIssue: S.OptionFromNullOr(S.Number),
+  maybeUrl: S.OptionFromNullOr(S.String),
+}).pipe(S.encodeKeys({ maybeIssue: 'issue', maybeUrl: 'url' }))
+export type Problem = typeof Problem.Type
+
+/** The machine now, as a state and two sentences, and what is wrong. */
+export const MachineVerdict = S.Struct({
+  state: MachineState,
+  headline: S.String,
+  detail: S.String,
+  problems: S.Array(Problem),
+})
+export type MachineVerdict = typeof MachineVerdict.Type
+
+/** The Mac the pipeline runs on. */
+export const Machine = S.Struct({
+  name: S.String,
+  maybeChip: S.OptionFromNullOr(S.String),
+  maybeCores: S.OptionFromNullOr(S.Number),
+  maybeMemoryGiB: S.OptionFromNullOr(S.Number),
+  maybeDiskGiB: S.OptionFromNullOr(S.Number),
+}).pipe(
+  S.encodeKeys({
+    maybeChip: 'chip',
+    maybeCores: 'cores',
+    maybeMemoryGiB: 'memoryGiB',
+    maybeDiskGiB: 'diskGiB',
+  }),
+)
+export type Machine = typeof Machine.Type
+
+/** Whether he is at work, since when, and how many builds may run at once. */
+export const Presence = S.Struct({
+  state: S.Literals(['Present', 'Away', 'Unknown']),
+  maybeSinceMinutes: S.OptionFromNullOr(S.Number),
+  maybeSignal: S.OptionFromNullOr(S.String),
+  maybePlaces: S.OptionFromNullOr(S.Number),
+  maybePlacesWhenPresent: S.OptionFromNullOr(S.Number),
+  maybePlacesWhenAway: S.OptionFromNullOr(S.Number),
+}).pipe(
+  S.encodeKeys({
+    maybeSinceMinutes: 'sinceMinutes',
+    maybeSignal: 'signal',
+    maybePlaces: 'places',
+    maybePlacesWhenPresent: 'placesWhenPresent',
+    maybePlacesWhenAway: 'placesWhenAway',
+  }),
+)
+export type Presence = typeof Presence.Type
+
+export const MemoryPressure = S.Literals([
+  'Normal',
+  'Warning',
+  'Critical',
+  'Unknown',
+])
+export type MemoryPressure = typeof MemoryPressure.Type
+
+/** How many builds of one class wait, such as 4 of P0. */
+export const WaitingClass = S.Struct({ class: S.String, count: S.Number })
+export type WaitingClass = typeof WaitingClass.Type
+
+/** The machine this minute. */
+export const CurrentMinute = S.Struct({
+  maybeRunning: S.OptionFromNullOr(S.Number),
+  maybeWaiting: S.OptionFromNullOr(S.Number),
+  maybeOldestWaitMinutes: S.OptionFromNullOr(S.Number),
+  waitingByClass: S.Array(WaitingClass),
+  maybeCpuBusyPct: S.OptionFromNullOr(S.Number),
+  memoryPressure: MemoryPressure,
+  maybeCompressorGiB: S.OptionFromNullOr(S.Number),
+  maybeSwapGiB: S.OptionFromNullOr(S.Number),
+  maybeDiskFreeGiB: S.OptionFromNullOr(S.Number),
+  maybeOutsideBuilds: S.OptionFromNullOr(S.Number),
+}).pipe(
+  S.encodeKeys({
+    maybeRunning: 'running',
+    maybeWaiting: 'waiting',
+    maybeOldestWaitMinutes: 'oldestWaitMinutes',
+    maybeCpuBusyPct: 'cpuBusyPct',
+    maybeCompressorGiB: 'compressorGiB',
+    maybeSwapGiB: 'swapGiB',
+    maybeDiskFreeGiB: 'diskFreeGiB',
+    maybeOutsideBuilds: 'outsideBuilds',
+  }),
+)
+export type CurrentMinute = typeof CurrentMinute.Type
+
+export const Direction = S.Literals(['AtLeast', 'AtMost'])
+export type Direction = typeof Direction.Type
+
+export const MeasureStatus = S.Literals([
+  'Met',
+  'Near',
+  'Missed',
+  'NotMeasured',
+])
+export type MeasureStatus = typeof MeasureStatus.Type
+
+/** One hour of a measure's trend. */
+export const TrendPoint = S.Struct({
+  at: S.String,
+  maybeValue: S.OptionFromNullOr(S.Number),
+}).pipe(S.encodeKeys({ maybeValue: 'value' }))
+export type TrendPoint = typeof TrendPoint.Type
+
+/** One row of the scorecard: a number, its target, and how it was read. */
+export const Measure = S.Struct({
+  id: S.String,
+  label: S.String,
+  unit: S.String,
+  digits: S.Number,
+  maybeValue: S.OptionFromNullOr(S.Number),
+  maybeTarget: S.OptionFromNullOr(S.Number),
+  direction: Direction,
+  status: MeasureStatus,
+  window: S.String,
+  how: S.String,
+  maybeReason: S.OptionFromNullOr(S.String),
+  trend: S.Array(TrendPoint),
+}).pipe(
+  S.encodeKeys({
+    maybeValue: 'value',
+    maybeTarget: 'target',
+    maybeReason: 'reason',
+  }),
+)
+export type Measure = typeof Measure.Type
+
+/** One clock hour of the machine. */
+export const Hour = S.Struct({
+  at: S.String,
+  state: HourState,
+  maybeCpuBusyPct: S.OptionFromNullOr(S.Number),
+  maybeRunning: S.OptionFromNullOr(S.Number),
+  maybeWaiting: S.OptionFromNullOr(S.Number),
+  maybePressureMinutes: S.OptionFromNullOr(S.Number),
+  maybeFinished: S.OptionFromNullOr(S.Number),
+}).pipe(
+  S.encodeKeys({
+    maybeCpuBusyPct: 'cpuBusyPct',
+    maybeRunning: 'running',
+    maybeWaiting: 'waiting',
+    maybePressureMinutes: 'pressureMinutes',
+    maybeFinished: 'finished',
+  }),
+)
+export type Hour = typeof Hour.Type
+
+/** The share of a window's minutes spent in each state. */
+export const Shares = S.Struct({
+  window: S.String,
+  maybeJustRightPct: S.OptionFromNullOr(S.Number),
+  maybeUnderUsedPct: S.OptionFromNullOr(S.Number),
+  maybeOverUsedPct: S.OptionFromNullOr(S.Number),
+  maybeIdlePct: S.OptionFromNullOr(S.Number),
+  maybeUnknownPct: S.OptionFromNullOr(S.Number),
+}).pipe(
+  S.encodeKeys({
+    maybeJustRightPct: 'justRightPct',
+    maybeUnderUsedPct: 'underUsedPct',
+    maybeOverUsedPct: 'overUsedPct',
+    maybeIdlePct: 'idlePct',
+    maybeUnknownPct: 'unknownPct',
+  }),
+)
+export type Shares = typeof Shares.Type
+
+export const ConsumerKind = S.Literals([
+  'Queue',
+  'Outside',
+  'Standing',
+  'Other',
+])
+export type ConsumerKind = typeof ConsumerKind.Type
+
+/** Who used the CPU, and how much of it. */
+export const Consumer = S.Struct({
+  name: S.String,
+  kind: ConsumerKind,
+  maybeCoreHours: S.OptionFromNullOr(S.Number),
+  maybePct: S.OptionFromNullOr(S.Number),
+}).pipe(S.encodeKeys({ maybeCoreHours: 'coreHours', maybePct: 'pct' }))
+export type Consumer = typeof Consumer.Type
+
+/** One folder against its cap. */
+export const Folder = S.Struct({
+  name: S.String,
+  maybeGiB: S.OptionFromNullOr(S.Number),
+  maybeCapGiB: S.OptionFromNullOr(S.Number),
+  maybeIsOver: S.OptionFromNullOr(S.Boolean),
+}).pipe(
+  S.encodeKeys({ maybeGiB: 'gib', maybeCapGiB: 'capGiB', maybeIsOver: 'over' }),
+)
+export type Folder = typeof Folder.Type
+
+export const Storage = S.Struct({
+  maybeFreeGiB: S.OptionFromNullOr(S.Number),
+  maybeUsedGiB: S.OptionFromNullOr(S.Number),
+  maybeTargetFreeGiB: S.OptionFromNullOr(S.Number),
+  maybeBudgetedGiB: S.OptionFromNullOr(S.Number),
+  folders: S.Array(Folder),
+}).pipe(
+  S.encodeKeys({
+    maybeFreeGiB: 'freeGiB',
+    maybeUsedGiB: 'usedGiB',
+    maybeTargetFreeGiB: 'targetFreeGiB',
+    maybeBudgetedGiB: 'budgetedGiB',
+  }),
+)
+export type Storage = typeof Storage.Type
+
+/** What the pipeline's owner changed, and why. */
+export const Change = S.Struct({
+  at: S.String,
+  text: S.String,
+  maybeIssue: S.OptionFromNullOr(S.Number),
+}).pipe(S.encodeKeys({ maybeIssue: 'issue' }))
+export type Change = typeof Change.Type
+
+/** Where the targets are declared. */
+export const Targets = S.Struct({
+  path: S.String,
+  maybeCommit: S.OptionFromNullOr(S.String),
+  maybeUrl: S.OptionFromNullOr(S.String),
+}).pipe(S.encodeKeys({ maybeCommit: 'commit', maybeUrl: 'url' }))
+export type Targets = typeof Targets.Type
+
+/**
+ * `pipeline.json`: the build machine against its targets (Scribe #2737). A
+ * number nobody measured is null in the file and none here, never 0.
+ */
+export const Pipeline = S.Struct({
+  schemaVersion: S.Literal(PIPELINE_SCHEMA_VERSION),
+  generatedAt: S.String,
+  machine: Machine,
+  verdict: MachineVerdict,
+  presence: Presence,
+  now: CurrentMinute,
+  measures: S.Array(Measure),
+  hours: S.Array(Hour),
+  shares: Shares,
+  consumers: S.Array(Consumer),
+  storage: Storage,
+  changes: S.Array(Change),
+  targets: Targets,
+  problems: S.Array(S.String),
+})
+export type Pipeline = typeof Pipeline.Type
+
+/** The file as it was read, and when, so the page can say how old it is. */
+export const Written = ts('Written', {
+  pipeline: Pipeline,
+  readAtMs: S.Number,
+})
+export type Written = typeof Written.Type
+
+/** The exporter has not written the file. */
+export const NotWritten = ts('NotWritten')
+export type NotWritten = typeof NotWritten.Type
+
+/** What asking for `pipeline.json` answers when nothing failed. */
+export const PipelineFile = S.Union([Written, NotWritten])
+export type PipelineFile = typeof PipelineFile.Type

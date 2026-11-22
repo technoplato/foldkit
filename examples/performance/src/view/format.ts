@@ -1,21 +1,34 @@
-import { Array, Match as M, Option, String, pipe } from 'effect'
+import { Array, Match as M, Option, Schema as S, String, pipe } from 'effect'
 
 import type { BudgetStatus } from '../chart'
 import type {
   App,
   Build,
+  ConsumerKind,
+  Direction,
   EvidenceTag,
+  HourState,
   Index,
+  MachineState,
+  MeasureStatus,
+  MemoryPressure,
   Metric,
+  Presence,
   Scope,
+  Shares,
   Value,
   Verdict,
+  WaitingClass,
 } from '../data'
 
 // CONSTANT
 
 const SHORT_SHA_LENGTH = 9
 const TIME_ZONE = 'America/New_York'
+const MINUTES_PER_HOUR = 60
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
+const DAYS_BEFORE_SPANS_READ_IN_DAYS = 2
+const DECLARED_DIGITS = 2
 
 /** The scopes in the order the page shows them. */
 export const SCOPES: ReadonlyArray<Scope> = [
@@ -45,21 +58,72 @@ export const formatNumber = (value: number, digits: number): string =>
 export const formatMinutes = (minutes: number): string =>
   minutes < 1 ? 'under 1 min' : `${formatNumber(minutes, 0)} min`
 
-/** An ISO time as he reads it, in New York: `Nov 5, 11:31 AM`. */
-export const formatDate = (iso: string): string => {
+const formatInNewYork = (
+  iso: string,
+  options: Intl.DateTimeFormatOptions,
+): string => {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) {
     return iso
   } else {
-    return date.toLocaleString('en-US', {
-      timeZone: TIME_ZONE,
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
+    return date.toLocaleString('en-US', { timeZone: TIME_ZONE, ...options })
   }
 }
+
+/** An ISO time as he reads it, in New York: `Nov 5, 11:31 AM`. */
+export const formatDate = (iso: string): string =>
+  formatInNewYork(iso, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+
+/** The clock hour that starts at an ISO time: `Sun, 11 AM`. */
+export const formatHour = (iso: string): string =>
+  formatInNewYork(iso, { weekday: 'short', hour: 'numeric' })
+
+/** A length of time in words: `43 min`, `1 h 38 min`, `3 days`. */
+export const formatSpan = (minutes: number): string => {
+  const whole = Math.round(minutes)
+  const hours = Math.floor(whole / MINUTES_PER_HOUR)
+  const rest = whole % MINUTES_PER_HOUR
+  if (whole < MINUTES_PER_HOUR) {
+    return `${whole} min`
+  } else if (whole >= DAYS_BEFORE_SPANS_READ_IN_DAYS * MINUTES_PER_DAY) {
+    return counted(Math.floor(whole / MINUTES_PER_DAY), 'day')
+  } else if (rest === 0) {
+    return `${hours} h`
+  } else {
+    return `${hours} h ${rest} min`
+  }
+}
+
+/** What follows a number: a percent joins it, any other unit takes a space. */
+export const unitSuffix = (unit: string): string =>
+  unit === '' || String.startsWith('%')(unit) ? unit : ` ${unit}`
+
+/** A number and its unit: `62% of minutes`, `35.2 min`. */
+export const formatAmount = (
+  value: number,
+  digits: number,
+  unit: string,
+): string => `${formatNumber(value, digits)}${unitSuffix(unit)}`
+
+/** A number someone declared, with only the digits they declared: `2.5`, `30`. */
+export const formatDeclared = (value: number): string =>
+  value.toLocaleString('en-US', { maximumFractionDigits: DECLARED_DIGITS })
+
+/** A target with its direction: `target at most 10`. */
+export const formatTarget = (
+  maybeTarget: Option.Option<number>,
+  direction: Direction,
+): string =>
+  Option.match(maybeTarget, {
+    onNone: () => 'no target',
+    onSome: target =>
+      `target ${direction === 'AtLeast' ? 'at least' : 'at most'} ${formatDeclared(target)}`,
+  })
 
 export const shortSha = (sha: string): string =>
   String.takeLeft(sha, SHORT_SHA_LENGTH)
@@ -125,6 +189,221 @@ export const budgetStatusLabel = (status: BudgetStatus): string =>
     M.when('NoBudget', () => 'no budget set'),
     M.exhaustive,
   )
+
+// MARK
+
+/**
+ * The marks a state can wear: the evidence's four (done, half way, failed,
+ * open), and a dash for nothing to do. Words always sit beside one.
+ */
+export const Tone = S.Literals(['Good', 'Warning', 'Critical', 'Open', 'None'])
+export type Tone = typeof Tone.Type
+
+export const toneIcon = (tone: Tone): string =>
+  M.value(tone).pipe(
+    M.when('Good', () => evidenceIcon('Proven')),
+    M.when('Warning', () => evidenceIcon('Landed')),
+    M.when('Critical', () => evidenceIcon('Disproved')),
+    M.when('Open', () => evidenceIcon('InProgress')),
+    M.when('None', () => '–'),
+    M.exhaustive,
+  )
+
+export const toneClass = (tone: Tone): string =>
+  M.value(tone).pipe(
+    M.when('Good', () => evidenceDotClass('Proven')),
+    M.when('Warning', () => evidenceDotClass('Landed')),
+    M.when('Critical', () => evidenceDotClass('Disproved')),
+    M.whenOr('Open', 'None', () => evidenceDotClass('InProgress')),
+    M.exhaustive,
+  )
+
+// PIPELINE
+
+/** The machine's states an hour can have, in the order the legend shows them. */
+export const HOUR_STATES: ReadonlyArray<HourState> = [
+  'JustRight',
+  'UnderUsed',
+  'OverUsed',
+  'Idle',
+  'Unknown',
+]
+
+export const stateLabel = (state: MachineState): string =>
+  M.value(state).pipe(
+    M.when('JustRight', () => 'Just right'),
+    M.when('UnderUsed', () => 'Under-used'),
+    M.when('OverUsed', () => 'Overloaded'),
+    M.when('Blocked', () => 'Blocked'),
+    M.when('Idle', () => 'Nothing to build'),
+    M.when('Unknown', () => 'Not measured'),
+    M.exhaustive,
+  )
+
+export const stateTone = (state: MachineState): Tone =>
+  M.value(state).pipe(
+    M.withReturnType<Tone>(),
+    M.when('JustRight', () => 'Good'),
+    M.when('UnderUsed', () => 'Warning'),
+    M.whenOr('OverUsed', 'Blocked', () => 'Critical'),
+    M.when('Idle', () => 'None'),
+    M.when('Unknown', () => 'Open'),
+    M.exhaustive,
+  )
+
+export const measureStatusLabel = (status: MeasureStatus): string =>
+  M.value(status).pipe(
+    M.when('Met', () => 'On target'),
+    M.when('Near', () => 'Close'),
+    M.when('Missed', () => 'Missed'),
+    M.when('NotMeasured', () => 'Not measured'),
+    M.exhaustive,
+  )
+
+export const measureStatusTone = (status: MeasureStatus): Tone =>
+  M.value(status).pipe(
+    M.withReturnType<Tone>(),
+    M.when('Met', () => 'Good'),
+    M.when('Near', () => 'Warning'),
+    M.when('Missed', () => 'Critical'),
+    M.when('NotMeasured', () => 'Open'),
+    M.exhaustive,
+  )
+
+export const budgetStatusTone = (status: BudgetStatus): Tone =>
+  M.value(status).pipe(
+    M.withReturnType<Tone>(),
+    M.when('Within', () => 'Good'),
+    M.when('OverTarget', () => 'Warning'),
+    M.when('OverFail', () => 'Critical'),
+    M.when('NoBudget', () => 'Open'),
+    M.exhaustive,
+  )
+
+export const memoryLabel = (pressure: MemoryPressure): string =>
+  M.value(pressure).pipe(
+    M.when('Normal', () => 'Enough memory'),
+    M.when('Warning', () => 'Short of memory'),
+    M.when('Critical', () => 'Very short of memory'),
+    M.when('Unknown', () => 'Memory not measured'),
+    M.exhaustive,
+  )
+
+export const memoryTone = (pressure: MemoryPressure): Tone =>
+  M.value(pressure).pipe(
+    M.withReturnType<Tone>(),
+    M.when('Normal', () => 'Good'),
+    M.when('Warning', () => 'Warning'),
+    M.when('Critical', () => 'Critical'),
+    M.when('Unknown', () => 'Open'),
+    M.exhaustive,
+  )
+
+export const consumerKindLabel = (kind: ConsumerKind): string =>
+  M.value(kind).pipe(
+    M.when('Queue', () => 'from the queue'),
+    M.when('Outside', () => 'outside the queue'),
+    M.when('Standing', () => 'always running'),
+    M.when('Other', () => 'everything else'),
+    M.exhaustive,
+  )
+
+/**
+ * The headline under the verdict's word, without saying that word again.
+ *
+ * @example
+ * ```ts
+ * headlineAfterState('UnderUsed', 'Under-used: 10 builds are waiting.')
+ * // '10 builds are waiting.'
+ * ```
+ */
+export const headlineAfterState = (
+  state: MachineState,
+  headline: string,
+): string => {
+  const prefix = `${String.toLowerCase(stateLabel(state))}: `
+  if (String.startsWith(prefix)(String.toLowerCase(headline))) {
+    return String.capitalize(String.slice(prefix.length)(headline))
+  } else {
+    return headline
+  }
+}
+
+/** Presence as a sentence to him: `You have been away for 1 h 38 min.` */
+export const presenceSentence = (presence: Presence): string => {
+  if (presence.state === 'Unknown') {
+    return 'Whether you are here is not known.'
+  }
+  const where = presence.state === 'Present' ? 'here' : 'away'
+  return Option.match(presence.maybeSinceMinutes, {
+    onNone: () => `You are ${where}.`,
+    onSome: minutes => `You have been ${where} for ${formatSpan(minutes)}.`,
+  })
+}
+
+/** How many builds may run at once now, as a sentence. */
+export const placesSentence = (presence: Presence): string =>
+  Option.match(presence.maybePlaces, {
+    onNone: () => 'How many builds may run at once is not known.',
+    onSome: places => `Up to ${counted(places, 'build')} may run at once now.`,
+  })
+
+/**
+ * The shares as one sentence. Nothing to build and Not measured are named
+ * only when they hold any of the window.
+ */
+export const sharesSentence = (shares: Shares): string => {
+  const share = (words: string) => (pct: number) =>
+    `${words} ${formatNumber(pct, 0)}%`
+  const isAny = (pct: number): boolean => pct > 0
+  return Option.match(shares.maybeJustRightPct, {
+    onNone: () => `How the ${shares.window} were shared is not measured.`,
+    onSome: pct => {
+      const parts = [
+        `${share('Just right')(pct)} of the ${shares.window}`,
+        ...Array.getSomes([
+          Option.map(
+            shares.maybeUnderUsedPct,
+            share('idle with builds waiting'),
+          ),
+          Option.map(shares.maybeOverUsedPct, share('overloaded')),
+          pipe(
+            shares.maybeIdlePct,
+            Option.filter(isAny),
+            Option.map(share('nothing to build')),
+          ),
+          pipe(
+            shares.maybeUnknownPct,
+            Option.filter(isAny),
+            Option.map(share('not measured')),
+          ),
+        ]),
+      ]
+      return `${Array.join(parts, ', ')}.`
+    },
+  })
+}
+
+/** Builds waiting, split by class: `10 (4 P0, 6 P1)`. */
+export const waitingWords = (
+  waiting: number,
+  classes: ReadonlyArray<WaitingClass>,
+): string =>
+  Array.match(classes, {
+    onEmpty: () => formatNumber(waiting, 0),
+    onNonEmpty: each =>
+      `${formatNumber(waiting, 0)} (${Array.join(
+        Array.map(
+          each,
+          waitingClass => `${waitingClass.count} ${waitingClass.class}`,
+        ),
+        ', ',
+      )})`,
+  })
+
+/** A metric's plain name, without the technical one in parentheses after it. */
+export const plainMetricLabel = (label: string): string =>
+  label.replace(/ \(.+\)$/, '')
 
 // LOOKUP
 

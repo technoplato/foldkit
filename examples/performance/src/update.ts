@@ -6,11 +6,18 @@ import { toString as urlToString } from 'foldkit/url'
 import {
   FetchBuild,
   FetchIndex,
+  FetchPipeline,
   LoadExternal,
   NavigateInternal,
 } from './command'
 import type { Message } from './message'
-import { BuildDetailData, IndexData, type Model, type OpenBuild } from './model'
+import {
+  BuildDetailData,
+  IndexData,
+  type Model,
+  type OpenBuild,
+  PipelineData,
+} from './model'
 import { UNDERSTANDING_MOVED_TO } from './moved'
 import { type Destination, buildRouter, urlToDestination } from './route'
 
@@ -58,6 +65,24 @@ export const movedPageCommands = (
   destination._tag === 'UnderstandingMoved'
     ? [LoadExternal({ href: UNDERSTANDING_MOVED_TO })]
     : []
+
+const toReloading = <A>(
+  current: AsyncData.AsyncData<A, string>,
+): AsyncData.AsyncData<A, string> =>
+  Option.match(AsyncData.getData(current), {
+    onNone: () => AsyncData.Loading(),
+    onSome: data => AsyncData.Refreshing({ data }),
+  })
+
+const toFailed =
+  (error: string) =>
+  <A>(
+    current: AsyncData.AsyncData<A, string>,
+  ): AsyncData.AsyncData<A, string> =>
+    Option.match(AsyncData.getData(current), {
+      onNone: () => AsyncData.fail<string, A>(error),
+      onSome: data => AsyncData.Stale({ error, data }),
+    })
 
 const withBuildDetail = (
   model: Model,
@@ -108,13 +133,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       FailedFetchIndex: ({ error }) => [
-        evo(model, {
-          index: current =>
-            Option.match(AsyncData.getData(current), {
-              onNone: () => IndexData.Failure({ error }),
-              onSome: data => IndexData.Stale({ error, data }),
-            }),
-        }),
+        evo(model, { index: toFailed(error) }),
+        [],
+      ],
+      SucceededFetchPipeline: ({ file }) => [
+        evo(model, { pipeline: () => PipelineData.Success({ data: file }) }),
+        [],
+      ],
+      FailedFetchPipeline: ({ error }) => [
+        evo(model, { pipeline: toFailed(error) }),
         [],
       ],
       SucceededFetchBuild: ({ appId, build, detail }) => [
@@ -136,14 +163,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       ClickedReload: () => [
-        evo(model, {
-          index: current =>
-            Option.match(AsyncData.getData(current), {
-              onNone: () => IndexData.Loading(),
-              onSome: data => IndexData.Refreshing({ data }),
-            }),
-        }),
-        [FetchIndex()],
+        evo(model, { index: toReloading, pipeline: toReloading }),
+        [FetchIndex(), FetchPipeline()],
       ],
       HoveredChartColumn: ({ metricId, build }) => [
         evo(model, { maybeHover: () => Option.some({ metricId, build }) }),

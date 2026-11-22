@@ -1,14 +1,71 @@
 import { Option } from 'effect'
+import { AsyncData } from 'foldkit'
 import { type Html, html } from 'foldkit/html'
 
-import type { Commit, Evidence, EvidenceTag, Release } from '../data'
-import type { Message } from '../message'
+import type { Commit, Evidence, EvidenceTag, Index, Release } from '../data'
+import { ClickedReload, type Message } from '../message'
+import type { IndexData } from '../model'
 import {
+  type Tone,
   evidenceDotClass,
   evidenceIcon,
   evidenceLabel,
   shortSha,
+  toneClass,
+  toneIcon,
 } from './format'
+
+/** A state's mark, for the eye only: its words always sit beside it. */
+export const statusMark = (tone: Tone): Html => {
+  const h = html<Message>()
+  return h.span(
+    [h.Class(`${toneClass(tone)} font-bold`), h.AriaHidden(true)],
+    [toneIcon(tone)],
+  )
+}
+
+/** A state as its mark and its words, never color alone. */
+export const statusChip = (tone: Tone, words: string): Html => {
+  const h = html<Message>()
+  return h.span(
+    [h.Class('inline-flex items-baseline gap-1.5 text-sm')],
+    [statusMark(tone), h.span([h.Class('font-medium')], [words])],
+  )
+}
+
+/** A file that did not load, why, and the button that asks again. */
+export const loadFailure = (what: string, error: string): Html => {
+  const h = html<Message>()
+  return h.div(
+    [h.Class('surface rounded-lg p-4')],
+    [
+      h.p([h.Class('font-semibold text-critical')], [what]),
+      h.p([h.Class('mt-1 text-sm break-words ink-secondary')], [error]),
+      h.button(
+        [h.Class('link mt-2 underline'), h.OnClick(ClickedReload())],
+        ['Try again'],
+      ),
+    ],
+  )
+}
+
+/** What is drawn from the index, or where the index stands until it is read. */
+export const indexContent = (
+  data: typeof IndexData.schema.Type,
+  render: (index: Index) => Html,
+): Html => {
+  const h = html<Message>()
+  const loading = (): Html =>
+    h.p([h.Class('ink-muted')], ['Loading the numbers…'])
+  return AsyncData.match(data, {
+    onIdle: loading,
+    onLoading: loading,
+    onRefreshing: index => h.div([h.Class('opacity-70')], [render(index)]),
+    onFailure: error => loadFailure('The numbers did not load.', error),
+    onStale: stale => render(stale.data),
+    onSuccess: render,
+  })
+}
 
 /** A link that leaves this site: GitHub, the issues site. Opens in a new tab and sends no referrer. */
 export const outsideLink = (href: string, label: string): Html => {

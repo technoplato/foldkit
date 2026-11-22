@@ -4,8 +4,10 @@ import { literal, r, slash, string } from 'foldkit/route'
 
 import { Scope } from './data'
 
-/** Every app, Scribe first: `/`. */
+/** The build pipeline's summary, then every app, Scribe first: `/`. */
 export const Home = r('Home')
+/** Everything the build pipeline measures, and against what: `/pipeline`. */
+export const PipelinePage = r('PipelinePage')
 /** One app's charts and builds: `/apps/scribe`, `/apps/scribe-mac?scope=NotRecording`. */
 export const AppPage = r('AppPage', { appId: S.String, scope: S.Option(Scope) })
 /** One build on one app's device: `/apps/scribe/builds/270`. */
@@ -30,6 +32,7 @@ export const NotFound = r('NotFound', { path: S.String })
  */
 export const Destination = S.Union([
   Home,
+  PipelinePage,
   AppPage,
   BuildPage,
   MetricPage,
@@ -68,6 +71,11 @@ export const metricRouter = pipe(
   Route.mapTo(MetricPage),
 )
 
+export const pipelineRouter = pipe(
+  literal('pipeline'),
+  Route.mapTo(PipelinePage),
+)
+
 export const issuesRouter = pipe(literal('issues'), Route.mapTo(IssuesPage))
 
 export const methodRouter = pipe(literal('method'), Route.mapTo(MethodPage))
@@ -81,6 +89,7 @@ const destinationParser = Route.oneOf(
   buildRouter,
   metricRouter,
   appRouter,
+  pipelineRouter,
   issuesRouter,
   methodRouter,
   understandingMovedRouter,
@@ -98,6 +107,7 @@ export const destinationPath = (destination: Destination): string =>
   M.value(destination).pipe(
     M.tagsExhaustive({
       Home: () => homeRouter(),
+      PipelinePage: () => pipelineRouter(),
       AppPage: ({ appId, scope }) => appRouter({ appId, scope }),
       BuildPage: ({ appId, build }) => buildRouter({ appId, build }),
       MetricPage: ({ appId, metricId, scope }) =>

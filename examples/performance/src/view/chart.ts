@@ -8,9 +8,18 @@ import {
   type ChartSize,
   budgetStatus,
   chartGeometry,
+  lonePoints,
   newestMeasured,
 } from '../chart'
-import type { App, Budget, Measured, Metric, Scope, Value } from '../data'
+import type {
+  App,
+  Budget,
+  Measure,
+  Measured,
+  Metric,
+  Scope,
+  Value,
+} from '../data'
 import {
   ClickedChartColumn,
   HoveredChartColumn,
@@ -18,10 +27,13 @@ import {
   type Message,
 } from '../message'
 import type { Hover } from '../model'
+import { type TrendRange, trendGeometry, trendRange } from '../pipeline'
 import { metricRouter } from '../route'
 import {
   budgetStatusLabel,
   buildValue,
+  formatDeclared,
+  formatHour,
   formatMinutes,
   formatNumber,
 } from './format'
@@ -48,6 +60,28 @@ export const LARGE_CHART: ChartSize = {
   left: 6,
 }
 
+/** A trend as small as a word, on a scorecard's row. */
+const SPARKLINE: ChartSize = {
+  width: 80,
+  height: 22,
+  top: 3,
+  right: 2,
+  bottom: 3,
+  left: 2,
+}
+
+/** A measure's trend on the pipeline page. */
+const TREND_CHART: ChartSize = {
+  width: 360,
+  height: 108,
+  top: 16,
+  right: 52,
+  bottom: 22,
+  left: 4,
+}
+
+const SPARKLINE_DOT_RADIUS = 2
+const TREND_DOT_RADIUS = 3
 const LABEL_EVERY_LARGE = 4
 const LABEL_EVERY_SMALL = 1000
 const FEW_POINT_RADIUS = 3
@@ -115,6 +149,26 @@ export const describeValue = (metric: Metric, value: Value): string =>
   )
 
 // VIEW
+
+const runLines = (geometry: ChartGeometry): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return Array.map(geometry.segments, run =>
+    h.polyline(
+      [
+        h.Class('chart-line'),
+        h.Points(
+          Array.map(run, column =>
+            Option.match(column.maybeY, {
+              onNone: () => '',
+              onSome: y => `${n(column.x)},${n(y)}`,
+            }),
+          ).join(' '),
+        ),
+      ],
+      [],
+    ),
+  )
+}
 
 const budgetLines = (
   geometry: ChartGeometry,
@@ -376,22 +430,7 @@ export const chartView = (
         [formatNumber(geometry.yMax, Number.isInteger(geometry.yMax) ? 0 : 1)],
       ),
       ...budgetLines(geometry, maybeBudget, metric.digits),
-      ...Array.map(geometry.segments, run =>
-        h.polyline(
-          [
-            h.Class('chart-line'),
-            h.Points(
-              Array.map(run, column =>
-                Option.match(column.maybeY, {
-                  onNone: () => '',
-                  onSome: y => `${n(column.x)},${n(y)}`,
-                }),
-              ).join(' '),
-            ),
-          ],
-          [],
-        ),
-      ),
+      ...runLines(geometry),
       ...Option.toArray(crosshair),
       ...Array.flatMap(geometry.columns, column =>
         columnMarks(geometry, column),
@@ -452,4 +491,179 @@ export const chartView = (
       ),
     ],
   )
+}
+
+const trendWords = (measure: Measure, range: TrendRange): string => {
+  const say = (value: number): string => formatNumber(value, measure.digits)
+  return `lowest ${say(range.lowest)}, highest ${say(range.highest)}, newest ${say(range.newest)}.`
+}
+
+const trendDots = (
+  geometry: ChartGeometry,
+  radius: number,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  const maybeNewest = Array.findLast(geometry.columns, column =>
+    Option.isSome(column.maybeY),
+  )
+  const columns = Array.dedupeWith(
+    [...lonePoints(geometry), ...Option.toArray(maybeNewest)],
+    (one, other) => one.build === other.build,
+  )
+  return Array.getSomes(
+    Array.map(columns, column =>
+      Option.map(column.maybeY, y =>
+        h.circle(
+          [
+            h.Class('chart-point'),
+            h.Cx(n(column.x)),
+            h.Cy(n(y)),
+            h.R(n(radius)),
+          ],
+          [],
+        ),
+      ),
+    ),
+  )
+}
+
+const targetRule = (geometry: ChartGeometry): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return Option.match(geometry.maybeTargetY, {
+    onNone: () => [],
+    onSome: y => [
+      h.line(
+        [
+          h.Class('chart-target'),
+          h.X1(n(geometry.plotLeft)),
+          h.X2(n(geometry.plotRight)),
+          h.Y1(n(y)),
+          h.Y2(n(y)),
+        ],
+        [],
+      ),
+    ],
+  })
+}
+
+/** A measure's trend as small as a word, and as words for a screen reader. */
+export const sparkline = (measure: Measure): Option.Option<Html> => {
+  const h = html<Message>()
+  return Option.map(trendRange(measure), range => {
+    const geometry = trendGeometry(measure, SPARKLINE)
+    return h.svg(
+      [
+        h.ViewBox(`0 0 ${SPARKLINE.width} ${SPARKLINE.height}`),
+        h.Class('sparkline'),
+        h.Role('img'),
+        h.AriaLabel(
+          `${measure.label}, hour by hour: ${trendWords(measure, range)}`,
+        ),
+      ],
+      [
+        ...targetRule(geometry),
+        ...runLines(geometry),
+        ...trendDots(geometry, SPARKLINE_DOT_RADIUS),
+      ],
+    )
+  })
+}
+
+/**
+ * A measure's trend, larger: one line, the target as a named rule, the
+ * newest number at its end and the hours it spans, so nothing needs a legend.
+ */
+export const trendChart = (measure: Measure): Option.Option<Html> => {
+  const h = html<Message>()
+  return Option.map(trendRange(measure), range => {
+    const geometry = trendGeometry(measure, TREND_CHART)
+    const label = (x: number, y: number, anchor: string, words: string): Html =>
+      h.text(
+        [h.Class('chart-label'), h.X(n(x)), h.Y(n(y)), h.TextAnchor(anchor)],
+        [words],
+      )
+    const hourY = geometry.baselineY + CLOSE_LINES
+    const maybeNewestY = pipe(
+      geometry.columns,
+      Array.findLast(column => Option.isSome(column.maybeY)),
+      Option.flatMap(column => column.maybeY),
+    )
+    const words = trendWords(measure, range)
+    return h.figure(
+      [h.Class('min-w-0')],
+      [
+        h.svg(
+          [
+            h.ViewBox(`0 0 ${TREND_CHART.width} ${TREND_CHART.height}`),
+            h.Class('block h-auto w-full max-w-md overflow-visible'),
+            h.Role('img'),
+            h.AriaLabel(`${measure.label}, hour by hour: ${words}`),
+          ],
+          [
+            h.line(
+              [
+                h.Class('chart-baseline'),
+                h.X1(n(geometry.plotLeft)),
+                h.X2(n(geometry.plotRight)),
+                h.Y1(n(geometry.baselineY)),
+                h.Y2(n(geometry.baselineY)),
+              ],
+              [],
+            ),
+            ...targetRule(geometry),
+            ...Option.toArray(
+              Option.map(
+                Option.all({
+                  target: measure.maybeTarget,
+                  y: geometry.maybeTargetY,
+                }),
+                ({ target, y }) =>
+                  label(
+                    geometry.plotLeft,
+                    y - TICK_LENGTH,
+                    'start',
+                    `target ${formatDeclared(target)}`,
+                  ),
+              ),
+            ),
+            ...runLines(geometry),
+            ...trendDots(geometry, TREND_DOT_RADIUS),
+            ...Option.toArray(
+              Option.map(maybeNewestY, y =>
+                h.text(
+                  [
+                    h.Class('chart-value tabular'),
+                    h.X(n(geometry.plotRight + 6)),
+                    h.Y(n(y + 4)),
+                  ],
+                  [formatNumber(range.newest, measure.digits)],
+                ),
+              ),
+            ),
+            ...Option.toArray(
+              Option.map(Array.head(measure.trend), first =>
+                label(geometry.plotLeft, hourY, 'start', formatHour(first.at)),
+              ),
+            ),
+            ...(measure.trend.length > 1
+              ? Option.toArray(
+                  Option.map(Array.last(measure.trend), last =>
+                    label(
+                      geometry.plotRight,
+                      hourY,
+                      'end',
+                      formatHour(last.at),
+                    ),
+                  ),
+                )
+              : []),
+          ],
+        ),
+        h.figcaption(
+          [h.Class('mt-1 text-xs ink-muted')],
+          [`Hour by hour: ${words}`],
+        ),
+      ],
+    )
+  })
 }
