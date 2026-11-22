@@ -4,6 +4,66 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 22nd, 2026 at 6:08:34 p.m. EST — `36167857db30` feat(foldkit): green: a Server Host, and work that runs on the Server only (Scribe #2794)
+
+- **Implementation commit:** `36167857db302d7e2a24a91caf31f069b1abce05`
+- **Change:** A Server Host, and runsOn: work that runs on the Server only
+- **Details:**
+  - Layer: Foldkit core, and one line in the terminal Client adapter. Processor.RunsOn.serverOnly on a Subscription or ManagedResource entry; one gate where the runtime starts them; an always-on terminal host is the Server. Scribe #2794, the review's item 5, plans/06 Single writers.
+- **Files:**
+  - `packages/foldkit/src/processor/runsOn.ts` — RunsOn and runsHere
+  - `packages/foldkit/src/processor/host.ts` — the Server case
+  - `packages/foldkit/src/program/liftEffects.ts` — effectsOn, the gate
+  - `packages/foldkit/src/runtime/programRuntime.ts` — takes host and applies the gate
+  - `packages/foldkit/src/runtime/start.ts` — reads the Host from the engine's processor name
+  - `packages/foldkit/src/cli/serve.ts` — an always-on Processor starts its Program on Server
+- **User context (verbatim):**
+  > Recording 483, 2026-11-22 16:59 (https://og.pisspoursoftware.xyz/recording/b584790b-1581-46b3-aa87-b7caedf373e4/section/a78a877f-cc2b-4e8f-be40-14dd706f23a2?t=18734.55): Subscribe publisher one home built with Foldkit so the CLI website come from one program built for anyone, not just
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent foldkit-core, session 740fd2c4-6943-4150-b89c-eae655775ffe, T3 Code child session; no SpecStory capture for sub-agent sessions
+
+## November 22nd, 2026 at 6:08:34 p.m. EST — `ce85115d9587` test(foldkit): pin that a Command's result Message stays on the Processor that ran it (Scribe #2794)
+
+- **Implementation commit:** `ce85115d9587554fe45b5bec7f4953fdb86a1fd3`
+- **Change:** A test pins that a Command's result Message stays on the Processor that ran it
+- **Details:**
+  - Layer: Foldkit core, a test only. The shared log holds the Message that was sent and never the Command's answer, so a result every device must see is a row written through a port. Scribe #2794.
+- **Files:**
+  - `packages/foldkit/src/runtime/commandResultLog.test.ts` — two Processors on one Memory log
+- **User context (verbatim):**
+  > Recording 483, 2026-11-22 16:59 (https://og.pisspoursoftware.xyz/recording/b584790b-1581-46b3-aa87-b7caedf373e4/section/a78a877f-cc2b-4e8f-be40-14dd706f23a2?t=18734.55): Subscribe publisher one home built with Foldkit so the CLI website come from one program built for anyone, not just
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent foldkit-core, session 740fd2c4-6943-4150-b89c-eae655775ffe, T3 Code child session; no SpecStory capture for sub-agent sessions
+
+## November 22nd, 2026 at 6:08:34 p.m. EST — `c72dcadee546` feat(foldkit): green: an always-on terminal host, started at login and again after it dies (Scribe #2794)
+
+- **Implementation commit:** `c72dcadee546d78af9cfaaf4553fa046da4b88ac`
+- **Change:** An always-on terminal host: lifetime AlwaysOn, started at login and again after it dies, and background status
+- **Details:**
+  - Layer: the terminal Client adapter. One declaration in terminal(); the launchd agent, install, uninstall and status are derived from it. Seen under the real launchd on the M5. Scribe #2794, the review's item 4.
+- **Files:**
+  - `packages/foldkit/src/cli/loginItem.ts` — the launchd agent as a pure reading, and the port that installs it
+  - `packages/foldkit/src/cli/host.ts` — lifetime, launcher, and the background words
+  - `packages/foldkit/src/cli/serve.ts` — no idle exit, status, leaving beside a live Processor, taking back a dead one's socket
+  - `packages/foldkit/src/cli/liveness.ts` — Lifetime and statusLinesOf
+- **User context (verbatim):**
+  > Recording 483, 2026-11-22 16:59 (https://og.pisspoursoftware.xyz/recording/b584790b-1581-46b3-aa87-b7caedf373e4/section/a78a877f-cc2b-4e8f-be40-14dd706f23a2?t=18734.55): Subscribe publisher one home built with Foldkit so the CLI website come from one program built for anyone, not just
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent foldkit-core, session 740fd2c4-6943-4150-b89c-eae655775ffe, T3 Code child session; no SpecStory capture for sub-agent sessions
+
+## November 22nd, 2026 at 6:08:34 p.m. EST — `b80aa03979f1` feat(foldkit): green: a working Background Processor is not replaced by another build (Scribe #2794)
+
+- **Implementation commit:** `b80aa03979f18a20fd40ca862e5955a6b6291be8`
+- **Change:** A Background Processor whose Program has work going on is not replaced by a command from another build
+- **Details:**
+  - Layer: the terminal Client adapter. The words keepsAlive(model) gives hold off a replacement as they hold off the idle exit; stop still ends it. Scribe #2794, the Foldkit review's item 3.
+- **Files:**
+  - `packages/foldkit/src/cli/liveness.ts` — the rule: isWorking, keptWorkingSentence
+  - `packages/foldkit/src/cli/words.ts` — the words the two halves say to each other, in one place
+  - `packages/foldkit/src/cli/serve.ts` — answers background-make-way
+  - `packages/foldkit/src/cli/host.ts` — asks a Processor of another build to make way
+- **User context (verbatim):**
+  > Recording 483, 2026-11-22 16:59 (https://og.pisspoursoftware.xyz/recording/b584790b-1581-46b3-aa87-b7caedf373e4/section/a78a877f-cc2b-4e8f-be40-14dd706f23a2?t=18734.55): Subscribe publisher one home built with Foldkit so the CLI website come from one program built for anyone, not just
+  > Recording 483, 2026-11-22 16:39 (https://og.pisspoursoftware.xyz/recording/b584790b-1581-46b3-aa87-b7caedf373e4/section/cbc89fc1-63a8-40e2-908a-5511afd8939e?t=17511.13): also FoldKit just had a terminal update, which I'm about to test, but I would like you to inspect and see if that's going to be a useful thing for us to use.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent foldkit-core, session 740fd2c4-6943-4150-b89c-eae655775ffe, T3 Code child session; no SpecStory capture for sub-agent sessions
+
 ## November 22nd, 2026 at 1:47:49 p.m. EST — `e9d58f6001f3` feat(performance): green: Scribe #2737's budgetedGiB means what is held
 
 - **Implementation commit:** `e9d58f6001f3df6073e2e9c1b7d08000ced37bf9`
