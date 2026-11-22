@@ -338,8 +338,17 @@ export const consumerKindLabel = (kind: ConsumerKind): string =>
     M.exhaustive,
   )
 
+const exporterNameOf = (state: MachineState): string =>
+  M.value(state).pipe(
+    M.when('OverUsed', () => 'Over-used'),
+    M.when('Idle', () => 'Idle'),
+    M.when('Unknown', () => 'Not known'),
+    M.orElse(stateLabel),
+  )
+
 /**
- * The headline under the verdict's word, without saying that word again.
+ * The headline under the verdict's word, without saying that word again,
+ * whether the exporter began it with the page's word or with its own.
  *
  * @example
  * ```ts
@@ -351,12 +360,17 @@ export const headlineAfterState = (
   state: MachineState,
   headline: string,
 ): string => {
-  const prefix = `${String.toLowerCase(stateLabel(state))}: `
-  if (String.startsWith(prefix)(String.toLowerCase(headline))) {
-    return String.capitalize(String.slice(prefix.length)(headline))
-  } else {
-    return headline
-  }
+  const said = String.toLowerCase(headline)
+  return pipe(
+    [stateLabel(state), exporterNameOf(state)],
+    Array.map(name => `${String.toLowerCase(name)}: `),
+    Array.findFirst(prefix => String.startsWith(prefix)(said)),
+    Option.match({
+      onNone: () => headline,
+      onSome: prefix =>
+        String.capitalize(String.slice(prefix.length)(headline)),
+    }),
+  )
 }
 
 /** Presence as a sentence to him: `You have been away for 1 h 38 min.` */
@@ -414,6 +428,15 @@ export const sharesSentence = (shares: Shares): string => {
   })
 }
 
+const waitingClassWords = (waitingClass: WaitingClass): string => {
+  const { class: name, count } = waitingClass
+  return M.value(name).pipe(
+    M.when('main', () => counted(count, 'landing check')),
+    M.when('release', () => counted(count, 'release')),
+    M.orElse(() => `${count} ${name}`),
+  )
+}
+
 /** Builds waiting, split by class: `10 (4 P0, 6 P1)`. */
 export const waitingWords = (
   waiting: number,
@@ -423,10 +446,7 @@ export const waitingWords = (
     onEmpty: () => formatNumber(waiting, 0),
     onNonEmpty: each =>
       `${formatNumber(waiting, 0)} (${Array.join(
-        Array.map(
-          each,
-          waitingClass => `${waitingClass.count} ${waitingClass.class}`,
-        ),
+        Array.map(each, waitingClassWords),
         ', ',
       )})`,
   })

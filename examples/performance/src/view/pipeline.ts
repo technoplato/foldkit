@@ -22,6 +22,7 @@ import {
   issueUrl,
   lastDay,
   outOfDateMinutes,
+  windowCaveat,
 } from '../pipeline'
 import { pipelineRouter } from '../route'
 import { sparkline, trendChart } from './chart'
@@ -263,7 +264,10 @@ const measureValue = (measure: Measure, className: string): Html => {
   })
 }
 
-const scorecardRow = (measure: Measure): Html => {
+const scorecardRow = (
+  measure: Measure,
+  maybeWindow: Option.Option<string>,
+): Html => {
   const h = html<Message>()
   return h.li(
     [
@@ -272,7 +276,18 @@ const scorecardRow = (measure: Measure): Html => {
       h.Class('measure-row border-b border-[var(--hairline)] py-2 text-sm'),
     ],
     [
-      h.span([h.Class('measure-label')], [measure.label]),
+      h.span(
+        [h.Class('measure-label')],
+        [
+          measure.label,
+          ...Option.match(windowCaveat(measure, maybeWindow), {
+            onNone: () => [],
+            onSome: caveat => [
+              h.span([h.Class('block text-xs ink-muted')], [caveat]),
+            ],
+          }),
+        ],
+      ),
       measureValue(measure, 'measure-value text-base'),
       h.span(
         [h.Class('measure-target ink-secondary tabular')],
@@ -294,13 +309,14 @@ const scorecardRow = (measure: Measure): Html => {
 
 const scorecard = (pipeline: Pipeline): Html => {
   const h = html<Message>()
+  const maybeWindow = homeWindow(pipeline)
   return h.div(
     [h.Class('min-w-0')],
     [
       h.h3(
         [h.Class('mb-1 text-sm font-semibold')],
         [
-          Option.match(homeWindow(pipeline), {
+          Option.match(maybeWindow, {
             onNone: () => 'Against the targets',
             onSome: window => `Against the targets, over the ${window}`,
           }),
@@ -308,7 +324,9 @@ const scorecard = (pipeline: Pipeline): Html => {
       ),
       h.ul(
         [h.Class('scorecard')],
-        Array.map(homeMeasures(pipeline), scorecardRow),
+        Array.map(homeMeasures(pipeline), measure =>
+          scorecardRow(measure, maybeWindow),
+        ),
       ),
     ],
   )
