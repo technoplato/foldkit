@@ -4,6 +4,77 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 22nd, 2026 at 1:33:16 p.m. EST — `7e3461425d68` feat(performance): green: Scribe #2737's words meet the exporter's
+
+- **Implementation commit:** `7e3461425d685d1a319e2b50b52bad3fd3ebad4a`
+- **Change:** The page says the exporter's own words once and plainly
+- **Details:**
+  - Layer: the Performance example's domain and client code.
+- **Files:**
+  - `examples/performance/src/pipeline.ts` — a caveat when a number covers only part of the time
+  - `examples/performance/src/view/format.ts` — the exporter's state names and waiting classes
+  - `examples/performance/src/view/pipeline.ts` — the caveat under the measure's label
+- **User context (verbatim):**
+  > ensuring those measurements are reported in an executive summary status on the homepage of the performance.pispor
+  > xyz.com dashboard um and make it a Loto simpler. Those those charts that are up there right now are very hard to understand.
+  > Um and they are pertinent to scribe. So uh let's have another section for just build or infrastructure or or what
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent pipeline-page, session 4ef0ced1-be61-4b71-8eb4-44e367e0a1d4, T3 Code child of thread 9bf689ea; no SpecStory capture for sub-agent sessions
+
+## November 22nd, 2026 at 1:33:16 p.m. EST — `519804257571` feat(performance): green: Scribe #2737's summary reads at a glance
+
+- **Implementation commit:** `519804257571fcf7738992d5e211c9dfe3fb1d1d`
+- **Change:** The summary and the iPhone table read at a glance, from looking at them at five widths
+- **Details:**
+  - Layer: the Performance example's domain and client code.
+  - Only numbers with a target are table rows, the worst first. The rest fold under it.
+- **Files:**
+  - `examples/performance/src/command.ts` — documents the file's path
+  - `examples/performance/src/data.ts` — documents the pipeline's Schemas
+  - `examples/performance/src/pipeline.ts` — the time the scorecard's numbers share
+  - `examples/performance/src/scorecard.ts` — judged rows, and those without a target
+  - `examples/performance/src/view/home.ts` — the judged table and the folded rest
+  - `examples/performance/src/view/pipeline.ts` — the heading's time, and a disk table that fits 320 px
+  - `examples/performance/src/view/chart.ts` — the target's label off the line
+  - `examples/performance/src/view/format.ts` — a percent stays with its number
+  - `examples/performance/src/styles.css` — the hour readout clear of the focused cell
+- **User context (verbatim):**
+  > ensuring those measurements are reported in an executive summary status on the homepage of the performance.pispor
+  > xyz.com dashboard um and make it a Loto simpler. Those those charts that are up there right now are very hard to understand.
+  > Um and they are pertinent to scribe. So uh let's have another section for just build or infrastructure or or what
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent pipeline-page, session 4ef0ced1-be61-4b71-8eb4-44e367e0a1d4, T3 Code child of thread 9bf689ea; no SpecStory capture for sub-agent sessions
+
+## November 22nd, 2026 at 1:33:16 p.m. EST — `07763b760831` feat(performance): green: Scribe #2737's build pipeline summary
+
+- **Implementation commit:** `07763b7608310bfc99c9ecd20e329566748994db`
+- **Change:** The performance home page opens on the M5's build pipeline summary, and /pipeline holds every measure
+- **Details:**
+  - Layer: the Performance example's domain and client code. No Foldkit core change and no origin change.
+  - /data/pipeline.json is read beside the index and again on Reload. A missing file is Not written yet, a null is never 0, and numbers over 15 minutes old when read say so.
+  - The iPhone chart grid leaves the home page for a table. The charts stay on /apps/scribe and the metric pages.
+- **Files:**
+  - `examples/performance/src/data.ts` — the Pipeline Schema, version 1
+  - `examples/performance/src/command.ts` — FetchPipeline, where a 404 is an answer and not a failure
+  - `examples/performance/src/message.ts` — the two Facts FetchPipeline answers with
+  - `examples/performance/src/model.ts` — the pipeline beside the index
+  - `examples/performance/src/init.ts` — fetches both files
+  - `examples/performance/src/update.ts` — keeps the last numbers through a failed reload
+  - `examples/performance/src/route.ts` — /pipeline
+  - `examples/performance/src/pipeline.ts` — the pure readings the pipeline's views draw
+  - `examples/performance/src/scorecard.ts` — the iPhone's newest measured build as a table
+  - `examples/performance/src/chart.ts` — trend points no line reaches
+  - `examples/performance/src/view/pipeline.ts` — the summary and the pipeline page
+  - `examples/performance/src/view/home.ts` — the pipeline first, then Scribe as a table
+  - `examples/performance/src/view/chart.ts` — the sparkline and the trend chart
+  - `examples/performance/src/view/format.ts` — the words and the one set of marks
+  - `examples/performance/src/view/parts.ts` — a mark with its words, and where the index stands
+  - `examples/performance/src/view/view.ts` — each page waits only on the file it draws
+  - `examples/performance/src/styles.css` — the strip, scorecard and bars, in the app's color roles
+- **User context (verbatim):**
+  > ensuring those measurements are reported in an executive summary status on the homepage of the performance.pispor
+  > xyz.com dashboard um and make it a Loto simpler. Those those charts that are up there right now are very hard to understand.
+  > Um and they are pertinent to scribe. So uh let's have another section for just build or infrastructure or or what
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent pipeline-page, session 4ef0ced1-be61-4b71-8eb4-44e367e0a1d4, T3 Code child of thread 9bf689ea; no SpecStory capture for sub-agent sessions
+
 ## November 20th, 2026 at 1:45:46 p.m. EST — `1ecec00de181` feat(index,demos-launchd,client-matrix): serve a derived site index and run the hosted demos under one LaunchAgent (Scribe #2573)
 
 - **Implementation commit:** `1ecec00de181cb12d0df2d64de77e31604a9b848`
