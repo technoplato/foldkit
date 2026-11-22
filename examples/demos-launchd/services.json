@@ -51,6 +51,16 @@
     "cwd": "${HOME}/Development/foldkit"
   },
   {
+    "name": "counters",
+    "port": 5218,
+    "command": "/bin/zsh",
+    "args": [
+      "-lic",
+      "exec pnpm --filter multiple-counters-react-example exec vite preview --host 127.0.0.1 --port 5218 --strictPort"
+    ],
+    "cwd": "${HOME}/Sync/worktrees/foldkit-books"
+  },
+  {
     "name": "deposit-demo",
     "port": 5204,
     "command": "${HOME}/.local/bin/foldkit-deposit-demo-launchd"
