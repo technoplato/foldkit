@@ -12,6 +12,7 @@ import {
   homeWindow,
   issueUrl,
   lastDay,
+  lastDayTrend,
   outOfDateMinutes,
   trendPoints,
   trendRange,
@@ -195,6 +196,20 @@ describe("a measure's trend", () => {
     expect(trendRange(measure)).toStrictEqual(
       Option.some({ lowest: 11, highest: 23, newest: 11 }),
     )
+  })
+
+  test('is cut to the newest 24 hours where it stands under that heading', () => {
+    const long = {
+      ...measure,
+      trend: Array.makeBy(72, hour => ({
+        at: new Date(NEWEST_HOUR_MS - (71 - hour) * MS_PER_HOUR).toISOString(),
+        maybeValue: Option.some(hour),
+      })),
+    }
+    expect(trendRange(lastDayTrend(long))).toStrictEqual(
+      Option.some({ lowest: 48, highest: 71, newest: 71 }),
+    )
+    expect(lastDayTrend(measure)).toStrictEqual(measure)
   })
 
   test('with no number has no range', () => {

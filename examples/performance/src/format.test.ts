@@ -11,6 +11,7 @@ import {
   formatTarget,
   headlineAfterState,
   plainMetricLabel,
+  presenceSentence,
   sharesSentence,
   waitingWords,
 } from './view/format'
@@ -90,6 +91,16 @@ describe('the words the summary shows', () => {
       expect(headlineAfterState(state, headline)).toBe(words)
     },
   )
+
+  test('presence says what the file measures: how long the queue has counted him so', () => {
+    const away = samplePipeline.presence
+    expect(
+      presenceSentence({ ...away, maybeSinceMinutes: Option.some(0) }),
+    ).toBe('The queue has just counted you as away.')
+    expect(
+      presenceSentence({ ...away, maybeSinceMinutes: Option.none() }),
+    ).toBe('The queue counts you as away.')
+  })
 
   test('a class of waiting build reads in words', () => {
     expect(

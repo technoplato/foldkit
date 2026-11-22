@@ -276,6 +276,14 @@ describe('the build pipeline on the home page', () => {
     )
   })
 
+  test('says the verdict is of now, so it never reads as the last 24 hours', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(readyModelAt('/')),
+      Scene.expect(Scene.text('Right now')).toExist(),
+    )
+  })
+
   test('says whether memory and disk are within their limits now', () => {
     Scene.scene(
       { update, view },
@@ -391,6 +399,29 @@ describe('the build pipeline on the home page', () => {
     )
   })
 
+  test('a small line covers the 24 hours its heading says', () => {
+    const measures = Array.map(encodedPipeline.measures, (measure, index) =>
+      index === 0
+        ? {
+            ...measure,
+            trend: Array.makeBy(72, hour => ({
+              at: new Date(Date.UTC(2026, 10, 19, 18 + hour)).toISOString(),
+              value: hour,
+            })),
+          }
+        : measure,
+    )
+    Scene.scene(
+      { update, view },
+      Scene.with(homeWith({ measures })),
+      Scene.expect(
+        Scene.role('img', {
+          name: 'Builds finished an hour, hour by hour: lowest 48, highest 71, newest 71.',
+        }),
+      ).toExist(),
+    )
+  })
+
   test('the last 24 hours are a cell each, by keyboard and by screen reader', () => {
     Scene.scene(
       { update, view },
@@ -420,7 +451,9 @@ describe('the build pipeline on the home page', () => {
     Scene.scene(
       { update, view },
       Scene.with(readyModelAt('/')),
-      Scene.expect(Scene.text('You have been away for 1 h 38 min.')).toExist(),
+      Scene.expect(
+        Scene.text('The queue has counted you as away for 1 h 38 min.'),
+      ).toExist(),
       Scene.expect(Scene.text('Up to 3 builds may run at once now.')).toExist(),
       Scene.expect(Scene.text('Numbers written Nov 22, 1:10 PM.')).toExist(),
       Scene.expect(
@@ -442,7 +475,9 @@ describe('the build pipeline on the home page', () => {
           },
         }),
       ),
-      Scene.expect(Scene.text('You have been here for 12 min.')).toExist(),
+      Scene.expect(
+        Scene.text('The queue has counted you as here for 12 min.'),
+      ).toExist(),
       Scene.expect(Scene.text('Up to 1 build may run at once now.')).toExist(),
     )
   })
@@ -728,7 +763,7 @@ describe('the pipeline page', () => {
     Scene.scene(
       { update, view },
       Scene.with(readyModelAt('/pipeline')),
-      Scene.expect(Scene.role('heading', { name: 'Right now' })).toExist(),
+      Scene.expect(Scene.role('heading', { name: 'This minute' })).toExist(),
       Scene.expect(Scene.text('10 (4 P0, 6 P1)')).toExist(),
       Scene.expect(Scene.text('43 min')).toExist(),
       Scene.expect(Scene.text('26.8 GiB')).toExist(),
