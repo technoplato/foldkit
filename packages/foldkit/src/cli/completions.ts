@@ -70,8 +70,10 @@ export const completionScriptOf = (
     return [
       `${fn}() {`,
       '  local -a found',
-      `  found=(\${(f)"$(${ask} \${words[2,CURRENT-1]} 2>/dev/null)"})`,
-      '  compadd -a found',
+      `  found=("\${(@f)$(${ask} \${words[2,CURRENT-1]} 2>/dev/null)}")`,
+      '  found=("${(@)found//:/\\\\:}")',
+      '  found=("${(@)found/$\'\\t\'/:}")',
+      "  _describe 'command' found",
       '}',
       '(( $+functions[compdef] )) || { autoload -Uz compinit && compinit }',
       `compdef ${fn} ${name}`,
@@ -81,7 +83,7 @@ export const completionScriptOf = (
     return [
       `${fn}() {`,
       '  local said="${COMP_WORDS[*]:1:COMP_CWORD-1}"',
-      `  COMPREPLY=($(compgen -W "$(${ask} $said 2>/dev/null)" -- "\${COMP_WORDS[COMP_CWORD]}"))`,
+      `  COMPREPLY=($(compgen -W "$(${ask} $said 2>/dev/null | cut -f1)" --"\${COMP_WORDS[COMP_CWORD]}"))`,
       '}',
       `complete -F ${fn} ${name}`,
       '',

@@ -21,7 +21,7 @@ import {
   quietAfter,
   quietSince,
 } from './liveness.js'
-import { commandWordsOf } from './program.js'
+import { type CommandWord, commandWordsOf } from './program.js'
 import {
   type CliDaemonError,
   type CliDaemonPaintedResult,
@@ -108,14 +108,14 @@ export const buildWord = 'background-build'
 /** The word a shell's tab completion asks a Background Processor for what may come next with. */
 export const wordsWord = 'background-words'
 
-const hostWords = [
-  'stop',
-  'watch',
-  'tail',
-  'tui',
-  'follow',
-  'help',
-  'completions',
+const hostWords: ReadonlyArray<CommandWord> = [
+  { word: 'watch', what: 'Repaints the screen as it changes on any device' },
+  { word: 'tail', what: 'Prints every Message the log takes' },
+  { word: 'tui', what: 'Opens the live terminal UI' },
+  { word: 'follow', what: 'Keeps one topic open, such as screen' },
+  { word: 'help', what: 'Lists every command' },
+  { word: 'completions', what: 'Installs tab completion for this shell' },
+  { word: 'stop', what: 'Ends the Background Processor after it has saved' },
 ]
 
 /** The flag a stopped Processor's answer carries. */
@@ -324,14 +324,20 @@ export const serveTerminal = <Model, Message>(
         } else if (token === wordsWord || token.startsWith(`${wordsWord} `)) {
           return asked(
             Effect.sync(() => ({
+              // NOTE: a word, a tab, then what it does on the same line,
+              // which is what a shell shows beside the word.
               stdout: Array.join(
-                commandWordsOf(
-                  bound,
-                  Array.filter(
-                    token.slice(wordsWord.length).split(' '),
-                    word => word !== '',
+                Array.map(
+                  commandWordsOf(
+                    bound,
+                    Array.filter(
+                      token.slice(wordsWord.length).split(' '),
+                      word => word !== '',
+                    ),
+                    hostWords,
                   ),
-                  hostWords,
+                  ({ word, what }) =>
+                    `${word}\t${what.replaceAll(/\s+/gu, ' ')}`,
                 ),
                 '\n',
               ),
