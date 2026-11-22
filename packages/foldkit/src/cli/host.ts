@@ -13,6 +13,14 @@ import { fileURLToPath } from 'node:url'
 
 import { followArgvOf, parseProgramArgv } from './argv.js'
 import {
+  type CompletionShell,
+  completionScriptOf,
+  completionShellOf,
+  completionWordsWord,
+  completionsWord,
+  installCompletion,
+} from './completions.js'
+import {
   cliDaemonPidOf,
   cliDaemonSocketPath,
   terminalLogPath,
@@ -35,6 +43,7 @@ import {
   makeWayWord,
   stopWord,
   stoppedOutcome,
+  wordsWord,
   workingOutcome,
 } from './words.js'
 
@@ -313,6 +322,35 @@ const stoppedSentence = (name: string, said: string | undefined): string => {
   }
 }
 
+const completionsAnswer = (
+  name: string,
+  shell: CompletionShell | undefined,
+  isOnlyPrinted: boolean,
+): CliViewPainted => {
+  if (shell === undefined) {
+    return {
+      stdout: '',
+      stderr: `Tab completion is written for zsh, bash and fish. Name one: ${name} ${completionsWord} zsh`,
+      exitCode: notUnderstoodExitCode,
+    }
+  } else if (isOnlyPrinted) {
+    return { stdout: completionScriptOf(shell, name), stderr: '', exitCode: 0 }
+  } else {
+    const installed = installCompletion(shell, name)
+    return {
+      stdout: [
+        `Tab completion for ${name} is installed for ${shell}: ${installed.scriptPath}`,
+        ...(installed.startupPath === undefined
+          ? []
+          : [`Added one line to ${installed.startupPath} that loads it.`]),
+        `Open a new terminal, type ${name} and a space, and press Tab.`,
+      ].join('\n'),
+      stderr: '',
+      exitCode: 0,
+    }
+  }
+}
+
 const NEVER_REACHED = new Set(['ENOENT', 'ECONNREFUSED'])
 
 // NOTE: Only a command that never reached a Processor is asked again. One
@@ -335,7 +373,9 @@ const takesColor = (
  * watch` repaint as the Model changes, from this device or any other;
  * `counter tail` prints every Message the log takes, when the host names
  * its log; `counter tui` is the live terminal UI; `counter stop` ends
- * the Background Processor after it has saved. Every other word, its
+ * the Background Processor after it has saved; `counter completions`
+ * installs tab completion for the shell it is run in, and `counter
+ * completions zsh` prints the script instead. Every other word, its
  * help, and each refusal come from the Program's own declarations; a
  * Program with an Action of its own called Stop is reached as `counter
  * do stop`.
@@ -423,6 +463,32 @@ export const terminal = async <Model, Message>(
   const kept = await madeWayForOtherBuild(options.name, socketPath, build)
   if (kept !== undefined) {
     runtime.stderr.write(`${kept}\n`)
+  }
+
+  if (firstWord === completionsWord) {
+    const [second = '', ...said] = otherWords
+    if (second === completionWordsWord) {
+      const words = await runCliView({
+        socketPath,
+        spawn: spawnProcessor,
+        request: { _tag: 'Do', token: [wordsWord, ...said].join(' ') },
+      }).then(
+        painted => painted.stdout,
+        () => '',
+      )
+      answer({ stdout: words, stderr: '', exitCode: 0 })
+    } else {
+      answer(
+        completionsAnswer(
+          options.name,
+          second === ''
+            ? completionShellOf(runtime.env['SHELL'])
+            : completionShellOf(second),
+          second !== '',
+        ),
+      )
+    }
+    return
   }
 
   const request = parseProgramArgv(argv)

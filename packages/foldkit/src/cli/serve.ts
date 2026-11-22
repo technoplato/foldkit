@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { Deferred, Duration, Effect, Schema as S, Stream } from 'effect'
+import { Array, Deferred, Duration, Effect, Schema as S, Stream } from 'effect'
 
 import {
   type BindableProgram,
@@ -23,6 +23,7 @@ import {
   quietAfter,
   quietSince,
 } from './liveness.js'
+import { commandWordsOf } from './program.js'
 import {
   type CliDaemonError,
   type CliDaemonPaintedResult,
@@ -40,10 +41,11 @@ import {
   makeWayWord,
   stopWord,
   stoppedOutcome,
+  wordsWord,
   workingOutcome,
 } from './words.js'
 
-export { buildWord, stopWord, stoppedOutcome } from './words.js'
+export { buildWord, stopWord, stoppedOutcome, wordsWord } from './words.js'
 
 // PROCESSOR
 
@@ -106,6 +108,18 @@ export type ServeTerminalOptions<Model, Message> = Readonly<{
   idleMs?: number
   processor: TerminalProcessor<Model, Message>
 }>
+
+// WORDS
+
+const hostWords = [
+  'stop',
+  'watch',
+  'tail',
+  'tui',
+  'follow',
+  'help',
+  'completions',
+]
 
 // WAITS
 
@@ -330,6 +344,23 @@ export const serveTerminal = <Model, Message>(
           return asked(stopped())
         } else if (token === makeWayWord) {
           return asked(madeWay())
+        } else if (token === wordsWord || token.startsWith(`${wordsWord} `)) {
+          return asked(
+            Effect.sync(() => ({
+              stdout: Array.join(
+                commandWordsOf(
+                  bound,
+                  Array.filter(
+                    token.slice(wordsWord.length).split(' '),
+                    word => word !== '',
+                  ),
+                  hostWords,
+                ),
+                '\n',
+              ),
+              exitCode: 0,
+            })),
+          )
         } else {
           return asked(
             Effect.map(

@@ -17,6 +17,9 @@ export const buildWord = 'background-build'
  */
 export const makeWayWord = 'background-make-way'
 
+/** The word a shell's tab completion asks a Background Processor for what may come next with. */
+export const wordsWord = 'background-words'
+
 /** The flag a stopped Processor's answer carries. */
 export const stoppedOutcome = 'Stopped'
 
