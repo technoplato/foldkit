@@ -353,6 +353,18 @@ describe('the build pipeline on the home page', () => {
     )
   })
 
+  test('the scorecard says the time its numbers are over', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(readyModelAt('/')),
+      Scene.expect(
+        Scene.role('heading', {
+          name: 'Against the targets, over the last 24 hours',
+        }),
+      ).toExist(),
+    )
+  })
+
   test('a measure with a trend draws a small line that says its numbers', () => {
     Scene.scene(
       { update, view },
@@ -595,9 +607,10 @@ describe('Scribe on iPhone on the home page', () => {
       Scene.expect(Scene.selector('[data-metric="cpu-front"]')).toContainText(
         'over the fail line',
       ),
+      Scene.expectAll(Scene.all.selector('[data-metric]')).toHaveCount(1),
       Scene.expect(
-        Scene.selector('[data-metric="main-thread-share"]'),
-      ).toContainText('no budget set'),
+        Scene.role('columnheader', { name: 'Against the target' }),
+      ).toExist(),
       Scene.expect(
         Scene.text(
           'Build 270, the newest measured: 0 of 1 numbers with a target are within budget.',
@@ -615,8 +628,13 @@ describe('Scribe on iPhone on the home page', () => {
         '/apps/scribe/metrics/cpu-front',
       ),
       Scene.expect(
-        Scene.text('1 more was not measured on build 270'),
+        Scene.text('2 more with no target or no number on build 270'),
       ).toExist(),
+      Scene.expect(
+        Scene.role('link', { name: "Main thread's share of Scribe's CPU" }),
+      ).toHaveAttr('href', '/apps/scribe/metrics/main-thread-share'),
+      Scene.expect(Scene.text('67%')).toExist(),
+      Scene.expect(Scene.text('not measured')).toExist(),
       Scene.expect(
         Scene.role('link', { name: 'Stutters in Notes' }),
       ).toHaveAttr('href', '/apps/scribe/metrics/hitches-notes'),
@@ -779,6 +797,9 @@ describe('the pipeline page', () => {
       ),
       Scene.expect(
         Scene.role('heading', { name: 'What could not be read' }),
+      ).toExist(),
+      Scene.expect(
+        Scene.text('What the numbers above leave out, or count only in part.'),
       ).toExist(),
       Scene.expect(Scene.text('macwatch.db could not be read')).toExist(),
       Scene.expectAll(Scene.all.text('No number')).toHaveCount(10),

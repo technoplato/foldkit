@@ -14,14 +14,13 @@ test('the scorecard reads the newest build, and counts only numbers with a targe
   const scorecard = scorecardOf(sampleIndex, scribe)
   expect(scorecard.build).toBe('270')
   expect(scorecard.maybeNewerBuild).toStrictEqual(Option.none())
-  expect(scorecard.judgedCount).toBe(1)
   expect(scorecard.withinCount).toBe(0)
   expect(
-    Array.map(scorecard.measured, row => [row.metric.id, row.status]),
-  ).toStrictEqual([
-    ['cpu-front', 'OverFail'],
-    ['main-thread-share', 'NoBudget'],
-  ])
+    Array.map(scorecard.judged, row => [row.metric.id, row.status]),
+  ).toStrictEqual([['cpu-front', 'OverFail']])
+  expect(
+    Array.map(scorecard.withoutTarget, row => row.metric.id),
+  ).toStrictEqual(['main-thread-share'])
   expect(Array.map(scorecard.unmeasured, metric => metric.id)).toStrictEqual([
     'hitches-notes',
   ])
@@ -44,7 +43,7 @@ test('the worst comes first', () => {
   }
   const scorecard = scorecardOf(index, scribe)
   expect(
-    Array.map(scorecard.measured, row => [row.metric.id, row.status]),
+    Array.map(scorecard.judged, row => [row.metric.id, row.status]),
   ).toStrictEqual([
     ['main-thread-share', 'OverFail'],
     ['cpu-front', 'Within'],

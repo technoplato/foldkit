@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { Shares } from './data'
 import { samplePipeline } from './main.fixtures'
 import {
+  amountParts,
   formatAmount,
   formatHour,
   formatSpan,
@@ -29,6 +30,14 @@ describe('the words the summary shows', () => {
     expect(formatAmount(62, 0, '% of minutes')).toBe('62% of minutes')
     expect(formatAmount(35.2, 1, 'min')).toBe('35.2 min')
     expect(formatAmount(1858, 0, 'GiB')).toBe('1,858 GiB')
+  })
+
+  test('a percent is part of the number, its unit is the small print', () => {
+    expect(amountParts(62, 0, '% of minutes')).toStrictEqual([
+      '62%',
+      ' of minutes',
+    ])
+    expect(amountParts(25, 0, 'an hour')).toStrictEqual(['25', ' an hour'])
   })
 
   test('a target says its direction and is never rounded away', () => {

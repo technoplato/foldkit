@@ -9,6 +9,7 @@ import {
   diskMeasure,
   homeMeasures,
   homeProblems,
+  homeWindow,
   issueUrl,
   lastDay,
   outOfDateMinutes,
@@ -55,6 +56,18 @@ describe('the home page shows the top of each list, in the file’s order', () =
     expect(
       Array.map(homeProblems(pipeline), problem => problem.text),
     ).toStrictEqual(['first', 'second', 'third'])
+  })
+
+  test('the window its six measures share, so no number is bare', () => {
+    expect(homeWindow(samplePipeline)).toStrictEqual(
+      Option.some('last 24 hours'),
+    )
+    const mixed = pipelineWith({
+      measures: Array.map(encodedPipeline.measures, measure =>
+        measure.id === 'p0-wait' ? { ...measure, window: 'now' } : measure,
+      ),
+    })
+    expect(homeWindow(mixed)).toStrictEqual(Option.none())
   })
 
   test('disk against its limit is the disk-free measure, wherever it sits', () => {
