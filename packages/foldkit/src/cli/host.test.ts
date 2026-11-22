@@ -309,6 +309,20 @@ describe('an always-on host, through terminal()', () => {
   )
 
   it(
+    'runs its Program as the Server, the one place server-only work runs, where another host runs it as a terminal',
+    () => {
+      const folder = mkdtempSync(join(tmpdir(), 'foldkit-host-test-'))
+      const serverPath = join(folder, 'always-on')
+      const terminalPath = join(folder, 'until-idle')
+      run(hostOf({ ...alwaysOn, FOLDKIT_FIXTURE_HOST_PATH: serverPath }))
+      run(hostOf({ FOLDKIT_FIXTURE_HOST_PATH: terminalPath }))
+      expect(readFileSync(serverPath, 'utf8')).toBe('Server')
+      expect(readFileSync(terminalPath, 'utf8')).toBe('Cli')
+    },
+    testTimeoutMs,
+  )
+
+  it(
     'says with `background` whether its Processor is running, without starting it',
     async () => {
       const busyPath = join(

@@ -31,6 +31,8 @@ const isBusy = (): boolean =>
 
 const launcher = process.env['FOLDKIT_FIXTURE_LAUNCHER']
 
+const hostPath = process.env['FOLDKIT_FIXTURE_HOST_PATH']
+
 const loginItemsHome = process.env['FOLDKIT_FIXTURE_LOGIN_ITEMS']
 
 const startedByLaunchd = new Set(['bootstrap', 'kickstart'])
@@ -82,7 +84,12 @@ await terminal(
       const { App, handleOf } = await import('./navigableCounter.js')
       return {
         program: App,
-        start: () => handleOf(App),
+        start: host => {
+          if (hostPath !== undefined) {
+            writeFileSync(hostPath, host._tag)
+          }
+          return handleOf(App)
+        },
         keepsAlive: () => (isBusy() ? ['a job is running'] : []),
         ...(savedPath === undefined
           ? {}
