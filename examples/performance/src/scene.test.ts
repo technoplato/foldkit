@@ -365,6 +365,19 @@ describe('the build pipeline on the home page', () => {
     )
   })
 
+  test('a number over only part of that time says so beside it', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(readyModelAt('/')),
+      Scene.expect(
+        Scene.selector('[data-measure="builds-per-hour"]'),
+      ).toContainText('hours with a line'),
+      Scene.expect(
+        Scene.selector('[data-measure="p0-wait"]'),
+      ).not.toContainText('last 24 hours'),
+    )
+  })
+
   test('a measure with a trend draws a small line that says its numbers', () => {
     Scene.scene(
       { update, view },

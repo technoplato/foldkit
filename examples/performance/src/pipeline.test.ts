@@ -15,6 +15,7 @@ import {
   outOfDateMinutes,
   trendPoints,
   trendRange,
+  windowCaveat,
 } from './pipeline'
 
 const pipelineWith = (changes: Readonly<Record<string, unknown>>): Pipeline =>
@@ -68,6 +69,29 @@ describe('the home page shows the top of each list, in the file’s order', () =
       ),
     })
     expect(homeWindow(mixed)).toStrictEqual(Option.none())
+  })
+
+  test('a window partly measured keeps the window, and says how much', () => {
+    const partly = 'last 24 hours (120 of 1,440 minutes measured)'
+    const pipeline = pipelineWith({
+      shares: { ...encodedPipeline.shares, window: partly },
+    })
+    expect(homeWindow(pipeline)).toStrictEqual(Option.some('last 24 hours'))
+    const [builds, wait] = samplePipeline.measures
+    if (builds === undefined || wait === undefined) {
+      throw new Error('the example has no measures')
+    }
+    const window = Option.some('last 24 hours')
+    expect(windowCaveat(builds, window)).toStrictEqual(
+      Option.some('hours with a line'),
+    )
+    expect(windowCaveat(wait, window)).toStrictEqual(Option.none())
+    expect(windowCaveat({ ...wait, window: partly }, window)).toStrictEqual(
+      Option.some('120 of 1,440 minutes measured'),
+    )
+    expect(windowCaveat(wait, Option.none())).toStrictEqual(
+      Option.some('last 24 hours'),
+    )
   })
 
   test('disk against its limit is the disk-free measure, wherever it sits', () => {

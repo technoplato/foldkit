@@ -1,7 +1,7 @@
 import { Option, Schema as S } from 'effect'
 import { describe, expect, test } from 'vitest'
 
-import { Shares } from './data'
+import { type MachineState, Shares } from './data'
 import { samplePipeline } from './main.fixtures'
 import {
   amountParts,
@@ -12,6 +12,7 @@ import {
   headlineAfterState,
   plainMetricLabel,
   sharesSentence,
+  waitingWords,
 } from './view/format'
 
 describe('the words the summary shows', () => {
@@ -60,6 +61,44 @@ describe('the words the summary shows', () => {
     expect(headlineAfterState('Blocked', 'No build has started.')).toBe(
       'No build has started.',
     )
+  })
+
+  test.each<readonly [MachineState, string, string]>([
+    [
+      'OverUsed',
+      'Over-used: the Mac is short of memory.',
+      'The Mac is short of memory.',
+    ],
+    [
+      'Idle',
+      'Idle: no build is running or waiting.',
+      'No build is running or waiting.',
+    ],
+    [
+      'Unknown',
+      "Not known: this minute's readings are missing.",
+      "This minute's readings are missing.",
+    ],
+    [
+      'OverUsed',
+      'Memory: the Mac is out of it.',
+      'Memory: the Mac is out of it.',
+    ],
+  ])(
+    '%s also drops the name the exporter calls it: %s',
+    (state, headline, words) => {
+      expect(headlineAfterState(state, headline)).toBe(words)
+    },
+  )
+
+  test('a class of waiting build reads in words', () => {
+    expect(
+      waitingWords(8, [
+        { class: 'release', count: 1 },
+        { class: 'main', count: 3 },
+        { class: 'P0', count: 4 },
+      ]),
+    ).toBe('8 (1 release, 3 landing checks, 4 P0)')
   })
 
   test('a metric drops the technical name in parentheses', () => {
