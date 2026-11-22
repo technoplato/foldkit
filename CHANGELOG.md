@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 22nd, 2026 at 6:19:17 p.m. EST — `b6f367cb2bd8` feat(foldkit): a working Background Processor is not replaced, an always-on host starts at login, and work can run on the Server only (Scribe #2794)
+
+- **Implementation commit:** `b6f367cb2bd8eb3121f01fed4e3f2ef5ef1c466d`
+- **Change:** What you may notice in a terminal host: a background process that is working is no longer replaced by a rebuilt command (stop still ends it), and one that does not answer within five seconds is left alone instead of killed
+- **Details:**
+  - Landed as one change on main; its parts are the four entries below this one, whose commits are on the fork's branch publisher-core-2794.
+  - A host says it is working in keepsAlive(model); the command that finds it working prints which work keeps it and is answered by the running build.
+  - New to declare: lifetime: 'AlwaysOn' in terminal() (background install starts it at login and again when it dies; background is status), and runsOn: Processor.RunsOn.serverOnly on a Subscription or ManagedResource entry (runs only on the Server Host, which an always-on host is).
+  - A test pins that a Command's result Message never reaches the shared log, and the composition skill names the pattern that follows.
+- **Files:**
+  - `packages/foldkit/src/cli/host.ts` — make way for another build, lifetime, the background words
+  - `packages/foldkit/src/cli/serve.ts` — stays while working, always-on, status, Server for an always-on host
+  - `packages/foldkit/src/cli/loginItem.ts` — the launchd agent and the port that installs it
+  - `packages/foldkit/src/cli/liveness.ts` — isWorking, Lifetime, statusLinesOf
+  - `packages/foldkit/src/processor/runsOn.ts` — RunsOn and runsHere
+  - `packages/foldkit/src/program/liftEffects.ts` — effectsOn, the gate
+  - `skills/foldkit-composition/SKILL.md` — the pattern for an effect another device asks for
+- **User context (verbatim):**
+  > Recording 483, 2026-11-22 16:59 (https://og.pisspoursoftware.xyz/recording/b584790b-1581-46b3-aa87-b7caedf373e4/section/a78a877f-cc2b-4e8f-be40-14dd706f23a2?t=18734.55): Subscribe publisher one home built with Foldkit so the CLI website come from one program built for anyone, not just
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent foldkit-core, session 740fd2c4-6943-4150-b89c-eae655775ffe, T3 Code child session; no SpecStory capture for sub-agent sessions
+
 ## November 22nd, 2026 at 6:08:34 p.m. EST — `36167857db30` feat(foldkit): green: a Server Host, and work that runs on the Server only (Scribe #2794)
 
 - **Implementation commit:** `36167857db302d7e2a24a91caf31f069b1abce05`
