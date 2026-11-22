@@ -30,8 +30,7 @@ export default defineConfig({
     },
   },
   ssr: {
-    noExternal: [/^foldkit/u, /^@foldkit/u],
-    external: ['effect', '@instantdb/core'],
+    noExternal: true,
   },
   build: {
     ssr: true,
