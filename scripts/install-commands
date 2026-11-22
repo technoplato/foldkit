@@ -1,0 +1,19 @@
+#!/bin/sh
+# Puts every Foldkit terminal command on your PATH, from this checkout:
+# `books`, `counter`, `counters`, `playground` and `studio`, as launchers
+# in ~/.local/bin. It builds each first. Run it again after you update
+# this checkout, and the commands run the new code:
+#
+#   git pull && scripts/install-commands
+#
+# A Background Processor already running an older build is replaced by
+# the next command you run, so nothing has to be stopped by hand.
+set -eu
+
+repo="$(cd "$(dirname "$0")/.." && pwd -P)"
+
+"$repo/examples/counter/scripts/install-commands"
+"$repo/examples/playground/scripts/install-commands"
+"$repo/examples/books/scripts/install-books-command"
+
+echo "Installed from $repo: books, counter, counters, playground, studio"

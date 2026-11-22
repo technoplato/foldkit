@@ -202,6 +202,19 @@ when its URL answers 200. The check compares the served page and script with the
 demo's build and loads the page in a headless browser
 (`examples/index/README.md`).
 
+## Terminal commands on the PATH
+
+`scripts/install-commands` at the repo root builds every terminal host and
+puts `books`, `counter`, `counters`, `playground` and `studio` in
+`~/.local/bin`, each a launcher that runs from the checkout it was
+installed from. To update them after a change lands, update that checkout
+and run it again: `git pull && scripts/install-commands`. A Background
+Processor still running the older build is replaced by the next command.
+
+A new terminal host adds its launcher and an `install-commands` beside
+`examples/counter/scripts/install-commands`, and one line to
+`scripts/install-commands`.
+
 ## Composition rubric
 
 Every example is scored 1, 2, or 3 by the rubric in
