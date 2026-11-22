@@ -15,6 +15,7 @@ import {
   runCliTuiView,
   runCliView,
   spawnCliViewDaemon,
+  terminalLogPath,
   writeCliFollow,
   writeCliViewResult,
 } from 'foldkit/cli/view'
@@ -37,7 +38,13 @@ const startingSentence = 'Starting the Books player…'
 
 const noPlayerSentence = `Nothing is playing in this terminal’s player. \`${commandLine(['Help'])}\` says how to start one.`
 
-const spawnPlayer = () => spawnCliViewDaemon({ scriptPath: daemonScriptPath })
+// NOTE: What the player prints, and why it died when it did, is added to
+// `~/Library/Logs/foldkit/books-background-processor.log`.
+const spawnPlayer = () =>
+  spawnCliViewDaemon({
+    scriptPath: daemonScriptPath,
+    logPath: terminalLogPath(booksCommandName),
+  })
 
 /**
  * What a command says when the player it meets was started before

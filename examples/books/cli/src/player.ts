@@ -1309,8 +1309,6 @@ export const refusingSurface = (
 
 // DONE
 
-const idleCheckEvery = Duration.seconds(30)
-
 /**
  * Completes when the title in the player plays to its end, once its finish
  * is saved, so the player can exit.
@@ -1345,16 +1343,17 @@ export const whenTitleFinished = (bound: BoundBooks, writes: LibraryWrites) =>
   })
 
 /**
- * Completes once nothing has been in the player for `idleMs`, so a player
- * started only to print the brief does not stay forever.
+ * Why the player must stay up, in words: the title in it, or nothing.
+ * Foldkit's terminal host stops a player that has had none for its grace,
+ * so one started only to print the brief does not stay forever.
+ *
+ * @example
+ * ```typescript
+ * titleInPlayerOf(bound) // ['The Lantern Keeper is in the player']
+ * ```
  */
-export const whenIdleFor = (bound: BoundBooks, idleMs: number) =>
-  Effect.gen(function* () {
-    const state = { idleSinceMs: Date.now() }
-    while (Date.now() - state.idleSinceMs < idleMs) {
-      yield* Effect.sleep(idleCheckEvery)
-      if (Option.isSome(loadedNowOf(bound))) {
-        state.idleSinceMs = Date.now()
-      }
-    }
+export const titleInPlayerOf = (bound: BoundBooks): ReadonlyArray<string> =>
+  Option.match(loadedNowOf(bound), {
+    onNone: () => [],
+    onSome: ({ title }) => [`${title.name} is in the player`],
   })

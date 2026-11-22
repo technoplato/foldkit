@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const digestOf = (programId: string, isolationKey: string): string =>
@@ -144,3 +144,24 @@ export const removeOwnCliDaemonFiles = (
     removeCliDaemonFiles(socketPath)
   }
 }
+
+const logDirectory = (): string =>
+  process.platform === 'darwin'
+    ? join(homedir(), 'Library', 'Logs', 'foldkit')
+    : join(
+        process.env['XDG_STATE_HOME'] ?? join(homedir(), '.local', 'state'),
+        'foldkit',
+      )
+
+/**
+ * Where a host's Background Processor writes what it prints and why it
+ * died, `~/Library/Logs/foldkit/counter-background-processor.log` on a
+ * Mac.
+ *
+ * @example
+ * ```typescript
+ * terminalLogPath('counter')
+ * ```
+ */
+export const terminalLogPath = (name: string): string =>
+  join(logDirectory(), `${name}-background-processor.log`)

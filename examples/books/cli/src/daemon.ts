@@ -31,9 +31,11 @@ import {
 import { Duration, Effect, Option } from 'effect'
 import { Interaction, Processor, Runtime, Telemetry } from 'foldkit'
 import {
+  DEFAULT_IDLE_GRACE_MS,
   followProgramTail,
   listenBackgroundProcessor,
   terminalSystemAppearance,
+  untilIdle,
 } from 'foldkit/cli'
 import { fileSink } from 'foldkit/telemetry/node'
 import { tmpdir } from 'node:os'
@@ -45,8 +47,8 @@ import { NodeRuntime } from '@effect/platform-node'
 import {
   makeBooksPlayer,
   refusingSurface,
+  titleInPlayerOf,
   trackLibraryWrites,
-  whenIdleFor,
   whenTitleFinished,
 } from './player.js'
 import {
@@ -62,8 +64,6 @@ import {
 import { signInFromEnv } from './signIn.js'
 
 const readyTimeoutMs = 20_000
-
-const idleMs = Duration.toMillis(Duration.minutes(10))
 
 const refusalLingers = Duration.seconds(15)
 
@@ -179,7 +179,17 @@ const serve = Effect.gen(function* () {
     until: Effect.raceAll([
       player.stopped,
       whenTitleFinished(bound, writes),
-      whenIdleFor(bound, idleMs),
+      // NOTE: The rule for how long a player waits with nothing in it
+      // is Foldkit's, the same every Program's terminal has. A player
+      // keeps none of the views that follow it in mind, as before.
+      untilIdle({
+        idleMs: DEFAULT_IDLE_GRACE_MS,
+        heard: () => ({
+          reasons: titleInPlayerOf(bound),
+          followers: 0,
+          askedAtMs: 0,
+        }),
+      }),
     ]),
   })
 })

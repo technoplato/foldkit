@@ -14,7 +14,7 @@
         "timers": 2,
         "heldState": 0,
         "listeners": 0,
-        "numbers": 4
+        "numbers": 3
       },
       "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
     },
@@ -65,10 +65,10 @@
     },
     "examples/books/cli/src/player.ts": {
       "counts": {
-        "timers": 7,
-        "heldState": 6,
+        "timers": 3,
+        "heldState": 5,
         "listeners": 0,
-        "numbers": 7
+        "numbers": 6
       },
       "note": "Scribe #2591 (branch books-tui-2591) is changing the terminal painter and is expected to raise these counts: its flicker fix adds a frame diff. These are the counts before it. When that branch rebases onto this file it raises the counts here and adds its own rises line saying why; editing this file alone satisfies the gate."
     },

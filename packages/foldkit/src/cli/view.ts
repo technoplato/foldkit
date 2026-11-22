@@ -1,8 +1,9 @@
 /// <reference types="node" />
 import { type ChildProcess, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { closeSync, mkdirSync, openSync, readFileSync } from 'node:fs'
 import { type Socket, connect } from 'node:net'
+import { dirname } from 'node:path'
 import { createInterface, emitKeypressEvents } from 'node:readline'
 
 import type { Host } from '../processor/host.js'
@@ -21,6 +22,7 @@ export {
   cliDaemonSocketPath,
   cliDaemonSocketPath as backgroundProcessorSocketPath,
   removeCliDaemonFiles,
+  terminalLogPath,
 } from './paths.js'
 export {
   type ArgvOptions,
@@ -201,20 +203,51 @@ export const isCliViewListening = async (
   }
 }
 
-/** Starts a detached daemon with this process's runtime (Bun or Node). */
+/**
+ * Starts a detached daemon with this process's runtime (Bun or Node).
+ * With `logPath`, what it prints and why it died are added to that file,
+ * such as `terminalLogPath('books')`; without, they are dropped. With
+ * `execArgv`, the runtime is started with those flags first, such as the
+ * loader this command itself was started with.
+ *
+ * @example
+ * ```typescript
+ * spawnCliViewDaemon({ scriptPath, logPath: terminalLogPath('books') })
+ * ```
+ */
 export const spawnCliViewDaemon = (options: {
   readonly scriptPath: string
   readonly argv?: ReadonlyArray<string>
   readonly env?: Readonly<Record<string, string | undefined>>
+  readonly logPath?: string
+  readonly execArgv?: ReadonlyArray<string>
 }): ChildProcess => {
-  const argv = options.argv ?? []
-  const child = spawn(process.execPath, [options.scriptPath, ...argv], {
-    detached: true,
-    env: options.env ?? process.env,
-    stdio: 'ignore',
-  })
-  child.unref()
-  return child
+  const argv = [
+    ...(options.execArgv ?? []),
+    options.scriptPath,
+    ...(options.argv ?? []),
+  ]
+  const env = options.env ?? process.env
+  if (options.logPath === undefined) {
+    const child = spawn(process.execPath, argv, {
+      detached: true,
+      env,
+      stdio: 'ignore',
+    })
+    child.unref()
+    return child
+  } else {
+    mkdirSync(dirname(options.logPath), { recursive: true })
+    const log = openSync(options.logPath, 'a')
+    const child = spawn(process.execPath, argv, {
+      detached: true,
+      env,
+      stdio: ['ignore', log, log],
+    })
+    child.unref()
+    closeSync(log)
+    return child
+  }
 }
 
 /**

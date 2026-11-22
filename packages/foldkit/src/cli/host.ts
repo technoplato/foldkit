@@ -6,21 +6,17 @@
  * starts fast. The Program is imported only in the Background Processor,
  * the one long-lived process `terminal` starts on the first command.
  */
-import { type ChildProcess, spawn } from 'node:child_process'
-import {
-  closeSync,
-  mkdirSync,
-  openSync,
-  readdirSync,
-  realpathSync,
-  statSync,
-} from 'node:fs'
-import { homedir } from 'node:os'
+import type { ChildProcess } from 'node:child_process'
+import { readdirSync, realpathSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { followArgvOf, parseProgramArgv } from './argv.js'
-import { cliDaemonPidOf, cliDaemonSocketPath } from './paths.js'
+import {
+  cliDaemonPidOf,
+  cliDaemonSocketPath,
+  terminalLogPath,
+} from './paths.js'
 import type { TerminalProcessor } from './serve.js'
 import {
   type CliViewPainted,
@@ -30,11 +26,13 @@ import {
   isCliViewListening,
   runCliTuiView,
   runCliView,
+  spawnCliViewDaemon,
   writeCliFollow,
   writeCliViewResult,
 } from './view.js'
 
 export type { TerminalProcessor, TerminalProgram } from './serve.js'
+export { terminalLogPath } from './paths.js'
 
 // OPTIONS
 
@@ -162,24 +160,6 @@ export const handoverOf = (
       : 'Keep'
   }
 }
-
-// LOG
-
-const logDirectory = (): string =>
-  process.platform === 'darwin'
-    ? join(homedir(), 'Library', 'Logs', 'foldkit')
-    : join(
-        process.env['XDG_STATE_HOME'] ?? join(homedir(), '.local', 'state'),
-        'foldkit',
-      )
-
-/**
- * Where a host's Background Processor writes what it prints and why it
- * died, `~/Library/Logs/foldkit/counter-background-processor.log` on a
- * Mac.
- */
-export const terminalLogPath = (name: string): string =>
-  join(logDirectory(), `${name}-background-processor.log`)
 
 // ASK
 
@@ -385,21 +365,16 @@ export const terminal = async <Model, Message>(
     return
   }
 
-  const spawnProcessor = (): ChildProcess => {
-    const logPath = terminalLogPath(options.name)
-    mkdirSync(dirname(logPath), { recursive: true })
-    const log = openSync(logPath, 'a')
-    // NOTE: The Processor is started with what this command was started
-    // with, such as a loader for TypeScript, so it can run the same file.
-    const child = spawn(
-      runtime.execPath,
-      [...runtime.execArgv, entryPath, backgroundProcessorFlag],
-      { detached: true, env: runtime.env, stdio: ['ignore', log, log] },
-    )
-    child.unref()
-    closeSync(log)
-    return child
-  }
+  // NOTE: The Processor is started with what this command was started
+  // with, such as a loader for TypeScript, so it can run the same file.
+  const spawnProcessor = (): ChildProcess =>
+    spawnCliViewDaemon({
+      scriptPath: entryPath,
+      argv: [backgroundProcessorFlag],
+      env: runtime.env,
+      execArgv: runtime.execArgv,
+      logPath: terminalLogPath(options.name),
+    })
 
   const answer = (painted: CliViewPainted): void => {
     writeCliViewResult(painted, runtime)
