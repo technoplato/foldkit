@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## November 22nd, 2026 at 1:43:22 p.m. EST — `2d48356c8641` feat(performance): green: Scribe #2737's page reads real output true
+
+- **Implementation commit:** `2d48356c86414029db6af761f902bcd723b0996f`
+- **Change:** The page reads the exporter's real output true: presence, the sparkline's time, and a verdict of now
+- **Details:**
+  - Layer: the Performance example's domain and client code.
+  - Found by drawing the exporter's committed output from a scratch run on the M5, never by writing into its data folder.
+- **Files:**
+  - `examples/performance/src/pipeline.ts` — a sparkline's newest 24 hours
+  - `examples/performance/src/view/format.ts` — presence as the file measures it
+  - `examples/performance/src/view/pipeline.ts` — Right now over the verdict
+- **User context (verbatim):**
+  > ensuring those measurements are reported in an executive summary status on the homepage of the performance.pispor
+  > Those those charts that are up there right now are very hard to understand.
+- **SpecStory:** unavailable — unavailable: Claude Code sub-agent pipeline-page, session 4ef0ced1-be61-4b71-8eb4-44e367e0a1d4, T3 Code child of thread 9bf689ea; no SpecStory capture for sub-agent sessions
+
 ## November 22nd, 2026 at 1:33:16 p.m. EST — `7e3461425d68` feat(performance): green: Scribe #2737's words meet the exporter's
 
 - **Implementation commit:** `7e3461425d685d1a319e2b50b52bad3fd3ebad4a`
