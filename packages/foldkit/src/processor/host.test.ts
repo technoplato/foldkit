@@ -1,4 +1,4 @@
-import { Array } from 'effect'
+import { Array, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import * as Host from './host.js'
@@ -14,6 +14,7 @@ const printedId: { readonly [K in Host.Host['_tag']]: string } = {
   Svelte: 'svelte',
   ExpoIos: 'expo-ios',
   ExpoAndroid: 'expo-android',
+  Server: 'server',
 }
 
 describe('Processor.Host', () => {
@@ -38,6 +39,7 @@ describe('Processor.Host', () => {
     expect(Host.print(Host.Svelte())).toBe(printedId.Svelte)
     expect(Host.print(Host.ExpoIos())).toBe(printedId.ExpoIos)
     expect(Host.print(Host.ExpoAndroid())).toBe(printedId.ExpoAndroid)
+    expect(Host.print(Host.Server())).toBe(printedId.Server)
   })
 })
 
@@ -55,5 +57,15 @@ describe('fromLabelOf', () => {
 
   it('keeps a from no Host prints as the app', () => {
     expect(Host.fromLabelOf('older')).toEqual({ app: 'older', instance: '' })
+  })
+})
+
+describe('the Server Host', () => {
+  it('is read back from a from, and labeled', () => {
+    expect(Host.hostOfFrom('server-4f2a9c1e')).toEqual(
+      Option.some(Host.Server()),
+    )
+    expect(Host.labelOf(Host.Server())).toBe('Server')
+    expect(Host.everyHost).toContainEqual(Host.Server())
   })
 })
