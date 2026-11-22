@@ -217,7 +217,7 @@ const tellToEnd = (socketPath: string): void => {
  * @example
  * ```typescript
  * const said = await stopBackgroundProcessorGently(socketPath)
- * // 'Paused at 12:03 and saved.' from a player, or "Stopped counter's Background Processor."
+ * // 'Paused at 12:03 and saved.' from a player, or 'Stopped the counter Background Processor.'
  * ```
  */
 export const stopBackgroundProcessorGently = async (
@@ -278,9 +278,9 @@ const replacedWhenOtherBuild = async (
 
 const stoppedSentence = (name: string, said: string | undefined): string => {
   if (said === undefined) {
-    return `${name}'s Background Processor is not running.`
+    return `The ${name} Background Processor is not running.`
   } else if (said === '') {
-    return `Stopped ${name}'s Background Processor.`
+    return `Stopped the ${name} Background Processor.`
   } else {
     return said
   }
@@ -417,7 +417,7 @@ export const terminal = async <Model, Message>(
     if (end._tag === 'Lost') {
       answer({
         stdout: '',
-        stderr: `${options.name}'s Background Processor stopped answering: ${end.reason}`,
+        stderr: `The ${options.name} Background Processor stopped answering: ${end.reason}`,
         exitCode: 1,
       })
     }

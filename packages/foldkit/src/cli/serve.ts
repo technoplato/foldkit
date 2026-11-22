@@ -274,7 +274,9 @@ export const serveTerminal = <Model, Message>(
     const stopped = (): Effect.Effect<CliDaemonPaintedResult, CliDaemonError> =>
       Effect.map(Effect.promise(beforeStop), said => ({
         stdout:
-          said === undefined ? `Stopped ${name}'s Background Processor.` : said,
+          said === undefined
+            ? `Stopped the ${name} Background Processor.`
+            : said,
         exitCode: 0,
         flags: { outcome: stoppedOutcome, build: options.build },
       }))

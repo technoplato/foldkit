@@ -1,0 +1,16 @@
+#!/bin/sh
+# The `counter` command: `counter`, `counter increment`, `counter watch`,
+# `counter tui`, `counter stop`. It reads the shared Instant project's
+# token from ~/.config/foldkit-instant-demo/counter-v01.env and runs the
+# Counter's terminal from this checkout.
+set -eu
+
+here="$(cd "$(dirname "$0")" && pwd -P)"
+cli="$here/../cli/dist/entry.js"
+
+if [ ! -f "$cli" ]; then
+  echo "The counter command is not built yet. Run $here/install-commands" >&2
+  exit 1
+fi
+
+exec "$here/with-counter-v01-env" node "$cli" "$@"

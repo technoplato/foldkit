@@ -91,7 +91,7 @@ describe('counter CLI on a file tape', () => {
     const counter = counterOnNewTape()
     expect(counter('increment').status).toBe(0)
     expect(counter('stop').stdout).toContain(
-      "Stopped counter's Background Processor.",
+      'Stopped the counter Background Processor.',
     )
     expect(counter('stop').stdout).toContain('is not running')
     expect(counter('show').stdout.split('\n')).toContain('1')
