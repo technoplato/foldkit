@@ -21,6 +21,7 @@ import {
   homeWindow,
   issueUrl,
   lastDay,
+  lastDayTrend,
   outOfDateMinutes,
   windowCaveat,
 } from '../pipeline'
@@ -166,6 +167,7 @@ const verdictView = (pipeline: Pipeline): Html => {
   return h.div(
     [],
     [
+      h.p([h.Class('text-sm ink-muted')], ['Right now']),
       h.p(
         [
           h.DataAttribute('verdict', state),
@@ -302,7 +304,10 @@ const scorecardRow = (
           ),
         ],
       ),
-      h.span([h.Class('measure-trend')], Option.toArray(sparkline(measure))),
+      h.span(
+        [h.Class('measure-trend')],
+        Option.toArray(sparkline(lastDayTrend(measure))),
+      ),
     ],
   )
 }
@@ -561,7 +566,7 @@ const fact = (label: string, value: Html | string): Html => {
   )
 }
 
-const rightNow = (pipeline: Pipeline): Html => {
+const thisMinute = (pipeline: Pipeline): Html => {
   const h = html<Message>()
   const { now } = pipeline
   const say = (
@@ -935,7 +940,7 @@ const pageBody = (written: Written): Html => {
       verdictView(pipeline),
       ...problemsView(pipeline.verdict.problems, 0),
       ...presenceDetail(pipeline),
-      section('Right now', '', rightNow(pipeline)),
+      section('This minute', '', thisMinute(pipeline)),
       section('The last 24 hours', '', dayStrip(pipeline)),
       section(
         'Every measure',

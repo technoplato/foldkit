@@ -176,6 +176,20 @@ export const outOfDateMinutes = (
     Option.filter(minutes => minutes > OUT_OF_DATE_AFTER_MINUTES),
   )
 
+/**
+ * A measure with only its trend's newest 24 hours, for the small line under
+ * a heading that says the last 24 hours. The file holds up to 72.
+ *
+ * @example
+ * ```ts
+ * sparkline(lastDayTrend(measure))
+ * ```
+ */
+export const lastDayTrend = (measure: Measure): Measure => ({
+  ...measure,
+  trend: Array.takeRight(measure.trend, HOURS_IN_DAY),
+})
+
 /** A measure's trend as chart points; an hour nobody measured is a gap. */
 export const trendPoints = (measure: Measure): ReadonlyArray<ChartPoint> =>
   Array.map(measure.trend, ({ at, maybeValue }) => ({

@@ -373,15 +373,28 @@ export const headlineAfterState = (
   )
 }
 
-/** Presence as a sentence to him: `You have been away for 1 h 38 min.` */
+/**
+ * Presence as a sentence to him. The file's minutes are how long the queue
+ * has counted him so, which starts 25 minutes after his last sign when he
+ * is away, so the sentence never calls them how long he has been gone.
+ *
+ * @example
+ * ```ts
+ * presenceSentence(presence)
+ * // 'The queue has counted you as away for 1 h 38 min.'
+ * ```
+ */
 export const presenceSentence = (presence: Presence): string => {
   if (presence.state === 'Unknown') {
     return 'Whether you are here is not known.'
   }
   const where = presence.state === 'Present' ? 'here' : 'away'
   return Option.match(presence.maybeSinceMinutes, {
-    onNone: () => `You are ${where}.`,
-    onSome: minutes => `You have been ${where} for ${formatSpan(minutes)}.`,
+    onNone: () => `The queue counts you as ${where}.`,
+    onSome: minutes =>
+      Math.round(minutes) === 0
+        ? `The queue has just counted you as ${where}.`
+        : `The queue has counted you as ${where} for ${formatSpan(minutes)}.`,
   })
 }
 
