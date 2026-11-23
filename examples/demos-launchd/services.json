@@ -45,12 +45,6 @@
     "command": "${HOME}/.local/bin/foldkit-counter-demo-launchd"
   },
   {
-    "name": "counters-demo",
-    "port": 5176,
-    "command": "${HOME}/.local/bin/foldkit-counters-demo-launchd",
-    "cwd": "${HOME}/Development/foldkit"
-  },
-  {
     "name": "counters",
     "port": 5218,
     "command": "/bin/zsh",
@@ -95,8 +89,12 @@
   {
     "name": "matrix-demo",
     "port": 5190,
-    "command": "${HOME}/.local/bin/foldkit-matrix-demo-launchd",
-    "cwd": "${HOME}/Development/foldkit"
+    "command": "/bin/zsh",
+    "args": [
+      "-lic",
+      "exec pnpm --filter client-matrix-foldkit-example exec vite preview --host 127.0.0.1 --port 5190 --strictPort"
+    ],
+    "cwd": "${HOME}/Sync/worktrees/foldkit-books"
   },
   {
     "name": "orbit-demo",

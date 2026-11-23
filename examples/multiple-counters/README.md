@@ -274,6 +274,11 @@ pnpm --filter multiple-counters-opentui-example start
 
 The Session settings Sheet lists these same commands with a copy button, so you can start another app from any window.
 
+### A window of its own
+
+End a web address with `?engine=memory` and that window keeps its counters to itself: <https://counters.pisspoursoftware.xyz/counters/1?engine=memory>. It starts from Counter 1 at 0, reads nothing from the shared log and writes nothing to it, and forgets everything on reload. The [Client Matrix](../client-matrix/README.md) opens the React app this way, so its example screens always find Counter 1 whatever the live counters hold. `startCountersAt(config, window.location.search)` in `core/src/live.browser.ts` is the whole of it.
+
 ## What is not here yet
 
+- **A URI for Svelte and OpenTUI.** React and the `counters` command open at any URI, `/counters/1/delete/1`. The Svelte window and OpenTUI always start on the list.
 - **Expo and Foldkit HTML windows.** The React Native and Foldkit HTML adapters already paint any Program, the dialog included, but this example has no Expo or Foldkit HTML package yet.

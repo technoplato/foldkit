@@ -36,3 +36,21 @@ const instanceLength = 8
 /** Mints a short per-run Processor instance, such as `4f2a9c1e`. */
 export const newProcessorInstance = (): string =>
   globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, instanceLength)
+
+/** The address word that keeps a window's counters to itself, `/counters/1?engine=memory`. */
+export const memoryEngineParameter = 'engine'
+
+/** The value of {@link memoryEngineParameter} that asks for it, `memory`. */
+export const memoryEngineValue = 'memory'
+
+/**
+ * True when a browser address asks for counters kept only in that window.
+ *
+ * @example
+ * ```typescript
+ * asksForMemoryEngine('?engine=memory') // true
+ * asksForMemoryEngine('') // false
+ * ```
+ */
+export const asksForMemoryEngine = (search: string): boolean =>
+  new URLSearchParams(search).get(memoryEngineParameter) === memoryEngineValue

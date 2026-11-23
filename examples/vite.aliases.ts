@@ -129,6 +129,10 @@ export const foldkitAliases = (dirname: string) => ({
     dirname,
     '../../packages/foldkit/src/interactable/public',
   ),
+  'foldkit/interaction': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/interaction/public',
+  ),
   'foldkit/interaction-graph': path.resolve(
     dirname,
     '../../packages/foldkit/src/interactionGraph/public',
@@ -163,6 +167,10 @@ export const foldkitAliases = (dirname: string) => ({
     '../../packages/foldkit/src/program/public',
   ),
   'foldkit/render': path.resolve(dirname, '../../packages/foldkit/src/render'),
+  'foldkit/renderers/devices': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/renderers/devices/public',
+  ),
   'foldkit/renderers': path.resolve(
     dirname,
     '../../packages/foldkit/src/renderers/public',

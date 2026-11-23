@@ -2,15 +2,15 @@ import { Processor } from 'foldkit'
 import {
   bindCounters,
   newProcessorInstance,
-  startCounters,
+  startCountersAt,
 } from 'multiple-counters-core-example'
 
 import { reactive } from '@foldkit/svelte/interaction'
 
-const handle = startCounters({
-  host: Processor.Host.Svelte(),
-  instance: newProcessorInstance(),
-})
+const handle = startCountersAt(
+  { host: Processor.Host.Svelte(), instance: newProcessorInstance() },
+  window.location.search,
+)
 
 const hot = import.meta.hot
 if (hot !== undefined) {

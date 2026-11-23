@@ -1766,15 +1766,15 @@ importers:
       cardboard-core-example:
         specifier: workspace:*
         version: link:../../cardboard/core
-      counters-core-example:
-        specifier: workspace:*
-        version: link:../../counters/core
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      multiple-counters-core-example:
+        specifier: workspace:*
+        version: link:../../multiple-counters/core
       wallet-core-example:
         specifier: workspace:*
         version: link:../../wallet/core

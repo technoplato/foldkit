@@ -1,12 +1,7 @@
 import { Schema as S } from 'effect'
 
 /** One canonical Multiple Counters destination shown by the matrix. */
-export const ScreenMode = S.Literals([
-  'List',
-  'Detail',
-  'Fact',
-  'DeleteConfirmation',
-])
+export const ScreenMode = S.Literals(['List', 'Detail', 'DeleteQuestion'])
 /** One canonical Multiple Counters destination shown by the matrix. */
 export type ScreenMode = typeof ScreenMode.Type
 
@@ -18,19 +13,16 @@ export type MatrixOrientation = typeof MatrixOrientation.Type
 /** One runnable Program client compared by the matrix. */
 export const ClientId = S.Literals([
   'ReactWeb',
-  'FoldkitView',
-  'ExpoWeb',
-  'EffectTerminal',
+  'SvelteWeb',
   'OpenTui',
-  'RawCli',
-  'ExpoIos',
-  'ExpoAndroid',
+  'TerminalUi',
+  'Cli',
 ])
 /** One runnable Program client compared by the matrix. */
 export type ClientId = typeof ClientId.Type
 
 /** A browser client that can run live inside one matrix cell. */
-export const LiveClientId = S.Literals(['ReactWeb', 'FoldkitView'])
+export const LiveClientId = S.Literals(['ReactWeb'])
 /** A browser client that can run live inside one matrix cell. */
 export type LiveClientId = typeof LiveClientId.Type
 
@@ -38,38 +30,34 @@ export type LiveClientId = typeof LiveClientId.Type
 export const InteractionSurface = S.Literals([
   'Graphical',
   'TerminalUI',
-  'LineTerminal',
   'OneShotCLI',
 ])
 /** The human interaction shape exposed by one client. */
 export type InteractionSurface = typeof InteractionSurface.Type
 
 /** The presentation technology used by one client. */
-export const ClientRenderer = S.Literals([
-  'React',
-  'FoldkitView',
-  'ReactNative',
-  'OpenTuiReact',
-  'Text',
-])
+export const ClientRenderer = S.Literals(['React', 'Svelte', 'OpenTui', 'Text'])
 /** The presentation technology used by one client. */
 export type ClientRenderer = typeof ClientRenderer.Type
 
 /** The execution platform hosting one client. */
-export const ClientPlatform = S.Literals(['Web', 'Node', 'Ios', 'Android'])
+export const ClientPlatform = S.Literals(['Web', 'Node', 'Bun'])
 /** The execution platform hosting one client. */
 export type ClientPlatform = typeof ClientPlatform.Type
 
 /** The composition host or toolchain used to launch one client. */
-export const ClientHost = S.Literals(['Vite', 'Expo', 'EffectPlatform'])
+export const ClientHost = S.Literals(['Vite', 'OpenTui', 'FoldkitTerminal'])
 /** The composition host or toolchain used to launch one client. */
 export type ClientHost = typeof ClientHost.Type
 
-/** The host-owned wrapper around a portable relative URI. */
+/**
+ * How a client is handed a URI: in an address, as a command's argument, or
+ * not at all yet, when it always starts on the list.
+ */
 export const UriCarrier = S.Literals([
   'HttpsUrl',
-  'CustomSchemeUrl',
   'CommandLineArgument',
+  'NoUriYet',
 ])
 /** The host-owned wrapper around a portable relative URI. */
 export type UriCarrier = typeof UriCarrier.Type

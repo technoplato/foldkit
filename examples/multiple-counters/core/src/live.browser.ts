@@ -1,11 +1,12 @@
 import { type Processor, Runtime } from 'foldkit'
 
-import { SharedInstantProject, Instant } from '@foldkit/instant/browser'
+import { Instant, SharedInstantProject } from '@foldkit/instant/browser'
 
 import { CountersProgram } from './program.js'
 import {
   type CountersHandle,
   type StartCountersConfig,
+  asksForMemoryEngine,
 } from './startConfig.js'
 import { SyncedCounters } from './synced.js'
 
@@ -50,3 +51,27 @@ export const startCountersOn = (
     ...(localSnapshot === undefined ? {} : { localSnapshot }),
     ...(host === undefined ? {} : { host }),
   })
+
+/**
+ * Starts the Multiple Counters a browser address asks for. Any address
+ * starts them on the shared log. An address ending `?engine=memory` starts
+ * them in this window alone, from Counter 1 at 0: nothing is read from the
+ * shared log and nothing is written to it, so a page that shows one screen
+ * as an example, `/counters/1?engine=memory`, always finds Counter 1.
+ *
+ * @example
+ * ```typescript
+ * startCountersAt(config, window.location.search)
+ * ```
+ */
+export const startCountersAt = (
+  config: StartCountersConfig,
+  search: string,
+): CountersHandle =>
+  asksForMemoryEngine(search)
+    ? startCountersOn(
+        Runtime.Memory({ processor: config.host }),
+        undefined,
+        config.host,
+      )
+    : startCounters(config)

@@ -8,7 +8,7 @@ const initialModel = () =>
   Model.make({
     liveClientState: ShowingCaptures.make({}),
     orientation: 'ModesAsRows',
-    selectedMode: 'DeleteConfirmation',
+    selectedMode: 'DeleteQuestion',
   })
 
 describe('Client Matrix Foldkit view', () => {
@@ -16,10 +16,10 @@ describe('Client Matrix Foldkit view', () => {
     Scene.scene(
       { update, view },
       Scene.with(initialModel()),
-      Scene.expect(Scene.text('/counters/counter-1/delete')).toExist(),
+      Scene.expect(Scene.text('/counters/1/delete/1')).toExist(),
       Scene.click(Scene.role('button', { name: 'Clients as rows' })),
       Scene.expect(Scene.text('React')).toExist(),
-      Scene.expect(Scene.text('Expo Android')).toExist(),
+      Scene.expect(Scene.text('OpenTUI')).toExist(),
     )
   })
 
@@ -31,62 +31,55 @@ describe('Client Matrix Foldkit view', () => {
       Scene.with(initialModel()),
       Scene.click(
         Scene.role('button', {
-          name: 'Open React live client from Counter detail',
+          name: 'Open React live client from Counter page',
         }),
       ),
-      Scene.expect(
-        Scene.text('Selected matrix mode: Counter detail'),
-      ).toExist(),
+      Scene.expect(Scene.text('Selected matrix mode: Counter page')).toExist(),
       Scene.expect(liveFrame).toHaveAttr(
         'src',
-        'https://countersdemo.pisspoursoftware.xyz/counters/counter-1?presenter=a',
+        'https://counters.pisspoursoftware.xyz/counters/1?engine=memory',
       ),
       Scene.click(Scene.role('button', { name: 'Clients as rows' })),
       Scene.expect(liveFrame).toHaveAttr(
         'src',
-        'https://countersdemo.pisspoursoftware.xyz/counters/counter-1?presenter=a',
+        'https://counters.pisspoursoftware.xyz/counters/1?engine=memory',
       ),
       Scene.click(
         Scene.role('button', {
-          name: 'Return React Counter detail to capture',
+          name: 'Return React Counter page to capture',
         }),
       ),
       Scene.expect(liveFrame).not.toExist(),
       Scene.expect(
         Scene.role('button', {
-          name: 'Open React live client from Counter detail',
+          name: 'Open React live client from Counter page',
         }),
       ).toExist(),
     )
   })
 
-  test('links browser and native captures to their exact mode carriers', () => {
+  test('paints the terminal cells with the Program and names each command', () => {
     Scene.scene(
       { update, view },
       Scene.with(initialModel()),
-      Scene.expect(
-        Scene.role('link', {
-          name: 'Open Expo Web for Fact presentation',
-        }),
-      ).toHaveAttr(
-        'href',
-        'https://expodemo.pisspoursoftware.xyz/counters/counter-1/fact',
+      Scene.expect(Scene.label('CLI showing Delete question')).toContainText(
+        'at /counters/1/delete/1',
       ),
       Scene.expect(
-        Scene.role('link', {
-          name: 'Open Expo iOS for Delete confirmation',
-        }),
-      ).toHaveAttr('href', 'foldkit://showcase/counters/counter-1/delete'),
+        Scene.label('Terminal UI showing Counter list'),
+      ).toContainText('counters  /counters'),
+      Scene.expect(
+        Scene.label('OpenTUI showing Delete question'),
+      ).toContainText('Delete Counter 1?'),
       Scene.expect(
         Scene.role('link', {
-          name: 'Open Expo Android for Counter list',
+          name: 'Open the live Counters every device shares',
         }),
-      ).toHaveAttr('href', 'foldkit://showcase/counters'),
+      ).toHaveAttr('href', 'https://counters.pisspoursoftware.xyz/counters'),
+      Scene.expect(Scene.text("counters open '/counters/1'")).toExist(),
       Scene.expect(
-        Scene.role('link', {
-          name: 'Open Effect Terminal for Counter detail',
-        }),
-      ).not.toExist(),
+        Scene.text("counters open '/counters/1' && counters tui"),
+      ).toExist(),
     )
   })
 
@@ -94,13 +87,13 @@ describe('Client Matrix Foldkit view', () => {
     Scene.scene(
       { update, view },
       Scene.with(initialModel()),
-      Scene.expect(Scene.text('wallet@10')).toExist(),
+      Scene.expect(Scene.text('wallet@12')).toExist(),
       Scene.expect(
         Scene.text('/wallet/state?model=<encoded Wallet Model>'),
       ).toExist(),
       Scene.expect(
         Scene.text(
-          '/wallet/replay?tape=<encoded wallet@10 ReplayTape>&frame=<frame>',
+          '/wallet/replay?tape=<encoded wallet@12 ReplayTape>&frame=<frame>',
         ),
       ).toExist(),
       Scene.expect(

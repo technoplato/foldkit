@@ -10,11 +10,16 @@ import {
   cardboardProgramIdentity,
 } from './cardboard.js'
 import {
+  cliTextForScreenMode,
   clients,
+  destinationForScreenMode,
   navigationForScreenMode,
   portableUriForScreenMode,
+  pressesForScreenMode,
   screenModes,
   stateForScreenMode,
+  terminalUiSize,
+  terminalUiTextForScreenMode,
 } from './matrix.js'
 import { ClosedLiveClient, OpenedLiveClient } from './message.js'
 import { Model, ShowingCaptures, ShowingLiveClient } from './model.js'
@@ -67,49 +72,65 @@ describe('Client Matrix core', () => {
     )
   })
 
-  it('prints every canonical destination through the shared parser-printer', () => {
+  it('prints every mode with the Multiple Counters router', () => {
     expect(
       Array.map(screenModes, definition =>
         portableUriForScreenMode(definition.mode),
       ),
-    ).toStrictEqual([
-      '/counters',
-      '/counters/counter-1',
-      '/counters/counter-1/fact',
-      '/counters/counter-1/delete',
-    ])
+    ).toStrictEqual(['/counters', '/counters/1', '/counters/1/delete/1'])
   })
 
-  it('derives every displayed state from the same canonical navigation union', () => {
-    const factNavigation = navigationForScreenMode('Fact')
-    const factState = stateForScreenMode('Fact')
+  it('reaches every mode by pressing the Program from its own init', () => {
+    expect(pressesForScreenMode('DeleteQuestion')).toStrictEqual([
+      'Open:1',
+      'Delete',
+    ])
+    expect(stateForScreenMode('List').counters).toHaveLength(1)
+    expect(navigationForScreenMode('Detail').pages).toStrictEqual([
+      { _tag: 'CounterDetail', counterId: 1 },
+    ])
+    expect(destinationForScreenMode('DeleteQuestion')).toStrictEqual({
+      _tag: 'DeleteQuestion',
+      counterId: 1,
+    })
+    expect(clients).toHaveLength(5)
+  })
 
-    expect(factNavigation._tag).toBe('CounterDetail')
-    expect(factState.navigation).toStrictEqual(factNavigation)
-    if (factNavigation._tag === 'CounterDetail') {
-      expect(Option.isSome(factNavigation.maybeMode)).toBe(true)
-    }
-    expect(clients).toHaveLength(8)
+  it('paints the terminal cells with the painters the counters command uses', () => {
+    expect(cliTextForScreenMode('List')).toContain('at /counters')
+    expect(cliTextForScreenMode('List')).toContain(
+      'Counter 1 0 [ + ] [ - ] [ Reset ] [ Open ] [ Delete ]',
+    )
+    expect(cliTextForScreenMode('Detail')).toContain('at /counters/1')
+    expect(cliTextForScreenMode('DeleteQuestion')).toContain(
+      'Delete Counter 1?',
+    )
+    expect(terminalUiTextForScreenMode('DeleteQuestion')).toContain(
+      'Delete Counter 1?',
+    )
+    expect(terminalUiTextForScreenMode('List').split('\n')).toHaveLength(
+      terminalUiSize.rows,
+    )
   })
 
   it('separates client surface, renderer, platform, host, and carrier', () => {
     expect(clients).toStrictEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          clientId: 'ExpoIos',
+          clientId: 'ReactWeb',
           surface: 'Graphical',
-          renderer: 'ReactNative',
-          platform: 'Ios',
-          host: 'Expo',
-          carrier: 'CustomSchemeUrl',
+          renderer: 'React',
+          platform: 'Web',
+          host: 'Vite',
+          carrier: 'HttpsUrl',
         }),
         expect.objectContaining({
           clientId: 'OpenTui',
           surface: 'TerminalUI',
-          renderer: 'OpenTuiReact',
-          platform: 'Node',
-          host: 'EffectPlatform',
-          carrier: 'CommandLineArgument',
+          renderer: 'OpenTui',
+          platform: 'Bun',
+          host: 'OpenTui',
+          carrier: 'NoUriYet',
         }),
       ]),
     )
@@ -119,7 +140,7 @@ describe('Client Matrix core', () => {
     const initialModel = Model.make({
       liveClientState: ShowingCaptures.make({}),
       orientation: 'ModesAsRows',
-      selectedMode: 'DeleteConfirmation',
+      selectedMode: 'DeleteQuestion',
     })
     const [openedModel] = update(
       initialModel,
@@ -151,7 +172,7 @@ describe('Client Matrix core', () => {
   it('covers both Wallet route modes across every required client', () => {
     expect(walletProgramIdentity).toStrictEqual({
       id: 'wallet',
-      version: 10,
+      version: 12,
       source: 'examples/wallet/core/src/program.ts',
     })
     expect(Array.map(walletRoutes, route => route.mode)).toStrictEqual([
@@ -206,7 +227,7 @@ describe('Client Matrix core', () => {
       expect(replayTape).toMatchObject({
         formatVersion: 1,
         programId: 'wallet',
-        programVersion: 10,
+        programVersion: 12,
       })
       expect(replayTape.transitions).toHaveLength(1)
       const maybeTransition = Array.head(replayTape.transitions)

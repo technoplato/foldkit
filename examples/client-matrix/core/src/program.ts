@@ -12,7 +12,7 @@ export const init = (): readonly [
   Model.make({
     liveClientState: ShowingCaptures.make({}),
     orientation: 'ModesAsRows',
-    selectedMode: 'DeleteConfirmation',
+    selectedMode: 'DeleteQuestion',
   }),
   [],
 ]

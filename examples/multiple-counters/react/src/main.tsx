@@ -2,7 +2,7 @@ import { Processor } from 'foldkit'
 import {
   bindCounters,
   newProcessorInstance,
-  startCounters,
+  startCountersAt,
 } from 'multiple-counters-core-example'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -11,10 +11,10 @@ import { ProgramProvider } from '@foldkit/react/interaction'
 
 import { App } from './App.js'
 
-const handle = startCounters({
-  host: Processor.Host.React(),
-  instance: newProcessorInstance(),
-})
+const handle = startCountersAt(
+  { host: Processor.Host.React(), instance: newProcessorInstance() },
+  window.location.search,
+)
 
 const hot = import.meta.hot
 if (hot !== undefined) {

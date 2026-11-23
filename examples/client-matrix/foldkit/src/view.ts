@@ -29,6 +29,7 @@ import {
   cardboardClients,
   cardboardModes,
   cardboardProgramIdentity,
+  cliTextForScreenMode,
   clients,
   definitionForScreenMode,
   destinationForScreenMode,
@@ -36,6 +37,7 @@ import {
   portableUriForScreenMode,
   screenModes,
   stateForScreenMode,
+  terminalUiTextForScreenMode,
   walletClients,
   walletIntentCarriers,
   walletIntentDefinitions,
@@ -45,7 +47,12 @@ import {
 import { Array, Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 
-import { capturePath, carrierForClient } from './carrier.js'
+import {
+  capturePath,
+  carrierForClient,
+  countersOrigin,
+  openTuiCapture,
+} from './carrier.js'
 
 const orientationLabel = (orientation: MatrixOrientation): string =>
   M.value(orientation).pipe(
@@ -162,13 +169,12 @@ const carrierView = (clientId: ClientId, carrier: string): Html => {
     ],
     [carrier],
   )
-  const linkedCarrier = (isNewContext: boolean): Html =>
+  const linkedCarrier = (): Html =>
     h.a(
       [
         h.Href(carrier),
-        ...(isNewContext
-          ? [h.Target('_blank'), h.Rel('noopener noreferrer')]
-          : []),
+        h.Target('_blank'),
+        h.Rel('noopener noreferrer'),
         h.Class(
           'block rounded-lg border border-stone-800 bg-stone-950 p-2 hover:border-amber-400/60',
         ),
@@ -183,9 +189,8 @@ const carrierView = (clientId: ClientId, carrier: string): Html => {
 
   return M.value(clientId).pipe(
     M.withReturnType<Html>(),
-    M.whenOr('ReactWeb', 'FoldkitView', 'ExpoWeb', () => linkedCarrier(true)),
-    M.whenOr('ExpoIos', 'ExpoAndroid', () => linkedCarrier(false)),
-    M.whenOr('EffectTerminal', 'OpenTui', 'RawCli', evidenceCarrier),
+    M.when('ReactWeb', linkedCarrier),
+    M.whenOr('SvelteWeb', 'OpenTui', 'TerminalUi', 'Cli', evidenceCarrier),
     M.exhaustive,
   )
 }
@@ -236,84 +241,40 @@ const liveCaptureButton = (
   )
 }
 
-const browserCaptureLink = (
-  definition: ScreenModeDefinition,
-  client: ClientDefinition,
-  carrier: string,
-): Html => {
+const paintedText = (label: string, text: string): Html => {
   const h = html<Message>()
-  return h.a(
+  return h.pre(
     [
-      h.Href(carrier),
-      h.Target('_blank'),
-      h.Rel('noopener noreferrer'),
-      h.AriaLabel(`Open ${client.title} for ${definition.title}`),
+      h.AriaLabel(label),
       h.Class(
-        'group block rounded-xl outline-none ring-amber-300 focus-visible:ring-2',
+        'aspect-[8/5] w-full overflow-auto rounded-xl border border-stone-800 bg-black p-3 font-mono text-[0.62rem] leading-[1.2] text-stone-200 shadow-lg shadow-black/20',
       ),
     ],
-    [
-      captureImage(definition, client),
-      h.span(
-        [
-          h.Class(
-            'mt-2 block text-xs font-semibold text-amber-300 group-hover:text-amber-200',
-          ),
-        ],
-        ['Open browser client'],
-      ),
-    ],
-  )
-}
-
-const nativeCaptureLink = (
-  definition: ScreenModeDefinition,
-  client: ClientDefinition,
-  carrier: string,
-): Html => {
-  const h = html<Message>()
-  return h.a(
-    [
-      h.Href(carrier),
-      h.AriaLabel(`Open ${client.title} for ${definition.title}`),
-      h.Class(
-        'group block rounded-xl outline-none ring-amber-300 focus-visible:ring-2',
-      ),
-    ],
-    [
-      captureImage(definition, client),
-      h.span(
-        [
-          h.Class(
-            'mt-2 block text-xs font-semibold text-amber-300 group-hover:text-amber-200',
-          ),
-        ],
-        ['Open native deep link'],
-      ),
-    ],
+    [text],
   )
 }
 
 const captureView = (
   definition: ScreenModeDefinition,
   client: ClientDefinition,
-  carrier: string,
-): Html =>
-  M.value(client.clientId).pipe(
+): Html => {
+  const label = `${client.title} showing ${definition.title}`
+  return M.value(client.clientId).pipe(
     M.withReturnType<Html>(),
     M.when('ReactWeb', () => liveCaptureButton(definition, client, 'ReactWeb')),
-    M.when('FoldkitView', () =>
-      liveCaptureButton(definition, client, 'FoldkitView'),
+    M.when('SvelteWeb', () => captureImage(definition, client)),
+    M.when('OpenTui', () =>
+      paintedText(label, openTuiCapture(definition.mode)),
     ),
-    M.when('ExpoWeb', () => browserCaptureLink(definition, client, carrier)),
-    M.whenOr('ExpoIos', 'ExpoAndroid', () =>
-      nativeCaptureLink(definition, client, carrier),
+    M.when('TerminalUi', () =>
+      paintedText(label, terminalUiTextForScreenMode(definition.mode)),
     ),
-    M.whenOr('EffectTerminal', 'OpenTui', 'RawCli', () =>
-      captureImage(definition, client),
+    M.when('Cli', () =>
+      paintedText(label, cliTextForScreenMode(definition.mode)),
     ),
     M.exhaustive,
   )
+}
 
 const liveClientView = (
   definition: ScreenModeDefinition,
@@ -401,12 +362,12 @@ const matrixCell = (
   const content = M.value(model.liveClientState).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
-      ShowingCaptures: () => captureView(definition, client, carrier),
+      ShowingCaptures: () => captureView(definition, client),
       ShowingLiveClient: ({ clientId, mode }) => {
         if (clientId === client.clientId && mode === definition.mode) {
           return liveClientView(definition, client, portableUri, carrier)
         } else {
-          return captureView(definition, client, carrier)
+          return captureView(definition, client)
         }
       },
     }),
@@ -420,7 +381,7 @@ const matrixCell = (
 const modesAsRows = (model: Model): Html => {
   const h = html<Message>()
   return h.table(
-    [h.Class('min-w-[160rem] border-separate border-spacing-0')],
+    [h.Class('min-w-[104rem] border-separate border-spacing-0')],
     [
       h.thead(
         [h.Class('sticky top-0 z-10 bg-stone-950/95 backdrop-blur')],
@@ -585,7 +546,7 @@ const stateInspector = (model: Model): Html => {
           h.p(
             [h.Class('mt-3 text-sm leading-6 text-stone-400')],
             [
-              'Every client parses this same value into Navigation. Only the scheme, authority, or command-line carrier changes.',
+              'The web clients and the counters command parse this same value into the stack of screens. OpenTUI takes no URI yet and starts on the list.',
             ],
           ),
         ],
@@ -2001,7 +1962,7 @@ export const view = (model: Model): Document => {
                               'text-xs font-semibold uppercase tracking-[0.28em] text-amber-300',
                             ),
                           ],
-                          ['Multiple Counters | Eight captured clients'],
+                          ['Multiple Counters | Five clients'],
                         ),
                         h.h1(
                           [
@@ -2018,7 +1979,29 @@ export const view = (model: Model): Document => {
                             ),
                           ],
                           [
-                            'Canonical Multiple Counters state, portable URI carriers, and captured output across every implemented host.',
+                            'The synced Multiple Counters at three screens: the URI each client takes, and what each client shows there.',
+                          ],
+                        ),
+                        h.p(
+                          [
+                            h.Class(
+                              'max-w-3xl text-sm leading-6 text-stone-500',
+                            ),
+                          ],
+                          [
+                            'Every cell starts from Counter 1 at 0 and shares nothing. ',
+                            h.a(
+                              [
+                                h.Href(`${countersOrigin}/counters`),
+                                h.Target('_blank'),
+                                h.Rel('noopener noreferrer'),
+                                h.Class(
+                                  'font-semibold text-amber-300 hover:text-amber-200',
+                                ),
+                              ],
+                              ['Open the live Counters every device shares'],
+                            ),
+                            '.',
                           ],
                         ),
                       ],

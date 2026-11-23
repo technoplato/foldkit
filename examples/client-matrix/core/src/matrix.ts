@@ -1,15 +1,15 @@
-import {
-  CounterDetail,
-  CounterFactAlert,
-  CounterList,
-  DeleteCounterConfirmation,
-  LoadingCounterFact,
-  type Navigation,
-  destinationForModel,
-  modelForNavigation,
-  navigationToPath,
-} from 'counters-core-example'
 import { Array, Match as M, Option } from 'effect'
+import { Interaction } from 'foldkit'
+import {
+  initialTerminalView,
+  paintProgram,
+  paintTerminal,
+} from 'foldkit/cli/program'
+import {
+  App,
+  type AppMessage,
+  type AppModel,
+} from 'multiple-counters-core-example'
 
 import {
   ClientDefinition,
@@ -18,36 +18,34 @@ import {
   ScreenModeDefinition,
 } from './model.js'
 
-/** The canonical destination modes compared across every client. */
+/** The word the Multiple Counters answer to in a terminal, `counters open /counters/1`. */
+export const countersCommandName = 'counters'
+
+/** The screens of the Multiple Counters compared across every client. */
 export const screenModes: ReadonlyArray<ScreenModeDefinition> = [
   ScreenModeDefinition.make({
     mode: 'List',
     title: 'Counter list',
-    description: 'Two identified Counter Submodels are visible.',
+    description: 'Counter 1 is on the list at 0, as every new log starts.',
   }),
   ScreenModeDefinition.make({
     mode: 'Detail',
-    title: 'Counter detail',
-    description: 'counter-1 is selected with no presentation mode.',
+    title: 'Counter page',
+    description: 'Counter 1 is open on its own page above the list.',
   }),
   ScreenModeDefinition.make({
-    mode: 'Fact',
-    title: 'Fact presentation',
-    description: 'Opening the fact state restores its Command and settles.',
-  }),
-  ScreenModeDefinition.make({
-    mode: 'DeleteConfirmation',
-    title: 'Delete confirmation',
-    description: 'The selected counter presents its destructive confirmation.',
+    mode: 'DeleteQuestion',
+    title: 'Delete question',
+    description: 'Counter 1 is asked about in a dialog over its page.',
   }),
 ]
 
-/** The concrete client surfaces compared by the matrix. */
+/** The clients that run the Multiple Counters Program today. */
 export const clients: ReadonlyArray<ClientDefinition> = [
   ClientDefinition.make({
     clientId: 'ReactWeb',
     title: 'React',
-    description: 'Shared React bindings with a React web presenter.',
+    description: 'The hosted web app, painted by the React painter.',
     surface: 'Graphical',
     renderer: 'React',
     platform: 'Web',
@@ -55,126 +53,160 @@ export const clients: ReadonlyArray<ClientDefinition> = [
     carrier: 'HttpsUrl',
   }),
   ClientDefinition.make({
-    clientId: 'FoldkitView',
-    title: 'Foldkit',
-    description: 'The canonical Foldkit view renderer.',
+    clientId: 'SvelteWeb',
+    title: 'Svelte',
+    description:
+      'The same screens, painted by the Svelte painter. It starts on the list: it takes no URI yet.',
     surface: 'Graphical',
-    renderer: 'FoldkitView',
+    renderer: 'Svelte',
     platform: 'Web',
     host: 'Vite',
-    carrier: 'HttpsUrl',
-  }),
-  ClientDefinition.make({
-    clientId: 'ExpoWeb',
-    title: 'Expo Web',
-    description: 'The universal React Native application running on web.',
-    surface: 'Graphical',
-    renderer: 'ReactNative',
-    platform: 'Web',
-    host: 'Expo',
-    carrier: 'HttpsUrl',
-  }),
-  ClientDefinition.make({
-    clientId: 'EffectTerminal',
-    title: 'Effect Terminal',
-    description: 'A line-oriented Effect Terminal host.',
-    surface: 'LineTerminal',
-    renderer: 'Text',
-    platform: 'Node',
-    host: 'EffectPlatform',
-    carrier: 'CommandLineArgument',
+    carrier: 'NoUriYet',
   }),
   ClientDefinition.make({
     clientId: 'OpenTui',
     title: 'OpenTUI',
-    description: 'The OpenTUI React terminal reconciler.',
+    description:
+      'A terminal window drawn by OpenTUI. It starts on the list: it takes no URI yet.',
     surface: 'TerminalUI',
-    renderer: 'OpenTuiReact',
+    renderer: 'OpenTui',
+    platform: 'Bun',
+    host: 'OpenTui',
+    carrier: 'NoUriYet',
+  }),
+  ClientDefinition.make({
+    clientId: 'TerminalUi',
+    title: 'Terminal UI',
+    description: 'The live terminal UI of the counters command.',
+    surface: 'TerminalUI',
+    renderer: 'Text',
     platform: 'Node',
-    host: 'EffectPlatform',
+    host: 'FoldkitTerminal',
     carrier: 'CommandLineArgument',
   }),
   ClientDefinition.make({
-    clientId: 'RawCli',
-    title: 'Raw CLI',
-    description: 'Portable URI input with stdout-only rendering.',
+    clientId: 'Cli',
+    title: 'CLI',
+    description: 'One command in, one printed screen out.',
     surface: 'OneShotCLI',
     renderer: 'Text',
     platform: 'Node',
-    host: 'EffectPlatform',
+    host: 'FoldkitTerminal',
     carrier: 'CommandLineArgument',
-  }),
-  ClientDefinition.make({
-    clientId: 'ExpoIos',
-    title: 'Expo iOS',
-    description: 'The universal Expo application on an iOS simulator.',
-    surface: 'Graphical',
-    renderer: 'ReactNative',
-    platform: 'Ios',
-    host: 'Expo',
-    carrier: 'CustomSchemeUrl',
-  }),
-  ClientDefinition.make({
-    clientId: 'ExpoAndroid',
-    title: 'Expo Android',
-    description: 'The universal Expo application on an Android emulator.',
-    surface: 'Graphical',
-    renderer: 'ReactNative',
-    platform: 'Android',
-    host: 'Expo',
-    carrier: 'CustomSchemeUrl',
   }),
 ]
 
-/** Returns the canonical navigation state represented by one matrix mode. */
-export const navigationForScreenMode = (mode: ScreenMode): Navigation =>
+/**
+ * The presses that bring a new Multiple Counters to one mode, each the
+ * name of a button on the screen before it: `Open:1` is Counter 1's Open,
+ * and `Delete` is the Delete on its page.
+ *
+ * @example
+ * ```typescript
+ * pressesForScreenMode('DeleteQuestion') // ['Open:1', 'Delete']
+ * ```
+ */
+export const pressesForScreenMode = (mode: ScreenMode): ReadonlyArray<string> =>
   M.value(mode).pipe(
-    M.withReturnType<Navigation>(),
-    M.when('List', () => CounterList.make({})),
-    M.when('Detail', () =>
-      CounterDetail.make({
-        counterId: 'counter-1',
-        maybeMode: Option.none(),
-        presentationId: 'detail-matrix-detail',
-      }),
-    ),
-    M.when('Fact', () =>
-      CounterDetail.make({
-        counterId: 'counter-1',
-        maybeMode: Option.some(
-          CounterFactAlert.make({
-            requestId: 'fact-matrix-fact',
-            status: LoadingCounterFact.make({}),
-          }),
-        ),
-        presentationId: 'detail-matrix-fact',
-      }),
-    ),
-    M.when('DeleteConfirmation', () =>
-      CounterDetail.make({
-        counterId: 'counter-1',
-        maybeMode: Option.some(
-          DeleteCounterConfirmation.make({
-            confirmationId: 'delete-matrix-delete',
-          }),
-        ),
-        presentationId: 'detail-matrix-delete',
-      }),
-    ),
+    M.withReturnType<ReadonlyArray<string>>(),
+    M.when('List', () => []),
+    M.when('Detail', () => ['Open:1']),
+    M.when('DeleteQuestion', () => ['Open:1', 'Delete']),
     M.exhaustive,
   )
 
-/** Returns the canonical Multiple Counters Model represented by one mode. */
-export const stateForScreenMode = (mode: ScreenMode) =>
-  modelForNavigation(navigationForScreenMode(mode))
+/**
+ * The Multiple Counters Program at one mode, held in memory: the Program's
+ * own `init`, then each press of {@link pressesForScreenMode} through its
+ * own `update`. Nothing is read from a log or written to one.
+ *
+ * @example
+ * ```typescript
+ * boundForScreenMode('Detail').readModel().navigation // the list, then Counter 1's page
+ * ```
+ */
+export const boundForScreenMode = (
+  mode: ScreenMode,
+): Interaction.BoundInteraction<AppModel, AppMessage> => {
+  const held = { model: App.init()[0] }
+  const bound = Interaction.bind(App, {
+    readModel: () => held.model,
+    subscribe: () => () => {},
+    send: message => {
+      held.model = App.update(held.model, message)[0]
+    },
+    stop: () => Promise.resolve(),
+  })
+  Array.forEach(pressesForScreenMode(mode), press => {
+    bound.press(press)
+  })
+  return bound
+}
 
-/** Returns the renderer-neutral destination represented by one mode. */
-export const destinationForScreenMode = (mode: ScreenMode) =>
-  destinationForModel(stateForScreenMode(mode))
+/** Returns the Multiple Counters Model at one mode. */
+export const stateForScreenMode = (mode: ScreenMode): AppModel =>
+  boundForScreenMode(mode).readModel()
 
-/** Prints the global portable URI represented by one mode. */
+/** Returns the stack of screens at one mode, the list first. */
+export const navigationForScreenMode = (
+  mode: ScreenMode,
+): AppModel['navigation'] => stateForScreenMode(mode).navigation
+
+/**
+ * Returns the screen on top at one mode: the dialog when one is open, else
+ * the last page, else the list. `{ _tag: 'CounterDetail', counterId: 1 }`.
+ */
+export const destinationForScreenMode = (mode: ScreenMode): unknown => {
+  const stack = navigationForScreenMode(mode)
+  return Option.match(stack.maybeModal, {
+    onNone: () => Option.getOrElse(Array.last(stack.pages), () => stack.root),
+    onSome: modal => modal.destination,
+  })
+}
+
+/**
+ * Prints the URI of one mode with the Program's own router.
+ *
+ * @example
+ * ```typescript
+ * portableUriForScreenMode('DeleteQuestion') // '/counters/1/delete/1'
+ * ```
+ */
 export const portableUriForScreenMode = (mode: ScreenMode): string =>
-  navigationToPath(navigationForScreenMode(mode))
+  Option.match(boundForScreenMode(mode).navigation(), {
+    onNone: () => '',
+    onSome: plan => plan.uri,
+  })
+
+/**
+ * What `counters` prints at one mode, painted here by the painter the
+ * command uses, from {@link boundForScreenMode}.
+ *
+ * @example
+ * ```typescript
+ * cliTextForScreenMode('List') // 'at /counters\nCounters\nCounter 1 0 [ + ] …'
+ * ```
+ */
+export const cliTextForScreenMode = (mode: ScreenMode): string =>
+  paintProgram(boundForScreenMode(mode), countersCommandName)
+
+/** The size of the terminal the Terminal UI is painted for here. */
+export const terminalUiSize = { rows: 20, columns: 72 }
+
+/**
+ * What `counters tui` shows at one mode, painted here by the painter the
+ * terminal UI uses, from {@link boundForScreenMode}.
+ */
+export const terminalUiTextForScreenMode = (mode: ScreenMode): string =>
+  Array.join(
+    paintTerminal(
+      boundForScreenMode(mode),
+      countersCommandName,
+      initialTerminalView,
+      terminalUiSize,
+    ).lines,
+    '\n',
+  )
 
 /** Finds the metadata for one selected mode. */
 export const definitionForScreenMode = (mode: ScreenMode) =>
@@ -185,13 +217,10 @@ export const captureSlugForClient = (clientId: ClientId): string =>
   M.value(clientId).pipe(
     M.withReturnType<string>(),
     M.when('ReactWeb', () => 'react'),
-    M.when('FoldkitView', () => 'foldkit'),
-    M.when('ExpoWeb', () => 'gui'),
-    M.when('EffectTerminal', () => 'terminal'),
-    M.when('OpenTui', () => 'tui'),
-    M.when('RawCli', () => 'cli'),
-    M.when('ExpoIos', () => 'expo-ios'),
-    M.when('ExpoAndroid', () => 'expo-android'),
+    M.when('SvelteWeb', () => 'svelte'),
+    M.when('OpenTui', () => 'open-tui'),
+    M.when('TerminalUi', () => 'terminal-ui'),
+    M.when('Cli', () => 'cli'),
     M.exhaustive,
   )
 
@@ -201,7 +230,6 @@ export const captureSlugForScreenMode = (mode: ScreenMode): string =>
     M.withReturnType<string>(),
     M.when('List', () => 'list'),
     M.when('Detail', () => 'detail'),
-    M.when('Fact', () => 'fact'),
-    M.when('DeleteConfirmation', () => 'delete'),
+    M.when('DeleteQuestion', () => 'delete'),
     M.exhaustive,
   )

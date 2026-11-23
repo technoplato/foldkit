@@ -27,7 +27,9 @@ Open it locally with:
 pnpm --filter counters-react-example dev -- --open '/counters?presenter=a'
 ```
 
-Published: <https://countersdemo.knophy.com/counters?presenter=a>
+It was published at `countersdemo.knophy.com` until 2026-11-22. The hosted
+Multiple Counters is now `examples/multiple-counters`, at
+<https://counters.pisspoursoftware.xyz>.
 
 ## React-B | Semantic Surfaces
 
@@ -52,8 +54,6 @@ Open it locally with:
 ```sh
 pnpm --filter counters-react-example dev -- --open '/counters?presenter=b'
 ```
-
-Published: <https://countersdemo.knophy.com/counters?presenter=b>
 
 ## OpenTUI React | Terminal Selection
 

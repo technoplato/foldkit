@@ -12,3 +12,9 @@ export {
   runProgramCommand,
   screenLinkLines,
 } from './program.js'
+export {
+  type TerminalPaint,
+  type TerminalView,
+  initialTerminalView,
+  paintTerminal,
+} from './terminalScreen.js'

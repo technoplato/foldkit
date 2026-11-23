@@ -2,10 +2,12 @@
 
 The Client Matrix is a Foldkit Program with three complementary comparisons:
 
-- Multiple Counters derives four screen modes from the shared Navigation union
-  and route parser-printer. It compares those modes across eight real client
-  surfaces. Every cell shows the client carrier and a checked-in capture of that
-  client rendering the same canonical application state.
+- Multiple Counters shows the synced Program in `examples/multiple-counters`,
+  the one the `counters` command and `counters.pisspoursoftware.xyz` run. It
+  compares three screens (the list `/counters`, Counter 1's page
+  `/counters/1`, and the delete question `/counters/1/delete/1`) across the
+  five clients that run that Program today: React, Svelte, OpenTUI, the
+  terminal UI and the CLI.
 - Wallet audits the current `WalletProgram` identity, one exact state route, one exact
   settled replay route, and the carrier and evidence boundary for React,
   Foldkit, raw CLI, Effect Terminal, OpenTUI, Expo Web, Expo iOS, Expo Android,
@@ -16,42 +18,42 @@ The Client Matrix is a Foldkit Program with three complementary comparisons:
 
 The complete runnable adapter is called a **Client**. The matrix does not use
 `medium` as an umbrella term. It records five independent axes for every
-captured client:
+client:
 
-- **Interaction surface:** graphical, terminal UI, line terminal, or one-shot
-  CLI.
-- **Renderer:** React, Foldkit view, React Native, OpenTUI React, or text.
-- **Platform:** web, Node, iOS, or Android.
-- **Host:** Vite, Expo, or Effect Platform.
-- **URI carrier:** HTTPS URL, custom-scheme URL, or command-line argument.
+- **Interaction surface:** graphical, terminal UI, or one-shot CLI.
+- **Renderer:** React, Svelte, OpenTUI, or text.
+- **Platform:** web, Node, or Bun.
+- **Host:** Vite, OpenTUI, or the Foldkit terminal host.
+- **URI carrier:** an HTTPS address, a command-line argument, or none yet.
+  Svelte and OpenTUI start on the list and take no URI today.
 
-A **Processor** is one running occurrence of the Program that consumes Messages
-and advertises the capabilities supplied by its Layers. A Client can host
-multiple Processors, including multiple occurrences on one machine. A headless
-Client can host Processors without rendering a human interface. The current
-one-shot examples create a temporary captive Processor and shut it down when
-the command exits. A proposed non-captive one-shot Client instead addresses a
-longer-lived Processor and prints its current snapshot. Processor identity and
-capability are separate matrix axes from renderer, platform, host, and URI
-carrier.
+Every cell starts from the Program's own `init`, Counter 1 at 0, and reaches
+its screen by pressing the Program: `Open:1`, then `Delete`. No cell reads the
+shared log, so a cell looks the same whatever the live counters hold.
 
-The React and Foldkit captures open their public browser clients in an
-interactive iframe inside the selected cell. The live client starts from that
-cell's exact portable URI and can navigate independently until **Return to
-capture** closes it. Expo Web captures link to its public browser carrier. Expo
-iOS and Android captures link to the corresponding `foldkit://showcase` deep
-link. Terminal, TUI, and raw CLI cells remain capture evidence with their
-reproducible launch command.
+- **CLI and terminal UI** cells are painted in the page, by the painters the
+  `counters` command uses (`paintProgram` and `paintTerminal` from
+  `foldkit/cli/program`). They cannot go stale: they are the Program, run.
+- **OpenTUI** cells are the frames OpenTUI's test renderer painted, checked
+  in as text under `foldkit/src/captures/open-tui/`. Write them again with
+  `bun src/capture.ts ../../client-matrix/foldkit/src/captures/open-tui` in
+  `examples/multiple-counters/opentui`.
+- **React and Svelte** cells are screenshots under
+  `foldkit/public/captures/`. `scripts/capture-web.mjs` takes them again.
+- The **React** cell also opens the hosted app inside the cell, at the cell's
+  URI with `?engine=memory`: `https://counters.pisspoursoftware.xyz/counters/1?engine=memory`.
+  That ending keeps the counters in that window alone, so Counter 1 is always
+  there. The page links the live Counters every device shares beside it.
 
-The matrix is published at `https://matrix.pisspoursoftware.xyz`. Its browser
-carriers use `https://countersdemo.pisspoursoftware.xyz`,
-`https://foldkitdemo.pisspoursoftware.xyz`, and
-`https://expodemo.pisspoursoftware.xyz`. Native custom-scheme links require an installed
-development or production build. Expo Go does not register the Showcase's
-`foldkit` scheme.
+The matrix is published at `https://matrix.pisspoursoftware.xyz`.
 
-Those deployed browser origins and checked-in captures apply only to Multiple
-Counters. The Wallet audit does not invent public Wallet URLs or screenshots.
+The earlier matrix compared an older Multiple Counters Program
+(`examples/counters`) across eight clients, with its React client at
+`countersdemo.pisspoursoftware.xyz`. That demo was retired on 2026-11-22 and
+its captures left this folder; git history keeps them.
+
+That hosted address and those captures apply only to Multiple Counters. The
+Wallet audit does not invent public Wallet URLs or screenshots.
 It distinguishes route implementation from Program reuse:
 
 - Raw CLI, OpenTUI, and Expo accept both state and replay routes. The CLI
@@ -95,9 +97,8 @@ Run it with:
 pnpm dev:example:client-matrix
 ```
 
-The Multiple Counters orientation control switches between screen modes as rows
-and clients as rows. Selecting a mode updates the live Navigation, application
-Model, portable URI, and presentation destination inspector. Opening an
-embedded client also selects its originating mode, which keeps the inspector
-aligned with the iframe's initial deep link. The Wallet table is evidence-first
-and does not alter the preserved Multiple Counters captures.
+The Multiple Counters orientation control switches between screens as rows and
+clients as rows. Selecting a screen updates the inspector: its URI, the stack
+of screens, the Model, and the screen on top. Opening the React client inside
+a cell also selects that cell's screen. The Wallet table is evidence-first and
+is not changed by any of this.
