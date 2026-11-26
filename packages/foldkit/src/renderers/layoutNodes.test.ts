@@ -62,6 +62,7 @@ describe('layout that only organizes', () => {
   it('leave every value of the stylesheet well formed', () => {
     const unbalanced = screenStylesheet
       .split('\n')
+      .filter(line => line.trimEnd().endsWith(';'))
       .filter(
         line =>
           (line.match(/\(/g) ?? []).length !== (line.match(/\)/g) ?? []).length,

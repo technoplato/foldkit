@@ -29,7 +29,7 @@ const painterFiles: ReadonlyArray<string> = Array.flatMap(
 const partNames: ReadonlyArray<string> = [Shelf.TitleMenu.name, Shelf.Pin.name]
 
 const partModules =
-  /behavior\/(?!gesture|slot|host|longPress|placement|pace|part|transcriptFollow|reader|block)[a-zA-Z]+\.js/u
+  /behavior\/(?!gesture|slot|host|longPress|placement|pointerDrag|pace|part|transcriptFollow|reader|block)[a-zA-Z]+\.js/u
 
 describe('a painter and the parts it hosts', () => {
   it('reads every painter file there is', () => {

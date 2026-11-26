@@ -171,6 +171,10 @@ export const foldkitAliases = (dirname: string) => ({
     dirname,
     '../../packages/foldkit/src/renderers/devices/public',
   ),
+  'foldkit/renderers/html': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/renderers/html',
+  ),
   'foldkit/renderers': path.resolve(
     dirname,
     '../../packages/foldkit/src/renderers/public',
