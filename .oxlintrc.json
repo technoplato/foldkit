@@ -248,6 +248,7 @@
     }
   ],
   "ignorePatterns": [
+    ".lavish/",
     "dist/",
     "node_modules/",
     "repos/",
