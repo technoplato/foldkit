@@ -36,9 +36,7 @@ const stepsOf = (issue: Issue): ReadonlyArray<TimelineStep> =>
   })
 
 /** One Issue's time on each step it reached with one, its first of each. */
-const asksOf = (
-  issue: Issue,
-): ReadonlyMap<TimelineStepName, SlowAsk> => {
+const asksOf = (issue: Issue): ReadonlyMap<TimelineStepName, SlowAsk> => {
   const asks = new Map<TimelineStepName, SlowAsk>()
   for (const step of stepsOf(issue)) {
     if (!asks.has(step.name)) {
@@ -176,19 +174,22 @@ const changedStateOf = (
       return asks
     })
   for (const issueId of changedIds) {
-    Option.map(Option.fromUndefinedOr(latest.issuesById.get(issueId)), before => {
-      for (const [name, ask] of asksOf(before)) {
-        const asks = asksAt(name)
-        const place = placeOf(asks, ask)
-        const isHeld = Option.exists(
-          Array.get(asks, place),
-          held => quickestFirst(held, ask) === 0,
-        )
-        if (isHeld) {
-          asks.splice(place, 1)
+    Option.map(
+      Option.fromUndefinedOr(latest.issuesById.get(issueId)),
+      before => {
+        for (const [name, ask] of asksOf(before)) {
+          const asks = asksAt(name)
+          const place = placeOf(asks, ask)
+          const isHeld = Option.exists(
+            Array.get(asks, place),
+            held => quickestFirst(held, ask) === 0,
+          )
+          if (isHeld) {
+            asks.splice(place, 1)
+          }
         }
-      }
-    })
+      },
+    )
     Option.map(Option.fromUndefinedOr(issuesById.get(issueId)), after => {
       for (const [name, ask] of asksOf(after)) {
         const asks = asksAt(name)

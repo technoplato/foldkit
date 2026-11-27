@@ -27,9 +27,9 @@ import { Processor, Program } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 
 import {
-  SharedInstantProject,
   Instant,
   InstantLogMessageRecord,
+  SharedInstantProject,
   type SnapshotLogTransport,
 } from '@foldkit/instant'
 

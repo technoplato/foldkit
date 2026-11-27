@@ -145,7 +145,10 @@ const handle = async (
 
   if (method === 'GET') {
     const log = await loadLog(ANSWERS_DIR, slideId)
-    if (Option.isNone(Array.head(log.answers)) && !(await fileExists(jsonPath))) {
+    if (
+      Option.isNone(Array.head(log.answers)) &&
+      !(await fileExists(jsonPath))
+    ) {
       send(res, 404, jsonHeaders, '')
       return true
     }

@@ -73,7 +73,9 @@ const at = (path: string): Model =>
   Array.reduce(
     [
       ObservedIssues.make({ issues }),
-      ObservedProducts.make({ products: [{ product: scribe, updatedAtMs: 1 }] }),
+      ObservedProducts.make({
+        products: [{ product: scribe, updatedAtMs: 1 }],
+      }),
     ],
     modelForNavigation(pathToNavigation(path)),
     (model, message) => update(model, message)[0],
@@ -108,7 +110,10 @@ const commandNames = (
   commands: ReadonlyArray<Readonly<{ name: string }>>,
 ): ReadonlyArray<string> => Array.map(commands, command => command.name)
 
-const landed100 = Issue.make({ ...storedIssue('100', 1_000), updatedAtMs: 5_000 })
+const landed100 = Issue.make({
+  ...storedIssue('100', 1_000),
+  updatedAtMs: 5_000,
+})
 
 describe('a save that returns after the page moved', () => {
   it('a comment that lands after he went back to the list leaves him on the list', () => {
@@ -224,7 +229,9 @@ describe('filing once', () => {
     for (const command of [...firstCommands, ...secondCommands]) {
       await Effect.runPromise(
         // oxlint-disable-next-line typescript/consistent-type-assertions
-        command.effect.pipe(Effect.provide(resources)) as Effect.Effect<unknown>,
+        command.effect.pipe(
+          Effect.provide(resources),
+        ) as Effect.Effect<unknown>,
       )
     }
 
@@ -303,10 +310,7 @@ describe('linking a related Issue', () => {
     ] as const) {
       const [after, commands] = linking(target)
       expect(commands).toEqual([])
-      expect(after.issueMutation).toEqual(
-        FailedIssueMutation.make({ reason }),
-      )
+      expect(after.issueMutation).toEqual(FailedIssueMutation.make({ reason }))
     }
   })
 })
-

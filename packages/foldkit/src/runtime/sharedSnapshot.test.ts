@@ -66,7 +66,10 @@ const makeTrackedProgram = (foldRevision?: string) => {
     S.decodeTo(
       CounterModel,
       SchemaTransformation.transform({
-        decode: (row): CounterModel => ({ count: row.value, isPanelOpen: false }),
+        decode: (row): CounterModel => ({
+          count: row.value,
+          isPanelOpen: false,
+        }),
         encode: model => ({ id: 'count', value: model.count, asOf: '', at: 0 }),
       }),
     ),

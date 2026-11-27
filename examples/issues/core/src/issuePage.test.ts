@@ -504,4 +504,3 @@ describe('an unchanged Issue keeps its timeline', () => {
     expect(timelineOf(issue)).toBe(timelineOf(issue))
   })
 })
-

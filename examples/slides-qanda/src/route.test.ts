@@ -39,9 +39,7 @@ describe('slide routes', () => {
       ShowUnanswered(),
       Option.some(PropositionId.make('lock-in-vs-surface')),
     )
-    expect(href).toBe(
-      '/q/04h?filter=Unanswered&explore=lock-in-vs-surface',
-    )
+    expect(href).toBe('/q/04h?filter=Unanswered&explore=lock-in-vs-surface')
     const route = urlToAppRoute(urlOrThrow(`http://localhost${href}`))
     expect(route._tag).toBe('Slide')
     if (route._tag !== 'Slide') {

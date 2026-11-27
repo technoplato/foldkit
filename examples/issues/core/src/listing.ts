@@ -3,6 +3,7 @@ import { Array, Match as M, Option } from 'effect'
 import { type Issue } from '@foldkit/instant-tools/issues'
 
 import { type BacklogListing, backlogIssues, backlogOf } from './backlog.js'
+import { type InboxFilter, inboxItemsOf, itemsOfKind } from './inbox.js'
 import {
   type IssueGroup,
   type IssueView,
@@ -19,7 +20,6 @@ import {
   type ProductFilter,
   issuesForProductFilter,
 } from './leftover.js'
-import { type InboxFilter, inboxItemsOf, itemsOfKind } from './inbox.js'
 import { type Model } from './model.js'
 import { issuesWithEdits } from './rowEdit.js'
 

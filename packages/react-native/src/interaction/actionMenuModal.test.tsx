@@ -169,7 +169,10 @@ describe('ActionMenuModal', () => {
     )
     expect(propsOf(scrollView)['keyboardShouldPersistTaps']).toBe('handled')
     expect(
-      Array.filter(descendants(scrollView), element => 'row' in propsOf(element)),
+      Array.filter(
+        descendants(scrollView),
+        element => 'row' in propsOf(element),
+      ),
     ).toHaveLength(2)
   })
 })

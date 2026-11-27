@@ -532,7 +532,6 @@ describe('what a page costs to paint again after a live change, with 1,500 Issue
   it('paints the inbox again, reading only the Issue that changed', () => {
     expect(fastestLiveChangeMs('/inbox')).toBeLessThan(BUDGET_MS)
   })
-
 })
 
 const ASK_STEP_STATES = [
@@ -578,10 +577,7 @@ const askedCatalog = Array.makeBy(CATALOG_SIZE, askedIssueAt)
 
 describe('what how long asks take costs, with 1,500 Issues each at every step', () => {
   it('paints /asks again after a live change, working out only the Issue that changed', () => {
-    const loaded = update(
-      opened('/asks'),
-      observedIssuesOf(askedCatalog),
-    )[0]
+    const loaded = update(opened('/asks'), observedIssuesOf(askedCatalog))[0]
     issuesScreen(loaded)
     const fastestMs = Math.min(
       ...Array.makeBy(RUNS, run => {

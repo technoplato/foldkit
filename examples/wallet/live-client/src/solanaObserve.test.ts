@@ -172,7 +172,11 @@ describe('Solana live observation', () => {
       vi.fn(
         async () =>
           new Response(
-            JSON.stringify({ jsonrpc: '2.0', id: 1, result: { value: [value] } }),
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              result: { value: [value] },
+            }),
             { status: 200 },
           ),
       )

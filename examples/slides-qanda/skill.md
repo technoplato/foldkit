@@ -91,9 +91,18 @@ number (`17`).
   "story": "The submitted agents say they are done once. They claim a highest level. The tests then run every earlier level too.",
   "question": "What is the first scored ladder?",
   "options": [
-    { "letter": "A", "text": "Show the number, then plus, then the same count on every device, then plus while offline." },
-    { "letter": "B", "text": "Only show, plus, minus, and reset in version 1." },
-    { "letter": "C", "text": "The submitter names their own rungs in the bundle." }
+    {
+      "letter": "A",
+      "text": "Show the number, then plus, then the same count on every device, then plus while offline."
+    },
+    {
+      "letter": "B",
+      "text": "Only show, plus, minus, and reset in version 1."
+    },
+    {
+      "letter": "C",
+      "text": "The submitter names their own rungs in the bundle."
+    }
   ],
   "prompt": "Paste A, B, C, or a sentence.",
   "propositions": [

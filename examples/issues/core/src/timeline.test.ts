@@ -78,25 +78,31 @@ describe('the timeline says only what its entries say', () => {
   it('reads Merged only when the words put the work on main', () => {
     expect(
       stepNames(
-        issueWith([
-          entry('pushed, not merged; merged with main d09e5440', 10),
-        ]),
+        issueWith([entry('pushed, not merged; merged with main d09e5440', 10)]),
       ),
     ).not.toContain('Merged')
     expect(
-      stepNames(issueWith([entry('Not merged to main yet: waiting on CI.', 10)])),
+      stepNames(
+        issueWith([entry('Not merged to main yet: waiting on CI.', 10)]),
+      ),
     ).not.toContain('Merged')
     expect(
-      stepNames(issueWith([entry('Landed on main 8fc12c548 for Build 214.', 10)])),
+      stepNames(
+        issueWith([entry('Landed on main 8fc12c548 for Build 214.', 10)]),
+      ),
     ).toContain('Merged')
     expect(
-      stepNames(issueWith([entry('Merged into Scribe main as 1a2b3c4d5.', 10)])),
+      stepNames(
+        issueWith([entry('Merged into Scribe main as 1a2b3c4d5.', 10)]),
+      ),
     ).toContain('Merged')
   })
 
   it('reads a state of landed as Merged only when it says main', () => {
     expect(
-      stepNames(issueWith([entry('Landed on the branch; main next.', 10, 'landed')])),
+      stepNames(
+        issueWith([entry('Landed on the branch; main next.', 10, 'landed')]),
+      ),
     ).not.toContain('Merged')
   })
 

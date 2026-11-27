@@ -75,7 +75,8 @@ const record = {
   updatedAtMs: 1,
 }
 
-const settled = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 20))
+const settled = (): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, 20))
 
 describe('the catalog kept in the browser', () => {
   it('reads everything on the next reload after a change it could not keep', async () => {

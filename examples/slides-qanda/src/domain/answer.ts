@@ -155,10 +155,7 @@ export const prependNoteOnExplore = (
  * Puts `note` on the newest lock. Empty `answers` is unchanged. Example:
  * lock `A` plus note `also cli/custom/rs` stays one OPEN stamp.
  */
-export const prependAnswerNote = (
-  log: AnswerLog,
-  note: NoteStamp,
-): AnswerLog =>
+export const prependAnswerNote = (log: AnswerLog, note: NoteStamp): AnswerLog =>
   Array.match(log.answers, {
     onEmpty: () => log,
     onNonEmpty: stamps => {

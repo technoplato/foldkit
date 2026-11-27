@@ -103,7 +103,9 @@ describe("a shared moment's link (#1465)", () => {
     Scene.scene(
       { update, view: sharedRangePage },
       Scene.with(sharedPageModel(passedRange())),
-      Scene.expect(Scene.role('link', { name: 'Link to this moment, 0:05' })).toHaveAttr(
+      Scene.expect(
+        Scene.role('link', { name: 'Link to this moment, 0:05' }),
+      ).toHaveAttr(
         'href',
         `/recording/${recordingID}/share/${shareID}?k=${linkToken}&m=line-1`,
       ),

@@ -183,9 +183,7 @@ export const SaveAnswer = Command.define(
 const fetchFileEffect = (file: string) =>
   Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient
-    const response = yield* client.execute(
-      HttpClientRequest.get(`/${file}`),
-    )
+    const response = yield* client.execute(HttpClientRequest.get(`/${file}`))
     if (response.status !== 200) {
       return FailedFetchFile({
         file,

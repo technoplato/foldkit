@@ -56,7 +56,9 @@ const boardByClaimant = (issues: ReadonlyArray<Issue>): Model =>
   Array.reduce(
     [
       ObservedIssues.make({ issues }),
-      ObservedProducts.make({ products: [{ product: scribe, updatedAtMs: 1 }] }),
+      ObservedProducts.make({
+        products: [{ product: scribe, updatedAtMs: 1 }],
+      }),
     ],
     modelForNavigation(pathToNavigation('/issues?view=board&group=claimant')),
     (model, message) => update(model, message)[0],
@@ -134,9 +136,7 @@ describe('a claim from the board', () => {
 describe('a release', () => {
   it('writes nothing on an Issue no one claims', async () => {
     const unclaimed = storedIssue('101', 2_000, 'Open', Option.none())
-    const tracker = await Effect.runPromise(
-      makeMemoryIssueTracker([unclaimed]),
-    )
+    const tracker = await Effect.runPromise(makeMemoryIssueTracker([unclaimed]))
 
     await run(tracker, ReleaseIssueClaim({ issueId: '101' }).effect)
 

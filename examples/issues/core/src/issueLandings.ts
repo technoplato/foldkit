@@ -17,8 +17,6 @@ import {
 import { normalizeIssueId } from '@foldkit/instant-tools/issues'
 
 import { DecisionFacts } from './decisionFacts.js'
-import { QuestionFacts } from './questionFacts.js'
-import { ReminderFacts } from './reminderFacts.js'
 import {
   AgentFacts,
   FeatureFacts,
@@ -27,6 +25,8 @@ import {
   ProductFacts,
   SessionFacts,
 } from './graphFacts.js'
+import { QuestionFacts } from './questionFacts.js'
+import { ReminderFacts } from './reminderFacts.js'
 
 // MODEL
 

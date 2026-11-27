@@ -5,11 +5,11 @@ import { ApplicationProduct, Issue } from '@foldkit/instant-tools/issues'
 
 import { modelForNavigation } from './init.js'
 import {
+  DismissedLayer,
   MovedCardAcross,
   ObservedIssues,
   ObservedProducts,
   OpenedRowField,
-  DismissedLayer,
   ToggledRowUnderCursor,
 } from './message.js'
 import { type Model } from './model.js'
@@ -58,7 +58,9 @@ const board = (): Model =>
       ObservedIssues.make({
         issues: [openIssue('102', 3_000), openIssue('101', 2_000)],
       }),
-      ObservedProducts.make({ products: [{ product: scribe, updatedAtMs: 1 }] }),
+      ObservedProducts.make({
+        products: [{ product: scribe, updatedAtMs: 1 }],
+      }),
     ],
     modelForNavigation(pathToNavigation('/issues?view=board')),
     (model, message) => update(model, message)[0],

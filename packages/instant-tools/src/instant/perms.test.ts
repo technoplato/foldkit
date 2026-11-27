@@ -16,18 +16,18 @@ describe('instantToolsOwnerRules', () => {
         entity => entity !== 'instantToolsIssues',
       ),
       entity => {
-      expect(rules[entity]).toEqual({
-        allow: {
-          view: 'isOwner',
-          create: 'isOwner',
-          update: 'isOwner',
-          delete: 'isOwner',
-        },
-        bind: [
-          'isOwner',
-          "auth.id != null && auth.email in ['owner@example.com']",
-        ],
-      })
+        expect(rules[entity]).toEqual({
+          allow: {
+            view: 'isOwner',
+            create: 'isOwner',
+            update: 'isOwner',
+            delete: 'isOwner',
+          },
+          bind: [
+            'isOwner',
+            "auth.id != null && auth.email in ['owner@example.com']",
+          ],
+        })
       },
     )
   })

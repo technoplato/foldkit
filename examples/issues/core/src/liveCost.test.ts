@@ -21,7 +21,10 @@ import {
 } from './message.js'
 import { type Model } from './model.js'
 import { IssueTrackerProgram } from './program.js'
-import { StaticIssueTrackerResources, makeMemoryIssueTracker } from './resources.js'
+import {
+  StaticIssueTrackerResources,
+  makeMemoryIssueTracker,
+} from './resources.js'
 import { pathToNavigation } from './route.js'
 import { update } from './update.js'
 
@@ -82,7 +85,9 @@ const listModel = (): Model =>
   Array.reduce(
     [
       ObservedIssues.make({ issues: catalog }),
-      ObservedProducts.make({ products: [{ product: scribe, updatedAtMs: 1 }] }),
+      ObservedProducts.make({
+        products: [{ product: scribe, updatedAtMs: 1 }],
+      }),
     ],
     modelForNavigation(pathToNavigation('/issues')),
     (model, message) => update(model, message)[0],
@@ -109,60 +114,56 @@ const heapMb = (): number => {
 }
 
 describe('what a live change costs through the runtime the clients use', () => {
-  it(
-    'keeps each live change and each new Issue small in time and memory, with every transition kept',
-    async () => {
-      const tracker = await Effect.runPromise(makeMemoryIssueTracker(catalog))
-      const resources = Layer.mergeAll(
-        StaticIssueTrackerResources,
-        Layer.succeed(IssueTracker, tracker),
-      )
-      const measured = await Effect.runPromise(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const controller = yield* Runtime.makeReplayController({
-              program: IssueTrackerProgram,
-              resources,
-              route: Program.state(listModel()),
-            })
-            let shown: ReadonlyArray<Issue> = catalog
-            const liveChangeMs: Array<number> = []
-            const heapBeforeChanges = heapMb()
-            for (let change = 0; change < LIVE_CHANGES; change += 1) {
-              shown = withOneChanged(shown, change)
-              const startedAt = performance.now()
-              yield* controller.run(observedIssuesOf(shown))
-              liveChangeMs.push(performance.now() - startedAt)
-            }
-            const heapAfterChanges = heapMb()
-            for (let filed = 0; filed < NEW_ISSUES; filed += 1) {
-              shown = [issueNumbered(CATALOG_SIZE + filed + 1), ...shown]
-              yield* controller.run(observedIssuesOf(shown))
-            }
-            const heapAfterFiling = heapMb()
-            return {
-              fastestLiveChangeMs: Math.min(...liveChangeMs),
-              frame: controller.read().frame,
-              heapPerLiveChangeMb:
-                (heapAfterChanges - heapBeforeChanges) / LIVE_CHANGES,
-              heapPerNewIssueMb:
-                (heapAfterFiling - heapAfterChanges) / NEW_ISSUES,
-            }
-          }),
-        ),
-      )
+  it('keeps each live change and each new Issue small in time and memory, with every transition kept', async () => {
+    const tracker = await Effect.runPromise(makeMemoryIssueTracker(catalog))
+    const resources = Layer.mergeAll(
+      StaticIssueTrackerResources,
+      Layer.succeed(IssueTracker, tracker),
+    )
+    const measured = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const controller = yield* Runtime.makeReplayController({
+            program: IssueTrackerProgram,
+            resources,
+            route: Program.state(listModel()),
+          })
+          let shown: ReadonlyArray<Issue> = catalog
+          const liveChangeMs: Array<number> = []
+          const heapBeforeChanges = heapMb()
+          for (let change = 0; change < LIVE_CHANGES; change += 1) {
+            shown = withOneChanged(shown, change)
+            const startedAt = performance.now()
+            yield* controller.run(observedIssuesOf(shown))
+            liveChangeMs.push(performance.now() - startedAt)
+          }
+          const heapAfterChanges = heapMb()
+          for (let filed = 0; filed < NEW_ISSUES; filed += 1) {
+            shown = [issueNumbered(CATALOG_SIZE + filed + 1), ...shown]
+            yield* controller.run(observedIssuesOf(shown))
+          }
+          const heapAfterFiling = heapMb()
+          return {
+            fastestLiveChangeMs: Math.min(...liveChangeMs),
+            frame: controller.read().frame,
+            heapPerLiveChangeMb:
+              (heapAfterChanges - heapBeforeChanges) / LIVE_CHANGES,
+            heapPerNewIssueMb:
+              (heapAfterFiling - heapAfterChanges) / NEW_ISSUES,
+          }
+        }),
+      ),
+    )
 
-      expect(measured.frame).toBeGreaterThanOrEqual(LIVE_CHANGES + NEW_ISSUES)
-      expect(measured.fastestLiveChangeMs).toBeLessThan(
-        FASTEST_LIVE_CHANGE_BUDGET_MS,
-      )
-      expect(measured.heapPerLiveChangeMb).toBeLessThan(
-        HEAP_PER_LIVE_CHANGE_BUDGET_MB,
-      )
-      expect(measured.heapPerNewIssueMb).toBeLessThan(
-        HEAP_PER_NEW_ISSUE_BUDGET_MB,
-      )
-    },
-    120_000,
-  )
+    expect(measured.frame).toBeGreaterThanOrEqual(LIVE_CHANGES + NEW_ISSUES)
+    expect(measured.fastestLiveChangeMs).toBeLessThan(
+      FASTEST_LIVE_CHANGE_BUDGET_MS,
+    )
+    expect(measured.heapPerLiveChangeMb).toBeLessThan(
+      HEAP_PER_LIVE_CHANGE_BUDGET_MB,
+    )
+    expect(measured.heapPerNewIssueMb).toBeLessThan(
+      HEAP_PER_NEW_ISSUE_BUDGET_MB,
+    )
+  }, 120_000)
 })

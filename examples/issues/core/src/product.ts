@@ -22,12 +22,10 @@ import { askFlowNodes } from './askFlowPage.js'
 import { laneHeading, sectionHeading } from './backlog.js'
 import { CARD_DROP_TOKEN_PREFIX } from './board.js'
 import { menuHasField, productChoicesOf, sortNameOf } from './choices.js'
-import { entityPageNodes } from './entityPage.js'
 import { decisionsPageNodes } from './decisionPage.js'
+import { entityPageNodes } from './entityPage.js'
 import { featuresPageNodes } from './featurePage.js'
 import { findingsPageNodes } from './findingsPage.js'
-import { questionsPageNodes } from './questionPage.js'
-import { remindersPageNodes } from './reminderPage.js'
 import { inboxNodes } from './inboxPage.js'
 import { type Interaction } from './interaction.js'
 import { issuePageNodes } from './issuePage.js'
@@ -66,6 +64,8 @@ import {
   type Model,
 } from './model.js'
 import { productsPageNodes } from './productPage.js'
+import { questionsPageNodes } from './questionPage.js'
+import { remindersPageNodes } from './reminderPage.js'
 import { listPathOfSearch, searchOfView } from './route.js'
 import {
   type FailedRowEdit,

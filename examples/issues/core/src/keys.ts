@@ -20,6 +20,7 @@ import {
 } from './listing.js'
 import {
   BlurredSearchField,
+  BlurredWritingField,
   CancelledGoKey,
   ClearedRowCursor,
   ClearedRowSelection,
@@ -41,6 +42,7 @@ import {
   DismissedLayer,
   ExtendedRowSelection,
   FocusedSearchField,
+  FocusedWritingField,
   MovedCardAcross,
   MovedCursorAcross,
   MovedMenuMark,
@@ -50,15 +52,13 @@ import {
   OpenedRowUnderCursor,
   PeekedRowUnderCursor,
   PressedGoKey,
+  SubmittedIssue,
+  SubmittedIssueComment,
   SubmittedMenu,
   SubmittedSearch,
   SubmittedViewName,
   ToggledRowUnderCursor,
   UpdatedSearchQuery,
-  BlurredWritingField,
-  FocusedWritingField,
-  SubmittedIssue,
-  SubmittedIssueComment,
 } from './message.js'
 import { type ChoiceMenu, type Model, WritingField } from './model.js'
 import { searchOfView } from './route.js'

@@ -231,11 +231,11 @@ above, and a statement of which Words Model fields and Messages survive
   `Dock(...nowPlayingOf(model), tabsOf(model, current))`. A shell "named
   once by the declaration" has to carry a Model-dependent now-playing row,
   and it shows on two pages, not on the player (`type Tab = 'Library' |
-  'Profile' | 'Neither'`, `screen.ts:523`). The plan does not say where the
+'Profile' | 'Neither'`, `screen.ts:523`). The plan does not say where the
   shell is hidden.
 - `ShowLibrary`, `ShowProfile` and `ShowReadAloud` are Catalog Actions with
   `what`, `why`, a label and `mutates: [at.navigation.pages,
-  at.navigation.maybeModal]` (`examples/books/core/src/message.ts:523-551`).
+at.navigation.maybeModal]` (`examples/books/core/src/message.ts:523-551`).
   The terminal's commands, the menu rows and the agent tools are derived
   from them (AGENTS.md, "Declare once; derive everything"). Plan 04 line
   211 makes `SelectedTab` "a Navigation Message". If the Actions go, three
@@ -493,7 +493,7 @@ that still do. The list may only shrink"; an `AGENTS.md` beside each painter.
   `.oxlintrc.json`. Not checked by a run: whether `patterns` and
   `allowTypeImports` behave as ESLint's do.
 - The import list has holes. `import { Html, Mount, Dom, Render, File,
-  Renderers } from 'foldkit'` passes it, since the root barrel exports all
+Renderers } from 'foldkit'` passes it, since the root barrel exports all
   six (`packages/foldkit/src/index.ts`), and Words already imports `Mount`
   that way (`examples/words/foldkit/src/mount.ts:2`). `foldkit/renderers/html`,
   `foldkit/customElement`, `foldkit/scene` and `foldkit/story` are not

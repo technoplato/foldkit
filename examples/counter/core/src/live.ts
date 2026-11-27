@@ -1,7 +1,10 @@
 import { type Processor, Runtime } from 'foldkit'
 import { localSnapshotFile, localSnapshotPath } from 'foldkit/cli'
 
-import { SharedInstantProject, resolveInstantSyncEngine } from '@foldkit/instant'
+import {
+  SharedInstantProject,
+  resolveInstantSyncEngine,
+} from '@foldkit/instant'
 
 import {
   type CounterHandle,
@@ -10,7 +13,10 @@ import {
 } from './startConfig.js'
 import { SyncedCounter } from './synced.js'
 
-export { SharedInstantProject, InstantSnapshotLogSchema } from '@foldkit/instant'
+export {
+  SharedInstantProject,
+  InstantSnapshotLogSchema,
+} from '@foldkit/instant'
 
 /**
  * The sync engine a Node Counter runs on, chosen as `startCounter`

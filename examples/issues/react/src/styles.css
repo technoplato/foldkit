@@ -643,7 +643,10 @@ a.fk-ref:focus-visible {
 }
 .issues-screen .fk-board .fk-item {
   display: grid;
-  grid-template-columns: 1.7rem minmax(0, 3fr) 2.25rem minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-columns: 1.7rem minmax(0, 3fr) 2.25rem minmax(0, 3fr) minmax(
+      0,
+      2fr
+    );
   align-items: center;
   gap: 0;
   margin-bottom: 0.4rem;
@@ -719,7 +722,10 @@ a.fk-ref:focus-visible {
   }
   .issues-screen .fk-item:has(> .fk-button) {
     display: grid;
-    grid-template-columns: 44px minmax(0, 3fr) 44px minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-columns: 44px minmax(0, 3fr) 44px minmax(0, 3fr) minmax(
+        0,
+        2fr
+      );
     gap: 0;
     align-items: center;
     padding-bottom: 0.25rem;
@@ -788,7 +794,10 @@ a.fk-ref:focus-visible {
     scroll-snap-align: start;
   }
   .issues-screen .fk-board .fk-item {
-    grid-template-columns: 44px minmax(0, 3fr) 44px minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-columns: 44px minmax(0, 3fr) 44px minmax(0, 3fr) minmax(
+        0,
+        2fr
+      );
   }
   .issues-screen .fk-board .fk-item > .fk-item-check {
     margin: 0;

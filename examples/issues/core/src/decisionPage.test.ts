@@ -179,7 +179,10 @@ const chipsOfText = (
   facts: ChipFacts = noChipFacts,
 ): ReadonlyArray<ReferencePart> =>
   Array.filter(
-    partsOfText(text, chipContextOf(catalog, NOW_MS, 'America/New_York', facts)),
+    partsOfText(
+      text,
+      chipContextOf(catalog, NOW_MS, 'America/New_York', facts),
+    ),
     (part): part is ReferencePart => part._tag === 'Reference',
   )
 

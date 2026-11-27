@@ -539,7 +539,11 @@ export const endRender = (registry: BoundaryRegistry): void => {
 
 /** Rolls back cache writes from a failed render without pruning prior entries. */
 export const abandonRender = (registry: BoundaryRegistry): void => {
-  for (let index = registry.pendingLazyRollbacks.length - 1; index >= 0; index -= 1) {
+  for (
+    let index = registry.pendingLazyRollbacks.length - 1;
+    index >= 0;
+    index -= 1
+  ) {
     registry.pendingLazyRollbacks[index]?.()
   }
   registry.pendingLazyRollbacks.splice(0)

@@ -85,7 +85,10 @@ const parseNotes = (value: unknown): ReadonlyArray<NoteStamp> => {
 }
 
 /** Decode one on-disk answer log. Unknown JSON is `undefined`. */
-export const parseLog = (slideId: string, raw: string): AnswerLog | undefined => {
+export const parseLog = (
+  slideId: string,
+  raw: string,
+): AnswerLog | undefined => {
   try {
     const value: unknown = JSON.parse(raw)
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -221,7 +224,11 @@ export const parsePasteBody = (raw: string): ParsedPaste => {
           record.kind === 'note' ||
           record.scope === 'note'
         if (isExplore) {
-          return { verbatim, isExplore: true, ...(isNote ? { isNote: true } : {}) }
+          return {
+            verbatim,
+            isExplore: true,
+            ...(isNote ? { isNote: true } : {}),
+          }
         }
         if (isNote) {
           return { verbatim, isNote: true }

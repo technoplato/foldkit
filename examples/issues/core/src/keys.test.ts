@@ -362,7 +362,10 @@ describe('Issue Tracker keys: going places', () => {
 
 describe('writing in a field with the keyboard', () => {
   const titleInputOf = (model: Model) =>
-    Array.findFirst(inputsOf(issuesScreen(model)), input => input.label === 'Title')
+    Array.findFirst(
+      inputsOf(issuesScreen(model)),
+      input => input.label === 'Title',
+    )
 
   const focusedOn = (model: Model, field: string): Model =>
     update(
@@ -381,7 +384,10 @@ describe('writing in a field with the keyboard', () => {
   it('files on Enter in Title, and on Cmd+Enter in Details', () => {
     const form = pressed(list(), on('c'))
     expect(
-      tokenForKeyPress(focusedOn(form, 'Title'), on('Enter', { target: 'Field' })),
+      tokenForKeyPress(
+        focusedOn(form, 'Title'),
+        on('Enter', { target: 'Field' }),
+      ),
     ).toEqual(Option.some('submit'))
     expect(
       tokenForKeyPress(
@@ -390,7 +396,10 @@ describe('writing in a field with the keyboard', () => {
       ),
     ).toEqual(Option.some('submit'))
     expect(
-      tokenForKeyPress(focusedOn(form, 'Details'), on('Enter', { target: 'Field' })),
+      tokenForKeyPress(
+        focusedOn(form, 'Details'),
+        on('Enter', { target: 'Field' }),
+      ),
     ).toEqual(Option.none())
   })
 
@@ -415,4 +424,3 @@ describe('writing in a field with the keyboard', () => {
     )
   })
 })
-

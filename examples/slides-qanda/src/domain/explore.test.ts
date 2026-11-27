@@ -112,12 +112,12 @@ describe('hasAnswer', () => {
         slideId: SlideId.make('04h'),
         answers: [],
         explores: [
-              ExploreStamp.make({
-                  at: '2026-09-08T13:00:00-04:00',
-                  verbatim: 'ios/expo/ts looks right',
-                  cleaned: '',
-                  scope: 'explore',
-                }),
+          ExploreStamp.make({
+            at: '2026-09-08T13:00:00-04:00',
+            verbatim: 'ios/expo/ts looks right',
+            cleaned: '',
+            scope: 'explore',
+          }),
         ],
       },
     ]

@@ -917,4 +917,3 @@ Trade-off: A is harsh. B lets people treat the double as extra runway with no la
 - **Parent:** Q04
 - **Card:** `examples/slides-qanda/public/deck.json` id `04q`
 - **Question:** What legal start strings name a desktop browser on macOS, Windows, and Linux?
-

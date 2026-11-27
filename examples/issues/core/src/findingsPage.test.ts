@@ -29,8 +29,8 @@ import {
   ObservedProducts,
   OpenedNavigation,
   SubmittedIssue,
-  SucceededMarkFindingPromoted,
   SucceededFileIssueDraft,
+  SucceededMarkFindingPromoted,
   TickedClock,
 } from './message.js'
 import {
@@ -406,7 +406,9 @@ describe('turning a finding into an Issue', () => {
 
   it('files through the same path as any Issue, then marks the finding', () => {
     const [saving, commands] = update(promoted(), SubmittedIssue.make({}))
-    expect(Array.map(commands, command => command.name)).toEqual(['FileIssueDraft'])
+    expect(Array.map(commands, command => command.name)).toEqual([
+      'FileIssueDraft',
+    ])
     const [opened, after] = update(
       saving,
       SucceededFileIssueDraft.make({

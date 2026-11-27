@@ -4,10 +4,10 @@ Read-only audit on Mac, 2026-09-11. Covers `examples/counter`, `examples/counter
 
 ## Two Instant apps on this Mac
 
-| App | UUID | Env file | Used by |
-|-----|------|----------|---------|
-| **FoldkitCounterV01** | `5417c2e3-c6b9-476d-a962-2e11c83492aa` | `~/.config/foldkit-instant-demo/counter-v01.env` | `examples/counter/*` submission |
-| **foldkit-instant-demo** | `63750881-805d-46d9-89d4-c7ad0b1bb713` | `~/.config/foldkit-instant-demo/instant.env` | `examples/instant-counter`, `examples/counters` (via skill wrapper + `VITE_INSTANT_APP_ID`) |
+| App                      | UUID                                   | Env file                                         | Used by                                                                                     |
+| ------------------------ | -------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| **FoldkitCounterV01**    | `5417c2e3-c6b9-476d-a962-2e11c83492aa` | `~/.config/foldkit-instant-demo/counter-v01.env` | `examples/counter/*` submission                                                             |
+| **foldkit-instant-demo** | `63750881-805d-46d9-89d4-c7ad0b1bb713` | `~/.config/foldkit-instant-demo/instant.env`     | `examples/instant-counter`, `examples/counters` (via skill wrapper + `VITE_INSTANT_APP_ID`) |
 
 Both files exist on this Mac. Keys present (redacted): `INSTANT_APP_ID`, `VITE_INSTANT_APP_ID`, `EXPO_PUBLIC_INSTANT_APP_ID`, `INSTANT_APP_ADMIN_TOKEN`, `INSTANT_CLI_AUTH_TOKEN`.
 
@@ -59,14 +59,14 @@ examples/counter/
 
 ### Instant configuration
 
-| Concern | Location |
-|---------|----------|
-| App id constant | `packages/instant/src/sync/fromTransport.ts` → `FoldkitCounterV01.id` |
-| Env injection | `examples/counter/scripts/with-counter-v01-env` → loads `counter-v01.env` |
-| Public scrub | Each surface `scripts/with-public-instant-env` → `unset INSTANT_CLI_AUTH_TOKEN` |
-| Schema | `InstantSnapshotLogSchema`: entities `count` (value, asOf, at) + `message` (tag, from, createdAtMs) |
-| Permissions | Open read/create/update on count + message (`headless/instant.perms.ts` re-exports) |
-| Count row id | `c0a7c001-0000-4000-8000-000000000001` |
+| Concern         | Location                                                                                            |
+| --------------- | --------------------------------------------------------------------------------------------------- |
+| App id constant | `packages/instant/src/sync/fromTransport.ts` → `FoldkitCounterV01.id`                               |
+| Env injection   | `examples/counter/scripts/with-counter-v01-env` → loads `counter-v01.env`                           |
+| Public scrub    | Each surface `scripts/with-public-instant-env` → `unset INSTANT_CLI_AUTH_TOKEN`                     |
+| Schema          | `InstantSnapshotLogSchema`: entities `count` (value, asOf, at) + `message` (tag, from, createdAtMs) |
+| Permissions     | Open read/create/update on count + message (`headless/instant.perms.ts` re-exports)                 |
+| Count row id    | `c0a7c001-0000-4000-8000-000000000001`                                                              |
 
 ### Wiring chain (count sync)
 
@@ -85,19 +85,19 @@ All surfaces on **live Instant** (not `COUNTER_TAPE=memory`) share one count on 
 
 ### Probe / start commands
 
-| Command | Purpose |
-|---------|---------|
-| `pnpm --dir examples/counter/cli count` | show (Instant via daemon) |
-| `pnpm --dir examples/counter/cli increment` | do increment |
-| `pnpm --dir examples/counter/cli counter:instant` | open CLI with Instant tape |
-| `pnpm --dir examples/counter/foldkit dev` | Foldkit host :5215 |
-| `pnpm --dir examples/counter/react dev` | React :5216 (`?window=screen` for screen) |
-| `pnpm --dir examples/counter/svelte dev` | Svelte :5218 |
-| `pnpm --dir examples/counter/expo start` | Expo :8089 |
-| `pnpm --filter counter-tui-example counter-tui:instant` | TUI Instant |
-| `pnpm --filter counter-opentui-example counter-opentui:instant` | OpenTUI Instant |
-| `pnpm --filter counter-headless-example counter-headless:instant` | tail Instant log |
-| `pnpm --filter counter-headless-example counter-headless:live-stress` | multi-host live stress |
+| Command                                                               | Purpose                                   |
+| --------------------------------------------------------------------- | ----------------------------------------- |
+| `pnpm --dir examples/counter/cli count`                               | show (Instant via daemon)                 |
+| `pnpm --dir examples/counter/cli increment`                           | do increment                              |
+| `pnpm --dir examples/counter/cli counter:instant`                     | open CLI with Instant tape                |
+| `pnpm --dir examples/counter/foldkit dev`                             | Foldkit host :5215                        |
+| `pnpm --dir examples/counter/react dev`                               | React :5216 (`?window=screen` for screen) |
+| `pnpm --dir examples/counter/svelte dev`                              | Svelte :5218                              |
+| `pnpm --dir examples/counter/expo start`                              | Expo :8089                                |
+| `pnpm --filter counter-tui-example counter-tui:instant`               | TUI Instant                               |
+| `pnpm --filter counter-opentui-example counter-opentui:instant`       | OpenTUI Instant                           |
+| `pnpm --filter counter-headless-example counter-headless:instant`     | tail Instant log                          |
+| `pnpm --filter counter-headless-example counter-headless:live-stress` | multi-host live stress                    |
 
 Isolation toggles: `COUNTER_TAPE=memory`, `COUNTER_TAPE_PATH=/path/to/file.json`.
 
@@ -111,18 +111,18 @@ cli, core, expo, foldkit, headless, opentui, react-bindings, react, scripts, sve
 
 Maps to user list:
 
-| User name | Present Aug 21 | Instant wired |
-|-----------|----------------|---------------|
-| FoldKit (foldkit/) | yes | yes |
-| 2e / plain-html | **no** (counters only, no Instant there) | n/a |
-| Svelte | yes | yes |
-| React screen | yes (`ScreenApp`, `?window=screen`) | yes |
-| React composite | yes (`App`, default) | yes |
-| Expo | yes | yes |
-| CLI | yes | yes (daemon) |
-| TUI | yes | yes (script) |
-| OpenTUI | yes | yes (script) |
-| Headless | yes | yes (tail, not painted UI) |
+| User name          | Present Aug 21                           | Instant wired              |
+| ------------------ | ---------------------------------------- | -------------------------- |
+| FoldKit (foldkit/) | yes                                      | yes                        |
+| 2e / plain-html    | **no** (counters only, no Instant there) | n/a                        |
+| Svelte             | yes                                      | yes                        |
+| React screen       | yes (`ScreenApp`, `?window=screen`)      | yes                        |
+| React composite    | yes (`App`, default)                     | yes                        |
+| Expo               | yes                                      | yes                        |
+| CLI                | yes                                      | yes (daemon)               |
+| TUI                | yes                                      | yes (script)               |
+| OpenTUI            | yes                                      | yes (script)               |
+| Headless           | yes                                      | yes (tail, not painted UI) |
 
 ### Gaps (counter submission)
 

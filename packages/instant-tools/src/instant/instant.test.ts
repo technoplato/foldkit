@@ -42,8 +42,8 @@ import {
   type InstantLogIssueLinkRecord,
   type InstantToolsDatabase,
   InstantToolsEntities,
-  type IssueWriteTiming,
   InstantToolsSchema,
+  type IssueWriteTiming,
   decodeIssueRecord,
   makeInstantEntityStore,
   makeInstantIssueRecord,
@@ -478,7 +478,9 @@ describe('Instant adapter', () => {
       id: 'mention-1',
       issueId: issue.id,
       reporter: Option.none(),
-      source: UriReference.make({ value: 'scribe://recording/208/segment/2735' }),
+      source: UriReference.make({
+        value: 'scribe://recording/208/segment/2735',
+      }),
     })
     const entry = IssueWorkLogEntry.make({
       agentId: Option.some('claude-code/one'),
@@ -547,7 +549,12 @@ describe('Instant adapter', () => {
         ...encoded,
         successCriteria: [
           { ...criterion, evidence: ['kept only while the criterion is'] },
-          { id: 'gone', outcome: 'Removed.', requiredEvidence: [], evidence: ['x'] },
+          {
+            id: 'gone',
+            outcome: 'Removed.',
+            requiredEvidence: [],
+            evidence: ['x'],
+          },
         ],
       }),
     }
@@ -1154,17 +1161,20 @@ describe('Instant adapter', () => {
           summary: 'Claimed: red tests next.',
         })
 
-        const updated = yield* makeIssueTracker(store, noWaiting).update('005', {
-          apply: current =>
-            Issue.make({
-              ...current,
-              claimantId: Option.some('claude-code/issues-one-way'),
-              status: 'InProgress',
-              workLog: [...current.workLog, entry],
-            }),
-          hasLanded: stored =>
-            Array.some(stored.workLog, logged => logged.id === entry.id),
-        })
+        const updated = yield* makeIssueTracker(store, noWaiting).update(
+          '005',
+          {
+            apply: current =>
+              Issue.make({
+                ...current,
+                claimantId: Option.some('claude-code/issues-one-way'),
+                status: 'InProgress',
+                workLog: [...current.workLog, entry],
+              }),
+            hasLanded: stored =>
+              Array.some(stored.workLog, logged => logged.id === entry.id),
+          },
+        )
 
         expect(updated.status).toBe('InProgress')
         const fives = Array.filter(

@@ -311,7 +311,10 @@ describe('Solana live adapter transfer rejections', () => {
   it.each([
     [
       'a program',
-      { owner: 'BPFLoaderUpgradeab1e11111111111111111111111', executable: true },
+      {
+        owner: 'BPFLoaderUpgradeab1e11111111111111111111111',
+        executable: true,
+      },
     ],
     [
       'a token account',
@@ -320,19 +323,24 @@ describe('Solana live adapter transfer rejections', () => {
         executable: false,
       },
     ],
-  ])('refuses a recipient that is %s, where SOL can be lost for good', async (_kind, value) => {
-    vi.stubGlobal(
-      'fetch',
-      jsonRpcFetch(previewRpcHandlers({ getAccountInfo: { result: { value } } })),
-    )
-    const refused = await Effect.runPromise(
-      previewTransfer(missingDestinationAddress, '1000000').pipe(Effect.flip),
-    )
-    expect(refused.code).toBe('Rejected')
-    expect(refused.guidance?.summary).toBe(
-      'That address is not a wallet, so SOL sent there can be lost for good.',
-    )
-  })
+  ])(
+    'refuses a recipient that is %s, where SOL can be lost for good',
+    async (_kind, value) => {
+      vi.stubGlobal(
+        'fetch',
+        jsonRpcFetch(
+          previewRpcHandlers({ getAccountInfo: { result: { value } } }),
+        ),
+      )
+      const refused = await Effect.runPromise(
+        previewTransfer(missingDestinationAddress, '1000000').pipe(Effect.flip),
+      )
+      expect(refused.code).toBe('Rejected')
+      expect(refused.guidance?.summary).toBe(
+        'That address is not a wallet, so SOL sent there can be lost for good.',
+      )
+    },
+  )
 
   it('surfaces sendTransaction rent simulation failures as rejected transfers', async () => {
     vi.stubGlobal(

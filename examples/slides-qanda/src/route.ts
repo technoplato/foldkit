@@ -27,7 +27,12 @@ export const SlideRoute = r('Slide', {
 })
 export const NotFoundRoute = r('NotFound', { path: S.String })
 
-export const AppRoute = S.Union([HomeRoute, SimRoute, SlideRoute, NotFoundRoute])
+export const AppRoute = S.Union([
+  HomeRoute,
+  SimRoute,
+  SlideRoute,
+  NotFoundRoute,
+])
 
 export type HomeRoute = typeof HomeRoute.Type
 export type SimRoute = typeof SimRoute.Type

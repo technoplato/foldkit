@@ -69,14 +69,10 @@ import {
   UpdatedViewName,
 } from './message.js'
 import {
-  FailedIssues,
   DecisionFilter,
   DecisionsObservation,
+  FailedIssues,
   FeaturesObservation,
-  QuestionFilter,
-  QuestionsObservation,
-  ReminderFilter,
-  RemindersObservation,
   FindingFilter,
   FindingsObservation,
   IssueDetailState,
@@ -86,6 +82,10 @@ import {
   LoadingIssues,
   type Model,
   ProductsState,
+  QuestionFilter,
+  QuestionsObservation,
+  ReminderFilter,
+  RemindersObservation,
   TriageCandidatesState,
   loadedIssuesOf,
 } from './model.js'

@@ -102,7 +102,7 @@ issues products add --id acaga --name ACAGA --kind Application [--json]
   newest lines and thread posts: the deep link
   `https://og.pisspoursoftware.xyz/recording/<id>/section/<line>?t=<s>`, when,
   who, and the words verbatim; at most the newest 20, with `N more: issues show
-  <n> --json`) and a `Sessions` block (each Claude Code session that names it,
+<n> --json`) and a `Sessions` block (each Claude Code session that names it,
   newest first: its agent and account, `worked` when it logged or claimed on the
   Issue, else `named`, when it first and last named it, its claude.ai link or
   `no claude.ai link was recorded`, its first words, and its sub-agents under
@@ -286,7 +286,7 @@ build time, so a build from another branch names that branch. It paints the same
   model, the findings raised on it, and the decisions, questions and reminders
   around it;
 - on an Issue's page, its parent epic, linked; for an epic, `Children: 3 of 14
-  done` with a progress bar and each child with its status and priority; and the
+done` with a progress bar and each child with its status and priority; and the
   `Named in recordings` and `Sessions` sections, each place's deep link and each
   session's claude.ai link clickable. They read the same two core queries as
   `issues show` (`issueChildrenQuery`, `issueReferencesQuery`), live;

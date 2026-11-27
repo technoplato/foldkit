@@ -1,11 +1,8 @@
 import { type Processor, Runtime } from 'foldkit'
 
-import { SharedInstantProject, Instant } from '@foldkit/instant/browser'
+import { Instant, SharedInstantProject } from '@foldkit/instant/browser'
 
-import {
-  type CounterHandle,
-  type StartCounterConfig,
-} from './startConfig.js'
+import { type CounterHandle, type StartCounterConfig } from './startConfig.js'
 import { SyncedCounter } from './synced.js'
 
 export {

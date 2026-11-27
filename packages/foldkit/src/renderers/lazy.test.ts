@@ -12,13 +12,12 @@ import type { UiNode } from './types.js'
 describe('Lazy UiNode resolution', () => {
   it('skips recomputing and returns the exact previous node when fn and args match by Object.is', () => {
     let calls = 0
-    const renderSection = (title: string, items: ReadonlyArray<string>): UiNode => {
+    const renderSection = (
+      title: string,
+      items: ReadonlyArray<string>,
+    ): UiNode => {
       calls += 1
-      return Column(
-        {},
-        Text(title),
-        ...items.map(item => Text(item)),
-      )
+      return Column({}, Text(title), ...items.map(item => Text(item)))
     }
 
     const items = ['Chapter 1', 'Chapter 2']

@@ -365,7 +365,10 @@ describe('a host without the current mode', () => {
 
     expect(loaded.walletNetworkMode).toBe('Devnet')
     expect(
-      Option.map(loaded.maybeSendNetworkSelection, ({ networkId }) => networkId),
+      Option.map(
+        loaded.maybeSendNetworkSelection,
+        ({ networkId }) => networkId,
+      ),
     ).toEqual(Option.some('solana:devnet'))
   })
 

@@ -117,7 +117,9 @@ const makeServer = (options: ServerOptions = ownerServer) => {
           (op[3] as { expectedUpdatedAtMs?: number }).expectedUpdatedAtMs,
         ),
       )
-      sentRuleParams.push(Option.getOrUndefined(Option.map(ruleParams, op => op[3])))
+      sentRuleParams.push(
+        Option.getOrUndefined(Option.map(ruleParams, op => op[3])),
+      )
       if (options.isOffline) {
         return { status: 'enqueued', clientId: 'offline' }
       }
@@ -255,29 +257,34 @@ describe('two writers on one Issue', () => {
       }),
   )
 
-  it.live('12 writers appending at once all land', () =>
-    Effect.gen(function* () {
-      const server = makeServer({
-        ...ownerServer,
-        commitDelayMs: () => Math.floor(Math.random() * 5),
-      })
-      const tracker = makeIssueTracker(makeInstantEntityStore(server.database), {
-        retryMs: 20,
-        settleMs: 30,
-      })
-      const writers = Array.makeBy(12, index => `writer-${index + 1}`)
+  it.live(
+    '12 writers appending at once all land',
+    () =>
+      Effect.gen(function* () {
+        const server = makeServer({
+          ...ownerServer,
+          commitDelayMs: () => Math.floor(Math.random() * 5),
+        })
+        const tracker = makeIssueTracker(
+          makeInstantEntityStore(server.database),
+          {
+            retryMs: 20,
+            settleMs: 30,
+          },
+        )
+        const writers = Array.makeBy(12, index => `writer-${index + 1}`)
 
-      yield* Effect.all(
-        Array.map(writers, writer =>
-          tracker.update('005', appending(entryNamed(writer))),
-        ),
-        { concurrency: 'unbounded' },
-      )
+        yield* Effect.all(
+          Array.map(writers, writer =>
+            tracker.update('005', appending(entryNamed(writer))),
+          ),
+          { concurrency: 'unbounded' },
+        )
 
-      expect([...loggedIds(server.stored())].sort()).toEqual(
-        [...writers].sort(),
-      )
-    }),
+        expect([...loggedIds(server.stored())].sort()).toEqual(
+          [...writers].sort(),
+        )
+      }),
     30_000,
   )
 })

@@ -127,7 +127,12 @@ describe('scribeRouteFromLink', () => {
       ],
       [
         `scribe-shared://recording/${recordingID}/share/${sectionID}`,
-        ShareRoute({ recordingID, shareID: sectionID, k: Option.none(), m: Option.none() }),
+        ShareRoute({
+          recordingID,
+          shareID: sectionID,
+          k: Option.none(),
+          m: Option.none(),
+        }),
       ],
       // A moment of a share has its own link (#1465).
       [

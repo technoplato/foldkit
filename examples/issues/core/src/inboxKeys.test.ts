@@ -62,7 +62,10 @@ const inbox = (): Model =>
 
 describe('the inbox with the keyboard', () => {
   it('walks its Issues newest change first with j, and Enter opens the one under the cursor', () => {
-    const walked = update(inbox(), MovedRowCursor.make({ direction: 'Next' }))[0]
+    const walked = update(
+      inbox(),
+      MovedRowCursor.make({ direction: 'Next' }),
+    )[0]
     expect(Option.getOrNull(walked.maybeRowCursor)).toBe('100')
 
     const [opened] = update(walked, OpenedRowUnderCursor.make({}))
@@ -71,7 +74,10 @@ describe('the inbox with the keyboard', () => {
   })
 
   it('goes back to the inbox on Esc from an Issue opened there', () => {
-    const walked = update(inbox(), MovedRowCursor.make({ direction: 'Next' }))[0]
+    const walked = update(
+      inbox(),
+      MovedRowCursor.make({ direction: 'Next' }),
+    )[0]
     const [opened] = update(walked, OpenedRowUnderCursor.make({}))
 
     const [back] = update(opened, DismissedIssueDetail.make({}))

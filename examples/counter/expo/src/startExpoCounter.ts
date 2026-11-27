@@ -1,7 +1,7 @@
 import {
   type BoundCounter,
-  SharedInstantProject,
   InstantSnapshotLogSchema,
+  SharedInstantProject,
   bindCounter,
   newProcessorInstance,
   startCounter,

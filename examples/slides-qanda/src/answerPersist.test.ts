@@ -21,7 +21,10 @@ describe('persistPostedPaste', () => {
     const afterFirst = await readFile(path.join(answersDir, 'sim.json'), 'utf8')
 
     const second = await persistPostedPaste(answersDir, 'sim', secondBody)
-    const afterSecond = await readFile(path.join(answersDir, 'sim.json'), 'utf8')
+    const afterSecond = await readFile(
+      path.join(answersDir, 'sim.json'),
+      'utf8',
+    )
 
     expect(afterSecond).not.toBe(afterFirst)
     expect(second.slideId).toBe('sim')

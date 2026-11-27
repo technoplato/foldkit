@@ -262,10 +262,7 @@ describe('Now working', () => {
       claimantId: Option.some('claude-code/issue-wip-1374b@max'),
       workLog: [
         ...workLog,
-        claimedBy(
-          'claude-code/issue-wip-1374b@max',
-          observedAtMs - 30_000,
-        ),
+        claimedBy('claude-code/issue-wip-1374b@max', observedAtMs - 30_000),
       ],
     })
   const failedRun = EndedRun.make({

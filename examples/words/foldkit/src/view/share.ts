@@ -826,7 +826,9 @@ const sharedMomentHref =
   (model: Model) =>
   (line: Section): string | undefined =>
     model.route._tag === 'Share'
-      ? scribeRouteToPath(ShareRoute({ ...model.route, m: Option.some(line.id) }))
+      ? scribeRouteToPath(
+          ShareRoute({ ...model.route, m: Option.some(line.id) }),
+        )
       : undefined
 
 const sharedItems = (range: Share.Model.SharedRange, model: Model): Html => {

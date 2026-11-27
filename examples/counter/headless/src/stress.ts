@@ -9,8 +9,8 @@ import { Array, Effect, Exit, Option, Scope } from 'effect'
 import { Processor } from 'foldkit'
 
 import {
-  SharedInstantProject,
   Instant,
+  SharedInstantProject,
   type SnapshotLogTransport,
   fromTransport,
   makeMemorySnapshotLogTransport,
@@ -57,7 +57,12 @@ export const startCounterOnTransport = (
   instance: string,
 ): CounterHandle =>
   startCounterOn(
-    Instant({ app: SharedInstantProject, processor: host, instance, transport }),
+    Instant({
+      app: SharedInstantProject,
+      processor: host,
+      instance,
+      transport,
+    }),
   )
 
 /** The Ready count, or None while the Counter is Starting or Failed. */

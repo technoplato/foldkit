@@ -317,7 +317,10 @@ const featureIndexOf = (features: ReadonlyArray<FeatureChip>): FeatureIndex =>
       }
       const index = {
         byNumber: new Map(
-          Array.filter(numbered, ([number]) => linesPerNumber.get(number) === 1),
+          Array.filter(
+            numbered,
+            ([number]) => linesPerNumber.get(number) === 1,
+          ),
         ),
         bySlug: new Map(
           Array.map(features, feature => [feature.slug, feature]),

@@ -78,9 +78,15 @@ const scrolls = (model: Model, message: Message) => {
 describe("a shared moment's own link", () => {
   it('opens the share at that line once its lines arrive, once', () => {
     const start = modelForRoute(urlToScribeRoute(urlOf(`${link}&m=line-5`)))
-    const first = scrolls(start, arrived([line('line-1', 1), line('line-5', 5)]))
+    const first = scrolls(
+      start,
+      arrived([line('line-1', 1), line('line-5', 5)]),
+    )
     expect(first.sections).toEqual(['line-5'])
-    const again = scrolls(first.next, arrived([line('line-1', 1), line('line-5', 5)]))
+    const again = scrolls(
+      first.next,
+      arrived([line('line-1', 1), line('line-5', 5)]),
+    )
     expect(again.sections).toEqual([])
   })
 
@@ -88,14 +94,23 @@ describe("a shared moment's own link", () => {
     const start = modelForRoute(urlToScribeRoute(urlOf(`${link}&m=line-5`)))
     const first = scrolls(start, arrived([line('line-1', 1)]))
     expect(first.sections).toEqual([])
-    expect(scrolls(first.next, arrived([line('line-1', 1), line('line-5', 5)])).sections).toEqual(['line-5'])
+    expect(
+      scrolls(first.next, arrived([line('line-1', 1), line('line-5', 5)]))
+        .sections,
+    ).toEqual(['line-5'])
   })
 
   it('moves within the open share when a moment is followed, keeping the page', () => {
     const start = modelForRoute(urlToScribeRoute(urlOf(link)))
-    const opened = scrolls(start, arrived([line('line-1', 1), line('line-5', 5)]))
+    const opened = scrolls(
+      start,
+      arrived([line('line-1', 1), line('line-5', 5)]),
+    )
     expect(opened.sections).toEqual([])
-    const moved = scrolls(opened.next, ChangedUrl({ url: urlOf(`${link}&m=line-5`) }))
+    const moved = scrolls(
+      opened.next,
+      ChangedUrl({ url: urlOf(`${link}&m=line-5`) }),
+    )
     expect(moved.sections).toEqual(['line-5'])
     expect(moved.next.share.sharedRange._tag).toBe('ReadySharedRange')
   })

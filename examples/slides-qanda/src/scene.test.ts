@@ -2,13 +2,7 @@ import { Option, Schema as S } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
 
-import {
-  AnswerLog,
-  AnswerStamp,
-  Deck,
-  PropositionId,
-  SlideId,
-} from './domain'
+import { AnswerLog, AnswerStamp, Deck, PropositionId, SlideId } from './domain'
 import { update, view } from './main'
 import { Model, ReadyDeck, SaveIdle, SaveOk } from './model'
 import { SIM_ANSWER_ID, SimRoute, SlideRoute } from './route'
@@ -267,7 +261,9 @@ describe('view', () => {
       ),
       Scene.expect(Scene.role('heading', { name: 'NONE OPEN' })).toExist(),
       Scene.expect(Scene.text('Is this the game?')).not.toExist(),
-      Scene.expect(Scene.text('No cards in OPEN. Press f for the next filter.')).toExist(),
+      Scene.expect(
+        Scene.text('No cards in OPEN. Press f for the next filter.'),
+      ).toExist(),
     )
   })
 
@@ -405,7 +401,9 @@ describe('explore view', () => {
       Scene.expect(Scene.role('heading', { name: 'SHOW START' })).toExist(),
       Scene.expect(Scene.text('The program prints the count.')).toExist(),
       Scene.expect(Scene.text('Paste feedback for this explore')).toExist(),
-      Scene.expect(Scene.text('What does the start string name?')).not.toExist(),
+      Scene.expect(
+        Scene.text('What does the start string name?'),
+      ).not.toExist(),
       Scene.expect(
         Scene.role('button', { name: 'A. device/framework/language' }),
       ).not.toExist(),

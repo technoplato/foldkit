@@ -90,9 +90,9 @@ describe('a dropped live observation', () => {
         accountIds: [account.accountId],
       }),
     }
-    expect(await Effect.runPromise(Stream.runCollect(resumeOf(listening)))).toEqual(
-      [],
-    )
+    expect(
+      await Effect.runPromise(Stream.runCollect(resumeOf(listening))),
+    ).toEqual([])
   })
 
   it('reads fresh balances when it resumes, since money may have moved in the gap', () => {

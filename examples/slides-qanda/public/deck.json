@@ -99,9 +99,18 @@
           "story": "Alice paid. Her agents said they were done. The hospital sends one standard command, such as increment. The yielded package must already be running. It must send that command to every surface it submitted, such as a web page, a terminal, and a phone app. We never said where the hospital delivers that first command.",
           "question": "Where does the hospital send the standard command?",
           "options": [
-            { "letter": "A", "text": "A URL the bundle names. The tests POST or GET that URL." },
-            { "letter": "B", "text": "Stdio or a fixed port on the process the hospital started." },
-            { "letter": "C", "text": "A recipe file in the bundle names the inbound wire." }
+            {
+              "letter": "A",
+              "text": "A URL the bundle names. The tests POST or GET that URL."
+            },
+            {
+              "letter": "B",
+              "text": "Stdio or a fixed port on the process the hospital started."
+            },
+            {
+              "letter": "C",
+              "text": "A recipe file in the bundle names the inbound wire."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -115,9 +124,18 @@
           "story": "The tests send a standard command only after the program is running. grok.com said the paid bundle runs on machines the hospital controls. This chat said the package must already be ready. We never said who boots it.",
           "question": "Who starts the yielded program before the tests poke?",
           "options": [
-            { "letter": "A", "text": "The hospital starts it on hospital machines, then pokes." },
-            { "letter": "B", "text": "The submitter keeps it running on their own host." },
-            { "letter": "C", "text": "The bundle starts it. The hospital only waits, then pokes." }
+            {
+              "letter": "A",
+              "text": "The hospital starts it on hospital machines, then pokes."
+            },
+            {
+              "letter": "B",
+              "text": "The submitter keeps it running on their own host."
+            },
+            {
+              "letter": "C",
+              "text": "The bundle starts it. The hospital only waits, then pokes."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -131,9 +149,18 @@
           "story": "Alice's package is running. A listener must observe a queue. The hospital posts increment there. The start script does not configure the inbound wire. We never said what that queue is.",
           "question": "What queue does the listener observe?",
           "options": [
-            { "letter": "A", "text": "An Instant room the hospital owns. The start script only subscribes." },
-            { "letter": "B", "text": "Stdio. The hospital writes lines. The listener reads them." },
-            { "letter": "C", "text": "The public test list names the wire. Not this card." }
+            {
+              "letter": "A",
+              "text": "An Instant room the hospital owns. The start script only subscribes."
+            },
+            {
+              "letter": "B",
+              "text": "Stdio. The hospital writes lines. The listener reads them."
+            },
+            {
+              "letter": "C",
+              "text": "The public test list names the wire. Not this card."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -147,9 +174,18 @@
           "story": "The hospital sends show, then plus, then plus, then show. The second show must be two higher than the first. We never said how show answers.",
           "question": "How does show answer?",
           "options": [
-            { "letter": "A", "text": "A number on the queue. The hospital reads that number." },
-            { "letter": "B", "text": "A painted page or terminal. The hospital reads the number there." },
-            { "letter": "C", "text": "Both. The queue number and every surface must match." }
+            {
+              "letter": "A",
+              "text": "A number on the queue. The hospital reads that number."
+            },
+            {
+              "letter": "B",
+              "text": "A painted page or terminal. The hospital reads the number there."
+            },
+            {
+              "letter": "C",
+              "text": "Both. The queue number and every surface must match."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -163,9 +199,18 @@
           "story": "The hospital runs death start ios/expo/ts. It waits up to ten seconds. Start returns ready. Listen means a script that reads the command queue. We never said whether stdin is still that queue, or whether listen may be skipped.",
           "question": "After start returns ready, is stdin still the queue?",
           "options": [
-            { "letter": "A", "text": "Yes. Stdin stays the queue. Listen still reads those lines." },
-            { "letter": "B", "text": "Listen may be skipped. The hospital already told the bundle where commands go." },
-            { "letter": "C", "text": "Start only boots the device. A separate listen must run before any poke." }
+            {
+              "letter": "A",
+              "text": "Yes. Stdin stays the queue. Listen still reads those lines."
+            },
+            {
+              "letter": "B",
+              "text": "Listen may be skipped. The hospital already told the bundle where commands go."
+            },
+            {
+              "letter": "C",
+              "text": "Start only boots the device. A separate listen must run before any poke."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -195,9 +240,15 @@
           "story": "The Foldkit counter page is /counters/counter/c1. The hospital sends show. It dumps that painted page. We never said what text in the dump proves the count.",
           "question": "What painted dump proves show on /counters/counter/c1?",
           "options": [
-            { "letter": "A", "text": "The dump must include the visible count on that page." },
+            {
+              "letter": "A",
+              "text": "The dump must include the visible count on that page."
+            },
             { "letter": "B", "text": "Any digit anywhere in the dump passes." },
-            { "letter": "C", "text": "A screenshot must match a hospital fixture. A text dump is not enough." }
+            {
+              "letter": "C",
+              "text": "A screenshot must match a hospital fixture. A text dump is not enough."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -211,9 +262,18 @@
           "story": "The hospital runs death start ios/expo/ts. Stdout may print started device=ios framework=expo language=ts. The clock is ten seconds. We never said which stdout line means ready.",
           "question": "What stdout means ready?",
           "options": [
-            { "letter": "A", "text": "A line that says ready. started device=ios ... is not enough." },
-            { "letter": "B", "text": "started device=ios framework=expo language=ts means ready." },
-            { "letter": "C", "text": "Exit code 0 within ten seconds means ready. Stdout text is not the proof." }
+            {
+              "letter": "A",
+              "text": "A line that says ready. started device=ios ... is not enough."
+            },
+            {
+              "letter": "B",
+              "text": "started device=ios framework=expo language=ts means ready."
+            },
+            {
+              "letter": "C",
+              "text": "Exit code 0 within ten seconds means ready. Stdout text is not the proof."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -228,9 +288,18 @@
           "story": "The hospital runs death start ios/expo/ts. It reads stdout. It may poke only after the app is booted and can receive commands. Stdin stays the queue. The hospital writes command lines there. We never locked the exact stdout text the hospital parses as that ready signal.",
           "question": "What exact stdout token means ready after death start ios/expo/ts?",
           "options": [
-            { "letter": "A", "text": "The whole line is the word ready. Nothing else on that line." },
-            { "letter": "B", "text": "A later line such as started device=ios framework=expo language=ts." },
-            { "letter": "C", "text": "Any other published parse. Name the exact token or rule." }
+            {
+              "letter": "A",
+              "text": "The whole line is the word ready. Nothing else on that line."
+            },
+            {
+              "letter": "B",
+              "text": "A later line such as started device=ios framework=expo language=ts."
+            },
+            {
+              "letter": "C",
+              "text": "Any other published parse. Name the exact token or rule."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         }
@@ -303,9 +372,18 @@
           "story": "Alice sends money to the hospital. The hospital spends that money on model tokens while her agents write. If the tests fail, she also loses her stake. We never said whether stake is leftover token money, a second pot she posted, or just another word for the same pot. We never said who receives it.",
           "question": "What is the stake she loses when the tests fail?",
           "options": [
-            { "letter": "A", "text": "The leftover token money. Same pot. The hospital keeps it." },
-            { "letter": "B", "text": "A second pot she posted. It goes to a winner pot or treasury." },
-            { "letter": "C", "text": "Just another word for the prepaid token money. No second pot." }
+            {
+              "letter": "A",
+              "text": "The leftover token money. Same pot. The hospital keeps it."
+            },
+            {
+              "letter": "B",
+              "text": "A second pot she posted. It goes to a winner pot or treasury."
+            },
+            {
+              "letter": "C",
+              "text": "Just another word for the prepaid token money. No second pot."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -319,9 +397,18 @@
           "story": "Alice later pays a submit fee and a token pot. Foldkit already has a counter in this repo. Someone wants to wire that counter as submit 1 this week. We never said whether that first submit must prepay.",
           "question": "Must submit 1 pay real money?",
           "options": [
-            { "letter": "A", "text": "Yes. Even submit 1 pays a real submit fee and token pot." },
-            { "letter": "B", "text": "No. Submit 1 is a free rehearsal on hospital machines. Later entries pay." },
-            { "letter": "C", "text": "Submit 1 pays a submit fee only. No token pot until agents run." }
+            {
+              "letter": "A",
+              "text": "Yes. Even submit 1 pays a real submit fee and token pot."
+            },
+            {
+              "letter": "B",
+              "text": "No. Submit 1 is a free rehearsal on hospital machines. Later entries pay."
+            },
+            {
+              "letter": "C",
+              "text": "Submit 1 pays a submit fee only. No token pot until agents run."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         }
@@ -378,9 +465,18 @@
           "story": "The submitted agents say they are done once. They claim a highest level. The tests then run every earlier rung. If plus is broken, a claim of offline still scores zero. We never said how the bundle names that highest level.",
           "question": "How does the yielded package name the highest level it claims?",
           "options": [
-            { "letter": "A", "text": "A file in the bundle lists the claimed level, such as offline." },
-            { "letter": "B", "text": "The hospital infers it. It runs the full public list and stops at the first fail." },
-            { "letter": "C", "text": "The package prints the claimed level when it says it is done." }
+            {
+              "letter": "A",
+              "text": "A file in the bundle lists the claimed level, such as offline."
+            },
+            {
+              "letter": "B",
+              "text": "The hospital infers it. It runs the full public list and stops at the first fail."
+            },
+            {
+              "letter": "C",
+              "text": "The package prints the claimed level when it says it is done."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -394,8 +490,14 @@
           "story": "The published tests include an offline check. The locked story is: the count is 3 on two devices. The hospital cuts the network. One device plus twice and shows 5. The other still shows 3. The network comes back. Both show 5. We never said whether offline is a command the package handles, or the hospital cutting the network.",
           "question": "What is offline in the scored test?",
           "options": [
-            { "letter": "A", "text": "The hospital cuts the network. Then it sends plus. Then it restores the network." },
-            { "letter": "B", "text": "The hospital sends an offline command. The package pretends the network is gone." },
+            {
+              "letter": "A",
+              "text": "The hospital cuts the network. Then it sends plus. Then it restores the network."
+            },
+            {
+              "letter": "B",
+              "text": "The hospital sends an offline command. The package pretends the network is gone."
+            },
             { "letter": "C", "text": "Either is fine. The bundle says which." }
           ],
           "prompt": "Paste A, B, C, or a sentence."
@@ -410,9 +512,18 @@
           "story": "Alice's agents lock in level 1. They lock in level 2. They start level 3. Then they say they are done and mark level 3 incomplete. The hospital still has to score that submit. We never said what that yield claims.",
           "question": "What does the hospital score when they yield mid-level?",
           "options": [
-            { "letter": "A", "text": "Only the locked complete levels. The unfinished level does not count." },
-            { "letter": "B", "text": "They claimed the unfinished level. Tests run through it. Fail to zero." },
-            { "letter": "C", "text": "Yield is illegal until the current level is complete." }
+            {
+              "letter": "A",
+              "text": "Only the locked complete levels. The unfinished level does not count."
+            },
+            {
+              "letter": "B",
+              "text": "They claimed the unfinished level. Tests run through it. Fail to zero."
+            },
+            {
+              "letter": "C",
+              "text": "Yield is illegal until the current level is complete."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -426,9 +537,18 @@
           "story": "The bundle locks levels in order. Example: lock 1, lock 2, then yield at 3 incomplete. The scored story is: show a number, plus, same count on every device, plus while the hospital cuts the network, then reset and minus. We never named the lock-in ids.",
           "question": "What ids does the lock-in script use in version 1?",
           "options": [
-            { "letter": "A", "text": "show, plus, share, offline, reset. In that order." },
-            { "letter": "B", "text": "Only show and plus in version 1. Share, offline, and reset wait." },
-            { "letter": "C", "text": "Publish the id list with the tests. The story stays." }
+            {
+              "letter": "A",
+              "text": "show, plus, share, offline, reset. In that order."
+            },
+            {
+              "letter": "B",
+              "text": "Only show and plus in version 1. Share, offline, and reset wait."
+            },
+            {
+              "letter": "C",
+              "text": "Publish the id list with the tests. The story stays."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -442,9 +562,18 @@
           "story": "The count is 3 on two devices. The hospital cuts the network. One device plus twice and shows 5. The other still shows 3. We never said who starts that second running program.",
           "question": "Who starts the second client?",
           "options": [
-            { "letter": "A", "text": "The start script starts every submitted client, including a second copy." },
-            { "letter": "B", "text": "The hospital starts a second copy after the first is ready." },
-            { "letter": "C", "text": "One client is enough in version 1. Shared and offline wait." }
+            {
+              "letter": "A",
+              "text": "The start script starts every submitted client, including a second copy."
+            },
+            {
+              "letter": "B",
+              "text": "The hospital starts a second copy after the first is ready."
+            },
+            {
+              "letter": "C",
+              "text": "One client is enough in version 1. Shared and offline wait."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -458,9 +587,18 @@
           "story": "The hospital needs to start a client, listen for commands, and start another device. The surface might be Expo on iOS or a TypeScript CLI such as cli/custom/ts. The bundle ships those scripts. We never named the scripts.",
           "question": "What does the public contract call those scripts?",
           "options": [
-            { "letter": "A", "text": "start, listen, start-device. The surface is an argument." },
-            { "letter": "B", "text": "One start script. Extra devices are flags on that same script." },
-            { "letter": "C", "text": "The public test list names the scripts. Not this card." }
+            {
+              "letter": "A",
+              "text": "start, listen, start-device. The surface is an argument."
+            },
+            {
+              "letter": "B",
+              "text": "One start script. Extra devices are flags on that same script."
+            },
+            {
+              "letter": "C",
+              "text": "The public test list names the scripts. Not this card."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -474,9 +612,18 @@
           "story": "The hospital sends start plus a string. That string names a surface: device, then framework, then language. Examples: ios/expo/ts, ios/native/swift, cli/custom/ts. macos/expo/ts is illegal. We never locked the terse vocabulary for device, framework, and language.",
           "question": "What does the start string name?",
           "options": [
-            { "letter": "A", "text": "device/framework/language, such as ios/expo/ts." },
-            { "letter": "B", "text": "Homework. Version 1 publishes a short list with the counter tests." },
-            { "letter": "C", "text": "The bundle names its own strings. The hospital only echoes them." }
+            {
+              "letter": "A",
+              "text": "device/framework/language, such as ios/expo/ts."
+            },
+            {
+              "letter": "B",
+              "text": "Homework. Version 1 publishes a short list with the counter tests."
+            },
+            {
+              "letter": "C",
+              "text": "The bundle names its own strings. The hospital only echoes them."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence.",
           "propositions": [
@@ -522,9 +669,18 @@
           "story": "The hospital runs death start ios/expo/ts. That value is Ios plus Expo plus Ts. An ADT (algebraic data type) is a nested sum. Device comes first. Then only frameworks that device allows. macos/expo/ts is illegal because macOS allows only native Swift. CLI allows cli/custom/ts or cli/foo/ts. Lock-in stays counter:level:show.",
           "question": "Are these the start-string constructors?",
           "options": [
-            { "letter": "A", "text": "Yes. Nest device then valid frameworks. Start prints only the surface. Domain and level stay on lock-in." },
-            { "letter": "B", "text": "Keep the nest. Amend the constructor list. Name the change." },
-            { "letter": "C", "text": "Start also names domain and level. Example: ios/expo/ts, then counter, then show." }
+            {
+              "letter": "A",
+              "text": "Yes. Nest device then valid frameworks. Start prints only the surface. Domain and level stay on lock-in."
+            },
+            {
+              "letter": "B",
+              "text": "Keep the nest. Amend the constructor list. Name the change."
+            },
+            {
+              "letter": "C",
+              "text": "Start also names domain and level. Example: ios/expo/ts, then counter, then show."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence.",
           "propositions": [
@@ -545,8 +701,14 @@
           "story": "The hospital prints death start plus a surface. Nest device, then only the frameworks that device allows, then language. macos/expo/ts cannot exist. Press E for glanceable prints in Rust, Swift, TypeScript, Zig, Elixir, and Python. Lock-in stays counter:level:show.",
           "question": "Are these start prints the public examples?",
           "options": [
-            { "letter": "A", "text": "Yes. These death start prints are the public examples. Lock-in stays counter:level:show." },
-            { "letter": "B", "text": "Keep the nest. Amend one print. Name the change." },
+            {
+              "letter": "A",
+              "text": "Yes. These death start prints are the public examples. Lock-in stays counter:level:show."
+            },
+            {
+              "letter": "B",
+              "text": "Keep the nest. Amend one print. Name the change."
+            },
             { "letter": "C", "text": "Do not publish language examples yet." }
           ],
           "prompt": "Paste A, B, C, or a sentence. After save, paste again to add a note.",
@@ -593,9 +755,18 @@
           "story": "The hospital can print death start cli/custom/ts. Explore screens also show Rust, Zig, Elixir, and Python examples. We never said whether cli/custom/rs, cli/custom/zig, cli/custom/ex, or cli/custom/py are legal start strings.",
           "question": "Are those CLI languages legal start strings?",
           "options": [
-            { "letter": "A", "text": "No. CLI language is only ts. Example: cli/custom/ts." },
-            { "letter": "B", "text": "Yes. rs, zig, ex, and py are legal on CLI, such as cli/custom/rs." },
-            { "letter": "C", "text": "Only if the hospital lists that surface. The nest stays. The list may grow." }
+            {
+              "letter": "A",
+              "text": "No. CLI language is only ts. Example: cli/custom/ts."
+            },
+            {
+              "letter": "B",
+              "text": "Yes. rs, zig, ex, and py are legal on CLI, such as cli/custom/rs."
+            },
+            {
+              "letter": "C",
+              "text": "Only if the hospital lists that surface. The nest stays. The list may grow."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -609,9 +780,18 @@
           "story": "The hospital runs death start ios/expo/ts twice. Copy 1 and copy 2 are ready. It writes one plus on stdin. We never said how that one plus reaches both devices.",
           "question": "How does one plus reach copy 1 and copy 2?",
           "options": [
-            { "letter": "A", "text": "One stdin plus. The running package fans it to both copies." },
-            { "letter": "B", "text": "The hospital writes plus twice, once per copy." },
-            { "letter": "C", "text": "Each copy has its own stdin. One plus hits one copy unless the test names both." }
+            {
+              "letter": "A",
+              "text": "One stdin plus. The running package fans it to both copies."
+            },
+            {
+              "letter": "B",
+              "text": "The hospital writes plus twice, once per copy."
+            },
+            {
+              "letter": "C",
+              "text": "Each copy has its own stdin. One plus hits one copy unless the test names both."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -627,7 +807,10 @@
           "options": [
             { "letter": "A", "text": "counter:level:plus" },
             { "letter": "B", "text": "counter:level:increment" },
-            { "letter": "C", "text": "Publish the plus id with the tests. Not this card." }
+            {
+              "letter": "C",
+              "text": "Publish the plus id with the tests. Not this card."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -642,9 +825,18 @@
           "story": "The hospital prints death start web/foldkit/ts. That string names the Foldkit web counter. The Surface ADT (the nested device then framework then language sum) lists ios/expo/ts and cli/custom/ts. It does not list a web constructor. 09d locked the web start string. The ADT cannot represent it yet.",
           "question": "Does the Surface ADT add a web constructor?",
           "options": [
-            { "letter": "A", "text": "Yes. Add Web, then Foldkit, then Ts. Start prints web/foldkit/ts. Other web frameworks may join the same nest." },
-            { "letter": "B", "text": "Reject web on the ADT. death start web/foldkit/ts is not a Surface constructor." },
-            { "letter": "C", "text": "Keep web, but nest it differently. Name the nest." }
+            {
+              "letter": "A",
+              "text": "Yes. Add Web, then Foldkit, then Ts. Start prints web/foldkit/ts. Other web frameworks may join the same nest."
+            },
+            {
+              "letter": "B",
+              "text": "Reject web on the ADT. death start web/foldkit/ts is not a Surface constructor."
+            },
+            {
+              "letter": "C",
+              "text": "Keep web, but nest it differently. Name the nest."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -658,9 +850,18 @@
           "story": "The hospital can print death start ios/expo/ts, death start macos/native/swift, death start cli/custom/ts, and death start web/foldkit/ts. It also lists four more devices: desktop web, Windows, Linux, and Apple Watch. Desktop web is not the same device as the Foldkit web page. Those four have no locked start strings. The hospital cannot print or reject them until each device, framework, and language is named.",
           "question": "What start strings name desktop web, Windows, Linux, and Apple Watch?",
           "options": [
-            { "letter": "A", "text": "Name all four as new devices. Desktop web is not web/foldkit/ts. Prints: death start desktop-web/foldkit/ts, death start windows/native/ts, death start linux/native/ts, death start watchos/native/swift." },
-            { "letter": "B", "text": "Reject desktop web, Windows, and Linux as devices. A browser is death start web/foldkit/ts. Keep Apple Watch as death start watchos/native/swift. Illegal: death start desktop-web/foldkit/ts, death start windows/native/ts, death start linux/native/ts." },
-            { "letter": "C", "text": "Do not add desktop-web, windows, or linux as devices. Desktop web is a web framework on an OS. Prints: death start macos/web/ts, death start windows/web/ts, death start linux/web/ts, death start watchos/native/swift." }
+            {
+              "letter": "A",
+              "text": "Name all four as new devices. Desktop web is not web/foldkit/ts. Prints: death start desktop-web/foldkit/ts, death start windows/native/ts, death start linux/native/ts, death start watchos/native/swift."
+            },
+            {
+              "letter": "B",
+              "text": "Reject desktop web, Windows, and Linux as devices. A browser is death start web/foldkit/ts. Keep Apple Watch as death start watchos/native/swift. Illegal: death start desktop-web/foldkit/ts, death start windows/native/ts, death start linux/native/ts."
+            },
+            {
+              "letter": "C",
+              "text": "Do not add desktop-web, windows, or linux as devices. Desktop web is a web framework on an OS. Prints: death start macos/web/ts, death start windows/web/ts, death start linux/web/ts, death start watchos/native/swift."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -883,9 +1084,18 @@
           "story": "When we score growth, every line of code counts. That includes third-party libraries. Alice ships an npm tree. Bob ships a Swift app that links the system library. We never said what tree we count on each platform.",
           "question": "What source tree counts as code?",
           "options": [
-            { "letter": "A", "text": "The install tree the program needs to build and run, including npm or CocoaPods. System libc does not count." },
-            { "letter": "B", "text": "Every file that ends up in the binary or the shipped folder, including libc." },
-            { "letter": "C", "text": "Publish a per-language tree rule with the public test list." }
+            {
+              "letter": "A",
+              "text": "The install tree the program needs to build and run, including npm or CocoaPods. System libc does not count."
+            },
+            {
+              "letter": "B",
+              "text": "Every file that ends up in the binary or the shipped folder, including libc."
+            },
+            {
+              "letter": "C",
+              "text": "Publish a per-language tree rule with the public test list."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -899,9 +1109,18 @@
           "story": "Alice's npm packages are source her program ships. tsc and Xcode are build tools. libc is an OS library. We score growth by counting lines. We never said which of those three go in the tree.",
           "question": "When we count lines, what is in the tree?",
           "options": [
-            { "letter": "A", "text": "User-space source the program ships or downloads. Not the compiler. Not OS libc." },
-            { "letter": "B", "text": "Libraries and build tools count. OS libc does not." },
-            { "letter": "C", "text": "Publish a per-language list with the tests. No global rule in version 1." }
+            {
+              "letter": "A",
+              "text": "User-space source the program ships or downloads. Not the compiler. Not OS libc."
+            },
+            {
+              "letter": "B",
+              "text": "Libraries and build tools count. OS libc does not."
+            },
+            {
+              "letter": "C",
+              "text": "Publish a per-language list with the tests. No global rule in version 1."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -915,9 +1134,18 @@
           "story": "Alice's npm packages count as lines. tsc is a build tool. We said build tools, and anything else that generates the running program, get a weight. We never said whether that weight is more lines, or a published factor next to the line count.",
           "question": "How do build tools enter the score?",
           "options": [
-            { "letter": "A", "text": "They count as lines, same pot as source." },
-            { "letter": "B", "text": "They are a separate published weight. Not raw lines." },
-            { "letter": "C", "text": "Homework. Version 1 scores source lines only." }
+            {
+              "letter": "A",
+              "text": "They count as lines, same pot as source."
+            },
+            {
+              "letter": "B",
+              "text": "They are a separate published weight. Not raw lines."
+            },
+            {
+              "letter": "C",
+              "text": "Homework. Version 1 scores source lines only."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         }
@@ -946,9 +1174,18 @@
           "story": "Foldkit is the first submission, not the law. A later team may start from Alice's public yield instead of an empty folder. grok.com said a fork should beat a scratch start. We never locked that as a scored rule.",
           "question": "Does a fork of a prior yield get a scoring edge?",
           "options": [
-            { "letter": "A", "text": "Yes. Growth is measured from the forked tree, not from zero." },
-            { "letter": "B", "text": "No extra edge. Same formula. A smaller diff should win on its own." },
-            { "letter": "C", "text": "Forks are allowed. They get a published bonus in the formula." }
+            {
+              "letter": "A",
+              "text": "Yes. Growth is measured from the forked tree, not from zero."
+            },
+            {
+              "letter": "B",
+              "text": "No extra edge. Same formula. A smaller diff should win on its own."
+            },
+            {
+              "letter": "C",
+              "text": "Forks are allowed. They get a published bonus in the formula."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -962,9 +1199,18 @@
           "story": "Bob starts from Alice's public yield. Eve starts from an empty folder. Eve's run costs about double. We never said whether that double is the money she prepays, or a weight in the published score.",
           "question": "What costs about double for a scratch start?",
           "options": [
-            { "letter": "A", "text": "The prepaid pot. Scratch pays about twice what a fork pays." },
-            { "letter": "B", "text": "The score formula. Same pot. Scratch is weighted about 2x." },
-            { "letter": "C", "text": "Homework. Version 1 only measures growth from the forked tree." }
+            {
+              "letter": "A",
+              "text": "The prepaid pot. Scratch pays about twice what a fork pays."
+            },
+            {
+              "letter": "B",
+              "text": "The score formula. Same pot. Scratch is weighted about 2x."
+            },
+            {
+              "letter": "C",
+              "text": "Homework. Version 1 only measures growth from the forked tree."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -994,9 +1240,18 @@
           "story": "Foldkit Counter is submit 1. The painted page is /counters/counter/c1. The hospital knows death start ios/expo/ts. We never said the legal start string for that web page.",
           "question": "How does start name the web Foldkit counter?",
           "options": [
-            { "letter": "A", "text": "Web is not started that way. death start does not name /counters/counter/c1." },
-            { "letter": "B", "text": "Add a web surface, such as web/browser/ts, that opens that page." },
-            { "letter": "C", "text": "Start cli/custom/ts. That CLI paints /counters/counter/c1." }
+            {
+              "letter": "A",
+              "text": "Web is not started that way. death start does not name /counters/counter/c1."
+            },
+            {
+              "letter": "B",
+              "text": "Add a web surface, such as web/browser/ts, that opens that page."
+            },
+            {
+              "letter": "C",
+              "text": "Start cli/custom/ts. That CLI paints /counters/counter/c1."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         }
@@ -1122,9 +1377,18 @@
           "story": "Later paid entries are bundle only. No person in the run. Foldkit already has a counter in this repo. Someone wants to wire that counter as submit 1, plus a start script.",
           "question": "May submit 1 be a human-written program?",
           "options": [
-            { "letter": "A", "text": "Yes. Submit 1 may be this repo's counter plus a start script. Later paid entries stay bundle-only." },
-            { "letter": "B", "text": "No. Even submit 1 must come from a no-human agent run. The existing counter is only a seed in the bundle." },
-            { "letter": "C", "text": "Yes for a hospital rehearsal. No score and no stake until a no-human run yields." }
+            {
+              "letter": "A",
+              "text": "Yes. Submit 1 may be this repo's counter plus a start script. Later paid entries stay bundle-only."
+            },
+            {
+              "letter": "B",
+              "text": "No. Even submit 1 must come from a no-human agent run. The existing counter is only a seed in the bundle."
+            },
+            {
+              "letter": "C",
+              "text": "Yes for a hospital rehearsal. No score and no stake until a no-human run yields."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -1138,9 +1402,18 @@
           "story": "Alice pays a small submit fee. Her instructions say read this public repo. The repo already has a golfed counter. The hospital runs that code. If the tests pass, she scores. We never said whether a URL is a legal bundle.",
           "question": "May the bundle be a public URL?",
           "options": [
-            { "letter": "A", "text": "Yes. The URL must be public. The hospital posts it with the row." },
-            { "letter": "B", "text": "No. The yielded tree must live in the uploaded bundle." },
-            { "letter": "C", "text": "Yes for dry-run. Scored entries must upload the tree." }
+            {
+              "letter": "A",
+              "text": "Yes. The URL must be public. The hospital posts it with the row."
+            },
+            {
+              "letter": "B",
+              "text": "No. The yielded tree must live in the uploaded bundle."
+            },
+            {
+              "letter": "C",
+              "text": "Yes for dry-run. Scored entries must upload the tree."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         }
@@ -1172,9 +1445,18 @@
           "story": "Alice prepays. After yield, Dave pokes. Yield means the submitted agents and scripts say they are done. We never said whether every scored test is public before she pays.",
           "question": "May a scored test stay unpublished?",
           "options": [
-            { "letter": "A", "text": "No. Every scored test is public before she pays." },
-            { "letter": "B", "text": "Yes. Publicize simpler levels. Some scored tests may stay unpublished." },
-            { "letter": "C", "text": "Commands are public. Extra unpublished checks may run if the hospital pays." }
+            {
+              "letter": "A",
+              "text": "No. Every scored test is public before she pays."
+            },
+            {
+              "letter": "B",
+              "text": "Yes. Publicize simpler levels. Some scored tests may stay unpublished."
+            },
+            {
+              "letter": "C",
+              "text": "Commands are public. Extra unpublished checks may run if the hospital pays."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         }
@@ -1228,9 +1510,18 @@
           "story": "When the agents say they are done, they publish the program, the starting bundle, a trace, and a license. The hospital must be able to replay how the program was built. We never said what the trace contains.",
           "question": "What must the trace contain?",
           "options": [
-            { "letter": "A", "text": "Every hospital command and every show value, in order." },
-            { "letter": "B", "text": "The agent token log only. Commands live in hospital logs." },
-            { "letter": "C", "text": "Homework. Version 1 accepts any text file named trace." }
+            {
+              "letter": "A",
+              "text": "Every hospital command and every show value, in order."
+            },
+            {
+              "letter": "B",
+              "text": "The agent token log only. Commands live in hospital logs."
+            },
+            {
+              "letter": "C",
+              "text": "Homework. Version 1 accepts any text file named trace."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         },
@@ -1244,9 +1535,18 @@
           "story": "Alice's agents lock counter:level:show, then yield. We never said whether minus and reset must still pass, or only the locked rungs.",
           "question": "Must minus and reset work on every yield?",
           "options": [
-            { "letter": "A", "text": "Yes. Show, plus, minus, and reset must all work on every yield." },
-            { "letter": "B", "text": "No. Only locked rungs are scored. Minus and reset wait until those lock-ins exist." },
-            { "letter": "C", "text": "Show and plus always. Minus and reset only after those rungs lock in." }
+            {
+              "letter": "A",
+              "text": "Yes. Show, plus, minus, and reset must all work on every yield."
+            },
+            {
+              "letter": "B",
+              "text": "No. Only locked rungs are scored. Minus and reset wait until those lock-ins exist."
+            },
+            {
+              "letter": "C",
+              "text": "Show and plus always. Minus and reset only after those rungs lock in."
+            }
           ],
           "prompt": "Paste A, B, C, or a sentence."
         }

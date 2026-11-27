@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { SharedInstantProject, Increment } from 'counter-core-example'
+import { Increment, SharedInstantProject } from 'counter-core-example'
 import { Array, Effect, Option } from 'effect'
 import { Processor } from 'foldkit'
 import { execFile } from 'node:child_process'

@@ -281,9 +281,7 @@ const solanaRpcGuidance = (
   }
   return TransferGuidance.make({
     summary: 'Solana rejected this transfer.',
-    details: [
-      'Check the amount and the address, then preview it again.',
-    ],
+    details: ['Check the amount and the address, then preview it again.'],
   })
 }
 
@@ -552,7 +550,9 @@ const signatureStanding = async (
     [[signature], { searchTransactionHistory: true }],
   )
   return Option.match(
-    Option.fromNullishOr(Array.head(response.result.value).pipe(Option.getOrNull)),
+    Option.fromNullishOr(
+      Array.head(response.result.value).pipe(Option.getOrNull),
+    ),
     {
       onNone: () => 'Unknown',
       onSome: ({ err, confirmationStatus }): TransactionStanding => {

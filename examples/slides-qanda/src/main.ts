@@ -26,16 +26,16 @@ import {
   cardOf,
   classifyPaste,
   cycleFilter,
+  findProposition,
   firstProposition,
   firstRoot,
   firstUnansweredSlideId,
-  findProposition,
   hasAnswer,
   latestExploreStamp,
   latestStamp,
   latestUnansweredFollowUp,
-  logForSlide,
   locate,
+  logForSlide,
   maybePublicFile,
   neighborProposition,
   neighborSlideId,
@@ -126,10 +126,7 @@ const loadExploreFile = (model: Model, deck: Deck): UpdateReturn => {
   return withExploreFileLoad(model, maybeProposition.value)
 }
 
-const commandsForLoadedDeck = (
-  model: Model,
-  deck: Deck,
-): UpdateReturn =>
+const commandsForLoadedDeck = (model: Model, deck: Deck): UpdateReturn =>
   M.value(model.route).pipe(
     withUpdateReturn,
     M.tag('Slide', ({ slideId }) => {
@@ -188,9 +185,7 @@ const goExplore = (
 
 const maybeCurrentCard = (model: Model, deck: Deck) =>
   M.value(model.route).pipe(
-    M.tag('Slide', ({ slideId }) =>
-      Option.map(locate(deck, slideId), cardOf),
-    ),
+    M.tag('Slide', ({ slideId }) => Option.map(locate(deck, slideId), cardOf)),
     M.orElse(() => Option.none()),
   )
 
@@ -366,9 +361,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             if (Option.isSome(exploreOf(model.route))) {
               return goExplore(model, Option.none())
             }
-            const maybeFirst = firstProposition(
-              propositionsOf(maybeCard.value),
-            )
+            const maybeFirst = firstProposition(propositionsOf(maybeCard.value))
             if (Option.isNone(maybeFirst)) {
               return [model, []]
             }

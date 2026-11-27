@@ -22,8 +22,6 @@ import {
 } from './chips.js'
 import { millisecondsLabel, whenLabel } from './clock.js'
 import { decisionFactNodes } from './decisionPage.js'
-import { questionFactNodes } from './questionPage.js'
-import { reminderFactNodes } from './reminderPage.js'
 import {
   AgentEntity,
   type Backlink,
@@ -60,6 +58,8 @@ import {
 import { type Model } from './model.js'
 import { agentHandlesOfFacts, mergedBacklinks } from './pageAgents.js'
 import { productFactNodes } from './productPage.js'
+import { questionFactNodes } from './questionPage.js'
+import { reminderFactNodes } from './reminderPage.js'
 
 const SHORT_ID_LENGTH = 8
 const SHORT_SHA_LENGTH = 9
@@ -203,11 +203,7 @@ const productPageNodes = (
   productId: string,
   issues: ReadonlyArray<Issue>,
 ): ReadonlyArray<UiNode> => {
-  const context = chipContextOf(
-    issues,
-    model.clock.nowMs,
-    model.clock.timeZone,
-  )
+  const context = chipContextOf(issues, model.clock.nowMs, model.clock.timeZone)
   return Array.map(
     productStatusGroups(issues, productId),
     ({ status, issues: inStatus }) =>

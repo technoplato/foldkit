@@ -89,8 +89,9 @@ describe('readTextReferences', () => {
       ),
     ).toEqual(['39 17', '39 823', '39 880', '39 902'])
     expect(
-      Array.map(referencesIn('Recording 039 #17; fixed by #823.'), piece =>
-        piece.reference._tag,
+      Array.map(
+        referencesIn('Recording 039 #17; fixed by #823.'),
+        piece => piece.reference._tag,
       ),
     ).toEqual(['RecordingLines', 'IssueNumber'])
   })

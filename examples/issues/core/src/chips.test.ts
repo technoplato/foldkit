@@ -87,9 +87,7 @@ describe('how long ago', () => {
     expect(howLongAgo(NOW_MS - 50 * HOUR_MS, NOW_MS)).toBe('2 days ago')
     expect(howLongAgo(NOW_MS - 24 * HOUR_MS, NOW_MS)).toBe('1 day ago')
     expect(howLongAgo(NOW_MS - 90 * 24 * HOUR_MS, NOW_MS)).toBe('3 months ago')
-    expect(localTimeLabel(NOW_MS, EASTERN_TIME_ZONE)).toBe(
-      '2026-11-01 09:00',
-    )
+    expect(localTimeLabel(NOW_MS, EASTERN_TIME_ZONE)).toBe('2026-11-01 09:00')
   })
 })
 

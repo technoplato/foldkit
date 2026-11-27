@@ -142,7 +142,10 @@ describe('a feature named in text', () => {
     expect(chipsIn('Keeps FEATURES 3 whole.', [])).toEqual([])
     expect(
       Array.map(
-        partsOfText('Keeps FEATURES 3 whole.', chipContextOf([], AT_MS, 'America/New_York')),
+        partsOfText(
+          'Keeps FEATURES 3 whole.',
+          chipContextOf([], AT_MS, 'America/New_York'),
+        ),
         part => (part._tag === 'Plain' ? part.text : part.label),
       ),
     ).toEqual(['Keeps FEATURES ', '3', ' whole.'])

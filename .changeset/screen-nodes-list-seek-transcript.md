@@ -7,6 +7,7 @@
 ---
 
 Four new screen nodes, painted by every Client:
+
 - `List` holds rows a person picks from, such as a library's books. Each row has a picture, a title, lines under it, an optional progress bar, a press for the whole row, and trailing buttons.
 - `Progress` shows how far along something is.
 - `Seek` is a seek bar. Letting go presses `SeekTo:<value>` once, so dragging never restarts the audio at each step.

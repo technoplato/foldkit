@@ -52,12 +52,14 @@ const OPTION_CLASS =
   'text-[clamp(1.15rem,2.4vw,1.8rem)] font-bold leading-snug text-left'
 const CHROME_CLASS = 'text-[clamp(0.95rem,1.8vw,1.25rem)] font-bold'
 
-const chromeKeys = (chrome: Readonly<{
-  filter: SlideFilter
-  place: string
-  canExplore: boolean
-  explore: Option.Option<string>
-}>): string => {
+const chromeKeys = (
+  chrome: Readonly<{
+    filter: SlideFilter
+    place: string
+    canExplore: boolean
+    explore: Option.Option<string>
+  }>,
+): string => {
   if (Option.isSome(chrome.explore)) {
     return `e EXPLORE ${chrome.explore.value}   ← →  j k   e leave`
   }
@@ -70,7 +72,8 @@ const chromeKeys = (chrome: Readonly<{
 const saveLine = (saveStatus: SaveStatus): string =>
   M.value(saveStatus).pipe(
     M.tagsExhaustive({
-      Idle: () => 'Paste A, B, C, or a sentence. After save, paste again to add a note.',
+      Idle: () =>
+        'Paste A, B, C, or a sentence. After save, paste again to add a note.',
       Saving: () => 'Saving...',
       Saved: ({ preview }) => `Saved: ${preview}. Paste again to add a note.`,
       Failed: ({ error }) => `Not saved: ${error}`,
@@ -114,10 +117,7 @@ const frame = (
         [h.Class('px-6 pt-5 pb-2 flex items-baseline justify-between gap-4')],
         [
           h.h1([h.Class(TITLE_CLASS)], [title]),
-          h.p(
-            [h.Class(`${CHROME_CLASS} text-zinc-400`)],
-            [chromeKeys(chrome)],
-          ),
+          h.p([h.Class(`${CHROME_CLASS} text-zinc-400`)], [chromeKeys(chrome)]),
         ],
       ),
       h.div(
@@ -512,11 +512,7 @@ const savedExploreFooter = (
   )
 }
 
-const exploreView = (
-  model: Model,
-  at: At,
-  proposition: Proposition,
-): Html => {
+const exploreView = (model: Model, at: At, proposition: Proposition): Html => {
   const h = html<Message>()
   const card = cardOf(at)
   const filter = routeFilter(model.route)

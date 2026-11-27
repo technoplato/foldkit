@@ -58,7 +58,9 @@ const openOnly = (): Model => {
   return Array.reduce(
     [
       ObservedIssues.make({ issues }),
-      ObservedProducts.make({ products: [{ product: scribe, updatedAtMs: 1 }] }),
+      ObservedProducts.make({
+        products: [{ product: scribe, updatedAtMs: 1 }],
+      }),
       MovedRowCursor.make({ direction: 'Next' }),
       MovedRowCursor.make({ direction: 'Next' }),
     ],

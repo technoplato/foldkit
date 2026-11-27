@@ -94,7 +94,9 @@ export const propositionFromJson = (json: PropositionJson): Proposition => {
 }
 
 /** Deck JSON from a tagged proposition. */
-export const propositionToJson = (proposition: Proposition): PropositionJson => {
+export const propositionToJson = (
+  proposition: Proposition,
+): PropositionJson => {
   if (proposition._tag === 'File') {
     return {
       id: proposition.id,
