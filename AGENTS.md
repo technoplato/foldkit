@@ -278,7 +278,7 @@ When making multi-file edits or refactors, apply changes to all relevant files, 
 
 ## Workspace Setup
 
-An install in this fork writes no git hooks: `prepare` runs `simple-git-hooks` only when `FOLDKIT_GIT_HOOKS` is set. The hooks' pre-push check runs the upstream release gate, whose first rule (every commit message wrapped at 80 columns) cannot pass on this fork's history, so an install that wrote them blocked every push from every worktree (2026-11-18, Scribe #2494). Run the gate's checks by hand for what you push; do not set the variable on a shared checkout.
+An install in this fork writes no git hooks: `prepare` runs `simple-git-hooks` only when `FOLDKIT_GIT_HOOKS` is set. The hooks' pre-push check runs the upstream release gate, whose first rule (every commit message wrapped at 80 columns) cannot pass on this fork's history, so an install that wrote them blocked every push from every worktree (2026-11-18, Scribe #2494). Run the gate's checks by hand for what you push; do not set the variable on a shared checkout. A hook that is written anyway does nothing: `scripts/run-pre-push.sh` exits at once unless `FOLDKIT_GIT_HOOKS` is set for that push. The hooks were written again on 2026-11-22, and the gate then failed at its formatting check for every push (Scribe #2568).
 
 If `pnpm typecheck`, `pnpm lint`, `pnpm build`, or the pre-push hook surfaces errors like `Cannot find module 'foldkit'`, `Cannot find module 'foldkit/html'`, or unexpected Effect API properties, the workspace itself may be out of sync. Run `bash scripts/cloud-session-setup.sh` to reconcile dependencies.
 
