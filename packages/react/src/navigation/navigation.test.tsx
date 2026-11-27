@@ -36,6 +36,17 @@ afterEach(() => {
   cleanup()
 })
 
+const navigationEntryOf = (
+  type: 'reload' | 'back_forward',
+): PerformanceEntry & Readonly<{ type: string }> => ({
+  type,
+  name: '',
+  entryType: 'navigation',
+  startTime: 0,
+  duration: 0,
+  toJSON: () => ({}),
+})
+
 describe('NavigationFrame', () => {
   it('paints the root screen at the start', () => {
     renderWith(bindRouted())
@@ -291,10 +302,8 @@ describe('useBrowserHistory', () => {
   it('does not dispatch OpenedUri on browser reload or back_forward restore', async () => {
     const originalGetEntriesByType = window.performance.getEntriesByType
     for (const navigationType of ['reload', 'back_forward'] as const) {
-      window.performance.getEntriesByType = ((type: string) =>
-        type === 'navigation'
-          ? [{ type: navigationType }]
-          : []) as typeof window.performance.getEntriesByType
+      window.performance.getEntriesByType = (type: string) =>
+        type === 'navigation' ? [navigationEntryOf(navigationType)] : []
       window.history.replaceState(null, '', '/counter/session')
       const bound = bindRouted()
       renderWith(bound, <BrowserPage />)

@@ -25,6 +25,8 @@ declare module '../programHandle/programHandle.js' {
 
 const KeysPath = (): { readonly _tag: 'Keys' } => ({ _tag: 'Keys' })
 
+const increment: Increment = { _tag: 'Increment' }
+
 const createFakeHandle = (): ProgramHandle<CountModel, Increment> & {
   sent: Array<Increment>
 } => {
@@ -76,7 +78,7 @@ describe('ProgramKeyBindings', () => {
       toScreen: () => ({ _tag: 'Text', content: '0' }),
       keyToMessage: input => {
         if (input.key === '+') {
-          return { _tag: 'Increment' }
+          return increment
         }
         return undefined
       },
@@ -103,7 +105,7 @@ describe('ProgramKeyBindings', () => {
         incrementButtonTapped: () => undefined,
       }),
       toScreen: () => ({ _tag: 'Text', content: '0' }),
-      keyToMessage: () => ({ _tag: 'Increment' }),
+      keyToMessage: () => increment,
     })
     render(<ProgramKeyBindings path={KeysPath()} />)
     expect(add).not.toHaveBeenCalledWith('keydown', expect.any(Function))

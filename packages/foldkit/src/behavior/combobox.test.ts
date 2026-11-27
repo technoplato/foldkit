@@ -871,7 +871,13 @@ describe('core Combobox Part', () => {
 
     it('syncs under Domain with Pace.Settled(200) on ChangeComboboxInput and Pace.Synced on discrete actions, and supports deviceOnly()', () => {
       const BaseModel = S.Struct({ count: S.Number })
-      const BaseMessage = S.Union([])
+      const BaseMessage = S.Union([
+        Catalog.action('Bump', {
+          what: 'Bumps',
+          why: 'To bump',
+          meta: { label: 'Bump', keys: [] },
+        }),
+      ])
       const Base = makeProgram({
         id: 'combobox-sync-test',
         version: 1,

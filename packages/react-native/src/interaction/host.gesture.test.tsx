@@ -60,6 +60,7 @@ const stage = () => {
     platformActions: [],
     maybePlatformTitle: undefined,
     isCentered: false,
+    maybeFocusedAction: undefined,
   }
   const pressableNamed = (painted: ReactElement, label: string): ReactElement =>
     firstOf(hostsOf(painted, 'Pressable'), element =>
@@ -144,6 +145,7 @@ describe('the gesture test, on the phone’s painter', () => {
         platformActions: [],
         maybePlatformTitle: undefined,
         isCentered: false,
+        maybeFocusedAction: undefined,
       },
       () => [],
     )

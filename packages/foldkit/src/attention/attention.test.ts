@@ -62,27 +62,15 @@ describe('Schema', () => {
 
 describe('match and dismiss', () => {
   it('matches every tag', () => {
-    expect(
-      Attention.match(roaming, {
+    const wordOf = (state: State): string =>
+      Attention.match(state, {
         onRoaming: () => 'walk',
         onReading: subject => subject.body,
         onOperating: tool => tool.digits,
-      }),
-    ).toBe('walk')
-    expect(
-      Attention.match(reading, {
-        onRoaming: () => 'walk',
-        onReading: subject => subject.body,
-        onOperating: tool => tool.digits,
-      }),
-    ).toBe('hello')
-    expect(
-      Attention.match(operating, {
-        onRoaming: () => 'walk',
-        onReading: subject => subject.body,
-        onOperating: tool => tool.digits,
-      }),
-    ).toBe('1428')
+      })
+    expect(wordOf(roaming)).toBe('walk')
+    expect(wordOf(reading)).toBe('hello')
+    expect(wordOf(operating)).toBe('1428')
   })
 
   it('dismisses every attention to roaming', () => {

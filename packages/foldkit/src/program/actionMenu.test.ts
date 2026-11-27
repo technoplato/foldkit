@@ -59,15 +59,16 @@ const Counter = Object.assign(
       return [model, []]
     },
     valid: (model: CounterModel) =>
-      actions.map(action => ({
-        token: action.tokens?.[0] ?? '',
-        keys: action.keys ?? [],
-        spoken: [],
-        valid: action.valid(model, {}),
-        ...(action.hiddenBecause === undefined
-          ? {}
-          : { hidden: action.hiddenBecause(model) }),
-      })),
+      actions.map(action => {
+        const hidden = action.hiddenBecause?.(model)
+        return {
+          token: action.tokens?.[0] ?? '',
+          keys: action.keys ?? [],
+          spoken: [],
+          valid: action.valid(model, {}),
+          ...(hidden === undefined ? {} : { hidden }),
+        }
+      }),
     screen: (model: CounterModel) => ({
       _tag: 'Text' as const,
       content: model.count.toString(),

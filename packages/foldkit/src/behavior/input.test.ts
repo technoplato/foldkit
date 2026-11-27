@@ -328,7 +328,11 @@ describe('Input Part', () => {
       version: 1,
       Model: S.Struct({ count: S.Number }),
       Message: S.Union([
-        Catalog.action('Bump', { what: 'Bumps', why: 'To bump' }),
+        Catalog.action('Bump', {
+          what: 'Bumps',
+          why: 'To bump',
+          meta: { label: 'Bump', keys: [] },
+        }),
       ]),
       init: () => [{ count: 0 }, []],
       update: model => [{ count: model.count + 1 }, []],
@@ -353,10 +357,13 @@ describe('Input Part', () => {
     const secretApp = Part.compose({
       of: Base,
       parts: [
-        Part.given(Input.secret({ name: 'SecretPassword' }), () => ({
-          ...defaultProps,
-          type: 'password',
-        })),
+        Part.given(
+          Input.secret({ name: 'SecretPassword' }),
+          (): Input.Props => ({
+            ...defaultProps,
+            type: 'password',
+          }),
+        ),
       ],
     })
     expect(

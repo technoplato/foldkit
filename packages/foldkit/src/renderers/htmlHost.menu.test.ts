@@ -95,10 +95,14 @@ const stage = async () => {
 
   const syncHold = (): void => {
     const painted = vnodesOf(paintedOf(fixture.tree()))
-    const attrs = Option.match(
-      Array.findFirst(painted, node => node.data?.class?.['fk-list'] === true),
-      { onNone: () => ({}), onSome: node => node.data?.attrs ?? {} },
-    )
+    const attrs: Readonly<Record<string, string | number | boolean>> =
+      Option.match(
+        Array.findFirst(
+          painted,
+          node => node.data?.class?.['fk-list'] === true,
+        ),
+        { onNone: () => ({}), onSome: node => node.data?.attrs ?? {} },
+      )
     holdAttributes.forEach(name => {
       const value = attrs[name]
       if (value === undefined) {

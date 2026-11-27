@@ -50,6 +50,7 @@ const stage = () => {
     platformActions: [],
     maybePlatformTitle: undefined,
     isCentered: false,
+    maybeFocusedAction: undefined,
   }
   const pressableNamed = (painted: ReactElement, label: string): ReactElement =>
     firstOf(hostsOf(painted, 'Pressable'), element =>

@@ -397,7 +397,11 @@ describe('Textarea Part', () => {
       version: 1,
       Model: S.Struct({ count: S.Number }),
       Message: S.Union([
-        Catalog.action('Bump', { what: 'Bumps', why: 'To bump' }),
+        Catalog.action('Bump', {
+          what: 'Bumps',
+          why: 'To bump',
+          meta: { label: 'Bump', keys: [] },
+        }),
       ]),
       init: () => [{ count: 0 }, []],
       update: model => [{ count: model.count + 1 }, []],

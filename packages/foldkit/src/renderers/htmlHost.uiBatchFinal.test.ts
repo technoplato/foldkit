@@ -58,7 +58,7 @@ const elementOf = (node: VNode | null): HTMLElement => {
   const clickHandler = node.data?.on?.['click']
   if (typeof clickHandler === 'function') {
     element.addEventListener('click', event => {
-      clickHandler(event, node)
+      clickHandler.call(node, event, node)
     })
   }
   ;(node.children ?? []).forEach(child => {

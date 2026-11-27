@@ -156,7 +156,6 @@ describe('static non-interactive CLI painter (renderCli / paintCli)', () => {
     const fixture = ToastFixture.start()
     fixture.send(
       Toast.ShowToast({
-        id: 't1',
         title: 'Saved changes',
         description: 'Synced across devices',
         variant: 'Success',

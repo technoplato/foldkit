@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 import * as ActionMenu from '../actionMenu/actionMenu.js'
 import * as Catalog from '../catalog/catalog.js'
 import { formatTailRow } from '../cli/tail.js'
-import { bind } from '../interaction/bind.js'
+import { type ProgramHandle, bind } from '../interaction/bind.js'
 import { keyInput } from '../interaction/interaction.js'
 import {
   effectiveFocusOf,
@@ -27,6 +27,19 @@ import { start } from '../runtime/start.js'
 import { Memory, makeMemoryStore } from '../runtime/syncEngine.js'
 import { ts } from '../schema/index.js'
 import * as Session from './session.js'
+
+const handleOf = <Model, Message>(
+  started: Readonly<{
+    readModel: () => Model
+    observeModel: (listener: (model: Model) => void) => () => void
+    send: (message: Message) => void
+  }>,
+): ProgramHandle<Model, Message> => ({
+  readModel: started.readModel,
+  subscribe: listener => started.observeModel(listener),
+  send: started.send,
+  stop: () => Promise.resolve(),
+})
 
 const Home = ts('Home')
 
@@ -193,8 +206,8 @@ describe('Synced focus (Scribe #2592)', () => {
             program: SyncedApp,
             sync: Memory({ store, processor: 'expo-phone1' }),
           })
-          const boundDesktop = bind(SyncedApp, desktop)
-          const boundPhone = bind(SyncedApp, phone)
+          const boundDesktop = bind(SyncedApp, handleOf(desktop))
+          const boundPhone = bind(SyncedApp, handleOf(phone))
 
           let localFocus = noTerminalFocus
           const down = keyInput('ArrowDown')
@@ -250,7 +263,7 @@ describe('Synced focus (Scribe #2592)', () => {
             program: SyncedApp,
             sync: Memory({ store, processor: 'cli-desktop2' }),
           })
-          const boundDesktop = bind(SyncedApp, desktop)
+          const boundDesktop = bind(SyncedApp, handleOf(desktop))
 
           let localFocus = noTerminalFocus
           localFocus = pressTerminalKeyAt(
@@ -289,7 +302,7 @@ describe('Synced focus (Scribe #2592)', () => {
             program: SyncedApp,
             sync: Memory({ store, processor: 'cli-desktop3' }),
           })
-          const boundDesktop = bind(SyncedApp, desktop)
+          const boundDesktop = bind(SyncedApp, handleOf(desktop))
 
           const pressed = pressTerminalKeyAt(
             boundDesktop,

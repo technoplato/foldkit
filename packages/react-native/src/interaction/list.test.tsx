@@ -36,6 +36,7 @@ const paintWith = (
   platformActions: [],
   maybePlatformTitle: undefined,
   isCentered: false,
+  maybeFocusedAction: undefined,
 })
 
 const contents: ListNode = {

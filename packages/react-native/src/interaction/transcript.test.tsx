@@ -86,6 +86,7 @@ const paintWith = (pressed: Array<ButtonNode>, look = lightLook): Paint => ({
   platformActions: [],
   maybePlatformTitle: undefined,
   isCentered: false,
+  maybeFocusedAction: undefined,
 })
 
 const passageAt = (nowMs: number, key: string): TranscriptPassage =>

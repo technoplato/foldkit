@@ -956,7 +956,9 @@ describe('Program.make, Subscription.forModel, combinators, and LocalSnapshot', 
     type WithSettleModel = typeof WithSettleModel.Type
     const SetRate = Catalog.action('SetRate', {
       fields: { speed: S.Number },
-      describe: 'Set rate',
+      what: 'Sets the reading rate',
+      why: 'To read faster or slower',
+      meta: { label: 'Set Rate', keys: [] },
     })
     const WithSettleMessage = S.Union([
       SetRate,

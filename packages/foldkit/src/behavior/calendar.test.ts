@@ -465,7 +465,13 @@ describe('core Calendar Part', () => {
 
     it('syncs under Domain by default and supports deviceOnly() omitting state from encoded Model', () => {
       const BaseModel = S.Struct({ count: S.Number })
-      const BaseMessage = S.Union([])
+      const BaseMessage = S.Union([
+        Catalog.action('Bump', {
+          what: 'Bumps',
+          why: 'To bump',
+          meta: { label: 'Bump', keys: [] },
+        }),
+      ])
       const Base = makeProgram({
         id: 'calendar-sync-test',
         version: 1,

@@ -10,11 +10,15 @@ import {
   UnitInterval,
 } from './adt.js'
 
-const isFailure = (schema: S.Top, value: unknown): boolean =>
-  S.decodeUnknownExit(schema)(value)._tag === 'Failure'
+const isFailure = (
+  schema: S.ConstraintDecoder<unknown>,
+  value: unknown,
+): boolean => S.decodeUnknownExit(schema)(value)._tag === 'Failure'
 
-const isSuccess = (schema: S.Top, value: unknown): boolean =>
-  S.decodeUnknownExit(schema)(value)._tag === 'Success'
+const isSuccess = (
+  schema: S.ConstraintDecoder<unknown>,
+  value: unknown,
+): boolean => S.decodeUnknownExit(schema)(value)._tag === 'Success'
 
 describe('NonEmptyString', () => {
   it('constructs a non-empty string', () => {
